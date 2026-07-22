@@ -712,6 +712,8 @@ public sealed class InventoryTransportBatchService
                     ReferenceDocument = $"TRANSPORT-ALLOCATION:{allocation.Id}",
                     Notes = $"Inventory transport batch {batch.BatchNumber}, leg {leg.Id}"
                 };
+                // قفل هم‌زمانی روی مخزن/کالا پیش از چک موجودی (داخل تراکنشِ caller).
+                await _stock.AcquireStockMutationLockAsync(movement, ct);
                 await _stock.EnsureSufficientStockForMovementAsync(movement, ct);
                 _db.InventoryMovements.Add(movement);
                 await _db.SaveChangesAsync(ct);

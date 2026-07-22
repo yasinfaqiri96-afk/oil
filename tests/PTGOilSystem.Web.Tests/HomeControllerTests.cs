@@ -214,11 +214,13 @@ public class HomeControllerTests
         Assert.Equal(750m, model.GrossMarginUsd);
         Assert.Equal(2, model.ShipmentCount);
         Assert.Equal(2, model.ContractBalanceSummary.ItemCount);
-        Assert.Equal(750m, model.ContractBalanceSummary.BaseBalanceUsd);
+        // مانده نمایشی = Σ(داده − گرفته)؛ منفی یعنی بدهکاریم.
+        Assert.Equal(-750m, model.ContractBalanceSummary.BaseBalanceUsd);
         Assert.Equal(1, model.CustomerBalanceSummary.ItemCount);
-        Assert.Equal(1000m, model.CustomerBalanceSummary.BaseBalanceUsd);
+        Assert.Equal(-1000m, model.CustomerBalanceSummary.BaseBalanceUsd);
         Assert.Equal(1, model.SupplierBalanceSummary.ItemCount);
-        Assert.Equal(-250m, model.SupplierBalanceSummary.BaseBalanceUsd);
+        // مثبت یعنی نزد این تأمین‌کننده پیش‌پرداخت داریم.
+        Assert.Equal(250m, model.SupplierBalanceSummary.BaseBalanceUsd);
         Assert.NotEmpty(model.LowStockAlerts);
         Assert.NotEmpty(model.ContractsEndingSoonAlerts);
         Assert.NotEmpty(model.ShipmentsWithoutSalesAlerts);

@@ -127,7 +127,25 @@
                         @foreach (var item in kebabItems)
                         {
                             <li>
-                                @if (!string.IsNullOrWhiteSpace(item.ModalTarget))
+                                @if (!string.IsNullOrWhiteSpace(item.PostUrl))
+                                {
+                                    <form method="post" action="@item.PostUrl" data-no-spa="true"
+                                          data-ptg-confirm="@(string.IsNullOrWhiteSpace(item.ConfirmMessage) ? null : "true")"
+                                          data-ptg-confirm-title="@item.ConfirmTitle"
+                                          data-ptg-confirm-message="@item.ConfirmMessage">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit"
+                                                class="dropdown-item@(item.IsDestructive ? " text-danger" : "")"
+                                                aria-label="@item.AccessibleLabel">
+                                            @if (!string.IsNullOrWhiteSpace(item.Icon))
+                                            {
+                                                <i class="bi @item.Icon" aria-hidden="true"></i>
+                                            }
+                                            <span>@item.Label</span>
+                                        </button>
+                                    </form>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(item.ModalTarget))
                                 {
                                     <button type="button"
                                             class="dropdown-item@(item.IsDestructive ? " text-danger" : "")"

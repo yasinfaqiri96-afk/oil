@@ -17,11 +17,16 @@
 <div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "فاکتورهای فروش", "Sales invoices"), true, UiText.T(Context, "ثبت فاکتور فروش", "New sales invoice"), "bi-plus-lg", Url.Action("Create"), (string?)null, UiText.T(Context, "ثبت فروش گروهی", "Group sale"), "bi-collection", Url.Action("CreateGroup")))" />
+    @{
+        var sumQuantity = (decimal)(ViewBag.SumQuantity ?? 0m);
+        var sumTotalUsd = (decimal)(ViewBag.SumTotalUsd ?? 0m);
+        var customerCount = (int)(ViewBag.CustomerCount ?? 0);
+    }
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار فروش", "Sales statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل فاکتورها", "Total invoices")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "فاکتور", "invoices")" avatar="sales-value"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مقدار این صفحه", "Quantity on this page")" value="@NumberDisplay.Quantity(items.Sum(x => x.QuantityMt))" unit="MT" avatar="sold-quantity"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "فروش این صفحه", "Sales on this page")" value="@items.Sum(x => x.TotalUsd).ToString("N0")" unit="USD" avatar="payments"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مشتریان این صفحه", "Customers on this page")" value="@items.Select(x => x.CustomerName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count().ToString("N0")" unit="@UiText.T(Context, "مشتری", "customers")" avatar="customers"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل فاکتورها", "Total invoices")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "فاکتور", "invoices")" avatar="statement"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل مقدار", "Total quantity")" value="@NumberDisplay.Quantity(sumQuantity)" unit="MT" avatar="sold-quantity"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل فروش", "Total sales")" value="@sumTotalUsd.ToString("N0")" unit="USD" avatar="sales-value"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مشتریان", "Customers")" value="@customerCount.ToString("N0")" unit="@UiText.T(Context, "مشتری", "customers")" avatar="customers"></vc:stat-card>
     </section>
     <div class="ak-list">
         @{

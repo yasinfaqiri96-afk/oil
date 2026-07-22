@@ -440,7 +440,8 @@ public sealed class NonZeroBalanceItemViewModel
     public string Name { get; init; } = "";
     public decimal DebitUsd { get; init; }
     public decimal CreditUsd { get; init; }
-    public decimal BalanceUsd => CreditUsd - DebitUsd;
+    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته). هم‌علامتِ صفحات بیلانس.
+    public decimal BalanceUsd => DebitUsd - CreditUsd;
     public string Status { get; init; } = "Non-zero Balance";
 }
 

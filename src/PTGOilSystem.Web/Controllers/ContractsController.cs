@@ -975,23 +975,25 @@ public partial class ContractsController : Controller
             count++;
         }
 
-        await SyncSupplierLoadingLegacyLedgerAsync(contract, relockedLoadings);
+        // همهٔ بارگیری‌های دست‌خورده فرستاده می‌شوند، نه فقط روبلی‌های بازقفل‌شده: بارگیری دالری
+        // با همین اصلاح قیمت مبلغش عوض می‌شود (یا تازه قیمت‌دار می‌شود) و سطر دفترش باید هماهنگ شود.
+        await SyncSupplierLoadingLegacyLedgerAsync(contract, loadings);
 
         return count;
     }
 
-    // بازقفلِ نرخ، AmountUsdAtRubLock را عوض می‌کند ولی سطر Legacy دفتر قدیمی که هنگام بارگیری ساخته شده
-    // با مبلغ قبلی می‌ماند و طلب تأمین‌کننده کهنه می‌شود. همان سطر با snapshot جدید هماهنگ می‌شود؛
-    // سطر تازه اینجا ساخته نمی‌شود (ساختِ سطر همچنان کارِ مسیر بارگیری است).
-    // بدون SaveChanges: با همان SaveChangesAsync فراخوان — یعنی داخل همان تراکنش — ثبت می‌شود.
-    private async Task SyncSupplierLoadingLegacyLedgerAsync(Contract contract, IReadOnlyList<LoadingRegister> relockedLoadings)
+    // اصلاح قیمت، مبلغ بارگیری را عوض می‌کند ولی سطر Legacy دفتر قدیمی با مبلغ قبلی می‌ماند و
+    // طلب تأمین‌کننده کهنه می‌شود. همان سطر با snapshot جدید هماهنگ می‌شود (سطر دوم ساخته نمی‌شود).
+    // بارگیری‌ای که هنگام ثبت هنوز قیمت نداشت اینجا برای اولین بار سطر می‌گیرد؛ کلید یکتای
+    // (SourceType, SourceId) پیش از ساخت بررسی می‌شود تا اجرای دوباره رکورد تکراری نسازد.
+    private async Task SyncSupplierLoadingLegacyLedgerAsync(Contract contract, IReadOnlyList<LoadingRegister> touchedLoadings)
     {
-        if (relockedLoadings.Count == 0)
+        if (touchedLoadings.Count == 0)
         {
             return;
         }
 
-        var postable = relockedLoadings
+        var postable = touchedLoadings
             .Where(l => SupplierLoadingLedger.IsPostable(l, contract))
             .ToList();
         if (postable.Count == 0)
@@ -1003,16 +1005,14 @@ public partial class ContractsController : Controller
         var entries = await _db.LedgerEntries
             .Where(l => l.SourceType == SupplierLoadingLedger.SourceType && loadingIds.Contains(l.SourceId))
             .ToListAsync();
-        if (entries.Count == 0)
-        {
-            return;
-        }
 
         var entriesByLoadingId = entries.ToDictionary(l => l.SourceId);
+        var created = new List<LedgerEntry>();
         foreach (var loading in postable)
         {
             if (!entriesByLoadingId.TryGetValue(loading.Id, out var entry))
             {
+                created.Add(SupplierLoadingLedger.Create(loading, contract));
                 continue;
             }
 
@@ -1032,6 +1032,34 @@ public partial class ContractsController : Controller
                     ("AmountUsd", previousAmountUsd, entry.AmountUsd),
                     ("SourceAmount", previousSourceAmount, entry.SourceAmount),
                     ("AppliedFxRateToUsd", previousFxRateToUsd, entry.AppliedFxRateToUsd)));
+        }
+
+        if (created.Count == 0)
+        {
+            return;
+        }
+
+        // ذخیره لازم است تا شناسهٔ سطرهای تازه برای لاگ حسابرسی موجود شود؛ خودِ لاگ‌ها
+        // مثل قبل با SaveChangesAsync فراخوان ثبت می‌شوند.
+        _db.LedgerEntries.AddRange(created);
+        await _db.SaveChangesAsync();
+        foreach (var entry in created)
+        {
+            await _audit.LogAsync(
+                nameof(LedgerEntry),
+                entry.Id,
+                AuditAction.Insert,
+                diff: AuditDiffFormatter.ForCreate(
+                    ("EntryDate", entry.EntryDate),
+                    ("Side", entry.Side),
+                    ("AmountUsd", entry.AmountUsd),
+                    ("SourceAmount", entry.SourceAmount),
+                    ("SourceCurrencyCode", entry.SourceCurrencyCode),
+                    ("AppliedFxRateToUsd", entry.AppliedFxRateToUsd),
+                    ("SourceType", entry.SourceType),
+                    ("SourceId", entry.SourceId),
+                    ("ContractId", entry.ContractId),
+                    ("SupplierId", entry.SupplierId)));
         }
     }
 

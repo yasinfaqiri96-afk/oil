@@ -182,7 +182,6 @@
                 </div>
             </div>
             <div class="ak-list">
-                <div class="ak-list">
                     @if (Model.SalesTransactionId.HasValue)
                     {
                         var inv = string.IsNullOrWhiteSpace(Model.SaleInvoiceNumber) ? $"#{Model.SalesTransactionId}" : Model.SaleInvoiceNumber;
@@ -206,7 +205,6 @@
                     {
                         <p class="ak-empty ak-detail-empty-state">@T("فروشی به این ارسال وصل نیست.", "No sale linked to this dispatch.")</p>
                     }
-                </div>
             </div>
         </div>
 
@@ -223,7 +221,6 @@
                 </div>
             </div>
             <div class="ak-list">
-                <div class="ak-list">
                     @if (hasCustomsOrShortage)
                     {
                         foreach (var c in Model.Customs)
@@ -271,7 +268,6 @@
                     {
                         <p class="ak-empty ak-detail-empty-state">@T("گمرک یا کسری ثبت نشده است.", "No customs or shortage recorded.")</p>
                     }
-                </div>
             </div>
         </div>
 
@@ -288,7 +284,6 @@
                 </div>
             </div>
             <div class="ak-list">
-                <div class="ak-list">
                     @if (expenseCount > 0)
                     {
                         foreach (var e in Model.Expenses)
@@ -315,7 +310,6 @@
                     {
                         <p class="ak-empty ak-detail-empty-state">@T("مصرفی برای این موتر ثبت نشده است.", "No expense recorded for this truck.")</p>
                     }
-                </div>
             </div>
         </div>
     </section>
@@ -323,13 +317,11 @@
     @if (Model.DeliveryReceipts.Any())
     {
         <section class="ak-form-section ak-detail-section">
-            <article class="ak-detail-receipt-panel is-receipt">
-                <header>
-                    <h2>@T("رسیدهای تحویل / تخلیه", "Delivery receipts")</h2>
-                    <span class="ak-page-icon"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i></span>
-                </header>
-                <div class="ak-list">
-                    <div class="ak-list">
+            <header class="ak-section-head ak-detail-section-header">
+                <h2 class="ak-section-title">@T("رسیدهای تحویل / تخلیه", "Delivery receipts")</h2>
+                <span class="ak-status">@receiptCount</span>
+            </header>
+            <div class="ak-list">
                         @foreach (var r in Model.DeliveryReceipts)
                         {
                             var reff = r.DocumentReference ?? r.ReceivedBy ?? $"#{r.Id}";
@@ -350,18 +342,13 @@
                                 </div>
                             </button>
                         }
-                    </div>
                 </div>
-            </article>
         </section>
     }
 
     <section class="ak-form-section ak-detail-section">
-        <article class="ak-detail-source-panel is-source">
-            <header>
-                <h2>@T("منبع، مسیر و موتر", "Source, route & truck")</h2>
-                <span class="ak-page-icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></span>
-            </header>
+        <header class="ak-section-head"><h2 class="ak-section-title">@T("منبع، مسیر و موتر", "Source, route & truck")</h2></header>
+        <div class="ak-list">
             <div class="ak-list-row">
                 <span>@T("نوع ارسال", "Dispatch mode")</span>
                 <b>@modeText</b>
@@ -404,7 +391,7 @@
                 <span>@T("مرجع موجودی", "Inventory ref")</span>
                 <b>@(Model.InventoryReference ?? (isDirectFromReceipt ? T("بدون حرکت موجودی", "No stock movement") : "-"))</b>
             </div>
-        </article>
+        </div>
     </section>
 
     <div class="modal fade loading-expense-modal" id="dispatchExpensesModal" tabindex="-1"

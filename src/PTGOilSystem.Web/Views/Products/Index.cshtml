@@ -24,10 +24,10 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار اجناس", "Product statistics")">
-        <vc:stat-card title="@UiText.T(Context, "تعداد اجناس", "Products")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "جنس", "products")" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "اجناس فعال", "Active products")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "جنس", "products")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "دارای واحد ثانویه", "With secondary unit")" value="@secondaryUnitCount.ToString("N0")" unit="@UiText.T(Context, "جنس", "products")" avatar="purchase-quantity"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "دسته‌های ثبت‌شده", "Categories")" value="@categoryCount.ToString("N0")" unit="@UiText.T(Context, "دسته", "categories")" avatar="purchase-requests"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تعداد اجناس", "Products")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "جنس", "products")" avatar="products"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "اجناس فعال", "Active products")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "جنس", "products")" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "دارای واحد ثانویه", "With secondary unit")" value="@secondaryUnitCount.ToString("N0")" unit="@UiText.T(Context, "جنس", "products")" avatar="units"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "دسته‌های ثبت‌شده", "Categories")" value="@categoryCount.ToString("N0")" unit="@UiText.T(Context, "دسته", "categories")" avatar="documents"></vc:stat-card>
     </section>
 
     @{

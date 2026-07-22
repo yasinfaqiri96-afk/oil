@@ -61,10 +61,10 @@
     </div>
 
     <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های کسری", "Loss metrics")">
-        <vc:stat-card title="@T("مورد انتظار", "Expected")" value="@Model.ExpectedQuantityMt.ToString("N4")" unit="MT" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@T("واقعی", "Actual")" value="@Model.ActualQuantityMt.ToString("N4")" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@T("مورد انتظار", "Expected")" value="@Model.ExpectedQuantityMt.ToString("N4")" unit="MT" avatar="analysis"></vc:stat-card>
+        <vc:stat-card title="@T("واقعی", "Actual")" value="@Model.ActualQuantityMt.ToString("N4")" unit="MT" avatar="quality"></vc:stat-card>
         <vc:stat-card title="@T("تفاوت", "Difference")" value="@Model.DifferenceQuantityMt.ToString("N4")" unit="MT" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@T("قابل محاسبه", "Chargeable")" value="@Model.ChargeableLossMt.ToString("N4")" unit="MT" avatar="stock-shortage"></vc:stat-card>
+        <vc:stat-card title="@T("قابل محاسبه", "Chargeable")" value="@Model.ChargeableLossMt.ToString("N4")" unit="MT" avatar="statement"></vc:stat-card>
     </section>
 
     <div class="ak-form-grid">

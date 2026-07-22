@@ -176,10 +176,10 @@
 
     @* شاخص‌های کلیدی مخزن — همان کارت آماری مشترک؛ درصد پُری از fillPercentValue موجود می‌آید. *@
     <section class="ak-stat-grid" aria-label="@UiText.T(Context, "شاخص‌های کلیدی مخزن", "Tank key indicators")">
-        <vc:stat-card title="@UiText.T(Context, "درصد پُری مخزن", "Tank fill level")" value="@FormatQuantity(fillPercentValue)" unit="%" avatar="tank-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "درصد پُری مخزن", "Tank fill level")" value="@FormatQuantity(fillPercentValue)" unit="%" avatar="storage-tanks"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "موجودی دفتری", "Book inventory")" value="@FormatQuantity(Model.CurrentQuantityMt)" unit="@unitText" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "ظرفیت خالی", "Empty capacity")" value="@FormatQuantity(Model.EmptyQuantityMt)" unit="@unitText" avatar="unloaded"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "قراردادهای فعال", "Active contracts")" value="@activeContractCount.ToString("N0")" unit="@UiText.T(Context, "قرارداد", "contracts")" avatar="purchase-contracts"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "ظرفیت خالی", "Empty capacity")" value="@FormatQuantity(Model.EmptyQuantityMt)" unit="@unitText" avatar="tank-farm"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "قراردادهای فعال", "Active contracts")" value="@activeContractCount.ToString("N0")" unit="@UiText.T(Context, "قرارداد", "contracts")" avatar="contract-signed"></vc:stat-card>
     </section>
 
     <section id="tank-summary" class="ak-form-section ak-detail-section" hidden="@(activeTankTab != "summary")">

@@ -36,11 +36,13 @@
         if (root.dataset.akFilterBound === "1") return;
         root.dataset.akFilterBound = "1";
 
+        var clientMode = root.hasAttribute("data-ak-filter-client");
         var form = root.matches("form") ? root : root.querySelector("form");
+        var stateHost = clientMode ? root : form;
         var input = root.querySelector("[data-ak-filter-input]");
         var clearBtn = root.querySelector("[data-ak-filter-clear]");
         var popover = root.querySelector("[data-ak-filter-popover]");
-        if (!input) return;
+        if (!input || !stateHost) return;
 
         // ---- Filter config (group B only) ----
         var fields = [];
@@ -52,7 +54,7 @@
 
         function appliedKeys() {
             return Array.prototype.map.call(
-                form.querySelectorAll("[data-ak-filter-param]"),
+                stateHost.querySelectorAll("[data-ak-filter-param]"),
                 function (el) { return el.getAttribute("data-ak-filter-param"); });
         }
         function availableFields(query) {
@@ -64,9 +66,50 @@
             });
         }
 
-        function hasActiveFilters() { return form.querySelectorAll("[data-ak-filter-param]").length > 0; }
+        function hasActiveFilters() { return stateHost.querySelectorAll("[data-ak-filter-param]").length > 0; }
         function syncClear() {
             if (clearBtn) clearBtn.hidden = !(input.value.trim() || hasActiveFilters());
+        }
+
+        function syncClientChips() {
+            if (!clientMode) return;
+            var chips = root.querySelector("[data-ak-filter-chips]");
+            if (!chips) return;
+            chips.innerHTML = fields.map(function (f) {
+                var owned = Array.prototype.slice.call(
+                    stateHost.querySelectorAll('[data-ak-filter-param="' + cssEsc(f.key) + '"]'));
+                if (!owned.length) return "";
+                var first = owned[0].value || "";
+                var valueLabel = first;
+                if (f.type === "daterange") {
+                    valueLabel = first + (owned[1] ? " → " + owned[1].value : "");
+                } else if (f.options) {
+                    var option = f.options.filter(function (o) { return o.value === first; })[0];
+                    if (option) valueLabel = option.label;
+                }
+                return '<span class="ak-chip-group" data-ak-chip="' + esc(f.key) + '">' +
+                    '<span class="ak-chip">' + esc(f.label) + '</span>' +
+                    '<span class="ak-chip"><span>' + esc(valueLabel) + '</span>' +
+                    '<button type="button" class="ak-chip-remove" data-ak-remove-chip="' + esc(f.key) +
+                    '" aria-label="' + T("حذف فیلتر", "Remove filter") + '">&times;</button></span></span>';
+            }).join("");
+        }
+
+        function applyChanges() {
+            syncClientChips();
+            syncClear();
+            if (!clientMode) {
+                submitForm(form);
+                return;
+            }
+            var values = {};
+            stateHost.querySelectorAll("[data-ak-filter-param]").forEach(function (el) {
+                values[el.name] = el.value;
+            });
+            root.dispatchEvent(new CustomEvent("ak:filter-change", {
+                bubbles: true,
+                detail: { search: input.value || "", filters: values }
+            }));
         }
 
         function closePopover() {
@@ -188,16 +231,16 @@
             el.name = name;
             el.value = value;
             el.setAttribute("data-ak-filter-param", ownerKey);
-            form.appendChild(el);
+            stateHost.appendChild(el);
         }
 
         function commitValue(f, value) {
             // one token per field: clear prior inputs owned by this key
-            Array.prototype.forEach.call(form.querySelectorAll('[data-ak-filter-param="' + cssEsc(f.key) + '"]'),
+            Array.prototype.forEach.call(stateHost.querySelectorAll('[data-ak-filter-param="' + cssEsc(f.key) + '"]'),
                 function (el) { el.remove(); });
             addHidden(f.key, f.key, value);
             input.value = "";           // filters submit without free-text noise from the draft
-            submitForm(form);
+            applyChanges();
         }
 
         function commitDate(f) {
@@ -205,33 +248,33 @@
             var end = popover.querySelector("[data-ak-date-end]");
             var s = start ? start.value : "";
             if (!s) return;
-            Array.prototype.forEach.call(form.querySelectorAll('[data-ak-filter-param="' + cssEsc(f.key) + '"]'),
+            Array.prototype.forEach.call(stateHost.querySelectorAll('[data-ak-filter-param="' + cssEsc(f.key) + '"]'),
                 function (el) { el.remove(); });
             addHidden(f.key, f.key, s);
             if (f.type === "daterange" && f.secondKey) {
                 var e = end && end.value ? end.value : s;
                 addHidden(f.secondKey, f.key, e);
             }
-            submitForm(form);
+            applyChanges();
         }
 
         function commitText(f) {
             var el = popover.querySelector("[data-ak-text-input]");
             var v = el ? el.value.trim() : "";
             if (!v) return;
-            Array.prototype.forEach.call(form.querySelectorAll('[data-ak-filter-param="' + cssEsc(f.key) + '"]'),
+            Array.prototype.forEach.call(stateHost.querySelectorAll('[data-ak-filter-param="' + cssEsc(f.key) + '"]'),
                 function (x) { x.remove(); });
             addHidden(f.key, f.key, v);
             input.value = "";
-            submitForm(form);
+            applyChanges();
         }
 
         function removeFilter(key) {
-            Array.prototype.forEach.call(form.querySelectorAll('[data-ak-filter-param="' + cssEsc(key) + '"]'),
+            Array.prototype.forEach.call(stateHost.querySelectorAll('[data-ak-filter-param="' + cssEsc(key) + '"]'),
                 function (el) { el.remove(); });
             var chip = root.querySelector('[data-ak-chip="' + cssEsc(key) + '"]');
             if (chip) chip.remove();
-            submitForm(form);
+            applyChanges();
         }
 
         function selectField(key) {
@@ -252,11 +295,17 @@
         });
         input.addEventListener("input", function () {
             syncClear();
+            if (clientMode) applyChanges();
             if (nav.state === "value" || nav.state === "date") { renderPopover(); return; }
             renderPopover();
         });
         input.addEventListener("keydown", function (e) {
             if (e.key === "Escape") closePopover();
+            if (clientMode && e.key === "Enter") {
+                e.preventDefault();
+                applyChanges();
+                closePopover();
+            }
         });
         if (popover) {
             popover.addEventListener("keydown", function (e) {
@@ -269,6 +318,14 @@
         }
 
         root.addEventListener("click", function (e) {
+            var enter = e.target.closest("[data-ak-filter-enter], [data-ak-search-text]");
+            if (clientMode && enter) {
+                e.preventDefault();
+                applyChanges();
+                closePopover();
+                return;
+            }
+
             var back = e.target.closest("[data-ak-back]");
             if (back) { e.preventDefault(); openFieldList(); return; }
 
@@ -292,14 +349,15 @@
             clearBtn.addEventListener("click", function () {
                 if (!(input.value.trim() || hasActiveFilters())) return;
                 input.value = "";
-                Array.prototype.forEach.call(form.querySelectorAll("[data-ak-filter-param]"),
+                Array.prototype.forEach.call(stateHost.querySelectorAll("[data-ak-filter-param]"),
                     function (el) { el.remove(); });
                 closePopover();
-                submitForm(form);
+                applyChanges();
             });
         }
 
         root._akClose = closePopover;
+        syncClientChips();
         syncClear();
     }
 

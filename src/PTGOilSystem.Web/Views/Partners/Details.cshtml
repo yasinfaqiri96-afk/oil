@@ -16,7 +16,6 @@
     var showContracts = Model.ActiveTab == "contracts";
     var showOverview = !showAccount && !showContracts;
 
-    var officialRecentRows = ViewData["PartyStatementRecentRows"] as IReadOnlyList<PTGOilSystem.Web.Models.PartyStatements.PartyStatementRow> ?? [];
     var filteredPayments = Model.SelectedContractId.HasValue
         ? Model.Payments.Where(p => p.ContractId == Model.SelectedContractId.Value).ToList()
         : Model.Payments.ToList();
@@ -79,12 +78,7 @@
         </section>
     </div>
 
-    @* ===== تب ۱: خلاصه — آخرین حرکت‌ها ===== *@
-    <section id="partner-overview" class="ak-form-section ak-detail-section" hidden="@(!showOverview)">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("آخرین حرکت‌های سهم شریک", "پنج سند آخر از موتور مشترک صورت‌حساب."))" />
-        <partial name="~/Views/Shared/Statements/_PartyStatementRecent.cshtml" model="officialRecentRows" />
-    </section>
-    @* ===== تب ۲: حساب شریک ===== *@
+    @* ===== تب ۱: حساب شریک ===== *@
     <section id="partner-account" class="ak-form-section ak-detail-section" hidden="@(!showAccount)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("صورت‌حساب سهم شریک", "فقط اثر سهم این شریک از اسناد قراردادهای شراکتی."))" />
 
@@ -119,10 +113,11 @@
             </dl>
         }
 
-        <div class="ak-empty ak-detail-empty-state">
-            <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
-            <p>گردش سهم، مانده و فیلتر قرارداد در سند رسمی مشترک محاسبه می‌شود.</p>
-            <a asp-controller="PartyStatements" asp-action="Partner" asp-route-id="@Model.PartnerId" asp-route-ContractId="@Model.SelectedContractId" class="btn btn-primary">مشاهده صورت‌حساب رسمی</a>
+        <div class="ak-party-statement-embed" data-party-statement-embed="@(Url.Action("Partner", "PartyStatements", new { id = Model.PartnerId, ContractId = Model.SelectedContractId }))">
+            <div class="ak-empty ak-detail-empty-state">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                <p>در حال بارگذاری صورت‌حساب…</p>
+            </div>
         </div>
 
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("حرکات نقدی سهم شریک", $"{filteredPayments.Count:N0} مورد"))" />

@@ -33,7 +33,8 @@ public class SuppliersControllerTests
         Assert.Equal(2000m, model.EstimatedContractValueUsd);
         Assert.Equal(250m, model.LedgerDebitUsd);
         Assert.Equal(1000m, model.LedgerCreditUsd);
-        Assert.Equal(750m, model.LedgerBalanceUsd);
+        // مانده نمایشی = Σ(داده − گرفته) = 250 − 1000؛ منفی یعنی بدهی به تأمین‌کننده.
+        Assert.Equal(-750m, model.LedgerBalanceUsd);
         Assert.Equal(100m, model.TotalPaidUsd);
         Assert.Equal(new DateTime(2026, 1, 4), model.LastPaymentDate);
 
@@ -88,7 +89,7 @@ public class SuppliersControllerTests
         Assert.Equal(2, supplier.PurchaseContractsCount);
         Assert.Equal(1, supplier.ActivePurchaseContractsCount);
         Assert.Equal(150m, supplier.TotalPurchaseQuantityMt);
-        Assert.Equal(750m, supplier.LedgerBalanceUsd);
+        Assert.Equal(-750m, supplier.LedgerBalanceUsd);
         Assert.Equal(100m, supplier.TotalPaidUsd);
         Assert.Equal(new DateTime(2026, 1, 4), supplier.LastPaymentDate);
     }

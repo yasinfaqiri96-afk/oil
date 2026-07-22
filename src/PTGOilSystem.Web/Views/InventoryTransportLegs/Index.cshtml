@@ -11,11 +11,16 @@
 <div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "انتقال از موجودی", "Inventory Transfer"), true, UiText.T(Context, "حمل جدید", "New transport"), "bi-plus-lg", Url.Action("CreateFromInventory"), (string?)null, UiText.T(Context, "انتقال گروهی", "Group transfer"), "bi-diagram-3", Url.Action("GroupTransfer")))" />
+    @{
+        var sumQuantity = (decimal)(ViewBag.SumQuantity ?? 0m);
+        var activeCount = (int)(ViewBag.ActiveCount ?? 0);
+        var postedCount = (int)(ViewBag.PostedCount ?? 0);
+    }
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار حمل موجودی", "Inventory transport statistics")">
         <vc:stat-card title="@UiText.T(Context, "کل حمل‌ها", "Total transports")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "حمل", "transports")" avatar="transported"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مقدار این صفحه", "Quantity on this page")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.QuantityMt))" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "حمل‌های فعال", "Active transports")" value="@Model.Items.Count(x => x.Status != InventoryTransportLegStatus.Cancelled && x.Status != InventoryTransportLegStatus.Received).ToString("N0")" unit="@UiText.T(Context, "حمل", "transports")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "ثبت‌شده در موجودی", "Posted to inventory")" value="@Model.Items.Count(x => x.OutboundInventoryMovementId.HasValue).ToString("N0")" unit="@UiText.T(Context, "حرکت", "movements")" avatar="purchase-contracts"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل مقدار", "Total quantity")" value="@NumberDisplay.Quantity(sumQuantity)" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "حمل‌های فعال", "Active transports")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "حمل", "transports")" avatar="in-transit"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "ثبت‌شده در موجودی", "Posted to inventory")" value="@postedCount.ToString("N0")" unit="@UiText.T(Context, "حرکت", "movements")" avatar="warehouse"></vc:stat-card>
     </section>
     <div class="ak-list">
         @{

@@ -49,8 +49,8 @@
     --ptg-sidebar-accent: #6260C4;    /* active rail / accent indigo */
     --ptg-sidebar-line: #D7D9E8;      /* submenu connector line */
     --ptg-surface-tint: #F2F4FC;      /* soft lilac tint for chips / bulk bar */
-    --ptg-sidebar-rail-width: 56px;
-    --ptg-sidebar-menu-width: 224px;
+    --ptg-sidebar-rail-width: var(--layout-sidebar-mini);
+    --ptg-sidebar-menu-width: var(--layout-sidebar);
 
     /* ---- Radius (Akaunting: controls only, no card radius) ---- */
     --radius-base: 8px;      /* input / modal / rounded-lg */
@@ -63,16 +63,23 @@
     --shadow-dropdown: 0 20px 25px -5px rgba(0, 0, 0, .08), 0 8px 10px -6px rgba(0, 0, 0, .08);
 
     /* ---- Layout metrics ---- */
-    --layout-rail: 56px;            /* Akaunting toolbar rail */
-    --layout-navpanel: 232px;       /* compact main menu panel */
-    --layout-sidebar: 288px;        /* desktop sidebar shell */
-    --layout-shell-gap: 6px;        /* sidebar to main content */
-    --layout-sidebar-mini: 64px;    /* collapsed icon rail: roomier click targets */
+    --layout-sidebar: 224px;        /* expanded desktop sidebar */
+    --layout-sidebar-mini: 88px;    /* persistent laptop / collapsed desktop rail */
+    --layout-navpanel: var(--layout-sidebar);
+    --layout-rail: var(--layout-sidebar-mini);
+    --layout-shell-gap: 0px;
     --layout-nav-mobile: 304px;
     --layout-header: 56px;
     --layout-header-mobile: 52px;
     --layout-header-blur: 0px;
     --layout-transition: 150ms ease-out;
+    --layout-content-max: 1200px;
+    --layout-form-max: 860px;
+    --layout-form-wide-max: 1080px;
+    --layout-gutter-desktop: 40px;
+    --layout-gutter-laptop: 32px;
+    --layout-gutter-compact: 24px;
+    --layout-gutter-mobile: 16px;
 
     /* ---- Akaunting motion ---- */
     --ptg-motion-fast: 140ms;
@@ -126,9 +133,9 @@
     --ptg-field-focus-ring: rgba(var(--primary-main-rgb), .12);
 
     /* ---- Create/Edit form column — constrained, start-aligned ---- */
-    --ak-form-content-max: 760px;       /* normal forms */
-    --ak-form-content-wide-max: 1040px; /* line-item / table forms */
-    --ak-form-page-gutter: clamp(32px, 4vw, 64px);
+    --ak-form-content-max: var(--layout-form-max);
+    --ak-form-content-wide-max: var(--layout-form-wide-max);
+    --ak-form-page-gutter: 0px;
     --ak-form-section-gap: 48px;
     --ptg-text: var(--text-primary);
     --ptg-muted: var(--text-secondary);

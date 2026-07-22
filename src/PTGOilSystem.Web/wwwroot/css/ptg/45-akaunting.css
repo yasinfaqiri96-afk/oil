@@ -99,41 +99,7 @@ body.boltz-shell.app-shell-authenticated .boltz-topbar.is-stuck {
  * D. Content container — calm, bounded canvas
  * ============================================================= */
 
-body.boltz-shell.app-shell-authenticated .ptg-page > .boltz-content-body {
-    width: 100%;
-    margin-inline: auto;
-    padding-inline: 16px;
-}
-
-@media (min-width: 1024px) {
-    body.boltz-shell.app-shell-authenticated .ptg-page > .boltz-content-body {
-        max-width: 1000px;
-    }
-}
-
-@media (min-width: 1280px) {
-    body.boltz-shell.app-shell-authenticated .ptg-page > .boltz-content-body {
-        max-width: 1145px;
-    }
-}
-
-/* Summary strip + section tabs share the same bounded canvas. */
-body.boltz-shell.app-shell-authenticated .ptg-page > .summary-strip{
-    width: 100%;
-    margin-inline: auto;
-}
-
-@media (min-width: 1024px) {
-    body.boltz-shell.app-shell-authenticated .ptg-page > .summary-strip{
-        max-width: 1000px;
-    }
-}
-
-@media (min-width: 1280px) {
-    body.boltz-shell.app-shell-authenticated .ptg-page > .summary-strip{
-        max-width: 1145px;
-    }
-}
+/* Shared PageFrame geometry is defined once in 70-page-frame.css. */
 
 /* ============================================================= *
  * E. Page headers — 36px light title, actions opposite
@@ -631,7 +597,7 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
     inset-inline-start: 0;
     z-index: 60;
     min-width: 240px;
-    max-width: min(420px, calc(100vw - 48px));
+    max-width: min(420px, calc(100dvi - 48px));
     max-height: 320px;
     margin: 0;
     padding: 8px;

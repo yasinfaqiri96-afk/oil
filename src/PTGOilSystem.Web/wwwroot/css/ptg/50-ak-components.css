@@ -414,6 +414,63 @@ a.ptg-person-name:focus-visible {
     border-bottom: 0;
 }
 
+/* Clickable record row (button.ak-list-row) — same flat row as the div/dl rows
+   next to it, plus a hover/focus affordance. Without this reset the element
+   keeps the UA button skin (ButtonFace fill + outset border + centred text),
+   which is why these rows read as dark bordered boxes while every other list
+   in the system stays flat. */
+button.ak-list-row {
+    inline-size: 100%;
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    border-bottom: 1px solid var(--divider);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    transition: background-color var(--ptg-motion-fast, 140ms) ease-out;
+}
+
+button.ak-list-row:last-child {
+    border-bottom: 0;
+}
+
+button.ak-list-row:hover,
+button.ak-list-row:focus-visible {
+    background: var(--ptg-surface-soft);
+}
+
+button.ak-list-row:focus-visible {
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: -2px;
+}
+
+/* Span-based rows (record lists) mirror the dt/dd typography of key/value rows. */
+.ak-list-row > span.ak-field {
+    gap: 2px;
+}
+
+.ak-list-row > span.ak-field > strong {
+    color: var(--ptg-text);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ak-list-row > span.ak-field > small {
+    color: var(--ptg-muted);
+    font-size: 12.5px;
+}
+
+.ak-list-row > span.ak-num {
+    justify-self: end;
+    color: var(--ptg-text);
+    font-weight: 600;
+}
+
 .ak-list-row dt {
     color: var(--ptg-muted);
     font-size: 13px;
@@ -713,8 +770,8 @@ a.ptg-person-name:focus-visible {
  * ============================================================= */
 .ak-form-page:has(> form.ak-form),
 .ak-form-page:has(> .ak-form-page-content) {
-    width: 100%;
-    padding-inline: var(--ak-form-page-gutter);
+    inline-size: 100%;
+    padding-inline: 0;
 }
 
 /* The column itself — pinned to the content start (near side in RTL/LTR),
@@ -722,8 +779,8 @@ a.ptg-person-name:focus-visible {
 .ak-form-page:has(> form.ak-form) > .ak-page-header,
 .ak-form-page:has(> form.ak-form) > form.ak-form,
 .ak-form-page-content {
-    width: min(100%, var(--ak-form-content-max));
-    max-width: 100%;
+    inline-size: min(100%, var(--ak-form-content-max));
+    max-inline-size: 100%;
     margin-inline-start: 0;
     margin-inline-end: auto;
 }
@@ -736,7 +793,7 @@ a.ptg-person-name:focus-visible {
 .ak-form-page--wide:has(> form.ak-form) > form.ak-form,
 .ak-form-page-content:has(.ak-table),
 .ak-form-page-content--wide {
-    width: min(100%, var(--ak-form-content-wide-max));
+    inline-size: min(100%, var(--ak-form-content-wide-max));
 }
 
 /* Explicit wrapper holds the header + form as one block. */
@@ -746,21 +803,21 @@ a.ptg-person-name:focus-visible {
 
 .ak-form {
     display: block;
-    width: 100%;
-    max-width: var(--container-lg, 1000px);
+    inline-size: 100%;
+    max-inline-size: 100%;
 }
 
 @media (max-width: 767.98px) {
     .ak-form-page:has(> form.ak-form),
     .ak-form-page:has(> .ak-form-page-content) {
-        padding-inline: clamp(16px, 4vw, 24px);
+        padding-inline: 0;
     }
 
     .ak-form-page:has(> form.ak-form) > .ak-page-header,
     .ak-form-page:has(> form.ak-form) > form.ak-form,
     .ak-form-page-content,
     .ak-form-page-content--wide {
-        width: 100%;
+        inline-size: 100%;
     }
 }
 
@@ -989,7 +1046,179 @@ select.ak-input {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--primary-main);
+    background: var(--sf-source-accent, var(--primary-main));
+}
+
+/* ============================================================= *
+ * پرونده محموله › تب خلاصه — کارت‌های «خلاصه حساب» و «منابع بار»
+ * ریتم ردیف، چیپ آیکن و رنگ‌بندی اعداد طبق دیزاین مرجع صفحه.
+ * ============================================================= */
+/* دو ستون تب خلاصه: «منابع بار» پهن (سمت راست)، «خلاصه حساب» باریک (سمت چپ). */
+.sf-detail .sf-summary-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.sf-detail .sf-summary-aside {
+    display: grid;
+    gap: 24px;
+    align-content: start;
+    min-width: 0;
+}
+
+@media (max-width: 1099.98px) {
+    .sf-detail .sf-summary-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.sf-detail .sf-summary-card {
+    --sf-row-icon-size: 34px;
+    --sf-row-icon-bg: var(--ptg-surface-soft, #F5F7FA);
+    --sf-row-icon-fg: var(--ptg-muted, #7B7B7B);
+    --sf-amount-negative: #E5484D;
+    --sf-amount-positive: #2FA84F;
+    --sf-source-accent: #1D6FD8;
+}
+
+.sf-detail .sf-summary-card .ak-list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+}
+
+.sf-detail .sf-summary-card .ak-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    color: var(--ptg-text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* چیپ آیکن سمت راست هر ردیف — مربع گردشده با پس‌زمینهٔ خنثی. */
+.sf-detail .sf-summary-card .sf-row-icon {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    inline-size: var(--sf-row-icon-size);
+    block-size: var(--sf-row-icon-size);
+    border-radius: var(--ptg-radius-lg, 12px);
+    background: var(--sf-row-icon-bg);
+    color: var(--sf-row-icon-fg);
+    font-size: 15px;
+    line-height: 1;
+}
+
+/* عدد ردیف: همیشه LTR، هم‌عرض رقم‌ها، رنگ بر اساس ماهیت مبلغ. */
+.sf-detail .sf-account-summary .sf-amount {
+    justify-self: end;
+    direction: ltr;
+    unicode-bidi: isolate;
+    color: var(--ptg-text);
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+.sf-detail .sf-account-summary .sf-amount.is-negative,
+.sf-detail .sf-account-summary .sf-amount.is-loss {
+    color: var(--sf-amount-negative);
+}
+
+.sf-detail .sf-account-summary .sf-amount.is-positive,
+.sf-detail .sf-account-summary .sf-amount.is-profit {
+    color: var(--sf-amount-positive);
+}
+
+.sf-detail .sf-account-summary .sf-amount.is-neutral {
+    color: var(--ptg-text);
+}
+
+/* ردیف نتیجه: نوار نرم و بدون خط جداکننده. */
+.sf-detail .sf-account-summary .ak-list-row.is-total {
+    margin-inline: -12px;
+    padding-inline: 12px;
+    border-bottom: 0;
+    border-radius: var(--ptg-radius-lg, 12px);
+    background: var(--ptg-surface-soft, #F5F7FA);
+}
+
+.sf-detail .sf-source-list .ak-list-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 14px 0;
+}
+
+/* سرِ ردیف: نام و شمارهٔ قرارداد سمت راست، مقدار و درصد سمت چپ — همه در یک خط. */
+.sf-detail .sf-source-list .ak-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.sf-detail .sf-source-list .ak-label {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.sf-detail .sf-source-list .ak-label > strong {
+    color: var(--ptg-text);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.sf-detail .sf-source-list .ak-label > small {
+    color: var(--ptg-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.sf-detail .sf-source-list .ak-num {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    flex: none;
+}
+
+.sf-detail .sf-source-list .ak-num > strong {
+    color: var(--sf-source-accent);
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums lining-nums;
+    white-space: nowrap;
+}
+
+.sf-detail .sf-source-list .ak-num > small {
+    color: var(--ptg-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+}
+
+/* نوار سهم: ریل روشن تمام‌عرض، پرشدگی آبی با گرادیان روشن→تیره. */
+.sf-detail .sf-source-list .sf-bar {
+    height: 8px;
+    margin-top: 10px;
+    background: var(--sf-source-track, #EDF1F6);
+}
+
+.sf-detail .sf-source-list .sf-bar > span {
+    background: linear-gradient(to left, #3B82F6, #1D4ED8);
 }
 
 .ak-input::placeholder {
@@ -2009,10 +2238,11 @@ select.ak-input {
 }
 
 .ak-reports-page {
-    width: min(100%, 1128px);
-    margin-inline: auto;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    margin-inline: 0;
     padding-block: 42px 72px;
-    padding-inline: clamp(18px, 4vw, 56px);
+    padding-inline: 0;
     background: #fcfcfc;
 }
 
@@ -2165,15 +2395,15 @@ select.ak-input {
  * chrome comes from the standard Bootstrap modal classes.
  * ============================================================= */
 .ak-page-modal .modal-dialog {
-    width: min(1180px, calc(100vw - 36px));
-    max-width: min(1180px, calc(100vw - 36px));
+    width: min(1180px, calc(100dvi - 36px));
+    max-width: min(1180px, calc(100dvi - 36px));
     height: min(820px, calc(100vh - 36px));
     margin: 18px auto;
 }
 
 .ak-page-modal.is-compact .modal-dialog {
-    width: min(560px, calc(100vw - 28px));
-    max-width: min(560px, calc(100vw - 28px));
+    width: min(560px, calc(100dvi - 28px));
+    max-width: min(560px, calc(100dvi - 28px));
     height: min(600px, calc(100vh - 28px));
     margin: auto;
 }
@@ -2202,8 +2432,8 @@ select.ak-input {
 @media (max-width: 767.98px) {
     .ak-page-modal .modal-dialog,
     .ak-page-modal.is-compact .modal-dialog {
-        width: calc(100vw - 16px);
-        max-width: calc(100vw - 16px);
+        width: calc(100dvi - 16px);
+        max-width: calc(100dvi - 16px);
         height: calc(100vh - 16px);
         margin: 8px auto;
     }
@@ -2408,7 +2638,7 @@ select.ak-input {
     top: calc(100% + 6px);
     inset-inline-start: 0;
     width: 268px;
-    max-width: calc(100vw - 24px);
+    max-width: calc(100dvi - 24px);
     padding: 10px;
     border: 1px solid var(--ak-date-panel-border);
     border-radius: var(--ak-date-panel-radius);
@@ -2553,14 +2783,9 @@ select.ak-input {
  * summary at its side. Business fields and bindings stay untouched.
  * ============================================================= */
 
-.boltz-content-body:has(.ak-group-operation-page) {
-    width: 100%;
-    max-width: none;
-}
-
 .ak-group-operation-page {
-    --ak-form-content-wide-max: 2040px;
-    --ak-form-page-gutter: clamp(10px, 1vw, 18px);
+    --ak-form-content-wide-max: var(--layout-content-max);
+    --ak-form-page-gutter: 0px;
 }
 
 .ak-group-operation-page:has(> form.ak-form) > form.ak-form,
@@ -2744,18 +2969,10 @@ select.ak-input {
     --lic-row-h: 76px;
 }
 
-/* The outer content canvas has a global 1145px desktop cap. Release it only
-   for Loading/Create so the wide line-item form can use the available space. */
-body.boltz-shell.app-shell-authenticated.controller-loading.action-create .ptg-page > .boltz-content-body {
-    max-width: none;
-}
-
-/* Wide canvas — this page only. Lift the shared 1040px table-form
-   cap to ~1760px and drop the form's 1000px max-width guard so the
-   column can actually use the space beside the sidebar. */
+/* Loading/Create uses the full 1200px PageFrame as its wide table canvas. */
 .ak-form-page:has(> form[data-loading-create-form]) {
-    --ak-form-content-wide-max: 1760px;
-    --ak-form-page-gutter: clamp(12px, 1.5vw, 24px);
+    --ak-form-content-wide-max: var(--layout-content-max);
+    --ak-form-page-gutter: 0px;
 }
 
 .ak-form-page:has(> form[data-loading-create-form]) > form.ak-form,

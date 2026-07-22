@@ -458,7 +458,7 @@ public partial class LoadingController : Controller
             await _purchaseAccounting.TryPostPurchaseAsync(loading);
         }
 
-        if (!SupplierLoadingLedger.IsPostable(loading, contract))
+        if (contract is null || !SupplierLoadingLedger.IsPostable(loading, contract))
         {
             return;
         }
@@ -722,7 +722,22 @@ public partial class LoadingController : Controller
             );
         }
 
-        var totalCount = await query.CountAsync();
+        // آمار کامل روی همهٔ رکوردهای مطابق فیلتر در یک رفت‌وبرگشت واحد به‌جای
+        // چهار کوئری Sum/Count جدا (count + ۴ aggregate → یک کوئری). مقادیر یکسان‌اند
+        // (با benchmark و مقایسهٔ برابری تأیید شد)؛ فقط تعداد round-trip کم می‌شود.
+        var stats = await query
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                TotalCount = g.Count(),
+                SumQuantity = g.Sum(l => l.LoadedQuantityMt),
+                SumValue = g.Sum(l => l.LoadedQuantityMt * (l.LoadingPriceUsd ?? 0m)),
+                SumReceivedQuantity = g.Sum(l => l.Receipts.Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m),
+                PricePendingCount = g.Count(l => l.LoadingPriceUsd == null || l.LoadingPriceUsd <= 0m)
+            })
+            .FirstOrDefaultAsync();
+
+        var totalCount = stats?.TotalCount ?? 0;
         var pageCount = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
@@ -828,9 +843,11 @@ public partial class LoadingController : Controller
             })
             .ToList();
 
-        // مجموع کلِ مقدار و ارزش بارگیری روی همهٔ رکوردهای مطابق فیلتر (برای ردیف جمع در انتهای لیست).
-        ViewBag.SumQuantity = await query.SumAsync(l => l.LoadedQuantityMt);
-        ViewBag.SumValue = await query.SumAsync(l => (decimal?)(l.LoadedQuantityMt * (l.LoadingPriceUsd ?? 0m))) ?? 0m;
+        // آمار کارت‌ها و ردیف جمع از همان کوئری ترکیبیِ بالا (بدون کوئری اضافه).
+        ViewBag.SumQuantity = stats?.SumQuantity ?? 0m;
+        ViewBag.SumValue = stats?.SumValue ?? 0m;
+        ViewBag.SumReceivedQuantity = stats?.SumReceivedQuantity ?? 0m;
+        ViewBag.PricePendingCount = stats?.PricePendingCount ?? 0;
 
         return View(new LoadingIndexViewModel
         {
@@ -2193,6 +2210,9 @@ public partial class LoadingController : Controller
 
         await _audit.LogAndSaveAsync(nameof(LoadingRegister), loading.Id, AuditAction.Update, diff: diff);
 
+        // مقدار یا قیمت عوض شده؛ سطر دفترِ بدهی تأمین‌کننده با همان snapshot جدید هماهنگ می‌شود.
+        await PostSupplierLoadingLedgerIfReadyAsync(loading, loading.Contract);
+
         TempData["ok"] = "اطلاعات بارگیری با موفقیت ویرایش شد.";
 
         if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
@@ -2261,6 +2281,9 @@ public partial class LoadingController : Controller
         loading.Notes = model.PricingNote;
 
         await _audit.LogAndSaveAsync(nameof(LoadingRegister), loading.Id, AuditAction.Update, diff: diff);
+
+        // قیمت قطعی شد یا عوض شد؛ سطر دفترِ بدهی تأمین‌کننده ساخته/هماهنگ می‌شود.
+        await PostSupplierLoadingLedgerIfReadyAsync(loading, loading.Contract);
 
         TempData["ok"] = loading.LoadingPriceUsd.HasValue
             ? "قیمت بارگیری ذخیره شد."

@@ -12,11 +12,16 @@
                        UiText.T(Context, "ثبت رسید", "New Receipt"), "bi-plus-lg",
                        (string?)Url.Action("Create", new { returnUrl = currentUrl }), (string?)null,
                         (string?)null, (string?)null, (string?)null))" />
+        @{
+            var sumReceived = (decimal)(ViewBag.SumQuantity ?? 0m);
+            var withTankCount = (int)(ViewBag.WithTankCount ?? 0);
+            var withReferenceCount = (int)(ViewBag.WithReferenceCount ?? 0);
+        }
         <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار رسیدهای بارگیری", "Loading receipt statistics")">
-            <vc:stat-card title="@UiText.T(Context, "کل رسیدها", "Total receipts")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "رسید", "receipts")" avatar="transported"></vc:stat-card>
-            <vc:stat-card title="@UiText.T(Context, "مقدار این صفحه", "Quantity on this page")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.ReceivedQuantityMt))" unit="MT" avatar="total-inventory"></vc:stat-card>
-            <vc:stat-card title="@UiText.T(Context, "رسیدهای مخزن‌دار", "Receipts with tank")" value="@Model.Items.Count(x => !string.IsNullOrWhiteSpace(x.StorageTankCode)).ToString("N0")" unit="@UiText.T(Context, "رسید", "receipts")" avatar="loading"></vc:stat-card>
-            <vc:stat-card title="@UiText.T(Context, "دارای سند مرجع", "With reference")" value="@Model.Items.Count(x => !string.IsNullOrWhiteSpace(x.ReferenceDocument) && !x.ReferenceDocument.StartsWith("BULK-RCPT-", StringComparison.OrdinalIgnoreCase)).ToString("N0")" unit="@UiText.T(Context, "رسید", "receipts")" avatar="purchase-contracts"></vc:stat-card>
+            <vc:stat-card title="@UiText.T(Context, "کل رسیدها", "Total receipts")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "رسید", "receipts")" avatar="documents"></vc:stat-card>
+            <vc:stat-card title="@UiText.T(Context, "کل مقدار", "Total quantity")" value="@NumberDisplay.Quantity(sumReceived)" unit="MT" avatar="total-inventory"></vc:stat-card>
+            <vc:stat-card title="@UiText.T(Context, "رسیدهای مخزن‌دار", "Receipts with tank")" value="@withTankCount.ToString("N0")" unit="@UiText.T(Context, "رسید", "receipts")" avatar="storage-tanks"></vc:stat-card>
+            <vc:stat-card title="@UiText.T(Context, "دارای سند مرجع", "With reference")" value="@withReferenceCount.ToString("N0")" unit="@UiText.T(Context, "رسید", "receipts")" avatar="contract-signed"></vc:stat-card>
         </section>
         @{
             var lrFilter = new AkSearchFilterModel("q", Model.Query,

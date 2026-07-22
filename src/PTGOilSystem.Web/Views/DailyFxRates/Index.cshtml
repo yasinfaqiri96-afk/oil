@@ -26,10 +26,10 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار نرخ ارز", "FX rate statistics")">
-        <vc:stat-card title="@UiText.T(Context, "تعداد نرخ‌ها", "Rates")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "نرخ", "rates")" avatar="average-price"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "جفت‌های ارزی", "Currency pairs")" value="@currencyPairCount.ToString("N0")" unit="@UiText.T(Context, "جفت", "pairs")" avatar="cash"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "روزهای ثبت نرخ", "Rate dates")" value="@rateDateCount.ToString("N0")" unit="@UiText.T(Context, "روز", "dates")" avatar="purchase-contracts"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "نرخ‌های دارای منبع", "Rates with source")" value="@sourcedRateCount.ToString("N0")" unit="@UiText.T(Context, "نرخ", "rates")" avatar="purchase-requests"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تعداد نرخ‌ها", "Rates")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "نرخ", "rates")" avatar="exchange-rate"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "جفت‌های ارزی", "Currency pairs")" value="@currencyPairCount.ToString("N0")" unit="@UiText.T(Context, "جفت", "pairs")" avatar="cash-flow"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "روزهای ثبت نرخ", "Rate dates")" value="@rateDateCount.ToString("N0")" unit="@UiText.T(Context, "روز", "dates")" avatar="analysis"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "نرخ‌های دارای منبع", "Rates with source")" value="@sourcedRateCount.ToString("N0")" unit="@UiText.T(Context, "نرخ", "rates")" avatar="documents"></vc:stat-card>
     </section>
 
     @{

@@ -189,10 +189,13 @@ public sealed class ServiceProviderProfileViewModel
     public decimal TotalPaymentsUsd { get; init; }
     public decimal LedgerDebitUsd { get; init; }
     public decimal LedgerCreditUsd { get; init; }
-    public decimal LedgerBalanceUsd => LedgerCreditUsd - LedgerDebitUsd;
+    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته). هم‌علامتِ
+    // PartyStatementSummary.ClosingBalance که صفحهٔ جزئیات به آن fallback می‌کند.
+    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
+    // مانده مثبت = پیش‌پرداخت ما، منفی = بدهی ما (هم‌جهت با علامت جدید LedgerBalanceUsd).
     public string BalanceStatus =>
-        LedgerBalanceUsd > 0m ? "Payable to provider"
-        : LedgerBalanceUsd < 0m ? "Prepaid / provider owes us"
+        LedgerBalanceUsd > 0m ? "Prepaid / provider owes us"
+        : LedgerBalanceUsd < 0m ? "Payable to provider"
         : "Settled";
     public IReadOnlyList<ServiceProviderExpenseRowViewModel> Expenses { get; init; } = [];
     public IReadOnlyList<ServiceProviderPaymentRowViewModel> Payments { get; init; } = [];

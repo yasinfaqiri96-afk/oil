@@ -469,8 +469,18 @@ public partial class ExpensesController : Controller
             })
             .ToListAsync();
 
-        // مجموع کلِ مبلغ (دالر) روی همهٔ رکوردهای مطابق فیلتر (برای ردیف جمع در انتهای لیست).
+        // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
         ViewBag.SumAmountUsd = await query.SumAsync(e => e.AmountUsd);
+        ViewBag.ExpenseTypeCount = await query
+            .Where(e => e.ExpenseTypeId != null)
+            .Select(e => e.ExpenseTypeId)
+            .Distinct()
+            .CountAsync();
+        ViewBag.RelatedContractCount = await query
+            .Where(e => e.ContractId != null)
+            .Select(e => e.ContractId)
+            .Distinct()
+            .CountAsync();
 
         return View(new ExpenseIndexViewModel
         {

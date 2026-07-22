@@ -12,11 +12,11 @@
     <p class="ak-note">این گزارش فقط خواندنی است و هیچ سند مالی را اصلاح نمی‌کند.</p>
 
     <section class="ak-stat-grid" aria-label="آمار مغایرت‌های رزنامچه">
-        <vc:stat-card title="بدون طرف حساب" value="@Model.PaymentsWithoutCounterparty.Count.ToString("N0")" unit="مورد" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="بدون حساب" value="@Model.PaymentsWithoutCashAccount.Count.ToString("N0")" unit="مورد" avatar="payments"></vc:stat-card>
-        <vc:stat-card title="اختلاف Ledger" value="@Model.LedgerAmountMismatches.Count.ToString("N0")" unit="مورد" avatar="profit-loss"></vc:stat-card>
+        <vc:stat-card title="بدون طرف حساب" value="@Model.PaymentsWithoutCounterparty.Count.ToString("N0")" unit="مورد" avatar="partners"></vc:stat-card>
+        <vc:stat-card title="بدون حساب" value="@Model.PaymentsWithoutCashAccount.Count.ToString("N0")" unit="مورد" avatar="bank-accounts"></vc:stat-card>
+        <vc:stat-card title="اختلاف Ledger" value="@Model.LedgerAmountMismatches.Count.ToString("N0")" unit="مورد" avatar="ledger"></vc:stat-card>
         <vc:stat-card title="ریسک مصرف" value="@Model.ExpenseDoubleCountingRisks.Count.ToString("N0")" unit="مورد" avatar="expenses"></vc:stat-card>
-        <vc:stat-card title="کارمند" value="@Model.EmployeePaymentsWithoutEmployeeLink.Count.ToString("N0")" unit="مورد" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="کارمند" value="@Model.EmployeePaymentsWithoutEmployeeLink.Count.ToString("N0")" unit="مورد" avatar="employees"></vc:stat-card>
         <vc:stat-card title="مشتری/تأمین‌کننده" value="@Model.SupplierCustomerPaymentsWithoutProfileLink.Count.ToString("N0")" unit="مورد" avatar="suppliers"></vc:stat-card>
     </section>
 

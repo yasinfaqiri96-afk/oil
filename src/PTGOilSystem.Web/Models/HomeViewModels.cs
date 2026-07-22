@@ -63,7 +63,8 @@ public class DashboardBalanceSummaryViewModel
     public int ItemCount { get; set; }
     public decimal DebitTotalUsd { get; set; }
     public decimal CreditTotalUsd { get; set; }
-    public decimal BaseBalanceUsd => CreditTotalUsd - DebitTotalUsd;
+    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته). هم‌علامتِ صفحات بیلانس.
+    public decimal BaseBalanceUsd => DebitTotalUsd - CreditTotalUsd;
 }
 
 public class DashboardAlertViewModel

@@ -247,12 +247,8 @@ public partial class SuppliersController : Controller
         var ledgerRows = await _db.LedgerEntries
             .AsNoTracking()
             .Include(l => l.Contract)
-            .Where(l =>
-                (l.SupplierId.HasValue && supplierIds.Contains(l.SupplierId.Value))
-                || (l.Contract != null
-                    && l.Contract.ContractType == ContractType.Purchase
-                    && l.Contract.SupplierId.HasValue
-                    && supplierIds.Contains(l.Contract.SupplierId.Value)))
+            // انتساب مرکزی: اسنادِ طرف‌حسابِ دیگر (کرایهٔ حمل و …) از متریکِ تأمین‌کننده کنار می‌مانند.
+            .Where(LedgerEntryOwnership.SupplierOwnedAny(supplierIds))
             .Select(l => new SupplierLedgerMetricProjection
             {
                 LedgerEntryId = l.Id,
@@ -347,10 +343,9 @@ public partial class SuppliersController : Controller
         // Contract scalar parts carried so RUB/USD helpers compute identical values.
         var ledgers = (await _db.LedgerEntries
                 .AsNoTracking()
-                .Where(l => l.SupplierId == supplier.Id
-                    || (l.Contract != null
-                        && l.Contract.ContractType == ContractType.Purchase
-                        && l.Contract.SupplierId == supplier.Id))
+                // انتساب مرکزی (همان قانونِ صورت‌حساب) تا کرایهٔ حمل و اسنادِ طرف دیگر
+                // در پروفایل/مانده تأمین‌کننده هم شمرده نشوند.
+                .Where(LedgerEntryOwnership.SupplierOwned(supplier.Id))
                 .OrderBy(l => l.EntryDate)
                 .ThenBy(l => l.Id)
                 .Select(l => new SupplierLedgerProjection

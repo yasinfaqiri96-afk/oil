@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
@@ -244,8 +245,17 @@ public partial class InventoryController : Controller
             Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
         };
 
+        IDbContextTransaction? transaction = null;
         try
         {
+            // Serialize the availability check with the write so two concurrent
+            // Out-movements on the same tank cannot both pass and oversell.
+            if (_db.Database.IsRelational())
+            {
+                transaction = await _db.Database.BeginTransactionAsync();
+            }
+
+            await _stock.AcquireStockMutationLockAsync(movement);
             await _stock.EnsureSufficientStockForMovementAsync(movement);
 
             _db.InventoryMovements.Add(movement);
@@ -265,6 +275,11 @@ public partial class InventoryController : Controller
                     ("MovementDate", movement.MovementDate),
                     ("ReferenceDocument", movement.ReferenceDocument)));
 
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+
             TempData["ok"] = "حرکت موجودی با موفقیت ثبت شد.";
             return RedirectToAction(nameof(Index));
         }
@@ -276,6 +291,13 @@ public partial class InventoryController : Controller
         {
             _logger.LogError(ex, "Failed to create inventory movement.");
             ModelState.AddModelError(string.Empty, "ثبت حرکت موجودی انجام نشد. دوباره تلاش کنید.");
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
         }
 
         await PopulateLookupsAsync(createModel: model);

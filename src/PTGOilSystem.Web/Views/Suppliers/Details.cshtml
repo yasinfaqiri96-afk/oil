@@ -9,12 +9,13 @@
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
     var endingUsd = officialSummary?.ClosingBalance ?? Model.SupplierRemainingClaimUsd;
-    var endingRub = officialSummary is null ? Model.SupplierRemainingClaimRub : null;
+    // معادل روبلی مانده — همیشه از مدل (اگر داده روبل موجود باشد) تا کنار USD نمایش داده شود.
+    var endingRub = Model.SupplierRemainingClaimRub;
     var hasRubBalance = endingRub.HasValue;
     var balanceLabel = officialSummary?.ClosingBalanceMeaning
         ?? (endingUsd > 0 ? "قابل پرداخت به تأمین‌کننده" : endingUsd < 0 ? "پیش‌پرداخت / طلب ما از تأمین‌کننده" : "حساب تسویه است");
-    var balanceClass = endingUsd > 0 ? "ak-num" : endingUsd < 0 ? "ak-num" : "";
-    var officialRecentRows = ViewData["PartyStatementRecentRows"] as IReadOnlyList<PTGOilSystem.Web.Models.PartyStatements.PartyStatementRow> ?? [];
+    // رنگ عدد مانده به سبک سیستم: بدهکاری ما (قابل پرداخت) سرخ، طلب/پیش‌پرداخت سبز، تسویه خنثی.
+    var balanceValueClass = endingUsd > 0 ? "text-danger" : endingUsd < 0 ? "text-success" : "";
 
     // سه تب: خلاصه (پیش‌فرض) · قراردادها (شامل پرداخت‌ها) · صورت‌حساب.
     var activeTab = Model.ActiveTab;
@@ -66,27 +67,48 @@
 
         <section class="ak-form-section ak-detail-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("وضعیت حساب", balanceLabel))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>مانده حساب</dt><dd class="ak-num @balanceClass">@NumberDisplay.Money(Math.Abs(endingUsd), "USD")</dd></div>
-                @if (hasRubBalance)
-                {
-                    <div class="ak-list-row"><dt>معادل روبل</dt><dd class="ak-num">@NumberDisplay.Money(Math.Abs(endingRub!.Value), "RUB")</dd></div>
-                }
-                <div class="ak-list-row"><dt>خرید بارگیری‌شده</dt><dd class="ak-num">@NumberDisplay.Money(Model.LoadedPurchaseValueUsd, "USD")</dd></div>
-                <div class="ak-list-row"><dt>پرداخت‌شده</dt><dd class="ak-num">@NumberDisplay.Money(Model.TotalPaidUsd, "USD")</dd></div>
-                <div class="ak-list-row"><dt>پیش‌پرداخت آزاد</dt><dd class="ak-num">@NumberDisplay.Money(Model.AdvanceFreeUsd, "USD")</dd></div>
+            <dl class="ak-list ak-account-list">
+                <div class="ak-list-row ak-account-lead">
+                    <dt>مانده حساب</dt>
+                    <dd class="ak-num @balanceValueClass">
+                        @NumberDisplay.Money(Math.Abs(endingUsd), "USD")
+                        @if (hasRubBalance)
+                        {
+                            <small class="ak-amount-sub">≈ @NumberDisplay.Money(Math.Abs(endingRub!.Value), "RUB")</small>
+                        }
+                    </dd>
+                </div>
+                <div class="ak-list-row">
+                    <dt>خرید بارگیری‌شده</dt>
+                    <dd class="ak-num">
+                        @NumberDisplay.Money(Model.LoadedPurchaseValueUsd, "USD")
+                        @if (Model.LoadedPurchaseValueRub.HasValue)
+                        {
+                            <small class="ak-amount-sub">≈ @NumberDisplay.Money(Model.LoadedPurchaseValueRub.Value, "RUB")</small>
+                        }
+                    </dd>
+                </div>
+                <div class="ak-list-row">
+                    <dt>پرداخت‌شده</dt>
+                    <dd class="ak-num">
+                        @NumberDisplay.Money(Model.TotalPaidUsd, "USD")
+                        @if (Model.TotalPaidRub.HasValue)
+                        {
+                            <small class="ak-amount-sub">≈ @NumberDisplay.Money(Model.TotalPaidRub.Value, "RUB")</small>
+                        }
+                    </dd>
+                </div>
+                <div class="ak-list-row">
+                    <dt>پیش‌پرداخت آزاد</dt>
+                    <dd class="ak-num @(Model.AdvanceFreeUsd > 0 ? "text-success" : "")">@NumberDisplay.Money(Model.AdvanceFreeUsd, "USD")</dd>
+                </div>
                 <div class="ak-list-row"><dt>قرارداد فعال</dt><dd class="ak-num">@Model.ActivePurchaseContractsCount.ToString("N0")</dd></div>
                 <div class="ak-list-row"><dt>آخرین پرداخت</dt><dd>@(Model.LastPaymentDate.HasValue ? Model.LastPaymentDate.Value.ToDisplayDate() : notRecorded)</dd></div>
             </dl>
         </section>
     </div>
 
-    @* ===== تب ۱: خلاصه — آخرین حرکت‌های حساب ===== *@
-    <section id="supplier-overview" class="ak-form-section ak-detail-section" hidden="@(!showOverview)">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("حرکت‌های اخیر", "پنج سند آخر از موتور مشترک صورت‌حساب."))" />
-        <partial name="~/Views/Shared/Statements/_PartyStatementRecent.cshtml" model="officialRecentRows" />
-    </section>
-    @* ===== تب ۲: قراردادها + پرداخت‌ها ===== *@
+    @* ===== تب ۱: قراردادها + پرداخت‌ها ===== *@
     <section id="supplier-contracts" class="ak-form-section ak-detail-section" hidden="@(!showContracts)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("قراردادهای خرید", $"{Model.Contracts.Count:N0} قرارداد")) " />
         @{
@@ -295,10 +317,11 @@
     @* ===== تب ۳: صورت‌حساب ===== *@
     <section id="supplier-statement" class="ak-form-section ak-detail-section" hidden="@(!showStatement)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("صورت‌حساب رسمی تأمین‌کننده", "مانده، نرخ تاریخی و اطلاعات نفتی در موتور مشترک محاسبه می‌شود."))" />
-        <div class="ak-empty ak-detail-empty-state">
-            <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
-            <p>جدول تکراری و تغییر علامت نمایشی حذف شد؛ سند رسمی تنها مرجع گردش حساب است.</p>
-            <a asp-controller="PartyStatements" asp-action="Supplier" asp-route-id="@Model.SupplierId" class="btn btn-primary">مشاهده صورت‌حساب رسمی</a>
+        <div class="ak-party-statement-embed" data-party-statement-embed="@(Url.Action("Supplier", "PartyStatements", new { id = Model.SupplierId }))">
+            <div class="ak-empty ak-detail-empty-state">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                <p>در حال بارگذاری صورت‌حساب…</p>
+            </div>
         </div>
     </section>
 </div>

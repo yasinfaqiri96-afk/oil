@@ -344,13 +344,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
 }
 
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .boltz-content {
-    padding: 1rem 1.45rem 1.4rem !important;
     background: transparent !important;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .boltz-content-body {
-    width: 100% !important;
-    max-width: none !important;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .inventory-transport-group-form-page {

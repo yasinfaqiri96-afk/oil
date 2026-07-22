@@ -21,9 +21,9 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار انواع مصرف", "Expense type statistics")">
-        <vc:stat-card title="@UiText.T(Context, "تعداد انواع مصرف", "Expense types")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar="expenses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "انواع فعال", "Active types")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "دسته‌های مصرف", "Categories")" value="@categoryCount.ToString("N0")" unit="@UiText.T(Context, "دسته", "categories")" avatar="purchase-requests"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تعداد انواع مصرف", "Expense types")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar="expense-types"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "انواع فعال", "Active types")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "دسته‌های مصرف", "Categories")" value="@categoryCount.ToString("N0")" unit="@UiText.T(Context, "دسته", "categories")" avatar="documents"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "دارای حساب پرداختنی", "With payable account")" value="@payableAccountCount.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar="bank-accounts"></vc:stat-card>
     </section>
 

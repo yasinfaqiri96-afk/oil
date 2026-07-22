@@ -162,8 +162,12 @@ public partial class InventoryTransportLegsController : Controller
 
         await PopulateIndexLookupsAsync();
 
-        // مجموع کلِ مقدار روی همهٔ رکوردهای مطابق فیلتر (برای ردیف جمع در انتهای لیست).
+        // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
         ViewBag.SumQuantity = await query.SumAsync(l => l.QuantityMt);
+        ViewBag.ActiveCount = await query.CountAsync(l =>
+            l.Status != InventoryTransportLegStatus.Cancelled
+            && l.Status != InventoryTransportLegStatus.Received);
+        ViewBag.PostedCount = await query.CountAsync(l => l.OutboundInventoryMovementId != null);
 
         return View(new InventoryTransportLegIndexViewModel
         {

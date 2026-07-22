@@ -27,29 +27,20 @@ body.boltz-shell.app-shell-authenticated {
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-app {
-    gap: var(--ptg-space-gap);
+    gap: var(--layout-shell-gap);
     height: 100vh;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: var(--ptg-page-top) var(--ptg-space-page) var(--ptg-space-page);
+    padding-block: var(--ptg-page-top) var(--ptg-space-page);
+    padding-inline: 0;
     background: var(--ptg-bg);
     /* نوار اسکرول باریک (فقط عرض؛ روی ارتفاع صفحه اثری ندارد). */
     scrollbar-width: thin;
     scrollbar-color: rgba(143, 145, 165, .42) transparent;
 }
 
-/* Keep the desktop sidebar flush with the viewport edge while preserving the
-   page gutter on the content side. Logical spacing supports both RTL and LTR. */
-@media (min-width: 1200px) {
-    body.boltz-shell.app-shell-authenticated .ptg-app {
-        padding-inline-start: 0;
-        gap: var(--layout-shell-gap);
-    }
-
-    body.boltz-shell.app-shell-authenticated .boltz-topbar-start {
-        margin-inline-start: calc(0px - var(--layout-shell-gap));
-    }
-}
+/* Horizontal page gutters belong to the workspace PageFrame, not the viewport
+   grid. Keeping the shell itself unpadded makes both RTL and LTR symmetric. */
 
 body.boltz-shell.app-shell-authenticated .ptg-app::-webkit-scrollbar {
     width: 7px;
@@ -187,21 +178,13 @@ body.boltz-shell.app-shell-authenticated .ptg-page {
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-page-body {
-    width: min(100%, 112rem);
-    max-width: 112rem;
     gap: var(--ptg-space-gap);
-    margin-inline: auto;
     padding: 0;
     background: transparent !important;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-footer {
     color: var(--ptg-muted);
-}
-
-body.boltz-shell.app-shell-authenticated .summary-strip-page-top {
-    width: min(100%, 112rem);
-    margin-inline: auto;
 }
 
 @media (min-width: 1200px) {
@@ -220,13 +203,29 @@ body.boltz-shell.app-shell-authenticated .summary-strip-page-top {
     }
 }
 
-@media (min-width: 992px) {
+@media (min-width: 1200px) {
     body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .ptg-app {
         grid-template-columns: var(--ptg-mini-sidebar) minmax(0, 1fr) !important;
     }
 }
 
-@media (max-width: 1199.98px) {
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    body.boltz-shell.app-shell-authenticated .ptg-app {
+        grid-template-columns: var(--ptg-mini-sidebar) minmax(0, 1fr) !important;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-sidebar {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-main {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}
+
+@media (max-width: 991.98px) {
     /* padding/topbar-top/min-height همگی از این متغیر تغذیه می‌شوند تا در همهٔ
        بریک‌پوینت‌ها فاصلهٔ بالای صفحه و زیر هدر یکدست بماند. */
     body.boltz-shell.app-shell-authenticated .ptg-app {
@@ -373,7 +372,7 @@ body.ptg-account-open .ptg-account-backdrop { opacity: 1; }
     left: 0;
     height: 100dvh;
     width: 360px;
-    max-width: 100vw;
+    max-width: 100dvi;
     background: var(--background-paper);
     box-shadow: 16px 0 44px -12px rgba(0, 0, 0, .22);
     transform: translateX(-100%);
@@ -669,7 +668,7 @@ body.ptg-search-open .ptg-app { overflow: hidden !important; }
 }
 
 @media (max-width: 575.98px) {
-    .ptg-account-drawer { width: 100vw; }
+    .ptg-account-drawer { width: 100dvi; }
 }
 
 @media (prefers-reduced-motion: reduce) {

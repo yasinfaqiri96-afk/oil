@@ -235,7 +235,7 @@
         <input asp-for="ImportWorkbookFile" type="file" accept=".xlsx" class="d-none" id="excelFile" />
         <div class="ak-footer-actions" data-loading-footer-actions>
             <span class="lic-footer-count">کل: <strong data-lic-count-total>0</strong> ردیف · <span class="lic-count-err">خطا: <strong data-lic-count-error>0</strong></span></span>
-            <button type="submit" class="ak-save">ذخیره</button>
+            <button type="submit" class="ak-save" data-loading-save data-busy-text="در حال ثبت...">ذخیره</button>
             <button type="button" class="btn btn-light ak-secondary-action" id="excelFilePickBtn"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> بارگذاری اکسل</button>
             <button type="button" class="btn btn-primary ak-primary-action d-none" id="excelImportBtn"><i class="bi bi-check2" aria-hidden="true"></i> وارد کردن</button>
             <span id="excelFileName" class="ak-note d-none"></span>
@@ -1634,7 +1634,52 @@
                 }
                 applyFreightVisibility();
             });
-            loadingForm?.addEventListener('submit', function () {
+            // قفل دکمهٔ ذخیره تا پایان ثبت سرور، تا ثبت تکراری رخ ندهد.
+            const loadingSaveBtn = document.querySelector('[data-loading-save]');
+            let loadingSubmitInProgress = false;
+
+            function setLoadingSaveBusy(busy) {
+                if (!loadingSaveBtn) {
+                    return;
+                }
+
+                if (busy) {
+                    if (!loadingSaveBtn.dataset.idleText) {
+                        loadingSaveBtn.dataset.idleText = loadingSaveBtn.textContent;
+                    }
+                    loadingSaveBtn.textContent = loadingSaveBtn.dataset.busyText || 'در حال ثبت...';
+                    loadingSaveBtn.setAttribute('aria-busy', 'true');
+                    // غیرفعال‌سازی با تأخیر تا ارسال فرم متوقف نشود.
+                    setTimeout(() => { loadingSaveBtn.disabled = true; }, 0);
+                } else {
+                    loadingSaveBtn.disabled = false;
+                    loadingSaveBtn.removeAttribute('aria-busy');
+                    if (loadingSaveBtn.dataset.idleText) {
+                        loadingSaveBtn.textContent = loadingSaveBtn.dataset.idleText;
+                    }
+                }
+            }
+
+            // بازگشت با دکمهٔ Back مرورگر نباید دکمه را قفل نگه دارد.
+            window.addEventListener('pageshow', function () {
+                loadingSubmitInProgress = false;
+                setLoadingSaveBusy(false);
+            });
+
+            loadingForm?.addEventListener('submit', function (event) {
+                if (loadingSubmitInProgress) {
+                    event.preventDefault();
+                    return;
+                }
+                loadingSubmitInProgress = true;
+                setLoadingSaveBusy(true);
+                // اگر اعتبارسنجی سمت کلاینت ارسال را لغو کند، دکمه دوباره فعال می‌شود.
+                setTimeout(function () {
+                    if (event.defaultPrevented) {
+                        loadingSubmitInProgress = false;
+                        setLoadingSaveBusy(false);
+                    }
+                }, 0);
                 loadingForm.action = loadingForm.dataset.createAction || '@createPostUrl';
                 syncPrimaryContractInput();
                 const excelFileInput = document.getElementById('excelFile');

@@ -6,6 +6,9 @@
 (function () {
     "use strict";
 
+    var expandedSidebarMedia = window.matchMedia("(min-width: 1200px)");
+    var persistentSidebarMedia = window.matchMedia("(min-width: 992px)");
+
     // Auto-initialize
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", init, { once: true });
@@ -20,15 +23,7 @@
     function initializeShellNavigation() {
         if (!document.body || document.body.dataset.shellReady === "true") return;
 
-        // Restore compact state on desktop only. Smaller screens use the
-        // complete sidebar as an off-canvas drawer.
-        try {
-            if (window.innerWidth >= 1200 && localStorage.getItem("ptg-sidebar-collapsed") === "1") {
-                document.body.classList.add("is-sidebar-collapsed");
-            } else {
-                document.body.classList.remove("is-sidebar-collapsed");
-            }
-        } catch (_) {}
+        applySidebarMode();
 
         // Shell toggle buttons (hamburger menu)
         document.querySelectorAll("[data-shell-toggle='true']").forEach(function (button) {
@@ -36,7 +31,7 @@
             button.dataset.shellToggleReady = "true";
 
             button.addEventListener("click", function () {
-                if (window.innerWidth >= 1200) {
+                if (expandedSidebarMedia.matches) {
                     document.body.classList.toggle("is-sidebar-collapsed");
                     try {
                         localStorage.setItem("ptg-sidebar-collapsed",
@@ -64,11 +59,16 @@
 
             button.addEventListener("click", function () {
                 // Expand the compact rail before opening a labeled submenu.
-                if (window.innerWidth >= 1200 && document.body.classList.contains("is-sidebar-collapsed")) {
+                if (expandedSidebarMedia.matches && document.body.classList.contains("is-sidebar-collapsed")) {
                     document.body.classList.remove("is-sidebar-collapsed");
                     try {
                         localStorage.setItem("ptg-sidebar-collapsed", "0");
                     } catch (_) {}
+                }
+
+                if (persistentSidebarMedia.matches && !expandedSidebarMedia.matches) {
+                    document.body.classList.add("is-shell-nav-open");
+                    syncSidebarToggleState();
                 }
 
                 var group = button.closest("[data-nav-group]");
@@ -93,11 +93,7 @@
         if (window.PTG.shellResizeReady !== true) {
             window.PTG.shellResizeReady = true;
             window.addEventListener("resize", function () {
-                if (window.innerWidth >= 1200) {
-                    closeShellNavigation();
-                } else {
-                    document.body.classList.remove("is-sidebar-collapsed");
-                }
+                applySidebarMode();
             }, { passive: true });
         }
 
@@ -124,6 +120,25 @@
         if (!document.body) return;
         document.body.classList.remove("is-shell-nav-open");
         syncSidebarToggleState();
+    }
+
+    function applySidebarMode() {
+        if (!document.body) return;
+
+        closeShellNavigation();
+        if (!expandedSidebarMedia.matches) {
+            document.body.classList.remove("is-sidebar-collapsed");
+            return;
+        }
+
+        try {
+            document.body.classList.toggle(
+                "is-sidebar-collapsed",
+                localStorage.getItem("ptg-sidebar-collapsed") === "1"
+            );
+        } catch (_) {
+            document.body.classList.remove("is-sidebar-collapsed");
+        }
     }
 
     function syncSidebarToggleState() {

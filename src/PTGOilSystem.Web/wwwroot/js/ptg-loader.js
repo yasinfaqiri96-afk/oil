@@ -91,6 +91,71 @@
     window.PTG = window.PTG || {};
     window.PTG.loader = { show: show, hide: hide, reset: reset };
 
+    /* ---------------------------------------------------------------------
+     * Navigation progress (top bar) — جدا از لودر لوگو.
+     * لوگو فقط برای Boot/Full-reload است؛ ناوبری SPA فقط این نوار نازک را
+     * می‌گیرد. تأخیر 350ms: ناوبری سریع اصلاً چیزی نشان نمی‌دهد. بدون
+     * minimum-visible: به‌محض پایان، سریع کامل و محو می‌شود (بدون flash).
+     * ------------------------------------------------------------------- */
+    var NAV_DELAY_MS = 350;
+    var navCount = 0;
+    var navTimer = null;
+    var navEl = null;
+
+    function navNode() {
+        if (navEl && document.body && document.body.contains(navEl)) return navEl;
+        navEl = document.createElement("div");
+        navEl.id = "ptg-nav-progress";
+        navEl.className = "ptg-nav-progress";
+        navEl.setAttribute("aria-hidden", "true");
+        var bar = document.createElement("div");
+        bar.className = "ptg-nav-progress__bar";
+        navEl.appendChild(bar);
+        document.body.appendChild(navEl);
+        return navEl;
+    }
+
+    function navReveal() {
+        navTimer = null;
+        var el = navNode();
+        el.classList.remove("is-done");
+        void el.offsetWidth; // reflow تا انیمیشن از صفر شروع شود
+        el.classList.add("is-active");
+    }
+
+    function navStart() {
+        navCount++;
+        if (navCount > 1) return;
+        window.clearTimeout(navTimer);
+        navTimer = window.setTimeout(navReveal, NAV_DELAY_MS);
+    }
+
+    function navDone(force) {
+        navCount = force ? 0 : Math.max(0, navCount - 1);
+        if (navCount > 0) return;
+        window.clearTimeout(navTimer);
+        navTimer = null;
+        // اگر هرگز نمایش داده نشده (ناوبری سریع‌تر از تأخیر) هیچ‌چیز نشان نده.
+        if (!navEl || !navEl.classList.contains("is-active")) {
+            if (navEl) navEl.classList.remove("is-active", "is-done");
+            return;
+        }
+        var el = navEl;
+        el.classList.add("is-done");
+        window.setTimeout(function () {
+            if (navCount === 0) el.classList.remove("is-active", "is-done");
+        }, 220);
+    }
+
+    function navReset() {
+        window.clearTimeout(navTimer);
+        navTimer = null;
+        navCount = 0;
+        if (navEl) navEl.classList.remove("is-active", "is-done");
+    }
+
+    window.PTG.nav = { start: navStart, done: navDone, reset: navReset };
+
     // لود اولیهٔ صفحه
     if (document.readyState !== "complete") {
         show();
@@ -98,6 +163,6 @@
     }
 
     // Back/Forward و bfcache: هیچ overlay باقی‌مانده‌ای روی صفحه نماند.
-    window.addEventListener("pageshow", function () { reset(); });
-    window.addEventListener("pagehide", function () { reset(); });
+    window.addEventListener("pageshow", function () { reset(); navReset(); });
+    window.addEventListener("pagehide", function () { reset(); navReset(); });
 })();

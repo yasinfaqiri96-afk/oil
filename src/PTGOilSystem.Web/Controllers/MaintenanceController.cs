@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
@@ -96,6 +97,98 @@ public sealed class MaintenanceController : Controller
         {
             message = "Dispatch freight expenses backfilled.",
             candidates = dispatches.Count
+        });
+    }
+
+    // Backfill: بارگیری‌های دالریِ قیمت‌دارِ قرارداد خرید که پیش از پشتیبانی USD در SupplierLoadingLedger
+    // ثبت شده‌اند و هیچ سطر بدهی تأمین‌کننده ندارند؛ به همین دلیل مانده و صورت‌حساب تأمین‌کننده صفر بود.
+    // پیش‌فرض Dry Run است و چیزی نمی‌نویسد؛ نوشتن فقط با commit=true و داخل تراکنش انجام می‌شود.
+    // ضدتکرار: هر بارگیری که از قبل سطر (SourceType=Loading, SourceId=Id) دارد کنار گذاشته می‌شود،
+    // پس اجرای دوباره صفر رکورد می‌سازد. بارگیری روبلی از این مسیر عبور نمی‌کند.
+    [HttpPost]
+    [Route("/maintenance/backfill-supplier-usd-loading-ledger")]
+    public async Task<IActionResult> BackfillSupplierUsdLoadingLedger(bool commit = false)
+    {
+        var loadings = await _db.LoadingRegisters
+            .Include(l => l.Contract)
+            .Where(l => l.Contract != null
+                && l.Contract.ContractType == ContractType.Purchase
+                && l.Contract.SupplierId != null
+                && l.LoadedQuantityMt > 0m
+                && l.LoadingPriceUsd != null
+                && l.LoadingPriceUsd > 0m)
+            .ToListAsync();
+
+        var postedLoadingIds = (await _db.LedgerEntries
+                .AsNoTracking()
+                .Where(l => l.SourceType == SupplierLoadingLedger.SourceType)
+                .Select(l => l.SourceId)
+                .ToListAsync())
+            .ToHashSet();
+
+        var candidates = loadings
+            .Where(l => !postedLoadingIds.Contains(l.Id))
+            .Where(l => !LoadingRubSettlement.IsRubSettlement(l.SettlementCurrencyCode))
+            .Where(l => SupplierLoadingLedger.IsPostable(l, l.Contract))
+            .OrderBy(l => l.Id)
+            .ToList();
+
+        var entries = candidates
+            .Select(l => SupplierLoadingLedger.Create(l, l.Contract!))
+            .ToList();
+        var totalUsd = entries.Sum(e => e.AmountUsd);
+
+        if (!commit)
+        {
+            return Ok(new
+            {
+                mode = "dryRun",
+                message = "No row was written. Re-send with commit=true to apply.",
+                candidates = candidates.Count,
+                totalUsd,
+                loadingIds = candidates.Select(l => l.Id).ToList()
+            });
+        }
+
+        if (entries.Count == 0)
+        {
+            return Ok(new { mode = "commit", created = 0, totalUsd = 0m });
+        }
+
+        var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
+        try
+        {
+            _db.LedgerEntries.AddRange(entries);
+            await _db.SaveChangesAsync();
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
+
+        return Ok(new
+        {
+            mode = "commit",
+            created = entries.Count,
+            totalUsd,
+            loadingIds = candidates.Select(l => l.Id).ToList()
         });
     }
 

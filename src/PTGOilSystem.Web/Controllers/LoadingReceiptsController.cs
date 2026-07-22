@@ -303,8 +303,13 @@ public partial class LoadingReceiptsController : Controller
             })
             .ToListAsync();
 
-        // مجموع کلِ مقدار رسید روی همهٔ رکوردهای مطابق فیلتر (برای ردیف جمع در انتهای لیست).
+        // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
         ViewBag.SumQuantity = await query.SumAsync(receipt => receipt.ReceivedQuantityMt);
+        ViewBag.WithTankCount = await query.CountAsync(receipt => receipt.StorageTank != null);
+        ViewBag.WithReferenceCount = await query.CountAsync(receipt =>
+            receipt.ReferenceDocument != null
+            && receipt.ReferenceDocument != ""
+            && !receipt.ReferenceDocument.ToUpper().StartsWith("BULK-RCPT-"));
 
         return View(new LoadingReceiptIndexViewModel
         {

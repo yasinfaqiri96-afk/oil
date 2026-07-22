@@ -12,11 +12,16 @@
 <div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "مصارف", "Expenses"), true, UiText.T(Context, "ثبت مصرف جدید", "New expense"), "bi-plus-lg", Url.Action("Create"), (string?)null, UiText.T(Context, "ثبت مصرف گروهی", "Group expense"), "bi-collection", Url.Action("CreateGroup")))" />
+    @{
+        var sumAmountUsd = (decimal)(ViewBag.SumAmountUsd ?? 0m);
+        var expenseTypeCount = (int)(ViewBag.ExpenseTypeCount ?? 0);
+        var relatedContractCount = (int)(ViewBag.RelatedContractCount ?? 0);
+    }
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار مصارف", "Expense statistics")">
         <vc:stat-card title="@UiText.T(Context, "کل مصارف", "Total expenses")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "ثبت", "records")" avatar="expenses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مبلغ این صفحه", "Amount on this page")" value="@Model.Items.Sum(x => x.AmountUsd).ToString("N0")" unit="USD" avatar="purchase-value"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "انواع مصرف", "Expense types")" value="@Model.Items.Select(x => x.ExpenseTypeName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count().ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar="purchase-contracts"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "قراردادهای مرتبط", "Related contracts")" value="@Model.Items.Select(x => x.ContractNumber).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count().ToString("N0")" unit="@UiText.T(Context, "قرارداد", "contracts")" avatar="receivables"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل مبلغ", "Total amount")" value="@sumAmountUsd.ToString("N0")" unit="USD" avatar="payments-out"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "انواع مصرف", "Expense types")" value="@expenseTypeCount.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar="expense-types"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "قراردادهای مرتبط", "Related contracts")" value="@relatedContractCount.ToString("N0")" unit="@UiText.T(Context, "قرارداد", "contracts")" avatar="contract-signed"></vc:stat-card>
     </section>
     <div class="ak-list">
         @{

@@ -350,6 +350,8 @@ public class InventoryTransportBatchServiceTests
             => Task.FromResult<IReadOnlyList<StockSummaryItem>>([]);
         public Task<IReadOnlyList<StockCardItem>> GetStockCardAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<StockCardItem>>([]);
+        public Task AcquireStockMutationLockAsync(InventoryMovement movement, CancellationToken ct = default)
+            => Task.CompletedTask;
         public Task EnsureSufficientStockForMovementAsync(InventoryMovement movement, CancellationToken ct = default)
             => Task.CompletedTask;
         public Task EnsureMovementDoesNotCauseFutureNegativeStockAsync(InventoryMovement movement, CancellationToken ct = default)

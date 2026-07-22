@@ -20,11 +20,11 @@
     <p class="ak-note">فرمول مقایسه با Excel: <strong>Balance = Previous Balance + In - Out + Adjustment + Transfer</strong>. مقدار Adjustment و Transfer همان اثر امضادار محاسبه‌شده توسط StockService است.</p>
 
     <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار بازسازی موجودی", "Stock reconstruction metrics")">
-        <vc:stat-card title="@UiText.T(Context, "ردیف‌ها", "Rows")" value="@Model.Rows.Count.ToString("N0")" unit="@UiText.T(Context, "ردیف", "rows")" avatar="purchase-contracts"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "موجودی ابتدایی", "Opening Balance")" value="@Model.OpeningBalanceMt.ToString("N4")" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "ردیف‌ها", "Rows")" value="@Model.Rows.Count.ToString("N0")" unit="@UiText.T(Context, "ردیف", "rows")" avatar="ledger"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "موجودی ابتدایی", "Opening Balance")" value="@Model.OpeningBalanceMt.ToString("N4")" unit="MT" avatar="warehouse"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "موجودی نهایی", "Closing Balance")" value="@Model.ClosingBalanceMt.ToString("N4")" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "خالص تغییر", "Net Change")" value="@netChangeMt.ToString("N4")" unit="MT" avatar="profit-loss"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "ترمینال‌ها", "Terminals")" value="@distinctTerminals.ToString("N0")" unit="@UiText.T(Context, "ترمینال", "terminals")" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "خالص تغییر", "Net Change")" value="@netChangeMt.ToString("N4")" unit="MT" avatar="analysis"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "ترمینال‌ها", "Terminals")" value="@distinctTerminals.ToString("N0")" unit="@UiText.T(Context, "ترمینال", "terminals")" avatar="dispatch-station"></vc:stat-card>
     </section>
 
     <div class="ak-list">

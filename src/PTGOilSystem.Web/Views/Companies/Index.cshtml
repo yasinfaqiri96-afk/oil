@@ -17,10 +17,10 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار شرکت‌ها", "Company statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل شرکت‌ها", "Total companies")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "شرکت", "companies")" avatar="suppliers"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "شرکت‌های فعال", "Active companies")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "شرکت", "companies")" avatar="loading"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل شرکت‌ها", "Total companies")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "شرکت", "companies")" avatar="partners"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "شرکت‌های فعال", "Active companies")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "شرکت", "companies")" avatar="rules-checklist"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "شرکت‌های غیرفعال", "Inactive companies")" value="@((items.Count - activeCount).ToString("N0"))" unit="@UiText.T(Context, "شرکت", "companies")" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "کشورها", "Countries")" value="@countryCount.ToString("N0")" unit="@UiText.T(Context, "کشور", "countries")" avatar="shipments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کشورها", "Countries")" value="@countryCount.ToString("N0")" unit="@UiText.T(Context, "کشور", "countries")" avatar="locations"></vc:stat-card>
     </section>
 
     <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
@@ -55,6 +55,13 @@
                                 <span class="ak-status @(p.IsActive ?"is-active" : "is-inactive")">
                                     @(p.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))
                                 </span>
+                                @if (p.IsSystemOwner)
+                                {
+                                    <span class="ak-status is-active" title="@UiText.T(Context, "دفاتر مالی به نام این شرکت است", "The books belong to this company")">
+                                        <i class="bi bi-star-fill" aria-hidden="true"></i>
+                                        @UiText.T(Context, "مالک سیستم", "System owner")
+                                    </span>
+                                }
                             </td>
                             <td class="ak-col-actions">
                                 <div class="dropdown ak-row-menu">
@@ -64,6 +71,21 @@
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><a class="dropdown-item" asp-action="Details" asp-route-id="@p.Id"><i class="bi bi-eye" aria-hidden="true"></i>@UiText.T(Context, "جزئیات", "Details")</a></li>
                                         <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@p.Id"><i class="bi bi-pencil" aria-hidden="true"></i>@UiText.T(Context, "ویرایش", "Edit")</a></li>
+                                        @if (!p.IsSystemOwner)
+                                        {
+                                            <li>
+                                                <form asp-action="SetSystemOwner" asp-route-id="@p.Id" asp-route-returnUrl="@returnUrl" method="post" class="ak-form"
+                                                      data-ptg-confirm="true"
+                                                      data-ptg-confirm-title="تعیین مالک سیستم"
+                                                      data-ptg-confirm-message="دفاتر مالی به نام این شرکت ثبت می‌شود و مالک قبلی برداشته می‌شود. ادامه می‌دهید؟"
+                                                      data-ptg-confirm-ok-label="تعیین مالک">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="dropdown-item" title="@UiText.T(Context, "تعیین به‌عنوان مالک سیستم", "Set as system owner")">
+                                                        <i class="bi bi-star" aria-hidden="true"></i><span>@UiText.T(Context, "تعیین به‌عنوان مالک سیستم", "Set as system owner")</span>
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        }
                                         <li><hr class="dropdown-divider" /></li>
                                         <li><partial name="~/Views/Shared/Partials/_ToggleActiveButton.cshtml" model="@(("Companies", p.Id, p.IsActive, "dropdown-item ak-danger", (string?)returnUrl))" /></li>
                                     </ul>

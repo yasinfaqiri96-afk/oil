@@ -476,14 +476,15 @@
         } catch (_) {}
     }
 
-    // لودر عمومی سیستم (ptg-loader.js) — تأخیر نمایش، حداقل زمان نمایش و
-    // شمارندهٔ مرجع همان‌جا مدیریت می‌شود؛ اینجا فقط show/hide صدا زده می‌شود.
+    // ناوبری SPA فقط نوار پیشرفتِ نازک بالای صفحه را می‌گیرد، نه لودر لوگو.
+    // لوگو مخصوص Boot/Full-reload است (ptg-loader.js). نوار پیشرفت تأخیر
+    // 350ms دارد و minimum-visible ندارد؛ ناوبری سریع هیچ چیزی نشان نمی‌دهد.
     function loaderStart() {
-        if (window.PTG && window.PTG.loader) window.PTG.loader.show();
+        if (window.PTG && window.PTG.nav) window.PTG.nav.start();
     }
 
     function loaderDone() {
-        if (window.PTG && window.PTG.loader) window.PTG.loader.hide();
+        if (window.PTG && window.PTG.nav) window.PTG.nav.done();
     }
 
     function fallback(url) { location.href = url; }

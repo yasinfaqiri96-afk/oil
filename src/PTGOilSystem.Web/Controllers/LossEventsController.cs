@@ -102,8 +102,10 @@ public partial class LossEventsController : Controller
             })
             .ToListAsync();
 
-        // مجموع کلِ کسری قابل‌مجرا روی همهٔ رکوردهای مطابق فیلتر (برای ردیف جمع در انتهای لیست).
+        // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
         ViewBag.SumChargeableLoss = await query.SumAsync(e => e.ChargeableLossMt);
+        ViewBag.SumDifferenceQuantity = await query.SumAsync(e => e.DifferenceQuantityMt);
+        ViewBag.NeedsReviewCount = await query.CountAsync(e => e.ChargeableLossMt > 0m);
 
         return View(new LossEventIndexViewModel
         {

@@ -110,7 +110,8 @@ public class ServiceProvidersControllerTests
         Assert.Equal(40m, model.TotalPaymentsUsd);
         Assert.Equal(150m, model.LedgerCreditUsd);
         Assert.Equal(90m, model.LedgerDebitUsd);
-        Assert.Equal(60m, model.LedgerBalanceUsd);
+        // مانده نمایشی = Σ(داده − گرفته) = 90 − 150؛ منفی یعنی بدهی به شرکت خدماتی.
+        Assert.Equal(-60m, model.LedgerBalanceUsd);
         Assert.Equal("Payable to provider", model.BalanceStatus);
 
         Assert.Single(model.Expenses);

@@ -1,4 +1,5 @@
 @model PTGOilSystem.Web.Models.Sales.GroupSaleCreateViewModel
+@using PTGOilSystem.Web.Models
 @using PTGOilSystem.Web.Models.Sales
 @using PTGOilSystem.Web.Models.Shared
 @{
@@ -8,9 +9,26 @@
     var cancelUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl)
         ? Model.ReturnUrl
         : Url.Action("Index");
+    IReadOnlyList<AkFilterOption> FilterOptions(IEnumerable<string> values) => values
+        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(value => value)
+        .Select(value => new AkFilterOption(value, value))
+        .ToList();
+    var sourceSearchFilter = new AkSearchFilterModel(
+        "fQuery",
+        null,
+        "جستجو در شماره، مسیر، قرارداد...",
+        new List<AkFilterDefinition>
+        {
+            new("fKind", "نوع منبع", "select", FilterOptions(sources.Select(item => item.KindLabel))),
+            new("fVehicle", "نوع وسیله", "select", FilterOptions(sources.Select(item => item.VehicleKind))),
+            new("fProduct", "کالا", "select", FilterOptions(sources.Select(item => item.ProductName))),
+            new("fStatus", "وضعیت", "select", FilterOptions(sources.Select(item => item.StatusLabel)))
+        });
 }
 
-<div class="ak-form-page ak-group-operation-page ak-group-wizard-page">
+<div class="ak-form-page ak-group-operation-page ak-group-operation-page--wide ak-group-wizard-page">
     @* data-no-spa + novalidate: مانند فرم مصرف گروهی؛ نرخ تبدیل مخفی نباید native-validation را بلاک کند.
        data-no-submit-guard: گاردِ سراسریِ core.js روی فرمِ novalidate راهِ آزادسازی ندارد و دکمه را
        روی «در حال ثبت…» قفل می‌کرد؛ این فرم قفلِ ضدِ دابل‌کلیکِ خودش را با آزادسازیِ امنِ زمان‌دار دارد. *@
@@ -39,31 +57,7 @@
             <div class="ak-group-wizard-main">
                 <div class="ak-form-section">
                     <h2 class="ak-section-title">انتخاب منابع قابل فروش</h2>
-                    <div class="ak-form-grid">
-                        <label class="ak-field">
-                            <span>نوع منبع</span>
-                            <select class="ak-input" id="fKind"><option value="">همه</option></select>
-                        </label>
-                        <label class="ak-field">
-                            <span>نوع وسیله</span>
-                            <select class="ak-input" id="fVehicle"><option value="">همه</option></select>
-                        </label>
-                        <label class="ak-field">
-                            <span>کالا</span>
-                            <select class="ak-input" id="fProduct"><option value="">همه</option></select>
-                        </label>
-                        <label class="ak-field">
-                            <span>وضعیت</span>
-                            <select class="ak-input" id="fStatus"><option value="">همه</option></select>
-                        </label>
-                    </div>
-                    <div class="ak-subform-toolbar">
-                        <label class="ak-subform-search">
-                            <i class="bi bi-search"></i>
-                            <input type="search" id="fQuery" placeholder="جستجو در شماره، مسیر، قرارداد..." />
-                        </label>
-                        <button type="button" class="btn ak-secondary-action" id="btnClearFilters">پاک کردن فیلتر</button>
-                    </div>
+                    <partial name="_AkClientSearchFilter" model="@sourceSearchFilter" />
 
                     <label class="ak-field">
                         <input type="checkbox" id="chkAll" />
@@ -331,37 +325,26 @@
         }
 
         // ---------- فیلترها ----------
-        var selects = { fKind: 'kindLabel', fVehicle: 'vehicle', fProduct: 'product', fStatus: 'status' };
-        Object.keys(selects).forEach(function (selId) {
-            var field = selects[selId];
-            var values = Array.from(new Set(sources.map(function (o) { return o[field]; }))).filter(Boolean);
-            var el = $(selId);
-            values.forEach(function (v) {
-                var opt = document.createElement('option');
-                opt.value = v; opt.textContent = v;
-                el.appendChild(opt);
-            });
-        });
+        var sourceFilter = document.querySelector('#gsaleForm [data-ak-filter-client]');
+        function filterValue(key) {
+            var field = sourceFilter.querySelector('[data-ak-filter-param][name="' + key + '"]');
+            return field ? field.value : '';
+        }
 
         function applyFilters() {
             var q = ($('fQuery').value || '').trim().toLowerCase();
             state.filtered = sources.filter(function (o) {
-                if ($('fKind').value && o.kindLabel !== $('fKind').value) return false;
-                if ($('fVehicle').value && o.vehicle !== $('fVehicle').value) return false;
-                if ($('fProduct').value && o.product !== $('fProduct').value) return false;
-                if ($('fStatus').value && o.status !== $('fStatus').value) return false;
+                if (filterValue('fKind') && o.kindLabel !== filterValue('fKind')) return false;
+                if (filterValue('fVehicle') && o.vehicle !== filterValue('fVehicle')) return false;
+                if (filterValue('fProduct') && o.product !== filterValue('fProduct')) return false;
+                if (filterValue('fStatus') && o.status !== filterValue('fStatus')) return false;
                 if (q && (o.number + ' ' + o.route + ' ' + o.contract + ' ' + o.kindLabel + ' ' + o.company).toLowerCase().indexOf(q) < 0) return false;
                 return true;
             });
             state.page = 1;
             renderTable();
         }
-        ['fKind', 'fVehicle', 'fProduct', 'fStatus'].forEach(function (id) { $(id).addEventListener('change', applyFilters); });
-        $('fQuery').addEventListener('input', applyFilters);
-        $('btnClearFilters').addEventListener('click', function () {
-            ['fKind', 'fVehicle', 'fProduct', 'fStatus', 'fQuery'].forEach(function (id) { $(id).value = ''; });
-            applyFilters();
-        });
+        sourceFilter.addEventListener('ak:filter-change', applyFilters);
 
         // ---------- جدول ----------
         function renderTable() {

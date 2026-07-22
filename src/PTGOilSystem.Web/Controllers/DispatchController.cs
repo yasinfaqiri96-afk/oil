@@ -773,8 +773,10 @@ public partial class DispatchController : Controller
             })
             .ToListAsync();
 
-        // مجموع کلِ مقدار روی همهٔ رکوردهای مطابق فیلتر (برای ردیف جمع در انتهای لیست).
+        // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
         ViewBag.SumQuantity = await query.SumAsync(d => d.LoadedQuantityMt);
+        ViewBag.DeliveredCount = await query.CountAsync(d => d.Status == DispatchStatus.Delivered);
+        ViewBag.SumShortage = await query.SumAsync(d => d.ShortageMt ?? 0m);
 
         return View(new DispatchIndexViewModel
         {

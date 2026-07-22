@@ -62,14 +62,41 @@ public class ShellViewStructureTests
             .Replace("\r\n", "\n", StringComparison.Ordinal);
         var navigationJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/navigation.js");
 
-        Assert.Contains("--layout-sidebar-mini: 64px", tokensCss);
+        Assert.Contains("--layout-sidebar: 280px", tokensCss);
+        Assert.Contains("--layout-sidebar-mini: 88px", tokensCss);
         Assert.Contains("is-sidebar-collapsed .ak-navpanel {\n        display: flex;", sidebarCss);
         Assert.Contains("is-sidebar-collapsed .ptg-nav-ic > svg {\n        inline-size: 24px;\n        block-size: 24px;", sidebarCss);
         Assert.Contains("is-sidebar-collapsed .boltz-nav-link > span", sidebarCss);
-        Assert.Contains("window.innerWidth >= 1200", navigationJs);
+        Assert.Contains("window.matchMedia(\"(min-width: 1200px)\")", navigationJs);
+        Assert.Contains("window.matchMedia(\"(min-width: 992px)\")", navigationJs);
         Assert.Contains("document.body.classList.remove(\"is-sidebar-collapsed\")", navigationJs);
         Assert.Contains("aria-label=\"@node.Label\"", layout);
         Assert.Contains("title=\"@node.Label\"", layout);
+    }
+
+    [Fact]
+    public void Shared_PageFrame_Owns_Workspace_Width_Gutters_And_Form_Columns()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var tokensCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/01-tokens.css");
+        var pageFrameCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/70-page-frame.css");
+        var akauntingCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/45-akaunting.css");
+        var formCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+
+        Assert.Contains("ptg-page-body ptg-page-frame", layout);
+        Assert.Contains("~/css/ptg/70-page-frame.css", layout);
+        Assert.True(
+            layout.LastIndexOf("~/css/ptg/70-page-frame.css", StringComparison.Ordinal)
+            > layout.LastIndexOf("~/css/ptg/61-finance-workspace.css", StringComparison.Ordinal));
+        Assert.Contains("--layout-content-max: 1200px", tokensCss);
+        Assert.Contains("--layout-form-max: 860px", tokensCss);
+        Assert.Contains("--layout-form-wide-max: 1080px", tokensCss);
+        Assert.Contains("padding-inline: var(--layout-gutter-desktop)", pageFrameCss);
+        Assert.Contains("max-inline-size: var(--layout-content-max)", pageFrameCss);
+        Assert.Contains("@media (min-width: 768px) and (max-width: 1199.98px)", pageFrameCss);
+        Assert.DoesNotContain(".ptg-page > .boltz-content-body", akauntingCss);
+        Assert.Contains(".ak-form-page:has(> form.ak-form)", formCss);
+        Assert.Contains("padding-inline: 0", formCss);
     }
 
     [Fact]
@@ -201,6 +228,11 @@ public class ShellViewStructureTests
         var script = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/dashboard.js");
 
         Assert.Contains("ViewData[\"DashboardAssets\"] = true", view);
+        Assert.DoesNotContain("dashboard-hero", view);
+        Assert.DoesNotContain("dashboard-period", view);
+        Assert.DoesNotContain("PTG OIL SYSTEM", view);
+        Assert.DoesNotContain("داشبورد مدیریتی", view);
+        Assert.DoesNotContain("تصویر روشن از عملیات", view);
         Assert.Equal(7, view.Split("class=\"dashboard-shortcut\"", StringSplitOptions.None).Length - 1);
         Assert.Contains("class=\"dashboard-shortcut dashboard-shortcut--primary\"", view);
         Assert.Contains("dashboard-shortcut-edit", view);
@@ -219,7 +251,9 @@ public class ShellViewStructureTests
         Assert.DoesNotContain("style=", view);
 
         Assert.Contains(".dashboard-page", css);
-        Assert.Contains("max-inline-size: 1520px", css);
+        Assert.DoesNotContain(".dashboard-hero", css);
+        Assert.DoesNotContain(".dashboard-period", css);
+        Assert.Contains("max-inline-size: 100%", css);
         Assert.Contains("grid-template-columns: repeat(8, minmax(0, 1fr))", css);
         Assert.Contains("grid-template-columns: repeat(4, minmax(0, 1fr))", css);
         Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", css);
@@ -338,6 +372,7 @@ public class ShellViewStructureTests
 
     [Theory]
     [InlineData(".ptg-app")]
+    [InlineData(".ptg-page-frame")]
     [InlineData(".ptg-sidebar")]
     [InlineData(".ak-page-header")]
     [InlineData(".ak-form-page")]

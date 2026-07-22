@@ -649,10 +649,10 @@
     {
         <div id="journey-tab-lists" class="ak-summary-page">
             <section class="ak-stat-grid" aria-label="@T("آمار خلاصه قرارداد", "Contract summary statistics")">
-                <vc:stat-card title="@T("مقدار کل قرارداد", "Contract quantity")" value="@NumberDisplay.Quantity(Model.ContractQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("مقدار کل قرارداد", "Contract quantity")" value="@NumberDisplay.Quantity(Model.ContractQuantityMt)" unit="@UnitMt()" avatar="contract-signed"></vc:stat-card>
                 <vc:stat-card title="@T("بارگیری‌شده", "Loaded")" value="@NumberDisplay.Quantity(loadingQuantityMt)" unit="@UnitMt()" avatar="loading"></vc:stat-card>
                 <vc:stat-card title="@T("فروخته‌شده", "Sold")" value="@NumberDisplay.Quantity(soldQuantityMt)" unit="@UnitMt()" avatar="sold-quantity"></vc:stat-card>
-                <vc:stat-card title="@T("مانده قابل پرداخت", "Remaining payable")" value="@supplierRemainingUsd.ToString("N0")" unit="@UnitUsd()" avatar="payments" state="@(supplierRemainingUsd > 0m ? "warning" : null)"></vc:stat-card>
+                <vc:stat-card title="@T("مانده قابل پرداخت", "Remaining payable")" value="@supplierRemainingUsd.ToString("N0")" unit="@UnitUsd()" avatar="payments-out" state="@(supplierRemainingUsd > 0m ? "warning" : null)"></vc:stat-card>
             </section>
             <section class="ak-form-section ak-detail-section">
                 @{
@@ -825,18 +825,18 @@
     {
         case ContractJourneyTabs.Details.Loadings:
             <section class="ak-stat-grid" aria-label="@T("آمار بارگیری", "Loading statistics")">
-                <vc:stat-card title="@T("تعداد بارگیری‌ها", "Loadings")" value="@loadingCount.ToString("N0")" unit="@T("بارگیری", "loadings")" avatar="loading"></vc:stat-card>
-                <vc:stat-card title="@T("مقدار کل بارگیری‌شده", "Total loaded")" value="@NumberDisplay.Quantity(loadingQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد بارگیری‌ها", "Loadings")" value="@loadingCount.ToString("N0")" unit="@T("بارگیری", "loadings")" avatar="loading-terminal"></vc:stat-card>
+                <vc:stat-card title="@T("مقدار کل بارگیری‌شده", "Total loaded")" value="@NumberDisplay.Quantity(loadingQuantityMt)" unit="@UnitMt()" avatar="loading"></vc:stat-card>
                 <vc:stat-card title="@T("مبلغ کل بارگیری", "Loading value")" value="@loadingValueUsd.ToString("N0")" unit="@UnitUsd()" avatar="purchase-value"></vc:stat-card>
-                <vc:stat-card title="@T("میانگین قیمت", "Average price")" value="@(loadingQuantityMt > 0m ? (loadingValueUsd / loadingQuantityMt).ToString("N2") : "—")" unit="@($"{UnitUsd()}/{UnitMt()}")" avatar="profit-loss"></vc:stat-card>
+                <vc:stat-card title="@T("میانگین قیمت", "Average price")" value="@(loadingQuantityMt> 0m ? (loadingValueUsd / loadingQuantityMt).ToString("N2") : "—")" unit="@($"{UnitUsd()}/{UnitMt()}")" avatar="analysis"></vc:stat-card>
             </section>
             <partial name="_ContractJourneyLoadingsTab" model="loadingsTabModel" />
             break;
 
         case ContractJourneyTabs.Details.Receipts:
             <section class="ak-stat-grid" aria-label="@T("آمار رسید بارگیری", "Receipt statistics")">
-                <vc:stat-card title="@T("وسایط منتظر رسید", "Awaiting receipt")" value="@bulkReceiptCandidates.Count.ToString("N0")" unit="@T("بارگیری", "loadings")" avatar="purchase-contracts" state="@(bulkReceiptCandidates.Count > 0 ? "warning" : null)"></vc:stat-card>
-                <vc:stat-card title="@T("رسیدهای ثبت‌شده", "Registered receipts")" value="@receiptCount.ToString("N0")" unit="@T("رسید", "receipts")" avatar="transported"></vc:stat-card>
+                <vc:stat-card title="@T("وسایط منتظر رسید", "Awaiting receipt")" value="@bulkReceiptCandidates.Count.ToString("N0")" unit="@T("بارگیری", "loadings")" avatar="transported" state="@(bulkReceiptCandidates.Count > 0 ? "warning" : null)"></vc:stat-card>
+                <vc:stat-card title="@T("رسیدهای ثبت‌شده", "Registered receipts")" value="@receiptCount.ToString("N0")" unit="@T("رسید", "receipts")" avatar="documents"></vc:stat-card>
                 <vc:stat-card title="@T("مقدار رسیده", "Received quantity")" value="@NumberDisplay.Quantity(receiptQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
                 <vc:stat-card title="@T("کسری رسید", "Receipt shortage")" value="@NumberDisplay.Quantity(receiptShortageWastageMt)" unit="@UnitMt()" avatar="losses" state="@(receiptShortageWastageMt > 0m ? "warning" : null)"></vc:stat-card>
             </section>
@@ -846,9 +846,9 @@
         case ContractJourneyTabs.Details.InventoryTransport:
             <div id="journey-tab-lists" class="ak-tab-panel">
                 <section class="ak-stat-grid" aria-label="@T("آمار جریان حمل بار", "Cargo flow statistics")">
-                    <vc:stat-card title="@T("مقدار کل حمل", "Total transported")" value="@NumberDisplay.Quantity(transportLegQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
-                    <vc:stat-card title="@T("مقدار در مسیر", "In transit")" value="@NumberDisplay.Quantity(transportLegInTransitMt)" unit="@UnitMt()" avatar="transported"></vc:stat-card>
-                    <vc:stat-card title="@T("مقدار رسیده", "Received")" value="@NumberDisplay.Quantity(transportLegReceivedMt)" unit="@UnitMt()" avatar="loading"></vc:stat-card>
+                    <vc:stat-card title="@T("مقدار کل حمل", "Total transported")" value="@NumberDisplay.Quantity(transportLegQuantityMt)" unit="@UnitMt()" avatar="transported"></vc:stat-card>
+                    <vc:stat-card title="@T("مقدار در مسیر", "In transit")" value="@NumberDisplay.Quantity(transportLegInTransitMt)" unit="@UnitMt()" avatar="in-transit"></vc:stat-card>
+                    <vc:stat-card title="@T("مقدار رسیده", "Received")" value="@NumberDisplay.Quantity(transportLegReceivedMt)" unit="@UnitMt()" avatar="dispatch-station"></vc:stat-card>
                     <vc:stat-card title="@T("کسری حمل", "Transport shortage")" value="@NumberDisplay.Quantity(transportLegShortageMt)" unit="@UnitMt()" avatar="losses" state="@(transportLegShortageMt > 0m ? "warning" : null)"></vc:stat-card>
                 </section>
                 <section class="ak-form-section ak-detail-section">
@@ -928,10 +928,10 @@
 
         case ContractJourneyTabs.Details.Inventory:
             <section class="ak-stat-grid" aria-label="@T("آمار موجودی", "Inventory statistics")">
-                <vc:stat-card title="@T("موجودی فعلی قرارداد", "Current stock")" value="@NumberDisplay.Quantity(currentStockMt)" unit="@UnitMt()" avatar="total-inventory" state="@(currentStockMt < 0m ? "warning" : null)"></vc:stat-card>
-                <vc:stat-card title="@T("مقدار در مسیر", "In transit")" value="@NumberDisplay.Quantity(transportLegInTransitMt)" unit="@UnitMt()" avatar="shipments"></vc:stat-card>
-                <vc:stat-card title="@T("مقدار خارج‌شده", "Dispatched out")" value="@NumberDisplay.Quantity(Model.Kpis.DispatchedQuantityMt)" unit="@UnitMt()" avatar="transported"></vc:stat-card>
-                <vc:stat-card title="@T("تعداد حرکات موجودی", "Movements")" value="@inventoryMovementCount.ToString("N0")" unit="@T("حرکت", "moves")" avatar="purchase-contracts"></vc:stat-card>
+                <vc:stat-card title="@T("موجودی فعلی قرارداد", "Current stock")" value="@NumberDisplay.Quantity(currentStockMt)" unit="@UnitMt()" avatar="warehouse" state="@(currentStockMt < 0m ? "warning" : null)"></vc:stat-card>
+                <vc:stat-card title="@T("مقدار در مسیر", "In transit")" value="@NumberDisplay.Quantity(transportLegInTransitMt)" unit="@UnitMt()" avatar="in-transit"></vc:stat-card>
+                <vc:stat-card title="@T("مقدار خارج‌شده", "Dispatched out")" value="@NumberDisplay.Quantity(Model.Kpis.DispatchedQuantityMt)" unit="@UnitMt()" avatar="loading-terminal"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد حرکات موجودی", "Movements")" value="@inventoryMovementCount.ToString("N0")" unit="@T("حرکت", "moves")" avatar="ledger"></vc:stat-card>
             </section>
             <p class="ak-stat-note">@T("تفکیک موجودی ترمینال و مخزن و کسری موجودی از داده این تب قابل محاسبهٔ دقیق نیست و برای جلوگیری از عدد نادرست نمایش داده نشده است.", "Terminal/tank and inventory-shortage breakdowns cannot be computed accurately from this tab's data and are intentionally omitted.")</p>
             <partial name="_ContractJourneyInventoryTab" model="inventoryTabModel" />
@@ -941,7 +941,7 @@
             <section class="ak-stat-grid" aria-label="@T("آمار نقل و انتقالات", "Transfer statistics")">
                 <vc:stat-card title="@T("تعداد انتقال‌ها", "Transfers")" value="@dispatchCount.ToString("N0")" unit="@T("انتقال", "transfers")" avatar="transported"></vc:stat-card>
                 <vc:stat-card title="@T("مقدار انتقال‌یافته", "Transferred quantity")" value="@NumberDisplay.Quantity(dispatchQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
-                <vc:stat-card title="@T("تحویل‌شده", "Delivered")" value="@Model.DispatchItems.Count(d => string.Equals(d.StatusName, "Delivered", StringComparison.OrdinalIgnoreCase)).ToString("N0")" unit="@T("انتقال", "transfers")" avatar="sold-quantity"></vc:stat-card>
+                <vc:stat-card title="@T("تحویل‌شده", "Delivered")" value="@Model.DispatchItems.Count(d => string.Equals(d.StatusName, "Delivered", StringComparison.OrdinalIgnoreCase)).ToString("N0")" unit="@T("انتقال", "transfers")" avatar="dispatch-station"></vc:stat-card>
                 <vc:stat-card title="@T("کسری انتقال", "Transfer shortage")" value="@NumberDisplay.Quantity(dispatchShortageWastageMt)" unit="@UnitMt()" avatar="losses" state="@(dispatchShortageWastageMt > 0m ? "warning" : null)"></vc:stat-card>
             </section>
             <partial name="_ContractJourneyDispatchTab" model="dispatchTabModel" />
@@ -951,7 +951,7 @@
             <section class="ak-stat-grid" aria-label="@T("آمار فروشات", "Sales statistics")">
                 <vc:stat-card title="@T("مقدار فروخته‌شده", "Sold quantity")" value="@NumberDisplay.Quantity(soldQuantityMt)" unit="@UnitMt()" avatar="sold-quantity"></vc:stat-card>
                 <vc:stat-card title="@T("مبلغ کل فروش", "Sales value")" value="@salesTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="sales-value"></vc:stat-card>
-                <vc:stat-card title="@T("مانده قابل فروش", "Saleable remaining")" value="@NumberDisplay.Quantity(lifecycleSaleableQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("مانده قابل فروش", "Saleable remaining")" value="@NumberDisplay.Quantity(lifecycleSaleableQuantityMt)" unit="@UnitMt()" avatar="warehouse"></vc:stat-card>
                 <vc:stat-card title="@contractNetLabel" value="@pnlOperationalMarginUsd.ToString("N0")" unit="@UnitUsd()" avatar="profit-loss" trend-direction="@(pnlOperationalMarginUsd >= 0m ? "up" : "down")"></vc:stat-card>
             </section>
             <partial name="_ContractJourneySalesTab" model="salesTabModel" />
@@ -960,10 +960,10 @@
         case ContractJourneyTabs.Details.Costs:
             <div id="journey-tab-lists" class="ak-tab-panel">
                 <section class="ak-stat-grid" aria-label="@T("آمار مصرف و کسری", "Expense and loss statistics")">
-                    <vc:stat-card title="@T("مجموع مصارف", "Total expenses")" value="@summaryExpenseTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="purchase-value"></vc:stat-card>
-                    <vc:stat-card title="@T("مصرف هر تن", "Expense per MT")" value="@(summaryExpensePerLoadedMt.HasValue ? summaryExpensePerLoadedMt.Value.ToString("N2") : "—")" unit="@($"{UnitUsd()}/{UnitMt()}")" avatar="profit-loss"></vc:stat-card>
+                    <vc:stat-card title="@T("مجموع مصارف", "Total expenses")" value="@summaryExpenseTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="expenses"></vc:stat-card>
+                    <vc:stat-card title="@T("مصرف هر تن", "Expense per MT")" value="@(summaryExpensePerLoadedMt.HasValue ? summaryExpensePerLoadedMt.Value.ToString("N2") : "—")" unit="@($"{UnitUsd()}/{UnitMt()}")" avatar="analysis"></vc:stat-card>
                     <vc:stat-card title="@T("مقدار کسری", "Loss quantity")" value="@NumberDisplay.Quantity(totalDisplayLossMt)" unit="@UnitMt()" avatar="losses" state="@(totalDisplayLossMt > 0m ? "warning" : null)"></vc:stat-card>
-                    <vc:stat-card title="@T("مبلغ کسری", "Loss cost")" value="@summaryLossCostUsd.ToString("N0")" unit="@UnitUsd()" avatar="expenses"></vc:stat-card>
+                    <vc:stat-card title="@T("مبلغ کسری", "Loss cost")" value="@summaryLossCostUsd.ToString("N0")" unit="@UnitUsd()" avatar="statement"></vc:stat-card>
                 </section>
                 <section class="ak-form-section ak-detail-section">
                     <div class="ak-section-head ak-detail-section-header">
@@ -1189,10 +1189,10 @@
 
         case ContractJourneyTabs.Details.Finance:
             <section class="ak-stat-grid" aria-label="@T("آمار پرداخت‌ها", "Payment statistics")">
-                <vc:stat-card title="@T("مبلغ قرارداد", "Contract amount")" value="@supplierPayableTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="purchase-value"></vc:stat-card>
-                <vc:stat-card title="@T("پرداخت‌شده", "Paid")" value="@supplierPaidNetUsd.ToString("N0")" unit="@UnitUsd()" avatar="payments"></vc:stat-card>
+                <vc:stat-card title="@T("مبلغ قرارداد", "Contract amount")" value="@supplierPayableTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="contract-signed"></vc:stat-card>
+                <vc:stat-card title="@T("پرداخت‌شده", "Paid")" value="@supplierPaidNetUsd.ToString("N0")" unit="@UnitUsd()" avatar="payments-out"></vc:stat-card>
                 <vc:stat-card title="@T("مانده تأمین‌کننده", "Supplier remaining")" value="@supplierRemainingUsd.ToString("N0")" unit="@UnitUsd()" avatar="receivables" state="@(supplierRemainingUsd > 0m ? "warning" : null)"></vc:stat-card>
-                <vc:stat-card title="@T("تعداد پرداخت‌ها", "Payments")" value="@paymentCount.ToString("N0")" unit="@T("پرداخت", "payments")" avatar="purchase-contracts"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد پرداخت‌ها", "Payments")" value="@paymentCount.ToString("N0")" unit="@T("پرداخت", "payments")" avatar="cash-flow"></vc:stat-card>
             </section>
             <partial name="_ContractJourneyFinanceTab" model="financeTabModel" />
             break;
@@ -1201,8 +1201,8 @@
             <section class="ak-stat-grid" aria-label="@T("آمار دفتر کل", "Ledger statistics")">
                 <vc:stat-card title="@T("مجموع بدهکار", "Total debit")" value="@Model.LedgerSummary.DebitTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="purchase-value"></vc:stat-card>
                 <vc:stat-card title="@T("مجموع بستانکار", "Total credit")" value="@Model.LedgerSummary.CreditTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="sales-value"></vc:stat-card>
-                <vc:stat-card title="@T("مانده", "Balance")" value="@Model.LedgerSummary.BalanceUsd.ToString("N0")" unit="@UnitUsd()" avatar="profit-loss"></vc:stat-card>
-                <vc:stat-card title="@T("تعداد اسناد", "Entries")" value="@ledgerItemCount.ToString("N0")" unit="@T("سند", "entries")" avatar="purchase-contracts"></vc:stat-card>
+                <vc:stat-card title="@T("مانده", "Balance")" value="@Model.LedgerSummary.BalanceUsd.ToString("N0")" unit="@UnitUsd()" avatar="treasury"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد اسناد", "Entries")" value="@ledgerItemCount.ToString("N0")" unit="@T("سند", "entries")" avatar="ledger"></vc:stat-card>
             </section>
             <partial name="_ContractJourneyLedgerTab" model="ledgerTabModel" />
             break;

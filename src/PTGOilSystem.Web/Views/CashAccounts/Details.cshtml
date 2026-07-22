@@ -59,10 +59,10 @@
     <section id="account-ledger" class="ak-form-section ak-detail-section" hidden="@(activeAccountTab != "ledger")">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("گزارش صندوق/بانک", (string?)null))" />
         <div class="ak-stat-grid" aria-label="گزارش صندوق یا بانک">
-            <vc:stat-card title="مانده آغاز" value="0.00" unit="@Model.Currency" avatar="payments"></vc:stat-card>
-            <vc:stat-card title="دریافت‌ها" value="@totalIn.ToString("N2")" unit="@Model.Currency" avatar="receivables"></vc:stat-card>
-            <vc:stat-card title="پرداخت‌ها" value="@totalOut.ToString("N2")" unit="@Model.Currency" avatar="payments"></vc:stat-card>
-            <vc:stat-card title="مانده پایان" value="@closingBalance.ToString("N2")" unit="@Model.Currency" avatar="profit-loss"></vc:stat-card>
+            <vc:stat-card title="مانده آغاز" value="0.00" unit="@Model.Currency" avatar="treasury"></vc:stat-card>
+            <vc:stat-card title="دریافت‌ها" value="@totalIn.ToString("N2")" unit="@Model.Currency" avatar="receipts"></vc:stat-card>
+            <vc:stat-card title="پرداخت‌ها" value="@totalOut.ToString("N2")" unit="@Model.Currency" avatar="payments-out"></vc:stat-card>
+            <vc:stat-card title="مانده پایان" value="@closingBalance.ToString("N2")" unit="@Model.Currency" avatar="statement"></vc:stat-card>
         </div>
 
         <div class="ak-table-wrap">

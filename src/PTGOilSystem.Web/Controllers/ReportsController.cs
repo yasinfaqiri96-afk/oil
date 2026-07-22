@@ -369,10 +369,12 @@ public partial class ReportsController : Controller
                 PartyType = "Supplier",
                 PartyId = r.SupplierId,
                 PartyName = string.IsNullOrWhiteSpace(r.PartyName) ? "-" : r.PartyName,
-                DebitUsd = r.DebitUsd,
-                CreditUsd = r.CreditUsd,
+                // Policy تأمین‌کننده: Credit قدیمی Ledger = بار/Statement Debit و
+                // Debit قدیمی Ledger = پرداخت/Statement Credit.
+                DebitUsd = r.CreditUsd,
+                CreditUsd = r.DebitUsd,
                 LastEntryDate = r.LastEntryDate,
-                BalanceKind = r.CreditUsd - r.DebitUsd >= 0m ? "بدهی به تأمین‌کننده" : "پیش‌پرداخت تأمین‌کننده",
+                BalanceKind = r.DebitUsd - r.CreditUsd >= 0m ? "پیش‌پرداخت تأمین‌کننده" : "بدهی به تأمین‌کننده",
                 DetailsController = "Suppliers"
             }));
 
@@ -394,10 +396,12 @@ public partial class ReportsController : Controller
                 PartyType = "ServiceProvider",
                 PartyId = r.ServiceProviderId,
                 PartyName = string.IsNullOrWhiteSpace(r.PartyName) ? "-" : r.PartyName,
-                DebitUsd = r.DebitUsd,
-                CreditUsd = r.CreditUsd,
+                // Policy شرکت خدماتی: Credit قدیمی Ledger = خدمت/Statement Debit و
+                // Debit قدیمی Ledger = پرداخت/Statement Credit.
+                DebitUsd = r.CreditUsd,
+                CreditUsd = r.DebitUsd,
                 LastEntryDate = r.LastEntryDate,
-                BalanceKind = r.CreditUsd - r.DebitUsd >= 0m ? "بدهی خدماتی" : "پیش‌پرداخت خدماتی",
+                BalanceKind = r.DebitUsd - r.CreditUsd >= 0m ? "پیش‌پرداخت خدماتی" : "بدهی خدماتی",
                 DetailsController = "ServiceProviders"
             }));
         }

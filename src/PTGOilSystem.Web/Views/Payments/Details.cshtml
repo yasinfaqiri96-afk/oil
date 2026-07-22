@@ -117,10 +117,10 @@
                 </a>
             </div>
             <div class="ak-stat-grid" aria-label="خلاصه تخصیص پرداخت">
-                <vc:stat-card title="مبلغ پرداخت" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="payments"></vc:stat-card>
-                <vc:stat-card title="مصرف‌شده برای قراردادها" value="@Model.AllocatedBookAmountUsd.ToString("N2")" unit="USD" avatar="purchase-value"></vc:stat-card>
-                <vc:stat-card title="مانده قابل تخصیص" value="@Model.AllocatableBalanceUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-                <vc:stat-card title="تعداد تخصیص فعال" value="@Model.ActiveAllocationCount.ToString("N0")" unit="مورد" avatar="purchase-contracts"></vc:stat-card>
+                <vc:stat-card title="مبلغ پرداخت" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
+                <vc:stat-card title="مصرف‌شده برای قراردادها" value="@Model.AllocatedBookAmountUsd.ToString("N2")" unit="USD" avatar="contract-signed"></vc:stat-card>
+                <vc:stat-card title="مانده قابل تخصیص" value="@Model.AllocatableBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
+                <vc:stat-card title="تعداد تخصیص فعال" value="@Model.ActiveAllocationCount.ToString("N0")" unit="مورد" avatar="ledger"></vc:stat-card>
             </div>
 
             @if (Model.Allocations.Any())

@@ -362,7 +362,9 @@ public partial class BalanceController : Controller
                 TotalSalesUsd = salesTotal,
                 TotalExpensesUsd = expensesTotal,
                 RelatedLedgerCount = ledger?.Count ?? 0,
-                BaseBalanceUsd = creditTotal - debitTotal
+                // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
+                // مثبت یعنی روی این قرارداد پیش‌پرداخت داریم؛ منفی یعنی بدهکاریم.
+                BaseBalanceUsd = debitTotal - creditTotal
             };
         }).ToList();
 
@@ -531,7 +533,8 @@ public partial class BalanceController : Controller
                 TotalSalesUsd = salesTotal,
                 TotalExpensesUsd = expensesTotal,
                 RelatedLedgerCount = (directLedger?.Count ?? 0) + (contractLedger?.Count ?? 0),
-                BaseBalanceUsd = creditTotal - debitTotal
+                // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته).
+                BaseBalanceUsd = debitTotal - creditTotal
             };
         }).ToList();
 
@@ -696,7 +699,8 @@ public partial class BalanceController : Controller
                 TotalSalesUsd = salesTotal,
                 TotalExpensesUsd = expensesTotal,
                 RelatedLedgerCount = (directLedger?.Count ?? 0) + (contractLedger?.Count ?? 0),
-                BaseBalanceUsd = creditTotal - debitTotal
+                // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
+                BaseBalanceUsd = debitTotal - creditTotal
             };
         }).ToList();
 

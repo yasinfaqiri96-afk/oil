@@ -23,7 +23,10 @@ public sealed class SupplierIndexItemViewModel
     public decimal LoadedPurchaseValueUsd { get; set; }
     public decimal LedgerDebitUsd { get; set; }
     public decimal LedgerCreditUsd { get; set; }
-    public decimal LedgerBalanceUsd => LedgerCreditUsd - LedgerDebitUsd;
+    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
+    // مثبت یعنی شرکت پیش‌پرداخت دارد. هم‌علامتِ PartyStatementSummary.ClosingBalance
+    // است تا صفحاتی که به این مقدار fallback می‌کنند علامت متضاد نشان ندهند.
+    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
     public decimal TotalPaidUsd { get; set; }
     public decimal SupplierTotalClaimUsd => LoadedPurchaseValueUsd - TotalPaidUsd;
     public DateTime? LastPaymentDate { get; set; }
@@ -58,7 +61,10 @@ public sealed class SupplierProfileViewModel
     public decimal? EstimatedRemainingContractValueRub { get; init; }
     public decimal LedgerDebitUsd { get; init; }
     public decimal LedgerCreditUsd { get; init; }
-    public decimal LedgerBalanceUsd => LedgerCreditUsd - LedgerDebitUsd;
+    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
+    // مثبت یعنی شرکت پیش‌پرداخت دارد. هم‌علامتِ PartyStatementSummary.ClosingBalance
+    // است تا صفحاتی که به این مقدار fallback می‌کنند علامت متضاد نشان ندهند.
+    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
     public decimal TotalPaidUsd { get; init; }
     public decimal? TotalPaidRub { get; init; }
     public decimal TotalPaidActualUsd { get; init; }
@@ -201,7 +207,10 @@ public sealed class SupplierContractSummaryViewModel
         : null;
     public decimal LedgerDebitUsd { get; init; }
     public decimal LedgerCreditUsd { get; init; }
-    public decimal LedgerBalanceUsd => LedgerCreditUsd - LedgerDebitUsd;
+    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
+    // مثبت یعنی شرکت پیش‌پرداخت دارد. هم‌علامتِ PartyStatementSummary.ClosingBalance
+    // است تا صفحاتی که به این مقدار fallback می‌کنند علامت متضاد نشان ندهند.
+    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
     public decimal PaidUsd { get; init; }
     public decimal? PaidRub { get; init; }
 

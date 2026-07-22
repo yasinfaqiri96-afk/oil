@@ -18,8 +18,8 @@
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار تأمین‌کنندگان", "Supplier statistics")">
         <vc:stat-card title="@UiText.T(Context, "کل تأمین‌کنندگان", "Total suppliers")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "تأمین‌کننده", "suppliers")" avatar="suppliers"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "فعال در این صفحه", "Active on this page")" value="@visibleActiveCount.ToString("N0")" unit="@UiText.T(Context, "تأمین‌کننده", "suppliers")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "قرارداد فعال در این صفحه", "Active contracts on page")" value="@visibleActiveContractCount.ToString("N0")" unit="@UiText.T(Context, "قرارداد", "contracts")" avatar="purchase-contracts"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "فعال در این صفحه", "Active on this page")" value="@visibleActiveCount.ToString("N0")" unit="@UiText.T(Context, "تأمین‌کننده", "suppliers")" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "قرارداد فعال در این صفحه", "Active contracts on page")" value="@visibleActiveContractCount.ToString("N0")" unit="@UiText.T(Context, "قرارداد", "contracts")" avatar="contract-signed"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "طلب در این صفحه", "Claim on this page")" value="@visibleClaimUsd.ToString("#,0.##")" unit="USD" avatar="receivables"></vc:stat-card>
     </section>
 

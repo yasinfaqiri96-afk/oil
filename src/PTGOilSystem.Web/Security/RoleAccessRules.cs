@@ -62,7 +62,7 @@ public static class RoleAccessRules
         new(RoleNavigationKeys.Sales, "فروش", "bi-cart-check-fill",
             ["Sales"]),
         new(RoleNavigationKeys.CashAccounts, "حساب‌ها و مالی", "bi-wallet-fill",
-            ["CashAccounts", "Ledger", "Balance"]),
+            ["CashAccounts", "Ledger", "Balance", "Finance"]),
         new(RoleNavigationKeys.Payments, "روزنامچه و حواله‌ها", "bi-credit-card-2-front-fill",
             ["Payments", "AccountStatements", "SarrafSettlements"]),
         new(RoleNavigationKeys.Reports, "گزارشات", "bi-clipboard-data-fill",

@@ -177,8 +177,8 @@
                 <div class="ak-stat-grid mb-3">
                     <vc:stat-card title="مقدار کل" value="@t.TotalAllocatedQuantityMt.ToString("N2")" unit="MT" avatar="total-inventory"></vc:stat-card>
                     <vc:stat-card title="بارگیری‌شده" value="@t.LoadedQuantityMt.ToString("N2")" unit="MT" avatar="loading"></vc:stat-card>
-                    <vc:stat-card title="رسیده" value="@t.ReceivedQuantityMt.ToString("N2")" unit="MT" avatar="shipments"></vc:stat-card>
-                    <vc:stat-card title="باقی‌مانده" value="@t.PendingQuantityMt.ToString("N2")" unit="MT" avatar="total-inventory"></vc:stat-card>
+                    <vc:stat-card title="رسیده" value="@t.ReceivedQuantityMt.ToString("N2")" unit="MT" avatar="dispatch-station"></vc:stat-card>
+                    <vc:stat-card title="باقی‌مانده" value="@t.PendingQuantityMt.ToString("N2")" unit="MT" avatar="warehouse"></vc:stat-card>
                     <vc:stat-card title="کسری" value="@t.ShortageQuantityMt.ToString("N2")" unit="MT" avatar="losses"></vc:stat-card>
                 </div>
                 <div class="flow-status-grid ak-summary mb-0">
@@ -201,8 +201,8 @@
                     <vc:stat-card title="جمع مصرف" value="@pnl.TotalCostUsd.ToString("N2")" unit="USD" avatar="expenses"></vc:stat-card>
                     <vc:stat-card title="سود ناخالص" value="@pnl.GrossMarginUsd.ToString("N2")" unit="USD" avatar="profit-loss"></vc:stat-card>
                     <vc:stat-card title="فروخته‌شده" value="@pnl.SoldQuantityMt.ToString("N2")" unit="MT" avatar="sold-quantity"></vc:stat-card>
-                    <vc:stat-card title="نافروخته" value="@pnl.UnsoldQuantityMt.ToString("N2")" unit="MT" avatar="total-inventory"></vc:stat-card>
-                    <vc:stat-card title="کسری فروش/رسید" value="@pnl.LossQuantityMt.ToString("N2")" unit="MT" avatar="losses"></vc:stat-card>
+                    <vc:stat-card title="نافروخته" value="@pnl.UnsoldQuantityMt.ToString("N2")" unit="MT" avatar="products"></vc:stat-card>
+                    <vc:stat-card title="کسری فروش/رسید" value="@pnl.LossQuantityMt.ToString("N2")" unit="MT" avatar="analysis"></vc:stat-card>
                 </div>
             </section>
 

@@ -25,10 +25,10 @@
     <p class="finance-page-lead">همه دریافت‌ها، پرداخت‌ها، حواله‌ها و سندهای مرتبط در یک مسیر؛ برای دیدن جزئیات مالی روی هر ردیف کلیک کنید.</p>
 
     <section class="ak-stat-grid" aria-label="خلاصهٔ مالی">
-        <vc:stat-card title="جمع دریافتی" value="@Model.TodayReceiptUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-        <vc:stat-card title="جمع پرداختی" value="@Model.TodayPaymentUsd.ToString("N2")" unit="USD" avatar="payments"></vc:stat-card>
-        <vc:stat-card title="مانده نقدی" value="@Model.CashAccountsBalanceUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-        <vc:stat-card title="تعداد تراکنش‌ها" value="@Model.TotalCount.ToString("N0")" unit="مورد" avatar="purchase-contracts"></vc:stat-card>
+        <vc:stat-card title="جمع دریافتی" value="@Model.TodayReceiptUsd.ToString("N2")" unit="USD" avatar="receipts"></vc:stat-card>
+        <vc:stat-card title="جمع پرداختی" value="@Model.TodayPaymentUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
+        <vc:stat-card title="مانده نقدی" value="@Model.CashAccountsBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
+        <vc:stat-card title="تعداد تراکنش‌ها" value="@Model.TotalCount.ToString("N0")" unit="مورد" avatar="cash-flow"></vc:stat-card>
     </section>
 
     <div class="ak-list">

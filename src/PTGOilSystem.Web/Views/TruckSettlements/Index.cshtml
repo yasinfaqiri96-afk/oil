@@ -30,10 +30,10 @@
         </div>
     </header>
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار تسویه موترها", "Truck settlement statistics")">
-        <vc:stat-card title="@UiText.T(Context, "ردیف‌های آماده تسویه", "Rows ready to settle")" value="@Model.Rows.Count.ToString("N0")" unit="@UiText.T(Context, "ردیف", "rows")" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "ردیف‌های آماده تسویه", "Rows ready to settle")" value="@Model.Rows.Count.ToString("N0")" unit="@UiText.T(Context, "ردیف", "rows")" avatar="statement"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "مقدار باقی‌مانده", "Remaining quantity")" value="@NumberDisplay.Quantity(Model.Rows.Sum(x => x.RemainingQuantityMt))" unit="MT" avatar="total-inventory"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "حمل موجودی", "Inventory transports")" value="@Model.Rows.Count(x => x.Kind == TruckSettlementSourceKind.Leg).ToString("N0")" unit="@UiText.T(Context, "حمل", "transports")" avatar="transported"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "ارسال موتر", "Truck dispatches")" value="@Model.Rows.Count(x => x.Kind != TruckSettlementSourceKind.Leg).ToString("N0")" unit="@UiText.T(Context, "ارسال", "dispatches")" avatar="shipments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "ارسال موتر", "Truck dispatches")" value="@Model.Rows.Count(x => x.Kind != TruckSettlementSourceKind.Leg).ToString("N0")" unit="@UiText.T(Context, "ارسال", "dispatches")" avatar="dispatch-station"></vc:stat-card>
     </section>
     <div class="ak-list">
         @* ابزارها و آپلود اکسل: دکمهٔ باز/بسته «ابزارها» در هدر صفحه است (tsToolsToggle).

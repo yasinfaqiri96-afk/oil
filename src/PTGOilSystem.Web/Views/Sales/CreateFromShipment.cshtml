@@ -4,177 +4,17 @@
     ViewData["Title"] = "ثبت فروش از جریان حمل";
     ViewData["ContentBodyClass"] = "boltz-content-body-fluid";
     ViewData["HideSectionTabs"] = true;
-    var cancelUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl)
-        ? Model.ReturnUrl
-        : Url.Action("Details", "ShipmentPnl", new { id = Model.ShipmentId });
     var baseCurrency = PTGOilSystem.Web.Services.SystemCurrency.BaseCurrencyCode;
 }
 
-<div class="page-stack ak-form-page">
-    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "ثبت فروش از جریان حمل", "Register Sale from Shipment"), false,
-                       (string?)null, (string?)null, (string?)null, (string?)null,
-                       UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)cancelUrl))" />
+@section Styles {
+    @* data-ptg-page-asset لازم است: ناوبری SPA فقط استایل‌های نشان‌دار را به صفحهٔ جدید منتقل می‌کند؛
+       بدون آن، صفحه در ورود SPA بدون CSS و فقط بعد از Refresh درست دیده می‌شود. *@
+    <link rel="stylesheet" href="~/css/ptg/91-shipment-sale-form.css" asp-append-version="true"
+          data-ptg-page-asset="shipment-sale-form" />
+}
 
-    <form asp-action="CreateFromShipment" method="post" class="ak-form" id="shipment-flow-sale-form">
-        @Html.AntiForgeryToken()
-        <input asp-for="ShipmentId" type="hidden" />
-        <input asp-for="ReturnUrl" type="hidden" />
-
-        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
-
-        <section class="ak-form-section" aria-label="خلاصه مقدار محموله">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "خلاصه محموله", "Shipment Summary"), (string?)null))" />
-            <div class="ak-form-grid">
-                <div class="ak-field"><span class="ak-label">مقدار قابل فروش</span><strong>@Model.AvailableQuantityMt.ToString("N3") تن</strong></div>
-                <div class="ak-field"><span class="ak-label">فروش قبلی</span><strong>@Model.PreviousSalesQuantityMt.ToString("N3") تن</strong></div>
-                <div class="ak-field"><span class="ak-label">کسری ثبت‌شده</span><strong>@Model.RegisteredShortageQuantityMt.ToString("N3") تن</strong></div>
-                <div class="ak-field"><span class="ak-label">بار قابل فروش در جریان</span><strong>@Model.LoadedQuantityMt.ToString("N3") تن</strong></div>
-            </div>
-        </section>
-
-        <section class="ak-form-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "منبع فروش", "Sale Source"), (string?)UiText.T(Context, "فروش مستقیم از بار در جریان حمل، بدون ورود به مخزن", "Direct sale from goods in transit without inventory receipt")))" />
-            <div class="ak-form-grid">
-                <div class="ak-field">
-                    <span class="ak-label">محموله / کشتی</span>
-                    <strong>@(string.IsNullOrWhiteSpace(Model.VesselName) ? Model.ShipmentCode : Model.VesselName)</strong>
-                </div>
-                <div class="ak-field">
-                    <span class="ak-label">محصول</span><strong>@Model.ProductName</strong>
-                </div>
-                <div class="ak-field">
-                    <span class="ak-label">مرحله فعلی بار</span><strong>@Model.CurrentStageName</strong>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="SaleDate" class="ak-label"></label><input asp-for="SaleDate" type="date" class="ak-input" /><span asp-validation-for="SaleDate" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="SourcePurchaseContractId" class="ak-label">
-                        قرارداد منبع بار @if (Model.SourceContractRequired) { <span class="ak-req">*</span> }
-                    </label>
-                    <select asp-for="SourcePurchaseContractId" class="ak-input" data-source-contract>
-                        @if (!Model.SourceContractRequired)
-                        {
-                            <option value="">همه قراردادهای محموله (سهمی)</option>
-                        }
-                        else
-                        {
-                            <option value="">انتخاب قرارداد منبع</option>
-                        }
-                        @foreach (var row in Model.Contracts)
-                        {
-                            <option value="@row.ContractId"
-                                    data-available="@row.AvailableQuantityMt.ToString(CultureInfo.InvariantCulture)"
-                                    selected="@(Model.SourcePurchaseContractId == row.ContractId)">
-                                @row.ContractNumber@(string.IsNullOrWhiteSpace(row.CompanyName) ? "" : " — جواز " + row.CompanyName) (@row.AvailableQuantityMt.ToString("N3") تن)
-                            </option>
-                        }
-                    </select>
-                    <span asp-validation-for="SourcePurchaseContractId" class="ak-field-error"></span>
-                </div>
-            </div>
-            <button type="button" class="btn btn-light mt-3" data-sell-all>فروش کل محموله</button>
-        </section>
-
-        <section class="ak-form-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "اطلاعات فروش", "Sale Information"), (string?)null))" />
-            <div class="ak-form-grid">
-                <div class="ak-field">
-                    <label asp-for="CustomerId" class="ak-label"></label>
-                    <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                        <option value="">انتخاب مشتری</option>
-                    </select>
-                    <span asp-validation-for="CustomerId" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="QuantityMt" class="ak-label"></label><input asp-for="QuantityMt" class="ak-input" min="0.0001" step="0.0001" data-sale-quantity /><span asp-validation-for="QuantityMt" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="UnitPriceInCurrency" class="ak-label"></label><input asp-for="UnitPriceInCurrency" class="ak-input" min="0.0001" step="0.0001" data-sale-unit-price /><span data-currency-unit>@Model.Currency</span><span asp-validation-for="UnitPriceInCurrency" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="Currency" class="ak-label"></label><select asp-for="Currency" asp-items="ViewBag.Currencies" class="ak-input" data-sale-currency></select><span asp-validation-for="Currency" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field" data-fx-wrap @(string.Equals(Model.Currency, baseCurrency, StringComparison.OrdinalIgnoreCase) ? "hidden" : null)>
-                    <label asp-for="AppliedFxRateToUsd" class="ak-label"></label><input asp-for="AppliedFxRateToUsd" class="ak-input" min="0.000001" step="0.000001" data-sale-fx /><span asp-validation-for="AppliedFxRateToUsd" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="InvoiceNumber" class="ak-label"></label><input asp-for="InvoiceNumber" class="ak-input" /><span asp-validation-for="InvoiceNumber" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="DestinationLocationId" class="ak-label"></label>
-                    <select asp-for="DestinationLocationId" asp-items="ViewBag.Destinations" class="ak-input">
-                        <option value="">بدون مقصد مشخص</option>
-                    </select>
-                    <span asp-validation-for="DestinationLocationId" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="Notes" class="ak-label"></label><textarea asp-for="Notes" class="ak-input" rows="2" placeholder="اختیاری"></textarea>
-                </div>
-            </div>
-        </section>
-
-        <section class="ak-form-section">
-                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "جزئیات قراردادها", "Contract Details"), (string?)null))" />
-                <div class="ak-table-wrap">
-                    <table class="ak-table">
-                        <thead>
-                            <tr>
-                                <th>قرارداد</th>
-                                <th>جواز</th>
-                                <th>محصول</th>
-                                <th class="text-end">مقدار در کشتی</th>
-                                <th class="text-end">کسری سهمی</th>
-                                <th class="text-end">مقدار قابل فروش</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @foreach (var row in Model.Contracts)
-                        {
-                            <tr data-contract-row
-                                data-contract-id="@row.ContractId"
-                                data-available="@row.AvailableQuantityMt.ToString(CultureInfo.InvariantCulture)"
-                                data-total-cost="@row.TotalCostUsd.ToString(CultureInfo.InvariantCulture)">
-                                <td>@row.ContractNumber</td>
-                                <td>@(row.CompanyName ?? "—")</td>
-                                <td>@(row.ProductName ?? "—")</td>
-                                <td class="text-end">@row.LoadedQuantityMt.ToString("N3") تن</td>
-                                <td class="text-end">@row.ShortageQuantityMt.ToString("N3") تن</td>
-                                <td class="text-end fw-semibold">@row.AvailableQuantityMt.ToString("N3") تن</td>
-                            </tr>
-                        }
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <th>مجموع</th>
-                                <th></th>
-                                <th></th>
-                                <th class="text-end">@Model.LoadedQuantityMt.ToString("N3") تن</th>
-                                <th class="text-end">@Model.RegisteredShortageQuantityMt.ToString("N3") تن</th>
-                                <th class="text-end">@Model.AvailableQuantityMt.ToString("N3") تن</th>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-        </section>
-
-        <section class="ak-form-section">
-                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "خلاصه زنده فروش", "Live Sale Summary"), (string?)null))" />
-                <dl>
-                    <div><dt>مقدار فروش</dt><dd data-summary-quantity>0 تن</dd></div>
-                    <div><dt>قیمت فروش هر تن</dt><dd data-summary-price>0</dd></div>
-                    <div><dt>کل فروش</dt><dd data-summary-total>0</dd></div>
-                    <div><dt>قیمت تمام‌شده تقریبی</dt><dd data-summary-cost>0 USD</dd></div>
-                    <div><dt>سود تخمینی</dt><dd data-summary-profit>0 USD</dd></div>
-                    <div><dt>باقی‌مانده بعد از فروش</dt><dd data-summary-remaining>@Model.AvailableQuantityMt.ToString("N3", CultureInfo.InvariantCulture) تن</dd></div>
-                </dl>
-        </section>
-
-        <button type="submit" name="PrintAfterSave" value="true" class="btn btn-light">ثبت و چاپ بل</button>
-        <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@((UiText.T(Context, "ثبت فروش", "Save Sale"), cancelUrl ?? "#", UiText.T(Context, "انصراف", "Cancel")))" />
-    </form>
-</div>
+<partial name="~/Views/Shared/Components/Ak/_ShipmentSaleForm.cshtml" model="Model" />
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
@@ -185,6 +25,7 @@
 
             const shipmentAvailable = @Model.AvailableQuantityMt.ToString(CultureInfo.InvariantCulture);
             const baseCurrency = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(baseCurrency));
+            const unitLabel = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(UiText.T(Context, "تن", "MT")));
             const quantity = form.querySelector('[data-sale-quantity]');
             const price = form.querySelector('[data-sale-unit-price]');
             const currency = form.querySelector('[data-sale-currency]');
@@ -198,6 +39,7 @@
                 minimumFractionDigits: digits,
                 maximumFractionDigits: digits
             }).format(value);
+            const money = (value, code) => code + ' ' + format(value);
 
             // سقف مقدار و بهای تمام‌شدهٔ تخمینی وقتی قرارداد منبع انتخاب شده، فقط از همان قرارداد است.
             const selectedContractId = () => (sourceContract && sourceContract.value) || '';
@@ -238,12 +80,12 @@
                         : 0;
                 });
 
-                form.querySelector('[data-summary-quantity]').textContent = format(saleQuantity, 3) + ' تن';
-                form.querySelector('[data-summary-price]').textContent = format(unitPrice) + ' ' + code;
-                form.querySelector('[data-summary-total]').textContent = format(total) + ' ' + code;
-                form.querySelector('[data-summary-cost]').textContent = format(estimatedCost) + ' USD';
-                form.querySelector('[data-summary-profit]').textContent = format(totalUsd - estimatedCost) + ' USD';
-                form.querySelector('[data-summary-remaining]').textContent = format(Math.max(available - saleQuantity, 0), 3) + ' تن';
+                form.querySelector('[data-summary-quantity]').textContent = format(saleQuantity, 3) + ' ' + unitLabel;
+                form.querySelector('[data-summary-price]').textContent = money(unitPrice, code);
+                form.querySelector('[data-summary-total]').textContent = money(total, code);
+                form.querySelector('[data-summary-cost]').textContent = money(estimatedCost, 'USD');
+                form.querySelector('[data-summary-profit]').textContent = money(totalUsd - estimatedCost, 'USD');
+                form.querySelector('[data-summary-remaining]').textContent = format(Math.max(available - saleQuantity, 0), 3) + ' ' + unitLabel;
                 form.querySelector('[data-currency-unit]').textContent = code;
                 if (fxWrap) fxWrap.hidden = code.toUpperCase() === baseCurrency.toUpperCase();
             }
@@ -255,6 +97,18 @@
             [quantity, price, currency, fx].filter(Boolean).forEach(input => input.addEventListener('input', refresh));
             currency.addEventListener('change', refresh);
             if (sourceContract) sourceContract.addEventListener('change', refresh);
+
+            // باز/بسته کردن جدول جزئیات قراردادها — فقط نمایشی.
+            const collapseToggle = form.querySelector('[data-ssf-collapse]');
+            const collapsePanel = collapseToggle && form.querySelector('#' + collapseToggle.getAttribute('aria-controls'));
+            if (collapseToggle && collapsePanel) {
+                collapseToggle.addEventListener('click', function () {
+                    const expanded = collapseToggle.getAttribute('aria-expanded') === 'true';
+                    collapseToggle.setAttribute('aria-expanded', String(!expanded));
+                    collapsePanel.hidden = expanded;
+                });
+            }
+
             refresh();
         })();
     </script>

@@ -10,11 +10,16 @@
 <div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "کسری و ضایعات", "Loss events"), true, UiText.T(Context, "ثبت کسری جدید", "New loss event"), "bi-plus-lg", Url.Action("Create"), (string?)null, (string?)null, (string?)null, (string?)null))" />
+    @{
+        var sumDifference = (decimal)(ViewBag.SumDifferenceQuantity ?? 0m);
+        var sumChargeable = (decimal)(ViewBag.SumChargeableLoss ?? 0m);
+        var needsReviewCount = (int)(ViewBag.NeedsReviewCount ?? 0);
+    }
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار کسری و ضایعات", "Loss statistics")">
         <vc:stat-card title="@UiText.T(Context, "کل رویدادها", "Total events")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "رویداد", "events")" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مقدار کسری این صفحه", "Page loss quantity")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.DifferenceQuantityMt))" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "کسری قابل مطالبه", "Chargeable loss")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.ChargeableLossMt))" unit="MT" avatar="expenses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "نیازمند بررسی", "Needs review")" value="@Model.Items.Count(x => x.ChargeableLossMt > 0m).ToString("N0")" unit="@UiText.T(Context, "رویداد", "events")" avatar="purchase-contracts"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل مقدار کسری", "Total loss quantity")" value="@NumberDisplay.Quantity(sumDifference)" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کسری قابل مطالبه", "Chargeable loss")" value="@NumberDisplay.Quantity(sumChargeable)" unit="MT" avatar="receivables"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "نیازمند بررسی", "Needs review")" value="@needsReviewCount.ToString("N0")" unit="@UiText.T(Context, "رویداد", "events")" avatar="quality"></vc:stat-card>
     </section>
     <div class="ak-list">
         @{

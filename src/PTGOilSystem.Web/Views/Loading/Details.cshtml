@@ -146,8 +146,8 @@
 
     <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های بارگیری", "Loading metrics")">
         <vc:stat-card title="@T("بارگیری‌شده", "Loaded")" value="@NumberDisplay.Quantity(Model.LoadedQuantityMt)" unit="MT" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@T("رسیدشده", "Received")" value="@NumberDisplay.Quantity(Model.TotalReceivedQuantityMt)" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@T("باقی‌مانده", "Remaining")" value="@NumberDisplay.Quantity(Model.RemainingToReceiveMt)" unit="MT" avatar="stock-shortage"></vc:stat-card>
+        <vc:stat-card title="@T("رسیدشده", "Received")" value="@NumberDisplay.Quantity(Model.TotalReceivedQuantityMt)" unit="MT" avatar="dispatch-station"></vc:stat-card>
+        <vc:stat-card title="@T("باقی‌مانده", "Remaining")" value="@NumberDisplay.Quantity(Model.RemainingToReceiveMt)" unit="MT" avatar="warehouse"></vc:stat-card>
         <vc:stat-card title="@T("جمع مصرف", "Total cost")" value="@loadingCostsGrandTotal.ToString("N2")" unit="USD" avatar="expenses"></vc:stat-card>
     </section>
 

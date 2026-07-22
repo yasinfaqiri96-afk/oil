@@ -188,3 +188,25 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detai
         gap: 10px;
     }
 }
+
+/* =====================================================================
+   Account-status list (وضعیت حساب) — system ak-list skin. Clean rows;
+   only the figures carry semantic colour (debit red / credit green via
+   text-danger/text-success). Balance row a touch larger. Display only.
+   ===================================================================== */
+.ak-account-list .ak-account-lead dt { font-weight: 700; }
+.ak-account-list .ak-account-lead dd.ak-num { font-size: 1.25rem; font-weight: 800; }
+
+/* USD + RUB stacked: RUB is a muted, smaller second line. */
+.ak-account-list dd.ak-num .ak-amount-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: .8em;
+    font-weight: 600;
+    color: var(--ptg-muted);
+}
+
+/* Guarantee semantic colour on figures even if Bootstrap text utilities are
+   not in scope — fall back to the system finance tokens. */
+.ak-account-list dd.ak-num.text-danger { color: var(--ptg-danger-text); }
+.ak-account-list dd.ak-num.text-success { color: var(--ptg-success-text); }

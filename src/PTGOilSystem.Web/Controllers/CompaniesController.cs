@@ -204,6 +204,61 @@ public class CompaniesController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>
+    /// تعیینِ «شرکتِ مالکِ سیستم». دقیقاً یک شرکت می‌تواند مالک باشد (ایندکسِ یکتای جزئی روی
+    /// <see cref="Company.IsSystemOwner"/>)، بنابراین مالکِ قبلی در همین تراکنش پاک می‌شود و بعد
+    /// مالکِ جدید ست می‌شود. این ساختارِ دفاترِ مالی را تعیین می‌کند و کارِ نقشِ عملیاتی نیست.
+    /// </summary>
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetSystemOwner(int id, string? returnUrl = null)
+    {
+        var item = await _db.Companies.FirstOrDefaultAsync(x => x.Id == id);
+        if (item == null) return NotFound();
+
+        if (item.IsSystemOwner)
+        {
+            TempData["ok"] = "این شرکت از قبل مالکِ سیستم است.";
+            return RedirectBack(returnUrl);
+        }
+
+        var previousOwners = await _db.Companies.Where(x => x.IsSystemOwner && x.Id != id).ToListAsync();
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+
+        // مالکِ قبلی باید قبل از ست‌شدنِ مالکِ جدید و در یک SaveChanges جدا پاک شود، وگرنه
+        // ایندکسِ یکتای جزئی وسطِ همان دستور می‌شکند.
+        if (previousOwners.Count > 0)
+        {
+            foreach (var previous in previousOwners)
+                previous.IsSystemOwner = false;
+            await _db.SaveChangesAsync();
+        }
+
+        item.IsSystemOwner = true;
+        await _db.SaveChangesAsync();
+
+        foreach (var previous in previousOwners)
+        {
+            await _audit.LogAndSaveAsync(nameof(Company), previous.Id, AuditAction.Update,
+                diff: AuditDiffFormatter.ForUpdate(("IsSystemOwner", true, false)));
+        }
+        await _audit.LogAndSaveAsync(nameof(Company), item.Id, AuditAction.Update,
+            diff: AuditDiffFormatter.ForUpdate(("IsSystemOwner", false, true)));
+
+        await tx.CommitAsync();
+
+        TempData["ok"] = previousOwners.Count > 0
+            ? $"«{item.Name}» مالکِ سیستم شد و مالکِ قبلی برداشته شد."
+            : $"«{item.Name}» مالکِ سیستم شد.";
+        return RedirectBack(returnUrl);
+    }
+
+    private IActionResult RedirectBack(string? returnUrl)
+        => !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
+            ? Redirect(returnUrl)
+            : RedirectToAction(nameof(Index));
+
     private static void Normalize(Company model)
     {
         model.Code = (model.Code ?? string.Empty).Trim().ToUpperInvariant();

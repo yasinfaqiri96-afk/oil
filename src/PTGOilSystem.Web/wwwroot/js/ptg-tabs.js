@@ -126,7 +126,10 @@
             }
 
             event.preventDefault();
-            activate(id, true);
+            // Dense operational pages can opt out of the decorative fade. Their
+            // panels are already in the DOM, so the switch is truly immediate.
+            var animate = !rail.closest("[data-instant-tabs]");
+            activate(id, animate);
             revealTab(rail, tab);
 
             if (history.replaceState) {

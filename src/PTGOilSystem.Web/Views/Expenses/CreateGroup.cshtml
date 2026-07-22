@@ -1,4 +1,5 @@
 @model PTGOilSystem.Web.Models.Expenses.GroupExpenseCreateViewModel
+@using PTGOilSystem.Web.Models
 @using PTGOilSystem.Web.Models.Expenses
 @using PTGOilSystem.Web.Models.Shared
 @{
@@ -10,9 +11,27 @@
         : Url.Action("Index");
     var selectedItemsJson = System.Text.Json.JsonSerializer.Serialize(
         Model.Items?.Select(i => new { kind = i.Kind, id = i.Id, manualAmount = i.ManualAmount }) ?? Enumerable.Empty<object>());
+    IReadOnlyList<AkFilterOption> FilterOptions(IEnumerable<string> values) => values
+        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(value => value)
+        .Select(value => new AkFilterOption(value, value))
+        .ToList();
+    var operationSearchFilter = new AkSearchFilterModel(
+        "fQuery",
+        null,
+        "جستجو در شماره، مسیر یا عملیات...",
+        new List<AkFilterDefinition>
+        {
+            new("fOperation", "نوع عملیات", "select", FilterOptions(operations.Select(item => item.OperationLabel))),
+            new("fVehicle", "نوع وسیله", "select", FilterOptions(operations.Select(item => item.VehicleKind))),
+            new("fRoute", "مسیر", "select", FilterOptions(operations.Select(item => item.Route))),
+            new("fStatus", "وضعیت", "select", FilterOptions(operations.Select(item => item.StatusLabel))),
+            new("fFrom", "تاریخ حرکت", "daterange", null, null, "fTo")
+        });
 }
 
-<div class="ak-form-page ak-group-operation-page ak-group-wizard-page">
+<div class="ak-form-page ak-group-operation-page ak-group-operation-page--wide ak-group-wizard-page">
     @* data-no-spa: spa-nav submit را در capture قطع می‌کند و handler ساخت Items اجرا نمی‌شد.
        novalidate: fx-rate-field روی input نرخ required می‌گذارد؛ در مرحله ۳ آن input مخفی است و
        native validation مرورگر submit را بی‌صدا بلاک می‌کرد (invalid control not focusable). *@
@@ -44,39 +63,7 @@
             <div class="ak-group-wizard-main">
                 <div class="ak-form-section">
                     <h2 class="ak-section-title">انتخاب عملیات در جریان</h2>
-                    <div class="ak-form-grid">
-                        <label class="ak-field">
-                            <span>نوع عملیات</span>
-                            <select class="ak-input" id="fOperation"><option value="">همه</option></select>
-                        </label>
-                        <label class="ak-field">
-                            <span>نوع وسیله</span>
-                            <select class="ak-input" id="fVehicle"><option value="">همه</option></select>
-                        </label>
-                        <label class="ak-field">
-                            <span>مسیر</span>
-                            <select class="ak-input" id="fRoute"><option value="">همه مسیرها</option></select>
-                        </label>
-                        <label class="ak-field">
-                            <span>وضعیت</span>
-                            <select class="ak-input" id="fStatus"><option value="">همه</option></select>
-                        </label>
-                        <label class="ak-field">
-                            <span>تاریخ از</span>
-                            <input type="date" class="ak-input" id="fFrom" />
-                        </label>
-                        <label class="ak-field">
-                            <span>تاریخ تا</span>
-                            <input type="date" class="ak-input" id="fTo" />
-                        </label>
-                    </div>
-                    <div class="ak-subform-toolbar">
-                        <label class="ak-subform-search">
-                            <i class="bi bi-search"></i>
-                            <input type="search" id="fQuery" placeholder="جستجو..." />
-                        </label>
-                        <button type="button" class="btn ak-secondary-action" id="btnClearFilters">پاک کردن فیلتر</button>
-                    </div>
+                    <partial name="_AkClientSearchFilter" model="@operationSearchFilter" />
 
                     <label class="ak-field">
                         <input type="checkbox" id="chkAll" />
@@ -464,26 +451,20 @@
             container.appendChild(ul);
         }
 
-        var selects = { fOperation: 'op', fVehicle: 'vehicle', fRoute: 'route', fStatus: 'status' };
-        Object.keys(selects).forEach(function (selId) {
-            var field = selects[selId];
-            var values = Array.from(new Set(ops.map(function (o) { return o[field]; }))).filter(Boolean);
-            var el = $(selId);
-            values.forEach(function (v) {
-                var opt = document.createElement('option');
-                opt.value = v; opt.textContent = v;
-                el.appendChild(opt);
-            });
-        });
+        var operationFilter = document.querySelector('#gexpForm [data-ak-filter-client]');
+        function filterValue(key) {
+            var field = operationFilter.querySelector('[data-ak-filter-param][name="' + key + '"]');
+            return field ? field.value : '';
+        }
 
         function applyFilters() {
             var q = ($('fQuery').value || '').trim().toLowerCase();
-            var from = $('fFrom').value, to = $('fTo').value;
+            var from = filterValue('fFrom'), to = filterValue('fTo');
             state.filtered = ops.filter(function (o) {
-                if ($('fOperation').value && o.op !== $('fOperation').value) return false;
-                if ($('fVehicle').value && o.vehicle !== $('fVehicle').value) return false;
-                if ($('fRoute').value && o.route !== $('fRoute').value) return false;
-                if ($('fStatus').value && o.status !== $('fStatus').value) return false;
+                if (filterValue('fOperation') && o.op !== filterValue('fOperation')) return false;
+                if (filterValue('fVehicle') && o.vehicle !== filterValue('fVehicle')) return false;
+                if (filterValue('fRoute') && o.route !== filterValue('fRoute')) return false;
+                if (filterValue('fStatus') && o.status !== filterValue('fStatus')) return false;
                 if (from && o.date < from) return false;
                 if (to && o.date > to) return false;
                 if (q && (o.number + ' ' + o.route + ' ' + o.op + ' ' + o.vehicle).toLowerCase().indexOf(q) < 0) return false;
@@ -493,14 +474,7 @@
             renderTable();
         }
 
-        ['fOperation', 'fVehicle', 'fRoute', 'fStatus', 'fFrom', 'fTo'].forEach(function (id) {
-            $(id).addEventListener('change', applyFilters);
-        });
-        $('fQuery').addEventListener('input', applyFilters);
-        $('btnClearFilters').addEventListener('click', function () {
-            ['fOperation', 'fVehicle', 'fRoute', 'fStatus', 'fFrom', 'fTo', 'fQuery'].forEach(function (id) { $(id).value = ''; });
-            applyFilters();
-        });
+        operationFilter.addEventListener('ak:filter-change', applyFilters);
 
         // ---------- جدول + صفحه‌بندی ----------
         function renderTable() {

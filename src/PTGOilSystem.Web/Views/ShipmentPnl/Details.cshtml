@@ -61,19 +61,19 @@
     activeShipmentTab = activeShipmentTab is "flow" or "compliance" or "balance" or "sales" or "finance" or "trips"
         ? activeShipmentTab
         : "summary";
-    // پنل فعال باید کلاس Bootstrap ‏`show active` بگیرد؛ وگرنه ‎.tab-pane بدون ‎.active
-    // با display:none پنهان می‌ماند و تب خالی نمایش داده می‌شود (تب‌ها server-link هستند).
+    // پنل فعال باید کلاس `show active` بگیرد. همهٔ پنل‌ها همین‌جا رندر می‌شوند و
+    // ptg-tabs.js آن‌ها را محلی عوض می‌کند؛ تعویض تب نباید صفحه را دوباره از سرور بگیرد.
     string PaneClass(string slug, string? extra = null) =>
-        $"tab-pane fade{(activeShipmentTab == slug ? " show active" : "")}{(string.IsNullOrWhiteSpace(extra) ? "" : " " + extra)}";
+        $"tab-pane{(activeShipmentTab == slug ? " show active" : "")}{(string.IsNullOrWhiteSpace(extra) ? "" : " " + extra)}";
     var shipmentTabs = new[]
     {
-        $"summary|{T("خلاصه", "Summary")}|bi-grid-1x2|{(activeShipmentTab == "summary" ? "active" : "")}",
-        $"flow|{T("رسیدها", "Receipts")}|bi-box-arrow-in-down|{(activeShipmentTab == "flow" ? "active" : "")}",
-        $"compliance|{T("مصارف و گمرک", "Expenses & customs")}|bi-receipt-cutoff|{(activeShipmentTab == "compliance" ? "active" : "")}",
-        $"balance|{T("کسری‌ها", "Shortages")}|bi-clipboard-minus|{(activeShipmentTab == "balance" ? "active" : "")}",
-        $"sales|{T("فروش‌ها", "Sales")}|bi-cart-check|{(activeShipmentTab == "sales" ? "active" : "")}",
-        $"finance|{T("سود و زیان", "Profit & loss")}|bi-graph-up-arrow|{(activeShipmentTab == "finance" ? "active" : "")}",
-        $"trips|{T("موجودی و انتقالات", "Inventory & transfers")}|bi-truck|{(activeShipmentTab == "trips" ? "active" : "")}"
+        $"#shipment-summary|{T("خلاصه", "Summary")}|bi-grid-1x2|{(activeShipmentTab == "summary" ? "active" : "")}",
+        $"#shipment-flow|{T("رسیدها", "Receipts")}|bi-box-arrow-in-down|{(activeShipmentTab == "flow" ? "active" : "")}",
+        $"#shipment-compliance|{T("مصارف و گمرک", "Expenses & customs")}|bi-receipt-cutoff|{(activeShipmentTab == "compliance" ? "active" : "")}",
+        $"#shipment-balance|{T("کسری‌ها", "Shortages")}|bi-clipboard-minus|{(activeShipmentTab == "balance" ? "active" : "")}",
+        $"#shipment-sales|{T("فروش‌ها", "Sales")}|bi-cart-check|{(activeShipmentTab == "sales" ? "active" : "")}",
+        $"#shipment-finance|{T("سود و زیان", "Profit & loss")}|bi-graph-up-arrow|{(activeShipmentTab == "finance" ? "active" : "")}",
+        $"#shipment-trips|{T("موجودی و انتقالات", "Inventory & transfers")}|bi-truck|{(activeShipmentTab == "trips" ? "active" : "")}"
     };
 
     // ===== مقدارهای نمایشی مدیریتی (فقط نمایش؛ از همان فیلدهای موجود ViewModel مشتق می‌شوند) =====
@@ -106,7 +106,7 @@
     };
 }
 
-<div class="ak-form-page sf-detail ak-detail-page" data-ak-detail-v2="true">
+<div class="ak-form-page sf-detail ak-detail-page" data-ak-detail-v2="true" data-instant-tabs data-shipment-details-page>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((shipmentTitle, false,
                        canRegisterDirectLoss ? T("ثبت کسری", "Add loss") : (string?)null,
@@ -152,15 +152,15 @@
         <div class="@PaneClass("summary", "ak-form-section")" id="shipment-summary" role="tabpanel">
             @* شاخص‌های کلیدی فقط داخل تب خلاصه و هم‌ردیف با محتوای سایر تب‌ها. *@
             <div class="ak-stat-grid" aria-label="@T("شاخص‌های کلیدی محموله", "Shipment key indicators")">
-                <vc:stat-card title="@T("کل بار", "Total cargo")" value="@NumberDisplay.Quantity(Model.OriginalShipmentQuantityMt)" unit="@T("تن", "MT")" avatar="shipments"></vc:stat-card>
-                <vc:stat-card title="@T("تخلیه‌شده", "Received")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@T("تن", "MT")" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("کل بار", "Total cargo")" value="@NumberDisplay.Quantity(Model.OriginalShipmentQuantityMt)" unit="@T("تن", "MT")" avatar="vessel"></vc:stat-card>
+                <vc:stat-card title="@T("تخلیه‌شده", "Received")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@T("تن", "MT")" avatar="tank-farm"></vc:stat-card>
                 <vc:stat-card title="@T("کسری کل", "Total shortage")" value="@NumberDisplay.Quantity(Model.TotalLossAndShortageMt)" unit="@T("تن", "MT")" avatar="losses"></vc:stat-card>
                 <vc:stat-card title="@realizedResultLabel" value="@MoneyCard(Model.RealizedGrossMarginUsd)" unit="@T("دالر", "USD")" avatar="profit-loss"></vc:stat-card>
             </div>
 
-            <div class="ak-form-grid">
+            <div class="ak-form-grid sf-summary-grid">
                 <div>
-                    <section class="ak-form-section ak-detail-section">
+                    <section class="ak-form-section ak-detail-section sf-summary-card sf-source-list">
                         <h3>@T("منابع بار", "Cargo sources")</h3>
                         <div class="ak-list">
                             @if (totalSourceAllocationMt > 0m)
@@ -193,33 +193,32 @@
 
                 </div>
 
-                <aside class="ak-form-section ak-detail-section">
-                    <section class="ak-form-section ak-detail-section">
+                <aside class="sf-summary-aside">
+                    <section class="ak-form-section ak-detail-section sf-summary-card sf-account-summary">
                         <h3>@T("خلاصه حساب", "Account summary")</h3>
                         <div class="ak-list">
                             <div class="ak-list-row">
-                                <span class="ak-label"><i class="bi bi-bag"></i>@T("قیمت خرید کل بار", "Total cargo purchase")</span>
-                                <strong>@MoneyCard(Model.TotalPurchaseCostUsd)</strong>
+                                <span class="ak-label"><span class="sf-row-icon"><i class="bi bi-bag"></i></span>@T("قیمت خرید کل بار", "Total cargo purchase")</span>
+                                <strong class="sf-amount is-negative">@MoneyCard(Model.TotalPurchaseCostUsd)</strong>
                             </div>
                             <div class="ak-list-row">
-                                <span class="ak-label"><i class="bi bi-truck"></i>@T("کل مصارف (با گمرک)", "Total expenses")</span>
-                                <strong>@MoneyCard(Model.TotalOperationalExpensesUsd)</strong>
+                                <span class="ak-label"><span class="sf-row-icon"><i class="bi bi-truck"></i></span>@T("کل مصارف (با گمرک)", "Total expenses")</span>
+                                <strong class="sf-amount is-negative">@MoneyCard(Model.TotalOperationalExpensesUsd)</strong>
                             </div>
                             <div class="ak-list-row">
-                                <span class="ak-label"><i class="bi bi-exclamation-diamond"></i>@T("ضایعات کل", "Total losses")</span>
-                                <strong class="text-muted">@NumberDisplay.Quantity(Model.TotalLossAndShortageMt) @T("تن", "MT")</strong>
+                                <span class="ak-label"><span class="sf-row-icon"><i class="bi bi-exclamation-diamond"></i></span>@T("ضایعات کل", "Total losses")</span>
+                                <strong class="sf-amount is-neutral">@NumberDisplay.Quantity(Model.TotalLossAndShortageMt) @T("تن", "MT")</strong>
                             </div>
                             <div class="ak-list-row">
-                                <span class="ak-label"><i class="bi bi-cash-stack"></i>@T("درآمد فروش", "Sales revenue")</span>
-                                <strong>@MoneyCard(Model.TotalSalesUsd)</strong>
+                                <span class="ak-label"><span class="sf-row-icon"><i class="bi bi-cash-stack"></i></span>@T("درآمد فروش", "Sales revenue")</span>
+                                <strong class="sf-amount is-positive">@MoneyCard(Model.TotalSalesUsd)</strong>
                             </div>
                             <div class="ak-list-row is-total">
-                                <span class="ak-label"><i class="bi bi-graph-up-arrow"></i>@realizedResultLabel</span>
-                                <strong class="ak-num @realizedResultClass">@MoneyCard(Model.RealizedGrossMarginUsd)</strong>
+                                <span class="ak-label"><span class="sf-row-icon"><i class="bi bi-graph-up-arrow"></i></span>@realizedResultLabel</span>
+                                <strong class="ak-num sf-amount @realizedResultClass">@MoneyCard(Model.RealizedGrossMarginUsd)</strong>
                             </div>
-                    </div>
-
-                </section>
+                        </div>
+                    </section>
 
                     @if (!string.IsNullOrWhiteSpace(Model.Notes))
                     {
@@ -237,104 +236,106 @@
         @* ============ تب: مسیر بار (داستان حرکت بار از کشتی تا فروش) ============ *@
         <div class="@PaneClass("flow", "ak-form-section")" id="shipment-flow" role="tabpanel">
             <div class="ak-stat-grid" aria-label="@T("خلاصه رسیدها", "Receipt summary")">
-                <vc:stat-card title="@T("تعداد رسیدها", "Receipts")" value="@Model.RegisteredVesselReceipts.Count.ToString("N0")" unit="@T("رسید", "receipts")" avatar="purchase-contracts"></vc:stat-card>
-                <vc:stat-card title="@T("تخلیه‌شده", "Unloaded")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@T("تن", "MT")" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد رسیدها", "Receipts")" value="@Model.RegisteredVesselReceipts.Count.ToString("N0")" unit="@T("رسید", "receipts")" avatar="documents"></vc:stat-card>
+                <vc:stat-card title="@T("تخلیه‌شده", "Unloaded")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@T("تن", "MT")" avatar="tank-farm"></vc:stat-card>
                 <vc:stat-card title="@T("حمل‌شده از موجودی", "Transported from stock")" value="@NumberDisplay.Quantity(Model.InventoryTransportedOutQuantityMt)" unit="@T("تن", "MT")" avatar="transported"></vc:stat-card>
-                <vc:stat-card title="@T("تحویل‌شده در مقصد", "Delivered")" value="@NumberDisplay.Quantity(Model.DeliveredAtDestinationQuantityMt)" unit="@T("تن", "MT")" avatar="shipments"></vc:stat-card>
+                <vc:stat-card title="@T("تحویل‌شده در مقصد", "Delivered")" value="@NumberDisplay.Quantity(Model.DeliveredAtDestinationQuantityMt)" unit="@T("تن", "MT")" avatar="in-transit"></vc:stat-card>
             </div>
 
-            <section class="ak-form-section ak-detail-section">
-                <div class="ak-section-head ak-detail-section-header">
-                    <h3>@T("رسیدهای ثبت‌شده از کشتی", "Registered vessel receipts") (@Model.RegisteredVesselReceipts.Count)</h3>
+            <shipment-record-list title="@T("رسیدهای ثبت‌شده از کشتی", "Registered vessel receipts")" count="@Model.RegisteredVesselReceipts.Count">
+                <shipment-record-action>
                     <a asp-controller="InventoryTransportLegs"
                        asp-action="CreateGroupReceipt"
                        asp-route-groupKey="SHIP:@Model.Id"
                        asp-route-returnUrl="@selfUrl"
-                       class="btn ak-secondary-action is-primary no-print">
+                       class="btn no-print">
                         <i class="bi bi-box-arrow-in-down"></i>@T("ثبت رسید", "Register receipt")
                     </a>
-                </div>
-                <div class="ak-table-wrap">
-                    <table class="ak-table ak-detail-table">
-                        <thead>
-                            <tr>
-                                <th>@T("تعداد رسید", "Receipts")</th>
-                                <th class="text-end">@T("مقدار کل رسید/تخلیه‌شده", "Total received/unloaded")</th>
-                                <th class="no-print text-end">@T("جزئیات", "Details")</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @if (Model.RegisteredVesselReceipts.Any())
-                        {
-                            <tr data-breakdown-parent="vessel-receipts">
-                                <td>@Model.RegisteredVesselReceipts.Count @T("رسید", "receipts")</td>
-                                <td class="text-end ak-num">@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt) MT</td>
-                                <td class="no-print text-end">
+                </shipment-record-action>
+                <table class="shipment-record-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="is-entity">@T("تعداد رسید", "Receipts")</th>
+                            <th scope="col" class="is-amount">@T("مقدار کل رسید/تخلیه‌شده", "Total received/unloaded")</th>
+                            <th scope="col" class="is-actions no-print"><span class="visually-hidden">@T("عملیات", "Actions")</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @if (Model.RegisteredVesselReceipts.Any())
+                    {
+                        <tr data-breakdown-parent="vessel-receipts">
+                            <td class="is-entity">
+                                <partial name="Partials/_ShipmentRecordEntity"
+                                         model="@(new ShipmentRecordEntityCell($"{Model.RegisteredVesselReceipts.Count} {T("رسید", "receipts")}", Model.ShipmentCode, AvatarIcon: "bi-box-arrow-in-down"))" />
+                            </td>
+                            <td class="is-amount"><span class="shipment-record-figure">@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)</span> <span class="shipment-record-unit">@T("تن", "MT")</span></td>
+                            <td class="is-actions no-print">
+                                <span class="shipment-record-actions">
                                     <button type="button"
-                                            class="ak-text-action"
+                                            class="btn shipment-record-kebab"
+                                            title="@T("جزئیات رسیدها", "Receipt details")"
+                                            aria-label="@T("عملیات رسیدهای کشتی", "Actions for vessel receipts")"
                                             data-contract-breakdown-toggle="vessel-receipts"
                                             aria-expanded="false">
-                                        <i class="bi bi-diagram-3"></i>
-                                        @T("جزئیات", "Details")
+                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                     </button>
-                                </td>
-                            </tr>
-                            <tr class="ak-list-row" data-contract-breakdown-row="vessel-receipts" hidden>
-                                <td colspan="3">
-                                    <div class="ak-form-section ak-detail-section">
-                                        <table class="ak-table ak-detail-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>@T("تاریخ", "Date")</th>
-                                                    <th>@T("شماره رسید", "Receipt no.")</th>
-                                                    <th>@T("قرارداد", "Contract")</th>
-                                                    <th>@T("مقصد", "Destination")</th>
-                                                    <th>@T("مخزن تخلیه", "Unload tank")</th>
-                                                    <th class="text-end">@T("مقدار رسید", "Received")</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var receipt in Model.RegisteredVesselReceipts)
-                                                {
-                                                    <tr>
-                                                        <td>@receipt.ReceiptDate.ToDisplayDate()</td>
-                                                        <td><a asp-controller="InventoryTransportReceipts" asp-action="Details" asp-route-id="@receipt.Id" asp-route-returnUrl="@selfUrl">#@receipt.Id</a></td>
-                                                        <td>@receipt.ContractNumber</td>
-                                                        <td>
-                                                            @receipt.DestinationTerminalName
-                                                            @if (receipt.CanChainOnward)
-                                                            {
-                                                                <a class="btn ak-secondary-action is-outline is-xs no-print"
-                                                                   asp-controller="InventoryTransportLegs"
-                                                                   asp-action="CreateFromInventory"
-                                                                   asp-route-shipmentId="@Model.Id"
-                                                                   asp-route-sourceTerminalId="@receipt.DestinationTerminalId"
-                                                                   asp-route-sourceStorageTankId="@receipt.DestinationStorageTankId"
-                                                                   asp-route-productId="@receipt.ProductId"
-                                                                   asp-route-returnUrl="@selfUrl"
-                                                                   title="@T("حمل بعدی از همین مخزن (واگون/موتر)", "Next transport leg from this tank (wagon/truck)")">
-                                                                    <i class="bi bi-arrow-right-circle"></i>@T("حمل بعدی", "Next leg")
-                                                                </a>
-                                                            }
-                                                        </td>
-                                                        <td>@(string.IsNullOrWhiteSpace(receipt.DestinationTankName) ? "—" : receipt.DestinationTankName)</td>
-                                                        <td class="text-end ak-num">@NumberDisplay.Quantity(receipt.ReceivedQuantityMt) MT</td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                        else
-                        {
-                            <tr><td colspan="3" class="ak-empty ak-detail-empty-state">@T("هنوز رسیدی از فورم ثبت رسید کشتی برای این محموله ثبت نشده است.", "No vessel receipt has been registered from the receipt form for this shipment.")</td></tr>
-                        }
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                                </span>
+                            </td>
+                        </tr>
+                        <tr class="shipment-record-table__breakdown" data-contract-breakdown-row="vessel-receipts" hidden>
+                            <td colspan="3">
+                                <table class="shipment-record-subtable">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">@T("تاریخ", "Date")</th>
+                                            <th scope="col">@T("شماره رسید", "Receipt no.")</th>
+                                            <th scope="col">@T("قرارداد", "Contract")</th>
+                                            <th scope="col">@T("مقصد", "Destination")</th>
+                                            <th scope="col">@T("مخزن تخلیه", "Unload tank")</th>
+                                            <th scope="col">@T("مقدار رسید", "Received")</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var receipt in Model.RegisteredVesselReceipts)
+                                        {
+                                            <tr>
+                                                <td>@receipt.ReceiptDate.ToDisplayDate()</td>
+                                                <td><a asp-controller="InventoryTransportReceipts" asp-action="Details" asp-route-id="@receipt.Id" asp-route-returnUrl="@selfUrl">#@receipt.Id</a></td>
+                                                <td>@receipt.ContractNumber</td>
+                                                <td>
+                                                    @receipt.DestinationTerminalName
+                                                    @if (receipt.CanChainOnward)
+                                                    {
+                                                        <a class="btn ak-secondary-action is-outline is-xs no-print"
+                                                           asp-controller="InventoryTransportLegs"
+                                                           asp-action="CreateFromInventory"
+                                                           asp-route-shipmentId="@Model.Id"
+                                                           asp-route-sourceTerminalId="@receipt.DestinationTerminalId"
+                                                           asp-route-sourceStorageTankId="@receipt.DestinationStorageTankId"
+                                                           asp-route-productId="@receipt.ProductId"
+                                                           asp-route-returnUrl="@selfUrl"
+                                                           title="@T("حمل بعدی از همین مخزن (واگون/موتر)", "Next transport leg from this tank (wagon/truck)")">
+                                                            <i class="bi bi-arrow-right-circle"></i>@T("حمل بعدی", "Next leg")
+                                                        </a>
+                                                    }
+                                                </td>
+                                                <td>@(string.IsNullOrWhiteSpace(receipt.DestinationTankName) ? "—" : receipt.DestinationTankName)</td>
+                                                <td>@NumberDisplay.Quantity(receipt.ReceivedQuantityMt) @T("تن", "MT")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <partial name="Partials/_ShipmentRecordEmpty"
+                                 model="@(new ShipmentRecordEmptyCell(3, T("هنوز رسیدی از فورم ثبت رسید کشتی برای این محموله ثبت نشده است.", "No vessel receipt has been registered from the receipt form for this shipment."), "bi-inbox"))" />
+                    }
+                    </tbody>
+                </table>
+            </shipment-record-list>
 
         </div>
 
@@ -379,8 +380,8 @@
             <div class="ak-stat-grid" aria-label="@T("خلاصه مصارف", "Expense summary")">
                 <vc:stat-card title="@T("کل مصارف", "Total")" value="@MoneyCard(grandExpenseTotalUsd)" unit="USD" avatar="expenses"></vc:stat-card>
                 <vc:stat-card title="@T("کرایه و حمل", "Freight")" value="@MoneyCard(freightExpenseUsd)" unit="USD" avatar="transported"></vc:stat-card>
-                <vc:stat-card title="@T("گمرک", "Customs")" value="@MoneyCard(customsExpenseUsd)" unit="USD" avatar="purchase-contracts"></vc:stat-card>
-                <vc:stat-card title="@T("سایر مصارف", "Other")" value="@MoneyCard(otherExpenseUsd)" unit="USD" avatar="expenses"></vc:stat-card>
+                <vc:stat-card title="@T("گمرک", "Customs")" value="@MoneyCard(customsExpenseUsd)" unit="USD" avatar="dispatch-station"></vc:stat-card>
+                <vc:stat-card title="@T("سایر مصارف", "Other")" value="@MoneyCard(otherExpenseUsd)" unit="USD" avatar="expense-types"></vc:stat-card>
             </div>
 
             <section class="ak-form-section ak-detail-section mb-3">
@@ -403,77 +404,90 @@
             {
                 var catTotal = cat.Rows.Sum(r => r.AmountUsd);
                 var isFirst = cat.Slug == expenseGroups[0].Slug;
-                <details class="ak-form-section ak-detail-section mb-3" @(isFirst ? "open" : null)>
-                    <summary class="ak-form-section ak-detail-section">
-                        <span class="sf-exp-group-title"><i class="bi @cat.Icon"></i> @T(cat.Fa, cat.En)</span>
-                        <span class="sf-exp-group-meta">
-                            <span class="sf-exp-count">@cat.Rows.Count.ToString("N0") @T("رکورد", "records")</span>
-                            <strong class="ak-num">@MoneyCard(catTotal) @T("دالر", "USD")</strong>
-                            <i class="bi bi-chevron-down sf-exp-chevron"></i>
+                <shipment-record-list title="@T(cat.Fa, cat.En)" count="@cat.Rows.Count" icon="@cat.Icon" collapsible="true" open="@isFirst">
+                    <shipment-record-meta>
+                        <span class="shipment-record-list__meta">
+                            <span>@T("جمع دسته", "Subtotal")</span>
+                            <strong>@MoneyCard(catTotal) @T("دالر", "USD")</strong>
                         </span>
-                    </summary>
-                    <div class="ak-table-wrap">
-                        <table class="ak-table ak-detail-table">
-                            <thead><tr><th>@T("تاریخ", "Date")</th><th>@T("نوع", "Type")</th><th>@T("شرح", "Description")</th><th>@T("مبلغ", "Amount")</th><th class="no-print">@T("قراردادها", "Contracts")</th></tr></thead>
-                            <tbody>
-                            @foreach (var item in cat.Rows)
-                            {
-                                var breakdownKey = $"expcat-{cat.Slug}-{item.Id}";
-                                <tr data-breakdown-parent="@breakdownKey">
-                                    <td>@item.ExpenseDate.ToDisplayDate()</td>
-                                    <td>@item.ExpenseTypeName</td>
-                                    <td>@(item.Description ?? "-")</td>
-                                    <td class="ak-num">@MoneyCard(item.AmountUsd) @T("دالر", "USD")</td>
-                                    <td class="no-print">
+                    </shipment-record-meta>
+                    <table class="shipment-record-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="is-date">@T("تاریخ", "Date")</th>
+                                <th scope="col" class="is-entity">@T("نوع", "Type")</th>
+                                <th scope="col" class="is-text">@T("شرح", "Description")</th>
+                                <th scope="col" class="is-amount">@T("مبلغ", "Amount")</th>
+                                <th scope="col" class="is-actions no-print"><span class="visually-hidden">@T("عملیات", "Actions")</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in cat.Rows)
+                        {
+                            var breakdownKey = $"expcat-{cat.Slug}-{item.Id}";
+                            <tr data-breakdown-parent="@breakdownKey">
+                                <td class="is-date"><span class="shipment-record-figure">@item.ExpenseDate.ToDisplayDate()</span></td>
+                                <td class="is-entity">
+                                    <partial name="Partials/_ShipmentRecordEntity"
+                                             model="@(new ShipmentRecordEntityCell(item.ExpenseTypeName, T(cat.Fa, cat.En), AvatarIcon: cat.Icon))" />
+                                </td>
+                                <td class="is-text" title="@item.Description">@(item.Description ?? "-")</td>
+                                <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(item.AmountUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
+                                <td class="is-actions no-print">
+                                    <span class="shipment-record-actions">
                                         <button type="button"
-                                                class="ak-text-action"
+                                                class="btn shipment-record-kebab"
+                                                title="@T("جزئیات قراردادها", "Contract details")"
+                                                aria-label="@T($"عملیات مصرف شماره {item.Id}", $"Actions for expense {item.Id}")"
                                                 data-contract-breakdown-toggle="@breakdownKey"
                                                 aria-expanded="false"
                                                 @(item.ContractBreakdownLines.Count == 0 ? "disabled" : null)>
-                                            <i class="bi bi-diagram-3"></i>
-                                            @T("جزئیات", "Details")
+                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                         </button>
-                                    </td>
-                                </tr>
-                                <tr class="ak-list-row" data-contract-breakdown-row="@breakdownKey" hidden>
-                                    <td colspan="5">
-                                        <div class="ak-form-section ak-detail-section">
-                                            <table class="ak-table ak-detail-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>@T("قرارداد", "Contract")</th>
-                                                        <th>@T("سهم مقدار", "Quantity share")</th>
-                                                        <th>@T("سهم مبلغ", "Amount share")</th>
-                                                        <th>@T("توضیح", "Description")</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    @foreach (var line in item.ContractBreakdownLines)
-                                                    {
-                                                        <tr>
-                                                            <td>@line.ContractNumber</td>
-                                                            <td>@NumberDisplay.Quantity(line.QuantityMt) @T("تن", "MT")</td>
-                                                            <td>@MoneyCard(line.AmountUsd) @T("دالر", "USD")</td>
-                                                            <td>@(line.Description ?? "-")</td>
-                                                        </tr>
-                                                    }
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                            <tfoot>
-                                <tr class="ak-table-total">
-                                    <th colspan="3">@T("جمع این دسته", "Category subtotal")</th>
-                                    <td class="ak-num">@MoneyCard(catTotal) @T("دالر", "USD")</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </details>
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr class="shipment-record-table__breakdown" data-contract-breakdown-row="@breakdownKey" hidden>
+                                <td colspan="5">
+                                    <table class="shipment-record-subtable">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">@T("قرارداد", "Contract")</th>
+                                                <th scope="col">@T("سهم مقدار", "Quantity share")</th>
+                                                <th scope="col">@T("سهم مبلغ", "Amount share")</th>
+                                                <th scope="col">@T("توضیح", "Description")</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var line in item.ContractBreakdownLines)
+                                            {
+                                                <tr>
+                                                    <td>@line.ContractNumber</td>
+                                                    <td>@NumberDisplay.Quantity(line.QuantityMt) @T("تن", "MT")</td>
+                                                    <td>@MoneyCard(line.AmountUsd) @T("دالر", "USD")</td>
+                                                    <td>@(line.Description ?? "-")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                        }
+                        @if (cat.Rows.Count == 0)
+                        {
+                            <partial name="Partials/_ShipmentRecordEmpty"
+                                     model="@(new ShipmentRecordEmptyCell(5, T("در این دسته مصرفی ثبت نشده است.", "No expenses in this category."), "bi-receipt"))" />
+                        }
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th scope="row" colspan="3">@T("جمع این دسته", "Category subtotal")</th>
+                                <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(catTotal)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
+                                <td class="is-actions no-print"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </shipment-record-list>
             }
 
             @* کسری‌ها به تب مستقل «کسری‌ها» منتقل شده‌اند. *@
@@ -493,98 +507,97 @@
             <div class="ak-stat-grid" aria-label="@T("خلاصه فروش", "Sales summary")">
                 <vc:stat-card title="@T("کل فروش", "Total sales")" value="@MoneyCard(Model.TotalSalesUsd)" unit="@T("دالر", "USD")" avatar="sales-value"></vc:stat-card>
                 <vc:stat-card title="@T("فروخته‌شده", "Sold")" value="@NumberDisplay.Quantity(Model.SoldQuantityMt)" unit="@T("تن", "MT")" avatar="sold-quantity"></vc:stat-card>
-                <vc:stat-card title="@T("میانگین قیمت", "Avg price")" value="@MoneyCard(avgSalePriceUsd)" unit="@T("دالر در هر تن", "USD per MT")" avatar="purchase-value"></vc:stat-card>
-                <vc:stat-card title="@T("مقدار فروش‌نشده", "Unsold quantity")" value="@NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt)" unit="@T("تن", "MT")" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("میانگین قیمت", "Avg price")" value="@MoneyCard(avgSalePriceUsd)" unit="@T("دالر در هر تن", "USD per MT")" avatar="analysis"></vc:stat-card>
+                <vc:stat-card title="@T("مقدار فروش‌نشده", "Unsold quantity")" value="@NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt)" unit="@T("تن", "MT")" avatar="warehouse"></vc:stat-card>
             </div>
 
-            @* جدول فروش — سبک لیست فاکتور (آواتار، خط‌چین، پیل وضعیت) *@
-            <section class="ak-form-section ak-detail-section">
-                <div class="ak-section-head ak-detail-section-header">
-                    <h3 class="ak-section-title">@T("فروش‌ها", "Sales") <span class="ak-status">@saleDisplayRows.Count</span></h3>
-                    <a asp-controller="Sales" asp-action="CreateFromShipment" asp-route-shipmentId="@Model.Id" asp-route-returnUrl="@selfUrl" class="ak-primary-action no-print"><i class="bi bi-plus-lg"></i> @T("ثبت فروش", "Add sale")</a>
-                </div>
-                <div class="ak-table-wrap">
-                    <table class="ak-table ak-detail-table">
-                        <thead>
-                            <tr>
-                                <th>@T("مشتری", "Customer")</th>
-                                <th>@T("تاریخ", "Date")</th>
-                                <th>@T("مقدار", "Quantity")</th>
-                                <th>@T("قیمت واحد", "Unit price")</th>
-                                <th>@T("مبلغ", "Amount")</th>
-                                <th>@T("وضعیت", "Status")</th>
-                                <th class="no-print"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @foreach (var item in saleDisplayRows)
-                        {
-                            var breakdownKey = $"sales-sale-{item.Id}";
-                            var hasTime = item.SaleDate.TimeOfDay != TimeSpan.Zero;
-                            <tr data-breakdown-parent="@breakdownKey">
-                                <td>
-                                    <div class="ak-field">
-                                        <span class="ak-page-icon @InvAvatarTone(item.CustomerName)">@InvInitial(item.CustomerName)</span>
-                                        <span class="ak-field">
-                                            <strong class="ak-label">@(item.CustomerName ?? "-")</strong>
-                                            <span class="ak-section-desc">@item.InvoiceNumber</span>
-                                        </span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="ak-num">@item.SaleDate.ToDisplayDate()</span>
-                                    @if (hasTime)
-                                    { <span class="ak-section-desc">@item.SaleDate.ToString("h:mm tt")</span> }
-                                </td>
-                                <td>@NumberDisplay.Quantity(item.QuantityMt) @T("تن", "MT")</td>
-                                <td>@MoneyCard(item.UnitPriceUsd) @T("دالر", "USD")</td>
-                                <td class="ak-num">@MoneyCard(item.TotalUsd) @T("دالر", "USD")</td>
-                                <td><span class="ak-status is-green">@T("فروخته‌شده", "Sold")</span></td>
-                                <td class="no-print ak-col-actions">
+            @* جدول فروش — کامپوننت مشترک لیست رکوردی پرونده محموله *@
+            <shipment-record-list title="@T("فروش‌ها", "Sales")" count="@saleDisplayRows.Count">
+                <shipment-record-action>
+                    <a asp-controller="Sales" asp-action="CreateFromShipment" asp-route-shipmentId="@Model.Id" asp-route-returnUrl="@selfUrl" class="btn no-print"><i class="bi bi-plus-lg" aria-hidden="true"></i>@T("ثبت فروش", "Add sale")</a>
+                </shipment-record-action>
+                <table class="shipment-record-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="is-entity">@T("مشتری", "Customer")</th>
+                            <th scope="col" class="is-date">@T("تاریخ", "Date")</th>
+                            <th scope="col" class="is-quantity">@T("مقدار", "Quantity")</th>
+                            <th scope="col" class="is-price">@T("قیمت واحد", "Unit price")</th>
+                            <th scope="col" class="is-amount">@T("مبلغ", "Amount")</th>
+                            <th scope="col" class="is-status">@T("وضعیت", "Status")</th>
+                            <th scope="col" class="is-actions no-print"><span class="visually-hidden">@T("عملیات", "Actions")</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in saleDisplayRows)
+                    {
+                        var breakdownKey = $"sales-sale-{item.Id}";
+                        var hasTime = item.SaleDate.TimeOfDay != TimeSpan.Zero;
+                        <tr data-breakdown-parent="@breakdownKey">
+                            <td class="is-entity">
+                                <partial name="Partials/_ShipmentRecordEntity"
+                                         model="@(new ShipmentRecordEntityCell(item.CustomerName ?? "-", item.InvoiceNumber, InvInitial(item.CustomerName), SecondaryLtr: true))" />
+                            </td>
+                            <td class="is-date">
+                                <span class="shipment-record-figure">@item.SaleDate.ToDisplayDate()</span>
+                                @if (hasTime)
+                                { <span class="shipment-record-subtext">@item.SaleDate.ToString("h:mm tt")</span> }
+                            </td>
+                            <td class="is-quantity"><span class="shipment-record-figure">@NumberDisplay.Quantity(item.QuantityMt)</span> <span class="shipment-record-unit">@T("تن", "MT")</span></td>
+                            <td class="is-price"><span class="shipment-record-figure">@MoneyCard(item.UnitPriceUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
+                            <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(item.TotalUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
+                            <td class="is-status">
+                                <partial name="Partials/_ShipmentRecordStatus"
+                                         model="@(new ShipmentRecordStatusCell(T("فروخته‌شده", "Sold"), ShipmentRecordTone.Success))" />
+                            </td>
+                            <td class="is-actions no-print">
+                                <span class="shipment-record-actions">
                                     <button type="button"
-                                            class="ak-row-menu-btn"
+                                            class="btn shipment-record-kebab"
                                             title="@T("جزئیات قراردادها", "Contract details")"
+                                            aria-label="@T($"عملیات فروش {item.InvoiceNumber}", $"Actions for sale {item.InvoiceNumber}")"
                                             data-contract-breakdown-toggle="@breakdownKey"
                                             aria-expanded="false"
                                             @(item.ContractBreakdownLines.Count == 0 ? "disabled" : null)>
-                                        <i class="bi bi-three-dots-vertical"></i>
+                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                     </button>
-                                </td>
-                            </tr>
-                            <tr class="ak-list-row" data-contract-breakdown-row="@breakdownKey" hidden>
-                                <td colspan="7">
-                                    <div class="ak-form-section ak-detail-section">
-                                        <table class="ak-table ak-detail-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>@T("قرارداد", "Contract")</th>
-                                                    <th>@T("سهم مقدار", "Quantity share")</th>
-                                                    <th>@T("سهم مبلغ", "Amount share")</th>
-                                                    <th>@T("توضیح", "Description")</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var line in item.ContractBreakdownLines)
-                                                {
-                                                    <tr>
-                                                        <td>@line.ContractNumber</td>
-                                                        <td>@NumberDisplay.Quantity(line.QuantityMt) @T("تن", "MT")</td>
-                                                        <td>@MoneyCard(line.AmountUsd) @T("دالر", "USD")</td>
-                                                        <td>@(line.Description ?? "-")</td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                        @if (!saleDisplayRows.Any())
-                        { <tr><td colspan="7" class="ak-empty ak-detail-empty-state">@T("فروشی ثبت نشده است.", "No sales recorded.")</td></tr> }
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                                </span>
+                            </td>
+                        </tr>
+                        <tr class="shipment-record-table__breakdown" data-contract-breakdown-row="@breakdownKey" hidden>
+                            <td colspan="7">
+                                <table class="shipment-record-subtable">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">@T("قرارداد", "Contract")</th>
+                                            <th scope="col">@T("سهم مقدار", "Quantity share")</th>
+                                            <th scope="col">@T("سهم مبلغ", "Amount share")</th>
+                                            <th scope="col">@T("توضیح", "Description")</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var line in item.ContractBreakdownLines)
+                                        {
+                                            <tr>
+                                                <td>@line.ContractNumber</td>
+                                                <td>@NumberDisplay.Quantity(line.QuantityMt) @T("تن", "MT")</td>
+                                                <td>@MoneyCard(line.AmountUsd) @T("دالر", "USD")</td>
+                                                <td>@(line.Description ?? "-")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    }
+                    @if (!saleDisplayRows.Any())
+                    {
+                        <partial name="Partials/_ShipmentRecordEmpty"
+                                 model="@(new ShipmentRecordEmptyCell(7, T("فروشی ثبت نشده است.", "No sales recorded."), "bi-cart-x"))" />
+                    }
+                    </tbody>
+                </table>
+            </shipment-record-list>
         </div>
 
         @* ============ تب: سود و زیان — یک منبع، یک عدد، ساده ============ *@
@@ -663,106 +676,129 @@
             </section>
 
             @* جدول سادهٔ جزئیات هزینه‌ها بر اساس دسته. جمع = کل مصارف عملیاتی محموله. *@
-            <section class="ak-form-section ak-detail-section">
-                <h3>@T("جزئیات هزینه‌ها بر اساس دسته", "Expense details by category")</h3>
-                <div class="ak-table-wrap">
-                    <table class="ak-table ak-detail-table">
-                        <thead>
-                            <tr><th>@T("دستهٔ هزینه", "Category")</th><th class="text-end">@T("مبلغ (کل محموله)", "Amount (whole cargo)")</th></tr>
-                        </thead>
-                        <tbody>
-                        @foreach (var category in expenseCategories.Where(c => c.Amount > 0m))
-                        {
-                            <tr>
-                                <td>@T(category.Fa, category.En)</td>
-                                <td class="text-end ak-num">@MoneyCard(category.Amount) @T("دالر", "USD")</td>
-                            </tr>
-                        }
-                        @if (Model.TotalOperationalExpensesUsd <= 0m)
-                        { <tr><td colspan="2" class="ak-empty ak-detail-empty-state">@T("مصرفی ثبت نشده است.", "No expenses recorded.")</td></tr> }
-                        </tbody>
-                        <tfoot>
-                            <tr class="ak-table-total">
-                                <th>@T("کل هزینه‌های مسیر و عملیات", "Total route & operation costs")</th>
-                                <td class="ak-num">@MoneyCard(Model.TotalOperationalExpensesUsd) @T("دالر", "USD")</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-                <p class="small text-muted mb-0 mt-2"><i class="bi bi-info-circle"></i> @T("این جدول کل مصارف محموله است؛ در محاسبهٔ سود بالا فقط سهم مقدار فروخته‌شده کسر می‌شود.", "This table is the whole-cargo expense; only the sold share is deducted in the profit calculation above.")</p>
-            </section>
+            @{
+                var pnlExpenseRows = expenseCategories.Where(c => c.Amount > 0m).ToList();
+            }
+            <shipment-record-list title="@T("جزئیات هزینه‌ها بر اساس دسته", "Expense details by category")" count="@pnlExpenseRows.Count">
+                <table class="shipment-record-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="is-entity">@T("دستهٔ هزینه", "Category")</th>
+                            <th scope="col" class="is-amount">@T("مبلغ (کل محموله)", "Amount (whole cargo)")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var category in pnlExpenseRows)
+                    {
+                        <tr>
+                            <td class="is-entity">
+                                <partial name="Partials/_ShipmentRecordEntity"
+                                         model="@(new ShipmentRecordEntityCell(T(category.Fa, category.En), AvatarIcon: "bi-receipt-cutoff"))" />
+                            </td>
+                            <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(category.Amount)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
+                        </tr>
+                    }
+                    @if (Model.TotalOperationalExpensesUsd <= 0m)
+                    {
+                        <partial name="Partials/_ShipmentRecordEmpty"
+                                 model="@(new ShipmentRecordEmptyCell(2, T("مصرفی ثبت نشده است.", "No expenses recorded."), "bi-receipt"))" />
+                    }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th scope="row">@T("کل هزینه‌های مسیر و عملیات", "Total route & operation costs")</th>
+                            <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(Model.TotalOperationalExpensesUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </shipment-record-list>
+            <p class="small text-muted mb-0 mt-2"><i class="bi bi-info-circle"></i> @T("این جدول کل مصارف محموله است؛ در محاسبهٔ سود بالا فقط سهم مقدار فروخته‌شده کسر می‌شود.", "This table is the whole-cargo expense; only the sold share is deducted in the profit calculation above.")</p>
 
         </div>
 
         <div class="@PaneClass("balance")" id="shipment-balance" role="tabpanel">
             <div class="ak-stat-grid" aria-label="@T("خلاصه کسری‌ها", "Shortage summary")">
                 <vc:stat-card title="@T("کسری کل", "Total shortage")" value="@NumberDisplay.Quantity(Model.TotalLossAndShortageMt)" unit="@T("تن", "MT")" avatar="losses"></vc:stat-card>
-                <vc:stat-card title="@T("کسری تخلیه کشتی", "Vessel unloading shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@T("تن", "MT")" avatar="shipments"></vc:stat-card>
+                <vc:stat-card title="@T("کسری تخلیه کشتی", "Vessel unloading shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@T("تن", "MT")" avatar="vessel"></vc:stat-card>
                 <vc:stat-card title="@T("کسری حمل", "Transport shortage")" value="@NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt)" unit="@T("تن", "MT")" avatar="transported"></vc:stat-card>
-                <vc:stat-card title="@T("ارزش تخمینی کسری", "Estimated shortage value")" value="@MoneyCard(Model.EstimatedShortageValueUsd)" unit="USD" avatar="expenses"></vc:stat-card>
+                <vc:stat-card title="@T("ارزش تخمینی کسری", "Estimated shortage value")" value="@MoneyCard(Model.EstimatedShortageValueUsd)" unit="USD" avatar="statement"></vc:stat-card>
             </div>
 
             <section class="ak-form-section ak-detail-section">
-                <div class="ak-section-head ak-detail-section-header">
-                    <h3>@T("کسری‌ها و ضایعات ثبت‌شده", "Recorded losses & shortages") <span class="ak-status">@lossDisplayRows.Count</span></h3>
-                    <button type="button" class="btn ak-secondary-action is-primary no-print" data-bs-toggle="modal" data-bs-target="#shipmentDirectLossModal" @(canRegisterDirectLoss ? null : "disabled")><i class="bi bi-plus-lg"></i> @T("ثبت کسری", "Add loss")</button>
-                </div>
-                <div class="ak-table-wrap">
-                    <table class="ak-table ak-detail-table">
-                        <thead><tr><th>@T("تاریخ", "Date")</th><th>@T("مقدار کل کسرات", "Total shortage")</th><th>@T("ارزش تخمینی", "Estimated value")</th><th>@T("نوع مسئولیت", "Responsibility")</th><th class="no-print">@T("جزئیات", "Details")</th></tr></thead>
+                <shipment-record-list title="@T("کسری‌ها و ضایعات ثبت‌شده", "Recorded losses & shortages")" count="@lossDisplayRows.Count">
+                    <shipment-record-action>
+                        <button type="button" class="btn no-print" data-bs-toggle="modal" data-bs-target="#shipmentDirectLossModal" @(canRegisterDirectLoss ? null : "disabled")><i class="bi bi-plus-lg" aria-hidden="true"></i>@T("ثبت کسری", "Add loss")</button>
+                    </shipment-record-action>
+                    <table class="shipment-record-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="is-date">@T("تاریخ", "Date")</th>
+                                <th scope="col" class="is-quantity">@T("مقدار کل کسرات", "Total shortage")</th>
+                                <th scope="col" class="is-amount">@T("ارزش تخمینی", "Estimated value")</th>
+                                <th scope="col" class="is-entity">@T("نوع مسئولیت", "Responsibility")</th>
+                                <th scope="col" class="is-actions no-print"><span class="visually-hidden">@T("عملیات", "Actions")</span></th>
+                            </tr>
+                        </thead>
                         <tbody>
                         @foreach (var item in lossDisplayRows)
                         {
                             var breakdownKey = $"loss-{item.Id}";
                             <tr data-breakdown-parent="@breakdownKey">
-                                <td>@item.EventDate.ToDisplayDate()</td>
-                                <td class="ak-num">@NumberDisplay.Quantity(item.QuantityMt) @T("تن", "MT")</td>
-                                <td class="ak-num">@MoneyCard(item.EstimatedValueUsd) @T("دالر", "USD")</td>
-                                <td>@item.ResponsibilityTypeName</td>
-                                <td class="no-print">
-                                    <button type="button"
-                                            class="ak-text-action"
-                                            data-contract-breakdown-toggle="@breakdownKey"
-                                            aria-expanded="false"
-                                            @(item.ContractBreakdownLines.Count == 0 ? "disabled" : null)>
-                                        <i class="bi bi-diagram-3"></i>
-                                        @T("جزئیات", "Details")
-                                    </button>
+                                <td class="is-date"><span class="shipment-record-figure">@item.EventDate.ToDisplayDate()</span></td>
+                                <td class="is-quantity"><span class="shipment-record-figure">@NumberDisplay.Quantity(item.QuantityMt)</span> <span class="shipment-record-unit">@T("تن", "MT")</span></td>
+                                <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(item.EstimatedValueUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
+                                <td class="is-entity">
+                                    <partial name="Partials/_ShipmentRecordEntity"
+                                             model="@(new ShipmentRecordEntityCell(item.ResponsibilityTypeName, item.Description, AvatarIcon: "bi-clipboard-minus"))" />
+                                </td>
+                                <td class="is-actions no-print">
+                                    <span class="shipment-record-actions">
+                                        <button type="button"
+                                                class="btn shipment-record-kebab"
+                                                title="@T("جزئیات قراردادها", "Contract details")"
+                                                aria-label="@T($"عملیات کسری شماره {item.Id}", $"Actions for loss {item.Id}")"
+                                                data-contract-breakdown-toggle="@breakdownKey"
+                                                aria-expanded="false"
+                                                @(item.ContractBreakdownLines.Count == 0 ? "disabled" : null)>
+                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                        </button>
+                                    </span>
                                 </td>
                             </tr>
-                            <tr class="ak-list-row" data-contract-breakdown-row="@breakdownKey" hidden>
+                            <tr class="shipment-record-table__breakdown" data-contract-breakdown-row="@breakdownKey" hidden>
                                 <td colspan="5">
-                                    <div class="ak-form-section ak-detail-section">
-                                        <table class="ak-table ak-detail-table">
-                                            <thead>
+                                    <table class="shipment-record-subtable">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">@T("قرارداد", "Contract")</th>
+                                                <th scope="col">@T("سهم مقدار", "Quantity share")</th>
+                                                <th scope="col">@T("سهم مبلغ", "Amount share")</th>
+                                                <th scope="col">@T("توضیح", "Description")</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var line in item.ContractBreakdownLines)
+                                            {
                                                 <tr>
-                                                    <th>@T("قرارداد", "Contract")</th>
-                                                    <th>@T("سهم مقدار", "Quantity share")</th>
-                                                    <th>@T("سهم مبلغ", "Amount share")</th>
-                                                    <th>@T("توضیح", "Description")</th>
+                                                    <td>@line.ContractNumber</td>
+                                                    <td>@NumberDisplay.Quantity(line.QuantityMt) @T("تن", "MT")</td>
+                                                    <td>@MoneyCard(line.AmountUsd) @T("دالر", "USD")</td>
+                                                    <td>@(line.Description ?? item.Description ?? "-")</td>
                                                 </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var line in item.ContractBreakdownLines)
-                                                {
-                                                    <tr>
-                                                        <td>@line.ContractNumber</td>
-                                                        <td>@NumberDisplay.Quantity(line.QuantityMt) @T("تن", "MT")</td>
-                                                        <td>@MoneyCard(line.AmountUsd) @T("دالر", "USD")</td>
-                                                        <td>@(line.Description ?? item.Description ?? "-")</td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                            }
+                                        </tbody>
+                                    </table>
                                 </td>
                             </tr>
                         }
                         @if (!lossDisplayRows.Any())
-                        { <tr><td colspan="5" class="ak-empty ak-detail-empty-state">@T("ثبت نشده است.", "Not recorded.")</td></tr> }
+                        {
+                            <partial name="Partials/_ShipmentRecordEmpty"
+                                     model="@(new ShipmentRecordEmptyCell(5, T("کسری یا ضایعاتی ثبت نشده است.", "No losses or shortages recorded."), "bi-clipboard-check"))" />
+                        }
                         </tbody>
                     </table>
-                </div>
+                </shipment-record-list>
                 @if (Model.Warnings.Any())
                 {
                     <div class="ak-list">
@@ -778,79 +814,77 @@
         @* ============ تب: سفره‌های موتر/واگن ============ *@
         <div class="@PaneClass("trips")" id="shipment-trips" role="tabpanel">
             <div class="ak-stat-grid" aria-label="@T("خلاصه موجودی و انتقالات", "Inventory and transfer summary")">
-                <vc:stat-card title="@T("تعداد سفرها", "Trips")" value="@inventoryTransportItems.Count.ToString("N0")" unit="@T("سفر", "trips")" avatar="transported"></vc:stat-card>
-                <vc:stat-card title="@T("حمل‌شده از موجودی", "Transported from stock")" value="@NumberDisplay.Quantity(Model.InventoryTransportedOutQuantityMt)" unit="@T("تن", "MT")" avatar="loading"></vc:stat-card>
-                <vc:stat-card title="@T("تحویل‌شده", "Delivered")" value="@NumberDisplay.Quantity(Model.DeliveredAtDestinationQuantityMt)" unit="@T("تن", "MT")" avatar="shipments"></vc:stat-card>
-                <vc:stat-card title="@T("باقی‌مانده در مخزن", "Remaining in source tank")" value="@NumberDisplay.Quantity(Model.RemainingInSourceTankQuantityMt)" unit="@T("تن", "MT")" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد سفرها", "Trips")" value="@inventoryTransportItems.Count.ToString("N0")" unit="@T("سفر", "trips")" avatar="in-transit"></vc:stat-card>
+                <vc:stat-card title="@T("حمل‌شده از موجودی", "Transported from stock")" value="@NumberDisplay.Quantity(Model.InventoryTransportedOutQuantityMt)" unit="@T("تن", "MT")" avatar="transported"></vc:stat-card>
+                <vc:stat-card title="@T("تحویل‌شده", "Delivered")" value="@NumberDisplay.Quantity(Model.DeliveredAtDestinationQuantityMt)" unit="@T("تن", "MT")" avatar="dispatch-station"></vc:stat-card>
+                <vc:stat-card title="@T("باقی‌مانده در مخزن", "Remaining in source tank")" value="@NumberDisplay.Quantity(Model.RemainingInSourceTankQuantityMt)" unit="@T("تن", "MT")" avatar="storage-tanks"></vc:stat-card>
             </div>
 
-            <section class="ak-form-section ak-detail-section ak-table-wrap">
-                <div class="ak-section-head ak-detail-section-header">
-                    <h3 class="card-title">@T("سفره‌های موتر/واگن", "Truck/wagon trips") (@inventoryTransportItems.Count)</h3>
-                    <a asp-controller="InventoryTransportLegs" asp-action="CreateFromInventory" asp-route-shipmentId="@Model.Id" asp-route-returnUrl="@selfUrl" class="btn btn-primary ak-primary-action no-print">
-                        <i class="bi bi-truck"></i>@T("ثبت سفر جدید", "New trip")
+            <shipment-record-list title="@T("سفره‌های موتر/واگن", "Truck/wagon trips")" count="@inventoryTransportItems.Count">
+                <shipment-record-action>
+                    <a asp-controller="InventoryTransportLegs" asp-action="CreateFromInventory" asp-route-shipmentId="@Model.Id" asp-route-returnUrl="@selfUrl" class="btn no-print">
+                        <i class="bi bi-truck" aria-hidden="true"></i>@T("ثبت سفر جدید", "New trip")
                     </a>
-                </div>
-                <div class="ak-detail-toolbar no-print">
-                    <input type="search" class="ak-input" data-shipment-trip-search placeholder="@T("جستجو: شماره سفر، موتر/واگن، مقصد، وضعیت", "Search trip, vehicle, destination, status")" />
-                </div>
-                <div class="ak-table-wrap">
-                    <table class="ak-table ak-detail-table align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>@T("تاریخ", "Date")</th>
-                                <th>@T("نمبر CMR", "CMR no.")</th>
-                                <th>@T("نمبر پلیت", "Plate no.")</th>
-                                <th>@T("مقادیر", "Quantities")</th>
-                                <th>@T("مسیر", "Route")</th>
-                                <th>@T("وضعیت", "Status")</th>
-                                <th class="no-print ak-col-actions">@T("اقدام‌ها", "Actions")</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                </shipment-record-action>
+                <shipment-record-filter>
+                    <input type="search" class="ak-input no-print" data-shipment-trip-search placeholder="@T("جستجو: شماره سفر، موتر/واگن، مقصد، وضعیت", "Search trip, vehicle, destination, status")" aria-label="@T("جستجوی سفرها", "Search trips")" />
+                </shipment-record-filter>
+                <table class="shipment-record-table has-wide-actions">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="is-date">@T("تاریخ", "Date")</th>
+                            <th scope="col" class="is-code">@T("نمبر CMR", "CMR no.")</th>
+                            <th scope="col" class="is-code">@T("نمبر پلیت", "Plate no.")</th>
+                            <th scope="col" class="is-quantity">@T("مقادیر", "Quantities")</th>
+                            <th scope="col" class="is-entity">@T("مسیر", "Route")</th>
+                            <th scope="col" class="is-status">@T("وضعیت", "Status")</th>
+                            <th scope="col" class="is-actions no-print"><span class="visually-hidden">@T("اقدام‌ها", "Actions")</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         @foreach (var item in inventoryTransportItems)
                         {
                             var searchText = $"{item.Id} {item.TransportReference} {item.TransportTypeName} {item.SourceName} {item.DestinationName} {item.TransportStatusName}".ToLowerInvariant();
                             var normalizedStatus = item.TransportStatusName.ToLowerInvariant();
-                            var statusClass = item.IsDraft
-                                ? "is-pending"
+                            var statusTone = item.IsDraft
+                                ? ShipmentRecordTone.Warning
                                 : normalizedStatus.Contains("لغو") || normalizedStatus.Contains("cancel")
-                                    ? "is-inactive"
+                                    ? ShipmentRecordTone.Danger
                                     : normalizedStatus.Contains("رسید") || normalizedStatus.Contains("received") || normalizedStatus.Contains("تکمیل") || normalizedStatus.Contains("complete")
-                                        ? "is-active"
+                                        ? ShipmentRecordTone.Success
                                         : normalizedStatus.Contains("مسیر") || normalizedStatus.Contains("transit") || normalizedStatus.Contains("بارگیری") || normalizedStatus.Contains("loaded")
-                                            ? "is-pending"
-                                            : "is-inactive";
+                                            ? ShipmentRecordTone.Info
+                                            : ShipmentRecordTone.Neutral;
                             <tr data-shipment-trip-row data-trip-search-text="@searchText">
-                                <td class="ak-section-desc">
-                                    <strong dir="ltr">@item.LoadedDate.ToDisplayDate()</strong>
-                                    <span>#@item.Id</span>
+                                <td class="is-date">
+                                    <span class="shipment-record-figure">@item.LoadedDate.ToDisplayDate()</span>
+                                    <span class="shipment-record-subtext">#@item.Id</span>
                                 </td>
-                                <td class="ak-num"><code dir="ltr">@(string.IsNullOrWhiteSpace(item.DocumentReference) ? "—" : item.DocumentReference)</code></td>
-                                <td class="ak-num"><code dir="ltr">@(item.TransportReference ?? item.TransportTypeName)</code></td>
-                                <td class="ak-col-num">
-                                    <strong class="ak-num">@NumberDisplay.Quantity(item.QuantityMt) MT</strong>
-                                    <small class="ak-section-desc">
-                                        <span>@T("تخلیه", "Received"): <b>@NumberDisplay.Quantity(item.ReceivedQuantityMt)</b></span>
-                                        @if (item.ShortageQuantityMt > 0m)
-                                        {
-                                            <span>@T("کسری", "Shortage"): <b>@NumberDisplay.Quantity(item.ShortageQuantityMt)</b></span>
+                                <td class="is-code"><span class="shipment-record-figure">@(string.IsNullOrWhiteSpace(item.DocumentReference) ? "—" : item.DocumentReference)</span></td>
+                                <td class="is-code"><span class="shipment-record-figure">@(item.TransportReference ?? item.TransportTypeName)</span></td>
+                                <td class="is-quantity">
+                                    <span class="shipment-record-figure">@NumberDisplay.Quantity(item.QuantityMt)</span> <span class="shipment-record-unit">@T("تن", "MT")</span>
+                                    <span class="shipment-record-subtext">
+                                        @T("تخلیه", "Received"): @NumberDisplay.Quantity(item.ReceivedQuantityMt)@if (item.ShortageQuantityMt > 0m)
+                                        {@: · @T("کسری", "Shortage"): @NumberDisplay.Quantity(item.ShortageQuantityMt)
                                         }
-                                    </small>
+                                    </span>
                                 </td>
-                                <td class="ak-section-desc">
-                                    <span>@item.SourceName</span>
-                                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                                    <strong>@item.DestinationName</strong>
+                                <td class="is-entity">
+                                    <partial name="Partials/_ShipmentRecordEntity"
+                                             model="@(new ShipmentRecordEntityCell(item.DestinationName, item.SourceName, AvatarIcon: "bi-truck"))" />
                                 </td>
-                                <td><span class="ak-status @statusClass">@item.TransportStatusName</span></td>
-                                <td class="no-print ak-col-actions">
-                                    <div class="d-inline-flex align-items-center gap-2">
+                                <td class="is-status">
+                                    <partial name="Partials/_ShipmentRecordStatus"
+                                             model="@(new ShipmentRecordStatusCell(item.TransportStatusName, statusTone))" />
+                                </td>
+                                <td class="is-actions no-print">
+                                    <span class="shipment-record-actions">
                                         <a class="btn btn-sm btn-primary ak-primary-action ak-name" asp-controller="InventoryTransportReceipts" asp-action="Create" asp-route-transportLegId="@item.Id">
                                             <i class="bi bi-box-arrow-in-down"></i>@T("ثبت تخلیه", "Register receipt")
                                         </a>
-                                        <div class="dropdown ak-row-menu" data-ak-static-row-menu>
-                                            <button type="button" class="btn btn-sm btn-light ak-secondary-action ak-row-menu-btn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T("سایر اقدام‌ها", "More actions")">
+                                        <span class="dropdown ak-row-menu" data-ak-static-row-menu>
+                                            <button type="button" class="btn shipment-record-kebab" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T($"سایر اقدام‌های سفر شماره {item.Id}", $"More actions for trip {item.Id}")">
                                                 <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                             </button>
                                             <div class="dropdown-menu dropdown-menu-end">
@@ -861,21 +895,19 @@
                                                 <a class="dropdown-item" asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@selfUrl"><i class="bi bi-eye-fill" aria-hidden="true"></i><span>@T("مشاهده رسید", "View receipt")</span></a>
                                                 <a class="dropdown-item" asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@selfUrl"><i class="bi bi-folder-fill" aria-hidden="true"></i><span>@T("مشاهده اسناد", "View documents")</span></a>
                                             </div>
-                                        </div>
-                                    </div>
+                                        </span>
+                                    </span>
                                 </td>
                             </tr>
                         }
                         @if (!inventoryTransportItems.Any())
                         {
-                            <tr>
-                                <td colspan="7" class="ak-empty ak-detail-empty-state">@T("ثبت نشده است.", "Not recorded.")</td>
-                            </tr>
+                            <partial name="Partials/_ShipmentRecordEmpty"
+                                     model="@(new ShipmentRecordEmptyCell(7, T("سفری ثبت نشده است.", "No trips recorded."), "bi-truck"))" />
                         }
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                    </tbody>
+                </table>
+            </shipment-record-list>
         </div>
 
     </div>
@@ -1146,98 +1178,8 @@
             });
         })();
 
-        (function () {
-            const pageSize = 8;
-            const tables = Array.from(document.querySelectorAll('.ak-tab-content .ak-table'));
-
-            function buildPager(table) {
-                if (table.dataset.shipmentPagerReady === 'true') {
-                    return;
-                }
-
-                const tbody = table.tBodies && table.tBodies[0];
-                if (!tbody) {
-                    return;
-                }
-
-                const rows = Array.from(tbody.rows);
-                const realRows = rows.filter(row =>
-                    !row.hasAttribute('data-contract-breakdown-row')
-                    && !row.querySelector('.ak-empty'));
-                if (realRows.length <= pageSize) {
-                    return;
-                }
-
-                table.dataset.shipmentPagerReady = 'true';
-                let page = 1;
-                const pageCount = Math.ceil(realRows.length / pageSize);
-                const host = table.closest('.ak-table-wrap') || table.parentElement;
-                const pager = document.createElement('div');
-                pager.className = 'ak-pager no-print';
-                pager.innerHTML = '<span data-page-info></span><div class="ak-pager"><button type="button" data-page-prev>‹</button><span data-page-numbers></span><button type="button" data-page-next>›</button></div>';
-                host.appendChild(pager);
-
-                const info = pager.querySelector('[data-page-info]');
-                const numbers = pager.querySelector('[data-page-numbers]');
-                const prev = pager.querySelector('[data-page-prev]');
-                const next = pager.querySelector('[data-page-next]');
-
-                function render() {
-                    const start = (page - 1) * pageSize;
-                    const end = start + pageSize;
-                    realRows.forEach((row, index) => {
-                        const isHidden = index < start || index >= end;
-                        row.hidden = isHidden;
-                        if (isHidden && row.dataset.breakdownParent) {
-                            const detailRow = rows.find(item =>
-                                item.dataset.contractBreakdownRow === row.dataset.breakdownParent);
-                            const toggle = row.querySelector('[data-contract-breakdown-toggle]');
-                            if (detailRow) {
-                                detailRow.hidden = true;
-                            }
-                            if (toggle) {
-                                toggle.setAttribute('aria-expanded', 'false');
-                            }
-                        }
-                    });
-
-                    info.textContent = `صفحه ${page} از ${pageCount} · ${realRows.length} ردیف`;
-                    prev.disabled = page === 1;
-                    next.disabled = page === pageCount;
-                    numbers.innerHTML = '';
-
-                    for (let i = 1; i <= pageCount; i += 1) {
-                        const button = document.createElement('button');
-                        button.type = 'button';
-                        button.textContent = i.toLocaleString('fa-AF');
-                        button.className = i === page ? 'is-active' : '';
-                        button.addEventListener('click', () => {
-                            page = i;
-                            render();
-                        });
-                        numbers.appendChild(button);
-                    }
-                }
-
-                prev.addEventListener('click', () => {
-                    if (page > 1) {
-                        page -= 1;
-                        render();
-                    }
-                });
-
-                next.addEventListener('click', () => {
-                    if (page < pageCount) {
-                        page += 1;
-                        render();
-                    }
-                });
-
-                render();
-            }
-
-            tables.forEach(buildPager);
-        })();
+        @* صفحه‌بندی این جدول‌ها از کامپوننت مشترک سیستم می‌آید (tables.js → .ptg-client-pager)؛
+           اسکریپت اختصاصی این صفحه حذف شد تا فقط یک منبع صفحه‌بندی وجود داشته باشد. *@
 
         (function () {
             const form = document.querySelector('[data-ship-shortage-form]');

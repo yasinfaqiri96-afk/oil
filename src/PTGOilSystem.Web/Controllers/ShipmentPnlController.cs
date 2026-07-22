@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
@@ -17,18 +18,23 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class ShipmentPnlController : Controller
 {
     private const int IndexPageSize = 5;
+    private const string FooterTotalsCacheKey = "ShipmentPnl.Index.FooterTotals";
+    private static readonly TimeSpan FooterTotalsCacheTtl = TimeSpan.FromSeconds(60);
     private readonly ApplicationDbContext _db;
     private readonly InventoryLineagePnlService _lineagePnl;
     private readonly LineageOptions _lineageOptions;
+    private readonly IMemoryCache? _cache;
 
     public ShipmentPnlController(
         ApplicationDbContext db,
         InventoryLineagePnlService? lineagePnl = null,
-        IOptions<LineageOptions>? lineageOptions = null)
+        IOptions<LineageOptions>? lineageOptions = null,
+        IMemoryCache? cache = null)
     {
         _db = db;
         _lineagePnl = lineagePnl ?? new InventoryLineagePnlService(db);
         _lineageOptions = lineageOptions?.Value ?? new LineageOptions();
+        _cache = cache;
     }
 
     public async Task<IActionResult> Index(int page = 1)
@@ -49,9 +55,12 @@ public partial class ShipmentPnlController : Controller
         var items = await BuildIndexItemsAsync(shipmentIds);
 
         // مجموع کلِ مقدار و نتیجهٔ مالی روی همهٔ محموله‌ها (نه فقط این صفحه) برای ردیف جمع در انتهای لیست.
-        var allItems = await BuildAllIndexItemsAsync();
-        ViewBag.SumQuantity = allItems.Sum(i => i.QuantityMt);
-        ViewBag.SumGrossMargin = allItems.Sum(i => i.GrossMarginUsd);
+        // محاسبهٔ این جمع، P&L همهٔ محموله‌ها را می‌سازد و سنگین است؛ برای همین با کش کوتاه‌مدت
+        // نگه داشته می‌شود تا جابه‌جایی بین صفحات لیست فوری باشد. منطق مالی تغییری نمی‌کند.
+        var totals = await GetFooterTotalsAsync();
+        ViewBag.SumQuantity = totals.SumQuantity;
+        ViewBag.SumGrossMargin = totals.SumGrossMargin;
+        ViewBag.SumRelatedSales = totals.SumRelatedSales;
 
         return View(new ShipmentPnlIndexViewModel
         {
@@ -60,6 +69,23 @@ public partial class ShipmentPnlController : Controller
             PageCount = pageCount,
             TotalCount = totalCount
         });
+    }
+
+    private async Task<(decimal SumQuantity, decimal SumGrossMargin, int SumRelatedSales)> GetFooterTotalsAsync()
+    {
+        if (_cache != null && _cache.TryGetValue(FooterTotalsCacheKey, out (decimal SumQuantity, decimal SumGrossMargin, int SumRelatedSales) cached))
+        {
+            return cached;
+        }
+
+        var allItems = await BuildAllIndexItemsAsync();
+        var totals = (
+            allItems.Sum(i => i.QuantityMt),
+            allItems.Sum(i => i.GrossMarginUsd),
+            allItems.Sum(i => i.RelatedSalesCount));
+
+        _cache?.Set(FooterTotalsCacheKey, totals, FooterTotalsCacheTtl);
+        return totals;
     }
 
     internal async Task<IReadOnlyList<ShipmentPnlListItemViewModel>> BuildAllIndexItemsAsync()

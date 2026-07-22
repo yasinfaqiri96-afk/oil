@@ -362,6 +362,9 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
                 Notes = BuildInventoryNotes(submission.Stage, submission.Notes)
             };
 
+            // قفل هم‌زمانی روی مخزن/کالا پیش از چک موجودی، تا دو ثبت هم‌زمانِ کسری روی یک مخزن
+            // نتوانند هر دو از چک عبور کنند و بیش از موجودی خارج شود (داخل تراکنشِ فراخوان اجرا می‌شود).
+            await _stock.AcquireStockMutationLockAsync(movement, ct);
             // کنترل کفایت موجودی به‌ازای هر حرکت باقی می‌ماند: یک قاعده کسب‌وکاری است که باید
             // اثر تجمعی حرکت‌های قبلی همین دسته را هم ببیند، پس دسته‌ای‌کردن آن رفتار را عوض می‌کند.
             await _stock.EnsureSufficientStockForMovementAsync(movement, ct);

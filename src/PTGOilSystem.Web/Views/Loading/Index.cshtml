@@ -14,11 +14,16 @@
                        Url.Action("Create", new { contractId = Model.ContractId, returnUrl = currentUrl }), (string?)null,
                         (string?)null, (string?)null, (string?)null))" />
 
+    @{
+        var sumLoaded = (decimal)(ViewBag.SumQuantity ?? 0m);
+        var sumReceived = (decimal)(ViewBag.SumReceivedQuantity ?? 0m);
+        var pricePendingCount = (int)(ViewBag.PricePendingCount ?? 0);
+    }
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار بارگیری", "Loading statistics")">
         <vc:stat-card title="@UiText.T(Context, "کل بارگیری‌ها", "Total loadings")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "بارگیری", "loadings")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مقدار این صفحه", "Quantity on this page")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.LoadedQuantityMt))" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "رسیده در این صفحه", "Received on this page")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.TotalReceivedQuantityMt))" unit="MT" avatar="transported"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "در انتظار قیمت", "Pending price")" value="@Model.Items.Count(x => x.IsPricePending).ToString("N0")" unit="@UiText.T(Context, "بارگیری", "loadings")" avatar="purchase-value"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل مقدار", "Total quantity")" value="@NumberDisplay.Quantity(sumLoaded)" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل رسیده", "Total received")" value="@NumberDisplay.Quantity(sumReceived)" unit="MT" avatar="dispatch-station"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "در انتظار قیمت", "Pending price")" value="@pricePendingCount.ToString("N0")" unit="@UiText.T(Context, "بارگیری", "loadings")" avatar="purchase-value"></vc:stat-card>
     </section>
 
     <div class="ak-list">

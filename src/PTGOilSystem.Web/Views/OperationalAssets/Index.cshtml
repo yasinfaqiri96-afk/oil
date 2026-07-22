@@ -16,9 +16,9 @@
                        UiText.T(Context, "ثبت کرایه", "Record Rent"), "bi-receipt", (string?)Url.Action("CreateRent")))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار دارایی‌های عملیاتی", "Operational asset statistics")">
-        <vc:stat-card title="@UiText.T(Context, "تعداد دارایی‌ها", "Total assets")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "دارایی", "assets")" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "جمع درآمد کرایه", "Total rent income")" value="@totalRentIncomeUsd.ToString("N0")" unit="USD" avatar="payments"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "درآمد حمل‌ونقل", "Freight income")" value="@Model.TotalFreightIncomeUsd.ToString("N0")" unit="USD" avatar="shipments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تعداد دارایی‌ها", "Total assets")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "دارایی", "assets")" avatar="equipment"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "جمع درآمد کرایه", "Total rent income")" value="@totalRentIncomeUsd.ToString("N0")" unit="USD" avatar="receipts"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "درآمد حمل‌ونقل", "Freight income")" value="@Model.TotalFreightIncomeUsd.ToString("N0")" unit="USD" avatar="transported"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "نتیجه خالص", "Net result")" value="@Model.TotalNetResultUsd.ToString("N0")" unit="USD" avatar="profit-loss"></vc:stat-card>
     </section>
 

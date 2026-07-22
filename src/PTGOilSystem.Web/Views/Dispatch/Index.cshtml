@@ -8,11 +8,16 @@
 <div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "ارسال‌های موتر", "Truck Sends"), true, UiText.T(Context, "ارسال جدید", "New dispatch"), "bi-plus-lg", Url.Action("Create"), (string?)null, (string?)null, (string?)null, (string?)null))" />
+    @{
+        var sumLoaded = (decimal)(ViewBag.SumQuantity ?? 0m);
+        var deliveredCount = (int)(ViewBag.DeliveredCount ?? 0);
+        var sumShortage = (decimal)(ViewBag.SumShortage ?? 0m);
+    }
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار ارسال موتر", "Truck dispatch statistics")">
         <vc:stat-card title="@UiText.T(Context, "کل ارسال‌ها", "Total dispatches")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "ارسال", "dispatches")" avatar="transported"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مقدار این صفحه", "Quantity on this page")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.LoadedQuantityMt))" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "تحویل‌شده", "Delivered")" value="@Model.Items.Count(x => string.Equals(x.StatusName, "Delivered", StringComparison.OrdinalIgnoreCase)).ToString("N0")" unit="@UiText.T(Context, "ارسال", "dispatches")" avatar="shipments"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "کسری این صفحه", "Page shortage")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.ShortageMt ?? 0m))" unit="MT" avatar="losses"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل مقدار", "Total quantity")" value="@NumberDisplay.Quantity(sumLoaded)" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تحویل‌شده", "Delivered")" value="@deliveredCount.ToString("N0")" unit="@UiText.T(Context, "ارسال", "dispatches")" avatar="dispatch-station"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل کسری", "Total shortage")" value="@NumberDisplay.Quantity(sumShortage)" unit="MT" avatar="losses"></vc:stat-card>
     </section>
     <div class="ak-list">
         @{

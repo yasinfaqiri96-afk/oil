@@ -18,10 +18,10 @@
     <p class="finance-page-lead">@UiText.T(Context, "حساب یا طرف حساب را از فیلتر انتخاب کنید؛ سپس بدهکار، بستانکار و مسیر سند اصلی را در همان گردش ببینید.", "Choose an account or party from the filter, then review debit, credit and the source document in one flow.")</p>
 
     <section class="ak-stat-grid" aria-label="@fm.AriaLabel">
-        <vc:stat-card title="@UiText.T(Context,"جمع دریافتی","Total receipts")" value="@fm.TodayReceiptUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context,"جمع پرداختی","Total payments")" value="@fm.TodayPaymentUsd.ToString("N2")" unit="USD" avatar="payments"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context,"مانده نقدی","Cash balance")" value="@fm.CashAccountsBalanceUsd.ToString("N2")" unit="USD" avatar="payments"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context,"تعداد تراکنش‌ها","Transactions")" value="@fm.TransactionCount.ToString("N0")" unit="@UiText.T(Context,"مورد","items")" avatar="purchase-contracts"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context,"جمع دریافتی","Total receipts")" value="@fm.TodayReceiptUsd.ToString("N2")" unit="USD" avatar="receipts"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context,"جمع پرداختی","Total payments")" value="@fm.TodayPaymentUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context,"مانده نقدی","Cash balance")" value="@fm.CashAccountsBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context,"تعداد تراکنش‌ها","Transactions")" value="@fm.TransactionCount.ToString("N0")" unit="@UiText.T(Context,"مورد","items")" avatar="ledger"></vc:stat-card>
     </section>
 
     <div class="ak-list">

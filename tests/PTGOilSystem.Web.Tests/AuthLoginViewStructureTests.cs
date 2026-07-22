@@ -10,10 +10,18 @@ public class AuthLoginViewStructureTests
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Auth/Login.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/90-auth-login.css");
-        var artwork = RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/login.webp");
+        var artwork = new[]
+        {
+            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-1.webp"),
+            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-2.webp"),
+            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-3.webp")
+        };
 
         Assert.Contains("~/css/ptg/90-auth-login.css", view);
-        Assert.Contains("~/images/auth/login.webp", view);
+        Assert.Contains("~/images/auth/scene-1.webp", view);
+        Assert.Contains("~/images/auth/scene-2.webp", view);
+        Assert.Contains("~/images/auth/scene-3.webp", view);
+        Assert.DoesNotContain("~/images/auth/login.webp", view);
         Assert.DoesNotContain("~/images/auth/saddiqi-login.png", view);
         Assert.Contains("class=\"sadd-login-page\"", view);
         Assert.Contains("class=\"sadd-login-panel\"", view);
@@ -21,8 +29,11 @@ public class AuthLoginViewStructureTests
         Assert.Contains("class=\"sadd-login-submit\"", view);
         Assert.Contains(".sadd-login-art", css);
         Assert.Contains(".sadd-login-panel", css);
-        Assert.True(artwork.Exists);
-        Assert.True(artwork.Length > 50_000);
+        Assert.All(artwork, image =>
+        {
+            Assert.True(image.Exists);
+            Assert.True(image.Length > 20_000);
+        });
     }
 
     [Fact]

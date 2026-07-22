@@ -93,21 +93,31 @@
     // پرداخت از طریق صراف اکنون داخل همان فرم روزنامچه (Payments/Create) با «روش پرداخت» ثبت می‌شود.
     // کنترلر/سرویس SarrafSettlements و AccountStatements حذف نشده‌اند؛ فقط از تب‌ها کنار رفتند.
     // «رزنامچه» (Payments) دیگر گروه خزانه‌داری جدا ندارد و اکنون تبی داخل گروه تب‌های مالی است.
+    // تب‌های مالی: بدون گزارش‌ها (گزارش‌ها گروه تب جدا دارد، مطابق سایدبار).
     var financeWorkspaceTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
     {
-        ("Reports",     "CompanyOverview", T("نمای کلی مالی",       "Financial Overview"),       "bi-speedometer2", null),
         ("Payments",    "Index",           T("روزنامه و اسناد",     "Journal & Documents"),      "bi-journal-text", null),
         ("Ledger",      "Index",           T("حساب‌ها و دفتر کل",   "Accounts & General Ledger"), "bi-bank", null),
-        ("Reports",     "Index",           T("گزارش‌های مالی",      "Financial Reports"),        "bi-file-earmark-bar-graph", null),
+        ("ChartOfAccounts", "Index",       T("سرفصل حساب‌ها",       "Chart of Accounts"),        "bi-diagram-3", null),
+        ("CashAccounts", "Index",          T("حساب‌های نقد/بانک",   "Cash & Bank Accounts"),     "bi-cash-coin", null),
+        ("Reconciliation", "Index",        T("آشتی‌گری",            "Reconciliation"),           "bi-shuffle", null),
+        ("ThreeWaySettlement", "Index",    T("تسویه سه‌طرفه",       "Three-way Settlement"),     "bi-arrow-left-right", null),
+        ("ContractBalanceTransfers", "Index", T("انتقال مانده قرارداد", "Balance Transfers"),    "bi-arrow-repeat", null),
         ("FiscalYears", "Index",           T("سال مالی و بستن سال", "Fiscal Year & Closing"),     "bi-calendar-check", null)
     };
+    // صفحاتی که تب اختصاصی گرفتند تا هم‌زمان تب گروهیِ روزنامه/حساب‌ها را روشن نکنند.
+    var financeDedicatedTabControllers = new[]
+    {
+        "ChartOfAccounts", "CashAccounts", "Reconciliation", "ThreeWaySettlement", "ContractBalanceTransfers"
+    };
+    // بخش گزارش‌ها بدون نوار تب است.
     var journalControllers = new[] { "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation" };
     var accountControllers = new[] { "ChartOfAccounts", "CashAccounts", "AccountStatements", "Ledger", "Sarrafs" };
     var fiscalYearControllers = new[] { "FiscalYears", "AccountingReadiness", "ClosingChecklist", "TrialClose", "FinalClose", "ReopenFiscalYear" };
+    var isReportsController = string.Equals(currentController, "Reports", StringComparison.OrdinalIgnoreCase);
     var isFinanceWorkspaceController = journalControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase)
         || accountControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase)
-        || fiscalYearControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase)
-        || string.Equals(currentController, "Reports", StringComparison.OrdinalIgnoreCase);
+        || fiscalYearControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
 
     var managementTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
     {
@@ -129,17 +139,17 @@
     {
         if (tabs == financeWorkspaceTabs)
         {
+            // صفحات دارای تب اختصاصی فقط روی تب خودشان فعال می‌شوند.
+            if (financeDedicatedTabControllers.Contains(tab.Controller, StringComparer.OrdinalIgnoreCase))
+                return string.Equals(tab.Controller, currentController, StringComparison.OrdinalIgnoreCase);
             if (string.Equals(tab.Controller, "Payments", StringComparison.OrdinalIgnoreCase))
-                return journalControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
+                return journalControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase)
+                    && !financeDedicatedTabControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
             if (string.Equals(tab.Controller, "Ledger", StringComparison.OrdinalIgnoreCase))
-                return accountControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
+                return accountControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase)
+                    && !financeDedicatedTabControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
             if (string.Equals(tab.Controller, "FiscalYears", StringComparison.OrdinalIgnoreCase))
                 return fiscalYearControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
-            if (string.Equals(tab.Controller, "Reports", StringComparison.OrdinalIgnoreCase))
-                return string.Equals(currentController, "Reports", StringComparison.OrdinalIgnoreCase)
-                    && (string.Equals(tab.Action, "CompanyOverview", StringComparison.OrdinalIgnoreCase)
-                        ? string.Equals(currentAction, "CompanyOverview", StringComparison.OrdinalIgnoreCase)
-                        : !string.Equals(currentAction, "CompanyOverview", StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.Equals(tab.Controller, currentController, StringComparison.OrdinalIgnoreCase))
@@ -223,10 +233,16 @@
         tabs = ratesPlattsTabs;
         navLabel = T("تب‌های نرخ‌ها و قواعد", "Rates & Rules Tabs");
     }
+    else if (isReportsController)
+    {
+        navLabel = T("گزارش‌ها", "Reports");
+        isSelectedReportGroup = true;
+    }
     else if (isFinanceWorkspaceController)
     {
-        tabs = financeWorkspaceTabs;
-        navLabel = T("مسیرهای اصلی مالی و گزارش‌ها", "Finance & Reports Sections");
+        // بخش مالی مانند بخش گزارش‌ها: بدون نوار تب. هر صفحه به‌تنهایی باز می‌شود و
+        // فقط یک دکمهٔ برگشت به هاب مالی (Finance/Index) نمایش داده می‌شود.
+        navLabel = T("مسیرهای اصلی مالی", "Finance Sections");
         isSelectedFinanceGroup = true;
     }
     else if (IsCurrentGroup(managementTabs))
@@ -297,6 +313,28 @@
                     </a>
                 </div>
             }
+        </div>
+    </section>
+}
+
+@if (isFinanceGroup && tabs.Length == 0)
+{
+    @* برگشت به هاب مالی — جایگزین نوار تب مالی (مانند دکمهٔ برگشت صفحات گزارش‌ها). *@
+    <section data-section-tabs-strip="true" data-section-tabs-group="finance" aria-label="@navLabel">
+        <div data-section-tabs="true">
+            <div class="ak-page-actions">
+                <a href="@Url.Action("Index", "Finance")" class="btn btn-light ak-secondary-action">
+                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    <span>@T("مالی", "Finance")</span>
+                </a>
+                @if (hasSectionTabsAction)
+                {
+                    <a href="@sectionTabsActionUrl" class="btn ak-primary-action">
+                        <i class="bi @sectionTabsActionIcon" aria-hidden="true"></i>
+                        <span>@sectionTabsActionLabel</span>
+                    </a>
+                }
+            </div>
         </div>
     </section>
 }

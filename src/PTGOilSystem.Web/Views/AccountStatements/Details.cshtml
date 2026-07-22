@@ -14,9 +14,9 @@
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", Url.Action("Index")))" />
 
     <div class="ak-stat-grid" aria-label="آمار استیتمنت">
-        <vc:stat-card title="مبلغ منبع" value="@Model.SourceAmount.ToString("N2")" unit="@Model.SourceCurrencyCode" avatar="payments"></vc:stat-card>
-        <vc:stat-card title="مبلغ USD" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-        <vc:stat-card title="مانده جاری" value="@Model.RunningBalanceUsd.ToString("N2")" unit="USD" avatar="profit-loss"></vc:stat-card>
+        <vc:stat-card title="مبلغ منبع" value="@Model.SourceAmount.ToString("N2")" unit="@Model.SourceCurrencyCode" avatar="cash-flow"></vc:stat-card>
+        <vc:stat-card title="مبلغ USD" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="exchange-rate"></vc:stat-card>
+        <vc:stat-card title="مانده جاری" value="@Model.RunningBalanceUsd.ToString("N2")" unit="USD" avatar="statement"></vc:stat-card>
     </div>
 
     <div class="ak-form-grid">

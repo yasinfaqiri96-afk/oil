@@ -7,10 +7,15 @@
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "پرونده‌های کشتی / محموله‌ها", "Shipment files"), true, UiText.T(Context, "ثبت محموله", "New shipment"), "bi-plus-lg", Url.Action("Create", "Shipments"), (string?)null, (string?)null, (string?)null, (string?)null))" />
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار محموله‌ها", "Shipment statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل محموله‌ها", "Total shipments")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "محموله", "shipments")" avatar="shipments"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مقدار این صفحه", "Quantity on this page")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.QuantityMt))" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "فروش‌های مرتبط", "Related sales")" value="@Model.Items.Sum(x => x.RelatedSalesCount).ToString("N0")" unit="@UiText.T(Context, "فروش", "sales")" avatar="sales-value"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "نتیجه این صفحه", "Page result")" value="@Model.Items.Sum(x => x.GrossMarginUsd).ToString("N0")" unit="USD" avatar="profit-loss" state="@(Model.Items.Sum(x => x.GrossMarginUsd) < 0m ? "warning" : null)"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل محموله‌ها", "Total shipments")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "محموله", "shipments")" avatar="vessel"></vc:stat-card>
+        @{
+            var sumQuantity = (decimal)(ViewBag.SumQuantity ?? 0m);
+            var sumRelatedSales = (int)(ViewBag.SumRelatedSales ?? 0);
+            var sumGrossMargin = (decimal)(ViewBag.SumGrossMargin ?? 0m);
+        }
+        <vc:stat-card title="@UiText.T(Context, "کل مقدار", "Total quantity")" value="@NumberDisplay.Quantity(sumQuantity)" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "فروش‌های مرتبط", "Related sales")" value="@sumRelatedSales.ToString("N0")" unit="@UiText.T(Context, "فروش", "sales")" avatar="sales-value"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "نتیجه کل", "Total result")" value="@sumGrossMargin.ToString("N0")" unit="USD" avatar="profit-loss" state="@(sumGrossMargin < 0m ? "warning" : null)"></vc:stat-card>
     </section>
     <div class="ak-list">
         <div class="ak-list-toolbar justify-content-end">

@@ -14,9 +14,9 @@
                        UiText.T(Context, "پرداخت از طریق صراف", "Pay via sarraf"), "bi-currency-exchange", payViaSarrafUrl))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار صراف‌ها", "Sarraf statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل صراف‌ها", "Total sarrafs")" value="@Model.Items.Count.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar="customers"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "صراف‌های فعال", "Active sarrafs")" value="@Model.ActiveCount.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "جمع سپرده‌شده", "Total charged")" value="@Model.TotalChargedUsd.ToString("#,0.##")" unit="USD" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل صراف‌ها", "Total sarrafs")" value="@Model.Items.Count.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar="exchange-rate"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "صراف‌های فعال", "Active sarrafs")" value="@Model.ActiveCount.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "جمع سپرده‌شده", "Total charged")" value="@Model.TotalChargedUsd.ToString("#,0.##")" unit="USD" avatar="payments-out"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "مانده پرداختنی", "Payable balance")" value="@Model.TotalPayableUsd.ToString("#,0.##")" unit="USD" avatar="receivables"></vc:stat-card>
     </section>
 

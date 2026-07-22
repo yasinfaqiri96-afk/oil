@@ -52,7 +52,7 @@
 
     <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های مصرف", "Expense metrics")">
         <vc:stat-card title="@T("مبلغ سند", "Document amount")" value="@Model.Amount.ToString("N2")" unit="@Model.Currency" avatar="expenses"></vc:stat-card>
-        <vc:stat-card title="@T("معادل دالر", "USD equivalent")" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="@T("معادل دالر", "USD equivalent")" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
         <vc:stat-card title="@T("نرخ تبدیل", "FX rate")" value="@(Model.AppliedFxRateToUsd?.ToString("N6") ?? "-")" unit="" avatar="exchange-rate"></vc:stat-card>
         <vc:stat-card title="@T("وضعیت دفتر", "Ledger status")" value="@ledgerStatus" unit="" avatar="ledger"></vc:stat-card>
     </section>

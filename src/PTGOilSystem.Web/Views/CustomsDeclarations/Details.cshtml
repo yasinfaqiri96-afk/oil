@@ -23,11 +23,24 @@
     ViewData["AkHeaderStatus"] = hasDocs ? T($"{Model.Documents.Count} سند", $"{Model.Documents.Count} documents") : T("بدون سند", "No document");
     ViewData["AkHeaderStatusState"] = hasDocs ? "is-active" : "is-warning";
     ViewData["AkHeaderContext"] = $"{Model.ContractNumber} · {Model.ProductName} · {Model.DeclarationDate.ToDisplayDate()}";
-    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
+    var customsKebab = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = canManageDocuments ? Url.Action("Edit", new { id = Model.Id, returnUrl = currentUrl }) : null, Icon = "bi-pencil-square" },
         new() { Label = T("اعلامیه جدید", "New declaration"), Href = newDeclarationUrl, Icon = "bi-plus-lg" }
     };
+    if (canManageDocuments)
+    {
+        customsKebab.Add(new AkHeaderMenuItem
+        {
+            Label = T("حذف اعلامیه", "Delete declaration"),
+            PostUrl = Url.Action("Delete", new { id = Model.Id, returnUrl = backUrl }),
+            Icon = "bi-trash",
+            IsDestructive = true,
+            ConfirmTitle = T("حذف اعلامیه", "Delete declaration"),
+            ConfirmMessage = T("آیا این اعلامیه حذف شود؟", "Delete this declaration?")
+        });
+    }
+    ViewData["AkHeaderKebab"] = customsKebab;
     var timelineItems = new List<AkTimelineItem>
     {
         new() { Title = T("اعلامیه گمرکی ثبت شد", "Customs declaration recorded"), Date = Model.DeclarationDate.ToDisplayDate(), Icon = "bi-shield-check", State = "is-current", Meta = $"{Model.TotalUsd:N2} USD" }
@@ -59,31 +72,9 @@
                        (string?)"#customs-documents", (string?)null,
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
 
-    <div class="ak-page-actions">
-        <span class="ak-status @(hasDocs ?"is-active" : "is-inactive")">@(hasDocs ? $"{Model.Documents.Count} سند" : "بدون سند")</span>
-        <div class="dropdown ak-row-menu">
-            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="عملیات">
-                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" href="@newDeclarationUrl"><i class="bi bi-plus-lg"></i> اعلامیه جدید</a></li>
-                @if (canManageDocuments)
-                {
-                    <li>
-                        <form asp-action="Delete" asp-route-id="@Model.Id" asp-route-returnUrl="@backUrl" method="post" data-no-spa="true"
-                              data-ptg-confirm="true" data-ptg-confirm-title="حذف اعلامیه" data-ptg-confirm-message="آیا این اعلامیه حذف شود؟">
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="dropdown-item ak-danger"><i class="bi bi-trash"></i> حذف اعلامیه</button>
-                        </form>
-                    </li>
-                }
-            </ul>
-        </div>
-    </div>
-
     <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های گمرک", "Customs metrics")">
-        <vc:stat-card title="@T("وزن محموله", "Consignment weight")" value="@(Model.ConsignmentWeightMt?.ToString("N4") ?? "-")" unit="MT" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@T("مجموع افغانی", "Total AFN")" value="@Model.TotalAfn.ToString("N0")" unit="AFN" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="@T("وزن محموله", "Consignment weight")" value="@(Model.ConsignmentWeightMt?.ToString("N4") ?? "-")" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@T("مجموع افغانی", "Total AFN")" value="@Model.TotalAfn.ToString("N0")" unit="AFN" avatar="cash-flow"></vc:stat-card>
         <vc:stat-card title="@T("معادل دالر", "USD equivalent")" value="@Model.TotalUsd.ToString("N2")" unit="USD" avatar="exchange-rate"></vc:stat-card>
         <vc:stat-card title="@T("اسناد", "Documents")" value="@Model.Documents.Count.ToString()" unit="" avatar="documents"></vc:stat-card>
     </section>

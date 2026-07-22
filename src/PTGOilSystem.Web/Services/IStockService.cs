@@ -90,6 +90,22 @@ public interface IStockService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Serializes concurrent stock mutations that touch the same scope, closing the
+    /// check-then-write race that lets two callers each pass the availability check
+    /// and jointly oversell. Takes a row-level <c>FOR UPDATE</c> lock on the storage
+    /// tank when the movement is tank-scoped, otherwise a transaction-scoped Postgres
+    /// advisory lock keyed by product.
+    /// <b>Must be called inside an open transaction</b>, immediately before
+    /// <see cref="EnsureSufficientStockForMovementAsync"/>, so the lock spans the
+    /// subsequent write. Re-locking a row/key already held by the same transaction
+    /// is a harmless no-op, so it is safe on paths that already lock. On non-relational
+    /// or non-PostgreSQL providers it is a no-op.
+    /// </summary>
+    Task AcquireStockMutationLockAsync(
+        InventoryMovement movement,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Forward-pass check that prevents a backdated Out/Transfer movement from
     /// causing any <i>subsequent</i> running balance to go negative.
     ///

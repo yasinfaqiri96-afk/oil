@@ -31,12 +31,25 @@
     ViewData["AkHeaderStatus"] = Model.IsCancelled ? T("لغو شده", "Cancelled") : T("تکمیل شده", "Completed");
     ViewData["AkHeaderStatusState"] = Model.IsCancelled ? "is-danger" : "is-active";
     ViewData["AkHeaderContext"] = $"{Model.CustomerName} · {contractText} · {Model.SaleDate.ToDisplayDate()}";
-    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
+    var salesKebab = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-pencil-square" },
         new() { Label = T("فاکتور دوم", "Alternate invoice"), Href = Url.Action("Invoice", new { id = Model.Id, template = "fawad" }), Icon = "bi-receipt-cutoff" },
         new() { Label = T("فروش جدید", "New sale"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
     };
+    if (!Model.IsCancelled)
+    {
+        salesKebab.Add(new AkHeaderMenuItem
+        {
+            Label = T("ابطال فروش", "Cancel sale"),
+            PostUrl = Url.Action("Cancel", new { id = Model.Id, returnUrl = currentReturnUrl }),
+            Icon = "bi-slash-circle",
+            IsDestructive = true,
+            ConfirmTitle = T("ابطال فروش", "Cancel sale"),
+            ConfirmMessage = T("این فروش ابطال شود؟", "Cancel this sale?")
+        });
+    }
+    ViewData["AkHeaderKebab"] = salesKebab;
     var timelineItems = new List<AkTimelineItem>
     {
         new() { Title = T("فروش ثبت شد", "Sale recorded"), Date = Model.SaleDate.ToDisplayDate(), Timestamp = Model.CreatedAtUtc, Icon = "bi-cart-check", State = Model.IsCancelled ? "is-muted" : "is-current", Meta = $"{Model.TotalUsd:N2} USD" }
@@ -71,43 +84,10 @@
                        Url.Action("Invoice", new { id = Model.Id, template = "faisal" }), (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <div class="ak-page-actions">
-        @if (Model.IsCancelled)
-        {
-            <span class="ak-status is-inactive"><i class="bi bi-x-circle"></i> @T("لغو شده", "Cancelled")</span>
-        }
-        else
-        {
-            <span class="ak-status is-active"><i class="bi bi-check-circle"></i> @T("تکمیل شده", "Completed")</span>
-        }
-        <div class="dropdown ak-row-menu">
-            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
-                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" asp-action="Invoice" asp-route-id="@Model.Id" asp-route-template="faisal" target="_blank" rel="noopener"><i class="bi bi-receipt"></i> @T("فاکتور Faisal", "Faisal invoice")</a></li>
-                <li><a class="dropdown-item" asp-action="Invoice" asp-route-id="@Model.Id" asp-route-template="fawad" target="_blank" rel="noopener"><i class="bi bi-receipt-cutoff"></i> @T("فاکتور Fawad", "Fawad invoice")</a></li>
-                <li><a class="dropdown-item" href="@(Url.Action("Create", new { returnUrl = backUrl }) ?? "#")"><i class="bi bi-plus-lg"></i> @T("فروش جدید", "New sale")</a></li>
-                @if (!Model.IsCancelled)
-                {
-                    <li>
-                        <form asp-action="Cancel" asp-route-id="@Model.Id" asp-route-returnUrl="@currentReturnUrl" method="post" data-no-spa="true"
-                              onsubmit="return confirm('@T("این فروش ابطال شود؟", "Cancel this sale?")');">
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="dropdown-item ak-danger">
-                                <i class="bi bi-slash-circle"></i> @T("ابطال فروش", "Cancel sale")
-                            </button>
-                        </form>
-                    </li>
-                }
-            </ul>
-        </div>
-    </div>
-
     <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های فروش", "Sale metrics")">
         <vc:stat-card title="@T("مقدار فروش", "Sale quantity")" value="@NumberDisplay.Quantity(Model.QuantityMt)" unit="MT" avatar="sold-quantity"></vc:stat-card>
-        <vc:stat-card title="@T("قیمت واحد", "Unit price")" value="@Model.UnitPriceUsd.ToString("N2")" unit="USD/MT" avatar="profit-loss"></vc:stat-card>
-        <vc:stat-card title="@T("مبلغ قابل دریافت", "Amount due")" value="@Model.TotalUsd.ToString("N2")" unit="USD" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="@T("قیمت واحد", "Unit price")" value="@Model.UnitPriceUsd.ToString("N2")" unit="USD/MT" avatar="analysis"></vc:stat-card>
+        <vc:stat-card title="@T("مبلغ قابل دریافت", "Amount due")" value="@Model.TotalUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
         <vc:stat-card title="@T("وضعیت دفتر", "Ledger status")" value="@(ledgerRecorded ? T("ثبت‌شده", "Recorded") : T("در انتظار", "Pending"))" unit="" avatar="ledger"></vc:stat-card>
     </section>
 

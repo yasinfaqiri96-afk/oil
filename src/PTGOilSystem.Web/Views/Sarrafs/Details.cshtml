@@ -85,18 +85,14 @@
         </section>
     </div>
 
-    @* ===== تب ۱: خلاصه — آخرین حرکت‌ها ===== *@
-    <section id="sarraf-overview" class="ak-form-section ak-detail-section" hidden="@(!showOverview)">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("آخرین حرکت‌های حساب", "پنج سند آخر از موتور مشترک صورت‌حساب."))" />
-        <partial name="~/Views/Shared/Statements/_PartyStatementRecent.cshtml" model="officialRecentRows" />
-    </section>
-    @* ===== تب ۲: صورت‌حساب ===== *@
+    @* ===== تب ۱: صورت‌حساب ===== *@
     <section id="sarraf-statement" class="ak-form-section ak-detail-section" hidden="@(!showStatement)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("صورت‌حساب رسمی صراف", "پرداخت‌ها، تسویه‌های ثبت‌شده و مانده در موتور مشترک محاسبه می‌شود."))" />
-        <div class="ak-empty ak-detail-empty-state">
-            <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
-            <p>برای مشاهده گردش کامل، نرخ ارز، چاپ و PDF سند رسمی را باز کنید.</p>
-            <a asp-controller="PartyStatements" asp-action="Sarraf" asp-route-id="@Model.Id" class="btn btn-primary">مشاهده صورت‌حساب رسمی</a>
+        <div class="ak-party-statement-embed" data-party-statement-embed="@(Url.Action("Sarraf", "PartyStatements", new { id = Model.Id }))">
+            <div class="ak-empty ak-detail-empty-state">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                <p>در حال بارگذاری صورت‌حساب…</p>
+            </div>
         </div>
     </section>
 

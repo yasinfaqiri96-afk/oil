@@ -40,7 +40,9 @@ public sealed class CustomerProfileViewModel
     public decimal EstimatedRemainingContractValueUsd { get; init; }
     public decimal LedgerDebitUsd { get; init; }
     public decimal LedgerCreditUsd { get; init; }
-    public decimal LedgerBalanceUsd => LedgerCreditUsd - LedgerDebitUsd;
+    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته). هم‌علامتِ
+    // PartyStatementSummary.ClosingBalance که صفحهٔ جزئیات به آن fallback می‌کند.
+    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
     public decimal TotalReceivedUsd { get; init; }
     public decimal TotalPaidToCustomerUsd { get; init; }
     public DateTime? LastSaleDate { get; init; }
@@ -82,7 +84,9 @@ public sealed class CustomerContractSummaryViewModel
         : null;
     public decimal LedgerDebitUsd { get; init; }
     public decimal LedgerCreditUsd { get; init; }
-    public decimal LedgerBalanceUsd => LedgerCreditUsd - LedgerDebitUsd;
+    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته). هم‌علامتِ
+    // PartyStatementSummary.ClosingBalance که صفحهٔ جزئیات به آن fallback می‌کند.
+    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
     public decimal ReceivedUsd { get; init; }
     public decimal PaidToCustomerUsd { get; init; }
     public decimal ReceivableUsd => SoldValueUsd - ReceivedUsd + PaidToCustomerUsd;

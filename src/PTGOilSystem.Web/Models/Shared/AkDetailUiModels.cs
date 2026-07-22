@@ -16,6 +16,13 @@ public sealed class AkHeaderMenuItem
     /// <summary>Bootstrap modal id (without '#') the item opens instead of navigating.</summary>
     public string? ModalTarget { get; init; }
 
+    /// <summary>
+    /// When set, the item is a destructive/state-changing POST rendered as a small
+    /// antiforgery-protected form inside the kebab (e.g. cancel, delete). Pair with
+    /// <see cref="ConfirmMessage"/> so the existing confirm dialog guards it.
+    /// </summary>
+    public string? PostUrl { get; init; }
+
     /// <summary>Bootstrap icon class, e.g. "bi-pencil".</summary>
     public string? Icon { get; init; }
 
@@ -31,7 +38,9 @@ public sealed class AkHeaderMenuItem
     /// </summary>
     public string? ConfirmMessage { get; init; }
 
-    public bool IsRenderable => !string.IsNullOrWhiteSpace(Href) || !string.IsNullOrWhiteSpace(ModalTarget);
+    public bool IsRenderable => !string.IsNullOrWhiteSpace(Href)
+        || !string.IsNullOrWhiteSpace(ModalTarget)
+        || !string.IsNullOrWhiteSpace(PostUrl);
 }
 
 /// <summary>One chronological event on a detail page timeline (_DetailTimeline).</summary>

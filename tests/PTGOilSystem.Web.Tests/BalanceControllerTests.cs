@@ -132,7 +132,8 @@ public class BalanceControllerTests
         Assert.Equal(5000m, item.TotalSalesUsd);
         Assert.Equal(700m, item.TotalExpensesUsd);
         Assert.Equal(2, item.RelatedLedgerCount);
-        Assert.Equal(4300m, item.BaseBalanceUsd);
+        // مانده نمایشی = Σ(داده − گرفته)؛ منفی یعنی روی این قرارداد بدهکاریم.
+        Assert.Equal(-4300m, item.BaseBalanceUsd);
         Assert.Equal(1, item.ShipmentCount);
     }
 

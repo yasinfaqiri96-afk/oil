@@ -130,8 +130,11 @@ public class SupplierLoadingLegacyLedgerTests
         Assert.Equal(amountAfterFirst, ledger[0].AmountUsd);
     }
 
+    // بارگیری دالری حالا سطر دفتر دارد (مبلغ از مقدار × قیمت، بدون snapshot روبل).
+    // جزئیات مسیر دالری در SupplierUsdLoadingLedgerTests پوشش داده شده؛ اینجا فقط
+    // تأیید می‌شود که اصلاح قیمتِ قرارداد سطرِ دالری را با مبلغ تازه می‌سازد و روبل را دست نمی‌زند.
     [Fact]
-    public async Task UsdLoading_Still_Writes_No_Legacy_Row()
+    public async Task UsdLoading_Gets_A_Row_From_Quantity_Times_Price()
     {
         await using var db = NewDb();
         SeedRubContract(db, fixedRate: 80m);
@@ -158,7 +161,12 @@ public class SupplierLoadingLegacyLedgerTests
         var loading = await db.LoadingRegisters.SingleAsync();
         Assert.Equal(120m, loading.LoadingPriceUsd);
         Assert.Null(loading.AmountUsdAtRubLock);
-        Assert.Empty(await LegacyRowsAsync(db, LoadingId));
+
+        var rows = await LegacyRowsAsync(db, LoadingId);
+        Assert.Single(rows);
+        Assert.Equal(1_200m, rows[0].AmountUsd); // 10 × 120
+        Assert.Equal("USD", rows[0].SourceCurrencyCode);
+        Assert.Equal(LedgerSide.Credit, rows[0].Side);
     }
 
     [Fact]

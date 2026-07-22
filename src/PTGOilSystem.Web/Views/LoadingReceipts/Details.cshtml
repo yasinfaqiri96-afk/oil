@@ -166,8 +166,8 @@
 
     <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های رسید", "Receipt metrics")">
         <vc:stat-card title="@T("مقدار این رسید", "Receipt quantity")" value="@NumberDisplay.Quantity(Model.ReceivedQuantityMt)" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@T("جمع دریافت", "Total received")" value="@NumberDisplay.Quantity(Model.TotalReceivedQuantityMt)" unit="MT" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@T("باقی‌مانده", "Remaining")" value="@NumberDisplay.Quantity(Model.RemainingToReceiveMt)" unit="MT" avatar="stock-shortage"></vc:stat-card>
+        <vc:stat-card title="@T("جمع دریافت", "Total received")" value="@NumberDisplay.Quantity(Model.TotalReceivedQuantityMt)" unit="MT" avatar="loading-terminal"></vc:stat-card>
+        <vc:stat-card title="@T("باقی‌مانده", "Remaining")" value="@NumberDisplay.Quantity(Model.RemainingToReceiveMt)" unit="MT" avatar="warehouse"></vc:stat-card>
         <vc:stat-card title="@T("اختلاف تخصیص", "Allocation difference")" value="@NumberDisplay.Quantity(Model.AllocationDifferenceMt)" unit="MT" avatar="losses"></vc:stat-card>
     </section>
 

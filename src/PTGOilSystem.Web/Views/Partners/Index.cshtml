@@ -17,10 +17,10 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار شرکا", "Partner statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل شرکا", "Total partners")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "شریک", "partners")" avatar="customers"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "شرکای فعال", "Active partners")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "شریک", "partners")" avatar="loading"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل شرکا", "Total partners")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "شریک", "partners")" avatar="partners"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "شرکای فعال", "Active partners")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "شریک", "partners")" avatar="rules-checklist"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "شرکای غیرفعال", "Inactive partners")" value="@((items.Count - activeCount).ToString("N0"))" unit="@UiText.T(Context, "شریک", "partners")" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "کشورها", "Countries")" value="@countryCount.ToString("N0")" unit="@UiText.T(Context, "کشور", "countries")" avatar="shipments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کشورها", "Countries")" value="@countryCount.ToString("N0")" unit="@UiText.T(Context, "کشور", "countries")" avatar="locations"></vc:stat-card>
     </section>
 
     <partial name="~/Views/Shared/_AkSearchFilter.cshtml"

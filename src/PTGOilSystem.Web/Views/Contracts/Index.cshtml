@@ -82,8 +82,8 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@T("آمار قراردادها", "Contract statistics")">
-        <vc:stat-card title="@T("کل قراردادها", "Total contracts")" value="@Model.TotalCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="purchase-contracts"></vc:stat-card>
-        <vc:stat-card title="@T("قراردادهای فعال", "Active contracts")" value="@Model.ActiveCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="loading"></vc:stat-card>
+        <vc:stat-card title="@T("کل قراردادها", "Total contracts")" value="@Model.TotalCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="contract-signed"></vc:stat-card>
+        <vc:stat-card title="@T("قراردادهای فعال", "Active contracts")" value="@Model.ActiveCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="rules-checklist"></vc:stat-card>
         <vc:stat-card title="@T("قراردادهای خرید", "Purchase contracts")" value="@Model.PurchaseCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="purchase-value"></vc:stat-card>
         <vc:stat-card title="@T("قراردادهای فروش", "Sales contracts")" value="@Model.SaleCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="sales-value"></vc:stat-card>
     </section>

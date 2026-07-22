@@ -1937,6 +1937,11 @@ public class SalesControllerTests
             CancellationToken ct = default)
             => throw new NotSupportedException();
 
+        public Task AcquireStockMutationLockAsync(
+            InventoryMovement movement,
+            CancellationToken ct = default)
+            => Task.CompletedTask;
+
         public Task EnsureSufficientStockForMovementAsync(
             InventoryMovement movement,
             CancellationToken ct = default)

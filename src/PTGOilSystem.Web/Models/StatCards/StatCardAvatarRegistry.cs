@@ -23,41 +23,76 @@ public static class StatCardAvatarRegistry
     private static readonly Dictionary<string, string> Map = new(StringComparer.OrdinalIgnoreCase)
     {
         // ── Shipment operations ─────────────────────────────
-        ["shipments"]         = "shipments",         // oil tanker vessel
-        ["unloaded"]          = "unloaded",          // discharge tanks / facility
-        ["transported"]       = "transported",       // fuel tanker truck
-        ["loading"]           = "loading",           // crane / loading terminal
-        ["shortage"]          = "shortage",          // oil barrel + warning
-        ["realized-profit"]   = "realized-profit",   // green growth chart
+        ["shipments"]        = "shipments",        // oil tanker vessel
+        ["vessel"]           = "vessel",           // oil tanker vessel (alternate angle)
+        ["wagon"]            = "wagon",            // rail tank wagon
+        ["transported"]      = "transported",      // fuel tanker truck
+        ["in-transit"]       = "in-transit",       // tanker truck on a route
+        ["loading"]          = "loading",          // crane / loading port
+        ["loading-terminal"] = "loading-terminal", // truck at the loading gantry
+        ["dispatch-station"] = "dispatch-station", // fuel dispatch / gate station
+        ["locations"]        = "locations",        // map pin + route
 
         // ── Purchase & supply ───────────────────────────────
         ["purchase-contracts"] = "purchase-contracts", // contract doc + pen
-        ["purchase-quantity"]  = "purchase-quantity",  // tanker truck / cargo ship
+        ["contract-signed"]    = "contract-signed",    // signed & sealed contract
         ["purchase-value"]     = "purchase-value",     // business handshake / finance doc
         ["suppliers"]          = "suppliers",          // team of professionals
-        ["purchase-requests"]  = "purchase-requests",  // clipboard
+        ["partners"]           = "partners",           // two business partners
+        ["employees"]          = "employees",          // field operator
+        ["rules-checklist"]    = "rules-checklist",    // checklist + tools (rules / active state)
+        ["equipment"]          = "equipment",          // motor + gear + wrench
+        ["security"]           = "security",           // ID card + shield
 
         // ── Sales & revenue ─────────────────────────────────
-        ["sales-contracts"] = "sales-contracts", // approved contract
-        ["sold-quantity"]   = "sold-quantity",   // transport tanker
-        ["sales-value"]     = "sales-value",     // soft banknotes / coins
-        ["customers"]       = "customers",       // two managers dealing
-        ["average-price"]   = "average-price",   // price tag
+        ["sold-quantity"] = "sold-quantity", // transport tanker
+        ["sales-value"]   = "sales-value",   // soft banknotes / coins
+        ["customers"]     = "customers",     // two managers dealing
+        ["analysis"]      = "analysis",      // report + magnifier + growth chart
+        ["reports"]       = "reports",       // dashboard screen
 
         // ── Finance & accounting ────────────────────────────
         ["receivables"]   = "receivables",   // wallet receiving money
+        ["receipts"]      = "receipts",      // cash-in receipt
         ["payments"]      = "payments",      // bank cards / payment
-        ["cash"]          = "cash",          // green wallet
+        ["payments-out"]  = "payments-out",  // invoice + card + outgoing arrow
+        ["cash-flow"]     = "cash-flow",     // coins + banknote + refresh
+        ["treasury"]      = "treasury",      // safe + money + growth arrow
         ["profit-loss"]   = "profit-loss",   // calculator / finance chart (net sales − expenses)
+        ["statement"]     = "statement",     // financial statement + calculator
+        ["ledger"]        = "ledger",        // ledger book + calculator
         ["expenses"]      = "expenses",      // expense receipt / outflow (dedicated, never reused)
-        ["bank-accounts"] = "bank-accounts", // bank building
+        ["expense-types"] = "expense-types", // expense categories doc
+        ["bank-accounts"] = "bank-accounts", // bank building + card
+        ["exchange-rate"] = "exchange-rate", // USD/EUR conversion + calculator
+        ["documents"]     = "documents",     // archive box + magnifier
 
-        // ── Inventory ───────────────────────────────────────
+        // ── Inventory & facilities ──────────────────────────
         ["total-inventory"] = "total-inventory", // oil barrels
-        ["tank-inventory"]  = "tank-inventory",  // storage tanks
-        ["in-transit"]      = "in-transit",      // tanker vessel / truck
-        ["unloading"]       = "unloading",       // discharge terminal
+        ["storage-tanks"]   = "storage-tanks",   // storage tank group
+        ["tank-farm"]       = "tank-farm",       // tank farm / discharge tanks
+        ["warehouse"]       = "warehouse",       // warehouse + stock
+        ["products"]        = "products",        // barrel + jerrycan
+        ["units"]           = "units",           // ruler + caliper
+        ["quality"]         = "quality",         // lab test / inspection
+        ["refinery"]        = "refinery",        // refinery plant
+        ["pipeline"]        = "pipeline",        // pipeline manifold
+        ["pump-station"]    = "pump-station",    // pumping station
+        ["production"]      = "production",      // pumpjack
         ["losses"]          = "losses",          // barrel + warning
+
+        // ── Legacy keys kept working (aliases to real assets) ─
+        ["unloaded"]          = "tank-farm",
+        ["unloading"]         = "tank-farm",
+        ["tank-inventory"]    = "storage-tanks",
+        ["shortage"]          = "losses",
+        ["stock-shortage"]    = "losses",
+        ["realized-profit"]   = "profit-loss",
+        ["sales-contracts"]   = "contract-signed",
+        ["purchase-quantity"] = "products",
+        ["purchase-requests"] = "rules-checklist",
+        ["average-price"]     = "analysis",
+        ["cash"]              = "cash-flow",
     };
 
     /// <summary>All registered avatar keys (used by the Asset Spec / audits).</summary>

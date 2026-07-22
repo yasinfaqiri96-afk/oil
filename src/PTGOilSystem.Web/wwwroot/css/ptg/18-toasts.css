@@ -16,7 +16,7 @@
     flex-direction: column;
     align-items: center;
     gap: .75rem;
-    width: min(440px, calc(100vw - 2rem));
+    width: min(440px, calc(100dvi - 2rem));
     max-width: 460px;
     pointer-events: none;
 }
@@ -171,7 +171,7 @@
 
 .ptg-confirm__panel {
     position: relative;
-    width: min(380px, calc(100vw - 2rem));
+    width: min(380px, calc(100dvi - 2rem));
     background: var(--ptg-surface, #fff);
     border: 1px solid var(--ptg-border, #ECECF2);
     border-radius: var(--ptg-radius-lg, 24px);

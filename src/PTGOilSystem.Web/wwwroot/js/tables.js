@@ -602,7 +602,9 @@
     }
 
     function initializeClientTablePagination() {
-        document.querySelectorAll("table.ak-table").forEach(function (table) {
+        // `.shipment-record-table` is the shipment-file record list; it uses the
+        // same shell (`.ak-table-wrap`) and therefore the same shared pager.
+        document.querySelectorAll("table.ak-table, table.shipment-record-table").forEach(function (table) {
             setupClientTablePagination(table);
         });
     }
@@ -666,6 +668,7 @@
 
             rows.forEach(function (row, index) {
                 row.hidden = index < start || index >= end;
+                if (row.hidden) collapseBreakdownRowOf(table, row);
             });
 
             pagerInfo.textContent = "نمایش " + String(start + 1) + "-" + String(end) + " از " + String(rows.length);
@@ -707,6 +710,19 @@
 
     function isListTable(table) {
         return !!table.closest(".ak-table-wrap, .ptg-modal-body-shell, .boltz-content");
+    }
+
+    // A row that opens an inline breakdown panel must not leave that panel
+    // visible after its parent row moves to another page.
+    function collapseBreakdownRowOf(table, row) {
+        var key = row.dataset ? row.dataset.breakdownParent : null;
+        if (!key) return;
+
+        var detailRow = table.querySelector("[data-contract-breakdown-row='" + key + "']");
+        if (detailRow) detailRow.hidden = true;
+
+        var toggle = row.querySelector("[data-contract-breakdown-toggle]");
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
     }
 
     function getPageableRows(table) {

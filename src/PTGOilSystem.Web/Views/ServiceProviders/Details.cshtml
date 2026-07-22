@@ -21,7 +21,6 @@
             : UiText.T(Context, "حساب تسویه است", "Settled"));
     var balanceClass = bal > 0 ? "ak-num" : bal < 0 ? "ak-num" : "";
 
-    var officialRecentRows = ViewData["PartyStatementRecentRows"] as IReadOnlyList<PTGOilSystem.Web.Models.PartyStatements.PartyStatementRow> ?? [];
 
     var spPaymentUrl = Url.Action("Create", "Payments", new { serviceProviderId = Model.Id, returnUrl = spReturnUrl }) ?? "#";
     var spExpenseUrl = Url.Action("Create", "Expenses", new { serviceProviderId = Model.Id, returnUrl = spReturnUrl }) ?? "#";
@@ -88,18 +87,14 @@
         </section>
     </div>
 
-    @* ===== تب ۱: خلاصه — آخرین حرکت‌ها ===== *@
-    <section id="provider-overview" class="ak-form-section ak-detail-section" hidden="@(!showOverview)">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "آخرین حرکت‌های حساب", "Recent account activity"), UiText.T(Context, "پنج سند آخر از موتور مشترک صورت‌حساب.", "Last five rows from the shared statement engine.")))" />
-        <partial name="~/Views/Shared/Statements/_PartyStatementRecent.cshtml" model="officialRecentRows" />
-    </section>
-    @* ===== تب ۲: صورت‌حساب ===== *@
+    @* ===== تب ۱: صورت‌حساب ===== *@
     <section id="provider-statement" class="ak-form-section ak-detail-section" hidden="@(!showStatement)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "صورت‌حساب رسمی شرکت خدماتی", "Official service provider statement"), UiText.T(Context, "مانده و گردش در موتور مشترک صورت‌حساب محاسبه می‌شود.", "Balance and activity are calculated by the shared statement engine.")))" />
-        <div class="ak-empty ak-detail-empty-state">
-            <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
-            <p>@UiText.T(Context, "برای فیلتر تاریخ، چاپ و PDF سند رسمی را باز کنید.", "Open the official document for date filters, printing and PDF.")</p>
-            <a asp-controller="PartyStatements" asp-action="ServiceProvider" asp-route-id="@Model.Id" class="btn btn-primary">@UiText.T(Context, "مشاهده صورت‌حساب رسمی", "View official statement")</a>
+        <div class="ak-party-statement-embed" data-party-statement-embed="@(Url.Action("ServiceProvider", "PartyStatements", new { id = Model.Id }))">
+            <div class="ak-empty ak-detail-empty-state">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                <p>@UiText.T(Context, "در حال بارگذاری صورت‌حساب…", "Loading statement…")</p>
+            </div>
         </div>
     </section>
     @* ===== تب ۳: مصارف و پرداخت‌ها ===== *@

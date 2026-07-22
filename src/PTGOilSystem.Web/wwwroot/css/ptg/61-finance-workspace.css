@@ -1,13 +1,11 @@
 /* Finance workspace — scoped, flat and RTL-safe. No accounting behavior lives here. */
-body.is-finance-workspace .boltz-content-body {
-    max-inline-size: 1240px;
-}
+/* Shared PageFrame owns the finance canvas width as well. */
 
 /* Cash account create modal: keep account identity and optional bank data
    visually separate without changing any form field or submission hook. */
 body.is-finance-workspace .cash-account-create-dialog {
-    width: min(780px, calc(100vw - 32px));
-    max-width: min(780px, calc(100vw - 32px));
+    width: min(780px, calc(100dvi - 32px));
+    max-width: min(780px, calc(100dvi - 32px));
     margin: 16px auto;
 }
 
@@ -136,8 +134,8 @@ body.is-finance-workspace .cash-account-create-dialog .ak-modal-foot {
 
 @media (max-width: 767.98px) {
     body.is-finance-workspace .cash-account-create-dialog {
-        width: calc(100vw - 20px);
-        max-width: calc(100vw - 20px);
+        width: calc(100dvi - 20px);
+        max-width: calc(100dvi - 20px);
         margin: 10px auto;
     }
 
@@ -174,6 +172,75 @@ body.is-finance-workspace .cash-account-create-dialog .ak-modal-foot {
 
 body.is-finance-workspace .finance-workspace-page {
     inline-size: 100%;
+}
+
+/* Roznamcha document direction: receipt is green and payment is red. */
+body.is-finance-workspace #journalDirectionGroup [data-direction-value="1"] {
+    color: #166534;
+    background: #ecfdf3;
+}
+
+body.is-finance-workspace #journalDirectionGroup [data-direction-value="2"] {
+    color: #b42318;
+    background: #fff1f0;
+}
+
+body.is-finance-workspace #journalDirectionGroup [data-direction-choice]:hover {
+    color: inherit;
+    filter: brightness(.97);
+}
+
+body.is-finance-workspace #journalDirectionGroup [data-direction-value="1"].is-active {
+    color: #ffffff;
+    background: #15803d;
+}
+
+body.is-finance-workspace #journalDirectionGroup [data-direction-value="2"].is-active {
+    color: #ffffff;
+    background: #c62828;
+}
+
+body.is-finance-workspace #journalDirectionGroup [data-direction-choice].is-active .ak-section-desc {
+    color: rgba(255, 255, 255, .88);
+}
+
+body.is-finance-workspace #journalDirectionGroup [data-direction-value="1"]::after {
+    background: #15803d;
+}
+
+body.is-finance-workspace #journalDirectionGroup [data-direction-value="2"]::after {
+    background: #c62828;
+}
+
+/* Keep the journal submit label on one line, including longer Sarraf labels. */
+body.is-finance-workspace #journalSubmitButton {
+    width: auto;
+    min-width: 132px;
+    padding-inline: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    color: #ffffff;
+    background: #15803d;
+}
+
+body.is-finance-workspace #journalSubmitButton:hover,
+body.is-finance-workspace #journalSubmitButton:focus-visible {
+    color: #ffffff;
+    background: #166534;
+}
+
+/* Journal list stays visually open: rows are separated by spacing and hover,
+   not by a dark rule under every record. Keep the header divider unchanged. */
+body.is-finance-workspace .finance-workspace-page .payments-table > tbody > tr > td {
+    border-bottom: 0;
+}
+
+/* Secondary values inside journal cells are plain table metadata, not note
+   callouts; remove the shared navy accent that appeared below the Type value. */
+body.is-finance-workspace .finance-workspace-page .payments-table .ak-note {
+    padding: 0;
+    border-inline-start: 0;
+    background: transparent;
 }
 
 body.is-finance-workspace .finance-page-lead {

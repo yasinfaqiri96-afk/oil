@@ -152,9 +152,20 @@
     ViewData["HideSectionTabs"] = true;
     ViewData["LoadingExpenseEditorAssets"] = true;
     ViewData["LoadingCreateAssets"] = true;
+
+    // بخش مالی به‌صورت تب (فروشات / گمرکات / مصارف) با موتور تب مشترک سیستم.
+    var activeTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
+    activeTab = activeTab is "customs" or "expenses" ? activeTab : "sales";
+    string FinPane(string slug) => "tab-pane ak-detail-subsection" + (activeTab == slug ? " show active" : "");
+    var financialTabs = new[]
+    {
+        $"#itl-sales|{T("فروشات", "Sales")}||{(activeTab == "sales" ? "active" : "")}",
+        $"#itl-customs|{T("گمرکات و کسورات", "Customs & deductions")}||{(activeTab == "customs" ? "active" : "")}",
+        $"#itl-expenses|{T("مصارف و کرایه", "Expenses & freight")}||{(activeTab == "expenses" ? "active" : "")}"
+    };
 }
 
-<div class="ak-form-page ak-detail-page" dir="rtl" data-transport-details data-ak-detail-v2="true">
+<div class="ak-form-page ak-detail-page" dir="rtl" data-transport-details data-ak-detail-v2="true" data-instant-tabs>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("حمل", "Transport")} {documentNumber}", false,
                        T("عملیات بعدی بار", "Next cargo operation"), "bi-arrow-right-circle", (string?)null, "nextOperationModal",
@@ -203,28 +214,19 @@
 
     <section class="ak-stat-grid" aria-label="@T("شاخص‌های حمل", "Transport metrics")">
         <vc:stat-card title="@T("بارگیری‌شده", "Loaded")" value="@Q(loadedQty)" unit="@T("تن", "MT")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@T("تخلیه‌شده", "Unloaded")" value="@Q(unloadedQty)" unit="@T("تن", "MT")" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@T("تخلیه‌شده", "Unloaded")" value="@Q(unloadedQty)" unit="@T("تن", "MT")" avatar="tank-farm"></vc:stat-card>
         <vc:stat-card title="@T("کسری", "Shortage")" value="@Q(shortageQty)" unit="@T("تن", "MT")" avatar="losses"></vc:stat-card>
         <vc:stat-card title="@T("نتیجه نهایی", "Final result")" value="@U(finalResultUsd)" unit="USD" avatar="profit-loss"></vc:stat-card>
     </section>
 
     <section class="ak-form-section ak-detail-section" aria-labelledby="transport-financial-title">
         <h2 class="ak-section-title" id="transport-financial-title">@T("خلاصه مالی حمل", "Transport financial summary")</h2>
+        <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
+                 model="@((T("خلاصه مالی حمل", "Transport financial summary"), financialTabs))" />
 
-        <div class="ak-detail-subsection" aria-labelledby="transport-sales-title">
-            <h3 class="ak-detail-subsection-title" id="transport-sales-title">@T("فروشات", "Sales")</h3>
+        <div class="tab-content ak-detail-content ak-tab-content">
+        <div class="@FinPane("sales")" id="itl-sales" role="tabpanel" aria-labelledby="transport-sales-title">
             <div class="ak-list">
-                <div class="ak-list-row">
-                    <span>@T("مجموع فروش", "Total sales")</span>
-                    <b>@U(salesTotalUsd) <em>USD</em></b>
-                </div>
-                <div class="ak-list-row">
-                    <span>@T("مقدار فروش‌شده", "Sold quantity")</span>
-                    <b>@Q(soldQty) <em>@T("تن", "MT")</em></b>
-                </div>
-            </div>
-            <div class="ak-list">
-                <div class="ak-list">
                     @if (Model.Pnl.Sales.Any())
                     {
                         @foreach (var s in Model.Pnl.Sales)
@@ -238,10 +240,7 @@
                                 <span class="ak-num">@U(s.AmountUsd) USD</span>
                                 <div class="ak-section-desc" hidden>
                                     <dl class="ak-list">
-                                        <div><dt>@T("شماره فاکتور", "Invoice")</dt><dd>@inv</dd></div>
-                                        <div><dt>@T("تاریخ", "Date")</dt><dd>@s.SaleDate.ToDisplayDate()</dd></div>
                                         <div><dt>@T("مقدار فروش", "Quantity")</dt><dd>@Q(s.QuantityMt) @T("تن", "MT")</dd></div>
-                                        <div><dt>@T("مبلغ فروش", "Amount")</dt><dd>@U(s.AmountUsd) USD</dd></div>
                                     </dl>
                                 </div>
                             </button>
@@ -251,24 +250,21 @@
                     {
                         <p class="ak-empty ak-detail-empty-state">@T("فروشی ثبت نشده است.", "No sale recorded.")</p>
                     }
+            </div>
+            <div class="ak-list ak-detail-totals">
+                <div class="ak-list-row">
+                    <span>@T("مجموع فروش", "Total sales")</span>
+                    <b>@U(salesTotalUsd) <em>USD</em></b>
+                </div>
+                <div class="ak-list-row">
+                    <span>@T("مقدار فروش‌شده", "Sold quantity")</span>
+                    <b>@Q(soldQty) <em>@T("تن", "MT")</em></b>
                 </div>
             </div>
         </div>
 
-        <div class="ak-detail-subsection" aria-labelledby="transport-customs-title">
-            <h3 class="ak-detail-subsection-title" id="transport-customs-title">@T("گمرکات و کسورات", "Customs and deductions")</h3>
+        <div class="@FinPane("customs")" id="itl-customs" role="tabpanel" aria-labelledby="transport-customs-title">
             <div class="ak-list">
-                <div class="ak-list-row">
-                    <span>@T("گمرکات", "Customs")</span>
-                    <b>@U(customsUsd) <em>USD</em></b>
-                </div>
-                <div class="ak-list-row">
-                    <span>@T("کسورات", "Deductions")</span>
-                    <b>@U(deductionsUsd) <em>USD</em></b>
-                </div>
-            </div>
-            <div class="ak-list">
-                <div class="ak-list">
                     @if (Model.CustomsDeclarations.Any() || Model.Losses.Any())
                     {
                         @foreach (var c in Model.CustomsDeclarations)
@@ -282,10 +278,7 @@
                                 <span class="ak-num">@U(c.TotalUsd) USD</span>
                                 <div class="ak-section-desc" hidden>
                                     <dl class="ak-list">
-                                        <div><dt>@T("مرجع اظهار", "Reference")</dt><dd>@cref</dd></div>
-                                        <div><dt>@T("تاریخ", "Date")</dt><dd>@c.DeclarationDate.ToDisplayDate()</dd></div>
                                         <div><dt>@T("وزن محموله", "Weight")</dt><dd>@Q(c.ConsignmentWeightMt ?? 0m) @T("تن", "MT")</dd></div>
-                                        <div><dt>@T("مبلغ (USD)", "Amount USD")</dt><dd>@U(c.TotalUsd) USD</dd></div>
                                         <div><dt>@T("مبلغ (AFN)", "Amount AFN")</dt><dd>@U(c.TotalAfn) AFN</dd></div>
                                     </dl>
                                 </div>
@@ -301,12 +294,9 @@
                                 <span class="ak-num">@Q(l.ChargeableLossMt) @T("تن", "MT")</span>
                                 <div class="ak-section-desc" hidden>
                                     <dl class="ak-list">
-                                        <div><dt>@T("مرحله", "Stage")</dt><dd>@l.StageName</dd></div>
-                                        <div><dt>@T("تاریخ", "Date")</dt><dd>@l.EventDate.ToDisplayDate()</dd></div>
                                         <div><dt>@T("انتظار", "Expected")</dt><dd>@Q(l.ExpectedQuantityMt) @T("تن", "MT")</dd></div>
                                         <div><dt>@T("واقعی", "Actual")</dt><dd>@Q(l.ActualQuantityMt) @T("تن", "MT")</dd></div>
                                         <div><dt>@T("تفاوت", "Difference")</dt><dd>@Q(l.DifferenceQuantityMt) @T("تن", "MT")</dd></div>
-                                        <div><dt>@T("قابل مجرا", "Chargeable")</dt><dd>@Q(l.ChargeableLossMt) @T("تن", "MT")</dd></div>
                                     </dl>
                                 </div>
                             </button>
@@ -316,24 +306,21 @@
                     {
                         <p class="ak-empty ak-detail-empty-state">@T("گمرک یا کسری ثبت نشده است.", "No customs or shortage recorded.")</p>
                     }
+            </div>
+            <div class="ak-list ak-detail-totals">
+                <div class="ak-list-row">
+                    <span>@T("گمرکات", "Customs")</span>
+                    <b>@U(customsUsd) <em>USD</em></b>
+                </div>
+                <div class="ak-list-row">
+                    <span>@T("کسورات", "Deductions")</span>
+                    <b>@U(deductionsUsd) <em>USD</em></b>
                 </div>
             </div>
         </div>
 
-        <div class="ak-detail-subsection" aria-labelledby="transport-expenses-title">
-            <h3 class="ak-detail-subsection-title" id="transport-expenses-title">@T("مصارف و کرایه", "Expenses and freight")</h3>
+        <div class="@FinPane("expenses")" id="itl-expenses" role="tabpanel" aria-labelledby="transport-expenses-title">
             <div class="ak-list">
-                <div class="ak-list-row">
-                    <span>@T("کرایه حمل", "Freight")</span>
-                    <b>@U(freightUsd) <em>USD</em></b>
-                </div>
-                <div class="ak-list-row">
-                    <span>@T("مصارف عملیاتی", "Operational expenses")</span>
-                    <b>@U(operationalUsd) <em>USD</em></b>
-                </div>
-            </div>
-            <div class="ak-list">
-                <div class="ak-list">
                     @if (Model.Expenses.Any())
                     {
                         @foreach (var e in Model.Expenses)
@@ -368,16 +355,7 @@
                                 </span>
                                 <div class="ak-section-desc" hidden>
                                     <dl class="ak-list">
-                                        <div><dt>@T("نوع مصرف", "Type")</dt><dd>@e.ExpenseTypeName</dd></div>
-                                        <div><dt>@T("تاریخ", "Date")</dt><dd>@e.ExpenseDate.ToDisplayDate()</dd></div>
-                                        <div><dt>@T("طرف حساب", "Party")</dt><dd>@party</dd></div>
-                                        <div><dt>@T("مبلغ", "Amount")</dt><dd>@U(e.AmountUsd) USD</dd></div>
-                                        @if (expenseBasisMt > 0m)
-                                        {
-                                            <div><dt>@T("محاسبه", "Calculation")</dt><dd>@expenseFormula</dd></div>
-                                            <div><dt>@T("نرخ معادل فی تن", "Equivalent rate per MT")</dt><dd>@equivalentRateUsd.ToString("N2") USD/MT</dd></div>
-                                            <div><dt>@T("وزن حمل", "Transport weight")</dt><dd>@Q(expenseBasisMt) MT</dd></div>
-                                        }
+                                        <div><dt>@T("محاسبه", "Calculation")</dt><dd>@expenseFormula</dd></div>
                                         @if (!string.IsNullOrWhiteSpace(e.Description))
                                         {
                                             <div><dt>@T("شرح", "Description")</dt><dd>@e.Description</dd></div>
@@ -391,21 +369,29 @@
                     {
                         <p class="ak-empty ak-detail-empty-state">@T("مصرفی ثبت نشده است.", "No expense recorded.")</p>
                     }
+            </div>
+            <div class="ak-list ak-detail-totals">
+                <div class="ak-list-row">
+                    <span>@T("کرایه حمل", "Freight")</span>
+                    <b>@U(freightUsd) <em>USD</em></b>
+                </div>
+                <div class="ak-list-row">
+                    <span>@T("مصارف عملیاتی", "Operational expenses")</span>
+                    <b>@U(operationalUsd) <em>USD</em></b>
                 </div>
             </div>
+        </div>
         </div>
     </section>
 
     @if (Model.DestinationReceipts.Any())
     {
         <section class="ak-form-section ak-detail-section" id="transport-receipts">
-            <article class="ak-detail-receipt-panel is-receipt">
-                <header>
-                    <h2>@T("رسیدهای تخلیه / مقصد", "Destination receipts")</h2>
-                    <span class="ak-page-icon"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i></span>
-                </header>
-                <div class="ak-list">
-                    <div class="ak-list">
+            <header class="ak-section-head ak-detail-section-header">
+                <h2 class="ak-section-title">@T("رسیدهای تخلیه / مقصد", "Destination receipts")</h2>
+                <span class="ak-status">@Model.DestinationReceipts.Count</span>
+            </header>
+            <div class="ak-list">
                         @foreach (var rcp in pagedDestinationReceipts)
                         {
                             var destLabel = rcp.ReceiptDestination switch
@@ -429,9 +415,6 @@
                                 <span class="ak-num">@Q(rcp.ReceivedQuantityMt) @T("تن", "MT")</span>
                                 <div class="ak-section-desc" hidden>
                                     <dl class="ak-list">
-                                        <div><dt>@T("نوع مقصد", "Destination")</dt><dd>@destLabel</dd></div>
-                                        <div><dt>@T("تاریخ رسید", "Receipt date")</dt><dd>@rcp.ReceiptDate.ToDisplayDate()</dd></div>
-                                        <div><dt>@T("تخلیه‌شده", "Received")</dt><dd>@Q(rcp.ReceivedQuantityMt) @T("تن", "MT")</dd></div>
                                         <div><dt>@T("کسری", "Shortage")</dt><dd>@Q(rcp.ShortageQuantityMt) @T("تن", "MT")</dd></div>
                                         @if (rcp.FreightCostUsd.HasValue)
                                         {
@@ -440,10 +423,6 @@
                                         @if (rcp.FreightPayableUsd.HasValue)
                                         {
                                             <div><dt>@T("کرایه پرداختی", "Payable freight")</dt><dd>@U(rcp.FreightPayableUsd.Value) USD</dd></div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(destParty) && destParty != "-")
-                                        {
-                                            <div><dt>@T("مقصد", "Destination point")</dt><dd>@destParty</dd></div>
                                         }
                                         @if (rcp.SalesTransactionId.HasValue)
                                         {
@@ -477,10 +456,8 @@
                                 <span class="ak-num">@Q(Model.RemainingQuantityMt) @T("تن", "MT")</span>
                             </div>
                         }
-                    </div>
                 </div>
                 <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((receiptPage, receiptPageCount, "receiptPage", (string?)"transport-receipts"))" />
-            </article>
         </section>
     }
 
@@ -563,16 +540,6 @@
                                 </span>
                             </a>
                         }
-                        else
-                        {
-                            <span class="ak-field is-disabled" aria-disabled="true">
-                                <span class="ak-page-icon"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i></span>
-                                <span class="ak-field">
-                                    <strong>@T("رسید به مخزن", "Receipt to inventory")</strong>
-                                    <small>@T("باقیمانده‌ای برای رسید وجود ندارد", "No remaining quantity to receive")</small>
-                                </span>
-                            </span>
-                        }
 
                         @* فروش مستقیم *@
                         @if (canCreateReceipt)
@@ -587,16 +554,6 @@
                                     <small>@T("فروش بار در حین حمل، بدون تخلیه به مخزن", "Sell in transit, without unloading")</small>
                                 </span>
                             </a>
-                        }
-                        else
-                        {
-                            <span class="ak-field is-disabled" aria-disabled="true">
-                                <span class="ak-page-icon"><i class="bi bi-cart-check" aria-hidden="true"></i></span>
-                                <span class="ak-field">
-                                    <strong>@T("فروش مستقیم", "Direct sale")</strong>
-                                    <small>@T("باقیمانده‌ای برای فروش وجود ندارد", "No remaining quantity to sell")</small>
-                                </span>
-                            </span>
                         }
 
                         @* ارسال با موتر — DirectDispatch (backend آماده: از رسید یک TruckDispatch ساخته می‌شود) *@
@@ -613,16 +570,6 @@
                                 </span>
                             </a>
                         }
-                        else
-                        {
-                            <span class="ak-field is-disabled" aria-disabled="true">
-                                <span class="ak-page-icon"><i class="bi bi-truck" aria-hidden="true"></i></span>
-                                <span class="ak-field">
-                                    <strong>@T("ارسال با موتر", "Dispatch by truck")</strong>
-                                    <small>@T("باقیمانده‌ای برای ارسال وجود ندارد", "No remaining quantity to dispatch")</small>
-                                </span>
-                            </span>
-                        }
 
                         @* گمرک *@
                         @if (canAddRelatedRecord)
@@ -638,13 +585,6 @@
                                 </span>
                             </a>
                         }
-                        else
-                        {
-                            <span class="ak-field is-disabled" aria-disabled="true">
-                                <span class="ak-page-icon"><i class="bi bi-file-earmark-check" aria-hidden="true"></i></span>
-                                <span class="ak-field"><strong>@T("ثبت گمرک", "Register customs")</strong></span>
-                            </span>
-                        }
 
                         @* مصرف / کرایه — forward به دکمهٔ مصرفِ موجود در همین صفحه *@
                         @if (canAddRelatedRecord)
@@ -658,13 +598,6 @@
                                     <small>@T("مصارف و کرایهٔ این مرحلهٔ حمل", "Expenses & freight for this leg")</small>
                                 </span>
                             </button>
-                        }
-                        else
-                        {
-                            <span class="ak-field is-disabled" aria-disabled="true">
-                                <span class="ak-page-icon"><i class="bi bi-receipt" aria-hidden="true"></i></span>
-                                <span class="ak-field"><strong>@T("ثبت مصرف / کرایه", "Register expense / freight")</strong></span>
-                            </span>
                         }
 
                         @* حمل جدید / ادامه حمل — action موجود CreateFromInventory، ShipmentId همین کشتی حفظ می‌شود *@
@@ -680,13 +613,6 @@
                                     <small>@T("شروع مرحلهٔ حملِ بعدی از موجودی برای همین کشتی", "Start next transport leg from inventory for this shipment")</small>
                                 </span>
                             </a>
-                        }
-                        else
-                        {
-                            <span class="ak-field is-disabled" aria-disabled="true">
-                                <span class="ak-page-icon"><i class="bi bi-signpost-split" aria-hidden="true"></i></span>
-                                <span class="ak-field"><strong>@T("حمل جدید / ادامه حمل", "New / continue transport")</strong></span>
-                            </span>
                         }
                     </div>
                 </div>

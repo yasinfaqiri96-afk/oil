@@ -24,8 +24,8 @@ internal class Program
             await using var conn = new NpgsqlConnection(connString);
             await conn.OpenAsync();
 
-            // Preserve = users/auth + base definitions ("تعاریف پایه" / master data).
-            // Everything not listed here is transactional data and gets truncated.
+            // Preserve = users/auth only. Everything else (master data, contracts,
+            // accounting setup, transactions) is truncated.
             var exclude = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 // --- users / auth ---
@@ -34,42 +34,7 @@ internal class Program
                 "permissions",
                 "rolepermissions",
                 "userroles",
-                "employees",
                 "__efmigrationshistory",
-
-                // --- base definitions / master data ---
-                "products",
-                "currencies",
-                "units",
-                "partners",
-                "companies",
-                "suppliers",
-                "customers",
-                "serviceproviders",
-                "terminals",
-                "storagetanks",
-                "vessels",
-                "trucks",
-                "wagons",
-                "drivers",
-                "locations",
-                "expensetypes",
-                "cashaccounts",
-                "sarrafs",
-                "operationalassets",
-                "assetownershipshares",
-                "expenserules",
-
-                // --- contracts / قراردادها (definitions, kept) ---
-                "contracts",
-                "contractpartners",
-                "contractamendments",
-                "contractpricingrules",
-
-                // --- reference rates (laborious to re-enter; kept as base data) ---
-                "dailyplattsprices",
-                "dailyfxrates",
-                "plattsmonthlymanuals",
             };
 
             var tables = new List<string>();

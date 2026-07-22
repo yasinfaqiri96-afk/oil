@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -23,6 +24,10 @@ public class ShipmentPnlControllerTests
         Assert.Contains("_DetailsTabs.cshtml", view);
         Assert.Contains("Context.Request.Query[\"tab\"]", view);
         Assert.DoesNotContain("data-shipment-file-tabs", view);
+        Assert.Contains("data-instant-tabs", view);
+        Assert.Contains("#shipment-summary|", view);
+        Assert.Contains("#shipment-trips|", view);
+        Assert.DoesNotContain("tab-pane fade", view);
         Assert.Contains("tab-content ak-detail-content ak-tab-content", view);
         Assert.Contains("ak-summary", view);
         Assert.Contains("بار داخل کشتی", view);
@@ -68,16 +73,71 @@ public class ShipmentPnlControllerTests
         // نوار ابزار فقط جستجو دارد؛ نوار عملیات گروهی disabled و چک‌باکس‌ها حذف شدند.
         Assert.Contains("data-shipment-trip-search", view);
         Assert.DoesNotContain("data-shipment-batch-bar", view);
-        Assert.Contains("class=\"ak-table ak-detail-table align-middle mb-0\"", view);
-        Assert.Contains("ak-col-actions", view);
-        Assert.Contains("ak-status @statusClass", view);
-        Assert.Contains("ak-num", view);
+        // جدول سفرها هم مثل بقیهٔ تب‌ها از کامپوننت مشترک لیست رکوردی استفاده می‌کند.
+        Assert.Contains("class=\"shipment-record-table has-wide-actions\"", view);
+        Assert.Contains("class=\"is-actions no-print\"", view);
+        Assert.Contains("Partials/_ShipmentRecordStatus", view);
+        Assert.Contains("shipment-record-kebab", view);
         Assert.DoesNotContain("class=\"form-check-input\"", view);
-        Assert.Contains("class=\"d-inline-flex align-items-center gap-2\"", view);
         Assert.Contains("class=\"dropdown ak-row-menu\" data-ak-static-row-menu", view);
         Assert.DoesNotContain("class=\"ak-row-actions\"", view);
         Assert.Contains("menu.hasAttribute(\"data-ak-static-row-menu\")", ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/tables.js"));
         Assert.DoesNotContain("shipment-file-actions-col", view);
+    }
+
+    [Fact]
+    public void Details_All_Tab_Record_Tables_Use_The_Shared_Component()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/ShipmentPnl/Details.cshtml");
+
+        // ریشهٔ Scope صفحه باید وجود داشته باشد تا CSS کامپوننت فعال شود.
+        Assert.Contains("data-shipment-details-page", view);
+
+        // هر شش لیست رکوردی تب‌ها از همان یک shell می‌آید (رسیدها، مصارف،
+        // فروش‌ها، سود و زیان، کسری‌ها، سفرها).
+        var shellCount = Regex.Matches(view, "<shipment-record-list ").Count;
+        Assert.Equal(6, shellCount);
+
+        // تنها جدول باقی‌ماندهٔ ak-table در این صفحه، جدول ورودیِ فرم تقسیم کسری
+        // داخل مودال است؛ هیچ لیست رکوردیِ تب دیگری مارک‌آپ مستقل ندارد.
+        Assert.Equal(1, Regex.Matches(view, "class=\"ak-table ").Count);
+    }
+
+    [Fact]
+    public void Details_Tabs_Use_The_Shared_Client_Pager()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/ShipmentPnl/Details.cshtml");
+        var tablesJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/tables.js");
+
+        // صفحه‌بندی اختصاصی این صفحه حذف شده است.
+        Assert.DoesNotContain("shipmentPagerReady", view);
+        Assert.DoesNotContain("ak-pager", view);
+
+        // و کامپوننت مشترک سیستم جدول‌های این صفحه را هم پوشش می‌دهد.
+        Assert.Contains("table.ak-table, table.shipment-record-table", tablesJs);
+        Assert.Contains("ptg-client-pager", tablesJs);
+    }
+
+    [Fact]
+    public void Shipment_Record_List_Styles_Are_Scoped_To_The_Shipment_Details_Page()
+    {
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/64-shipment-record-list.css");
+
+        Assert.DoesNotContain("!important", css);
+
+        // هر بلوک انتخابگر باید زیر ریشهٔ صفحهٔ پرونده محموله باشد تا لیست‌های
+        // صفحات دیگر سیستم حتی یک قاعده هم دریافت نکنند.
+        var withoutComments = Regex.Replace(css, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        var selectors = Regex.Matches(withoutComments, @"([^{}]+)\{")
+            .Select(match => match.Groups[1].Value.Trim())
+            .Where(group => !group.StartsWith("@"))
+            .SelectMany(group => group.Split(','))
+            .Select(selector => selector.Trim())
+            .Where(selector => selector.Length > 0)
+            .ToList();
+
+        Assert.NotEmpty(selectors);
+        Assert.All(selectors, selector => Assert.StartsWith("[data-shipment-details-page]", selector));
     }
 
     [Fact]
@@ -136,6 +196,7 @@ public class ShipmentPnlControllerTests
     {
         var receipt = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportReceipts/Create.cshtml");
         var sale = ReadRepoFile("src/PTGOilSystem.Web/Views/Sales/CreateFromShipment.cshtml");
+        var saleForm = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Components/Ak/_ShipmentSaleForm.cshtml");
         var expense = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportLegs/CreateGroupExpense.cshtml");
         var customs = ReadRepoFile("src/PTGOilSystem.Web/Views/CustomsDeclarations/Create.cshtml");
         var loss = ReadRepoFile("src/PTGOilSystem.Web/Views/LossEvents/Create.cshtml");
@@ -145,12 +206,13 @@ public class ShipmentPnlControllerTests
         Assert.Contains("_AkPageHeader", receipt);
         Assert.DoesNotContain("ds-form-shell", receipt);
         Assert.DoesNotContain("operations-one-page-form", receipt);
-        Assert.Contains("class=\"ak-form\"", sale);
-        Assert.Contains("_AkPageHeader", sale);
+        // فروش از جریان حمل، پوستهٔ اختصاصی خودش (ShipmentSaleForm) را دارد.
+        Assert.Contains("_ShipmentSaleForm", sale);
         Assert.DoesNotContain("ds-form-shell", sale);
         Assert.DoesNotContain("operations-one-page-form", sale);
-        Assert.Contains("بار قابل فروش در جریان", sale);
-        Assert.DoesNotContain(">بارگیری‌شده<", sale);
+        Assert.Contains("data-shipment-sale-form", saleForm);
+        Assert.Contains("بار قابل فروش در جریان", saleForm);
+        Assert.DoesNotContain(">بارگیری‌شده<", saleForm);
         Assert.Contains("class=\"ak-form\"", expense);
         Assert.Contains("_AkPageHeader", expense);
         Assert.DoesNotContain("ds-form-shell", expense);

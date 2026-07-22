@@ -585,9 +585,14 @@ public partial class SalesController : Controller
             })
             .ToListAsync();
 
-        // مجموع کلِ مقدار و جمع دالری روی همهٔ رکوردهای مطابق فیلتر (برای ردیف جمع در انتهای لیست).
+        // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
         ViewBag.SumQuantity = await query.SumAsync(s => s.QuantityMt);
         ViewBag.SumTotalUsd = await query.SumAsync(s => s.TotalUsd);
+        ViewBag.CustomerCount = await query
+            .Where(s => s.CustomerId != null)
+            .Select(s => s.CustomerId)
+            .Distinct()
+            .CountAsync();
 
         return View(new SalesIndexViewModel
         {

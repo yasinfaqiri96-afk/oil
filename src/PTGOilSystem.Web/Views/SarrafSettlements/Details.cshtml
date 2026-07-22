@@ -28,10 +28,10 @@
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
 
     <div class="ak-stat-grid" aria-label="آمار تسویه صراف">
-        <vc:stat-card title="درخواست شرکت" value="@Model.RequestedAmountUsd.ToString("N2")" unit="USD" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="درخواست شرکت" value="@Model.RequestedAmountUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
         <vc:stat-card title="طلب صراف" value="@Model.SarrafChargedAmountUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
         <vc:stat-card title="قبول‌شده تأمین‌کننده" value="@Model.SupplierAcceptedAmountUsd.ToString("N2")" unit="USD" avatar="suppliers"></vc:stat-card>
-        <vc:stat-card title="اختلاف" value="@Model.DifferenceAmountUsd.ToString("N2")" unit="USD" avatar="profit-loss"></vc:stat-card>
+        <vc:stat-card title="اختلاف" value="@Model.DifferenceAmountUsd.ToString("N2")" unit="USD" avatar="exchange-rate"></vc:stat-card>
     </div>
 
     <div class="ak-form-grid">

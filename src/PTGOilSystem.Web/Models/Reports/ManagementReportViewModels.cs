@@ -105,8 +105,10 @@ public sealed class ReceivablesPayablesReportViewModel
     public IReadOnlyList<ReportMetricViewModel> Metrics { get; init; } = [];
     public IReadOnlyList<ReceivablePayableRowViewModel> Rows { get; init; } = [];
     public decimal CustomerReceivableUsd => -Rows.Where(r => r.PartyType == "Customer" && r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
-    public decimal SupplierPayableUsd => Rows.Where(r => r.PartyType == "Supplier" && r.BalanceUsd > 0m).Sum(r => r.BalanceUsd);
-    public decimal ServiceProviderPayableUsd => Rows.Where(r => r.PartyType == "ServiceProvider" && r.BalanceUsd > 0m).Sum(r => r.BalanceUsd);
+    // مانده = Σ(داده − گرفته)؛ بدهیِ ما مانده منفی می‌سازد، پس مثل مشتری منفی‌ها
+    // جمع و علامت‌برگردان می‌شوند تا رقم «بدهی» مثبت نمایش داده شود.
+    public decimal SupplierPayableUsd => -Rows.Where(r => r.PartyType == "Supplier" && r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
+    public decimal ServiceProviderPayableUsd => -Rows.Where(r => r.PartyType == "ServiceProvider" && r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
     public decimal SarrafBalanceUsd => Rows.Where(r => r.PartyType == "Sarraf").Sum(r => r.BalanceUsd);
 }
 

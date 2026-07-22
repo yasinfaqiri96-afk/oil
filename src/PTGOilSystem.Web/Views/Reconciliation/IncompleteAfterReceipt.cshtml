@@ -38,11 +38,11 @@
 
     <section class="ak-stat-grid" aria-label="آمار عملیات ناتمام پس از رسید">
         <vc:stat-card title="بارگیری مستقیم بدون پایان" value="@Model.DirectDispatchesWithoutFinish.Count.ToString("N0")" unit="مورد" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="انتقال در مسیر" value="@Model.TransfersInTransit.Count.ToString("N0")" unit="مورد" avatar="transported"></vc:stat-card>
+        <vc:stat-card title="انتقال در مسیر" value="@Model.TransfersInTransit.Count.ToString("N0")" unit="مورد" avatar="in-transit"></vc:stat-card>
         <vc:stat-card title="تضاد فروش/تخلیه" value="@Model.DispatchSaleAndDeliveryConflicts.Count.ToString("N0")" unit="مورد" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="بارگیری ناتمام موتر" value="@Model.DirectDispatchPartialRemaining.Count.ToString("N0")" unit="مورد" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="در انتظار تسویه مخزن" value="@Model.PendingTankSettlements.Count.ToString("N0")" unit="مورد" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="جمع کل" value="@Model.TotalCount.ToString("N0")" unit="مورد" avatar="purchase-contracts"></vc:stat-card>
+        <vc:stat-card title="بارگیری ناتمام موتر" value="@Model.DirectDispatchPartialRemaining.Count.ToString("N0")" unit="مورد" avatar="transported"></vc:stat-card>
+        <vc:stat-card title="در انتظار تسویه مخزن" value="@Model.PendingTankSettlements.Count.ToString("N0")" unit="مورد" avatar="storage-tanks"></vc:stat-card>
+        <vc:stat-card title="جمع کل" value="@Model.TotalCount.ToString("N0")" unit="مورد" avatar="analysis"></vc:stat-card>
     </section>
 
     @{

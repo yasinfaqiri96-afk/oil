@@ -3,7 +3,8 @@
 @model PTGOilSystem.Web.Models.ThreeWaySettlement.ThreeWaySettlementPreviewViewModel
 @{
     ViewData["Title"] = "تسویه سه‌طرفه / حواله";
-    ViewData["HideSectionTabs"] = true;
+    // نوار تب مالی روی این صفحه نمایش داده می‌شود تا با بقیهٔ صفحات مالی (روزنامه، دفتر کل،
+    // سرفصل حساب‌ها، آشتی‌گری، انتقال مانده) هماهنگ باشد؛ قبلاً پنهان بود و بخش مالی ناقص دیده می‌شد.
     var customers = ViewBag.Customers as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
     var suppliers = ViewBag.Suppliers as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
     var sarrafs = ViewBag.Sarrafs as Microsoft.AspNetCore.Mvc.Rendering.SelectList;

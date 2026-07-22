@@ -51,6 +51,9 @@ public sealed class InventoryTransportLegLoadService
 
         var movement = BuildOutboundMovement(leg);
 
+        // قفل هم‌زمانی روی مخزن مبدأ پیش از چک موجودی (داخل تراکنشِ caller)، تا دو بارگیریِ
+        // هم‌زمان روی یک مخزن نتوانند هر دو از چک عبور کرده و موجودی را منفی کنند.
+        await _stock.AcquireStockMutationLockAsync(movement);
         await EnsureTankScopedStockAsync(leg);
         await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(movement);
 

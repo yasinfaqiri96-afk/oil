@@ -15,10 +15,10 @@
                        "بازگشت به دفتر کل", "bi-arrow-right", Url.Action("Index", "Ledger")))" />
 
     <section class="ak-stat-grid" aria-label="آمار استیتمنت‌های ارزی">
-        <vc:stat-card title="تعداد استیتمنت" value="@Model.Items.Count().ToString("N0")" unit="استیتمنت" avatar="purchase-contracts"></vc:stat-card>
-        <vc:stat-card title="مانده ابتدایی" value="@Model.OpeningBalanceUsd.ToString("N2")" unit="USD" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="تعداد استیتمنت" value="@Model.Items.Count().ToString("N0")" unit="استیتمنت" avatar="statement"></vc:stat-card>
+        <vc:stat-card title="مانده ابتدایی" value="@Model.OpeningBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
         <vc:stat-card title="مانده اختتامی" value="@Model.ClosingBalanceUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-        <vc:stat-card title="خالص تغییرات" value="@netChangeUsd.ToString("N2")" unit="USD" avatar="profit-loss"></vc:stat-card>
+        <vc:stat-card title="خالص تغییرات" value="@netChangeUsd.ToString("N2")" unit="USD" avatar="analysis"></vc:stat-card>
     </section>
 
     <div class="ak-list">

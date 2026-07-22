@@ -2075,7 +2075,7 @@ public class LoadingControllerTests
         var providerProfile = Assert.IsType<ViewResult>(await new ServiceProvidersController(db).Details(1));
         var profileModel = Assert.IsType<PTGOilSystem.Web.Models.ServiceProviders.ServiceProviderProfileViewModel>(providerProfile.Model);
         Assert.Equal(81.25m, profileModel.TotalExpensesUsd);
-        Assert.Equal(81.25m, profileModel.LedgerBalanceUsd);
+        Assert.Equal(-81.25m, profileModel.LedgerBalanceUsd);
     }
 
     [Fact]
@@ -2264,7 +2264,7 @@ public class LoadingControllerTests
         var providerProfile = Assert.IsType<ViewResult>(await new ServiceProvidersController(db).Details(1));
         var profileModel = Assert.IsType<PTGOilSystem.Web.Models.ServiceProviders.ServiceProviderProfileViewModel>(providerProfile.Model);
         Assert.Equal(107.64m, profileModel.TotalExpensesUsd);
-        Assert.Equal(107.64m, profileModel.LedgerBalanceUsd);
+        Assert.Equal(-107.64m, profileModel.LedgerBalanceUsd);
     }
 
     [Fact]
@@ -2869,7 +2869,7 @@ public class LoadingControllerTests
         var providerProfile = Assert.IsType<ViewResult>(await new ServiceProvidersController(db).Details(1));
         var profileModel = Assert.IsType<PTGOilSystem.Web.Models.ServiceProviders.ServiceProviderProfileViewModel>(providerProfile.Model);
         Assert.Equal(81.25m, profileModel.TotalExpensesUsd);
-        Assert.Equal(81.25m, profileModel.LedgerBalanceUsd);
+        Assert.Equal(-81.25m, profileModel.LedgerBalanceUsd);
     }
 
     [Fact]

@@ -354,6 +354,42 @@ public class StockService : IStockService
             .ToList();
     }
 
+    public async Task AcquireStockMutationLockAsync(
+        InventoryMovement movement,
+        CancellationToken ct = default)
+    {
+        if (movement is null) throw new ArgumentNullException(nameof(movement));
+
+        // Only relational PostgreSQL supports the row/advisory locks used here.
+        // Tests (in-memory/sqlite) and other providers run without the lock.
+        if (!_db.Database.IsRelational()
+            || !string.Equals(
+                _db.Database.ProviderName,
+                "Npgsql.EntityFrameworkCore.PostgreSQL",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (movement.StorageTankId.HasValue)
+        {
+            // Row lock on the source tank — mirrors the proven Sales/Dispatch path.
+            // Harmless no-op when the caller already holds this row lock.
+            var tankId = movement.StorageTankId.Value;
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $@"SELECT ""Id"" FROM ""StorageTanks"" WHERE ""Id"" = {tankId} FOR UPDATE",
+                ct);
+            return;
+        }
+
+        // No single tank row to lock (contract/product-scoped movement): serialize on
+        // the product with a transaction-scoped advisory lock (auto-released at commit).
+        var productId = movement.ProductId;
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(9271, {productId})",
+            ct);
+    }
+
     public async Task EnsureSufficientStockForMovementAsync(
         InventoryMovement movement,
         CancellationToken ct = default)

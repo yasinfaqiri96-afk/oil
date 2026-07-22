@@ -9,11 +9,16 @@
 <div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "اعلامیه‌های گمرکی", "Customs declarations"), true, UiText.T(Context, "ثبت اعلامیه", "New declaration"), "bi-plus-lg", Url.Action("Create", new { loadingRegisterId = Model.LoadingRegisterId, transportLegId = Model.TransportLegId, returnUrl = currentUrl }), (string?)null, UiText.T(Context, "اپلود اکسل گروهی", "Import Excel"), "bi-file-earmark-excel", Url.Action("ImportExcel", new { returnUrl = currentUrl })))" />
+    @{
+        var statSumWeight = (decimal)(ViewBag.SumWeight ?? 0m);
+        var statSumAfn = (decimal)(ViewBag.SumAfn ?? 0m);
+        var statSumUsd = (decimal)(ViewBag.SumUsd ?? 0m);
+    }
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار گمرک", "Customs statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل اعلامیه‌ها", "Total declarations")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "اعلامیه", "declarations")" avatar="purchase-contracts"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "وزن این صفحه", "Weight on this page")" value="@NumberDisplay.Quantity(Model.Items.Sum(x => x.ConsignmentWeightMt ?? 0m))" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مجموع افغانی", "Total AFN")" value="@Model.Items.Sum(x => x.TotalAfn).ToString("N0")" unit="AFN" avatar="expenses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مجموع دالر", "Total USD")" value="@Model.Items.Sum(x => x.TotalUsd).ToString("N0")" unit="USD" avatar="purchase-value"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل اعلامیه‌ها", "Total declarations")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "اعلامیه", "declarations")" avatar="documents"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل وزن", "Total weight")" value="@NumberDisplay.Quantity(statSumWeight)" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مجموع افغانی", "Total AFN")" value="@statSumAfn.ToString("N0")" unit="AFN" avatar="cash-flow"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مجموع دالر", "Total USD")" value="@statSumUsd.ToString("N0")" unit="USD" avatar="exchange-rate"></vc:stat-card>
     </section>
     <div class="ak-list">
         @{

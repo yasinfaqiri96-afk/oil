@@ -18,10 +18,10 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار مکان‌ها", "Location statistics")">
-        <vc:stat-card title="@UiText.T(Context, "تعداد مکان‌ها", "Locations")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "مکان", "locations")" avatar="shipments"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مکان‌های فعال", "Active locations")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "مکان", "locations")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مبداها", "Origins")" value="@originCount.ToString("N0")" unit="@UiText.T(Context, "مکان", "locations")" avatar="unloading"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مقصدها", "Destinations")" value="@destinationCount.ToString("N0")" unit="@UiText.T(Context, "مکان", "locations")" avatar="transported"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تعداد مکان‌ها", "Locations")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "مکان", "locations")" avatar="locations"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مکان‌های فعال", "Active locations")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "مکان", "locations")" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مبداها", "Origins")" value="@originCount.ToString("N0")" unit="@UiText.T(Context, "مکان", "locations")" avatar="loading-terminal"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مقصدها", "Destinations")" value="@destinationCount.ToString("N0")" unit="@UiText.T(Context, "مکان", "locations")" avatar="in-transit"></vc:stat-card>
     </section>
 
     @{

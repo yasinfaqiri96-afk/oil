@@ -18,10 +18,10 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار ارزها", "Currency statistics")">
-        <vc:stat-card title="@UiText.T(Context, "تعداد ارزها", "Currencies")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "ارز", "currencies")" avatar="cash"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "ارزهای فعال", "Active currencies")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "ارز", "currencies")" avatar="receivables"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تعداد ارزها", "Currencies")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "ارز", "currencies")" avatar="exchange-rate"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "ارزهای فعال", "Active currencies")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "ارز", "currencies")" avatar="rules-checklist"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "ارزهای غیرفعال", "Inactive currencies")" value="@inactiveCount.ToString("N0")" unit="@UiText.T(Context, "ارز", "currencies")" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "دارای نماد", "With symbol")" value="@symbolCount.ToString("N0")" unit="@UiText.T(Context, "ارز", "currencies")" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "دارای نماد", "With symbol")" value="@symbolCount.ToString("N0")" unit="@UiText.T(Context, "ارز", "currencies")" avatar="documents"></vc:stat-card>
     </section>
 
     @{
