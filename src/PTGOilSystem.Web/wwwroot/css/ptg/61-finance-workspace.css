@@ -174,6 +174,8 @@ body.is-finance-workspace .finance-workspace-page {
     inline-size: 100%;
 }
 
+/* Recovered finance-workspace rules (kept). The Roznamcha block below re-scopes
+   the shared direction/submit rules to #roznamchaForm and wins on specificity. */
 /* Roznamcha document direction: receipt is green and payment is red. */
 body.is-finance-workspace #journalDirectionGroup [data-direction-value="1"] {
     color: #166534;
@@ -241,6 +243,307 @@ body.is-finance-workspace .finance-workspace-page .payments-table .ak-note {
     padding: 0;
     border-inline-start: 0;
     background: transparent;
+}
+
+/* Roznamcha: receipt is green and payment is red. */
+body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-value="1"] {
+    color: #166534;
+    background-color: #ecfdf3;
+}
+
+body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-value="2"] {
+    color: #b42318;
+    background-color: #fff1f0;
+}
+
+body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-value="1"].is-active {
+    color: #ffffff;
+    background-color: #15803d;
+}
+
+body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-value="2"].is-active {
+    color: #ffffff;
+    background-color: #c62828;
+}
+
+body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-choice].is-active .ak-section-desc {
+    color: rgba(255, 255, 255, .88);
+}
+
+/* Roznamcha submit: fit long labels without wrapping. */
+body.controller-payments.action-create #roznamchaForm #journalSubmitButton {
+    width: auto;
+    min-width: 132px;
+    padding-inline: 20px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    color: #ffffff;
+    background-color: #15803d;
+}
+
+body.controller-payments.action-create #roznamchaForm #journalSubmitButton:hover,
+body.controller-payments.action-create #roznamchaForm #journalSubmitButton:focus-visible {
+    color: #ffffff;
+    background-color: #166534;
+}
+
+/* Payments/Create only: a wide, compact RTL workspace. */
+body.controller-payments.action-create .ptg-page > .boltz-content-body:has(#roznamchaForm) {
+    width: 100%;
+    max-width: 1464px;
+    max-inline-size: 1464px;
+    padding-inline: clamp(12px, 1.4vw, 24px);
+}
+
+body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaForm) {
+    width: 100%;
+    padding-inline: 0;
+}
+
+body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaForm) > .ak-page-header,
+body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaForm) > #roznamchaForm {
+    width: min(100%, 1400px);
+    max-width: 1400px;
+    margin-inline: auto;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-form-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 16px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-form-toolbar > .ak-form-section {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-form-section {
+    margin-block-end: 16px;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-form-section + .ak-form-section {
+    padding-block-start: 12px;
+    border-block-start-color: var(--divider);
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-form-toolbar > .ak-form-section + .ak-form-section {
+    padding-block-start: 0;
+    border: 0;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-form-group-title {
+    margin: 0 0 8px;
+    color: var(--ptg-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-form-toolbar .ptg-tabs-rail {
+    min-height: 40px;
+    margin: 0;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-form-toolbar .ptg-tab-item {
+    min-height: 40px;
+    padding: 7px 12px 8px;
+    border-radius: 8px 8px 0 0;
+}
+
+body.controller-payments.action-create #roznamchaForm #journalDirectionGroup .ak-section-desc {
+    margin: 0;
+    font-size: 11px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-cashbank-section {
+    min-width: 0;
+    margin: 0 0 16px;
+    padding: 0;
+    border: 0;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-form-grid {
+    column-gap: 16px;
+    row-gap: 12px;
+    align-items: start;
+}
+
+/* Flatten redundant Razor wrappers so fields use the full parent grid. */
+body.controller-payments.action-create #roznamchaForm .ak-form-grid > .ak-form-grid {
+    display: contents;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-form-grid .ak-form-full,
+body.controller-payments.action-create #roznamchaForm .ak-form-grid .ak-col-full {
+    grid-column: 1 / -1;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-field {
+    gap: 4px;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-label {
+    min-height: 18px;
+    font-size: 12.5px;
+    line-height: 18px;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-input {
+    height: 40px;
+    min-height: 40px;
+    padding-inline: 11px;
+    border-radius: 7px;
+}
+
+body.controller-payments.action-create #roznamchaForm textarea.ak-input {
+    height: 56px;
+    min-height: 56px;
+    padding-block: 8px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-description-field {
+    width: 100%;
+    margin-block: 12px 0;
+}
+
+body.controller-payments.action-create #roznamchaForm .ak-form-alert,
+body.controller-payments.action-create #roznamchaForm .journal-cashbank-section > .ak-note {
+    margin-block: 10px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-sarraf-section > .ak-form-section {
+    margin-block-end: 16px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-sarraf-primary-section > .ptg-tabs-rail {
+    margin-block-end: 12px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-sarraf-direction {
+    width: fit-content;
+    max-width: 100%;
+    min-height: 34px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-sarraf-direction > .ptg-tab-item {
+    min-height: 34px;
+    padding: 5px 10px 7px;
+    font-size: 12.5px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-commission-section {
+    margin: 0 0 16px;
+    padding: 0;
+    border-block: 1px solid var(--divider);
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-commission-head {
+    min-height: 44px;
+    padding-block: 7px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-commission-head .ak-form-group-title {
+    margin: 0;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-commission-body {
+    margin-block-start: 0 !important;
+    padding-block: 12px;
+    border-block-start: 1px solid var(--divider);
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-commission-body > [data-commission-summary],
+body.controller-payments.action-create #roznamchaForm .journal-commission-body > [data-commission-sarraf-note] {
+    grid-column: 1 / -1;
+    margin-block-start: 0 !important;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 60px;
+    margin: 0;
+    padding: 9px 0;
+    border-block-start: 1px solid var(--divider);
+    background: rgba(255, 255, 255, .96);
+    box-shadow: 0 -8px 18px rgba(31, 42, 68, .045);
+    backdrop-filter: blur(8px);
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+body.controller-payments.action-create #roznamchaForm #journalSubmitButton {
+    min-height: 40px;
+    border-radius: 7px;
+}
+
+body.controller-payments.action-create #roznamchaForm .journal-total {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    white-space: nowrap;
+}
+
+@media (min-width: 1200px) {
+    body.controller-payments.action-create #roznamchaForm .ak-form-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    body.controller-payments.action-create #roznamchaForm .ak-form-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+    body.controller-payments.action-create #roznamchaForm .ak-form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    body.controller-payments.action-create .ptg-page > .boltz-content-body:has(#roznamchaForm) {
+        padding-inline: 8px;
+    }
+
+    body.controller-payments.action-create #roznamchaForm .journal-form-toolbar,
+    body.controller-payments.action-create #roznamchaForm .ak-form-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.controller-payments.action-create #roznamchaForm .journal-action-bar {
+        position: static;
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    body.controller-payments.action-create #roznamchaForm .journal-action-buttons,
+    body.controller-payments.action-create #roznamchaForm #journalSubmitButton {
+        width: 100%;
+    }
+
+    body.controller-payments.action-create #roznamchaForm .journal-action-buttons {
+        align-items: stretch;
+        flex-direction: column;
+    }
 }
 
 body.is-finance-workspace .finance-page-lead {
