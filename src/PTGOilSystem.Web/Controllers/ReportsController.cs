@@ -141,6 +141,16 @@ public partial class ReportsController : Controller
             },
             new()
             {
+                Action = nameof(FxDifference),
+                TitleFa = "تفاوت نرخ ارز",
+                TitleEn = "FX Difference",
+                DescriptionFa = "سود و ضرر تفاوت نرخ خرید ارز شرکت با نرخ قبول تأمین‌کننده در حواله‌های صراف.",
+                DescriptionEn = "FX gain and loss between the company purchase rate and the supplier accepted rate on sarraf transfers.",
+                Icon = "bi-currency-exchange",
+                ToneClass = "tone-amber"
+            },
+            new()
+            {
                 Action = nameof(CashFlow),
                 TitleFa = "جریان نقدی",
                 TitleEn = "Cash Flow",

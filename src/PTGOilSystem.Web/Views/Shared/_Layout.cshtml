@@ -137,6 +137,8 @@
     var transportControllers = transportItems.Select(item => item.Controller).ToArray();
 
     // گزارش‌ها: بخش مستقل سایدبار (از بخش مالی جدا شد).
+    // ناوبری بازیابی‌شده: «گزارش‌ها» یک آیتم تکی به هاب Reports/Index است و زیرمنو ندارد.
+    // هر گزارش (از جمله تفاوت نرخ ارز) از کارت‌های همان هاب باز می‌شود، پس این آرایه خالی می‌ماند.
     var reportMenuItems = System.Array.Empty<(string Controller, string Action, string Label, string Icon)>();
 
     var journalControllers = new[] { "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation" };
@@ -308,9 +310,16 @@
 
         if (string.Equals(child.Controller, "Reports", StringComparison.OrdinalIgnoreCase))
         {
-            return string.Equals(child.Action, "CompanyOverview", StringComparison.OrdinalIgnoreCase)
-                ? string.Equals(currentAction, "CompanyOverview", StringComparison.OrdinalIgnoreCase)
-                : !string.Equals(currentAction, "CompanyOverview", StringComparison.OrdinalIgnoreCase);
+            // آیتم «گزارش‌های مالی» (Index) چتر بقیهٔ اکشن‌های گزارش است؛ آیتم‌های نام‌دار
+            // فقط با اکشن خودشان فعال می‌شوند تا دو آیتم هم‌زمان هایلایت نشوند.
+            if (!string.Equals(child.Action, "Index", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Equals(currentAction, child.Action, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return !reportMenuItems.Any(item =>
+                !string.Equals(item.Action, "Index", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(currentAction, item.Action, StringComparison.OrdinalIgnoreCase));
         }
 
         return controllersAreUnique || string.Equals(currentAction, child.Action, StringComparison.OrdinalIgnoreCase);

@@ -1,0 +1,335 @@
+@using PTGOilSystem.Web.Models.Entities
+@model PTGOilSystem.Web.Models.Reports.FxDifferenceReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "گزارش سود و ضرر تفاوت نرخ ارز", "FX Gain / Loss Report");
+    var f = Model.Filter;
+    var t = Model.Totals;
+    var hasActiveFilters = f.HasAny;
+
+    string ResultTone(PTGOilSystem.Web.Models.Reports.FxDifferenceResult result) => result switch
+    {
+        PTGOilSystem.Web.Models.Reports.FxDifferenceResult.Gain => "text-success",
+        PTGOilSystem.Web.Models.Reports.FxDifferenceResult.Loss => "text-danger",
+        PTGOilSystem.Web.Models.Reports.FxDifferenceResult.NeedsReview => "text-warning",
+        _ => "text-muted"
+    };
+
+    string CommissionTone(PTGOilSystem.Web.Models.Reports.FxCommissionMatchStatus status) => status switch
+    {
+        PTGOilSystem.Web.Models.Reports.FxCommissionMatchStatus.Exact => "text-body",
+        PTGOilSystem.Web.Models.Reports.FxCommissionMatchStatus.NeedsReview => "text-warning",
+        _ => "text-muted"
+    };
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "گزارش سود و ضرر تفاوت نرخ ارز", "FX Gain / Loss Report"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    <p class="ak-note">
+        @UiText.T(Context,
+            "تفاوت نرخ خرید ارز توسط شرکت با نرخ قبول‌شدهٔ تأمین‌کننده در حواله‌های صراف. گزارش فقط‌خواندنی است و هیچ رکورد مالی نمی‌سازد.",
+            "Difference between the company purchase rate and the supplier accepted rate on sarraf transfers. Read-only; no financial record is created.")
+    </p>
+
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "خلاصه تفاوت نرخ ارز", "FX difference summary")">
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-list-ol",
+            UiText.T(Context, "تعداد حواله دو‌نرخی", "Dual-rate transfers"), t.SettlementCount.ToString("N0"),
+            string.Join(" · ", t.OriginalAmounts.Select(a => $"{a.Amount:N0} {a.Currency}")), ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-box-arrow-up",
+            UiText.T(Context, "هزینه واقعی شرکت", "Company cost"), $"{t.TotalCompanyCostUsd:N2} USD",
+            UiText.T(Context, "مجموع پرداخت شرکت به صراف", "Total paid to sarraf"), ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-box-arrow-in-down",
+            UiText.T(Context, "قبول تأمین‌کننده", "Supplier accepted"), $"{t.TotalSupplierAcceptedUsd:N2} USD",
+            UiText.T(Context, "مجموع ثبت‌شده در حساب تأمین‌کننده", "Total posted to supplier account"), ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-graph-up-arrow",
+            UiText.T(Context, "مجموع سود تفاوت نرخ", "Total FX gain"), $"{t.TotalGainUsd:N2} USD",
+            $"{t.GainCount:N0} " + UiText.T(Context, "حواله", "transfers"), "finance-positive"))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-graph-down-arrow",
+            UiText.T(Context, "مجموع ضرر تفاوت نرخ", "Total FX loss"), $"{t.TotalLossUsd:N2} USD",
+            $"{t.LossCount:N0} " + UiText.T(Context, "حواله", "transfers"), "finance-negative"))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-calculator",
+            UiText.T(Context, "خالص تفاوت نرخ", "Net FX result"), $"{t.NetFxResultUsd:N2} USD",
+            t.NetFxResultUsd > 0m
+                ? UiText.T(Context, "سود خالص", "Net gain")
+                : t.NetFxResultUsd < 0m
+                    ? UiText.T(Context, "ضرر خالص", "Net loss")
+                    : UiText.T(Context, "بدون اثر خالص", "No net effect"),
+            t.NetFxResultUsd >= 0m ? "finance-positive" : "finance-negative"))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-percent",
+            UiText.T(Context, "کمیشن واقعی صراف", "Sarraf commission"), $"{t.TotalCommissionUsd:N2} USD",
+            UiText.T(Context, "جدا از تفاوت نرخ", "Separate from FX difference"), ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-dash-circle",
+            UiText.T(Context, "بدون تفاوت", "No difference"), t.NoDifferenceCount.ToString("N0"),
+            $"{t.NeedsReviewCount:N0} " + UiText.T(Context, "نیازمند بررسی", "need review"),
+            t.NeedsReviewCount > 0 ? "finance-negative" : ""))
+    </section>
+
+    <div class="ak-list">
+        <form method="get" class="ak-report-parameters" id="fxFilterForm">
+            <div class="ak-report-parameters-bar">
+                <div class="ak-report-parameters-anchor">
+                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="fxFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
+                        <i class="bi bi-funnel"></i>
+                    </button>
+                    <div class="ak-report-parameters-pop" id="fxFilterPop" hidden>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
+                        <input class="ak-input" type="date" name="FromDate" value="@f.FromDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
+                        <input class="ak-input" type="date" name="ToDate" value="@f.ToDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "شرکت قرارداد", "Contract company")</label>
+                        <select class="ak-input" name="CompanyId" asp-items="ViewBag.Companies"><option value="">@UiText.T(Context, "همه شرکت‌ها", "All companies")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "تأمین‌کننده", "Supplier")</label>
+                        <select class="ak-input" name="SupplierId" asp-items="ViewBag.Suppliers"><option value="">@UiText.T(Context, "همه تأمین‌کنندگان", "All suppliers")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "صراف", "Sarraf")</label>
+                        <select class="ak-input" name="SarrafId" asp-items="ViewBag.Sarrafs"><option value="">@UiText.T(Context, "همه صراف‌ها", "All sarrafs")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "قرارداد", "Contract")</label>
+                        <select class="ak-input" name="ContractId" asp-items="ViewBag.Contracts"><option value="">@UiText.T(Context, "همه قراردادها", "All contracts")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "ارز", "Currency")</label>
+                        <select class="ak-input" name="Currency" asp-items="ViewBag.Currencies"><option value="">@UiText.T(Context, "همه ارزها", "All currencies")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "شماره رسید", "Reference")</label>
+                        <input class="ak-input" type="text" name="Reference" value="@f.Reference" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "نتیجه", "Result")</label>
+                        <select class="ak-input" name="Result">
+                            <option value="All" selected="@(f.Result == PTGOilSystem.Web.Models.Reports.FxDifferenceResultFilter.All)">@UiText.T(Context, "همه", "All")</option>
+                            <option value="GainOnly" selected="@(f.Result == PTGOilSystem.Web.Models.Reports.FxDifferenceResultFilter.GainOnly)">@UiText.T(Context, "فقط سود", "Gain only")</option>
+                            <option value="LossOnly" selected="@(f.Result == PTGOilSystem.Web.Models.Reports.FxDifferenceResultFilter.LossOnly)">@UiText.T(Context, "فقط ضرر", "Loss only")</option>
+                            <option value="NoDifference" selected="@(f.Result == PTGOilSystem.Web.Models.Reports.FxDifferenceResultFilter.NoDifference)">@UiText.T(Context, "بدون تفاوت", "No difference")</option>
+                            <option value="NeedsReview" selected="@(f.Result == PTGOilSystem.Web.Models.Reports.FxDifferenceResultFilter.NeedsReview)">@UiText.T(Context, "نیازمند بررسی", "Needs review")</option>
+                        </select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "وضعیت تسویه", "Settlement status")</label>
+                        <select class="ak-input" name="Status">
+                            <option value="">@UiText.T(Context, "همه وضعیت‌ها", "All statuses")</option>
+                            <option value="Draft" selected="@(f.Status == SarrafSettlementStatus.Draft)">@UiText.T(Context, "پیش‌نویس", "Draft")</option>
+                            <option value="Posted" selected="@(f.Status == SarrafSettlementStatus.Posted)">@UiText.T(Context, "ثبت‌شده", "Posted")</option>
+                            <option value="Cancelled" selected="@(f.Status == SarrafSettlementStatus.Cancelled)">@UiText.T(Context, "لغوشده", "Cancelled")</option>
+                        </select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "کمیشن", "Commission")</label>
+                        <select class="ak-input" name="Commission">
+                            <option value="All" selected="@(f.Commission == PTGOilSystem.Web.Models.Reports.FxCommissionFilter.All)">@UiText.T(Context, "همه", "All")</option>
+                            <option value="WithCommission" selected="@(f.Commission == PTGOilSystem.Web.Models.Reports.FxCommissionFilter.WithCommission)">@UiText.T(Context, "دارای کمیشن", "With commission")</option>
+                            <option value="WithoutCommission" selected="@(f.Commission == PTGOilSystem.Web.Models.Reports.FxCommissionFilter.WithoutCommission)">@UiText.T(Context, "بدون کمیشن", "Without commission")</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
+                        @* چاپ از راه «خروجی PDF» همین منو انجام می‌شود؛ دکمهٔ چاپ مستقل طبق قرارداد پروژه ممنوع است. *@
+                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("FxDifferenceExport"))" />
+                        @if (hasActiveFilters)
+                        {
+                            <a asp-action="FxDifference" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th style="width:2rem"></th>
+                        <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                        <th>@UiText.T(Context, "شماره رسید", "Reference")</th>
+                        <th>@UiText.T(Context, "شرکت قرارداد", "Contract Company")</th>
+                        <th>@UiText.T(Context, "تأمین‌کننده", "Supplier")</th>
+                        <th>@UiText.T(Context, "صراف", "Sarraf")</th>
+                        <th>@UiText.T(Context, "قرارداد", "Contract")</th>
+                        <th>@UiText.T(Context, "ارز", "Currency")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مبلغ اصلی", "Amount")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "نرخ شرکت", "Company rate")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "نرخ تأمین‌کننده", "Supplier rate")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "هزینه شرکت USD", "Company cost USD")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "قبول تأمین‌کننده USD", "Supplier accepted USD")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "تفاوت USD", "Difference USD")</th>
+                        <th>@UiText.T(Context, "نتیجه", "Result")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "سود USD", "Gain USD")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "ضرر USD", "Loss USD")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "کمیشن USD", "Commission USD")</th>
+                        <th>@UiText.T(Context, "وضعیت کمیشن", "Commission status")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        <th>@UiText.T(Context, "توضیحات", "Description")</th>
+                        <th>@UiText.T(Context, "ثبت‌کننده", "Created by")</th>
+                        <th>@UiText.T(Context, "تاریخ ثبت", "Created at")</th>
+                        <th>@UiText.T(Context, "جزئیات", "Details")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        var detailId = $"fx-detail-{row.SettlementId}";
+                        <tr>
+                            <td>
+                                <button class="btn btn-sm btn-link p-0" type="button" data-bs-toggle="collapse" data-bs-target="#@detailId" aria-expanded="false" aria-controls="@detailId" title="@UiText.T(Context, "جزئیات", "Details")">
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+                            </td>
+                            <td>@row.SettlementDate.ToDisplayDate()</td>
+                            <td>@(row.ReferenceNumber ?? "—")</td>
+                            <td>@(row.CompanyName ?? "—")</td>
+                            <td>@(row.SupplierName ?? "—")</td>
+                            <td>@row.SarrafName</td>
+                            <td>@(row.ContractNumber ?? "—")</td>
+                            <td>@row.Currency</td>
+                            <td class="ak-col-num ak-num">@row.Amount.ToString("N2")</td>
+                            <td class="ak-col-num ak-num">@row.CompanyRate.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@(row.SupplierRate?.ToString("N4") ?? "—")</td>
+                            <td class="ak-col-num ak-num">@row.CompanyCostUsd.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.SupplierAcceptedUsd.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.FxResultUsd.ToString("N4")</td>
+                            <td class="@ResultTone(row.Result)">
+                                @PTGOilSystem.Web.Controllers.ReportsController.FxResultLabel(row.Result)
+                            </td>
+                            <td class="ak-col-num ak-num">@row.GainUsd.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.LossUsd.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@(row.CommissionUsd?.ToString("N4") ?? "—")</td>
+                            <td class="@CommissionTone(row.CommissionStatus)">
+                                @PTGOilSystem.Web.Controllers.ReportsController.FxCommissionLabel(row.CommissionStatus)
+                            </td>
+                            <td>@PTGOilSystem.Web.Controllers.ReportsController.SarrafSettlementStatusLabel(row.Status)</td>
+                            <td>@(row.Description ?? "—")</td>
+                            <td>@(row.CreatedByUserName ?? "—")</td>
+                            <td>@row.CreatedAtUtc.ToDisplayDate()</td>
+                            <td>
+                                <a asp-controller="SarrafSettlements" asp-action="Details" asp-route-id="@row.SettlementId">
+                                    @UiText.T(Context, "مشاهده", "Open")
+                                </a>
+                            </td>
+                        </tr>
+                        <tr class="collapse" id="@detailId">
+                            <td colspan="24">
+                                @if (row.ReviewNotes.Count > 0)
+                                {
+                                    <div class="alert alert-warning py-2">
+                                        <strong>@UiText.T(Context, "نیازمند بررسی", "Needs review"):</strong>
+                                        <ul class="mb-0">
+                                            @foreach (var note in row.ReviewNotes)
+                                            {
+                                                <li>@note</li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <h6>@UiText.T(Context, "پرداخت اصلی", "Original payment")</h6>
+                                        <div>@UiText.T(Context, "ارز و مبلغ", "Currency & amount"): @row.Payment.Amount.ToString("N2") @row.Payment.Currency</div>
+                                        <div>@UiText.T(Context, "نرخ شرکت", "Company rate"): @row.Payment.CompanyRate.ToString("N4")</div>
+                                        <div>@UiText.T(Context, "نرخ تأمین‌کننده", "Supplier rate"): @(row.Payment.SupplierRate?.ToString("N4") ?? "—")</div>
+                                        <div>Company Cost USD: @row.Payment.CompanyCostUsd.ToString("N4")</div>
+                                        <div>Supplier Accepted USD: @row.Payment.SupplierAcceptedUsd.ToString("N4")</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <h6>@UiText.T(Context, "اثر تأمین‌کننده", "Supplier effect")</h6>
+                                        <div>
+                                            @UiText.T(Context, "مبلغ در صورت‌حساب", "Statement amount"):
+                                            @(row.Supplier.StatementAmountUsd?.ToString("N4") ?? "—") USD
+                                        </div>
+                                        <div>Contract PaidUsd: @(row.Supplier.ContractPaidUsd?.ToString("N4") ?? "—")</div>
+                                        @if (row.Supplier.ContractId.HasValue)
+                                        {
+                                            <div>
+                                                <a asp-controller="Contracts" asp-action="Details" asp-route-id="@row.Supplier.ContractId">
+                                                    @UiText.T(Context, "قرارداد", "Contract"): @row.Supplier.ContractNumber
+                                                </a>
+                                            </div>
+                                        }
+                                        @if (row.Supplier.SupplierId.HasValue)
+                                        {
+                                            <div><a href="/Suppliers/@row.Supplier.SupplierId/Statement">@UiText.T(Context, "صورت‌حساب تأمین‌کننده", "Supplier statement")</a></div>
+                                        }
+                                        <div class="@(row.Supplier.FxIsolatedFromSupplier ? "text-success" : "text-danger")">
+                                            @(row.Supplier.FxIsolatedFromSupplier
+                                                ? UiText.T(Context, "✔ تفاوت نرخ وارد حساب تأمین‌کننده نشده است.", "✔ FX difference is not posted to the supplier account.")
+                                                : UiText.T(Context, "✘ سطر تفاوت نرخ به تأمین‌کننده/قرارداد بسته شده است.", "✘ FX row is attached to supplier/contract."))
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <h6>@UiText.T(Context, "اثر صراف", "Sarraf effect")</h6>
+                                        <div>
+                                            @(row.Sarraf.Direction == SarrafSettlementDirection.Out
+                                                ? UiText.T(Context, "بدهی شرکت به صراف", "Payable to sarraf")
+                                                : UiText.T(Context, "طلب شرکت از صراف", "Receivable from sarraf")):
+                                            @row.Sarraf.CompanyCostUsd.ToString("N4") USD
+                                        </div>
+                                        <div>
+                                            @UiText.T(Context, "کمیشن واقعی (جدا)", "Actual commission (separate)"):
+                                            @(row.Sarraf.CommissionUsd?.ToString("N4") ?? "—")
+                                            (@PTGOilSystem.Web.Controllers.ReportsController.FxCommissionLabel(row.Sarraf.CommissionStatus))
+                                        </div>
+                                        <div><a href="/Sarrafs/@row.Sarraf.SarrafId/Statement">@UiText.T(Context, "صورت‌حساب صراف", "Sarraf statement")</a></div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <h6>@UiText.T(Context, "اثر سود و زیان", "Profit & loss effect")</h6>
+                                        <div>
+                                            @PTGOilSystem.Web.Controllers.ReportsController.FxResultLabel(row.Result):
+                                            @((row.GainUsd > 0m ? row.GainUsd : row.LossUsd).ToString("N4")) USD
+                                        </div>
+                                        <div>SourceType: @(row.Profit.LedgerSourceType ?? "—")</div>
+                                        <div>ExpenseTransaction: @(row.Profit.ExpenseTransactionId?.ToString() ?? "—")</div>
+                                        <div>LedgerEntry: @(row.Profit.LedgerEntryId?.ToString() ?? "—")</div>
+                                        <div class="@(row.Profit.NoCashEffect ? "text-success" : "text-danger")">
+                                            @(row.Profit.NoCashEffect
+                                                ? UiText.T(Context, "✔ تفاوت نرخ اثر جداگانه روی صندوق ندارد.", "✔ FX difference has no separate cash effect.")
+                                                : UiText.T(Context, "✘ این تسویه به پرداخت/حساب نقدی بسته شده است.", "✘ This settlement is linked to a payment/cash account."))
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="24">
+                                <div class="ak-empty">
+                                    <i class="bi bi-currency-exchange"></i>
+                                    @UiText.T(Context, "حواله‌ای با تفاوت نرخ ارز پیدا نشد؛ فیلترها را تغییر دهید.", "No FX-difference transfer found; change the filters.")
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                @if (Model.Rows.Count > 0)
+                {
+                    <tfoot>
+                        <tr>
+                            <td colspan="11"><strong>@UiText.T(Context, "جمع کل نتایج فیلترشده", "Total of filtered results")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalCompanyCostUsd.ToString("N4")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalSupplierAcceptedUsd.ToString("N4")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.NetFxResultUsd.ToString("N4")</strong></td>
+                            <td></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalGainUsd.ToString("N4")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalLossUsd.ToString("N4")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalCommissionUsd.ToString("N4")</strong></td>
+                            <td colspan="5"></td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+
+        @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var toggle = document.getElementById('fxFilterToggle');
+            var pop = document.getElementById('fxFilterPop');
+            if (!toggle || !pop) return;
+            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
+            toggle.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var open = pop.hidden;
+                pop.hidden = !open;
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+            document.addEventListener('click', function (e) {
+                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
+            });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+        })();
+    </script>
+}
