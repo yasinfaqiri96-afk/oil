@@ -94,14 +94,18 @@ public class MasterDataCleanupTests
         Assert.Contains("NavNode(\"Contracts\", \"Index\"", layout);
         Assert.Contains("NavNode(\"Loading\", \"Index\"", layout);
         Assert.Contains("\"Operations\")", layout);
-        Assert.Contains("NavNode(\"Reports\", \"CompanyOverview\"", layout);
+        Assert.Contains("NavNode(\"Finance\", \"Index\"", layout);
         Assert.Contains("NavNode(\"StorageTanks\", \"Index\"", layout);
+
+        // «گزارش‌ها» یک آیتم تکی به هاب Reports/Index است و زیرمنو ندارد؛ هر گزارش
+        // (از جمله تفاوت نرخ ارز) از کارت‌های همان هاب باز می‌شود.
+        Assert.Contains("NavNode(\"Reports\", \"Index\"", layout);
+        Assert.DoesNotContain("children: reportMenuItems", layout);
 
         // Expandable submenus wired from the existing child sources.
         Assert.Contains("children: businessPartyItems", layout);
         Assert.Contains("children: transportItems", layout);
         Assert.Contains("children: baseDefinitionChildren", layout);
-        Assert.Contains("children: reportMenuItems", layout);
         Assert.Contains("(\"ServiceProviders\", \"Index\"", layout);
         Assert.Contains("(\"ServiceProviders\", \"Index\"", sectionTabs);
 
@@ -142,8 +146,10 @@ public class MasterDataCleanupTests
 
         Assert.Contains("service-provider-details-page", details);
 
-        // دقیقاً سه تب با شناسه‌های جدید.
-        Assert.Contains("id=\"provider-overview\"", details);
+        // ترکیب مشترک جزئیات طرف‌حساب (نسخهٔ ۲): خلاصه همیشه دیده می‌شود و تب‌های
+        // بالای صفحه پنهان‌اند؛ صورت‌حساب و اسناد دو بخش قابل‌نمایش با شناسهٔ خودشان‌اند.
+        Assert.Contains("data-ak-detail-v2=\"true\"", details);
+        Assert.Contains("ViewData[\"HideSectionTabs\"] = true", details);
         Assert.Contains("id=\"provider-statement\"", details);
         Assert.Contains("id=\"provider-documents\"", details);
 
@@ -152,9 +158,9 @@ public class MasterDataCleanupTests
         Assert.Contains("\"Create\", \"Expenses\"", details);
         Assert.Contains("serviceProviderId = Model.Id", details);
 
-        // پروفایل فقط خلاصهٔ مشترک و لینک سند رسمی را نشان می‌دهد؛ جدول کامل مستقل است.
-        Assert.Contains("_PartyStatementRecent.cshtml", details);
-        Assert.Contains("asp-controller=\"PartyStatements\"", details);
+        // صورت‌حساب رسمی به‌صورت درون‌خطی از PartyStatements بارگذاری می‌شود، نه لینک ساده.
+        Assert.Contains("ak-party-statement-embed", details);
+        Assert.Contains("Url.Action(\"ServiceProvider\", \"PartyStatements\"", details);
 
         // متریک‌کارت‌های شلوغ قدیمی دیگر استفاده نمی‌شوند.
         Assert.DoesNotContain("supplier-journal-shot-grid", details);

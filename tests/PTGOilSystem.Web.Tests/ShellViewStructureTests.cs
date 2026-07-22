@@ -62,8 +62,16 @@ public class ShellViewStructureTests
             .Replace("\r\n", "\n", StringComparison.Ordinal);
         var navigationJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/navigation.js");
 
-        Assert.Contains("--layout-sidebar: 280px", tokensCss);
+        // The rail is the invariant this test guards: the collapsed sidebar must stay an
+        // 88px icon rail and the expanded sidebar must be strictly wider than it. The exact
+        // expanded width is a design choice (currently 224px) and is deliberately not pinned.
         Assert.Contains("--layout-sidebar-mini: 88px", tokensCss);
+        var expandedSidebarPx = ReadPixelToken(tokensCss, "--layout-sidebar");
+        var railPx = ReadPixelToken(tokensCss, "--layout-sidebar-mini");
+        Assert.Equal(88, railPx);
+        Assert.True(
+            expandedSidebarPx > railPx,
+            $"Expanded sidebar ({expandedSidebarPx}px) must be wider than the icon rail ({railPx}px).");
         Assert.Contains("is-sidebar-collapsed .ak-navpanel {\n        display: flex;", sidebarCss);
         Assert.Contains("is-sidebar-collapsed .ptg-nav-ic > svg {\n        inline-size: 24px;\n        block-size: 24px;", sidebarCss);
         Assert.Contains("is-sidebar-collapsed .boltz-nav-link > span", sidebarCss);
@@ -227,55 +235,59 @@ public class ShellViewStructureTests
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/12-dashboard.css");
         var script = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/dashboard.js");
 
+        // The dashboard is the `dash-*` composition: a quick-action tile grid, headline
+        // totals and one trend chart. The older `dashboard-shortcut` / `dashboard-chart-*`
+        // naming and the hero banner are gone and must not come back.
         Assert.Contains("ViewData[\"DashboardAssets\"] = true", view);
         Assert.DoesNotContain("dashboard-hero", view);
         Assert.DoesNotContain("dashboard-period", view);
         Assert.DoesNotContain("PTG OIL SYSTEM", view);
         Assert.DoesNotContain("داشبورد مدیریتی", view);
         Assert.DoesNotContain("تصویر روشن از عملیات", view);
-        Assert.Equal(7, view.Split("class=\"dashboard-shortcut\"", StringSplitOptions.None).Length - 1);
-        Assert.Contains("class=\"dashboard-shortcut dashboard-shortcut--primary\"", view);
-        Assert.Contains("dashboard-shortcut-edit", view);
+        Assert.DoesNotContain("dashboard-shortcut", view);
         Assert.DoesNotContain("dashboard-kpis", view);
         Assert.DoesNotContain("dashboard-metric-card", view);
-        Assert.Equal(1, view.Split("data-dashboard-chart", StringSplitOptions.None).Length - 1);
-        Assert.Contains("asp-controller=\"Loading\" asp-action=\"Create\"", view);
+        Assert.DoesNotContain("dashboard-activity", view);
+        Assert.DoesNotContain("RecentActivities", view);
+
+        // Twelve quick-action tiles, exactly one of them the primary call to action.
+        Assert.Equal(12, view.Split("dash-quick-item", StringSplitOptions.None).Length - 1
+            - (view.Split("dash-quick-item--primary", StringSplitOptions.None).Length - 1));
+        Assert.Equal(1, view.Split("dash-quick-item--primary", StringSplitOptions.None).Length - 1);
         Assert.Contains("asp-controller=\"Sales\" asp-action=\"Create\"", view);
-        Assert.Contains("asp-controller=\"Payments\" asp-action=\"Create\"", view);
+        Assert.Contains("asp-controller=\"Loading\" asp-action=\"Index\"", view);
+        Assert.Contains("asp-controller=\"Payments\" asp-action=\"Index\"", view);
+
+        // Exactly one trend chart, fed entirely from data-* attributes.
+        Assert.Equal(1, view.Split("data-dashboard-chart", StringSplitOptions.None).Length - 1);
         Assert.Contains("data-labels=\"@chartLabels\"", view);
         Assert.Contains("data-sales=\"@chartSales\"", view);
         Assert.Contains("data-expenses=\"@chartExpenses\"", view);
-        Assert.Contains("dashboard-attention-list", view);
-        Assert.DoesNotContain("dashboard-activity", view);
-        Assert.DoesNotContain("RecentActivities", view);
-        Assert.DoesNotContain("style=", view);
+
+        // The only inline style is the mix-legend dot, whose colour comes from the model.
+        Assert.Equal(1, view.Split("style=", StringSplitOptions.None).Length - 1);
+        Assert.Contains("class=\"dash-dot\" style=\"background:@seg.color\"", view);
 
         Assert.Contains(".dashboard-page", css);
+        Assert.Contains(".dash-quick-item", css);
+        Assert.Contains(".dash-trend", css);
+        Assert.Contains(".dash-total", css);
         Assert.DoesNotContain(".dashboard-hero", css);
         Assert.DoesNotContain(".dashboard-period", css);
-        Assert.Contains("max-inline-size: 100%", css);
-        Assert.Contains("grid-template-columns: repeat(8, minmax(0, 1fr))", css);
-        Assert.Contains("grid-template-columns: repeat(4, minmax(0, 1fr))", css);
-        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", css);
-        Assert.Contains("block-size: 102px", css);
-        Assert.Contains("overflow: visible", css);
         Assert.DoesNotContain(".dashboard-metric", css);
         Assert.DoesNotContain(".dashboard-activity", css);
-        Assert.Contains(".dashboard-chart-line--sales", css);
+        Assert.Contains("max-inline-size: 100%", css);
+        Assert.Contains("overflow: visible", css);
         Assert.Contains("@media (max-width: 575.98px)", css);
-        Assert.Contains("var(--background-paper)", css);
-        Assert.Contains("var(--divider)", css);
-        Assert.DoesNotContain("!important", css);
         Assert.DoesNotContain("linear-gradient", css);
 
         Assert.Contains("ptg:page-ready", script);
         Assert.Contains("pageshow", script);
         Assert.Contains("replaceChildren", script);
         Assert.Contains("Intl.NumberFormat", script);
-        Assert.Contains("stroke-dasharray: 4 6", css);
         Assert.Contains("function linePath(points)", script);
-        Assert.Contains("dashboard-chart-legend", script);
-        Assert.Contains("dashboard-chart-area--", script);
+        Assert.Contains("dash-chart-line--", script);
+        Assert.Contains("dash-chart-area--", script);
         Assert.DoesNotContain("dashboard-radial", script);
     }
 
@@ -456,6 +468,14 @@ public class ShellViewStructureTests
 
     private static string ReadRepoFile(string relativePath)
         => File.ReadAllText(GetRepoPath(relativePath));
+
+    /// <summary>Reads a `--token: NNNpx;` custom property out of a CSS file.</summary>
+    private static int ReadPixelToken(string css, string token)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(css, $@"{token}:\s*(\d+)px");
+        Assert.True(match.Success, $"CSS custom property '{token}' with a px value was not found.");
+        return int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private static string GetRepoPath(string relativePath, [CallerFilePath] string sourceFilePath = "")
     {

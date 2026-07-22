@@ -10,17 +10,20 @@ public class AuthLoginViewStructureTests
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Auth/Login.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/90-auth-login.css");
+        // The carousel serves scene 1 and 3 as PNG and scene 2 as WebP; every slide is
+        // cache-busted with asp-append-version, so the file must exist on disk.
         var artwork = new[]
         {
-            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-1.webp"),
+            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-1.png"),
             RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-2.webp"),
-            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-3.webp")
+            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-3.png")
         };
 
         Assert.Contains("~/css/ptg/90-auth-login.css", view);
-        Assert.Contains("~/images/auth/scene-1.webp", view);
+        Assert.Contains("~/images/auth/scene-1.png", view);
         Assert.Contains("~/images/auth/scene-2.webp", view);
-        Assert.Contains("~/images/auth/scene-3.webp", view);
+        Assert.Contains("~/images/auth/scene-3.png", view);
+        Assert.Contains("asp-append-version=\"true\"", view);
         Assert.DoesNotContain("~/images/auth/login.webp", view);
         Assert.DoesNotContain("~/images/auth/saddiqi-login.png", view);
         Assert.Contains("class=\"sadd-login-page\"", view);
