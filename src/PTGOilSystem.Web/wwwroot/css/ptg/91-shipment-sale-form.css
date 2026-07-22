@@ -1,0 +1,567 @@
+/*
+ * صفحهٔ «ثبت فروش از جریان حمل محموله / کشتی» (Sales/CreateFromShipment).
+ *
+ * تمام قواعد این فایل زیر [data-shipment-sale-form] محدود شده‌اند تا فرم فروش
+ * عمومی و بقیهٔ فرم‌های سیستم هیچ تغییری نگیرند. فایل فقط از همان صفحه و از
+ * طریق section Styles لود می‌شود (در _Layout ثبت نشده است).
+ */
+
+[data-shipment-sale-form] {
+    --ssf-page-bg: #F1F3F7;
+    --ssf-card: #FFFFFF;
+    --ssf-border: #E6E8EE;
+    --ssf-border-soft: #EEF0F4;
+    --ssf-ink: #1B2333;
+    --ssf-ink-soft: #3C4557;
+    --ssf-muted: #7A8194;
+    --ssf-blue: #2F6FED;
+    --ssf-blue-dark: #2760D6;
+    --ssf-blue-soft: #F4F7FE;
+    --ssf-teal: #0F9E90;
+    --ssf-green: #17A34A;
+    --ssf-amber-soft: #FDF1E3;
+    --ssf-amber: #D98A2B;
+    --ssf-control-h: 40px;
+    --ssf-radius-card: 12px;
+    --ssf-radius-ctl: 8px;
+
+    display: block;
+    color: var(--ssf-ink);
+    font-size: 13px;
+}
+
+[data-shipment-sale-form] .ssf-shell {
+    background: var(--ssf-card);
+    border: 1px solid var(--ssf-border);
+    border-radius: var(--ssf-radius-card);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* ---------- 1. عنوان و توضیح ---------- */
+[data-shipment-sale-form] .ssf-head {
+    text-align: start;
+}
+
+[data-shipment-sale-form] .ssf-title {
+    margin: 0;
+    font-size: 20px;
+    line-height: 30px;
+    font-weight: 700;
+    color: var(--ssf-ink);
+}
+
+[data-shipment-sale-form] .ssf-subtitle {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    line-height: 20px;
+    color: var(--ssf-muted);
+}
+
+[data-shipment-sale-form] .ssf-alert:empty,
+[data-shipment-sale-form] .ssf-alert ul:empty {
+    display: none;
+}
+
+[data-shipment-sale-form] .ssf-alert {
+    margin: 0;
+    border-radius: var(--ssf-radius-ctl);
+    font-size: 12.5px;
+}
+
+/* ---------- 2. کارت‌های آماری ---------- */
+[data-shipment-sale-form] .ssf-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+[data-shipment-sale-form] .ssf-stat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    min-height: 62px;
+    background: var(--ssf-card);
+    border: 1px solid var(--ssf-border);
+    border-radius: 10px;
+}
+
+[data-shipment-sale-form] .ssf-stat-icon {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    background: #F1F3F7;
+    color: var(--ssf-muted);
+}
+
+[data-shipment-sale-form] .ssf-stat-icon.is-teal {
+    background: #E6F5F3;
+    color: var(--ssf-teal);
+}
+
+[data-shipment-sale-form] .ssf-stat-icon.is-blue {
+    background: var(--ssf-blue-soft);
+    color: var(--ssf-blue);
+}
+
+[data-shipment-sale-form] .ssf-stat-icon.is-amber {
+    background: var(--ssf-amber-soft);
+    color: var(--ssf-amber);
+}
+
+[data-shipment-sale-form] .ssf-stat-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+[data-shipment-sale-form] .ssf-stat-label {
+    font-size: 11.5px;
+    line-height: 16px;
+    color: var(--ssf-muted);
+}
+
+[data-shipment-sale-form] .ssf-stat-value {
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 700;
+    color: var(--ssf-ink);
+    white-space: nowrap;
+}
+
+[data-shipment-sale-form] .ssf-stat-value.is-teal {
+    color: var(--ssf-teal);
+}
+
+/* ---------- سکشن‌ها ---------- */
+[data-shipment-sale-form] .ssf-section {
+    border: 1px solid var(--ssf-border);
+    border-radius: var(--ssf-radius-card);
+    padding: 16px;
+    background: var(--ssf-card);
+}
+
+[data-shipment-sale-form] .ssf-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+[data-shipment-sale-form] .ssf-section-title {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 20px;
+    font-weight: 700;
+    color: var(--ssf-ink);
+}
+
+/* ---------- شبکهٔ فیلدها ---------- */
+[data-shipment-sale-form] .ssf-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 14px;
+}
+
+[data-shipment-sale-form] .ssf-col-3 { grid-column: span 3; }
+[data-shipment-sale-form] .ssf-col-4 { grid-column: span 4; }
+[data-shipment-sale-form] .ssf-col-6 { grid-column: span 6; }
+[data-shipment-sale-form] .ssf-col-8 { grid-column: span 8; }
+[data-shipment-sale-form] .ssf-col-12 { grid-column: span 12; }
+
+[data-shipment-sale-form] .ssf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+[data-shipment-sale-form] .ssf-label {
+    font-size: 11.5px;
+    line-height: 16px;
+    color: var(--ssf-muted);
+    text-align: center;
+}
+
+[data-shipment-sale-form] .ssf-req {
+    color: #D93025;
+}
+
+[data-shipment-sale-form] .ssf-input,
+[data-shipment-sale-form] .ssf-select,
+[data-shipment-sale-form] .ssf-textarea {
+    width: 100%;
+    min-height: var(--ssf-control-h);
+    padding: 8px 12px;
+    background: var(--ssf-card);
+    color: var(--ssf-ink);
+    border: 1px solid var(--ssf-border);
+    border-radius: var(--ssf-radius-ctl);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 22px;
+    transition: border-color 140ms ease-out, box-shadow 140ms ease-out;
+}
+
+[data-shipment-sale-form] .ssf-textarea {
+    min-height: 76px;
+    resize: vertical;
+}
+
+[data-shipment-sale-form] .ssf-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%237A8194' d='M6 8 0 2l1.4-1.4L6 5.2 10.6.6 12 2z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left 12px center;
+    padding-inline-end: 12px;
+    padding-inline-start: 30px;
+}
+
+[data-shipment-sale-form] .ssf-input:hover,
+[data-shipment-sale-form] .ssf-select:hover,
+[data-shipment-sale-form] .ssf-textarea:hover {
+    border-color: #D6DAE2;
+}
+
+[data-shipment-sale-form] .ssf-input:focus,
+[data-shipment-sale-form] .ssf-select:focus,
+[data-shipment-sale-form] .ssf-textarea:focus {
+    outline: none;
+    border-color: var(--ssf-blue);
+    box-shadow: 0 0 0 3px rgba(47, 111, 237, .12);
+}
+
+[data-shipment-sale-form] .ssf-input.is-readonly {
+    background: #FAFBFC;
+    color: var(--ssf-ink-soft);
+}
+
+[data-shipment-sale-form] .ssf-inputgroup {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+[data-shipment-sale-form] .ssf-inputgroup .ssf-input {
+    flex: 1 1 auto;
+}
+
+[data-shipment-sale-form] .ssf-addon {
+    flex: 0 0 auto;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    background: #FAFBFC;
+    border: 1px solid var(--ssf-border);
+    border-radius: var(--ssf-radius-ctl);
+    color: var(--ssf-muted);
+    font-size: 12px;
+}
+
+[data-shipment-sale-form] .ssf-field-error {
+    font-size: 11.5px;
+    line-height: 16px;
+    color: #D93025;
+}
+
+[data-shipment-sale-form] .ssf-field-error:empty {
+    display: none;
+}
+
+/* ---------- نوار راهنما + فروش کل محموله ---------- */
+[data-shipment-sale-form] .ssf-hint {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: var(--ssf-blue-soft);
+    border: 1px solid #E3EAFB;
+    border-radius: 10px;
+}
+
+[data-shipment-sale-form] .ssf-hint-text {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--ssf-blue);
+}
+
+/* ---------- دکمه‌ها ---------- */
+[data-shipment-sale-form] .ssf-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: var(--ssf-radius-ctl);
+    border: 1px solid var(--ssf-border);
+    background: var(--ssf-card);
+    color: var(--ssf-ink-soft);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+
+[data-shipment-sale-form] .ssf-btn:hover {
+    background: #F7F8FA;
+    border-color: #D6DAE2;
+    color: var(--ssf-ink);
+}
+
+[data-shipment-sale-form] .ssf-btn-icon {
+    flex: 0 0 auto;
+}
+
+[data-shipment-sale-form] .ssf-btn-primary {
+    background: var(--ssf-blue);
+    border-color: var(--ssf-blue);
+    color: #FFFFFF;
+}
+
+[data-shipment-sale-form] .ssf-btn-primary:hover {
+    background: var(--ssf-blue-dark);
+    border-color: var(--ssf-blue-dark);
+    color: #FFFFFF;
+}
+
+[data-shipment-sale-form] .ssf-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(47, 111, 237, .18);
+}
+
+/* ---------- ردیف پایین: جزئیات قراردادها + خلاصهٔ زنده ---------- */
+[data-shipment-sale-form] .ssf-lower {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 296px;
+    gap: 14px;
+    align-items: start;
+}
+
+[data-shipment-sale-form] .ssf-collapse {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ssf-muted);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+[data-shipment-sale-form] .ssf-collapse:hover {
+    background: #F1F3F7;
+}
+
+[data-shipment-sale-form] .ssf-collapse i {
+    transition: transform 140ms ease-out;
+}
+
+[data-shipment-sale-form] .ssf-collapse[aria-expanded="false"] i {
+    transform: rotate(-90deg);
+}
+
+[data-shipment-sale-form] .ssf-table-wrap {
+    border: 1px solid var(--ssf-border);
+    border-radius: 10px;
+    overflow-x: auto;
+}
+
+[data-shipment-sale-form] .ssf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+[data-shipment-sale-form] .ssf-table th,
+[data-shipment-sale-form] .ssf-table td {
+    padding: 9px 12px;
+    text-align: center;
+    border-bottom: 1px solid var(--ssf-border-soft);
+    border-inline-end: 1px solid var(--ssf-border-soft);
+    white-space: nowrap;
+}
+
+[data-shipment-sale-form] .ssf-table th:last-child,
+[data-shipment-sale-form] .ssf-table td:last-child {
+    border-inline-end: 0;
+}
+
+[data-shipment-sale-form] .ssf-table thead th {
+    background: #FAFBFC;
+    color: var(--ssf-muted);
+    font-weight: 500;
+    font-size: 11.5px;
+}
+
+[data-shipment-sale-form] .ssf-table tbody td {
+    color: var(--ssf-ink-soft);
+}
+
+[data-shipment-sale-form] .ssf-table .ssf-num {
+    color: var(--ssf-blue);
+    font-weight: 500;
+}
+
+[data-shipment-sale-form] .ssf-table .ssf-num.is-teal {
+    color: var(--ssf-teal);
+}
+
+[data-shipment-sale-form] .ssf-table .ssf-contract-company {
+    display: block;
+    font-size: 11px;
+    color: var(--ssf-muted);
+}
+
+[data-shipment-sale-form] .ssf-table tfoot th {
+    background: #FAFBFC;
+    font-weight: 700;
+    border-bottom: 0;
+}
+
+[data-shipment-sale-form] .ssf-table tbody tr:last-child td {
+    border-bottom: 1px solid var(--ssf-border-soft);
+}
+
+/* ---------- خلاصهٔ زنده فروش ---------- */
+[data-shipment-sale-form] .ssf-summary-list {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+[data-shipment-sale-form] .ssf-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--ssf-border-soft);
+}
+
+[data-shipment-sale-form] .ssf-summary-row:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+[data-shipment-sale-form] .ssf-summary-row dt {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ssf-muted);
+}
+
+[data-shipment-sale-form] .ssf-summary-row dd {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ssf-ink);
+    white-space: nowrap;
+}
+
+[data-shipment-sale-form] .ssf-summary-row dd.is-profit {
+    color: var(--ssf-green);
+}
+
+/* ---------- نوار دکمه‌های پایین ---------- */
+[data-shipment-sale-form] .ssf-footer {
+    /* ترتیب DOM: انصراف، ثبت و چاپ بل، ثبت فروش — در RTL دیده می‌شود:
+       «ثبت فروش» چپ‌ترین، سپس «ثبت و چاپ بل»، سپس «انصراف». */
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    padding-top: 16px;
+    border-top: 1px solid var(--ssf-border);
+}
+
+/* ---------- واکنش‌گرایی ---------- */
+@media (max-width: 1180px) {
+    [data-shipment-sale-form] .ssf-lower {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 980px) {
+    [data-shipment-sale-form] .ssf-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    [data-shipment-sale-form] .ssf-col-3,
+    [data-shipment-sale-form] .ssf-col-4 {
+        grid-column: span 6;
+    }
+}
+
+@media (max-width: 640px) {
+    [data-shipment-sale-form] .ssf-shell {
+        padding: 16px;
+    }
+
+    [data-shipment-sale-form] .ssf-stats {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    [data-shipment-sale-form] .ssf-col-3,
+    [data-shipment-sale-form] .ssf-col-4,
+    [data-shipment-sale-form] .ssf-col-6,
+    [data-shipment-sale-form] .ssf-col-8 {
+        grid-column: span 12;
+    }
+
+    [data-shipment-sale-form] .ssf-footer {
+        flex-wrap: wrap;
+    }
+}
+
+/* ---------- حالت تیره ---------- */
+:root[data-theme="dark"] [data-shipment-sale-form],
+[data-bs-theme="dark"] [data-shipment-sale-form] {
+    --ssf-card: var(--background-paper);
+    --ssf-border: var(--divider);
+    --ssf-border-soft: var(--divider);
+    --ssf-ink: var(--text-primary);
+    --ssf-ink-soft: var(--text-primary);
+    --ssf-muted: var(--text-secondary);
+    --ssf-blue-soft: rgba(47, 111, 237, .12);
+}
+
+:root[data-theme="dark"] [data-shipment-sale-form] .ssf-input.is-readonly,
+:root[data-theme="dark"] [data-shipment-sale-form] .ssf-addon,
+:root[data-theme="dark"] [data-shipment-sale-form] .ssf-table thead th,
+:root[data-theme="dark"] [data-shipment-sale-form] .ssf-table tfoot th,
+[data-bs-theme="dark"] [data-shipment-sale-form] .ssf-input.is-readonly,
+[data-bs-theme="dark"] [data-shipment-sale-form] .ssf-addon,
+[data-bs-theme="dark"] [data-shipment-sale-form] .ssf-table thead th,
+[data-bs-theme="dark"] [data-shipment-sale-form] .ssf-table tfoot th {
+    background: var(--background-neutral);
+}
+
+:root[data-theme="dark"] [data-shipment-sale-form] .ssf-stat-icon,
+[data-bs-theme="dark"] [data-shipment-sale-form] .ssf-stat-icon {
+    background: var(--background-neutral);
+}

@@ -1,0 +1,55 @@
+@using System.Text.Json
+@model AkSearchFilterModel
+@{
+    var searchLabel = UiText.T(Context, "جستجو", "Search");
+    var clearLabel = UiText.T(Context, "پاک کردن همه", "Clear all");
+    var filters = Model.Filters ?? new List<AkFilterDefinition>();
+    var config = filters.Select(f => new
+    {
+        key = f.Key,
+        label = f.Label,
+        type = f.Type,
+        secondKey = f.SecondKey,
+        options = (f.Options ?? new List<AkFilterOption>())
+            .Select(o => new { value = o.Value, label = o.Label })
+    });
+    var configJson = JsonSerializer.Serialize(config);
+}
+
+@* Client-side mode of the shared system search/filter contract. It uses the
+   same ak-filter chrome and JS owner without nesting a GET form inside the
+   surrounding operational POST form. *@
+<div class="ak-filter-host ak-filter-host--client">
+    <div class="ak-filter"
+         role="search"
+         data-ak-filter
+         data-ak-filter-client>
+        <div class="ak-filter-chips" data-ak-filter-chips aria-live="polite"></div>
+
+        <div class="ak-filter-input-wrap">
+            <input class="ak-filter-input"
+                   id="@Model.SearchName"
+                   type="search"
+                   value="@Model.SearchValue"
+                   autocomplete="off"
+                   data-ak-filter-input
+                   placeholder="@Model.Placeholder"
+                   aria-label="@Model.Placeholder" />
+
+            <button class="ak-filter-enter" type="button" data-ak-filter-enter>@searchLabel</button>
+        </div>
+
+        <button class="ak-filter-clear"
+                type="button"
+                data-ak-filter-clear
+                hidden
+                aria-label="@clearLabel">&times;</button>
+
+        <div class="ak-filter-popover" data-ak-filter-popover role="listbox" hidden></div>
+
+        @if (filters.Any())
+        {
+            <script type="application/json" data-ak-filter-config>@Html.Raw(configJson)</script>
+        }
+    </div>
+</div>

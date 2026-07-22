@@ -1,0 +1,26 @@
+@model PTGOilSystem.Web.Models.ShipmentPnl.ShipmentRecordEntityCell
+@* سلول موجودیت مشترک تمام لیست‌های پرونده محموله: آواتار + نام + کد. *@
+<span class="shipment-record-entity">
+    @if (!string.IsNullOrWhiteSpace(Model.AvatarIcon))
+    {
+        <span class="shipment-record-entity__avatar" aria-hidden="true"><i class="bi @Model.AvatarIcon"></i></span>
+    }
+    else if (!string.IsNullOrWhiteSpace(Model.AvatarText))
+    {
+        <span class="shipment-record-entity__avatar" aria-hidden="true">@Model.AvatarText</span>
+    }
+    <span class="shipment-record-entity__text">
+        @if (!string.IsNullOrWhiteSpace(Model.Href))
+        {
+            <a class="shipment-record-entity__primary" href="@Model.Href" title="@Model.Primary">@Model.Primary</a>
+        }
+        else
+        {
+            <span class="shipment-record-entity__primary" title="@Model.Primary">@Model.Primary</span>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.Secondary))
+        {
+            <span class="shipment-record-entity__secondary" dir="@(Model.SecondaryLtr ? "ltr" : null)">@Model.Secondary</span>
+        }
+    </span>
+</span>

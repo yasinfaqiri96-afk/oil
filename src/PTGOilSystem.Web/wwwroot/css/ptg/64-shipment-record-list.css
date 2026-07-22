@@ -1,0 +1,597 @@
+/* =====================================================================
+ * Shipment file (پرونده محموله) — record list component
+ * ---------------------------------------------------------------------
+ * تنها منبع استایل جدول‌های رکوردی صفحهٔ پرونده محموله.
+ * هر انتخابگر زیر ریشهٔ [data-shipment-details-page] قفل شده است، پس
+ * هیچ لیستی در صفحات دیگر سیستم را لمس نمی‌کند. هیچ قاعدهٔ اجباری و هیچ
+ * انتخابگر عمومی (table/thead/tr/.ak-table) خارج از این ریشه وجود ندارد.
+ * هندسه از تصویر مرجع تب فروش گرفته شده است.
+ * ===================================================================== */
+
+[data-shipment-details-page] {
+    --srl-card-bg: #FFFFFF;
+    --srl-card-border: #EDF0F2;
+    --srl-card-radius: 18px;
+    --srl-card-shadow: 0 4px 16px rgba(145, 158, 171, 0.08);
+
+    --srl-toolbar-height: 70px;
+    --srl-toolbar-padding: 20px;
+    --srl-title-color: #1C252E;
+    --srl-badge-bg: #172B4D;
+
+    --srl-head-height: 56px;
+    --srl-head-bg: #ECECEC;
+    --srl-head-color: #637381;
+
+    --srl-row-height: 75px;
+    --srl-row-divider: #E7EBEF;
+    --srl-row-hover: #FAFBFC;
+
+    --srl-num-color: #172B4D;
+    --srl-muted: #637381;
+    --srl-avatar-bg: #1877F2;
+    --srl-action-bg: #0C55C4;
+    --srl-action-bg-hover: #0A47A3;
+    --srl-kebab-color: #78909C;
+    --srl-kebab-hover: #F4F6F8;
+
+    --srl-col-date: 170px;
+    --srl-col-quantity: 160px;
+    --srl-col-price: 180px;
+    --srl-col-amount: 200px;
+    --srl-col-status: 140px;
+    --srl-col-actions: 64px;
+    --srl-col-code: 150px;
+    --srl-table-min-width: 1000px;
+}
+
+/* ---- Outer card ------------------------------------------------- */
+[data-shipment-details-page] .shipment-record-list {
+    display: block;
+    inline-size: 100%;
+    margin: 0 0 24px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--srl-card-border);
+    border-radius: var(--srl-card-radius);
+    background: var(--srl-card-bg);
+    box-shadow: var(--srl-card-shadow);
+}
+
+[data-shipment-details-page] .shipment-record-list:last-child {
+    margin-bottom: 0;
+}
+
+/* ---- Toolbar ---------------------------------------------------- */
+[data-shipment-details-page] .shipment-record-list__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    block-size: var(--srl-toolbar-height);
+    padding-inline: var(--srl-toolbar-padding);
+    background: var(--srl-card-bg);
+    border: 0;
+    list-style: none;
+    cursor: default;
+}
+
+[data-shipment-details-page] details.shipment-record-list > .shipment-record-list__toolbar {
+    cursor: pointer;
+}
+
+[data-shipment-details-page] .shipment-record-list__toolbar::-webkit-details-marker,
+[data-shipment-details-page] .shipment-record-list__toolbar::marker {
+    display: none;
+    content: "";
+}
+
+[data-shipment-details-page] .shipment-record-list__titlegroup {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-inline-size: 0;
+}
+
+[data-shipment-details-page] .shipment-record-list__icon {
+    color: var(--srl-muted);
+    font-size: 16px;
+    line-height: 1;
+}
+
+[data-shipment-details-page] .shipment-record-list__title {
+    color: var(--srl-title-color);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 24px;
+    white-space: nowrap;
+}
+
+[data-shipment-details-page] .shipment-record-list__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    block-size: 24px;
+    min-inline-size: 29px;
+    padding-inline: 7px;
+    border-radius: 6px;
+    background: var(--srl-badge-bg);
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+[data-shipment-details-page] .shipment-record-list__tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+}
+
+[data-shipment-details-page] .shipment-record-list__chevron {
+    color: var(--srl-muted);
+    font-size: 14px;
+    transition: transform var(--ptg-motion-fast, 140ms) ease-out;
+}
+
+[data-shipment-details-page] details.shipment-record-list[open] > .shipment-record-list__toolbar .shipment-record-list__chevron {
+    transform: rotate(180deg);
+}
+
+/* Meta text (subtotals, record counts) stays quiet next to the action. */
+[data-shipment-details-page] .shipment-record-list__tools .shipment-record-list__meta {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 10px;
+    color: var(--srl-muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+[data-shipment-details-page] .shipment-record-list__tools .shipment-record-list__meta strong {
+    color: var(--srl-num-color);
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ---- Primary action --------------------------------------------- */
+[data-shipment-details-page] .shipment-record-list__tools > .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    block-size: 40px;
+    min-block-size: 40px;
+    padding-inline: 14px;
+    border: 0;
+    border-radius: 7px;
+    background: var(--srl-action-bg);
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: none;
+    transition: background-color var(--ptg-motion-fast, 140ms) ease-out;
+}
+
+[data-shipment-details-page] .shipment-record-list__tools > .btn:hover,
+[data-shipment-details-page] .shipment-record-list__tools > .btn:focus {
+    background: var(--srl-action-bg-hover);
+    color: #FFFFFF;
+    transform: none;
+}
+
+[data-shipment-details-page] .shipment-record-list__tools > .btn:focus-visible {
+    outline: 2px solid rgba(12, 85, 196, 0.35);
+    outline-offset: 2px;
+}
+
+[data-shipment-details-page] .shipment-record-list__tools > .btn:disabled {
+    opacity: 0.55;
+}
+
+[data-shipment-details-page] .shipment-record-list__tools > .btn > i {
+    font-size: 14px;
+    line-height: 1;
+    margin: 0;
+}
+
+/* ---- Filter row -------------------------------------------------- */
+[data-shipment-details-page] .shipment-record-list__filter {
+    padding: 0 var(--srl-toolbar-padding) 14px;
+}
+
+/* ---- Scroll container -------------------------------------------- */
+[data-shipment-details-page] .shipment-record-list__scroll {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* ---- Table ------------------------------------------------------- */
+[data-shipment-details-page] .shipment-record-table {
+    inline-size: 100%;
+    min-inline-size: var(--srl-table-min-width);
+    margin: 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+    background: var(--srl-card-bg);
+}
+
+[data-shipment-details-page] .shipment-record-table > thead > tr > th {
+    block-size: var(--srl-head-height);
+    height: var(--srl-head-height);
+    padding: 0 16px;
+    border: 0;
+    background: var(--srl-head-bg);
+    color: var(--srl-head-color);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    text-align: start;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+[data-shipment-details-page] .shipment-record-table > tbody > tr {
+    background: var(--srl-card-bg);
+}
+
+[data-shipment-details-page] .shipment-record-table > tbody > tr > td {
+    block-size: var(--srl-row-height);
+    height: var(--srl-row-height);
+    padding: 0 16px;
+    border: 0;
+    border-block-end: 1px dotted var(--srl-row-divider);
+    background: transparent;
+    color: var(--srl-title-color);
+    font-size: 14px;
+    line-height: 22px;
+    vertical-align: middle;
+}
+
+[data-shipment-details-page] .shipment-record-table > tbody > tr:last-child > td {
+    border-block-end: 0;
+}
+
+[data-shipment-details-page] .shipment-record-table > tbody > tr:hover > td {
+    background: var(--srl-row-hover);
+}
+
+/* Expanded breakdown rows are a quiet continuation of their parent row. */
+[data-shipment-details-page] .shipment-record-table > tbody > tr.shipment-record-table__breakdown > td {
+    block-size: auto;
+    height: auto;
+    padding: 0 16px 16px;
+    background: var(--srl-row-hover);
+}
+
+[data-shipment-details-page] .shipment-record-table > tbody > tr.shipment-record-table__breakdown:hover > td {
+    background: var(--srl-row-hover);
+}
+
+/* ---- Column roles ------------------------------------------------ */
+[data-shipment-details-page] .shipment-record-table .is-date { inline-size: var(--srl-col-date); }
+[data-shipment-details-page] .shipment-record-table .is-quantity { inline-size: var(--srl-col-quantity); }
+[data-shipment-details-page] .shipment-record-table .is-price { inline-size: var(--srl-col-price); }
+[data-shipment-details-page] .shipment-record-table .is-amount { inline-size: var(--srl-col-amount); }
+[data-shipment-details-page] .shipment-record-table .is-status { inline-size: var(--srl-col-status); }
+[data-shipment-details-page] .shipment-record-table .is-actions { inline-size: var(--srl-col-actions); }
+[data-shipment-details-page] .shipment-record-table .is-code { inline-size: var(--srl-col-code); }
+
+[data-shipment-details-page] .shipment-record-table .is-entity {
+    text-align: start;
+}
+
+[data-shipment-details-page] .shipment-record-table .is-date,
+[data-shipment-details-page] .shipment-record-table .is-quantity,
+[data-shipment-details-page] .shipment-record-table .is-price,
+[data-shipment-details-page] .shipment-record-table .is-amount,
+[data-shipment-details-page] .shipment-record-table .is-status,
+[data-shipment-details-page] .shipment-record-table .is-actions,
+[data-shipment-details-page] .shipment-record-table .is-code {
+    text-align: center;
+}
+
+[data-shipment-details-page] .shipment-record-table .is-text {
+    text-align: start;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Numeric / date cells ---------------------------------------- */
+[data-shipment-details-page] .shipment-record-table > tbody > tr > td.is-quantity,
+[data-shipment-details-page] .shipment-record-table > tbody > tr > td.is-price,
+[data-shipment-details-page] .shipment-record-table > tbody > tr > td.is-amount,
+[data-shipment-details-page] .shipment-record-table > tbody > tr > td.is-date {
+    color: var(--srl-num-color);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 22px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* عدد همیشه LTR می‌ماند تا در RTL به‌هم نریزد؛ واحد در جای فارسی خود می‌ماند. */
+[data-shipment-details-page] .shipment-record-table .shipment-record-figure {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+[data-shipment-details-page] .shipment-record-table .shipment-record-unit {
+    color: var(--srl-num-color);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+[data-shipment-details-page] .shipment-record-table .shipment-record-subtext {
+    display: block;
+    color: var(--srl-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 18px;
+}
+
+/* ---- Entity cell -------------------------------------------------- */
+[data-shipment-details-page] .shipment-record-entity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-inline-size: 0;
+}
+
+[data-shipment-details-page] .shipment-record-entity__avatar {
+    flex: 0 0 40px;
+    display: grid;
+    place-items: center;
+    inline-size: 40px;
+    block-size: 40px;
+    border-radius: 50%;
+    background: var(--srl-avatar-bg);
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+[data-shipment-details-page] .shipment-record-entity__text {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+}
+
+[data-shipment-details-page] .shipment-record-entity__primary {
+    color: var(--srl-title-color);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 21px;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+[data-shipment-details-page] a.shipment-record-entity__primary:hover {
+    text-decoration: underline;
+}
+
+[data-shipment-details-page] .shipment-record-entity__secondary {
+    color: var(--srl-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Status badge -------------------------------------------------- */
+[data-shipment-details-page] .shipment-record-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 78px;
+    block-size: 26px;
+    padding-inline: 10px;
+    border: 0;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+[data-shipment-details-page] .shipment-record-badge.is-success { background: #E7F8EE; color: #1A9E54; }
+[data-shipment-details-page] .shipment-record-badge.is-info { background: #E8F1FF; color: #1877F2; }
+[data-shipment-details-page] .shipment-record-badge.is-warning { background: #FFF4E5; color: #B76E00; }
+[data-shipment-details-page] .shipment-record-badge.is-danger { background: #FFEDE8; color: #D92D20; }
+[data-shipment-details-page] .shipment-record-badge.is-neutral { background: #F1F3F5; color: #637381; }
+
+/* ---- Actions cell --------------------------------------------------- */
+[data-shipment-details-page] .shipment-record-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+[data-shipment-details-page] .shipment-record-actions .shipment-record-kebab {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 32px;
+    block-size: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--srl-kebab-color);
+    font-size: 16px;
+    line-height: 1;
+    box-shadow: none;
+}
+
+[data-shipment-details-page] .shipment-record-actions .shipment-record-kebab:hover,
+[data-shipment-details-page] .shipment-record-actions .shipment-record-kebab[aria-expanded="true"] {
+    background: var(--srl-kebab-hover);
+    color: var(--srl-kebab-color);
+}
+
+[data-shipment-details-page] .shipment-record-actions .shipment-record-kebab:focus-visible {
+    outline: 2px solid rgba(12, 85, 196, 0.35);
+    outline-offset: 2px;
+}
+
+/* لیست‌هایی که کنار منوی سه‌نقطه یک اقدام اصلیِ ردیف دارند (سفرها). */
+[data-shipment-details-page] .shipment-record-table.has-wide-actions .is-actions {
+    inline-size: 210px;
+}
+
+[data-shipment-details-page] .shipment-record-actions > .btn:not(.shipment-record-kebab) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    block-size: 32px;
+    padding-inline: 12px;
+    border: 0;
+    border-radius: 7px;
+    background: var(--srl-action-bg);
+    color: #FFFFFF;
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+[data-shipment-details-page] .shipment-record-actions > .btn:not(.shipment-record-kebab):hover {
+    background: var(--srl-action-bg-hover);
+    color: #FFFFFF;
+}
+
+[data-shipment-details-page] .shipment-record-list__filter .ak-input {
+    max-inline-size: 360px;
+}
+
+/* ---- Footer totals ---------------------------------------------------- */
+[data-shipment-details-page] .shipment-record-table > tfoot > tr > th,
+[data-shipment-details-page] .shipment-record-table > tfoot > tr > td {
+    block-size: 56px;
+    height: 56px;
+    padding: 0 16px;
+    border: 0;
+    border-block-start: 1px solid var(--srl-row-divider);
+    background: #FAFBFC;
+    color: var(--srl-num-color);
+    font-size: 14px;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+[data-shipment-details-page] .shipment-record-table > tfoot > tr > th {
+    text-align: start;
+    color: var(--srl-muted);
+}
+
+/* ---- Pager -------------------------------------------------------------
+ * صفحه‌بندی از کامپوننت مشترک سیستم می‌آید (tables.js → .ptg-client-pager)
+ * و ظاهرش را از 15-system-lists.css می‌گیرد. اینجا فقط داخل کارت جا می‌افتد. */
+[data-shipment-details-page] .shipment-record-list > .ptg-client-pager {
+    min-block-size: 56px;
+    padding-inline: var(--srl-toolbar-padding);
+    border-block-start-color: var(--srl-row-divider);
+}
+
+/* ---- Empty state ------------------------------------------------------ */
+[data-shipment-details-page] .shipment-record-table__empty-row > td {
+    block-size: auto;
+    height: auto;
+    padding: 0;
+    border-block-end: 0;
+}
+
+[data-shipment-details-page] .shipment-record-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-block-size: 180px;
+    padding: 24px;
+    text-align: center;
+}
+
+[data-shipment-details-page] .shipment-record-empty > i {
+    color: #C4CDD5;
+    font-size: 32px;
+    line-height: 1;
+}
+
+[data-shipment-details-page] .shipment-record-empty > p {
+    margin: 0;
+    color: var(--srl-muted);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 22px;
+}
+
+/* ---- Nested breakdown table ------------------------------------------- */
+[data-shipment-details-page] .shipment-record-subtable {
+    inline-size: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    border: 1px solid var(--srl-card-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--srl-card-bg);
+}
+
+[data-shipment-details-page] .shipment-record-subtable th {
+    padding: 10px 14px;
+    border: 0;
+    border-block-end: 1px solid var(--srl-row-divider);
+    background: #F6F8FA;
+    color: var(--srl-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: start;
+    white-space: nowrap;
+}
+
+[data-shipment-details-page] .shipment-record-subtable td {
+    padding: 10px 14px;
+    border: 0;
+    border-block-end: 1px dotted var(--srl-row-divider);
+    color: var(--srl-title-color);
+    font-size: 13px;
+    line-height: 20px;
+}
+
+[data-shipment-details-page] .shipment-record-subtable tr:last-child td {
+    border-block-end: 0;
+}
+
+/* ---- Responsive -------------------------------------------------------- */
+@media (max-width: 767.98px) {
+    [data-shipment-details-page] .shipment-record-list__toolbar {
+        block-size: auto;
+        min-block-size: var(--srl-toolbar-height);
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-block: 12px;
+    }
+}
+
+@media print {
+    [data-shipment-details-page] .shipment-record-list {
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    [data-shipment-details-page] .shipment-record-list__scroll {
+        overflow: visible;
+    }
+}

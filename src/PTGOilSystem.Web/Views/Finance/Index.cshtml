@@ -1,0 +1,61 @@
+@{
+    ViewData["Title"] = UiText.T(Context, "مالی", "Finance");
+
+    // هاب مالی به سبک هاب گزارش‌ها: فقط لینک‌های ثابت، بدون محاسبه.
+    var groups = new[]
+    {
+        new
+        {
+            TitleFa = "روزنامه و حساب‌ها",
+            TitleEn = "Journal & Accounts",
+            Items = new[]
+            {
+                new { Controller = "Payments", Action = "Index", TitleFa = "روزنامه و اسناد", TitleEn = "Journal & Documents", DescriptionFa = "ثبت دریافت‌ها، پرداخت‌ها و اسناد روزنامچه.", DescriptionEn = "Record receipts, payments and journal documents.", Icon = "bi-journal-text" },
+                new { Controller = "Ledger", Action = "Index", TitleFa = "حساب‌ها و دفتر کل", TitleEn = "Accounts & General Ledger", DescriptionFa = "دفتر کل و گردش حساب‌ها.", DescriptionEn = "General ledger and account movements.", Icon = "bi-bank" },
+                new { Controller = "ChartOfAccounts", Action = "Index", TitleFa = "سرفصل حساب‌ها", TitleEn = "Chart of Accounts", DescriptionFa = "ساختار سرفصل‌های حساب‌داری.", DescriptionEn = "Accounting chart-of-accounts structure.", Icon = "bi-diagram-3" },
+                new { Controller = "CashAccounts", Action = "Index", TitleFa = "حساب‌های نقد/بانک", TitleEn = "Cash & Bank Accounts", DescriptionFa = "صندوق‌ها و حساب‌های بانکی.", DescriptionEn = "Cash boxes and bank accounts.", Icon = "bi-cash-coin" }
+            }
+        },
+        new
+        {
+            TitleFa = "تسویه و آشتی‌گری",
+            TitleEn = "Settlement & Reconciliation",
+            Items = new[]
+            {
+                new { Controller = "Reconciliation", Action = "Index", TitleFa = "آشتی‌گری", TitleEn = "Reconciliation", DescriptionFa = "بررسی و اصلاح مغایرت‌های مالی.", DescriptionEn = "Review and fix financial discrepancies.", Icon = "bi-shuffle" },
+                new { Controller = "ThreeWaySettlement", Action = "Index", TitleFa = "تسویه سه‌طرفه", TitleEn = "Three-way Settlement", DescriptionFa = "تسویه میان مشتری، صراف و تأمین‌کننده.", DescriptionEn = "Settle between customer, sarraf and supplier.", Icon = "bi-arrow-left-right" },
+                new { Controller = "ContractBalanceTransfers", Action = "Index", TitleFa = "انتقال مانده قرارداد", TitleEn = "Balance Transfers", DescriptionFa = "انتقال کنترل‌شدهٔ مانده بین قراردادها.", DescriptionEn = "Controlled balance transfer between contracts.", Icon = "bi-arrow-repeat" }
+            }
+        },
+        new
+        {
+            TitleFa = "سال مالی",
+            TitleEn = "Fiscal Year",
+            Items = new[]
+            {
+                new { Controller = "FiscalYears", Action = "Index", TitleFa = "سال مالی و بستن سال", TitleEn = "Fiscal Year & Closing", DescriptionFa = "مدیریت سال مالی و مراحل بستن سال.", DescriptionEn = "Manage fiscal year and year-end closing.", Icon = "bi-calendar-check" }
+            }
+        }
+    };
+}
+
+<div class="akrep-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
+    @foreach (var group in groups)
+    {
+        <section class="akrep-group" aria-label="@UiText.T(Context, group.TitleFa, group.TitleEn)">
+            <h2 class="akrep-group-title">@UiText.T(Context, group.TitleFa, group.TitleEn)</h2>
+            <div class="akrep-grid">
+                @foreach (var item in group.Items)
+                {
+                    <a class="akrep-item" asp-controller="@item.Controller" asp-action="@item.Action">
+                        <span class="akrep-ico" aria-hidden="true"><i class="bi @item.Icon"></i></span>
+                        <span class="akrep-copy">
+                            <strong>@UiText.T(Context, item.TitleFa, item.TitleEn)</strong>
+                            <small>@UiText.T(Context, item.DescriptionFa, item.DescriptionEn)</small>
+                        </span>
+                    </a>
+                }
+            </div>
+        </section>
+    }
+</div>

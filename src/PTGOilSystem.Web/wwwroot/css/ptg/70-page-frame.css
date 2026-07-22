@@ -1,0 +1,141 @@
+/*
+ * PTG shared PageFrame.
+ *
+ * The frame is sized inside .ptg-main, after the sidebar column has already
+ * been resolved. It is the only owner of page max-width and horizontal gutter.
+ */
+
+body.boltz-shell.app-shell-authenticated .ptg-page {
+    inline-size: 100%;
+    min-inline-size: 0;
+    padding-inline: var(--layout-gutter-desktop);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-page-frame {
+    display: grid;
+    align-content: start;
+    gap: var(--ptg-space-gap);
+    inline-size: 100%;
+    max-inline-size: var(--layout-content-max);
+    min-inline-size: 0;
+    margin-inline: auto;
+    padding-inline: 0;
+}
+
+/* Group sale/expense are wide operational workspaces with ten-column source
+   tables and a live summary rail. Match their actual page marker instead of
+   route state, then release both constraints that can narrow the workspace:
+   the shared 1200px cap and the regular desktop/laptop page gutter. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-group-operation-page--wide) {
+    max-inline-size: 1520px;
+}
+
+/* The generic table-form rule in 50-ak-components.css uses inline-size and the
+   inherited wide-form token, so changing only PageFrame/width leaves the form
+   itself at 1200px. Release that inner logical-size constraint as well. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > .ak-group-operation-page--wide {
+    --ak-form-content-wide-max: 100%;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > .ak-group-operation-page--wide > form.ak-form {
+    inline-size: 100%;
+    max-inline-size: none;
+    margin-inline: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+@media (min-width: 768px) {
+    body.boltz-shell.app-shell-authenticated .ptg-page:has(> .ptg-page-frame > .ak-group-operation-page--wide) {
+        padding-inline: 12px;
+    }
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(
+    .summary-strip,
+    .summary-strip-page-top,
+    .ptg-summary-strip,
+    [data-section-tabs-strip]
+) {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    margin-inline: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(
+    .ak-list-page,
+    .ak-form-page,
+    .ak-detail-page,
+    .dashboard-page,
+    .reports-page,
+    .journal-page,
+    .receipt-create-page,
+    .operations-reference-page,
+    .loading-reference-page,
+    .expense-reference-page,
+    .contract-details-page
+) {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    margin-inline: 0;
+}
+
+/* PageFrame owns the gutter; a top-level Bootstrap container must not add a
+   second max-width or a second pair of horizontal paddings. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(
+    .container,
+    .container-sm,
+    .container-md,
+    .container-lg,
+    .container-xl,
+    .container-xxl,
+    .container-fluid
+) {
+    --bs-gutter-x: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    padding-inline: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+    .table-responsive,
+    .ak-table-wrap,
+    .tab-content,
+    .tab-pane
+) {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+/* Laptop gutters are fixed workspace values; viewport units would incorrectly
+   include the sidebar and make the content progressively narrower. */
+@media (min-width: 1200px) and (max-width: 1599.98px) {
+    body.boltz-shell.app-shell-authenticated .ptg-page {
+        padding-inline: var(--layout-gutter-laptop);
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1199.98px) {
+    body.boltz-shell.app-shell-authenticated .ptg-page {
+        padding-inline: var(--layout-gutter-compact);
+    }
+}
+
+@media (max-width: 767.98px) {
+    body.boltz-shell.app-shell-authenticated .ptg-page {
+        padding-inline: var(--layout-gutter-mobile);
+    }
+}
+
+@media print {
+    body.boltz-shell.app-shell-authenticated .ptg-page {
+        padding-inline: 0;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame {
+        max-inline-size: none;
+    }
+}

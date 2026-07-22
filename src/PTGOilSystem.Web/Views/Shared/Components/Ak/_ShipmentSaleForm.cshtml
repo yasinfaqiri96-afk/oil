@@ -1,0 +1,289 @@
+@*
+    ShipmentSaleForm — مارک‌آپ اختصاصی صفحهٔ «ثبت فروش از جریان حمل محموله / کشتی».
+    فقط از Views/Sales/CreateFromShipment.cshtml استفاده می‌شود؛ استایل آن در
+    wwwroot/css/ptg/91-shipment-sale-form.css و زیر [data-shipment-sale-form] محدود است.
+
+    بخش‌ها: ۱) عنوان و توضیح  ۲) کارت‌های آماری  ۳) منبع فروش  ۴) اطلاعات فروش
+            ۵) جزئیات قراردادها  ۶) خلاصهٔ زندهٔ فروش  ۷) نوار دکمه‌های پایین
+*@
+@model PTGOilSystem.Web.Models.Sales.ShipmentFlowSaleCreateViewModel
+@using System.Globalization
+@{
+    var cancelUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl)
+        ? Model.ReturnUrl
+        : Url.Action("Details", "ShipmentPnl", new { id = Model.ShipmentId });
+    var baseCurrency = PTGOilSystem.Web.Services.SystemCurrency.BaseCurrencyCode;
+    var shipmentTitle = string.IsNullOrWhiteSpace(Model.VesselName) ? Model.ShipmentCode : Model.VesselName;
+    var mt = UiText.T(Context, "تن", "MT");
+}
+
+<div class="ssf" data-shipment-sale-form>
+    <form asp-action="CreateFromShipment" asp-controller="Sales" method="post" class="ssf-shell" id="shipment-flow-sale-form">
+        @Html.AntiForgeryToken()
+        <input asp-for="ShipmentId" type="hidden" />
+        <input asp-for="ReturnUrl" type="hidden" />
+
+        @* ۱. عنوان و توضیح صفحه *@
+        <header class="ssf-head">
+            <h1 class="ssf-title">@UiText.T(Context, "ثبت فروش از جریان حمل محموله / کشتی", "Register Sale from Shipment in Transit")</h1>
+            <p class="ssf-subtitle">@UiText.T(Context, "فروش مستقیم از بار در جریان حمل، بدون ورود به مخزن", "Direct sale from goods in transit without inventory receipt")</p>
+        </header>
+
+        <div asp-validation-summary="All" class="alert alert-danger ssf-alert" role="alert"></div>
+
+        @* ۲. چهار کارت آماری *@
+        <div class="ssf-stats">
+            <div class="ssf-stat">
+                <span class="ssf-stat-icon is-teal"><i class="bi bi-tag" aria-hidden="true"></i></span>
+                <div class="ssf-stat-body">
+                    <span class="ssf-stat-label">@UiText.T(Context, "مقدار قابل فروش", "Sellable quantity")</span>
+                    <strong class="ssf-stat-value is-teal">@Model.AvailableQuantityMt.ToString("N3") @mt</strong>
+                </div>
+            </div>
+            <div class="ssf-stat">
+                <span class="ssf-stat-icon is-blue"><i class="bi bi-pie-chart" aria-hidden="true"></i></span>
+                <div class="ssf-stat-body">
+                    <span class="ssf-stat-label">@UiText.T(Context, "فروش قبلی", "Previous sales")</span>
+                    <strong class="ssf-stat-value">@Model.PreviousSalesQuantityMt.ToString("N3") @mt</strong>
+                </div>
+            </div>
+            <div class="ssf-stat">
+                <span class="ssf-stat-icon is-amber"><i class="bi bi-receipt" aria-hidden="true"></i></span>
+                <div class="ssf-stat-body">
+                    <span class="ssf-stat-label">@UiText.T(Context, "کسری ثبت‌شده", "Registered shortage")</span>
+                    <strong class="ssf-stat-value">@Model.RegisteredShortageQuantityMt.ToString("N3") @mt</strong>
+                </div>
+            </div>
+            <div class="ssf-stat">
+                <span class="ssf-stat-icon"><i class="bi bi-box-seam" aria-hidden="true"></i></span>
+                <div class="ssf-stat-body">
+                    <span class="ssf-stat-label">@UiText.T(Context, "بار قابل فروش در جریان", "Loaded quantity in transit")</span>
+                    <strong class="ssf-stat-value">@Model.LoadedQuantityMt.ToString("N3") @mt</strong>
+                </div>
+            </div>
+        </div>
+
+        @* ۳. منبع فروش *@
+        <section class="ssf-section">
+            <header class="ssf-section-head">
+                <h2 class="ssf-section-title">@UiText.T(Context, "۱. منبع فروش", "1. Sale Source")</h2>
+            </header>
+            <div class="ssf-grid">
+                <div class="ssf-field ssf-col-3">
+                    <span class="ssf-label">@UiText.T(Context, "محموله / کشتی", "Shipment / Vessel")</span>
+                    <input class="ssf-input is-readonly" value="@shipmentTitle" readonly aria-readonly="true" />
+                </div>
+                <div class="ssf-field ssf-col-3">
+                    <span class="ssf-label">@UiText.T(Context, "محصول", "Product")</span>
+                    <input class="ssf-input is-readonly" value="@Model.ProductName" readonly aria-readonly="true" />
+                </div>
+                <div class="ssf-field ssf-col-3">
+                    <span class="ssf-label">@UiText.T(Context, "مرحله فعلی بار", "Current stage")</span>
+                    <input class="ssf-input is-readonly" value="@Model.CurrentStageName" readonly aria-readonly="true" />
+                </div>
+                <div class="ssf-field ssf-col-3">
+                    <label asp-for="SaleDate" class="ssf-label"></label>
+                    <input asp-for="SaleDate" type="date" class="ssf-input" />
+                    <span asp-validation-for="SaleDate" class="ssf-field-error"></span>
+                </div>
+
+                @if (Model.SourceContractRequired)
+                {
+                    <div class="ssf-field ssf-col-6">
+                        <label asp-for="SourcePurchaseContractId" class="ssf-label">
+                            @UiText.T(Context, "قرارداد منبع بار", "Source purchase contract") <span class="ssf-req">*</span>
+                        </label>
+                        <select asp-for="SourcePurchaseContractId" class="ssf-select" data-source-contract>
+                            <option value="">@UiText.T(Context, "انتخاب قرارداد منبع", "Select source contract")</option>
+                            @foreach (var row in Model.Contracts)
+                            {
+                                <option value="@row.ContractId"
+                                        data-available="@row.AvailableQuantityMt.ToString(CultureInfo.InvariantCulture)"
+                                        selected="@(Model.SourcePurchaseContractId == row.ContractId)">
+                                    @row.ContractNumber@(string.IsNullOrWhiteSpace(row.CompanyName) ? "" : " — جواز " + row.CompanyName) (@row.AvailableQuantityMt.ToString("N3") @mt)
+                                </option>
+                            }
+                        </select>
+                        <span asp-validation-for="SourcePurchaseContractId" class="ssf-field-error"></span>
+                    </div>
+                }
+                else
+                {
+                    @* فروش سهمی از همهٔ قراردادهای محموله؛ مقدار انتخاب‌شده (در محمولهٔ تک‌قراردادی) حفظ می‌شود. *@
+                    <input asp-for="SourcePurchaseContractId" type="hidden" />
+                }
+            </div>
+
+            <div class="ssf-hint">
+                <p class="ssf-hint-text">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    <span>@UiText.T(Context, "مقدار قابل فروش = بار موجود در جریان - کسری‌های ثبت‌شده - فروش‌های قبلی", "Sellable = loaded in transit − registered shortage − previous sales")</span>
+                </p>
+                <button type="button" class="ssf-btn" data-sell-all>@UiText.T(Context, "فروش کل محموله", "Sell entire shipment")</button>
+            </div>
+        </section>
+
+        @* ۴. اطلاعات فروش *@
+        <section class="ssf-section">
+            <header class="ssf-section-head">
+                <h2 class="ssf-section-title">@UiText.T(Context, "۲. اطلاعات فروش", "2. Sale Information")</h2>
+            </header>
+            <div class="ssf-grid">
+                <div class="ssf-field ssf-col-4">
+                    <label asp-for="CustomerId" class="ssf-label"></label>
+                    <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ssf-select">
+                        <option value="">@UiText.T(Context, "انتخاب مشتری", "Select customer")</option>
+                    </select>
+                    <span asp-validation-for="CustomerId" class="ssf-field-error"></span>
+                </div>
+                <div class="ssf-field ssf-col-4">
+                    <label asp-for="QuantityMt" class="ssf-label"></label>
+                    <div class="ssf-inputgroup">
+                        <input asp-for="QuantityMt" class="ssf-input" min="0.0001" step="0.0001" data-sale-quantity />
+                        <span class="ssf-addon">@mt</span>
+                    </div>
+                    <span asp-validation-for="QuantityMt" class="ssf-field-error"></span>
+                </div>
+                <div class="ssf-field ssf-col-4">
+                    <label asp-for="UnitPriceInCurrency" class="ssf-label"></label>
+                    <div class="ssf-inputgroup">
+                        <input asp-for="UnitPriceInCurrency" class="ssf-input" min="0.0001" step="0.0001" data-sale-unit-price />
+                        <span class="ssf-addon" data-currency-unit>@Model.Currency</span>
+                    </div>
+                    <span asp-validation-for="UnitPriceInCurrency" class="ssf-field-error"></span>
+                </div>
+
+                <div class="ssf-field ssf-col-4">
+                    <label asp-for="Currency" class="ssf-label"></label>
+                    <select asp-for="Currency" asp-items="ViewBag.Currencies" class="ssf-select" data-sale-currency></select>
+                    <span asp-validation-for="Currency" class="ssf-field-error"></span>
+                </div>
+                <div class="ssf-field ssf-col-8">
+                    <label asp-for="InvoiceNumber" class="ssf-label"></label>
+                    <input asp-for="InvoiceNumber" class="ssf-input" />
+                    <span asp-validation-for="InvoiceNumber" class="ssf-field-error"></span>
+                </div>
+                <div class="ssf-field ssf-col-4" data-fx-wrap @(string.Equals(Model.Currency, baseCurrency, StringComparison.OrdinalIgnoreCase) ? "hidden" : null)>
+                    <label asp-for="AppliedFxRateToUsd" class="ssf-label"></label>
+                    <input asp-for="AppliedFxRateToUsd" class="ssf-input" min="0.000001" step="0.000001" data-sale-fx />
+                    <span asp-validation-for="AppliedFxRateToUsd" class="ssf-field-error"></span>
+                </div>
+
+                <div class="ssf-field ssf-col-6">
+                    <label asp-for="DestinationLocationId" class="ssf-label"></label>
+                    <select asp-for="DestinationLocationId" asp-items="ViewBag.Destinations" class="ssf-select">
+                        <option value="">@UiText.T(Context, "بدون مقصد مشخص", "No specific destination")</option>
+                    </select>
+                    <span asp-validation-for="DestinationLocationId" class="ssf-field-error"></span>
+                </div>
+                <div class="ssf-field ssf-col-6">
+                    <label asp-for="Notes" class="ssf-label"></label>
+                    <textarea asp-for="Notes" class="ssf-textarea" rows="3" placeholder="@UiText.T(Context, "اختیاری", "Optional")"></textarea>
+                    <span asp-validation-for="Notes" class="ssf-field-error"></span>
+                </div>
+            </div>
+        </section>
+
+        <div class="ssf-lower">
+            @* ۵. جزئیات قراردادها *@
+            <section class="ssf-section">
+                <header class="ssf-section-head">
+                    <h2 class="ssf-section-title">@UiText.T(Context, "جزئیات قراردادها", "Contract Details")</h2>
+                    <button type="button" class="ssf-collapse" data-ssf-collapse aria-expanded="true"
+                            aria-controls="ssf-contracts-panel"
+                            aria-label="@UiText.T(Context, "باز و بسته کردن جزئیات قراردادها", "Toggle contract details")">
+                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="ssf-table-wrap" id="ssf-contracts-panel">
+                    <table class="ssf-table">
+                        <thead>
+                            <tr>
+                                <th>@UiText.T(Context, "قرارداد", "Contract")</th>
+                                <th>@UiText.T(Context, "مقدار در کشتی", "Quantity on vessel")</th>
+                                <th>@UiText.T(Context, "کسری سهمی", "Allocated shortage")</th>
+                                <th>@UiText.T(Context, "مقدار قابل فروش", "Sellable quantity")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in Model.Contracts)
+                            {
+                                <tr data-contract-row
+                                    data-contract-id="@row.ContractId"
+                                    data-available="@row.AvailableQuantityMt.ToString(CultureInfo.InvariantCulture)"
+                                    data-total-cost="@row.TotalCostUsd.ToString(CultureInfo.InvariantCulture)">
+                                    <td>
+                                        @row.ContractNumber
+                                        @if (!string.IsNullOrWhiteSpace(row.CompanyName))
+                                        {
+                                            <span class="ssf-contract-company">@row.CompanyName</span>
+                                        }
+                                    </td>
+                                    <td class="ssf-num">@row.LoadedQuantityMt.ToString("N3") @mt</td>
+                                    <td class="ssf-num">@row.ShortageQuantityMt.ToString("N3") @mt</td>
+                                    <td class="ssf-num is-teal">@row.AvailableQuantityMt.ToString("N3") @mt</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th>@UiText.T(Context, "مجموع", "Total")</th>
+                                <th class="ssf-num">@Model.LoadedQuantityMt.ToString("N3") @mt</th>
+                                <th class="ssf-num">@Model.RegisteredShortageQuantityMt.ToString("N3") @mt</th>
+                                <th class="ssf-num is-teal">@Model.AvailableQuantityMt.ToString("N3") @mt</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </section>
+
+            @* ۶. خلاصه زنده فروش *@
+            <section class="ssf-section">
+                <header class="ssf-section-head">
+                    <h2 class="ssf-section-title">@UiText.T(Context, "۳. خلاصه زنده فروش", "3. Live Sale Summary")</h2>
+                </header>
+                <dl class="ssf-summary-list">
+                    <div class="ssf-summary-row">
+                        <dt>@UiText.T(Context, "مقدار فروش", "Sale quantity")</dt>
+                        <dd data-summary-quantity>0.000 @mt</dd>
+                    </div>
+                    <div class="ssf-summary-row">
+                        <dt>@UiText.T(Context, "قیمت فروش هر تن", "Unit sale price")</dt>
+                        <dd data-summary-price>0</dd>
+                    </div>
+                    <div class="ssf-summary-row">
+                        <dt>@UiText.T(Context, "کل فروش", "Total sale")</dt>
+                        <dd data-summary-total>0</dd>
+                    </div>
+                    <div class="ssf-summary-row">
+                        <dt>@UiText.T(Context, "قیمت تمام‌شده تقریبی", "Estimated cost")</dt>
+                        <dd data-summary-cost>USD 0.00</dd>
+                    </div>
+                    <div class="ssf-summary-row">
+                        <dt>@UiText.T(Context, "سود تخمینی", "Estimated profit")</dt>
+                        <dd class="is-profit" data-summary-profit>USD 0.00</dd>
+                    </div>
+                    <div class="ssf-summary-row">
+                        <dt>@UiText.T(Context, "باقی‌مانده بعد از فروش", "Remaining after sale")</dt>
+                        <dd data-summary-remaining>@Model.AvailableQuantityMt.ToString("N3", CultureInfo.InvariantCulture) @mt</dd>
+                    </div>
+                </dl>
+            </section>
+        </div>
+
+        @* ۷. نوار دکمه‌های پایین *@
+        <div class="ssf-footer">
+            <a href="@(cancelUrl ?? "#")" class="ssf-btn">@UiText.T(Context, "انصراف", "Cancel")</a>
+            <button type="submit" name="PrintAfterSave" value="true" class="ssf-btn">
+                <svg class="ssf-btn-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+                    <path d="M5 1h6a1 1 0 0 1 1 1v2H4V2a1 1 0 0 1 1-1Zm7 4H4a3 3 0 0 0-3 3v3h3v3h8v-3h3V8a3 3 0 0 0-3-3Zm-1 9H5v-3h6v3Zm1.5-5.25a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                </svg>
+                <span>@UiText.T(Context, "ثبت و چاپ بل", "Save and print bill")</span>
+            </button>
+            <button type="submit" class="ssf-btn ssf-btn-primary">
+                <i class="bi bi-check2" aria-hidden="true"></i>
+                <span>@UiText.T(Context, "ثبت فروش", "Save Sale")</span>
+            </button>
+        </div>
+    </form>
+</div>
