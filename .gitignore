@@ -192,3 +192,15 @@ BenchmarkDotNet.Artifacts/
 /%USERPROFILE%/
 
 graphify-out/
+
+# ---------------------------------------------------------
+# Local-only working material (kept on disk, never versioned).
+# Raw image-generator dumps and intermediate exports that no view,
+# CSS, JS or C# references. Audited and deliberately excluded during
+# the 2026-07-22 recovery; see the recovery(local) commits.
+# ---------------------------------------------------------
+/docs/processed/
+/docs/Petrogas -2026.xlsx
+/src/PTGOilSystem.Web/wwwroot/img/ChatGPT Image *
+/src/PTGOilSystem.Web/wwwroot/images/auth/scene-1.jpg
+/src/PTGOilSystem.Web/wwwroot/images/auth/scene-3.jpg
