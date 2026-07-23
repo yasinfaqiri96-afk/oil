@@ -400,6 +400,28 @@ public class SuppliersControllerTests
             SupplierId = 1,
             ContractId = 1
         });
+
+        // تسویهٔ صراف مالکِ سطرِ دفترکلِ بالا (Id=2) — همان ثابتِ تولید که هر ثبتِ تسویه از
+        // طریق LedgerEntryId به سطرِ فعالش اشاره می‌کند تا در صورت‌حساب «اثرِ جاری» شمرده شود.
+        db.Sarrafs.Add(new Sarraf { Id = 1, Name = "Sarraf One", IsActive = true });
+        db.SarrafSettlements.Add(new SarrafSettlement
+        {
+            Id = 1,
+            SarrafId = 1,
+            SupplierId = 1,
+            ContractId = 1,
+            SettlementDate = new DateTime(2026, 1, 3),
+            Direction = SarrafSettlementDirection.Out,
+            CounterpartyType = SarrafSettlementCounterpartyType.Supplier,
+            Status = SarrafSettlementStatus.Posted,
+            SarrafCurrency = "RUB",
+            SarrafChargedAmount = 3_000m,
+            SarrafChargedAmountUsd = 30m,
+            SupplierAcceptedAmount = 3_000m,
+            SupplierAcceptedCurrency = "RUB",
+            SupplierAcceptedAmountUsd = 30m,
+            LedgerEntryId = 2
+        });
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);

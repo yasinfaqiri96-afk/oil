@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.PartyStatements;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -3677,6 +3678,8 @@ public class ContractJourneyController : Controller
             ? new Dictionary<int, decimal?>()
             : (await _db.LedgerEntries
                 .AsNoTracking()
+                // فقط اثرِ جاریِ هر تسویه: ثبتِ منسوخ‌شده و سطرِ برگشت از جمعِ روبلیِ قرارداد کنار می‌روند.
+                .WhereEffectiveSarrafSettlementLegs(_db)
                 .Where(l => settlementIds.Contains(l.SourceId)
                     && (l.SourceType == SarrafSettlementService.SupplierLedgerSourceType
                         || l.SourceType == SarrafSettlementService.CancelSourceType

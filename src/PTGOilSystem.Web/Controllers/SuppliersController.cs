@@ -373,6 +373,15 @@ public partial class SuppliersController : Controller
             .DistinctBy(l => l.Id)
             .ToList();
 
+        // اثرِ جاریِ تسویهٔ صراف: ثبتِ اصلیِ منسوخ‌شده (که با repost جایگزین شده) و سطرِ برگشت
+        // نباید در آمار/مانده/صورت‌حساب تأمین‌کننده دوبار شمرده یا جدا نمایش داده شوند. فقط سطری
+        // که تسویهٔ Posted به آن اشاره می‌کند می‌ماند. رجوع: SarrafSettlementLedgerEffectiveness.
+        var effectiveSarrafLedgerIds = await SarrafSettlementLedgerEffectiveness
+            .LoadEffectiveLedgerEntryIdsAsync(_db);
+        ledgers = ledgers
+            .Where(l => !SarrafSettlementLedgerEffectiveness.IsSuperseded(l.SourceType, l.Id, effectiveSarrafLedgerIds))
+            .ToList();
+
         // Projected to a slim read-model instead of full PaymentTransaction +
         // CashAccount + Contract per row. Same filter/order; CashAccount + Contract
         // scalars carried so display text and RUB/USD values stay identical.

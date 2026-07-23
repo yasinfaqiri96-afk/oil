@@ -139,7 +139,11 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         PartyStatementPolicy policy,
         CancellationToken ct)
     {
-        var baseQuery = BuildPartyLedgerQuery(party, filter);
+        // سطرهای منسوخ/برگشتیِ تسویهٔ صراف (ثبت اصلی که با repost جایگزین شده و سطرِ برگشت)
+        // نباید در صورت‌حساب رسمی جدا نمایش داده یا در جمع‌ها دوبار شمرده شوند؛ فقط اثرِ جاری
+        // (سطری که تسویهٔ Posted به آن اشاره می‌کند) می‌ماند. رجوع: SarrafSettlementLedgerEffectiveness.
+        var baseQuery = BuildPartyLedgerQuery(party, filter)
+            .WhereEffectiveSarrafSettlementLegs(_db);
         var opening = 0m;
         if (filter.FromDate.HasValue)
         {
@@ -317,7 +321,9 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             .AsNoTracking()
             .Where(l =>
                 (l.ContractId.HasValue && contractIds.Contains(l.ContractId.Value))
-                || (l.SourceType == "Sale" && saleIds.Contains(l.SourceId)));
+                || (l.SourceType == "Sale" && saleIds.Contains(l.SourceId)))
+            // اثرِ جاریِ تسویهٔ صراف: ثبت‌های منسوخ/برگشتی از سهمِ شریک هم کنار می‌روند.
+            .WhereEffectiveSarrafSettlementLegs(_db);
         var currency = NormalizeOptionalCurrency(filter.CurrencyCode);
         if (currency is not null && !IsRubPresentation(filter))
         {
