@@ -4,6 +4,7 @@
     var returnUrl = ViewBag.ReturnUrl as string;
     var backUrl = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : Url.Action("Index") ?? "/Payments";
     var voucherUrl = Url.Action("Payment", "Invoices", new { id = Model.Id }) ?? "#";
+    var selfUrl = Url.Action("Details", new { id = Model.Id });
     var counterpartyType = "-";
     var counterpartyName = "-";
     if (Model.CustomerId.HasValue) { counterpartyType = "مشتری"; counterpartyName = Model.CustomerName ?? "-"; }
@@ -17,28 +18,78 @@
         ? (Model.Currency != "USD"
             ? $"{NumberDisplay.Number(1m / Model.AppliedFxRateToUsd.Value, 4)} {Model.Currency} / USD"
             : NumberDisplay.FxRate(Model.AppliedFxRateToUsd.Value))
-        : "-";
+        : null;
 
     ViewData["Title"] = "جزئیات پرداخت";
     ViewData["HideSectionTabs"] = true;
-    var activePaymentTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
-    activePaymentTab = activePaymentTab is "relations" or "trace" or "audit" ? activePaymentTab : "main";
     ViewData["AkHeaderStatus"] = Model.DirectionName;
     ViewData["AkHeaderStatusState"] = Model.Direction == PTGOilSystem.Web.Models.Entities.PaymentDirection.In ? "is-active" : "is-warning";
-    ViewData["AkHeaderContext"] = $"{Model.PaymentKindName} · {counterpartyType}: {counterpartyName}";
+    ViewData["AkHeaderContext"] = $"{Model.PaymentKindName} · {counterpartyType}: {counterpartyName} · {Model.PaymentDate.ToDisplayDate()}";
     var paymentMenu = new List<AkHeaderMenuItem>();
     if (Model.LedgerEntryId.HasValue)
     {
         paymentMenu.Add(new AkHeaderMenuItem { Label = "سند دفتر کل", Href = Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value }), Icon = "bi-journal-text" });
     }
     ViewData["AkHeaderKebab"] = paymentMenu;
+
+    // تب فقط وقتی ساخته می‌شود که بخش تخصیص پیش‌پرداخت واقعاً محتوا داشته باشد.
+    // تب‌های «روابط»، «ردیابی» و «ثبت سیستم» حذف شدند: روابط به چیپ رکوردهای مرتبط،
+    // ردیابی به کارت خلاصه و ثبت سیستم به آکاردئون اطلاعات فنی منتقل شد.
+    var hasAllocationTab = Model.SupportsAdvanceAllocation;
+    var activePaymentTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
+    activePaymentTab = hasAllocationTab && activePaymentTab == "allocations" ? "allocations" : "main";
     var paymentTabs = new[]
     {
-        $"main|اطلاعات اصلی|bi-info-circle|{(activePaymentTab == "main" ? "active" : "")}",
-        $"relations|روابط|bi-diagram-3|{(activePaymentTab == "relations" ? "active" : "")}",
-        $"trace|ردیابی|bi-signpost-split|{(activePaymentTab == "trace" ? "active" : "")}",
-        $"audit|ثبت سیستم|bi-clock-history|{(activePaymentTab == "audit" ? "active" : "")}"
+        $"main|خلاصه سند||{(activePaymentTab == "main" ? "active" : "")}",
+        $"allocations|تخصیص پیش‌پرداخت||{(activePaymentTab == "allocations" ? "active" : "")}"
     };
+
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = "مبلغ", Value = Model.Amount.ToString("N2"), Unit = Model.Currency, Avatar = "payments-out" },
+        new() { Title = "معادل USD", Value = Model.AmountUsd.ToString("N2"), Unit = "USD", Avatar = "cash-flow" }
+    };
+    if (fxDisplay is not null)
+    {
+        kpis.Add(new AkKpiItem { Title = "نرخ ارز", Value = fxDisplay, Avatar = "exchange-rate" });
+    }
+
+    // تاریخ/نوع سند/طرف حساب در خط زمینهٔ سربرگ‌اند و اینجا تکرار نمی‌شوند.
+    var summaryItems = new List<AkInfoItem>
+    {
+        new() { Label = "مرجع", Value = Model.Reference },
+        new() { Label = "حساب نقد / بانک", Value = string.Join(" · ", new[] { Model.CashAccountCode, Model.CashAccountName, Model.CashAccountTypeName }.Where(part => !string.IsNullOrWhiteSpace(part))) },
+        new() { Label = "قرارداد", Value = Model.ContractNumber },
+        new() { Label = "محموله", Value = Model.ShipmentCode },
+        new() { Label = "شرح", Value = Model.Description, IsWide = true }
+    };
+
+    var traceItems = new List<AkInfoItem>
+    {
+        new() { Label = "فروش", Value = Model.SalesInvoiceNumber },
+        new() { Label = "مصرف", Value = Model.ExpenseDescription },
+        new() { Label = "کمیسیون", Value = Model.CommissionAmount.HasValue ? $"{Model.CommissionAmount.Value:N2} {Model.CommissionCurrency}" : null, IsNumeric = true, Href = Model.CommissionExpenseTransactionId.HasValue ? Url.Action("Details", "Expenses", new { id = Model.CommissionExpenseTransactionId.Value }) : null },
+        new() { Label = "ارسال با موتر", Value = Model.TruckDispatchLabel },
+        new() { Label = "دفتر کل", Value = Model.LedgerEntryId.HasValue ? $"#{Model.LedgerEntryId} / {UiText.LedgerSource(Context, Model.LedgerSourceType)} / {Model.LedgerSideName}" : null, Href = Model.LedgerEntryId.HasValue ? Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value }) : null }
+    };
+
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = "شماره سند", Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = "ایجاد", Value = Model.CreatedAtUtc.ToDisplayDateTime() },
+        new() { Label = "کاربر ایجادکننده", Value = Model.CreatedByUserId?.ToString(), IsNumeric = true },
+        new() { Label = "آخرین ویرایش", Value = Model.UpdatedAtUtc?.ToDisplayDateTime() },
+        new() { Label = "کاربر ویرایش‌کننده", Value = Model.UpdatedByUserId?.ToString(), IsNumeric = true }
+    };
+
+    // روابط فقط برای طرف‌هایی که واقعاً ثبت شده‌اند — ردیف «-» ساخته نمی‌شود.
+    var relatedRecords = new List<AkRelatedRecord>();
+    if (Model.CustomerId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "مشتری", Label = Model.CustomerName ?? $"#{Model.CustomerId.Value}", Href = Url.Action("Details", "Customers", new { id = Model.CustomerId.Value }), Icon = "bi-people" });
+    if (Model.SupplierId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "تأمین‌کننده", Label = Model.SupplierName ?? $"#{Model.SupplierId.Value}", Href = Url.Action("Details", "Suppliers", new { id = Model.SupplierId.Value }), Icon = "bi-briefcase" });
+    if (Model.ServiceProviderId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "شرکت خدماتی", Label = Model.ServiceProviderName ?? $"#{Model.ServiceProviderId.Value}", Href = Url.Action("Details", "ServiceProviders", new { id = Model.ServiceProviderId.Value }), Icon = "bi-building" });
+    if (Model.SarrafId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "صراف", Label = Model.SarrafName ?? $"#{Model.SarrafId.Value}", Href = Url.Action("Details", "Sarrafs", new { id = Model.SarrafId.Value }), Icon = "bi-currency-exchange" });
+    if (Model.DriverId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "راننده", Label = Model.DriverName ?? $"#{Model.DriverId.Value}", Href = Url.Action("Details", "Drivers", new { id = Model.DriverId.Value }), Icon = "bi-person-vcard" });
+    if (Model.EmployeeId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "کارمند", Label = Model.EmployeeName ?? $"#{Model.EmployeeId.Value}", Href = Url.Action("Details", "Employees", new { id = Model.EmployeeId.Value }), Icon = "bi-person-badge" });
 }
 
 <div class="ak-form-page ak-party-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
@@ -47,92 +98,66 @@
                        "سند چاپی", "bi-receipt-cutoff", voucherUrl, (string?)null,
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("تب‌های سند مالی", paymentTabs)" />
+    @if (hasAllocationTab)
+    {
+        <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("تب‌های سند مالی", paymentTabs)" />
+    }
 
-    <section id="payment-main" class="ak-form-section ak-detail-section" hidden="@(activePaymentTab != "main")">
-        <div class="ak-form-grid">
-            <div>
-                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات اصلی", (string?)null))" />
-                <dl class="ak-list">
-                    <div class="ak-list-row"><dt>تاریخ</dt><dd>@Model.PaymentDate.ToDisplayDate()</dd></div>
-                    <div class="ak-list-row"><dt>مبلغ</dt><dd class="ak-num">@Model.Amount.ToString("N2") @Model.Currency</dd></div>
-                    <div class="ak-list-row"><dt>معادل USD</dt><dd class="ak-num">@Model.AmountUsd.ToString("N2")</dd></div>
-                    <div class="ak-list-row"><dt>نرخ ارز</dt><dd class="ak-num">@fxDisplay</dd></div>
-                    <div class="ak-list-row"><dt>مرجع</dt><dd>@(Model.Reference ?? "-")</dd></div>
-                    <div class="ak-list-row"><dt>شرح</dt><dd>@(Model.Description ?? "-")</dd></div>
-                </dl>
-            </div>
-            <div>
-                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("حساب نقد / بانک", (string?)null))" />
-                <dl class="ak-list">
-                    <div class="ak-list-row"><dt>کد</dt><dd>@Model.CashAccountCode</dd></div>
-                    <div class="ak-list-row"><dt>نام</dt><dd>@Model.CashAccountName</dd></div>
-                    <div class="ak-list-row"><dt>نوع</dt><dd>@Model.CashAccountTypeName</dd></div>
-                </dl>
-            </div>
-        </div>
-    </section>
+    @if (activePaymentTab == "main")
+    {
+        <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <section id="payment-relations" class="ak-form-section ak-detail-section" hidden="@(activePaymentTab != "relations")">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("روابط مالی", (string?)null))" />
-        <dl class="ak-list">
-            <div class="ak-list-row"><dt>طرف حساب</dt><dd>@counterpartyName (@counterpartyType)</dd></div>
-            <div class="ak-list-row"><dt>مشتری</dt><dd>@(Model.CustomerName ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>تأمین‌کننده</dt><dd>@(Model.SupplierName ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>شرکت خدماتی</dt><dd>@if (Model.ServiceProviderId.HasValue) { <a asp-controller="ServiceProviders" asp-action="Details" asp-route-id="@Model.ServiceProviderId.Value">@Model.ServiceProviderName</a> } else { <span>-</span> }</dd></div>
-            <div class="ak-list-row"><dt>صراف</dt><dd>@if (Model.SarrafId.HasValue) { <a asp-controller="Sarrafs" asp-action="Details" asp-route-id="@Model.SarrafId.Value">@Model.SarrafName</a> } else { <span>-</span> }</dd></div>
-            <div class="ak-list-row"><dt>راننده</dt><dd>@(Model.DriverName ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>کارمند</dt><dd>@(Model.EmployeeName ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>قرارداد</dt><dd>@(Model.ContractNumber ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>محموله</dt><dd>@(Model.ShipmentCode ?? "-")</dd></div>
-        </dl>
-    </section>
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@(("اطلاعات سند", (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
-    <section id="payment-trace" class="ak-form-section ak-detail-section" hidden="@(activePaymentTab != "trace")">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("ردیابی عملیاتی", (string?)null))" />
-        <dl class="ak-list">
-            <div class="ak-list-row"><dt>فروش</dt><dd>@(Model.SalesInvoiceNumber ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>مصرف</dt><dd>@(Model.ExpenseDescription ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>کمیسیون</dt><dd>
-                @if (Model.CommissionAmount.HasValue)
-                {
-                    <text>کمیسیون: @Model.CommissionAmount.Value.ToString("N2") @Model.CommissionCurrency</text>
-                    @if (Model.CommissionExpenseTransactionId.HasValue)
-                    {
-                        <a asp-controller="Expenses" asp-action="Details" asp-route-id="@Model.CommissionExpenseTransactionId.Value" class="ms-2">سند مصرف</a>
-                    }
-                }
-                else { <span>-</span> }
-            </dd></div>
-            <div class="ak-list-row"><dt>ارسال با موتر</dt><dd>@(Model.TruckDispatchLabel ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>دفتر کل</dt><dd>@(Model.LedgerEntryId.HasValue ? $"#{Model.LedgerEntryId} / {UiText.LedgerSource(Context, Model.LedgerSourceType)} / {Model.LedgerSideName}" : "-")</dd></div>
-        </dl>
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@(("ردیابی عملیاتی", (string?)null, (IReadOnlyList<AkInfoItem>)traceItems))" />
 
-        @if (Model.SupportsAdvanceAllocation)
+        if (relatedRecords.Count > 0)
         {
-            <div class="ak-page-actions">
-                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("پیش‌پرداخت نزد تأمین‌کننده و تخصیص به قرارداد", (string?)null))" />
-                <a asp-action="AllocateToContract" asp-route-paymentId="@Model.Id" asp-route-returnUrl="@(Url.Action("Details", new { id = Model.Id }))" class="btn btn-primary" data-page-modal="true" data-page-modal-close-on-redirect="true" data-page-modal-title="مصرف پیش‌پرداخت برای قرارداد">
+            <section class="ak-form-section ak-detail-section" aria-labelledby="payment-related-title">
+                <h2 class="ak-section-title" id="payment-related-title">رکوردهای مرتبط</h2>
+                <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
+            </section>
+        }
+
+        <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+                 model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    }
+    else
+    {
+        var isAdvanceCurrencyUsd = string.Equals(Model.Currency?.Trim(), "USD", StringComparison.OrdinalIgnoreCase);
+        var allocationKpis = new List<AkKpiItem>
+        {
+            new() { Title = "مبلغ پرداخت", Value = Model.Amount.ToString("N2"), Unit = Model.Currency, Avatar = "payments-out" },
+            new() { Title = "مصرف‌شده برای قراردادها", Value = Model.AllocatedPaymentAmountTotal.ToString("N2"), Unit = Model.Currency, Avatar = "contract-signed" },
+            new() { Title = "مانده قابل تخصیص", Value = Model.AllocatableBalanceAmount.ToString("N2"), Unit = Model.Currency, Avatar = "treasury" }
+        };
+        if (isAdvanceCurrencyUsd)
+        {
+            allocationKpis.Add(new AkKpiItem { Title = "تعداد تخصیص فعال", Value = Model.ActiveAllocationCount.ToString("N0"), Unit = "مورد", Avatar = "ledger" });
+        }
+        else
+        {
+            // پیش‌پرداخت ارزی: اثر تسعیر جدا از خودِ مانده ارز نمایش داده می‌شود.
+            allocationKpis.Add(new AkKpiItem
+            {
+                Title = Model.AllocationExchangeDifferenceUsd < 0 ? "زیان تسعیر تخصیص‌ها" : "سود تسعیر تخصیص‌ها",
+                Value = Math.Abs(Model.AllocationExchangeDifferenceUsd).ToString("N2"),
+                Unit = "USD",
+                Avatar = "ledger"
+            });
+        }
+
+        <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)allocationKpis)" />
+
+        <section class="ak-form-section ak-detail-section">
+            <header class="ak-section-head ak-detail-section-header">
+                <h2 class="ak-section-title">تخصیص پیش‌پرداخت به قرارداد</h2>
+                <a asp-action="AllocateToContract" asp-route-paymentId="@Model.Id" asp-route-returnUrl="@selfUrl" class="btn btn-primary ak-primary-action" data-page-modal="true" data-page-modal-close-on-redirect="true" data-page-modal-title="مصرف پیش‌پرداخت برای قرارداد">
                     <i class="bi bi-cash-coin"></i> مصرف پیش‌پرداخت برای قرارداد
                 </a>
-            </div>
-            var isAdvanceCurrencyUsd = string.Equals(Model.Currency?.Trim(), "USD", StringComparison.OrdinalIgnoreCase);
-            <div class="ak-stat-grid" aria-label="خلاصه تخصیص پرداخت">
-                <vc:stat-card title="مبلغ پرداخت" value="@Model.Amount.ToString("N2")" unit="@Model.Currency" avatar="payments-out"></vc:stat-card>
-                <vc:stat-card title="مصرف‌شده برای قراردادها" value="@Model.AllocatedPaymentAmountTotal.ToString("N2")" unit="@Model.Currency" avatar="contract-signed"></vc:stat-card>
-                <vc:stat-card title="مانده قابل تخصیص" value="@Model.AllocatableBalanceAmount.ToString("N2")" unit="@Model.Currency" avatar="treasury"></vc:stat-card>
-                @if (isAdvanceCurrencyUsd)
-                {
-                    <vc:stat-card title="تعداد تخصیص فعال" value="@Model.ActiveAllocationCount.ToString("N0")" unit="مورد" avatar="ledger"></vc:stat-card>
-                }
-                else
-                {
-                    @* پیش‌پرداخت ارزی: اثر تسعیر جدا از خودِ مانده ارز نمایش داده می‌شود. *@
-                    <vc:stat-card title="@(Model.AllocationExchangeDifferenceUsd < 0 ? "زیان تسعیر تخصیص‌ها" : "سود تسعیر تخصیص‌ها")"
-                                  value="@Math.Abs(Model.AllocationExchangeDifferenceUsd).ToString("N2")"
-                                  unit="USD" avatar="ledger"></vc:stat-card>
-                }
-            </div>
+            </header>
 
             @if (Model.Allocations.Any())
             {
@@ -157,7 +182,7 @@
                         {
                             <tr class="@(a.IsActive ?"" : "ak-row-muted")">
                                 <td>@a.AllocationDate.ToDisplayDate()</td>
-                                <td class="ak-col-grow"><a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@a.ContractId" asp-route-returnUrl="@(Url.Action("Details", new { id = Model.Id }))">@a.ContractNumber</a></td>
+                                <td class="ak-col-grow"><a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@a.ContractId" asp-route-returnUrl="@selfUrl">@a.ContractNumber</a></td>
                                 <td class="ak-col-num ak-num">
                                     @a.AllocatedPaymentAmount.ToString("N2") @a.PaymentCurrencyCode
                                     <div class="ak-note">ارزش تاریخی: @a.AllocatedBookAmountUsd.ToString("N2") USD</div>
@@ -181,7 +206,7 @@
                                     @a.AllocatedContractCurrencyAmount.ToString("N2") @a.ContractCurrencyCode
                                     <div class="ak-note">نرخ قرارداد: @NumberDisplay.Number(a.ContractCurrencyPerUsdRate, 4) @a.ContractCurrencyCode/USD</div>
                                 </td>
-                                <td>@(a.ReferenceNumber ?? "-")</td>
+                                <td>@(a.ReferenceNumber ?? "—")</td>
                                 <td>@a.StatusName</td>
                                 <td class="ak-col-actions">
                                     @if (a.IsActive)
@@ -206,7 +231,7 @@
                             <form asp-action="ReverseAllocation" method="post" class="modal-content">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="allocationId" value="@a.Id" />
-                                <input type="hidden" name="returnUrl" value="@(Url.Action("Details", new { id = Model.Id }))" />
+                                <input type="hidden" name="returnUrl" value="@selfUrl" />
                                 <div class="modal-header">
                                     <h5 class="modal-title">برگشت تخصیص پیش‌پرداخت</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
@@ -234,18 +259,8 @@
             }
             else
             {
-                <p class="ak-note">هنوز هیچ مصرف پیش‌پرداختی برای قرارداد ثبت نشده است.</p>
+                <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@("هنوز هیچ مصرف پیش‌پرداختی برای قرارداد ثبت نشده است.")" />
             }
-        }
-    </section>
-
-    <section id="payment-audit" class="ak-form-section ak-detail-section" hidden="@(activePaymentTab != "audit")">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("زمینه ثبت", (string?)null))" />
-        <dl class="ak-list">
-            <div class="ak-list-row"><dt>ایجاد</dt><dd>@Model.CreatedAtUtc.ToDisplayDateTime()</dd></div>
-            <div class="ak-list-row"><dt>کاربر ایجادکننده</dt><dd>@(Model.CreatedByUserId?.ToString() ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>آخرین ویرایش</dt><dd>@(Model.UpdatedAtUtc?.ToDisplayDateTime() ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>کاربر ویرایش‌کننده</dt><dd>@(Model.UpdatedByUserId?.ToString() ?? "-")</dd></div>
-        </dl>
-    </section>
+        </section>
+    }
 </div>

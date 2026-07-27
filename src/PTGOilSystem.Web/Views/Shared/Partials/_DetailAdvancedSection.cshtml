@@ -1,0 +1,31 @@
+@*
+    Collapsed "technical details" disclosure (AK Detail v2 zone 8).
+
+    Internal ids, ledger/journal references, movement ids, lineage, audit stamps
+    and legacy fields go here instead of competing with operational facts. Closed
+    by default; forced open for print so paper output loses nothing.
+
+    Model: (Title, Items)
+*@
+@model (string? Title, IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem> Items)
+@{
+    var items = (Model.Items ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkInfoItem>())
+        .Where(item => item.HasValue)
+        .ToList();
+    var title = string.IsNullOrWhiteSpace(Model.Title)
+        ? UiText.T(Context, "اطلاعات فنی", "Technical details")
+        : Model.Title;
+}
+@if (items.Count > 0)
+{
+    <details class="ak-detail-advanced">
+        <summary class="ak-detail-advanced-summary">
+            <span>@title</span>
+            <span class="ak-detail-advanced-count" dir="ltr">@items.Count</span>
+        </summary>
+        <div class="ak-detail-advanced-body">
+            <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml"
+                     model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem>)items)" />
+        </div>
+    </details>
+}

@@ -1,0 +1,30 @@
+@*
+    Primary KPI strip for detail pages (AK Detail v2 zone 2).
+    Hard cap of five cards: the audit found pages carrying 29-32 stat cards, and
+    the cap is what keeps a page's "most important numbers" actually primary.
+    Secondary figures belong in _DetailSummaryCard, not in another card wall.
+
+    Model: IReadOnlyList<AkKpiItem>
+*@
+@model IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkKpiItem>
+@{
+    const int maxCards = 5;
+    var cards = (Model ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkKpiItem>())
+        .Where(card => !string.IsNullOrWhiteSpace(card.Title))
+        .Take(maxCards)
+        .ToList();
+}
+@if (cards.Count > 0)
+{
+    <section class="ak-stat-grid ak-detail-kpi-strip no-print"
+             aria-label="@UiText.T(Context, "شاخص‌های اصلی", "Primary metrics")">
+        @foreach (var card in cards)
+        {
+            <vc:stat-card title="@card.Title"
+                          value="@card.Value"
+                          unit="@card.Unit"
+                          avatar="@card.Avatar"
+                          state="@card.State"></vc:stat-card>
+        }
+    </section>
+}

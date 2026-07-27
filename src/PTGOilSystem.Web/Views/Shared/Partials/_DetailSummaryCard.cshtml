@@ -1,0 +1,22 @@
+@*
+    Compact summary card for detail pages (AK Detail v2 zone 3).
+    One flat card: section head + _DetailInfoGrid. No nested cards, no inner
+    padding stacks. Renders nothing when every fact is empty, which is what
+    removes the "always visible, always blank" sections from the old pages.
+
+    Model: (Title, Description, Items)
+*@
+@model (string Title, string? Description, IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem> Items)
+@{
+    var items = (Model.Items ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkInfoItem>())
+        .Where(item => item.HasValue)
+        .ToList();
+}
+@if (items.Count > 0)
+{
+    <section class="ak-form-section ak-detail-section ak-summary-card">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((Model.Title, Model.Description))" />
+        <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml"
+                 model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem>)items)" />
+    </section>
+}

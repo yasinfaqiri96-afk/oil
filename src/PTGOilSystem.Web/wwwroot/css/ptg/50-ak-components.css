@@ -1864,6 +1864,10 @@ select.ak-input {
     cursor: pointer;
 }
 
+.ak-entity-quick-create[hidden] {
+    display: none;
+}
+
 .ak-entity-quick-create:hover,
 .ak-entity-quick-create:focus-visible {
     background: #F5F7FA;
@@ -3018,9 +3022,11 @@ select.ak-input {
 }
 
 /* Sales line items normally keep the shared horizontal table scroll. While
-   the product select is open, release that clipping boundary and lift the
-   row above the following summary section so every option remains visible. */
-[data-sales-create-form] [data-sales-line-items]:has([data-sales-product]:focus) {
+   the progressive-enhancement combobox (or its no-JS native fallback) is
+   open, release that clipping boundary and lift the row above the following
+   summary section so every product option remains visible. */
+[data-sales-create-form] [data-sales-line-items]:has([data-sales-product]:focus),
+[data-sales-create-form] [data-sales-line-items]:has(.ak-entity-combobox[data-open="true"]) {
     position: relative;
     z-index: var(--ptg-z-dropdown, 1000);
     overflow: visible;

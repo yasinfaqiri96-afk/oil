@@ -1038,8 +1038,13 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("loading-detail-clean-header", view);
         Assert.DoesNotContain("loading-detail-single-shell", view);
         Assert.Contains("NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, \"USD/MT\")", view);
-        Assert.Contains("@loadingExpenseTotal.ToString(\"N2\") USD", view);
-        Assert.Contains("@loadingCostsGrandTotal.ToString(\"N2\") USD", view);
+        // AK Detail v2: both totals now flow through the shared _DetailSummaryCard /
+        // _DetailKpiStrip instead of hand-written markup, but they must still come from
+        // the same precomputed view-model values (no re-summing inside the view).
+        Assert.Contains("loadingExpenseTotal.ToString(\"N2\")", view);
+        Assert.Contains("loadingCostsGrandTotal.ToString(\"N2\")", view);
+        Assert.Contains("_DetailSummaryCard.cshtml", view);
+        Assert.Contains("_DetailKpiStrip.cshtml", view);
         Assert.DoesNotContain("expenseLines.Sum", view);
         Assert.DoesNotContain("Model.CustomsItems.Sum", view);
         Assert.DoesNotContain("loading-journal-metrics", view);
@@ -1337,8 +1342,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-sales-total-preview", contents);
         Assert.Contains("data-sales-total-value", contents);
         Assert.Contains("data-sales-line-items", contents);
-        Assert.Contains("[data-sales-create-form] [data-sales-line-items]:has([data-sales-product]:focus)", componentsCss);
+        Assert.Contains("data-sales-product data-ak-entity-combobox", contents);
+        Assert.Contains("[data-sales-create-form] [data-sales-line-items]:has(.ak-entity-combobox[data-open=\"true\"])", componentsCss);
         Assert.Contains("overflow: visible;", componentsCss);
+        Assert.Contains(".ak-entity-quick-create[hidden]", componentsCss);
         Assert.Contains("data-sales-save-summary", contents);
         Assert.Contains("خلاصه ثبت فروش", contents);
         Assert.Contains(".ak-form-section[data-sales-stage-scope]", financeForms);

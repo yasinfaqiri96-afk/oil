@@ -1,0 +1,12 @@
+@*
+    Compact in-section empty state (AK Detail v2 zone 9).
+    A single quiet line, not the tall illustrated card the pages used to render
+    for every list that happened to have no rows yet.
+
+    Model: string message
+*@
+@model string
+@if (!string.IsNullOrWhiteSpace(Model))
+{
+    <p class="ak-detail-empty-line">@Model</p>
+}

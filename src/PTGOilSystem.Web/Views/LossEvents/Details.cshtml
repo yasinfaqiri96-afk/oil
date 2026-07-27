@@ -16,13 +16,42 @@
     ViewData["AkHeaderContext"] = $"{LossEventStageLabels.ToPersian(Model.Stage)} · {Model.ProductName} · {Model.EventDate.ToDisplayDate()}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
-        new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-pencil-square" },
-        new() { Label = T("کسری جدید", "New loss"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
+        new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-pencil-square" }
     };
-    var timelineItems = new List<AkTimelineItem>
+
+    // شاخص‌های اصلی: چهار عدد تصمیم‌ساز. حد تحمل و کسری مجاز عدد پشتیبان‌اند و
+    // در کارت خلاصه می‌مانند، نه در نوار KPI.
+    var kpis = new List<AkKpiItem>
     {
-        new() { Title = T("کسری ثبت شد", "Loss recorded"), Date = Model.EventDate.ToDisplayDate(), Icon = "bi-exclamation-diamond", State = "is-current", Meta = $"{Model.ChargeableLossMt:N4} MT" }
+        new() { Title = T("مورد انتظار", "Expected"), Value = Model.ExpectedQuantityMt.ToString("N4"), Unit = "MT", Avatar = "analysis" },
+        new() { Title = T("واقعی", "Actual"), Value = Model.ActualQuantityMt.ToString("N4"), Unit = "MT", Avatar = "quality" },
+        new() { Title = T("تفاوت", "Difference"), Value = Model.DifferenceQuantityMt.ToString("N4"), Unit = "MT", Avatar = "losses" },
+        new() { Title = T("قابل محاسبه", "Chargeable"), Value = Model.ChargeableLossMt.ToString("N4"), Unit = "MT", Avatar = "statement", State = hasChargeable ? "warning" : null }
     };
+
+    // مرحله/جنس/تاریخ در خط زمینهٔ سربرگ آمده‌اند و اینجا تکرار نمی‌شوند.
+    // بارگیری/رسید/ارسال/فروش/قرارداد/محموله فقط در «رکوردهای مرتبط» می‌آیند.
+    var summaryItems = new List<AkInfoItem>
+    {
+        new() { Label = T("حد تحمل", "Tolerance"), Value = Model.ToleranceQuantityMt.ToString("N4"), Unit = "MT", IsNumeric = true },
+        new() { Label = T("کسری مجاز", "Allowable"), Value = Model.AllowableLossMt.ToString("N4"), Unit = "MT", IsNumeric = true },
+        new() { Label = T("ترمینال", "Terminal"), Value = Model.TerminalName },
+        new() { Label = T("مخزن", "Tank"), Value = Model.StorageTankCode },
+        new() { Label = T("نوع مسئول", "Responsible type"), Value = Model.ResponsiblePartyType },
+        new() { Label = T("مسئول", "Responsible party"), Value = Model.ResponsiblePartyName },
+        new() { Label = T("برخورد مالی", "Financial treatment"), Value = Model.FinancialTreatment },
+        new() { Label = T("اثر بر موجودی", "Inventory impact"), Value = inventoryStatus, Tone = Model.AffectsInventory ? "warning" : null },
+        new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
+    };
+
+    // شناسه‌های داخلی و سیستمی — پشت آکاردئون بسته.
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = T("شماره داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = T("مرجع", "Reference"), Value = Model.Reference },
+        new() { Label = T("حرکت موجودی", "Inventory movement"), Value = Model.InventoryMovementId.HasValue ? $"#{Model.InventoryMovementId}" : null, IsNumeric = true }
+    };
+
     var relatedRecords = new List<AkRelatedRecord>();
     if (!string.IsNullOrWhiteSpace(Model.ContractNumber)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("قرارداد", "Contract"), Label = Model.ContractNumber, Icon = "bi-file-earmark-text" });
     if (!string.IsNullOrWhiteSpace(Model.ShipmentCode)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("محموله", "Shipment"), Label = Model.ShipmentCode, Icon = "bi-box-seam" });
@@ -30,6 +59,7 @@
     if (!string.IsNullOrWhiteSpace(Model.LoadingReceiptLabel)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("رسید بارگیری", "Loading receipt"), Label = Model.LoadingReceiptLabel, Icon = "bi-box-arrow-in-down" });
     if (!string.IsNullOrWhiteSpace(Model.TruckDispatchLabel)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("ارسال با موتر", "Truck dispatch"), Label = Model.TruckDispatchLabel, Icon = "bi-truck" });
     if (!string.IsNullOrWhiteSpace(Model.SalesLabel)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("فروش", "Sale"), Label = Model.SalesLabel, Icon = "bi-receipt" });
+
     var nextActions = new List<AkHeaderMenuItem>
     {
         new() { Label = T("کسری جدید", "New loss"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
@@ -46,84 +76,11 @@
                        Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <div class="ak-page-actions">
-        <span class="ak-status @(hasChargeable ?"is-inactive" : "is-active")">
-            @T("کسری قابل محاسبه", "Chargeable loss"): @Model.ChargeableLossMt.ToString("N4") MT
-        </span>
-        <div class="dropdown ak-row-menu">
-            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
-                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" href="@(Url.Action("Create", new { returnUrl = backUrl }) ?? "#")"><i class="bi bi-plus-lg"></i> @T("کسری جدید", "New loss")</a></li>
-            </ul>
-        </div>
-    </div>
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های کسری", "Loss metrics")">
-        <vc:stat-card title="@T("مورد انتظار", "Expected")" value="@Model.ExpectedQuantityMt.ToString("N4")" unit="MT" avatar="analysis"></vc:stat-card>
-        <vc:stat-card title="@T("واقعی", "Actual")" value="@Model.ActualQuantityMt.ToString("N4")" unit="MT" avatar="quality"></vc:stat-card>
-        <vc:stat-card title="@T("تفاوت", "Difference")" value="@Model.DifferenceQuantityMt.ToString("N4")" unit="MT" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@T("قابل محاسبه", "Chargeable")" value="@Model.ChargeableLossMt.ToString("N4")" unit="MT" avatar="statement"></vc:stat-card>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((T("مشخصات کسری", "Loss profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
-    <div class="ak-form-grid">
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("نمای کسری", "Loss overview"), (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>@T("شماره داخلی", "Internal id")</dt><dd class="ak-num">#@Model.Id</dd></div>
-                <div class="ak-list-row"><dt>@T("تاریخ", "Date")</dt><dd>@Model.EventDate.ToDisplayDate()</dd></div>
-                <div class="ak-list-row"><dt>@T("مرحله", "Stage")</dt><dd>@LossEventStageLabels.ToPersian(Model.Stage)</dd></div>
-                <div class="ak-list-row"><dt>@T("جنس", "Product")</dt><dd>@Model.ProductName</dd></div>
-                <div class="ak-list-row"><dt>@T("قرارداد", "Contract")</dt><dd>@(Model.ContractNumber ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("محموله", "Shipment")</dt><dd>@(Model.ShipmentCode ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("مرجع", "Reference")</dt><dd>@(Model.Reference ?? "-")</dd></div>
-            </dl>
-        </section>
-
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("محاسبه مقدار", "Quantity calculation"), (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>@T("مورد انتظار", "Expected")</dt><dd class="ak-num">@Model.ExpectedQuantityMt.ToString("N4") MT</dd></div>
-                <div class="ak-list-row"><dt>@T("واقعی", "Actual")</dt><dd class="ak-num">@Model.ActualQuantityMt.ToString("N4") MT</dd></div>
-                <div class="ak-list-row"><dt>@T("تفاوت", "Difference")</dt><dd class="ak-num">@Model.DifferenceQuantityMt.ToString("N4") MT</dd></div>
-                <div class="ak-list-row"><dt>@T("حد تحمل", "Tolerance")</dt><dd class="ak-num">@Model.ToleranceQuantityMt.ToString("N4") MT</dd></div>
-                <div class="ak-list-row"><dt>@T("کسری مجاز", "Allowable")</dt><dd class="ak-num">@Model.AllowableLossMt.ToString("N4") MT</dd></div>
-                <div class="ak-list-row"><dt>@T("قابل محاسبه", "Chargeable")</dt><dd class="ak-num">@Model.ChargeableLossMt.ToString("N4") MT</dd></div>
-            </dl>
-        </section>
-    </div>
-
-    <div class="ak-form-grid">
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("ارتباط عملیاتی", "Operational relationship"), (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>@T("بارگیری", "Loading")</dt><dd>@(Model.LoadingRegisterLabel ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("رسید بارگیری", "Loading receipt")</dt><dd>@(Model.LoadingReceiptLabel ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("ارسال با موتر", "Truck send")</dt><dd>@(Model.TruckDispatchLabel ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("فروش", "Sale")</dt><dd>@(Model.SalesLabel ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("ترمینال", "Terminal")</dt><dd>@(Model.TerminalName ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("مخزن", "Tank")</dt><dd>@(Model.StorageTankCode ?? "-")</dd></div>
-            </dl>
-        </section>
-
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("مسئولیت و برخورد مالی", "Responsibility & treatment"), (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>@T("نوع مسئول", "Responsible type")</dt><dd>@(Model.ResponsiblePartyType ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("نام", "Name")</dt><dd>@(Model.ResponsiblePartyName ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("برخورد مالی", "Financial treatment")</dt><dd>@(Model.FinancialTreatment ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("اثر بر موجودی", "Inventory impact")</dt><dd>@inventoryStatus</dd></div>
-                <div class="ak-list-row"><dt>@T("حرکت موجودی", "Inventory movement")</dt><dd>@(Model.InventoryMovementId.HasValue ? $"#{Model.InventoryMovementId}" : "-")</dd></div>
-                <div class="ak-list-row"><dt>@T("یادداشت", "Notes")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? T("یادداشتی ثبت نشده است.", "No notes recorded.") : Model.Notes)</dd></div>
-            </dl>
-        </section>
-    </div>
-
-    <section class="ak-form-section ak-detail-section" aria-labelledby="loss-timeline-title">
-        <h2 class="ak-section-title" id="loss-timeline-title">@T("روند سند", "Document timeline")</h2>
-        <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-    </section>
     @if (relatedRecords.Count > 0)
     {
         <section class="ak-form-section ak-detail-section" aria-labelledby="loss-related-title">
@@ -131,5 +88,9 @@
             <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
         </section>
     }
+
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+
     <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

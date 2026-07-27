@@ -50,6 +50,35 @@
         Title = T("سند پیوست شد", "Document attached"), Date = document.UploadedAt.ToDisplayDate(), Timestamp = document.UploadedAt,
         Icon = "bi-paperclip", Href = Url.Action("DownloadDocument", new { id = document.Id }), Meta = document.OriginalFileName
     }));
+    // خط زمانی فقط با بیش از یک رویداد واقعی کارت مستقل می‌گیرد.
+    var showTimeline = timelineItems.Count > 1;
+
+    // «اسناد» در وضعیت سربرگ شمرده می‌شود و کارت KPI جدا نمی‌گیرد.
+    var kpis = new List<AkKpiItem>();
+    if (Model.ConsignmentWeightMt.HasValue)
+    {
+        kpis.Add(new AkKpiItem { Title = T("وزن محموله", "Consignment weight"), Value = Model.ConsignmentWeightMt.Value.ToString("N4"), Unit = "MT", Avatar = "total-inventory" });
+    }
+    kpis.Add(new AkKpiItem { Title = T("مجموع افغانی", "Total AFN"), Value = Model.TotalAfn.ToString("N0"), Unit = "AFN", Avatar = "cash-flow" });
+    kpis.Add(new AkKpiItem { Title = T("معادل دالر", "USD equivalent"), Value = Model.TotalUsd.ToString("N2"), Unit = "USD", Avatar = "exchange-rate" });
+
+    // تاریخ/قرارداد/جنس در خط زمینهٔ سربرگ‌اند و اینجا تکرار نمی‌شوند.
+    var summaryItems = new List<AkInfoItem>
+    {
+        new() { Label = T("واگن / موتر", "Wagon / truck"), Value = Model.WagonOrTruckNumber },
+        new() { Label = T("شماره مرجع", "Reference"), Value = Model.DeclarationReference },
+        new() { Label = T("وزن کنسمنت", "Consignment weight"), Value = Model.ConsignmentWeightMt?.ToString("N4"), Unit = "MT", IsNumeric = true },
+        new() { Label = T("شماره واگن بارگیری", "Loading wagon"), Value = Model.WagonNumber },
+        new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
+    };
+
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = T("شماره داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = T("شناسه بارگیری", "Loading id"), Value = $"#{Model.LoadingRegisterId}", IsNumeric = true },
+        new() { Label = T("شناسه حمل", "Transport leg id"), Value = Model.TransportLegId.HasValue ? $"#{Model.TransportLegId.Value}" : null, IsNumeric = true }
+    };
+
     var relatedRecords = new List<AkRelatedRecord>
     {
         new() { TypeLabel = T("قرارداد", "Contract"), Label = Model.ContractNumber, KeyValue = Model.ProductName, Icon = "bi-file-earmark-text" }
@@ -72,29 +101,10 @@
                        (string?)"#customs-documents", (string?)null,
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
 
-    <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های گمرک", "Customs metrics")">
-        <vc:stat-card title="@T("وزن محموله", "Consignment weight")" value="@(Model.ConsignmentWeightMt?.ToString("N4") ?? "-")" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@T("مجموع افغانی", "Total AFN")" value="@Model.TotalAfn.ToString("N0")" unit="AFN" avatar="cash-flow"></vc:stat-card>
-        <vc:stat-card title="@T("معادل دالر", "USD equivalent")" value="@Model.TotalUsd.ToString("N2")" unit="USD" avatar="exchange-rate"></vc:stat-card>
-        <vc:stat-card title="@T("اسناد", "Documents")" value="@Model.Documents.Count.ToString()" unit="" avatar="documents"></vc:stat-card>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <section class="ak-form-section ak-detail-section" id="customs-documents">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("مشخصات اعلامیه", (string?)null))" />
-        <dl class="ak-list">
-            <div class="ak-list-row"><dt>تاریخ</dt><dd>@Model.DeclarationDate.ToDisplayDate()</dd></div>
-            <div class="ak-list-row"><dt>واگن / موتر</dt><dd>@(Model.WagonOrTruckNumber ?? "—")</dd></div>
-            <div class="ak-list-row"><dt>شماره مرجع</dt><dd>@(Model.DeclarationReference ?? "—")</dd></div>
-            <div class="ak-list-row"><dt>وزن کنسمنت</dt><dd class="ak-num">@(Model.ConsignmentWeightMt?.ToString("N4") ?? "—") MT</dd></div>
-            <div class="ak-list-row"><dt>قرارداد</dt><dd>@Model.ContractNumber</dd></div>
-            <div class="ak-list-row"><dt>جنس</dt><dd>@Model.ProductName</dd></div>
-            <div class="ak-list-row"><dt>شماره واگن بارگیری</dt><dd>@(Model.WagonNumber ?? "—")</dd></div>
-            @if (!string.IsNullOrWhiteSpace(Model.Notes))
-            {
-                <div class="ak-list-row"><dt>یادداشت</dt><dd>@Model.Notes</dd></div>
-            }
-        </dl>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((T("مشخصات اعلامیه", "Declaration profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
     <section class="ak-form-section ak-detail-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تفکیک اقلام مصارف گمرکی", (string?)null))" />
@@ -138,7 +148,7 @@
         </div>
     </section>
 
-    <section class="ak-form-section ak-detail-section">
+    <section class="ak-form-section ak-detail-section" id="customs-documents">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اسناد گمرکی این موتر", (string?)null))" />
 
         @if (TempData["ok"] is string okMsg)
@@ -203,10 +213,7 @@
                     {
                         <tr>
                             <td colspan="6">
-                                <div class="ak-empty ak-detail-empty-state">
-                                    <i class="bi bi-paperclip"></i>
-                                    هنوز سندی برای این موتر آپلود نشده است.
-                                </div>
+                                <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هنوز سندی برای این موتر آپلود نشده است.", "No document uploaded for this truck yet.")" />
                             </td>
                         </tr>
                     }
@@ -240,13 +247,20 @@
         }
     </section>
 
-    <section class="ak-form-section ak-detail-section" aria-labelledby="customs-timeline-title">
-        <h2 class="ak-section-title" id="customs-timeline-title">@T("روند اعلامیه", "Declaration timeline")</h2>
-        <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-    </section>
+    @if (showTimeline)
+    {
+        <section class="ak-form-section ak-detail-section" aria-labelledby="customs-timeline-title">
+            <h2 class="ak-section-title" id="customs-timeline-title">@T("روند اعلامیه", "Declaration timeline")</h2>
+            <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
+        </section>
+    }
     <section class="ak-form-section ak-detail-section" aria-labelledby="customs-related-title">
         <h2 class="ak-section-title" id="customs-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
         <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
     </section>
+
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+
     <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

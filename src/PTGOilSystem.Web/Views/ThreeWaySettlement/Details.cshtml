@@ -10,7 +10,40 @@
     var statusState = Model.Status == ThreeWaySettlementStatus.Cancelled ? "is-inactive" : "is-active";
     ViewData["AkHeaderStatus"] = statusText;
     ViewData["AkHeaderStatusState"] = statusState;
-    ViewData["AkHeaderContext"] = Model.PayeeType == ThreeWayPayeeType.Sarraf ? "حواله با واسطه صراف" : "حواله مستقیم به تأمین‌کننده";
+    ViewData["AkHeaderContext"] = string.Join(" · ", new[]
+    {
+        Model.PayeeType == ThreeWayPayeeType.Sarraf ? "حواله با واسطه صراف" : "حواله مستقیم به تأمین‌کننده",
+        Model.Customer?.Name,
+        Model.Supplier?.Name
+    }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = "پرداخت مشتری", Value = Model.CustomerPaidUsd.ToString("N2"), Unit = "USD", Avatar = "receipts" },
+        new() { Title = "قبول تأمین‌کننده", Value = Model.SupplierAcceptedUsd.ToString("N2"), Unit = "USD", Avatar = "suppliers" },
+        new() { Title = "تفاوت", Value = Model.DifferenceUsd.ToString("N2"), Unit = "USD", Avatar = "exchange-rate", State = Model.DifferenceUsd != 0m ? "warning" : null }
+    };
+
+    // مشتری/تأمین‌کننده/وضعیت در سربرگ‌اند؛ اثر صندوق در جدول حساب‌ها می‌ماند.
+    var summaryItems = new List<AkInfoItem>
+    {
+        new() { Label = "تاریخ", Value = Model.SettlementDate.ToString("yyyy-MM-dd") },
+        new() { Label = "شماره حواله / مرجع", Value = Model.HawalaReference },
+        new() { Label = "واسطه حواله (صراف)", Value = Model.PayeeType == ThreeWayPayeeType.Sarraf ? Model.Sarraf?.Name : null },
+        new() { Label = "قرارداد فروش مشتری", Value = Model.CustomerSaleContract?.ContractNumber },
+        new() { Label = "قرارداد خرید تأمین‌کننده", Value = Model.SupplierPurchaseContract?.ContractNumber },
+        new() { Label = "توضیحات", Value = Model.Notes, IsWide = true }
+    };
+
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = "شناسه تسویه", Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = "سند دفتر کل مشتری", Value = Model.CustomerLedgerEntryId.HasValue ? $"#{Model.CustomerLedgerEntryId.Value}" : null, IsNumeric = true },
+        new() { Label = "سند دفتر کل تأمین‌کننده", Value = Model.SupplierLedgerEntryId.HasValue ? $"#{Model.SupplierLedgerEntryId.Value}" : null, IsNumeric = true },
+        new() { Label = "زمان لغو", Value = Model.CancelledAtUtc?.ToString("yyyy-MM-dd HH:mm") },
+        new() { Label = "کاربر لغو", Value = Model.CancelledByUserName },
+        new() { Label = "دلیل لغو", Value = Model.CancellationReason, IsWide = true }
+    };
 }
 
 <div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
@@ -23,12 +56,7 @@
 
     <div asp-validation-summary="All" class="ak-form-alert"></div>
 
-    <dl class="ak-summary-list ak-summary ak-detail-summary">
-        <div><dt>مشتری</dt><dd>@Model.Customer?.Name</dd></div>
-        <div><dt>تأمین‌کننده</dt><dd>@Model.Supplier?.Name</dd></div>
-        <div><dt>صندوق / بانک شرکت</dt><dd class="ak-num">0.00 USD</dd></div>
-        <div><dt>وضعیت</dt><dd><span class="ak-status @statusState">@statusText</span></dd></div>
-    </dl>
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
     @if (Model.PayeeType == ThreeWayPayeeType.Sarraf && Model.Sarraf is not null)
     {
@@ -36,27 +64,15 @@
     }
     @if (Model.Status == ThreeWaySettlementStatus.Cancelled)
     {
-        <p class="ak-note"><strong>این تسویه لغو شده است.</strong> سند اصلی دفتر کل حذف یا ویرایش نشده؛ ردیف‌های معکوس با نوع منبع جدا ساخته شده‌اند. زمان لغو: @(Model.CancelledAtUtc?.ToString("yyyy-MM-dd HH:mm") ?? "-") | کاربر: @(Model.CancelledByUserName ?? "-") | دلیل: @(Model.CancellationReason ?? "-")</p>
+        <p class="ak-note"><strong>این تسویه لغو شده است.</strong> سند اصلی دفتر کل حذف یا ویرایش نشده؛ ردیف‌های معکوس با نوع منبع جدا ساخته شده‌اند. جزئیات لغو در «اطلاعات فنی» پایین صفحه است.</p>
     }
     @if (Model.DifferenceUsd != 0m)
     {
         <p class="ak-note"><strong>تفاوت مبلغ: @DifferenceReasonPolicy.Label(Model.DifferenceReason).</strong> @DifferenceReasonPolicy.PolicyText(Model.DifferenceReason) — @DifferenceReasonPolicy.TraceOnlyNote در مصرف ثبت نشده است.</p>
     }
 
-    <section class="ak-form-section ak-detail-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات حواله", (string?)null))" />
-        <dl class="ak-list">
-            <div class="ak-list-row"><dt>تاریخ</dt><dd>@Model.SettlementDate.ToString("yyyy-MM-dd")</dd></div>
-            <div class="ak-list-row"><dt>شماره حواله / مرجع</dt><dd>@(Model.HawalaReference ?? "-")</dd></div>
-            @if (Model.PayeeType == ThreeWayPayeeType.Sarraf)
-            {
-                <div class="ak-list-row"><dt>واسطه حواله (صراف)</dt><dd>@(Model.Sarraf?.Name ?? "-")</dd></div>
-            }
-            <div class="ak-list-row"><dt>قرارداد فروش مشتری</dt><dd>@(Model.CustomerSaleContract?.ContractNumber ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>قرارداد خرید تأمین‌کننده</dt><dd>@(Model.SupplierPurchaseContract?.ContractNumber ?? "-")</dd></div>
-            <div class="ak-list-row"><dt>توضیحات</dt><dd>@(Model.Notes ?? "-")</dd></div>
-        </dl>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@(("اطلاعات حواله", (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
     <section class="ak-form-section ak-detail-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اثر روی حساب‌ها و اسناد دفتر کل", (string?)null))" />
@@ -164,6 +180,9 @@
             </div>
         </section>
     }
+
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     @if (Model.Status == ThreeWaySettlementStatus.Posted)
     {

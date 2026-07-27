@@ -1,0 +1,49 @@
+@*
+    Shared label/value grid for detail pages (AK Detail v2 zone 3).
+
+    Replaces the hand-written <dl class="ak-list"> blocks that every Details page
+    used to repeat. Behaviour that used to be copy-pasted per page now lives here:
+      - items without a value are dropped, so no page prints a "-" row;
+      - numeric values get the tabular font plus LTR isolation inside RTL text;
+      - the whole partial renders nothing when every item is empty, so callers
+        never wrap it in an "if any value" guard.
+
+    Model: IReadOnlyList<AkInfoItem>
+*@
+@model IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem>
+@{
+    var items = (Model ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkInfoItem>())
+        .Where(item => item.HasValue)
+        .ToList();
+}
+@if (items.Count > 0)
+{
+    <dl class="ak-info-grid">
+        @foreach (var item in items)
+        {
+            var cellClass = "ak-info-cell";
+            if (item.IsWide) { cellClass += " is-wide"; }
+            var valueClass = "ak-info-value";
+            if (item.IsNumeric) { valueClass += " ak-num"; }
+            if (item.ToneClass is not null) { valueClass += " " + item.ToneClass; }
+
+            <div class="@cellClass">
+                <dt class="ak-info-label">@item.Label</dt>
+                <dd class="@valueClass">
+                    @if (!string.IsNullOrWhiteSpace(item.Href))
+                    {
+                        <a href="@item.Href"><bdi>@item.Value</bdi></a>
+                    }
+                    else
+                    {
+                        <bdi>@item.Value</bdi>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(item.Unit))
+                    {
+                        <span class="ak-info-unit">@item.Unit</span>
+                    }
+                </dd>
+            </div>
+        }
+    </dl>
+}

@@ -5,11 +5,22 @@
     ViewData["HideSectionTabs"] = true;
     var returnUrl = ViewBag.ReturnUrl as string;
     var backUrl = returnUrl ?? Url.Action("Index") ?? "/SarrafSettlements";
+    var selfUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     var statusState = Model.Status == SarrafSettlementStatus.Posted ? "is-active" : Model.Status == SarrafSettlementStatus.Cancelled ? "is-inactive" : "is-warning";
     ViewData["AkHeaderStatus"] = Model.StatusName;
     ViewData["AkHeaderStatusState"] = statusState;
     ViewData["AkHeaderContext"] = $"{Model.SarrafName} · {Model.ReferenceNumber ?? $"#{Model.Id}"}";
+
     var settlementMenu = new List<AkHeaderMenuItem>();
+    if (Model.Status != SarrafSettlementStatus.Cancelled)
+    {
+        settlementMenu.Add(new AkHeaderMenuItem
+        {
+            Label = "ویرایش حواله صراف",
+            Href = Url.Action("EditSarrafHawala", "Payments", new { id = Model.Id, returnUrl = selfUrl }),
+            Icon = "bi-pencil"
+        });
+    }
     if (Model.LedgerEntryId.HasValue)
     {
         settlementMenu.Add(new AkHeaderMenuItem { Label = "دفتر کل تأمین‌کننده", Href = Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value }), Icon = "bi-journal-text" });
@@ -19,6 +30,35 @@
         settlementMenu.Add(new AkHeaderMenuItem { Label = "دفتر کل اختلاف", Href = Url.Action("Details", "Ledger", new { id = Model.ExchangeDifferenceLedgerEntryId.Value }), Icon = "bi-journal-text" });
     }
     ViewData["AkHeaderKebab"] = settlementMenu;
+
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = "درخواست شرکت", Value = Model.RequestedAmountUsd.ToString("N2"), Unit = "USD", Avatar = "payments-out" },
+        new() { Title = "طلب صراف", Value = Model.SarrafChargedAmountUsd.ToString("N2"), Unit = "USD", Avatar = "receivables" },
+        new() { Title = "قبول‌شده تأمین‌کننده", Value = Model.SupplierAcceptedAmountUsd.ToString("N2"), Unit = "USD", Avatar = "suppliers" },
+        new() { Title = "اختلاف", Value = Model.DifferenceAmountUsd.ToString("N2"), Unit = "USD", Avatar = "exchange-rate", State = Model.DifferenceAmountUsd != 0m ? "warning" : null }
+    };
+
+    // صراف/مرجع/وضعیت در سربرگ‌اند و اینجا تکرار نمی‌شوند.
+    var summaryItems = new List<AkInfoItem>
+    {
+        new() { Label = "تاریخ", Value = Model.SettlementDate.ToDisplayDate() },
+        new() { Label = "تأمین‌کننده", Value = Model.SupplierName },
+        new() { Label = "قرارداد", Value = Model.ContractNumber },
+        new() { Label = "رفتار اختلاف", Value = Model.DifferenceTreatmentName },
+        new() { Label = "نوع اختلاف", Value = Model.DifferenceTypeName },
+        new() { Label = "شرح", Value = Model.Description, IsWide = true }
+    };
+
+    // شناسه‌های دفتر کل و مُهرهای زمانی — پشت آکاردئون، بدون حذف.
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = "شناسه تسویه", Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = "دفتر کل تأمین‌کننده", Value = Model.LedgerEntryId.HasValue ? $"#{Model.LedgerEntryId}" : null, IsNumeric = true },
+        new() { Label = "دفتر کل سود/زیان", Value = Model.ExchangeDifferenceLedgerEntryId.HasValue ? $"#{Model.ExchangeDifferenceLedgerEntryId}" : null, IsNumeric = true },
+        new() { Label = "ثبت قطعی", Value = Model.PostedAtUtc?.ToDisplayDateTime() },
+        new() { Label = "لغو", Value = Model.CancelledAtUtc?.ToDisplayDateTime() }
+    };
 }
 
 <div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
@@ -27,39 +67,10 @@
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
 
-    <div class="ak-stat-grid" aria-label="آمار تسویه صراف">
-        <vc:stat-card title="درخواست شرکت" value="@Model.RequestedAmountUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
-        <vc:stat-card title="طلب صراف" value="@Model.SarrafChargedAmountUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-        <vc:stat-card title="قبول‌شده تأمین‌کننده" value="@Model.SupplierAcceptedAmountUsd.ToString("N2")" unit="USD" avatar="suppliers"></vc:stat-card>
-        <vc:stat-card title="اختلاف" value="@Model.DifferenceAmountUsd.ToString("N2")" unit="USD" avatar="exchange-rate"></vc:stat-card>
-    </div>
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <div class="ak-form-grid">
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("ارتباطات", (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>تاریخ</dt><dd>@Model.SettlementDate.ToDisplayDate()</dd></div>
-                <div class="ak-list-row"><dt>صراف</dt><dd>@Model.SarrafName</dd></div>
-                <div class="ak-list-row"><dt>تأمین‌کننده</dt><dd>@(Model.SupplierName ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>قرارداد</dt><dd>@(Model.ContractNumber ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>مرجع</dt><dd>@(Model.ReferenceNumber ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>شرح</dt><dd>@(Model.Description ?? "-")</dd></div>
-            </dl>
-        </section>
-
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("وضعیت و دفتر کل", (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>وضعیت</dt><dd><span class="ak-status @(Model.Status == SarrafSettlementStatus.Posted ?"is-active" : Model.Status == SarrafSettlementStatus.Cancelled ? "is-inactive" : "")">@Model.StatusName</span></dd></div>
-                <div class="ak-list-row"><dt>رفتار اختلاف</dt><dd>@Model.DifferenceTreatmentName</dd></div>
-                <div class="ak-list-row"><dt>نوع اختلاف</dt><dd>@Model.DifferenceTypeName</dd></div>
-                <div class="ak-list-row"><dt>دفتر کل تأمین‌کننده</dt><dd>@(Model.LedgerEntryId.HasValue ? $"#{Model.LedgerEntryId}" : "-")</dd></div>
-                <div class="ak-list-row"><dt>دفتر کل سود/زیان</dt><dd>@(Model.ExchangeDifferenceLedgerEntryId.HasValue ? $"#{Model.ExchangeDifferenceLedgerEntryId}" : "-")</dd></div>
-                <div class="ak-list-row"><dt>ثبت قطعی</dt><dd>@(Model.PostedAtUtc?.ToDisplayDateTime() ?? "-")</dd></div>
-                <div class="ak-list-row"><dt>لغو</dt><dd>@(Model.CancelledAtUtc?.ToDisplayDateTime() ?? "-")</dd></div>
-            </dl>
-        </section>
-    </div>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@(("مشخصات تسویه", (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
     <section class="ak-form-section ak-detail-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("جزئیات نرخ‌ها", (string?)null))" />
@@ -75,19 +86,14 @@
         </div>
     </section>
 
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+
     @if (Model.Status != SarrafSettlementStatus.Cancelled)
     {
-        <div class="ak-footer-actions">
-            <a class="btn btn-outline-primary"
-               asp-controller="Payments" asp-action="EditSarrafHawala" asp-route-id="@Model.Id"
-               asp-route-returnUrl="@($"{Context.Request.Path}{Context.Request.QueryString}")">
-                <i class="bi bi-pencil"></i> ویرایش حواله صراف
-            </a>
-        </div>
-
         <form asp-action="Cancel" asp-route-id="@Model.Id" method="post" class="ak-form">
             @Html.AntiForgeryToken()
-            <input type="hidden" name="returnUrl" value="@Context.Request.Path@Context.Request.QueryString" />
+            <input type="hidden" name="returnUrl" value="@selfUrl" />
             <section class="ak-form-section ak-detail-section">
                 <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("لغو تسویه", (string?)null))" />
                 <div class="ak-form-grid">

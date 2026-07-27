@@ -26,11 +26,48 @@
     {
         new() { Label = "ویرایش مشخصات", Href = editUrl, Icon = "bi-pencil" }
     };
+
+    // شاخص‌های مالی راننده فقط وقتی دفتر حساب دارد؛ بدون دفتر، فقط شمار سفر می‌ماند.
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = "تعداد سفرها", Value = profile.Trips.Count.ToString("N0"), Avatar = "transported" }
+    };
+    if (hasLedger)
+    {
+        kpis.Add(new AkKpiItem { Title = "کرایهٔ بستانکار", Value = freightCreditUsd.ToString("N2"), Unit = "USD", Avatar = "payments-out" });
+        if (shortageDebitUsd > 0m)
+        {
+            kpis.Add(new AkKpiItem { Title = "بدهی خسارت کسری", Value = shortageDebitUsd.ToString("N2"), Unit = "USD", Avatar = "losses", State = "warning" });
+        }
+        kpis.Add(new AkKpiItem { Title = "ماندهٔ خالص", Value = Math.Abs(netOwedUsd).ToString("N2"), Unit = "USD", Avatar = "receivables" });
+    }
+
+    // «مشخصات پایه» تب یک‌ردیفه بود؛ حالا کارت خلاصهٔ همیشه‌دیدنیِ صفحه است.
+    var summaryItems = new List<AkInfoItem>
+    {
+        new() { Label = "شماره جواز", Value = Model.LicenseNumber },
+        new() { Label = "شناسه ملی", Value = Model.NationalId },
+        new() { Label = "تلفن", Value = Model.Phone, IsNumeric = true },
+        new()
+        {
+            Label = "وضعیت مدارک",
+            Value = $"{(docsReady ? "تکمیل و معتبر" : "نیاز به بررسی")} ({profile.Documents.Count.ToString("N0")})",
+            Tone = docsReady ? null : "warning"
+        },
+        new() { Label = "ماندهٔ خالص", Value = hasLedger ? $"{Math.Abs(netOwedUsd).ToString("N2")} USD — {netOwedMeaning}" : null, IsNumeric = false },
+        new() { Label = "آدرس", Value = Model.Address, IsWide = true },
+        new() { Label = "یادداشت", Value = Model.Notes, IsWide = true }
+    };
+
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = "شناسه داخلی", Value = $"#{Model.Id}", IsNumeric = true }
+    };
+
     var driverTabs = new[]
     {
-        $"trips|سوابق سفرها|bi-truck|{(activeTab == "trips" ? "active" : "")}",
-        $"docs|اسناد و مدارک|bi-folder2-open|{(activeTab == "docs" ? "active" : "")}",
-        $"info|مشخصات پایه|bi-card-text|{(activeTab == "info" ? "active" : "")}"
+        $"trips|سوابق سفرها||{(activeTab == "trips" ? "active" : "")}",
+        $"docs|اسناد و مدارک||{(activeTab == "docs" ? "active" : "")}"
     };
 }
 
@@ -40,51 +77,24 @@
                        "صورت‌حساب رسمی", "bi-file-earmark-text", statementUrl, (string?)null,
                        "بازگشت به فهرست", "bi-arrow-right", (string?)indexUrl))" />
 
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
+
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@(("مشخصات راننده", (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل راننده", driverTabs)" />
 
-    @* ===== وضعیت حساب / سوابق (تخت) ===== *@
     <section class="ak-form-section ak-detail-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("وضعیت راننده", (string?)null))" />
-        <dl class="ak-list">
-            <div class="ak-list-row"><dt>تعداد کل سفرها</dt><dd class="ak-num">@profile.Trips.Count.ToString("N0")</dd></div>
-            <div class="ak-list-row"><dt>وضعیت مدارک</dt><dd>@(docsReady ? "تکمیل و معتبر" : "نیاز به بررسی") (@profile.Documents.Count.ToString("N0"))</dd></div>
-            @if (hasLedger)
-            {
-                <div class="ak-list-row"><dt>کرایهٔ بستانکار</dt><dd class="ak-num">@freightCreditUsd.ToString("N2") USD</dd></div>
-                @if (shortageDebitUsd > 0m)
-                {
-                    <div class="ak-list-row"><dt>بدهی خسارت کسری</dt><dd class="ak-num">@shortageDebitUsd.ToString("N2") USD</dd></div>
-                }
-                <div class="ak-list-row"><dt>ماندهٔ خالص</dt><dd class="ak-num @(netOwedUsd >= 0m ?"ak-num" : "ak-num")">@Math.Abs(netOwedUsd).ToString("N2") USD — @netOwedMeaning</dd></div>
-            }
-        </dl>
+        @if (activeTab == "docs")
+        {
+            @await Html.PartialAsync("_TransportResourceDocs", profile)
+        }
+        else
+        {
+            @await Html.PartialAsync("_TransportResourceTrips", profile)
+        }
     </section>
 
-    @if (activeTab == "docs")
-    {
-        <section class="ak-form-section ak-detail-section">
-            @await Html.PartialAsync("_TransportResourceDocs", profile)
-        </section>
-    }
-    else if (activeTab == "info")
-    {
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("مشخصات پایه", (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>نام کامل</dt><dd>@Model.FullName</dd></div>
-                <div class="ak-list-row"><dt>شماره جواز</dt><dd>@(string.IsNullOrWhiteSpace(Model.LicenseNumber) ? "-" : Model.LicenseNumber)</dd></div>
-                <div class="ak-list-row"><dt>شناسه ملی</dt><dd>@(string.IsNullOrWhiteSpace(Model.NationalId) ? "-" : Model.NationalId)</dd></div>
-                <div class="ak-list-row"><dt>تلفن</dt><dd>@(string.IsNullOrWhiteSpace(Model.Phone) ? "-" : Model.Phone)</dd></div>
-                <div class="ak-list-row"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? "-" : Model.Address)</dd></div>
-                <div class="ak-list-row"><dt>وضعیت</dt><dd><span class="ak-status @(Model.IsActive ?"is-active" : "is-inactive")">@(Model.IsActive ? "فعال" : "غیرفعال")</span></dd></div>
-                <div class="ak-list-row"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? "-" : Model.Notes)</dd></div>
-            </dl>
-        </section>
-    }
-    else
-    {
-        <section class="ak-form-section ak-detail-section">
-            @await Html.PartialAsync("_TransportResourceTrips", profile)
-        </section>
-    }
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
 </div>

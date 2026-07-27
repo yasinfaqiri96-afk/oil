@@ -23,10 +23,7 @@
     var statusDone = Model.StatusName == "Delivered";
     var isCancelled = Model.StatusName == "Cancelled";
 
-    var productName = string.IsNullOrWhiteSpace(Model.ProductName) ? "-" : Model.ProductName;
-    var plateNumber = string.IsNullOrWhiteSpace(Model.TruckPlateNumber) ? "-" : Model.TruckPlateNumber;
-    var driverName = string.IsNullOrWhiteSpace(Model.DriverName) ? "-" : Model.DriverName;
-    var destinationLabel = Model.DestinationName ?? T("مقصد تعیین‌نشده", "Destination not set");
+    var productName = Model.ProductName;
     var documentNumber = $"DSP-{Model.Id:0000}";
 
     // منبع → موتر → مقصد (نمایش‌محور، بدون تغییر منطق موجودی)
@@ -47,7 +44,6 @@
     decimal? sourceRemainingMt = isDirectFromReceipt ? Model.AllocationRemainingQuantityMt : null;
 
     var receiptCount = Model.DeliveryReceipts.Count;
-    var receivedTotal = Model.DeliveryReceivedTotalMt;
     var payableAmount = Model.DriverShortageChargeUsd ?? Model.PayableUsd;
 
     var canUnload = !isCancelled && !Model.SalesTransactionId.HasValue;
@@ -56,14 +52,72 @@
     // مقدار (وزن) تا ۴ رقم اعشار، بدون صفر اضافه و با جداکنندهٔ هزار
     string Q(decimal v) => v.ToString("#,##0.####");
     string M(decimal v) => v.ToString("N2");
+    // صفرها در کارت خلاصه ردیف نمی‌گیرند؛ فقط ارقام واقعی می‌مانند.
+    string? NonZeroM(decimal v) => v == 0m ? null : M(v);
+    string? NonZeroQ(decimal v) => v == 0m ? null : Q(v);
+
+    var customsCount = Model.Customs.Count;
+    var customsTotalUsd = Model.CustomsTotalUsd;
+    var expenseCount = Model.Expenses.Count;
+    var expenseTotalUsd = Model.ExpenseTotalUsd;
+    var hasCustomsOrShortage = customsCount > 0 || shortageQty > 0.0001m;
 
     ViewData["AkHeaderStatus"] = statusText;
     ViewData["AkHeaderStatusState"] = isCancelled ? "is-danger" : statusDone ? "is-active" : "is-warning";
-    ViewData["AkHeaderContext"] = $"{Model.ContractNumber} · {productName} · {Model.DispatchDate.ToDisplayDate()}";
+    ViewData["AkHeaderContext"] = string.Join(" · ", new[]
+    {
+        Model.ContractNumber,
+        productName,
+        Model.TruckPlateNumber,
+        Model.DispatchDate.ToDisplayDate()
+    }.Where(part => !string.IsNullOrWhiteSpace(part)));
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-pencil-square" },
         new() { Label = T("ارسال جدید", "New dispatch"), Href = Url.Action("Create"), Icon = "bi-plus-lg" }
+    };
+
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = T("بارگیری‌شده", "Loaded"), Value = Q(loadedQty), Unit = T("تن", "MT"), Avatar = "loading" },
+        new() { Title = isDirectSale ? T("فروخته‌شده", "Sold") : T("تخلیه‌شده", "Unloaded"), Value = Q(unloadedQty), Unit = T("تن", "MT"), Avatar = "sold-quantity" },
+        new() { Title = T("کسری", "Shortage"), Value = Q(shortageQty), Unit = T("تن", "MT"), Avatar = "losses", State = shortageQty > 0.0001m ? "warning" : null },
+        new() { Title = T("کرایه", "Freight"), Value = M(freightUsd), Unit = "USD", Avatar = "transported" }
+    };
+
+    // وضعیت/محصول/پلیت/تاریخ در سربرگ‌اند؛ مقدار بارگیری و کرایه در نوار KPI.
+    var routeItems = new List<AkInfoItem>
+    {
+        new() { Label = T("نوع ارسال", "Dispatch mode"), Value = modeText },
+        new() { Label = sourceTypeLabel, Value = sourceNodeLabel },
+        new() { Label = T("قابل ارسال منبع", "Source available"), Value = sourceTotalMt.HasValue ? Q(sourceTotalMt.Value) : null, Unit = T("تن", "MT"), IsNumeric = true },
+        new() { Label = T("باقی‌مانده منبع", "Source remaining"), Value = sourceRemainingMt.HasValue ? Q(sourceRemainingMt.Value) : null, Unit = T("تن", "MT"), IsNumeric = true },
+        new() { Label = T("راننده", "Driver"), Value = Model.DriverName },
+        new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
+    };
+
+    var financeItems = new List<AkInfoItem>
+    {
+        new() { Label = T("مجموع فروش", "Total sales"), Value = NonZeroM(Model.SaleTotalUsd ?? 0m), Unit = "USD", IsNumeric = true },
+        new() { Label = T("مقدار فروش‌شده", "Sold quantity"), Value = NonZeroQ(Model.SaleQuantityMt ?? 0m), Unit = T("تن", "MT"), IsNumeric = true },
+        new() { Label = T("گمرکات", "Customs"), Value = NonZeroM(customsTotalUsd), Unit = "USD", IsNumeric = true },
+        new() { Label = T("مصارف عملیاتی", "Operational expenses"), Value = NonZeroM(expenseTotalUsd), Unit = "USD", IsNumeric = true },
+        new() { Label = T("کسورات (مجرا راننده)", "Deductions (driver charge)"), Value = payableAmount.HasValue ? NonZeroM(payableAmount.Value) : null, Unit = "USD", IsNumeric = true, Tone = "warning" },
+        new() { Label = T("تلورانس کسری", "Shortage tolerance"), Value = shortageQty > 0.0001m ? Q(Model.ToleranceMt ?? 0m) : null, Unit = T("تن", "MT"), IsNumeric = true },
+        new() { Label = T("کسری قابل کسر", "Chargeable shortage"), Value = shortageQty > 0.0001m ? Q(Model.ChargeableShortageMt ?? 0m) : null, Unit = T("تن", "MT"), IsNumeric = true },
+        new() { Label = T("نرخ کسری", "Shortage rate"), Value = shortageQty > 0.0001m ? NonZeroM(Model.ShortageRateUsd ?? 0m) : null, Unit = "USD/MT", IsNumeric = true }
+    };
+
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = T("شماره داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new()
+        {
+            Label = T("مرجع موجودی", "Inventory reference"),
+            Value = Model.InventoryReference ?? (isDirectFromReceipt ? T("بدون حرکت موجودی", "No stock movement") : null)
+        },
+        new() { Label = T("شناسه رسید بارگیری", "Loading receipt id"), Value = Model.LoadingReceiptId.HasValue ? $"#{Model.LoadingReceiptId.Value}" : null, IsNumeric = true },
+        new() { Label = T("شناسه فروش", "Sale id"), Value = Model.SalesTransactionId.HasValue ? $"#{Model.SalesTransactionId.Value}" : null, IsNumeric = true }
     };
 
     var timelineItems = new List<AkTimelineItem>
@@ -79,6 +133,8 @@
         Title = T("سند گمرکی", "Customs declaration"), Date = item.DeclarationDate.ToDisplayDate(), Icon = "bi-shield-check",
         Href = Url.Action("Details", "CustomsDeclarations", new { id = item.Id, returnUrl = currentPageReturnUrl }), Meta = $"{M(item.TotalUsd)} USD"
     }));
+    var showTimeline = timelineItems.Count > 1;
+
     var relatedRecords = new List<AkRelatedRecord>
     {
         new() { TypeLabel = T("قرارداد", "Contract"), Label = Model.ContractNumber, KeyValue = productName, Icon = "bi-file-earmark-text" }
@@ -91,13 +147,15 @@
     {
         relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("رسید بارگیری", "Loading receipt"), Label = $"#{Model.LoadingReceiptId.Value}", Href = Url.Action("Details", "LoadingReceipts", new { id = Model.LoadingReceiptId.Value, returnUrl = currentPageReturnUrl }), Icon = "bi-box-arrow-in-down" });
     }
+
+    // اکشن اصلی سربرگ در نوار عملیات پایانی تکرار نمی‌شود.
+    var headerIsUnload = canUnload || canDirectSale;
     var nextActions = new List<AkHeaderMenuItem>();
-    if (canUnload || canDirectSale)
-    {
-        nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت تخلیه / فروش موتر", "Register unload or sale"), Href = Url.Action("Unload", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-box-arrow-down" });
-    }
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { truckDispatchId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-file-earmark-check" });
-    nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصرف / کرایه", "Register expense"), ModalTarget = "dispatchExpensesModal", Icon = "bi-receipt" });
+    if (headerIsUnload)
+    {
+        nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصرف / کرایه", "Register expense"), ModalTarget = "dispatchExpensesModal", Icon = "bi-receipt" });
+    }
 
     ViewData["Title"] = T("جزئیات ارسال با موتر", "Truck dispatch details");
     ViewData["HideSectionTabs"] = true;
@@ -108,291 +166,201 @@
 <div class="page-stack ak-form-page ak-detail-page" dir="rtl" data-transport-details data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("ارسال", "Dispatch")} {documentNumber}", false,
-                       (canUnload || canDirectSale) ? T("ثبت تخلیه / فروش", "Register unload or sale") : T("ثبت مصرف", "Register expense"),
-                       (canUnload || canDirectSale) ? "bi-box-arrow-down" : "bi-receipt",
-                       (canUnload || canDirectSale) ? Url.Action("Unload", new { id = Model.Id, returnUrl = currentPageReturnUrl }) : (string?)null,
-                       (canUnload || canDirectSale) ? (string?)null : "dispatchExpensesModal",
+                       headerIsUnload ? T("ثبت تخلیه / فروش", "Register unload or sale") : T("ثبت مصرف", "Register expense"),
+                       headerIsUnload ? "bi-box-arrow-down" : "bi-receipt",
+                       headerIsUnload ? Url.Action("Unload", new { id = Model.Id, returnUrl = currentPageReturnUrl }) : (string?)null,
+                       headerIsUnload ? (string?)null : "dispatchExpensesModal",
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <section class="ak-form-section ak-detail-section">
-        <div class="ak-form-grid">
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-truck-front" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("وضعیت", "Status")</span>
-                <span class="ak-status @(statusDone ?"is-done" : "")">
-                    @if (statusDone)
-                    {
-                        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
-                    }
-                    @statusText
-                </span>
-            </div>
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("نمبر پلیت", "Plate no.")</span>
-                <strong class="ak-num">@plateNumber</strong>
-            </div>
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-person-badge" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("راننده", "Driver")</span>
-                <strong class="ak-num">@driverName</strong>
-            </div>
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-droplet" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("محصول", "Product")</span>
-                <strong class="ak-num">@productName</strong>
-            </div>
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("شماره ارسال", "Dispatch no.")</span>
-                <strong class="ak-num ak-note">@documentNumber</strong>
-            </div>
-        </div>
-        <div class="itl-vehicle-art" aria-hidden="true">
-            <img src="~/images/truck-row-display.png" alt="@T("موتر تانکر", "Tanker truck")" />
-        </div>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <section class="ak-stat-grid" aria-label="@T("شاخص‌های ارسال", "Dispatch metrics")">
-        <vc:stat-card title="@T("بارگیری‌شده", "Loaded")" value="@Q(loadedQty)" unit="@T("تن", "MT")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@(isDirectSale ? T("فروخته‌شده", "Sold") : T("تخلیه‌شده", "Unloaded"))" value="@Q(unloadedQty)" unit="@T("تن", "MT")" avatar="sold-quantity"></vc:stat-card>
-        <vc:stat-card title="@T("کسری", "Shortage")" value="@Q(shortageQty)" unit="@T("تن", "MT")" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@T("کرایه", "Freight")" value="@M(freightUsd)" unit="USD" avatar="transported"></vc:stat-card>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((T("منبع، مسیر و موتر", "Source, route & truck"), (string?)null, (IReadOnlyList<AkInfoItem>)routeItems))" />
 
-    @{
-        var customsCount = Model.Customs.Count;
-        var customsTotalUsd = Model.CustomsTotalUsd;
-        var expenseCount = Model.Expenses.Count;
-        var expenseTotalUsd = Model.ExpenseTotalUsd;
-        var hasCustomsOrShortage = customsCount > 0 || shortageQty > 0.0001m;
-    }
-    <section class="ak-form-section ak-detail-section" aria-labelledby="dispatch-financial-title">
-        <h2 class="ak-section-title" id="dispatch-financial-title">@T("خلاصه مالی ارسال", "Dispatch financial summary")</h2>
-        <div class="ak-detail-subsection" aria-labelledby="dispatch-sales-title">
-            <h3 class="ak-detail-subsection-title" id="dispatch-sales-title">@T("فروشات", "Sales")</h3>
-            <div class="ak-list">
-                <div class="ak-list-row">
-                    <span>@T("مجموع فروش", "Total sales")</span>
-                    <b>@M(Model.SaleTotalUsd ?? 0m) <em>USD</em></b>
-                </div>
-                <div class="ak-list-row">
-                    <span>@T("مقدار فروش‌شده", "Sold quantity")</span>
-                    <b>@Q(Model.SaleQuantityMt ?? 0m) <em>@T("تن", "MT")</em></b>
-                </div>
-            </div>
-            <div class="ak-list">
-                    @if (Model.SalesTransactionId.HasValue)
-                    {
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((T("خلاصه مالی ارسال", "Dispatch financial summary"), (string?)null, (IReadOnlyList<AkInfoItem>)financeItems))" />
+
+    <div class="ak-form-grid">
+        @if (Model.SalesTransactionId.HasValue)
+        {
+            <section class="ak-form-section ak-detail-section">
+                <header class="ak-section-head ak-detail-section-header">
+                    <h2 class="ak-section-title">@T("فروشات", "Sales")</h2>
+                    <span class="ak-status">@M(Model.SaleTotalUsd ?? 0m) USD</span>
+                </header>
+                <div class="ak-list">
+                    @{
                         var inv = string.IsNullOrWhiteSpace(Model.SaleInvoiceNumber) ? $"#{Model.SalesTransactionId}" : Model.SaleInvoiceNumber;
-                        <button type="button" class="ak-list-row" data-title="@T("فروش", "Sale") @inv">
+                    }
+                    <button type="button" class="ak-list-row" data-title="@T("فروش", "Sale") @inv">
+                        <span class="ak-field">
+                            <strong>@inv</strong>
+                            <small>@(isDirectSale ? T("فروش مستقیم", "Direct sale") : T("فروش", "Sale"))</small>
+                        </span>
+                        <span class="ak-num">@M(Model.SaleTotalUsd ?? 0m) USD</span>
+                        <div class="ak-section-desc" hidden>
+                            <dl class="ak-list">
+                                <div><dt>@T("شماره فاکتور", "Invoice")</dt><dd>@inv</dd></div>
+                                <div><dt>@T("کد فروش", "Sale id")</dt><dd>#@Model.SalesTransactionId</dd></div>
+                                <div><dt>@T("مقدار فروش", "Quantity")</dt><dd>@Q(Model.SaleQuantityMt ?? 0m) @T("تن", "MT")</dd></div>
+                                <div><dt>@T("مبلغ فروش", "Amount")</dt><dd>@M(Model.SaleTotalUsd ?? 0m) USD</dd></div>
+                            </dl>
+                        </div>
+                    </button>
+                </div>
+            </section>
+        }
+
+        @if (hasCustomsOrShortage)
+        {
+            <section class="ak-form-section ak-detail-section">
+                <header class="ak-section-head ak-detail-section-header">
+                    <h2 class="ak-section-title">@T("گمرکات و کسورات", "Customs and deductions")</h2>
+                    <span class="ak-status">@M(customsTotalUsd) USD</span>
+                </header>
+                <div class="ak-list">
+                    @foreach (var c in Model.Customs)
+                    {
+                        var cref = c.DeclarationReference ?? c.WagonOrTruckNumber ?? $"#{c.Id}";
+                        <button type="button" class="ak-list-row" data-title="@T("گمرک", "Customs") @cref">
                             <span class="ak-field">
-                                <strong>@inv</strong>
-                                <small>@(isDirectSale ? T("فروش مستقیم", "Direct sale") : T("فروش", "Sale"))</small>
+                                <strong>@cref</strong>
+                                <small>@T("گمرک", "Customs") · @c.DeclarationDate.ToDisplayDate()</small>
                             </span>
-                            <span class="ak-num">@M(Model.SaleTotalUsd ?? 0m) USD</span>
+                            <span class="ak-num">@M(c.TotalUsd) USD</span>
                             <div class="ak-section-desc" hidden>
                                 <dl class="ak-list">
-                                    <div><dt>@T("شماره فاکتور", "Invoice")</dt><dd>@inv</dd></div>
-                                    <div><dt>@T("کد فروش", "Sale id")</dt><dd>#@Model.SalesTransactionId</dd></div>
-                                    <div><dt>@T("مقدار فروش", "Quantity")</dt><dd>@Q(Model.SaleQuantityMt ?? 0m) @T("تن", "MT")</dd></div>
-                                    <div><dt>@T("مبلغ فروش", "Amount")</dt><dd>@M(Model.SaleTotalUsd ?? 0m) USD</dd></div>
+                                    <div><dt>@T("کد اعلامیه", "Declaration id")</dt><dd>#@c.Id</dd></div>
+                                    <div><dt>@T("تاریخ", "Date")</dt><dd>@c.DeclarationDate.ToDisplayDate()</dd></div>
+                                    @if (!string.IsNullOrWhiteSpace(c.DeclarationReference))
+                                    {
+                                        <div><dt>@T("مرجع / ACCD", "Reference")</dt><dd>@c.DeclarationReference</dd></div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(c.WagonOrTruckNumber))
+                                    {
+                                        <div><dt>@T("شماره موتر", "Truck no.")</dt><dd>@c.WagonOrTruckNumber</dd></div>
+                                    }
+                                    <div><dt>@T("مجموع (AFN)", "Total AFN")</dt><dd>@M(c.TotalAfn) AFN</dd></div>
+                                    <div><dt>@T("مجموع (USD)", "Total USD")</dt><dd>@M(c.TotalUsd) USD</dd></div>
                                 </dl>
                             </div>
                         </button>
                     }
-                    else
+                    @if (shortageQty > 0.0001m)
                     {
-                        <p class="ak-empty ak-detail-empty-state">@T("فروشی به این ارسال وصل نیست.", "No sale linked to this dispatch.")</p>
+                        <button type="button" class="ak-list-row" data-title="@T("کسری موتر", "Truck shortage")">
+                            <span class="ak-field">
+                                <strong>@T("کسری موتر", "Truck shortage")</strong>
+                                <small>@T("بارگیری منهای تخلیه", "Loaded minus unloaded")</small>
+                            </span>
+                            <span class="ak-num">@Q(shortageQty) @T("تن", "MT")</span>
+                            <div class="ak-section-desc" hidden>
+                                <dl class="ak-list">
+                                    <div><dt>@T("کسری کل", "Total shortage")</dt><dd>@Q(shortageQty) @T("تن", "MT")</dd></div>
+                                    <div><dt>@T("تلورانس", "Tolerance")</dt><dd>@Q(Model.ToleranceMt ?? 0m) @T("تن", "MT")</dd></div>
+                                    <div><dt>@T("قابل کسر", "Chargeable")</dt><dd>@Q(Model.ChargeableShortageMt ?? 0m) @T("تن", "MT")</dd></div>
+                                    <div><dt>@T("نرخ کسری", "Shortage rate")</dt><dd>@M(Model.ShortageRateUsd ?? 0m) USD/MT</dd></div>
+                                    @if (payableAmount.HasValue)
+                                    {
+                                        <div><dt>@T("پول مجرا راننده", "Driver charge")</dt><dd>@M(payableAmount.Value) USD</dd></div>
+                                    }
+                                </dl>
+                            </div>
+                        </button>
                     }
-            </div>
-        </div>
+                </div>
+            </section>
+        }
 
-        <div class="ak-detail-subsection" aria-labelledby="dispatch-customs-title">
-            <h3 class="ak-detail-subsection-title" id="dispatch-customs-title">@T("گمرکات و کسورات", "Customs and deductions")</h3>
-            <div class="ak-list">
-                <div class="ak-list-row">
-                    <span>@T("گمرکات", "Customs")</span>
-                    <b>@M(customsTotalUsd) <em>USD</em></b>
-                </div>
-                <div class="ak-list-row">
-                    <span>@T("کسورات (مجرا راننده)", "Deductions (driver charge)")</span>
-                    <b>@(payableAmount.HasValue ? M(payableAmount.Value) : "0.00") <em>USD</em></b>
-                </div>
-            </div>
-            <div class="ak-list">
-                    @if (hasCustomsOrShortage)
+        @if (expenseCount > 0)
+        {
+            <section class="ak-form-section ak-detail-section">
+                <header class="ak-section-head ak-detail-section-header">
+                    <h2 class="ak-section-title">@T("مصارف و کرایه", "Expenses and freight")</h2>
+                    <span class="ak-status">@M(expenseTotalUsd) USD</span>
+                </header>
+                <div class="ak-list">
+                    @foreach (var e in Model.Expenses)
                     {
-                        foreach (var c in Model.Customs)
-                        {
-                            var cref = c.DeclarationReference ?? c.WagonOrTruckNumber ?? $"#{c.Id}";
-                            <button type="button" class="ak-list-row" data-title="@T("گمرک", "Customs") @cref">
-                                <span class="ak-field">
-                                    <strong>@cref</strong>
-                                    <small>@T("گمرک", "Customs") · @c.DeclarationDate.ToDisplayDate()</small>
-                                </span>
-                                <span class="ak-num">@M(c.TotalUsd) USD</span>
-                                <div class="ak-section-desc" hidden>
-                                    <dl class="ak-list">
-                                        <div><dt>@T("کد اعلامیه", "Declaration id")</dt><dd>#@c.Id</dd></div>
-                                        <div><dt>@T("تاریخ", "Date")</dt><dd>@c.DeclarationDate.ToDisplayDate()</dd></div>
-                                        <div><dt>@T("مرجع / ACCD", "Reference")</dt><dd>@(c.DeclarationReference ?? "-")</dd></div>
-                                        <div><dt>@T("شماره موتر", "Truck no.")</dt><dd>@(c.WagonOrTruckNumber ?? "-")</dd></div>
-                                        <div><dt>@T("مجموع (AFN)", "Total AFN")</dt><dd>@M(c.TotalAfn) AFN</dd></div>
-                                        <div><dt>@T("مجموع (USD)", "Total USD")</dt><dd>@M(c.TotalUsd) USD</dd></div>
-                                    </dl>
-                                </div>
-                            </button>
-                        }
-                        @if (shortageQty > 0.0001m)
-                        {
-                            <button type="button" class="ak-list-row" data-title="@T("کسری موتر", "Truck shortage")">
-                                <span class="ak-field">
-                                    <strong>@T("کسری موتر", "Truck shortage")</strong>
-                                    <small>@T("بارگیری منهای تخلیه", "Loaded minus unloaded")</small>
-                                </span>
-                                <span class="ak-num">@Q(shortageQty) @T("تن", "MT")</span>
-                                <div class="ak-section-desc" hidden>
-                                    <dl class="ak-list">
-                                        <div><dt>@T("کسری کل", "Total shortage")</dt><dd>@Q(shortageQty) @T("تن", "MT")</dd></div>
-                                        <div><dt>@T("تلورانس", "Tolerance")</dt><dd>@Q(Model.ToleranceMt ?? 0m) @T("تن", "MT")</dd></div>
-                                        <div><dt>@T("قابل کسر", "Chargeable")</dt><dd>@Q(Model.ChargeableShortageMt ?? 0m) @T("تن", "MT")</dd></div>
-                                        <div><dt>@T("نرخ کسری", "Shortage rate")</dt><dd>@M(Model.ShortageRateUsd ?? 0m) USD/MT</dd></div>
-                                        <div><dt>@T("پول مجرا راننده", "Driver charge")</dt><dd>@(payableAmount.HasValue ? M(payableAmount.Value) : "-") USD</dd></div>
-                                    </dl>
-                                </div>
-                            </button>
-                        }
+                        var expenseLabel = string.IsNullOrWhiteSpace(e.ExpenseTypeName) ? T("مصرف", "Expense") : e.ExpenseTypeName;
+                        <button type="button" class="ak-list-row" data-title="@expenseLabel">
+                            <span class="ak-field">
+                                <strong>@expenseLabel</strong>
+                                <small>@e.ExpenseDate.ToDisplayDate()</small>
+                            </span>
+                            <span class="ak-num">@M(e.AmountUsd) USD</span>
+                            <div class="ak-section-desc" hidden>
+                                <dl class="ak-list">
+                                    <div><dt>@T("نوع مصرف", "Expense type")</dt><dd>@expenseLabel</dd></div>
+                                    <div><dt>@T("تاریخ", "Date")</dt><dd>@e.ExpenseDate.ToDisplayDate()</dd></div>
+                                    <div><dt>@T("مبلغ", "Amount")</dt><dd>@M(e.Amount) @e.Currency</dd></div>
+                                    <div><dt>@T("معادل (USD)", "USD equivalent")</dt><dd>@M(e.AmountUsd) USD</dd></div>
+                                    @if (!string.IsNullOrWhiteSpace(e.Description))
+                                    {
+                                        <div><dt>@T("شرح", "Description")</dt><dd>@e.Description</dd></div>
+                                    }
+                                </dl>
+                            </div>
+                        </button>
                     }
-                    else
-                    {
-                        <p class="ak-empty ak-detail-empty-state">@T("گمرک یا کسری ثبت نشده است.", "No customs or shortage recorded.")</p>
-                    }
-            </div>
-        </div>
+                </div>
+            </section>
+        }
 
-        <div class="ak-detail-subsection" aria-labelledby="dispatch-expenses-title">
-            <h3 class="ak-detail-subsection-title" id="dispatch-expenses-title">@T("مصارف و کرایه", "Expenses and freight")</h3>
-            <div class="ak-list">
-                <div class="ak-list-row">
-                    <span>@T("کرایه حمل", "Freight")</span>
-                    <b>@M(freightUsd) <em>USD</em></b>
-                </div>
-                <div class="ak-list-row">
-                    <span>@T("مصارف عملیاتی", "Operational expenses")</span>
-                    <b>@M(expenseTotalUsd) <em>USD</em></b>
-                </div>
-            </div>
-            <div class="ak-list">
-                    @if (expenseCount > 0)
+        @if (receiptCount > 0)
+        {
+            <section class="ak-form-section ak-detail-section">
+                <header class="ak-section-head ak-detail-section-header">
+                    <h2 class="ak-section-title">@T("رسیدهای تحویل / تخلیه", "Delivery receipts")</h2>
+                    <span class="ak-status">@receiptCount</span>
+                </header>
+                <div class="ak-list">
+                    @foreach (var r in Model.DeliveryReceipts)
                     {
-                        foreach (var e in Model.Expenses)
-                        {
-                            <button type="button" class="ak-list-row" data-title="@(string.IsNullOrWhiteSpace(e.ExpenseTypeName) ? T("مصرف", "Expense") : e.ExpenseTypeName)">
-                                <span class="ak-field">
-                                    <strong>@(string.IsNullOrWhiteSpace(e.ExpenseTypeName) ? T("مصرف", "Expense") : e.ExpenseTypeName)</strong>
-                                    <small>@e.ExpenseDate.ToDisplayDate()</small>
-                                </span>
-                                <span class="ak-num">@M(e.AmountUsd) USD</span>
-                                <div class="ak-section-desc" hidden>
-                                    <dl class="ak-list">
-                                        <div><dt>@T("نوع مصرف", "Expense type")</dt><dd>@(string.IsNullOrWhiteSpace(e.ExpenseTypeName) ? "-" : e.ExpenseTypeName)</dd></div>
-                                        <div><dt>@T("تاریخ", "Date")</dt><dd>@e.ExpenseDate.ToDisplayDate()</dd></div>
-                                        <div><dt>@T("مبلغ", "Amount")</dt><dd>@M(e.Amount) @e.Currency</dd></div>
-                                        <div><dt>@T("معادل (USD)", "USD equivalent")</dt><dd>@M(e.AmountUsd) USD</dd></div>
-                                        <div><dt>@T("شرح", "Description")</dt><dd>@(e.Description ?? "-")</dd></div>
-                                    </dl>
-                                </div>
-                            </button>
-                        }
+                        var reff = r.DocumentReference ?? r.ReceivedBy ?? $"#{r.Id}";
+                        <button type="button" class="ak-list-row" data-title="@T("رسید", "Receipt") #@r.Id">
+                            <span class="ak-field">
+                                <strong>@T("رسید", "Receipt") #@r.Id</strong>
+                                <small>@r.ReceiptDate.ToDisplayDate()</small>
+                            </span>
+                            <span class="ak-num">@Q(r.ReceivedQuantityMt) @T("تن", "MT")</span>
+                            <div class="ak-section-desc" hidden>
+                                <dl class="ak-list">
+                                    <div><dt>@T("شماره رسید", "Receipt")</dt><dd>#@r.Id</dd></div>
+                                    <div><dt>@T("تاریخ", "Date")</dt><dd>@r.ReceiptDate.ToDisplayDate()</dd></div>
+                                    <div><dt>@T("مقدار تخلیه", "Quantity")</dt><dd>@Q(r.ReceivedQuantityMt) @T("تن", "MT")</dd></div>
+                                    @if (!string.IsNullOrWhiteSpace(r.ReceivedBy))
+                                    {
+                                        <div><dt>@T("تحویل‌گیرنده", "Received by")</dt><dd>@r.ReceivedBy</dd></div>
+                                    }
+                                    <div><dt>@T("مرجع سند", "Reference")</dt><dd>@reff</dd></div>
+                                </dl>
+                            </div>
+                        </button>
                     }
-                    else
-                    {
-                        <p class="ak-empty ak-detail-empty-state">@T("مصرفی برای این موتر ثبت نشده است.", "No expense recorded for this truck.")</p>
-                    }
-            </div>
-        </div>
-    </section>
+                </div>
+            </section>
+        }
+    </div>
 
-    @if (Model.DeliveryReceipts.Any())
+    @if (showTimeline)
     {
-        <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head ak-detail-section-header">
-                <h2 class="ak-section-title">@T("رسیدهای تحویل / تخلیه", "Delivery receipts")</h2>
-                <span class="ak-status">@receiptCount</span>
-            </header>
-            <div class="ak-list">
-                        @foreach (var r in Model.DeliveryReceipts)
-                        {
-                            var reff = r.DocumentReference ?? r.ReceivedBy ?? $"#{r.Id}";
-                            <button type="button" class="ak-list-row" data-title="@T("رسید", "Receipt") #@r.Id">
-                                <span class="ak-field">
-                                    <strong>@T("رسید", "Receipt") #@r.Id</strong>
-                                    <small>@r.ReceiptDate.ToDisplayDate()</small>
-                                </span>
-                                <span class="ak-num">@Q(r.ReceivedQuantityMt) @T("تن", "MT")</span>
-                                <div class="ak-section-desc" hidden>
-                                    <dl class="ak-list">
-                                        <div><dt>@T("شماره رسید", "Receipt")</dt><dd>#@r.Id</dd></div>
-                                        <div><dt>@T("تاریخ", "Date")</dt><dd>@r.ReceiptDate.ToDisplayDate()</dd></div>
-                                        <div><dt>@T("مقدار تخلیه", "Quantity")</dt><dd>@Q(r.ReceivedQuantityMt) @T("تن", "MT")</dd></div>
-                                        <div><dt>@T("تحویل‌گیرنده", "Received by")</dt><dd>@(r.ReceivedBy ?? "-")</dd></div>
-                                        <div><dt>@T("مرجع سند", "Reference")</dt><dd>@reff</dd></div>
-                                    </dl>
-                                </div>
-                            </button>
-                        }
-                </div>
+        <section class="ak-form-section ak-detail-section" aria-labelledby="dispatch-timeline-title">
+            <h2 class="ak-section-title" id="dispatch-timeline-title">@T("روند ارسال", "Dispatch timeline")</h2>
+            <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
         </section>
     }
 
-    <section class="ak-form-section ak-detail-section">
-        <header class="ak-section-head"><h2 class="ak-section-title">@T("منبع، مسیر و موتر", "Source, route & truck")</h2></header>
-        <div class="ak-list">
-            <div class="ak-list-row">
-                <span>@T("نوع ارسال", "Dispatch mode")</span>
-                <b>@modeText</b>
-            </div>
-            <div class="ak-list-row">
-                <span>@sourceTypeLabel</span>
-                <b>@sourceNodeLabel</b>
-            </div>
-            @if (sourceTotalMt.HasValue)
-            {
-                <div class="ak-list-row">
-                    <span>@T("قابل ارسال منبع", "Source available")</span>
-                    <b>@Q(sourceTotalMt.Value) <em>@T("تن", "MT")</em></b>
-                </div>
-            }
-            <div class="ak-list-row">
-                <span>@T("ارسال‌شده به موتر", "Sent to truck")</span>
-                <b>@Q(loadedQty) <em>@T("تن", "MT")</em></b>
-            </div>
-            <div class="ak-list-row">
-                <span>@T("باقی‌مانده منبع", "Source remaining")</span>
-                @if (sourceRemainingMt.HasValue)
-                {
-                    <b>@Q(sourceRemainingMt.Value) <em>@T("تن", "MT")</em></b>
-                }
-                else
-                {
-                    <b class="text-muted">@T("قابل محاسبه نیست", "Not computable")</b>
-                }
-            </div>
-            <div class="ak-list-row">
-                <span>@T("موتر / راننده", "Truck / driver")</span>
-                <b>@plateNumber · @driverName</b>
-            </div>
-            <div class="ak-list-row">
-                <span>@T("مقصد", "Destination")</span>
-                <b>@destinationLabel</b>
-            </div>
-            <div class="ak-list-row">
-                <span>@T("مرجع موجودی", "Inventory ref")</span>
-                <b>@(Model.InventoryReference ?? (isDirectFromReceipt ? T("بدون حرکت موجودی", "No stock movement") : "-"))</b>
-            </div>
-        </div>
-    </section>
+    @if (relatedRecords.Count > 0)
+    {
+        <section class="ak-form-section ak-detail-section" aria-labelledby="dispatch-related-title">
+            <h2 class="ak-section-title" id="dispatch-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
+            <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
+        </section>
+    }
+
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     <div class="modal fade loading-expense-modal" id="dispatchExpensesModal" tabindex="-1"
          aria-labelledby="dispatchExpensesModalLabel" aria-hidden="true" data-loading-expense-remote-modal>
@@ -424,19 +392,9 @@
         </div>
     </div>
 
-    <section class="ak-form-section ak-detail-section" aria-labelledby="dispatch-timeline-title">
-        <h2 class="ak-section-title" id="dispatch-timeline-title">@T("روند ارسال", "Dispatch timeline")</h2>
-        <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-    </section>
-    @if (relatedRecords.Count > 0)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="dispatch-related-title">
-            <h2 class="ak-section-title" id="dispatch-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
-            <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
-        </section>
-    }
     <button type="button" class="visually-hidden" data-bs-toggle="modal" data-bs-target="#dispatchExpensesModal"
             data-expense-url="@Url.Action("CreateExpenseModal", "Dispatch", new { id = Model.Id, returnUrl = currentPageReturnUrl })" tabindex="-1" aria-hidden="true"></button>
+
     <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>
 

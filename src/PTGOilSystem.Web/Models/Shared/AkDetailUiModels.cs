@@ -73,6 +73,67 @@ public sealed class AkTimelineItem
     };
 }
 
+/// <summary>
+/// One label/value fact rendered by <c>_DetailInfoGrid</c>. Items whose value is
+/// blank — or one of the placeholder glyphs the old pages printed instead of a
+/// value — are dropped by the partial, so a page never shows a "-" row.
+/// </summary>
+public sealed class AkInfoItem
+{
+    public required string Label { get; init; }
+
+    /// <summary>Already-formatted display value produced by the page.</summary>
+    public string? Value { get; init; }
+
+    /// <summary>Optional link target; the value renders as an anchor when set.</summary>
+    public string? Href { get; init; }
+
+    /// <summary>Optional short unit shown after the value (MT, USD, USD/MT, …).</summary>
+    public string? Unit { get; init; }
+
+    /// <summary>Numbers render with the tabular font and LTR isolation.</summary>
+    public bool IsNumeric { get; init; }
+
+    /// <summary>Tone for state-bearing values only: "warning", "danger", "success".</summary>
+    public string? Tone { get; init; }
+
+    /// <summary>Long free text (notes, route, address) spans the full grid width.</summary>
+    public bool IsWide { get; init; }
+
+    private static readonly string[] PlaceholderValues = ["-", "—", "–", "‌-", "N/A", "n/a"];
+
+    public bool HasValue => !string.IsNullOrWhiteSpace(Value)
+        && !PlaceholderValues.Contains(Value.Trim());
+
+    public string? ToneClass => Tone switch
+    {
+        "warning" => "is-warning",
+        "danger" => "is-danger",
+        "success" => "is-success",
+        _ => null
+    };
+}
+
+/// <summary>
+/// One card of the primary KPI strip (<c>_DetailKpiStrip</c>). The strip caps
+/// itself at five cards so no page can grow a second metrics wall.
+/// </summary>
+public sealed class AkKpiItem
+{
+    public required string Title { get; init; }
+
+    /// <summary>Already-formatted display value produced by the page.</summary>
+    public required string Value { get; init; }
+
+    public string? Unit { get; init; }
+
+    /// <summary>Stat-card avatar key, e.g. "loading", "expenses".</summary>
+    public string? Avatar { get; init; }
+
+    /// <summary>Stat-card state: "warning", "empty", "loading".</summary>
+    public string? State { get; init; }
+}
+
 /// <summary>One linked related record chip (_RelatedRecords).</summary>
 public sealed class AkRelatedRecord
 {

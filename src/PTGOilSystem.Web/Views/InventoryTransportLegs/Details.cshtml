@@ -24,8 +24,6 @@
         InventoryTransportLegStatus.Cancelled => T("لغو شده", "Cancelled"),
         _ => Model.Status.ToString()
     };
-    var statusDone = Model.Status == InventoryTransportLegStatus.Received;
-
     var transportTypeName = Model.TransportType switch
     {
         LoadingTransportType.Truck => T("موتر تانکر", "Tanker truck"),
@@ -43,9 +41,7 @@
     var productName = string.IsNullOrWhiteSpace(Model.ProductName) ? "-" : Model.ProductName;
     // همان resolution صفحهٔ «پرونده محموله» (ShipmentPnl) تا مقادیر یکسان نمایش داده شود.
     var plateRaw = Model.WagonNumber ?? Model.BillOfLadingNumber ?? Model.RwbNo;
-    var plateNumber = string.IsNullOrWhiteSpace(plateRaw) ? "-" : plateRaw;
     var cmrRaw = Model.RwbNo ?? Model.BillOfLadingNumber;
-    var cmrNumber = string.IsNullOrWhiteSpace(cmrRaw) ? "-" : cmrRaw;
 
     var receipt = Model.DestinationReceipt;
     var loadedQty = Model.QuantityMt;
@@ -129,15 +125,30 @@
             Href = Url.Action("Details", "ShipmentPnl", new { id = Model.ShipmentId.Value, returnUrl = currentPageReturnUrl }), Icon = "bi-box-seam"
         });
     }
-    if (Model.OutboundInventoryMovementId.HasValue)
-    {
-        relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("حرکت موجودی", "Inventory movement"), Label = $"#{Model.OutboundInventoryMovementId.Value}", Icon = "bi-arrow-left-right" });
-    }
 
-    var nextActions = new List<AkHeaderMenuItem>
+    // وضعیت/محصول/قرارداد در سربرگ‌اند و اینجا تکرار نمی‌شوند؛ مبدأ و مقصد که قبلاً
+    // محاسبه می‌شد ولی هرگز رندر نمی‌شد، حالا در همین کارت دیده می‌شود.
+    var summaryItems = new List<AkInfoItem>
     {
-        new() { Label = T("عملیات بعدی بار", "Next cargo operation"), ModalTarget = "nextOperationModal", Icon = "bi-arrow-right-circle" }
+        new() { Label = T("نوع حمل", "Transport type"), Value = transportTypeName },
+        new() { Label = T("نمبر پلیت", "Plate no."), Value = plateRaw, IsNumeric = true },
+        new() { Label = T("نمبر CMR", "CMR no."), Value = cmrRaw, IsNumeric = true },
+        new() { Label = T("مبدأ", "Source"), Value = sourceTank },
+        new() { Label = T("مقصد", "Destination"), Value = destinationLabel },
+        new() { Label = T("باقیمانده در وسیله", "Remaining in vehicle"), Value = Model.RemainingQuantityMt > 0.0001m ? Q(Model.RemainingQuantityMt) : null, Unit = T("تن", "MT"), IsNumeric = true, Tone = "warning" }
     };
+
+    // شناسه‌های داخلی و ردپای موجودی — پشت آکاردئون بسته.
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = T("شماره داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = T("سند خروج", "Outbound reference"), Value = Model.OutboundReferenceDocument },
+        new() { Label = T("حرکت موجودی خروجی", "Outbound movement"), Value = Model.OutboundInventoryMovementId.HasValue ? $"#{Model.OutboundInventoryMovementId.Value}" : null, IsNumeric = true },
+        new() { Label = T("شناسه محموله", "Shipment id"), Value = Model.ShipmentId.HasValue ? $"#{Model.ShipmentId.Value}" : null, IsNumeric = true }
+    };
+
+    // «عملیات بعدی بار» اکشن اصلی سربرگ است و در نوار پایانی تکرار نمی‌شود.
+    var nextActions = new List<AkHeaderMenuItem>();
     if (canCreateReceipt)
     {
         nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت تخلیه و کسری", "Register unload"), Href = Url.Action("Create", "InventoryTransportReceipts", new { transportLegId = Model.Id, destination = (int)InventoryTransportReceiptDestination.ToInventory }), Icon = "bi-box-arrow-in-down" });
@@ -171,53 +182,15 @@
                        T("عملیات بعدی بار", "Next cargo operation"), "bi-arrow-right-circle", (string?)null, "nextOperationModal",
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <section class="ak-form-section ak-detail-section">
-        <div class="ak-form-grid">
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-truck-front" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("وضعیت", "Status")</span>
-                <span class="ak-status @(statusDone ?"is-done" : "")">
-                    @if (statusDone)
-                    {
-                        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
-                    }
-                    @statusText
-                </span>
-            </div>
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("نمبر پلیت", "Plate no.")</span>
-                <strong class="ak-num">@plateNumber</strong>
-            </div>
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-file-text" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("نمبر CMR", "CMR no.")</span>
-                <strong class="ak-num ak-note">@cmrNumber</strong>
-            </div>
-            <div class="ak-field">
-                <span class="ak-page-icon"><i class="bi bi-droplet" aria-hidden="true"></i></span>
-                <span class="ak-label">@T("محصول", "Product")</span>
-                <strong class="ak-num">@productName</strong>
-            </div>
-        </div>
-        <div class="itl-vehicle-art" aria-hidden="true">
-            @if (Model.TransportType == LoadingTransportType.Wagon)
-            {
-                <img src="~/images/wagon-row.png" alt="@T("واگن", "Wagon")" />
-            }
-            else
-            {
-                <img src="~/images/truck-row-display.png" alt="@transportTypeName" />
-            }
-        </div>
-    </section>
-
     <section class="ak-stat-grid" aria-label="@T("شاخص‌های حمل", "Transport metrics")">
         <vc:stat-card title="@T("بارگیری‌شده", "Loaded")" value="@Q(loadedQty)" unit="@T("تن", "MT")" avatar="loading"></vc:stat-card>
         <vc:stat-card title="@T("تخلیه‌شده", "Unloaded")" value="@Q(unloadedQty)" unit="@T("تن", "MT")" avatar="tank-farm"></vc:stat-card>
         <vc:stat-card title="@T("کسری", "Shortage")" value="@Q(shortageQty)" unit="@T("تن", "MT")" avatar="losses"></vc:stat-card>
         <vc:stat-card title="@T("نتیجه نهایی", "Final result")" value="@U(finalResultUsd)" unit="USD" avatar="profit-loss"></vc:stat-card>
     </section>
+
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((T("مشخصات حمل", "Transport profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
     <section class="ak-form-section ak-detail-section" aria-labelledby="transport-financial-title">
         <h2 class="ak-section-title" id="transport-financial-title">@T("خلاصه مالی حمل", "Transport financial summary")</h2>
@@ -248,7 +221,7 @@
                     }
                     else
                     {
-                        <p class="ak-empty ak-detail-empty-state">@T("فروشی ثبت نشده است.", "No sale recorded.")</p>
+                        <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("فروشی ثبت نشده است.", "No sale recorded.")" />
                     }
             </div>
             <div class="ak-list ak-detail-totals">
@@ -304,7 +277,7 @@
                     }
                     else
                     {
-                        <p class="ak-empty ak-detail-empty-state">@T("گمرک یا کسری ثبت نشده است.", "No customs or shortage recorded.")</p>
+                        <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("گمرک یا کسری ثبت نشده است.", "No customs or shortage recorded.")" />
                     }
             </div>
             <div class="ak-list ak-detail-totals">
@@ -367,7 +340,7 @@
                     }
                     else
                     {
-                        <p class="ak-empty ak-detail-empty-state">@T("مصرفی ثبت نشده است.", "No expense recorded.")</p>
+                        <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("مصرفی ثبت نشده است.", "No expense recorded.")" />
                     }
             </div>
             <div class="ak-list ak-detail-totals">
@@ -473,6 +446,9 @@
             <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
         </section>
     }
+
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     @if (canMarkLoaded)
     {

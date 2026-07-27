@@ -162,8 +162,16 @@
     };
     var tankTabs = new[]
     {
-        $"summary|قراردادها|bi-database|{(activeTankTab == "summary" ? "active" : "")}",
-        $"ledger|ورودی/خروجی|bi-arrow-left-right|{(activeTankTab == "ledger" ? "active" : "")}"
+        $"summary|قراردادها||{(activeTankTab == "summary" ? "active" : "")}",
+        $"ledger|ورودی/خروجی||{(activeTankTab == "ledger" ? "active" : "")}"
+    };
+
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = UiText.T(Context, "شناسه مخزن", "Tank id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = UiText.T(Context, "شناسه ترمینال", "Terminal id"), Value = $"#{Model.TerminalId}", IsNumeric = true },
+        new() { Label = UiText.T(Context, "شناسه جنس", "Product id"), Value = Model.ProductId.HasValue ? $"#{Model.ProductId.Value}" : null, IsNumeric = true },
+        new() { Label = UiText.T(Context, "واحد اندازه‌گیری", "Unit of measure"), Value = unitText }
     };
 }
 
@@ -236,7 +244,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="6">@await Html.PartialAsync("_EmptyState", (UiText.T(Context, "هنوز قراردادی با موجودی در این مخزن ثبت نشده است", "No contract inventory exists for this tank yet"), UiText.T(Context, "پس از ثبت ورود یا خروج مخزن، جزئیات قراردادها اینجا نمایش داده می‌شود.", "After tank in/out movements are recorded, contract details will appear here."), "bi-journal-text"))</td>
+                        <td colspan="6"><partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "هنوز قراردادی با موجودی در این مخزن ثبت نشده است.", "No contract inventory exists for this tank yet.")" /></td>
                     </tr>
                 }
                 </tbody>
@@ -245,8 +253,10 @@
     </section>
 
     <section class="ak-form-section ak-detail-section" id="tank-ledger" hidden="@(activeTankTab != "ledger")">
-        @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", (UiText.T(Context, "آخرین حرکات (دفتر ورود/خروج)", "Recent Movements"), (string?)null))
-        <a href="@stockCardUrl" class="btn btn-light ak-secondary-action">@UiText.T(Context, "مشاهده همه", "View All")</a>
+        <header class="ak-section-head ak-detail-section-header">
+            <h2 class="ak-section-title">@UiText.T(Context, "آخرین حرکات (دفتر ورود/خروج)", "Recent Movements")</h2>
+            <a href="@stockCardUrl" class="btn btn-light ak-secondary-action">@UiText.T(Context, "مشاهده همه", "View All")</a>
+        </header>
         <div class="ak-table-wrap">
             <table class="ak-table ak-detail-table">
                 <thead>
@@ -276,7 +286,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="5">@await Html.PartialAsync("_EmptyState", (UiText.T(Context, "حرکت ورود یا خروجی برای این مخزن وجود ندارد", "No in/out movement exists for this tank"), UiText.T(Context, "دفتر حرکات پس از ثبت رسید، انتقال یا بارگیری تکمیل می‌شود.", "The movement ledger is completed after receipts, transfers, or loadings are recorded."), "bi-arrow-left-right"))</td>
+                        <td colspan="5"><partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "حرکت ورود یا خروجی برای این مخزن وجود ندارد.", "No in/out movement exists for this tank.")" /></td>
                     </tr>
                 }
                 </tbody>
@@ -285,6 +295,9 @@
         <partial name="~/Views/Shared/Partials/_DetailPager.cshtml"
                  model="@((storageLedgerPage, storageLedgerPageCount, "tankLedgerPage", (string?)"tank-ledger"))" />
     </section>
+
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
     @foreach (var contractRow in Model.ContractStockBreakdownRows.Select((value, index) => new { value, index }))
     {
         var row = contractRow.value;
@@ -352,9 +365,7 @@
                             }
                             else
                             {
-                                <div class="ak-empty ak-detail-empty-state">
-                                    <span>@UiText.T(Context, "برای این بخش حرکتی ثبت نشده است.", "No movement is recorded for this section.")</span>
-                                </div>
+                                <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "برای این بخش حرکتی ثبت نشده است.", "No movement is recorded for this section.")" />
                             }
                         </div>
                     </div>

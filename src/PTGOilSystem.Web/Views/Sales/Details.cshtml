@@ -13,12 +13,6 @@
     var customerText = string.IsNullOrWhiteSpace(Model.CustomerName)
         ? T("مشتری نامشخص", "Unknown customer")
         : Model.CustomerName;
-    var companyText = string.IsNullOrWhiteSpace(Model.CompanyName)
-        ? T("ثبت نشده", "Not recorded")
-        : Model.CompanyName;
-    var productText = string.IsNullOrWhiteSpace(Model.ProductName)
-        ? T("کالای نامشخص", "Unknown product")
-        : Model.ProductName;
     var ledgerRecorded = Model.LedgerEntryId.HasValue;
     var isSameCurrency = string.Equals(Model.Currency, "USD", StringComparison.OrdinalIgnoreCase);
     var stockSourceText = Model.StockSourceType?.ToString() switch
@@ -28,16 +22,6 @@
         "Tank" => T("تانک", "Tank"),
         _ => null
     };
-    var hasSourceFacts = !string.IsNullOrWhiteSpace(stockSourceText)
-        || !string.IsNullOrWhiteSpace(Model.SourcePurchaseContractNumber)
-        || !string.IsNullOrWhiteSpace(Model.SourceTerminalName)
-        || !string.IsNullOrWhiteSpace(Model.SourceStorageTankCode)
-        || !string.IsNullOrWhiteSpace(Model.InventoryTransportReference)
-        || !string.IsNullOrWhiteSpace(Model.DestinationName);
-    var hasAdvancedTrace = !string.IsNullOrWhiteSpace(Model.TicketSerialNumber)
-        || !string.IsNullOrWhiteSpace(Model.InventoryMovementIdsText)
-        || Model.LoadingReceiptAllocationId.HasValue
-        || Model.InventoryTransportReceiptId.HasValue;
 
     ViewData["AkHeaderStatus"] = Model.IsCancelled
         ? T("لغو شده", "Cancelled")
@@ -58,12 +42,6 @@
             Label = T("فاکتور دوم", "Alternate invoice"),
             Href = Url.Action("Invoice", new { id = Model.Id, template = "fawad" }),
             Icon = "bi-receipt-cutoff"
-        },
-        new()
-        {
-            Label = T("فروش جدید", "New sale"),
-            Href = Url.Action("Create", new { returnUrl = backUrl }),
-            Icon = "bi-plus-lg"
         }
     };
     if (!Model.IsCancelled)
@@ -79,6 +57,55 @@
         });
     }
     ViewData["AkHeaderKebab"] = salesKebab;
+
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = T("مقدار فروش", "Sale quantity"), Value = NumberDisplay.Quantity(Model.QuantityMt), Unit = "MT", Avatar = "sold-quantity" },
+        new() { Title = T("مبلغ کل", "Total amount"), Value = Model.TotalInCurrency.ToString("N2"), Unit = Model.Currency, Avatar = "sales-value" },
+        new() { Title = T("دریافت‌شده", "Received"), Value = Model.ReceivedUsd.ToString("N2"), Unit = "USD", Avatar = "receipts" },
+        new() { Title = T("مانده قابل دریافت", "Outstanding receivable"), Value = Model.ReceivableBalanceUsd.ToString("N2"), Unit = "USD", Avatar = "receivables", State = Model.ReceivableBalanceUsd > 0 ? "warning" : null }
+    };
+
+    // مشتری/تاریخ/مرحله در خط زمینهٔ سربرگ‌اند؛ مقدار و مبلغ در نوار KPI. اینجا تکرار نمی‌شوند.
+    var summaryItems = new List<AkInfoItem>
+    {
+        new() { Label = T("کالا", "Product"), Value = Model.ProductName },
+        new() { Label = T("قیمت واحد", "Unit price"), Value = Model.UnitPriceInCurrency.ToString("N2"), Unit = $"{Model.Currency} / MT", IsNumeric = true },
+        new() { Label = T("نرخ تبدیل به USD", "FX rate to USD"), Value = !isSameCurrency && Model.AppliedFxRateToUsd.HasValue ? NumberDisplay.FxRate(Model.AppliedFxRateToUsd) : null, IsNumeric = true },
+        new() { Label = T("مبلغ دفتری", "Ledger amount"), Value = Model.TotalUsd.ToString("N2"), Unit = "USD", IsNumeric = true },
+        new() { Label = T("مازاد دریافت", "Overpayment"), Value = Model.OverpaymentUsd > 0 ? Model.OverpaymentUsd.ToString("N2") : null, Unit = "USD", IsNumeric = true, Tone = "warning" },
+        new() { Label = T("شرکت / جواز", "Company / licence"), Value = Model.CompanyName },
+        new() { Label = T("قرارداد فروش", "Sale contract"), Value = contractText },
+        new()
+        {
+            Label = T("وضعیت دفتر", "Ledger status"),
+            Value = ledgerRecorded ? T("ثبت‌شده", "Recorded") : T("در انتظار", "Pending"),
+            Tone = ledgerRecorded ? null : "warning"
+        },
+        new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
+    };
+
+    var sourceItems = new List<AkInfoItem>
+    {
+        new() { Label = T("نوع منبع", "Source type"), Value = stockSourceText },
+        new() { Label = T("قرارداد خرید منبع", "Source purchase contract"), Value = Model.SourcePurchaseContractNumber },
+        new() { Label = T("ترمینال مبدأ", "Source terminal"), Value = Model.SourceTerminalName },
+        new() { Label = T("مخزن مبدأ", "Source tank"), Value = Model.SourceStorageTankCode },
+        new() { Label = T("مرجع حمل", "Transport reference"), Value = Model.InventoryTransportReference },
+        new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
+    };
+
+    // ردیابی فنی و شناسه‌های داخلی — پشت آکاردئون بسته.
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = T("شماره داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = T("سریال تکت", "Ticket serial"), Value = Model.TicketSerialNumber },
+        new() { Label = T("حرکت‌های موجودی", "Inventory movements"), Value = Model.InventoryMovementIdsText },
+        new() { Label = T("شناسه تخصیص رسید", "Receipt allocation id"), Value = Model.LoadingReceiptAllocationId.HasValue ? $"#{Model.LoadingReceiptAllocationId.Value}" : null, IsNumeric = true },
+        new() { Label = T("شناسه رسید حمل", "Transport receipt id"), Value = Model.InventoryTransportReceiptId.HasValue ? $"#{Model.InventoryTransportReceiptId.Value}" : null, IsNumeric = true },
+        new() { Label = T("ثبت‌کننده", "Recorded by"), Value = Model.CreatedByName },
+        new() { Label = T("تاریخ ثبت", "Recorded at"), Value = Model.CreatedAtUtc.ToDisplayDate() }
+    };
 
     var timelineItems = new List<AkTimelineItem>
     {
@@ -104,6 +131,7 @@
             Meta = $"{(payment.IsIncoming ? "+" : "-")}{payment.Amount.ToString("N2")} {payment.Currency}"
         });
     }
+    var showTimeline = timelineItems.Count > 1;
 
     var relatedRecords = new List<AkRelatedRecord>();
     if (Model.ContractId.HasValue)
@@ -183,149 +211,49 @@
                        Url.Action("Invoice", new { id = Model.Id, template = "faisal" }), (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <section class="ak-stat-grid no-print" aria-label="@T("شاخص‌های اصلی فروش", "Primary sale metrics")">
-        <vc:stat-card title="@T("مقدار فروش", "Sale quantity")" value="@NumberDisplay.Quantity(Model.QuantityMt)" unit="MT" avatar="sold-quantity"></vc:stat-card>
-        <vc:stat-card title="@T("مبلغ کل", "Total amount")" value="@Model.TotalInCurrency.ToString("N2")" unit="@Model.Currency" avatar="sales-value"></vc:stat-card>
-        <vc:stat-card title="@T("دریافت‌شده", "Received")" value="@Model.ReceivedUsd.ToString("N2")" unit="USD" avatar="receipts"></vc:stat-card>
-        <vc:stat-card title="@T("مانده قابل دریافت", "Outstanding receivable")" value="@Model.ReceivableBalanceUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <div class="ak-form-grid">
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("خلاصه فروش", "Sale summary"), (string?)T("اطلاعات اصلی کالا و سند فروش", "Core item and sale document information")))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>@T("کالا", "Product")</dt><dd>@productText</dd></div>
-                <div class="ak-list-row"><dt>@T("مقدار", "Quantity")</dt><dd class="ak-num">@NumberDisplay.Quantity(Model.QuantityMt) MT</dd></div>
-                <div class="ak-list-row"><dt>@T("قیمت واحد", "Unit price")</dt><dd class="ak-num">@Model.UnitPriceInCurrency.ToString("N2") @Model.Currency / MT</dd></div>
-                <div class="ak-list-row"><dt>@T("ارز", "Currency")</dt><dd>@Model.Currency</dd></div>
-                @if (!isSameCurrency && Model.AppliedFxRateToUsd.HasValue)
-                {
-                    <div class="ak-list-row"><dt>@T("نرخ تبدیل به USD", "FX rate to USD")</dt><dd class="ak-num">@NumberDisplay.FxRate(Model.AppliedFxRateToUsd)</dd></div>
-                }
-                <div class="ak-list-row"><dt>@T("مبلغ دفتری", "Ledger amount")</dt><dd class="ak-num">@Model.TotalUsd.ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>@T("مرحله", "Stage")</dt><dd>@stageText</dd></div>
-                <div class="ak-list-row"><dt>@T("شرکت / جواز", "Company / licence")</dt><dd>@companyText</dd></div>
-                <div class="ak-list-row"><dt>@T("قرارداد فروش", "Sale contract")</dt><dd>@contractText</dd></div>
-                <div class="ak-list-row">
-                    <dt>@T("وضعیت دفتر", "Ledger status")</dt>
-                    <dd>
-                        <span class="ak-status @(ledgerRecorded ? "is-active" : "is-warning")">
-                            @(ledgerRecorded ? T("ثبت‌شده", "Recorded") : T("در انتظار", "Pending"))
-                        </span>
-                    </dd>
-                </div>
-                <div class="ak-list-row"><dt>@T("ثبت‌کننده", "Recorded by")</dt><dd>@(string.IsNullOrWhiteSpace(Model.CreatedByName) ? T("نامشخص", "Unknown") : Model.CreatedByName)</dd></div>
-                <div class="ak-list-row"><dt>@T("تاریخ ثبت", "Recorded at")</dt><dd>@Model.CreatedAtUtc.ToDisplayDate()</dd></div>
-            </dl>
-        </section>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((T("خلاصه فروش", "Sale summary"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
-        <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head">
-                <h2 class="ak-section-title">@T("پرداخت‌ها و وضعیت مالی", "Payments and financial status")</h2>
-                <p class="ak-section-desc">@T("براساس پرداخت‌های مستقیم و تخصیص‌های ثبت‌شده", "Based on explicitly linked payments and allocations")</p>
-            </header>
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>@T("مبلغ فروش", "Sale amount")</dt><dd class="ak-num">@Model.TotalUsd.ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>@T("دریافت / پوشش ثبت‌شده", "Recorded receipts / coverage")</dt><dd class="ak-num">@Model.ReceivedUsd.ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>@T("مانده قابل دریافت", "Outstanding receivable")</dt><dd class="ak-num">@Model.ReceivableBalanceUsd.ToString("N2") USD</dd></div>
-                @if (Model.OverpaymentUsd > 0)
-                {
-                    <div class="ak-list-row"><dt>@T("مازاد دریافت", "Overpayment")</dt><dd class="ak-num">@Model.OverpaymentUsd.ToString("N2") USD</dd></div>
-                }
-            </dl>
-
-            @if (Model.Payments.Count > 0)
-            {
-                <div class="ak-list" aria-label="@T("پرداخت‌های مرتبط", "Linked payments")">
-                    @foreach (var payment in Model.Payments)
-                    {
-                        <a class="ak-list-row" asp-controller="Payments" asp-action="Details" asp-route-id="@payment.PaymentTransactionId" asp-route-returnUrl="@currentReturnUrl">
-                            <span class="ak-field">
-                                <strong>@(payment.IsAdvanceApplication ? T("مصرف پیش‌دریافت", "Advance applied") : payment.IsIncoming ? T("دریافت", "Receipt") : T("برگشت وجه", "Refund"))</strong>
-                                <small>@payment.PaymentDate.ToDisplayDate()@(!string.IsNullOrWhiteSpace(payment.Reference) ? $" · {payment.Reference}" : "")</small>
-                            </span>
-                            <span class="ak-num @(payment.IsIncoming ? "text-success" : "text-danger")">
-                                @(payment.IsIncoming ? "+" : "-")@payment.Amount.ToString("N2") @payment.Currency
-                            </span>
-                        </a>
-                    }
-                </div>
-            }
-            else
-            {
-                <div class="ak-empty ak-detail-empty-state">
-                    <i class="bi bi-wallet2"></i>
-                    @T("هیچ پرداخت مستقیمی برای این فروش ثبت نشده است.", "No direct payment is linked to this sale.")
-                </div>
-            }
-        </section>
-    </div>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((T("منبع و تحویل", "Source and delivery"), (string?)null, (IReadOnlyList<AkInfoItem>)sourceItems))" />
 
     <section class="ak-form-section ak-detail-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("منبع و تحویل", "Source and delivery"), (string?)null))" />
-        @if (hasSourceFacts || hasAdvancedTrace)
+        <header class="ak-section-head ak-detail-section-header">
+            <h2 class="ak-section-title">@T("پرداخت‌های مرتبط", "Linked payments")</h2>
+            <span class="ak-status">@Model.Payments.Count</span>
+        </header>
+        @if (Model.Payments.Count > 0)
         {
-            <dl class="ak-list">
-                @if (!string.IsNullOrWhiteSpace(stockSourceText))
+            <div class="ak-list" aria-label="@T("پرداخت‌های مرتبط", "Linked payments")">
+                @foreach (var payment in Model.Payments)
                 {
-                    <div class="ak-list-row"><dt>@T("نوع منبع", "Source type")</dt><dd>@stockSourceText</dd></div>
+                    <a class="ak-list-row" asp-controller="Payments" asp-action="Details" asp-route-id="@payment.PaymentTransactionId" asp-route-returnUrl="@currentReturnUrl">
+                        <span class="ak-field">
+                            <strong>@(payment.IsAdvanceApplication ? T("مصرف پیش‌دریافت", "Advance applied") : payment.IsIncoming ? T("دریافت", "Receipt") : T("برگشت وجه", "Refund"))</strong>
+                            <small>@payment.PaymentDate.ToDisplayDate()@(!string.IsNullOrWhiteSpace(payment.Reference) ? $" · {payment.Reference}" : "")</small>
+                        </span>
+                        <span class="ak-num @(payment.IsIncoming ? "text-success" : "text-danger")">
+                            @(payment.IsIncoming ? "+" : "-")@payment.Amount.ToString("N2") @payment.Currency
+                        </span>
+                    </a>
                 }
-                @if (!string.IsNullOrWhiteSpace(Model.SourcePurchaseContractNumber))
-                {
-                    <div class="ak-list-row"><dt>@T("قرارداد خرید منبع", "Source purchase contract")</dt><dd>@Model.SourcePurchaseContractNumber</dd></div>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.SourceTerminalName))
-                {
-                    <div class="ak-list-row"><dt>@T("ترمینال مبدأ", "Source terminal")</dt><dd>@Model.SourceTerminalName</dd></div>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.SourceStorageTankCode))
-                {
-                    <div class="ak-list-row"><dt>@T("مخزن مبدأ", "Source tank")</dt><dd dir="auto">@Model.SourceStorageTankCode</dd></div>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.InventoryTransportReference))
-                {
-                    <div class="ak-list-row"><dt>@T("مرجع حمل", "Transport reference")</dt><dd dir="auto">@Model.InventoryTransportReference</dd></div>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.DestinationName))
-                {
-                    <div class="ak-list-row"><dt>@T("مقصد", "Destination")</dt><dd>@Model.DestinationName</dd></div>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.TicketSerialNumber))
-                {
-                    <div class="ak-list-row"><dt>@T("سریال تکت", "Ticket serial")</dt><dd dir="auto">@Model.TicketSerialNumber</dd></div>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.InventoryMovementIdsText))
-                {
-                    <div class="ak-list-row"><dt>@T("حرکت‌های موجودی", "Inventory movements")</dt><dd dir="auto">@Model.InventoryMovementIdsText</dd></div>
-                }
-                @if (Model.LoadingReceiptAllocationId.HasValue)
-                {
-                    <div class="ak-list-row"><dt>@T("شناسه تخصیص رسید", "Receipt allocation ID")</dt><dd class="ak-num">#@Model.LoadingReceiptAllocationId.Value</dd></div>
-                }
-                @if (Model.InventoryTransportReceiptId.HasValue)
-                {
-                    <div class="ak-list-row"><dt>@T("شناسه رسید حمل", "Transport receipt ID")</dt><dd class="ak-num">#@Model.InventoryTransportReceiptId.Value</dd></div>
-                }
-            </dl>
+            </div>
         }
         else
         {
-            <p class="ak-note">@T("اطلاعات منبع برای این رکورد قدیمی ثبت نشده است.", "Source information is unavailable for this legacy record.")</p>
+            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هیچ پرداخت مستقیمی برای این فروش ثبت نشده است.", "No direct payment is linked to this sale.")" />
         }
     </section>
 
-    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+    @if (showTimeline)
     {
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("یادداشت", "Notes"), (string?)null))" />
-            <p class="ak-note">@Model.Notes</p>
+        <section class="ak-form-section ak-detail-section" aria-labelledby="sale-timeline-title">
+            <h2 class="ak-section-title" id="sale-timeline-title">@T("روند فروش", "Sale timeline")</h2>
+            <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
         </section>
     }
-
-    <section class="ak-form-section ak-detail-section" aria-labelledby="sale-timeline-title">
-        <h2 class="ak-section-title" id="sale-timeline-title">@T("روند فروش", "Sale timeline")</h2>
-        <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-    </section>
 
     @if (relatedRecords.Count > 0)
     {
@@ -334,6 +262,9 @@
             <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
         </section>
     }
+
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

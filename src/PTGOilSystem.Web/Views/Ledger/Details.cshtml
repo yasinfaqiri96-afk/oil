@@ -1,5 +1,6 @@
 @model PTGOilSystem.Web.Models.Ledger.LedgerDetailsViewModel
 @{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
     var returnUrl = ViewBag.ReturnUrl as string;
     var backUrl = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : Url.Action("Index") ?? "/Ledger";
     ViewData["Title"] = "جزئیات ثبت دفتر کل";
@@ -7,6 +8,35 @@
     ViewData["AkHeaderStatus"] = Model.SideName;
     ViewData["AkHeaderStatusState"] = "is-active";
     ViewData["AkHeaderContext"] = $"{UiText.LedgerSource(Context, Model.SourceTypeLabel)} · سند #{Model.SourceId}";
+
+    // سمت در وضعیت سربرگ و شناسه در عنوان صفحه است؛ اینجا تکرار نمی‌شوند.
+    var summaryItems = new List<AkInfoItem>
+    {
+        new() { Label = "تاریخ ثبت", Value = Model.EntryDate.ToDisplayDate() },
+        new() { Label = "مبلغ", Value = Model.AmountUsd.ToString("N2"), Unit = "USD", IsNumeric = true },
+        new() { Label = "ارز", Value = Model.Currency },
+        new() { Label = "مرجع", Value = Model.Reference },
+        new() { Label = "شرح ثبت", Value = Model.Description, IsWide = true }
+    };
+
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = "شناسه دفتر کل", Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = "نوع منبع", Value = UiText.LedgerSource(Context, Model.SourceTypeLabel) },
+        new() { Label = "شناسه سند منبع", Value = $"#{Model.SourceId}", IsNumeric = true }
+    };
+
+    // روابط متصل به‌جای ردیف‌های همیشه‌خالی، فقط به شکل چیپ رکوردهای موجود.
+    var relatedRecords = new List<AkRelatedRecord>();
+    if (Model.Contract is not null) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "قرارداد فروش", Label = Model.Contract.Label, KeyValue = $"#{Model.Contract.Id}", Icon = "bi-file-earmark-text" });
+    if (Model.Customer is not null) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "مشتری", Label = Model.Customer.Label, Href = Url.Action("Details", "Customers", new { id = Model.Customer.Id }), Icon = "bi-people" });
+    if (Model.Supplier is not null) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "تأمین‌کننده", Label = Model.Supplier.Label, Href = Url.Action("Details", "Suppliers", new { id = Model.Supplier.Id }), Icon = "bi-briefcase" });
+    if (Model.Employee is not null) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "کارمند", Label = Model.Employee.Label, Href = Url.Action("Details", "Employees", new { id = Model.Employee.Id }), Icon = "bi-person-vcard" });
+    if (Model.Shipment is not null) relatedRecords.Add(new AkRelatedRecord { TypeLabel = "محموله", Label = Model.Shipment.Label, Href = Url.Action("Details", "ShipmentPnl", new { id = Model.Shipment.Id }), Icon = "bi-box-seam" });
+
+    var sourceTraceItems = Model.SourceTrace?.Fields
+        .Select(field => new AkInfoItem { Label = field.Label, Value = field.Value })
+        .ToList() ?? new List<AkInfoItem>();
 }
 
 <div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
@@ -15,57 +45,30 @@
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
 
-    <div class="ak-form-grid">
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات اصلی ثبت", (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>شناسه دفتر کل</dt><dd class="ak-num">#@Model.Id</dd></div>
-                <div class="ak-list-row"><dt>تاریخ ثبت</dt><dd>@Model.EntryDate.ToDisplayDate()</dd></div>
-                <div class="ak-list-row"><dt>سمت</dt><dd>@Model.SideName</dd></div>
-                <div class="ak-list-row"><dt>مبلغ (USD)</dt><dd class="ak-num">@Model.AmountUsd.ToString("N2")</dd></div>
-                <div class="ak-list-row"><dt>ارز</dt><dd>@Model.Currency</dd></div>
-                <div class="ak-list-row"><dt>مرجع</dt><dd>@(string.IsNullOrWhiteSpace(Model.Reference) ? "-" : Model.Reference)</dd></div>
-            </dl>
-        </section>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@(("اطلاعات اصلی ثبت", (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("روابط متصل", (string?)null))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>قرارداد فروش</dt><dd>@(Model.Contract is null ? "-" : $"#{Model.Contract.Id} - {Model.Contract.Label}")</dd></div>
-                <div class="ak-list-row"><dt>مشتری</dt><dd>@(Model.Customer is null ? "-" : $"#{Model.Customer.Id} - {Model.Customer.Label}")</dd></div>
-                <div class="ak-list-row"><dt>تأمین‌کننده</dt><dd>@(Model.Supplier is null ? "-" : $"#{Model.Supplier.Id} - {Model.Supplier.Label}")</dd></div>
-                <div class="ak-list-row"><dt>کارمند</dt><dd>@(Model.Employee is null ? "-" : $"#{Model.Employee.Id} - {Model.Employee.Label}")</dd></div>
-                <div class="ak-list-row"><dt>محموله</dt><dd>@(Model.Shipment is null ? "-" : $"#{Model.Shipment.Id} - {Model.Shipment.Label}")</dd></div>
-            </dl>
+    @if (relatedRecords.Count > 0)
+    {
+        <section class="ak-form-section ak-detail-section" aria-labelledby="ledger-related-title">
+            <h2 class="ak-section-title" id="ledger-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
+            <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
         </section>
-    </div>
+    }
 
-    <section class="ak-form-section ak-detail-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("ردیابی منبع ثبت", (string?)null))" />
-        @if (Model.SourceTrace is null)
-        {
-            <p class="ak-note">برای این نوع منبع، فعلاً فقط نوع و شناسه سند قابل ردیابی است.</p>
-        }
-        else
-        {
-            <div class="ak-page-actions">
-                <div>
-                    <strong>@Model.SourceTrace.Title</strong>
-                    <div class="ak-note">نوع منبع: @UiText.LedgerSource(Context, Model.SourceTrace.SourceType) / سند #@Model.SourceTrace.SourceId</div>
-                </div>
+    @if (Model.SourceTrace is not null)
+    {
+        <section class="ak-form-section ak-detail-section ak-summary-card">
+            <header class="ak-section-head ak-detail-section-header">
+                <h2 class="ak-section-title">@Model.SourceTrace.Title</h2>
                 @if (!string.IsNullOrWhiteSpace(Model.SourceTrace.ControllerName))
                 {
-                    <a asp-controller="@Model.SourceTrace.ControllerName" asp-action="Details" asp-route-id="@Model.SourceTrace.SourceId" class="btn btn-light">مشاهده منبع</a>
+                    <a asp-controller="@Model.SourceTrace.ControllerName" asp-action="Details" asp-route-id="@Model.SourceTrace.SourceId" class="btn btn-light ak-secondary-action">مشاهده منبع</a>
                 }
-            </div>
-            <dl class="ak-list">
-                @foreach (var field in Model.SourceTrace.Fields)
-                {
-                    <div class="ak-list-row"><dt>@field.Label</dt><dd>@field.Value</dd></div>
-                }
-            </dl>
-        }
-    </section>
+            </header>
+            <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml" model="@((IReadOnlyList<AkInfoItem>)sourceTraceItems)" />
+        </section>
+    }
 
     @if (Model.IsViaSarrafSupplierPayment)
     {
@@ -102,8 +105,6 @@
         </section>
     }
 
-    <section class="ak-form-section ak-detail-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("شرح ثبت", (string?)null))" />
-        <p class="ak-note">@(string.IsNullOrWhiteSpace(Model.Description) ? "برای این ثبت توضیحی ذخیره نشده است." : Model.Description)</p>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
 </div>

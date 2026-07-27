@@ -20,10 +20,12 @@
     var totalOwnerShareUsd = Model.RentShares.Sum(row => row.ShareAmountUsd);
     var totalCostUsd = Model.DirectExpensesUsd + Model.DepreciationUsd;
     var isNetPositive = Model.NetResultUsd >= 0;
+    // تب «خلاصه وضعیت» حذف شد: مشخصات پایه حالا کارت خلاصهٔ همیشه‌دیدنیِ بالای تب‌هاست
+    // و اعداد فنی به آکاردئون «اطلاعات فنی» منتقل شدند.
     var activeAssetTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
-    activeAssetTab = activeAssetTab is "ownership" or "rents" or "expenses" or "shares" or "profit"
+    activeAssetTab = activeAssetTab is "rents" or "expenses" or "shares" or "profit"
         ? activeAssetTab
-        : "overview";
+        : "ownership";
     var editUrl = Url.Action("Edit", new { id = Model.Id }) ?? "#";
     var rentUrl = Url.Action("CreateRent", new { assetId = Model.Id }) ?? "#";
     ViewData["AkHeaderStatus"] = Model.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive");
@@ -36,12 +38,39 @@
     };
     var assetTabs = new[]
     {
-        $"overview|{UiText.T(Context, "خلاصه وضعیت", "Status Summary")}|bi-grid-1x2|{(activeAssetTab == "overview" ? "active" : "")}",
-        $"ownership|{UiText.T(Context, "مالکیت و سهم‌ها", "Ownership and Shares")}|bi-people|{(activeAssetTab == "ownership" ? "active" : "")}",
-        $"rents|{UiText.T(Context, "استفاده / کرایه", "Use / Rent")}|bi-calendar-check|{(activeAssetTab == "rents" ? "active" : "")}",
-        $"expenses|{UiText.T(Context, "مصارف", "Expenses")}|bi-receipt-cutoff|{(activeAssetTab == "expenses" ? "active" : "")}",
-        $"shares|{UiText.T(Context, "توزیع سود مالکین", "Owner Profit Distribution")}|bi-pie-chart|{(activeAssetTab == "shares" ? "active" : "")}",
-        $"profit|{UiText.T(Context, "سود", "Profit")}|bi-graph-up-arrow|{(activeAssetTab == "profit" ? "active" : "")}"
+        $"ownership|{UiText.T(Context, "مالکیت و سهم‌ها", "Ownership and Shares")}||{(activeAssetTab == "ownership" ? "active" : "")}",
+        $"rents|{UiText.T(Context, "استفاده / کرایه", "Use / Rent")}||{(activeAssetTab == "rents" ? "active" : "")}",
+        $"expenses|{UiText.T(Context, "مصارف", "Expenses")}||{(activeAssetTab == "expenses" ? "active" : "")}",
+        $"shares|{UiText.T(Context, "توزیع سود مالکین", "Owner Profit Distribution")}||{(activeAssetTab == "shares" ? "active" : "")}",
+        $"profit|{UiText.T(Context, "سود", "Profit")}||{(activeAssetTab == "profit" ? "active" : "")}"
+    };
+
+    var assetKpis = new List<AkKpiItem>
+    {
+        new() { Title = UiText.T(Context, "درآمد کرایه", "Rent revenue"), Value = (Model.TotalRentUsd + Model.FreightIncomeUsd).ToString("N2"), Unit = "USD", Avatar = "sales-value" },
+        new() { Title = UiText.T(Context, "جمع مصارف", "Total cost"), Value = totalCostUsd.ToString("N2"), Unit = "USD", Avatar = "expenses" },
+        new() { Title = UiText.T(Context, "نتیجه خالص", "Net result"), Value = Model.NetResultUsd.ToString("N2"), Unit = "USD", Avatar = "profit-loss", State = isNetPositive ? null : "warning" },
+        new() { Title = UiText.T(Context, "مالکین فعال", "Active owners"), Value = activeOwnerCount.ToString("N0"), Avatar = "partners", State = allocationReady ? null : "warning" }
+    };
+
+    // مشخصات پایه — کد و نوع دارایی در خط زمینهٔ سربرگ‌اند و اینجا تکرار نمی‌شوند.
+    var assetSummaryItems = new List<AkInfoItem>
+    {
+        new() { Label = UiText.T(Context, "نوع مالکیت", "Ownership mode"), Value = OperationalAssetLabels.OwnershipMode(Model.OwnershipMode, Context) },
+        new() { Label = UiText.T(Context, "منبع مرتبط", "Linked resource"), Value = Model.LinkedResourceText },
+        new() { Label = UiText.T(Context, "ظرفیت", "Capacity"), Value = Model.CapacityMt?.ToString("N2"), Unit = "MT", IsNumeric = true },
+        new() { Label = UiText.T(Context, "موقعیت", "Location"), Value = Model.LocationName },
+        new() { Label = UiText.T(Context, "ترمینال", "Terminal"), Value = Model.TerminalName },
+        new() { Label = UiText.T(Context, "دوره فعلی گزارش", "Current report period"), Value = $"{Model.FromDate.ToDisplayDate()} - {Model.ToDate.ToDisplayDate()}" },
+        new() { Label = UiText.T(Context, "یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
+    };
+
+    var assetAdvancedItems = new List<AkInfoItem>
+    {
+        new() { Label = UiText.T(Context, "شناسه دارایی", "Asset id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = UiText.T(Context, "استهلاک ماهانه", "Monthly depreciation"), Value = Model.MonthlyDepreciationUsd.ToString("N2"), Unit = "USD", IsNumeric = true },
+        new() { Label = UiText.T(Context, "نرخ داخلی پیش‌فرض", "Default internal rate"), Value = Model.DefaultInternalRateUsd?.ToString("N2"), Unit = "USD", IsNumeric = true },
+        new() { Label = UiText.T(Context, "نرخ بیرونی پیش‌فرض", "Default external rate"), Value = Model.DefaultExternalRateUsd?.ToString("N2"), Unit = "USD", IsNumeric = true }
     };
 }
 
@@ -50,79 +79,16 @@
              model="@((Model.Name, false,
                        UiText.T(Context, "ثبت کرایه", "Record rent"), "bi-calendar-plus", rentUrl, (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Index")))" />
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)assetKpis)" />
+
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((UiText.T(Context, "مشخصات پایه دارایی", "Asset basic details"), (string?)null, (IReadOnlyList<AkInfoItem>)assetSummaryItems))" />
+
     <section class="ak-form-section ak-detail-section" aria-label="@UiText.T(Context, "پرونده دارایی عملیاتی", "Operational asset profile")">
         <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
                  model="@(UiText.T(Context, "بخش‌های دارایی", "Asset sections"), assetTabs)" />
 
         <div class="tab-content ak-detail-content">
-            <div class="tab-pane fade show active" id="asset-overview" role="tabpanel" hidden="@(activeAssetTab != "overview")">
-                <div class="ak-section-head ak-detail-section-header">
-                    <h3><i class="bi bi-clipboard-data"></i> @UiText.T(Context, "مشخصات پایه دارایی", "Asset Basic Details")</h3>
-                </div>
-                <div class="ak-list" aria-label="@UiText.T(Context, "خلاصه دارایی", "Asset summary")">
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-hash"></i> @UiText.T(Context, "کد دارایی", "Asset Code")</span>
-                        <strong>@Model.AssetCode</strong>
-                        <small>@Model.Name</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-box-seam"></i> @UiText.T(Context, "نوع دارایی", "Asset Type")</span>
-                        <strong>@OperationalAssetLabels.AssetType(Model.AssetType, Context)</strong>
-                        <small>@(Model.LinkedResourceText ?? UiText.T(Context, "منبع مرتبط ثبت نشده", "No linked resource"))</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-diagram-3"></i> @UiText.T(Context, "نوع مالکیت", "Ownership Mode")</span>
-                        <strong>@OperationalAssetLabels.OwnershipMode(Model.OwnershipMode, Context)</strong>
-                        <small>@UiText.T(Context, "ساختار مالکیت دارایی", "Asset ownership structure")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-check-circle"></i> @UiText.T(Context, "وضعیت", "Status")</span>
-                        <strong class="@(Model.IsActive ?"" : "")">@(Model.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))</strong>
-                        <small>@UiText.T(Context, "وضعیت استفاده عملیاتی", "Operational usage status")</small>
-                    </article>
-                </div>
-
-                <div class="ak-form-grid">
-                    <dl class="ak-list">
-                        <div>
-                            <dt>@UiText.T(Context, "ظرفیت", "Capacity")</dt>
-                            <dd>@(Model.CapacityMt.HasValue ? Model.CapacityMt.Value.ToString("N2") + " MT" : "-")</dd>
-                        </div>
-                        <div>
-                            <dt>@UiText.T(Context, "موقعیت", "Location")</dt>
-                            <dd>@(Model.LocationName ?? "-")</dd>
-                        </div>
-                        <div>
-                            <dt>@UiText.T(Context, "ترمینال", "Terminal")</dt>
-                            <dd>@(Model.TerminalName ?? "-")</dd>
-                        </div>
-                        <div>
-                            <dt>@UiText.T(Context, "یادداشت", "Notes")</dt>
-                            <dd>@(Model.Notes ?? "-")</dd>
-                        </div>
-                    </dl>
-
-                    <dl class="ak-list">
-                        <div>
-                            <dt>@UiText.T(Context, "استهلاک ماهانه", "Monthly Depreciation")</dt>
-                            <dd>$ @Model.MonthlyDepreciationUsd.ToString("N2")</dd>
-                        </div>
-                        <div>
-                            <dt>@UiText.T(Context, "نرخ داخلی پیش‌فرض", "Default Internal Rate")</dt>
-                            <dd>@(Model.DefaultInternalRateUsd.HasValue ? "$ " + Model.DefaultInternalRateUsd.Value.ToString("N2") : "-")</dd>
-                        </div>
-                        <div>
-                            <dt>@UiText.T(Context, "نرخ بیرونی پیش‌فرض", "Default External Rate")</dt>
-                            <dd>@(Model.DefaultExternalRateUsd.HasValue ? "$ " + Model.DefaultExternalRateUsd.Value.ToString("N2") : "-")</dd>
-                        </div>
-                        <div>
-                            <dt>@UiText.T(Context, "دوره فعلی گزارش", "Current Report Period")</dt>
-                            <dd>@Model.FromDate.ToDisplayDate() - @Model.ToDate.ToDisplayDate()</dd>
-                        </div>
-                    </dl>
-                </div>
-            </div>
-
             <div class="tab-pane fade" id="asset-profit" role="tabpanel" hidden="@(activeAssetTab != "profit")">
                 <div class="ak-form-section ak-detail-section" aria-label="@UiText.T(Context, "گزارش عملکرد مالی دارایی", "Asset financial performance report")">
                     <div class="ak-section-head ak-detail-section-header">
@@ -339,7 +305,7 @@
                                 {
                                     <tr>
                                         <td colspan="4">
-                                            @await Html.PartialAsync("_EmptyState", (UiText.T(Context, "سهم مالکیت ثبت نشده", "No ownership shares"), UiText.T(Context, "قبل از ثبت کرایه/استفاده، سهم مالکین را اضافه کنید.", "Add owner shares before recording rent/use."), "bi-diagram-3"))
+                                            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "سهم مالکیت ثبت نشده است؛ قبل از ثبت کرایه، سهم مالکین را اضافه کنید.", "No ownership share recorded; add owner shares before recording rent.")" />
                                         </td>
                                     </tr>
                                 }
@@ -517,7 +483,7 @@
                                 {
                                     <tr>
                                         <td colspan="5">
-                                            @await Html.PartialAsync("_EmptyState", (UiText.T(Context, "ردیف کرایه/استفاده وجود ندارد", "No rent/use rows"), UiText.T(Context, "برای دوره انتخاب‌شده استفاده داخلی یا کرایه بیرونی ثبت کنید.", "Record internal use or external rent for the selected period."), "bi-receipt"))
+                                            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "برای دوره انتخاب‌شده کرایه یا استفاده ثبت نشده است.", "No rent or use recorded for the selected period.")" />
                                         </td>
                                     </tr>
                                 }
@@ -641,7 +607,7 @@
                                 {
                                     <tr>
                                         <td colspan="5">
-                                            @await Html.PartialAsync("_EmptyState", (UiText.T(Context, "مصرفی وجود ندارد", "No expenses"), UiText.T(Context, "در دوره انتخاب‌شده هیچ مصرف فعال به این دارایی وصل نیست.", "No active expense is linked to this asset in the selected period."), "bi-receipt-cutoff"))
+                                            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "در دوره انتخاب‌شده مصرفی به این دارایی وصل نیست.", "No expense is linked to this asset in the selected period.")" />
                                         </td>
                                     </tr>
                                 }
@@ -706,7 +672,7 @@
                         {
                             <tr>
                                 <td colspan="6">
-                                    @await Html.PartialAsync("_EmptyState", (UiText.T(Context, "ردیف سهم مالکین وجود ندارد", "No owner share rows"), UiText.T(Context, "تراکنش‌های کرایه/استفاده سهم مالکین را اینجا snapshot می‌کند.", "Rent/use rows will snapshot owner shares here."), "bi-person-vcard"))
+                                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "ردیف سهم مالکین وجود ندارد.", "No owner share rows.")" />
                                 </td>
                             </tr>
                         }
@@ -716,6 +682,9 @@
             </div>
         </div>
     </section>
+
+    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
+             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)assetAdvancedItems))" />
 </div>
 
 @section Scripts {

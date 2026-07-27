@@ -1,0 +1,274 @@
+/* ===================================================================
+   AK Detail v2 — shared detail-page component system
+   -------------------------------------------------------------------
+   Styles for the shared partials only:
+     _DetailInfoGrid, _DetailSummaryCard, _DetailKpiStrip,
+     _DetailAdvancedSection, _DetailEmptyState.
+
+   Everything here is token-based and scoped under .ak-detail-page, so a
+   page opts in by using the shared partials and nothing leaks into list,
+   form or dashboard screens. Loaded after 11-details.css and
+   50-ak-components.css, which still own the page shell, .ak-list and the
+   header/timeline/related zones.
+   =================================================================== */
+
+.ak-detail-page {
+    /* Rhythm rules agreed for the detail family. */
+    --ak-detail-section-gap: 16px;
+    --ak-detail-card-padding: 16px;
+    --ak-detail-row-gap: 10px;
+    --ak-detail-col-gap: 20px;
+    --ak-detail-col-min: 190px;
+}
+
+/* -------------------------------------------------------------------
+   Compact summary card
+   Flat white surface, one padding step, never nested inside another card.
+   ------------------------------------------------------------------- */
+.ak-detail-page .ak-summary-card {
+    padding: var(--ak-detail-card-padding);
+    border: 1px solid var(--ak-detail-divider, var(--ptg-border));
+    border-radius: var(--ak-detail-radius, var(--ptg-radius-card));
+    background: var(--ak-detail-surface, var(--ptg-surface));
+    box-shadow: var(--ptg-shadow-soft, none);
+}
+
+.ak-detail-page .ak-summary-card > .ak-section-head {
+    margin-block-end: 12px;
+    padding-block-end: 10px;
+}
+
+/* A summary card never grows a second card inside itself. */
+.ak-detail-page .ak-summary-card .ak-summary-card {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+/* -------------------------------------------------------------------
+   Info grid — the shared label/value surface
+   Multi-column, low vertical rhythm, no row borders. Long free text
+   spans the full width via .is-wide.
+   ------------------------------------------------------------------- */
+.ak-detail-page .ak-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--ak-detail-col-min), 1fr));
+    gap: var(--ak-detail-row-gap) var(--ak-detail-col-gap);
+    margin: 0;
+}
+
+.ak-detail-page .ak-info-cell {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ak-detail-page .ak-info-cell.is-wide {
+    grid-column: 1 / -1;
+}
+
+.ak-detail-page .ak-info-label {
+    margin: 0;
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.ak-detail-page .ak-info-value {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-wrap: wrap;
+    min-width: 0;
+    margin: 0;
+    color: var(--ak-detail-text, var(--ptg-text));
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+/* Numbers: tabular figures and LTR isolation so RTL labels never reorder
+   digits, minus signs or currency codes. */
+.ak-detail-page .ak-info-value.ak-num,
+.ak-detail-page .ak-info-value.ak-num > bdi {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+}
+
+.ak-detail-page .ak-info-value.ak-num {
+    justify-content: flex-start;
+}
+
+.ak-detail-page .ak-info-unit {
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ak-detail-page .ak-info-value > a {
+    color: var(--ptg-primary);
+    text-decoration: none;
+}
+
+.ak-detail-page .ak-info-value > a:hover,
+.ak-detail-page .ak-info-value > a:focus-visible {
+    text-decoration: underline;
+}
+
+.ak-detail-page .ak-info-value > a:focus-visible {
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: 2px;
+    border-radius: var(--ptg-radius-sm);
+}
+
+/* Colour is reserved for state, warning and money-critical values. */
+.ak-detail-page .ak-info-value.is-warning { color: var(--ptg-warning-text); }
+.ak-detail-page .ak-info-value.is-danger  { color: var(--ptg-danger-text); }
+.ak-detail-page .ak-info-value.is-success { color: var(--ptg-success-text); }
+
+/* -------------------------------------------------------------------
+   KPI strip — compact height, capped at five cards by the partial
+   ------------------------------------------------------------------- */
+.ak-detail-page .ak-detail-kpi-strip {
+    margin: 0;
+}
+
+/* -------------------------------------------------------------------
+   Advanced / technical details disclosure
+   Closed by default, quiet chrome, always expanded on paper.
+   ------------------------------------------------------------------- */
+.ak-detail-page .ak-detail-advanced {
+    border: 1px solid var(--ak-detail-divider, var(--ptg-border));
+    border-radius: var(--ak-detail-radius, var(--ptg-radius-card));
+    background: var(--ak-detail-surface, var(--ptg-surface));
+}
+
+.ak-detail-page .ak-detail-advanced-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px var(--ak-detail-card-padding);
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.6;
+    cursor: pointer;
+    list-style: none;
+}
+
+.ak-detail-page .ak-detail-advanced-summary::-webkit-details-marker {
+    display: none;
+}
+
+/* RTL-correct chevron: points inline-start when closed, down when open. */
+.ak-detail-page .ak-detail-advanced-summary::after {
+    content: "";
+    inline-size: 8px;
+    block-size: 8px;
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    border-inline-end: 1.5px solid currentColor;
+    border-block-end: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform var(--ptg-motion-fast, 140ms) ease-out;
+}
+
+.ak-detail-page .ak-detail-advanced[open] > .ak-detail-advanced-summary::after {
+    transform: rotate(45deg);
+}
+
+.ak-detail-page .ak-detail-advanced-summary:focus-visible {
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: -2px;
+    border-radius: var(--ak-detail-radius, var(--ptg-radius-card));
+}
+
+.ak-detail-page .ak-detail-advanced-count {
+    padding: 1px 8px;
+    border-radius: var(--ptg-radius-badge);
+    background: var(--ak-detail-soft, var(--ptg-surface-soft));
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ak-detail-page .ak-detail-advanced-body {
+    padding: 0 var(--ak-detail-card-padding) var(--ak-detail-card-padding);
+    border-block-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
+    padding-block-start: var(--ak-detail-card-padding);
+}
+
+/* -------------------------------------------------------------------
+   Compact empty line — replaces the tall illustrated empty card
+   ------------------------------------------------------------------- */
+.ak-detail-page .ak-detail-empty-line {
+    margin: 0;
+    padding: 10px 0;
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+/* -------------------------------------------------------------------
+   Responsive
+   ------------------------------------------------------------------- */
+@media (max-width: 767.98px) {
+    .ak-detail-page {
+        --ak-detail-card-padding: 14px;
+        --ak-detail-col-gap: 14px;
+        --ak-detail-col-min: 140px;
+    }
+
+    .ak-detail-page .ak-info-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ak-detail-page .ak-info-cell.is-wide {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 419.98px) {
+    .ak-detail-page .ak-info-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* -------------------------------------------------------------------
+   Print — technical details must not disappear from paper output
+   ------------------------------------------------------------------- */
+@media print {
+    .ak-detail-page .ak-detail-advanced {
+        border-color: #ccc;
+    }
+
+    .ak-detail-page .ak-detail-advanced > .ak-detail-advanced-body {
+        display: block !important;
+    }
+
+    .ak-detail-page .ak-detail-advanced-summary::after {
+        display: none;
+    }
+
+    .ak-detail-page .ak-summary-card {
+        border-color: #ccc;
+        box-shadow: none;
+    }
+}
+
+/* -------------------------------------------------------------------
+   Dark theme
+   ------------------------------------------------------------------- */
+:root[data-theme="dark"] .ak-detail-page .ak-summary-card,
+[data-bs-theme="dark"] .ak-detail-page .ak-summary-card,
+:root[data-theme="dark"] .ak-detail-page .ak-detail-advanced,
+[data-bs-theme="dark"] .ak-detail-page .ak-detail-advanced {
+    background: var(--ak-detail-surface, var(--ptg-surface));
+    border-color: var(--ak-detail-divider, var(--ptg-border));
+}
