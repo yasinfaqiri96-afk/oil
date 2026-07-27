@@ -3,8 +3,8 @@
  *
  * Loads LAST. Re-shapes the shared shell + primitives onto the Akaunting
  * visual language: flat near-white canvas (#FCFCFC), two-layer lilac sidebar
- * (56px icon rail + 224px menu panel), quiet editorial typography, purple
- * navigation (#55588B), olive-green primary action (#1877f2), 1px dividers
+ * (56px icon rail + 224px menu panel), quiet editorial typography, navy
+ * navigation (#173F73), olive-green primary action (#1877f2), 1px dividers
  * instead of cards/shadows, and depth only on Dropdown/Tooltip/Modal.
  *
  * All colors/sizes come from 01-tokens.css. No new hex outside tokens except
@@ -193,7 +193,7 @@ body.boltz-shell.app-shell-authenticated :is(.kpi-card, .boltz-reference-kpi-car
 }
 
 /* ============================================================= *
- * H. Buttons — green action / purple secondary / neutral quiet
+ * H. Buttons — green action / navy secondary / neutral quiet
  * ============================================================= */
 
 body.boltz-shell.app-shell-authenticated .btn,
@@ -450,14 +450,23 @@ body.boltz-shell.app-shell-authenticated .pagination .page-item.active .page-lin
     color: #FFFFFF;
 }
 
-/* Links purple, hover deeper.
+/* Hover affordance the generic link rule used to provide, kept off the active
+   and disabled items so the white-on-navy pair is never repainted. */
+body.boltz-shell.app-shell-authenticated .pagination .page-item:not(.active):not(.disabled) .page-link:hover {
+    color: var(--primary-dark);
+}
+
+/* Links navy, hover deeper.
    Tabs are excluded: this selector outweighs .ptg-tab-item, so without the
-   guard every link-based tab renders in the active purple even when idle. */
-body.boltz-shell.app-shell-authenticated a:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item) {
+   guard every link-based tab renders in the active navy even when idle.
+   Pagination is excluded for the same reason: it carries an extra element in
+   the selector, so it also outweighs the rules above and would repaint the
+   active page link navy — invisible on the navy disc it sits in. */
+body.boltz-shell.app-shell-authenticated a:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link) {
     color: var(--primary-main);
 }
 
-body.boltz-shell.app-shell-authenticated a:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):hover {
+body.boltz-shell.app-shell-authenticated a:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):hover {
     color: var(--primary-dark);
 }
 

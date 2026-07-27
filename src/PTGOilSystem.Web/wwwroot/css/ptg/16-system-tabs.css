@@ -12,15 +12,15 @@
 :root {
     --ptg-tabs-font-size: 14px;
     --ptg-tabs-text-color: #424242;
-    --ptg-tabs-active-color: #55588B;
+    --ptg-tabs-active-color: #173F73;
     --ptg-tabs-border-color: #E5E7EB;
     --ptg-tabs-horizontal-padding: 16px;
     --ptg-tabs-bottom-padding: 8px;
     --ptg-tabs-top-padding: 10px;
     --ptg-tabs-indicator-height: 2px;
     --ptg-tabs-transition-duration: 180ms;
-    --ptg-tabs-focus-color: rgba(85, 88, 139, .25);
-    --ptg-tabs-hover-indicator: rgba(85, 88, 139, .35);
+    --ptg-tabs-focus-color: rgba(23, 63, 115, .25);
+    --ptg-tabs-hover-indicator: rgba(23, 63, 115, .35);
 
     /* Rhythm: title -> rail -> content. */
     --ptg-tabs-space-above: 20px;
@@ -152,7 +152,7 @@
 /* Colour rules are scoped to the rail on purpose. Generic link rules elsewhere
    (`.boltz-shell a`, `body.app-shell-authenticated a`) are more specific than a
    bare `.ptg-tab-item`, and would otherwise paint idle link-tabs in the active
-   purple. Scoping wins on specificity without reaching for !important. */
+   navy. Scoping wins on specificity without reaching for !important. */
 .ptg-tabs-rail .ptg-tab-item {
     color: var(--ptg-tabs-text-color);
     font-weight: 400;

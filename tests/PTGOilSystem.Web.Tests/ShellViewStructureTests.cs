@@ -174,13 +174,13 @@ public class ShellViewStructureTests
         // Akaunting tab tokens. These are the contract every rail renders against.
         Assert.Contains("--ptg-tabs-font-size: 14px", tabsCss);
         Assert.Contains("--ptg-tabs-text-color: #424242", tabsCss);
-        Assert.Contains("--ptg-tabs-active-color: #55588B", tabsCss);
+        Assert.Contains("--ptg-tabs-active-color: #173F73", tabsCss);
         Assert.Contains("--ptg-tabs-border-color: #E5E7EB", tabsCss);
         Assert.Contains("--ptg-tabs-horizontal-padding: 16px", tabsCss);
         Assert.Contains("--ptg-tabs-bottom-padding: 8px", tabsCss);
         Assert.Contains("--ptg-tabs-indicator-height: 2px", tabsCss);
         Assert.Contains("--ptg-tabs-transition-duration: 180ms", tabsCss);
-        Assert.Contains("--ptg-tabs-focus-color: rgba(85, 88, 139, .25)", tabsCss);
+        Assert.Contains("--ptg-tabs-focus-color: rgba(23, 63, 115, .25)", tabsCss);
         Assert.Contains("border-bottom: 1px solid var(--ptg-tabs-border-color)", tabsCss);
 
         // Flat rail: spacing comes from tab padding, never from a gap, and the
@@ -399,7 +399,7 @@ public class ShellViewStructureTests
         Assert.Contains("ptg-list-entity-cell", tables);
         Assert.Contains("ptg-list-row-avatar", components);
         Assert.Contains("width: 28px", components);
-        Assert.Contains("background: #3C3F72", components);
+        Assert.Contains("background: #173F73", components);
         Assert.Contains("class=\"ptg-person-avatar\"", personCell);
 
         foreach (var module in modules)

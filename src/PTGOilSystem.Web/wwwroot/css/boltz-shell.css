@@ -1426,7 +1426,7 @@
 .ptg-hfyear-current {
     font-size: 0.66rem;
     font-weight: 700;
-    color: var(--primary-main, #55588B);
+    color: var(--primary-main, #173F73);
 }
 .ptg-hfyear-item-dates { font-size: 0.72rem; color: var(--text-secondary); }
 .ptg-hfyear-check { margin-inline-start: auto; font-size: 1rem; }

@@ -37,7 +37,7 @@ body.ptg-modal-document :where(p, small, label, span, td, th, dd, dt) {
 
 /* Tabs are excluded from the global link colour: this selector outweighs
    .ptg-tab-item, so without the guard every link-based tab would render in the
-   active purple even when idle. Tab colour lives in 16-system-tabs.css. */
+   active navy even when idle. Tab colour lives in 16-system-tabs.css. */
 body.boltz-shell.app-shell-authenticated a:not(.ptg-tab-item),
 body.ptg-modal-document a:not(.ptg-tab-item) {
     color: var(--ptg-primary);

@@ -156,7 +156,7 @@
         <section class="ak-form-section" aria-label="@UiText.T(Context, "اقلام فروش", "Sale items")">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                      model="@((UiText.T(Context, "اقلام فروش", "Sale Items"), (string?)UiText.T(Context, "این فاکتور یک قلم فروش دارد.", "This invoice contains one sale item.")))" />
-            <div class="ak-table-wrap">
+            <div class="ak-table-wrap" data-sales-line-items>
                 <table class="ak-table">
                     <thead><tr><th>#</th><th>@UiText.T(Context, "محصول", "Product") <span class="ak-req">*</span></th><th>@UiText.T(Context, "واحد", "Unit")</th><th class="ak-col-num">@UiText.T(Context, "مقدار", "Quantity") <span class="ak-req">*</span></th><th class="ak-col-num">@UiText.T(Context, "قیمت واحد", "Unit price") (@displayCurrencyCode) <span class="ak-req">*</span></th><th class="ak-col-num">@UiText.T(Context, "مبلغ کل", "Total") (@displayCurrencyCode)</th></tr></thead>
                     <tbody><tr>

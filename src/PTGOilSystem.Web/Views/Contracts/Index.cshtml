@@ -8,8 +8,6 @@
     var qFilter = Model.Query;
     var typeFilter = Model.Type;
     var statusFilter = Model.Status;
-    var hasAdvancedFilters = typeFilter.HasValue || statusFilter.HasValue;
-    var hasActiveFilters = !string.IsNullOrWhiteSpace(qFilter) || hasAdvancedFilters;
     var currentReturnUrl = $"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}";
 
     string T(string fa, string en) => UiText.T(Context, fa, en);
@@ -57,7 +55,7 @@
 
 }
 
-<div class="ak-form-page ak-list-page" data-contracts-list>
+<div class="ak-form-page ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("قراردادها", "Contracts"), true,
                        T("قرارداد جدید", "New Contract"), "bi-plus-lg",
@@ -74,91 +72,83 @@
         <vc:stat-card title="@T("قراردادهای فروش", "Sales contracts")" value="@Model.SaleCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar-path="/images/stat-cards/ref-contracts/contracts-sale.webp"></vc:stat-card>
     </section>
 
-    <div class="ak-list">
-        @{
-            var contractsFilter = new AkSearchFilterModel(
-                "q", qFilter,
-                T("\u062c\u0633\u062a\u062c\u0648\u06cc \u0634\u0645\u0627\u0631\u0647 \u06cc\u0627 \u0637\u0631\u0641...", "Search number or party..."),
-                new List<AkFilterDefinition>
-                {
-                    new("type", T("\u0646\u0648\u0639", "Type"), "select",
-                        new List<AkFilterOption>
-                        {
-                            new("Purchase", T("\u062e\u0631\u06cc\u062f", "Purchase")),
-                            new("Sale", T("\u0641\u0631\u0648\u0634", "Sale"))
-                        }, typeFilter?.ToString()),
-                    new("status", T("\u0648\u0636\u0639\u06cc\u062a", "Status"), "select",
-                        new List<AkFilterOption>
-                        {
-                            new("Draft", T("\u062c\u062f\u06cc\u062f", "New")),
-                            new("Active", T("\u0641\u0639\u0627\u0644", "Active")),
-                            new("Closed", T("\u062f\u0631 \u062d\u0627\u0644 \u0627\u062c\u0631\u0627", "In progress")),
-                            new("Cancelled", T("\u0645\u0646\u0642\u0636\u06cc \u0634\u062f\u0647", "Expired"))
-                        }, statusFilter?.ToString())
-                });
-        }
-        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="contractsFilter" />
-        <div class="d-flex justify-content-end mt-2 no-print">
-            <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
-        </div>
+    @{
+        var contractsFilter = new AkSearchFilterModel(
+            "q", qFilter,
+            T("\u062c\u0633\u062a\u062c\u0648\u06cc \u0634\u0645\u0627\u0631\u0647 \u06cc\u0627 \u0637\u0631\u0641...", "Search number or party..."),
+            new List<AkFilterDefinition>
+            {
+                new("type", T("\u0646\u0648\u0639", "Type"), "select",
+                    new List<AkFilterOption>
+                    {
+                        new("Purchase", T("\u062e\u0631\u06cc\u062f", "Purchase")),
+                        new("Sale", T("\u0641\u0631\u0648\u0634", "Sale"))
+                    }, typeFilter?.ToString()),
+                new("status", T("\u0648\u0636\u0639\u06cc\u062a", "Status"), "select",
+                    new List<AkFilterOption>
+                    {
+                        new("Draft", T("\u062c\u062f\u06cc\u062f", "New")),
+                        new("Active", T("\u0641\u0639\u0627\u0644", "Active")),
+                        new("Closed", T("\u062f\u0631 \u062d\u0627\u0644 \u0627\u062c\u0631\u0627", "In progress")),
+                        new("Cancelled", T("\u0645\u0646\u0642\u0636\u06cc \u0634\u062f\u0647", "Expired"))
+                    }, statusFilter?.ToString())
+            });
+    }
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="contractsFilter" />
+    <div class="d-flex justify-content-end mt-2 no-print">
+        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
     </div>
-    <section class="ak-list" aria-label="@T("فهرست قراردادها", "Contracts list")">
-        @if (items.Any())
-        {
-            <div class="ak-table-wrap">
-                <table class="ak-table">
-                    <thead>
-                        <tr>
-                            <th>@T("کد", "Code")</th>
-                            <th>@T("طرف قرارداد", "Party")</th>
-                            <th class="ak-col-spacer"></th>
-                            <th>@T("مقدار", "Quantity")</th>
-                            <th>@T("محصول", "Product")</th>
-                            <th class="ak-col-spacer"></th>
-                            <th>@T("وضعیت", "Status")</th>
-                            <th class="ak-col-actions"></th>
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th>@T("کد", "Code")</th>
+                        <th>@T("طرف قرارداد", "Party")</th>
+                        <th>@T("مقدار", "Quantity")</th>
+                        <th>@T("محصول", "Product")</th>
+                        <th>@T("وضعیت", "Status")</th>
+                        <th class="ak-col-actions"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in items)
+                    {
+                        var partyText = PartyName(item);
+                        var productText = DashIfEmpty(item.Product?.Name);
+                        var journeyUrl = Url.Action("Details", "ContractJourney", new { contractId = item.Id, tab = "summary", lockContract = true, returnUrl = currentReturnUrl });
+                        <tr data-href="@journeyUrl">
+                            <td>
+                                <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@partyText" dir="ltr">#@item.ContractNumber</a>
+                            </td>
+                            <td>
+                                <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((partyText, (string?)"muted"))" />
+                            </td>
+                            <td><span class="ak-num">@QuantityText(item)</span></td>
+                            <td>@productText</td>
+                            <td><span class="ak-status @ContractStatusToneClass(item)">@CardStatusText(item)</span></td>
+                            <td class="ak-col-actions no-print">
+                                <div class="ak-row-menu dropdown">
+                                    <button class="ak-row-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")"><i class="bi bi-three-dots"></i></button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
+                                        <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil"></i> @T("ویرایش", "Edit")</a></li>
+                                        <li><a class="dropdown-item" asp-action="EditPricing" asp-route-id="@item.Id" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" data-page-modal="true" data-page-modal-close-on-redirect="true" data-page-modal-size="compact" data-page-modal-title="@T("وارد کردن قیمت قرارداد", "Enter contract price")"><i class="bi bi-cash-coin"></i> @T("وارد کردن قیمت قرارداد", "Enter contract price")</a></li>
+                                    </ul>
+                                </div>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in items)
-                        {
-                            var partyText = PartyName(item);
-                            var productText = DashIfEmpty(item.Product?.Name);
-                            <tr>
-                                <td>
-                                    <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@partyText" dir="ltr">#@item.ContractNumber</a>
-                                </td>
-                                <td>
-                                    <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((partyText, (string?)"muted"))" />
-                                </td>
-                                <td class="ak-col-spacer"></td>
-                                <td><span class="ak-num">@QuantityText(item)</span></td>
-                                <td>@productText</td>
-                                <td class="ak-col-spacer"></td>
-                                <td><span class="ak-status @ContractStatusToneClass(item)">@CardStatusText(item)</span></td>
-                                <td class="ak-col-actions no-print">
-                                    <div class="dropdown ak-row-menu">
-                                        <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")"><i class="bi bi-three-dots-vertical" aria-hidden="true"></i></button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li><a class="dropdown-item" asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true"><i class="bi bi-eye" aria-hidden="true"></i>@T("جزئیات", "Details")</a></li>
-                                            <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil" aria-hidden="true"></i>@T("ویرایش", "Edit")</a></li>
-                                            <li><a class="dropdown-item" asp-action="EditPricing" asp-route-id="@item.Id" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" data-page-modal="true" data-page-modal-close-on-redirect="true" data-page-modal-size="compact" data-page-modal-title="@T("وارد کردن قیمت قرارداد", "Enter contract price")"><i class="bi bi-cash-coin" aria-hidden="true"></i>@T("وارد کردن قیمت قرارداد", "Enter contract price")</a></li>
-                                        </ul>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-        else
-        {
-            <div class="ak-empty">
-                @await Html.PartialAsync("_EmptyState", (T("قراردادی پیدا نشد", "No contracts found"), T("فیلترها را تغییر دهید یا یک قرارداد جدید ثبت کنید.", "Change the filters or create a new contract."), "bi-file-earmark-text"))
-            </div>
-        }
-    </section>
+                    }
+                    @if (!items.Any())
+                    {
+                        <tr>
+                            <td colspan="6">
+                                <div class="ak-empty"><i class="bi bi-file-earmark-text"></i>@T("قراردادی پیدا نشد", "No contracts found")</div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
 
     @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
 </div>

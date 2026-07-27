@@ -1457,10 +1457,10 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     place-items: center;
     width: 21px;
     height: 21px;
-    border: 1px solid rgba(var(--ptg-primary-rgb, 85, 88, 139), .22);
+    border: 1px solid rgba(var(--ptg-primary-rgb, 23, 63, 115), .22);
     border-radius: 50%;
     background: var(--ak-detail-surface, #fff);
-    color: var(--ptg-primary-dark, #404268);
+    color: var(--ptg-primary-dark, #123258);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1490,7 +1490,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 
 .ak-journey-step .ak-cycle-title {
     margin: 0;
-    color: var(--ptg-primary-dark, #404268);
+    color: var(--ptg-primary-dark, #123258);
     font-size: 14.5px;
     font-weight: 700;
 }
@@ -1502,8 +1502,8 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     gap: 4px;
     padding: 2px 9px;
     border-radius: 999px;
-    background: rgba(var(--ptg-primary-rgb, 85, 88, 139), .08);
-    color: var(--ptg-primary, #55588B);
+    background: rgba(var(--ptg-primary-rgb, 23, 63, 115), .08);
+    color: var(--ptg-primary, #173F73);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1516,7 +1516,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     justify-content: space-between;
     gap: 10px;
     padding: 4px 0;
-    border-top: 1px dashed rgba(var(--ptg-primary-rgb, 85, 88, 139), .12);
+    border-top: 1px dashed rgba(var(--ptg-primary-rgb, 23, 63, 115), .12);
 }
 
 .ak-journey-step .ak-cycle-row:first-of-type {
@@ -1536,7 +1536,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
    label, so the label takes the ellipsis when a card runs narrow. */
 .ak-journey-step .ak-cycle-value {
     flex: 0 0 auto;
-    color: var(--ptg-primary-dark, #404268);
+    color: var(--ptg-primary-dark, #123258);
     font-size: 13.5px;
     font-weight: 700;
     text-align: end;

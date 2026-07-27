@@ -5,7 +5,7 @@
  * Canonical Akaunting tokens live in the first block. Every legacy PTG/Boltz/DS
  * variable name is preserved below and re-pointed at the canonical tokens, so
  * existing consumers keep working while the whole app shifts to the flat,
- * near-white Akaunting look: bg #FCFCFC, text #424242, purple #55588B for
+ * near-white Akaunting look: bg #FCFCFC, text #424242, deep navy #173F73 for
  * navigation/interactive, olive green #1877f2 for the primary action.
  */
 
@@ -13,11 +13,13 @@
     /* ---- Akaunting canonical palette (extracted from presets.js 3.1.21) ---- */
     --primary-lighter: #DCE2F9;   /* Lilac 900 — sidebar icon rail */
     --primary-light: #7779A2;     /* Profit series / soft purple */
-    --primary-main: #55588B;      /* Purple 500 — nav, tabs, focus, links */
-    --primary-dark: #404268;      /* Purple 700 — hover */
-    --primary-darker: #2F3150;
+    --primary-main: #173F73;      /* Navy 500 — nav, tabs, focus, links; the
+                                     same deep navy the sidebar panel carries,
+                                     so accents and shell read as one colour */
+    --primary-dark: #123258;      /* Navy 700 — hover */
+    --primary-darker: #0D2440;
     --primary-contrast: #FFFFFF;
-    --primary-main-rgb: 85, 88, 139;
+    --primary-main-rgb: 23, 63, 115;
 
     --text-primary: #424242;      /* Black 500 — text, titles, numbers */
     --text-secondary: #666B75;    /* Readable muted text on the near-white canvas */
@@ -40,7 +42,7 @@
     --info-main: #006EA6;
     --info-rgb: 0, 110, 166;
 
-    /* ---- Sidebar / shell — Deep Indigo (derived from --primary-darker #2F3150).
+    /* ---- Sidebar / shell — Deep Navy (the same hue --primary-main now carries).
        Dark navigation + light content: the premium financial-ERP hierarchy.
        Every sidebar colour is centralised here; 04-sidebar.css only references
        these tokens (no scattered rgba). WCAG: ink 9:1 AAA, accent 6.8:1. ---- */
@@ -172,7 +174,7 @@
     --ptg-light: var(--text-disabled);
     --ptg-primary: var(--primary-main);
     --ptg-primary-dark: var(--primary-dark);
-    --ptg-primary-soft: rgba(85, 88, 139, 0.08);
+    --ptg-primary-soft: rgba(23, 63, 115, 0.08);
     --ptg-primary-tint: #EEEEF3;    /* Purple 100 */
     --ptg-primary-contrast: var(--primary-contrast);
     /* Action buttons — Akaunting olive green. */
@@ -236,14 +238,14 @@
        read the same token, so the two can never drift apart. */
     --ptg-panel-shadow: 0 1px 3px rgba(16, 24, 40, 0.04), 0 10px 28px rgba(16, 24, 40, 0.06);
 
-    --ptg-ring: 0 0 0 1px var(--primary-main), 0 0 0 4px rgba(85, 88, 139, 0.14);
+    --ptg-ring: 0 0 0 1px var(--primary-main), 0 0 0 4px rgba(23, 63, 115, 0.14);
 
     --ptg-sidebar-width: var(--layout-sidebar);
     --ptg-mini-sidebar: var(--layout-sidebar-mini);
     --ptg-topbar-height: var(--layout-header);
 
     --ptg-primary-rgb: var(--primary-main-rgb);
-    --ptg-primary-dark-rgb: 64, 66, 104;
+    --ptg-primary-dark-rgb: 18, 50, 88;
     --ptg-accent-blue-rgb: var(--info-rgb);
     --ptg-danger-rgb: var(--error-rgb);
     --ptg-success-rgb: var(--success-rgb);

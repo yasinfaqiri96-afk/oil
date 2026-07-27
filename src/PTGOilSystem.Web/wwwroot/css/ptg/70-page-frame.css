@@ -112,6 +112,53 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(
     margin-inline: 0;
 }
 
+/* -------------------------------------------------------------------
+ * Stat cards lead the page, the section tab rail sits under them.
+ *
+ * The rail is rendered by the layout as a PageFrame child, while the cards
+ * are rendered by the view inside its own page root, so the two live in
+ * different formatting contexts and cannot be ordered against each other.
+ * Dissolving the page root into the frame grid (display: contents) puts
+ * header, cards and content on the same grid as the rail, so a single set
+ * of `order` values settles the whole strip — no markup moves, and every
+ * list/form page that already carries this shape follows automatically.
+ *
+ * 50-ak-components.css owns the in-page fallback ordering (cards before the
+ * header) for pages that keep their own box; the values below extend that
+ * same scale with a slot for the rail.
+ * ----------------------------------------------------------------- */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content))) {
+    display: contents;
+}
+
+/* The frame gap would now fall between every page-level child instead of
+   only between frame sections, so the page keeps owning its own rhythm and
+   the rail carries the one gap it needs. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content)))) {
+    row-gap: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content)))) > [data-section-tabs-strip] {
+    order: -1;
+    margin-block-end: var(--ptg-tabs-space-below, 16px);
+}
+
+/* The page root used to absorb the intrinsic width of its own content; now
+   that its children are grid items themselves, each of them needs the same
+   release or a wide table can outgrow the frame. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content))) > * {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content))) > .ak-stat-grid {
+    order: -2;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content))) > :is(.finance-page-lead, .ak-note, .ak-page-lead) {
+    order: -3;
+}
+
 body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(
     .ak-list-page,
     .ak-form-page,

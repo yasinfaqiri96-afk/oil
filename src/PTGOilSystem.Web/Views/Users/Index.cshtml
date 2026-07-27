@@ -43,7 +43,7 @@
                 <tbody>
                     @foreach (var user in Model)
                     {
-                        <tr data-href="@Url.Action("Details", new { id = user.Id })" data-user-row>
+                        <tr data-href="@Url.Action("Details", new { id = user.Id })">
                             <td><partial name="~/Views/Shared/Partials/_PersonCell.cshtml" model="@((user.FullName, (string?)Url.Action("Details", new { id = user.Id }), (string?)null))" /></td>
                             <td class="ak-num">@user.Username</td>
                             <td>
@@ -84,22 +84,9 @@
             </table>
         </div>
 
-        <div class="ak-pager">
-            @await Html.PartialAsync("_PagedListFooter")
-        </div>
+        @await Html.PartialAsync("_PagedListFooter")
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script>
-        (function () {
-            document.querySelectorAll('[data-user-row][data-href]').forEach(function (row) {
-                row.style.cursor = 'pointer';
-                row.addEventListener('click', function (e) {
-                    if (e.target.closest('a, button, input, label, select')) return;
-                    window.location.href = row.getAttribute('data-href');
-                });
-            });
-        })();
-    </script>
 }

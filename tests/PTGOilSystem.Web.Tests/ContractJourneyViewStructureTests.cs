@@ -1307,6 +1307,7 @@ public class ContractJourneyViewStructureTests
     {
         var contents = ReadRepoFile("src/PTGOilSystem.Web/Views/Sales/Create.cshtml");
         var financeForms = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/finance-forms.js");
+        var componentsCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
 
         Assert.Contains("_AkPageHeader", contents);
         Assert.Contains("class=\"ak-form\"", contents);
@@ -1335,6 +1336,9 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-sales-fx-rate-field", contents);
         Assert.Contains("data-sales-total-preview", contents);
         Assert.Contains("data-sales-total-value", contents);
+        Assert.Contains("data-sales-line-items", contents);
+        Assert.Contains("[data-sales-create-form] [data-sales-line-items]:has([data-sales-product]:focus)", componentsCss);
+        Assert.Contains("overflow: visible;", componentsCss);
         Assert.Contains("data-sales-save-summary", contents);
         Assert.Contains("خلاصه ثبت فروش", contents);
         Assert.Contains(".ak-form-section[data-sales-stage-scope]", financeForms);
