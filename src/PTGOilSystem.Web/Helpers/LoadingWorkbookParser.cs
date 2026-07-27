@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using PTGOilSystem.Web.Models.Entities;
@@ -17,6 +18,7 @@ public sealed record LoadingWorkbookImportResult(
 
 public static class LoadingWorkbookParser
 {
+    private static readonly ConditionalWeakTable<WorkbookPart, string[]> SharedStringLookups = new();
     private static readonly string[] DateAliases = ["date", "loadingdate", "dateloading", NormalizeHeader("تاریخ")];
 
     private static readonly string[] WagonReferenceAliases =
@@ -868,14 +870,17 @@ public static class LoadingWorkbookParser
     {
         if (cell.DataType?.Value == CellValues.SharedString)
         {
-            var sharedStrings = workbookPart.SharedStringTablePart?.SharedStringTable;
-            if (sharedStrings is null)
-            {
-                return string.Empty;
-            }
+            var sharedStrings = SharedStringLookups.GetValue(
+                workbookPart,
+                static part => part.SharedStringTablePart?.SharedStringTable?
+                    .Elements<SharedStringItem>()
+                    .Select(item => item.InnerText)
+                    .ToArray()
+                    ?? []);
 
             return int.TryParse(cell.CellValue?.Text, out var index)
-                ? sharedStrings.ElementAt(index).InnerText
+                   && (uint)index < (uint)sharedStrings.Length
+                ? sharedStrings[index]
                 : string.Empty;
         }
 

@@ -55,7 +55,7 @@
         <vc:stat-card title="@T("بارهای در جریان", "Loads in transit")"
                       value="@StatCardFormatter.Count(Model.ShipmentsInTransitCount)"
                       unit="@T("محموله", "loads")"
-                      avatar="vessel"></vc:stat-card>
+                      avatar="transported"></vc:stat-card>
 
         <vc:stat-card title="@T("قراردادهای فعال", "Active contracts")"
                       value="@StatCardFormatter.Count(Model.ActiveContractCount)"
@@ -65,6 +65,28 @@
 
     @* ===== نمودار روند + ترکیب فروش ===== *@
     <section class="dash-analytics" aria-label="@T("تحلیل درآمد و فروش", "Revenue and sales analytics")">
+        <article class="dash-card dash-mix">
+            <header class="dash-card-head">
+                <h2>@T("ترکیب فروش", "Sales mix")</h2>
+            </header>
+            <div class="dash-donut"
+                 data-dashboard-donut
+                 data-segments="@mixJson"
+                 data-total="@mixTotal"
+                 data-total-label="@T("مجموع", "Total")">
+            </div>
+            <div class="dash-mix-legend">
+                @foreach (var seg in mixSegments)
+                {
+                    <span class="dash-mix-item">
+                        <i class="dash-dot" style="background:@seg.color" aria-hidden="true"></i>
+                        <span class="dash-mix-name">@seg.label</span>
+                        <strong class="dash-mix-count"><bdi>@StatCardFormatter.Count(seg.value)</bdi></strong>
+                    </span>
+                }
+            </div>
+        </article>
+
         <article class="dash-card dash-trend">
             <header class="dash-card-head dash-trend-head">
                 <div class="dash-trend-title">
@@ -95,28 +117,6 @@
                     <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                     @T("در حال آماده‌سازی نمودار", "Preparing chart")
                 </div>
-            </div>
-        </article>
-
-        <article class="dash-card dash-mix">
-            <header class="dash-card-head">
-                <h2>@T("ترکیب فروش", "Sales mix")</h2>
-            </header>
-            <div class="dash-donut"
-                 data-dashboard-donut
-                 data-segments="@mixJson"
-                 data-total="@mixTotal"
-                 data-total-label="@T("مجموع", "Total")">
-            </div>
-            <div class="dash-mix-legend">
-                @foreach (var seg in mixSegments)
-                {
-                    <span class="dash-mix-item">
-                        <i class="dash-dot" style="background:@seg.color" aria-hidden="true"></i>
-                        <span class="dash-mix-name">@seg.label</span>
-                        <strong class="dash-mix-count"><bdi>@StatCardFormatter.Count(seg.value)</bdi></strong>
-                    </span>
-                }
             </div>
         </article>
     </section>
@@ -189,52 +189,6 @@
                 </svg>
             </span>
             <strong>@T("قراردادها", "Contracts")</strong>
-        </a>
-        <a asp-controller="Inventory" asp-action="Index" class="dash-quick-item">
-            <span class="dash-quick-icon" aria-hidden="true">
-                <svg class="dash-quick-svg" viewBox="0 0 24 24" focusable="false">
-                    <path fill="currentColor" d="M2 12c0-3.771 0-5.657 1.172-6.828S6.229 4 10 4h4c3.771 0 5.657 0 6.828 1.172S22 8.229 22 12s0 5.657-1.172 6.828S17.771 20 14 20h-4c-3.771 0-5.657 0-6.828-1.172S2 15.771 2 12" opacity=".5" />
-                    <path fill="currentColor" d="M8.25 4.75a.75.75 0 0 1 1.5 0v14.5a.75.75 0 0 1-1.5 0zm6 0a.75.75 0 0 1 1.5 0v14.5a.75.75 0 0 1-1.5 0zM2.75 9.25h18.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5m0 4h18.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5" />
-                </svg>
-            </span>
-            <strong>@T("موجودی", "Inventory")</strong>
-        </a>
-        <a asp-controller="InventoryTransportLegs" asp-action="Index" class="dash-quick-item">
-            <span class="dash-quick-icon" aria-hidden="true">
-                <svg class="dash-quick-svg" viewBox="0 0 24 24" focusable="false">
-                    <path fill="currentColor" d="M2 8c0-1.414 0-2.121.44-2.56C2.878 5 3.585 5 5 5h6c1.414 0 2.121 0 2.56.44c.44.439.44 1.146.44 2.56v7c0 .943 0 1.414-.293 1.707S12.943 17 12 17H4c-.943 0-1.414 0-1.707-.293S2 15.943 2 15z" opacity=".5" />
-                    <path fill="currentColor" d="M15 8h1.528c.98 0 1.47 0 1.876.226c.405.226.658.64 1.163 1.469l1.15 1.884c.184.302.276.453.33.62c.053.166.053.343.053.697V15c0 .943 0 1.414-.293 1.707S20.057 17 19.114 17H15z" />
-                    <path fill="currentColor" d="M6.5 16a2.25 2.25 0 1 1 0 4.5a2.25 2.25 0 0 1 0-4.5m11 0a2.25 2.25 0 1 1 0 4.5a2.25 2.25 0 0 1 0-4.5" />
-                </svg>
-            </span>
-            <strong>@T("حمل", "Transport")</strong>
-        </a>
-        <a asp-controller="Expenses" asp-action="Index" class="dash-quick-item">
-            <span class="dash-quick-icon" aria-hidden="true">
-                <svg class="dash-quick-svg" viewBox="0 0 24 24" focusable="false">
-                    <path fill="currentColor" d="M4 4.5c0-1.414 0-2.121.44-2.56C4.878 1.5 5.585 1.5 7 1.5h10c1.414 0 2.121 0 2.56.44c.44.439.44 1.146.44 2.56v16.086c0 .78-.89 1.226-1.514.758L17 20.125l-1.486 1.114a1.25 1.25 0 0 1-1.5 0L12.5 20.125l-1.514 1.114a1.25 1.25 0 0 1-1.5 0L8 20.125l-1.486 1.219C5.89 21.812 5 21.366 5 20.586z" opacity=".5" />
-                    <path fill="currentColor" d="M7.25 7A.75.75 0 0 1 8 6.25h8a.75.75 0 0 1 0 1.5H8A.75.75 0 0 1 7.25 7m0 3.5a.75.75 0 0 1 .75-.75h8a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75m0 3.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75" />
-                </svg>
-            </span>
-            <strong>@T("مصارف", "Expenses")</strong>
-        </a>
-        <a asp-controller="CashAccounts" asp-action="Index" class="dash-quick-item">
-            <span class="dash-quick-icon" aria-hidden="true">
-                <svg class="dash-quick-svg" viewBox="0 0 24 24" focusable="false">
-                    <path fill="currentColor" d="M12.774 2.72a1.5 1.5 0 0 1 .452 0l7.5 2.5A1.5 1.5 0 0 1 22 6.63V8H2V6.63a1.5 1.5 0 0 1 1.274-1.41z" opacity=".5" />
-                    <path fill="currentColor" d="M2 8h20a.75.75 0 0 1 0 1.5h-.75V18H22a.75.75 0 0 1 0 1.5H2A.75.75 0 0 1 2 18h.75V9.5H2A.75.75 0 0 1 2 8m4.25 1.5V18h1.5V9.5zm5 0V18h1.5V9.5zm5 0V18h1.5V9.5zM2.5 20.5h19a.75.75 0 0 1 0 1.5h-19a.75.75 0 0 1 0-1.5" />
-                </svg>
-            </span>
-            <strong>@T("حساب‌ها", "Accounts")</strong>
-        </a>
-        <a asp-controller="ShipmentPnl" asp-action="Index" class="dash-quick-item">
-            <span class="dash-quick-icon" aria-hidden="true">
-                <svg class="dash-quick-svg" viewBox="0 0 24 24" focusable="false">
-                    <path fill="currentColor" d="M2 12c0-4.714 0-7.071 1.464-8.536C4.93 2 7.286 2 12 2s7.071 0 8.536 1.464C22 4.93 22 7.286 22 12s0 7.071-1.464 8.536C19.07 22 16.714 22 12 22s-7.071 0-8.536-1.464C2 19.07 2 16.714 2 12" opacity=".5" />
-                    <path fill="currentColor" d="M17.53 8.53a.75.75 0 0 0-1.28-.53l-3.5 3.5l-2.22-2.22a.75.75 0 0 0-1.06 0l-3.5 3.5a.75.75 0 1 0 1.06 1.06L10 10.81l2.22 2.22a.75.75 0 0 0 1.06 0zM14 8a.75.75 0 0 1 .75-.75h2.5A.75.75 0 0 1 18 8v2.5a.75.75 0 0 1-1.5 0v-1.75h-1.75A.75.75 0 0 1 14 8" />
-                </svg>
-            </span>
-            <strong>@T("سود و زیان", "P&L")</strong>
         </a>
     </section>
 </div>

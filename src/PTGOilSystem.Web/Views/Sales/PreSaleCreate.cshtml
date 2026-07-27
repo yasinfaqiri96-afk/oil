@@ -1,0 +1,108 @@
+@model PTGOilSystem.Web.Models.Sales.PreSaleCreateViewModel
+@{
+    ViewData["Title"] = "ثبت پیش‌فروش";
+    ViewData["HideSectionTabs"] = true;
+    var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl);
+    var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("PreSales");
+}
+
+<div class="page-stack ak-form-page">
+    <header class="ak-page-header">
+        <div class="ak-page-heading">
+            <span class="ak-page-icon"><i class="bi bi-calendar-plus"></i></span>
+            <div>
+                <h1>ثبت پیش‌فروش</h1>
+                <p>فقط تعهد فروش ثبت می‌شود: نه موجودی کم می‌شود، نه درآمد یا بهای تمام‌شده.</p>
+            </div>
+        </div>
+        <div class="ak-page-actions">
+            <a href="@cancelUrl" class="btn ak-secondary-action">بازگشت</a>
+        </div>
+    </header>
+
+    <form asp-action="PreSaleCreate" method="post" class="ak-form">
+        @Html.AntiForgeryToken()
+        <input asp-for="ReturnUrl" type="hidden" />
+        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
+
+        <section class="ak-form-section" aria-label="اطلاعات پیش‌فروش">
+            <h2 class="ak-section-title">اطلاعات پیش‌فروش</h2>
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label asp-for="CustomerId" class="ak-label">مشتری <span class="ak-req">*</span></label>
+                    <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
+                        <option value="">انتخاب مشتری</option>
+                    </select>
+                    <span asp-validation-for="CustomerId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="ProductId" class="ak-label">کالا <span class="ak-req">*</span></label>
+                    <select asp-for="ProductId" asp-items="ViewBag.Products" class="ak-input">
+                        <option value="">انتخاب کالا</option>
+                    </select>
+                    <span asp-validation-for="ProductId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="QuantityMt" class="ak-label">مقدار کل (تن) <span class="ak-req">*</span></label>
+                    <input asp-for="QuantityMt" class="ak-input" />
+                    <span asp-validation-for="QuantityMt" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="Currency" class="ak-label">ارز <span class="ak-req">*</span></label>
+                    <select asp-for="Currency" asp-items="ViewBag.Currencies" class="ak-input"><option value=""></option></select>
+                    <span asp-validation-for="Currency" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="UnitPriceInCurrency" class="ak-label">قیمت هر تن <span class="ak-req">*</span></label>
+                    <input asp-for="UnitPriceInCurrency" class="ak-input" />
+                    <span asp-validation-for="UnitPriceInCurrency" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="AppliedFxRateToUsd" class="ak-label">نرخ تبدیل به USD</label>
+                    <input asp-for="AppliedFxRateToUsd" class="ak-input" />
+                    <span asp-validation-for="AppliedFxRateToUsd" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="OrderDate" class="ak-label">تاریخ پیش‌فروش <span class="ak-req">*</span></label>
+                    <input asp-for="OrderDate" type="date" class="ak-input" />
+                    <span asp-validation-for="OrderDate" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="ExpectedDeliveryFrom" class="ak-label">تحویل از تاریخ</label>
+                    <input asp-for="ExpectedDeliveryFrom" type="date" class="ak-input" />
+                    <span asp-validation-for="ExpectedDeliveryFrom" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="ExpectedDeliveryTo" class="ak-label">تحویل تا تاریخ</label>
+                    <input asp-for="ExpectedDeliveryTo" type="date" class="ak-input" />
+                    <span asp-validation-for="ExpectedDeliveryTo" class="ak-field-error"></span>
+                </div>
+            </div>
+        </section>
+
+        <details class="ak-advanced"@(!ViewData.ModelState.IsValid ? " open" : "")>
+            <summary class="ak-advanced-summary">
+                <span><i class="bi bi-sliders2" aria-hidden="true"></i>گزینه‌های بیشتر</span>
+            </summary>
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label asp-for="ReferenceNumber" class="ak-label">شماره مرجع</label>
+                    <input asp-for="ReferenceNumber" class="ak-input" />
+                </div>
+                <div class="ak-field">
+                    <label asp-for="PaymentTerms" class="ak-label">شرایط پرداخت</label>
+                    <input asp-for="PaymentTerms" class="ak-input" />
+                </div>
+                <div class="ak-field">
+                    <label asp-for="Notes" class="ak-label">توضیحات</label>
+                    <textarea asp-for="Notes" class="ak-input" rows="2"></textarea>
+                </div>
+            </div>
+        </details>
+
+        <div class="ak-footer-actions">
+            <a href="@cancelUrl" class="btn ak-secondary-action">انصراف</a>
+            <button type="submit" class="btn btn-primary">ذخیره پیش‌فروش</button>
+        </div>
+    </form>
+</div>

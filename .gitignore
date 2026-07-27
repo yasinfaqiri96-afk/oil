@@ -61,9 +61,12 @@ yarn-error.log*
 *.backup
 
 backups/postgres/
+# آرشیوهای ماژول پشتیبان‌گیری (Backup:StorageDirectory) هرگز نباید وارد مخزن شوند.
+backups/app/
 backups/secure/local-keys/
 backups/secure/*.aes
 backups/secure/*.aes.sha256.txt
+/src/PTGOilSystem.Web/backups/
 
 
 # ---------------------------------------------------------
@@ -139,6 +142,15 @@ artifacts/
 /sonar-claude-compact.zip
 /New folder/
 /graphify-out/
+/output/
+
+# Raw business/accounting source documents stay local, especially when the
+# repository is public. Technical Markdown and UI reference images remain tracked.
+/docs/*.xls
+/docs/*.xlsx
+/docs/*.pdf
+/docs/contract-audit/
+/tools/PtgImporter/loadings.json
 
 
 # ---------------------------------------------------------

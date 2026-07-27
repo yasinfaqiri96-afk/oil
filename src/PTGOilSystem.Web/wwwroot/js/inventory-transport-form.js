@@ -509,15 +509,12 @@
             autoAllocate();
         }
 
-        var importBtn = form.querySelector("[data-vehicle-import-btn]");
-        var importFile = form.querySelector("[data-vehicle-import-file]");
-        var importStatus = form.querySelector("[data-vehicle-import-status]");
-        if (importBtn && importFile) {
-            importBtn.addEventListener("click", function () { importFile.click(); });
-            importFile.addEventListener("change", async function () {
-                var file = importFile.files && importFile.files[0];
-                if (!file) return;
-                if (importStatus) importStatus.textContent = "در حال خواندن فایل…";
+        var importComponent = form.querySelector("[data-vehicle-excel-import] [data-excel-import]");
+        if (importComponent) {
+            importComponent.addEventListener("excel-import:start", async function (event) {
+                var api = event.detail;
+                var file = api.file;
+                api.progress({ stage: 2, message: "در حال خواندن ستون‌ها و آماده‌سازی وسایط…" });
                 var body = new FormData();
                 body.append("file", file);
                 var token = form.querySelector('input[name="__RequestVerificationToken"]');
@@ -530,15 +527,20 @@
                     });
                     var data = await response.json();
                     if (!data.ok) {
-                        if (importStatus) importStatus.textContent = data.message || "ورود فایل ناموفق بود.";
+                        api.fail(data.message || "ورود فایل ناموفق بود.");
                     } else {
                         applyImportedVehicles(data.vehicles);
-                        if (importStatus) importStatus.textContent = (data.vehicles ? data.vehicles.length : 0) + " وسیله وارد شد. حمل‌کننده و راننده را انتخاب کنید.";
+                        var count = data.vehicles ? data.vehicles.length : 0;
+                        api.complete({
+                            message: count + " وسیله به جدول افزوده شد؛ حمل‌کننده و راننده را بررسی کنید.",
+                            createdRows: count,
+                            rejectedRows: 0,
+                            updatedRows: 0
+                        });
                     }
                 } catch (_) {
-                    if (importStatus) importStatus.textContent = "خطا در ورود فایل اکسل.";
+                    api.fail("خطا در ورود فایل اکسل.");
                 }
-                importFile.value = "";
             });
         }
 

@@ -108,4 +108,9 @@ public sealed class LedgerDetailsViewModel
     public LedgerRelationViewModel? Employee { get; init; }
     public LedgerRelationViewModel? Shipment { get; init; }
     public LedgerSourceTraceViewModel? SourceTrace { get; init; }
+
+    // «پرداخت از طریق صراف» فقط دو LedgerEntry دارد و PaymentTransaction ندارد؛ اتصال قرارداد
+    // روی همین صفحه انجام می‌شود. این پرچم‌ها فقط برای ردیفِ سمتِ پرداخت تأمین‌کننده روشن می‌شوند.
+    public bool IsViaSarrafSupplierPayment { get; init; }
+    public bool HasViaSarrafGroup { get; init; }
 }

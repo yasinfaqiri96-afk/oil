@@ -1,0 +1,437 @@
+/* =========================================================================
+   صفحهٔ پشتیبان‌گیری.
+   همهٔ قاعده‌ها زیر .bk-page قفل‌اند تا هیچ صفحهٔ دیگری تحت تأثیر قرار نگیرد.
+   کارت سفید، پس‌زمینهٔ روشن، سایهٔ بسیار نرم، شعاع یکدست، رنگ اصلی #1877F2.
+   ========================================================================= */
+
+.bk-page {
+    --bk-primary: #1877F2;
+    --bk-success: var(--ptg-success);
+    --bk-success-strong: #5C8A44;
+    --bk-surface: #ffffff;
+    --bk-border: #e6eaf0;
+    --bk-text: #1c2430;
+    --bk-muted: #6b7787;
+    --bk-radius: 12px;
+    --bk-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 6px 16px rgba(16, 24, 40, .05);
+    --bk-gap: 16px;
+
+    /* عرض و حاشیهٔ افقی صفحه فقط در PageFrame (70-page-frame.css) تعیین می‌شود؛
+       این بلوک همان قاب مشترک را کامل پر می‌کند تا عرضش با بقیهٔ صفحه‌ها یکسان
+       باشد و روی نمایشگرهای پهن هم با آن‌ها بزرگ شود. سقف اختصاصی یا Padding
+       افقی در اینجا یعنی صفحه از باقی صفحه‌ها باریک‌تر دیده شود. */
+    max-width: 100%;
+    /* پوستهٔ برنامه این بلوک را به‌عنوان آیتمِ چیدمان می‌چیند و آیتم‌ها زیر عرضِ
+       min-content خود کوچک نمی‌شوند؛ بدون این، جدولِ nowrap کل صفحه را در موبایل
+       پهن‌تر از نمایشگر می‌کرد. */
+    min-width: 0;
+    width: 100%;
+    margin-inline: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--bk-gap);
+    color: var(--bk-text);
+}
+
+/* آیتم‌های یک ستونِ Flex زیر عرضِ min-content خودشان کوچک نمی‌شوند؛ بدون این،
+   جدولِ nowrap کلِ صفحه را در موبایل پهن‌تر از نمایشگر می‌کرد و متن‌ها بریده می‌شدند. */
+.bk-page > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* کارت‌های آماری این صفحه از کامپوننت مشترک (.ak-stat-grid/.ak-stat-card در
+   52-stat-card.css) می‌آیند؛ اینجا هیچ کارت اختصاصی تعریف نمی‌شود.
+   فقط فاصله‌های عمودی این ناحیه تنظیم می‌شود. */
+
+/* ناحیهٔ زندهٔ Poll یک بلوک واسط بین صفحه و محتواست، پس Gap صفحه (که فقط بین
+   فرزندان مستقیم خودش اثر دارد) به فرزندان آن نمی‌رسید و لیست تاریخچه دقیقاً
+   به کارت‌ها چسبیده بود. همان ریتم عمودی صفحه اینجا هم برقرار می‌شود. */
+.bk-page [data-backup-live] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bk-gap);
+}
+
+/* فاصلهٔ زیر ردیف کارت‌ها با فاصلهٔ افقی بین خودشان یکی می‌شود؛ Gap صفحه بخشی از
+   آن است و مابه‌التفاوت اینجا اضافه می‌شود. */
+.bk-page .ak-stat-grid {
+    margin-bottom: max(0px, calc(var(--ak-stat-gap) - var(--bk-gap)));
+}
+
+/* ---- Badges ---- */
+.bk-page .bk-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.bk-page .bk-badge.is-ok { background: #e7f6ec; color: #14713a; }
+.bk-page .bk-badge.is-bad { background: #fdecec; color: #b32318; }
+.bk-page .bk-badge.is-busy { background: #fff4e2; color: #9a5b00; }
+.bk-page .bk-badge.is-muted { background: #f1f3f6; color: var(--bk-muted); }
+
+/* ---- Actions ---- */
+.bk-page .bk-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.bk-page .bk-actions--tight { margin-top: 14px; }
+
+.bk-page .bk-inline-form { margin: 0; }
+
+/* سیستم دکمهٔ پوسته (05-components.css) رنگ هر ‎.btn‎ را با
+   ‎background: var(--_bg) !important‎ می‌نشاند و مقدار پیش‌فرضِ ‎--_bg‎ سفید است؛
+   ‎.btn-primary‎ در آن سیستم نوعِ رنگی ندارد. پس رنگ‌دادن با ‎background‎ ساده بی‌اثر
+   است و باید همان قرارداد متغیرها ست شود — مثل ‎.ak-save.btn-primary‎ در
+   50-ak-components.css. */
+.bk-page .btn.bk-primary {
+    --_bg: var(--bk-primary);
+    --_fg: #fff;
+    --_bg-h: #1467d6;
+    --_bd: var(--bk-primary);
+    --_sh: rgba(24, 119, 242, .28);
+
+    padding: 9px 18px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bk-page .btn.bk-primary:hover:not(:disabled),
+.bk-page .btn.bk-primary:focus-visible:not(:disabled) {
+    --_bg: #1467d6;
+    --_bd: #1467d6;
+}
+
+.bk-page .btn.bk-primary:disabled {
+    cursor: not-allowed;
+}
+
+/* «ذخیره تنظیمات» سبز است تا از دکمهٔ آبیِ «ایجاد بکاپ» و «اتصال Drive» جدا دیده
+   شود. رنگ از توکن مشترک موفقیت سیستم می‌آید، نه یک سبز دلبخواه. */
+.bk-page .btn.bk-primary.bk-success {
+    --_bg: var(--bk-success);
+    --_fg: #fff;
+    --_bg-h: var(--bk-success-strong);
+    --_bd: var(--bk-success);
+    --_sh: rgba(var(--ptg-success-rgb), .28);
+}
+
+.bk-page .btn.bk-primary.bk-success:hover:not(:disabled),
+.bk-page .btn.bk-primary.bk-success:focus-visible:not(:disabled) {
+    --_bg: var(--bk-success-strong);
+    --_bd: var(--bk-success-strong);
+}
+
+.bk-page .btn.bk-ghost {
+    background: var(--bk-surface);
+    border: 1px solid var(--bk-border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: none;
+}
+
+.bk-page .btn.bk-ghost:hover { background: #f7f9fc; }
+
+/* ---- Panels & table ---- */
+.bk-page .bk-panel {
+    background: var(--bk-surface);
+    border: 1px solid var(--bk-border);
+    border-radius: var(--bk-radius);
+    box-shadow: var(--bk-shadow);
+    overflow: hidden;
+}
+
+/* هدر لیست هم عنوان را نگه می‌دارد و هم اکشن‌های تاریخچه را؛ در عرض کم به دو
+   سطر می‌شکند تا دکمه‌ها روی عنوان نیفتند. */
+.bk-page .bk-panel-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--bk-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    flex-wrap: wrap;
+}
+
+.bk-page .bk-panel-head h2 {
+    margin: 0;
+    font-size: .9375rem;
+    font-weight: 600;
+}
+
+.bk-page .bk-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.bk-page .bk-panel-actions form { margin: 0; }
+
+/* جدول در صفحهٔ باریک به‌جای شکستن چیدمان، خودش اسکرول می‌شود. */
+.bk-page .bk-table-wrap {
+    overflow-x: auto;
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* عمداً nowrap سراسری ندارد: پوستهٔ برنامه این صفحه را در یک ستونِ auto می‌چیند،
+   پس عرضِ max-content جدول عرض کل صفحه را تعیین می‌کرد و در موبایل متن‌ها بریده
+   می‌شدند. فقط سلول‌هایی که شکستنشان بی‌معناست nowrap می‌مانند. */
+.bk-page .bk-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+}
+
+.bk-page .bk-table .ak-num,
+.bk-page .bk-table .bk-badge,
+.bk-page .bk-table .bk-col-actions {
+    white-space: nowrap;
+}
+
+.bk-page .bk-table > thead > tr > th {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--bk-muted);
+    background: #fafbfd;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--bk-border);
+}
+
+.bk-page .bk-table > tbody > tr > td {
+    padding: 10px 14px;
+    font-size: .8125rem;
+    border-bottom: 1px solid #f1f3f6;
+    vertical-align: middle;
+}
+
+.bk-page .bk-table > tbody > tr:last-child > td { border-bottom: 0; }
+
+.bk-page .bk-col-actions { width: 1%; }
+
+.bk-page .bk-row-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.bk-page .bk-row-actions form { margin: 0; }
+
+.bk-page .btn.bk-icon-btn {
+    background: transparent;
+    border: 1px solid var(--bk-border);
+    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none;
+}
+
+.bk-page .btn.bk-icon-btn:hover { background: #f7f9fc; }
+
+.bk-page .bk-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 28px 12px;
+    color: var(--bk-muted);
+    font-size: .8125rem;
+    white-space: normal;
+}
+
+.bk-page .bk-empty i { font-size: 1.5rem; }
+
+/* ---- Accordion ---- */
+.bk-page .bk-accordion { --bs-accordion-border-color: var(--bk-border); }
+
+.bk-page .bk-accordion .accordion-item {
+    background: var(--bk-surface);
+    border: 1px solid var(--bk-border);
+    border-radius: var(--bk-radius) !important;
+    box-shadow: var(--bk-shadow);
+    overflow: hidden;
+}
+
+.bk-page .bk-accordion .accordion-item + .accordion-item { margin-top: var(--bk-gap); }
+
+.bk-page .bk-accordion .accordion-button {
+    background: var(--bk-surface);
+    box-shadow: none;
+    font-weight: 600;
+    font-size: .9375rem;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.bk-page .bk-accordion .accordion-button:not(.collapsed) {
+    color: var(--bk-text);
+    background: #f7f9fc;
+}
+
+.bk-page .bk-accordion .accordion-button:focus {
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, .15);
+}
+
+.bk-page .bk-accordion-badge { margin-inline-start: auto; }
+
+/* فلش پیش‌فرض بوت‌استرپ در RTL باید سمت چپ بنشیند و نشان‌گر باز/بسته بماند. */
+.bk-page .bk-accordion .accordion-button::after { margin-inline-start: 10px; }
+
+.bk-page .bk-accordion .accordion-body { padding: 16px; }
+
+/* ---- Forms ---- */
+.bk-page .bk-form { margin: 0; }
+
+.bk-page .bk-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+}
+
+.bk-page .bk-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.bk-page .bk-field--full { grid-column: 1 / -1; }
+
+.bk-page .bk-label {
+    font-size: .8125rem;
+    font-weight: 500;
+    color: var(--bk-muted);
+}
+
+.bk-page .bk-input {
+    width: 100%;
+    border: 1px solid var(--bk-border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: .875rem;
+    background: #fff;
+    color: var(--bk-text);
+}
+
+.bk-page .bk-input:focus {
+    outline: none;
+    border-color: var(--bk-primary);
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, .15);
+}
+
+.bk-page .bk-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--bk-border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin: 0;
+    font-size: .875rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.bk-page .bk-switch .form-check { margin: 0; min-height: auto; }
+
+.bk-page .bk-form-foot {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 16px;
+}
+
+.bk-page .bk-alert {
+    border-radius: 10px;
+    font-size: .8125rem;
+    padding: 10px 14px;
+}
+
+.bk-page .bk-alert:empty { display: none; }
+
+/* ---- Facts list (Drive summary) ---- */
+.bk-page .bk-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 16px;
+    margin: 0;
+}
+
+.bk-page .bk-facts dt {
+    font-size: .75rem;
+    font-weight: 500;
+    color: var(--bk-muted);
+    margin-bottom: 4px;
+}
+
+.bk-page .bk-facts dd {
+    margin: 0;
+    font-size: .875rem;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+/* ---- Error modal ---- */
+#backup-error-modal .bk-error-subject {
+    font-size: .8125rem;
+    color: #6b7787;
+    margin-bottom: 10px;
+    overflow-wrap: anywhere;
+}
+
+#backup-error-modal .bk-error-text {
+    background: #fafbfd;
+    border: 1px solid #e6eaf0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: .8125rem;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 45vh;
+    overflow-y: auto;
+    margin: 0;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 1100px) {
+    .bk-page .bk-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+    /* Padding افقی موبایل هم از همان Gutter پوسته می‌آید، نه از این صفحه. */
+    .bk-page .bk-facts { grid-template-columns: 1fr; }
+    /* موبایل: فرم‌ها تک‌ستونه */
+    .bk-page .bk-grid { grid-template-columns: 1fr; }
+    .bk-page .bk-actions { width: 100%; }
+    /* موبایل: اکشن‌های هدر لیست تمام عرض می‌شوند تا دکمه‌ها فشرده نشوند. */
+    .bk-page .bk-panel-actions { width: 100%; }
+    .bk-page .bk-panel-actions > * { flex: 1 1 100%; }
+    .bk-page .btn.bk-primary { width: 100%; justify-content: center; }
+    .bk-page .bk-panel-actions .btn.bk-ghost { width: 100%; justify-content: center; }
+}

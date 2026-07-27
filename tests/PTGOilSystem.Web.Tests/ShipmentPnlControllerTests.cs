@@ -29,6 +29,16 @@ public class ShipmentPnlControllerTests
         Assert.Contains("#shipment-trips|", view);
         Assert.DoesNotContain("tab-pane fade", view);
         Assert.Contains("tab-content ak-detail-content ak-tab-content", view);
+        var statisticsPosition = view.IndexOf("Shipment key indicators", StringComparison.Ordinal);
+        var tabsPosition = view.IndexOf("_DetailsTabs.cshtml", StringComparison.Ordinal);
+        var tabContentPosition = view.IndexOf("tab-content ak-detail-content ak-tab-content", StringComparison.Ordinal);
+        Assert.True(statisticsPosition >= 0, "Shipment key indicators must be rendered.");
+        Assert.True(tabsPosition > statisticsPosition, "Shipment tabs must follow the statistic cards.");
+        Assert.True(tabContentPosition > tabsPosition, "Shipment tab content must follow the tab rail.");
+        Assert.Equal(7, Regex.Matches(view, "data-ak-tab=\"shipment-").Count);
+        Assert.Equal(7, Regex.Matches(view, "class=\"ak-stat-grid mb-3\" data-ak-tab=").Count);
+        var lastStatisticsPosition = view.LastIndexOf("class=\"ak-stat-grid mb-3\" data-ak-tab=", StringComparison.Ordinal);
+        Assert.True(tabsPosition > lastStatisticsPosition, "Every tab-specific statistic grid must precede the tab rail.");
         Assert.Contains("ak-summary", view);
         Assert.Contains("بار داخل کشتی", view);
         Assert.Contains("باقی‌مانده", view);

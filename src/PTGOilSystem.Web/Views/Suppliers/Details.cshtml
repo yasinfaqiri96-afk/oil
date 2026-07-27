@@ -52,7 +52,7 @@
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل تأمین‌کننده", supplierTabs)" />
 
     @* ===== اطلاعات هویتی + وضعیت حساب (تخت، بدون Hero/Avatar/KPI رنگی) ===== *@
-    <div class="ak-form-grid" hidden="@(!showOverview)">
+    <div class="ak-form-grid ak-overview-grid" hidden="@(!showOverview)">
         <section class="ak-form-section ak-detail-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات هویتی", (string?)null))" />
             <dl class="ak-list">
@@ -143,14 +143,24 @@
                     var balClass = c.LoadedValueBalanceUsd > 0 ? "ak-num" : c.LoadedValueBalanceUsd < 0 ? "ak-num" : "";
                     <tr>
                         <td class="ak-col-grow">
+                            @if (cps.Any())
+                            {
+                                <button type="button" class="ak-pay-toggle" data-pay-toggle="@c.ContractId" aria-expanded="false" aria-label="نمایش پرداخت‌ها">
+                                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                                </button>
+                            }
                             <a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@c.ContractId">@c.ContractNumber</a>
+                            @if (cps.Any())
+                            {
+                                <span class="ak-pay-count">@cps.Count.ToString("N0") پرداخت</span>
+                            }
                         </td>
                         <td>@c.Product</td>
-                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(c.QuantityMt, "MT")</td>
-                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(c.LoadedQuantityMt, "MT")</td>
-                        <td class="ak-col-num ak-num">@NumberDisplay.Money(c.LoadedValueUsd, "USD")</td>
-                        <td class="ak-col-num ak-num">@NumberDisplay.Money(c.PaidUsd, "USD")</td>
-                        <td class="ak-col-num ak-num @balClass">@NumberDisplay.Money(c.LoadedValueBalanceUsd, "USD")</td>
+                        <td class="ak-col-num ak-num">@AkUnit.Quantity(c.QuantityMt, "MT")</td>
+                        <td class="ak-col-num ak-num">@AkUnit.Quantity(c.LoadedQuantityMt, "MT")</td>
+                        <td class="ak-col-num ak-num">@AkUnit.Money(c.LoadedValueUsd, "USD")</td>
+                        <td class="ak-col-num ak-num">@AkUnit.Money(c.PaidUsd, "USD")</td>
+                        <td class="ak-col-num ak-num @balClass">@AkUnit.Money(c.LoadedValueBalanceUsd, "USD")</td>
                         <td><span class="ak-status">@c.StatusName</span></td>
                         <td class="ak-col-actions">
                             <div class="dropdown ak-row-menu">
@@ -168,11 +178,11 @@
                     {
                         foreach (var p in cps)
                         {
-                            <tr class="ak-subrow">
+                            <tr class="ak-subrow" data-pay-group="@c.ContractId" hidden>
                                 <td class="ak-col-grow">↳ پرداخت @(p.Method)</td>
                                 <td>@p.Date.ToDisplayDate()</td>
-                                <td class="ak-col-num ak-num" colspan="2">@NumberDisplay.Money(p.Amount, p.Currency)</td>
-                                <td class="ak-col-num ak-num" colspan="2">@NumberDisplay.Money(p.AmountUsd, "USD")</td>
+                                <td class="ak-col-num ak-num" colspan="2">@AkUnit.Money(p.Amount, p.Currency)</td>
+                                <td class="ak-col-num ak-num" colspan="2">@AkUnit.Money(p.AmountUsd, "USD")</td>
                                 <td colspan="2">
                                     @if (p.IsLedgerOnlyViaSarraf)
                                     {
@@ -325,3 +335,39 @@
         </div>
     </section>
 </div>
+
+@section Scripts {
+    <style>
+        .ak-pay-toggle {
+            border: 0;
+            background: transparent;
+            padding: 0 .35rem;
+            cursor: pointer;
+            color: var(--ak-muted, #6c757d);
+            line-height: 1;
+        }
+        .ak-pay-toggle .bi { transition: transform .15s ease; }
+        .ak-pay-toggle.is-open .bi { transform: rotate(-90deg); }
+        .ak-pay-count {
+            margin-inline-start: .4rem;
+            font-size: .75rem;
+            color: var(--ak-muted, #6c757d);
+        }
+    </style>
+    <script>
+        (function () {
+            var root = document.getElementById('supplier-contracts');
+            if (!root) return;
+            root.addEventListener('click', function (e) {
+                var btn = e.target.closest('[data-pay-toggle]');
+                if (!btn) return;
+                var key = btn.getAttribute('data-pay-toggle');
+                var rows = root.querySelectorAll('.ak-subrow[data-pay-group="' + key + '"]');
+                var open = btn.getAttribute('aria-expanded') === 'true';
+                rows.forEach(function (r) { r.hidden = open; });
+                btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+                btn.classList.toggle('is-open', !open);
+            });
+        })();
+    </script>
+}

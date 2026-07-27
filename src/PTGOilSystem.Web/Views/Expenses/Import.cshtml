@@ -1,4 +1,5 @@
 @model PTGOilSystem.Web.Models.Expenses.ExpenseImportViewModel
+@using PTGOilSystem.Web.Models.ExcelImport
 @{
     ViewData["Title"] = "وارد کردن مصارف از فایل اکسل";
     ViewData["HideSectionTabs"] = true;
@@ -6,6 +7,18 @@
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("Index");
     var typeNames = ViewBag.ImportExpenseTypeNames as IEnumerable<string> ?? Array.Empty<string>();
     var currencies = ViewBag.ImportCurrencies as IEnumerable<string> ?? Array.Empty<string>();
+    var excelImportOptions = new ExcelImportComponentOptions
+    {
+        InputId = "expenseExcelImportFile",
+        FileFieldName = nameof(Model.ImportFile),
+        Mode = "form",
+        AcceptExtensions = ".xlsx,.xls",
+        Title = "وارد کردن مصارف از اکسل",
+        Description = "فایل مصارف را انتخاب کنید؛ پیش از ثبت نهایی، همه ردیف‌ها بررسی می‌شوند.",
+        StartButtonText = "پیش‌نمایش و بررسی",
+        MaxFileSizeMb = 50,
+        RequiresConfirmation = false
+    };
 }
 
 <div class="ak-form-page">
@@ -23,21 +36,8 @@
     <form asp-action="ImportPreview" method="post" enctype="multipart/form-data" class="ak-form-section mb-3">
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="ReturnUrl" />
-        <div>
-            <div class="ak-form-grid align-items-end">
-                <div class="ak-field ak-col-full">
-                    <label asp-for="ImportFile" class="ak-label">فایل اکسل مصارف (.xlsx)</label>
-                    <input asp-for="ImportFile" type="file" accept=".xlsx" class="ak-input" />
-                    <span asp-validation-for="ImportFile" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field d-flex gap-2">
-                    <button type="submit" class="btn ak-primary-action">
-                        <i class="bi bi-search"></i> پیش‌نمایش و بررسی
-                    </button>
-                    <a href="@cancelUrl" class="btn ak-secondary-action">انصراف</a>
-                </div>
-            </div>
-        </div>
+        <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
+        <div class="mt-2 text-end"><a href="@cancelUrl" class="btn ak-secondary-action">انصراف</a></div>
     </form>
 
     <div class="ak-form-section mb-3">

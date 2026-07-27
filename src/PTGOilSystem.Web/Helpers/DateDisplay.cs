@@ -13,6 +13,7 @@ public static class DateDisplay
     private const string EmptyValue = "-";
     private const char LeftToRightMark = '\u200E';
     private static readonly CultureInfo InvariantCulture = CultureInfo.InvariantCulture;
+    private static readonly TimeZoneInfo AfghanistanTimeZone = ResolveAfghanistanTimeZone();
 
     public static string Date(DateTime value)
         => Isolate(value.ToString(DisplayDatePattern, InvariantCulture));
@@ -25,6 +26,12 @@ public static class DateDisplay
 
     public static string DateTime(DateTime? value, string empty = EmptyValue)
         => value.HasValue ? DateTime(value.Value) : empty;
+
+    public static string AfghanistanDateTime(DateTime value)
+        => DateTime(ToAfghanistanLocalTime(value));
+
+    public static string AfghanistanDateTime(DateTime? value, string empty = EmptyValue)
+        => value.HasValue ? AfghanistanDateTime(value.Value) : empty;
 
     public static string Month(DateTime value)
         => Isolate(value.ToString(DisplayMonthPattern, InvariantCulture));
@@ -46,6 +53,39 @@ public static class DateDisplay
 
     private static string Isolate(string value)
         => string.Concat(LeftToRightMark, value, LeftToRightMark);
+
+    private static DateTime ToAfghanistanLocalTime(DateTime value)
+    {
+        var utcValue = value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => global::System.DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+
+        return TimeZoneInfo.ConvertTimeFromUtc(utcValue, AfghanistanTimeZone);
+    }
+
+    private static TimeZoneInfo ResolveAfghanistanTimeZone()
+    {
+        foreach (var timeZoneId in new[] { "Asia/Kabul", "Afghanistan Standard Time" })
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            }
+            catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
+            {
+                // Try the equivalent IANA/Windows identifier.
+            }
+        }
+
+        return TimeZoneInfo.CreateCustomTimeZone(
+            "Afghanistan",
+            TimeSpan.FromMinutes(270),
+            "Afghanistan",
+            "Afghanistan");
+    }
 }
 
 public static class DateDisplayExtensions
@@ -61,6 +101,12 @@ public static class DateDisplayExtensions
 
     public static string ToDisplayDateTime(this DateTime? value)
         => DateDisplay.DateTime(value);
+
+    public static string ToAfghanistanDisplayDateTime(this DateTime value)
+        => DateDisplay.AfghanistanDateTime(value);
+
+    public static string ToAfghanistanDisplayDateTime(this DateTime? value)
+        => DateDisplay.AfghanistanDateTime(value);
 
     public static string ToDisplayMonth(this DateTime value)
         => DateDisplay.Month(value);

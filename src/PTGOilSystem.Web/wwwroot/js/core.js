@@ -102,9 +102,15 @@
         });
     }
 
+    // مانند submitGuard: پرچم باید در ماژول بماند نه روی body، چون ناوبری SPA
+    // صفت‌های data-* بدنه را با صفحهٔ تازه هم‌تراز می‌کند و پرچم پاک می‌شود؛
+    // آن‌گاه هر ناوبری یک شنوندهٔ click تازه روی document اضافه می‌کند و
+    // لینک‌های page-modal چند بار باز می‌شوند.
+    var pageModalReady = false;
+
     function initializePageModalLinks() {
-        if (document.body.dataset.pageModalReady === "true") return;
-        document.body.dataset.pageModalReady = "true";
+        if (pageModalReady) return;
+        pageModalReady = true;
 
         document.addEventListener("click", function (event) {
             var link = event.target.closest("a[data-page-modal]");
@@ -474,9 +480,14 @@
     //    still serialized into the POST body.
     //  - Re-enables on back/forward (bfcache) restore.
     // ---------------------------------------------------------------------
+    // ناوبری SPA صفت‌های data-* بدنه را با صفحهٔ تازه هم‌تراز می‌کند و پرچمِ
+    // روی body پاک می‌شود؛ پس پرچم باید در خودِ ماژول بماند، وگرنه هر ناوبری یک
+    // شنوندهٔ submit تازه اضافه می‌کند و شنوندهٔ دوم، ارسال فرم را بلاک می‌کند.
+    var submitGuardReady = false;
+
     function initializeSubmitGuard() {
-        if (document.body.dataset.submitGuardReady === "true") return;
-        document.body.dataset.submitGuardReady = "true";
+        if (submitGuardReady) return;
+        submitGuardReady = true;
 
         document.addEventListener("submit", function (event) {
             var form = event.target;

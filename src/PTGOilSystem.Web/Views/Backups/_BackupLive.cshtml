@@ -1,0 +1,242 @@
+@using PTGOilSystem.Web.Models.Backups
+@using PTGOilSystem.Web.Models.Entities
+@model BackupIndexViewModel
+@*
+    ناحیهٔ زندهٔ صفحهٔ پشتیبان‌گیری: چهار کارت وضعیت، دکمهٔ اصلی و جدول تاریخچه.
+    هنگام اجرای بکاپ، backups.js همین قطعه را از اکشن Status می‌گیرد و جایگزین می‌کند؛
+    پس هیچ چیزِ خارج از این قطعه (Accordionها و مودال خطا) با Poll از بین نمی‌رود.
+*@
+@{
+    string ScheduleLabel(BackupSchedule schedule) => schedule switch
+    {
+        BackupSchedule.Every6Hours => UiText.T(Context, "هر ۶ ساعت", "Every 6 hours"),
+        BackupSchedule.Weekly => UiText.T(Context, "هفتگی", "Weekly"),
+        BackupSchedule.Monthly => UiText.T(Context, "ماهانه", "Monthly"),
+        _ => UiText.T(Context, "روزانه", "Daily")
+    };
+
+    string StorageLabel(BackupStorageTarget target) => target switch
+    {
+        BackupStorageTarget.GoogleDrive => "Google Drive",
+        BackupStorageTarget.Both => UiText.T(Context, "سرور و Drive", "Server + Drive"),
+        _ => UiText.T(Context, "سرور", "Server")
+    };
+
+    string StatusLabel(BackupRunStatus status) => status switch
+    {
+        BackupRunStatus.Succeeded => UiText.T(Context, "موفق", "Succeeded"),
+        BackupRunStatus.Failed => UiText.T(Context, "ناموفق", "Failed"),
+        _ => UiText.T(Context, "در حال اجرا", "Running")
+    };
+
+    string StatusTone(BackupRunStatus status) => status switch
+    {
+        BackupRunStatus.Succeeded => "is-ok",
+        BackupRunStatus.Failed => "is-bad",
+        _ => "is-busy"
+    };
+
+    string DriveLabel(BackupDriveUploadStatus status) => status switch
+    {
+        BackupDriveUploadStatus.Uploaded => UiText.T(Context, "بارگذاری شد", "Uploaded"),
+        BackupDriveUploadStatus.Pending => UiText.T(Context, "در انتظار", "Pending"),
+        BackupDriveUploadStatus.Failed => UiText.T(Context, "ناموفق", "Failed"),
+        _ => "—"
+    };
+
+    string DriveTone(BackupDriveUploadStatus status) => status switch
+    {
+        BackupDriveUploadStatus.Uploaded => "is-ok",
+        BackupDriveUploadStatus.Pending => "is-busy",
+        BackupDriveUploadStatus.Failed => "is-bad",
+        _ => "is-muted"
+    };
+
+    string TierLabel(BackupRetentionTier tier) => tier switch
+    {
+        BackupRetentionTier.Monthly => UiText.T(Context, "ماهانه", "Monthly"),
+        BackupRetentionTier.Weekly => UiText.T(Context, "هفتگی", "Weekly"),
+        _ => UiText.T(Context, "روزانه", "Daily")
+    };
+
+    string SizeLabel(long bytes)
+    {
+        if (bytes <= 0) return "—";
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+        return $"{value:0.#} {units[unitIndex]}";
+    }
+
+    var stateLabel = Model.IsRunning
+        ? UiText.T(Context, "در حال اجرا", "Running")
+        : Model.IsQueued
+            ? UiText.T(Context, "در صف", "Queued")
+            : Model.Settings.AutoBackupEnabled
+                ? UiText.T(Context, "خودکار فعال", "Automatic on")
+                : UiText.T(Context, "خودکار غیرفعال", "Automatic off");
+
+    var latestStatus = Model.LatestRun?.Status;
+}
+
+<div id="backup-live"
+     data-backup-live
+     data-running="@(Model.IsRunning ? "true" : "false")"
+     data-queued="@(Model.IsQueued ? "true" : "false")"
+     data-latest-status="@(latestStatus?.ToString() ?? "")"
+     data-latest-id="@(Model.LatestRun?.Id.ToString() ?? "")"
+     data-latest-error="@(Model.LatestRun?.ErrorMessage ?? "")">
+
+    @* کارت‌های آماری از همان کامپوننت مشترک سیستم (vc:stat-card / ak-stat-grid) ساخته
+       می‌شوند تا طراحی‌شان با بقیهٔ صفحه‌ها یکی باشد. *@
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "وضعیت پشتیبان‌گیری", "Backup status")">
+        <vc:stat-card title="@UiText.T(Context, "وضعیت بکاپ", "Backup status")"
+                      value="@stateLabel"
+                      unit="@($"{ScheduleLabel(Model.Settings.Schedule)} · {StorageLabel(Model.Settings.StorageTarget)}")"
+                      avatar="rules-checklist"
+                      state="@(latestStatus == BackupRunStatus.Failed ? "warning" : null)"></vc:stat-card>
+
+        <vc:stat-card title="@UiText.T(Context, "آخرین بکاپ موفق", "Last successful backup")"
+                      value="@(Model.LastBackup is null ? string.Empty : Model.LastBackup.StartedAtUtc.ToDisplayDateTime())"
+                      unit="@(Model.LastBackup is null ? UiText.T(Context, "هنوز بکاپ موفقی وجود ندارد", "No successful backup yet") : SizeLabel(Model.LastBackup.SizeBytes))"
+                      avatar="documents"
+                      state="@(Model.LastBackup is null ? "empty" : null)"></vc:stat-card>
+
+        <vc:stat-card title="@UiText.T(Context, "بکاپ بعدی", "Next backup")"
+                      value="@(Model.NextRunAtUtc is null ? string.Empty : Model.NextRunAtUtc.ToDisplayDateTime())"
+                      unit="@(Model.NextRunAtUtc is null ? UiText.T(Context, "زمان‌بندی خودکار خاموش است", "Automatic schedule is off") : Model.TimeZoneId)"
+                      avatar="reports"
+                      state="@(Model.NextRunAtUtc is null ? "empty" : null)"></vc:stat-card>
+
+        <vc:stat-card title="Google Drive"
+                      value="@(Model.Drive.IsConnected ? UiText.T(Context, "متصل", "Connected") : UiText.T(Context, "متصل نیست", "Not connected"))"
+                      unit="@Model.Drive.AccountEmail"
+                      avatar="security"></vc:stat-card>
+    </section>
+
+    <section class="bk-panel">
+        @* دکمهٔ اصلی و اکشن‌های وابسته به تاریخچه در همین هدرِ لیست می‌نشینند. *@
+        <header class="bk-panel-head">
+            <h2>@UiText.T(Context, "تاریخچه بکاپ‌ها", "Backup history")</h2>
+
+            <div class="bk-panel-actions">
+                <button type="button" class="btn btn-primary bk-primary" id="backup-create-now"
+                        data-backup-create
+                        data-no-submit-guard
+                        data-busy-text="@UiText.T(Context, "در حال اجرا…", "Running…")"
+                        data-idle-text="@UiText.T(Context, "ایجاد بکاپ اکنون", "Create backup now")"
+                        disabled="@(Model.IsBusy ? "disabled" : null)">
+                    <i class="bi bi-play-circle" aria-hidden="true"></i>
+                    <span data-create-label>@(Model.IsBusy ? UiText.T(Context, "در حال اجرا…", "Running…") : UiText.T(Context, "ایجاد بکاپ اکنون", "Create backup now"))</span>
+                </button>
+
+                @if (Model.History.Any(row => row.DriveUploadStatus is BackupDriveUploadStatus.Failed or BackupDriveUploadStatus.Pending))
+                {
+                    <form asp-action="RetryDriveUpload" method="post" data-no-spa="true" class="bk-inline-form">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-light bk-ghost">
+                            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                            <span>@UiText.T(Context, "تلاش دوباره برای آپلود Drive", "Retry Drive upload")</span>
+                        </button>
+                    </form>
+                }
+
+                @if (Model.CanRestore)
+                {
+                    <a class="btn btn-light bk-ghost" href="@Url.Action("Index", "BackupRestore")">
+                        <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                        <span>@UiText.T(Context, "بازیابی", "Restore")</span>
+                    </a>
+                }
+            </div>
+        </header>
+
+        <div class="bk-table-wrap">
+            <table class="ak-table bk-table" id="backup-history-table">
+                <thead>
+                    <tr>
+                        <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                        <th>@UiText.T(Context, "نوع", "Type")</th>
+                        <th>@UiText.T(Context, "رده", "Tier")</th>
+                        <th>@UiText.T(Context, "حجم", "Size")</th>
+                        <th>@UiText.T(Context, "محل ذخیره", "Storage")</th>
+                        <th>Google Drive</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        <th>@UiText.T(Context, "ایجادکننده", "Created by")</th>
+                        <th class="bk-col-actions">@UiText.T(Context, "عملیات", "Actions")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.History)
+                    {
+                        <tr>
+                            <td dir="ltr" class="ak-num">@row.StartedAtUtc.ToDisplayDateTime()</td>
+                            <td>@(row.TriggerKind == BackupTriggerKind.Manual
+                                    ? UiText.T(Context, "دستی", "Manual")
+                                    : UiText.T(Context, "خودکار", "Automatic"))</td>
+                            <td>@TierLabel(row.RetentionTier)</td>
+                            <td dir="ltr" class="ak-num">@SizeLabel(row.SizeBytes)</td>
+                            <td>@StorageLabel(row.StorageTarget)</td>
+                            <td><span class="bk-badge @DriveTone(row.DriveUploadStatus)">@DriveLabel(row.DriveUploadStatus)</span></td>
+                            <td><span class="bk-badge @StatusTone(row.Status)">@StatusLabel(row.Status)</span></td>
+                            <td>@(row.CreatedByUsername ?? "—")</td>
+                            <td class="bk-col-actions">
+                                <div class="bk-row-actions">
+                                    @if (row.Status == BackupRunStatus.Failed && !string.IsNullOrWhiteSpace(row.ErrorMessage))
+                                    {
+                                        <button type="button" class="btn btn-light bk-icon-btn text-danger"
+                                                data-backup-error="@row.ErrorMessage"
+                                                data-backup-error-title="@row.FileName"
+                                                title="@UiText.T(Context, "مشاهده خطا", "View error")"
+                                                aria-label="@UiText.T(Context, "مشاهده خطا", "View error")">
+                                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                        </button>
+                                    }
+                                    @if (row.CanDownload)
+                                    {
+                                        <a asp-action="Download" asp-route-id="@row.Id" class="btn btn-light bk-icon-btn"
+                                           data-no-spa="true"
+                                           title="@UiText.T(Context, "دانلود", "Download")"
+                                           aria-label="@UiText.T(Context, "دانلود", "Download")">
+                                            <i class="bi bi-download" aria-hidden="true"></i>
+                                        </a>
+                                    }
+                                    @if (row.CanDelete)
+                                    {
+                                        <form asp-action="Delete" asp-route-id="@row.Id" method="post" data-no-spa="true"
+                                              data-ptg-confirm="true"
+                                              data-ptg-confirm-title="@UiText.T(Context, "حذف بکاپ", "Delete backup")"
+                                              data-ptg-confirm-message="@UiText.T(Context, "این نسخهٔ بکاپ حذف شود؟", "Delete this backup copy?")">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-light bk-icon-btn text-danger"
+                                                    title="@UiText.T(Context, "حذف", "Delete")"
+                                                    aria-label="@UiText.T(Context, "حذف", "Delete")">
+                                                <i class="bi bi-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.History.Any())
+                    {
+                        <tr>
+                            <td colspan="9">
+                                <div class="bk-empty">
+                                    <i class="bi bi-archive" aria-hidden="true"></i>
+                                    <span>@UiText.T(Context, "هنوز بکاپی ساخته نشده است", "No backup has been created yet")</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

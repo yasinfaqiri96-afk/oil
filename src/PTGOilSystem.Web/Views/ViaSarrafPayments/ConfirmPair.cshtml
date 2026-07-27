@@ -1,0 +1,88 @@
+@model PTGOilSystem.Web.Models.Payments.ViaSarrafConfirmPairViewModel
+@{
+    ViewData["Title"] = "تأیید جفت تراکنش پرداخت صرافی";
+    ViewData["HideSectionTabs"] = true;
+    var backUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl)
+        ? Model.ReturnUrl
+        : Url.Action("Details", "Ledger", new { id = Model.PaymentLedgerEntryId }) ?? "/Ledger";
+}
+
+<div class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("تأیید جفت تراکنش پرداخت صرافی", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+
+    <p class="ak-note">این پرداخت صرافیِ قدیمی شناسهٔ گروه ندارد. ردیف بدهی صرافِ متناظر را دستی انتخاب و تأیید کنید تا هر دو ردیف زیر یک گروه قرار گیرند. پس از آن می‌توانید قرارداد را وصل کنید.</p>
+
+    <form asp-action="ConfirmPair" method="post" class="ak-form">
+        @Html.AntiForgeryToken()
+        <input asp-for="PaymentLedgerEntryId" type="hidden" />
+        <input asp-for="ReturnUrl" type="hidden" />
+
+        <div asp-validation-summary="All" class="ak-form-alert @(ViewData.ModelState.IsValid ? "d-none" : null)"></div>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("ردیف پرداخت تأمین‌کننده", (string?)null))" />
+            <dl class="ak-list">
+                <div class="ak-list-row"><dt>ردیف دفتر کل</dt><dd class="ak-num">#@Model.PaymentLedgerEntryId</dd></div>
+                <div class="ak-list-row"><dt>تأمین‌کننده</dt><dd>@Model.SupplierName</dd></div>
+                <div class="ak-list-row"><dt>صراف</dt><dd>@Model.SarrafName</dd></div>
+                <div class="ak-list-row"><dt>تاریخ</dt><dd>@Model.EntryDate.ToDisplayDate()</dd></div>
+                <div class="ak-list-row"><dt>مبلغ</dt><dd class="ak-num">@Model.SourceAmount.ToString("N2") @Model.SourceCurrencyCode (معادل @Model.AmountUsd.ToString("N2") USD)</dd></div>
+            </dl>
+        </section>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("انتخاب ردیف بدهی صراف", (string?)null))" />
+            @if (Model.Candidates.Count == 0)
+            {
+                <p class="ak-note">هیچ ردیف بدهی صرافِ گروه‌بندی‌نشده‌ای برای همین صراف یافت نشد. احتمالاً قبلاً گروه‌بندی شده یا داده ناقص است.</p>
+            }
+            else
+            {
+                <div class="ak-table-wrap">
+                    <table class="ak-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>ردیف</th>
+                                <th>تاریخ</th>
+                                <th class="ak-col-num">مبلغ</th>
+                                <th class="ak-col-num">USD</th>
+                                <th>مرجع</th>
+                                <th>قرارداد</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var c in Model.Candidates)
+                        {
+                            <tr>
+                                <td><input type="radio" asp-for="PayableLedgerEntryId" value="@c.LedgerEntryId" /></td>
+                                <td class="ak-num">#@c.LedgerEntryId</td>
+                                <td>@c.EntryDate.ToDisplayDate()</td>
+                                <td class="ak-col-num ak-num">@c.SourceAmount.ToString("N2") @c.SourceCurrencyCode</td>
+                                <td class="ak-col-num ak-num">@c.AmountUsd.ToString("N2")</td>
+                                <td>@(c.Reference ?? "-")</td>
+                                <td>@(c.ContractNumber ?? "-")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <span asp-validation-for="PayableLedgerEntryId" class="ak-field-error"></span>
+            }
+            <div class="ak-field ak-col-full">
+                <label asp-for="Reason" class="ak-label"></label>
+                <textarea asp-for="Reason" class="ak-input" rows="2" placeholder="مثلاً: مبلغ، تاریخ و مرجع دقیقاً مطابقت دارند."></textarea>
+                <span asp-validation-for="Reason" class="ak-field-error"></span>
+            </div>
+        </section>
+
+        <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@(("تأیید جفت", backUrl, "انصراف"))" />
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

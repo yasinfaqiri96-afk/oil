@@ -6,6 +6,8 @@ public interface IAccountingJournalNumberGenerator
     string ForSupplierPaymentAllocation(int companyId, int allocationId);
     string ForSupplierPaymentAllocationReversal(int companyId, int allocationId);
     string ForPayment(int companyId, int paymentId);
+    string ForPaymentRevision(int companyId, int paymentId, int revision);
+    string ForPaymentReversal(int companyId, int paymentId, int revision);
     string ForViaSarrafSupplierPayment(int companyId, int supplierLedgerEntryId);
     string ForExpense(int companyId, int expenseId);
     string ForExpenseReversal(int companyId, int expenseId);
@@ -14,7 +16,11 @@ public interface IAccountingJournalNumberGenerator
     string ForPurchaseReversal(int companyId, int loadingRegisterId, int revision);
     string ForInventoryReceipt(int companyId, int loadingReceiptId);
     string ForSale(int companyId, int salesTransactionId);
+    string ForSaleReversal(int companyId, int salesTransactionId);
     string ForCogs(int companyId, int salesTransactionId);
+    string ForCogsReversal(int companyId, int salesTransactionId);
+    string ForCustomerAdvanceApplication(int companyId, int applicationId);
+    string ForCustomerAdvanceApplicationReversal(int companyId, int applicationId);
     string ForInventoryLoss(int companyId, int lossEventId);
     string ForInventoryLossReversal(int companyId, int lossEventId);
     string ForShortageCharge(int companyId, int transportReceiptId);
@@ -69,6 +75,34 @@ public sealed class AccountingJournalNumberGenerator : IAccountingJournalNumberG
             throw new ArgumentOutOfRangeException(nameof(paymentId));
 
         return $"PAY-{companyId:D6}-{paymentId:D10}";
+    }
+
+    // A payment can be corrected after posting, so revisions past the first carry a suffix.
+    // Revision 0 keeps the legacy PAY- number so already-posted journals stay addressable.
+    public string ForPaymentRevision(int companyId, int paymentId, int revision)
+    {
+        if (revision == 0)
+            return ForPayment(companyId, paymentId);
+        if (companyId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(companyId));
+        if (paymentId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(paymentId));
+        if (revision < 0)
+            throw new ArgumentOutOfRangeException(nameof(revision));
+
+        return $"PAY-{companyId:D6}-{paymentId:D10}-R{revision:D3}";
+    }
+
+    public string ForPaymentReversal(int companyId, int paymentId, int revision)
+    {
+        if (companyId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(companyId));
+        if (paymentId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(paymentId));
+        if (revision < 0)
+            throw new ArgumentOutOfRangeException(nameof(revision));
+
+        return $"PAYR-{companyId:D6}-{paymentId:D10}-R{revision:D3}";
     }
 
     public string ForViaSarrafSupplierPayment(int companyId, int supplierLedgerEntryId)
@@ -141,6 +175,17 @@ public sealed class AccountingJournalNumberGenerator : IAccountingJournalNumberG
         return $"SAL-{companyId:D6}-{salesTransactionId:D10}";
     }
 
+    // برگشت رسمی فروش. شمارهٔ جدا نگه داشته می‌شود تا ژورنال اصلی همچنان با شمارهٔ خودش قابل ارجاع بماند.
+    public string ForSaleReversal(int companyId, int salesTransactionId)
+    {
+        if (companyId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(companyId));
+        if (salesTransactionId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(salesTransactionId));
+
+        return $"SALR-{companyId:D6}-{salesTransactionId:D10}";
+    }
+
     public string ForCogs(int companyId, int salesTransactionId)
     {
         if (companyId <= 0)
@@ -150,6 +195,23 @@ public sealed class AccountingJournalNumberGenerator : IAccountingJournalNumberG
 
         return $"COGS-{companyId:D6}-{salesTransactionId:D10}";
     }
+
+    public string ForCogsReversal(int companyId, int salesTransactionId)
+    {
+        if (companyId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(companyId));
+        if (salesTransactionId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(salesTransactionId));
+
+        return $"COGSR-{companyId:D6}-{salesTransactionId:D10}";
+    }
+
+    // انتقالِ پیش‌دریافت به مطالبات وقتی تخصیصِ دریافت بعد از یک تحویلِ دارای طلبِ باز ثبت می‌شود.
+    public string ForCustomerAdvanceApplication(int companyId, int applicationId)
+        => $"CAA-{ValidateKey(companyId, applicationId, nameof(applicationId))}";
+
+    public string ForCustomerAdvanceApplicationReversal(int companyId, int applicationId)
+        => $"CAAR-{ValidateKey(companyId, applicationId, nameof(applicationId))}";
 
     public string ForInventoryLoss(int companyId, int lossEventId)
         => $"LOSS-{ValidateKey(companyId, lossEventId, nameof(lossEventId))}";

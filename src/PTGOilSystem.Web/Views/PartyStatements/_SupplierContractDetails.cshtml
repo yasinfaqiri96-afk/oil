@@ -1,0 +1,122 @@
+@model PTGOilSystem.Web.Models.PartyStatements.SupplierContractDetailsViewModel
+@{
+    var statement = Model.Statement;
+    var isRub = statement.Summary.IsRubPresentation;
+    var rows = statement.Rows.Where(r => !r.IsOpeningBalance).ToList();
+    var loadings = rows.Where(r => r.SourceType == "Loading").ToList();
+    const int LoadingCap = 500;
+    var loadingShown = loadings.Take(LoadingCap).ToList();
+
+    string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "–";
+    string Qty(decimal? value) => value.HasValue ? value.Value.ToString("N3") : "–";
+    string Base(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
+}
+
+<div class="statement-details" dir="rtl">
+    <section class="statement-details-facts">
+        @if (!string.IsNullOrWhiteSpace(Model.ProductName))
+        {
+            <div><span>محصول</span><strong>@Model.ProductName</strong></div>
+        }
+        @if (Model.UnitPriceUsd.HasValue)
+        {
+            <div><span>نرخ هر تن</span><strong class="statement-ltr">@Model.UnitPriceUsd.Value.ToString("N2") USD</strong></div>
+        }
+        @if (Model.ContractValueUsd.HasValue)
+        {
+            <div><span>ارزش کل قرارداد</span><strong class="statement-ltr">@Model.ContractValueUsd.Value.ToString("N2") USD</strong></div>
+        }
+        @if (Model.ContractQuantityMt.HasValue)
+        {
+            <div><span>مقدار قرارداد</span><strong class="statement-ltr">@Qty(Model.ContractQuantityMt) MT</strong></div>
+        }
+        @if (Model.LoadedQuantityMt.HasValue)
+        {
+            <div><span>بارگیری‌شده</span><strong class="statement-ltr">@Qty(Model.LoadedQuantityMt) MT</strong></div>
+        }
+        @if (Model.RemainingQuantityMt.HasValue)
+        {
+            <div><span>تعهد باقی‌مانده</span><strong class="statement-ltr">@Qty(Model.RemainingQuantityMt) MT</strong></div>
+        }
+    </section>
+
+    <section class="statement-details-block">
+        <h3>گردش قرارداد</h3>
+        <table class="statement-table statement-table-compact">
+            <thead>
+                <tr>
+                    <th>تاریخ</th>
+                    <th>شرح</th>
+                    <th>DEBIT</th>
+                    <th>CREDIT</th>
+                    <th>BALANCE</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (rows.Count == 0)
+                {
+                    <tr><td colspan="5" class="statement-empty">گردشی برای این قرارداد ثبت نشده است.</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in rows)
+                    {
+                        <tr>
+                            <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
+                            <td class="statement-description">
+                                @row.Description
+                                @if (!string.IsNullOrWhiteSpace(row.Reference))
+                                {
+                                    <small class="statement-ref-inline">@row.Reference</small>
+                                }
+                            </td>
+                            <td class="statement-money statement-debit">@Base(row.DebitBase, row.DebitRub)</td>
+                            <td class="statement-money statement-credit">@Base(row.CreditBase, row.CreditRub)</td>
+                            <td class="statement-money statement-balance">@Base(row.RunningBalance, row.RunningBalanceRub)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="statement-details-block">
+        <h3>بارگیری‌ها</h3>
+        <table class="statement-table statement-table-compact">
+            <thead>
+                <tr>
+                    <th>تاریخ</th>
+                    <th>مرجع</th>
+                    <th>مقدار (MT)</th>
+                    <th>Platts</th>
+                    <th>نرخ واحد</th>
+                    <th>ارزش</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (loadingShown.Count == 0)
+                {
+                    <tr><td colspan="6" class="statement-empty">بارگیری‌ای برای این قرارداد ثبت نشده است.</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in loadingShown)
+                    {
+                        <tr>
+                            <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
+                            <td class="statement-ref">@(row.Reference ?? "–")</td>
+                            <td class="statement-money">@Qty(row.Quantity)</td>
+                            <td class="statement-money">@Amount(row.PlattsPrice)</td>
+                            <td class="statement-money">@Amount(row.UnitPrice)</td>
+                            <td class="statement-money">@Base(row.DebitBase, row.DebitRub)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+        @if (loadings.Count > LoadingCap)
+        {
+            <p class="statement-details-note">نمایش @LoadingCap مورد از @loadings.Count بارگیری. برای فهرست کامل از خروجی استفاده کنید.</p>
+        }
+    </section>
+</div>

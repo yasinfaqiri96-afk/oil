@@ -3,22 +3,21 @@
     string T(string fa, string en) => UiText.T(Context, fa, en);
     string UnitMt() => T("تن", "MT");
     string TextOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
-    bool IsIn(string? direction) => string.Equals(direction, "In", StringComparison.OrdinalIgnoreCase);
 
+    // جهت حرکت از علامت SignedQuantityMt خوانده می‌شود (ورود و تعدیل مثبت، خروج و انتقال منفی).
+    // DirectionName متن نمایشی فارسی است و نباید مبنای محاسبه باشد.
     // گروه‌بندی حرکات بر اساس ترمینال + مخزن
     var tankGroups = Model.Items
         .GroupBy(i => new { Terminal = i.TerminalName, Tank = i.StorageTankCode ?? "" })
-        .Select(g => {
-            var latestItem = g.OrderByDescending(i => i.MovementDate).First();
-            return new {
-                TerminalName = g.Key.Terminal,
-                TankName = g.Key.Tank,
-                CurrentBalance = latestItem.RunningBalanceMt,
-                TotalIn  = g.Where(i => IsIn(i.DirectionName)).Sum(i => i.QuantityMt),
-                TotalOut = g.Where(i => !IsIn(i.DirectionName)).Sum(i => i.QuantityMt),
-                InCount  = g.Count(i => IsIn(i.DirectionName)),
-                OutCount = g.Count(i => !IsIn(i.DirectionName)),
-            };
+        .Select(g => new {
+            TerminalName = g.Key.Terminal,
+            TankName = g.Key.Tank,
+            // مانده هر مخزن = جمع مقادیر علامت‌دار همان مخزن (RunningBalanceMt سطح قرارداد است، نه سطح مخزن).
+            CurrentBalance = g.Sum(i => i.SignedQuantityMt),
+            TotalIn  = g.Where(i => i.SignedQuantityMt >= 0m).Sum(i => i.QuantityMt),
+            TotalOut = g.Where(i => i.SignedQuantityMt < 0m).Sum(i => i.QuantityMt),
+            InCount  = g.Count(i => i.SignedQuantityMt >= 0m),
+            OutCount = g.Count(i => i.SignedQuantityMt < 0m),
         })
         .OrderByDescending(g => g.CurrentBalance)
         .ToList();
@@ -53,9 +52,9 @@
                     <tr>
                         <td class="ak-col-grow">@TextOrDash(tank.TerminalName)</td>
                         <td>@TextOrDash(tank.TankName)</td>
-                        <td class="ak-num">@NumberDisplay.Quantity(tank.CurrentBalance) @UnitMt()</td>
-                        <td class="ak-num">@NumberDisplay.Quantity(tank.TotalIn) @UnitMt() (@tank.InCount)</td>
-                        <td class="ak-num">@NumberDisplay.Quantity(tank.TotalOut) @UnitMt() (@tank.OutCount)</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(tank.CurrentBalance) @UnitMt()</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(tank.TotalIn) @UnitMt() (@tank.InCount)</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(tank.TotalOut) @UnitMt() (@tank.OutCount)</td>
                     </tr>
                 }
                 @if (!tankGroups.Any())
@@ -72,53 +71,5 @@
                 </tbody>
             </table>
         </div>
-    </section>
-
-    <section class="ak-form-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                 model="@((T("حرکت‌های موجودی", "Inventory movements"), (string?)null))" />
-        <div class="ak-table-wrap">
-            <table class="ak-table">
-                <thead>
-                    <tr>
-                        <th class="ak-col-grow">@T("مرجع", "Reference")</th>
-                        <th>@T("تاریخ", "Date")</th>
-                        <th>@T("ترمینال / تانک", "Terminal / Tank")</th>
-                        <th>@T("جهت", "Direction")</th>
-                        <th class="ak-col-num">@T("مقدار", "Quantity")</th>
-                        <th class="ak-col-num">@T("مانده", "Balance")</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var item in Model.Items)
-                {
-                    <tr>
-                        <td class="ak-col-grow">@TextOrDash(item.ReferenceDocument ?? item.SourceLabel)</td>
-                        <td>@item.MovementDate.ToDisplayDate()</td>
-                        <td>@TextOrDash(item.TerminalName) / @TextOrDash(item.StorageTankCode)</td>
-                        <td>
-                            <span class="ak-status @(IsIn(item.DirectionName) ?"is-active" : "is-inactive")">
-                                @(IsIn(item.DirectionName) ? T("ورود", "In") : T("خروج", "Out"))
-                            </span>
-                        </td>
-                        <td class="ak-num">@NumberDisplay.Quantity(item.SignedQuantityMt) @UnitMt()</td>
-                        <td class="ak-num">@NumberDisplay.Quantity(item.RunningBalanceMt) @UnitMt()</td>
-                    </tr>
-                }
-                @if (!Model.Items.Any())
-                {
-                    <tr>
-                        <td colspan="6">
-                            <div class="ak-empty">
-                                <i class="bi bi-boxes"></i>
-                                @Model.NoRecordsText
-                            </div>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-        @Model.PagerHtml
     </section>
 </div>

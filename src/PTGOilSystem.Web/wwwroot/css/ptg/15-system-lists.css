@@ -8,7 +8,7 @@ body.ptg-modal-document {
     --ptg-list-radius: 18px;
     --ptg-list-border: #E5E7EB;
     --ptg-list-line: #EEF2F6;
-    --ptg-list-head-bg: #ececec;
+    --ptg-list-head-bg: var(--ptg-table-head-bg);
     --ptg-list-card-shadow: 0 1px 2px rgba(16, 24, 40, .035);
     --ptg-list-title: #10233F;
     --ptg-list-text: #243B5A;
@@ -221,17 +221,17 @@ body.boltz-shell.app-shell-authenticated .list-header-extension {
 /* Header row (field titles) = quiet light strip on list tables. */
 body.boltz-shell.app-shell-authenticated .boltz-content :is(.app-table-card, .card.app-table-card) table:is(.table, .ds-table) thead th,
 body.ptg-modal-document :is(.app-table-card, .card.app-table-card) table:is(.table, .ds-table) thead th {
-    --bs-table-bg: #ececec !important;
-    --bs-table-bg-state: #ececec !important;
+    --bs-table-bg: var(--ptg-list-head-bg) !important;
+    --bs-table-bg-state: var(--ptg-list-head-bg) !important;
     --bs-table-accent-bg: transparent !important;
-    background: #ececec !important;
-    background-color: #ececec !important;
+    background: var(--ptg-list-head-bg) !important;
+    background-color: var(--ptg-list-head-bg) !important;
     box-shadow: none !important;
     color: var(--ptg-list-muted) !important;
     height: 38px !important;
     padding: .55rem 1rem !important;
     border-bottom: 0 !important;
-    font-weight: 800 !important;
+    font-weight: 500 !important;
 }
 
 /* OA: connect the section-tabs strip + filter bar into one white panel.
@@ -302,15 +302,15 @@ body.boltz-shell.app-shell-authenticated:is(.controller-products, .controller-un
     flex-basis: 100%;
 }
 
-/* Force every list/table header row (field-title row) to #ececec — catch-all,
-   beats per-table/per-controller overrides. Display-only. */
+/* Force every list/table header row (field-title row) to the design-system head
+   band — catch-all, beats per-table/per-controller overrides. Display-only. */
 body.boltz-shell.app-shell-authenticated .boltz-content table thead th,
 body.boltz-shell.app-shell-authenticated .boltz-content table thead tr,
 body.boltz-shell.app-shell-authenticated table thead th,
 body.ptg-modal-document table thead th,
 body.ptg-modal-document table thead tr {
-    background: #ececec !important;
-    background-color: #ececec !important;
+    background: var(--ptg-list-head-bg) !important;
+    background-color: var(--ptg-list-head-bg) !important;
 }
 
 /* Shipment summary: page-scoped compact layout. */
@@ -349,42 +349,4 @@ body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .
 
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane details > summary.card-header {
     cursor: pointer;
-}
-
-/* =====================================================================
- * Contracts index — Minimal file-manager list (reference screenshot).
- * Grey rounded header row + separated white rounded rows, soft borders,
- * 32px type icon, two-line date cell, quiet trailing actions.
- * ===================================================================== */
-body.boltz-shell.controller-contracts.action-index .contracts-list {
-    display: flex;
-    flex-direction: column;
-    gap: .5rem;
-    margin-top: .85rem;
-}
-
-body.boltz-shell.controller-contracts.action-index :is(.fml-head, .fml-row) {
-    display: grid;
-    grid-template-columns: 2.2rem minmax(14rem, 1fr) 8.5rem 6.5rem 11rem 7.5rem 5.5rem;
-    align-items: center;
-    column-gap: .75rem;
-    padding-inline: 1rem;
-}
-
-body.boltz-shell.controller-contracts.action-index .contracts-list-empty {
-    margin-top: .85rem;
-}
-
-/* Narrow widths: drop secondary columns, keep name + date + actions. */
-@media (max-width: 991.98px) {
-    body.boltz-shell.controller-contracts.action-index :is(.fml-head, .fml-row) {
-        grid-template-columns: 2.2rem minmax(0, 1fr) 9rem 5.5rem;
-    }
-}
-
-@media (max-width: 575.98px) {
-    body.boltz-shell.controller-contracts.action-index :is(.fml-head, .fml-row) {
-        grid-template-columns: minmax(0, 1fr) 5.5rem;
-        padding-inline: .75rem;
-    }
 }

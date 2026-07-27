@@ -522,7 +522,10 @@ public class SuppliersControllerTests
         Assert.Equal(1_750_000m, model.LoadedPurchaseValueRub);
         Assert.Equal(25_000m, model.TotalPaidUsd);
         Assert.Null(model.TotalPaidRub);
-        Assert.Equal(1_750_000m, model.SupplierRemainingClaimRub);
+        // پرداخت دالری انجام شده ولی هیچ پرداخت روبلی نداریم، پس «چند روبل پرداخت شده»
+        // قابل محاسبه نیست. طلبِ روبلی نباید با فرضِ «صفر روبل پرداخت شده» ساخته شود،
+        // چون پرداخت ۲۵٬۰۰۰ دالری هم طلب را کم کرده است.
+        Assert.Null(model.SupplierRemainingClaimRub);
         Assert.Null(Assert.Single(model.Contracts).PaidRub);
     }
 
@@ -726,6 +729,293 @@ public class SuppliersControllerTests
         Assert.Equal(28m, model.TotalPaidUsd);
         Assert.Equal(2_240m, model.TotalPaidRub);
         Assert.Equal(37_760m, model.SupplierRemainingClaimRub);
+    }
+
+    // قرارداد کاملاً دالری (ارز و ارز تسویه USD، بدون نرخ روبل، بارگیری دالری، پرداخت دالری):
+    // هیچ منبع روبلیِ واقعی وجود ندارد، پس هیچ عدد روبلی نباید ساخته شود.
+    [Fact]
+    public async Task Details_FullyUsdContract_WithoutAnyRubSource_ProducesNoRubTotals()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedFullyUsdContract(db);
+        db.PaymentTransactions.Add(new PaymentTransaction
+        {
+            Id = 1,
+            PaymentDate = new DateTime(2026, 1, 3),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.SupplierPayment,
+            CashAccountId = 1,
+            SupplierId = 1,
+            ContractId = 1,
+            Amount = 2_000m,
+            Currency = "USD",
+            AppliedFxRateToUsd = 1m,
+            AmountUsd = 2_000m,
+            Reference = "USD-PAY"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Details(1);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SupplierProfileViewModel>(view.Model);
+
+        Assert.Equal(5_000m, model.LoadedPurchaseValueUsd);
+        Assert.Equal(2_000m, model.TotalPaidUsd);
+        Assert.Null(model.LoadedPurchaseValueRub);
+        Assert.Null(model.TotalPaidRub);
+        Assert.Null(model.SupplierRemainingClaimRub);
+        Assert.Null(model.EstimatedContractValueRub);
+
+        var contract = Assert.Single(model.Contracts);
+        Assert.Null(contract.RubPerUsdRate);
+        Assert.Null(contract.LoadedValueRub);
+        Assert.Null(contract.PaidRub);
+        Assert.Null(contract.LoadedValueBalanceRub);
+    }
+
+    // همان قرارداد کاملاً دالری، ولی این‌بار یک پرداخت واقعی روبلی ثبت شده است.
+    // پرداخت روبلی منبع معتبر است و باید در «پرداخت‌شده» دیده شود، اما اجازه ندارد
+    // نرخ بسازد و ارزش روبلیِ خریدِ دالری را از هوا تولید کند.
+    [Fact]
+    public async Task Details_FullyUsdContract_DoesNotDeriveRubPurchaseValue_FromRubPaymentRatio()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedFullyUsdContract(db);
+        db.CashAccounts.Add(new CashAccount
+        {
+            Id = 2,
+            Code = "BANK-RUB",
+            Name = "Main RUB Bank",
+            AccountType = CashAccountType.Bank,
+            Currency = "RUB",
+            IsActive = true
+        });
+        db.PaymentTransactions.Add(new PaymentTransaction
+        {
+            Id = 1,
+            PaymentDate = new DateTime(2026, 1, 3),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.SupplierPayment,
+            CashAccountId = 2,
+            SupplierId = 1,
+            ContractId = 1,
+            Amount = 180_000m,
+            Currency = "RUB",
+            AppliedFxRateToUsd = 0.01m,
+            AmountUsd = 1_800m,
+            Reference = "RUB-PAY"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Details(1);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SupplierProfileViewModel>(view.Model);
+
+        // پرداخت روبلیِ واقعی حفظ می‌شود.
+        Assert.Equal(1_800m, model.TotalPaidUsd);
+        Assert.Equal(180_000m, model.TotalPaidRub);
+
+        // خریدِ کاملاً دالری هیچ منبع روبلی ندارد؛ نه نرخ مشتق‌شده ساخته می‌شود
+        // و نه ارزش روبلیِ خرید/طلب.
+        var contract = Assert.Single(model.Contracts);
+        Assert.Null(contract.RubPerUsdRate);
+        Assert.Null(contract.LoadedValueRub);
+        Assert.Null(contract.EstimatedTotalRub);
+        Assert.Null(model.LoadedPurchaseValueRub);
+        Assert.Null(model.EstimatedContractValueRub);
+        Assert.Null(model.SupplierRemainingClaimRub);
+    }
+
+    // پرداخت ترکیبی USD + RUB روی قرارداد دالری: نرخ رقیق‌شده
+    // (روبلِ پرداختی ÷ کلِ دالرِ پرداختی) نباید ساخته و روی خرید اعمال شود.
+    [Fact]
+    public async Task Details_FullyUsdContract_MixedUsdAndRubPayments_DoesNotDiluteDerivedRubRate()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedFullyUsdContract(db);
+        db.CashAccounts.Add(new CashAccount
+        {
+            Id = 2,
+            Code = "BANK-RUB",
+            Name = "Main RUB Bank",
+            AccountType = CashAccountType.Bank,
+            Currency = "RUB",
+            IsActive = true
+        });
+        db.PaymentTransactions.AddRange(
+            new PaymentTransaction
+            {
+                Id = 1,
+                PaymentDate = new DateTime(2026, 1, 3),
+                Direction = PaymentDirection.Out,
+                PaymentKind = PaymentKind.SupplierPayment,
+                CashAccountId = 2,
+                SupplierId = 1,
+                ContractId = 1,
+                Amount = 100_000m,
+                Currency = "RUB",
+                AppliedFxRateToUsd = 0.01m,
+                AmountUsd = 1_000m,
+                Reference = "RUB-PAY"
+            },
+            new PaymentTransaction
+            {
+                Id = 2,
+                PaymentDate = new DateTime(2026, 1, 4),
+                Direction = PaymentDirection.Out,
+                PaymentKind = PaymentKind.SupplierPayment,
+                CashAccountId = 1,
+                SupplierId = 1,
+                ContractId = 1,
+                Amount = 1_000m,
+                Currency = "USD",
+                AppliedFxRateToUsd = 1m,
+                AmountUsd = 1_000m,
+                Reference = "USD-PAY"
+            });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Details(1);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SupplierProfileViewModel>(view.Model);
+
+        Assert.Equal(2_000m, model.TotalPaidUsd);
+        Assert.Equal(100_000m, model.TotalPaidRub);
+
+        var contract = Assert.Single(model.Contracts);
+        // نرخِ رقیق‌شدهٔ 100000 ÷ 2000 = 50 نباید ساخته شود.
+        Assert.Null(contract.RubPerUsdRate);
+        Assert.Null(contract.LoadedValueRub);
+        Assert.Null(model.LoadedPurchaseValueRub);
+    }
+
+    // قرارداد دالری با نرخ ثابت معتبر روبل: منبع معتبر است و باید مثل قبل کار کند.
+    [Fact]
+    public async Task Details_UsdContract_WithFixedContractRubRate_StillValuesPurchaseInRub()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedFullyUsdContract(db);
+        await db.SaveChangesAsync();
+
+        var contract = await db.Contracts.FirstAsync(c => c.Id == 1);
+        contract.SettlementCurrencyCode = "RUB";
+        contract.RubRatePolicy = RubSettlementRatePolicy.FixedContractRate;
+        contract.ContractRubPerUsdRate = 90m;
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Details(1);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SupplierProfileViewModel>(view.Model);
+
+        var summary = Assert.Single(model.Contracts);
+        Assert.Equal(90m, summary.RubPerUsdRate);
+        Assert.Equal(450_000m, summary.LoadedValueRub);
+        Assert.Equal(450_000m, model.LoadedPurchaseValueRub);
+    }
+
+    // بارگیریِ روبلیِ قفل‌شده: snapshot قفل (AmountRubAtRubLock) ملاک است، حتی اگر بعد از
+    // قفل قیمت دالری بدون بازقفل اصلاح شده باشد. محاسبهٔ مجدد نباید عدد را عوض کند.
+    [Fact]
+    public async Task Details_LockedRubLoading_UsesLockedSnapshot_NotRecalculatedValue()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedFullyUsdContract(db);
+        await db.SaveChangesAsync();
+
+        var contract = await db.Contracts.FirstAsync(c => c.Id == 1);
+        contract.SettlementCurrencyCode = "RUB";
+        contract.RubRatePolicy = RubSettlementRatePolicy.PerLoadingRate;
+
+        var loading = await db.LoadingRegisters.FirstAsync(l => l.Id == 1);
+        loading.SettlementCurrencyCode = "RUB";
+        loading.RubRateStatus = RubSettlementRateStatus.Locked;
+        loading.RubPerUsdRate = 80m;
+        // در لحظهٔ قفل: 10 تن × 500 دالر = 5000 دالر → 400,000 روبل.
+        loading.AmountUsdAtRubLock = 5_000m;
+        loading.AmountRubAtRubLock = 400_000m;
+        // بعد از قفل قیمت اصلاح شده ولی بازقفل نشده است.
+        loading.LoadingPriceUsd = 600m;
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Details(1);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SupplierProfileViewModel>(view.Model);
+
+        // 6000 × 80 = 480,000 نباید ساخته شود؛ snapshot قفل‌شده ملاک است.
+        Assert.Equal(400_000m, model.LoadedPurchaseValueRub);
+    }
+
+    // قرارداد/بارگیریِ کاملاً دالری با ۱۰ تن به قیمت ۵۰۰ دالر (۵۰۰۰ دالر بارگیری‌شده).
+    private static void SeedFullyUsdContract(ApplicationDbContext db)
+    {
+        db.Companies.Add(new Company { Id = 1, Code = "PTG", Name = "PTG" });
+        db.Products.Add(new Product { Id = 1, Code = "GO", Name = "Gas Oil" });
+        db.Suppliers.Add(new Supplier { Id = 1, Code = "SU001", Name = "Petrogaz" });
+        db.CashAccounts.Add(new CashAccount
+        {
+            Id = 1,
+            Code = "BANK-USD",
+            Name = "Main USD Bank",
+            AccountType = CashAccountType.Bank,
+            Currency = "USD",
+            IsActive = true
+        });
+        db.Contracts.Add(new Contract
+        {
+            Id = 1,
+            ContractNumber = "PUR-USD-ONLY",
+            ContractType = ContractType.Purchase,
+            Status = ContractStatus.Active,
+            CompanyId = 1,
+            SupplierId = 1,
+            ProductId = 1,
+            ContractDate = new DateTime(2026, 1, 1),
+            QuantityMt = 20m,
+            PricingMethod = PricingMethod.Fixed,
+            UnitPriceInCurrency = 500m,
+            UnitPriceUsd = 500m,
+            Currency = "USD",
+            SettlementCurrencyCode = "USD",
+            RubRatePolicy = RubSettlementRatePolicy.NotApplicable,
+            ContractRubPerUsdRate = null,
+            AppliedFxRateToUsd = 1m
+        });
+        db.LoadingRegisters.Add(new LoadingRegister
+        {
+            Id = 1,
+            ContractId = 1,
+            ProductId = 1,
+            LoadingDate = new DateTime(2026, 1, 2),
+            LoadedQuantityMt = 10m,
+            LoadingPriceUsd = 500m,
+            SettlementCurrencyCode = "USD",
+            RubRateStatus = RubSettlementRateStatus.NotRequired
+        });
     }
 
     private static SuppliersController BuildController(ApplicationDbContext db)

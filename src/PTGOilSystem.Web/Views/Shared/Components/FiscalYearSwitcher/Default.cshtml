@@ -1,0 +1,70 @@
+@using PTGOilSystem.Web.Helpers
+@using PTGOilSystem.Web.Models.Entities
+@model PTGOilSystem.Web.Models.Accounting.FiscalYearContextView
+@{
+    // چیزی برای انتخاب نیست (نه شرکتِ مالک، نه سال) — انتخاب‌گر اصلاً رندر نمی‌شود.
+    if (!Model.HasOptions)
+    {
+        return;
+    }
+
+    var isEnglishUi = string.Equals(Context.Request.Cookies["ptg-ui-lang"], "en", StringComparison.OrdinalIgnoreCase);
+    string T(string fa, string en) => isEnglishUi ? en : fa;
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+
+    var selectedLabel = Model.SelectedName ?? T("سال مالی", "Fiscal year");
+}
+
+<div class="dropdown ptg-hfyear-wrap" data-fiscal-year-switcher>
+    <button class="ptg-hfyear @(Model.SelectedIsWritable ? null : "is-readonly")"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            aria-label="@T("سال مالی فعال", "Active fiscal year")"
+            title="@T("سال مالی فعال", "Active fiscal year")">
+        <i class="bi bi-calendar2-week ptg-hfyear-ico" aria-hidden="true"></i>
+        <span class="ptg-hfyear-text">
+            <span class="ptg-hfyear-caption">@T(" ", " ")</span>
+            <span class="ptg-hfyear-name ak-num">@selectedLabel</span>
+        </span>
+        @if (!Model.SelectedIsWritable)
+        {
+            <i class="bi bi-lock ptg-hfyear-lock" aria-hidden="true"></i>
+            <span class="visually-hidden">@T("فقط‌خواندنی", "Read only")</span>
+        }
+        <i class="bi bi-chevron-down ptg-hfyear-caret" aria-hidden="true"></i>
+    </button>
+
+    <div class="dropdown-menu dropdown-menu-end boltz-dropdown-menu ptg-hfyear-menu">
+        <h6 class="dropdown-header ptg-hfyear-head">@T("سال مالی فعال", "Active fiscal year")</h6>
+        @foreach (var option in Model.Options)
+        {
+            var statusLabel = FiscalStatusDisplay.YearLabel(option.Status);
+            var statusCss = FiscalStatusDisplay.YearCss(option.Status);
+            <form asp-controller="FiscalYearContext" asp-action="Select" method="post" class="ptg-hfyear-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="fiscalYearId" value="@option.FiscalYearId" />
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                <button type="submit"
+                        class="dropdown-item ptg-hfyear-item @(option.IsSelected ? "active" : null)"
+                        aria-pressed="@(option.IsSelected ? "true" : "false")">
+                    <span class="ptg-hfyear-item-main">
+                        <span class="ptg-hfyear-item-name">@option.Name</span>
+                        <span class="ak-status ptg-hfyear-status @statusCss">@statusLabel</span>
+                        @if (option.IsCurrent)
+                        {
+                            <span class="ptg-hfyear-current">@T("جاری", "Current")</span>
+                        }
+                    </span>
+                    <span class="ptg-hfyear-item-dates ak-num">
+                        @option.StartDate.ToString("yyyy/MM/dd") – @option.EndDate.ToString("yyyy/MM/dd")
+                    </span>
+                    @if (option.IsSelected)
+                    {
+                        <i class="bi bi-check2 ptg-hfyear-check" aria-hidden="true"></i>
+                    }
+                </button>
+            </form>
+        }
+    </div>
+</div>

@@ -45,11 +45,6 @@
     string QuantityText(Contract contract)
         => $"{FormatCardDecimal(contract.QuantityMt)} {UnitName(contract)}";
 
-    string ContractTypeText(Contract contract)
-        => contract.ContractType == ContractType.Purchase
-            ? T("\u062e\u0631\u06cc\u062f", "Purchase")
-            : T("\u0641\u0631\u0648\u0634", "Sale");
-
     string ContractStatusToneClass(Contract contract)
         => contract.Status switch
         {
@@ -60,21 +55,9 @@
             _ => string.Empty
         };
 
-    DateTime? ContractEndDate(Contract contract) => contract.EndDate;
-
-    string GregorianDate(DateTime? value)
-    {
-        if (!value.HasValue)
-        {
-            return "-";
-        }
-
-        var date = value.Value;
-        return date.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
-    }
 }
 
-<div class="ak-form-page ak-list-page">
+<div class="ak-form-page ak-list-page" data-contracts-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("قراردادها", "Contracts"), true,
                        T("قرارداد جدید", "New Contract"), "bi-plus-lg",
@@ -82,10 +65,13 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@T("آمار قراردادها", "Contract statistics")">
-        <vc:stat-card title="@T("کل قراردادها", "Total contracts")" value="@Model.TotalCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="contract-signed"></vc:stat-card>
-        <vc:stat-card title="@T("قراردادهای فعال", "Active contracts")" value="@Model.ActiveCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="rules-checklist"></vc:stat-card>
-        <vc:stat-card title="@T("قراردادهای خرید", "Purchase contracts")" value="@Model.PurchaseCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="purchase-value"></vc:stat-card>
-        <vc:stat-card title="@T("قراردادهای فروش", "Sales contracts")" value="@Model.SaleCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar="sales-value"></vc:stat-card>
+        @* Contract-specific illustrations. Given as paths rather than registry keys
+           because "contract-signed", "rules-checklist", "purchase-value" and
+           "sales-value" are shared with ~40 other cards that keep their own artwork. *@
+        <vc:stat-card title="@T("کل قراردادها", "Total contracts")" value="@Model.TotalCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar-path="/images/stat-cards/ref-contracts/contracts-total.webp"></vc:stat-card>
+        <vc:stat-card title="@T("قراردادهای فعال", "Active contracts")" value="@Model.ActiveCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar-path="/images/stat-cards/ref-contracts/contracts-active.webp"></vc:stat-card>
+        <vc:stat-card title="@T("قراردادهای خرید", "Purchase contracts")" value="@Model.PurchaseCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar-path="/images/stat-cards/ref-contracts/contracts-purchase.webp"></vc:stat-card>
+        <vc:stat-card title="@T("قراردادهای فروش", "Sales contracts")" value="@Model.SaleCount.ToString("N0")" unit="@T("قرارداد", "contracts")" avatar-path="/images/stat-cards/ref-contracts/contracts-sale.webp"></vc:stat-card>
     </section>
 
     <div class="ak-list">
@@ -123,13 +109,14 @@
                 <table class="ak-table">
                     <thead>
                         <tr>
-                            <th class="ak-col-check"><input type="checkbox" class="ak-check" aria-label="@T("انتخاب همه", "Select all")" /></th>
+                            <th>@T("کد", "Code")</th>
                             <th>@T("طرف قرارداد", "Party")</th>
+                            <th class="ak-col-spacer"></th>
                             <th>@T("مقدار", "Quantity")</th>
-                            <th>@T("نوع", "Type")</th>
-                            <th>@T("تاریخ ختم", "End date")</th>
+                            <th>@T("محصول", "Product")</th>
+                            <th class="ak-col-spacer"></th>
                             <th>@T("وضعیت", "Status")</th>
-                            <th class="ak-col-actions">@T("عملیات", "Actions")</th>
+                            <th class="ak-col-actions"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -137,16 +124,17 @@
                         {
                             var partyText = PartyName(item);
                             var productText = DashIfEmpty(item.Product?.Name);
-                            var contractEndDate = ContractEndDate(item);
                             <tr>
-                                <td class="ak-col-check"><input type="checkbox" class="ak-check" aria-label="@T("انتخاب", "Select")" /></td>
                                 <td>
-                                    <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@productText">@partyText</a>
-                                    <small class="ak-section-desc" dir="ltr">#@item.ContractNumber</small>
+                                    <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@partyText" dir="ltr">#@item.ContractNumber</a>
                                 </td>
-                                <td class="ak-num" dir="ltr">@QuantityText(item)</td>
-                                <td>@ContractTypeText(item)</td>
-                                <td><span dir="ltr">@GregorianDate(contractEndDate)</span><small class="ak-section-desc">@productText</small></td>
+                                <td>
+                                    <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((partyText, (string?)"muted"))" />
+                                </td>
+                                <td class="ak-col-spacer"></td>
+                                <td><span class="ak-num">@QuantityText(item)</span></td>
+                                <td>@productText</td>
+                                <td class="ak-col-spacer"></td>
                                 <td><span class="ak-status @ContractStatusToneClass(item)">@CardStatusText(item)</span></td>
                                 <td class="ak-col-actions no-print">
                                     <div class="dropdown ak-row-menu">

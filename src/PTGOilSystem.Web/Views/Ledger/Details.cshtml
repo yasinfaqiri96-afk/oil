@@ -67,6 +67,41 @@
         }
     </section>
 
+    @if (Model.IsViaSarrafSupplierPayment)
+    {
+        var selfUrl = Url.Action("Details", "Ledger", new { id = Model.Id });
+        <section class="ak-form-section ak-detail-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("قرارداد پرداخت صرافی", (string?)null))" />
+            @if (!Model.HasViaSarrafGroup)
+            {
+                <p class="ak-note">این پرداخت صرافی هنوز به ردیف بدهی صرافِ متناظرش جفت نشده است. برای اتصال قرارداد، ابتدا جفت را تأیید کنید.</p>
+                <div class="ak-page-actions">
+                    <a asp-controller="ViaSarrafPayments" asp-action="ConfirmPair" asp-route-ledgerEntryId="@Model.Id" asp-route-returnUrl="@selfUrl" class="btn btn-primary">
+                        <i class="bi bi-link-45deg"></i> تأیید جفت تراکنش
+                    </a>
+                </div>
+            }
+            else if (Model.Contract is null)
+            {
+                <p class="ak-note">قراردادی برای این پرداخت صرافی ثبت نشده است. می‌توانید آن را به یک قرارداد خرید همان تأمین‌کننده وصل کنید.</p>
+                <div class="ak-page-actions">
+                    <a asp-controller="ViaSarrafPayments" asp-action="AssignContract" asp-route-ledgerEntryId="@Model.Id" asp-route-returnUrl="@selfUrl" class="btn btn-primary">
+                        <i class="bi bi-cash-coin"></i> تخصیص به قرارداد
+                    </a>
+                </div>
+            }
+            else
+            {
+                <p class="ak-note">این پرداخت صرافی به قرارداد <strong>@Model.Contract.Label</strong> وصل است. در صورت اشتباه می‌توانید قرارداد را تغییر دهید.</p>
+                <div class="ak-page-actions">
+                    <a asp-controller="ViaSarrafPayments" asp-action="AssignContract" asp-route-ledgerEntryId="@Model.Id" asp-route-returnUrl="@selfUrl" class="btn btn-light">
+                        <i class="bi bi-pencil-square"></i> تغییر قرارداد
+                    </a>
+                </div>
+            }
+        </section>
+    }
+
     <section class="ak-form-section ak-detail-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("شرح ثبت", (string?)null))" />
         <p class="ak-note">@(string.IsNullOrWhiteSpace(Model.Description) ? "برای این ثبت توضیحی ذخیره نشده است." : Model.Description)</p>

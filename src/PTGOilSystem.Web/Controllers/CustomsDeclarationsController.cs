@@ -977,8 +977,8 @@ public partial class CustomsDeclarationsController : Controller
         IReadOnlyList<CustomsBatchImportRow> parsed;
         try
         {
-            await using var stream = file.OpenReadStream();
-            parsed = CustomsBatchWorkbookParser.Parse(stream);
+            await using var workbook = await ExcelWorkbookNormalizer.OpenAsync(file, ct);
+            parsed = CustomsBatchWorkbookParser.Parse(workbook.Stream);
         }
         catch (Exception ex)
         {
@@ -1056,8 +1056,8 @@ public partial class CustomsDeclarationsController : Controller
         IReadOnlyList<CustomsBatchImportRow> parsed;
         try
         {
-            await using var stream = file.OpenReadStream();
-            parsed = CustomsBatchWorkbookParser.Parse(stream);
+            await using var workbook = await ExcelWorkbookNormalizer.OpenAsync(file, ct);
+            parsed = CustomsBatchWorkbookParser.Parse(workbook.Stream);
         }
         catch (Exception ex)
         {

@@ -1,0 +1,89 @@
+@model PTGOilSystem.Web.Models.PartyStatements.PartyStatementViewModel
+@using PTGOilSystem.Web.Models.PartyStatements
+@{
+    var s = Model.Statement;
+    var g = Model.ContractGrouping!;
+    var isRub = g.IsRub;
+
+    string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "–";
+    string Qty(decimal? value) => value.HasValue ? value.Value.ToString("N3") : "–";
+    string BaseAmount(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
+
+    string DetailsUrl(int contractId) => Url.Action("SupplierContractDetails", "PartyStatements", new
+    {
+        id = s.Party.PartyId,
+        contractId,
+        FromDate = Context.Request.Query["FromDate"],
+        ToDate = Context.Request.Query["ToDate"],
+        CompanyId = Context.Request.Query["CompanyId"],
+        CurrencyCode = Context.Request.Query["CurrencyCode"]
+    }) ?? string.Empty;
+}
+
+<div class="statement-table-wrap">
+    <table class="statement-table statement-table-contracts">
+        <thead>
+            <tr>
+                <th class="statement-col-no">شماره</th>
+                <th class="statement-col-contract">قرارداد</th>
+                <th title="@s.Policy.DebitMeaningFa">DEBIT</th>
+                <th title="@s.Policy.CreditMeaningFa">CREDIT</th>
+                <th>BALANCE</th>
+                <th class="statement-col-actions no-print">جزئیات</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (g.Rows.Count == 0)
+            {
+                <tr><td colspan="6" class="statement-empty">در این دوره قراردادی با گردش مالی ثبت نشده است.</td></tr>
+            }
+            else
+            {
+                @foreach (var row in g.Rows)
+                {
+                    <tr class="statement-contract-row">
+                        <td class="statement-num">@row.Sequence</td>
+                        <td class="statement-contract">
+                            <strong class="statement-contract-title">@row.Title</strong>
+                            @if (row.ContractQuantityMt.HasValue || row.LoadedQuantityMt.HasValue)
+                            {
+                                <small class="statement-contract-sub">قرارداد @Qty(row.ContractQuantityMt) MT / بارگیری @Qty(row.LoadedQuantityMt) MT</small>
+                            }
+                        </td>
+                        <td class="statement-money statement-debit">@BaseAmount(row.Debit, row.DebitRub)</td>
+                        <td class="statement-money statement-credit">@BaseAmount(row.Credit, row.CreditRub)</td>
+                        <td class="statement-money statement-balance">@BaseAmount(row.Balance, row.BalanceRub)</td>
+                        <td class="statement-col-actions no-print">
+                            @if (row.ContractId.HasValue)
+                            {
+                                <button type="button" class="statement-details-toggle"
+                                        data-statement-details
+                                        data-details-url="@DetailsUrl(row.ContractId.Value)"
+                                        aria-expanded="false">
+                                    <i class="bi bi-chevron-down"></i> جزئیات
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                    @if (row.ContractId.HasValue)
+                    {
+                        <tr class="statement-details-row" hidden>
+                            <td colspan="6">
+                                <div class="statement-details-slot" data-details-slot></div>
+                            </td>
+                        </tr>
+                    }
+                }
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2">مجموع دوره</th>
+                <th class="statement-money statement-debit">@BaseAmount(g.TotalDebit, g.TotalDebitRub)</th>
+                <th class="statement-money statement-credit">@BaseAmount(g.TotalCredit, g.TotalCreditRub)</th>
+                <th class="statement-money statement-balance">@BaseAmount(g.ClosingBalance, g.ClosingBalanceRub)</th>
+                <th class="no-print"></th>
+            </tr>
+        </tfoot>
+    </table>
+</div>

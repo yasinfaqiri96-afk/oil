@@ -1,0 +1,18 @@
+@model PTGOilSystem.Web.Models.ExcelImport.ExcelImportComponentOptions
+@* Collapsible وقتی روشن است که کامپوننت داخل یک فرم ثبت قرار می‌گیرد: فقط یک دکمهٔ سبز
+   دیده می‌شود و پنل کامل با کلیک باز می‌شود. صفحات اختصاصی import همان حالت باز را دارند. *@
+@if (Model.Collapsible)
+{
+    <details class="excel-import-toggle" data-excel-import-toggle>
+        <summary class="excel-import-toggle__button">
+            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
+            <span>@Model.ToggleText</span>
+            <i class="bi bi-chevron-down excel-import-toggle__caret" aria-hidden="true"></i>
+        </summary>
+        <partial name="~/Views/Shared/ExcelImport/_ExcelImportBody.cshtml" model="Model" />
+    </details>
+}
+else
+{
+    <partial name="~/Views/Shared/ExcelImport/_ExcelImportBody.cshtml" model="Model" />
+}

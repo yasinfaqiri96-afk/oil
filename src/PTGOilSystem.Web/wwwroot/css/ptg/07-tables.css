@@ -18,8 +18,8 @@ body.ptg-modal-document :where(.table, .ds-table) thead th {
     border-bottom: 1px solid var(--ptg-border) !important;
     background: var(--ptg-table-header) !important;
     color: var(--ptg-muted) !important;
-    font-size: .8rem;
-    font-weight: 800 !important;
+    font-size: .78rem;
+    font-weight: 500 !important;
     line-height: 1.35;
     white-space: nowrap;
 }

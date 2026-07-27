@@ -394,6 +394,31 @@ public class FiscalYearUiTests
     }
 
     [Fact]
+    public void Index_Is_A_Single_Simple_Page_Without_The_Close_Wizard()
+    {
+        var index = File.ReadAllText(GetRepoPath("src/PTGOilSystem.Web/Views/FiscalYears/Index.cshtml"));
+        var details = File.ReadAllText(GetRepoPath("src/PTGOilSystem.Web/Views/FiscalYears/Details.cshtml"));
+
+        // ویزاردِ چندمرحله‌ایِ بستن سال از هر دو صفحهٔ سال مالی حذف شده است.
+        Assert.DoesNotContain("_FiscalCloseFlow", index);
+        Assert.DoesNotContain("_FiscalCloseFlow", details);
+
+        // قفل/بازکردنِ دوره روی همین صفحهٔ ساده انجام می‌شود (POST).
+        Assert.Contains("asp-action=\"ChangePeriodLock\" method=\"post\"", index);
+
+        // بخش‌های پیشرفته فقط برای مدیر و فقط وقتی هستهٔ حسابداری روشن است دیده می‌شوند.
+        Assert.Contains("AccountingOptions.Value.Enabled", index);
+        Assert.Contains("User.IsInRole(AuthRoles.Admin)", index);
+        Assert.Contains("asp-controller=\"TrialClose\"", index);
+        Assert.Contains("asp-controller=\"FinalClose\"", index);
+        Assert.Contains("asp-controller=\"ReopenFiscalYear\"", index);
+
+        // انتخاب‌گرِ سال مالیِ هدر جای دیگری است و دست‌نخورده می‌ماند.
+        Assert.True(File.Exists(GetRepoPath(
+            "src/PTGOilSystem.Web/Views/Shared/Components/FiscalYearSwitcher/Default.cshtml")));
+    }
+
+    [Fact]
     public void Views_Contain_No_Financial_Logic()
     {
         foreach (var relative in new[]

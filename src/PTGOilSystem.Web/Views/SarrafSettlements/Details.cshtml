@@ -77,6 +77,14 @@
 
     @if (Model.Status != SarrafSettlementStatus.Cancelled)
     {
+        <div class="ak-footer-actions">
+            <a class="btn btn-outline-primary"
+               asp-controller="Payments" asp-action="EditSarrafHawala" asp-route-id="@Model.Id"
+               asp-route-returnUrl="@($"{Context.Request.Path}{Context.Request.QueryString}")">
+                <i class="bi bi-pencil"></i> ویرایش حواله صراف
+            </a>
+        </div>
+
         <form asp-action="Cancel" asp-route-id="@Model.Id" method="post" class="ak-form">
             @Html.AntiForgeryToken()
             <input type="hidden" name="returnUrl" value="@Context.Request.Path@Context.Request.QueryString" />

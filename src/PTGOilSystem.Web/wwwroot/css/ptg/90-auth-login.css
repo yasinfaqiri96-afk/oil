@@ -31,15 +31,13 @@ body.controller-auth.action-login .boltz-public-shell {
     color: var(--login-text);
     font-family: "Vazirmatn", "Poppins", Tahoma, sans-serif;
     background:
-        radial-gradient(56rem 40rem at 100% 0%, #e7e8ef 0%, rgba(231, 232, 239, 0) 55%),
-        radial-gradient(43rem 31rem at 0% 100%, #efeddb 0%, rgba(239, 237, 219, 0) 62%),
-        #fcfcfc;
-    border-top: 1px solid #f3ddda;
+        radial-gradient(circle at 108% 50%, #ffffff 0 47%, #e7f4ef 47.2% 100%);
 }
 
 /* Illustration column */
 .sadd-login-art {
     position: relative;
+    z-index: 1;
     display: grid;
     place-items: center;
     min-width: 0;
@@ -122,21 +120,39 @@ body.controller-auth.action-login .boltz-public-shell {
     position: relative;
     z-index: 1;
     display: flex;
-    align-items: flex-start;
-    justify-content: flex-start;
+    align-items: center;
+    justify-content: center;
     min-width: 0;
     min-height: 100svh;
-    padding: clamp(2.55rem, 5.7vh, 3.25rem) 2rem 6.2rem clamp(3rem, 5.65vw, 6.8rem);
+    padding: 2rem 2rem;
 }
 
 .sadd-login-form {
-    width: min(100%, 25rem);
+    width: min(100%, 21rem);
     margin: 0;
     text-align: start;
 }
 
 .sadd-login-header {
-    margin: 0 0 3.45rem;
+    margin: 0 0 2.75rem;
+    text-align: center;
+}
+
+.sadd-login-header h1 {
+    margin: 0;
+    color: #1b1f2a;
+    font-size: clamp(1.95rem, 2.4vw, 2.35rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+}
+
+.sadd-login-subtitle {
+    margin: 0.4rem 0 0;
+    color: #7c828e;
+    font-size: clamp(1.12rem, 1.35vw, 1.32rem);
+    font-weight: 400;
+    line-height: 1.4;
 }
 
 .sadd-login-logo {
@@ -168,20 +184,12 @@ body.controller-auth.action-login .boltz-public-shell {
     stroke-width: 2;
 }
 
-.sadd-login-header h1 {
-    margin: 0.7rem 0 0;
-    color: #31343a;
-    font-size: clamp(1.05rem, 1.16vw, 1.38rem);
-    font-weight: 400;
-    line-height: 1.55;
-}
-
 .sadd-login-alert:empty {
     display: none;
 }
 
 .sadd-login-alert {
-    margin: -2rem 0 1.25rem;
+    margin: 0 0 1.25rem;
     padding: 0.7rem 0.9rem;
     border: 1px solid #edb7be;
     border-radius: 0.45rem;
@@ -198,7 +206,7 @@ body.controller-auth.action-login .boltz-public-shell {
 }
 
 .sadd-login-field {
-    margin: 0 0 1.78rem;
+    margin: 0 0 1.05rem;
 }
 
 .sadd-login-label {
@@ -216,15 +224,44 @@ body.controller-auth.action-login .boltz-public-shell {
     font-weight: 500;
 }
 
+/* Field control: pill input with a leading circular icon (reference design). */
+.sadd-login-control {
+    position: relative;
+}
+
+.sadd-login-ico {
+    position: absolute;
+    left: 1.15rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    color: #b4bac6;
+    pointer-events: none;
+}
+
+.sadd-login-ico svg {
+    width: 1.28rem;
+    height: 1.28rem;
+}
+
+.sadd-login-control > .sadd-login-input {
+    padding-left: 3.1rem;
+}
+
+.sadd-login-control:focus-within .sadd-login-ico {
+    color: var(--login-accent);
+}
+
 .sadd-login-input,
 input.sadd-login-input {
     display: block;
     width: 100%;
-    height: 3.125rem;
+    height: 3.35rem;
     margin: 0;
     padding: 0 0.95rem;
     border: 1px solid var(--login-border);
-    border-radius: 0.68rem;
+    border-radius: 999px;
     outline: 0;
     background-color: var(--login-field);
     background-image: none;
@@ -242,7 +279,14 @@ input.sadd-login-input {
 
 .sadd-login-input::placeholder {
     color: #c2c7d7;
+    font-size: 0.92rem;
+    font-weight: 300;
     opacity: 1;
+}
+
+[dir="rtl"] .sadd-login-input::placeholder {
+    direction: rtl;
+    text-align: right;
 }
 
 .sadd-login-input:hover {
@@ -286,7 +330,7 @@ input.sadd-login-input:focus {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: 2.9rem 0 1.8rem;
+    margin: 1.35rem 0 1.15rem;
     color: #5e626a;
     font-size: 0.98rem;
 }
@@ -383,12 +427,47 @@ input.sadd-login-input:focus {
     outline-offset: 3px;
 }
 
+/* Two-button row: SIGN IN (filled) + SIGN UP (outline) — reference design. */
+.sadd-login-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+    margin-top: 0.4rem;
+}
+
+.sadd-login-actions > .sadd-login-submit {
+    margin: 0;
+}
+
+.sadd-login-signup {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.7rem;
+    padding: 0 1rem;
+    border: 1px solid var(--login-accent);
+    border-radius: 0.62rem;
+    background: #fff;
+    color: var(--login-accent);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: inherit;
+    cursor: not-allowed;
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+.sadd-login-signup:hover {
+    background: rgba(110, 168, 79, 0.08);
+}
+
 .sadd-login-divider {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 1.15rem;
-    margin: 1.7rem 0 1.55rem;
+    margin: 1.15rem 0 1.05rem;
     color: #777f8b;
     font-size: 0.83rem;
     font-weight: 400;
@@ -439,32 +518,20 @@ input.sadd-login-input:focus {
 
 .sadd-login-create {
     display: inline-block;
-    margin-top: 1.65rem;
+    margin-top: 1.05rem;
     color: #9a817b;
     font-size: 0.9rem;
     cursor: not-allowed;
 }
 
-.sadd-login-footer {
-    position: absolute;
-    right: clamp(2rem, 8.1vw, 9.75rem);
-    bottom: 2.75rem;
-    z-index: 2;
-    width: min(25rem, 30vw);
-    color: #918581;
-    font-size: 0.82rem;
-    line-height: 1.5;
-    text-align: center;
-}
-
 @media (max-width: 1199.98px) {
     .sadd-login-panel {
-        padding-left: 3rem;
-        padding-right: 2.5rem;
+        padding-left: 2rem;
+        padding-right: clamp(2.5rem, 5vw, 4.5rem);
     }
 
     .sadd-login-form {
-        width: min(100%, 25rem);
+        width: min(100%, 21rem);
     }
 
     .sadd-login-slides {
@@ -484,6 +551,7 @@ input.sadd-login-input:focus {
         place-items: center;
         min-height: 100svh;
         padding: 1.5rem;
+        background: #e7f4ef;
     }
 
     .sadd-login-art {
@@ -493,7 +561,7 @@ input.sadd-login-input:focus {
     .sadd-login-panel {
         width: min(100%, 29rem);
         min-height: auto;
-        padding: 2rem 2.2rem 5.5rem;
+        padding: 2rem 2.2rem;
         border: 1px solid rgba(203, 209, 223, 0.7);
         border-radius: 0.9rem;
         background: rgba(255, 255, 255, 0.94);
@@ -510,14 +578,7 @@ input.sadd-login-input:focus {
     }
 
     .sadd-login-row {
-        margin-top: 2rem;
-    }
-
-    .sadd-login-footer {
-        right: 50%;
-        bottom: 2.15rem;
-        width: min(90vw, 31rem);
-        transform: translateX(50%);
+        margin-top: 1.35rem;
     }
 }
 
@@ -531,7 +592,7 @@ input.sadd-login-input:focus {
     .sadd-login-panel {
         width: 100%;
         min-height: 100svh;
-        padding: 2rem 1.25rem 6rem;
+        padding: 2rem 1.25rem;
         border: 0;
         border-radius: 0;
         background: transparent;
@@ -567,7 +628,7 @@ input.sadd-login-input:focus {
 @media (max-height: 780px) and (min-width: 992px) {
     .sadd-login-panel {
         padding-top: 1.5rem;
-        padding-bottom: 4rem;
+        padding-bottom: 1.5rem;
     }
 
     .sadd-login-header {
@@ -592,11 +653,7 @@ input.sadd-login-input:focus {
     }
 
     .sadd-login-create {
-        margin-top: 1rem;
-    }
-
-    .sadd-login-footer {
-        bottom: 1.15rem;
+        margin-top: 0.85rem;
     }
 }
 

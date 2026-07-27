@@ -70,8 +70,11 @@ public sealed class SupplierProfileViewModel
     public decimal TotalPaidActualUsd { get; init; }
     public decimal? TotalPaidActualRub { get; init; }
     public decimal SupplierRemainingClaimUsd => LoadedPurchaseValueUsd - TotalPaidUsd;
-    public decimal? SupplierRemainingClaimRub => LoadedPurchaseValueRub.HasValue
-        ? LoadedPurchaseValueRub.Value - (TotalPaidRub ?? 0m)
+    // مانده روبلی فقط وقتی معنا دارد که هر دو طرف معادله منبع روبلیِ واقعی داشته باشند.
+    // null یعنی «قابل محاسبه نیست»، نه صفر؛ اگر پرداخت روبلی نداریم نباید طلبِ روبلی را
+    // با فرضِ «صفر روبل پرداخت شده» بسازیم (پرداخت دالری هم طلب را کم می‌کند).
+    public decimal? SupplierRemainingClaimRub => LoadedPurchaseValueRub.HasValue && TotalPaidRub.HasValue
+        ? LoadedPurchaseValueRub.Value - TotalPaidRub.Value
         : null;
     public DateTime? LastPaymentDate { get; init; }
     public decimal SarrafAcceptedUsd { get; init; }
@@ -225,14 +228,16 @@ public sealed class SupplierContractSummaryViewModel
             ? decimal.Round(FinalPriceUsd.Value * RubPerUsdRate.Value, 4, MidpointRounding.AwayFromZero)
             : (decimal?)null);
     public decimal LoadedValueBalanceUsd => LoadedValueUsd - PaidUsd;
-    public decimal? LoadedValueBalanceRub => LoadedValueRub.HasValue
-        ? LoadedValueRub.Value - (PaidRub ?? 0m)
+    // مانده‌های روبلی فقط با داشتن هر دو طرفِ روبلی محاسبه می‌شوند؛ نبودِ پرداخت روبلی
+    // به معنی «صفر روبل پرداخت شده» نیست (همان قاعدهٔ SupplierRemainingClaimRub).
+    public decimal? LoadedValueBalanceRub => LoadedValueRub.HasValue && PaidRub.HasValue
+        ? LoadedValueRub.Value - PaidRub.Value
         : null;
     public decimal? EstimatedRemainingUsd => EstimatedTotalUsd.HasValue
         ? EstimatedTotalUsd.Value - PaidUsd
         : null;
-    public decimal? EstimatedRemainingRub => EstimatedTotalRub.HasValue
-        ? EstimatedTotalRub.Value - (PaidRub ?? 0m)
+    public decimal? EstimatedRemainingRub => EstimatedTotalRub.HasValue && PaidRub.HasValue
+        ? EstimatedTotalRub.Value - PaidRub.Value
         : null;
     public ContractStatus Status { get; init; }
     public string StatusName { get; init; } = string.Empty;

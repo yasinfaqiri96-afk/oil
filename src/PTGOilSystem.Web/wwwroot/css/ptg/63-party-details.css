@@ -76,6 +76,22 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-form-
     row-gap: 14px;
 }
 
+/* تب خلاصه: کارت اطلاعات هویتی باریک‌تر، کارت وضعیت حساب پهن‌تر. */
+.ak-form-grid.ak-overview-grid {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.35fr);
+}
+
+/* فاصلهٔ عمودی بیشتر بین ردیف‌های کارت وضعیت حساب برای خوانایی. */
+.ak-account-list .ak-list-row {
+    padding-block: 18px;
+}
+
+@media (max-width: 991.98px) {
+    .ak-form-grid.ak-overview-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detail-section {
     margin: 0;
     padding: 16px;

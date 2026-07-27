@@ -1,4 +1,5 @@
 @using System.Globalization
+@using PTGOilSystem.Web.Models.ExcelImport
 @using PTGOilSystem.Web.Helpers
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.InventoryTransport
@@ -26,6 +27,24 @@
     // کرایه در این فرم همیشه USD است (فی‌تن × وزن)؛ سرور FreightCurrencyId می‌خواهد،
     // پس واحد پول USD به شکل hidden برای هر ردیف ارسال می‌شود.
     var usdCurrencyId = currencies.FirstOrDefault(c => string.Equals(c.Name, "USD", StringComparison.OrdinalIgnoreCase))?.Id;
+    var excelImportOptions = new ExcelImportComponentOptions
+    {
+        InputId = "inventoryVehicleExcelFile",
+        FileFieldName = "file",
+        Mode = "external",
+        AcceptExtensions = ".xlsx,.xls",
+        Title = "وارد کردن وسایط از اکسل",
+        Description = "فایل موترها یا واگن‌ها را انتخاب کنید؛ جدول فعلی پس از خواندن فایل پیش‌پر می‌شود.",
+        StartButtonText = "خواندن و افزودن به جدول",
+        SuccessTitle = "وسایط از فایل خوانده شد",
+        CreatedLabel = "وسایط افزوده‌شده",
+        MaxFileSizeMb = 5,
+        RequiresConfirmation = false,
+        ShowResultDetails = false,
+        Compact = true,
+        Collapsible = true,
+        ToggleText = "وارد کردن وسایط از اکسل"
+    };
 }
 
 <main class="page-stack ak-form-page" data-inv-transport-form-page data-sources-url="@Url.Action("InventorySources")" data-import-url="@Url.Action("ImportVehiclesExcel")">
@@ -186,11 +205,9 @@
             <div class="ak-subform-toolbar" data-vehicle-import>
                 <button type="button" class="btn btn-light ak-secondary-action" data-add-vehicle><i class="bi bi-plus-lg"></i> افزودن وسیله</button>
                 <button type="button" class="btn btn-light ak-secondary-action" data-apply-carrier-all title="حمل‌کنندهٔ سطر اول (شرکت خدماتی / دارایی عملیاتی) در تمام سطرها تطبیق می‌شود"><i class="bi bi-arrow-down-square"></i> تطبیق حمل‌کننده به همه سطرها</button>
-                <input type="file" accept=".xlsx" data-vehicle-import-file hidden />
-                <button type="button" class="btn btn-light ak-secondary-action" data-vehicle-import-btn title="ستون‌ها: سیمیر • نمبر واگون/پلیت • وزن سیمیر (مقدار حمل MT) • وزن محاسبه (مبنای کرایه) • فی تن محاسبه (کرایه = فی‌تن × وزن محاسبه، USD). فرمت ساده «نوع/نمبر/مقدار/کرایه/ارز» هم پشتیبانی می‌شود. جدول فعلی جایگزین می‌شود.">
-                    <i class="bi bi-file-earmark-spreadsheet"></i> وارد کردن اکسل موترها/واگن‌ها
-                </button>
-                <span class="ak-section-desc" data-vehicle-import-status></span>
+            </div>
+            <div data-vehicle-excel-import>
+                <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
             </div>
         </section>
 

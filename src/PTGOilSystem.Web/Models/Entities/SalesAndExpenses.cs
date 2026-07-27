@@ -75,7 +75,67 @@ public class SalesTransaction : BaseEntity
     public int? SalesBatchId { get; set; }
     public SalesBatch? SalesBatch { get; set; }
 
+    // پیش‌فروش مرحله‌ای — این فروش یک «تحویل» از تعهدِ PreSaleOrder است (nullable، backward-compatible).
+    // خودِ فروش کاملاً عادی می‌ماند: موجودی، Ledger، درآمد و COGS همان مسیر همیشگی را می‌روند و
+    // فقط به اندازهٔ همین تحویل ثبت می‌شوند. تعهدِ پیش‌فروش هیچ سند مالی‌ای نمی‌سازد.
+    public int? PreSaleOrderId { get; set; }
+    public PreSaleOrder? PreSaleOrder { get; set; }
+
     public bool IsCancelled { get; set; }
+}
+
+// وضعیت‌های ذخیره‌شدهٔ پیش‌فروش. وضعیت‌های مشتق (رزرو، مانده پرداخت، آماده تحویل) عمداً
+// enum نمی‌شوند و از روی تحویل‌ها/پرداخت‌های معتبر محاسبه می‌شوند.
+public enum PreSaleOrderStatus
+{
+    [Display(Name = "پیش‌نویس")] Draft = 1,
+    [Display(Name = "تأییدشده")] Confirmed = 2,
+    [Display(Name = "تحویل جزئی")] PartiallyDelivered = 3,
+    [Display(Name = "تحویل کامل")] FullyDelivered = 4,
+    [Display(Name = "بسته‌شده")] Closed = 5,
+    [Display(Name = "لغوشده")] Cancelled = 6
+}
+
+// تعهدِ فروشِ آینده به مشتری. این «فروش» نیست: نه موجودی کم می‌کند، نه InventoryMovement می‌سازد،
+// نه درآمد/بهای تمام‌شده ثبت می‌کند. تنها مقدار و قیمتِ قفل‌شده را نگه می‌دارد و هر تحویلِ واقعی
+// یک SalesTransaction عادی با PreSaleOrderId است (همان الگوی SalesBatch) تا منطق فروش دوپاره نشود.
+// مقدار تحویل‌شده عمداً ستون جداگانه ندارد و همیشه از مجموع تحویل‌های لغونشده محاسبه می‌شود.
+public class PreSaleOrder : BaseEntity
+{
+    [MaxLength(64)] public string OrderNumber { get; set; } = "";
+
+    public int CustomerId { get; set; }
+    public Customer? Customer { get; set; }
+    public int ProductId { get; set; }
+    public Product? Product { get; set; }
+    // جوازِ تعهد (nullable مثل SalesTransaction؛ اگر منابع تحویل چند شرکتی باشند null می‌ماند).
+    public int? CompanyId { get; set; }
+    public Company? Company { get; set; }
+
+    public DateTime OrderDate { get; set; }
+    public DateTime? ExpectedDeliveryFrom { get; set; }
+    public DateTime? ExpectedDeliveryTo { get; set; }
+
+    public decimal QuantityMt { get; set; }
+    [MaxLength(10)] public string Currency { get; set; } = "USD";
+    // قیمت واحد در لحظهٔ تأیید قفل می‌شود و همهٔ تحویل‌ها با همین قیمت محاسبه می‌شوند.
+    public decimal UnitPriceInCurrency { get; set; }
+    public decimal? AppliedFxRateToUsd { get; set; }
+    public decimal UnitPriceUsd { get; set; }
+    public decimal TotalInCurrency { get; set; }
+    public decimal TotalUsd { get; set; }
+
+    [MaxLength(200)] public string? ReferenceNumber { get; set; }
+    [MaxLength(500)] public string? PaymentTerms { get; set; }
+    [MaxLength(1000)] public string? Notes { get; set; }
+
+    public PreSaleOrderStatus Status { get; set; } = PreSaleOrderStatus.Confirmed;
+    public DateTime? CancelledAtUtc { get; set; }
+    [MaxLength(500)] public string? CancelReason { get; set; }
+    [MaxLength(150)] public string? CreatedByUserName { get; set; }
+
+    public System.Collections.Generic.ICollection<SalesTransaction> Deliveries { get; set; }
+        = new System.Collections.Generic.List<SalesTransaction>();
 }
 
 // منبعِ یک ردیفِ فروش گروهی. تعیین می‌کند فروش از کجا انجام می‌شود و مکانیزم موجودی/لجر آن.

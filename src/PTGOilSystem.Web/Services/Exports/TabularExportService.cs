@@ -51,11 +51,65 @@ public sealed class TabularExportService : ITabularExportService
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
-        ValidateDocument(document, format);
+        return WriteWorkbookAsync([document], format, isEnglish, destination, cancellationToken);
+    }
+
+    public Task WriteWorkbookAsync(
+        IReadOnlyList<TabularExportDocument> sheets,
+        TabularExportFormat format,
+        bool isEnglish,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(sheets);
+        if (sheets.Count == 0)
+        {
+            throw new InvalidOperationException("Export requires at least one sheet.");
+        }
+
+        foreach (var sheet in sheets)
+        {
+            ValidateDocument(sheet, format);
+        }
 
         return format == TabularExportFormat.Excel
-            ? WriteExcelAsync(document, isEnglish, destination, cancellationToken)
-            : WritePdfAsync(document, isEnglish, destination, cancellationToken);
+            ? WriteExcelWorkbookAsync(sheets, isEnglish, destination, cancellationToken)
+            : WritePdfWorkbookAsync(sheets, isEnglish, destination, cancellationToken);
+    }
+
+    public Task WritePartyStatementPdfAsync(
+        Models.PartyStatements.PartyStatementResult statement,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(destination);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (statement.Rows.Count > _options.PdfMaxRows)
+            throw new TabularExportLimitException(statement.Rows.Count, _options.PdfMaxRows);
+
+        var document = new PartyStatementPdfDocument(statement, _environment.WebRootPath);
+        document.GeneratePdf(destination);
+        return Task.CompletedTask;
+    }
+
+    public Task WriteSupplierContractStatementPdfAsync(
+        Models.PartyStatements.PartyStatementResult statement,
+        Models.PartyStatements.SupplierContractStatementViewModel contractGrouping,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(contractGrouping);
+        ArgumentNullException.ThrowIfNull(destination);
+        cancellationToken.ThrowIfCancellationRequested();
+        // سقف بر اساس سطرهای همین سند است؛ هر سطر یک قرارداد، نه یک تراکنش.
+        if (contractGrouping.Rows.Count > _options.PdfMaxRows)
+            throw new TabularExportLimitException(contractGrouping.Rows.Count, _options.PdfMaxRows);
+
+        var document = new PartyStatementPdfDocument(statement, _environment.WebRootPath, contractGrouping);
+        document.GeneratePdf(destination);
+        return Task.CompletedTask;
     }
 
     private void InitializeQuestPdf()
@@ -119,8 +173,8 @@ public sealed class TabularExportService : ITabularExportService
         }
     }
 
-    private Task WriteExcelAsync(
-        TabularExportDocument document,
+    private Task WriteExcelWorkbookAsync(
+        IReadOnlyList<TabularExportDocument> documents,
         bool isEnglish,
         Stream destination,
         CancellationToken cancellationToken)
@@ -133,16 +187,21 @@ public sealed class TabularExportService : ITabularExportService
         stylesPart.Stylesheet = BuildStylesheet(isEnglish);
         stylesPart.Stylesheet.Save();
 
-        var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
-        WriteWorksheet(worksheetPart, document, isEnglish, cancellationToken);
-
         var sheets = workbookPart.Workbook.AppendChild(new Sheets());
-        sheets.Append(new Sheet
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        uint sheetId = 1;
+        foreach (var document in documents)
         {
-            Id = workbookPart.GetIdOfPart(worksheetPart),
-            SheetId = 1,
-            Name = SanitizeSheetName(isEnglish ? document.TitleEn : document.TitleFa)
-        });
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            WriteWorksheet(worksheetPart, document, isEnglish, cancellationToken);
+            sheets.Append(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = sheetId++,
+                Name = UniqueSheetName(SanitizeSheetName(isEnglish ? document.TitleEn : document.TitleFa), usedNames)
+            });
+        }
+
         workbookPart.Workbook.Save();
         return Task.CompletedTask;
     }
@@ -249,10 +308,28 @@ public sealed class TabularExportService : ITabularExportService
         writer.WriteEndElement();
     }
 
-    private Task WritePdfAsync(
-        TabularExportDocument document,
+    private Task WritePdfWorkbookAsync(
+        IReadOnlyList<TabularExportDocument> documents,
         bool isEnglish,
         Stream destination,
+        CancellationToken cancellationToken)
+    {
+        var pdf = Document.Create(container =>
+        {
+            foreach (var document in documents)
+            {
+                AddPdfPage(container, document, isEnglish, cancellationToken);
+            }
+        });
+
+        pdf.GeneratePdf(destination);
+        return Task.CompletedTask;
+    }
+
+    private void AddPdfPage(
+        IDocumentContainer container,
+        TabularExportDocument document,
+        bool isEnglish,
         CancellationToken cancellationToken)
     {
         var rows = new List<TabularExportRow>(Math.Min(document.KnownRowCount ?? 256, _options.PdfMaxRows));
@@ -276,112 +353,105 @@ public sealed class TabularExportService : ITabularExportService
         var generated = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         var landscape = document.ForceLandscape || document.Columns.Count > 7;
 
-        var pdf = Document.Create(container =>
+        container.Page(page =>
         {
-            container.Page(page =>
+            page.Size(landscape ? PageSizes.A4.Landscape() : PageSizes.A4.Portrait());
+            page.Margin(24);
+            page.PageColor(QColors.White);
+            page.DefaultTextStyle(style => style.FontFamily(isEnglish ? "Poppins" : "Vazirmatn").FontSize(8).FontColor("#263244"));
+
+            var headerContainer = page.Header();
+            if (!isEnglish)
             {
-                page.Size(landscape ? PageSizes.A4.Landscape() : PageSizes.A4.Portrait());
-                page.Margin(24);
-                page.PageColor(QColors.White);
-                page.DefaultTextStyle(style => style.FontFamily(isEnglish ? "Poppins" : "Vazirmatn").FontSize(8).FontColor("#263244"));
-
-                var headerContainer = page.Header();
-                if (!isEnglish)
+                headerContainer = headerContainer.ContentFromRightToLeft();
+            }
+            headerContainer.Column(column =>
+            {
+                column.Item().Text(company).SemiBold().FontSize(9).FontColor("#64748B");
+                column.Item().PaddingTop(2).Text(title).Bold().FontSize(15).FontColor("#172033");
+                column.Item().PaddingTop(4).Text((isEnglish ? "Generated: " : "تاریخ تولید: ") + generated).FontSize(7).FontColor("#64748B");
+                if (!string.IsNullOrWhiteSpace(filters))
                 {
-                    headerContainer = headerContainer.ContentFromRightToLeft();
+                    column.Item().PaddingTop(2).Text(filters).FontSize(7).FontColor("#64748B");
                 }
-                headerContainer.Column(column =>
+                column.Item().PaddingTop(8).LineHorizontal(0.6f).LineColor("#D8DEE8");
+            });
+
+            var contentContainer = page.Content().PaddingTop(8);
+            if (!isEnglish)
+            {
+                contentContainer = contentContainer.ContentFromRightToLeft();
+            }
+            contentContainer.Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
                 {
-                    column.Item().Text(company).SemiBold().FontSize(9).FontColor("#64748B");
-                    column.Item().PaddingTop(2).Text(title).Bold().FontSize(15).FontColor("#172033");
-                    column.Item().PaddingTop(4).Text((isEnglish ? "Generated: " : "تاریخ تولید: ") + generated).FontSize(7).FontColor("#64748B");
-                    if (!string.IsNullOrWhiteSpace(filters))
+                    foreach (var column in document.Columns)
                     {
-                        column.Item().PaddingTop(2).Text(filters).FontSize(7).FontColor("#64748B");
-                    }
-                    column.Item().PaddingTop(8).LineHorizontal(0.6f).LineColor("#D8DEE8");
-                });
-
-                var contentContainer = page.Content().PaddingTop(8);
-                if (!isEnglish)
-                {
-                    contentContainer = contentContainer.ContentFromRightToLeft();
-                }
-                contentContainer.Table(table =>
-                {
-                    table.ColumnsDefinition(columns =>
-                    {
-                        foreach (var column in document.Columns)
-                        {
-                            columns.RelativeColumn((float)Math.Max(1D, column.Width));
-                        }
-                    });
-
-                    table.Header(header =>
-                    {
-                        foreach (var column in document.Columns)
-                        {
-                            header.Cell().Element(HeaderCellStyle)
-                                .Text(isEnglish ? column.TitleEn : column.TitleFa)
-                                .SemiBold().FontSize(7.5f).FontColor(QColors.White);
-                        }
-                    });
-
-                    var alternate = false;
-                    foreach (var row in rows)
-                    {
-                        foreach (var cell in row.Cells)
-                        {
-                            var currentAlternate = alternate;
-                            table.Cell().Element(element => BodyCellStyle(element, currentAlternate))
-                                .Text(cell.ToDisplayText(isEnglish));
-                        }
-                        alternate = !alternate;
-                    }
-
-                    if (document.Totals is not null)
-                    {
-                        foreach (var cell in document.Totals.Cells)
-                        {
-                            table.Cell().Element(TotalCellStyle)
-                                .Text(cell.ToDisplayText(isEnglish)).SemiBold();
-                        }
+                        columns.RelativeColumn((float)Math.Max(1D, column.Width));
                     }
                 });
 
-                var footerContainer = page.Footer().PaddingTop(8);
-                if (!isEnglish)
+                table.Header(header =>
                 {
-                    footerContainer = footerContainer.ContentFromRightToLeft();
-                }
-                footerContainer.Row(row =>
-                {
-                    row.RelativeItem().Text("PTG Oil System").FontSize(6.5f).FontColor("#94A3B8");
-                    row.RelativeItem().AlignRight().Text(text =>
+                    foreach (var column in document.Columns)
                     {
-                        text.DefaultTextStyle(style => style.FontSize(6.5f).FontColor("#94A3B8"));
-                        text.Span(isEnglish ? "Page " : "صفحه ");
-                        text.CurrentPageNumber();
-                        text.Span(" / ");
-                        text.TotalPages();
-                    });
+                        header.Cell().Element(HeaderCellStyle)
+                            .Text(isEnglish ? column.TitleEn : column.TitleFa)
+                            .SemiBold().FontSize(7.5f).FontColor(QColors.White);
+                    }
+                });
+
+                var alternate = false;
+                foreach (var row in rows)
+                {
+                    foreach (var cell in row.Cells)
+                    {
+                        var currentAlternate = alternate;
+                        table.Cell().Element(element => BodyCellStyle(element, currentAlternate))
+                            .Text(cell.ToDisplayText(isEnglish));
+                    }
+                    alternate = !alternate;
+                }
+
+                if (document.Totals is not null)
+                {
+                    foreach (var cell in document.Totals.Cells)
+                    {
+                        table.Cell().Element(TotalCellStyle)
+                            .Text(cell.ToDisplayText(isEnglish)).SemiBold();
+                    }
+                }
+            });
+
+            var footerContainer = page.Footer().PaddingTop(8);
+            if (!isEnglish)
+            {
+                footerContainer = footerContainer.ContentFromRightToLeft();
+            }
+            footerContainer.Row(row =>
+            {
+                row.RelativeItem().Text("PTG Oil System").FontSize(6.5f).FontColor("#94A3B8");
+                row.RelativeItem().AlignRight().Text(text =>
+                {
+                    text.DefaultTextStyle(style => style.FontSize(6.5f).FontColor("#94A3B8"));
+                    text.Span(isEnglish ? "Page " : "صفحه ");
+                    text.CurrentPageNumber();
+                    text.Span(" / ");
+                    text.TotalPages();
                 });
             });
         });
-
-        pdf.GeneratePdf(destination);
-
-        return Task.CompletedTask;
-
-        static IContainer HeaderCellStyle(IContainer container)
-            => container.Background("#334155").BorderBottom(0.5f).BorderColor("#CBD5E1").PaddingVertical(5).PaddingHorizontal(4);
-
-        static IContainer BodyCellStyle(IContainer container, bool alternate)
-            => container.Background(alternate ? "#F8FAFC" : "#FFFFFF").BorderBottom(0.35f).BorderColor("#E2E8F0").PaddingVertical(4).PaddingHorizontal(4);
-
-        static IContainer TotalCellStyle(IContainer container)
-            => container.Background("#EEF2F7").BorderTop(0.8f).BorderColor("#94A3B8").PaddingVertical(5).PaddingHorizontal(4);
     }
+
+    private static IContainer HeaderCellStyle(IContainer container)
+        => container.Background("#334155").BorderBottom(0.5f).BorderColor("#CBD5E1").PaddingVertical(5).PaddingHorizontal(4);
+
+    private static IContainer BodyCellStyle(IContainer container, bool alternate)
+        => container.Background(alternate ? "#F8FAFC" : "#FFFFFF").BorderBottom(0.35f).BorderColor("#E2E8F0").PaddingVertical(4).PaddingHorizontal(4);
+
+    private static IContainer TotalCellStyle(IContainer container)
+        => container.Background("#EEF2F7").BorderTop(0.8f).BorderColor("#94A3B8").PaddingVertical(5).PaddingHorizontal(4);
 
     private static Stylesheet BuildStylesheet(bool isEnglish)
     {
@@ -547,6 +617,27 @@ public sealed class TabularExportService : ITabularExportService
             sanitized = "Export";
         }
         return sanitized.Length <= 31 ? sanitized : sanitized[..31];
+    }
+
+    private static string UniqueSheetName(string name, HashSet<string> usedNames)
+    {
+        if (usedNames.Add(name))
+        {
+            return name;
+        }
+
+        for (var suffix = 2; suffix < 1000; suffix++)
+        {
+            var tag = $" ({suffix})";
+            var trimmed = name.Length + tag.Length <= 31 ? name : name[..(31 - tag.Length)];
+            var candidate = trimmed + tag;
+            if (usedNames.Add(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return name;
     }
 }
 

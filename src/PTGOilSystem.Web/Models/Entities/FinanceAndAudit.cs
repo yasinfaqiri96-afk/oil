@@ -161,6 +161,12 @@ public class PaymentTransaction : BaseEntity
     // کمیسیون — لینک ردیابی. روی پرداخت/دریافت اصلی: ExpenseTransactionِ کمیسیون مرتبط.
     // ستون سادهٔ nullable بدون navigation/FK (backward-compatible). برای نمایش و ویرایش کمیسیون.
     public int? RelatedExpenseTransactionId { get; set; }
+
+    // تخصیصِ این دریافت به پیش‌فروش‌ها با CustomerPaymentAllocation انجام می‌شود (تخصیص جزئی و
+    // چندگانه)، نه با یک FK مستقیم روی خودِ دریافت. مبلغ، ارز و نرخ روزِ دریافت و سند حسابداری آن
+    // هرگز با تخصیص تغییر نمی‌کند.
+    public ICollection<CustomerPaymentAllocation> CustomerPaymentAllocations { get; set; }
+        = new List<CustomerPaymentAllocation>();
 }
 
 public class Sarraf : BaseEntity
@@ -261,6 +267,13 @@ public class LedgerEntry : BaseEntity
     // Optional but indexed; complements (SourceType, SourceId) for fast search.
     [MaxLength(200)] public string? Reference { get; set; }
 
+    // شناسهٔ گروهِ یک عملیاتِ «پرداخت از طریق صراف». آن عملیات دو LedgerEntry مکمل می‌سازد
+    // (SupplierViaSarrafPayment + SupplierViaSarrafPayable) که SourceId هر دو = SarrafId است و
+    // بین همهٔ پرداخت‌های همان صراف مشترک است، پس کلید یکتای جفت‌سازی نیست. این GroupId تنها
+    // کلید قطعیِ اتصال دو ردیفِ یک عملیات است و برای «ثبت/تغییر قرارداد» روی همان جفت لازم است.
+    // Nullable است تا رکوردهای Legacy (پیش از افزودن این ستون) دست‌نخورده بمانند.
+    public Guid? ViaSarrafGroupId { get; set; }
+
     public int? ContractId { get; set; }
     public Contract? Contract { get; set; }
     public int? CustomerId { get; set; }
@@ -322,8 +335,31 @@ public class SupplierPaymentAllocation : BaseEntity
     [Required, MaxLength(10)] public string PaymentCurrencyCode { get; set; } = "USD";
     public decimal PaymentFxRateToUsd { get; set; } = 1m;
 
-    // ارزش دفتری به USD — مبنای مانده قابل تخصیص و ثبت‌های Ledger
+    // ارزش دفتری تاریخی به USD (با نرخ روز پرداخت) — مبنای «کاهش پیش‌پرداخت آزاد».
+    // این مقدار هرگز با نرخ روز تخصیص بازارزیابی نمی‌شود تا ارزش تاریخی پیش‌پرداخت دست‌نخورده بماند.
     public decimal AllocatedBookAmountUsd { get; set; }
+
+    // ---- نرخ روز تخصیص (بازارزیابی ارز پرداخت در تاریخ تخصیص) ----
+    // «در تاریخ تخصیص، هر ۱ دلار چند واحد از ارز پرداخت است؟» (مثلاً 100 برای RUB).
+    // برای پرداخت دالری همیشه ۱ است. رکوردهای قدیمی با 1/PaymentFxRateToUsd پر شده‌اند
+    // تا رفتارشان دقیقاً مثل قبل بماند (اختلاف صفر).
+    public decimal PaymentCurrencyPerUsdRateAtAllocation { get; set; } = 1m;
+
+    // کنوانسیون داخلی سیستم: AmountUsd = AmountOriginal × FxRateToUsd → همان نرخ بالا به شکل 1/PerUsd.
+    public decimal PaymentCurrencyFxRateToUsdAtAllocation { get; set; } = 1m;
+
+    // ارزش همان مبلغ ارز پرداخت به USD با نرخ روز تخصیص — مبنای تسویهٔ قرارداد.
+    public decimal AllocatedValueUsdAtAllocation { get; set; }
+
+    // اختلاف تسعیر = ارزش روز تخصیص − ارزش تاریخی. مثبت = سود، منفی = زیان.
+    public decimal ExchangeDifferenceUsd { get; set; }
+
+    // نوع اختلاف با همان enum تسویهٔ صراف تا منطق موازی ساخته نشود.
+    public SarrafSettlementDifferenceType ExchangeDifferenceType { get; set; } = SarrafSettlementDifferenceType.None;
+
+    // سطر دفترکل سود/زیان تسعیر این تخصیص (مانند SarrafSettlement.ExchangeDifferenceLedgerEntryId).
+    public int? ExchangeDifferenceLedgerEntryId { get; set; }
+    public LedgerEntry? ExchangeDifferenceLedgerEntry { get; set; }
 
     // ارز قرارداد و نرخ‌های قفل‌شده
     [Required, MaxLength(10)] public string ContractCurrencyCode { get; set; } = "USD";
@@ -346,6 +382,125 @@ public class SupplierPaymentAllocation : BaseEntity
     [MaxLength(500)] public string? ReversalReason { get; set; }
 
     [MaxLength(150)] public string? CreatedByUserName { get; set; }
+}
+
+public enum CustomerPaymentAllocationStatus
+{
+    Active = 1,
+    Reversed = 2
+}
+
+// تخصیص یک دریافت از مشتری به یک پیش‌فروش. این «دریافت جدید» نیست و هیچ سند مالی نمی‌سازد؛
+// فقط می‌گوید چه بخشی از پول دریافت‌شده به کدام تعهد تعلق دارد.
+//
+// چرا برخلاف SupplierPaymentAllocation نرخ روز تخصیص و اختلاف تسعیر ندارد: تخصیصِ تأمین‌کننده
+// بدهی یک قرارداد را همان لحظه تسویه می‌کند، پس اختلاف ارزش همان‌جا تحقق می‌یابد. اینجا کالا هنوز
+// تحویل نشده و پیش‌دریافت مشتری یک بدهیِ ارزی به همان ارز و نرخ روزِ دریافت باقی می‌ماند؛
+// شناسایی سود/زیان تسعیر پیش از تحویل یعنی ساختن سودِ تحقق‌نیافته. مصرف پیش‌دریافت و اثر مالی
+// آن دقیقاً هنگام تحویل و در ژورنال همان تحویل انجام می‌شود.
+public class CustomerPaymentAllocation : BaseEntity
+{
+    public int PaymentTransactionId { get; set; }
+    public PaymentTransaction? PaymentTransaction { get; set; }
+    public int PreSaleOrderId { get; set; }
+    public PreSaleOrder? PreSaleOrder { get; set; }
+
+    public DateTime AllocationDate { get; set; }
+
+    // مبلغ تخصیص‌یافته به ارز خودِ دریافت (تخصیص جزئی مجاز است).
+    public decimal AllocatedPaymentAmount { get; set; }
+    [Required, MaxLength(10)] public string PaymentCurrencyCode { get; set; } = "USD";
+    // نرخ روزِ دریافت، همان‌طور که روی PaymentTransaction ثبت شده؛ هیچ نرخ جدیدی ساخته نمی‌شود.
+    public decimal PaymentFxRateToUsd { get; set; } = 1m;
+    // ارزش دفتری همین تخصیص به USD با همان نرخ روز دریافت.
+    public decimal AllocatedAmountUsd { get; set; }
+
+    [MaxLength(200)] public string? ReferenceNumber { get; set; }
+    [MaxLength(1000)] public string? Notes { get; set; }
+
+    public CustomerPaymentAllocationStatus Status { get; set; } = CustomerPaymentAllocationStatus.Active;
+
+    // اصلاح فقط با «برگشت تخصیص» (مانند SupplierPaymentAllocation)؛ رکورد حذف نمی‌شود.
+    public int? ReversalOfAllocationId { get; set; }
+    public DateTime? ReversedAtUtc { get; set; }
+    [MaxLength(150)] public string? ReversedByUserName { get; set; }
+    [MaxLength(500)] public string? ReversalReason { get; set; }
+
+    [MaxLength(150)] public string? CreatedByUserName { get; set; }
+}
+
+public enum CustomerPaymentAllocationApplicationStatus
+{
+    Active = 1,
+    Reversed = 2
+}
+
+// مصرفِ ردیابی‌پذیرِ یک تخصیصِ دریافت (CustomerPaymentAllocation) روی یک تحویل (SalesTransaction).
+//
+// چرا این موجودیت لازم است: پیش‌تر مصرفِ پیش‌دریافت فقط از فرمول «تخصیصِ کل منهای مجموع تحویل‌های
+// قبلی» حدس زده می‌شد و مشخص نبود کدام تخصیص در کدام تحویل و چه مقدار مصرف شده است. هر ردیفِ
+// Application دقیقاً یک بند از این مصرف را نگه می‌دارد: کدام تخصیص، کدام تحویل، چند دلار. مانده
+// مصرف‌نشدهٔ هر تخصیص = AllocatedAmountUsd منهای مجموع Applicationهای فعالِ آن، و پوششِ پیش‌دریافتِ
+// هر تحویل = مجموع Applicationهای فعالِ همان تحویل. هیچ مصرفی دو بار شمرده نمی‌شود چون هر بند
+// هم‌زمان از هر دو سمت کم می‌کند.
+public class CustomerPaymentAllocationApplication : BaseEntity
+{
+    public int CustomerPaymentAllocationId { get; set; }
+    public CustomerPaymentAllocation? CustomerPaymentAllocation { get; set; }
+    public int SalesTransactionId { get; set; }
+    public SalesTransaction? SalesTransaction { get; set; }
+
+    public DateTime AppliedAt { get; set; }
+
+    // مبلغ مصرف‌شده به ارز خودِ دریافت (فقط اطلاعاتی؛ مبنای حسابداری همیشه USD تاریخی است).
+    public decimal AppliedPaymentAmount { get; set; }
+    [Required, MaxLength(10)] public string PaymentCurrencyCode { get; set; } = "USD";
+    // ارزش تاریخیِ مصرف‌شده به USD (با همان نرخ روزِ دریافتِ تخصیص). مبنای مصرف و برگشت.
+    public decimal AppliedAmountUsd { get; set; }
+
+    public CustomerPaymentAllocationApplicationStatus Status { get; set; } = CustomerPaymentAllocationApplicationStatus.Active;
+
+    // اصلاح فقط با برگشت؛ رکورد حذف نمی‌شود.
+    public int? ReversalOfApplicationId { get; set; }
+    public DateTime? ReversedAtUtc { get; set; }
+    [MaxLength(150)] public string? ReversedByUserName { get; set; }
+    [MaxLength(500)] public string? ReversalReason { get; set; }
+
+    // فقط برای مصرفِ «تخصیص بعد از تحویل» پر می‌شود: ژورنالِ انتقالِ مستقلِ متوازن
+    // (پیش‌دریافت مشتری بدهکار، مطالبات مشتری بستانکار). در مصرفِ «هنگام تحویل»، اثر مالی داخل
+    // خودِ ژورنالِ همان تحویل است، پس این فیلد null می‌ماند.
+    public int? JournalEntryId { get; set; }
+    public JournalEntry? JournalEntry { get; set; }
+
+    public int? CompanyId { get; set; }
+    public Company? Company { get; set; }
+
+    [MaxLength(150)] public string? CreatedByUserName { get; set; }
+}
+
+public enum SalesCostConsumptionStatus
+{
+    Active = 1,
+    Reversed = 2
+}
+
+// بهای واقعیِ مصرف‌شده از هر pool موجودی (company, product, terminal) برای یک تحویل.
+//
+// چرا لازم است: هنگام برگشت COGS باید دقیقاً همان مقدار و همان ارزشی که هنگام فروش از هر pool
+// خارج شد به همان pool برگردد. اگر بهای کلِ ژورنال با نسبتِ مقدار بین چند مخزن تقسیم شود
+// (مثلاً مخزنی با ۲ دلار و مخزنی با ۵ دلار)، ارزشِ اشتباه به poolها برمی‌گردد و بهای فروش‌های
+// بعدی خراب می‌شود. این ردیف بهای واقعیِ هر pool را در لحظهٔ فروش قفل می‌کند تا برگشت دقیق باشد.
+public class SalesCostConsumption : BaseEntity
+{
+    public int SalesTransactionId { get; set; }
+    public SalesTransaction? SalesTransaction { get; set; }
+    public int CompanyId { get; set; }
+    public int ProductId { get; set; }
+    public int TerminalId { get; set; }
+    public decimal QuantityMt { get; set; }
+    public decimal CostUsd { get; set; }
+    public SalesCostConsumptionStatus Status { get; set; } = SalesCostConsumptionStatus.Active;
+    public DateTime? ReversedAtUtc { get; set; }
 }
 
 public static class AuditLogCategories

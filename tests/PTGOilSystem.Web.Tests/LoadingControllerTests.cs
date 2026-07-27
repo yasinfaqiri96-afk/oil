@@ -158,6 +158,11 @@ public class LoadingControllerTests
         Assert.Contains("data-contract-product-id", viewContent);
         Assert.DoesNotContain("<select asp-for=\"ProductId\"", viewContent);
         Assert.Contains("data-loading-table-total", viewContent);
+        Assert.Contains("id=\"loadingImportedRowsJson\"", viewContent);
+        Assert.Contains("id=\"loadingImportedRowsData\"", viewContent);
+        Assert.Contains("data-loading-operation-status", viewContent);
+        Assert.Contains("window.loadingVirtualRowsBeforeSubmit", viewContent);
+        Assert.Contains("host.replaceChildren(fragment)", viewContent);
         Assert.DoesNotContain("loading-reference-card", viewContent);
         Assert.DoesNotContain("loading-one-page-form", viewContent);
         Assert.DoesNotContain("_OperationsReferenceHeader", viewContent);

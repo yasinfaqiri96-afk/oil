@@ -73,6 +73,13 @@ public sealed class LoadingCreateViewModel
 
     public IFormFile? ImportWorkbookFile { get; set; }
 
+    public string? ImportedSheetName { get; set; }
+
+    // Large imports are posted as one compact JSON value while the browser renders only
+    // the current preview page. This avoids thousands of live form controls and the
+    // default form-value-count ceiling without changing the persisted loading data.
+    public string? ImportedRowsJson { get; set; }
+
     [Display(Name = "سطرهای بارگیری")]
     public List<LoadingCreateRowViewModel> Rows { get; set; } = [];
 }

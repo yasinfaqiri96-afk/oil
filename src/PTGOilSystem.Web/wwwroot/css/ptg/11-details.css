@@ -1382,122 +1382,326 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     text-align: left;
 }
 
-/* ===== Contract lifecycle — panel cards (summary tab) =====
-   Layout: icon tile · title with rule · rows of [numeral][label][value chip].
-   Each row is one pill whose gradient runs from the brand green on the badge
-   side to silver on the value side. Pure CSS (no images, no script). */
-.ak-cycle {
-    display: grid;
-    gap: 14px;
+/* ===== Contract journey — summary tab =====
+   Seven equal stage cards on one continuous path: row 1 runs 1→4 in the
+   reading direction, a short vertical link drops from card 4 to card 5, and
+   row 2 runs 5→7 back the other way, leaving the column under card 1 free.
+   Every card is the same size and carries exactly two figures, so the whole
+   contract story reads in one screen without scrolling. */
+/* Head and section padding stay tight so the two card rows carry the block. */
+.ak-journey-section .ak-section-head {
+    margin-bottom: 8px;
 }
 
-.ak-cycle-card {
+.ak-journey-section .ak-section-head .ak-section-title {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.ak-journey-section .ak-section-head .ak-section-subtitle {
+    margin: 1px 0 0;
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+/* The facts host stays in the DOM for the tab script, but an empty one must
+   not spend a grid gap between the page header and the tab rail. */
+.ak-detail-page > [data-contract-journey-facts-host]:empty {
+    display: none;
+}
+
+.ak-journey-section {
+    padding-top: 12px;
+    padding-bottom: 0;
+}
+
+/* ---- the path ---- */
+.ak-journey-flow {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ak-journey-step--1 { grid-area: 1 / 1; }
+.ak-journey-step--2 { grid-area: 1 / 2; }
+.ak-journey-step--3 { grid-area: 1 / 3; }
+.ak-journey-step--4 { grid-area: 1 / 4; }
+/* Row two sits under cards 4→2; the column under card 1 stays empty. */
+.ak-journey-step--5 { grid-area: 2 / 4; }
+.ak-journey-step--6 { grid-area: 2 / 3; }
+.ak-journey-step--7 { grid-area: 2 / 2; }
+
+.ak-journey-step {
+    position: relative;
     display: flex;
     align-items: flex-start;
-    gap: 14px;
-    padding: 14px 16px;
-    border-radius: 14px;
-    background:
-        radial-gradient(circle at 1.5px 1.5px, rgba(255, 255, 255, .5) 1.5px, transparent 1.6px) 0 0 / 12px 12px,
-        linear-gradient(255deg, #E3EFDC 0%, #CFE3C4 55%, #C2DAB5 100%);
+    gap: 12px;
+    min-height: 165px;
+    max-height: 165px;
+    padding: 14px;
+    border: 1px solid var(--ak-detail-divider, #E5E7EB);
+    border-radius: 16px;
+    background: var(--ak-detail-surface, #fff);
 }
 
-.ak-cycle-icon {
-    flex: 0 0 62px;
-    align-self: center;
+.ak-journey-step-num {
+    position: absolute;
+    top: 9px;
+    inset-inline-end: 10px;
     display: grid;
     place-items: center;
-    height: 62px;
-    border-radius: 12px;
-    background: #fff;
-    box-shadow: inset 0 0 0 1px rgba(94, 143, 68, .2);
-    font-size: 28px;
-    line-height: 1;
-    color: #5E8F44;
-}
-
-.ak-cycle-body {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.ak-cycle-title {
-    margin: 0 0 10px;
-    padding-bottom: 7px;
-    border-bottom: 2px solid rgba(94, 143, 68, .35);
-    font-size: 16px;
-    font-weight: 700;
-    color: #33502A;
-}
-
-.ak-cycle-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 34px;
-    margin-top: 8px;
-    padding: 3px 5px;
-    border-radius: 999px;
-    background: linear-gradient(to left, #5E8F44 0%, #5E8F44 46%, #D3DFCB 80%, #F4F7F1 100%);
-}
-
-.ak-cycle-num {
-    flex: 0 0 26px;
-    display: grid;
-    place-items: center;
-    height: 26px;
+    width: 21px;
+    height: 21px;
+    border: 1px solid rgba(var(--ptg-primary-rgb, 85, 88, 139), .22);
     border-radius: 50%;
-    background: #3D6B27;
-    color: #fff;
+    background: var(--ak-detail-surface, #fff);
+    color: var(--ptg-primary-dark, #404268);
     font-size: 11px;
     font-weight: 700;
 }
 
-.ak-cycle-label {
+.ak-journey-step .ak-cycle-avatar {
+    flex: 0 0 64px;
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+}
+
+.ak-journey-step .ak-cycle-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+.ak-journey-step-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-inline-end: 24px;
+}
+
+.ak-journey-step .ak-cycle-title {
+    margin: 0;
+    color: var(--ptg-primary-dark, #404268);
+    font-size: 14.5px;
+    font-weight: 700;
+}
+
+.ak-journey-badge {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: rgba(var(--ptg-primary-rgb, 85, 88, 139), .08);
+    color: var(--ptg-primary, #55588B);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* Stat rows sit at the bottom of every card, so figures line up across the
+   whole path regardless of how long a title wraps. */
+.ak-journey-step .ak-cycle-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 0;
+    border-top: 1px dashed rgba(var(--ptg-primary-rgb, 85, 88, 139), .12);
+}
+
+.ak-journey-step .ak-cycle-row:first-of-type {
+    margin-top: auto;
+}
+
+.ak-journey-step .ak-cycle-label {
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: #fff;
-    font-size: 13px;
+    color: var(--ak-detail-muted, #7B7B7B);
+    font-size: 12px;
     font-weight: 600;
+    line-height: 1.35;
 }
 
-.ak-cycle-value {
+/* The figure never shrinks — a truncated amount is worse than a truncated
+   label, so the label takes the ellipsis when a card runs narrow. */
+.ak-journey-step .ak-cycle-value {
     flex: 0 0 auto;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: #fff;
-    color: #3F6A2A;
-    font-size: 13px;
+    color: var(--ptg-primary-dark, #404268);
+    font-size: 13.5px;
     font-weight: 700;
+    text-align: end;
     white-space: nowrap;
 }
 
-.ak-cycle-value.is-loss {
-    color: var(--error-main, #CC0000);
+/* ---- stage states ---- */
+.ak-journey-step.is-done,
+.ak-journey-step.is-gain {
+    border-color: rgba(var(--ptg-success-rgb, 139, 180, 117), .32);
+    background: rgba(var(--ptg-success-rgb, 139, 180, 117), .05);
 }
 
-@media (max-width: 575.98px) {
-    .ak-cycle-card {
-        padding: 12px;
-        gap: 10px;
+.ak-journey-step.is-done .ak-journey-badge,
+.ak-journey-step.is-gain .ak-journey-badge {
+    background: rgba(var(--ptg-success-rgb, 139, 180, 117), .14);
+    color: var(--ptg-success-text, #63914A);
+}
+
+.ak-journey-step.is-current {
+    border-color: var(--ptg-btn-primary, #1877F2);
+    background: rgba(var(--ptg-btn-primary-rgb, 24, 119, 242), .06);
+}
+
+.ak-journey-step.is-current .ak-journey-badge {
+    background: rgba(var(--ptg-btn-primary-rgb, 24, 119, 242), .12);
+    color: var(--ptg-btn-primary, #1877F2);
+}
+
+.ak-journey-step.is-pending {
+    background: var(--ak-detail-soft, #F5F7FA);
+}
+
+.ak-journey-step.is-pending .ak-cycle-value {
+    color: var(--ak-detail-muted, #7B7B7B);
+}
+
+.ak-journey-step.is-pending .ak-journey-badge {
+    background: rgba(0, 0, 0, .05);
+    color: var(--ak-detail-muted, #7B7B7B);
+}
+
+.ak-journey-step.is-warn {
+    border-color: rgba(var(--ptg-warning-rgb, 245, 176, 65), .40);
+    background: rgba(var(--ptg-warning-rgb, 245, 176, 65), .07);
+}
+
+.ak-journey-step.is-warn .ak-journey-badge {
+    background: rgba(var(--ptg-warning-rgb, 245, 176, 65), .16);
+    color: var(--ptg-warning-text, #B87708);
+}
+
+.ak-journey-step.is-loss {
+    border-color: rgba(var(--ptg-danger-rgb, 204, 0, 0), .28);
+    background: rgba(var(--ptg-danger-rgb, 204, 0, 0), .045);
+}
+
+.ak-journey-step.is-loss .ak-journey-badge {
+    background: rgba(var(--ptg-danger-rgb, 204, 0, 0), .12);
+    color: var(--ptg-danger-text, #B80000);
+}
+
+.ak-journey-step.is-loss .ak-cycle-row:first-of-type .ak-cycle-value {
+    color: var(--ptg-danger-text, #B80000);
+}
+
+.ak-journey-step.is-gain .ak-cycle-row:first-of-type .ak-cycle-value {
+    color: var(--ptg-success-text, #63914A);
+}
+
+/* ---- connectors ----
+   Each link lives in the 14px gap between two neighbouring cards: a 1.5px
+   blue-grey rule with a small chevron on top. Nothing is drawn across a card
+   and no link travels further than the gap it belongs to. */
+.ak-journey-arrow {
+    position: absolute;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    transform: translateY(-50%);
+    color: #64748B;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.ak-journey-arrow::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    inset-inline: -7px;
+    height: 1.5px;
+    transform: translateY(-50%);
+    background: #94A3B8;
+}
+
+.ak-journey-arrow > i {
+    position: relative;
+    -webkit-text-stroke: .4px currentColor;
+}
+
+.ak-journey-step--1 .ak-journey-arrow,
+.ak-journey-step--2 .ak-journey-arrow,
+.ak-journey-step--3 .ak-journey-arrow {
+    inset-inline-end: -14px;
+}
+
+.ak-journey-step--5 .ak-journey-arrow,
+.ak-journey-step--6 .ak-journey-arrow {
+    inset-inline-start: -14px;
+}
+
+/* Card 4 hands the path straight down to card 5 in the row below. */
+.ak-journey-step--4 .ak-journey-arrow {
+    top: auto;
+    bottom: -14px;
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+}
+
+.ak-journey-step--4 .ak-journey-arrow::before {
+    inset-inline: auto;
+    top: -7px;
+    bottom: -7px;
+    inset-inline-start: 50%;
+    width: 1.5px;
+    height: auto;
+    transform: translateX(-50%);
+}
+
+/* ---- one connected vertical path on small screens ---- */
+@media (max-width: 767.98px) {
+    .ak-journey-flow {
+        grid-template-columns: minmax(0, 1fr);
+        grid-auto-rows: auto;
+        gap: 26px;
     }
 
-    .ak-cycle-icon {
-        flex-basis: 46px;
-        height: 46px;
-        font-size: 21px;
+    .ak-journey-step {
+        grid-area: auto;
+        min-height: 0;
+        max-height: none;
     }
 
-    .ak-cycle-label {
-        font-size: 12px;
+    .ak-journey-step .ak-cycle-row:first-of-type {
+        margin-top: 8px;
     }
 
-    .ak-cycle-value {
-        padding: 3px 9px;
-        font-size: 12px;
+    .ak-journey-turn {
+        display: none;
+    }
+
+    .ak-journey-arrow {
+        display: none;
+    }
+
+    .ak-journey-step:not(.ak-journey-step--7)::after {
+        content: "";
+        position: absolute;
+        bottom: -26px;
+        inset-inline-start: 50%;
+        width: 1.5px;
+        height: 26px;
+        background: #94A3B8;
     }
 }
 
@@ -1574,4 +1778,47 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     [data-transport-details] .itl-vehicle-art {
         width: 100%;
     }
+}
+
+/* Storage-tank contract-flow fields match the supplied visual reference:
+   pastel fill, hairline border, dark semantic figure and a compact 40px field. */
+[data-storage-tank-details] .ak-detail-table > thead > tr > th.storage-tank-flow-column,
+[data-storage-tank-details] .ak-detail-table > tbody > tr > td.storage-tank-flow-column {
+    inline-size: 17%;
+    min-inline-size: 9.5rem;
+    padding-inline: 12px;
+    text-align: center !important;
+    vertical-align: middle;
+}
+
+[data-storage-tank-details] .storage-tank-flow {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    inline-size: 100%;
+    block-size: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0 .75rem;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    box-shadow: none !important;
+    font-size: .875rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums lining-nums;
+    white-space: nowrap;
+}
+
+body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-tank-flow--in,
+body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-tank-flow--in:is(:hover, :focus-visible, :active) {
+    border-color: #DEFCED !important;
+    background: #ECFDF5 !important;
+    color: #007A55 !important;
+}
+
+body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-tank-flow--out,
+body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-tank-flow--out:is(:hover, :focus-visible, :active) {
+    border-color: #FFEBEC !important;
+    background: #FFF1F2 !important;
+    color: #C70036 !important;
 }

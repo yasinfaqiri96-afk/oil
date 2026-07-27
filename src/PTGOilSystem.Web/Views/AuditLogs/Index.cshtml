@@ -31,7 +31,7 @@
                     @foreach (var item in Model.Items)
                     {
                         <tr data-href="@Url.Action("Details", new { id = item.Id })">
-                            <td dir="ltr" class="ak-num">@item.ActionAtUtc.ToDisplayDateTime()</td>
+                            <td dir="ltr" class="ak-num">@item.ActionAtUtc.ToAfghanistanDisplayDateTime()</td>
                             <td>@item.ActorDisplay</td>
                             <td>@item.ModuleDisplay</td>
                             <td><span class="ak-status is-active">@item.ActionDisplay</span></td>

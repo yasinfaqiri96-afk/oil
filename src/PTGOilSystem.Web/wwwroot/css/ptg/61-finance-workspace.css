@@ -290,8 +290,8 @@ body.controller-payments.action-create #roznamchaForm #journalSubmitButton:focus
 /* Payments/Create only: a wide, compact RTL workspace. */
 body.controller-payments.action-create .ptg-page > .boltz-content-body:has(#roznamchaForm) {
     width: 100%;
-    max-width: 1464px;
-    max-inline-size: 1464px;
+    max-width: max(1464px, var(--layout-content-max));
+    max-inline-size: max(1464px, var(--layout-content-max));
     padding-inline: clamp(12px, 1.4vw, 24px);
 }
 
@@ -302,8 +302,8 @@ body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaFor
 
 body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaForm) > .ak-page-header,
 body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaForm) > #roznamchaForm {
-    width: min(100%, 1400px);
-    max-width: 1400px;
+    width: min(100%, max(1400px, var(--layout-content-max)));
+    max-width: max(1400px, var(--layout-content-max));
     margin-inline: auto;
 }
 
@@ -435,6 +435,15 @@ body.controller-payments.action-create #roznamchaForm .journal-sarraf-direction 
     font-size: 12.5px;
 }
 
+/* Keep Sarraf amounts, rates and USD previews directly under their RTL labels. */
+body.controller-payments.action-create #roznamchaForm .journal-sarraf-primary-section input.ak-num,
+body.controller-payments.action-create #roznamchaForm .journal-sarraf-primary-section #sarrafCurrency,
+body.controller-payments.action-create #roznamchaForm [data-sarraf-summary] .ak-field > .ak-num,
+body.controller-payments.action-create #roznamchaForm [data-sarraf-summary] .ak-field > .text-muted {
+    width: 100%;
+    text-align: right;
+}
+
 body.controller-payments.action-create #roznamchaForm .journal-commission-section {
     margin: 0 0 16px;
     padding: 0;
@@ -554,8 +563,9 @@ body.is-finance-workspace .finance-page-lead {
     line-height: 1.9;
 }
 
+/* Column count comes from the shared .ak-stat-grid so this page reads like every
+   other stat row; only the spacing below it is finance-specific. */
 body.is-finance-workspace .finance-overview-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-block-end: 24px;
 }
 
@@ -1027,7 +1037,6 @@ body.is-finance-workspace .chart-of-accounts-page .coa-list-footer {
 }
 
 @media (max-width: 991.98px) {
-    body.is-finance-workspace .finance-overview-metrics,
     body.is-finance-workspace .finance-action-groups,
     body.is-finance-workspace .finance-fiscal-facts {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1048,7 +1057,6 @@ body.is-finance-workspace .chart-of-accounts-page .coa-list-footer {
 }
 
 @media (max-width: 575.98px) {
-    body.is-finance-workspace .finance-overview-metrics,
     body.is-finance-workspace .finance-action-groups,
     body.is-finance-workspace .finance-fiscal-facts,
     body.is-finance-workspace .finance-status-strip,

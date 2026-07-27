@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.ExcelImport
 @using PTGOilSystem.Web.Models.Loading
 @model PTGOilSystem.Web.Models.Loading.LoadingCreateViewModel
 @{
@@ -12,7 +13,11 @@
     var isContractLocked = Model.LockContract;
     var rowContractOptions = ViewBag.RowContractOptions as IReadOnlyList<SelectListItem> ?? Array.Empty<SelectListItem>();
     var showRowContractSelector = ViewBag.ShowRowContractSelector as bool? == true;
-    var rowEditors = Model.Rows
+    var usesCompactRowPreview = !string.IsNullOrWhiteSpace(Model.ImportedRowsJson);
+    var previewRows = usesCompactRowPreview
+        ? Model.Rows.Take(100)
+        : Model.Rows;
+    var rowEditors = previewRows
         .Select((row, index) => new LoadingCreateRowEditorViewModel
         {
             RowKey = row.RowKey,
@@ -64,6 +69,21 @@
             : initialPendingRubRows > 0 ? "در انتظار نرخ" : "-";
     var initialRubAverageText = hasFileRub ? $"₽ {NumberDisplay.Money(initialAverageRub)}" : "-";
     var createPostUrl = Url.Action("Create", "Loading");
+    var excelImportOptions = new ExcelImportComponentOptions
+    {
+        InputId = "loadingExcelImportFile",
+        Compact = true,
+        Collapsible = true,
+        ToggleText = UiText.T(Context, "وارد کردن بارگیری‌ها از اکسل", "Import loadings from Excel"),
+        StartUrl = Url.Action("Start", "LoadingExcelImport") ?? "/Loading/ExcelImport/start",
+        StatusUrlTemplate = "/Loading/ExcelImport/{id}/status",
+        ConfirmUrlTemplate = "/Loading/ExcelImport/{id}/confirm",
+        CancelUrlTemplate = "/Loading/ExcelImport/{id}/cancel",
+        ErrorReportUrlTemplate = "/Loading/ExcelImport/{id}/errors.csv",
+        ImportReportUrlTemplate = "/Loading/ExcelImport/{id}/report.csv",
+        SampleUrl = Url.Action("DownloadSample", "LoadingExcelImport") ?? "/Loading/ExcelImport/sample",
+        ViewResultsUrl = Url.Action("Index", "Loading")
+    };
 }
 
 <div class="ak-form-page ak-form-page--wide loading-import-workbook" data-loading-create-page>
@@ -76,8 +96,24 @@
         @Html.AntiForgeryToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <input asp-for="LockContract" type="hidden" />
+        <input type="hidden" name="ImportedRowsJson" id="loadingImportedRowsJson" value="" />
+
+        @if (usesCompactRowPreview)
+        {
+            <script type="application/json" id="loadingImportedRowsData">@Html.Raw(Model.ImportedRowsJson)</script>
+        }
 
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
+        <div class="loading-operation-status d-none" data-loading-operation-status role="status" aria-live="polite">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <div>
+                <strong data-loading-operation-title>در حال پردازش...</strong>
+                <span data-loading-operation-detail>لطفاً صفحه را نبندید.</span>
+            </div>
+        </div>
+        <div aria-label="بارگذاری اکسل">
+            <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
+        </div>
         <div id="platts-pricing-notice" class="alert alert-warning d-flex align-items-start gap-2 d-none" role="alert">
                 <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
                 <div>
@@ -232,13 +268,9 @@
             <button type="button" class="ak-form-secondary-action" data-loading-row-add><i class="bi bi-plus-lg"></i> افزودن سطر</button>
         </section>
 
-        <input asp-for="ImportWorkbookFile" type="file" accept=".xlsx" class="d-none" id="excelFile" />
         <div class="ak-footer-actions" data-loading-footer-actions>
             <span class="lic-footer-count">کل: <strong data-lic-count-total>0</strong> ردیف · <span class="lic-count-err">خطا: <strong data-lic-count-error>0</strong></span></span>
             <button type="submit" class="ak-save" data-loading-save data-busy-text="در حال ثبت...">ذخیره</button>
-            <button type="button" class="btn btn-light ak-secondary-action" id="excelFilePickBtn"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> بارگذاری اکسل</button>
-            <button type="button" class="btn btn-primary ak-primary-action d-none" id="excelImportBtn"><i class="bi bi-check2" aria-hidden="true"></i> وارد کردن</button>
-            <span id="excelFileName" class="ak-note d-none"></span>
             <button type="reset" class="ak-cancel" data-loading-reset>بازنشانی</button>
             <a href="@cancelUrl" class="ak-cancel">لغو</a>
         </div>
@@ -352,6 +384,9 @@
             const datePrevButton = document.querySelector('[data-loading-date-prev]');
             const dateNextButton = document.querySelector('[data-loading-date-next]');
             const dateHeader = document.querySelector('[data-loading-date-header]');
+            const operationStatus = document.querySelector('[data-loading-operation-status]');
+            const operationTitle = document.querySelector('[data-loading-operation-title]');
+            const operationDetail = document.querySelector('[data-loading-operation-detail]');
 
             if (!transportSelect || !rowsHost || !template || !addButton) {
                 return;
@@ -1484,6 +1519,11 @@
                 updateSummaryTotals();
             }
 
+            window.loadingCreateRefreshRows = function () {
+                updateAllRows();
+                applyFreightVisibility();
+            };
+
             async function refreshContractPricing() {
                 if (!contractSelect || !suggestedPricingUrl) {
                     return;
@@ -1555,6 +1595,11 @@
             }
 
             function addRow() {
+                if (typeof window.loadingVirtualAppendRow === 'function'
+                    && window.loadingVirtualAppendRow()) {
+                    return;
+                }
+
                 const key = 'row_' + nextRowNumber++;
                 const html = template.innerHTML.replaceAll('__key__', key);
                 rowsHost.insertAdjacentHTML('beforeend', html);
@@ -1660,10 +1705,22 @@
                 }
             }
 
+            function showOperationStatus(title, detail) {
+                if (!operationStatus) {
+                    return;
+                }
+
+                if (operationTitle) operationTitle.textContent = title;
+                if (operationDetail) operationDetail.textContent = detail;
+                operationStatus.classList.remove('d-none');
+                operationStatus.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+
             // بازگشت با دکمهٔ Back مرورگر نباید دکمه را قفل نگه دارد.
             window.addEventListener('pageshow', function () {
                 loadingSubmitInProgress = false;
                 setLoadingSaveBusy(false);
+                operationStatus?.classList.add('d-none');
             });
 
             loadingForm?.addEventListener('submit', function (event) {
@@ -1671,8 +1728,15 @@
                     event.preventDefault();
                     return;
                 }
+                if (typeof window.loadingVirtualRowsBeforeSubmit === 'function') {
+                    window.loadingVirtualRowsBeforeSubmit();
+                }
                 loadingSubmitInProgress = true;
                 setLoadingSaveBusy(true);
+                const rowCount = document.querySelector('[data-lic-count-total]')?.textContent || '';
+                showOperationStatus(
+                    'در حال ثبت بارگیری‌ها...',
+                    rowCount ? `${rowCount} سطر در یک عملیات امن ذخیره می‌شود. لطفاً صفحه را نبندید.` : 'لطفاً صفحه را نبندید.');
                 // اگر اعتبارسنجی سمت کلاینت ارسال را لغو کند، دکمه دوباره فعال می‌شود.
                 setTimeout(function () {
                     if (event.defaultPrevented) {
@@ -1693,48 +1757,6 @@
                 });
             });
 
-            const excelFileInput = document.getElementById('excelFile');
-            const excelFilePickBtn = document.getElementById('excelFilePickBtn');
-            const excelFileName = document.getElementById('excelFileName');
-            const excelImportBtn = document.getElementById('excelImportBtn');
-            const excelImportUrl = '@Url.Action("ImportWorkbook", "Loading")';
-
-            if (excelFileInput && excelFilePickBtn && excelFileName && excelImportBtn) {
-                function submitSelectedWorkbook() {
-                    if (!excelFileInput.files || excelFileInput.files.length === 0 || !loadingForm) {
-                        return;
-                    }
-
-                    loadingForm.action = excelImportUrl;
-                    excelFilePickBtn.disabled = true;
-                    excelImportBtn.disabled = true;
-                    syncPrimaryContractInput();
-                    loadingForm.submit();
-                }
-
-                excelFilePickBtn.addEventListener('click', function () {
-                    excelFileInput.click();
-                });
-
-                excelFileInput.addEventListener('change', function () {
-                    if (excelFileInput.files && excelFileInput.files.length > 0) {
-                        excelFileName.textContent = excelFileInput.files[0].name;
-                        excelFileName.classList.remove('d-none');
-                        excelImportBtn.classList.remove('d-none');
-                        submitSelectedWorkbook();
-                    } else {
-                        excelFileName.textContent = '';
-                        excelFileName.classList.add('d-none');
-                        excelImportBtn.classList.add('d-none');
-                        excelFilePickBtn.disabled = false;
-                        excelImportBtn.disabled = false;
-                    }
-                });
-
-                excelImportBtn.addEventListener('click', function () {
-                    submitSelectedWorkbook();
-                });
-            }
 
             rowsHost.addEventListener('click', event => {
                 const dateTrigger = event.target.closest('[data-loading-date-open], [data-row-date-display]');
@@ -1753,6 +1775,11 @@
 
                 const row = removeButton.closest('[data-loading-row]');
                 if (!row) {
+                    return;
+                }
+
+                if (typeof window.loadingVirtualRemoveRow === 'function'
+                    && window.loadingVirtualRemoveRow(row)) {
                     return;
                 }
 
@@ -1845,12 +1872,10 @@
         })();
     </script>
     <script>
-        // ---- Preview pagination / search / status filter ----------------
-        // Scales the imported-rows preview to hundreds/thousands of rows
-        // WITHOUT touching model binding: every row stays in the DOM (its
-        // hidden inputs keep posting), we only toggle a display class so a
-        // single page is painted at a time. No data is removed on paging or
-        // filtering; edits sync because they target the same live nodes.
+        // ---- Virtual preview / search / status filter -------------------
+        // Large imports keep their complete row data in one compact JSON value.
+        // Only the current page is materialised as form controls, preventing
+        // thousands of table rows from freezing the browser.
         (function () {
             const host = document.querySelector('[data-loading-rows]');
             const toolbar = document.querySelector('[data-lic-toolbar]');
@@ -1868,11 +1893,167 @@
             const countTotalEls = document.querySelectorAll('[data-lic-count-total]');
             const countValidEls = document.querySelectorAll('[data-lic-count-valid]');
             const countErrorEls = document.querySelectorAll('[data-lic-count-error]');
+            const compactInput = document.getElementById('loadingImportedRowsJson');
+            const compactData = document.getElementById('loadingImportedRowsData');
+            const rowTemplate = document.getElementById('loading-row-template');
+            const providerCatalog = document.getElementById('loading-provider-catalog');
+            const assetCatalog = document.getElementById('loading-asset-catalog');
 
             let currentPage = 1;
+            let virtualRows = null;
+            let initialVirtualRows = null;
+            if (compactData?.textContent) {
+                try {
+                    const parsed = JSON.parse(compactData.textContent);
+                    if (Array.isArray(parsed)) {
+                        virtualRows = parsed;
+                        initialVirtualRows = JSON.parse(JSON.stringify(parsed));
+                    }
+                } catch (error) {
+                    console.error('Loading import preview data is invalid.', error);
+                }
+            }
+
+            const numericFields = new Set([
+                'contractId', 'vesselId', 'truckId', 'logisticsServiceProviderId',
+                'operationalAssetId', 'loadedQuantityMt', 'plattsUsd', 'loadingPriceUsd',
+                'freightRateUsdPerMt', 'transportExpenseUsd', 'warehouseExpenseUsd',
+                'otherExpenseUsd', 'chargeableQuantityMt', 'railwayRateUsd',
+                'railwayExpenseUsd', 'rubPerUsdRate', 'amountUsdAtRubLock',
+                'amountRubAtRubLock', 'settlementUnitPriceRub', 'settlementValueRub'
+            ]);
+            const editableFields = [
+                'contractId', 'loadingDate', 'importedTransportReference',
+                'billOfLadingNumber', 'wagonNumber', 'routeDescription',
+                'logisticsCompanyName', 'logisticsServiceProviderId', 'operationalAssetId',
+                'consigneeName', 'destinationName', 'loadedQuantityMt', 'plattsUsd',
+                'loadingPriceUsd', 'freightRateUsdPerMt', 'transportExpenseUsd',
+                'warehouseExpenseUsd', 'otherExpenseUsd', 'chargeableQuantityMt',
+                'railwayRateUsd', 'railwayExpenseUsd', 'settlementCurrencyCode',
+                'rubRateStatus', 'rubRatePolicy', 'rubPerUsdRate', 'rubRateDate',
+                'rubRateSource', 'amountUsdAtRubLock', 'amountRubAtRubLock',
+                'settlementUnitPriceRub', 'settlementValueRub'
+            ];
 
             function rows() {
                 return Array.from(host.querySelectorAll('[data-loading-row]'));
+            }
+
+            function propertyToField(property) {
+                return property.charAt(0).toUpperCase() + property.slice(1);
+            }
+
+            function controlsFor(row, property) {
+                const field = propertyToField(property);
+                return Array.from(row.querySelectorAll(
+                    `input[name$=".${field}"], select[name$=".${field}"]`));
+            }
+
+            function activeControl(row, property) {
+                const controls = controlsFor(row, property);
+                return controls.find(control => !control.disabled) || controls[0] || null;
+            }
+
+            function parseNumber(value) {
+                if (value === null || value === undefined || value === '') {
+                    return null;
+                }
+                const parsed = Number.parseFloat(String(value).replace(/,/g, ''));
+                return Number.isFinite(parsed) ? parsed : null;
+            }
+
+            function syncDomRows() {
+                if (!virtualRows) {
+                    return;
+                }
+
+                rows().forEach(row => {
+                    const index = Number.parseInt(row.dataset.virtualIndex || '', 10);
+                    if (!Number.isInteger(index) || !virtualRows[index]) {
+                        return;
+                    }
+
+                    const data = virtualRows[index];
+                    editableFields.forEach(property => {
+                        const control = activeControl(row, property);
+                        if (!control) {
+                            return;
+                        }
+                        data[property] = numericFields.has(property)
+                            ? parseNumber(control.value)
+                            : (control.value === '' ? null : control.value);
+                    });
+
+                    const lossEnabled = row.querySelector('input[name$=".Loss.Enabled"]');
+                    const lossStage = row.querySelector('input[name$=".Loss.Stage"]');
+                    data.loss = data.loss || {};
+                    if (lossEnabled) data.loss.enabled = String(lossEnabled.value).toLowerCase() === 'true';
+                    if (lossStage) data.loss.stage = lossStage.value;
+                });
+            }
+
+            function ensureSelectOption(select, value, catalog) {
+                if (!select || value === null || value === undefined || value === '') {
+                    return;
+                }
+                const textValue = String(value);
+                if (Array.from(select.options).some(option => option.value === textValue)) {
+                    return;
+                }
+                const source = catalog
+                    ? Array.from(catalog.options).find(option => option.value === textValue)
+                    : null;
+                select.add(new Option(source?.text || textValue, textValue));
+            }
+
+            function writeControlValue(row, property, value) {
+                const controls = controlsFor(row, property);
+                controls.forEach(control => {
+                    if (control.matches('[data-row-logistics-provider]')) {
+                        ensureSelectOption(control, value, providerCatalog);
+                    } else if (control.matches('[data-row-operational-asset]')) {
+                        ensureSelectOption(control, value, assetCatalog);
+                    }
+                    const normalized = value === null || value === undefined
+                        ? ''
+                        : (property.endsWith('Date') ? String(value).slice(0, 10) : String(value));
+                    control.value = normalized;
+                });
+            }
+
+            function hydrateLogistics(row, data) {
+                const providerId = data.logisticsServiceProviderId;
+                const assetId = data.operationalAssetId;
+                const mode = assetId ? 'owned' : providerId ? 'free' : '';
+                const typeSelect = row.querySelector('[data-row-logistics-type]');
+                const displaySelect = row.querySelector('[data-row-logistics-display]');
+                const selectedValue = assetId || providerId || '';
+                const catalog = assetId ? assetCatalog : providerCatalog;
+                if (typeSelect) typeSelect.value = mode;
+                ensureSelectOption(displaySelect, selectedValue, catalog);
+                if (displaySelect) displaySelect.value = selectedValue ? String(selectedValue) : '';
+                row.dataset.logisticsMode = mode;
+            }
+
+            function createVirtualRow(dataIndex) {
+                const data = virtualRows[dataIndex];
+                const key = data.rowKey || `row_${dataIndex}`;
+                data.rowKey = key;
+                const wrapper = document.createElement('tbody');
+                wrapper.innerHTML = rowTemplate.innerHTML.replaceAll('__key__', key).trim();
+                const row = wrapper.firstElementChild;
+                row.dataset.virtualIndex = String(dataIndex);
+
+                editableFields.forEach(property => writeControlValue(row, property, data[property]));
+                const lossEnabled = row.querySelector('input[name$=".Loss.Enabled"]');
+                const lossStage = row.querySelector('input[name$=".Loss.Stage"]');
+                if (lossEnabled) lossEnabled.value = data.loss?.enabled === true ? 'true' : 'false';
+                if (lossStage && data.loss?.stage) lossStage.value = data.loss.stage;
+                hydrateLogistics(row, data);
+
+                const sequence = row.querySelector('[data-loading-row-sequence]');
+                if (sequence) sequence.textContent = String(dataIndex + 1);
+                return row;
             }
 
             function fieldValue(row, suffix) {
@@ -1899,6 +2080,15 @@
                     : 'error';
             }
 
+            function dataStatus(row) {
+                const qty = parseNumber(row.loadedQuantityMt);
+                const price = parseNumber(row.loadingPriceUsd);
+                if ((!qty || qty <= 0) && (!price || price <= 0)) {
+                    return 'empty';
+                }
+                return qty > 0 && price > 0 ? 'valid' : 'error';
+            }
+
             function rowMatchesSearch(row, term) {
                 if (!term) {
                     return true;
@@ -1913,12 +2103,137 @@
                 return haystack.indexOf(term) !== -1;
             }
 
+            function dataMatchesSearch(row, term) {
+                if (!term) {
+                    return true;
+                }
+                const haystack = [
+                    row.billOfLadingNumber,
+                    row.wagonNumber,
+                    row.importedTransportReference,
+                    row.consigneeName,
+                    row.destinationName
+                ].filter(Boolean).join(' ').toLowerCase();
+                return haystack.indexOf(term) !== -1;
+            }
+
             function pageSize() {
                 const n = Number.parseInt(pageSizeSelect?.value || '100', 10);
                 return Number.isFinite(n) && n > 0 ? n : 100;
             }
 
-            function render() {
+            function setCountText(total, valid, errors) {
+                countTotalEls.forEach(el => { el.textContent = total; });
+                countValidEls.forEach(el => { el.textContent = valid; });
+                countErrorEls.forEach(el => { el.textContent = errors; });
+            }
+
+            function updateVirtualTotals() {
+                if (!virtualRows) {
+                    return;
+                }
+                let quantity = 0;
+                let value = 0;
+                let expenses = 0;
+                let rubValue = 0;
+                let pendingRub = 0;
+                let fileRubValue = 0;
+                let hasFileRub = false;
+
+                virtualRows.forEach(row => {
+                    const qty = parseNumber(row.loadedQuantityMt) || 0;
+                    const price = parseNumber(row.loadingPriceUsd);
+                    quantity += qty;
+                    if (price !== null) value += qty * price;
+                    expenses += parseNumber(row.transportExpenseUsd) || 0;
+                    expenses += parseNumber(row.warehouseExpenseUsd) || 0;
+                    expenses += parseNumber(row.railwayExpenseUsd) || 0;
+                    expenses += parseNumber(row.otherExpenseUsd) || 0;
+
+                    const lockedRub = parseNumber(row.amountRubAtRubLock);
+                    if (lockedRub && lockedRub > 0) rubValue += lockedRub;
+                    else if (row.rubRateStatus === 'Pending') pendingRub += 1;
+
+                    const fileTotal = parseNumber(row.settlementValueRub);
+                    const fileRate = parseNumber(row.settlementUnitPriceRub);
+                    if (fileTotal && fileTotal > 0) {
+                        fileRubValue += fileTotal;
+                        hasFileRub = true;
+                    } else if (fileRate && fileRate > 0 && qty > 0) {
+                        fileRubValue += fileRate * qty;
+                        hasFileRub = true;
+                    }
+                });
+
+                const money = valueToFormat => new Intl.NumberFormat('en-US', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2
+                }).format(valueToFormat);
+                const quantityText = `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(quantity)} TON`;
+                const valueText = `$ ${money(value)}`;
+                const averageText = `$ ${money(quantity > 0 ? value / quantity : 0)}`;
+                const expenseText = `$ ${money(expenses)}`;
+                const rubText = hasFileRub
+                    ? `₽ ${money(fileRubValue)}`
+                    : rubValue > 0 ? `₽ ${money(rubValue)}` : pendingRub > 0 ? 'در انتظار نرخ' : '-';
+                const rubAverageText = hasFileRub && quantity > 0 ? `₽ ${money(fileRubValue / quantity)}` : '-';
+
+                document.querySelectorAll('[data-summary-quantity], [data-summary-table-quantity]').forEach(el => { el.textContent = quantityText; });
+                document.querySelectorAll('[data-summary-value], [data-summary-table-value]').forEach(el => { el.textContent = valueText; });
+                document.querySelectorAll('[data-summary-average]').forEach(el => { el.textContent = averageText; });
+                document.querySelectorAll('[data-summary-expense], [data-summary-table-expense]').forEach(el => { el.textContent = expenseText; });
+                document.querySelectorAll('[data-summary-rub-value], [data-summary-table-rub-value], [data-summary-table-frub-value]').forEach(el => { el.textContent = rubText; });
+                document.querySelectorAll('[data-summary-rub-average], [data-summary-table-frub-average]').forEach(el => { el.textContent = rubAverageText; });
+                document.querySelectorAll('[data-summary-rub-note]').forEach(el => el.classList.toggle('d-none', hasFileRub));
+            }
+
+            function renderVirtual() {
+                syncDomRows();
+                const term = (searchInput?.value || '').trim().toLowerCase();
+                const filter = filterSelect?.value || 'all';
+                let valid = 0;
+                let errors = 0;
+                const visibleIndexes = [];
+
+                virtualRows.forEach((row, index) => {
+                    const status = dataStatus(row);
+                    if (status === 'valid') valid += 1;
+                    if (status === 'error') errors += 1;
+                    const passStatus = filter === 'all'
+                        || (filter === 'valid' && status === 'valid')
+                        || (filter === 'error' && status === 'error');
+                    if (passStatus && dataMatchesSearch(row, term)) visibleIndexes.push(index);
+                });
+                setCountText(virtualRows.length, valid, errors);
+
+                const size = pageSize();
+                const pageCount = Math.max(1, Math.ceil(visibleIndexes.length / size));
+                currentPage = Math.min(Math.max(currentPage, 1), pageCount);
+                const start = (currentPage - 1) * size;
+                const pageIndexes = visibleIndexes.slice(start, start + size);
+                const fragment = document.createDocumentFragment();
+                pageIndexes.forEach(index => fragment.appendChild(createVirtualRow(index)));
+                host.replaceChildren(fragment);
+                window.loadingCreateRefreshRows?.();
+                pageIndexes.forEach((index, pageIndex) => {
+                    const sequence = host.querySelectorAll('[data-loading-row]')[pageIndex]
+                        ?.querySelector('[data-loading-row-sequence]');
+                    if (sequence) sequence.textContent = String(index + 1);
+                });
+                updateVirtualTotals();
+
+                const needsPager = visibleIndexes.length > size;
+                if (pager) pager.hidden = !needsPager;
+                if (pageInfo) {
+                    const from = visibleIndexes.length ? start + 1 : 0;
+                    const to = Math.min(start + size, visibleIndexes.length);
+                    pageInfo.textContent = `صفحه ${currentPage} از ${pageCount} — ردیف ${from} تا ${to} از ${visibleIndexes.length}`;
+                }
+                if (prevBtn) prevBtn.disabled = currentPage <= 1;
+                if (nextBtn) nextBtn.disabled = currentPage >= pageCount;
+            }
+
+            function renderDomRows() {
                 const all = rows();
                 const term = (searchInput?.value || '').trim().toLowerCase();
                 const filter = filterSelect?.value || 'all';
@@ -1948,9 +2263,7 @@
                     }
                 });
 
-                countTotalEls.forEach(el => { el.textContent = total; });
-                countValidEls.forEach(el => { el.textContent = valid; });
-                countErrorEls.forEach(el => { el.textContent = errors; });
+                setCountText(total, valid, errors);
 
                 const size = pageSize();
                 const pageCount = Math.max(1, Math.ceil(visible.length / size));
@@ -1980,6 +2293,14 @@
                 }
             }
 
+            function render() {
+                if (virtualRows) {
+                    renderVirtual();
+                } else {
+                    renderDomRows();
+                }
+            }
+
             let debounceId = null;
             function scheduleRender(resetPage) {
                 if (resetPage) {
@@ -1995,27 +2316,127 @@
             prevBtn?.addEventListener('click', () => { currentPage -= 1; render(); });
             nextBtn?.addEventListener('click', () => { currentPage += 1; render(); });
 
-            // Keep counts / membership fresh as the operator edits cells, and
-            // react to rows added or removed by the existing row controls.
-            host.addEventListener('input', () => scheduleRender(false));
-            host.addEventListener('change', () => scheduleRender(false));
-            document.addEventListener('loading:rows-refreshed', () => scheduleRender(false));
-            let addObserverPending = false;
-            const observer = new MutationObserver(mutations => {
-                const added = mutations.some(m => m.addedNodes.length > 0);
-                if (added) {
-                    // Jump to the last page so a freshly added row is visible.
-                    addObserverPending = true;
-                }
-                scheduleRender(false);
-                if (addObserverPending) {
-                    addObserverPending = false;
-                    const size = pageSize();
-                    currentPage = Math.max(1, Math.ceil(rows().length / size));
-                    render();
+            host.addEventListener('input', () => {
+                if (virtualRows) {
+                    syncDomRows();
+                    updateVirtualTotals();
+                } else {
+                    scheduleRender(false);
                 }
             });
-            observer.observe(host, { childList: true });
+            host.addEventListener('change', () => {
+                if (virtualRows) {
+                    syncDomRows();
+                    updateVirtualTotals();
+                } else {
+                    scheduleRender(false);
+                }
+            });
+            document.addEventListener('loading:rows-refreshed', () => {
+                if (virtualRows) {
+                    syncDomRows();
+                    updateVirtualTotals();
+                } else {
+                    scheduleRender(false);
+                }
+            });
+
+            if (!virtualRows) {
+                let addObserverPending = false;
+                const observer = new MutationObserver(mutations => {
+                    if (mutations.some(m => m.addedNodes.length > 0)) addObserverPending = true;
+                    scheduleRender(false);
+                    if (addObserverPending) {
+                        addObserverPending = false;
+                        currentPage = Math.max(1, Math.ceil(rows().length / pageSize()));
+                        render();
+                    }
+                });
+                observer.observe(host, { childList: true });
+            } else {
+                rows().forEach((row, index) => { row.dataset.virtualIndex = String(index); });
+
+                window.loadingVirtualRowsBeforeSubmit = function () {
+                    syncDomRows();
+                    if (compactInput) compactInput.value = JSON.stringify(virtualRows);
+                };
+
+                window.loadingVirtualAppendRow = function () {
+                    syncDomRows();
+                    const today = new Date();
+                    const isoDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    virtualRows.push({
+                        rowKey: `row_${Date.now()}_${virtualRows.length}`,
+                        contractId: Number.parseInt(document.querySelector('[data-loading-primary-contract]')?.value || '', 10) || null,
+                        loadingDate: isoDate,
+                        loadedQuantityMt: 0,
+                        settlementCurrencyCode: 'USD',
+                        rubRateStatus: 'NotRequired',
+                        rubRatePolicy: 'NotApplicable',
+                        loss: { enabled: false, stage: 'LoadingDifference' }
+                    });
+                    if (searchInput) searchInput.value = '';
+                    if (filterSelect) filterSelect.value = 'all';
+                    currentPage = Math.max(1, Math.ceil(virtualRows.length / pageSize()));
+                    renderVirtual();
+                    return true;
+                };
+
+                window.loadingVirtualRemoveRow = function (row) {
+                    syncDomRows();
+                    const index = Number.parseInt(row.dataset.virtualIndex || '', 10);
+                    if (!Number.isInteger(index) || !virtualRows[index]) return false;
+                    virtualRows.splice(index, 1);
+                    if (virtualRows.length === 0) {
+                        window.loadingVirtualAppendRow();
+                    } else {
+                        renderVirtual();
+                    }
+                    return true;
+                };
+
+                document.querySelector('[data-loading-freight-toggle]')?.addEventListener('change', event => {
+                    syncDomRows();
+                    if (!event.target.checked) {
+                        virtualRows.forEach(row => {
+                            row.logisticsServiceProviderId = null;
+                            row.operationalAssetId = null;
+                            row.logisticsCompanyName = null;
+                            row.freightRateUsdPerMt = null;
+                            row.transportExpenseUsd = null;
+                            row.chargeableQuantityMt = null;
+                            row.railwayRateUsd = null;
+                            row.railwayExpenseUsd = null;
+                        });
+                    }
+                    updateVirtualTotals();
+                });
+
+                document.querySelectorAll('[data-loading-contract-checkbox]').forEach(checkbox => {
+                    checkbox.addEventListener('change', () => {
+                        syncDomRows();
+                        const selectedIds = Array.from(document.querySelectorAll('[data-loading-contract-checkbox]:checked'))
+                            .map(item => Number.parseInt(item.value, 10))
+                            .filter(Number.isFinite);
+                        if (selectedIds.length === 1) {
+                            virtualRows.forEach(row => { row.contractId = selectedIds[0]; });
+                        } else if (selectedIds.length > 1) {
+                            virtualRows.forEach(row => {
+                                if (!selectedIds.includes(Number(row.contractId))) row.contractId = null;
+                            });
+                        }
+                        renderVirtual();
+                    });
+                });
+
+                document.querySelector('[data-loading-reset]')?.addEventListener('click', () => {
+                    window.setTimeout(() => {
+                        virtualRows = JSON.parse(JSON.stringify(initialVirtualRows || []));
+                        currentPage = 1;
+                        renderVirtual();
+                    }, 0);
+                });
+            }
 
             render();
         })();

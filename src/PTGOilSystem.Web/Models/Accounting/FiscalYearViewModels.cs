@@ -101,7 +101,10 @@ public sealed record FiscalYearIndexViewModel(
     NextFiscalYearProposal NextYear,
     IReadOnlyList<AccountingReadinessFinding> ReadinessFindings,
     FiscalCloseRunRow? LastCloseRun,
-    bool CanManage);
+    bool CanManage,
+    // عملیاتِ قفلِ مجاز برای هر دورهٔ سالِ جاری — همان قاعدهٔ صفحهٔ جزئیات، تا صفحهٔ سادهٔ سال مالی
+    // بتواند قفل/بازکردنِ دوره را همان‌جا نشان دهد. تصمیمِ «چه چیزی مجاز است» در سرویس گرفته می‌شود.
+    IReadOnlyDictionary<int, IReadOnlyList<FiscalPeriodLockAction>> CurrentYearPeriodLockActions);
 
 public sealed record FiscalYearDetailsViewModel(
     FiscalYearSummary Year,

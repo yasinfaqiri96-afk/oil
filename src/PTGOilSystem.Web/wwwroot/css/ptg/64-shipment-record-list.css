@@ -20,7 +20,7 @@
     --srl-badge-bg: #172B4D;
 
     --srl-head-height: 56px;
-    --srl-head-bg: #ECECEC;
+    --srl-head-bg: var(--ptg-table-head-bg);
     --srl-head-color: #637381;
 
     --srl-row-height: 75px;

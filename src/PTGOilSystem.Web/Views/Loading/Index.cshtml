@@ -53,7 +53,8 @@
                         <th class="ak-col-grow">@UiText.T(Context,"قرارداد","Contract")</th>
                         <th>@UiText.T(Context,"جنس","Product")</th>
                         <th>@UiText.T(Context,"حمل","Transport")</th>
-                        <th>@UiText.T(Context,"مقدار / ارزش","Quantity / Value")</th>
+                        <th>@UiText.T(Context,"مقدار","Quantity")</th>
+                        <th>@UiText.T(Context,"ارزش","Value")</th>
                         <th>@UiText.T(Context,"وضعیت","Status")</th>
                         <th class="ak-col-actions">@UiText.T(Context,"عملیات","Action")</th>
                     </tr>
@@ -62,7 +63,7 @@
                 @if (Model.Items.Count == 0)
                 {
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="ak-empty">
                                 <i class="bi bi-truck"></i>
                                 @UiText.T(Context,"هنوز بارگیری‌ای ثبت نشده است","No loading records yet")
@@ -75,23 +76,29 @@
                     for (var index = 0; index < Model.Items.Count; index++)
                     {
                         var item = Model.Items[index];
+                        var vehicleDetail = item.VehicleSummary;
+                        var separatorIndex = vehicleDetail.IndexOf(':');
+                        if (separatorIndex >= 0)
+                        {
+                            vehicleDetail = vehicleDetail[(separatorIndex + 1)..].Trim();
+                        }
                         <tr data-href="@Url.Action("Details", new { id = item.Id, returnUrl = currentUrl })">
                             <td class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
                             <td class="ak-col-grow">
                                 <a asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@currentUrl" class="ak-name">@item.ContractNumber</a>
-                                <span class="ak-section-desc">@item.LoadingDate.ToDisplayDate()</span>
                             </td>
                             <td>
                                 <span class="ak-name">@item.ProductName</span>
-                                <span class="ak-section-desc">@(item.DestinationName ?? item.OriginLocationName ?? "-")</span>
                             </td>
                             <td>
                                 <span class="ak-name">@item.TransportTypeLabel</span>
-                                <span class="ak-section-desc"><bdi>@(string.IsNullOrWhiteSpace(item.VehicleSummary) ? "-" : item.VehicleSummary)</bdi></span>
+                                <span class="ak-section-desc"><bdi>@(string.IsNullOrWhiteSpace(vehicleDetail) ? "-" : vehicleDetail)</bdi></span>
                             </td>
                             <td>
                                 <span class="ak-num">@NumberDisplay.Quantity(item.LoadedQuantityMt) MT</span>
-                                <span class="ak-section-desc ak-num">@(item.LoadingValueUsd.HasValue ? item.LoadingValueUsd.Value.ToString("N2") + " USD" : "-")</span>
+                            </td>
+                            <td>
+                                <span class="ak-num">@(item.LoadingValueUsd.HasValue ? item.LoadingValueUsd.Value.ToString("N2") + " USD" : "-")</span>
                             </td>
                             <td>
                                 <span class="ak-status @(item.IsPricePending ?"is-inactive" : "is-active")">@(item.IsPricePending ? UiText.T(Context,"نرخ معطل","Price pending") : UiText.T(Context,"تکمیل","Complete"))</span>
@@ -113,18 +120,6 @@
                     }
                 }
                 </tbody>
-                @if (Model.Items.Any())
-                {
-                    <tfoot>
-                        <tr>
-                            <td colspan="3" class="fw-bold">@UiText.T(Context, "مجموع کل", "Grand Total")</td>
-                            <td class="ak-num fw-bold">@NumberDisplay.Quantity((decimal)ViewBag.SumQuantity)</td>
-                            <td></td>
-                            <td class="ak-num fw-bold">@(((decimal)ViewBag.SumValue).ToString("N2"))</td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                }
             </table>
         </div>
 

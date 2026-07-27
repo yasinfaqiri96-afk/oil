@@ -1,0 +1,94 @@
+@model PTGOilSystem.Web.Models.Payments.ViaSarrafLegacyReviewViewModel
+@{
+    ViewData["Title"] = "گروه‌بندی پرداخت‌های صرافی قدیمی";
+    ViewData["HideSectionTabs"] = true;
+    var backUrl = Url.Action("Index", "Ledger") ?? "/Ledger";
+}
+
+<div class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("گروه‌بندی پرداخت‌های صرافی قدیمی", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+
+    <p class="ak-note">این صفحه فقط تحلیل می‌کند (Dry Run) و چیزی را تغییر نمی‌دهد. تنها دکمهٔ زیر آن‌هم فقط جفت‌های <strong>قطعی</strong> (دقیقاً یک تطبیق دوطرفه) را گروه‌بندی می‌کند. موارد مبهم و بی‌جفت دست‌نخورده می‌مانند و باید دستی بررسی شوند.</p>
+
+    <section class="ak-form-section">
+        <div class="ak-stat-grid">
+            <vc:stat-card title="کل ردیف‌های بدون گروه" value="@Model.TotalUngroupedRows.ToString("N0")" unit="ردیف" avatar="ledger"></vc:stat-card>
+            <vc:stat-card title="جفت‌های قطعی" value="@Model.DeterministicPairCount.ToString("N0")" unit="جفت" avatar="contract-signed"></vc:stat-card>
+            <vc:stat-card title="مبهم" value="@Model.AmbiguousCount.ToString("N0")" unit="ردیف" avatar="treasury"></vc:stat-card>
+            <vc:stat-card title="بی‌جفت" value="@Model.UnpairedCount.ToString("N0")" unit="ردیف" avatar="payments-out"></vc:stat-card>
+        </div>
+    </section>
+
+    @if (Model.DeterministicPairCount > 0)
+    {
+        <form asp-action="ApplyConfirmed" method="post" class="ak-page-actions">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check2-all"></i> اعمال @Model.DeterministicPairCount.ToString("N0") جفت قطعی
+            </button>
+        </form>
+    }
+
+    @if (Model.Ambiguous.Count > 0)
+    {
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("موارد مبهم (نیازمند بررسی دستی)", (string?)null))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr><th>ردیف</th><th>نوع</th><th>صراف</th><th>تاریخ</th><th class="ak-col-num">مبلغ</th><th>دلیل ابهام</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var r in Model.Ambiguous)
+                    {
+                        <tr>
+                            <td class="ak-num"><a asp-controller="Ledger" asp-action="Details" asp-route-id="@r.LedgerEntryId">#@r.LedgerEntryId</a></td>
+                            <td>@UiText.LedgerSource(Context, r.SourceType)</td>
+                            <td class="ak-num">#@r.SarrafId</td>
+                            <td>@r.EntryDate.ToDisplayDate()</td>
+                            <td class="ak-col-num ak-num">@r.SourceAmount.ToString("N2") @r.SourceCurrencyCode</td>
+                            <td>@r.Reason</td>
+                            <td>
+                                @if (r.SourceType == PTGOilSystem.Web.Controllers.PaymentsController.ViaSarrafSupplierLedgerSourceType)
+                                {
+                                    <a asp-action="ConfirmPair" asp-route-ledgerEntryId="@r.LedgerEntryId" class="btn btn-sm btn-light">جفت‌سازی دستی</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+
+    @if (Model.Unpaired.Count > 0)
+    {
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("ردیف‌های بی‌جفت", (string?)null))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr><th>ردیف</th><th>نوع</th><th>صراف</th><th>تاریخ</th><th class="ak-col-num">مبلغ</th><th>دلیل</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var r in Model.Unpaired)
+                    {
+                        <tr>
+                            <td class="ak-num"><a asp-controller="Ledger" asp-action="Details" asp-route-id="@r.LedgerEntryId">#@r.LedgerEntryId</a></td>
+                            <td>@UiText.LedgerSource(Context, r.SourceType)</td>
+                            <td class="ak-num">#@r.SarrafId</td>
+                            <td>@r.EntryDate.ToDisplayDate()</td>
+                            <td class="ak-col-num ak-num">@r.SourceAmount.ToString("N2") @r.SourceCurrencyCode</td>
+                            <td>@r.Reason</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</div>

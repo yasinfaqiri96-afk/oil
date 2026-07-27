@@ -18,15 +18,15 @@
         <div class="sadd-login-slides" data-login-carousel>
             <figure class="sadd-login-slide is-active">
                 <img src="~/images/auth/scene-1.png" asp-append-version="true" alt="" loading="eager" />
-                <figcaption>@T("پایش لحظه‌ای عملیات نفت و گاز", "Real-time oil &amp; gas operations")</figcaption>
+                <figcaption>@T("نواتیک؛ سازندهٔ راه‌حل‌های نرم‌افزاری صنعت نفت و گاز", "Novatech — builder of oil &amp; gas software solutions")</figcaption>
             </figure>
             <figure class="sadd-login-slide">
                 <img src="~/images/auth/scene-2.webp" asp-append-version="true" alt="" loading="lazy" />
-                <figcaption>@T("داشبورد وضعیت مخازن و تجهیزات", "Tank &amp; asset status dashboard")</figcaption>
+                <figcaption>@T("حساب دقیق دالر، روبل و افغانی و کنترل صرافی‌ها", "Precise USD, RUB &amp; AFN accounting with money-changer control")</figcaption>
             </figure>
             <figure class="sadd-login-slide">
                 <img src="~/images/auth/scene-3.png" asp-append-version="true" alt="" loading="lazy" />
-                <figcaption>@T("گزارش‌های مالی و بهره‌وری", "Financial &amp; profitability insights")</figcaption>
+                <figcaption>@T("محاسبهٔ ضایعات از ثبت قرارداد تا مرحلهٔ آخر", "Loss tracking from contract registration to the final stage")</figcaption>
             </figure>
         </div>
 
@@ -42,40 +42,46 @@
             @Html.AntiForgeryToken()
             <input asp-for="ReturnUrl" type="hidden" />
 
-            <header class="sadd-login-header">
-                <span class="sadd-login-logo" aria-hidden="true">
-                    <svg viewBox="0 0 80 80" focusable="false">
-                        <circle cx="38" cy="38" r="25.5" />
-                        <path d="M56.5 38h14v39h-14z" />
-                        <path class="sadd-login-logo-cut" d="M5 38h19M14 59l14-14M53 61l14 13" />
-                    </svg>
-                </span>
-                <h1>@T("برای شروع کار وارد حساب خود شوید", "Login to start your session")</h1>
+            <header class="sadd-login-header" dir="ltr">
+                <h1>Welcome!</h1>
+                <p class="sadd-login-subtitle">Sign in to your Account</p>
             </header>
 
             <div asp-validation-summary="ModelOnly" class="sadd-login-alert" role="alert"></div>
 
             <div class="sadd-login-field">
-                <label asp-for="Username" class="sadd-login-label">
-                    @T("نام کاربری", "Username") <b aria-hidden="true">*</b>
-                </label>
-                <input asp-for="Username"
-                       class="sadd-login-input"
-                       autocomplete="username"
-                       autocapitalize="none"
-                       spellcheck="false"
-                       placeholder="@T("نام کاربری", "Username")" />
+                <label asp-for="Username" class="visually-hidden">@T("نام کاربری", "Username")</label>
+                <div class="sadd-login-control">
+                    <span class="sadd-login-ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                            <circle cx="12" cy="12" r="4" />
+                            <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
+                        </svg>
+                    </span>
+                    <input asp-for="Username"
+                           class="sadd-login-input"
+                           autocomplete="username"
+                           autocapitalize="none"
+                           spellcheck="false"
+                           placeholder="@T("نام کاربری", "Username")" />
+                </div>
                 <span asp-validation-for="Username" class="sadd-login-error"></span>
             </div>
 
             <div class="sadd-login-field">
-                <label asp-for="Password" class="sadd-login-label">
-                    @T("رمز عبور", "Password") <b aria-hidden="true">*</b>
-                </label>
-                <input asp-for="Password"
-                       class="sadd-login-input"
-                       autocomplete="current-password"
-                       placeholder="@T("رمز عبور", "Password")" />
+                <label asp-for="Password" class="visually-hidden">@T("رمز عبور", "Password")</label>
+                <div class="sadd-login-control">
+                    <span class="sadd-login-ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                    </span>
+                    <input asp-for="Password"
+                           class="sadd-login-input"
+                           autocomplete="current-password"
+                           placeholder="@T("رمز عبور", "Password")" />
+                </div>
                 <span asp-validation-for="Password" class="sadd-login-error"></span>
             </div>
 
@@ -91,10 +97,14 @@
                 </details>
             </div>
 
-            <button type="submit" class="sadd-login-submit">@T("ورود", "Login")</button>
+            <div class="sadd-login-actions" dir="ltr">
+                <button type="submit" class="sadd-login-submit">@T("ورود", "SIGN IN")</button>
+                <span class="sadd-login-signup" aria-disabled="true"
+                      title="@T("ثبت‌نام عمومی در این سیستم فعال نیست.", "Public sign-up is not enabled for this system.")">@T("ثبت‌نام", "SIGN UP")</span>
+            </div>
 
             <div class="sadd-login-divider">
-                <span>@T("یا ورود با", "OR SIGN IN")</span>
+                <span>@T("یا ورود با", "OR LOGIN WITH")</span>
             </div>
 
             <div class="sadd-login-social" aria-label="@T("روش‌های ورود غیرفعال", "Unavailable social sign-ins")">
@@ -120,17 +130,8 @@
                     <span>@T("با مایکروسافت", "with Microsoft")</span>
                 </button>
             </div>
-
-            <span class="sadd-login-create" aria-disabled="true"
-                  title="@T("ثبت‌نام عمومی در این سیستم فعال نیست.", "Public sign-up is not enabled for this system.")">
-                @T("ساخت حساب جدید", "Create new account")
-            </span>
         </form>
     </main>
-
-    <footer class="sadd-login-footer">
-        @T("قدرت‌گرفته از سامانه مدیریت نفت و گاز PTG", "Powered by PTG: Oil &amp; Gas Management System")
-    </footer>
 </div>
 
 @section Scripts {

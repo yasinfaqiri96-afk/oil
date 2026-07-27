@@ -1,0 +1,88 @@
+/*
+ * PTG panel surfaces — the tail of the treatment defined in 45-akaunting.css §F.
+ *
+ * §F is the authority: it converts the shared card family (.ptg-card, .ds-card,
+ * .kpi-card, …) to the dashboard language — paper surface, no outline, lifted by
+ * --ptg-panel-shadow. This file finishes the job for the panels that carry their
+ * own class outside that family, so the system reads as one surface system.
+ *
+ * Every selector below was verified to appear in live markup. Legacy panel
+ * classes that survive only in CSS (.ptg-card, .detail-card, .side-panel,
+ * .app-form-card, .note-card, .storage-tank-card, .itr-unload-*, the
+ * *-one-page-form family, …) are deliberately not restated here — they render
+ * nowhere, and styling them would only add weight.
+ *
+ * Deliberately NOT touched:
+ *   - fields, buttons, chips, badges, avatars, pagination links
+ *   - table cell rules and section dividers — separation inside a panel is
+ *     still a 1px line, exactly as before
+ *   - summary strips, which are open numbers rather than cards (45 §G)
+ *   - list pages, already on the borderless .ak-table layer with no card to lift
+ *   - floating layers (modals, dropdowns, popovers, tooltips, date panels),
+ *     which own their elevation and read as detached on purpose
+ *   - the public login page, which is separately art-directed
+ *
+ * The outline is neutralised with `border-color: transparent` rather than
+ * `border: 0`, so every panel keeps its exact box model — no reflow and no 2px
+ * size shift.
+ *
+ * Loads after every layer that defines a panel, so source order carries most of
+ * the work; the selectors also carry one class more than their originals, so
+ * they win on specificity where source order alone would not be enough.
+ */
+
+body.boltz-shell.app-shell-authenticated .boltz-content .empty-state,
+body.boltz-shell.app-shell-authenticated .ak-stat-card,
+body.boltz-shell.app-shell-authenticated .ak-hub-tile,
+body.boltz-shell.app-shell-authenticated .ak-group-wizard-summary,
+body.boltz-shell.app-shell-authenticated .ptg-form-section,
+body.boltz-shell.app-shell-authenticated .statement-filter-bar,
+body.boltz-shell.app-shell-authenticated .excel-import__panel,
+body.boltz-shell.app-shell-authenticated .loss-create-form {
+    border-color: transparent;
+    box-shadow: var(--ptg-panel-shadow);
+}
+
+/* The stat card signalled hover with a blue outline, which the transparent
+   border removes. Restate the feedback in the new language: the panel lifts
+   instead of gaining an edge. */
+body.boltz-shell.app-shell-authenticated .ak-stat-card:hover {
+    border-color: transparent;
+    box-shadow: 0 2px 6px rgba(24, 119, 242, 0.10), 0 14px 32px rgba(24, 119, 242, 0.14);
+}
+
+:root[data-theme="dark"] body.boltz-shell.app-shell-authenticated .ak-stat-card:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.34), 0 14px 32px rgba(24, 119, 242, 0.26);
+}
+
+/* The dashboard is the reference for this treatment; point it at the shared
+   token so the two can never drift apart. */
+body.boltz-shell.app-shell-authenticated .dashboard-page.dashboard-ref {
+    --dash-card-shadow: var(--ptg-panel-shadow);
+}
+
+/* A form section inside a lifted form panel would double the shadow and read as
+   a floating slab. Inside a panel, sections separate with whitespace. */
+body.boltz-shell.app-shell-authenticated .loss-create-form .ptg-form-section {
+    box-shadow: none;
+}
+
+/* Panels inside a modal keep the flat treatment — the dialog already carries the
+   elevation, and a second shadow inside it reads as clutter. */
+body.ptg-modal-document .ptg-form-section,
+body.boltz-shell.app-shell-authenticated .modal .ptg-form-section {
+    box-shadow: none;
+}
+
+/* Shadows do not render on paper and the transparent outline would leave panels
+   with no edge at all, so the 1px border comes back when printing. */
+@media print {
+    body.boltz-shell.app-shell-authenticated .boltz-content .empty-state,
+    body.boltz-shell.app-shell-authenticated .ak-stat-card,
+    body.boltz-shell.app-shell-authenticated .ak-group-wizard-summary,
+    body.boltz-shell.app-shell-authenticated .ptg-form-section,
+    body.boltz-shell.app-shell-authenticated .statement-filter-bar {
+        border-color: var(--ptg-border);
+        box-shadow: none;
+    }
+}

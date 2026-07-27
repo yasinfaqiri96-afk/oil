@@ -17,6 +17,7 @@ public sealed class ShipmentSaleDisplayRow
     public decimal QuantityMt { get; init; }
     public decimal UnitPriceUsd { get; init; }
     public decimal TotalUsd { get; init; }
+    public bool IsDirectShipmentSale { get; init; }
     public IReadOnlyList<ShipmentContractBreakdownLine> ContractBreakdownLines { get; init; } = [];
 }
 
@@ -145,6 +146,7 @@ public static class ShipmentPnlDisplayGrouping
                         ? RoundMoney(totalUsd / quantityMt)
                         : RoundMoney(ordered.First().UnitPriceUsd),
                     TotalUsd = totalUsd,
+                    IsDirectShipmentSale = ordered.Any(sale => sale.IsDirectShipmentSale),
                     ContractBreakdownLines = breakdown
                 };
             })

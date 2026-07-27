@@ -16,10 +16,10 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار شرکت‌های خدماتی", "Service provider statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل خدمات‌دهندگان", "Total providers")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "شرکت", "providers")" avatar="equipment"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "فعال در این صفحه", "Active on this page")" value="@visibleActiveCount.ToString("N0")" unit="@UiText.T(Context, "شرکت", "providers")" avatar="rules-checklist"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "انواع خدمت در این صفحه", "Service types on page")" value="@visibleServiceTypeCount.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar="documents"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مانده این صفحه", "Balance on this page")" value="@visibleBalanceUsd.ToString("#,0.##")" unit="USD" avatar="receivables"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل خدمات‌دهندگان", "Total providers")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "شرکت", "providers")" avatar-path="/images/stat-cards/ref-people/svc-total.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "فعال در این صفحه", "Active on this page")" value="@visibleActiveCount.ToString("N0")" unit="@UiText.T(Context, "شرکت", "providers")" avatar-path="/images/stat-cards/ref-people/svc-verified.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "انواع خدمت در این صفحه", "Service types on page")" value="@visibleServiceTypeCount.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar-path="/images/stat-cards/ref-people/svc-tools.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مانده این صفحه", "Balance on this page")" value="@visibleBalanceUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/svc-training.webp"></vc:stat-card>
     </section>
 
     <partial name="~/Views/Shared/_AkSearchFilter.cshtml"

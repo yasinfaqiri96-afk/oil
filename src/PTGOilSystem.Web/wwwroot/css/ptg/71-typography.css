@@ -1,0 +1,511 @@
+/*
+ * PTG shared readability layer.
+ *
+ * Loaded after page-specific styles. Component geometry stays in its owning
+ * stylesheet; this layer owns type hierarchy, numeric isolation, tables and
+ * status pills. Screen scoping preserves specialised A4 print layouts.
+ */
+
+.ak-number {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+@media screen {
+    body.boltz-shell.app-shell-authenticated,
+    body.ptg-modal-document {
+        font-size: var(--font-body);
+        font-weight: var(--weight-body);
+        line-height: var(--line-body);
+    }
+
+    body.boltz-shell.app-shell-authenticated :where(.ak-page-title, .page-title, .ak-detail-title),
+    body.ptg-modal-document :where(.ak-page-title, .page-title, .ak-detail-title) {
+        font-size: var(--font-page-title);
+        font-weight: var(--weight-page-title);
+        line-height: var(--line-page-title);
+    }
+
+    body.boltz-shell.app-shell-authenticated :where(
+        .ak-section-title,
+        .form-section-title,
+        .table-section-title,
+        .ak-detail-section-header > h2,
+        .finance-section-header > h2,
+        .ssf-section-title
+    ),
+    body.ptg-modal-document :where(
+        .ak-section-title,
+        .form-section-title,
+        .table-section-title,
+        .ak-detail-section-header > h2,
+        .finance-section-header > h2,
+        .ssf-section-title
+    ) {
+        font-size: var(--font-section-title);
+        font-weight: var(--weight-section-title);
+        line-height: var(--line-section-title);
+    }
+
+    body.boltz-shell.app-shell-authenticated :where(
+        .card-title,
+        .modal-title,
+        .ak-stat-section__title,
+        .shipment-record-list__title,
+        .dash-card h2,
+        .finance-action-group h2
+    ),
+    body.ptg-modal-document :where(.card-title, .modal-title, .ak-stat-section__title) {
+        font-size: var(--font-card-title);
+        font-weight: var(--weight-card-title);
+        line-height: var(--line-card-title);
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(p, dd),
+    body.ptg-modal-document .ptg-modal-body-shell :where(p, dd) {
+        font-size: var(--font-body);
+        line-height: var(--line-body);
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(label, .form-label, .ak-label, .ssf-label),
+    body.ptg-modal-document .ptg-modal-body-shell :where(label, .form-label, .ak-label, .ssf-label) {
+        font-size: var(--font-label);
+        font-weight: var(--weight-label);
+        line-height: var(--line-label);
+    }
+
+    /* Important supporting text never falls below the readable caption size. */
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+        small,
+        .ak-note,
+        .ak-section-desc,
+        .form-text,
+        .field-note,
+        .ak-field-error,
+        .ak-entity-meta,
+        .ak-entity-empty,
+        .shipment-record-subtext,
+        .shipment-record-entity__secondary,
+        .ak-cycle-label,
+        .ak-cycle-value,
+        .loading-date-week,
+        .ak-input-unit > span,
+        .ak-summary-list dt,
+        .ak-hub-tile-desc,
+        .loading-import-workbook .lic-summary-strip .ak-label,
+        .dash-total-label,
+        .dash-mix-item,
+        .finance-source-note,
+        .finance-section-header p,
+        .finance-action-group p,
+        .finance-action-group small,
+        .finance-more-actions small,
+        .finance-close-steps a > span,
+        .finance-close-steps small,
+        .finance-status-strip dt,
+        .finance-fiscal-facts dt,
+        .finance-next-action p,
+        .coa-field,
+        .coa-parent-name,
+        .ssf-stat-label,
+        .ssf-field-error,
+        .ssf-hint-text,
+        .ssf-contract-company,
+        .ssf-addon,
+        .ssf-summary-row dt,
+        .dash-chart-loading,
+        .dash-chart-empty
+    ),
+    body.ptg-modal-document .ptg-modal-body-shell :where(
+        small,
+        .ak-note,
+        .ak-section-desc,
+        .form-text,
+        .field-note,
+        .ak-field-error,
+        .ak-entity-meta,
+        .ak-entity-empty,
+        .ak-cycle-label,
+        .ak-cycle-value,
+        .loading-date-week,
+        .ak-input-unit > span,
+        .ak-summary-list dt,
+        .ak-hub-tile-desc,
+        .ssf-stat-label,
+        .ssf-field-error,
+        .ssf-hint-text,
+        .ssf-contract-company,
+        .ssf-addon,
+        .ssf-summary-row dt
+    ) {
+        font-size: var(--font-caption) !important;
+        font-weight: var(--weight-caption);
+        line-height: var(--line-caption);
+    }
+
+    body.boltz-shell.app-shell-authenticated :where(
+        .ak-report-parameters-pop label,
+        .ak-filter-popover .ak-option-meta,
+        .ak-pop-head,
+        .ak-date-panel label,
+        .ak-date-week span,
+        .ptg-tab-badge,
+        .boltz-brand-copy small,
+        .boltz-account-copy small,
+        .boltz-dropdown-head small,
+        .boltz-footer
+    ),
+    body.ptg-modal-document :where(
+        .ak-report-parameters-pop label,
+        .ak-filter-popover .ak-option-meta,
+        .ak-pop-head,
+        .ak-date-panel label,
+        .ak-date-week span,
+        .ptg-tab-badge
+    ) {
+        font-size: var(--font-caption) !important;
+        font-weight: var(--weight-caption);
+        line-height: var(--line-caption);
+    }
+
+    body.boltz-shell.app-shell-authenticated :where(
+        .boltz-icon-badge,
+        .ptg-hbadge,
+        .boltz-language-toggle [data-current-language-label]
+    ) {
+        min-width: 20px;
+        height: 20px;
+        font-size: 12.5px !important;
+        font-variant-numeric: tabular-nums lining-nums;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+        .form-control,
+        .form-select,
+        .ak-input,
+        .ak-filter-input
+    ),
+    body.ptg-modal-document .ptg-modal-body-shell :where(
+        .form-control,
+        .form-select,
+        .ak-input,
+        .ak-filter-input
+    ) {
+        font-size: var(--font-body);
+        font-weight: var(--weight-body);
+        line-height: var(--line-body);
+    }
+
+    body.boltz-shell.app-shell-authenticated :where(
+        .btn,
+        .ptg-btn,
+        .ak-primary-action,
+        .ak-secondary-action,
+        .ak-save,
+        .ak-cancel
+    ),
+    body.ptg-modal-document :where(
+        .btn,
+        .ptg-btn,
+        .ak-primary-action,
+        .ak-secondary-action,
+        .ak-save,
+        .ak-cancel
+    ) {
+        font-size: var(--font-button);
+        font-weight: var(--weight-button);
+        line-height: var(--line-button);
+    }
+
+    /* Tables: clear headers, readable rows and aligned figures. */
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame table > thead > tr > th,
+    body.ptg-modal-document .ptg-modal-body-shell table > thead > tr > th {
+        padding: 11px 14px;
+        color: var(--text-primary) !important;
+        font-size: var(--font-table-head) !important;
+        font-weight: var(--weight-table-head) !important;
+        line-height: var(--line-table-head);
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame table > tbody > tr > :where(td, th),
+    body.ptg-modal-document .ptg-modal-body-shell table > tbody > tr > :where(td, th) {
+        padding: 12px 14px;
+        color: var(--text-primary);
+        font-size: var(--font-table-cell) !important;
+        font-weight: var(--weight-table-cell);
+        line-height: var(--line-table-cell);
+        vertical-align: middle;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame table > tbody > tr:hover > :where(td, th),
+    body.ptg-modal-document .ptg-modal-body-shell table > tbody > tr:hover > :where(td, th) {
+        background-color: var(--background-neutral) !important;
+    }
+
+    /* Existing numeric hooks resolve through the new shared primitive. */
+    body.boltz-shell.app-shell-authenticated :where(
+        .ak-number,
+        .ak-num,
+        .number-cell,
+        .money-cell,
+        .quantity-cell,
+        .fx-cell,
+        .statement-num,
+        .statement-money,
+        .statement-fx,
+        .ak-cycle-num,
+        .shipment-record-figure,
+        .ssf-num,
+        [data-ts-payable]
+    ),
+    body.ptg-modal-document :where(
+        .ak-number,
+        .ak-num,
+        .number-cell,
+        .money-cell,
+        .quantity-cell,
+        .fx-cell,
+        .statement-num,
+        .statement-money,
+        .statement-fx,
+        .ak-cycle-num,
+        .shipment-record-figure,
+        .ssf-num,
+        [data-ts-payable]
+    ) {
+        direction: ltr;
+        unicode-bidi: isolate;
+        font-size: var(--font-number);
+        font-weight: var(--weight-number);
+        line-height: var(--line-number);
+        font-variant-numeric: tabular-nums lining-nums;
+        font-feature-settings: "tnum" 1, "lnum" 1;
+        letter-spacing: 0;
+        white-space: nowrap;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame table :where(
+        .ak-number,
+        .ak-num,
+        .number-cell,
+        .money-cell,
+        .quantity-cell,
+        .fx-cell,
+        .statement-num,
+        .statement-money,
+        .statement-fx,
+        .ak-cycle-num,
+        .shipment-record-figure,
+        .ssf-num
+    ),
+    body.ptg-modal-document .ptg-modal-body-shell table :where(
+        .ak-number,
+        .ak-num,
+        .number-cell,
+        .money-cell,
+        .quantity-cell,
+        .fx-cell,
+        .statement-num,
+        .statement-money,
+        .statement-fx,
+        .ak-cycle-num,
+        .shipment-record-figure,
+        .ssf-num
+    ) {
+        font-size: var(--font-number) !important;
+        font-weight: var(--weight-number) !important;
+    }
+
+    .ak-number--positive { color: var(--ptg-success-text); }
+    .ak-number--negative { color: var(--ptg-danger-text); }
+    .ak-number--warning { color: var(--ptg-warning-text); }
+    .ak-number--neutral { color: var(--text-primary); }
+    .ak-number--muted { color: var(--text-secondary); }
+
+    /* Ordinary figures stay neutral; color is reserved for explicit meaning. */
+    body.boltz-shell.app-shell-authenticated :where(.ak-num, .ak-number):not(
+        .ak-number--positive,
+        .ak-number--negative,
+        .ak-number--warning,
+        .ak-number--muted,
+        .is-profit,
+        .is-loss
+    ),
+    body.ptg-modal-document :where(.ak-num, .ak-number):not(
+        .ak-number--positive,
+        .ak-number--negative,
+        .ak-number--warning,
+        .ak-number--muted,
+        .is-profit,
+        .is-loss
+    ) {
+        color: inherit;
+    }
+
+    body.boltz-shell.app-shell-authenticated .kpi-value {
+        font-size: var(--font-kpi);
+        font-weight: var(--weight-kpi);
+        line-height: var(--line-kpi);
+        font-variant-numeric: tabular-nums lining-nums;
+    }
+
+    /* The stat card is ratio-sized against the reference sheets, so its type scale
+       is tied to the card box rather than to the page caption/KPI steps. The sizes
+       below mirror 52-stat-card.css; they exist here only because this layer loads
+       later and a flat caption size would otherwise overwrite the component. */
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value {
+        font-size: clamp(21px, 2vw, 29px);
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.025em;
+        font-variant-numeric: tabular-nums lining-nums;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__title {
+        font-size: clamp(11.5px, 0.95vw, 14px);
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__unit,
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__trend {
+        font-size: clamp(10px, 0.82vw, 12px);
+        font-weight: 500;
+        line-height: 1.25;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--compact { font-size: clamp(17px, 1.6vw, 24px); letter-spacing: -0.035em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(14px, 1.3vw, 19px); letter-spacing: -0.04em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(11px, 1vw, 15px); letter-spacing: -0.045em; }
+
+    /* Tablets keep four cards on one row and phones show two, so the card box is
+       a fraction of a narrow page. The type steps down with it — mirrors the
+       compact tier in 52-stat-card.css, restated here for the load-order reason
+       above. */
+    @media (max-width: 1399.98px) {
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__title { font-size: clamp(9.5px, 1.05vw, 12px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__value { font-size: clamp(13px, 1.75vw, 20px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--compact { font-size: clamp(12px, 1.5vw, 17px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(10.5px, 1.25vw, 14px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(9px, 1vw, 11px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__unit,
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__trend { font-size: clamp(8.5px, 0.92vw, 10.5px); }
+    }
+
+    body.boltz-shell.app-shell-authenticated :where(.summary-tile-value, .finance-status-strip dd) {
+        font-size: 16px;
+        font-weight: var(--weight-number);
+        font-variant-numeric: tabular-nums lining-nums;
+    }
+
+    /* Shared status capsule: soft surface, strong readable label, no shadow. */
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+        .badge,
+        .status-badge,
+        .reconciliation-badge,
+        .ptg-status-badge,
+        .ptg-capsule-badge,
+        .ak-status,
+        .boltz-status-pill,
+        .shipment-record-badge
+    ),
+    body.ptg-modal-document .ptg-modal-body-shell :where(
+        .badge,
+        .status-badge,
+        .reconciliation-badge,
+        .ptg-status-badge,
+        .ptg-capsule-badge,
+        .ak-status,
+        .boltz-status-pill,
+        .shipment-record-badge
+    ) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 28px !important;
+        block-size: auto;
+        padding: 0 12px !important;
+        border: 0 !important;
+        border-radius: 999px !important;
+        background: var(--ptg-draft-soft);
+        color: var(--ptg-draft-text);
+        font-size: var(--font-status) !important;
+        font-weight: var(--weight-status) !important;
+        line-height: var(--line-status) !important;
+        white-space: nowrap;
+        box-shadow: none !important;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-success, .is-active, .bg-success, .text-bg-success, .badge-success),
+    body.ptg-modal-document .ptg-modal-body-shell :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-success, .is-active, .bg-success, .text-bg-success, .badge-success) {
+        background: var(--ptg-success-soft) !important;
+        color: var(--ptg-success-text) !important;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-danger, .is-error, .bg-danger, .text-bg-danger, .badge-danger),
+    body.ptg-modal-document .ptg-modal-body-shell :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-danger, .is-error, .bg-danger, .text-bg-danger, .badge-danger) {
+        background: var(--ptg-danger-soft) !important;
+        color: var(--ptg-danger-text) !important;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-warning, .bg-warning, .text-bg-warning, .badge-warning),
+    body.ptg-modal-document .ptg-modal-body-shell :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-warning, .bg-warning, .text-bg-warning, .badge-warning) {
+        background: var(--ptg-warning-soft) !important;
+        color: var(--ptg-warning-text) !important;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-info, .bg-info, .text-bg-info, .badge-info),
+    body.ptg-modal-document .ptg-modal-body-shell :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-info, .bg-info, .text-bg-info, .badge-info) {
+        background: var(--ptg-info-soft) !important;
+        color: var(--ptg-info-text) !important;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-neutral, .is-muted, .is-inactive, .bg-secondary, .text-bg-secondary, .bg-light, .text-bg-light),
+    body.ptg-modal-document .ptg-modal-body-shell :where(
+        .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+    ):is(.is-neutral, .is-muted, .is-inactive, .bg-secondary, .text-bg-secondary, .bg-light, .text-bg-light) {
+        background: var(--ptg-draft-soft) !important;
+        color: var(--ptg-draft-text) !important;
+    }
+
+    @media (max-width: 1199.98px) {
+        body.boltz-shell.app-shell-authenticated :where(.ak-page-title, .page-title, .ak-detail-title),
+        body.ptg-modal-document :where(.ak-page-title, .page-title, .ak-detail-title) {
+            font-size: 28px;
+        }
+    }
+}

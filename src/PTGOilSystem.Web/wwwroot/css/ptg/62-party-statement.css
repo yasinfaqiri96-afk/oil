@@ -82,7 +82,7 @@
 .statement-table-wrap { width: 100%; overflow-x: auto; }
 .statement-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: auto; font-size: .7rem; }
 .statement-table th, .statement-table td { padding: .54rem .48rem; border: 1px solid var(--statement-line); vertical-align: middle; }
-.statement-table thead th { background: #eff0f1; color: #303337; font-weight: 850; text-align: center; white-space: nowrap; }
+.statement-table thead th { background: var(--ptg-table-head-bg); color: #303337; font-weight: 850; text-align: center; white-space: nowrap; }
 .statement-table tbody tr { break-inside: avoid; page-break-inside: avoid; }
 .statement-table tbody tr:nth-child(even) { background: #fcfcfc; }
 .statement-table .is-opening-row { background: #f3f7f4; font-weight: 750; }
@@ -134,6 +134,40 @@
     .statement-info-block dl > div { grid-template-columns: 7rem minmax(0, 1fr); }
     .statement-logo { width: 100%; }
 }
+
+/* نمای «قراردادها» تأمین‌کننده: تب‌ها، سلولِ شرحِ قرارداد و ردیف جزئیات (lazy). */
+.statement-view-tabs { display: flex; gap: .25rem; margin: 0 0 1rem; border-bottom: 1px solid var(--statement-line); }
+.statement-view-tab { padding: .45rem .95rem; font-size: .85rem; font-weight: 600; color: #6b7075; text-decoration: none; border: 1px solid transparent; border-bottom: 0; border-radius: .4rem .4rem 0 0; }
+.statement-view-tab:hover { color: #2f3438; background: rgba(0, 0, 0, .03); }
+.statement-view-tab.is-active { color: #1f2428; background: #fff; border-color: var(--statement-line); }
+
+.statement-contract-cell { display: flex; flex-direction: column; gap: .25rem; }
+.statement-contract-title { font-weight: 700; }
+.statement-contract-facts { display: flex; flex-direction: column; gap: .1rem; font-size: .78rem; color: #6b7075; }
+.statement-contract-facts span { direction: rtl; unicode-bidi: plaintext; }
+
+.statement-details-toggle { align-self: flex-start; margin-top: .2rem; padding: .2rem .55rem; font-size: .76rem; color: #2f3438; background: #f3f4f6; border: 1px solid var(--statement-line); border-radius: .35rem; cursor: pointer; }
+.statement-details-toggle:hover { background: #e9ebee; }
+.statement-details-toggle.is-open i { transform: rotate(180deg); }
+.statement-details-toggle i { display: inline-block; transition: transform .15s ease; }
+
+.statement-details-row > td { padding: 0; background: #fafbfc; }
+.statement-details-slot { padding: .75rem 1rem; }
+.statement-details-loading { padding: .6rem; color: #6b7075; font-size: .8rem; }
+.statement-details { display: grid; gap: 1rem; }
+.statement-details-block > h3 { margin: 0 0 .4rem; font-size: .82rem; font-weight: 700; color: #4a4f54; }
+.statement-table-compact { font-size: .78rem; }
+.statement-table-compact th, .statement-table-compact td { padding: .3rem .5rem; }
+.statement-ref-inline { display: block; font-size: .72rem; color: #8a8e92; }
+.statement-details-note { margin: .4rem 0 0; font-size: .74rem; color: #8a8e92; }
+
+/* نمای «قراردادها» خلاصه: سلولِ قرارداد، ستون جزئیات و هدرِ حقایقِ قرارداد در جزئیات. */
+.statement-col-actions { width: 1%; white-space: nowrap; text-align: center; }
+.statement-contract-sub { display: block; margin-top: .15rem; font-size: .74rem; color: #6b7075; direction: rtl; unicode-bidi: plaintext; }
+.statement-details-facts { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; padding: .5rem .25rem .75rem; margin-bottom: .5rem; border-bottom: 1px solid var(--statement-line); }
+.statement-details-facts > div { display: flex; flex-direction: column; gap: .1rem; }
+.statement-details-facts span { font-size: .72rem; color: #8a8e92; }
+.statement-details-facts strong { font-size: .82rem; }
 
 @page { size: A4 portrait; margin: 9mm; }
 @page statement-wide { size: A4 landscape; margin: 8mm; }

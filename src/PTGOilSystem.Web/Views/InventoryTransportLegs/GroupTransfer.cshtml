@@ -1,6 +1,7 @@
 @using System.Globalization
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Shared
+@using PTGOilSystem.Web.Models.ExcelImport
 @model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupTransferViewModel
 @{
     ViewData["Title"] = "انتقال گروهی از حمل‌های در جریان";
@@ -9,6 +10,22 @@
     string Inv(decimal v) => v.ToString(CultureInfo.InvariantCulture);
     var hasShipment = Model.ShipmentId > 0 && Model.Wagons.Count > 0;
     var cancelUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Model.ReturnUrl : Url.Action("Index");
+    var excelImportOptions = new ExcelImportComponentOptions
+    {
+        InputId = "groupTransferVehicleExcelFile",
+        FileFieldName = "file",
+        Mode = "external",
+        AcceptExtensions = ".xlsx,.xls",
+        Title = "افزودن موترها از اکسل",
+        Description = "فایل موترها را انتخاب کنید؛ نمبر پلیت و وزن سیمیر به جدول مقصد افزوده می‌شود.",
+        StartButtonText = "خواندن و افزودن موترها",
+        SuccessTitle = "موترها از فایل خوانده شد",
+        CreatedLabel = "موتر افزوده‌شده",
+        MaxFileSizeMb = 5,
+        RequiresConfirmation = false,
+        ShowResultDetails = false,
+        Compact = true
+    };
 }
 
 <div class="ak-form-page ak-group-operation-page ak-group-wizard-page">
@@ -179,17 +196,7 @@
 
                     @* اپلود فایل اکسل موترها *@
                     <div class="transfer-paste-box d-none" data-upload-box>
-                        <label class="ak-label small">
-                            فایل اکسل موترها را انتخاب کنید. ستون‌های خوانده‌شده:
-                            <strong>تاریخ | نمبر موتر | وزن سیمیر | فی تن کرایه | مجموع</strong>
-                            — «نمبر موتر» و «وزن سیمیر» (مقدار انتقال) استفاده می‌شوند.
-                        </label>
-                        <div class="d-flex flex-wrap gap-2 align-items-center">
-                            <input type="file" class="ak-input" accept=".xlsx,.xls" data-upload-file />
-                            <button type="button" class="btn btn-primary ak-primary-action btn-sm" data-upload-apply>خواندن و افزودن</button>
-                            <button type="button" class="btn btn-light ak-secondary-action btn-sm" data-upload-cancel>بستن</button>
-                            <span class="small text-muted" data-upload-status></span>
-                        </div>
+                        <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
                     </div>
                     <span data-import-url="@Url.Action("ImportVehiclesExcel")" class="d-none"></span>
                 </section>
@@ -554,8 +561,7 @@
 
             // ── اپلود اکسل موترها (از همان endpoint موجودِ ImportVehiclesExcel) ──
             var uploadBox = document.querySelector('[data-upload-box]');
-            var uploadFile = document.querySelector('[data-upload-file]');
-            var uploadStatus = document.querySelector('[data-upload-status]');
+            var uploadComponent = uploadBox ? uploadBox.querySelector('[data-excel-import]') : null;
             var importEl = document.querySelector('[data-import-url]');
             var importUrl = importEl ? importEl.getAttribute('data-import-url') : '';
             function setVal(row, sel, val) { var el = row.querySelector(sel); if (el && val != null && val !== '') { el.value = val; } }
@@ -579,33 +585,29 @@
                 });
                 return added;
             }
-            function applyUpload() {
-                if (!uploadFile.files || uploadFile.files.length === 0) { uploadStatus.textContent = 'فایلی انتخاب نشده.'; return; }
+            function applyUpload(event) {
+                var api = event.detail;
                 var fd = new FormData();
-                fd.append('file', uploadFile.files[0]);
+                fd.append('file', api.file);
                 var token = form.querySelector('input[name="__RequestVerificationToken"]');
                 if (token) { fd.append('__RequestVerificationToken', token.value); }
-                uploadStatus.textContent = 'در حال خواندن…';
+                api.progress({ stage: 2, message: 'در حال خواندن نمبر پلیت و وزن موترها…' });
                 fetch(importUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
-                        if (!data || !data.ok) { uploadStatus.textContent = (data && data.message) || 'خواندن فایل ناموفق بود.'; return; }
+                        if (!data || !data.ok) { api.fail((data && data.message) || 'خواندن فایل ناموفق بود.'); return; }
                         var added = fillFromVehicles(data.vehicles || []);
-                        if (added === 0) { uploadStatus.textContent = 'ردیف معتبری یافت نشد.'; return; }
+                        if (added === 0) { api.fail('ردیف معتبری یافت نشد.'); return; }
                         // مقادیر از فایل مبنا هستند → روش تقسیم «دستی».
                         if (splitMode) { splitMode.value = '2'; }
                         renderSplit();
-                        uploadStatus.textContent = added + ' موتر افزوده شد.';
-                        uploadBox.classList.add('d-none');
+                        api.complete({ message: added + ' موتر به جدول افزوده شد؛ معلومات را بررسی کنید.', createdRows: added, rejectedRows: 0, updatedRows: 0 });
                     })
-                    .catch(function () { uploadStatus.textContent = 'خطا در ارتباط با سرور.'; });
+                    .catch(function () { api.fail('خطا در ارتباط با سرور.'); });
             }
             var uploadOpen = document.querySelector('[data-upload-open]');
             if (uploadOpen) { uploadOpen.addEventListener('click', function () { uploadBox.classList.toggle('d-none'); }); }
-            var uploadApply = document.querySelector('[data-upload-apply]');
-            if (uploadApply) { uploadApply.addEventListener('click', applyUpload); }
-            var uploadCancel = document.querySelector('[data-upload-cancel]');
-            if (uploadCancel) { uploadCancel.addEventListener('click', function () { uploadBox.classList.add('d-none'); }); }
+            if (uploadComponent) { uploadComponent.addEventListener('excel-import:start', applyUpload); }
 
             if (truckRows().length === 0) { addTruck(); }
             refreshSelectedRemaining();

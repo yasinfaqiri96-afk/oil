@@ -290,6 +290,38 @@ public sealed class SupplierPaymentAllocationAccountingAdapterTests(AccountingPo
         Assert.Equal(100m, journal.Lines.Sum(x => x.Debit));
     }
 
+    // بازارزیابی با نرخ روز تخصیص: دفتر رسمی هم باید سه‌سطری و متوازن بماند.
+    [Fact]
+    public async Task Revalued_Allocation_Posts_Balanced_Journal_With_Exchange_Line()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await CreateScopeAsync(db, paymentCurrency: "RUB", paymentFxRateToUsd: 0.0125m);
+        var service = CreateService(db, pilotEnabled: true);
+
+        // 8000 RUB: ارزش تاریخی 100 USD (۱$=۸۰)، ارزش روز تخصیص 80 USD (۱$=۱۰۰) → زیان 20 USD.
+        var allocation = await service.CreateAsync(new SupplierPaymentAllocationCreateRequest(
+            scope.Payment.Id, scope.DestinationContract.Id, AllocationDate, 8000m, 1m, null, null, "tester", 100m));
+
+        Assert.Equal(100m, allocation.AllocatedBookAmountUsd);
+        Assert.Equal(80m, allocation.AllocatedValueUsdAtAllocation);
+        Assert.Equal(-20m, allocation.ExchangeDifferenceUsd);
+
+        var journal = await db.JournalEntries
+            .AsNoTracking()
+            .Include(x => x.Lines)
+            .SingleAsync(x => x.SourceEventId == SupplierPaymentAllocationAccountingAdapter.BuildCreatedSourceEventId(allocation.Id));
+
+        Assert.Equal(3, journal.Lines.Count);
+        Assert.Equal(journal.Lines.Sum(x => x.Credit), journal.Lines.Sum(x => x.Debit));
+        Assert.Equal(100m, journal.Lines.Sum(x => x.Credit));
+
+        // سطر زیان تسعیر: دلاری، نرخ ۱، بدون طرف‌حساب.
+        var exchangeLine = Assert.Single(journal.Lines, x => x.TransactionCurrencyCode == "USD");
+        Assert.Equal(20m, exchangeLine.Debit);
+        Assert.Equal(1m, exchangeLine.ExchangeRate);
+        Assert.Null(exchangeLine.PartyId);
+    }
+
     private static SupplierPaymentAllocationService CreateService(
         ApplicationDbContext db,
         bool pilotEnabled)
@@ -333,6 +365,12 @@ public sealed class SupplierPaymentAllocationAccountingAdapterTests(AccountingPo
             PaymentCurrencyCode = scope.Payment.Currency,
             PaymentFxRateToUsd = scope.Payment.AppliedFxRateToUsd ?? 1m,
             AllocatedBookAmountUsd = decimal.Round(
+                amount * (scope.Payment.AppliedFxRateToUsd ?? 1m), 4, MidpointRounding.AwayFromZero),
+            // بدون بازارزیابی: نرخ روز تخصیص همان نرخ روز پرداخت است، پس اختلاف تسعیر صفر می‌ماند.
+            PaymentCurrencyFxRateToUsdAtAllocation = scope.Payment.AppliedFxRateToUsd ?? 1m,
+            PaymentCurrencyPerUsdRateAtAllocation = decimal.Round(
+                1m / (scope.Payment.AppliedFxRateToUsd ?? 1m), 6, MidpointRounding.AwayFromZero),
+            AllocatedValueUsdAtAllocation = decimal.Round(
                 amount * (scope.Payment.AppliedFxRateToUsd ?? 1m), 4, MidpointRounding.AwayFromZero)
         };
 

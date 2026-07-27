@@ -6,7 +6,7 @@
  * variable name is preserved below and re-pointed at the canonical tokens, so
  * existing consumers keep working while the whole app shifts to the flat,
  * near-white Akaunting look: bg #FCFCFC, text #424242, purple #55588B for
- * navigation/interactive, olive green #6EA152 for the primary action.
+ * navigation/interactive, olive green #1877f2 for the primary action.
  */
 
 :root {
@@ -20,7 +20,7 @@
     --primary-main-rgb: 85, 88, 139;
 
     --text-primary: #424242;      /* Black 500 — text, titles, numbers */
-    --text-secondary: #7B7B7B;    /* Widget description / muted */
+    --text-secondary: #666B75;    /* Readable muted text on the near-white canvas */
     --text-disabled: #9E9E9E;
 
     --background-default: #FCFCFC; /* Body */
@@ -35,20 +35,34 @@
     --error-rgb: 204, 0, 0;
     --warning-main: #F59E0B;
     --warning-rgb: 245, 158, 11;
-    --success-main: #6EA152;      /* Green 500 — action / incoming */
+    --success-main: #6EA152;      /* Green 500 — successful operation */
     --success-rgb: 110, 161, 82;
     --info-main: #006EA6;
     --info-rgb: 0, 110, 166;
 
-    /* ---- Akaunting sidebar / shell ---- */
-    --ptg-sidebar-rail: #DCE2F9;      /* 56px toolbar rail surface */
-    --ptg-sidebar-panel: #EEF0FA;     /* menu panel surface (Akaunting lavender) */
-    --ptg-sidebar-ink: #43455F;       /* nav label text colour */
-    --ptg-sidebar-icon: #5C5E82;      /* nav icon colour (muted indigo) */
-    --ptg-sidebar-ink-strong: #2C2D45;/* active label colour */
-    --ptg-sidebar-accent: #6260C4;    /* active rail / accent indigo */
-    --ptg-sidebar-line: #D7D9E8;      /* submenu connector line */
+    /* ---- Sidebar / shell — Deep Indigo (derived from --primary-darker #2F3150).
+       Dark navigation + light content: the premium financial-ERP hierarchy.
+       Every sidebar colour is centralised here; 04-sidebar.css only references
+       these tokens (no scattered rgba). WCAG: ink 9:1 AAA, accent 6.8:1. ---- */
+    --ptg-sidebar-panel: #173F73;     /* menu panel surface (deep navy blue) */
+    --ptg-sidebar-rail: #113059;      /* outer rail surface (a touch deeper) */
+    --ptg-sidebar-ink: #DCE6F4;       /* nav label text — soft near-white, cool tint */
+    --ptg-sidebar-icon: #D2E7FF;      /* nav icon colour — bright cool azure, clearly off the navy */
+    --ptg-sidebar-ink-strong: #FFFFFF;/* active label colour */
+    --ptg-sidebar-accent: #F2F8FF;    /* active bar + active/hover icon (near-white azure) */
+    --ptg-sidebar-line: rgba(255, 255, 255, 0.20); /* dividers / submenu connector */
+    --ptg-sidebar-sub-ink: #CCDBEE;   /* submenu label — one step softer than the parent label */
+    --ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.10);   /* item hover fill */
+    --ptg-sidebar-active-bg: rgba(255, 255, 255, 0.14);  /* active item fill */
+    --ptg-sidebar-railbtn-hover-bg: rgba(255, 255, 255, 0.12);
+    --ptg-sidebar-railbtn-active-bg: rgba(255, 255, 255, 0.18);
+    --ptg-sidebar-danger: #FF9A9A;    /* logout on dark surface */
+    --ptg-sidebar-danger-bg: rgba(255, 120, 120, 0.12);
+    --ptg-sidebar-monogram-bg: rgba(255, 255, 255, 0.10);
+    --ptg-sidebar-plate: #F4F5FA;     /* soft light plate under the dark logo */
+    --ptg-sidebar-plate-border: rgba(42, 45, 69, 0.06); /* faint edge so the plate never floats */
     --ptg-surface-tint: #F2F4FC;      /* soft lilac tint for chips / bulk bar */
+    --ptg-table-head-bg: #F4F6FB;     /* list/table header band — soft, low-contrast strip */
     --ptg-sidebar-rail-width: var(--layout-sidebar-mini);
     --ptg-sidebar-menu-width: var(--layout-sidebar);
 
@@ -85,17 +99,33 @@
     --ptg-motion-fast: 140ms;
     --ptg-motion-normal: 190ms;
 
-    /* ---- Typography scale — quiet editorial (Vazirmatn) ---- */
-    --font-h1: 36px;  --lh-h1: 40px;  --fw-h1: 300;  /* page title desktop */
-    --font-h2: 28px;  --lh-h2: 36px;  --fw-h2: 400;
-    --font-h3: 22px;  --lh-h3: 30px;  --fw-h3: 500;
-    --font-h4: 18px;  --lh-h4: 26px;  --fw-h4: 500;
-    --font-h5: 16px;  --lh-h5: 24px;  --fw-h5: 500;  /* widget title */
-    --font-h6: 14px;  --lh-h6: 20px;  --fw-h6: 600;
-    --font-body1: 16px; --lh-body1: 24px;
-    --font-body2: 14px; --lh-body2: 20px;
-    --font-caption: 12px; --lh-caption: 16px;
-    --font-button: 14px; --lh-button: 24px; --fw-button: 500;
+    /* ---- Shared typography scale — readable office ERP (Vazirmatn) ---- */
+    --font-page-title: 30px;    --line-page-title: 1.25; --weight-page-title: 600;
+    --font-section-title: 19px; --line-section-title: 1.4; --weight-section-title: 600;
+    --font-card-title: 17px;    --line-card-title: 1.45; --weight-card-title: 600;
+    --font-body: 15px;          --line-body: 1.65; --weight-body: 400;
+    --font-label: 14px;         --line-label: 1.5; --weight-label: 600;
+    --font-table-head: 13px;    --line-table-head: 1.45; --weight-table-head: 500;
+    --font-table-cell: 15px;    --line-table-cell: 1.55; --weight-table-cell: 400;
+    /* اعداد بلند و پرتکرار: کمی کوچک‌تر و سبک‌تر تا صفحه شلوغ نشود،
+       با tabular-nums خوانایی و هم‌ترازی ستون‌ها حفظ می‌شود. */
+    --font-number: 14.5px;      --line-number: 1.5; --weight-number: 500;
+    --font-kpi: 26px;           --line-kpi: 1.2; --weight-kpi: 600;
+    --font-caption: 13px;       --line-caption: 1.5; --weight-caption: 500;
+    --font-button: 14px;        --line-button: 1.5; --weight-button: 600;
+    --font-status: 13px;        --line-status: 1; --weight-status: 600;
+
+    /* Legacy aliases remain stable while resolving to the shared scale. */
+    --font-h1: var(--font-page-title); --lh-h1: 38px; --fw-h1: var(--weight-page-title);
+    --font-h2: 20px; --lh-h2: 28px; --fw-h2: 600;
+    --font-h3: 18px; --lh-h3: 26px; --fw-h3: 600;
+    --font-h4: var(--font-card-title); --lh-h4: 25px; --fw-h4: var(--weight-card-title);
+    --font-h5: 16px; --lh-h5: 24px; --fw-h5: 600;
+    --font-h6: var(--font-label); --lh-h6: 21px; --fw-h6: var(--weight-label);
+    --font-body1: var(--font-body); --lh-body1: 25px;
+    --font-body2: var(--font-label); --lh-body2: 21px;
+    --lh-caption: 20px;
+    --lh-button: 21px; --fw-button: var(--weight-button);
 
     /* ---- Legacy app-* aliases (retargeted to Akaunting) ---- */
     --app-bg: var(--background-default);
@@ -146,10 +176,10 @@
     --ptg-primary-tint: #EEEEF3;    /* Purple 100 */
     --ptg-primary-contrast: var(--primary-contrast);
     /* Action buttons — Akaunting olive green. */
-    --ptg-btn-primary: #6EA152;
-    --ptg-btn-primary-dark: #53793E;
-    --ptg-btn-primary-rgb: 110, 161, 82;
-    --ptg-btn-primary-tint: #F1F6EE;
+    --ptg-btn-primary: #1877f2;
+    --ptg-btn-primary-dark: #0b5ed7;
+    --ptg-btn-primary-rgb: 24, 119, 242;
+    --ptg-btn-primary-tint: #E7F0FE;
 
     /* دکمهٔ ثانویه/خنثی (Akaunting «Connect Your Bank»): خاکستری نرم، بدون بوردر. */
     --ptg-btn-quiet: #F1F2F4;
@@ -199,6 +229,13 @@
 
     --ptg-shadow-soft: none;
     --ptg-shadow-card: none;
+
+    /* Panel elevation. Content panels (cards, KPI tiles, detail and form panels,
+       list surfaces) drop their 1px outline and separate from the page with this
+       soft shadow instead. Single source of truth — the dashboard chart cards
+       read the same token, so the two can never drift apart. */
+    --ptg-panel-shadow: 0 1px 3px rgba(16, 24, 40, 0.04), 0 10px 28px rgba(16, 24, 40, 0.06);
+
     --ptg-ring: 0 0 0 1px var(--primary-main), 0 0 0 4px rgba(85, 88, 139, 0.14);
 
     --ptg-sidebar-width: var(--layout-sidebar);
@@ -299,7 +336,9 @@
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
     /* Akaunting flat ground: the content sits directly on the near-white body.
-       Separation comes from 1px dividers and whitespace — not cards/shadows. */
+       Inside a panel, separation still comes from 1px dividers and whitespace.
+       The panel itself is lifted off the page by --ptg-panel-shadow (see
+       72-surfaces.css), not by an outline. */
     --ptg-bg: #FCFCFC;
     --ptg-shadow-card: none;
     --boltz-bg: var(--ptg-bg);
@@ -355,7 +394,7 @@ body.ptg-modal-document {
 :root[data-theme="dark"],
 [data-bs-theme="dark"] {
     --text-primary: #FFFFFF;
-    --text-secondary: #9E9EA8;
+    --text-secondary: #B7B7C2;
     --text-disabled: #6F6F7A;
 
     --background-default: #16161D;
@@ -364,12 +403,25 @@ body.ptg-modal-document {
     --background-neutral: #26262F;
     --divider: rgba(158, 158, 168, 0.20);
 
+    /* Shadows carry the panel separation in dark mode too, so they need more
+       weight than the light-theme pair to stay readable on the dark canvas. */
+    --ptg-panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(0, 0, 0, 0.34);
+
     /* field fill lifts above the darker canvas, mirroring the light theme */
     --ptg-field-bg: #1E1E27;
     --ptg-field-border: rgba(158, 158, 168, 0.28);
     --ptg-field-border-hover: rgba(158, 158, 168, 0.42);
     --ptg-field-disabled-bg: #26262F;
     --ptg-field-placeholder: #6F6F7A;
+
+    /* header band lifts above the dark paper instead of darkening it */
+    --ptg-table-head-bg: #2A2A34;
+
+    /* Sidebar lifts a few points above the darker content canvas (#16161D)
+       so the edge stays legible in dark mode; hue stays in the indigo family. */
+    --ptg-sidebar-panel: #143761;
+    --ptg-sidebar-rail: #0F2A4C;
+    --ptg-sidebar-plate: #EDEEF5;
 }
 
 /* Keep the dark shell dark — beats the body-level light near-white override. */

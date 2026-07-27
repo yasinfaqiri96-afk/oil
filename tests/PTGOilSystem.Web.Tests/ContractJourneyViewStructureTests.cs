@@ -80,7 +80,7 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-contract-journey-tab-content=\"true\"", view);
         Assert.Contains("data-contract-journey-facts-host", view);
         Assert.Contains("data-contract-journey-facts", view);
-        Assert.Contains("string.Equals(activeTab, ContractJourneyTabs.Details.Summary", view);
+        Assert.Contains("activeTab == ContractJourneyTabs.Details.Summary", view);
         Assert.Contains("id=\"journey-tab-lists\"", view);
 
         // خانواده‌های موازی قدیمی قرارداد نباید باقی مانده باشند
@@ -101,9 +101,9 @@ public class ContractJourneyViewStructureTests
     public void ContractJourney_Every_Operation_Tab_Uses_Shared_Stat_Cards_With_Avatars()
     {
         var view = ReadContractJourneyDetailsMarkup();
+        // تب خلاصه دیگر کارت آماری ندارد؛ چرخه قرارداد جای آن را گرفته است.
         var statisticLabels = new[]
         {
-            "آمار خلاصه قرارداد",
             "آمار بارگیری",
             "آمار رسید بارگیری",
             "آمار جریان حمل بار",
@@ -111,8 +111,7 @@ public class ContractJourneyViewStructureTests
             "آمار نقل و انتقالات",
             "آمار فروشات",
             "آمار مصرف و کسری",
-            "آمار پرداخت‌ها",
-            "آمار دفتر کل"
+            "آمار پرداخت‌ها"
         };
 
         foreach (var label in statisticLabels)
@@ -120,8 +119,8 @@ public class ContractJourneyViewStructureTests
             Assert.Contains(label, view);
         }
 
-        Assert.Equal(40, view.Split("<vc:stat-card", StringSplitOptions.None).Length - 1);
-        Assert.Equal(40, view.Split(" avatar=\"", StringSplitOptions.None).Length - 1);
+        Assert.Equal(32, view.Split("<vc:stat-card", StringSplitOptions.None).Length - 1);
+        Assert.Equal(32, view.Split(" avatar=\"", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]
@@ -184,7 +183,16 @@ public class ContractJourneyViewStructureTests
         var contents = ReadContractJourneyDetailsMarkup();
         var summaryBlock = ExtractSummaryBlock(contents);
 
-        Assert.DoesNotContain("<img", summaryBlock);
+        // تصاویر خلاصه فقط آواتارهای مشترک ثبت‌شده در StatCardAvatarRegistry‌اند؛
+        // هیچ تصویر سنگین یا محلی دیگری اجازه ندارد.
+        var imageTags = summaryBlock.Split("<img", StringSplitOptions.None).Skip(1).ToArray();
+        Assert.All(imageTags, tag =>
+        {
+            Assert.Contains("class=\"ak-cycle-avatar\"", tag[..Math.Min(tag.Length, 240)]);
+            Assert.Contains("src=\"@avatarPath\"", tag[..Math.Min(tag.Length, 240)]);
+        });
+
+        Assert.Contains("StatCardAvatarRegistry.ResolvePath(step.AvatarKey)", summaryBlock);
         Assert.DoesNotContain("/img/contract-dashboard/", contents);
     }
 
@@ -198,8 +206,7 @@ public class ContractJourneyViewStructureTests
             "_ContractJourneyInventoryTab",
             "_ContractJourneyDispatchTab",
             "_ContractJourneySalesTab",
-            "_ContractJourneyFinanceTab",
-            "_ContractJourneyLedgerTab"
+            "_ContractJourneyFinanceTab"
         };
 
         foreach (var name in partials)
@@ -1186,8 +1193,10 @@ public class ContractJourneyViewStructureTests
         var detailActionBar = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_DetailActionBar.cshtml");
 
         Assert.Contains("ak-form-page--wide loading-import-workbook", create);
-        Assert.Contains("class=\"btn btn-light ak-secondary-action\" id=\"excelFilePickBtn\"", create);
-        Assert.Contains("class=\"btn btn-primary ak-primary-action d-none\" id=\"excelImportBtn\"", create);
+        // Excel import moved from inline buttons (excelFilePickBtn/excelImportBtn) into the shared
+        // _ExcelImport component wired to the LoadingExcelImport controller; assert that contract.
+        Assert.Contains("Views/Shared/ExcelImport/_ExcelImport.cshtml", create);
+        Assert.Contains("LoadingExcelImport", create);
         Assert.Contains("RWB / CMR / Bill of Lading", create);
         Assert.Contains("RWB / CMR / Bill of Lading", rowEditor);
         Assert.Contains("TransportExpenseUsd", rowEditor);
@@ -1397,8 +1406,7 @@ public class ContractJourneyViewStructureTests
             ("<partial name=\"_ContractJourneyInventoryTab\" model=\"inventoryTabModel\" />", "src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyInventoryTab.cshtml"),
             ("<partial name=\"_ContractJourneyDispatchTab\" model=\"dispatchTabModel\" />", "src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyDispatchTab.cshtml"),
             ("<partial name=\"_ContractJourneySalesTab\" model=\"salesTabModel\" />", "src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneySalesTab.cshtml"),
-            ("<partial name=\"_ContractJourneyFinanceTab\" model=\"financeTabModel\" />", "src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyFinanceTab.cshtml"),
-            ("<partial name=\"_ContractJourneyLedgerTab\" model=\"ledgerTabModel\" />", "src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyLedgerTab.cshtml")
+            ("<partial name=\"_ContractJourneyFinanceTab\" model=\"financeTabModel\" />", "src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyFinanceTab.cshtml")
         })
         {
             contents = contents.Replace(partial.Item1, ReadRepoFile(partial.Item2), StringComparison.Ordinal);

@@ -153,6 +153,7 @@
     var editUrl = Url.Action("Edit", new { id = Model.Id }) ?? "#";
     ViewData["AkHeaderStatus"] = tankStatusText;
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
+    ViewData["AkHeaderHideTitle"] = true;
     ViewData["AkHeaderContext"] = $"{Model.TankCode} · {UiText.T(Context, "ترمینال", "Terminal")}: {Model.TerminalName}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
@@ -166,7 +167,7 @@
     };
 }
 
-<div class="ak-form-page ak-detail-page" data-ak-detail-v2="true">
+<div class="ak-form-page ak-detail-page" data-ak-detail-v2="true" data-storage-tank-details>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "جزئیات مخزن", "Tank Details") + " " + tankName, false,
                        UiText.T(Context, "کارت موجودی", "Stock Card"), "bi-card-list", stockCardUrl, (string?)null,
@@ -182,33 +183,6 @@
         <vc:stat-card title="@UiText.T(Context, "قراردادهای فعال", "Active contracts")" value="@activeContractCount.ToString("N0")" unit="@UiText.T(Context, "قرارداد", "contracts")" avatar="contract-signed"></vc:stat-card>
     </section>
 
-    <section id="tank-summary" class="ak-form-section ak-detail-section" hidden="@(activeTankTab != "summary")">
-        @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", (UiText.T(Context, "خلاصه مخزن", "Tank Summary"), (string?)null))
-            <dl class="ak-list">
-                <div class="ak-list-row">
-                    <dt>@UiText.T(Context, "نام مخزن", "Tank Name")</dt>
-                    <dd><strong>@tankName</strong></dd>
-                </div>
-                <div class="ak-list-row">
-                    <dt>@UiText.T(Context, "ظرفیت کل", "Total Capacity")</dt>
-                    <dd><strong>@FormatQuantity(Model.CapacityMt)</strong><small>@unitText</small></dd>
-                </div>
-                <div class="ak-list-row">
-                    <dt>@UiText.T(Context, "موجودی دفتری", "Book Inventory")</dt>
-                    <dd><strong>@FormatQuantity(Model.CurrentQuantityMt)</strong><small>@unitText</small></dd>
-                </div>
-                <div class="ak-list-row">
-                    <dt>@UiText.T(Context, "ظرفیت خالی", "Empty Capacity")</dt>
-                    <dd><strong>@FormatQuantity(Model.EmptyQuantityMt)</strong><small>@unitText</small></dd>
-                </div>
-                <div class="ak-list-row">
-                    <dt>@UiText.T(Context, "قراردادهای فعال", "Active Contracts")</dt>
-                    <dd><strong>@activeContractCount</strong><small>@UiText.T(Context, "مورد", "Items")</small></dd>
-                </div>
-                <div class="ak-list-row"><dt>@UiText.T(Context, "وضعیت", "Status")</dt><dd><span class="ak-status @(Model.IsActive ?"is-active" : "is-inactive")">@tankStatusText</span></dd></div>
-            </dl>
-    </section>
-
     <section id="tank-contracts" class="ak-form-section ak-detail-section" hidden="@(activeTankTab != "summary")">
         @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", (UiText.T(Context, "قراردادهای دارای موجودی", "Contracts With Inventory"), (string?)UiText.T(Context, "برای مشاهده جزئیات حرکات، روی مقادیر کلیک کنید", "Click values to view movement details")))
         <div class="ak-table-wrap">
@@ -218,8 +192,8 @@
                         <th>@UiText.T(Context, "شماره قرارداد", "Contract No.")</th>
                         <th>@UiText.T(Context, "جنس", "Product")</th>
                         <th>@UiText.T(Context, "سهم در مخزن", "Tank Share")</th>
-                        <th>@UiText.T(Context, "کل ورود", "Total In") (@unitText)</th>
-                        <th>@UiText.T(Context, "کل خروج", "Total Out") (@unitText)</th>
+                        <th scope="col" class="storage-tank-flow-column">@UiText.T(Context, "کل ورود", "Total In") (@unitText)</th>
+                        <th scope="col" class="storage-tank-flow-column">@UiText.T(Context, "کل خروج", "Total Out") (@unitText)</th>
                         <th>@UiText.T(Context, "موجودی فعلی", "Current Inventory") (@unitText)</th>
                     </tr>
                 </thead>
@@ -241,13 +215,13 @@
                             <td>
                                 <span>@FormatQuantity(row.SharePercent)%</span>
                             </td>
-                            <td>
-                                <button type="button" class="btn btn-light ak-secondary-action" data-bs-toggle="modal" data-bs-target="#@inModalId">
+                            <td class="storage-tank-flow-column">
+                                <button type="button" class="btn storage-tank-flow storage-tank-flow--in" data-bs-toggle="modal" data-bs-target="#@inModalId">
                                     @FormatQuantity(row.TotalInQuantityMt)
                                 </button>
                             </td>
-                            <td>
-                                <button type="button" class="btn btn-light ak-secondary-action" data-bs-toggle="modal" data-bs-target="#@outModalId">
+                            <td class="storage-tank-flow-column">
+                                <button type="button" class="btn storage-tank-flow storage-tank-flow--out" data-bs-toggle="modal" data-bs-target="#@outModalId">
                                     @FormatQuantity(row.TotalOutQuantityMt)
                                 </button>
                             </td>

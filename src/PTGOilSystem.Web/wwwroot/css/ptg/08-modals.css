@@ -166,7 +166,7 @@
     white-space: nowrap;
 }
 .ptg-status-badge.is-neutral {
-    color: #6EA152;
+    color: #1877f2;
     background: #eaf2ff;
 }
 .ptg-status-badge.is-success {
@@ -516,7 +516,9 @@ body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbenc
 }
 .ptg-modal-document {
     min-height: 100vh;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
     background: #f6f8fc;
 }
 .ptg-modal-document .receipt-modal-iframe-page {

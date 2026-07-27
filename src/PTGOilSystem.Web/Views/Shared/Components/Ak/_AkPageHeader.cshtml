@@ -11,6 +11,7 @@
       - ViewData["AkHeaderStatus"]      : string  -> status pill next to the title.
       - ViewData["AkHeaderStatusState"] : string  -> pill state class ("is-active",
                                                      "is-inactive", "is-warning", "is-danger").
+      - ViewData["AkHeaderHideTitle"]    : bool    -> visually hides the title while retaining it for assistive technology.
       - ViewData["AkHeaderContext"]     : string  -> one context line under the title
                                                      (max 3 facts joined with "·").
       - ViewData["AkHeaderKebab"]       : IReadOnlyList<AkHeaderMenuItem>
@@ -35,6 +36,7 @@
 
     var statusText = ViewData["AkHeaderStatus"] as string;
     var requestedStatusState = ViewData["AkHeaderStatusState"] as string;
+    var hideTitle = ViewData["AkHeaderHideTitle"] as bool? == true;
     var statusState = requestedStatusState switch
     {
         "is-active" => "is-active",
@@ -69,7 +71,7 @@
     <div class="ak-page-heading@(isDetailPage ? " ak-detail-header-main" : string.Empty)"
          aria-describedby="@(!string.IsNullOrWhiteSpace(contextLine) ? contextId : null)">
         <div class="ak-detail-title-row">
-            <h1 class="ak-page-title@(isDetailPage ? " ak-detail-title" : string.Empty)">@Model.Title</h1>
+            <h1 class="ak-page-title@(isDetailPage ? " ak-detail-title" : string.Empty)@(hideTitle ? " visually-hidden" : string.Empty)">@Model.Title</h1>
             @if (Model.Star)
             {
                 <i class="bi bi-star ak-star" aria-hidden="true"></i>

@@ -66,6 +66,8 @@ builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =
 // ---- Domain services (business rules, system rules #3-#9, #11, #13) --------
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IStockService, StockService>();
+// صفحهٔ فقط‌خواندنیِ «مشاهده فعالیت‌های دوره». هیچ منطق مالی/نوشتنی ندارد.
+builder.Services.AddScoped<IPeriodActivityService, PeriodActivityService>();
 // ---- Independent accounting core (Stage 2; feature flag defaults to off). ----
 builder.Services.Configure<PTGOilSystem.Web.Configuration.AccountingOptions>(
     builder.Configuration.GetSection(PTGOilSystem.Web.Configuration.AccountingOptions.SectionName));
@@ -83,6 +85,8 @@ builder.Services.AddScoped<ICompanyOwnershipReportService, CompanyOwnershipRepor
 builder.Services.AddScoped<IAccountingReadinessService, AccountingReadinessService>();
 // مرحله ۱۰ — صفحه‌های سال مالی. Overview فقط می‌خواند؛ Provisioning تنها مسیر نوشتنِ آن است.
 builder.Services.AddScoped<IFiscalYearOverviewService, FiscalYearOverviewService>();
+// انتخاب‌گرِ سال مالیِ فعالِ هدر — کانتکستِ کاری/گزارشی در کوکیِ امضاشده. هیچ منطقِ posting را تغییر نمی‌دهد.
+builder.Services.AddScoped<IFiscalYearContext, FiscalYearContextService>();
 builder.Services.AddScoped<IFiscalYearProvisioningService, FiscalYearProvisioningService>();
 // مرحله ۱۲ — چک‌لیستِ بستنِ سال. کاملاً فقط‌خواندنی؛ هیچ Close/Lock/Migration/Posting ندارد.
 builder.Services.AddScoped<IClosingChecklistService, ClosingChecklistService>();
@@ -125,6 +129,10 @@ builder.Services.AddScoped<IExpenseRuleEngine, ExpenseRuleEngine>();
 builder.Services.AddScoped<IContractAmendmentService, ContractAmendmentService>();
 builder.Services.AddScoped<IContractBalanceTransferService, ContractBalanceTransferService>();
 builder.Services.AddScoped<ISupplierPaymentAllocationService, SupplierPaymentAllocationService>();
+builder.Services.AddScoped<ICustomerPaymentAllocationService, CustomerPaymentAllocationService>();
+builder.Services.AddScoped<IViaSarrafContractAssignmentService, ViaSarrafContractAssignmentService>();
+builder.Services.AddScoped<IViaSarrafLegacyGroupingService, ViaSarrafLegacyGroupingService>();
+builder.Services.AddScoped<IPaymentCorrectionService, PaymentCorrectionService>();
 builder.Services.AddScoped<IEmployeeSalaryService, EmployeeSalaryService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.Configure<PTGOilSystem.Web.Models.PartyStatements.PartyStatementOptions>(
@@ -143,6 +151,26 @@ builder.Services.AddScoped<IFormTokenGuard, FormTokenGuard>();
 builder.Services.AddScoped<RoleNavigationAuthorizationFilter>();
 builder.Services.AddScoped<AuthBootstrapper>();
 builder.Services.AddHttpContextAccessor();
+
+// ---- Backups (پشتیبان‌گیری کامل؛ خارج از منطق مالی/عملیاتی) -----------------
+// اجرای واقعی فقط در BackupSchedulerHostedService رخ می‌دهد و BackupExecutionLock
+// تک‌نمونه‌ای است تا دو بکاپ هرگز هم‌زمان نشوند.
+builder.Services.Configure<PTGOilSystem.Web.Configuration.BackupOptions>(
+    builder.Configuration.GetSection(PTGOilSystem.Web.Configuration.BackupOptions.SectionName));
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.Backups.IBackupExecutionLock,
+    PTGOilSystem.Web.Services.Backups.BackupExecutionLock>();
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.Backups.IBackupTriggerQueue,
+    PTGOilSystem.Web.Services.Backups.BackupTriggerQueue>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Backups.IPostgresBackupTool,
+    PTGOilSystem.Web.Services.Backups.PostgresBackupTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Backups.IGoogleDriveBackupClient,
+    PTGOilSystem.Web.Services.Backups.GoogleDriveBackupClient>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Backups.IBackupService,
+    PTGOilSystem.Web.Services.Backups.BackupService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Backups.IBackupRestoreService,
+    PTGOilSystem.Web.Services.Backups.BackupRestoreService>();
+builder.Services.AddHostedService<PTGOilSystem.Web.Services.Backups.BackupSchedulerHostedService>();
 
 var configuredDataProtectionKeysPath = builder.Configuration["PTG_DATA_PROTECTION_KEYS_PATH"];
 var shouldUseLocalDataProtectionKeys =
@@ -180,6 +208,7 @@ builder.Services.AddResponseCompression(options =>
 builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.Imports.ExcelImportJobCoordinator>();
 builder.Services.Configure<PTGOilSystem.Web.Services.Exports.TabularExportOptions>(
     builder.Configuration.GetSection(PTGOilSystem.Web.Services.Exports.TabularExportOptions.SectionName));
 builder.Services.AddSingleton<PTGOilSystem.Web.Services.Exports.ITabularExportService, PTGOilSystem.Web.Services.Exports.TabularExportService>();
@@ -201,9 +230,14 @@ builder.Services.AddRateLimiter(options =>
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
 
+    // سهمیهٔ خروجی به تفکیک «مسیر» است، همان چیزی که پیام رد شدن هم می‌گوید. قبلاً همهٔ
+    // ۴۵ اکشن خروجی برنامه (CSV/Excel/PDF) یک سطل ۵تایی مشترک برای هر کاربر داشتند؛
+    // بنابراین چند خروجی معمولی در یک دقیقه سهمیه را تمام می‌کرد و کلیک بعدی — مثلاً
+    // PDF صورت‌حساب تأمین‌کننده — با 429 رد می‌شد بی‌آنکه خودش پرمصرف بوده باشد.
+    // کلید از الگوی مسیر ساخته می‌شود نه از URL کامل، تا id‌های مختلف سطل جدید نسازند.
     options.AddPolicy(RateLimitPolicies.CsvExport, httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ResolveRateLimitPartitionKey(httpContext),
+            partitionKey: $"{ResolveRateLimitPartitionKey(httpContext)}|{ResolveRateLimitRouteKey(httpContext)}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 5,
@@ -261,6 +295,13 @@ builder.Services.AddRateLimiter(options =>
             }
         }
 
+        // مهلت واقعی را اعلام کن تا کاربر/مرورگر نداند «کمی» یعنی چقدر.
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         context.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
         await context.HttpContext.Response.WriteAsync(
             isLoginRequest
@@ -301,6 +342,9 @@ builder.Services.AddAuthorization(options =>
         policy => policy.RequireAssertion(context => RoleAccessRules.CanManageData(context.User)));
     options.AddPolicy(AuthPolicies.AdminOnly,
         policy => policy.RequireAssertion(context => RoleAccessRules.CanManageUsers(context.User)));
+    // پشتیبان‌گیری بالاترین سطح است: مدیریت کاربران به‌تنهایی کافی نیست.
+    options.AddPolicy(AuthPolicies.BackupAdmin,
+        policy => policy.RequireAssertion(context => RoleAccessRules.CanManageBackups(context.User)));
 });
 
 // ---- MVC --------------------------------------------------------------------
@@ -409,6 +453,13 @@ static string ResolveRateLimitPartitionKey(HttpContext httpContext)
     => httpContext.User?.Identity?.IsAuthenticated == true
         ? $"user:{httpContext.User.Identity.Name}"
         : $"ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+// الگوی مسیر (نه URL) تا هر اکشن خروجی سطل خودش را داشته باشد و تعداد سطل‌ها با
+// id‌های مختلف رشد نکند.
+static string ResolveRateLimitRouteKey(HttpContext httpContext)
+    => (httpContext.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText
+        ?? httpContext.Request.Path.Value
+        ?? "unknown";
 
 static async Task SeedAuthenticationAsync(WebApplication app)
 {

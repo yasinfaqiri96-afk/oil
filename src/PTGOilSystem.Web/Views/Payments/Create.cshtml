@@ -203,6 +203,31 @@
                         <span asp-validation-for="PaymentKind" class="field-validation-error"></span>
                     </div>
 
+                    @* نشانهٔ پیش‌پرداخت/پیش‌دریافت — فقط ثبت و نمایش؛ هیچ اثری روی Ledger و مانده ندارد.
+                       پنل‌ها با همان مکانیزم data-counterparty-panel نمایش/مخفی می‌شوند و در حالت مخفی
+                       ورودی‌ها disabled می‌شوند تا مقدارشان post نشود. *@
+                    <div class="ak-toggle-field" data-counterparty-panel="supplier">
+                        <div class="form-check form-switch">
+                            <input type="checkbox" name="IsAdvancePayment" value="true" id="isAdvancePayment"
+                                   class="form-check-input" role="switch"
+                                   checked="@(Model.IsAdvancePayment == true)" />
+                            <input type="hidden" name="IsAdvancePayment" value="false" />
+                            <label for="isAdvancePayment" class="form-check-label">پیش‌پرداخت است</label>
+                        </div>
+                        <span>پرداخت آزاد به تأمین‌کننده که بعداً از «جزئیات پرداخت» با نرخ دلخواه به قرارداد تخصیص می‌شود.</span>
+                    </div>
+
+                    <div class="ak-toggle-field" data-counterparty-panel="customer">
+                        <div class="form-check form-switch">
+                            <input type="checkbox" name="IsCustomerAdvance" value="true" id="isCustomerAdvance"
+                                   class="form-check-input" role="switch"
+                                   checked="@(Model.IsCustomerAdvance == true)" />
+                            <input type="hidden" name="IsCustomerAdvance" value="false" />
+                            <label for="isCustomerAdvance" class="form-check-label">پیش‌دریافت است</label>
+                        </div>
+                        <span>دریافت آزاد از مشتری که هنوز به فروش مشخصی وصل نشده است.</span>
+                    </div>
+
                     <div class="ak-field" data-counterparty-panel="supplier customer serviceprovider officeexpense contract sales shipment driver">
                         <label asp-for="ContractId" class="ak-label"><i class="bi bi-file-earmark-text"></i> قرارداد</label>
                         <select asp-for="ContractId" id="contractSelect" class="ak-input">

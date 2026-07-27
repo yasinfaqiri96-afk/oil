@@ -30,6 +30,7 @@ public class PaymentsController : Controller
     private readonly ApplicationDbContext _db;
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly ISupplierPaymentAllocationService _allocations;
+    private readonly IPaymentCorrectionService _correction;
     private readonly ISarrafSettlementService _sarrafSettlements;
     private readonly IAuditService _audit;
     private readonly ILogger<PaymentsController> _logger;
@@ -65,11 +66,15 @@ public class PaymentsController : Controller
         Services.Accounting.IPaymentAccountingAdapter? paymentAccounting = null,
         Services.Accounting.IViaSarrafAccountingAdapter? viaSarrafAccounting = null,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
-        IPartyStatementReadService? partyStatements = null)
+        IPartyStatementReadService? partyStatements = null,
+        IPaymentCorrectionService? paymentCorrection = null)
     {
         _db = db;
         _currencyConversion = currencyConversion;
         _allocations = allocations;
+        // Central reverse-and-repost for corrections. Built from the already-injected pieces when
+        // DI does not supply one, so the lighter test constructor keeps working unchanged.
+        _correction = paymentCorrection ?? new PaymentCorrectionService(db, allocations, paymentAccounting);
         _sarrafSettlements = sarrafSettlements;
         _audit = audit;
         _logger = logger;
@@ -362,6 +367,9 @@ public class PaymentsController : Controller
         var allocatedBookUsd = 0m;
         var activeAllocationCount = 0;
         var allocatableBalanceUsd = 0m;
+        var allocatedPaymentAmount = 0m;
+        var allocatableBalanceAmount = 0m;
+        var allocationExchangeDifferenceUsd = 0m;
         if (supportsAllocation)
         {
             allocations = await _db.SupplierPaymentAllocations
@@ -375,7 +383,13 @@ public class PaymentsController : Controller
                     AllocationDate = a.AllocationDate,
                     ContractId = a.ContractId,
                     ContractNumber = a.Contract != null ? a.Contract.ContractNumber : string.Empty,
+                    AllocatedPaymentAmount = a.AllocatedPaymentAmount,
+                    PaymentCurrencyCode = a.PaymentCurrencyCode,
                     AllocatedBookAmountUsd = a.AllocatedBookAmountUsd,
+                    PaymentCurrencyPerUsdRateAtAllocation = a.PaymentCurrencyPerUsdRateAtAllocation,
+                    AllocatedValueUsdAtAllocation = a.AllocatedValueUsdAtAllocation,
+                    ExchangeDifferenceUsd = a.ExchangeDifferenceUsd,
+                    ExchangeDifferenceType = a.ExchangeDifferenceType,
                     ContractCurrencyCode = a.ContractCurrencyCode,
                     ContractCurrencyPerUsdRate = a.ContractCurrencyPerUsdRate,
                     AllocatedContractCurrencyAmount = a.AllocatedContractCurrencyAmount,
@@ -392,6 +406,11 @@ public class PaymentsController : Controller
                 .Sum(a => a.AllocatedBookAmountUsd);
             activeAllocationCount = allocations.Count(a => a.IsActive);
             allocatableBalanceUsd = decimal.Round(payment.AmountUsd - allocatedBookUsd, 4, MidpointRounding.AwayFromZero);
+
+            // مانده واقعی به ارز پرداخت — سقف تخصیص همین است، نه معادل دلاری آن.
+            allocatedPaymentAmount = allocations.Where(a => a.IsActive).Sum(a => a.AllocatedPaymentAmount);
+            allocatableBalanceAmount = decimal.Round(payment.Amount - allocatedPaymentAmount, 4, MidpointRounding.AwayFromZero);
+            allocationExchangeDifferenceUsd = allocations.Where(a => a.IsActive).Sum(a => a.ExchangeDifferenceUsd);
         }
 
         return View(new PaymentDetailsViewModel
@@ -403,6 +422,9 @@ public class PaymentsController : Controller
             SupportsAdvanceAllocation = supportsAllocation,
             AllocatedBookAmountUsd = allocatedBookUsd,
             AllocatableBalanceUsd = allocatableBalanceUsd,
+            AllocatedPaymentAmountTotal = allocatedPaymentAmount,
+            AllocatableBalanceAmount = allocatableBalanceAmount,
+            AllocationExchangeDifferenceUsd = allocationExchangeDifferenceUsd,
             ActiveAllocationCount = activeAllocationCount,
             Allocations = allocations,
             Id = payment.Id,
@@ -949,26 +971,19 @@ public class PaymentsController : Controller
             return View("Create", model);
         }
 
-        // اگر این پرداخت تخصیص فعال به قرارداد دارد، تغییر فیلدهای مالی کلیدی ممنوع است.
+        // اگر این پرداخت تخصیص فعال به قرارداد دارد و یکی از فیلدهای مالی کلیدی تغییر کرده،
+        // به‌جای قفل‌کردن ویرایش، تخصیص‌های قبلی در همین تراکنش برگشت داده می‌شوند تا مانده قرارداد
+        // با مبلغ اشتباه باقی نماند. کاربر پس از اصلاح، در صورت نیاز دوباره تخصیص می‌دهد.
         var hasActiveAllocations = await _db.SupplierPaymentAllocations
             .AsNoTracking()
             .AnyAsync(a => a.PaymentTransactionId == payment.Id && a.Status == SupplierPaymentAllocationStatus.Active);
-        if (hasActiveAllocations)
-        {
-            var protectedFieldsChanged =
-                payment.Amount != model.Amount
-                || !string.Equals(payment.Currency, conversion.SourceCurrencyCode, StringComparison.OrdinalIgnoreCase)
-                || payment.AppliedFxRateToUsd != conversion.AppliedRateToBase
-                || payment.SupplierId != context.SupplierId
-                || payment.PaymentDate.Date != model.PaymentDate.Date;
-            if (protectedFieldsChanged)
-            {
-                ModelState.AddModelError(string.Empty, "این پرداخت برای یک یا چند قرارداد استفاده شده است. برای اصلاح، ابتدا تخصیص‌های آن را برگشت دهید.");
-                await PopulateLookupsAsync(createModel: model);
-                ViewData["PaymentFormMode"] = "Edit";
-                return View("Create", model);
-            }
-        }
+        var protectedFieldsChanged =
+            payment.Amount != model.Amount
+            || !string.Equals(payment.Currency, conversion.SourceCurrencyCode, StringComparison.OrdinalIgnoreCase)
+            || payment.AppliedFxRateToUsd != conversion.AppliedRateToBase
+            || payment.SupplierId != context.SupplierId
+            || payment.PaymentDate.Date != model.PaymentDate.Date;
+        var reverseAllocations = hasActiveAllocations && protectedFieldsChanged;
 
         var previousPayment = new
         {
@@ -1097,6 +1112,7 @@ public class PaymentsController : Controller
         ledgerEntry.EmployeeId = payment.EmployeeId;
         ledgerEntry.ShipmentId = payment.ShipmentId;
 
+        var correctionResult = new PaymentCorrectionResult(0, false);
         IDbContextTransaction? transaction = null;
         if (_db.Database.IsRelational())
         {
@@ -1112,6 +1128,30 @@ public class PaymentsController : Controller
                 payment.LedgerEntryId = ledgerEntry.Id;
                 await _db.SaveChangesAsync();
             }
+
+            // اصلاح مرکزی و اتمیک: تخصیص‌های وابسته را برگشت بده و سند دوبل را با مقادیر جدید
+            // هم‌گام کن. وقتی هستهٔ حسابداری خاموش است، بخش Journal بی‌اثر (Skip) می‌ماند و رفتار
+            // قدیمی دست‌نخورده باقی می‌ماند.
+            var journalRelevantChanged =
+                previousPayment.Direction != payment.Direction
+                || previousPayment.PaymentKind != payment.PaymentKind
+                || previousPayment.CashAccountId != payment.CashAccountId
+                || previousPayment.SupplierId != payment.SupplierId
+                || previousPayment.CustomerId != payment.CustomerId
+                || previousPayment.SarrafId != payment.SarrafId
+                || previousPayment.ContractId != payment.ContractId
+                || previousPayment.ExpenseTransactionId != payment.ExpenseTransactionId
+                || previousPayment.Amount != payment.Amount
+                || !string.Equals(previousPayment.Currency, payment.Currency, StringComparison.OrdinalIgnoreCase)
+                || previousPayment.AppliedFxRateToUsd != payment.AppliedFxRateToUsd
+                || previousPayment.PaymentDate.Date != payment.PaymentDate.Date;
+
+            correctionResult = await _correction.ApplyAsync(
+                payment,
+                reverseAllocations,
+                journalRelevantChanged,
+                "اصلاح تراکنش پرداخت/دریافت",
+                User?.Identity?.Name);
 
             // کمیسیون: حذف رکوردهای قبلی و ساخت دوباره در صورت فعال‌بودن (بدون duplicate).
             await RemoveCashCommissionAsync(payment);
@@ -1204,7 +1244,9 @@ public class PaymentsController : Controller
             return View("Create", model);
         }
 
-        TempData["ok"] = "پرداخت / دریافت با موفقیت ویرایش شد.";
+        TempData["ok"] = correctionResult.ReversedAllocationCount > 0
+            ? $"پرداخت / دریافت ویرایش شد. {correctionResult.ReversedAllocationCount} تخصیص قبلی قرارداد به‌صورت خودکار برگشت داده شد؛ در صورت نیاز دوباره تخصیص دهید."
+            : "پرداخت / دریافت با موفقیت ویرایش شد.";
         if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
         {
             return Redirect(localReturnUrl);
@@ -1244,8 +1286,12 @@ public class PaymentsController : Controller
             PaymentCurrencyCode = payment.Currency,
             PaymentAmountUsd = payment.AmountUsd,
             AllocatableBalanceUsd = await _allocations.GetAllocatableBalanceUsdAsync(payment.Id),
+            AllocatableBalanceAmount = await _allocations.GetAllocatablePaymentAmountAsync(payment.Id),
             AllocationDate = DateTime.UtcNow.Date,
             ContractCurrencyPerUsdRate = 1m,
+            // پیش‌فرض = نرخ روز پرداخت؛ کاربر آن را با نرخ روز تخصیص جایگزین می‌کند.
+            PaymentCurrencyPerUsdRateAtAllocation = PaymentPerUsdRate(payment),
+            PaymentCurrencyPerUsdRateAtPayment = PaymentPerUsdRate(payment),
             ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var localReturnUrl) ? localReturnUrl : null
         };
 
@@ -1276,7 +1322,8 @@ public class PaymentsController : Controller
                 model.ContractCurrencyPerUsdRate,
                 model.ReferenceNumber,
                 model.Notes,
-                CurrentUserName()));
+                CurrentUserName(),
+                model.PaymentCurrencyPerUsdRateAtAllocation));
 
             await _audit.LogAndSaveAsync(
                 nameof(SupplierPaymentAllocation),
@@ -1289,6 +1336,10 @@ public class PaymentsController : Controller
                     ("AllocatedPaymentAmount", allocation.AllocatedPaymentAmount),
                     ("PaymentCurrencyCode", allocation.PaymentCurrencyCode),
                     ("AllocatedBookAmountUsd", allocation.AllocatedBookAmountUsd),
+                    ("PaymentCurrencyPerUsdRateAtAllocation", allocation.PaymentCurrencyPerUsdRateAtAllocation),
+                    ("AllocatedValueUsdAtAllocation", allocation.AllocatedValueUsdAtAllocation),
+                    ("ExchangeDifferenceUsd", allocation.ExchangeDifferenceUsd),
+                    ("ExchangeDifferenceType", allocation.ExchangeDifferenceType),
                     ("ContractCurrencyCode", allocation.ContractCurrencyCode),
                     ("ContractCurrencyPerUsdRate", allocation.ContractCurrencyPerUsdRate),
                     ("ContractCurrencyFxRateToUsd", allocation.ContractCurrencyFxRateToUsd),
@@ -1375,9 +1426,20 @@ public class PaymentsController : Controller
             model.PaymentCurrencyCode = payment.Currency;
             model.PaymentAmountUsd = payment.AmountUsd;
             model.AllocatableBalanceUsd = await _allocations.GetAllocatableBalanceUsdAsync(payment.Id);
+            model.AllocatableBalanceAmount = await _allocations.GetAllocatablePaymentAmountAsync(payment.Id);
+            model.PaymentCurrencyPerUsdRateAtPayment = PaymentPerUsdRate(payment);
         }
 
         await PopulateAllocationFormAsync(model, model.SupplierId);
+    }
+
+    // نرخ روز پرداخت به شکل خوانا «۱ دلار = ؟ ارز پرداخت»؛ پیش‌فرض فرم تخصیص از همین می‌آید.
+    private static decimal PaymentPerUsdRate(PaymentTransaction payment)
+    {
+        var fxRateToUsd = payment.AppliedFxRateToUsd ?? 1m;
+        return fxRateToUsd <= 0m
+            ? 1m
+            : decimal.Round(1m / fxRateToUsd, 6, MidpointRounding.AwayFromZero);
     }
 
     private async Task PopulateAllocationFormAsync(SupplierPaymentAllocationCreateViewModel model, int supplierId)
@@ -3079,6 +3141,10 @@ public class PaymentsController : Controller
         var reference = string.IsNullOrWhiteSpace(model.Reference) ? null : model.Reference.Trim();
         var amount = model.SarrafSupplierAmount!.Value;
 
+        // شناسهٔ گروهِ این عملیات — هر دو LedgerEntry مکمل زیر همین یک شناسه می‌نشینند تا بعداً
+        // اتصال قطعی آن‌ها برای «ثبت/تغییر قرارداد» ممکن باشد (بدون حدسِ مبلغ/تاریخ).
+        var viaSarrafGroupId = Guid.NewGuid();
+
         // کمیسیون ViaSarraf (اختیاری) — صندوق دست نمی‌خورد؛ به بدهی صراف اضافه می‌شود.
         CommissionComputation? commission = null;
         ExpenseType? commissionType = null;
@@ -3111,7 +3177,8 @@ public class PaymentsController : Controller
             SourceId = context.SarrafId,
             Reference = reference,
             SupplierId = context.SupplierId,
-            ContractId = context.ContractId
+            ContractId = context.ContractId,
+            ViaSarrafGroupId = viaSarrafGroupId
         };
 
         var sarrafPayableLedger = new LedgerEntry
@@ -3129,7 +3196,8 @@ public class PaymentsController : Controller
             SourceType = ViaSarrafPayableLedgerSourceType,
             SourceId = context.SarrafId,
             Reference = reference,
-            ContractId = context.ContractId
+            ContractId = context.ContractId,
+            ViaSarrafGroupId = viaSarrafGroupId
         };
 
         IDbContextTransaction? transaction = null;
@@ -3446,12 +3514,6 @@ public class PaymentsController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     public async Task<IActionResult> EditSarrafHawala(int id, string? returnUrl = null)
     {
-        if (HttpContext is not null)
-        {
-            TempData["error"] = "اسناد قدیمی صراف فقط برای مشاهده نگه‌داری می‌شوند و ویرایش جدید از این مسیر بسته است.";
-            return RedirectToAction("Details", "SarrafSettlements", new { id });
-        }
-
         var settlement = await _db.SarrafSettlements
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == id);
@@ -3506,12 +3568,6 @@ public class PaymentsController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> EditSarrafHawala(int id, PaymentCreateViewModel model)
     {
-        if (HttpContext is not null)
-        {
-            TempData["error"] = "اسناد قدیمی صراف فقط برای مشاهده نگه‌داری می‌شوند و ویرایش جدید از این مسیر بسته است.";
-            return RedirectToAction("Details", "SarrafSettlements", new { id });
-        }
-
         if (id != model.Id)
         {
             return BadRequest();

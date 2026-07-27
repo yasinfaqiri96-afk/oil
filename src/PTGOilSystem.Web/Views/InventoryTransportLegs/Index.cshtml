@@ -129,16 +129,6 @@
                     </tr>
                 }
                 </tbody>
-                @if (Model.Items.Any())
-                {
-                    <tfoot>
-                        <tr class="ak-table-total">
-                            <td colspan="4" class="fw-bold">@UiText.T(Context, "مجموع کل", "Grand Total")</td>
-                            <td class="col-ltr fw-bold">@NumberDisplay.Quantity((decimal)ViewBag.SumQuantity)</td>
-                            <td colspan="2"></td>
-                        </tr>
-                    </tfoot>
-                }
             </table>
         </div>
 

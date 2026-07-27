@@ -103,6 +103,9 @@ public sealed class AkDetailV2StructureTests
         Assert.Contains("@media (max-width: 767.98px)", css);
         Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", css);
         Assert.Contains(".ak-detail-page .ak-stat-grid", statCss);
+        // Four cards share one row down to small tablets; the phone tier is two columns.
+        Assert.Contains("--ak-stat-col: calc((100% - 3 * var(--ak-stat-gap)) / 4", statCss);
+        Assert.Contains("@media (max-width: 1399.98px)", statCss);
         Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", statCss);
         Assert.Contains("inset-inline-start", css);
         Assert.Contains(":focus-visible", css);

@@ -116,11 +116,22 @@
                     <i class="bi bi-cash-coin"></i> مصرف پیش‌پرداخت برای قرارداد
                 </a>
             </div>
+            var isAdvanceCurrencyUsd = string.Equals(Model.Currency?.Trim(), "USD", StringComparison.OrdinalIgnoreCase);
             <div class="ak-stat-grid" aria-label="خلاصه تخصیص پرداخت">
-                <vc:stat-card title="مبلغ پرداخت" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
-                <vc:stat-card title="مصرف‌شده برای قراردادها" value="@Model.AllocatedBookAmountUsd.ToString("N2")" unit="USD" avatar="contract-signed"></vc:stat-card>
-                <vc:stat-card title="مانده قابل تخصیص" value="@Model.AllocatableBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
-                <vc:stat-card title="تعداد تخصیص فعال" value="@Model.ActiveAllocationCount.ToString("N0")" unit="مورد" avatar="ledger"></vc:stat-card>
+                <vc:stat-card title="مبلغ پرداخت" value="@Model.Amount.ToString("N2")" unit="@Model.Currency" avatar="payments-out"></vc:stat-card>
+                <vc:stat-card title="مصرف‌شده برای قراردادها" value="@Model.AllocatedPaymentAmountTotal.ToString("N2")" unit="@Model.Currency" avatar="contract-signed"></vc:stat-card>
+                <vc:stat-card title="مانده قابل تخصیص" value="@Model.AllocatableBalanceAmount.ToString("N2")" unit="@Model.Currency" avatar="treasury"></vc:stat-card>
+                @if (isAdvanceCurrencyUsd)
+                {
+                    <vc:stat-card title="تعداد تخصیص فعال" value="@Model.ActiveAllocationCount.ToString("N0")" unit="مورد" avatar="ledger"></vc:stat-card>
+                }
+                else
+                {
+                    @* پیش‌پرداخت ارزی: اثر تسعیر جدا از خودِ مانده ارز نمایش داده می‌شود. *@
+                    <vc:stat-card title="@(Model.AllocationExchangeDifferenceUsd < 0 ? "زیان تسعیر تخصیص‌ها" : "سود تسعیر تخصیص‌ها")"
+                                  value="@Math.Abs(Model.AllocationExchangeDifferenceUsd).ToString("N2")"
+                                  unit="USD" avatar="ledger"></vc:stat-card>
+                }
             </div>
 
             @if (Model.Allocations.Any())
@@ -131,8 +142,10 @@
                             <tr>
                                 <th>تاریخ تخصیص</th>
                                 <th class="ak-col-grow">قرارداد</th>
-                                <th class="ak-col-num">مبلغ مصرف‌شده USD</th>
-                                <th class="ak-col-num">نرخ تبدیل</th>
+                                <th class="ak-col-num">مبلغ مصرف‌شده</th>
+                                <th class="ak-col-num">نرخ روز تخصیص</th>
+                                <th class="ak-col-num">ارزش روز تخصیص USD</th>
+                                <th class="ak-col-num">سود/زیان تسعیر</th>
                                 <th class="ak-col-num">معادل ارز قرارداد</th>
                                 <th>مرجع</th>
                                 <th>وضعیت</th>
@@ -145,9 +158,29 @@
                             <tr class="@(a.IsActive ?"" : "ak-row-muted")">
                                 <td>@a.AllocationDate.ToDisplayDate()</td>
                                 <td class="ak-col-grow"><a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@a.ContractId" asp-route-returnUrl="@(Url.Action("Details", new { id = Model.Id }))">@a.ContractNumber</a></td>
-                                <td class="ak-col-num ak-num">@a.AllocatedBookAmountUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num">@NumberDisplay.Number(a.ContractCurrencyPerUsdRate, 4) @a.ContractCurrencyCode/USD</td>
-                                <td class="ak-col-num ak-num">@a.AllocatedContractCurrencyAmount.ToString("N2") @a.ContractCurrencyCode</td>
+                                <td class="ak-col-num ak-num">
+                                    @a.AllocatedPaymentAmount.ToString("N2") @a.PaymentCurrencyCode
+                                    <div class="ak-note">ارزش تاریخی: @a.AllocatedBookAmountUsd.ToString("N2") USD</div>
+                                </td>
+                                <td class="ak-col-num ak-num">۱ USD = @NumberDisplay.Number(a.PaymentCurrencyPerUsdRateAtAllocation, 4) @a.PaymentCurrencyCode</td>
+                                <td class="ak-col-num ak-num">@a.AllocatedValueUsdAtAllocation.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">
+                                    @if (a.HasExchangeDifference)
+                                    {
+                                        <span class="@(a.ExchangeDifferenceUsd < 0 ? "ak-number--negative" : "ak-number--positive")">
+                                            @Math.Abs(a.ExchangeDifferenceUsd).ToString("N2") USD
+                                        </span>
+                                        <div class="ak-note">@a.ExchangeDifferenceName</div>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </td>
+                                <td class="ak-col-num ak-num">
+                                    @a.AllocatedContractCurrencyAmount.ToString("N2") @a.ContractCurrencyCode
+                                    <div class="ak-note">نرخ قرارداد: @NumberDisplay.Number(a.ContractCurrencyPerUsdRate, 4) @a.ContractCurrencyCode/USD</div>
+                                </td>
                                 <td>@(a.ReferenceNumber ?? "-")</td>
                                 <td>@a.StatusName</td>
                                 <td class="ak-col-actions">
@@ -179,7 +212,14 @@
                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
                                 </div>
                                 <div class="modal-body">
-                                    <p class="ak-note">تخصیص #@a.Id به قرارداد @a.ContractNumber به مبلغ @a.AllocatedBookAmountUsd.ToString("N2") USD برگشت داده می‌شود. این کار دو ثبت معکوس می‌سازد و رکورد اصلی حفظ می‌شود.</p>
+                                    <p class="ak-note">
+                                        تخصیص #@a.Id به قرارداد @a.ContractNumber به مبلغ @a.AllocatedPaymentAmount.ToString("N2") @a.PaymentCurrencyCode برگشت داده می‌شود.
+                                        @if (a.HasExchangeDifference)
+                                        {
+                                            <text>@a.ExchangeDifferenceName به مبلغ @Math.Abs(a.ExchangeDifferenceUsd).ToString("N2") USD نیز معکوس می‌شود.</text>
+                                        }
+                                        رکورد اصلی حفظ می‌شود و فقط ثبت‌های معکوس ساخته می‌شوند.
+                                    </p>
                                     <label class="ak-label">دلیل برگشت</label>
                                     <textarea name="reason" class="ak-input" rows="2" required></textarea>
                                 </div>

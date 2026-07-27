@@ -23,6 +23,10 @@ public partial class SalesController
 {
     private const decimal QtyEpsilon = 0.0001m;
 
+    // مالکِ ردیفِ فروشی که با primitiveهای زیر ساخته می‌شود: یا یک SalesBatch (فروش گروهی)
+    // یا یک PreSaleOrder (تحویل پیش‌فروش). خودِ ردیف در هر دو حالت SalesTransaction عادی است.
+    private sealed record SaleLineOwner(int? SalesBatchId, int? PreSaleOrderId, string Reference);
+
     // ---------- بارگذاری منابع قابل‌فروش ----------
 
     private sealed record StockTupleKey(int ProductId, int TerminalId, int StorageTankId, int ContractId);
@@ -197,7 +201,11 @@ public partial class SalesController
         var legs = await _db.InventoryTransportLegs
             .AsNoTracking()
             .Where(l => (l.Status == InventoryTransportLegStatus.Loaded || l.Status == InventoryTransportLegStatus.InTransit)
+                        // رسیدِ ToInventory/DirectDispatch حمل را از فهرست خارج می‌کند (رفتار تاریخی).
+                        // رسیدِ DirectSale مانع نیست: حملِ نیمه‌فروخته باید تا صفرشدن باقیمانده (که با
+                        // Received شدن از فهرست خارج می‌شود) دوباره دیده شود تا تحویل جزئیِ بعدی ممکن باشد.
                         && !_db.InventoryTransportReceipts.Any(r => r.InventoryTransportLegId == l.Id && !r.IsCancelled
+                            && r.ReceiptDestination != InventoryTransportReceiptDestination.DirectSale
                             && (r.ReceivedQuantityMt > 0m || r.SalesTransactionId != null)))
             .OrderByDescending(l => l.LoadedDate)
             .Select(l => new
@@ -447,13 +455,14 @@ public partial class SalesController
                 lineNo++;
                 var invoice = $"{batch.BatchNumber}-{lineNo}";
 
+                var owner = new SaleLineOwner(batch.Id, null, batch.BatchNumber);
                 var sale = selection.Kind switch
                 {
                     GroupSaleSourceKind.TerminalStock =>
-                        await CreateTerminalStockLineAsync(batch, selection, model, conversion, invoice),
+                        await CreateTerminalStockLineAsync(owner, selection, model, conversion, invoice),
                     GroupSaleSourceKind.TruckDispatch =>
-                        await CreateTruckDispatchLineAsync(batch, selection, model, conversion, invoice),
-                    _ => await CreateLegLineAsync(batch, selection, model, conversion, invoice, receiptService)
+                        await CreateTruckDispatchLineAsync(owner, selection, model, conversion, invoice),
+                    _ => await CreateLegLineAsync(owner, selection, model, conversion, invoice, receiptService)
                 };
 
                 totalQty += sale.QuantityMt;
@@ -512,7 +521,7 @@ public partial class SalesController
     // ---------- ساخت ردیف‌ها (هر کدام از primitiveهای فروشِ موجود) ----------
 
     private async Task<SalesTransaction> CreateTerminalStockLineAsync(
-        SalesBatch batch,
+        SaleLineOwner owner,
         GroupSaleSelectedInput input,
         GroupSaleCreateViewModel model,
         CurrencyConversionResult conversion,
@@ -553,7 +562,8 @@ public partial class SalesController
             ProductId = input.ProductId,
             ShipmentId = await ResolveShipmentIdForContractAsync(input.SourcePurchaseContractId),
             SaleStage = SaleStage.TerminalStock,
-            SalesBatchId = batch.Id,
+            SalesBatchId = owner.SalesBatchId,
+            PreSaleOrderId = owner.PreSaleOrderId,
             InvoiceNumber = invoice,
             SaleDate = model.SaleDate.Date,
             QuantityMt = qty,
@@ -581,7 +591,7 @@ public partial class SalesController
                 MovementDate = sale.SaleDate,
                 QuantityMt = allocation.QuantityMt,
                 ReferenceDocument = sale.InvoiceNumber,
-                Notes = BuildSaleInventoryNotes(sale.SaleStage, sale.InvoiceNumber, $"SaleId={sale.Id} | {batch.BatchNumber}")
+                Notes = BuildSaleInventoryNotes(sale.SaleStage, sale.InvoiceNumber, $"SaleId={sale.Id} | {owner.Reference}")
             };
             await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(movement);
             _db.InventoryMovements.Add(movement);
@@ -600,7 +610,7 @@ public partial class SalesController
     }
 
     private async Task<SalesTransaction> CreateTruckDispatchLineAsync(
-        SalesBatch batch,
+        SaleLineOwner owner,
         GroupSaleSelectedInput input,
         GroupSaleCreateViewModel model,
         CurrencyConversionResult conversion,
@@ -636,7 +646,8 @@ public partial class SalesController
             DestinationLocationId = dispatch.DestinationLocationId,
             ShipmentId = await ResolveShipmentIdForContractAsync(dispatch.ContractId),
             SaleStage = SaleStage.InTransit,
-            SalesBatchId = batch.Id,
+            SalesBatchId = owner.SalesBatchId,
+            PreSaleOrderId = owner.PreSaleOrderId,
             InvoiceNumber = invoice,
             SaleDate = model.SaleDate.Date,
             QuantityMt = qty,
@@ -664,12 +675,15 @@ public partial class SalesController
     }
 
     private async Task<SalesTransaction> CreateLegLineAsync(
-        SalesBatch batch,
+        SaleLineOwner owner,
         GroupSaleSelectedInput input,
         GroupSaleCreateViewModel model,
         CurrencyConversionResult conversion,
         string invoice,
-        InventoryTransportReceiptService receiptService)
+        InventoryTransportReceiptService receiptService,
+        // فقط مسیر تحویل پیش‌فروش از حملِ کشتی (TransportLeg) این را می‌فرستد → تحویل جزئی.
+        // null یعنی مسیر تاریخیِ فروش گروهی/واگن: کل باقیماندهٔ حمل فروخته می‌شود (بدون تغییر رفتار).
+        decimal? requestedQtyMt = null)
     {
         var leg = await receiptService.LoadLegAsync(input.Id, tracking: true)
             ?? throw new BusinessRuleException("GROUP_SALE_LEG_NOT_FOUND", "حمل انتخاب‌شده یافت نشد.");
@@ -679,10 +693,13 @@ public partial class SalesController
             throw new BusinessRuleException("GROUP_SALE_LEG_NOT_IN_TRANSIT", $"حمل #{leg.Id} دیگر در جریان نیست.");
         }
 
-        // رسیدِ «فقط تسویهٔ کرایه» (دریافت صفر، بدون فروش) مانع فروش نیست؛ فقط رسیدِ واقعی/فروش قبلی مانع است.
-        if (await _db.InventoryTransportReceipts.AsNoTracking()
-            .AnyAsync(r => r.InventoryTransportLegId == leg.Id && !r.IsCancelled
-                && (r.ReceivedQuantityMt > 0m || r.SalesTransactionId != null)))
+        // مسیر کل‌وسیله (گروهی/واگن): حملی که رسید/فروش قبلی دارد اصلاً دوباره فروخته نمی‌شود.
+        // مسیر جزئیِ پیش‌فروش (requestedQtyMt): تحویل چندمرحله‌ای مجاز است تا باقیماندهٔ حمل صفر شود،
+        // پس این گارد فقط در مسیر تاریخی اعمال می‌شود. رسیدِ «فقط تسویهٔ کرایه» هیچ‌کدام را مانع نمی‌شود.
+        if (requestedQtyMt is null
+            && await _db.InventoryTransportReceipts.AsNoTracking()
+                .AnyAsync(r => r.InventoryTransportLegId == leg.Id && !r.IsCancelled
+                    && (r.ReceivedQuantityMt > 0m || r.SalesTransactionId != null)))
         {
             throw new BusinessRuleException("GROUP_SALE_LEG_ALREADY_RECEIVED", $"حمل #{leg.Id} قبلاً رسید/فروش دارد.");
         }
@@ -697,11 +714,30 @@ public partial class SalesController
             throw new BusinessRuleException("GROUP_SALE_LEG_NOTHING_TO_SELL", $"حمل #{leg.Id} باری برای فروش ندارد.");
         }
 
+        // مقدار این تحویل: در مسیر تاریخی کل باقیمانده؛ در مسیر جزئی فقط مقدار واردشدهٔ کاربر،
+        // سقف‌گذاری‌شده به باقیماندهٔ واقعی حمل (سقف مانده پیش‌فروش جداگانه در PreSaleDeliver کنترل می‌شود).
+        var receiptQtyMt = sellableMt;
+        if (requestedQtyMt is not null)
+        {
+            receiptQtyMt = decimal.Round(requestedQtyMt.Value, 4, MidpointRounding.AwayFromZero);
+            if (receiptQtyMt <= 0m)
+            {
+                throw new BusinessRuleException("GROUP_SALE_LEG_QTY_REQUIRED", "مقدار تحویل باید بزرگ‌تر از صفر باشد.");
+            }
+
+            if (receiptQtyMt > sellableMt + 0.0001m)
+            {
+                throw new BusinessRuleException(
+                    "GROUP_SALE_LEG_OVER_AVAILABLE",
+                    $"مقدار تحویل از موجودی قابل فروش این حمل ({sellableMt:N4} تن) بیشتر است.");
+            }
+        }
+
         var receiptModel = new InventoryTransportReceiptCreateViewModel
         {
             InventoryTransportLegId = leg.Id,
             ReceiptDate = model.SaleDate.Date,
-            ReceivedQuantityMt = sellableMt,
+            ReceivedQuantityMt = receiptQtyMt,
             ShortageQuantityMt = 0m,
             ReceiptDestination = InventoryTransportReceiptDestination.DirectSale,
             SaleCustomerId = model.CustomerId,
@@ -731,7 +767,8 @@ public partial class SalesController
 
         var sale = await _db.SalesTransactions.FirstOrDefaultAsync(s => s.Id == receipt.SalesTransactionId)
             ?? throw new BusinessRuleException("GROUP_SALE_LEG_SALE_MISSING", $"سند فروش حمل #{leg.Id} ساخته نشد.");
-        sale.SalesBatchId = batch.Id;
+        sale.SalesBatchId = owner.SalesBatchId;
+        sale.PreSaleOrderId = owner.PreSaleOrderId;
         await _db.SaveChangesAsync();
 
         return sale;

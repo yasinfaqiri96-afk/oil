@@ -32,7 +32,23 @@
             <dl class="ak-list">
                 <div class="ak-list-row"><dt>تأمین‌کننده</dt><dd>@Model.SupplierName</dd></div>
                 <div class="ak-list-row"><dt>پرداخت</dt><dd>@Model.PaymentReference — @Model.PaymentAmount.ToString("N2") @Model.PaymentCurrencyCode (معادل @Model.PaymentAmountUsd.ToString("N2") USD)</dd></div>
-                <div class="ak-list-row"><dt>مانده قابل تخصیص</dt><dd class="ak-num">@Model.AllocatableBalanceUsd.ToString("N2") USD</dd></div>
+                <div class="ak-list-row">
+                    <dt>مانده قابل تخصیص</dt>
+                    <dd class="ak-num">
+                        @Model.AllocatableBalanceAmount.ToString("N2") @Model.PaymentCurrencyCode
+                        @if (!Model.IsPaymentCurrencyUsd)
+                        {
+                            <div class="ak-note">ارزش تاریخی: @Model.AllocatableBalanceUsd.ToString("N2") USD</div>
+                        }
+                    </dd>
+                </div>
+                @if (!Model.IsPaymentCurrencyUsd)
+                {
+                    <div class="ak-list-row">
+                        <dt>نرخ روز پرداخت</dt>
+                        <dd class="ak-num">۱ USD = @Model.PaymentCurrencyPerUsdRateAtPayment.ToString("N4") @Model.PaymentCurrencyCode</dd>
+                    </div>
+                }
             </dl>
         </section>
 
@@ -60,6 +76,32 @@
                     <span class="ak-note">به ارز پرداخت. نباید از مانده قابل تخصیص بیشتر باشد.</span>
                     <span asp-validation-for="AllocatedPaymentAmount" class="ak-field-error"></span>
                 </div>
+                @if (!Model.IsPaymentCurrencyUsd)
+                {
+                    @* نرخ روز تخصیص برای ارز پرداخت: مبنای تبدیل به دلار در همین تاریخ.
+                       اختلاف آن با نرخ روز پرداخت، سود/زیان تسعیر ثبت می‌کند. *@
+                    <div class="ak-field">
+                        <label asp-for="PaymentCurrencyPerUsdRateAtAllocation" class="ak-label">نرخ روز تخصیص</label>
+                        <div class="ak-input-unit">
+                            <input asp-for="PaymentCurrencyPerUsdRateAtAllocation" id="allocPaymentRate" class="ak-input" type="number" min="0.0001" step="0.0001" />
+                            <span>@Model.PaymentCurrencyCode/USD</span>
+                        </div>
+                        <span class="ak-note">در تاریخ تخصیص، ۱ دالر برابر چند @Model.PaymentCurrencyCode است؟ اختلاف با نرخ روز پرداخت به‌عنوان سود/زیان تسعیر ثبت می‌شود.</span>
+                        <span asp-validation-for="PaymentCurrencyPerUsdRateAtAllocation" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label class="ak-label">ارزش تخصیص در روز تخصیص</label>
+                        <div class="ak-input-unit">
+                            <input id="allocValueUsd" class="ak-input" type="text" readonly />
+                            <span>USD</span>
+                        </div>
+                        <span class="ak-note" id="allocFxNote">به‌صورت تخمینی نمایش داده می‌شود؛ مقدار نهایی هنگام ذخیره قفل می‌شود.</span>
+                    </div>
+                }
+                else
+                {
+                    <input asp-for="PaymentCurrencyPerUsdRateAtAllocation" type="hidden" value="1" />
+                }
                 <div class="ak-field">
                     <label asp-for="ContractCurrencyPerUsdRate" class="ak-label">نرخ دالر به ارز قرارداد</label>
                     <div class="ak-input-unit">
@@ -112,6 +154,9 @@
             var equivInput = document.getElementById('allocEquivalent');
             var rateCurrency = document.getElementById('allocRateCurrency');
             var equivCurrency = document.getElementById('allocEquivCurrency');
+            var paymentRateInput = document.getElementById('allocPaymentRate');
+            var valueUsdInput = document.getElementById('allocValueUsd');
+            var fxNote = document.getElementById('allocFxNote');
 
             function currentCurrency() {
                 var id = contractSelect ? contractSelect.value : '';
@@ -125,14 +170,33 @@
                 if (cur === 'USD' && rateInput) { rateInput.value = 1; }
                 var amount = parseFloat(amountInput && amountInput.value) || 0;
                 var rate = parseFloat(rateInput && rateInput.value) || 0;
+
+                // ارزش تاریخی (نرخ روز پرداخت) در برابر ارزش روز تخصیص.
                 var bookUsd = amount * paymentFx;
-                var equiv = bookUsd * rate;
+                var perUsdNow = parseFloat(paymentRateInput && paymentRateInput.value) || 0;
+                var valueUsd = paymentRateInput
+                    ? (perUsdNow > 0 ? amount / perUsdNow : 0)
+                    : bookUsd;
+
+                if (valueUsdInput) { valueUsdInput.value = valueUsd ? valueUsd.toFixed(2) : ''; }
+                if (fxNote) {
+                    var diff = valueUsd - bookUsd;
+                    if (!amount || !perUsdNow || Math.abs(diff) < 0.005) {
+                        fxNote.textContent = 'به‌صورت تخمینی نمایش داده می‌شود؛ مقدار نهایی هنگام ذخیره قفل می‌شود.';
+                    } else {
+                        fxNote.textContent = (diff > 0 ? 'سود تسعیر تخمینی: ' : 'زیان تسعیر تخمینی: ')
+                            + Math.abs(diff).toFixed(2) + ' USD (ارزش تاریخی ' + bookUsd.toFixed(2) + ' USD)';
+                    }
+                }
+
+                var equiv = valueUsd * rate;
                 if (equivInput) { equivInput.value = equiv ? equiv.toFixed(2) : ''; }
             }
 
             if (contractSelect) { contractSelect.addEventListener('change', recalc); }
             if (amountInput) { amountInput.addEventListener('input', recalc); }
             if (rateInput) { rateInput.addEventListener('input', recalc); }
+            if (paymentRateInput) { paymentRateInput.addEventListener('input', recalc); }
             recalc();
         })();
     </script>

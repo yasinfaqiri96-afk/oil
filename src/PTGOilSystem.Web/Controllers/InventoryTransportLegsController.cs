@@ -411,8 +411,8 @@ public partial class InventoryTransportLegsController : Controller
         IReadOnlyList<InventoryTransportVehicleImportRow> parsed;
         try
         {
-            await using var stream = file.OpenReadStream();
-            parsed = InventoryTransportVehicleWorkbookParser.Parse(stream);
+            await using var workbook = await ExcelWorkbookNormalizer.OpenAsync(file, ct);
+            parsed = InventoryTransportVehicleWorkbookParser.Parse(workbook.Stream);
         }
         catch (Exception ex)
         {

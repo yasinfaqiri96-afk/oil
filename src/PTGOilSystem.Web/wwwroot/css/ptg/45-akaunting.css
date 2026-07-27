@@ -4,7 +4,7 @@
  * Loads LAST. Re-shapes the shared shell + primitives onto the Akaunting
  * visual language: flat near-white canvas (#FCFCFC), two-layer lilac sidebar
  * (56px icon rail + 224px menu panel), quiet editorial typography, purple
- * navigation (#55588B), olive-green primary action (#6EA152), 1px dividers
+ * navigation (#55588B), olive-green primary action (#1877f2), 1px dividers
  * instead of cards/shadows, and depth only on Dropdown/Tooltip/Modal.
  *
  * All colors/sizes come from 01-tokens.css. No new hex outside tokens except
@@ -107,18 +107,48 @@ body.boltz-shell.app-shell-authenticated .boltz-topbar.is-stuck {
  * ============================================================= */
 
 /* ============================================================= *
- * F. Flat surfaces — kill decorative cards/shadows everywhere
+ * F. Panel surfaces — one card treatment for the whole system
+ *
+ * This is the single authority for how a content panel separates from the
+ * page. It follows the dashboard chart cards: a paper surface with no
+ * outline, lifted by --ptg-panel-shadow. Panels used to be page-coloured
+ * and flat, with a 1px divider doing the separating; the shadow does that
+ * job now, so the outline is dropped rather than drawn in a second colour.
+ *
+ * .summary-tile is deliberately NOT here — section G keeps summary strips as
+ * open numbers rather than cards, and a shadow around a bare figure reads as
+ * a stray slab.
  * ============================================================= */
 
 body.boltz-shell.app-shell-authenticated :is(
     .ptg-card, .ds-card, .ulist-card, .boltz-card, .kpi-card,
     .contracts-board-card, .ds-form-shell, .ds-table-shell,
     .mgmt-card, .storage-card, .report-card, .detail-card,
-    .boltz-reference-kpi-card, .summary-tile
+    .boltz-reference-kpi-card
 ) {
+    background: var(--background-paper) !important;
+    border-color: transparent !important;
+    box-shadow: var(--ptg-panel-shadow) !important;
+}
+
+/* Summary tiles stay flat open numbers (see section G). */
+body.boltz-shell.app-shell-authenticated .summary-tile {
     background: var(--ptg-bg) !important;
     border-color: var(--divider) !important;
     box-shadow: none !important;
+}
+
+/* Shadows do not print; the outline comes back on paper so panels keep an edge. */
+@media print {
+    body.boltz-shell.app-shell-authenticated :is(
+        .ptg-card, .ds-card, .ulist-card, .boltz-card, .kpi-card,
+        .contracts-board-card, .ds-form-shell, .ds-table-shell,
+        .mgmt-card, .storage-card, .report-card, .detail-card,
+        .boltz-reference-kpi-card
+    ) {
+        border-color: var(--divider) !important;
+        box-shadow: none !important;
+    }
 }
 
 /* ============================================================= *
@@ -443,14 +473,15 @@ body.boltz-shell.app-shell-authenticated .boltz-footer {
  * P. Late fixes discovered in visual QA
  * ============================================================= */
 
-/* Generic table header band (15-system-lists paints #ececec) → flat. */
+/* Generic table header band: one soft darker strip so the field-title row
+   separates from the data rows on every list/table surface. */
 body.boltz-shell.app-shell-authenticated .boltz-content table thead th,
 body.boltz-shell.app-shell-authenticated .boltz-content table thead tr,
 body.boltz-shell.app-shell-authenticated table thead th,
 body.ptg-modal-document table thead th,
 body.ptg-modal-document table thead tr {
-    background: transparent !important;
-    background-color: transparent !important;
+    background: var(--ptg-table-head-bg) !important;
+    background-color: var(--ptg-table-head-bg) !important;
 }
 
 /* Dashboard KPI tiles: open widgets, not floating cards. */
@@ -706,6 +737,8 @@ html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
 .ak-list-toolbar { display: flex; align-items: center; gap: 16px; }
 .ak-list-toolbar > .ak-filter-host { flex: 1 1 auto; min-width: 0; }
 .ak-list-toolbar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+/* rows without a search bar still park the actions at the end */
+.ak-list-toolbar > .ak-list-toolbar-actions { margin-inline-start: auto; }
 @media (max-width: 760px) {
     .ak-list-toolbar { flex-direction: column; align-items: stretch; }
 }

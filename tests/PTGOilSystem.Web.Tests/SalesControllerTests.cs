@@ -177,6 +177,145 @@ public class SalesControllerTests
     }
 
     [Fact]
+    public async Task Create_Post_Allows_Shipment_Sale_Without_SaleContract()
+    {
+        // فروش مبتنی بر Shipment نباید قرارداد فروش را اجباری کند؛ فروش مستقیم از محموله بدون قرارداد مجاز است.
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        SeedSaleContract(db, 3);
+        db.Shipments.Add(new Shipment
+        {
+            Id = 1,
+            ShipmentCode = "SHIP-NOCONTRACT-1",
+            ContractId = 3,
+            QuantityMt = 100m
+        });
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = 1,
+            ContractId = 2,
+            TerminalId = 1,
+            StorageTankId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 4, 20),
+            QuantityMt = 100m,
+            ReferenceDocument = "GRN-NC-1"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.TerminalStock,
+            ContractId = null,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            DestinationLocationId = 1,
+            ShipmentId = 1,
+            SourceTerminalId = 1,
+            SourceStorageTankId = 1,
+            SourcePurchaseContractId = 2,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 30m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-NOCONTRACT"
+        });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Details", redirect.ActionName);
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        Assert.Null(sale.ContractId);
+        Assert.Equal(1, sale.ShipmentId);
+        Assert.Equal("INV-NOCONTRACT", sale.InvoiceNumber);
+    }
+
+    [Fact]
+    public async Task Create_Post_MultiProduct_Shipment_Requires_Source_Contract()
+    {
+        // محموله چندمحصولی: بدون انتخاب قرارداد خرید منبع، فروش مبتنی بر Shipment باید رد شود.
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Products.Add(new Product { Id = 2, Code = "JET", Name = "Jet Fuel" });
+        SeedPurchaseContract(db, 2, productId: 1);
+        SeedPurchaseContract(db, 3, productId: 2);
+        db.Shipments.Add(new Shipment { Id = 1, ShipmentCode = "SHIP-MP", QuantityMt = 1000m, DestinationLocationId = 1 });
+        db.ShipmentContracts.AddRange(
+            new ShipmentContract { ShipmentId = 1, ContractId = 2, QuantityMt = 600m },
+            new ShipmentContract { ShipmentId = 1, ContractId = 3, QuantityMt = 400m });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.InTransit,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            DestinationLocationId = 1,
+            ShipmentId = 1,
+            SaleDate = new DateTime(2026, 6, 25),
+            QuantityMt = 10m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-MP-1"
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Contains(
+            controller.ModelState[nameof(SalesCreateViewModel.SourcePurchaseContractId)]!.Errors,
+            e => e.ErrorMessage.Contains("چند محصول"));
+        Assert.Empty(await db.SalesTransactions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Create_Post_Shipment_Rejects_Product_Not_Matching_Source_Contract()
+    {
+        // محصول نامرتبط با قرارداد خرید منبعِ محموله باید در بک‌اند رد شود.
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Products.Add(new Product { Id = 2, Code = "JET", Name = "Jet Fuel" });
+        SeedPurchaseContract(db, 2, productId: 1);
+        db.Shipments.Add(new Shipment { Id = 1, ShipmentCode = "SHIP-1P", QuantityMt = 600m, DestinationLocationId = 1 });
+        db.ShipmentContracts.Add(new ShipmentContract { ShipmentId = 1, ContractId = 2, QuantityMt = 600m });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.InTransit,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 2, // نامرتبط با محصول قرارداد منبع (۱)
+            DestinationLocationId = 1,
+            ShipmentId = 1,
+            SourcePurchaseContractId = 2,
+            SaleDate = new DateTime(2026, 6, 25),
+            QuantityMt = 10m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-1P-1"
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Contains(
+            controller.ModelState[nameof(SalesCreateViewModel.ProductId)]!.Errors,
+            e => e.ErrorMessage.Contains("قرارداد خرید منبع"));
+        Assert.Empty(await db.SalesTransactions.ToListAsync());
+    }
+
+    [Fact]
     public async Task Create_Post_Persists_TerminalStock_Sale_From_PurchaseBacked_Tank_Stock()
     {
         var options = NewDbOptions();
@@ -753,6 +892,78 @@ public class SalesControllerTests
         var model = Assert.IsType<SalesDetailsViewModel>(view.Model);
         Assert.Equal(SalesContractText.WithoutSalesContract, model.ContractNumber);
         Assert.Equal("PUR-002", model.SourcePurchaseContractNumber);
+    }
+
+    [Fact]
+    public async Task Details_Projects_Multiple_Linked_Receipts_Into_ReadOnly_Receivable_Summary()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.SalesTransactions.Add(new SalesTransaction
+        {
+            Id = 1,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SaleStage = SaleStage.TerminalStock,
+            InvoiceNumber = "INV-MULTI-PAY",
+            SaleDate = new DateTime(2026, 7, 24),
+            QuantityMt = 2m,
+            Currency = "USD",
+            UnitPriceInCurrency = 500m,
+            UnitPriceUsd = 500m,
+            TotalInCurrency = 1000m,
+            TotalUsd = 1000m
+        });
+        db.PaymentTransactions.AddRange(
+            new PaymentTransaction
+            {
+                Id = 10,
+                PaymentDate = new DateTime(2026, 7, 24),
+                Direction = PaymentDirection.In,
+                PaymentKind = PaymentKind.CustomerReceipt,
+                CompanyId = 1,
+                CashAccountId = 1,
+                CustomerId = 1,
+                SalesTransactionId = 1,
+                Amount = 300m,
+                Currency = "USD",
+                AmountUsd = 300m,
+                Reference = "RCPT-10"
+            },
+            new PaymentTransaction
+            {
+                Id = 11,
+                PaymentDate = new DateTime(2026, 7, 25),
+                Direction = PaymentDirection.In,
+                PaymentKind = PaymentKind.CustomerReceipt,
+                CompanyId = 1,
+                CashAccountId = 1,
+                CustomerId = 1,
+                SalesTransactionId = 1,
+                Amount = 200m,
+                Currency = "USD",
+                AmountUsd = 200m,
+                Reference = "RCPT-11"
+            });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var result = await BuildController(db).Details(1);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SalesDetailsViewModel>(view.Model);
+        Assert.Equal(2, model.Payments.Count);
+        Assert.Equal(500m, model.ReceivedUsd);
+        Assert.Equal(500m, model.ReceivableBalanceUsd);
+        Assert.Equal(0m, model.OverpaymentUsd);
+
+        Assert.Equal(1, await db.SalesTransactions.AsNoTracking().CountAsync());
+        Assert.Equal(2, await db.PaymentTransactions.AsNoTracking().CountAsync());
+        Assert.DoesNotContain(db.ChangeTracker.Entries(), entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
     }
 
     [Fact]

@@ -310,7 +310,9 @@ public partial class LedgerController : Controller
                 Id = entry.Shipment.Id,
                 Label = entry.Shipment.ShipmentCode
             },
-            SourceTrace = sourceTrace
+            SourceTrace = sourceTrace,
+            IsViaSarrafSupplierPayment = entry.SourceType == PaymentsController.ViaSarrafSupplierLedgerSourceType,
+            HasViaSarrafGroup = entry.ViaSarrafGroupId.HasValue
         });
     }
 

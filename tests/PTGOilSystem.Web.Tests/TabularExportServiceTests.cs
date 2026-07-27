@@ -176,6 +176,60 @@ public sealed class TabularExportServiceTests
         }
     }
 
+    [Fact]
+    public async Task Workbook_Excel_Writes_Every_Sheet_With_Unique_Names()
+    {
+        var service = CreateService(excelMaxRows: 500, pdfMaxRows: 500);
+        var first = BuildDocument();
+        // عمداً هم‌عنوان تا یکتاسازیِ نام شیت آزموده شود.
+        var second = new TabularExportDocument
+        {
+            FileNameStem = first.FileNameStem,
+            TitleFa = first.TitleFa,
+            TitleEn = first.TitleEn,
+            Columns = first.Columns,
+            Rows = first.Rows,
+            KnownRowCount = 2
+        };
+        await using var stream = new MemoryStream();
+
+        await service.WriteWorkbookAsync([first, second], TabularExportFormat.Excel, isEnglish: false, stream, CancellationToken.None);
+        stream.Position = 0;
+
+        using var workbook = SpreadsheetDocument.Open(stream, false);
+        var sheets = workbook.WorkbookPart!.Workbook.Sheets!.Elements<Sheet>().ToList();
+        Assert.Equal(2, sheets.Count);
+        Assert.Equal(2, workbook.WorkbookPart!.WorksheetParts.Count());
+        Assert.Equal(sheets.Count, sheets.Select(sheet => sheet.Name!.Value).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task Workbook_Pdf_Is_Searchable_With_Multiple_Sections()
+    {
+        var service = CreateService(excelMaxRows: 500, pdfMaxRows: 500);
+        await using var stream = new MemoryStream();
+
+        await service.WriteWorkbookAsync([BuildDocument(), BuildDocument()], TabularExportFormat.Pdf, isEnglish: false, stream, CancellationToken.None);
+
+        var bytes = stream.ToArray();
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(bytes, 0, 4));
+        Assert.True(bytes.Length > 1_000);
+    }
+
+    [Fact]
+    public void Party_Statement_View_Uses_Server_Pdf_For_All_Party_Types()
+    {
+        var webRoot = FindWebRoot();
+        var projectRoot = Directory.GetParent(webRoot)!.FullName;
+        var view = File.ReadAllText(Path.Combine(projectRoot, "Views", "PartyStatements", "Document.cshtml"));
+        var script = File.ReadAllText(Path.Combine(webRoot, "js", "party-statement.js"));
+        var controller = File.ReadAllText(Path.Combine(projectRoot, "Controllers", "PartyStatementsController.cs"));
+
+        Assert.Contains("Url.Action(\"Pdf\", \"PartyStatements\"", view);
+        Assert.Contains("PartyStatements/{partyType}/{id:int}/Pdf", controller);
+        Assert.DoesNotContain("data-statement-print", view);
+        Assert.DoesNotContain("window.print", script);
+    }
     private static TabularExportService CreateService(int excelMaxRows, int pdfMaxRows)
     {
         var webRoot = FindWebRoot();

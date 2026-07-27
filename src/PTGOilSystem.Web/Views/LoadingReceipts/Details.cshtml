@@ -173,65 +173,65 @@
 
     <div class="ak-form-grid">
         <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head ak-detail-section-header"><i class="bi bi-truck"></i> <h2>خلاصه بارگیری</h2></header>
-            <dl class="ak-form-grid">
-                <div><dt>ثبت بارگیری</dt><dd>#@Model.LoadingRegisterId</dd></div>
-                <div><dt>تاریخ بارگیری</dt><dd>@Model.LoadingDate.ToDisplayDate()</dd></div>
-                <div><dt>قرارداد</dt><dd>@Model.ContractNumber</dd></div>
-                <div><dt>جنس</dt><dd>@Model.ProductName</dd></div>
-                <div><dt>مقدار بارگیری</dt><dd>@NumberDisplay.Quantity(Model.LoadedQuantityMt) MT</dd></div>
-                <div><dt>بارنامه</dt><dd>@(Model.BillOfLadingNumber ?? "-")</dd></div>
-                <div><dt>واگن</dt><dd>@(Model.WagonNumber ?? "-")</dd></div>
-                <div><dt>گیرنده</dt><dd>@(Model.ConsigneeName ?? "-")</dd></div>
-                <div><dt>مقصد</dt><dd>@(Model.DestinationName ?? "-")</dd></div>
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("خلاصه بارگیری", (string?)null))" />
+            <dl class="ak-list">
+                <div class="ak-list-row"><dt>ثبت بارگیری</dt><dd class="ak-num">#@Model.LoadingRegisterId</dd></div>
+                <div class="ak-list-row"><dt>تاریخ بارگیری</dt><dd>@Model.LoadingDate.ToDisplayDate()</dd></div>
+                <div class="ak-list-row"><dt>قرارداد</dt><dd>@Model.ContractNumber</dd></div>
+                <div class="ak-list-row"><dt>جنس</dt><dd>@Model.ProductName</dd></div>
+                <div class="ak-list-row"><dt>مقدار بارگیری</dt><dd class="ak-num">@NumberDisplay.Quantity(Model.LoadedQuantityMt) MT</dd></div>
+                <div class="ak-list-row"><dt>بارنامه</dt><dd>@(Model.BillOfLadingNumber ?? "-")</dd></div>
+                <div class="ak-list-row"><dt>واگن</dt><dd>@(Model.WagonNumber ?? "-")</dd></div>
+                <div class="ak-list-row"><dt>گیرنده</dt><dd>@(Model.ConsigneeName ?? "-")</dd></div>
+                <div class="ak-list-row"><dt>مقصد</dt><dd>@(Model.DestinationName ?? "-")</dd></div>
             </dl>
         </section>
 
         <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head ak-detail-section-header"><i class="bi bi-box-arrow-in-down"></i> <h2>مشخصات رسید</h2></header>
-            <dl class="ak-form-grid">
-                <div><dt>مقصد رسید</dt><dd>@receiptDestinationText</dd></div>
-                <div><dt>تاریخ رسید</dt><dd>@Model.ReceiptDate.ToDisplayDate()</dd></div>
-                <div><dt>ورود واقعی</dt><dd>@(Model.ArrivalDate?.ToDisplayDate() ?? "-")</dd></div>
-                <div><dt>نشت / خرابی</dt><dd>@(Model.LeakDate?.ToDisplayDate() ?? "-")</dd></div>
-                <div>
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("مشخصات رسید", (string?)null))" />
+            <dl class="ak-list">
+                <div class="ak-list-row"><dt>مقصد رسید</dt><dd>@receiptDestinationText</dd></div>
+                <div class="ak-list-row"><dt>تاریخ رسید</dt><dd>@Model.ReceiptDate.ToDisplayDate()</dd></div>
+                <div class="ak-list-row"><dt>ورود واقعی</dt><dd>@(Model.ArrivalDate?.ToDisplayDate() ?? "-")</dd></div>
+                <div class="ak-list-row"><dt>نشت / خرابی</dt><dd>@(Model.LeakDate?.ToDisplayDate() ?? "-")</dd></div>
+                <div class="ak-list-row">
                     <dt>مقدار واقعی</dt>
-                    <dd>
+                    <dd class="ak-num">
                         @NumberDisplay.Quantity(Model.ActualArrivedQuantityMt)
                         @if (actualDiffMt.HasValue && actualDiffMt.Value != 0)
                         {
-                            <span class="@(actualDiffMt.Value < 0 ?"is-neg" : "")">@(actualDiffMt.Value > 0 ? "+" : "")@NumberDisplay.Quantity(actualDiffMt.Value) MT</span>
+                            <span class="@(actualDiffMt.Value < 0 ? "text-danger" : "")">@(actualDiffMt.Value > 0 ? "+" : "")@NumberDisplay.Quantity(actualDiffMt.Value) MT</span>
                         }
                     </dd>
                 </div>
-                <div><dt>ترمینال</dt><dd>@Model.TerminalName</dd></div>
-                <div><dt>مخزن</dt><dd>@(isDirectDispatchReceipt ? "وارد تانک نشده" : isMixedReceipt ? "بر اساس خط تخصیص" : (Model.StorageTankCode ?? "-"))</dd></div>
-                <div><dt>مقدار رسید</dt><dd>@NumberDisplay.Quantity(Model.ReceivedQuantityMt) MT</dd></div>
-                <div><dt>مرجع رسید</dt><dd>@(Model.ReferenceDocument ?? "-")</dd></div>
-                <div><dt>حرکت موجودی</dt><dd>@(Model.InventoryMovementId == 0 ? (isDirectDispatchReceipt ? "ندارد - تخلیه مستقیم" : "-") : $"#{Model.InventoryMovementId}")</dd></div>
-                <div><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? "-" : Model.Notes)</dd></div>
+                <div class="ak-list-row"><dt>ترمینال</dt><dd>@Model.TerminalName</dd></div>
+                <div class="ak-list-row"><dt>مخزن</dt><dd>@(isDirectDispatchReceipt ? "وارد تانک نشده" : isMixedReceipt ? "بر اساس خط تخصیص" : (Model.StorageTankCode ?? "-"))</dd></div>
+                <div class="ak-list-row"><dt>مقدار رسید</dt><dd class="ak-num">@NumberDisplay.Quantity(Model.ReceivedQuantityMt) MT</dd></div>
+                <div class="ak-list-row"><dt>مرجع رسید</dt><dd>@(Model.ReferenceDocument ?? "-")</dd></div>
+                <div class="ak-list-row"><dt>حرکت موجودی</dt><dd>@(Model.InventoryMovementId == 0 ? (isDirectDispatchReceipt ? "ندارد - تخلیه مستقیم" : "-") : $"#{Model.InventoryMovementId}")</dd></div>
+                <div class="ak-list-row"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? "-" : Model.Notes)</dd></div>
             </dl>
         </section>
 
         <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head ak-detail-section-header"><i class="bi bi-diagram-3"></i> <h2>تخصیص و وضعیت</h2></header>
-            <dl class="ak-form-grid">
-                <div><dt>جمع تخصیص</dt><dd>@NumberDisplay.Quantity(Model.TotalAllocatedQuantityMt) MT</dd></div>
-                <div><dt>ورود به موجودی</dt><dd>@NumberDisplay.Quantity(qtyToInventory) MT</dd></div>
-                <div><dt>موتر برای مخزن</dt><dd>@NumberDisplay.Quantity(qtyTruckForTank) MT</dd></div>
-                <div><dt>موتر برای فروش</dt><dd>@NumberDisplay.Quantity(qtyTruckForCustomer) MT</dd></div>
-                <div><dt>فروش مستقیم</dt><dd>@NumberDisplay.Quantity(qtyDirectSale) MT</dd></div>
-                <div><dt>انتقال ترمینال</dt><dd>@NumberDisplay.Quantity(qtyTransfer) MT</dd></div>
-                <div><dt>در مسیر / ردیابی</dt><dd>@NumberDisplay.Quantity(qtyInTransit) MT</dd></div>
-                <div><dt>تکمیل شده</dt><dd>@NumberDisplay.Quantity(qtyCompleted) MT</dd></div>
-                <div><dt>اختلاف</dt><dd class="@(allocBalanced ?"" : "is-neg")">@NumberDisplay.Quantity(Model.AllocationDifferenceMt) MT</dd></div>
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تخصیص و وضعیت", (string?)null))" />
+            <dl class="ak-list">
+                <div class="ak-list-row"><dt>جمع تخصیص</dt><dd class="ak-num">@NumberDisplay.Quantity(Model.TotalAllocatedQuantityMt) MT</dd></div>
+                <div class="ak-list-row"><dt>ورود به موجودی</dt><dd class="ak-num">@NumberDisplay.Quantity(qtyToInventory) MT</dd></div>
+                <div class="ak-list-row"><dt>موتر برای مخزن</dt><dd class="ak-num">@NumberDisplay.Quantity(qtyTruckForTank) MT</dd></div>
+                <div class="ak-list-row"><dt>موتر برای فروش</dt><dd class="ak-num">@NumberDisplay.Quantity(qtyTruckForCustomer) MT</dd></div>
+                <div class="ak-list-row"><dt>فروش مستقیم</dt><dd class="ak-num">@NumberDisplay.Quantity(qtyDirectSale) MT</dd></div>
+                <div class="ak-list-row"><dt>انتقال ترمینال</dt><dd class="ak-num">@NumberDisplay.Quantity(qtyTransfer) MT</dd></div>
+                <div class="ak-list-row"><dt>در مسیر / ردیابی</dt><dd class="ak-num">@NumberDisplay.Quantity(qtyInTransit) MT</dd></div>
+                <div class="ak-list-row"><dt>تکمیل شده</dt><dd class="ak-num">@NumberDisplay.Quantity(qtyCompleted) MT</dd></div>
+                <div class="ak-list-row"><dt>اختلاف</dt><dd class="ak-num @(allocBalanced ? "" : "text-danger")">@NumberDisplay.Quantity(Model.AllocationDifferenceMt) MT</dd></div>
             </dl>
         </section>
     </div>
 
     <div class="ak-form-grid">
         <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head ak-detail-section-header"><i class="bi bi-list-check"></i> <h2>ردیف‌های رسید</h2>
+            <header class="ak-section-head ak-detail-section-header"><h2 class="ak-section-title">ردیف‌های رسید</h2>
                 <span class="ak-status">@Model.Allocations.Count</span>
             </header>
             <div class="ak-list">
@@ -268,7 +268,7 @@
         </section>
 
         <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head ak-detail-section-header"><i class="bi bi-exclamation-diamond"></i> <h2>ضایعات / اختلاف</h2>
+            <header class="ak-section-head ak-detail-section-header"><h2 class="ak-section-title">ضایعات / اختلاف</h2>
                 <span class="ak-status">@NumberDisplay.Quantity(lossDifferenceTotal) MT</span>
             </header>
             <div class="ak-list">
@@ -294,8 +294,8 @@
         </section>
 
         <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head ak-detail-section-header"><i class="bi bi-signpost-split"></i> <h2>ردیابی و سندها</h2>
-                <span class="ak-status @(pendingDispatchTrace ?"ak-status-amber" : "ak-status-mint")">@(pendingDispatchTrace ? "در انتظار" : "تکمیل")</span>
+            <header class="ak-section-head ak-detail-section-header"><h2 class="ak-section-title">ردیابی و سندها</h2>
+                <span class="ak-status @(pendingDispatchTrace ? "is-warning" : "is-active")">@(pendingDispatchTrace ? "در انتظار" : "تکمیل")</span>
             </header>
             <div class="ak-list">
                 <div class="ak-list-row">

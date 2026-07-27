@@ -18,10 +18,13 @@
                        (string?)null, (string?)null, (string?)null))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار مشتریان", "Customer statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل مشتریان", "Total customers")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "مشتری", "customers")" avatar="customers"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مشتریان فعال", "Active customers")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "مشتری", "customers")" avatar="rules-checklist"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مشتریان غیرفعال", "Inactive customers")" value="@((items.Count - activeCount).ToString("N0"))" unit="@UiText.T(Context, "مشتری", "customers")" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "کشورها", "Countries")" value="@countryCount.ToString("N0")" unit="@UiText.T(Context, "کشور", "countries")" avatar="locations"></vc:stat-card>
+        @* Customer-specific illustrations. Given as paths rather than registry keys
+           because "rules-checklist", "losses" and "locations" are shared with ~40
+           other cards that must keep their own artwork. *@
+        <vc:stat-card title="@UiText.T(Context, "کل مشتریان", "Total customers")" value="@items.Count.ToString("N0")" unit="@UiText.T(Context, "مشتری", "customers")" avatar-path="/images/stat-cards/ref-people/customers-portfolio.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مشتریان فعال", "Active customers")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "مشتری", "customers")" avatar-path="/images/stat-cards/ref-people/customers-agreement.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مشتریان غیرفعال", "Inactive customers")" value="@((items.Count - activeCount).ToString("N0"))" unit="@UiText.T(Context, "مشتری", "customers")" avatar-path="/images/stat-cards/ref-people/customers-support.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کشورها", "Countries")" value="@countryCount.ToString("N0")" unit="@UiText.T(Context, "کشور", "countries")" avatar-path="/images/stat-cards/ref-people/customers-growth.webp"></vc:stat-card>
     </section>
 
     <partial name="~/Views/Shared/_AkSearchFilter.cshtml"

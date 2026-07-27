@@ -41,7 +41,7 @@
     {
         <div class="ak-stat-card__content">
             <span class="ak-stat-card__title" title="@Model.Title">@Model.Title</span>
-            <strong class="ak-stat-card__value @valueDensityClass" title="@displayValue"><bdi>@displayValue</bdi></strong>
+            <strong class="ak-stat-card__value ak-number @valueDensityClass" title="@displayValue"><bdi>@displayValue</bdi></strong>
             @if (!string.IsNullOrWhiteSpace(Model.Unit))
             {
                 <span class="ak-stat-card__unit">@Model.Unit</span>
@@ -69,7 +69,7 @@
         <div class="ak-stat-card__visual @(Model.IsWarning ? "ak-stat-card__visual--warning" : "")">
             @if (!string.IsNullOrWhiteSpace(avatarPath))
             {
-                <img class="ak-stat-card__image" src="@avatarPath" alt="" loading="lazy" decoding="async" />
+                <img class="ak-stat-card__image" src="@avatarPath" asp-append-version="true" alt="" loading="lazy" decoding="async" />
             }
             @* Unknown/missing avatars intentionally leave a transparent visual area. *@
         </div>

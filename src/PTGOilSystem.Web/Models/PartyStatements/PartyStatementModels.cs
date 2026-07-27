@@ -182,6 +182,14 @@ public sealed class PartyStatementResult
     public string CourtesyText { get; init; } = "از همکاری دوامدار شما سپاس‌گزاریم.";
 }
 
+// نمای صورت‌حساب تأمین‌کننده. پیش‌فرض «قراردادها»؛ سایر طرف‌حساب‌ها همیشه Ledger می‌مانند.
+public enum SupplierStatementView
+{
+    Contracts = 0,
+    Ledger = 1,
+    Loadings = 2
+}
+
 public sealed class PartyStatementViewModel
 {
     public required PartyStatementResult Statement { get; init; }
@@ -194,6 +202,70 @@ public sealed class PartyStatementViewModel
     public IReadOnlyList<PartyStatementFilterOption> ContractOptions { get; init; } = [];
     public IReadOnlyList<PartyStatementFilterOption> CompanyOptions { get; init; } = [];
     public IReadOnlyList<string> CurrencyOptions { get; init; } = [];
+
+    // فقط تأمین‌کننده تب‌های سه‌گانه را می‌بیند؛ پیش‌فرض Ledger تا رفتار بقیهٔ طرف‌حساب‌ها عوض نشود.
+    public SupplierStatementView SupplierView { get; init; } = SupplierStatementView.Ledger;
+    public bool ShowSupplierViewTabs => PartyType == PartyStatementPartyType.Supplier;
+
+    // نمای «قراردادها»: گروه‌بندی نمایشیِ همان سطرهای مالی؛ بدون محاسبهٔ مالی جدید.
+    public SupplierContractStatementViewModel? ContractGrouping { get; init; }
+}
+
+// خلاصهٔ نمای «قراردادها» — گروه‌بندیِ نمایشی روی Rows موجود. جمع‌ها عیناً برابر نمای خطی‌اند.
+public sealed class SupplierContractStatementViewModel
+{
+    public required IReadOnlyList<SupplierContractStatementRow> Rows { get; init; }
+    public bool HasOpeningRow { get; init; }
+    public decimal OpeningBalance { get; init; }
+    public decimal? OpeningBalanceRub { get; init; }
+    public bool IsRub { get; init; }
+    public decimal TotalDebit { get; init; }
+    public decimal TotalCredit { get; init; }
+    public decimal ClosingBalance { get; init; }
+    public decimal? TotalDebitRub { get; init; }
+    public decimal? TotalCreditRub { get; init; }
+    public decimal? ClosingBalanceRub { get; init; }
+}
+
+// مدلِ ردیف جزئیات (lazy): همان صورت‌حساب قرارداد + اطلاعات نمایشیِ قرارداد برای هدرِ جزئیات.
+public sealed class SupplierContractDetailsViewModel
+{
+    public required PartyStatementResult Statement { get; init; }
+    public string? ProductName { get; init; }
+    public decimal? ContractQuantityMt { get; init; }
+    public decimal? UnitPriceUsd { get; init; }
+    public decimal? ContractValueUsd { get; init; }
+    public decimal? LoadedQuantityMt { get; init; }
+    public decimal? RemainingQuantityMt =>
+        ContractQuantityMt.HasValue && LoadedQuantityMt.HasValue
+            ? ContractQuantityMt.Value - LoadedQuantityMt.Value
+            : null;
+}
+
+// یک سطر = یک قرارداد (یا گروهِ «بدون قرارداد»). Debit/Credit/Balance جمعِ سطرهای مالیِ همان قرارداد است.
+public sealed class SupplierContractStatementRow
+{
+    public int Sequence { get; init; }
+    public int? ContractId { get; init; }
+    public string? ContractNumber { get; init; }
+    public DateTime? FirstDate { get; init; }
+    public DateTime? LastDate { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public string? ProductName { get; init; }
+    public decimal? ContractQuantityMt { get; init; }
+    public decimal? UnitPriceUsd { get; init; }
+    public decimal? ContractValueUsd { get; init; }
+    public decimal? LoadedQuantityMt { get; init; }
+    public decimal? RemainingQuantityMt =>
+        ContractQuantityMt.HasValue && LoadedQuantityMt.HasValue
+            ? ContractQuantityMt.Value - LoadedQuantityMt.Value
+            : null;
+    public decimal Debit { get; init; }
+    public decimal Credit { get; init; }
+    public decimal Balance { get; init; }
+    public decimal? DebitRub { get; init; }
+    public decimal? CreditRub { get; init; }
+    public decimal? BalanceRub { get; init; }
 }
 
 public sealed record PartyStatementFilterOption(int Id, string Text);

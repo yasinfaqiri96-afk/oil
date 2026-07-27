@@ -333,7 +333,7 @@ body.boltz-shell.app-shell-authenticated .ptg-main {
    radius, no fill. The scroll-blur treatment lives in 03-layout.css. */
 body.boltz-shell.app-shell-authenticated .ptg-topbar {
     min-height: 3rem !important;
-    padding: .35rem .1rem !important;
+    padding: .35rem 1.25rem !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
@@ -341,20 +341,53 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar {
 
 body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle,
 body.boltz-shell.app-shell-authenticated .boltz-icon-button,
-body.boltz-shell.app-shell-authenticated .boltz-language-toggle {
+body.boltz-shell.app-shell-authenticated .boltz-language-toggle,
+body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger,
+body.boltz-shell.app-shell-authenticated .ptg-h3d,
+body.boltz-shell.app-shell-authenticated .ptg-havatar-ring {
     width: 2.55rem !important;
     height: 2.55rem !important;
 }
 
+body.boltz-shell.app-shell-authenticated .ptg-header-cluster {
+    align-items: center;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-header-cluster > * {
+    align-self: center;
+    margin-block: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-hflag-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger .ptg-hsearch-ico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    line-height: 1;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger .ptg-hsearch-ico::before {
+    line-height: 1;
+}
+
 @media (max-width: 767.98px) {
     body.boltz-shell.app-shell-authenticated .ptg-topbar {
-        padding: .24rem 0 !important;
+        padding: .24rem .75rem !important;
         border-radius: 0 !important;
     }
 
     body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle,
     body.boltz-shell.app-shell-authenticated .boltz-icon-button,
-    body.boltz-shell.app-shell-authenticated .boltz-language-toggle {
+    body.boltz-shell.app-shell-authenticated .boltz-language-toggle,
+    body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger,
+    body.boltz-shell.app-shell-authenticated .ptg-h3d,
+    body.boltz-shell.app-shell-authenticated .ptg-havatar-ring {
         width: 2.45rem !important;
         height: 2.45rem !important;
     }
@@ -546,7 +579,7 @@ body.boltz-shell.app-shell-authenticated:is(.controller-operationalassets, .cont
 /* operational-assets-reference-redesign:start */
 body.boltz-shell.controller-operationalassets.action-details .boltz-content .operational-assets-reference-page {
     --oa-blue: #145dff;
-    --oa-blue-soft: #F1F6EE;
+    --oa-blue-soft: #E7F0FE;
     --oa-purple: #4f35ff;
     --oa-text: #424242;
     --oa-muted: #526783;
@@ -795,7 +828,7 @@ body.boltz-shell .loading-create-page .l-col-date [data-loading-date-picker] {
 }
 body.boltz-shell .loading-create-page .l-col-date [data-loading-date-picker].is-open,
 body.boltz-shell .loading-create-page .l-col-date [data-loading-date-picker]:focus-within {
-    border-color: #6EA152;
+    border-color: #1877f2;
     box-shadow: 0 0 0 2px rgba(18, 184, 179, .13);
 }
 body.boltz-shell .loading-create-page .loading-octane-date-icon {
@@ -807,7 +840,7 @@ body.boltz-shell .loading-create-page .loading-octane-date-icon {
     align-items: center;
     justify-content: center;
     border: 0;
-    background: #6EA152;
+    background: #1877f2;
     color: #fff;
     cursor: pointer;
     font-size: .95rem;
@@ -898,7 +931,7 @@ body.boltz-shell .loading-create-page .loading-date-header {
     grid-template-rows: 28px 1fr;
     align-items: center;
     gap: 2px;
-    background: #6EA152;
+    background: #1877f2;
     color: #fff;
     cursor: pointer;
     direction: ltr;
@@ -1008,7 +1041,7 @@ body.boltz-shell .loading-create-page .loading-date-day::before {
     position: absolute;
     inset: 2px;
     border-radius: 50%;
-    background: #6EA152;
+    background: #1877f2;
     transform: scale(0);
     transition: transform .35s;
 }
@@ -1045,7 +1078,7 @@ body.boltz-shell .loading-create-page .loading-date-year-option {
 }
 body.boltz-shell .loading-create-page .loading-date-year-option:hover,
 body.boltz-shell .loading-create-page .loading-date-year-option.is-selected {
-    background: #6EA152;
+    background: #1877f2;
     color: #fff;
 }
 

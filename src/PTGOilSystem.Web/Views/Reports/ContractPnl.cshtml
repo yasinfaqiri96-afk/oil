@@ -18,10 +18,10 @@
     <p class="ak-note">@UiText.T(Context,"مصرف قراردادهای خرید، درآمد قراردادهای فروش و سود ناخالص. قیمت نهایی قرارداد دستی ثبت می‌شود و نرخ‌های مرجع فقط برای مقایسه و کنترل استفاده می‌شوند.","Purchase costs, sales revenue and gross profit. Final contract prices are entered manually; reference rates are used only for comparison and control.")</p>
 
     <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار سود و زیان قراردادها", "Contract P&L metrics")">
-        <vc:stat-card title="@UiText.T(Context, "جمع مصرف خرید", "Total Purchase Cost")" value="@Model.TotalPurchaseCostUsd.ToString("N2")" unit="USD" avatar="purchase-value"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "جمع درآمد فروش", "Total Sales Revenue")" value="@Model.TotalSalesRevenueUsd.ToString("N2")" unit="USD" avatar="sales-value"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "سود ناخالص", "Gross Profit")" value="@Model.TotalGrossMarginUsd.ToString("N2")" unit="USD" avatar="profit-loss"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "حاشیه سود", "Profit Margin")" value="@marginPct.ToString("N1")" unit="%" avatar="analysis"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "جمع مصرف خرید", "Total Purchase Cost")" value="@Model.TotalPurchaseCostUsd.ToString("N2")" unit="USD" avatar="report-purchase"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "جمع درآمد فروش", "Total Sales Revenue")" value="@Model.TotalSalesRevenueUsd.ToString("N2")" unit="USD" avatar="report-sales"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "سود ناخالص", "Gross Profit")" value="@Model.TotalGrossMarginUsd.ToString("N2")" unit="USD" avatar="report-finance"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "حاشیه سود", "Profit Margin")" value="@marginPct.ToString("N1")" unit="%" avatar="report-analysis"></vc:stat-card>
     </section>
 
     <div class="ak-list">

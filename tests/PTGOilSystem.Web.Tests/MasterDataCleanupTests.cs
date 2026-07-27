@@ -79,7 +79,9 @@ public class MasterDataCleanupTests
         Assert.Contains(".Concat(operationalResourceItems", layout);
         Assert.Contains("var coreDataControllers = coreDataItems.Select(item => item.Controller).ToArray();", layout);
         Assert.Contains("var businessPartyGroupControllers = businessPartyItems.Select(item => item.Controller).ToArray();", layout);
-        Assert.Contains("var adminManagementControllers = new[] { \"Users\", \"Roles\", \"AuditLogs\" };", layout);
+        // پشتیبان‌گیری و بازیابی هم زیر همین گروه مدیریت می‌نشینند.
+        Assert.Contains("var adminManagementControllers = new[] { \"Users\", \"Roles\", \"AuditLogs\", \"Backups\", \"BackupRestore\" };", layout);
+        Assert.Contains("(\"Backups\", \"Index\"", layout);
 
         // The deprecated "base-settings" / "Core Data & Settings" sidebar
         // group must NOT be re-introduced.

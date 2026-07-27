@@ -15,7 +15,10 @@ public sealed record SupplierPaymentAllocationCreateRequest(
     decimal ContractCurrencyPerUsdRate,
     string? ReferenceNumber,
     string? Notes,
-    string? CreatedByUserName);
+    string? CreatedByUserName,
+    // «در تاریخ تخصیص، هر ۱ دلار چند واحد از ارز پرداخت است؟» (مثلاً 100 برای RUB).
+    // null یعنی «نرخ روز تخصیص را همان نرخ روز پرداخت بگیر» — رفتار قبلی، بدون سود/زیان تسعیر.
+    decimal? PaymentCurrencyPerUsdRateAtAllocation = null);
 
 public sealed record SupplierPaymentAllocationReverseRequest(
     int AllocationId,
@@ -25,6 +28,9 @@ public sealed record SupplierPaymentAllocationReverseRequest(
 public interface ISupplierPaymentAllocationService
 {
     Task<decimal> GetAllocatableBalanceUsdAsync(int paymentTransactionId, CancellationToken ct = default);
+
+    /// <summary>مانده واقعی به ارز پرداخت (مثلاً RUB) — مبنای کنترل over-allocation.</summary>
+    Task<decimal> GetAllocatablePaymentAmountAsync(int paymentTransactionId, CancellationToken ct = default);
     Task<SupplierPaymentAllocation> CreateAsync(SupplierPaymentAllocationCreateRequest request, CancellationToken ct = default);
     Task<SupplierPaymentAllocation> ReverseAsync(SupplierPaymentAllocationReverseRequest request, CancellationToken ct = default);
 }
@@ -33,17 +39,24 @@ public interface ISupplierPaymentAllocationService
 /// تخصیص پیش‌پرداخت آزاد تأمین‌کننده به یک قرارداد خرید.
 ///
 /// این یک «پرداخت جدید» نیست؛ فقط بخشی از پیش‌پرداخت آزاد را به قرارداد منتقل می‌کند.
-/// به همین دلیل برای هر تخصیص دو LedgerEntry متوازن (مانند ContractBalanceTransferService)
-/// ساخته می‌شود تا اثر خالص روی مانده کلی تأمین‌کننده صفر بماند:
-///   - Credit با ContractId = null  → کاهش پیش‌پرداخت آزاد
-///   - Debit  با ContractId = قرارداد → انتقال همان مبلغ به قرارداد
+/// پیش‌پرداخت با ارز اصلی خودش (مثلاً RUB) نگه داشته می‌شود و در تاریخ تخصیص با نرخ همان
+/// روز به ارز قرارداد تبدیل می‌شود. بنابراین هر تخصیص تا سه LedgerEntry متوازن می‌سازد:
+///   - Credit با ContractId = null  → کاهش پیش‌پرداخت آزاد به «ارزش تاریخی» (نرخ روز پرداخت)
+///   - Debit  با ContractId = قرارداد → تسویه قرارداد به «ارزش روز تخصیص» (نرخ روز تخصیص)
+///   - سطر سوم فقط وقتی این دو ارزش فرق دارند: سود/زیان تسعیر (بدون طرف‌حساب → P&L)
+///     با همان الگوی SarrafSettlement: زیان = Debit، سود = Credit.
+/// وقتی نرخ روز تخصیص با نرخ روز پرداخت یکی باشد (یا پرداخت دالری باشد) اختلاف صفر است و
+/// رفتار دقیقاً مثل قبل باقی می‌ماند: فقط دو سطر متوازن با اثر خالص صفر.
+///
 /// نرخ‌ها و تمام مبالغ هنگام ثبت قفل می‌شوند و رکورد تخصیص ویرایش/حذف نمی‌شود؛
-/// اصلاح فقط از طریق «برگشت تخصیص» با ثبت‌های معکوس انجام می‌شود.
+/// اصلاح فقط از طریق «برگشت تخصیص» با ثبت‌های معکوس (شامل سطر تسعیر) انجام می‌شود.
 /// </summary>
 public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocationService
 {
     public const string LedgerSourceType = "SupplierPaymentAllocation";
     public const string ReversalLedgerSourceType = "SupplierPaymentAllocationReversal";
+    public const string ExchangeDifferenceLedgerSourceType = "SupplierPaymentAllocationExchangeDifference";
+    public const string ExchangeDifferenceReversalLedgerSourceType = "SupplierPaymentAllocationExchangeDifferenceReversal";
 
     private readonly ApplicationDbContext _db;
     private readonly ISupplierPaymentAllocationAccountingAdapter? _accountingAdapter;
@@ -76,6 +89,26 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
         return decimal.Round(paymentUsd.Value - allocated, 4, MidpointRounding.AwayFromZero);
     }
 
+    public async Task<decimal> GetAllocatablePaymentAmountAsync(int paymentTransactionId, CancellationToken ct = default)
+    {
+        var paymentAmount = await _db.PaymentTransactions
+            .AsNoTracking()
+            .Where(p => p.Id == paymentTransactionId)
+            .Select(p => (decimal?)p.Amount)
+            .FirstOrDefaultAsync(ct);
+
+        if (paymentAmount is null)
+        {
+            return 0m;
+        }
+
+        var allocated = await _db.SupplierPaymentAllocations
+            .AsNoTracking()
+            .Where(a => a.PaymentTransactionId == paymentTransactionId && a.Status == SupplierPaymentAllocationStatus.Active)
+            .SumAsync(a => (decimal?)a.AllocatedPaymentAmount, ct) ?? 0m;
+        return decimal.Round(paymentAmount.Value - allocated, 4, MidpointRounding.AwayFromZero);
+    }
+
     public async Task<SupplierPaymentAllocation> CreateAsync(
         SupplierPaymentAllocationCreateRequest request,
         CancellationToken ct = default)
@@ -92,6 +125,13 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
             throw new BusinessRuleException(
                 "SUPPLIER_PAYMENT_ALLOCATION_RATE_INVALID",
                 "نرخ تبدیل ارز قرارداد باید بزرگ‌تر از صفر باشد.");
+        }
+
+        if (request.PaymentCurrencyPerUsdRateAtAllocation is <= 0m)
+        {
+            throw new BusinessRuleException(
+                "SUPPLIER_PAYMENT_ALLOCATION_ALLOCATION_RATE_INVALID",
+                "نرخ روز تخصیص باید بزرگ‌تر از صفر باشد.");
         }
 
         var payment = await _db.PaymentTransactions
@@ -137,13 +177,49 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
                 "مبلغ مصرف‌شده باید بزرگ‌تر از صفر باشد.");
         }
 
+        var paymentCurrency = SystemCurrency.Normalize(payment.Currency);
+        var isPaymentUsd = SystemCurrency.IsBaseCurrency(paymentCurrency);
+
+        // نرخ روز تخصیص: «۱ دلار = چند واحد ارز پرداخت». برای پرداخت دالری همیشه ۱ است و
+        // اگر کاربر نرخی نداده باشد، همان نرخ روز پرداخت استفاده می‌شود (اختلاف تسعیر صفر).
+        var paymentPerUsdAtPayment = decimal.Round(1m / paymentFxRateToUsd, 6, MidpointRounding.AwayFromZero);
+        var paymentPerUsdAtAllocation = isPaymentUsd
+            ? 1m
+            : request.PaymentCurrencyPerUsdRateAtAllocation ?? paymentPerUsdAtPayment;
+
+        // ارزش همان مبلغ ارز پرداخت با نرخ روز تخصیص: 200 RUB ÷ 100 = 2 USD.
+        // عمداً با کنوانسیون «مبلغ × نرخ» حساب می‌شود (نه تقسیم مستقیم) تا با اعتبارسنجی
+        // AccountingPostingService که همین ضرب را دوباره چک می‌کند، دقیقاً یکی باشد.
+        var paymentFxRateToUsdAtAllocation = isPaymentUsd
+            ? 1m
+            : decimal.Round(1m / paymentPerUsdAtAllocation, 6, MidpointRounding.AwayFromZero);
+        var valueUsdAtAllocation = isPaymentUsd
+            ? bookAmountUsd
+            : decimal.Round(request.AllocatedPaymentAmount * paymentFxRateToUsdAtAllocation, 4, MidpointRounding.AwayFromZero);
+        if (valueUsdAtAllocation <= 0m)
+        {
+            throw new BusinessRuleException(
+                "SUPPLIER_PAYMENT_ALLOCATION_AMOUNT_INVALID",
+                "ارزش تخصیص در تاریخ تخصیص باید بزرگ‌تر از صفر باشد.");
+        }
+
+        // اختلاف تسعیر: مثبت = سود (ارز پرداخت قوی‌تر شده)، منفی = زیان.
+        var exchangeDifferenceUsd = decimal.Round(valueUsdAtAllocation - bookAmountUsd, 4, MidpointRounding.AwayFromZero);
+        var exchangeDifferenceType = exchangeDifferenceUsd switch
+        {
+            > 0m => SarrafSettlementDifferenceType.Gain,
+            < 0m => SarrafSettlementDifferenceType.Loss,
+            _ => SarrafSettlementDifferenceType.None
+        };
+
         var contractCurrency = SystemCurrency.Normalize(contract.Currency);
         var isContractUsd = SystemCurrency.IsBaseCurrency(contractCurrency);
         var perUsdRate = isContractUsd ? 1m : request.ContractCurrencyPerUsdRate;
         var contractFxRateToUsd = isContractUsd
             ? 1m
             : decimal.Round(1m / perUsdRate, 6, MidpointRounding.AwayFromZero);
-        var contractCurrencyAmount = decimal.Round(bookAmountUsd * perUsdRate, 4, MidpointRounding.AwayFromZero);
+        // قرارداد با ارزش روز تخصیص تسویه می‌شود، نه با ارزش تاریخی پیش‌پرداخت.
+        var contractCurrencyAmount = decimal.Round(valueUsdAtAllocation * perUsdRate, 4, MidpointRounding.AwayFromZero);
 
         IDbContextTransaction? transaction = null;
         if (_db.Database.IsRelational())
@@ -154,16 +230,18 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
         try
         {
             // محاسبهٔ مانده قابل تخصیص داخل transaction تا تخصیص هم‌زمان باعث over-allocation نشود.
-            var alreadyAllocatedUsd = await _db.SupplierPaymentAllocations
+            // مبنا، مانده واقعی «ارز پرداخت» است؛ ارزش دلاری با نرخ روز تخصیص تغییر می‌کند و
+            // نمی‌تواند سقف مصرفِ خودِ ارز باشد.
+            var alreadyAllocatedAmount = await _db.SupplierPaymentAllocations
                 .Where(a => a.PaymentTransactionId == payment.Id && a.Status == SupplierPaymentAllocationStatus.Active)
-                .SumAsync(a => (decimal?)a.AllocatedBookAmountUsd, ct) ?? 0m;
-            var allocatableUsd = decimal.Round(payment.AmountUsd - alreadyAllocatedUsd, 4, MidpointRounding.AwayFromZero);
+                .SumAsync(a => (decimal?)a.AllocatedPaymentAmount, ct) ?? 0m;
+            var allocatableAmount = decimal.Round(payment.Amount - alreadyAllocatedAmount, 4, MidpointRounding.AwayFromZero);
 
-            if (bookAmountUsd > allocatableUsd)
+            if (request.AllocatedPaymentAmount > allocatableAmount)
             {
                 throw new BusinessRuleException(
                     "SUPPLIER_PAYMENT_ALLOCATION_EXCEEDS_BALANCE",
-                    $"مبلغ مصرف‌شده از مانده قابل تخصیص بیشتر است. مانده فعلی: {allocatableUsd:N2} USD.");
+                    $"مبلغ مصرف‌شده از مانده قابل تخصیص بیشتر است. مانده فعلی: {allocatableAmount:N2} {paymentCurrency}.");
             }
 
             var allocation = new SupplierPaymentAllocation
@@ -172,9 +250,14 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
                 ContractId = contract.Id,
                 AllocationDate = request.AllocationDate.Date,
                 AllocatedPaymentAmount = request.AllocatedPaymentAmount,
-                PaymentCurrencyCode = SystemCurrency.Normalize(payment.Currency),
+                PaymentCurrencyCode = paymentCurrency,
                 PaymentFxRateToUsd = paymentFxRateToUsd,
                 AllocatedBookAmountUsd = bookAmountUsd,
+                PaymentCurrencyPerUsdRateAtAllocation = paymentPerUsdAtAllocation,
+                PaymentCurrencyFxRateToUsdAtAllocation = paymentFxRateToUsdAtAllocation,
+                AllocatedValueUsdAtAllocation = valueUsdAtAllocation,
+                ExchangeDifferenceUsd = exchangeDifferenceUsd,
+                ExchangeDifferenceType = exchangeDifferenceType,
                 ContractCurrencyCode = contractCurrency,
                 ContractCurrencyPerUsdRate = perUsdRate,
                 ContractCurrencyFxRateToUsd = contractFxRateToUsd,
@@ -189,28 +272,44 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
             await _db.SaveChangesAsync(ct);
 
             _db.LedgerEntries.AddRange(
+                // ارزش تاریخی از پیش‌پرداخت آزاد خارج می‌شود تا باقی‌ماندهٔ موهومی نماند.
                 BuildLedgerEntry(
                     allocation,
                     payment.SupplierId.Value,
                     LedgerSide.Credit,
                     contractId: null,
+                    amountUsd: allocation.AllocatedBookAmountUsd,
                     sourceAmount: allocation.AllocatedPaymentAmount,
                     sourceCurrency: allocation.PaymentCurrencyCode,
                     appliedFxRateToUsd: allocation.PaymentFxRateToUsd,
                     sourceType: LedgerSourceType,
                     description: $"کاهش پیش‌پرداخت آزاد تأمین‌کننده بابت تخصیص به قرارداد {contract.ContractNumber}"),
+                // قرارداد با ارزش روز تخصیص تسویه می‌شود.
                 BuildLedgerEntry(
                     allocation,
                     payment.SupplierId.Value,
                     LedgerSide.Debit,
                     contractId: contract.Id,
+                    amountUsd: allocation.AllocatedValueUsdAtAllocation,
                     sourceAmount: allocation.AllocatedContractCurrencyAmount,
                     sourceCurrency: allocation.ContractCurrencyCode,
                     appliedFxRateToUsd: allocation.ContractCurrencyFxRateToUsd,
                     sourceType: LedgerSourceType,
-                    description: $"انتقال پیش‌پرداخت به قرارداد {contract.ContractNumber}"));
+                    description: $"انتقال پیش‌پرداخت به قرارداد {contract.ContractNumber} با نرخ روز تخصیص"));
 
             await _db.SaveChangesAsync(ct);
+
+            // سطر سوم فقط وقتی لازم است که ارزش روز تخصیص با ارزش تاریخی فرق کند؛ بدون آن
+            // مجموع Debit و Credit برابر نمی‌ماند. الگو: SarrafSettlement (زیان=Debit، سود=Credit).
+            if (allocation.ExchangeDifferenceType != SarrafSettlementDifferenceType.None)
+            {
+                var differenceLedger = BuildExchangeDifferenceLedger(allocation, contract, ExchangeDifferenceLedgerSourceType);
+                _db.LedgerEntries.Add(differenceLedger);
+                await _db.SaveChangesAsync(ct);
+
+                allocation.ExchangeDifferenceLedgerEntryId = differenceLedger.Id;
+                await _db.SaveChangesAsync(ct);
+            }
 
             // Dual-write pilot: journal + legacy ledgers share this transaction, so a
             // posting failure rolls back the whole allocation.
@@ -268,8 +367,10 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
                 "SUPPLIER_PAYMENT_ALLOCATION_NOT_SUPPLIER",
                 "پرداخت این تخصیص تأمین‌کننده ندارد.");
 
+        // Compose inside a caller's transaction (e.g. a payment correction) when one is already
+        // open; otherwise own one. Matches AccountingPostingService's nesting guard.
         IDbContextTransaction? transaction = null;
-        if (_db.Database.IsRelational())
+        if (_db.Database.IsRelational() && _db.Database.CurrentTransaction is null)
         {
             transaction = await _db.Database.BeginTransactionAsync(ct);
         }
@@ -290,6 +391,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
                     supplierId,
                     LedgerSide.Debit,
                     contractId: null,
+                    amountUsd: allocation.AllocatedBookAmountUsd,
                     sourceAmount: allocation.AllocatedPaymentAmount,
                     sourceCurrency: allocation.PaymentCurrencyCode,
                     appliedFxRateToUsd: allocation.PaymentFxRateToUsd,
@@ -300,11 +402,22 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
                     supplierId,
                     LedgerSide.Credit,
                     contractId: allocation.ContractId,
+                    amountUsd: allocation.AllocatedValueUsdAtAllocation,
                     sourceAmount: allocation.AllocatedContractCurrencyAmount,
                     sourceCurrency: allocation.ContractCurrencyCode,
                     appliedFxRateToUsd: allocation.ContractCurrencyFxRateToUsd,
                     sourceType: ReversalLedgerSourceType,
                     description: $"برگشت تخصیص پیش‌پرداخت از قرارداد (#{allocation.Id})"));
+
+            // سود/زیان تسعیر هم باید معکوس شود، وگرنه ثبت‌های برگشت نامتوازن می‌مانند.
+            if (allocation.ExchangeDifferenceType != SarrafSettlementDifferenceType.None)
+            {
+                _db.LedgerEntries.Add(BuildExchangeDifferenceLedger(
+                    allocation,
+                    allocation.Contract,
+                    ExchangeDifferenceReversalLedgerSourceType,
+                    reverse: true));
+            }
 
             await _db.SaveChangesAsync(ct);
 
@@ -339,11 +452,58 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
         }
     }
 
+    /// <summary>
+    /// سطر سود/زیان تسعیر تخصیص — بدون طرف‌حساب تا روی صورت‌حساب تأمین‌کننده ننشیند و
+    /// به‌عنوان اثر P&L شناخته شود. دقیقاً همان قرارداد علامت‌گذاری SarrafSettlement:
+    /// زیان = Debit، سود = Credit؛ در حالت برگشت، سمت آن معکوس می‌شود.
+    /// </summary>
+    private static LedgerEntry BuildExchangeDifferenceLedger(
+        SupplierPaymentAllocation allocation,
+        Contract? contract,
+        string sourceType,
+        bool reverse = false)
+    {
+        var isLoss = allocation.ExchangeDifferenceType == SarrafSettlementDifferenceType.Loss;
+        var amount = Math.Abs(allocation.ExchangeDifferenceUsd);
+        var side = isLoss ? LedgerSide.Debit : LedgerSide.Credit;
+        if (reverse)
+        {
+            side = side == LedgerSide.Debit ? LedgerSide.Credit : LedgerSide.Debit;
+        }
+
+        var label = isLoss ? "زیان تسعیر تخصیص پیش‌پرداخت" : "سود تسعیر تخصیص پیش‌پرداخت";
+        var contractNumber = contract?.ContractNumber;
+        var description = reverse
+            ? $"برگشت {label} (#{allocation.Id})"
+            : string.IsNullOrWhiteSpace(contractNumber)
+                ? $"{label} (#{allocation.Id})"
+                : $"{label} بابت قرارداد {contractNumber}";
+
+        return new LedgerEntry
+        {
+            EntryDate = allocation.AllocationDate.Date,
+            Side = side,
+            AmountUsd = amount,
+            Currency = SystemCurrency.BaseCurrencyCode,
+            SourceAmount = amount,
+            SourceCurrencyCode = SystemCurrency.BaseCurrencyCode,
+            AppliedFxRateToUsd = 1m,
+            AppliedFxRateDate = allocation.AllocationDate.Date,
+            AppliedFxRateSource = sourceType,
+            Description = description,
+            SourceType = sourceType,
+            SourceId = allocation.Id,
+            Reference = allocation.ReferenceNumber,
+            ContractId = allocation.ContractId
+        };
+    }
+
     private static LedgerEntry BuildLedgerEntry(
         SupplierPaymentAllocation allocation,
         int supplierId,
         LedgerSide side,
         int? contractId,
+        decimal amountUsd,
         decimal sourceAmount,
         string sourceCurrency,
         decimal appliedFxRateToUsd,
@@ -353,7 +513,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
         {
             EntryDate = allocation.AllocationDate.Date,
             Side = side,
-            AmountUsd = allocation.AllocatedBookAmountUsd,
+            AmountUsd = amountUsd,
             Currency = SystemCurrency.BaseCurrencyCode,
             SourceAmount = sourceAmount,
             SourceCurrencyCode = sourceCurrency,

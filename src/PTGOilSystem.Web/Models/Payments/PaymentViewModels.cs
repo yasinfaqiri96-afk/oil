@@ -461,6 +461,11 @@ public sealed class PaymentDetailsViewModel
     public bool SupportsAdvanceAllocation { get; init; }
     public decimal AllocatedBookAmountUsd { get; init; }
     public decimal AllocatableBalanceUsd { get; init; }
+    // مانده و مصرف به ارز اصلی پرداخت (مثلاً RUB) — سقف واقعی تخصیص همین است.
+    public decimal AllocatedPaymentAmountTotal { get; init; }
+    public decimal AllocatableBalanceAmount { get; init; }
+    // جمع سود/زیان تسعیر تخصیص‌های فعال (مثبت = سود، منفی = زیان).
+    public decimal AllocationExchangeDifferenceUsd { get; init; }
     public int ActiveAllocationCount { get; init; }
     public IReadOnlyList<SupplierPaymentAllocationListItemViewModel> Allocations { get; init; } = [];
 }

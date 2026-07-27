@@ -1309,13 +1309,22 @@ public partial class ShipmentPnlController : Controller
         foreach (var sale in sales)
         {
             int shipmentId;
+            // فروش مستقیم از محموله = فروشی که ShipmentId روی خودش ست است. فروش پس از ورود به مخزن فقط از
+            // مسیر Lineage رسیدهای حمل به محموله وصل می‌شود. این تفکیک فقط برای نمایش است؛ dedup روی sale.Id
+            // تضمین می‌کند هر فروش دقیقاً یک بار در جمع بیاید.
+            bool isDirectShipmentSale;
             if (sale.ShipmentId.HasValue && rollups.ContainsKey(sale.ShipmentId.Value))
             {
                 shipmentId = sale.ShipmentId.Value;
+                isDirectShipmentSale = true;
             }
             else if (!saleToShipmentFromLeg.TryGetValue(sale.Id, out shipmentId))
             {
                 continue;
+            }
+            else
+            {
+                isDirectShipmentSale = false;
             }
 
             saleToShipment[sale.Id] = shipmentId;
@@ -1329,6 +1338,7 @@ public partial class ShipmentPnlController : Controller
                 QuantityMt = sale.QuantityMt,
                 UnitPriceUsd = sale.UnitPriceUsd,
                 TotalUsd = sale.TotalUsd,
+                IsDirectShipmentSale = isDirectShipmentSale,
                 ContractBreakdownLines = saleBreakdownBySaleId.TryGetValue(sale.Id, out var breakdown)
                     ? breakdown
                     : sale.Contract is null

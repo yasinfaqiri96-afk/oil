@@ -1,0 +1,115 @@
+@using PTGOilSystem.Web.Models.Backups
+@model BackupRestoreIndexViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "بازیابی بکاپ", "Restore backup");
+
+    string SizeLabel(long bytes)
+    {
+        if (bytes <= 0) return "—";
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+        return $"{value:0.#} {units[unitIndex]}";
+    }
+}
+
+<div class="ak-form-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(((string)ViewData["Title"]!, false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "بازگشت به پشتیبان‌گیری", "Back to backups"), "bi-arrow-right",
+                       (string?)Url.Action("Index", "Backups")))" />
+
+    <div class="alert alert-danger ak-form-alert" role="alert">
+        <strong>@UiText.T(Context, "هشدار", "Warning")</strong>
+        <div>
+            @UiText.T(Context,
+                "بازیابی، داده‌های فعلی پایگاه داده را با نسخهٔ انتخاب‌شده جایگزین می‌کند. این کار برگشت‌پذیر نیست. پیش از اجرا حتماً یک بکاپ تازه بگیرید.",
+                "Restoring replaces the current database with the selected copy. This cannot be undone. Take a fresh backup before you continue.")
+        </div>
+    </div>
+
+    @if (!Model.RestoreEnabled)
+    {
+        <p class="ak-note">
+            @UiText.T(Context,
+                "بازیابی در این نصب غیرفعال است. برای فعال‌کردن، کلید Backup:RestoreEnabled را روی true بگذارید و سرویس را دوباره راه‌اندازی کنید.",
+                "Restore is disabled on this installation. Set Backup:RestoreEnabled to true and restart the service to enable it.")
+        </p>
+    }
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@((UiText.T(Context, "انتخاب نسخه و تأیید امنیتی", "Select a copy and confirm"),
+                           (string?)UiText.T(Context, "فقط نسخه‌هایی که فایلشان روی سرور موجود است قابل بازیابی‌اند.", "Only copies whose file is present on the server can be restored.")))" />
+
+        @if (Model.RestorableBackups.Count == 0)
+        {
+            <div class="ak-empty">
+                <i class="bi bi-archive"></i>
+                @UiText.T(Context, "نسخهٔ قابل بازیابی روی سرور موجود نیست", "No restorable copy is present on the server")
+            </div>
+        }
+        else
+        {
+            <form asp-action="Restore" method="post" class="ak-form" id="backup-restore-form" data-no-spa="true"
+                  data-ptg-confirm="true"
+                  data-ptg-confirm-title="@UiText.T(Context, "بازیابی بکاپ", "Restore backup")"
+                  data-ptg-confirm-message="@UiText.T(Context, "داده‌های فعلی با نسخهٔ انتخاب‌شده جایگزین می‌شوند. ادامه می‌دهید؟", "Current data will be replaced by the selected copy. Continue?")">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+
+                <div class="ak-form-grid">
+                    <div class="ak-field ak-col-full">
+                        <label class="ak-label" for="JobId">@UiText.T(Context, "نسخهٔ بکاپ", "Backup copy")</label>
+                        <select class="ak-input" id="JobId" name="JobId" required>
+                            @foreach (var row in Model.RestorableBackups)
+                            {
+                                <option value="@row.Id">
+                                    @row.StartedAtUtc.ToDisplayDateTime() — @row.FileName (@SizeLabel(row.SizeBytes))
+                                </option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="ak-field">
+                        <label class="ak-label" for="Password">@UiText.T(Context, "رمز عبور شما", "Your password")</label>
+                        <input class="ak-input" id="Password" name="Password" type="password" autocomplete="current-password" required />
+                    </div>
+
+                    <div class="ak-field">
+                        <label class="ak-label" for="Confirmation">
+                            @UiText.T(Context, $"عبارت «{Model.RequiredConfirmationPhrase}» را وارد کنید", $"Type the phrase \"{Model.RequiredConfirmationPhrase}\"")
+                        </label>
+                        <input class="ak-input" id="Confirmation" name="Confirmation" autocomplete="off" required />
+                    </div>
+
+                    <div class="ak-field">
+                        <label class="ak-role-permission" for="RestoreUploads">
+                            <span><strong>@UiText.T(Context, "فایل‌های ضمیمه هم بازگردانده شوند", "Restore attachment files too")</strong></span>
+                            <span class="form-check form-switch">
+                                <input type="checkbox" id="RestoreUploads" name="RestoreUploads" value="true"
+                                       class="form-check-input" role="switch" checked="checked" />
+                                @* پنهانِ false باید بعد از چک‌باکس باشد؛ اولین مقدارِ ارسالی است که Bind می‌شود. *@
+                                <input type="hidden" name="RestoreUploads" value="false" />
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-danger ak-primary-action" id="backup-restore-submit"
+                        disabled="@(Model.RestoreEnabled ? null : "disabled")">
+                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                    <span>@UiText.T(Context, "اجرای بازیابی", "Run restore")</span>
+                </button>
+            </form>
+        }
+    </section>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -5,12 +5,20 @@
    ===================================================================== */
 
 .ak-stat-grid {
+    /* The row is the unit of layout: four cards share one row and stay on it.
+       The track floor is a quarter of the grid minus its gaps (less a hairline
+       so sub-pixel widths cannot round the fourth track away), which caps the
+       row at four. Grids that hold fewer cards still span the full width —
+       auto-fit collapses the tracks they do not use. */
+    --ak-stat-gap: clamp(18px, 2.2vw, 32px);
+    --ak-stat-col: calc((100% - 3 * var(--ak-stat-gap)) / 4 - 0.5px);
+
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
-    gap: clamp(10px, 1vw, 14px);
+    grid-template-columns: repeat(auto-fit, minmax(var(--ak-stat-col), 1fr));
+    gap: var(--ak-stat-gap);
     width: 100%;
-    align-items: stretch;
-    justify-content: stretch;
+    align-items: start;
+    justify-content: center;
 }
 
 .ak-stat-grid > * {
@@ -38,28 +46,29 @@
 
 /* ---- Card surface --------------------------------------------------- */
 .ak-stat-card {
-    --ak-stat-fg: #172033;
-    --ak-stat-title: #424242;
-    --ak-stat-unit: #7B7B7B;
+    --ak-stat-fg: #1B2437;
+    --ak-stat-title: #4E5968;
+    --ak-stat-unit: #808B9C;
     --ak-stat-border: #EDF0F3;
 
     display: grid;
-    grid-template-columns: minmax(0, 55%) minmax(0, 45%);
+    grid-template-columns: minmax(0, 45%) minmax(0, 55%);
     align-items: stretch;
     gap: 0;
     direction: ltr;
 
     width: 100%;
     min-width: 0;
-    height: 112px;
-    min-height: 108px;
-    max-height: 116px;
-    padding: 5px 8px;
+    /* Proportions come from the reference sheets; the card is sized by ratio so a
+       narrow column and a wide one keep the same illustration-to-copy balance. */
+    aspect-ratio: 2.6;
+    max-height: 175px;
+    padding: clamp(11px, 1.1vw, 16px);
     box-sizing: border-box;
 
     background: #FFFFFF;
     border: 1px solid var(--ak-stat-border);
-    border-radius: 12px;
+    border-radius: 18px;
     box-shadow: 0 4px 14px rgba(31, 41, 55, 0.045);
 
     font-family: "Vazirmatn", system-ui, sans-serif;
@@ -80,9 +89,9 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    justify-content: center;
-    gap: 4px;
-    padding-block: 7px;
+    justify-content: flex-start;
+    gap: clamp(2px, 0.3vw, 5px);
+    padding-block: 0;
     box-sizing: border-box;
     text-align: left;
     direction: rtl;
@@ -95,7 +104,7 @@
     max-width: 100%;
     margin: 0;
     padding: 0;
-    font-size: 12px;
+    font-size: clamp(11.5px, 0.95vw, 14px);
     font-weight: 600;
     line-height: 1.25;
     color: var(--ak-stat-title);
@@ -112,10 +121,10 @@
     margin-top: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: clamp(22px, 1.6vw, 26px);
-    font-weight: 700;
+    font-size: clamp(21px, 2vw, 29px);
+    font-weight: 800;
     line-height: 1;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.025em;
     color: var(--ak-stat-fg);
     direction: ltr;
     text-align: left;
@@ -126,24 +135,18 @@
 /* Keep the complete prepared value visible. Long N2/N4 strings retain Latin,
    tabular digits and shrink only as much as their shared card needs. */
 .ak-stat-card__value--compact {
-    font-size: 14px;
+    font-size: clamp(17px, 1.6vw, 24px);
     letter-spacing: -0.035em;
 }
 
 .ak-stat-card__value--dense {
-    font-size: 12px;
-    letter-spacing: -0.045em;
+    font-size: clamp(14px, 1.3vw, 19px);
+    letter-spacing: -0.04em;
 }
 
 .ak-stat-card__value--ultra {
-    font-size: 9px;
-    letter-spacing: -0.055em;
-}
-
-@media (min-width: 1500px) {
-    .ak-stat-card__value:not(.ak-stat-card__value--compact):not(.ak-stat-card__value--dense):not(.ak-stat-card__value--ultra) {
-        font-size: 24px;
-    }
+    font-size: clamp(11px, 1vw, 15px);
+    letter-spacing: -0.045em;
 }
 
 .ak-stat-card__unit {
@@ -151,32 +154,33 @@
     max-width: 100%;
     margin-top: 0;
     overflow: visible;
-    font-size: 11.5px;
+    font-size: clamp(10px, 0.82vw, 12px);
     font-weight: 500;
-    line-height: 1.3;
+    line-height: 1.25;
     color: var(--ak-stat-unit);
     white-space: normal;
     overflow-wrap: anywhere;
     text-align: left;
 }
 
+/* The trend sits on the card floor in the reference, not directly under the unit. */
 .ak-stat-card__trend {
-    margin-top: 2px;
+    margin-top: auto;
     margin-right: auto;
     margin-left: 0;
     align-self: flex-start;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-size: 11px;
+    gap: 6px;
+    font-size: clamp(10px, 0.82vw, 12px);
     font-weight: 600;
     line-height: 1;
     direction: ltr;            /* "↑ +8.4%" reads left-to-right */
 }
 
 .ak-stat-card__trend-arrow {
-    width: 16px;
-    height: 16px;
+    width: clamp(14px, 1.15vw, 17px);
+    height: clamp(14px, 1.15vw, 17px);
     flex: none;
     padding: 3px;
     border-radius: 50%;
@@ -206,10 +210,10 @@
 }
 
 .ak-stat-card__image {
-    width: 124%;
-    height: 124%;
-    max-width: none;
-    max-height: none;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
     object-position: center;
     display: block;
@@ -259,39 +263,60 @@
    Responsive
    ===================================================================== */
 
-@media (max-width: 1179px) {
-    .ak-stat-card { height: 110px; }
-    .ak-stat-card__value--compact { font-size: 16px; }
-    .ak-stat-card__value--dense { font-size: 13px; }
-    .ak-stat-card__value--ultra { font-size: 10px; }
-}
+/* The four-card row is kept from the widest desktop down to small tablets; the
+   breakpoints below tighten the card box so a quarter-width card still reads,
+   instead of dropping cards onto a second row. The phone tier reflows to two
+   columns, where a card is about as wide as a tablet quarter — so it reuses the
+   same compact box and type. */
 
-@media (max-width: 899px) {
-    .ak-detail-page .ak-stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 1399.98px) {
+    .ak-stat-grid {
+        --ak-stat-gap: 12px;
     }
-    .ak-stat-card__value--compact { font-size: 20px; }
-    .ak-stat-card__value--dense { font-size: 17px; }
-    .ak-stat-card__value--ultra { font-size: 14px; }
-}
 
-@media (max-width: 599px) {
-    .ak-stat-grid { grid-template-columns: minmax(0, 1fr); }
-    .ak-detail-page .ak-stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
     .ak-stat-card {
-        height: 110px;
-        min-height: 106px;
-        max-height: 114px;
-        padding: 5px 8px;
+        /* Copy takes the wider share once the card narrows — the illustration
+           is the part that can lose space without losing meaning. */
+        grid-template-columns: minmax(0, 58%) minmax(0, 42%);
+        aspect-ratio: 2.1;
+        min-height: 78px;
+        max-height: 128px;
+        padding: 8px 9px;
+        border-radius: 14px;
     }
-    .ak-stat-card__value:not(.ak-stat-card__value--compact):not(.ak-stat-card__value--dense):not(.ak-stat-card__value--ultra) {
-        font-size: 26px;
+
+    .ak-stat-card__title { font-size: clamp(9.5px, 1.05vw, 12px); }
+    .ak-stat-card__value { font-size: clamp(13px, 1.75vw, 20px); }
+    .ak-stat-card__value--compact { font-size: clamp(12px, 1.5vw, 17px); }
+    .ak-stat-card__value--dense { font-size: clamp(10.5px, 1.25vw, 14px); }
+    .ak-stat-card__value--ultra { font-size: clamp(9px, 1vw, 11px); }
+    .ak-stat-card__unit,
+    .ak-stat-card__trend { font-size: clamp(8.5px, 0.92vw, 10.5px); }
+    .ak-stat-card__trend { gap: 4px; }
+    .ak-stat-card__trend-arrow { width: 13px; height: 13px; padding: 2px; }
+}
+
+@media (max-width: 899.98px) {
+    .ak-stat-grid {
+        --ak-stat-gap: 9px;
     }
-    .ak-stat-card__value--compact { font-size: 22px; }
-    .ak-stat-card__value--dense { font-size: 18px; }
-    .ak-stat-card__value--ultra { font-size: 15px; }
+
+    .ak-stat-card {
+        grid-template-columns: minmax(0, 63%) minmax(0, 37%);
+        aspect-ratio: 1.95;
+        padding: 7px;
+        border-radius: 12px;
+    }
+}
+
+/* Phone: four cards become two rows of two. A half-width phone card measures
+   about the same as a quarter-width tablet card, so the compact box above
+   carries over unchanged — only the column count differs. */
+@media (max-width: 599px) {
+    .ak-stat-grid,
+    .ak-detail-page .ak-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 /* =====================================================================

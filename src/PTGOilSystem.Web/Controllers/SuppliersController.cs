@@ -592,6 +592,7 @@ public partial class SuppliersController : Controller
                 SettlementCurrencyCode = l.SettlementCurrencyCode,
                 RubRateStatus = l.RubRateStatus,
                 RubPerUsdRate = l.RubPerUsdRate,
+                AmountRubAtRubLock = l.AmountRubAtRubLock,
                 SettlementUnitPriceRub = l.SettlementUnitPriceRub,
                 SettlementValueRub = l.SettlementValueRub
             })
@@ -606,25 +607,32 @@ public partial class SuppliersController : Controller
                     return GetLoadingRubEquivalent(l, finalPriceUsd);
                 })));
 
-        decimal? GetSettlementRubFallbackFromContractLoadings(SupplierSarrafSettlementProjection settlement)
+        // نرخ مؤثر روبل از خودِ بارگیری‌های روبلیِ همین قرارداد: مجموع روبلِ واقعیِ بارگیری‌ها
+        // ÷ بهای دالریِ همان بارگیری‌ها. این یک منبع روبلیِ واقعی و قابل‌ردیابی است (نرخ ثبت‌شدهٔ
+        // بارگیری، مبلغ روبلی فایل، یا snapshot قفل‌شده) — برخلاف نسبت پرداخت‌ها که منبع نیست.
+        decimal? GetLoadingDerivedRubPerUsdRate(int rateContractId)
         {
-            if (!settlement.ContractId.HasValue
-                || !loadedRubByContract.TryGetValue(settlement.ContractId.Value, out var loadedRub)
+            if (!loadedRubByContract.TryGetValue(rateContractId, out var loadedRub)
                 || !loadedRub.HasValue
                 || loadedRub.Value <= 0m
-                || !purchaseAggregates.TryGetValue(settlement.ContractId.Value, out var purchaseAgg)
+                || !purchaseAggregates.TryGetValue(rateContractId, out var purchaseAgg)
                 || purchaseAgg.TraceablePurchaseCostUsd <= 0m)
             {
                 return null;
             }
 
-            var effectiveRubPerUsdRate = decimal.Round(
+            return decimal.Round(
                 loadedRub.Value / purchaseAgg.TraceablePurchaseCostUsd,
                 6,
                 MidpointRounding.AwayFromZero);
-
-            return ToRubFromUsd(SupplierReductionAmountUsd(settlement), effectiveRubPerUsdRate);
         }
+
+        decimal? GetSettlementRubFallbackFromContractLoadings(SupplierSarrafSettlementProjection settlement)
+            => settlement.ContractId.HasValue
+                ? ToRubFromUsd(
+                    SupplierReductionAmountUsd(settlement),
+                    GetLoadingDerivedRubPerUsdRate(settlement.ContractId.Value))
+                : null;
 
         decimal? GetSettlementRubForDisplay(SupplierSarrafSettlementProjection settlement)
         {
@@ -665,16 +673,11 @@ public partial class SuppliersController : Controller
                 directPaidRubByContract.TryGetValue(c.Id, out var directPaidRub);
                 sarrafPaidRubByContract.TryGetValue(c.Id, out var sarrafPaidRub);
                 viaSarrafPaidRubByContract.TryGetValue(c.Id, out var viaSarrafPaidRub);
-                // نرخ روبلِ نمایش: اول نرخ خودِ قرارداد؛ اگر نبود (قرارداد دالری بدون نرخ روبل)
-                // نرخ مؤثر را از پرداخت‌های روبلیِ واقعیِ همین قرارداد می‌سازیم
-                // (مجموع روبل پرداختی ÷ مجموع دالر پرداختی). فقط برای محاسبهٔ معادل روبلیِ نمایش است
-                // تا روبلِ پرداخت‌شده دقیقاً مثل دالر از مانده/طلب کسر شود؛ دیتابیس/دفترکل تغییری نمی‌کند.
-                var paidRubTotalForRate = SumKnown([directPaidRub, sarrafPaidRub, viaSarrafPaidRub]);
-                var paidUsdTotalForRate = directPaidUsd + sarrafPaidUsd + viaSarrafPaidUsd;
-                var rubPerUsdRate = GetRubPerUsdRate(c)
-                    ?? (paidRubTotalForRate.HasValue && paidRubTotalForRate.Value > 0m && paidUsdTotalForRate > 0m
-                        ? decimal.Round(paidRubTotalForRate.Value / paidUsdTotalForRate, 6, MidpointRounding.AwayFromZero)
-                        : (decimal?)null);
+                // نرخ روبلِ نمایش فقط از منبع روبلیِ واقعی می‌آید: نرخ ثابت قرارداد، یا نرخ مؤثرِ
+                // بارگیری‌های روبلیِ همین قرارداد. نرخ از نسبت پرداخت‌ها ساخته نمی‌شود؛ پرداخت روبلی
+                // «قیمتِ خرید» را روبلی نمی‌کند و در پرداخت ترکیبی USD/RUB آن نسبت رقیق و نادرست است.
+                // قرارداد و بارگیریِ کاملاً دالری بدون نرخ، معادل روبلی نمی‌گیرد (null می‌ماند).
+                var rubPerUsdRate = GetRubPerUsdRate(c) ?? GetLoadingDerivedRubPerUsdRate(c.Id);
                 var estimatedTotalRub = GetContractTotalRub(c, finalPriceUsd, rubPerUsdRate);
                 var loadedQuantityMt = purchaseAgg?.TotalLoadedQuantityMt ?? 0m;
                 loadedRubByContract.TryGetValue(c.Id, out var loadingRub);
@@ -1125,6 +1128,15 @@ public partial class SuppliersController : Controller
             return null;
         }
 
+        // بارگیریِ قفل‌شده: همان snapshot قفل ملاک است (نه محاسبهٔ مجدد با قیمت جاری).
+        // دفترکل هم دقیقاً از همین snapshot استفاده می‌کند (SupplierLoadingLedger)، پس اگر
+        // قیمت بعد از قفل بدون بازقفل اصلاح شده باشد، پروفایل و دفترکل عدد یکسان نشان می‌دهند.
+        if (loading.RubRateStatus == RubSettlementRateStatus.Locked
+            && loading.AmountRubAtRubLock is > 0m)
+        {
+            return loading.AmountRubAtRubLock.Value;
+        }
+
         var loadingValueUsd = GetLoadingValueUsd(loading.LoadedQuantityMt, loading.LoadingPriceUsd, contractFinalPriceUsd);
         if (loading.RubRateStatus == RubSettlementRateStatus.Locked
             && loadingValueUsd.HasValue
@@ -1286,6 +1298,9 @@ public partial class SuppliersController : Controller
             (var s, _) when s == ContractBalanceTransferService.LedgerSourceType => "انتقال مانده از قرارداد دیگر",
             (var s, _) when s == SupplierPaymentAllocationService.LedgerSourceType => "مصرف پیش‌پرداخت برای قرارداد",
             (var s, _) when s == SupplierPaymentAllocationService.ReversalLedgerSourceType => "برگشت مصرف پیش‌پرداخت",
+            (var s, LedgerSide.Debit) when s == SupplierPaymentAllocationService.ExchangeDifferenceLedgerSourceType => "زیان تسعیر تخصیص پیش‌پرداخت",
+            (var s, _) when s == SupplierPaymentAllocationService.ExchangeDifferenceLedgerSourceType => "سود تسعیر تخصیص پیش‌پرداخت",
+            (var s, _) when s == SupplierPaymentAllocationService.ExchangeDifferenceReversalLedgerSourceType => "برگشت تسعیر تخصیص پیش‌پرداخت",
             (var s, _) when s == SarrafSettlementService.SupplierLedgerSourceType => "پرداخت از طریق صراف",
             (var s, _) when s == PaymentsController.ViaSarrafSupplierLedgerSourceType => "پرداخت از طریق صراف",
             (var s, _) when s == SarrafSettlementService.ExchangeDifferenceSourceType => "تفاوت نرخ صراف",
@@ -1684,6 +1699,7 @@ public partial class SuppliersController : Controller
         public string SettlementCurrencyCode { get; init; } = "USD";
         public RubSettlementRateStatus RubRateStatus { get; init; }
         public decimal? RubPerUsdRate { get; init; }
+        public decimal? AmountRubAtRubLock { get; init; }
         public decimal? SettlementUnitPriceRub { get; init; }
         public decimal? SettlementValueRub { get; init; }
     }

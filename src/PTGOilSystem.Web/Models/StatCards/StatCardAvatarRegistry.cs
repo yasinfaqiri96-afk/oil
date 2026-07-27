@@ -23,76 +23,111 @@ public static class StatCardAvatarRegistry
     private static readonly Dictionary<string, string> Map = new(StringComparer.OrdinalIgnoreCase)
     {
         // ── Shipment operations ─────────────────────────────
-        ["shipments"]        = "shipments",        // oil tanker vessel
-        ["vessel"]           = "vessel",           // oil tanker vessel (alternate angle)
-        ["wagon"]            = "wagon",            // rail tank wagon
-        ["transported"]      = "transported",      // fuel tanker truck
-        ["in-transit"]       = "in-transit",       // tanker truck on a route
-        ["loading"]          = "loading",          // crane / loading port
-        ["loading-terminal"] = "loading-terminal", // truck at the loading gantry
-        ["dispatch-station"] = "dispatch-station", // fuel dispatch / gate station
-        ["locations"]        = "locations",        // map pin + route
+        ["shipments"]        = "ref-blue/ops-loading",        // oil tanker vessel
+        ["vessel"]           = "ref-blue/ops-loading",           // oil tanker vessel (alternate angle)
+        ["wagon"]            = "ref-icons/wagon",            // rail tank wagon
+        ["transported"]      = "ref-blue/ops-transport",      // fuel tanker truck
+        ["in-transit"]       = "ref-blue/ops-transport",       // tanker truck on a route
+        ["loading"]          = "ref-blue/ops-loading",          // crane / loading port
+        ["loading-terminal"] = "ref-blue/ops-loading-receipt", // truck at the loading gantry
+        ["dispatch-station"] = "ref-blue/ops-loading-receipt", // fuel dispatch / gate station
+        ["locations"]        = "ref-icons/locations",        // map pin + route
 
         // ── Purchase & supply ───────────────────────────────
-        ["purchase-contracts"] = "purchase-contracts", // contract doc + pen
-        ["contract-signed"]    = "contract-signed",    // signed & sealed contract
-        ["purchase-value"]     = "purchase-value",     // business handshake / finance doc
-        ["suppliers"]          = "suppliers",          // team of professionals
-        ["partners"]           = "partners",           // two business partners
-        ["employees"]          = "employees",          // field operator
-        ["rules-checklist"]    = "rules-checklist",    // checklist + tools (rules / active state)
-        ["equipment"]          = "equipment",          // motor + gear + wrench
-        ["security"]           = "security",           // ID card + shield
+        ["purchase-contracts"] = "ref-blue/sale-contracts", // contract doc + pen
+        ["contract-signed"]    = "ref-blue/sale-contracts",    // signed & sealed contract
+        ["purchase-value"]     = "ref-icons/purchase-value",     // business handshake / finance doc
+        ["suppliers"]          = "ref-people/suppliers",          // team of professionals
+        ["partners"]           = "ref-people/partners",           // two business partners
+        ["employees"]          = "ref-people/employees",          // field operator
+        ["rules-checklist"]    = "ref-icons/rules-checklist",    // checklist + tools (rules / active state)
+        ["equipment"]          = "ref-people/equipment",          // motor + gear + wrench
+        ["security"]           = "ref-icons/security",           // ID card + shield
 
         // ── Sales & revenue ─────────────────────────────────
-        ["sold-quantity"] = "sold-quantity", // transport tanker
-        ["sales-value"]   = "sales-value",   // soft banknotes / coins
-        ["customers"]     = "customers",     // two managers dealing
-        ["analysis"]      = "analysis",      // report + magnifier + growth chart
-        ["reports"]       = "reports",       // dashboard screen
+        ["sold-quantity"] = "ref-blue/sale-revenue", // transport tanker
+        ["sales-value"]   = "ref-blue/sale-revenue",   // soft banknotes / coins
+        ["customers"]     = "ref-people/customers",     // two managers dealing
+        ["analysis"]      = "ref-icons/analysis",      // report + magnifier + growth chart
+        ["reports"]       = "ref-icons/reports",       // dashboard screen
 
         // ── Finance & accounting ────────────────────────────
-        ["receivables"]   = "receivables",   // wallet receiving money
-        ["receipts"]      = "receipts",      // cash-in receipt
-        ["payments"]      = "payments",      // bank cards / payment
-        ["payments-out"]  = "payments-out",  // invoice + card + outgoing arrow
-        ["cash-flow"]     = "cash-flow",     // coins + banknote + refresh
-        ["treasury"]      = "treasury",      // safe + money + growth arrow
-        ["profit-loss"]   = "profit-loss",   // calculator / finance chart (net sales − expenses)
-        ["statement"]     = "statement",     // financial statement + calculator
-        ["ledger"]        = "ledger",        // ledger book + calculator
-        ["expenses"]      = "expenses",      // expense receipt / outflow (dedicated, never reused)
-        ["expense-types"] = "expense-types", // expense categories doc
-        ["bank-accounts"] = "bank-accounts", // bank building + card
-        ["exchange-rate"] = "exchange-rate", // USD/EUR conversion + calculator
-        ["documents"]     = "documents",     // archive box + magnifier
+        ["receivables"]   = "ref-blue/sale-loan",   // wallet receiving money
+        ["receipts"]      = "ref-blue/party-receipt",      // cash-in receipt
+        ["payments"]      = "ref-blue/party-payment",      // bank cards / payment
+        ["payments-out"]  = "ref-blue/party-payment",  // invoice + card + outgoing arrow
+        ["cash-flow"]     = "ref-blue/ops-settlement",     // coins + banknote + refresh
+        ["treasury"]      = "ref-blue/ops-settlement",      // safe + money + growth arrow
+        ["profit-loss"]   = "ref-icons/profit-loss",   // calculator / finance chart (net sales − expenses)
+        ["statement"]     = "ref-blue/party-receipt",     // financial statement + calculator
+        ["ledger"]        = "ref-icons/ledger",        // ledger book + calculator
+        ["expenses"]      = "ref-blue/sale-expense",      // expense receipt / outflow (dedicated, never reused)
+        ["expense-types"] = "ref-blue/sale-expense", // expense categories doc
+        ["bank-accounts"] = "ref-icons/bank-accounts", // bank building + card
+        ["exchange-rate"] = "ref-people/exchange-rate", // USD/EUR conversion + calculator
+        ["documents"]     = "ref-icons/documents",     // archive box + magnifier
 
         // ── Inventory & facilities ──────────────────────────
-        ["total-inventory"] = "total-inventory", // oil barrels
-        ["storage-tanks"]   = "storage-tanks",   // storage tank group
-        ["tank-farm"]       = "tank-farm",       // tank farm / discharge tanks
-        ["warehouse"]       = "warehouse",       // warehouse + stock
-        ["products"]        = "products",        // barrel + jerrycan
-        ["units"]           = "units",           // ruler + caliper
-        ["quality"]         = "quality",         // lab test / inspection
-        ["refinery"]        = "refinery",        // refinery plant
-        ["pipeline"]        = "pipeline",        // pipeline manifold
-        ["pump-station"]    = "pump-station",    // pumping station
-        ["production"]      = "production",      // pumpjack
-        ["losses"]          = "losses",          // barrel + warning
+        ["total-inventory"] = "ref-blue/ops-stock-transfer", // oil barrels
+        ["storage-tanks"]   = "ref-blue/ops-stock-transfer",   // storage tank group
+        ["tank-farm"]       = "ref-blue/ops-stock-transfer",       // tank farm / discharge tanks
+        ["warehouse"]       = "ref-icons/warehouse",       // warehouse + stock
+        ["products"]        = "ref-icons/products",        // barrel + jerrycan
+        ["units"]           = "ref-icons/units",           // ruler + caliper
+        ["quality"]         = "ref-icons/quality",         // lab test / inspection
+        ["refinery"]        = "ref-icons/refinery",        // refinery plant
+        ["pipeline"]        = "ref-icons/pipeline",        // pipeline manifold
+        ["pump-station"]    = "ref-icons/pump-station",    // pumping station
+        ["production"]      = "ref-icons/production",      // pumpjack
+        ["losses"]          = "ref-blue/sale-deductions",          // barrel + warning
+
+        // ── Shipment dossier (ShipmentPnl/Details only) ──────
+        ["shipment-loaded"]     = "ref-shipment/loaded",     // vessel at the loading arm
+        ["shipment-discharged"] = "ref-shipment/discharged", // vessel discharging into the tank farm
+        ["shipment-remaining"]  = "ref-shipment/remaining",  // gauge tank showing the level left
+        ["shipment-losses"]     = "ref-shipment/losses",     // leaking tank + warning sign
+        ["shipment-sales"]      = "ref-shipment/sales",      // vessel + confirmed order basket
+        ["shipment-expenses"]   = "ref-shipment/expenses",   // calculator + service costs
+        ["shipment-profit"]     = "ref-shipment/profit",     // rising chart + coins
+        ["shipment-loss"]       = "ref-shipment/loss",       // falling chart + coins
+
+        // ── Contract dossier (ContractJourney/Details summary) ─
+        ["contract-loaded"]   = "ref-contract/contract-loaded",   // barrel + gauge + confirmed check
+        ["contract-expenses"] = "ref-contract/contract-expenses", // cost sheet + calculator
+        ["contract-sales"]    = "ref-contract/contract-sales",    // tanker truck + handshake
+        ["contract-losses"]   = "ref-contract/contract-losses",   // open drum + spilled product
+        ["contract-profit"]   = "ref-contract/contract-profit",   // growth chart + net result
+
+        // ── Report pages ────────────────────────────────────
+        ["report-inventory"]   = "ref-reports/rep-inventory",   // barrel + stock chart
+        ["report-purchase"]    = "ref-reports/rep-purchase",    // truck + tanker + purchase sheet
+        ["report-sales"]       = "ref-reports/rep-sales",       // fuel nozzle + sales chart
+        ["report-finance"]     = "ref-reports/rep-finance-pnl", // financial statement + coins
+        ["report-payments"]    = "ref-reports/rep-payments",    // statement + calculator
+        ["report-settlements"] = "ref-reports/rep-settlements", // cleared checklist + shield
+        ["report-transport"]   = "ref-reports/rep-transport",   // route map + vessel
+        ["report-analysis"]    = "ref-reports/rep-analysis",    // chart under a magnifier
+
+        // ── Reconciliation / mismatch pages ─────────────────
+        ["recon-audit"]      = "ref-reconciliation/recon-audit",      // checklists under a magnifier
+        ["recon-ledger"]     = "ref-reconciliation/recon-ledger",     // two bank balances that disagree
+        ["recon-stock"]      = "ref-reconciliation/recon-stock",      // counted vs recorded cargo
+        ["recon-amount"]     = "ref-reconciliation/recon-amount",     // two receipts with different totals
+        ["recon-documents"]  = "ref-reconciliation/recon-documents",  // two records in conflict
+        ["recon-operations"] = "ref-reconciliation/recon-operations", // open order / transport loop
 
         // ── Legacy keys kept working (aliases to real assets) ─
-        ["unloaded"]          = "tank-farm",
-        ["unloading"]         = "tank-farm",
-        ["tank-inventory"]    = "storage-tanks",
-        ["shortage"]          = "losses",
-        ["stock-shortage"]    = "losses",
-        ["realized-profit"]   = "profit-loss",
-        ["sales-contracts"]   = "contract-signed",
-        ["purchase-quantity"] = "products",
-        ["purchase-requests"] = "rules-checklist",
-        ["average-price"]     = "analysis",
-        ["cash"]              = "cash-flow",
+        ["unloaded"]          = "ref-blue/ops-stock-transfer",
+        ["unloading"]         = "ref-blue/ops-stock-transfer",
+        ["tank-inventory"]    = "ref-blue/ops-stock-transfer",
+        ["shortage"]          = "ref-blue/sale-deductions",
+        ["stock-shortage"]    = "ref-blue/sale-deductions",
+        ["realized-profit"]   = "ref-icons/profit-loss",
+        ["sales-contracts"]   = "ref-blue/sale-contracts",
+        ["purchase-quantity"] = "ref-icons/products",
+        ["purchase-requests"] = "ref-icons/rules-checklist",
+        ["average-price"]     = "ref-icons/analysis",
+        ["cash"]              = "ref-blue/ops-settlement",
     };
 
     /// <summary>All registered avatar keys (used by the Asset Spec / audits).</summary>

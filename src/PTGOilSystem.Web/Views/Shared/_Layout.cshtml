@@ -163,15 +163,22 @@
         .ToArray();
     var coreDataControllers = coreDataItems.Select(item => item.Controller).ToArray();
     var businessPartyGroupControllers = businessPartyItems.Select(item => item.Controller).ToArray();
-    var adminSettingItems = canManageUsers
-        ? new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
-        {
-            ("Users", "Index", T("کاربران", "Users"), "bi-person-gear", null),
-            ("Roles", "Index", T("نقش‌ها",  "Roles"), "bi-shield-lock", null),
-            ("AuditLogs", "Index", T("لاگ‌ها", "Logs"), "bi-journal-text", null)
-        }
-        : Array.Empty<(string Controller, string Action, string Label, string Icon, string? RouteKey)>();
-    var adminManagementControllers = new[] { "Users", "Roles", "AuditLogs" };
+    // پشتیبان‌گیری فقط برای SuperAdmin (یا Permission صریح ManageBackups) دیده می‌شود؛
+    // «مدیریت کاربران» به‌تنهایی این آیتم را باز نمی‌کند.
+    var canManageBackups = PTGOilSystem.Web.Security.RoleAccessRules.CanManageBackups(User);
+    var adminSettingItemList = new List<(string Controller, string Action, string Label, string Icon, string? RouteKey)>();
+    if (canManageUsers)
+    {
+        adminSettingItemList.Add(("Users", "Index", T("کاربران", "Users"), "bi-person-gear", null));
+        adminSettingItemList.Add(("Roles", "Index", T("نقش‌ها",  "Roles"), "bi-shield-lock", null));
+        adminSettingItemList.Add(("AuditLogs", "Index", T("لاگ‌ها", "Logs"), "bi-journal-text", null));
+    }
+    if (canManageBackups)
+    {
+        adminSettingItemList.Add(("Backups", "Index", T("پشتیبان‌گیری", "Backups"), "bi-hdd-stack", null));
+    }
+    var adminSettingItems = adminSettingItemList.ToArray();
+    var adminManagementControllers = new[] { "Users", "Roles", "AuditLogs", "Backups", "BackupRestore" };
 
     var dashboardSidebarItem = SidebarItem("Home", "Index", T("داشبورد", "Dashboard"), "nav-dashboard");
     var contractControllers = new[] { "Contracts", "ContractAmendments", "ContractJourney" };
@@ -401,6 +408,7 @@
         <link rel="stylesheet" href="~/css/ptg/41-compact.css" asp-append-version="true" />
         <link rel="stylesheet" href="~/css/ptg/45-akaunting.css" asp-append-version="true" />
         <link rel="stylesheet" href="~/css/ptg/50-ak-components.css" asp-append-version="true" />
+        <link rel="stylesheet" href="~/css/ptg/65-excel-import.css" asp-append-version="true" />
         <link rel="stylesheet" href="~/css/ptg/52-stat-card.css" asp-append-version="true" />
         @* The authenticated shell survives SPA/Back navigation. Keep this scoped
            stylesheet in that persistent shell so finance pages never arrive
@@ -411,6 +419,13 @@
            هیچ تبی بدون CSS خودش نرسد و فایل فقط یک‌بار بارگیری شود. *@
         <link rel="stylesheet" href="~/css/ptg/64-shipment-record-list.css" asp-append-version="true" />
         <link rel="stylesheet" href="~/css/ptg/70-page-frame.css" asp-append-version="true" />
+        <link rel="stylesheet" href="~/css/ptg/71-typography.css" asp-append-version="true" />
+        @* سطح مشترک پنل‌ها — بدون بوردر، با سایهٔ نرم داشبورد. باید بعد از همهٔ
+           لایه‌هایی بیاید که پنل تعریف می‌کنند تا ترتیب منبع کار کند. *@
+        <link rel="stylesheet" href="~/css/ptg/72-surfaces.css" asp-append-version="true" />
+        @* صفحهٔ پشتیبان‌گیری — هر قاعده زیر .bk-page قفل است. مثل ۶۱ و ۶۴ در همین
+           پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
+        <link rel="stylesheet" href="~/css/ptg/66-backups.css" asp-append-version="true" />
     }
     @* لودر برند صدیقی — استایل و رفتار در فایل‌های مستقل (60-loader.css / ptg-loader.js) *@
     @if (renderShellChrome)
@@ -450,7 +465,7 @@
                 <div class="boltz-sidebar-scroll">
                     <a class="boltz-brand boltz-brand-logo-only" asp-controller="Home" asp-action="Index">
                         <span class="boltz-brand-mark">
-                            <img class="boltz-brand-logo" src="~/images/logo1-sidebar.png" asp-append-version="true" alt="Saddiqi Group" width="512" height="165" decoding="async" />
+                            <img class="boltz-brand-logo" src="~/images/white-sidebar.png" asp-append-version="true" alt="Saddiqi Group" width="1248" height="364" decoding="async" />
                         </span>
                     </a>
 
@@ -556,31 +571,43 @@
                             <i class="bi bi-search ptg-hsearch-ico" aria-hidden="true"></i>
                         </button>
 
-                        @* The topbar is persistent during SPA navigation. Render the
-                           control once; finance-theme.js shows it only in Finance. *@
-                        <button type="button"
-                                class="ptg-h3d"
-                                data-finance-theme-toggle
-                                aria-pressed="false"
-                                aria-label="@T("فعال‌کردن حالت تیره", "Enable dark mode")"
-                                title="@T("حالت روشن یا تیره", "Light or dark mode")"
-                                hidden>
-                            <i class="bi bi-moon-stars" data-finance-theme-icon aria-hidden="true"></i>
-                        </button>
+                        @* Active fiscal-year switcher — working/reporting context, stored in a signed cookie. *@
+                        <vc:fiscal-year-switcher></vc:fiscal-year-switcher>
 
-                        @* Language selector (UK flag) *@
+                        @* Language selector (current language flag) *@
                         <div class="dropdown boltz-language-menu ptg-hflag-wrap">
                             <button class="ptg-h3d ptg-hflag" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Language">
-                                <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                                    <defs><clipPath id="ptgUkFlag"><rect width="60" height="40" rx="9" /></clipPath></defs>
-                                    <g clip-path="url(#ptgUkFlag)">
-                                        <rect width="60" height="40" fill="#012169" />
-                                        <path d="M0 0 60 40M60 0 0 40" stroke="#ffffff" stroke-width="8" />
-                                        <path d="M0 0 60 40M60 0 0 40" stroke="#C8102E" stroke-width="3" />
-                                        <path d="M30 0V40M0 20H60" stroke="#ffffff" stroke-width="12" />
-                                        <path d="M30 0V40M0 20H60" stroke="#C8102E" stroke-width="7" />
-                                    </g>
-                                </svg>
+                                @if (isEnglishUi)
+                                {
+                                    <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <defs><clipPath id="ptgUkFlag"><rect width="60" height="40" rx="9" /></clipPath></defs>
+                                        <g clip-path="url(#ptgUkFlag)">
+                                            <rect width="60" height="40" fill="#012169" />
+                                            <path d="M0 0 60 40M60 0 0 40" stroke="#ffffff" stroke-width="8" />
+                                            <path d="M0 0 60 40M60 0 0 40" stroke="#C8102E" stroke-width="3" />
+                                            <path d="M30 0V40M0 20H60" stroke="#ffffff" stroke-width="12" />
+                                            <path d="M30 0V40M0 20H60" stroke="#C8102E" stroke-width="7" />
+                                        </g>
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <defs><clipPath id="ptgAfghanistanFlag"><rect width="60" height="40" rx="9" /></clipPath></defs>
+                                        <g clip-path="url(#ptgAfghanistanFlag)">
+                                            <rect width="20" height="40" fill="#000000" />
+                                            <rect x="20" width="20" height="40" fill="#D32011" />
+                                            <rect x="40" width="20" height="40" fill="#007A36" />
+                                            <circle cx="30" cy="20" r="6" fill="none" stroke="#ffffff" stroke-width="1.2" />
+                                            <path d="M26.5 22.5h7M27.5 22.5v-4.2l2.5-2.2 2.5 2.2v4.2M29 18.6h2M30 14.6v1.5"
+                                                  fill="none"
+                                                  stroke="#ffffff"
+                                                  stroke-width="1"
+                                                  stroke-linecap="round"
+                                                  stroke-linejoin="round" />
+                                        </g>
+                                    </svg>
+                                }
                                 <span class="visually-hidden" data-current-language-label>@(isEnglishUi ? "EN" : "FA")</span>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end boltz-dropdown-menu boltz-language-dropdown">
@@ -776,8 +803,8 @@
         <script src="~/vendor/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true" defer></script>
         <script src="~/js/core.js" asp-append-version="true" defer></script>
         <script src="~/js/ptg-toasts.js" asp-append-version="true" defer></script>
+        <script src="~/js/language-catalog.en.js" asp-append-version="true" defer></script>
         <script src="~/js/language.js" asp-append-version="true" defer></script>
-        <script src="~/js/finance-theme.js" asp-append-version="true" defer></script>
         <script src="~/js/auto-code-fields.js" asp-append-version="true" defer></script>
         <script src="~/js/clone-entity.js" asp-append-version="true" defer></script>
         <script src="~/js/navigation.js" asp-append-version="true" defer></script>
@@ -785,9 +812,11 @@
         <script src="~/js/header-ui.js" asp-append-version="true" defer></script>
         <script src="~/js/tables.js" asp-append-version="true" defer></script>
         <script src="~/js/ak-search-filter.js" asp-append-version="true" defer></script>
+        <script src="~/js/list-toolbar-row.js" asp-append-version="true" defer></script>
         <script src="~/js/tabular-export.js" asp-append-version="true" defer></script>
         <script src="~/js/system-list-digits.js" asp-append-version="true" defer></script>
         <script src="~/js/ptg-tabs.js" asp-append-version="true" defer></script>
+        <script src="~/js/excel-import.js" asp-append-version="true" defer></script>
         <script src="~/js/ak-entity-combobox.js" asp-append-version="true" defer></script>
         <script src="~/js/ak-datepicker.js" asp-append-version="true" defer></script>
         }

@@ -84,6 +84,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ExpenseTransaction> ExpenseTransactions => Set<ExpenseTransaction>();
     public DbSet<ExpenseBatch> ExpenseBatches => Set<ExpenseBatch>();
     public DbSet<SalesBatch> SalesBatches => Set<SalesBatch>();
+    public DbSet<PreSaleOrder> PreSaleOrders => Set<PreSaleOrder>();
 
     // --- Finance & Audit ---
     public DbSet<CashAccount> CashAccounts => Set<CashAccount>();
@@ -94,6 +95,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
     public DbSet<ContractBalanceTransfer> ContractBalanceTransfers => Set<ContractBalanceTransfer>();
     public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
+    public DbSet<CustomerPaymentAllocation> CustomerPaymentAllocations => Set<CustomerPaymentAllocation>();
+    public DbSet<CustomerPaymentAllocationApplication> CustomerPaymentAllocationApplications => Set<CustomerPaymentAllocationApplication>();
+    public DbSet<SalesCostConsumption> SalesCostConsumptions => Set<SalesCostConsumption>();
     public DbSet<EmployeeSalaryTransaction> EmployeeSalaryTransactions => Set<EmployeeSalaryTransaction>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
@@ -116,6 +120,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<AssetOwnershipShare> AssetOwnershipShares => Set<AssetOwnershipShare>();
     public DbSet<AssetRentTransaction> AssetRentTransactions => Set<AssetRentTransaction>();
     public DbSet<AssetRentShare> AssetRentShares => Set<AssetRentShare>();
+
+    // --- Backups (operational safety module; no business/financial logic) ---
+    public DbSet<BackupSetting> BackupSettings => Set<BackupSetting>();
+    public DbSet<BackupDriveCredential> BackupDriveCredentials => Set<BackupDriveCredential>();
+    public DbSet<BackupJob> BackupJobs => Set<BackupJob>();
 
     public override int SaveChanges()
     {
@@ -341,9 +350,13 @@ public class ApplicationDbContext : DbContext
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedPaymentAmount);
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedBookAmountUsd);
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedContractCurrencyAmount);
+        ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedValueUsdAtAllocation);
+        ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.ExchangeDifferenceUsd);
         modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentFxRateToUsd).HasColumnType("numeric(18,6)");
         modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.ContractCurrencyPerUsdRate).HasColumnType("numeric(18,6)");
         modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.ContractCurrencyFxRateToUsd).HasColumnType("numeric(18,6)");
+        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentCurrencyPerUsdRateAtAllocation).HasColumnType("numeric(18,6)");
+        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentCurrencyFxRateToUsdAtAllocation).HasColumnType("numeric(18,6)");
 
         ConfigureWeight<OperationalAsset>(modelBuilder, a => a.CapacityMt!);
         ConfigureMoney<OperationalAsset>(modelBuilder, a => a.MonthlyDepreciationUsd);
@@ -573,6 +586,16 @@ public class ApplicationDbContext : DbContext
             .HasIndex(l => l.ServiceProviderId);
         modelBuilder.Entity<LedgerEntry>()
             .HasIndex(l => l.DriverId);
+        // جستجوی سریع گروهِ «پرداخت از طریق صراف».
+        modelBuilder.Entity<LedgerEntry>()
+            .HasIndex(l => l.ViaSarrafGroupId);
+        // در هر گروه، از هر SourceType حداکثر یک ردیف مجاز است (یک Payment و یک Payable).
+        // فقط برای رکوردهای گروه‌بندی‌شده اعمال می‌شود تا انبوهِ ردیف‌های Legacy با GroupId=NULL
+        // (که NULLها در Postgres یکتاییِ هم را نقض نمی‌کنند) و سایر SourceTypeها آزاد بمانند.
+        modelBuilder.Entity<LedgerEntry>()
+            .HasIndex(l => new { l.ViaSarrafGroupId, l.SourceType })
+            .IsUnique()
+            .HasFilter("\"ViaSarrafGroupId\" IS NOT NULL");
         modelBuilder.Entity<ContractBalanceTransfer>()
             .HasIndex(t => new { t.FromContractId, t.TransferDate });
         modelBuilder.Entity<ContractBalanceTransfer>()
@@ -1102,6 +1125,100 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SalesBatch>().Property(b => b.Currency).HasDefaultValue("USD");
         modelBuilder.Entity<SalesBatch>().HasIndex(b => b.BatchNumber);
 
+        // پیش‌فروش مرحله‌ای — تحویل‌ها SalesTransaction عادی هستند و فقط با این FK به تعهد وصل می‌شوند.
+        modelBuilder.Entity<SalesTransaction>()
+            .HasOne(s => s.PreSaleOrder)
+            .WithMany(o => o.Deliveries)
+            .HasForeignKey(s => s.PreSaleOrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SalesTransaction>().HasIndex(s => s.PreSaleOrderId);
+
+        modelBuilder.Entity<PreSaleOrder>()
+            .HasOne(o => o.Customer)
+            .WithMany()
+            .HasForeignKey(o => o.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PreSaleOrder>()
+            .HasOne(o => o.Product)
+            .WithMany()
+            .HasForeignKey(o => o.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PreSaleOrder>()
+            .HasOne(o => o.Company)
+            .WithMany()
+            .HasForeignKey(o => o.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        ConfigureWeight<PreSaleOrder>(modelBuilder, o => o.QuantityMt);
+        ConfigureMoney<PreSaleOrder>(modelBuilder, o => o.UnitPriceInCurrency);
+        ConfigureMoney<PreSaleOrder>(modelBuilder, o => o.UnitPriceUsd);
+        ConfigureMoney<PreSaleOrder>(modelBuilder, o => o.TotalInCurrency);
+        ConfigureMoney<PreSaleOrder>(modelBuilder, o => o.TotalUsd);
+        modelBuilder.Entity<PreSaleOrder>().Property(o => o.AppliedFxRateToUsd).HasColumnType("numeric(18,6)");
+        modelBuilder.Entity<PreSaleOrder>().Property(o => o.Currency).HasDefaultValue("USD");
+        modelBuilder.Entity<PreSaleOrder>().HasIndex(o => o.OrderNumber);
+        modelBuilder.Entity<PreSaleOrder>().HasIndex(o => new { o.CustomerId, o.Status });
+
+        // تخصیص دریافت مشتری به پیش‌فروش — چند تخصیص برای یک دریافت و چند دریافت برای یک پیش‌فروش.
+        modelBuilder.Entity<CustomerPaymentAllocation>()
+            .HasOne(a => a.PaymentTransaction)
+            .WithMany(p => p.CustomerPaymentAllocations)
+            .HasForeignKey(a => a.PaymentTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CustomerPaymentAllocation>()
+            .HasOne(a => a.PreSaleOrder)
+            .WithMany()
+            .HasForeignKey(a => a.PreSaleOrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        ConfigureMoney<CustomerPaymentAllocation>(modelBuilder, a => a.AllocatedPaymentAmount);
+        ConfigureMoney<CustomerPaymentAllocation>(modelBuilder, a => a.AllocatedAmountUsd);
+        modelBuilder.Entity<CustomerPaymentAllocation>()
+            .Property(a => a.PaymentFxRateToUsd).HasColumnType("numeric(18,6)");
+        modelBuilder.Entity<CustomerPaymentAllocation>()
+            .HasIndex(a => new { a.PreSaleOrderId, a.Status });
+        modelBuilder.Entity<CustomerPaymentAllocation>()
+            .HasIndex(a => new { a.PaymentTransactionId, a.Status });
+
+        // مصرفِ ردیابی‌پذیرِ تخصیص روی تحویل. Restrict تا تاریخچهٔ مالی هرگز بی‌صدا حذف نشود.
+        modelBuilder.Entity<CustomerPaymentAllocationApplication>()
+            .HasOne(a => a.CustomerPaymentAllocation)
+            .WithMany()
+            .HasForeignKey(a => a.CustomerPaymentAllocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CustomerPaymentAllocationApplication>()
+            .HasOne(a => a.SalesTransaction)
+            .WithMany()
+            .HasForeignKey(a => a.SalesTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CustomerPaymentAllocationApplication>()
+            .HasOne(a => a.JournalEntry)
+            .WithMany()
+            .HasForeignKey(a => a.JournalEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+        ConfigureMoney<CustomerPaymentAllocationApplication>(modelBuilder, a => a.AppliedPaymentAmount);
+        ConfigureMoney<CustomerPaymentAllocationApplication>(modelBuilder, a => a.AppliedAmountUsd);
+        modelBuilder.Entity<CustomerPaymentAllocationApplication>()
+            .HasIndex(a => new { a.SalesTransactionId, a.Status });
+        modelBuilder.Entity<CustomerPaymentAllocationApplication>()
+            .HasIndex(a => new { a.CustomerPaymentAllocationId, a.Status });
+
+        // بهای واقعیِ مصرف‌شدهٔ هر pool برای برگشتِ دقیقِ COGS.
+        modelBuilder.Entity<SalesCostConsumption>()
+            .HasOne(c => c.SalesTransaction)
+            .WithMany()
+            .HasForeignKey(c => c.SalesTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        ConfigureMoney<SalesCostConsumption>(modelBuilder, c => c.CostUsd);
+        modelBuilder.Entity<SalesCostConsumption>()
+            .Property(c => c.QuantityMt).HasColumnType("numeric(18,4)");
+        modelBuilder.Entity<SalesCostConsumption>()
+            .HasIndex(c => new { c.SalesTransactionId, c.Status });
+
         modelBuilder.Entity<LoadingExpenseLine>()
             .HasOne(l => l.LoadingRegister)
             .WithMany(r => r.ExpenseLines)
@@ -1214,6 +1331,13 @@ public class ApplicationDbContext : DbContext
             .HasOne(s => s.ExchangeDifferenceLedgerEntry)
             .WithMany()
             .HasForeignKey(s => s.ExchangeDifferenceLedgerEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // همان الگوی تسویهٔ صراف: سطر سود/زیان تسعیر تخصیص با FK قابل ردیابی است.
+        modelBuilder.Entity<SupplierPaymentAllocation>()
+            .HasOne(a => a.ExchangeDifferenceLedgerEntry)
+            .WithMany()
+            .HasForeignKey(a => a.ExchangeDifferenceLedgerEntryId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<ThreeWaySettlement>()
@@ -1655,6 +1779,33 @@ public class ApplicationDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<ExpenseLotAllocation>()
             .ToTable(t => t.HasCheckConstraint("CK_ExpenseLotAllocations_AmountNonNegative", "\"AmountUsd\" >= 0"));
+
+        ConfigureBackups(modelBuilder);
+    }
+
+    // ---- Backups -------------------------------------------------------------
+    // ماژول پشتیبان‌گیری کاملاً جانبی است: هیچ رابطهٔ FK با موجودیت‌های مالی/عملیاتی ندارد
+    // تا حذف یا آرشیو تاریخچهٔ بکاپ هرگز روی داده‌های کسب‌وکار اثر نگذارد.
+    private static void ConfigureBackups(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<BackupSetting>().Property(s => s.AutoBackupEnabled).HasDefaultValue(true);
+        modelBuilder.Entity<BackupSetting>().Property(s => s.Schedule).HasDefaultValue(BackupSchedule.Daily);
+        modelBuilder.Entity<BackupSetting>().Property(s => s.RunAtHourLocal).HasDefaultValue(2);
+        modelBuilder.Entity<BackupSetting>().Property(s => s.RunAtMinuteLocal).HasDefaultValue(0);
+        modelBuilder.Entity<BackupSetting>().Property(s => s.StorageTarget).HasDefaultValue(BackupStorageTarget.Server);
+        modelBuilder.Entity<BackupSetting>().Property(s => s.KeepDaily).HasDefaultValue(7);
+        modelBuilder.Entity<BackupSetting>().Property(s => s.KeepWeekly).HasDefaultValue(4);
+        modelBuilder.Entity<BackupSetting>().Property(s => s.KeepMonthly).HasDefaultValue(6);
+
+        modelBuilder.Entity<BackupJob>().Property(j => j.TriggerKind).HasDefaultValue(BackupTriggerKind.Manual);
+        modelBuilder.Entity<BackupJob>().Property(j => j.Status).HasDefaultValue(BackupRunStatus.Running);
+        modelBuilder.Entity<BackupJob>().Property(j => j.StorageTarget).HasDefaultValue(BackupStorageTarget.Server);
+        modelBuilder.Entity<BackupJob>().Property(j => j.RetentionTier).HasDefaultValue(BackupRetentionTier.Daily);
+        modelBuilder.Entity<BackupJob>().Property(j => j.DriveUploadStatus).HasDefaultValue(BackupDriveUploadStatus.NotRequested);
+        modelBuilder.Entity<BackupJob>().HasIndex(j => j.StartedAtUtc);
+        modelBuilder.Entity<BackupJob>().HasIndex(j => j.Status);
+        // نام فایل کلیدِ عملیِ هر بکاپ است؛ تکراری‌شدن آن یعنی بازنویسی خاموشِ یک نسخه.
+        modelBuilder.Entity<BackupJob>().HasIndex(j => j.FileName).IsUnique();
     }
 
     private static void ConfigureMoney<T>(ModelBuilder mb,

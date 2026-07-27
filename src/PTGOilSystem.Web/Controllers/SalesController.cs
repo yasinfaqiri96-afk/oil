@@ -49,6 +49,40 @@ public partial class SalesController : Controller
         await _salesAccounting.TryPostCogsAsync(sale);
     }
 
+    // لغو فروش باید هر دو دفتر را با هم برگرداند. ردیف‌های Legacy همان‌جا معکوس می‌شوند و
+    // ژورنال‌های دفتر کل جدید اینجا، از طریق سرویس مرکزی، برگشت رسمی و متوازن می‌گیرند.
+    //
+    // برای «تحویل پیش‌فروش» شکست برگشتِ ژورنال عمداً خطا می‌دهد تا کل لغو برگردد و هرگز
+    // تحویلی لغو نشود که درآمد و بهای تمام‌شده‌اش هنوز روی حساب‌هاست. برای فروش‌های دیگر رفتار
+    // تاریخی حفظ می‌شود: لغو Legacy انجام می‌شود و شکست ژورنال فقط لاگ می‌شود، چون این مسیر
+    // سال‌ها بدون ثبت جدید کار کرده و شکست‌دادن ناگهانیِ لغوهای قدیمی (مثلاً دورهٔ بسته) ریسک
+    // عملیاتی بزرگ‌تری از خودِ گپ است.
+    private async Task ReverseSaleAccountingAsync(SalesTransaction sale)
+    {
+        if (_salesAccounting is null)
+        {
+            return;
+        }
+
+        var reversalDate = DateTime.UtcNow.Date;
+
+        try
+        {
+            await _salesAccounting.TryReverseSaleAsync(sale, reversalDate);
+            await _salesAccounting.TryReverseCogsAsync(sale, reversalDate);
+            // مصرف‌های پیش‌دریافتِ همین تحویل آزاد می‌شوند؛ ژورنالِ مستقلِ مصرف‌های «بعد از تحویل» هم
+            // معکوس می‌شود. Idempotent: لغو دوباره چیزی برای آزادکردن پیدا نمی‌کند.
+            await _salesAccounting.TryReleaseAdvanceApplicationsAsync(sale, reversalDate);
+        }
+        catch (Exception exception) when (!sale.PreSaleOrderId.HasValue)
+        {
+            _logger.LogError(
+                exception,
+                "Journal reversal failed for cancelled sale {SaleId}; legacy cancellation kept.",
+                sale.Id);
+        }
+    }
+
     private sealed record LookupOption(int Id, string Name);
     private sealed record TankLookupOption(int Id, string Display);
     private sealed record CurrencyLookupOption(string Code);
@@ -644,6 +678,12 @@ public partial class SalesController : Controller
             .OrderByDescending(m => m.Id)
             .FirstOrDefaultAsync();
 
+        IDbContextTransaction? transaction = null;
+        if (_db.Database.IsRelational())
+        {
+            transaction = await _db.Database.BeginTransactionAsync();
+        }
+
         sale.IsCancelled = true;
 
         var reversalLedger = new LedgerEntry
@@ -685,7 +725,38 @@ public partial class SalesController : Controller
             _db.InventoryMovements.Add(reversalMovement);
         }
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+            await ReverseSaleAccountingAsync(sale);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+        }
+        catch (Exception exception)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+
+            _logger.LogError(exception, "Failed to cancel sale {SaleId}.", sale.Id);
+            TempData["err"] = "لغو فروش انجام نشد؛ برگشت اسناد حسابداری ناموفق بود و هیچ تغییری ثبت نشد.";
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
+                return Redirect(returnUrl);
+
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
 
         TempData["ok"] = "فروش لغو شد.";
         if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
@@ -1380,22 +1451,69 @@ public partial class SalesController : Controller
 
         if (model.ShipmentId.HasValue)
         {
+            // قرارداد فروش برای فروشِ مبتنی بر Shipment اجباری نیست؛ فروش مستقیم از محموله بدون قرارداد
+            // فروش مجاز است (هم‌راستا با CreateFromShipment). فقط اگر قرارداد فروش انتخاب شده باشد و محموله
+            // هم قرارداد صریح داشته باشد، این دو باید هم‌خوان باشند.
             var shipment = await _db.Shipments.AsNoTracking().FirstOrDefaultAsync(s => s.Id == model.ShipmentId.Value);
             if (shipment is null)
             {
                 ModelState.AddModelError(nameof(model.ShipmentId), "Shipment انتخاب‌شده معتبر نیست.");
             }
-            else if (!shipment.ContractId.HasValue)
+            else
             {
-                ModelState.AddModelError(nameof(model.ShipmentId), "Shipment انتخاب‌شده به قرارداد صریح متصل نیست.");
-            }
-            else if (!model.ContractId.HasValue)
-            {
-                ModelState.AddModelError(nameof(model.ContractId), "برای فروش مبتنی بر Shipment، انتخاب قرارداد فروش الزامی است.");
-            }
-            else if (shipment.ContractId.Value != model.ContractId.Value)
-            {
-                ModelState.AddModelError(nameof(model.ShipmentId), "Shipment انتخاب‌شده با قرارداد فروش هم‌خوان نیست.");
+                if (model.ContractId.HasValue
+                    && shipment.ContractId.HasValue
+                    && shipment.ContractId.Value != model.ContractId.Value)
+                {
+                    ModelState.AddModelError(nameof(model.ShipmentId), "Shipment انتخاب‌شده با قرارداد فروش هم‌خوان نیست.");
+                }
+
+                // فروشِ مبتنی بر Shipment باید محصولش با محصول واقعی محموله و قرارداد خرید منبع هم‌خوان باشد.
+                // پیش‌فروش تعهدی است و از این قید مستثناست. اگر محموله قرارداد بار ثبت‌شده نداشته باشد
+                // (داده‌ی قدیمی)، اعتبارسنجی موجودِ قرارداد منبع کافی است و اینجا چیزی اضافه نمی‌شود.
+                if (model.SaleStage != SaleStage.PreSale)
+                {
+                    var shipmentContracts = await _db.ShipmentContracts
+                        .AsNoTracking()
+                        .Where(sc => sc.ShipmentId == model.ShipmentId.Value && sc.Contract != null)
+                        .Select(sc => new { sc.ContractId, sc.Contract!.ProductId })
+                        .ToListAsync();
+
+                    if (shipmentContracts.Count > 0)
+                    {
+                        var shipmentProductIds = shipmentContracts.Select(x => x.ProductId).Distinct().ToList();
+
+                        if (model.SourcePurchaseContractId is > 0)
+                        {
+                            var matchedSource = shipmentContracts
+                                .FirstOrDefault(x => x.ContractId == model.SourcePurchaseContractId.Value);
+                            if (matchedSource is null)
+                            {
+                                ModelState.AddModelError(
+                                    nameof(model.SourcePurchaseContractId),
+                                    "قرارداد خرید منبع باید یکی از قراردادهای بارگیری‌شدهٔ همین محموله باشد.");
+                            }
+                            else if (matchedSource.ProductId != model.ProductId)
+                            {
+                                ModelState.AddModelError(
+                                    nameof(model.ProductId),
+                                    "کالای انتخاب‌شده با محصول قرارداد خرید منبعِ این محموله هم‌خوان نیست.");
+                            }
+                        }
+                        else if (shipmentProductIds.Count > 1)
+                        {
+                            ModelState.AddModelError(
+                                nameof(model.SourcePurchaseContractId),
+                                "این محموله چند محصول دارد؛ برای فروش، انتخاب قرارداد خرید منبع الزامی است.");
+                        }
+                        else if (!shipmentProductIds.Contains(model.ProductId))
+                        {
+                            ModelState.AddModelError(
+                                nameof(model.ProductId),
+                                "کالای انتخاب‌شده با محصول این محموله هم‌خوان نیست.");
+                        }
+                    }
+                }
             }
         }
 
@@ -1727,6 +1845,58 @@ public partial class SalesController : Controller
             .OrderByDescending(l => l.Id)
             .FirstOrDefaultAsync();
 
+        var directPayments = await _db.PaymentTransactions
+            .AsNoTracking()
+            .Where(p => p.SalesTransactionId == sale.Id)
+            .OrderByDescending(p => p.PaymentDate)
+            .ThenByDescending(p => p.Id)
+            .Select(p => new SalesPaymentDetailsViewModel
+            {
+                PaymentTransactionId = p.Id,
+                PaymentDate = p.PaymentDate,
+                Amount = p.Amount,
+                Currency = p.Currency,
+                AmountUsd = p.AmountUsd,
+                Reference = p.Reference,
+                IsIncoming = p.Direction == PaymentDirection.In,
+                IsAdvanceApplication = false
+            })
+            .ToListAsync();
+
+        var appliedAdvances = await _db.CustomerPaymentAllocationApplications
+            .AsNoTracking()
+            .Where(a => a.SalesTransactionId == sale.Id
+                && a.Status == CustomerPaymentAllocationApplicationStatus.Active)
+            .OrderByDescending(a => a.AppliedAt)
+            .ThenByDescending(a => a.Id)
+            .Select(a => new SalesPaymentDetailsViewModel
+            {
+                PaymentTransactionId = a.CustomerPaymentAllocation!.PaymentTransactionId,
+                PaymentDate = a.CustomerPaymentAllocation.PaymentTransaction!.PaymentDate,
+                Amount = a.AppliedPaymentAmount,
+                Currency = a.PaymentCurrencyCode,
+                AmountUsd = a.AppliedAmountUsd,
+                Reference = a.CustomerPaymentAllocation.PaymentTransaction.Reference,
+                IsIncoming = true,
+                IsAdvanceApplication = true
+            })
+            .ToListAsync();
+
+        var payments = directPayments
+            .Concat(appliedAdvances)
+            .OrderByDescending(p => p.PaymentDate)
+            .ThenByDescending(p => p.PaymentTransactionId)
+            .ToList();
+        var directReceivedUsd = directPayments.Sum(p => p.IsIncoming ? p.AmountUsd : -p.AmountUsd);
+        var receivedUsd = decimal.Round(
+            directReceivedUsd + appliedAdvances.Sum(p => p.AmountUsd),
+            4,
+            MidpointRounding.AwayFromZero);
+        var openReceivableUsd = decimal.Round(
+            sale.TotalUsd - receivedUsd,
+            4,
+            MidpointRounding.AwayFromZero);
+
         var stockOutMovements = await _db.InventoryMovements
             .Include(m => m.Contract)
             .Include(m => m.Terminal)
@@ -1776,6 +1946,9 @@ public partial class SalesController : Controller
         return View(new SalesDetailsViewModel
         {
             Id = sale.Id,
+            ContractId = sale.ContractId,
+            ShipmentId = sale.ShipmentId,
+            PreSaleOrderId = sale.PreSaleOrderId,
             InvoiceNumber = sale.InvoiceNumber,
             TicketSerialNumber = sale.TicketSerialNumber,
             StockSourceType = sale.StockSourceType,
@@ -1797,6 +1970,10 @@ public partial class SalesController : Controller
             AppliedFxRateToUsd = sale.AppliedFxRateToUsd,
             UnitPriceUsd = sale.UnitPriceUsd,
             TotalUsd = sale.TotalUsd,
+            ReceivedUsd = receivedUsd,
+            ReceivableBalanceUsd = sale.IsCancelled ? 0m : Math.Max(openReceivableUsd, 0m),
+            OverpaymentUsd = sale.IsCancelled ? 0m : Math.Max(-openReceivableUsd, 0m),
+            Payments = payments,
             Notes = sale.Notes,
             LedgerEntryId = ledgerEntry?.Id,
             LedgerReference = ledgerEntry?.Reference,

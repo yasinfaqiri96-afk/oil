@@ -1,0 +1,19 @@
+@model PTGOilSystem.Web.Models.ExcelImport.ExcelImportComponentOptions
+<section class="excel-import @(Model.Compact ? "excel-import--compact" : null)" dir="rtl"
+         data-excel-import
+         data-mode="@Model.Mode"
+         data-start-url="@Model.StartUrl"
+         data-status-url="@Model.StatusUrlTemplate"
+         data-confirm-url="@Model.ConfirmUrlTemplate"
+         data-cancel-url="@Model.CancelUrlTemplate"
+         data-error-report-url="@Model.ErrorReportUrlTemplate"
+         data-import-report-url="@Model.ImportReportUrlTemplate"
+         data-requires-confirmation="@Model.RequiresConfirmation.ToString().ToLowerInvariant()"
+         data-allow-valid-with-errors="@Model.AllowValidRowsWithErrors.ToString().ToLowerInvariant()"
+         data-success-title="@Model.SuccessTitle"
+         data-max-size="@(Model.MaxFileSizeMb * 1024L * 1024L)">
+    <partial name="~/Views/Shared/ExcelImport/_ExcelImportUploader.cshtml" model="Model" />
+    <partial name="~/Views/Shared/ExcelImport/_ExcelImportValidationSummary.cshtml" model="Model" />
+    <partial name="~/Views/Shared/ExcelImport/_ExcelImportProgress.cshtml" />
+    <partial name="~/Views/Shared/ExcelImport/_ExcelImportResult.cshtml" model="Model" />
+</section>

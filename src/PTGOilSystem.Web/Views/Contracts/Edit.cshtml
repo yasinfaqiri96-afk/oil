@@ -307,7 +307,7 @@
                                         <option value="-" selected>-</option>
                                     }
                                 </select>
-                                <input id="premiumDiscountAmount" value="@premiumDiscountMagnitude" class="ak-input" type="number" min="0" step="0.0001" inputmode="decimal" />
+                                <input id="premiumDiscountAmount" value="@premiumDiscountMagnitude" class="ak-input" type="text" dir="ltr" inputmode="decimal" autocomplete="off" />
                             </div>
                             <span asp-validation-for="PremiumDiscountUsd" class="ak-field-error"></span>
                         </div>
@@ -513,25 +513,76 @@
                 }
             }
 
+            // Premium / Discount is typed as text, not as an <input type="number">:
+            // the box lives in an RTL form, so a leading minus rendered to the right
+            // of the digits and Persian keyboards emit "٫" or "/" for the decimal
+            // point, which a number input drops silently. Keystrokes are normalized
+            // here — never round-tripped through parseFloat, which used to eat the
+            // decimal point and any trailing zero the moment they were typed.
+            const premiumDecimalPlaces = 4;
+
+            function normalizePremiumAmountText(text) {
+                const normalized = String(text || '')
+                    .replace(/[۰-۹٠-٩]/g, function (character) {
+                        const code = character.charCodeAt(0);
+                        return String.fromCharCode((code >= 0x06F0 ? code - 0x06F0 : code - 0x0660) + 48);
+                    })
+                    .replace(/[٫،,\/]/g, '.')
+                    .replace(/[٬\s]/g, '');
+
+                let digits = normalized.replace(/[^0-9.]/g, '');
+                const firstDot = digits.indexOf('.');
+                if (firstDot >= 0) {
+                    digits = digits.slice(0, firstDot + 1)
+                        + digits.slice(firstDot + 1).replace(/\./g, '').slice(0, premiumDecimalPlaces);
+                }
+
+                return {
+                    sign: /[-−]/.test(normalized) ? '-' : (normalized.includes('+') ? '+' : ''),
+                    text: digits
+                };
+            }
+
             function syncPremiumDiscountField() {
                 if (!premiumDiscountHidden || !premiumDiscountAmount || !premiumDiscountSign) {
                     return;
                 }
 
-                const rawValue = premiumDiscountAmount.value.trim();
-                if (!rawValue) {
-                    premiumDiscountHidden.value = '';
-                    return;
-                }
-
-                const magnitude = Math.abs(Number.parseFloat(rawValue));
+                const magnitude = Number.parseFloat(normalizePremiumAmountText(premiumDiscountAmount.value).text);
                 if (!Number.isFinite(magnitude)) {
                     premiumDiscountHidden.value = '';
                     return;
                 }
 
-                premiumDiscountAmount.value = magnitude.toString();
                 premiumDiscountHidden.value = premiumDiscountSign.value === '-' ? (-magnitude).toString() : magnitude.toString();
+            }
+
+            // A typed "-" flips the sign selector instead of staying in the box.
+            function handlePremiumAmountInput() {
+                const caret = premiumDiscountAmount.selectionStart ?? premiumDiscountAmount.value.length;
+                const before = premiumDiscountAmount.value;
+                const parsed = normalizePremiumAmountText(before);
+
+                if (parsed.sign && premiumDiscountSign.value !== parsed.sign) {
+                    premiumDiscountSign.value = parsed.sign;
+                }
+
+                if (parsed.text !== before) {
+                    const head = before.slice(0, caret);
+                    const dropped = head.length - normalizePremiumAmountText(head).text.length;
+                    premiumDiscountAmount.value = parsed.text;
+                    const position = Math.max(0, Math.min(parsed.text.length, caret - dropped));
+                    premiumDiscountAmount.setSelectionRange(position, position);
+                }
+
+                syncPremiumDiscountField();
+            }
+
+            // Tidy only on blur, so a half-typed "125." survives while typing.
+            function tidyPremiumAmountField() {
+                const text = normalizePremiumAmountText(premiumDiscountAmount.value).text;
+                premiumDiscountAmount.value = Number.isFinite(Number.parseFloat(text)) ? text.replace(/\.$/, '') : '';
+                syncPremiumDiscountField();
             }
 
             function refreshOwnership() {
@@ -709,14 +760,8 @@
                 reindexPartnerRows();
             });
 
-            premiumDiscountAmount?.addEventListener('input', function () {
-                if (premiumDiscountAmount.value.startsWith('-')) {
-                    premiumDiscountAmount.value = premiumDiscountAmount.value.substring(1);
-                }
-
-                syncPremiumDiscountField();
-            });
-
+            premiumDiscountAmount?.addEventListener('input', handlePremiumAmountInput);
+            premiumDiscountAmount?.addEventListener('blur', tidyPremiumAmountField);
             premiumDiscountSign?.addEventListener('change', syncPremiumDiscountField);
 
             form?.addEventListener('submit', syncPremiumDiscountField);

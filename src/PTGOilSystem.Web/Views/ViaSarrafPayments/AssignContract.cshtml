@@ -1,0 +1,63 @@
+@model PTGOilSystem.Web.Models.Payments.ViaSarrafAssignContractViewModel
+@{
+    ViewData["Title"] = Model.HasContract ? "تغییر قرارداد پرداخت صرافی" : "تخصیص پرداخت صرافی به قرارداد";
+    ViewData["HideSectionTabs"] = true;
+    var backUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl)
+        ? Model.ReturnUrl
+        : Url.Action("Details", "Ledger", new { id = Model.PaymentLedgerEntryId }) ?? "/Ledger";
+}
+
+<div class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((ViewData["Title"]!.ToString()!, false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+
+    <p class="ak-note">فقط طبقه‌بندیِ قرارداد این پرداخت اصلاح می‌شود. مبلغ، ارز، نرخ، تأمین‌کننده و صراف تغییر نمی‌کند و هیچ ثبت مالی جدید یا برگشتی انجام نمی‌شود.</p>
+
+    <form asp-action="AssignContract" method="post" class="ak-form">
+        @Html.AntiForgeryToken()
+        <input asp-for="GroupId" type="hidden" />
+        <input asp-for="PaymentLedgerEntryId" type="hidden" />
+        <input asp-for="ReturnUrl" type="hidden" />
+        <input asp-for="CurrentContractId" type="hidden" />
+
+        <div asp-validation-summary="All" class="ak-form-alert @(ViewData.ModelState.IsValid ? "d-none" : null)"></div>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("خلاصهٔ پرداخت صرافی", (string?)null))" />
+            <dl class="ak-list">
+                <div class="ak-list-row"><dt>تأمین‌کننده</dt><dd>@Model.SupplierName</dd></div>
+                <div class="ak-list-row"><dt>صراف</dt><dd>@Model.SarrafName</dd></div>
+                <div class="ak-list-row"><dt>تاریخ</dt><dd>@Model.EntryDate.ToDisplayDate()</dd></div>
+                <div class="ak-list-row"><dt>مبلغ</dt><dd class="ak-num">@Model.SourceAmount.ToString("N2") @Model.SourceCurrencyCode (معادل @Model.AmountUsd.ToString("N2") USD)</dd></div>
+                <div class="ak-list-row"><dt>قرارداد فعلی</dt><dd>@(Model.CurrentContractNumber ?? "— بدون قرارداد —")</dd></div>
+            </dl>
+        </section>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("انتخاب قرارداد", (string?)null))" />
+            <div class="ak-form-grid">
+                <div class="ak-field ak-col-full">
+                    <label asp-for="NewContractId" class="ak-label"></label>
+                    <select asp-for="NewContractId" class="ak-input" asp-items="ViewBag.Contracts">
+                        <option value="">— بدون قرارداد (حذف قرارداد) —</option>
+                    </select>
+                    <span class="ak-note">فقط قراردادهای خرید همان تأمین‌کننده نمایش داده می‌شوند. انتخاب «بدون قرارداد» اتصال فعلی را حذف می‌کند.</span>
+                    <span asp-validation-for="NewContractId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full">
+                    <label asp-for="Reason" class="ak-label"></label>
+                    <textarea asp-for="Reason" class="ak-input" rows="2" placeholder="مثلاً: قرارداد هنگام ثبت پرداخت فراموش شده بود."></textarea>
+                    <span asp-validation-for="Reason" class="ak-field-error"></span>
+                </div>
+            </div>
+        </section>
+
+        <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@(("ذخیره قرارداد", backUrl, "انصراف"))" />
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

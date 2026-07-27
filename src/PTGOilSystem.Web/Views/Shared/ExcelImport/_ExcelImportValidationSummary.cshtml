@@ -1,0 +1,36 @@
+@model PTGOilSystem.Web.Models.ExcelImport.ExcelImportComponentOptions
+<div class="excel-import__panel d-none" data-excel-validation>
+    <div class="excel-import__steps" aria-label="مراحل Import">
+        <div data-excel-step="1"><span>1</span><small>آپلود فایل</small></div>
+        <div data-excel-step="2"><span>2</span><small>بررسی ساختار</small></div>
+        <div data-excel-step="3"><span>3</span><small>اعتبارسنجی اطلاعات</small></div>
+        <div data-excel-step="4"><span>4</span><small>ثبت در سیستم</small></div>
+    </div>
+
+    <div class="excel-import__summary-grid">
+        <div><span>کل ردیف‌ها</span><strong data-excel-total>0</strong></div>
+        <div class="is-valid"><span>معتبر</span><strong data-excel-valid>0</strong></div>
+        <div class="is-warning"><span>هشدار</span><strong data-excel-warning>0</strong></div>
+        <div class="is-error"><span>خطا</span><strong data-excel-error>0</strong></div>
+        <div><span>تکراری</span><strong data-excel-duplicate>0</strong></div>
+    </div>
+
+    <div class="excel-import__preview d-none" data-excel-preview-wrap>
+        <h3>پیش‌نمایش فایل <small>حداکثر ۱۰ ردیف</small></h3>
+        <div class="table-responsive"><table class="ak-table"><thead data-excel-preview-head></thead><tbody data-excel-preview-body></tbody></table></div>
+    </div>
+
+    <div class="excel-import__issues d-none" data-excel-issues-wrap>
+        <h3>موارد نیازمند توجه</h3>
+        <ul data-excel-issues></ul>
+    </div>
+
+    <div class="excel-import__actions excel-import__actions--end">
+        <button type="button" class="btn btn-outline-secondary" data-excel-reupload>اصلاح فایل و بارگذاری دوباره</button>
+        <a class="btn btn-outline-danger d-none" data-excel-error-report>دانلود گزارش خطاها</a>
+        @if (Model?.RequiresConfirmation != false)
+        {
+            <button type="button" class="btn btn-primary" data-excel-confirm>@Model?.ConfirmButtonText</button>
+        }
+    </div>
+</div>

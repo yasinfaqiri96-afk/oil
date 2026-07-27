@@ -1,0 +1,41 @@
+@model PTGOilSystem.Web.Models.ExcelImport.ExcelImportComponentOptions
+<div class="excel-import__panel" data-excel-uploader>
+    <div class="excel-import__heading">
+        <div>
+            <h2>@Model.Title</h2>
+            <p>@Model.Description</p>
+        </div>
+        <span class="excel-import__badge">Excel</span>
+    </div>
+
+    <input type="file" name="@Model.FileFieldName" id="@Model.InputId" accept="@Model.AcceptExtensions" class="visually-hidden" data-excel-file />
+    <label for="@Model.InputId" class="excel-import__dropzone" data-excel-dropzone tabindex="0">
+        <span class="excel-import__excel-icon" aria-hidden="true"><i class="bi bi-file-earmark-excel"></i></span>
+        <span class="excel-import__drop-title">فایل را اینجا رها کنید</span>
+        <span class="excel-import__drop-help">یا از کمپیوتر انتخاب کنید · @Model.AcceptExtensions.Replace(".", "").Replace(",", " / ").ToUpperInvariant() · حداکثر @Model.MaxFileSizeMb MB</span>
+        <span class="btn btn-primary btn-sm">انتخاب فایل</span>
+    </label>
+
+    <div class="excel-import__file d-none" data-excel-file-card>
+        <span class="excel-import__file-icon"><i class="bi bi-file-earmark-spreadsheet"></i></span>
+        <div class="excel-import__file-main">
+            <strong data-excel-file-name></strong>
+            <span><span data-excel-file-size></span><span data-excel-sheet-info></span></span>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-excel-change>تغییر</button>
+        <button type="button" class="btn btn-sm btn-link text-danger" data-excel-remove aria-label="حذف فایل"><i class="bi bi-trash3"></i></button>
+    </div>
+
+    <div class="excel-import__message d-none" data-excel-local-error role="alert"></div>
+    <div class="excel-import__actions">
+        @if (!string.IsNullOrWhiteSpace(Model.SampleUrl))
+        {
+            <a href="@Model.SampleUrl" class="excel-import__sample"><i class="bi bi-download"></i> دانلود فایل نمونه</a>
+        }
+        else
+        {
+            <span></span>
+        }
+        <button type="button" class="btn btn-primary" data-excel-start disabled>@Model.StartButtonText</button>
+    </div>
+</div>

@@ -89,10 +89,10 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
 }
 
 .storage-tank-card.is-normal {
-    --tank-accent: #6EA152;
+    --tank-accent: #1877f2;
     --tank-accent-rgb: 18, 184, 179;
     --tank-soft: #edf5ff;
-    --tank-action: #6EA152;
+    --tank-action: #1877f2;
 }
 
 .storage-tank-card.is-muted {

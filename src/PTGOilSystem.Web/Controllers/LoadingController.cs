@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Caching.Memory;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
@@ -32,12 +35,14 @@ public partial class LoadingController : Controller
     private const int DefaultListLimit = 100;
     private const int LookupLimit = 200;
     private const int ReceiptAllocationEditorRows = 4;
+    private const int LargeImportPreviewRows = 100;
     private const string LoadingTransportExpenseCode = "LOAD-TRANSPORT";
     private const string LoadingStorageExpenseCode = "LOAD-STORAGE";
     private const string LoadingWagonRentExpenseCode = "LOAD-WAGON-RENT";
     private const string LoadingOtherExpenseCode = "LOAD-OTHER";
     private const string SupplierLoadingLedgerSourceType = SupplierLoadingLedger.SourceType;
     private const decimal PercentTolerance = 0.0001m;
+    private static readonly JsonSerializerOptions LoadingRowsJsonOptions = CreateLoadingRowsJsonOptions();
 
     private sealed record PlattsReferenceSuggestion(
         decimal? PriceUsd,
@@ -509,6 +514,84 @@ public partial class LoadingController : Controller
                 ("ContractId", ledger.ContractId),
                 ("SupplierId", ledger.SupplierId)));
     }
+
+    private async Task PostSupplierLoadingLedgersForCreateAsync(
+        IReadOnlyList<(LoadingRegister Loading, Contract Contract)> createdRows)
+    {
+        if (_purchaseAccounting is not null)
+        {
+            foreach (var row in createdRows)
+            {
+                await _purchaseAccounting.TryPostPurchaseAsync(row.Loading);
+            }
+        }
+
+        var legacyLedgers = createdRows
+            .Where(row => SupplierLoadingLedger.IsPostable(row.Loading, row.Contract))
+            .Select(row => SupplierLoadingLedger.Create(row.Loading, row.Contract))
+            .ToList();
+        if (legacyLedgers.Count == 0)
+        {
+            return;
+        }
+
+        _db.LedgerEntries.AddRange(legacyLedgers);
+        await _db.SaveChangesAsync();
+
+        foreach (var ledger in legacyLedgers)
+        {
+            await _audit.LogAsync(
+                nameof(LedgerEntry),
+                ledger.Id,
+                AuditAction.Insert,
+                diff: AuditDiffFormatter.ForCreate(
+                    ("EntryDate", ledger.EntryDate),
+                    ("Side", ledger.Side),
+                    ("AmountUsd", ledger.AmountUsd),
+                    ("SourceAmount", ledger.SourceAmount),
+                    ("SourceCurrencyCode", ledger.SourceCurrencyCode),
+                    ("AppliedFxRateToUsd", ledger.AppliedFxRateToUsd),
+                    ("SourceType", ledger.SourceType),
+                    ("SourceId", ledger.SourceId),
+                    ("ContractId", ledger.ContractId),
+                    ("SupplierId", ledger.SupplierId)));
+        }
+
+        await _db.SaveChangesAsync();
+    }
+
+    private static string BuildLoadingCreateAuditDiff(LoadingRegister loading)
+        => AuditDiffFormatter.ForCreate(
+            ("ContractId", loading.ContractId),
+            ("ProductId", loading.ProductId),
+            ("OriginLocationId", loading.OriginLocationId),
+            ("TransportType", loading.TransportType),
+            ("VesselId", loading.VesselId),
+            ("TruckId", loading.TruckId),
+            ("LoadingDate", loading.LoadingDate),
+            ("LoadedQuantityMt", loading.LoadedQuantityMt),
+            ("BillOfLadingNumber", loading.BillOfLadingNumber),
+            ("WagonNumber", loading.WagonNumber),
+            ("RouteDescription", loading.RouteDescription),
+            ("LogisticsServiceProviderId", loading.LogisticsServiceProviderId),
+            ("LogisticsCompanyName", loading.LogisticsCompanyName),
+            ("ConsigneeName", loading.ConsigneeName),
+            ("DestinationName", loading.DestinationName),
+            ("PlattsUsd", loading.PlattsUsd),
+            ("LoadingPriceUsd", loading.LoadingPriceUsd),
+            ("SettlementCurrencyCode", loading.SettlementCurrencyCode),
+            ("RubRateStatus", loading.RubRateStatus),
+            ("RubPerUsdRate", loading.RubPerUsdRate),
+            ("RubRateDate", loading.RubRateDate),
+            ("RubRateSource", loading.RubRateSource),
+            ("AmountUsdAtRubLock", loading.AmountUsdAtRubLock),
+            ("AmountRubAtRubLock", loading.AmountRubAtRubLock),
+            ("SettlementUnitPriceRub", loading.SettlementUnitPriceRub),
+            ("SettlementValueRub", loading.SettlementValueRub),
+            ("FreightRateUsdPerMt", loading.FreightRateUsdPerMt),
+            ("TransportExpenseUsd", loading.TransportExpenseUsd),
+            ("WarehouseExpenseUsd", loading.WarehouseExpenseUsd),
+            ("OtherExpenseUsd", loading.OtherExpenseUsd));
 
     private static IReadOnlyList<SelectListItem> GetReceiptAllocationDestinationItems(LoadingReceiptAllocationDestination selectedDestination)
         => new[]
@@ -1028,7 +1111,7 @@ public partial class LoadingController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    [RequestFormLimits(ValueCountLimit = 20000, MultipartBodyLengthLimit = 104_857_600L)]
+    [RequestFormLimits(ValueCountLimit = 20000, ValueLengthLimit = 104_857_600, MultipartBodyLengthLimit = 104_857_600L)]
     public async Task<IActionResult> ImportWorkbook(LoadingCreateViewModel model)
     {
         model.Notes = NormalizeNullable(model.Notes);
@@ -1075,6 +1158,7 @@ public partial class LoadingController : Controller
         {
             await using var stream = model.ImportWorkbookFile.OpenReadStream();
             var importedWorkbook = LoadingWorkbookParser.Parse(stream);
+            model.ImportedSheetName = importedWorkbook.SourceSheetName;
 
             model.Rows = importedWorkbook.Rows
                 .Select((row, index) =>
@@ -1136,16 +1220,22 @@ public partial class LoadingController : Controller
         }
 
         await PopulateLookupsAsync(model);
+        PrepareRowsForFastPreview(model);
         return View("Create", model);
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    [RequestFormLimits(ValueCountLimit = 20000, MultipartBodyLengthLimit = 104_857_600L)]
+    [RequestFormLimits(ValueCountLimit = 20000, ValueLengthLimit = 104_857_600, MultipartBodyLengthLimit = 104_857_600L)]
     public async Task<IActionResult> Create(LoadingCreateViewModel model)
     {
         model.Notes = NormalizeNullable(model.Notes);
+        var submittedWithCompactRows = !string.IsNullOrWhiteSpace(model.ImportedRowsJson);
         model.Rows = ExtractSubmittedRows(model);
+        if (submittedWithCompactRows)
+        {
+            ValidateCompactSubmittedRows(model.Rows);
+        }
         if (model.Rows.Count == 0)
         {
             ModelState.AddModelError(nameof(model.Rows), "حداقل یک سطر بارگیری الزامی است.");
@@ -1260,6 +1350,21 @@ public partial class LoadingController : Controller
                 .AsNoTracking()
                 .Where(a => selectedOperationalAssetIds.Contains(a.Id) && a.IsActive)
                 .ToDictionaryAsync(a => a.Id);
+        var selectedTruckIds = model.TransportType == LoadingTransportType.Truck
+            ? model.Rows
+                .Where(row => row.TruckId.HasValue && row.TruckId.Value > 0)
+                .Select(row => row.TruckId!.Value)
+                .Distinct()
+                .ToList()
+            : [];
+        var activeTruckIds = selectedTruckIds.Count == 0
+            ? []
+            : (await _db.Trucks
+                .AsNoTracking()
+                .Where(truck => selectedTruckIds.Contains(truck.Id) && truck.IsActive)
+                .Select(truck => truck.Id)
+                .ToListAsync())
+                .ToHashSet();
         var ownershipSharesByAssetId = new Dictionary<int, List<AssetOwnershipShare>>();
 
         foreach (var row in model.Rows)
@@ -1361,8 +1466,7 @@ public partial class LoadingController : Controller
                         break;
                     }
 
-                    var truckExists = await _db.Trucks.AsNoTracking().AnyAsync(t => t.Id == row.TruckId.Value && t.IsActive);
-                    if (!truckExists)
+                    if (!activeTruckIds.Contains(row.TruckId.Value))
                     {
                         ModelState.AddModelError(RowField(row.RowKey, nameof(row.TruckId)), "موتر انتخاب‌شده معتبر نیست.");
                     }
@@ -1431,6 +1535,7 @@ public partial class LoadingController : Controller
         if (!ModelState.IsValid)
         {
             await PopulateLookupsAsync(model);
+            PrepareRowsForFastPreview(model);
             return View(model);
         }
 
@@ -1532,11 +1637,14 @@ public partial class LoadingController : Controller
                     }
 
                     await PopulateLookupsAsync(model);
+                    PrepareRowsForFastPreview(model);
                     return View(model);
                 }
 
-                var createdLoadings = new List<LoadingRegister>();
-                var createdLosses = 0;
+                var createdRows = new List<(
+                    LoadingCreateRowViewModel Row,
+                    LoadingRegister Loading,
+                    Contract Contract)>(model.Rows.Count);
 
                 foreach (var row in model.Rows)
                 {
@@ -1588,46 +1696,29 @@ public partial class LoadingController : Controller
                         loading.RubRateLockedByUserName = User?.Identity?.Name;
                     }
 
-                    _db.LoadingRegisters.Add(loading);
-                    await _db.SaveChangesAsync();
+                    createdRows.Add((row, loading, rowContract));
+                }
 
-                    await _audit.LogAndSaveAsync(
+                _db.LoadingRegisters.AddRange(createdRows.Select(row => row.Loading));
+                await _db.SaveChangesAsync();
+
+                foreach (var createdRow in createdRows)
+                {
+                    await _audit.LogAsync(
                         nameof(LoadingRegister),
-                        loading.Id,
+                        createdRow.Loading.Id,
                         AuditAction.Insert,
-                        diff: AuditDiffFormatter.ForCreate(
-                            ("ContractId", loading.ContractId),
-                            ("ProductId", loading.ProductId),
-                            ("OriginLocationId", loading.OriginLocationId),
-                            ("TransportType", loading.TransportType),
-                            ("VesselId", loading.VesselId),
-                            ("TruckId", loading.TruckId),
-                            ("LoadingDate", loading.LoadingDate),
-                            ("LoadedQuantityMt", loading.LoadedQuantityMt),
-                            ("BillOfLadingNumber", loading.BillOfLadingNumber),
-                            ("WagonNumber", loading.WagonNumber),
-                            ("RouteDescription", loading.RouteDescription),
-                            ("LogisticsServiceProviderId", loading.LogisticsServiceProviderId),
-                            ("LogisticsCompanyName", loading.LogisticsCompanyName),
-                            ("ConsigneeName", loading.ConsigneeName),
-                            ("DestinationName", loading.DestinationName),
-                            ("PlattsUsd", loading.PlattsUsd),
-                            ("LoadingPriceUsd", loading.LoadingPriceUsd),
-                            ("SettlementCurrencyCode", loading.SettlementCurrencyCode),
-                            ("RubRateStatus", loading.RubRateStatus),
-                            ("RubPerUsdRate", loading.RubPerUsdRate),
-                            ("RubRateDate", loading.RubRateDate),
-                            ("RubRateSource", loading.RubRateSource),
-                            ("AmountUsdAtRubLock", loading.AmountUsdAtRubLock),
-                            ("AmountRubAtRubLock", loading.AmountRubAtRubLock),
-                            ("SettlementUnitPriceRub", loading.SettlementUnitPriceRub),
-                            ("SettlementValueRub", loading.SettlementValueRub),
-                            ("FreightRateUsdPerMt", loading.FreightRateUsdPerMt),
-                            ("TransportExpenseUsd", loading.TransportExpenseUsd),
-                            ("WarehouseExpenseUsd", loading.WarehouseExpenseUsd),
-                            ("OtherExpenseUsd", loading.OtherExpenseUsd)));
+                        diff: BuildLoadingCreateAuditDiff(createdRow.Loading));
+                }
 
-                    await PostSupplierLoadingLedgerIfReadyAsync(loading, rowContract);
+                await _db.SaveChangesAsync();
+                await PostSupplierLoadingLedgersForCreateAsync(
+                    createdRows.Select(row => (row.Loading, row.Contract)).ToList());
+
+                foreach (var createdRow in createdRows)
+                {
+                    var row = createdRow.Row;
+                    var loading = createdRow.Loading;
 
                     if (loading.LogisticsServiceProviderId.HasValue
                         && logisticsServiceProvidersById.TryGetValue(loading.LogisticsServiceProviderId.Value, out var logisticsServiceProvider))
@@ -1644,20 +1735,31 @@ public partial class LoadingController : Controller
                         var ownershipShares = ownershipSharesByAssetId.TryGetValue(operationalAsset.Id, out var cachedShares)
                             ? cachedShares
                             : await GetActiveAssetOwnershipSharesAsync(operationalAsset.Id, loading.LoadingDate);
-                        var contractType = contractsById[effectiveContractId.Value].ContractType;
+                        var contractType = createdRow.Contract.ContractType;
                         await SyncLoadingAssetRentAsync(loading, loadingExpenseModel, operationalAsset, ownershipShares, contractType);
                     }
-
-                    if (row.Loss.Enabled && row.Loss.QuantityMt.GetValueOrDefault() > 0m)
-                    {
-                        var lossSubmission = BuildLoadingLossSubmission(model, row, effectiveContractId.Value);
-                        lossSubmission.LoadingRegisterId = loading.Id;
-                        await _lossWorkflow.CreateAsync(lossSubmission);
-                        createdLosses++;
-                    }
-
-                    createdLoadings.Add(loading);
                 }
+
+                var lossSubmissions = createdRows
+                    .Where(createdRow => createdRow.Row.Loss.Enabled
+                        && createdRow.Row.Loss.QuantityMt.GetValueOrDefault() > 0m)
+                    .Select(createdRow =>
+                    {
+                        var lossSubmission = BuildLoadingLossSubmission(
+                            model,
+                            createdRow.Row,
+                            createdRow.Loading.ContractId);
+                        lossSubmission.LoadingRegisterId = createdRow.Loading.Id;
+                        return lossSubmission;
+                    })
+                    .ToList();
+                if (lossSubmissions.Count > 0)
+                {
+                    await _lossWorkflow.CreateBatchAsync(lossSubmissions);
+                }
+
+                var createdLoadings = createdRows.Select(row => row.Loading).ToList();
+                var createdLosses = lossSubmissions.Count;
 
                 if (transaction is not null)
                 {
@@ -1704,6 +1806,7 @@ public partial class LoadingController : Controller
         }
 
         await PopulateLookupsAsync(model);
+        PrepareRowsForFastPreview(model);
         return View(model);
     }
 
@@ -3935,12 +4038,33 @@ public partial class LoadingController : Controller
         row.RailwayExpenseUsd = null;
     }
 
-    private static List<LoadingCreateRowViewModel> ExtractSubmittedRows(LoadingCreateViewModel model)
+    private List<LoadingCreateRowViewModel> ExtractSubmittedRows(LoadingCreateViewModel model)
     {
-        var rows = (model.Rows ?? [])
+        var submittedRows = model.Rows ?? [];
+        if (!string.IsNullOrWhiteSpace(model.ImportedRowsJson))
+        {
+            try
+            {
+                submittedRows = JsonSerializer.Deserialize<List<LoadingCreateRowViewModel>>(
+                        model.ImportedRowsJson,
+                        LoadingRowsJsonOptions)
+                    ?? [];
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Invalid compact loading rows payload.");
+                ModelState.AddModelError(
+                    nameof(model.Rows),
+                    "اطلاعات سطرهای ایمپورت‌شده کامل دریافت نشد؛ صفحه را تازه کرده و دوباره تلاش کنید.");
+            }
+        }
+
+        var rows = submittedRows
+            .Where(row => row is not null)
             .Select((row, index) =>
             {
                 row.RowKey = string.IsNullOrWhiteSpace(row.RowKey) ? CreateRowKey(index) : row.RowKey.Trim();
+                row.Loss ??= new StageLossCaptureInput { Stage = LossEventStage.LoadingDifference };
                 if (row.LoadingDate == default)
                 {
                     row.LoadingDate = model.LoadingDate == default ? DateTime.UtcNow.Date : model.LoadingDate;
@@ -3971,6 +4095,62 @@ public partial class LoadingController : Controller
         };
 
         return IsBlankRow(fallbackRow) ? [] : [fallbackRow];
+    }
+
+    private static void PrepareRowsForFastPreview(LoadingCreateViewModel model)
+    {
+        model.ImportedRowsJson = model.Rows.Count > LargeImportPreviewRows
+            ? JsonSerializer.Serialize(model.Rows, LoadingRowsJsonOptions)
+            : null;
+    }
+
+    private void ValidateCompactSubmittedRows(IReadOnlyList<LoadingCreateRowViewModel> rows)
+    {
+        foreach (var row in rows)
+        {
+            var validationResults = new List<ValidationResult>();
+            Validator.TryValidateObject(
+                row,
+                new ValidationContext(row),
+                validationResults,
+                validateAllProperties: true);
+
+            foreach (var validationResult in validationResults)
+            {
+                var members = validationResult.MemberNames.DefaultIfEmpty(string.Empty);
+                foreach (var member in members)
+                {
+                    var key = string.IsNullOrWhiteSpace(member)
+                        ? nameof(LoadingCreateViewModel.Rows)
+                        : RowField(row.RowKey, member);
+                    ModelState.AddModelError(key, validationResult.ErrorMessage ?? "مقدار این سطر معتبر نیست.");
+                }
+            }
+
+            validationResults.Clear();
+            Validator.TryValidateObject(
+                row.Loss,
+                new ValidationContext(row.Loss),
+                validationResults,
+                validateAllProperties: true);
+            foreach (var validationResult in validationResults)
+            {
+                foreach (var member in validationResult.MemberNames.DefaultIfEmpty(string.Empty))
+                {
+                    var key = string.IsNullOrWhiteSpace(member)
+                        ? nameof(LoadingCreateViewModel.Rows)
+                        : RowLossField(row.RowKey, member);
+                    ModelState.AddModelError(key, validationResult.ErrorMessage ?? "مقدار ضایعات این سطر معتبر نیست.");
+                }
+            }
+        }
+    }
+
+    private static JsonSerializerOptions CreateLoadingRowsJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
     }
 
     private static void EnsureEditableRows(LoadingCreateViewModel model)

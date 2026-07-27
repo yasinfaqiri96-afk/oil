@@ -1168,17 +1168,19 @@ public partial class ExpensesController : Controller
             return View("Import", model);
         }
 
-        if (!string.Equals(Path.GetExtension(model.ImportFile.FileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
+        var importExtension = Path.GetExtension(model.ImportFile.FileName);
+        if (!string.Equals(importExtension, ".xlsx", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(importExtension, ".xls", StringComparison.OrdinalIgnoreCase))
         {
-            ModelState.AddModelError(nameof(model.ImportFile), "فعلاً فقط فایل‌های Excel با پسوند .xlsx پشتیبانی می‌شوند.");
+            ModelState.AddModelError(nameof(model.ImportFile), "فقط فایل‌های Excel با پسوند .xlsx و .xls پشتیبانی می‌شوند.");
             await PopulateImportLookupsAsync();
             return View("Import", model);
         }
 
         try
         {
-            await using var stream = model.ImportFile.OpenReadStream();
-            model.Rows = ExpenseWorkbookParser.Parse(stream).ToList();
+            await using var workbook = await ExcelWorkbookNormalizer.OpenAsync(model.ImportFile);
+            model.Rows = ExpenseWorkbookParser.Parse(workbook.Stream).ToList();
         }
         catch (InvalidDataException ex)
         {

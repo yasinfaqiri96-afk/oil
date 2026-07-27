@@ -1,5 +1,6 @@
 @using PTGOilSystem.Web.Helpers
 @using PTGOilSystem.Web.Models.TruckSettlements
+@using PTGOilSystem.Web.Models.ExcelImport
 @model PTGOilSystem.Web.Models.TruckSettlements.TruckSettlementIndexViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "تسویهٔ کرایه موترها", "Truck Freight Settlement");
@@ -9,6 +10,19 @@
     string DecimalRequired(decimal value) => value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
     string DecimalOptional(decimal? value) => value.HasValue ? value.Value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture) : "";
     string DateValue(DateTime value) => value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var excelImportOptions = new ExcelImportComponentOptions
+    {
+        InputId = "truckSettlementExcelFile",
+        FileFieldName = "file",
+        Mode = "form",
+        AcceptExtensions = ".xlsx,.xls",
+        Title = UiText.T(Context, "وارد کردن وزن تخلیه از اکسل", "Import discharge weights from Excel"),
+        Description = UiText.T(Context, "فایل شامل نمبر موتر/واگن، وزن تخلیه و حواکت را انتخاب کنید؛ فقط جدول پیش‌پر می‌شود.", "Choose a workbook with vehicle number, discharge weight and allowance; this only prefills the table."),
+        StartButtonText = UiText.T(Context, "خواندن و پیش‌پر کردن", "Read and prefill"),
+        MaxFileSizeMb = 5,
+        RequiresConfirmation = false,
+        Compact = true
+    };
 }
 
 <div class="ak-form-page ak-list-page">
@@ -42,16 +56,9 @@
             @* آپلود اکسل: نمبر موتر/واگن + وزن تخلیه + حواکت را روی ردیف‌های همین لیست پیش‌پر می‌کند.
                فرم جدا از فرم تسویه است (فرم‌ها تودرتو نمی‌شوند) و هیچ ثبتی انجام نمی‌دهد. *@
             <form method="post" asp-controller="TruckSettlements" asp-action="ImportExcel"
-                  enctype="multipart/form-data" class="ak-form-grid" data-no-spa data-no-submit-guard>
+                  enctype="multipart/form-data" data-no-spa data-no-submit-guard>
                 @Html.AntiForgeryToken()
-                <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
-                <span class="ak-label">@UiText.T(Context, "آپلود اکسل تخلیه:", "Discharge Excel:")</span>
-                <input type="file" name="file" accept=".xlsx" class="ak-input" required />
-                <button type="submit" class="btn ak-secondary-action">
-                    <i class="bi bi-upload" aria-hidden="true"></i>
-                    <span>@UiText.T(Context, "آپلود و پیش‌پر", "Upload & prefill")</span>
-                </button>
-                <span class="ak-section-desc">@UiText.T(Context, "ستون‌ها: نمبر موتر/واگن • وزن تخلیه • حواکت", "Columns: Vehicle No • Discharge weight • Allowance")</span>
+                <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
             </form>
 
             @* اعمال گروهی نرخ‌ها: مقادیرِ واردشده روی همهٔ ردیف‌های انتخاب‌شده اعمال می‌شود (فقط سمت مرورگر). *@

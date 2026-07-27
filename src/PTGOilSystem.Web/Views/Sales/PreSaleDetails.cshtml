@@ -1,0 +1,336 @@
+@model PTGOilSystem.Web.Models.Sales.PreSaleDetailsViewModel
+@using PTGOilSystem.Web.Models.Sales
+@{
+    ViewData["Title"] = $"پیش‌فروش {Model.OrderNumber}";
+    ViewData["HideSectionTabs"] = true;
+}
+
+<div class="ak-form-page">
+    <div>
+        <header class="ak-page-header">
+            <div class="ak-page-heading">
+                <span class="ak-page-icon"><i class="bi bi-calendar-check"></i></span>
+                <div>
+                    <h1>پیش‌فروش <span class="ak-num">@Model.OrderNumber</span></h1>
+                    <p>@Model.CustomerName — @Model.ProductName — @Model.OrderDate.ToString("yyyy-MM-dd")</p>
+                </div>
+            </div>
+            <div class="ak-page-actions">
+                <span class="ak-status @PreSaleOrderStatusLabels.ToBadgeClass(Model.Status)">
+                    @PreSaleOrderStatusLabels.ToPersian(Model.Status)
+                </span>
+                @if (Model.Status == PreSaleOrderStatus.FullyDelivered)
+                {
+                    <form asp-action="PreSaleClose" asp-route-id="@Model.Id" method="post" class="ak-form">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn ak-secondary-action">بستن پیش‌فروش</button>
+                    </form>
+                }
+                @if (Model.CanDeliver && Model.DeliveredMt <= 0m)
+                {
+                    <form asp-action="PreSaleCancel" asp-route-id="@Model.Id" method="post" class="ak-form"
+                          onsubmit="return confirm('این پیش‌فروش لغو شود؟');">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-danger">لغو پیش‌فروش</button>
+                    </form>
+                }
+                <a asp-action="PreSales" class="btn ak-secondary-action">بازگشت</a>
+            </div>
+        </header>
+
+        @if (TempData["ok"] != null)
+        {
+            <div class="alert alert-success">@TempData["ok"]</div>
+        }
+        @if (TempData["err"] != null)
+        {
+            <div class="alert alert-danger">@TempData["err"]</div>
+        }
+
+        @if (Model.Status != PreSaleOrderStatus.Cancelled && Model.Status != PreSaleOrderStatus.Closed)
+        {
+            @* موقتی: تا زمان پیاده‌سازی رزرو موجودی. *@
+            <div class="alert alert-warning">
+                این پیش‌فروش هنوز موجودی را رزرو نمی‌کند و مقدار آن از موجودی قابل فروش سایر عملیات کم نمی‌شود.
+            </div>
+        }
+
+        <section class="ak-form-section" aria-label="خلاصه">
+            <h2 class="ak-section-title">خلاصه</h2>
+            <div class="ak-stat-grid">
+                <div class="ak-stat"><span class="ak-stat-label">مقدار کل</span><span class="ak-stat-value ak-num">@Model.QuantityMt.ToString("N4") تن</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">تحویل‌شده</span><span class="ak-stat-value ak-num">@Model.DeliveredMt.ToString("N4") تن</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">باقی‌مانده</span><span class="ak-stat-value ak-num">@Model.RemainingMt.ToString("N4") تن</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">مبلغ کل</span><span class="ak-stat-value ak-num">@Model.TotalInCurrency.ToString("N2") @Model.Currency</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">ارزش تحویل‌شده (USD)</span><span class="ak-stat-value ak-num">@Model.DeliveredValueUsd.ToString("N2")</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">پیش‌دریافت تخصیص‌یافته (USD)</span><span class="ak-stat-value ak-num">@Model.ReceivedUsd.ToString("N2")</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">پیش‌دریافت مصرف‌شده (USD)</span><span class="ak-stat-value ak-num">@Model.ConsumedAdvanceUsd.ToString("N2")</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">پیش‌دریافت باقی‌مانده (USD)</span><span class="ak-stat-value ak-num">@Model.RemainingAdvanceUsd.ToString("N2")</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">طلب باقی‌مانده (USD)</span><span class="ak-stat-value ak-num">@Model.OutstandingUsd.ToString("N2")</span></div>
+                <div class="ak-stat"><span class="ak-stat-label">قیمت قفل‌شده هر تن</span><span class="ak-stat-value ak-num">@Model.UnitPriceInCurrency.ToString("N2") @Model.Currency</span></div>
+            </div>
+            @if (Model.ExpectedDeliveryFrom.HasValue || Model.ExpectedDeliveryTo.HasValue || !string.IsNullOrWhiteSpace(Model.Notes))
+            {
+                <p class="form-text">
+                    تحویل تقریبی: @(Model.ExpectedDeliveryFrom?.ToString("yyyy-MM-dd") ?? "-") تا @(Model.ExpectedDeliveryTo?.ToString("yyyy-MM-dd") ?? "-")
+                    @if (!string.IsNullOrWhiteSpace(Model.Notes)) { <text> — @Model.Notes</text> }
+                </p>
+            }
+        </section>
+
+        <section class="ak-form-section" aria-label="تحویل‌ها">
+            <h2 class="ak-section-title">تحویل‌ها</h2>
+            @if (Model.Deliveries.Count == 0)
+            {
+                <div class="ak-empty"><p>هنوز تحویلی ثبت نشده است.</p></div>
+            }
+            else
+            {
+                <div class="ak-table-wrap">
+                    <table class="ak-table">
+                        <thead>
+                            <tr>
+                                <th>فاکتور</th>
+                                <th>تاریخ</th>
+                                <th>مقدار (تن)</th>
+                                <th>منبع</th>
+                                <th>مبلغ</th>
+                                <th>معادل USD</th>
+                                <th>وضعیت</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in Model.Deliveries)
+                            {
+                                <tr>
+                                    <td class="ak-num">@d.InvoiceNumber</td>
+                                    <td>@d.DeliveryDate.ToString("yyyy-MM-dd")</td>
+                                    <td class="ak-num">@d.QuantityMt.ToString("N4")</td>
+                                    <td>@d.SourceLabel</td>
+                                    <td class="ak-num">@d.TotalInCurrency.ToString("N2") @Model.Currency</td>
+                                    <td class="ak-num">@d.TotalUsd.ToString("N2")</td>
+                                    <td class="col-status">
+                                        <span class="ak-status @(d.IsCancelled ? "is-inactive" : "is-success")">
+                                            @(d.IsCancelled ? "لغوشده" : d.StageLabel)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a asp-action="Details" asp-route-id="@d.SalesTransactionId" class="btn btn-sm ak-secondary-action">سند فروش</a>
+                                        @if (!d.IsCancelled)
+                                        {
+                                            <form asp-action="PreSaleDeliveryCancel" asp-route-id="@Model.Id"
+                                                  asp-route-salesTransactionId="@d.SalesTransactionId" method="post" class="ak-form d-inline"
+                                                  onsubmit="return confirm('این تحویل لغو و اسناد معکوس (لجر و موجودی) ثبت می‌شود. ادامه می‌دهید؟');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-danger">لغو تحویل</button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (Model.CanDeliver && Model.RemainingMt > 0m)
+            {
+                <details class="ak-advanced" open>
+                    <summary class="ak-advanced-summary"><span><i class="bi bi-truck" aria-hidden="true"></i>ثبت تحویل جدید</span></summary>
+                    <form asp-action="PreSaleDeliver" method="post" class="ak-form" data-presale-delivery-form>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="PreSaleOrderId" value="@Model.Id" />
+                        <input type="hidden" name="Kind" value="TerminalStock" data-presale-kind />
+                        <input type="hidden" name="Id" value="0" data-presale-id />
+                        <input type="hidden" name="TerminalId" value="0" data-presale-terminal />
+                        <input type="hidden" name="StorageTankId" value="0" data-presale-tank />
+                        <input type="hidden" name="SourcePurchaseContractId" value="0" data-presale-contract />
+
+                        <div class="ak-form-grid">
+                            <div class="ak-field">
+                                <label class="ak-label">تاریخ تحویل <span class="ak-req">*</span></label>
+                                <input type="date" name="DeliveryDate" class="ak-input" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label">منبع محصول <span class="ak-req">*</span></label>
+                                <select class="ak-input" data-presale-source>
+                                    <option value="">انتخاب منبع</option>
+                                    @foreach (var s in Model.Sources)
+                                    {
+                                        <option value="@s.Key"
+                                                data-kind="@s.Kind"
+                                                data-id="@s.Id"
+                                                data-terminal="@s.TerminalId"
+                                                data-tank="@s.StorageTankId"
+                                                data-contract="@s.SourcePurchaseContractId"
+                                                data-available="@s.AvailableMt"
+                                                data-full="@(s.IsFullVehicle ? "1" : "0")">
+                                            @s.KindLabel — @s.Number — @s.ProductName — موجود @s.AvailableMt.ToString("N4") تن
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label">مقدار این تحویل (تن)</label>
+                                <input type="number" step="0.0001" name="QuantityMt" class="ak-input" data-presale-qty />
+                                <div class="form-text">
+                                    مانده پیش‌فروش: <span class="ak-num">@Model.RemainingMt.ToString("N4")</span> تن —
+                                    مانده پس از تحویل: <span class="ak-num" data-presale-after>@Model.RemainingMt.ToString("N4")</span> تن
+                                </div>
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label">توضیحات</label>
+                                <input type="text" name="Notes" class="ak-input" />
+                            </div>
+                        </div>
+                        <div class="ak-footer-actions">
+                            <button type="submit" class="btn btn-primary">ثبت تحویل</button>
+                        </div>
+                    </form>
+                </details>
+            }
+        </section>
+
+        <section class="ak-form-section" aria-label="پرداخت‌ها">
+            <h2 class="ak-section-title">پرداخت‌ها</h2>
+            @if (Model.Payments.Count == 0)
+            {
+                <div class="ak-empty"><p>هیچ دریافتی به این پیش‌فروش تخصیص نیافته است.</p></div>
+            }
+            else
+            {
+                <div class="ak-table-wrap">
+                    <table class="ak-table">
+                        <thead>
+                            <tr>
+                                <th>تاریخ دریافت</th>
+                                <th>تاریخ تخصیص</th>
+                                <th>مبلغ تخصیص</th>
+                                <th>معادل USD</th>
+                                <th>نوع</th>
+                                <th>مرجع</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in Model.Payments)
+                            {
+                                <tr>
+                                    <td>@p.PaymentDate.ToString("yyyy-MM-dd")</td>
+                                    <td>@p.AllocationDate.ToString("yyyy-MM-dd")</td>
+                                    <td class="ak-num">@p.AllocatedAmount.ToString("N2") @p.Currency</td>
+                                    <td class="ak-num">@p.AllocatedAmountUsd.ToString("N2")</td>
+                                    <td>@(p.IsAdvance ? "پیش‌دریافت" : "دریافت")</td>
+                                    <td>@p.Reference</td>
+                                    <td>
+                                        <form asp-action="PreSaleReverseAllocation" asp-route-id="@Model.Id"
+                                              asp-route-allocationId="@p.AllocationId" method="post" class="ak-form d-inline"
+                                              onsubmit="return confirm('این تخصیص برگشت بخورد و مانده دریافت آزاد شود؟');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm ak-secondary-action">برگشت تخصیص</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (Model.AllocatablePayments.Count > 0 && Model.UnallocatedOrderUsd > 0m)
+            {
+                <details class="ak-advanced">
+                    <summary class="ak-advanced-summary"><span><i class="bi bi-cash-coin" aria-hidden="true"></i>تخصیص دریافت مشتری</span></summary>
+                    <form asp-action="PreSaleAllocatePayment" asp-route-id="@Model.Id" method="post" class="ak-form"
+                          data-presale-allocation-form>
+                        @Html.AntiForgeryToken()
+                        <div class="ak-form-grid">
+                            <div class="ak-field">
+                                <label class="ak-label">دریافت با مانده قابل تخصیص</label>
+                                <select name="paymentTransactionId" class="ak-input" data-presale-payment>
+                                    @foreach (var p in Model.AllocatablePayments)
+                                    {
+                                        <option value="@p.PaymentTransactionId" data-allocatable="@p.AllocatableAmount">
+                                            @p.PaymentDate.ToString("yyyy-MM-dd") — مانده @p.AllocatableAmount.ToString("N2") از @p.Amount.ToString("N2") @p.Currency@(p.IsAdvance ? " (پیش‌دریافت)" : "")
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label">مبلغ تخصیص</label>
+                                <input type="number" step="0.01" name="amount" class="ak-input" data-presale-alloc-amount
+                                       value="@Model.AllocatablePayments[0].AllocatableAmount.ToString("0.####")" />
+                                <div class="form-text">
+                                    مانده مالی تخصیص‌نیافتهٔ این پیش‌فروش: <span class="ak-num">@Model.UnallocatedOrderUsd.ToString("N2")</span> USD
+                                </div>
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label">تاریخ تخصیص</label>
+                                <input type="date" name="allocationDate" class="ak-input" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+                            </div>
+                        </div>
+                        <div class="ak-footer-actions">
+                            <button type="submit" class="btn btn-primary">تخصیص به این پیش‌فروش</button>
+                        </div>
+                    </form>
+                </details>
+            }
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.querySelector('[data-presale-delivery-form]');
+            if (!form) { return; }
+            var source = form.querySelector('[data-presale-source]');
+            var qty = form.querySelector('[data-presale-qty]');
+            var after = form.querySelector('[data-presale-after]');
+            var remaining = @Model.RemainingMt.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            function apply() {
+                var option = source.options[source.selectedIndex];
+                var kind = option ? (option.getAttribute('data-kind') || 'TerminalStock') : 'TerminalStock';
+                form.querySelector('[data-presale-kind]').value = kind;
+                form.querySelector('[data-presale-id]').value = option ? (option.getAttribute('data-id') || 0) : 0;
+                form.querySelector('[data-presale-terminal]').value = option ? (option.getAttribute('data-terminal') || 0) : 0;
+                form.querySelector('[data-presale-tank]').value = option ? (option.getAttribute('data-tank') || 0) : 0;
+                form.querySelector('[data-presale-contract]').value = option ? (option.getAttribute('data-contract') || 0) : 0;
+
+                // حملِ کشتی (TransportLeg) مثل مخزن جزئی است: قفل/پرکردن خودکار نمی‌شود و
+                // مقدار دستی کاربر با تغییر منبع بازنویسی نمی‌گردد. موتر و واگن کل‌وسیله می‌مانند.
+                var isFull = option && option.getAttribute('data-full') === '1' && kind !== 'TransportLeg';
+                if (isFull) {
+                    qty.value = option.getAttribute('data-available') || '';
+                    qty.readOnly = true;
+                } else {
+                    qty.readOnly = false;
+                }
+                preview();
+            }
+
+            function preview() {
+                var value = parseFloat(qty.value || '0');
+                if (isNaN(value)) { value = 0; }
+                after.textContent = (remaining - value).toFixed(4);
+            }
+
+            source.addEventListener('change', apply);
+            qty.addEventListener('input', preview);
+        })();
+
+        (function () {
+            var form = document.querySelector('[data-presale-allocation-form]');
+            if (!form) { return; }
+            var payment = form.querySelector('[data-presale-payment]');
+            var amount = form.querySelector('[data-presale-alloc-amount]');
+
+            payment.addEventListener('change', function () {
+                var option = payment.options[payment.selectedIndex];
+                amount.value = option ? (option.getAttribute('data-allocatable') || '') : '';
+            });
+        })();
+    </script>
+}

@@ -1,0 +1,88 @@
+@using PTGOilSystem.Web.Models.Accounting
+@model PeriodActivityViewModel
+@{
+    ViewData["Title"] = $"فعالیت‌های دوره {Model.PeriodName}";
+    var k = Model.Kpis;
+
+    (IReadOnlyList<PeriodActivityRow> Rows, bool ShowQty, bool ShowUsd) Table(
+        IReadOnlyList<PeriodActivityRow> rows, bool qty, bool usd) => (rows, qty, usd);
+}
+
+<div class="ak-form-page finance-workspace-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"فعالیت‌های دوره {Model.PeriodName}", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       (string?)"بازگشت", (string?)"bi-arrow-right",
+                       (string?)Url.Action("Index", "FiscalYears")))" />
+
+    <div class="ak-table-wrap">
+        <table class="ak-table" aria-label="مشخصات دوره">
+            <tbody>
+                <tr><th class="ak-col-grow">شرکت</th><td>@Model.CompanyName</td></tr>
+                <tr><th>سال مالی</th><td>@Model.FiscalYearName</td></tr>
+                <tr><th>دوره</th><td>@Model.PeriodName</td></tr>
+                <tr><th>بازه</th><td>@DateDisplay.Date(Model.StartDate) — @DateDisplay.Date(Model.EndDate)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    @* ===== KPI خلاصه ===== *@
+    <div class="summary-strip">
+        <div class="summary-tile"><div class="summary-tile-label">خرید</div><div class="summary-tile-value ak-num">@k.PurchaseCount<span class="ak-hint"> (@k.PurchaseQuantityMt.ToString("N2") MT)</span></div></div>
+        <div class="summary-tile"><div class="summary-tile-label">بارگیری</div><div class="summary-tile-value ak-num">@k.LoadingCount<span class="ak-hint"> (@k.LoadingQuantityMt.ToString("N2") MT)</span></div></div>
+        <div class="summary-tile"><div class="summary-tile-label">فروش</div><div class="summary-tile-value ak-num">@NumberDisplay.Money(k.SalesUsd)<span class="ak-hint"> (@k.SalesCount)</span></div></div>
+        <div class="summary-tile"><div class="summary-tile-label">دریافت</div><div class="summary-tile-value ak-num">@NumberDisplay.Money(k.ReceiptsUsd)</div></div>
+        <div class="summary-tile"><div class="summary-tile-label">پرداخت</div><div class="summary-tile-value ak-num">@NumberDisplay.Money(k.PaymentsUsd)</div></div>
+        <div class="summary-tile"><div class="summary-tile-label">مصارف</div><div class="summary-tile-value ak-num">@NumberDisplay.Money(k.ExpensesUsd)</div></div>
+        <div class="summary-tile"><div class="summary-tile-label">موجودی خالص</div><div class="summary-tile-value ak-num">@k.InventoryNetMt.ToString("N2") MT</div></div>
+        @if (Model.AccountingEnabled)
+        {
+            <div class="summary-tile"><div class="summary-tile-label">اسناد حسابداری</div><div class="summary-tile-value ak-num">@k.JournalCount</div></div>
+        }
+    </div>
+
+    @* ===== تب‌های ساده ===== *@
+    <ul class="nav nav-tabs finance-activity-tabs" role="tablist">
+        <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pa-purchases" type="button" role="tab">خرید</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pa-loadings" type="button" role="tab">بارگیری</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pa-sales" type="button" role="tab">فروش</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pa-receipts" type="button" role="tab">دریافت</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pa-payments" type="button" role="tab">پرداخت</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pa-expenses" type="button" role="tab">مصارف</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pa-inventory" type="button" role="tab">موجودی</button></li>
+        @if (Model.AccountingEnabled)
+        {
+            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pa-journals" type="button" role="tab">اسناد حسابداری</button></li>
+        }
+    </ul>
+
+    <div class="tab-content finance-activity-panes">
+        <div class="tab-pane fade show active" id="pa-purchases" role="tabpanel">
+            <partial name="_ActivityTable" model="Table(Model.Purchases, true, false)" />
+        </div>
+        <div class="tab-pane fade" id="pa-loadings" role="tabpanel">
+            <partial name="_ActivityTable" model="Table(Model.Loadings, true, false)" />
+        </div>
+        <div class="tab-pane fade" id="pa-sales" role="tabpanel">
+            <partial name="_ActivityTable" model="Table(Model.Sales, true, true)" />
+        </div>
+        <div class="tab-pane fade" id="pa-receipts" role="tabpanel">
+            <partial name="_ActivityTable" model="Table(Model.Receipts, false, true)" />
+        </div>
+        <div class="tab-pane fade" id="pa-payments" role="tabpanel">
+            <partial name="_ActivityTable" model="Table(Model.Payments, false, true)" />
+        </div>
+        <div class="tab-pane fade" id="pa-expenses" role="tabpanel">
+            <partial name="_ActivityTable" model="Table(Model.Expenses, false, true)" />
+        </div>
+        <div class="tab-pane fade" id="pa-inventory" role="tabpanel">
+            <partial name="_ActivityTable" model="Table(Model.InventoryMovements, true, false)" />
+        </div>
+        @if (Model.AccountingEnabled)
+        {
+            <div class="tab-pane fade" id="pa-journals" role="tabpanel">
+                <partial name="_ActivityTable" model="Table(Model.Journals, false, true)" />
+            </div>
+        }
+    </div>
+</div>

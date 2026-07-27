@@ -11,6 +11,29 @@ body.boltz-shell.app-shell-authenticated .ptg-page {
     padding-inline: var(--layout-gutter-desktop);
 }
 
+/* Large desktop monitors: the shared 1200px cap leaves most of a 1440p/4K
+   screen empty. Escalate the token itself in steps so every consumer that
+   already reads it — PageFrame, the detail shell (--ak-detail-max-width) and
+   the wide form canvases (--ak-form-content-wide-max) — grows together.
+   Below 1600px nothing changes, so laptop/tablet/mobile stay as they are. */
+@media (min-width: 1600px) {
+    body.boltz-shell.app-shell-authenticated {
+        --layout-content-max: 1320px;
+    }
+}
+
+@media (min-width: 1920px) {
+    body.boltz-shell.app-shell-authenticated {
+        --layout-content-max: 1400px;
+    }
+}
+
+@media (min-width: 2400px) {
+    body.boltz-shell.app-shell-authenticated {
+        --layout-content-max: 1480px;
+    }
+}
+
 body.boltz-shell.app-shell-authenticated .ptg-page-frame {
     display: grid;
     align-content: start;
@@ -25,9 +48,11 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame {
 /* Group sale/expense are wide operational workspaces with ten-column source
    tables and a live summary rail. Match their actual page marker instead of
    route state, then release both constraints that can narrow the workspace:
-   the shared 1200px cap and the regular desktop/laptop page gutter. */
+   the shared 1200px cap and the regular desktop/laptop page gutter.
+   The floor stays 1520px; on wide monitors the escalated shared token wins so
+   this workspace never ends up narrower than a regular page. */
 body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-group-operation-page--wide) {
-    max-inline-size: 1520px;
+    max-inline-size: max(1520px, var(--layout-content-max));
 }
 
 /* The generic table-form rule in 50-ak-components.css uses inline-size and the
@@ -53,6 +78,29 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame > .ak-group-operation-p
     }
 }
 
+/* Party-account profile pages (supplier, customer, service provider, sarraf,
+   partner, driver, employee, company) are content-dense detail workspaces with
+   wide statement tables. The shared 1200px cap wastes horizontal space on large
+   monitors, so widen just these pages — scoped to the .ak-party-page marker the
+   detail views already carry. Width stays 100% below the cap, so laptop/tablet/
+   mobile remain fully responsive; only the effective ceiling grows. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-party-page) {
+    max-inline-size: max(1440px, var(--layout-content-max));
+}
+
+@media (min-width: 1600px) {
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-party-page) {
+        max-inline-size: max(1600px, var(--layout-content-max));
+    }
+}
+
+/* The inner detail shell re-clamps to --ak-detail-max-width (1200px). Release it
+   on the party root so header, summary cards, tabs, statement and tables all
+   follow the widened frame instead of a second, conflicting 1200px cap. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > .ak-party-page {
+    --ak-detail-max-width: 100%;
+}
+
 body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(
     .summary-strip,
     .summary-strip-page-top,
@@ -75,7 +123,8 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(
     .operations-reference-page,
     .loading-reference-page,
     .expense-reference-page,
-    .contract-details-page
+    .contract-details-page,
+    .bk-page
 ) {
     inline-size: 100%;
     max-inline-size: 100%;

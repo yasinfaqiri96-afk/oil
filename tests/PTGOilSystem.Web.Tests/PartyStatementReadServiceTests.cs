@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.PartyStatements;
@@ -499,6 +500,97 @@ public sealed class PartyStatementReadServiceTests
         Assert.DoesNotContain(carrierStatement.Rows, r => r.Reference == "TRANSPORT-RECEIPT:4");
         Assert.Contains(driverStatement.Rows, r => r.Reference == "TRANSPORT-RECEIPT:4");
         Assert.DoesNotContain(driverStatement.Rows, r => r.Reference == "TRANSPORT-RECEIPT:3");
+    }
+
+    [Fact]
+    public async Task SupplierContractGrouping_PreservesLinearTotals_AndOneRowPerContract()
+    {
+        await using var db = CreateDb();
+        var company = new Company { Code = "C1", Name = "Company 1" };
+        var supplier = new Supplier { Name = "Grouped supplier" };
+        db.AddRange(company, supplier);
+        await db.SaveChangesAsync();
+        var c1 = new Contract { ContractNumber = "P-1", ContractType = ContractType.Purchase, CompanyId = company.Id, SupplierId = supplier.Id };
+        var c2 = new Contract { ContractNumber = "P-2", ContractType = ContractType.Purchase, CompanyId = company.Id, SupplierId = supplier.Id };
+        db.AddRange(c1, c2);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.AddRange(
+            SupplierEntry(c1.Id, supplier.Id, 1_000m, "USD", 1_000m, 1m, 1),
+            SupplierEntry(c2.Id, supplier.Id, 400m, "USD", 400m, 1m, 2),
+            new LedgerEntry { EntryDate = new DateTime(2026, 5, 10), Side = LedgerSide.Debit, AmountUsd = 300m, Currency = "USD", SupplierId = supplier.Id, ContractId = c1.Id, SourceType = "SupplierPayment", SourceId = 5, Description = "payment" },
+            // پرداختِ بدون قرارداد — باید در گروهِ «بدون قرارداد» بیاید تا جمع‌ها نشتی نکنند.
+            new LedgerEntry { EntryDate = new DateTime(2026, 5, 11), Side = LedgerSide.Debit, AmountUsd = 100m, Currency = "USD", SupplierId = supplier.Id, SourceType = "SupplierPayment", SourceId = 6, Description = "unallocated" });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, supplier.Id),
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+
+        var grouping = SupplierContractStatementBuilder.Build(
+            statement,
+            new Dictionary<int, SupplierContractStatementBuilder.ContractFacts>());
+
+        // یک ردیف برای هر قرارداد + یک ردیف «بدون قرارداد».
+        Assert.Equal(3, grouping.Rows.Count);
+        Assert.Equal(2, grouping.Rows.Count(r => r.ContractId.HasValue));
+        // جمع بدهکار/بستانکار/مانده دقیقاً برابر نمای خطی است (گروه‌بندی فقط نمایشی است).
+        Assert.Equal(statement.Summary.TotalDebit, grouping.Rows.Sum(r => r.Debit));
+        Assert.Equal(statement.Summary.TotalCredit, grouping.Rows.Sum(r => r.Credit));
+        Assert.Equal(statement.Summary.ClosingBalance, grouping.ClosingBalance);
+        Assert.Equal(statement.Summary.ClosingBalance, grouping.Rows[^1].Balance);
+    }
+
+    [Fact]
+    public async Task SupplierContractGrouping_ExcludesTotalContractValueFromDebit_ForPartiallyLoadedContract()
+    {
+        await using var db = CreateDb();
+        var company = new Company { Code = "C1", Name = "Company 1" };
+        var supplier = new Supplier { Name = "BONEX" };
+        db.AddRange(company, supplier);
+        await db.SaveChangesAsync();
+        var contract = new Contract
+        {
+            ContractNumber = "610",
+            ContractType = ContractType.Purchase,
+            CompanyId = company.Id,
+            SupplierId = supplier.Id,
+            QuantityMt = 20_000m,
+            PricingMethod = PricingMethod.Fixed,
+            UnitPriceUsd = 600m
+        };
+        db.Add(contract);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.AddRange(
+            // بارگیریِ قطعیِ 10,000MT × 600 = 6,000,000 → دفتر Credit → ستون بدهکار.
+            new LedgerEntry { EntryDate = new DateTime(2026, 3, 1), Side = LedgerSide.Credit, AmountUsd = 6_000_000m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "Loading", SourceId = 1, Description = "loading" },
+            // پرداخت 4,000,000 → دفتر Debit → ستون بستانکار.
+            new LedgerEntry { EntryDate = new DateTime(2026, 3, 2), Side = LedgerSide.Debit, AmountUsd = 4_000_000m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "SupplierPayment", SourceId = 2, Description = "payment" });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, supplier.Id),
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+
+        var price = ContractPricingAdapter.GetCanonicalFinalPrice(contract);
+        var facts = new Dictionary<int, SupplierContractStatementBuilder.ContractFacts>
+        {
+            [contract.Id] = new(
+                ProductName: "دیزل",
+                ContractQuantityMt: 20_000m,
+                UnitPriceUsd: price,
+                ContractValueUsd: 20_000m * price!.Value,
+                LoadedQuantityMt: 10_000m)
+        };
+        var grouping = SupplierContractStatementBuilder.Build(statement, facts);
+
+        var row = Assert.Single(grouping.Rows);
+        Assert.Equal(6_000_000m, row.Debit);              // فقط ارزش بارگیریِ قطعی
+        Assert.Equal(4_000_000m, row.Credit);             // پرداخت
+        Assert.Equal(-2_000_000m, row.Balance);           // بدهی به تأمین‌کننده
+        Assert.Equal(12_000_000m, row.ContractValueUsd);  // ارزش کل قرارداد فقط اطلاعاتی
+        Assert.NotEqual(row.ContractValueUsd, row.Debit);  // ارزش کل قرارداد وارد بدهکار نشده
+        Assert.Equal(10_000m, row.RemainingQuantityMt);   // تعهد باقی‌مانده (نه بدهی)
+        Assert.Contains("بدهکار", statement.Summary.ClosingBalanceMeaning);
     }
 
     private static LedgerEntry LegacySupplierEntry(int contractId, decimal amountUsd, int sourceId)

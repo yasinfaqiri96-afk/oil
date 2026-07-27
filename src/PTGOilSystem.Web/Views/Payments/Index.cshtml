@@ -22,8 +22,6 @@
                        "ثبت دریافت/پرداخت", "bi-plus-lg", Url.Action("Create"), (string?)null,
                        "راهنمای دریافت و پرداخت", "bi-grid-1x2", Url.Action("Hub")))" />
 
-    <p class="finance-page-lead">همه دریافت‌ها، پرداخت‌ها، حواله‌ها و سندهای مرتبط در یک مسیر؛ برای دیدن جزئیات مالی روی هر ردیف کلیک کنید.</p>
-
     <section class="ak-stat-grid" aria-label="خلاصهٔ مالی">
         <vc:stat-card title="جمع دریافتی" value="@Model.TodayReceiptUsd.ToString("N2")" unit="USD" avatar="receipts"></vc:stat-card>
         <vc:stat-card title="جمع پرداختی" value="@Model.TodayPaymentUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
@@ -67,7 +65,6 @@
                 <thead>
                     <tr>
                         <th>تاریخ</th>
-                        <th class="ak-col-grow">شماره سند</th>
                         <th>نوع</th>
                         <th>طرف حساب</th>
                         <th>حساب نقدی/بانکی</th>
@@ -85,24 +82,23 @@
                     var normalRow = !item.IsSarrafHawala && !item.IsLedgerOnlyViaSarraf;
                     <tr data-href="@(normalRow ? Url.Action("Details", new { id = item.Id }) : null)">
                         <td>@item.PaymentDate.ToDisplayDate()</td>
-                        <td class="ak-col-grow">
-                            @(item.Reference ?? (item.IsSarrafHawala ? $"حواله #{item.SarrafSettlementId}" : item.IsLedgerOnlyViaSarraf ? $"Ledger #{item.LedgerEntryId}" : $"#{item.Id}"))
-                        </td>
+                        @* یک کپسول کافی است: عنوان کامل نوع سند داخل کپسول، بدون برچسب کوتاه بالای آن. *@
                         <td>
-                            <span class="ak-status @directionBadgeClass">@item.DirectionName</span>
-                            <div class="ak-note">@item.PaymentKindName</div>
+                            <span class="ak-status @directionBadgeClass">@item.PaymentKindName</span>
                         </td>
-                        @if (item.IsSarrafHawala || item.IsLedgerOnlyViaSarraf)
+                        <td>@item.CounterpartyName</td>
+                        @* حساب نقدی/بانکی فقط وقتی معنا دارد که همان تراکنش از حساب پرداخت/دریافت شده باشد؛
+                           تراکنش‌های صرافی یا بدون حساب، این ستون را خالی نگه می‌دارند. *@
+                        @if (normalRow && !string.IsNullOrWhiteSpace(item.CashAccountName) && item.CashAccountName != "—")
                         {
-                            <td colspan="2">@item.CounterpartyName</td>
-                        }
-                        else
-                        {
-                            <td>@item.CounterpartyName</td>
                             <td>
                                 @item.CashAccountName
                                 <div class="ak-note">@item.CashAccountCurrency</div>
                             </td>
+                        }
+                        else
+                        {
+                            <td></td>
                         }
                         <td class="ak-col-num ak-num">
                             @item.Amount.ToString("N2") @item.Currency
@@ -162,7 +158,7 @@
                 @if (!items.Any())
                 {
                     <tr>
-                        <td colspan="10">
+                        <td colspan="9">
                             <div class="ak-empty">
                                 <i class="bi bi-journal-text"></i>
                                 برای این فیلتر، سندی پیدا نشد.

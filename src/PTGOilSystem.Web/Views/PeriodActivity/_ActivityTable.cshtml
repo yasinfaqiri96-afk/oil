@@ -1,0 +1,47 @@
+@using PTGOilSystem.Web.Models.Accounting
+@model (IReadOnlyList<PeriodActivityRow> Rows, bool ShowQty, bool ShowUsd)
+
+<div class="ak-table-wrap">
+    <table class="ak-table" aria-label="فعالیت‌های دوره">
+        <thead>
+            <tr>
+                <th>تاریخ</th>
+                <th class="ak-col-grow">عنوان</th>
+                <th>جزئیات</th>
+                @if (Model.ShowQty)
+                {
+                    <th>مقدار (MT)</th>
+                }
+                @if (Model.ShowUsd)
+                {
+                    <th>مبلغ (USD)</th>
+                }
+                <th>وضعیت</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Rows)
+            {
+                <tr>
+                    <td>@DateDisplay.Date(row.Date)</td>
+                    <td class="ak-col-grow">@row.Title</td>
+                    <td>@(row.Subtitle ?? "-")</td>
+                    @if (Model.ShowQty)
+                    {
+                        <td class="ak-num">@(row.QuantityMt.HasValue ? row.QuantityMt.Value.ToString("N2") : "-")</td>
+                    }
+                    @if (Model.ShowUsd)
+                    {
+                        <td class="ak-num">@(row.AmountUsd.HasValue ? NumberDisplay.Money(row.AmountUsd.Value) : "-")</td>
+                    }
+                    <td>@(row.Status ?? "-")</td>
+                </tr>
+            }
+            @if (Model.Rows.Count == 0)
+            {
+                var span = 4 + (Model.ShowQty ? 1 : 0) + (Model.ShowUsd ? 1 : 0);
+                <tr><td colspan="@span"><div class="ak-empty">در این بازه رکوردی ثبت نشده است</div></td></tr>
+            }
+        </tbody>
+    </table>
+</div>

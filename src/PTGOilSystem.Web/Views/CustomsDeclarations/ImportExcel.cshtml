@@ -1,7 +1,22 @@
 @model PTGOilSystem.Web.Models.Customs.CustomsImportViewModel
 @using PTGOilSystem.Web.Models.Customs
+@using PTGOilSystem.Web.Models.ExcelImport
 @{
     ViewData["Title"] = "اپلود اکسل گروهی گمرک";
+    var excelImportOptions = new ExcelImportComponentOptions
+    {
+        InputId = "customsExcelImportFile",
+        FileFieldName = "file",
+        Mode = "external",
+        AcceptExtensions = ".xlsx,.xls",
+        Title = "وارد کردن گروهی گمرک از اکسل",
+        Description = "فایل گمرک را انتخاب کنید؛ ابتدا تطبیق و پیش‌نمایش انجام می‌شود و بدون تأیید شما چیزی ثبت نمی‌گردد.",
+        StartButtonText = "پیش‌نمایش و بررسی",
+        ConfirmButtonText = "ثبت نهایی ردیف‌های معتبر",
+        MaxFileSizeMb = 5,
+        AllowValidRowsWithErrors = true,
+        ViewResultsUrl = Url.Action("Index")
+    };
 }
 
 <div class="page-stack ak-form-page ak-group-operation-page">
@@ -42,84 +57,14 @@
                     <div class="form-text">همه مبالغ افغانی با این نرخ به دالر تبدیل و به‌صورت USD ثبت می‌شوند.</div>
                 </div>
 
-                <div class="ak-field ak-col-full">
-                    <label class="ak-label">فایل اکسل</label>
-                    <label class="ak-upload">
-                        <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
-                        <span>فایل اکسل (xlsx/xls) را انتخاب کنید</span>
-                        <input type="file" name="file" accept=".xlsx,.xls" required />
-                    </label>
-                    <div class="ak-note">
-                        <strong>ستون‌های شناخته‌شده (همه افغانی):</strong>
-                        تاریخ، سیمیر، نمبر موتر، وزن سیمیر، مقصد، مصرف محصولی، مصارف فواید عامه، کمیشن بانک،
-                        نورم استندرد، حق‌الخدمه مواد نفت، مصرف ۲۰ پول، مصارف خط آهن، بارنامه واگن، ترازوی موتر،
-                        یوزبلاغ، کمیشن بارچلانی.
-                        <br>ستون «مصرف محصول به دالر» فقط رهنماست و در محاسبه حساب نمی‌شود.
-                        <br>فقط ردیف‌هایی که با عملیاتِ <strong>در جریان</strong> (نه تکمیل‌شده) تطبیق شوند ثبت می‌گردند.
-                    </div>
-                </div>
             </div>
-
-            <div class="ak-footer-actions">
-                <button type="button" class="btn btn-primary ak-primary-action" data-save-btn disabled>
-                    <i class="bi bi-check2-circle" aria-hidden="true"></i><span>ثبت نهایی</span>
-                </button>
-                <button type="button" class="btn btn-light ak-secondary-action" data-preview-btn>
-                    <i class="bi bi-eye" aria-hidden="true"></i><span>پیش‌نمایش</span>
-                </button>
-                <span class="d-none align-items-center gap-2 text-muted ms-2" data-import-loading>
-                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    <span data-import-loading-text>در حال وارد کردن… لطفاً صبر کنید</span>
-                </span>
-            </div>
-            <div class="small text-muted mt-2" data-import-hint>
-                ابتدا «پیش‌نمایش» را بزنید تا ببینید کدام ردیف‌ها ثبت و کدام رد می‌شوند؛ سپس «ثبت نهایی».
-            </div>
-            <div class="small text-danger mt-2 d-none" data-import-error></div>
         </section>
+        <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
+        <div class="ak-note mt-2">
+            <strong>ستون‌های شناخته‌شده:</strong> تاریخ، سیمیر، نمبر موتر، وزن، مقصد و ستون‌های مصارف گمرکی.
+            فقط ردیف‌های مطابق با عملیات در جریان قابل ثبت‌اند.
+        </div>
     </form>
-
-    <section class="ak-form-section d-none" data-preview-card>
-        <div class="ak-section-head">
-            <h2 class="ak-section-title">پیش‌نمایش <span class="text-muted small">(هنوز ثبت نشده)</span></h2>
-            <span class="text-muted small">
-                قابل ثبت: <strong class="text-success" data-preview-saved>0</strong> —
-                رد‌شده: <strong class="text-danger" data-preview-skipped>0</strong>
-            </span>
-        </div>
-        <div class="ak-table-wrap">
-            <table class="ak-table">
-                <thead>
-                    <tr>
-                        <th>ردیف</th><th>سیمیر</th><th>نمبر موتر</th><th>وزن</th>
-                        <th>مجموع AFN</th><th>مجموع USD</th><th>وضعیت</th>
-                    </tr>
-                </thead>
-                <tbody data-preview-rows></tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="ak-form-section d-none" data-result-card>
-        <div class="ak-section-head">
-            <h2 class="ak-section-title">نتیجهٔ ثبت</h2>
-            <span class="text-muted small">
-                ثبت‌شده: <strong class="text-success" data-result-saved>0</strong> —
-                رد‌شده: <strong class="text-danger" data-result-skipped>0</strong>
-            </span>
-        </div>
-        <div class="ak-table-wrap">
-            <table class="ak-table">
-                <thead>
-                    <tr>
-                        <th>ردیف</th><th>سیمیر</th><th>نمبر موتر</th><th>وزن</th>
-                        <th>مجموع AFN</th><th>مجموع USD</th><th>وضعیت</th>
-                    </tr>
-                </thead>
-                <tbody data-result-rows></tbody>
-            </table>
-        </div>
-    </section>
 
     @if (Model.HasResult)
     {

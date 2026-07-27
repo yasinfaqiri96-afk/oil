@@ -17,6 +17,9 @@
 <div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "فاکتورهای فروش", "Sales invoices"), true, UiText.T(Context, "ثبت فاکتور فروش", "New sales invoice"), "bi-plus-lg", Url.Action("Create"), (string?)null, UiText.T(Context, "ثبت فروش گروهی", "Group sale"), "bi-collection", Url.Action("CreateGroup")))" />
+    <div class="ak-page-actions mb-3">
+        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+    </div>
     @{
         var sumQuantity = (decimal)(ViewBag.SumQuantity ?? 0m);
         var sumTotalUsd = (decimal)(ViewBag.SumTotalUsd ?? 0m);
@@ -48,7 +51,9 @@
         }
         <div class="ak-list-toolbar">
             <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="salesFilter" />
-            <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+            <a asp-action="PreSales" class="btn ak-secondary-action">
+                <i class="bi bi-calendar-check"></i> @UiText.T(Context, "پیش‌فروش‌ها", "Pre-sales")
+            </a>
         </div>
 
         <div class="ak-table-wrap">
@@ -114,17 +119,6 @@
                         </tr>
                     }
                 </tbody>
-                @if (items.Any())
-                {
-                    <tfoot>
-                        <tr>
-                            <td colspan="4" class="fw-bold">@UiText.T(Context, "مجموع کل", "Grand Total")</td>
-                            <td class="col-ltr fw-bold">@NumberDisplay.Quantity((decimal)ViewBag.SumQuantity) MT</td>
-                            <td class="col-ltr fw-bold">@(((decimal)ViewBag.SumTotalUsd).ToString("N2")) USD</td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                }
             </table>
         </div>
 

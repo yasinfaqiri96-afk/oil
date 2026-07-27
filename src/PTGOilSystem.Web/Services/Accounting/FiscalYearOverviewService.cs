@@ -76,7 +76,8 @@ public sealed class FiscalYearOverviewService(
                 new NextFiscalYearProposal(false, "هیچ شرکت فعالی وجود ندارد.", null, null, null, 0),
                 ReadinessFindings: [],
                 LastCloseRun: null,
-                canManage);
+                canManage,
+                CurrentYearPeriodLockActions: new Dictionary<int, IReadOnlyList<FiscalPeriodLockAction>>());
         }
 
         var years = await LoadYearSummariesAsync(selected, cancellationToken);
@@ -93,6 +94,14 @@ public sealed class FiscalYearOverviewService(
             ? null
             : (await LoadCloseRunsAsync(currentYear.FiscalYearId, cancellationToken)).FirstOrDefault();
 
+        // قفل/بازکردنِ دورهٔ سالِ جاری روی صفحهٔ سادهٔ سال مالی. همان قاعدهٔ صفحهٔ جزئیات بازاستفاده
+        // می‌شود تا دکمه هرگز کاری را پیشنهاد ندهد که سرویس ردش می‌کند.
+        var lockActions = currentYear is null
+            ? new Dictionary<int, IReadOnlyList<FiscalPeriodLockAction>>()
+            : currentYear.Periods.ToDictionary(
+                p => p.PeriodId,
+                p => BuildLockActions(currentYear.Status, p.Status, canManage));
+
         return new FiscalYearIndexViewModel(
             options,
             selected,
@@ -102,7 +111,8 @@ public sealed class FiscalYearOverviewService(
             await BuildNextYearProposalAsync(selected, cancellationToken),
             findings,
             lastRun,
-            canManage);
+            canManage,
+            lockActions);
     }
 
     public async Task<FiscalYearDetailsViewModel?> BuildDetailsAsync(

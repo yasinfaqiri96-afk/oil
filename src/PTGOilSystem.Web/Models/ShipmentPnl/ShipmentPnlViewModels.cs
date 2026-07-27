@@ -44,6 +44,9 @@ public sealed class ShipmentPnlSalesItemViewModel
     public decimal QuantityMt { get; init; }
     public decimal UnitPriceUsd { get; init; }
     public decimal TotalUsd { get; init; }
+    // true = فروش مستقیم از محموله (ShipmentId روی خود فروش)، false = فروش پس از ورود به مخزن که
+    // Lineage آن به همین محموله می‌رسد. برای تفکیک نمایشی؛ هر فروش فقط یک بار در جمع می‌آید.
+    public bool IsDirectShipmentSale { get; init; }
     public IReadOnlyList<ShipmentContractBreakdownLine> ContractBreakdownLines { get; init; } = [];
 }
 
@@ -257,6 +260,17 @@ public sealed class ShipmentPnlDetailsViewModel
     public IReadOnlyList<ShipmentJourneyLossItem> Losses { get; init; } = [];
     public IReadOnlyList<ShipmentSaleDisplayRow> SaleDisplayRows
         => ShipmentPnlDisplayGrouping.GroupSales(Sales);
+    // تفکیک فروش منتسب به محموله (هر فروش فقط یک بار؛ جمع دو گروه = کل فروش).
+    public decimal DirectSaleQuantityMt
+        => decimal.Round(Sales.Where(s => s.IsDirectShipmentSale).Sum(s => s.QuantityMt), 4, MidpointRounding.AwayFromZero);
+    public decimal DirectSaleUsd
+        => decimal.Round(Sales.Where(s => s.IsDirectShipmentSale).Sum(s => s.TotalUsd), 4, MidpointRounding.AwayFromZero);
+    public decimal StorageSaleQuantityMt
+        => decimal.Round(Sales.Where(s => !s.IsDirectShipmentSale).Sum(s => s.QuantityMt), 4, MidpointRounding.AwayFromZero);
+    public decimal StorageSaleUsd
+        => decimal.Round(Sales.Where(s => !s.IsDirectShipmentSale).Sum(s => s.TotalUsd), 4, MidpointRounding.AwayFromZero);
+    public bool HasStorageOriginSales => Sales.Any(s => !s.IsDirectShipmentSale);
+    public bool HasDirectShipmentSales => Sales.Any(s => s.IsDirectShipmentSale);
     public IReadOnlyList<ShipmentExpenseDisplayRow> ExpenseDisplayRows
         => ShipmentPnlDisplayGrouping.GroupExpenses(Expenses);
     /// <summary>
@@ -323,6 +337,12 @@ public sealed class ShipmentPnlDetailsViewModel
         => ContractLines.Sum(c => c.TransportShortageQuantityMt);
     public decimal TotalLossAndShortageMt
         => VesselUnloadingShortageQuantityMt + InventoryTransportShortageQuantityMt + DirectLossQuantityMt;
+    // ضایعات واقعی و سنددار = مجموع LossEventهای ثبت‌شدهٔ محموله (همان ردیف‌های تب کسری‌ها/ضایعات).
+    // بدون هیچ اختلاف مقدارِ بی‌سند؛ اگر کاربر LossEvent ثبت نکرده باشد صفر است.
+    public decimal RecordedLossQuantityMt => LossQuantityMt;
+    // کسری مشتق (اختلاف بارگیری/رسید در لِج‌های ریشه و انتقال) — سند «ضایعات» نیست و جدا نمایش داده می‌شود.
+    public decimal TotalTransportShortageMt
+        => VesselUnloadingShortageQuantityMt + InventoryTransportShortageQuantityMt;
     public decimal RemainingUnsoldQuantityMt
         => decimal.Round(
             Math.Max(OriginalShipmentQuantityMt - SoldQuantityMt - TotalLossAndShortageMt, 0m),

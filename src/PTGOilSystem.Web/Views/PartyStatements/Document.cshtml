@@ -27,6 +27,33 @@
         IncludeOperationalColumns = routeValues["IncludeOperationalColumns"]
     });
 
+    // خروجی هر تب باید همان محتوای همان تب باشد. تب «بارگیری‌ها» ستون‌های عملیاتی را
+    // نشان می‌دهد، پس PDF آن هم باید همان ستون‌ها را داشته باشد؛ «گردش حساب» بدون آن‌ها.
+    var isLoadingsView = Model.ShowSupplierViewTabs && Model.SupplierView == SupplierStatementView.Loadings;
+    var pdfUrl = Url.Action("Pdf", "PartyStatements", new
+    {
+        partyType = s.Party.PartyType,
+        id = s.Party.PartyId,
+        FromDate = routeValues["FromDate"],
+        ToDate = routeValues["ToDate"],
+        ContractId = routeValues["ContractId"],
+        CompanyId = routeValues["CompanyId"],
+        CurrencyCode = routeValues["CurrencyCode"],
+        IncludeOperationalColumns = isLoadingsView ? "true" : null
+    });
+    // PDF رسمی برای همهٔ طرف‌حساب‌ها؛ Excel قراردادی فقط برای تأمین‌کننده باقی می‌ماند.
+    var isSupplier = Model.PartyType == PartyStatementPartyType.Supplier;
+    string? SupplierExportUrl(string exportFormat) => Url.Action("SupplierExport", "PartyStatements", new
+    {
+        id = s.Party.PartyId,
+        format = exportFormat,
+        FromDate = routeValues["FromDate"],
+        ToDate = routeValues["ToDate"],
+        ContractId = routeValues["ContractId"],
+        CompanyId = routeValues["CompanyId"],
+        CurrencyCode = routeValues["CurrencyCode"]
+    });
+
     string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "–";
     string OptionalAmount(decimal? value, int decimals = 2) => value.HasValue ? value.Value.ToString($"N{decimals}") : "–";
     string Contact(string? value) => string.IsNullOrWhiteSpace(value) ? "–" : value;
@@ -89,8 +116,23 @@
             </select>
         </label>
         <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> تطبیق</button>
-        <a class="btn btn-success" href="@csvUrl"><i class="bi bi-filetype-csv"></i> CSV</a>
-        <button type="button" class="btn btn-danger" data-statement-print><i class="bi bi-file-earmark-pdf"></i> چاپ / PDF</button>
+        @if (isSupplier)
+        {
+            // تب «قراردادها» جدول خلاصهٔ قراردادی را نشان می‌دهد نه گردش حساب؛ PDF آن هم
+            // باید از همان خروجی قراردادی بیاید، نه از جدول گردش که همهٔ بارگیری‌ها را دارد.
+            var isContractsView = Model.ShowSupplierViewTabs
+                && Model.SupplierView == SupplierStatementView.Contracts
+                && Model.ContractGrouping != null;
+            var supplierPdfUrl = isContractsView ? SupplierExportUrl("pdf") : pdfUrl;
+            <a class="btn btn-success" href="@SupplierExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+            <a class="btn btn-danger" href="@supplierPdfUrl"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+            <a class="btn btn-outline-secondary" href="@csvUrl"><i class="bi bi-filetype-csv"></i> CSV</a>
+        }
+        else
+        {
+            <a class="btn btn-success" href="@csvUrl"><i class="bi bi-filetype-csv"></i> CSV</a>
+            <a class="btn btn-danger" href="@pdfUrl"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+        }
     </form>
     @if (!ViewData.ModelState.IsValid)
     {
@@ -103,7 +145,7 @@
     }
 </div>
 
-<article class="statement-document @(c.UseLandscape ? "is-landscape" : "is-portrait")" dir="rtl" data-statement-auto-print="@(Model.IsPrintMode ? "true" : "false")">
+<article class="statement-document @(c.UseLandscape ? "is-landscape" : "is-portrait")" dir="rtl">
     <header class="statement-brand-header">
         <div class="statement-brand-identity">
             <img src="@s.CompanyInfo.LogoPath" alt="@s.CompanyInfo.Name" class="statement-logo" />
@@ -177,13 +219,35 @@
         </div>
     </section>
 
+    @if (Model.ShowSupplierViewTabs)
+    {
+        <nav class="statement-view-tabs no-print" dir="rtl" aria-label="نوع نمایش">
+            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Contracts ? "is-active" : null)"
+               href="@Url.Action("Supplier", "PartyStatements", new { id = s.Party.PartyId, view = SupplierStatementView.Contracts, FromDate = routeValues["FromDate"], ToDate = routeValues["ToDate"], ContractId = routeValues["ContractId"], CompanyId = routeValues["CompanyId"], CurrencyCode = routeValues["CurrencyCode"] })">قراردادها</a>
+            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Ledger ? "is-active" : null)"
+               href="@Url.Action("Supplier", "PartyStatements", new { id = s.Party.PartyId, view = SupplierStatementView.Ledger, FromDate = routeValues["FromDate"], ToDate = routeValues["ToDate"], ContractId = routeValues["ContractId"], CompanyId = routeValues["CompanyId"], CurrencyCode = routeValues["CurrencyCode"] })">گردش حساب</a>
+            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Loadings ? "is-active" : null)"
+               href="@Url.Action("Supplier", "PartyStatements", new { id = s.Party.PartyId, view = SupplierStatementView.Loadings, FromDate = routeValues["FromDate"], ToDate = routeValues["ToDate"], ContractId = routeValues["ContractId"], CompanyId = routeValues["CompanyId"], CurrencyCode = routeValues["CurrencyCode"] })">بارگیری‌ها</a>
+        </nav>
+    }
+
+    @if (Model.ShowSupplierViewTabs && Model.SupplierView == SupplierStatementView.Contracts && Model.ContractGrouping != null)
+    {
+        <partial name="_SupplierContractStatement" model="Model" />
+    }
+    else
+    {
+    // ستون «مرجع» فقط در تب‌های گردش حساب و بارگیری‌های تأمین‌کننده حذف می‌شود؛
+    // در صورت‌حساب سایر طرف‌ها (مشتری/صراف) دست‌نخورده می‌ماند.
+    var hideRef = Model.ShowSupplierViewTabs
+        && Model.SupplierView is SupplierStatementView.Ledger or SupplierStatementView.Loadings;
     <div class="statement-table-wrap">
         <table class="statement-table">
             <thead>
                 <tr>
                     <th class="statement-col-no">شماره</th>
                     <th class="statement-col-date">تاریخ</th>
-                    <th class="statement-col-ref">مرجع</th>
+                    @if (!hideRef) { <th class="statement-col-ref">مرجع</th> }
                     <th class="statement-col-description">شرح</th>
                     @if (c.ShowRub && !isRub) { <th>روبل</th> }
                     @if (c.ShowAed) { <th>AED</th> }
@@ -210,7 +274,7 @@
                         <tr class="@(row.IsOpeningBalance ? "is-opening-row" : null)">
                             <td class="statement-num">@(row.IsOpeningBalance ? "–" : row.Sequence)</td>
                             <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
-                            <td class="statement-ref">@(row.Reference ?? "–")</td>
+                            @if (!hideRef) { <td class="statement-ref">@(row.Reference ?? "–")</td> }
                             <td class="statement-description">@row.Description</td>
                             @if (c.ShowRub && !isRub) { <td class="statement-money">@(row.OriginalCurrency == "RUB" ? OptionalAmount(row.OriginalAmount, 2) : "–")</td> }
                             @if (c.ShowAed) { <td class="statement-money">@(row.OriginalCurrency == "AED" ? OptionalAmount(row.OriginalAmount, 2) : "–")</td> }
@@ -229,7 +293,7 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <th colspan="@(4 + ((c.ShowRub && !isRub) ? 1 : 0) + (c.ShowAed ? 1 : 0) + (c.ShowOriginalAmount ? 2 : 0) + (c.ShowFxRate ? 1 : 0) + (c.ShowQuantity ? 1 : 0) + (c.ShowPlatts ? 1 : 0) + (c.ShowPremiumOrDiscount ? 1 : 0) + (c.ShowUnitPrice ? 1 : 0))">مجموع دوره</th>
+                    <th colspan="@((hideRef ? 3 : 4) + ((c.ShowRub && !isRub) ? 1 : 0) + (c.ShowAed ? 1 : 0) + (c.ShowOriginalAmount ? 2 : 0) + (c.ShowFxRate ? 1 : 0) + (c.ShowQuantity ? 1 : 0) + (c.ShowPlatts ? 1 : 0) + (c.ShowPremiumOrDiscount ? 1 : 0) + (c.ShowUnitPrice ? 1 : 0))">مجموع دوره</th>
                     <th class="statement-money">@BaseAmount(s.Summary.TotalDebit, s.Summary.TotalDebitRub)</th>
                     <th class="statement-money">@BaseAmount(s.Summary.TotalCredit, s.Summary.TotalCreditRub)</th>
                     <th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th>
@@ -237,6 +301,7 @@
             </tfoot>
         </table>
     </div>
+    }
 
     <section class="statement-closing-grid">
         <div class="statement-note">

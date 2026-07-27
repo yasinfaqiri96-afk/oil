@@ -1,0 +1,25 @@
+@model PTGOilSystem.Web.Models.ExcelImport.ExcelImportComponentOptions
+<div class="excel-import__panel d-none" data-excel-result aria-live="polite">
+    <div class="excel-import__result-icon" data-excel-result-icon><i class="bi bi-check2"></i></div>
+    <h2 data-excel-result-title>@Model.SuccessTitle</h2>
+    <p data-excel-result-message></p>
+    @if (Model.ShowResultDetails)
+    {
+        <div class="excel-import__summary-grid excel-import__summary-grid--result">
+            <div><span>@Model.CreatedLabel</span><strong data-excel-created>0</strong></div>
+            <div><span>ردشده</span><strong data-excel-rejected>0</strong></div>
+            <div><span>رکورد جدید</span><strong data-excel-new>0</strong></div>
+            <div><span>به‌روزشده</span><strong data-excel-updated>0</strong></div>
+            <div><span>زمان کل</span><strong data-excel-duration>—</strong></div>
+        </div>
+    }
+    <div class="excel-import__actions excel-import__actions--center">
+        @if (!string.IsNullOrWhiteSpace(Model?.ViewResultsUrl))
+        {
+            <a href="@Model.ViewResultsUrl" class="btn btn-primary" data-excel-view>مشاهده اطلاعات واردشده</a>
+        }
+        <button type="button" class="btn btn-outline-secondary" data-excel-another>وارد کردن فایل دیگر</button>
+        <a class="btn btn-outline-secondary d-none" data-excel-import-report>دانلود گزارش Import</a>
+        <button type="button" class="btn btn-primary d-none" data-excel-retry>تلاش دوباره</button>
+    </div>
+</div>

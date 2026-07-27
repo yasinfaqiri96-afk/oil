@@ -38,19 +38,22 @@ public interface ISupplierPaymentAllocationAccountingAdapter
 /// journal while the legacy ledger remains the operational source.
 ///
 /// Mapping (per allocation):
-///   Debit  Supplier Prepayment — PartyType=Supplier, ContractId = destination contract
+///   Debit  Supplier Prepayment — PartyType=Supplier, ContractId = destination contract,
+///                                valued at the allocation-day rate
 ///   Credit Supplier Prepayment — PartyType=Supplier, ContractId = null (free prepayment pool,
-///                                matching the legacy credit row exactly)
+///                                matching the legacy credit row exactly, at the historic rate)
+///   Debit/Credit Exchange Loss/Gain — only when the two valuations differ, mirroring the
+///                                legacy third ledger row so both books stay balanced.
 ///
 /// Company ownership: the payment's own CompanyId (Stage 3) is the primary source, falling
 /// back to the payment's contract for rows the backfill could not prove. The company must
 /// equal the destination contract's company; otherwise the pilot skips and legacy behaviour
 /// continues unchanged.
 ///
-/// Both journal lines use the payment-currency pair (AllocatedPaymentAmount ×
-/// PaymentFxRateToUsd) because AllocatedBookAmountUsd is rounded from exactly that
-/// product, which the posting service re-validates. The contract-currency figures stay
-/// on the allocation record itself.
+/// The prepayment lines use the payment-currency pair because both USD figures are rounded
+/// from exactly that product, which the posting service re-validates: the credit line at
+/// PaymentFxRateToUsd (historic) and the debit line at the allocation-day rate. The exchange
+/// line is USD/USD at rate 1. The contract-currency figures stay on the allocation record.
 /// </summary>
 public sealed class SupplierPaymentAllocationAccountingAdapter(
     ApplicationDbContext db,
@@ -100,6 +103,51 @@ public sealed class SupplierPaymentAllocationAccountingAdapter(
             .SingleAsync(x => x.CompanyId == companyId, cancellationToken);
         var supplierId = payment.SupplierId!.Value;
 
+        var lines = new List<AccountingPostLine>
+        {
+            new(
+                settings.SupplierPrepaymentAccountId,
+                Debit: allocation.AllocatedValueUsdAtAllocation,
+                Credit: 0m,
+                allocation.PaymentCurrencyCode,
+                allocation.AllocatedPaymentAmount,
+                allocation.PaymentCurrencyFxRateToUsdAtAllocation,
+                AccountingPartyType.Supplier,
+                supplierId,
+                ContractId: contract.Id,
+                Description: $"Prepayment allocated to contract {contract.ContractNumber}"),
+            new(
+                settings.SupplierPrepaymentAccountId,
+                Debit: 0m,
+                Credit: allocation.AllocatedBookAmountUsd,
+                allocation.PaymentCurrencyCode,
+                allocation.AllocatedPaymentAmount,
+                allocation.PaymentFxRateToUsd,
+                AccountingPartyType.Supplier,
+                supplierId,
+                ContractId: null,
+                Description: "Free supplier prepayment reduced by allocation")
+        };
+
+        // Re-measuring the prepayment at the allocation-day rate leaves a difference that has
+        // to land in P&L, otherwise the journal cannot balance. No party on this line.
+        if (allocation.ExchangeDifferenceType != SarrafSettlementDifferenceType.None)
+        {
+            var isLoss = allocation.ExchangeDifferenceType == SarrafSettlementDifferenceType.Loss;
+            var differenceUsd = Math.Abs(allocation.ExchangeDifferenceUsd);
+            lines.Add(new AccountingPostLine(
+                isLoss ? settings.ExchangeLossAccountId : settings.ExchangeGainAccountId,
+                Debit: isLoss ? differenceUsd : 0m,
+                Credit: isLoss ? 0m : differenceUsd,
+                SystemCurrency.BaseCurrencyCode,
+                differenceUsd,
+                1m,
+                ContractId: contract.Id,
+                Description: isLoss
+                    ? $"Exchange loss on prepayment allocation #{allocation.Id}"
+                    : $"Exchange gain on prepayment allocation #{allocation.Id}"));
+        }
+
         var request = new AccountingPostRequest(
             companyId,
             journalNumberGenerator.ForSupplierPaymentAllocation(companyId, allocation.Id),
@@ -107,30 +155,7 @@ public sealed class SupplierPaymentAllocationAccountingAdapter(
             allocation.AllocationDate.Date,
             allocation.AllocationDate.Date,
             SourceModule,
-            [
-                new AccountingPostLine(
-                    settings.SupplierPrepaymentAccountId,
-                    Debit: allocation.AllocatedBookAmountUsd,
-                    Credit: 0m,
-                    allocation.PaymentCurrencyCode,
-                    allocation.AllocatedPaymentAmount,
-                    allocation.PaymentFxRateToUsd,
-                    AccountingPartyType.Supplier,
-                    supplierId,
-                    ContractId: contract.Id,
-                    Description: $"Prepayment allocated to contract {contract.ContractNumber}"),
-                new AccountingPostLine(
-                    settings.SupplierPrepaymentAccountId,
-                    Debit: 0m,
-                    Credit: allocation.AllocatedBookAmountUsd,
-                    allocation.PaymentCurrencyCode,
-                    allocation.AllocatedPaymentAmount,
-                    allocation.PaymentFxRateToUsd,
-                    AccountingPartyType.Supplier,
-                    supplierId,
-                    ContractId: null,
-                    Description: "Free supplier prepayment reduced by allocation")
-            ],
+            lines,
             SourceEventId: sourceEventId,
             SourceEntityType: SourceEntityType,
             SourceEntityId: allocation.Id,
@@ -255,11 +280,15 @@ public sealed class SupplierPaymentAllocationAccountingAdapter(
             return (0, "CONTRACT_NOT_PURCHASE");
         if (contract.SupplierId != payment.SupplierId)
             return (0, "SUPPLIER_MISMATCH");
-        if (allocation.AllocatedPaymentAmount <= 0m || allocation.AllocatedBookAmountUsd <= 0m)
+        if (allocation.AllocatedPaymentAmount <= 0m
+            || allocation.AllocatedBookAmountUsd <= 0m
+            || allocation.AllocatedValueUsdAtAllocation <= 0m)
             return (0, "INVALID_ALLOCATION_AMOUNT");
         if (SystemCurrency.IsBaseCurrency(allocation.PaymentCurrencyCode)
-            && allocation.PaymentFxRateToUsd != 1m)
+            && (allocation.PaymentFxRateToUsd != 1m || allocation.PaymentCurrencyFxRateToUsdAtAllocation != 1m))
             return (0, "INVALID_PAYMENT_FX");
+        if (allocation.PaymentCurrencyFxRateToUsdAtAllocation <= 0m)
+            return (0, "INVALID_ALLOCATION_FX");
 
         // Stage 3 gave PaymentTransaction its own provable CompanyId, so it is the primary
         // source now. Payments predating that column (or left ambiguous by the backfill) still

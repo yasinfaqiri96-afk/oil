@@ -165,8 +165,8 @@ public partial class TruckSettlementsController : Controller
         IReadOnlyList<TruckSettlementImportRow> parsed;
         try
         {
-            await using var stream = file.OpenReadStream();
-            parsed = TruckSettlementWorkbookParser.Parse(stream);
+            await using var workbook = await ExcelWorkbookNormalizer.OpenAsync(file);
+            parsed = TruckSettlementWorkbookParser.Parse(workbook.Stream);
         }
         catch (Exception ex)
         {

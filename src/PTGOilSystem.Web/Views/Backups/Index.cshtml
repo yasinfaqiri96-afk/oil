@@ -1,0 +1,237 @@
+@using PTGOilSystem.Web.Models.Backups
+@using PTGOilSystem.Web.Models.Entities
+@model BackupIndexViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "پشتیبان‌گیری", "Backups");
+
+    string ScheduleLabel(BackupSchedule schedule) => schedule switch
+    {
+        BackupSchedule.Every6Hours => UiText.T(Context, "هر ۶ ساعت", "Every 6 hours"),
+        BackupSchedule.Weekly => UiText.T(Context, "هفتگی", "Weekly"),
+        BackupSchedule.Monthly => UiText.T(Context, "ماهانه", "Monthly"),
+        _ => UiText.T(Context, "روزانه", "Daily")
+    };
+
+    string StorageLabel(BackupStorageTarget target) => target switch
+    {
+        BackupStorageTarget.GoogleDrive => "Google Drive",
+        BackupStorageTarget.Both => UiText.T(Context, "سرور و Google Drive", "Server and Google Drive"),
+        _ => UiText.T(Context, "سرور", "Server")
+    };
+}
+
+<div class="bk-page" data-backups-page
+     data-status-url="@Url.Action("Status", "Backups")"
+     data-create-url="@Url.Action("CreateNow", "Backups")">
+    @* کارت‌های وضعیت، دکمهٔ اصلی و جدول — تنها بخشی که هنگام اجرا Poll و جایگزین می‌شود. *@
+    <partial name="_BackupLive" model="Model" />
+
+    <div class="accordion bk-accordion" id="backup-settings-accordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="bk-drive-head">
+                <button class="accordion-button collapsed" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#bk-drive-body"
+                        aria-expanded="false" aria-controls="bk-drive-body">
+                    <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+                    <span>@UiText.T(Context, "اتصال Google Drive", "Google Drive connection")</span>
+                    <span class="bk-badge @(Model.Drive.IsConnected ? "is-ok" : "is-muted") bk-accordion-badge">
+                        @(Model.Drive.IsConnected ? UiText.T(Context, "متصل", "Connected") : UiText.T(Context, "متصل نیست", "Not connected"))
+                    </span>
+                </button>
+            </h2>
+            <div id="bk-drive-body" class="accordion-collapse collapse" aria-labelledby="bk-drive-head"
+                 data-bs-parent="#backup-settings-accordion">
+                <div class="accordion-body">
+                    @if (!string.IsNullOrWhiteSpace(Model.Drive.LastError))
+                    {
+                        <div class="alert alert-danger bk-alert" role="alert">@Model.Drive.LastError</div>
+                    }
+
+                    @if (Model.Drive.IsConnected)
+                    {
+                        @* حساب متصل است: Client ID و Secret عمداً نمایش داده نمی‌شوند. *@
+                        <dl class="bk-facts" data-drive-summary>
+                            <div>
+                                <dt>@UiText.T(Context, "حساب متصل", "Connected account")</dt>
+                                <dd dir="ltr">@(Model.Drive.AccountEmail ?? "—")</dd>
+                            </div>
+                            <div>
+                                <dt>@UiText.T(Context, "شناسه پوشه", "Folder ID")</dt>
+                                <dd dir="ltr">@(string.IsNullOrWhiteSpace(Model.Drive.FolderId) ? UiText.T(Context, "ریشهٔ درایو", "Drive root") : Model.Drive.FolderId)</dd>
+                            </div>
+                            <div>
+                                <dt>@UiText.T(Context, "تاریخ اتصال", "Connected at")</dt>
+                                <dd dir="ltr">@Model.Drive.ConnectedAtUtc.ToDisplayDateTime()</dd>
+                            </div>
+                        </dl>
+
+                        <div class="bk-actions bk-actions--tight">
+                            <button type="button" class="btn btn-light bk-ghost" data-drive-edit-toggle>
+                                <i class="bi bi-pencil" aria-hidden="true"></i>
+                                <span>@UiText.T(Context, "ویرایش اتصال", "Edit connection")</span>
+                            </button>
+
+                            <form asp-action="DisconnectDrive" method="post" data-no-spa="true" class="bk-inline-form"
+                                  data-ptg-confirm="true"
+                                  data-ptg-confirm-title="@UiText.T(Context, "قطع اتصال", "Disconnect")"
+                                  data-ptg-confirm-message="@UiText.T(Context, "اتصال Google Drive قطع شود؟ فایل‌های موجود در Drive حذف نمی‌شوند.", "Disconnect Google Drive? Files already in Drive are not deleted.")">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-light bk-ghost text-danger">
+                                    <i class="bi bi-plug" aria-hidden="true"></i>
+                                    <span>@UiText.T(Context, "قطع اتصال", "Disconnect")</span>
+                                </button>
+                            </form>
+                        </div>
+                    }
+
+                    <form asp-action="ConnectDrive" method="post" data-no-spa="true"
+                          class="bk-form" data-drive-form
+                          hidden="@(Model.Drive.IsConnected ? "hidden" : null)">
+                        @Html.AntiForgeryToken()
+                        <div class="bk-grid">
+                            <div class="bk-field">
+                                <label class="bk-label" for="ClientId">Client ID</label>
+                                <input class="bk-input" id="ClientId" name="ClientId" dir="ltr" autocomplete="off" required />
+                            </div>
+                            <div class="bk-field">
+                                <label class="bk-label" for="ClientSecret">Client Secret</label>
+                                <input class="bk-input" id="ClientSecret" name="ClientSecret" type="password" dir="ltr" autocomplete="new-password" required />
+                            </div>
+                            <div class="bk-field bk-field--full">
+                                <label class="bk-label" for="FolderId">@UiText.T(Context, "شناسه پوشه در Drive (اختیاری)", "Drive folder ID (optional)")</label>
+                                <input class="bk-input" id="FolderId" name="FolderId" dir="ltr" autocomplete="off" value="@Model.Drive.FolderId" />
+                            </div>
+                        </div>
+                        <div class="bk-form-foot">
+                            <button type="submit" class="btn btn-primary bk-primary">
+                                <i class="bi bi-google" aria-hidden="true"></i>
+                                <span>@UiText.T(Context, "اتصال به Google Drive", "Connect Google Drive")</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="bk-auto-head">
+                <button class="accordion-button collapsed" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#bk-auto-body"
+                        aria-expanded="false" aria-controls="bk-auto-body">
+                    <i class="bi bi-clock-history" aria-hidden="true"></i>
+                    <span>@UiText.T(Context, "تنظیمات بکاپ خودکار", "Automatic backup settings")</span>
+                    <span class="bk-badge @(Model.Settings.AutoBackupEnabled ? "is-ok" : "is-muted") bk-accordion-badge">
+                        @(Model.Settings.AutoBackupEnabled
+                            ? $"{ScheduleLabel(Model.Settings.Schedule)} · {StorageLabel(Model.Settings.StorageTarget)}"
+                            : UiText.T(Context, "غیرفعال", "Disabled"))
+                    </span>
+                </button>
+            </h2>
+            <div id="bk-auto-body" class="accordion-collapse collapse" aria-labelledby="bk-auto-head"
+                 data-bs-parent="#backup-settings-accordion">
+                <div class="accordion-body">
+                    <form asp-action="SaveSettings" method="post" class="bk-form" data-no-spa="true">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger bk-alert"></div>
+
+                        <div class="bk-grid">
+                            <div class="bk-field bk-field--full">
+                                <label class="bk-switch" for="AutoBackupEnabled">
+                                    <span>@UiText.T(Context, "بکاپ خودکار فعال باشد", "Enable automatic backup")</span>
+                                    <span class="form-check form-switch">
+                                        <input type="checkbox" id="AutoBackupEnabled" name="AutoBackupEnabled" value="true"
+                                               class="form-check-input" role="switch"
+                                               checked="@(Model.Settings.AutoBackupEnabled ? "checked" : null)" />
+                                        @* فیلد پنهان باید بعد از چک‌باکس بیاید: Model Binding اولین مقدارِ ارسالی را
+                                           می‌خواند، پس اگر false اول باشد تیک‌خوردن هرگز true نمی‌شود. *@
+                                        <input type="hidden" name="AutoBackupEnabled" value="false" />
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div class="bk-field">
+                                <label class="bk-label" for="Schedule">@UiText.T(Context, "دوره", "Schedule")</label>
+                                <select class="bk-input" id="Schedule" name="Schedule">
+                                    @foreach (var option in new[] { BackupSchedule.Every6Hours, BackupSchedule.Daily, BackupSchedule.Weekly, BackupSchedule.Monthly })
+                                    {
+                                        <option value="@option" selected="@(Model.Settings.Schedule == option)">@ScheduleLabel(option)</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="bk-field">
+                                <label class="bk-label" for="StorageTarget">@UiText.T(Context, "محل ذخیره", "Storage")</label>
+                                <select class="bk-input" id="StorageTarget" name="StorageTarget">
+                                    @foreach (var option in new[] { BackupStorageTarget.Server, BackupStorageTarget.GoogleDrive, BackupStorageTarget.Both })
+                                    {
+                                        <option value="@option" selected="@(Model.Settings.StorageTarget == option)">@StorageLabel(option)</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="bk-field">
+                                <label class="bk-label" for="RunAtHourLocal">@UiText.T(Context, "ساعت اجرا", "Run hour")</label>
+                                <input class="bk-input ak-num" id="RunAtHourLocal" name="RunAtHourLocal" type="number" min="0" max="23"
+                                       value="@Model.Settings.RunAtHourLocal" dir="ltr" />
+                            </div>
+
+                            <div class="bk-field">
+                                <label class="bk-label" for="RunAtMinuteLocal">@UiText.T(Context, "دقیقه اجرا", "Run minute")</label>
+                                <input class="bk-input ak-num" id="RunAtMinuteLocal" name="RunAtMinuteLocal" type="number" min="0" max="59"
+                                       value="@Model.Settings.RunAtMinuteLocal" dir="ltr" />
+                            </div>
+
+                            <div class="bk-field">
+                                <label class="bk-label" for="KeepDaily">@UiText.T(Context, "نگهداری روزانه", "Keep daily")</label>
+                                <input class="bk-input ak-num" id="KeepDaily" name="KeepDaily" type="number" min="1" max="365"
+                                       value="@Model.Settings.KeepDaily" dir="ltr" />
+                            </div>
+
+                            <div class="bk-field">
+                                <label class="bk-label" for="KeepWeekly">@UiText.T(Context, "نگهداری هفتگی", "Keep weekly")</label>
+                                <input class="bk-input ak-num" id="KeepWeekly" name="KeepWeekly" type="number" min="1" max="260"
+                                       value="@Model.Settings.KeepWeekly" dir="ltr" />
+                            </div>
+
+                            <div class="bk-field">
+                                <label class="bk-label" for="KeepMonthly">@UiText.T(Context, "نگهداری ماهانه", "Keep monthly")</label>
+                                <input class="bk-input ak-num" id="KeepMonthly" name="KeepMonthly" type="number" min="1" max="120"
+                                       value="@Model.Settings.KeepMonthly" dir="ltr" />
+                            </div>
+                        </div>
+
+                        <div class="bk-form-foot">
+                            <button type="submit" class="btn btn-primary bk-primary bk-success">
+                                <i class="bi bi-save" aria-hidden="true"></i>
+                                <span>@UiText.T(Context, "ذخیره تنظیمات", "Save settings")</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* مودال خطا — بیرون از ناحیهٔ زنده می‌ماند تا Poll آن را از بین نبرد. *@
+<div class="modal fade" id="backup-error-modal" tabindex="-1" aria-labelledby="backup-error-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="backup-error-modal-title">@UiText.T(Context, "خطای بکاپ", "Backup error")</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
+            </div>
+            <div class="modal-body">
+                <p class="bk-error-subject" data-backup-error-subject dir="ltr"></p>
+                <pre class="bk-error-text" data-backup-error-text dir="ltr"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light bk-ghost" data-bs-dismiss="modal">@UiText.T(Context, "بستن", "Close")</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/backups.js" asp-append-version="true" defer data-ptg-page-asset="backups"></script>
+}

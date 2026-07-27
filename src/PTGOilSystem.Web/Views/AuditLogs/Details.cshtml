@@ -44,7 +44,7 @@
                     <dl class="ak-list">
                         <div class="ak-list-row"><dt>@UiText.T(Context,"کاربر","User")</dt><dd>@Model.ActorDisplay</dd></div>
                         <div class="ak-list-row"><dt>@UiText.T(Context,"نقش","Role")</dt><dd>@(Model.ActorRoleName ??"-")</dd></div>
-                        <div class="ak-list-row"><dt>@UiText.T(Context,"زمان","Time")</dt><dd dir="ltr">@Model.ActionAtUtc.ToDisplayDateTime()</dd></div>
+                        <div class="ak-list-row"><dt>@UiText.T(Context,"زمان","Time")</dt><dd dir="ltr">@Model.ActionAtUtc.ToAfghanistanDisplayDateTime()</dd></div>
                         <div class="ak-list-row"><dt>IP</dt><dd>@(Model.IpAddress ??"-")</dd></div>
                         <div class="ak-list-row"><dt>@UiText.T(Context,"دستگاه/مرورگر","Device")</dt><dd class="ak-note">@(!string.IsNullOrWhiteSpace(Model.UserAgent) ? Model.UserAgent :"-")</dd></div>
                     </dl>
@@ -123,8 +123,8 @@
                 <div>
                     <dl class="ak-list">
                         <div class="ak-list-row"><dt>@UiText.T(Context,"Correlation","Correlation")</dt><dd><code>@(Model.CorrelationId ??"-")</code></dd></div>
-                        <div class="ak-list-row"><dt>@UiText.T(Context,"ایجاد","Created")</dt><dd>@Model.CreatedAtUtc.ToDisplayDateTime()</dd></div>
-                        <div class="ak-list-row"><dt>@UiText.T(Context,"آخرین ویرایش","Last updated")</dt><dd>@(Model.UpdatedAtUtc?.ToDisplayDateTime() ??"-")</dd></div>
+                        <div class="ak-list-row"><dt>@UiText.T(Context,"ایجاد","Created")</dt><dd>@Model.CreatedAtUtc.ToAfghanistanDisplayDateTime()</dd></div>
+                        <div class="ak-list-row"><dt>@UiText.T(Context,"آخرین ویرایش","Last updated")</dt><dd>@Model.UpdatedAtUtc.ToAfghanistanDisplayDateTime()</dd></div>
                     </dl>
                 </div>
             </div>

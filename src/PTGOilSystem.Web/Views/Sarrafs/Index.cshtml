@@ -14,10 +14,10 @@
                        UiText.T(Context, "پرداخت از طریق صراف", "Pay via sarraf"), "bi-currency-exchange", payViaSarrafUrl))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار صراف‌ها", "Sarraf statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل صراف‌ها", "Total sarrafs")" value="@Model.Items.Count.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar="exchange-rate"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "صراف‌های فعال", "Active sarrafs")" value="@Model.ActiveCount.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar="rules-checklist"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "جمع سپرده‌شده", "Total charged")" value="@Model.TotalChargedUsd.ToString("#,0.##")" unit="USD" avatar="payments-out"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مانده پرداختنی", "Payable balance")" value="@Model.TotalPayableUsd.ToString("#,0.##")" unit="USD" avatar="receivables"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کل صراف‌ها", "Total sarrafs")" value="@Model.Items.Count.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar-path="/images/stat-cards/ref-people/sarraf-rates.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "صراف‌های فعال", "Active sarrafs")" value="@Model.ActiveCount.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar-path="/images/stat-cards/ref-people/sarraf-transfer.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "جمع سپرده‌شده", "Total charged")" value="@Model.TotalChargedUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/sarraf-cash.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مانده پرداختنی", "Payable balance")" value="@Model.TotalPayableUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/sarraf-vault.webp"></vc:stat-card>
     </section>
 
     <partial name="~/Views/Shared/_AkSearchFilter.cshtml"

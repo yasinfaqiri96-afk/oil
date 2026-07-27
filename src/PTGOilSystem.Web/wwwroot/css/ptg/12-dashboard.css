@@ -8,7 +8,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 }
 .dashboard-page.dashboard-ref {
     display: grid;
-    gap: 20px;
+    gap: 16px;
     width: 100%;
     max-inline-size: 100%;
     margin-inline: 0;
@@ -18,9 +18,11 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     --dash-amber: #f5a524;
     --dash-red: #f4511e;
     --dash-blue: var(--primary-main, #2f6bff);
-    --dash-card-radius: 18px;
-    --dash-card-border: 1px solid #eef1f6;
-    --dash-card-shadow: 0 10px 30px rgba(31, 50, 80, .05);
+    --dash-card-radius: 16px;
+    --dash-card-border: 0;
+    /* The dashboard card is the reference for the system-wide panel treatment;
+       both now read the same token (01-tokens.css / 72-surfaces.css). */
+    --dash-card-shadow: var(--ptg-panel-shadow);
 }
 
 .dashboard-ref .dashboard-warning {
@@ -37,19 +39,21 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     font-size: 12px;
 }
 
-/* KPI row uses the shared .ak-stat-grid / .ak-stat-card component (52-stat-card.css). */
+/* KPI row uses the shared .ak-stat-grid / .ak-stat-card component, which now
+   carries the reference-sheet design itself (52-stat-card.css + 71-typography.css).
+   The dashboard needs no overrides of its own. */
 
 /* ===== analytics row ===== */
 .dash-analytics {
     display: grid;
-    grid-template-columns: minmax(0, 1.85fr) minmax(300px, 1fr);
+    grid-template-columns: minmax(300px, 1fr) minmax(0, 1.85fr);
     gap: 18px;
     align-items: stretch;
 }
 
 .dash-card {
     min-inline-size: 0;
-    padding: 22px 24px;
+    padding: 15px 18px;
     border: var(--dash-card-border);
     border-radius: var(--dash-card-radius);
     background: var(--background-paper, #fff);
@@ -68,12 +72,13 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     color: var(--text-primary);
     font-size: 16px;
     font-weight: 700;
+    letter-spacing: -0.01em;
 }
 
 /* trend card */
 .dash-trend {
     display: grid;
-    gap: 18px;
+    gap: 12px;
     align-content: start;
 }
 
@@ -85,6 +90,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     margin: 0;
     font-size: 16px;
     font-weight: 700;
+    letter-spacing: -0.01em;
 }
 
 .dash-trend-title p {
@@ -95,21 +101,25 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-trend-totals {
     display: flex;
+    flex-direction: row-reverse;
     align-items: flex-start;
-    gap: 26px;
+    gap: 24px;
 }
 
 .dash-total {
-    display: grid;
-    gap: 6px;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: baseline;
+    gap: 8px;
     text-align: end;
 }
 
 .dash-total-value {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 800;
     direction: ltr;
     line-height: 1;
+    letter-spacing: -0.01em;
 }
 
 .dash-total-value--green {
@@ -139,7 +149,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-trend-chart {
     display: grid;
-    min-block-size: 260px;
+    min-block-size: 188px;
     align-content: stretch;
     direction: ltr;
 }
@@ -160,7 +170,8 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-chart-x-label {
     fill: var(--text-secondary);
     font-family: "Vazirmatn", system-ui, sans-serif;
-    font-size: 10px;
+    font-size: 8.5px;
+    letter-spacing: -0.02em;
 }
 
 .dash-chart-axis-label { text-anchor: end; }
@@ -183,7 +194,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-chart-loading,
 .dash-chart-empty {
     display: grid;
-    min-block-size: 240px;
+    min-block-size: 180px;
     place-content: center;
     justify-items: center;
     gap: 10px;
@@ -199,19 +210,19 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 /* mix / donut card */
 .dash-mix {
     display: grid;
-    gap: 16px;
+    gap: 12px;
     align-content: start;
 }
 
 .dash-donut {
     display: grid;
     place-items: center;
-    min-block-size: 230px;
-    padding-block: 6px;
+    min-block-size: 172px;
+    padding-block: 4px;
 }
 
 .dash-donut svg {
-    inline-size: 240px;
+    inline-size: 196px;
     max-inline-size: 100%;
     block-size: auto;
 }
@@ -226,8 +237,8 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-donut-center-total {
     fill: var(--text-primary);
     font-family: "Vazirmatn", system-ui, sans-serif;
-    font-size: 38px;
-    font-weight: 800;
+    font-size: 30px;
+    font-weight: 700;
     text-anchor: middle;
 }
 
@@ -251,48 +262,50 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-mix-count {
     color: var(--text-primary);
-    font-weight: 800;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
 
 /* ===== quick access ===== */
+/* ردیف کاشی‌ها ثابت است (۹۰px هر کاشی، ۱۲px فاصله) و به لبهٔ راستِ کانتینر
+   می‌چسبد؛ ترتیب نمایش از چپ «ثبت فروش» تا راست «قراردادها» است. */
 .dash-quick {
     display: flex;
-    /* Wrap so the extra shortcuts stay visible instead of scrolling out of view. */
     flex-wrap: wrap;
-    align-items: stretch;
     justify-content: flex-end;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 12px;
     direction: ltr;
-    overflow-y: hidden;
-    scrollbar-width: thin;
 }
 
 .dash-quick-item {
     display: flex;
-    box-sizing: border-box;
     flex: 0 0 90px;
     flex-direction: column;
+    box-sizing: border-box;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 10px;
     inline-size: 90px;
-    block-size: 100px;
-    padding: 8px 6px;
+    min-inline-size: 0;
+    block-size: 92px;
+    min-block-size: 92px;
+    padding: 16px 10px;
     border: 0;
-    border-radius: 18px;
+    border-radius: 16px;
     color: #0a2855;
-    background: #f7f9fc;
+    background: #f4f5f7;
     box-shadow: none;
     text-decoration: none;
+    text-align: center;
     direction: rtl;
-    transition: background-color .16s ease, color .16s ease;
+    transition: background-color .16s ease, color .16s ease, box-shadow .16s ease;
 }
 
 .dash-quick-item:hover,
 .dash-quick-item:focus-visible {
     color: #0a2855;
-    background: #eef4fc;
+    background: #eaedf1;
 }
 
 .dash-quick-item:focus-visible {
@@ -303,17 +316,16 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-quick-icon {
     display: grid;
     place-items: center;
-    flex: 0 0 30px;
-    inline-size: 30px;
-    block-size: 30px;
+    inline-size: 34px;
+    block-size: 34px;
     line-height: 1;
-    color: #5a7699;
+    color: #1877f2;
 }
 
 .dash-quick-svg {
     display: block;
-    inline-size: 30px;
-    block-size: 30px;
+    inline-size: 34px;
+    block-size: 34px;
 }
 
 .dash-quick-item--primary .dash-quick-icon,
@@ -323,16 +335,21 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-quick-item strong {
     max-inline-size: 100%;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
-    line-height: 1.45;
+    line-height: 1.35;
     text-align: center;
     color: inherit;
 }
 
 .dash-quick-label--stacked {
-    display: grid;
+    display: block;
     line-height: 1.35 !important;
+}
+
+/* برچسب دوکلمه‌ای در عرض ثابت ۹۰px همیشه دو سطری می‌ماند. */
+.dash-quick-label--stacked > span {
+    display: block;
 }
 
 .dash-quick-item--primary {
@@ -348,7 +365,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-quick-item--primary:hover,
 .dash-quick-item--primary:focus-visible {
     color: #fff;
-    background: #1877f2;
+    background: #1466d6;
 }
 
 /* ===== responsive ===== */
@@ -358,12 +375,25 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     }
 }
 
+/* زیر این عرض، ردیف ثابت جا نمی‌شود؛ کاشی‌ها سطر بعد می‌روند و وسط‌چین می‌شوند. */
 @media (max-width: 767.98px) {
-    .dash-quick { justify-content: flex-start; }
+    .dash-quick {
+        justify-content: center;
+    }
 }
 
 @media (max-width: 575.98px) {
+    .dash-card {
+        padding: 16px;
+    }
+
+    .dash-trend-head {
+        flex-direction: column;
+    }
+
     .dash-trend-totals {
+        inline-size: 100%;
+        justify-content: space-between;
         gap: 16px;
     }
 }
@@ -373,8 +403,9 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 }
 
 :root[data-theme="dark"] .dashboard-page.dashboard-ref {
-    --dash-card-border: 1px solid rgba(255, 255, 255, .08);
-    --dash-card-shadow: 0 10px 30px rgba(0, 0, 0, .3);
+    --dash-card-border: 0;
+    /* --ptg-panel-shadow already carries its own dark-mode value. */
+    --dash-card-shadow: var(--ptg-panel-shadow);
 }
 
 :root[data-theme="dark"] .dash-chart-grid {
@@ -384,6 +415,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 :root[data-theme="dark"] .dash-quick-item:not(.dash-quick-item--primary) {
     color: #e7eef9;
     background: #1f2938;
+    border-color: rgba(255, 255, 255, .08);
 }
 
 :root[data-theme="dark"] .dash-quick-item:not(.dash-quick-item--primary) .dash-quick-icon {

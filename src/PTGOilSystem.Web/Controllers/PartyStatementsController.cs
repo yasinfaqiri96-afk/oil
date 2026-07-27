@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
+using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.PartyStatements;
 
@@ -14,11 +16,16 @@ public sealed class PartyStatementsController : Controller
 {
     private readonly IPartyStatementReadService _statementService;
     private readonly ApplicationDbContext _db;
+    private readonly Services.Exports.ITabularExportService? _exportService;
 
-    public PartyStatementsController(IPartyStatementReadService statementService, ApplicationDbContext db)
+    public PartyStatementsController(
+        IPartyStatementReadService statementService,
+        ApplicationDbContext db,
+        Services.Exports.ITabularExportService? exportService = null)
     {
         _statementService = statementService;
         _db = db;
+        _exportService = exportService;
     }
 
     [HttpGet("Customers/{id:int}/Statement")]
@@ -26,8 +33,90 @@ public sealed class PartyStatementsController : Controller
         => RenderAsync(PartyStatementPartyType.Customer, id, filter, print, ct);
 
     [HttpGet("Suppliers/{id:int}/Statement")]
-    public Task<IActionResult> Supplier(int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
-        => RenderAsync(PartyStatementPartyType.Supplier, id, filter, print, ct);
+    public Task<IActionResult> Supplier(
+        int id,
+        [FromQuery] PartyStatementFilter filter,
+        SupplierStatementView view = SupplierStatementView.Contracts,
+        bool print = false,
+        CancellationToken ct = default)
+        => RenderAsync(PartyStatementPartyType.Supplier, id, filter, print, ct, view);
+
+    // جزئیات یک قرارداد در نمای «قراردادها» — با کلیک (lazy) بارگذاری می‌شود؛
+    // از همان سرویس موجود استفاده می‌کند و سرویس/کوئری موازی نمی‌سازد.
+    [HttpGet("Suppliers/{id:int}/Statement/Contract/{contractId:int}")]
+    public async Task<IActionResult> SupplierContractDetails(
+        int id,
+        int contractId,
+        [FromQuery] PartyStatementFilter filter,
+        CancellationToken ct = default)
+    {
+        var effective = WithContract(WithOperationalColumns(filter), contractId);
+        try
+        {
+            var statement = await _statementService.GetStatementAsync(
+                new PartyRef(PartyStatementPartyType.Supplier, id, filter.CompanyId), effective, ct);
+            var facts = await LoadContractFactsAsync([contractId], ct);
+            facts.TryGetValue(contractId, out var f);
+            return PartialView("_SupplierContractDetails", new SupplierContractDetailsViewModel
+            {
+                Statement = statement,
+                ProductName = f?.ProductName,
+                ContractQuantityMt = f?.ContractQuantityMt,
+                UnitPriceUsd = f?.UnitPriceUsd,
+                ContractValueUsd = f?.ContractValueUsd,
+                LoadedQuantityMt = f?.LoadedQuantityMt
+            });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    // خروجی رسمی تأمین‌کننده: PDF واقعی (QuestPDF) و Excel واقعی (XLSX دو شیت) از همان
+    // داده و فیلترهای صفحه. CSV سبک قبلی هم برای سازگاری باقی می‌ماند.
+    [EnableRateLimiting(RateLimitPolicies.CsvExport)]
+    [HttpGet("Suppliers/{id:int}/Statement/Export")]
+    public async Task<IActionResult> SupplierExport(
+        int id,
+        string? format,
+        [FromQuery] PartyStatementFilter filter,
+        CancellationToken ct = default)
+    {
+        if (_exportService is null)
+        {
+            return NotFound();
+        }
+
+        PartyStatementResult statement;
+        try
+        {
+            // ستون‌های عملیاتی برای شیتِ جزئیات لازم است.
+            statement = await _statementService.GetStatementAsync(
+                new PartyRef(PartyStatementPartyType.Supplier, id, filter.CompanyId),
+                WithOperationalColumns(filter),
+                ct);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+
+        var grouping = await BuildContractGroupingAsync(statement, ct);
+
+        // PDF تب «قراردادها» باید همان سند رسمی صورت‌حساب باشد (لوگو، سربرگ شرکت، خلاصهٔ
+        // مالی، امضا) و فقط جدولش خلاصهٔ قراردادی باشد؛ نه قالب جدول عمومیِ خروجی‌ها.
+        // مسیر Excel/CSV بدون تغییر می‌ماند.
+        if (Services.Exports.TabularExportSupport.ParseFormat(format) == Services.Exports.TabularExportFormat.Pdf)
+        {
+            await using var output = new MemoryStream();
+            await _exportService.WriteSupplierContractStatementPdfAsync(statement, grouping, output, ct);
+            var fileName = $"statement-supplier-{id}-contracts-{DateTime.UtcNow:yyyyMMdd}.pdf";
+            return File(output.ToArray(), "application/pdf", fileName);
+        }
+
+        return SupplierStatementExport.Build(this, format, statement, grouping);
+    }
 
     [HttpGet("ServiceProviders/{id:int}/Statement")]
     public Task<IActionResult> ServiceProvider(int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
@@ -81,26 +170,55 @@ public sealed class PartyStatementsController : Controller
         return CsvExportSupport.File(this, fileName, headers, rows);
     }
 
+    [EnableRateLimiting(RateLimitPolicies.CsvExport)]
+    [HttpGet("PartyStatements/{partyType}/{id:int}/Pdf")]
+    public async Task<IActionResult> Pdf(
+        PartyStatementPartyType partyType,
+        int id,
+        [FromQuery] PartyStatementFilter filter,
+        CancellationToken ct = default)
+    {
+        if (_exportService is null)
+            return NotFound();
+
+        PartyStatementResult statement;
+        try
+        {
+            statement = await _statementService.GetStatementAsync(
+                new PartyRef(partyType, id, filter.CompanyId), filter, ct);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+
+        await using var output = new MemoryStream();
+        await _exportService.WritePartyStatementPdfAsync(statement, output, ct);
+        var fileName = $"statement-{partyType.ToString().ToLowerInvariant()}-{id}-{DateTime.UtcNow:yyyyMMdd}.pdf";
+        return File(output.ToArray(), "application/pdf", fileName);
+    }
+
     private async Task<IActionResult> RenderAsync(
         PartyStatementPartyType partyType,
         int id,
         PartyStatementFilter filter,
         bool print,
-        CancellationToken ct)
+        CancellationToken ct,
+        SupplierStatementView? supplierView = null)
     {
+        // فقط تأمین‌کننده تب سه‌گانه دارد؛ سایر طرف‌حساب‌ها همیشه نمای خطی (Ledger).
+        var view = partyType == PartyStatementPartyType.Supplier
+            ? supplierView ?? SupplierStatementView.Contracts
+            : SupplierStatementView.Ledger;
+
+        // نمای «بارگیری‌ها» به ستون‌های عملیاتی نیاز دارد؛ فیلتر مؤثر را می‌سازیم.
+        var effectiveFilter = view == SupplierStatementView.Loadings
+            ? WithOperationalColumns(filter)
+            : filter;
+
         try
         {
-            var statement = await _statementService.GetStatementAsync(new PartyRef(partyType, id, filter.CompanyId), filter, ct);
-            var options = await LoadFilterOptionsAsync(partyType, id, ct);
-            return View("Document", new PartyStatementViewModel
-            {
-                Statement = statement,
-                Filter = filter,
-                IsPrintMode = print,
-                ContractOptions = options.Contracts,
-                CompanyOptions = options.Companies,
-                CurrencyOptions = options.Currencies
-            });
+            return await BuildDocumentAsync(partyType, id, effectiveFilter, print, view, ct);
         }
         catch (KeyNotFoundException)
         {
@@ -112,25 +230,137 @@ public sealed class PartyStatementsController : Controller
             var fallback = new PartyStatementFilter
             {
                 FromDate = null,
-                ToDate = filter.ToDate,
-                ContractId = filter.ContractId,
-                CompanyId = filter.CompanyId,
-                CurrencyCode = filter.CurrencyCode,
-                IncludeOperationalColumns = filter.IncludeOperationalColumns
+                ToDate = effectiveFilter.ToDate,
+                ContractId = effectiveFilter.ContractId,
+                CompanyId = effectiveFilter.CompanyId,
+                CurrencyCode = effectiveFilter.CurrencyCode,
+                IncludeOperationalColumns = effectiveFilter.IncludeOperationalColumns
             };
-            var statement = await _statementService.GetStatementAsync(new PartyRef(partyType, id, fallback.CompanyId), fallback, ct);
-            var options = await LoadFilterOptionsAsync(partyType, id, ct);
-            return View("Document", new PartyStatementViewModel
-            {
-                Statement = statement,
-                Filter = fallback,
-                IsPrintMode = print,
-                ContractOptions = options.Contracts,
-                CompanyOptions = options.Companies,
-                CurrencyOptions = options.Currencies
-            });
+            return await BuildDocumentAsync(partyType, id, fallback, print, view, ct);
         }
     }
+
+    private async Task<IActionResult> BuildDocumentAsync(
+        PartyStatementPartyType partyType,
+        int id,
+        PartyStatementFilter filter,
+        bool print,
+        SupplierStatementView view,
+        CancellationToken ct)
+    {
+        var statement = await _statementService.GetStatementAsync(new PartyRef(partyType, id, filter.CompanyId), filter, ct);
+        var options = await LoadFilterOptionsAsync(partyType, id, ct);
+
+        SupplierContractStatementViewModel? grouping = null;
+        if (partyType == PartyStatementPartyType.Supplier && view == SupplierStatementView.Contracts)
+        {
+            grouping = await BuildContractGroupingAsync(statement, ct);
+        }
+
+        return View("Document", new PartyStatementViewModel
+        {
+            Statement = statement,
+            Filter = filter,
+            IsPrintMode = print,
+            SupplierView = view,
+            ContractGrouping = grouping,
+            ContractOptions = options.Contracts,
+            CompanyOptions = options.Companies,
+            CurrencyOptions = options.Currencies
+        });
+    }
+
+    // اطلاعات نمایشیِ قرارداد (محصول/مقدار/نرخ/ارزش/بارگیری‌شده) را برای نمای «قراردادها»
+    // بارگذاری می‌کند. صرفاً metadata است؛ اعداد بدهکار/بستانکار/مانده از خودِ سطرهای مالی می‌آیند.
+    private async Task<SupplierContractStatementViewModel> BuildContractGroupingAsync(
+        PartyStatementResult statement,
+        CancellationToken ct)
+    {
+        var contractIds = statement.Rows
+            .Where(r => !r.IsOpeningBalance && r.ContractId.HasValue)
+            .Select(r => r.ContractId!.Value)
+            .Distinct()
+            .ToList();
+
+        var facts = await LoadContractFactsAsync(contractIds, ct);
+        return SupplierContractStatementBuilder.Build(statement, facts);
+    }
+
+    // metadataِ نمایشیِ قرارداد (محصول/مقدار/نرخ/ارزش/بارگیری‌شده). فقط اطلاعاتی است؛ روی
+    // بدهکار/بستانکار/مانده اثری ندارد. با دو کوئری projection (بدون N+1) خوانده می‌شود.
+    private async Task<Dictionary<int, SupplierContractStatementBuilder.ContractFacts>> LoadContractFactsAsync(
+        IReadOnlyCollection<int> contractIds,
+        CancellationToken ct)
+    {
+        var facts = new Dictionary<int, SupplierContractStatementBuilder.ContractFacts>();
+        if (contractIds.Count == 0)
+        {
+            return facts;
+        }
+
+        var contracts = await _db.Contracts.AsNoTracking()
+            .Where(c => contractIds.Contains(c.Id))
+            .Select(c => new
+            {
+                c.Id,
+                ProductName = c.Product != null ? (c.Product.NamePersian ?? c.Product.Name) : null,
+                c.QuantityMt,
+                c.ManualFinalPriceUsd,
+                c.PricingMethod,
+                c.UnitPriceUsd
+            })
+            .ToListAsync(ct);
+
+        var loadedByContract = await _db.LoadingRegisters.AsNoTracking()
+            .Where(l => contractIds.Contains(l.ContractId))
+            .GroupBy(l => l.ContractId)
+            .Select(g => new { ContractId = g.Key, Qty = g.Sum(x => x.LoadedQuantityMt) })
+            .ToDictionaryAsync(x => x.ContractId, x => x.Qty, ct);
+
+        foreach (var c in contracts)
+        {
+            // نرخ قطعیِ قرارداد را از همان helper مرکزی می‌گیریم تا با بقیهٔ سیستم یکسان بماند.
+            var price = ContractPricingAdapter.GetCanonicalFinalPrice(new Contract
+            {
+                ManualFinalPriceUsd = c.ManualFinalPriceUsd,
+                PricingMethod = c.PricingMethod,
+                UnitPriceUsd = c.UnitPriceUsd
+            });
+            var contractValue = price.HasValue ? c.QuantityMt * price.Value : (decimal?)null;
+            loadedByContract.TryGetValue(c.Id, out var loaded);
+
+            facts[c.Id] = new SupplierContractStatementBuilder.ContractFacts(
+                c.ProductName,
+                c.QuantityMt,
+                price,
+                contractValue,
+                loadedByContract.ContainsKey(c.Id) ? loaded : null);
+        }
+
+        return facts;
+    }
+
+    private static PartyStatementFilter WithOperationalColumns(PartyStatementFilter filter)
+        => new()
+        {
+            FromDate = filter.FromDate,
+            ToDate = filter.ToDate,
+            ContractId = filter.ContractId,
+            CompanyId = filter.CompanyId,
+            CurrencyCode = filter.CurrencyCode,
+            IncludeOperationalColumns = true
+        };
+
+    private static PartyStatementFilter WithContract(PartyStatementFilter filter, int contractId)
+        => new()
+        {
+            FromDate = filter.FromDate,
+            ToDate = filter.ToDate,
+            ContractId = contractId,
+            CompanyId = filter.CompanyId,
+            CurrencyCode = filter.CurrencyCode,
+            IncludeOperationalColumns = filter.IncludeOperationalColumns
+        };
 
     // گزینه‌های نوار فیلتر: قراردادهای مرتبط با همین طرف‌حساب، شرکت‌ها و ارزهای فعال.
     private async Task<(List<PartyStatementFilterOption> Contracts,

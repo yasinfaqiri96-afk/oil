@@ -15,12 +15,12 @@
     <p class="finance-page-lead">@UiText.T(Context, "شش عدد اصلی برای دیدن وضعیت مالی؛ همه مستقیماً از فروش، مصارف، روزنامه و دفتر سیستم خوانده می‌شوند.", "Six essential figures read directly from sales, expenses, journal and ledger records.")</p>
 
     <section class="ak-stat-grid finance-overview-metrics" aria-label="@UiText.T(Context, "خلاصهٔ مالی", "Financial summary")">
-        <vc:stat-card title="@UiText.T(Context, "نقدینگی (خالص حرکت)", "Liquidity (net movement)")" value="@Model.NetCashMovementUsd.ToString("N2")" unit="USD" avatar="cash-flow"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "دریافتنی مشتریان", "Customer receivables")" value="@Model.CustomerReceivableUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "پرداختنی تأمین‌کنندگان", "Supplier payables")" value="@Model.SupplierPayableUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "درآمد", "Revenue")" value="@Model.RevenueUsd.ToString("N2")" unit="USD" avatar="sales-value"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مصرف و ضایعات", "Expenses and losses")" value="@((Model.ExpenseUsd + Model.LossCostUsd).ToString("N2"))" unit="USD" avatar="expenses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "سود / زیان", "Profit / loss")" value="@Model.NetProfitUsd.ToString("N2")" unit="USD" avatar="profit-loss"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "نقدینگی (خالص حرکت)", "Liquidity (net movement)")" value="@Model.NetCashMovementUsd.ToString("N2")" unit="USD" avatar="report-payments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "دریافتنی مشتریان", "Customer receivables")" value="@Model.CustomerReceivableUsd.ToString("N2")" unit="USD" avatar="report-settlements"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "پرداختنی تأمین‌کنندگان", "Supplier payables")" value="@Model.SupplierPayableUsd.ToString("N2")" unit="USD" avatar="report-purchase"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "درآمد", "Revenue")" value="@Model.RevenueUsd.ToString("N2")" unit="USD" avatar="report-sales"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مصرف و ضایعات", "Expenses and losses")" value="@((Model.ExpenseUsd + Model.LossCostUsd).ToString("N2"))" unit="USD" avatar="report-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "سود / زیان", "Profit / loss")" value="@Model.NetProfitUsd.ToString("N2")" unit="USD" avatar="report-finance"></vc:stat-card>
     </section>
 
     <div class="ak-list">

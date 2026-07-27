@@ -1,0 +1,96 @@
+@model PTGOilSystem.Web.Models.Sales.PreSaleIndexViewModel
+@using PTGOilSystem.Web.Models.Sales
+@{
+    ViewData["Title"] = "پیش‌فروش‌ها";
+    ViewData["HideSectionTabs"] = true;
+}
+
+<div class="ak-form-page">
+    <div>
+        <header class="ak-page-header">
+            <div class="ak-page-heading">
+                <span class="ak-page-icon"><i class="bi bi-calendar-check"></i></span>
+                <div>
+                    <h1>پیش‌فروش‌ها</h1>
+                    <p>تعهد فروش؛ موجودی و درآمد فقط هنگام تحویل ثبت می‌شود.</p>
+                </div>
+            </div>
+        </header>
+
+        <section class="ak-stat-grid mb-3" aria-label="آمار پیش‌فروش">
+            <vc:stat-card title="کل پیش‌فروش‌ها" value="@Model.TotalCount.ToString("N0")" unit="سفارش" avatar="statement"></vc:stat-card>
+            <vc:stat-card title="کل مقدار" value="@NumberDisplay.Quantity(Model.SumQuantityMt)" unit="MT" avatar="sold-quantity"></vc:stat-card>
+            <vc:stat-card title="باقی‌مانده تحویل" value="@NumberDisplay.Quantity(Model.SumRemainingMt)" unit="MT" avatar="in-transit"></vc:stat-card>
+            <vc:stat-card title="مشتریان" value="@Model.CustomerCount.ToString("N0")" unit="مشتری" avatar="customers"></vc:stat-card>
+        </section>
+
+        <div class="ak-page-actions mb-3 justify-content-end">
+            <a asp-action="PreSaleCreate" class="btn btn-success"><i class="bi bi-plus-lg"></i> ثبت پیش‌فروش</a>
+            <a asp-action="Index" class="btn ak-secondary-action">بازگشت به فروش</a>
+        </div>
+
+        <section class="ak-form-section">
+            @if (Model.Items.Count == 0)
+            {
+                <div class="ak-empty">
+                    <p>هنوز پیش‌فروشی ثبت نشده است.</p>
+                </div>
+            }
+            else
+            {
+                <div class="ak-table-wrap">
+                    <table class="ak-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="ak-col-num text-end">شماره</th>
+                                <th scope="col" class="ak-col-num text-end">تاریخ</th>
+                                <th scope="col">مشتری</th>
+                                <th scope="col">کالا</th>
+                                <th scope="col" class="ak-col-num text-end">مقدار کل (تن)</th>
+                                <th scope="col" class="ak-col-num text-end">تحویل‌شده</th>
+                                <th scope="col" class="ak-col-num text-end">باقی‌مانده</th>
+                                <th scope="col" class="ak-col-num text-end">مبلغ کل</th>
+                                <th scope="col" class="text-center">وضعیت</th>
+                                <th scope="col" class="ak-col-actions text-end">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@item.OrderNumber</span></td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@item.OrderDate.ToString("yyyy-MM-dd")</span></td>
+                                    <td>@item.CustomerName</td>
+                                    <td>@item.ProductName</td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@NumberDisplay.Quantity(item.QuantityMt)</span></td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@NumberDisplay.Quantity(item.DeliveredMt)</span></td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@NumberDisplay.Quantity(item.RemainingMt)</span></td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@NumberDisplay.Money(item.TotalInCurrency, item.Currency)</span></td>
+                                    <td class="col-status text-center">
+                                        <span class="ak-status @PreSaleOrderStatusLabels.ToBadgeClass(item.Status)">
+                                            @PreSaleOrderStatusLabels.ToPersian(item.Status)
+                                        </span>
+                                    </td>
+                                    <td class="ak-col-actions text-end">
+                                        <a asp-action="PreSaleDetails" asp-route-id="@item.Id" class="btn btn-sm ak-secondary-action">جزئیات</a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (Model.PageCount > 1)
+                {
+                    <div class="ak-pagination">
+                        @for (var p = 1; p <= Model.PageCount; p++)
+                        {
+                            <a asp-action="PreSales" asp-route-page="@p"
+                               class="btn btn-sm @(p == Model.CurrentPage ? "btn-primary" : "ak-secondary-action")">@p</a>
+                        }
+                    </div>
+                }
+            }
+        </section>
+    </div>
+</div>

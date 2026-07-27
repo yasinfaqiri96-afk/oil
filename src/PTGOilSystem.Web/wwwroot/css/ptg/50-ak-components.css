@@ -37,6 +37,35 @@
     flex: 0 0 auto;
 }
 
+/* Page order on list pages: the stat cards open the page, the action strip
+   ("ثبت …") drops underneath them so it sits directly above the filter/list
+   it acts on. Display-only reorder — markup stays header → cards → list, so
+   the tab/reading order still starts with the page actions.
+   Detail pages keep their visible title on top and are excluded. */
+:is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid) {
+    display: flex;
+    flex-direction: column;
+}
+
+:is(.ak-list-page, .ak-form-page) > .ak-stat-grid {
+    order: -1;
+}
+
+/* page lead/intro text keeps its place above the cards */
+:is(.ak-list-page, .ak-form-page) > :is(.finance-page-lead, .ak-note, .ak-page-lead) {
+    order: -2;
+}
+
+/* the cards now lead the page: drop the header's top padding and let the
+   card grid own the gap down to the action strip */
+:is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid) > .ak-page-header {
+    padding-top: 0;
+}
+
+:is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)) > .ak-stat-grid {
+    margin-bottom: 16px;
+}
+
 .ak-primary-action,
 .ak-secondary-action {
     display: inline-flex;
@@ -395,6 +424,32 @@ a.ptg-person-name:focus-visible {
     color: var(--ptg-draft-text, #6b7280);
 }
 
+/* عدد + کپسول واحد: در سطرهای پرعدد، واحدِ پول/محصول را از رقم جدا و رنگی می‌کند. */
+.ak-amount {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+}
+
+.ak-col-num .ak-amount {
+    justify-content: flex-end;
+}
+
+.ak-unit {
+    font-size: .72em;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--ptg-draft-text, #6b7280);
+}
+
+.ak-unit--usd { color: var(--ptg-success-text); }
+.ak-unit--rub { color: var(--ptg-info-text); }
+.ak-unit--mt  { color: var(--ptg-warning-text); }
+.ak-unit--muted { color: var(--ptg-draft-text, #6b7280); }
+
 /* Compact key/value list for administrative detail pages. */
 .ak-list {
     display: grid;
@@ -414,12 +469,13 @@ a.ptg-person-name:focus-visible {
     border-bottom: 0;
 }
 
-/* Clickable record row (button.ak-list-row) — same flat row as the div/dl rows
-   next to it, plus a hover/focus affordance. Without this reset the element
+/* Clickable record row (button/anchor.ak-list-row) — same flat row as the div/dl
+   rows next to it, plus a hover/focus affordance. Without this reset a button
    keeps the UA button skin (ButtonFace fill + outset border + centred text),
    which is why these rows read as dark bordered boxes while every other list
-   in the system stays flat. */
-button.ak-list-row {
+   in the system stays flat. Anchor rows reset link colour/underline too. */
+button.ak-list-row,
+a.ak-list-row {
     inline-size: 100%;
     margin: 0;
     appearance: none;
@@ -431,20 +487,25 @@ button.ak-list-row {
     color: inherit;
     font: inherit;
     text-align: start;
+    text-decoration: none;
     cursor: pointer;
     transition: background-color var(--ptg-motion-fast, 140ms) ease-out;
 }
 
-button.ak-list-row:last-child {
+button.ak-list-row:last-child,
+a.ak-list-row:last-child {
     border-bottom: 0;
 }
 
 button.ak-list-row:hover,
-button.ak-list-row:focus-visible {
+button.ak-list-row:focus-visible,
+a.ak-list-row:hover,
+a.ak-list-row:focus-visible {
     background: var(--ptg-surface-soft);
 }
 
-button.ak-list-row:focus-visible {
+button.ak-list-row:focus-visible,
+a.ak-list-row:focus-visible {
     outline: 2px solid var(--ptg-primary);
     outline-offset: -2px;
 }
@@ -1316,13 +1377,13 @@ select.ak-input {
     width: 84px;
     padding: 6px 12px;
     border-radius: 12px;
-    background: #6EA152;
+    background: #1877f2;
     color: #fff;
 }
 
 .ak-save:hover,
 .ak-save:focus-visible {
-    background: #53793E;
+    background: #0b5ed7;
     color: #fff;
 }
 
@@ -2108,21 +2169,21 @@ select.ak-input {
 }
 
 [data-bulk-receipt-panel] .ak-toggle-field .form-check-input:checked {
-    border-color: #6EA152;
-    background-color: #6EA152;
+    border-color: #1877f2;
+    background-color: #1877f2;
 }
 
 [data-bulk-receipt-panel] .ak-toggle-field .form-check-input:focus {
-    border-color: #6EA152;
-    box-shadow: 0 0 0 .2rem rgba(110, 161, 82, .18);
+    border-color: #1877f2;
+    box-shadow: 0 0 0 .2rem rgba(24, 119, 242, .18);
 }
 
 [data-bulk-receipt-panel] .ak-save.btn-primary {
-    --_bg: #6EA152;
+    --_bg: #1877f2;
     --_fg: #fff;
-    --_bg-h: #53793E;
-    --_bd: #6EA152;
-    --_sh: rgba(110, 161, 82, .28);
+    --_bg-h: #0b5ed7;
+    --_bd: #1877f2;
+    --_sh: rgba(24, 119, 242, .28);
     width: auto !important;
     min-width: 170px !important;
     padding-inline: 22px;
@@ -2131,8 +2192,8 @@ select.ak-input {
 
 [data-bulk-receipt-panel] .ak-save.btn-primary:hover,
 [data-bulk-receipt-panel] .ak-save.btn-primary:focus-visible {
-    --_bg: #53793E;
-    --_bd: #53793E;
+    --_bg: #0b5ed7;
+    --_bd: #0b5ed7;
 }
 
 @media (max-width: 1100px) {
@@ -2397,14 +2458,14 @@ select.ak-input {
 .ak-page-modal .modal-dialog {
     width: min(1180px, calc(100dvi - 36px));
     max-width: min(1180px, calc(100dvi - 36px));
-    height: min(820px, calc(100vh - 36px));
+    height: min(820px, calc(100dvh - 36px));
     margin: 18px auto;
 }
 
 .ak-page-modal.is-compact .modal-dialog {
     width: min(560px, calc(100dvi - 28px));
     max-width: min(560px, calc(100dvi - 28px));
-    height: min(600px, calc(100vh - 28px));
+    height: min(760px, calc(100dvh - 28px));
     margin: auto;
 }
 
@@ -2414,6 +2475,7 @@ select.ak-input {
 }
 
 .ak-page-modal .modal-body {
+    min-height: 0;
     padding: 0;
     overflow: hidden;
 }
@@ -2434,7 +2496,7 @@ select.ak-input {
     .ak-page-modal.is-compact .modal-dialog {
         width: calc(100dvi - 16px);
         max-width: calc(100dvi - 16px);
-        height: calc(100vh - 16px);
+        height: calc(100dvh - 16px);
         margin: 8px auto;
     }
 }
@@ -3286,6 +3348,28 @@ select.ak-input {
     cursor: default;
 }
 
+.loading-import-workbook .loading-operation-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--primary-main) 28%, var(--divider));
+    border-radius: var(--ptg-radius-md, 8px);
+    background: color-mix(in srgb, var(--primary-main) 7%, var(--ptg-surface));
+    color: var(--ptg-text);
+}
+
+.loading-import-workbook .loading-operation-status > div {
+    display: grid;
+    gap: 2px;
+}
+
+.loading-import-workbook .loading-operation-status span:not(.spinner-border) {
+    color: var(--ptg-muted);
+    font-size: 13px;
+}
+
 /* ---- Sticky action footer. ---- */
 .loading-import-workbook .ak-footer-actions {
     position: sticky;
@@ -3437,4 +3521,17 @@ select.ak-input {
     background: var(--ptg-surface-subtle, #FAFAFC);
     font-size: 12.5px;
     font-weight: 600;
+}
+
+/* Contracts list uses the shared flat .ak-table rhythm (Users/Roles); no
+   per-page column or padding overrides.
+
+   Quantity + product are centred by an .ak-col-spacer on each side: two columns
+   both asking for width: 100% split the row slack evenly, so the pair lands
+   between the identity columns and the status/actions end. */
+
+/* Premium / Discount amount box is dir="ltr" so a minus and a decimal point read
+   correctly; end-align keeps it flush with the RTL numeric fields beside it. */
+#premiumDiscountAmount {
+    text-align: end;
 }

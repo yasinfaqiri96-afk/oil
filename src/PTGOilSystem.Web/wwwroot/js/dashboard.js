@@ -130,11 +130,11 @@
         expenses = expenses.slice(0, count);
 
         var width = 780;
-        var height = 300;
+        var height = 230;
         var left = 46;
         var right = 14;
-        var top = 16;
-        var bottom = 40;
+        var top = 14;
+        var bottom = 34;
         var plotWidth = width - left - right;
         var plotHeight = height - top - bottom;
         var baseline = top + plotHeight;

@@ -73,7 +73,7 @@ public class ShellViewStructureTests
             expandedSidebarPx > railPx,
             $"Expanded sidebar ({expandedSidebarPx}px) must be wider than the icon rail ({railPx}px).");
         Assert.Contains("is-sidebar-collapsed .ak-navpanel {\n        display: flex;", sidebarCss);
-        Assert.Contains("is-sidebar-collapsed .ptg-nav-ic > svg {\n        inline-size: 24px;\n        block-size: 24px;", sidebarCss);
+        Assert.Contains("is-sidebar-collapsed .ptg-nav-ic > svg {\n        inline-size: 27px;\n        block-size: 27px;", sidebarCss);
         Assert.Contains("is-sidebar-collapsed .boltz-nav-link > span", sidebarCss);
         Assert.Contains("window.matchMedia(\"(min-width: 1200px)\")", navigationJs);
         Assert.Contains("window.matchMedia(\"(min-width: 992px)\")", navigationJs);
@@ -119,6 +119,35 @@ public class ShellViewStructureTests
         Assert.Contains("ptg-havatar-ring ptg-havatar-trigger", layout);
         Assert.Contains(".ptg-havatar-ring {\n    width: 2.5rem;\n    height: 2.5rem;\n    padding: 2px;", shellCss);
         Assert.Contains("object-fit: contain", shellCss);
+    }
+
+    [Fact]
+    public void Header_Renders_The_Active_Fiscal_Year_Switcher()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var component = ReadRepoFile(
+            "src/PTGOilSystem.Web/Views/Shared/Components/FiscalYearSwitcher/Default.cshtml");
+        var shellCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/boltz-shell.css");
+
+        // The switcher lives inside the authenticated topbar cluster, before the language menu.
+        Assert.Contains("<vc:fiscal-year-switcher>", layout);
+        Assert.True(
+            layout.IndexOf("<vc:fiscal-year-switcher>", StringComparison.Ordinal)
+            < layout.IndexOf("boltz-language-menu", StringComparison.Ordinal),
+            "The fiscal-year switcher must render before the language selector.");
+
+        // Selection posts to the dedicated context controller with an antiforgery token, and
+        // the year id is the only thing submitted — the company is resolved server-side.
+        Assert.Contains("asp-controller=\"FiscalYearContext\"", component);
+        Assert.Contains("asp-action=\"Select\"", component);
+        Assert.Contains("Html.AntiForgeryToken()", component);
+        Assert.Contains("name=\"fiscalYearId\"", component);
+        Assert.DoesNotContain("name=\"companyId\"", component);
+
+        // Status badges reuse the canonical ak-status skin, not a bespoke one.
+        Assert.Contains("ak-status ptg-hfyear-status", component);
+        Assert.Contains(".ptg-hfyear", shellCss);
+        Assert.Contains("@media (max-width: 575.98px)", shellCss);
     }
 
     [Fact]
@@ -212,19 +241,16 @@ public class ShellViewStructureTests
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
         var financeCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/61-finance-workspace.css");
-        var financeTheme = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/finance-theme.js");
         var invoiceDocument = ReadRepoFile("src/PTGOilSystem.Web/Views/Invoices/Document.cshtml");
 
         Assert.Contains("~/css/ptg/61-finance-workspace.css", layout);
         Assert.DoesNotContain("@if (isFinanceWorkspace)", layout);
-        Assert.Contains("data-finance-theme-toggle", layout);
-        Assert.Contains("~/js/finance-theme.js", layout);
+
+        // The light/dark switch was removed from the topbar; the shell is light-only.
+        Assert.DoesNotContain("data-finance-theme-toggle", layout);
+        Assert.DoesNotContain("~/js/finance-theme.js", layout);
 
         Assert.Contains("body.is-finance-workspace", financeCss);
-        Assert.Contains("ptg:page-ready", financeTheme);
-        Assert.Contains("pageshow", financeTheme);
-        Assert.Contains("classList.contains(\"is-finance-workspace\")", financeTheme);
-        Assert.Contains("toggle.hidden = !isFinancePage", financeTheme);
         Assert.Contains("data-ptg-page-asset=\"invoice-document\"", invoiceDocument);
     }
 
@@ -453,6 +479,21 @@ public class ShellViewStructureTests
         Assert.DoesNotContain(layoutReference, layout);
         Assert.DoesNotContain(layoutReference, modalLayout);
         Assert.False(File.Exists(GetRepoPath(relativePath)), $"Legacy stylesheet must not be restored: {relativePath}");
+    }
+
+    [Fact]
+    public void Excel_Import_Scripts_Reinitialise_After_An_Spa_Page_Swap()
+    {
+        var spaNav = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/spa-nav.js");
+        var excelImport = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/excel-import.js");
+        var customsImport = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/customs-import.js");
+
+        // The swap replaces the page DOM and announces only "ptg:page-ready". An uploader that
+        // waits for any other signal is never initialised after in-app navigation, so its file
+        // picker stays unbound and the start button stays disabled.
+        Assert.Contains("dispatchEvent(new CustomEvent(\"ptg:page-ready\"", spaNav);
+        Assert.Contains("window.addEventListener('ptg:page-ready'", excelImport);
+        Assert.Contains("window.addEventListener(\"ptg:page-ready\"", customsImport);
     }
 
     private static string ReadPtgCss()

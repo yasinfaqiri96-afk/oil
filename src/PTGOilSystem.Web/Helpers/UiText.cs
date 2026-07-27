@@ -64,6 +64,8 @@ public static class UiText
             "ContractBalanceTransfer" => "انتقال مانده قرارداد",
             "SupplierPaymentAllocation" => "تخصیص پرداخت تأمین‌کننده",
             "SupplierPaymentAllocationReversal" => "برگشت تخصیص پرداخت تأمین‌کننده",
+            "SupplierPaymentAllocationExchangeDifference" => "تفاوت نرخ تخصیص پیش‌پرداخت",
+            "SupplierPaymentAllocationExchangeDifferenceReversal" => "برگشت تفاوت نرخ تخصیص پیش‌پرداخت",
             "SupplierLoadingLedger" => "سند بارگیری تأمین‌کننده",
             "SupplierViaSarrafPayment" or "ViaSarrafSupplier" => "پرداخت تأمین‌کننده از طریق صراف",
             "SupplierViaSarrafPayable" => "بدهی تأمین‌کننده از طریق صراف",

@@ -20,6 +20,12 @@ public static class AppPermissions
     /// استنتاج نمی‌شود؛ بدون این Claim حتی Admin هم نمی‌تواند سال را بازگشایی کند.
     /// </summary>
     public const string ReopenFiscalYear = "ReopenFiscalYear";
+
+    /// <summary>
+    /// دسترسی به صفحهٔ پشتیبان‌گیری برای کاربری که نقش Admin ندارد.
+    /// «مدیریت کاربران» این دسترسی را نمی‌دهد؛ باید صریح داده شود.
+    /// </summary>
+    public const string ManageBackups = "ManageBackups";
 }
 
 public sealed record RoleNavigationItem(
@@ -74,7 +80,7 @@ public static class RoleAccessRules
         new(RoleNavigationKeys.Rates, "نرخ‌ها و قواعد", "bi-bar-chart-line-fill",
             ["PlattsRates"]),
         new(RoleNavigationKeys.Management, "مدیریت کاربران", "bi-person-fill-gear",
-            ["Users", "Roles", "AuditLogs"], IsSensitive: true)
+            ["Users", "Roles", "AuditLogs", "Backups", "BackupRestore"], IsSensitive: true)
     ];
 
     public static IReadOnlySet<string> BusinessNavigationKeys { get; } =
@@ -184,6 +190,25 @@ public static class RoleAccessRules
     public static bool CanManageUsers(ClaimsPrincipal user)
         => user.IsInRole(AuthRoles.Admin)
             || user.HasClaim(AppClaimTypes.Permission, AppPermissions.ManageUsers);
+
+    /// <summary>
+    /// بالاترین سطح دسترسی سیستم. در این برنامه نقش Admin همان SuperAdmin است؛
+    /// نقش‌های دیگر — حتی با اجازهٔ مدیریت کاربران — SuperAdmin نیستند.
+    /// </summary>
+    public static bool IsSuperAdmin(ClaimsPrincipal user)
+        => user.IsInRole(AuthRoles.Admin);
+
+    /// <summary>دسترسی به صفحهٔ پشتیبان‌گیری: SuperAdmin یا Permission صریح ManageBackups.</summary>
+    public static bool CanManageBackups(ClaimsPrincipal user)
+        => IsSuperAdmin(user)
+            || user.HasClaim(AppClaimTypes.Permission, AppPermissions.ManageBackups);
+
+    /// <summary>
+    /// دسترسی به بازیابی. برخلاف صفحهٔ پشتیبان‌گیری، Permission جایگزین نقش نمی‌شود:
+    /// بازیابی داده‌های زنده را بازنویسی می‌کند و فقط از آنِ SuperAdmin است.
+    /// </summary>
+    public static bool CanRestoreBackups(ClaimsPrincipal user)
+        => IsSuperAdmin(user);
 
     public static IReadOnlySet<string> AllowedNavigationForUser(ClaimsPrincipal user)
     {

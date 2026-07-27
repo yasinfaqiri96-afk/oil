@@ -1,0 +1,36 @@
+using Xunit;
+
+namespace PTGOilSystem.Web.Tests;
+
+public sealed class ExcelImportComponentMigrationTests
+{
+    private static readonly string WebRoot = Path.GetFullPath(Path.Combine(
+        AppContext.BaseDirectory,
+        "..", "..", "..", "..", "..",
+        "src", "PTGOilSystem.Web"));
+
+    [Theory]
+    [InlineData("Views/Loading/Create.cshtml")]
+    [InlineData("Views/Expenses/Import.cshtml")]
+    [InlineData("Views/CustomsDeclarations/ImportExcel.cshtml")]
+    [InlineData("Views/InventoryTransportLegs/CreateFromInventory.cshtml")]
+    [InlineData("Views/InventoryTransportLegs/GroupTransfer.cshtml")]
+    [InlineData("Views/TruckSettlements/Index.cshtml")]
+    public void EveryExcelFileImport_UsesTheSharedComponent(string relativePath)
+    {
+        var content = File.ReadAllText(Path.Combine(WebRoot, relativePath));
+
+        Assert.Contains("~/Views/Shared/ExcelImport/_ExcelImport.cshtml", content);
+    }
+
+    [Fact]
+    public void ExcelFileHook_ExistsOnlyInsideTheSharedUploader()
+    {
+        var matches = Directory.EnumerateFiles(Path.Combine(WebRoot, "Views"), "*.cshtml", SearchOption.AllDirectories)
+            .Where(path => File.ReadAllText(path).Contains("data-excel-file", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(WebRoot, path).Replace('\\', '/'))
+            .ToList();
+
+        Assert.Equal(["Views/Shared/ExcelImport/_ExcelImportUploader.cshtml"], matches);
+    }
+}

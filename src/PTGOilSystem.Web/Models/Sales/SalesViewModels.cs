@@ -266,6 +266,9 @@ public sealed class SalesIndexViewModel
 public sealed class SalesDetailsViewModel
 {
     public int Id { get; init; }
+    public int? ContractId { get; init; }
+    public int? ShipmentId { get; init; }
+    public int? PreSaleOrderId { get; init; }
     public string InvoiceNumber { get; init; } = string.Empty;
     public string? TicketSerialNumber { get; init; }
     public PTGOilSystem.Web.Models.Entities.StockSourceType? StockSourceType { get; init; }
@@ -287,6 +290,10 @@ public sealed class SalesDetailsViewModel
     public decimal? AppliedFxRateToUsd { get; init; }
     public decimal UnitPriceUsd { get; init; }
     public decimal TotalUsd { get; init; }
+    public decimal ReceivedUsd { get; init; }
+    public decimal ReceivableBalanceUsd { get; init; }
+    public decimal OverpaymentUsd { get; init; }
+    public IReadOnlyList<SalesPaymentDetailsViewModel> Payments { get; init; } = [];
     public string? Notes { get; init; }
     public int? LedgerEntryId { get; init; }
     public string? LedgerReference { get; init; }
@@ -304,4 +311,16 @@ public sealed class SalesDetailsViewModel
     public string? SourcePurchaseContractNumber { get; init; }
     public string? SourceTerminalName { get; init; }
     public string? SourceStorageTankCode { get; init; }
+}
+
+public sealed class SalesPaymentDetailsViewModel
+{
+    public int PaymentTransactionId { get; init; }
+    public DateTime PaymentDate { get; init; }
+    public decimal Amount { get; init; }
+    public string Currency { get; init; } = "USD";
+    public decimal AmountUsd { get; init; }
+    public string? Reference { get; init; }
+    public bool IsIncoming { get; init; }
+    public bool IsAdvanceApplication { get; init; }
 }

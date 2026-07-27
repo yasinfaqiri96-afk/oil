@@ -42,6 +42,14 @@ public interface IPaymentAccountingAdapter
     Task<PaymentAccountingResult> TryPostPaymentAsync(
         PaymentTransaction payment,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reverses every posted-and-not-yet-reversed revision of a payment's journal, so a corrected
+    /// payment starts from a clean double-entry balance before its next revision is posted.
+    /// </summary>
+    Task<PaymentAccountingResult> TryPostPaymentReversalAsync(
+        PaymentTransaction payment,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -83,6 +91,7 @@ public sealed class PaymentAccountingAdapter(
 {
     public const string SourceModule = "Payment";
     public const string SourceEntityType = nameof(PaymentTransaction);
+    private const int MaxRevisions = 100;
 
     private readonly AccountingOptions _options = options.Value;
 
@@ -111,8 +120,10 @@ public sealed class PaymentAccountingAdapter(
                 PaymentPostingStatus.Skipped, null, skipReason, eventKind);
         }
 
-        var sourceEventId = BuildCreatedSourceEventId(payment.Id);
-        var existing = await FindJournalAsync(companyId, sourceEventId, cancellationToken);
+        // A correction re-posts the same payment with new figures, so the live revision is the
+        // first one not yet posted. An unchanged re-post lands on the standing revision and is a
+        // duplicate, which is what makes the create path idempotent under retry.
+        var (revision, existing) = await ResolveRevisionAsync(companyId, payment.Id, cancellationToken);
         if (existing is not null)
         {
             LogOutcome(payment, eventKind, companyId, existing.Lines.Sum(x => x.Debit),
@@ -121,13 +132,22 @@ public sealed class PaymentAccountingAdapter(
                 PaymentPostingStatus.Duplicate, existing, "DUPLICATE_SOURCE_EVENT", eventKind);
         }
 
+        if (revision >= MaxRevisions)
+        {
+            LogOutcome(payment, eventKind, companyId, 0m, PaymentPostingStatus.Skipped, "TOO_MANY_REVISIONS");
+            return new PaymentAccountingResult(
+                PaymentPostingStatus.Skipped, null, "TOO_MANY_REVISIONS", eventKind);
+        }
+
+        var sourceEventId = BuildCreatedSourceEventId(payment.Id, revision);
+
         var settings = await db.AccountingSettings
             .AsNoTracking()
             .SingleAsync(x => x.CompanyId == companyId, cancellationToken);
 
         var request = new AccountingPostRequest(
             companyId,
-            journalNumberGenerator.ForPayment(companyId, payment.Id),
+            journalNumberGenerator.ForPaymentRevision(companyId, payment.Id, revision),
             payment.PaymentDate.Date,
             payment.PaymentDate.Date,
             payment.PaymentDate.Date,
@@ -152,8 +172,106 @@ public sealed class PaymentAccountingAdapter(
         }
     }
 
+    // Revision 0 keeps the historical revision-less key so journals posted before corrections
+    // existed stay addressable by both the old and the new callers.
     public static string BuildCreatedSourceEventId(int paymentId)
-        => $"Payment:{paymentId}:Created";
+        => BuildCreatedSourceEventId(paymentId, 0);
+
+    public static string BuildCreatedSourceEventId(int paymentId, int revision)
+        => revision == 0 ? $"Payment:{paymentId}:Created" : $"Payment:{paymentId}:Created:{revision}";
+
+    public static string BuildReversedSourceEventId(int paymentId, int revision)
+        => $"Payment:{paymentId}:Reversed:{revision}";
+
+    /// <summary>
+    /// Walks the revision chain and returns the first revision with no standing journal, together
+    /// with the standing journal when the current revision is still live (making a re-post a
+    /// duplicate). Mirrors the sarraf settlement adapter so both correction flows behave alike.
+    /// </summary>
+    private async Task<(int Revision, JournalEntry? Existing)> ResolveRevisionAsync(
+        int companyId,
+        int paymentId,
+        CancellationToken cancellationToken)
+    {
+        for (var revision = 0; revision < MaxRevisions; revision++)
+        {
+            var journal = await FindJournalAsync(
+                companyId, BuildCreatedSourceEventId(paymentId, revision), cancellationToken);
+            if (journal is null)
+                return (revision, null);
+
+            var reversal = await FindJournalAsync(
+                companyId, BuildReversedSourceEventId(paymentId, revision), cancellationToken);
+            if (reversal is null)
+            {
+                // This revision still stands, so re-posting the same payment is a duplicate.
+                return (revision, journal);
+            }
+        }
+
+        return (MaxRevisions, null);
+    }
+
+    public async Task<PaymentAccountingResult> TryPostPaymentReversalAsync(
+        PaymentTransaction payment,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(payment);
+
+        // Reversal cleans up whatever was posted, so it is gated only on the core being enabled,
+        // not on the per-kind create pilot: if a journal exists it must always be reversible.
+        if (!_options.Enabled)
+            return new PaymentAccountingResult(PaymentPostingStatus.Skipped, null, "ACCOUNTING_DISABLED");
+
+        var companyId = await companyResolver.ResolveAsync(payment, cancellationToken);
+        if (companyId is null)
+            return new PaymentAccountingResult(PaymentPostingStatus.Skipped, null, "PAYMENT_COMPANY_UNKNOWN");
+
+        JournalEntry? lastReversal = null;
+        var reversedAny = false;
+
+        for (var revision = 0; revision < MaxRevisions; revision++)
+        {
+            var original = await FindJournalAsync(
+                companyId.Value, BuildCreatedSourceEventId(payment.Id, revision), cancellationToken);
+            if (original is null)
+                break;
+
+            var reversedEventId = BuildReversedSourceEventId(payment.Id, revision);
+            var existingReversal = await FindJournalAsync(companyId.Value, reversedEventId, cancellationToken);
+            if (existingReversal is not null)
+            {
+                lastReversal = existingReversal;
+                continue;
+            }
+
+            var request = new AccountingReversalRequest(
+                original.Id,
+                journalNumberGenerator.ForPaymentReversal(companyId.Value, payment.Id, revision),
+                DateTime.UtcNow.Date,
+                SourceModule,
+                reversedEventId,
+                $"Reversal of payment #{payment.Id} revision {revision}");
+
+            try
+            {
+                lastReversal = await postingService.ReverseAsync(request, cancellationToken);
+                reversedAny = true;
+            }
+            catch (Exception exception)
+            {
+                LogFailure(payment, exception);
+                throw;
+            }
+        }
+
+        if (lastReversal is null)
+            return new PaymentAccountingResult(PaymentPostingStatus.Skipped, null, "ORIGINAL_JOURNAL_NOT_POSTED");
+
+        return reversedAny
+            ? new PaymentAccountingResult(PaymentPostingStatus.Posted, lastReversal, null)
+            : new PaymentAccountingResult(PaymentPostingStatus.Duplicate, lastReversal, "DUPLICATE_SOURCE_EVENT");
+    }
 
     /// <summary>
     /// Maps a legacy payment onto its accounting nature. Returns null when the payment kind has
