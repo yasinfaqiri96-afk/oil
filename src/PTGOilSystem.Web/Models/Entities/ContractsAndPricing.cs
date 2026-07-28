@@ -16,6 +16,12 @@ public class Contract : BaseEntity
     public ContractType ContractType { get; set; }
     public ContractStatus Status { get; set; } = ContractStatus.Draft;
 
+    // قرارداد اصلی. خالی یعنی قرارداد مستقل یا خودش قرارداد اصلی است؛ مقدارداشتن یعنی زیرقرارداد.
+    // فقط یک سطح مجاز است: قراردادی که خودش ParentContractId دارد نمی‌تواند والد دیگری باشد.
+    public int? ParentContractId { get; set; }
+    public Contract? ParentContract { get; set; }
+    public ICollection<Contract> ChildContracts { get; set; } = [];
+
     public int CompanyId { get; set; }
     public Company? Company { get; set; }
     public int ProductId { get; set; }

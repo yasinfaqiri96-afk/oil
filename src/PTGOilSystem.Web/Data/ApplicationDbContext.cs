@@ -192,6 +192,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<InventoryTransportBatch>().ToTable("InventoryTransportBatches");
         modelBuilder.Entity<InventoryTransportLegAllocation>().ToTable("InventoryTransportLegAllocations");
         modelBuilder.Entity<LoadingRegister>().HasIndex(l => l.LogisticsServiceProviderId);
+        // گارد نهایی ضد ثبت تکراری بارگیری. کلید خودش ContractId را در بر دارد، پس یکتایی
+        // فقط داخل همان قرارداد اعمال می‌شود. مقدار null (بارگیری بدون شمارهٔ سند و بدون شمارهٔ
+        // حمل، و همهٔ رکوردهای قبلی) در PostgreSQL از یکتایی معاف است و دست‌نخورده می‌ماند.
+        modelBuilder.Entity<LoadingRegister>().HasIndex(l => l.ImportUniqueKey).IsUnique();
 
         ConfigureWeight<InventoryBatch>(modelBuilder, b => b.InitialQuantityMt);
         ConfigureWeight<InventoryMovement>(modelBuilder, m => m.QuantityMt);
@@ -650,6 +654,14 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(c => c.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // قرارداد اصلی ← زیرقراردادها (خودارجاع، یک سطح). حذف قرارداد اصلی با وجود زیرقرارداد ممنوع.
+        modelBuilder.Entity<Contract>()
+            .HasOne(c => c.ParentContract)
+            .WithMany(c => c.ChildContracts)
+            .HasForeignKey(c => c.ParentContractId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Contract>().HasIndex(c => c.ParentContractId);
 
         modelBuilder.Entity<ContractPartner>()
             .HasOne(cp => cp.Contract)

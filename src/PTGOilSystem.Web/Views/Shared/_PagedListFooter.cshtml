@@ -1,6 +1,14 @@
 @{
     var currentPage = (int)(ViewData["CurrentPage"] ?? 1);
     var pageCount = (int)(ViewData["PageCount"] ?? 1);
+    var shownCount = ViewData["ShownCount"] is int value ? value : (int?)null;
+}
+
+@if (shownCount.HasValue)
+{
+    <span class="ak-list-result-count" aria-live="polite">
+        @UiText.T(Context, $"نمایش {shownCount.Value:N0} نتیجه", $"{shownCount.Value:N0} results shown")
+    </span>
 }
 
 @await Html.PartialAsync("_Pagination", (currentPage, pageCount))

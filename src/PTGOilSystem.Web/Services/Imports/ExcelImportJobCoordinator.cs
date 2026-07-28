@@ -113,6 +113,7 @@ public sealed class ExcelImportJobCoordinator
         private int _warningRows;
         private int _errorRows;
         private int _duplicateRows;
+        private int _conflictRows;
         private int _createdRows;
         private int _updatedRows;
         private int _rejectedRows;
@@ -163,6 +164,7 @@ public sealed class ExcelImportJobCoordinator
                     WarningRows = _warningRows,
                     ErrorRows = _errorRows,
                     DuplicateRows = _duplicateRows,
+                    ConflictRows = _conflictRows,
                     CreatedRows = _createdRows,
                     UpdatedRows = _updatedRows,
                     RejectedRows = _rejectedRows,
@@ -192,10 +194,11 @@ public sealed class ExcelImportJobCoordinator
 
         public void Ready(object payload, int totalRows, int validRows, int warningRows, int errorRows,
             int duplicateRows, IReadOnlyList<ExcelImportIssue> issues, IReadOnlyList<ExcelImportPreviewRow> previewRows,
-            int? sheetCount, string? selectedSheet)
+            int? sheetCount, string? selectedSheet, int conflictRows = 0)
         {
             lock (_gate)
             {
+                _conflictRows = conflictRows;
                 Payload = payload;
                 _state = ExcelImportJobState.ReadyForConfirmation;
                 _stage = ExcelImportJobStage.Validation;
@@ -304,8 +307,8 @@ public sealed class ExcelImportJobContext
 
     public void Ready(object payload, int totalRows, int validRows, int warningRows, int errorRows,
         int duplicateRows, IReadOnlyList<ExcelImportIssue> issues, IReadOnlyList<ExcelImportPreviewRow> previewRows,
-        int? sheetCount, string? selectedSheet)
-        => _entry.Ready(payload, totalRows, validRows, warningRows, errorRows, duplicateRows, issues, previewRows, sheetCount, selectedSheet);
+        int? sheetCount, string? selectedSheet, int conflictRows = 0)
+        => _entry.Ready(payload, totalRows, validRows, warningRows, errorRows, duplicateRows, issues, previewRows, sheetCount, selectedSheet, conflictRows);
 
     public void Complete(int createdRows, int updatedRows, int rejectedRows, string? redirectUrl)
         => _entry.Complete(createdRows, updatedRows, rejectedRows, redirectUrl);

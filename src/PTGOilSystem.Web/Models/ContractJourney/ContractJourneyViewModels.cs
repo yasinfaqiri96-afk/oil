@@ -70,6 +70,18 @@ public sealed class ContractJourneyIndexItemViewModel
     public string StatusName { get; init; } = string.Empty;
 }
 
+/// <summary>یک زیرقرارداد در گزارش تجمیعیِ قرارداد اصلی.</summary>
+public sealed class ContractJourneySubContractItemViewModel
+{
+    public int ContractId { get; init; }
+    public string ContractNumber { get; init; } = string.Empty;
+    public string StatusName { get; init; } = string.Empty;
+    public decimal QuantityMt { get; init; }
+    public decimal LoadedQuantityMt { get; init; }
+    public decimal RemainingQuantityMt { get; init; }
+    public decimal LoadingsValueUsd { get; init; }
+}
+
 public sealed class ContractJourneyDetailsViewModel
 {
     public int ContractId { get; init; }
@@ -85,6 +97,14 @@ public sealed class ContractJourneyDetailsViewModel
     public string? SupplierName { get; init; }
     public string? CustomerName { get; init; }
     public decimal ContractQuantityMt { get; init; }
+    // قیمت هر بارگیری مستقل است. اگر بارگیری‌های این قرارداد بیش از یک قیمت داشته باشند،
+    // «ارزش قرارداد» باید جمع ارزش بارگیری‌ها باشد، نه مقدار قرارداد × نرخ قرارداد.
+    public bool HasMixedLoadingPrices { get; init; }
+    public decimal LoadingsValueUsd { get; init; }
+    // قرارداد اصلی / زیرقرارداد (فقط گزارش تجمیعی؛ پرداخت و دفتر کل جابه‌جا نمی‌شود).
+    public int? ParentContractId { get; init; }
+    public string? ParentContractNumber { get; init; }
+    public IReadOnlyList<ContractJourneySubContractItemViewModel> SubContractItems { get; init; } = [];
     public string Currency { get; init; } = "USD";
     public string PriceDisplay { get; init; } = string.Empty;
     public string PricingMethodName { get; init; } = string.Empty;

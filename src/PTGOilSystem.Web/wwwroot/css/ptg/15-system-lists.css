@@ -5,7 +5,7 @@
 
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
-    --ptg-list-radius: 18px;
+    --ptg-list-radius: 12px;
     --ptg-list-border: #E5E7EB;
     --ptg-list-line: #EEF2F6;
     --ptg-list-head-bg: var(--ptg-table-head-bg);
@@ -349,4 +349,407 @@ body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .
 
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane details > summary.card-header {
     cursor: pointer;
+}
+
+/* ============================================================= *
+ * Shared list card
+ *
+ * list-toolbar-row.js groups the already-rendered toolbar, table and pager
+ * inside this shell. This layer is presentation-only: row links, checkboxes,
+ * forms and the contextual hover actions remain owned by their existing code.
+ * ============================================================= */
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card,
+body.ptg-modal-document .ak-list-card {
+    position: relative;
+    isolation: isolate;
+    display: block;
+    min-width: 0;
+    margin: 0;
+    border: 0;
+    border-radius: var(--ptg-list-radius);
+    background: #FFFFFF;
+    box-shadow: 0 4px 18px rgba(16, 35, 63, .045);
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card > .ak-list-toolbar,
+body.ptg-modal-document .ak-list-card > .ak-list-toolbar {
+    position: relative;
+    z-index: 5;
+    min-height: 72px;
+    margin: 0;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ptg-list-line);
+    border-radius: var(--ptg-list-radius) var(--ptg-list-radius) 0 0;
+    background: #FFFFFF;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-host,
+body.ptg-modal-document .ak-list-card .ak-filter-host {
+    min-height: 42px;
+    margin: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter,
+body.ptg-modal-document .ak-list-card .ak-filter {
+    min-height: 42px;
+    border: 1px solid #DFE5EE;
+    border-radius: 999px;
+    background: #FFFFFF;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter.is-focused,
+body.ptg-modal-document .ak-list-card .ak-filter.is-focused {
+    border-color: rgba(24, 119, 242, .45);
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, .08);
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-input,
+body.ptg-modal-document .ak-list-card .ak-filter-input {
+    height: 40px;
+    padding-block: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-enter,
+body.ptg-modal-document .ak-list-card .ak-filter-enter {
+    inset-block-start: 6px;
+    color: #1877F2;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-clear,
+body.ptg-modal-document .ak-list-card .ak-filter-clear {
+    inset-block-start: 4px;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-toolbar-actions,
+body.ptg-modal-document .ak-list-card .ak-list-toolbar-actions,
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-page-actions,
+body.ptg-modal-document .ak-list-card .ak-page-actions {
+    margin-block: 0 !important;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table-wrap,
+body.ptg-modal-document .ak-list-card .ak-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: #FFFFFF;
+    box-shadow: none;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #CBD5E1 transparent;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table,
+body.ptg-modal-document .ak-list-card .ak-table {
+    width: 100%;
+    min-width: max-content;
+    margin: 0;
+    border-collapse: collapse;
+    background: #FFFFFF;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > thead > tr,
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > thead > tr > th,
+body.ptg-modal-document .ak-list-card .ak-table > thead > tr,
+body.ptg-modal-document .ak-list-card .ak-table > thead > tr > th {
+    background: #F7F9FC !important;
+    background-color: #F7F9FC !important;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > thead > tr > th,
+body.ptg-modal-document .ak-list-card .ak-table > thead > tr > th {
+    height: 44px !important;
+    padding: 10px 16px !important;
+    border-bottom: 1px solid var(--ptg-list-line) !important;
+    color: var(--ptg-list-muted) !important;
+    font-size: 12px;
+    font-weight: 600 !important;
+    line-height: 1.35;
+    vertical-align: middle;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr > td,
+body.ptg-modal-document .ak-list-card .ak-table > tbody > tr > td {
+    height: 54px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ptg-list-line);
+    background: #FFFFFF;
+    color: var(--ptg-list-text);
+    vertical-align: middle;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr:last-child > td,
+body.ptg-modal-document .ak-list-card .ak-table > tbody > tr:last-child > td {
+    border-bottom: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr:hover > td,
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr:focus-within > td,
+body.ptg-modal-document .ak-list-card .ak-table > tbody > tr:hover > td,
+body.ptg-modal-document .ak-list-card .ak-table > tbody > tr:focus-within > td {
+    background: #F7FAFF;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr.is-selected > td,
+body.ptg-modal-document .ak-list-card .ak-table > tbody > tr.is-selected > td {
+    background: #EEF5FF;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-col-check,
+body.ptg-modal-document .ak-list-card .ak-col-check {
+    width: 48px;
+    min-width: 48px;
+    padding-inline: 14px !important;
+    text-align: center !important;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-check,
+body.ptg-modal-document .ak-list-card .ak-check {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    border: 1px solid #AFC0D5;
+    border-radius: 4px;
+    vertical-align: middle;
+    accent-color: #1877F2;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-col-actions,
+body.ptg-modal-document .ak-list-card .ak-col-actions {
+    width: var(--ak-actions-w, 52px);
+    min-width: var(--ak-actions-w, 52px);
+    text-align: center !important;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status,
+body.ptg-modal-document .ak-list-card .ak-status {
+    min-height: 22px;
+    padding: 3px 9px;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 16px;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status.is-active,
+body.ptg-modal-document .ak-list-card .ak-status.is-active {
+    background: #EAF8F1;
+    color: #087A53;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status.is-pending,
+body.ptg-modal-document .ak-list-card .ak-status.is-pending {
+    background: #FFF7E7;
+    color: #A45D08;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status.is-inactive,
+body.ptg-modal-document .ak-list-card .ak-status.is-inactive {
+    background: #F2F4F7;
+    color: #667085;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-empty,
+body.ptg-modal-document .ak-list-card .ak-empty {
+    min-height: 180px;
+    display: grid;
+    place-content: center;
+    gap: 6px;
+    padding: 32px 16px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--ptg-list-muted);
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-empty i,
+body.ptg-modal-document .ak-list-card .ak-empty i {
+    margin: 0 0 4px;
+    color: #AAB7C8;
+    font-size: 30px;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-footer,
+body.ptg-modal-document .ak-list-card .ak-list-footer {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--ptg-list-line);
+    border-radius: 0 0 var(--ptg-list-radius) var(--ptg-list-radius);
+    background: #FFFFFF;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-result-count,
+body.ptg-modal-document .ak-list-card .ak-list-result-count {
+    color: var(--ptg-list-muted);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-footer .ak-pager,
+body.ptg-modal-document .ak-list-card .ak-list-footer .ak-pager {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin: 0;
+    padding: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-footer > .ptg-client-pager,
+body.ptg-modal-document .ak-list-card .ak-list-footer > .ptg-client-pager {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination,
+body.ptg-modal-document .ak-list-card .pagination {
+    gap: 4px;
+    margin: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-link,
+body.ptg-modal-document .ak-list-card .pagination .page-link {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 5px 8px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ptg-list-muted);
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: none;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item.active .page-link,
+body.ptg-modal-document .ak-list-card .pagination .page-item.active .page-link {
+    border-color: #1877F2;
+    background: #1877F2;
+    color: #FFFFFF;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item:not(.active):not(.disabled) .page-link:hover,
+body.ptg-modal-document .ak-list-card .pagination .page-item:not(.active):not(.disabled) .page-link:hover {
+    border-color: rgba(24, 119, 242, .18);
+    background: #EEF5FF;
+    color: #1877F2;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item.disabled .page-link,
+body.ptg-modal-document .ak-list-card .pagination .page-item.disabled .page-link {
+    color: #B4BECC;
+    background: transparent;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-loading-state,
+body.ptg-modal-document .ak-list-loading-state {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-radius: inherit;
+    background: rgba(255, 255, 255, .88);
+    color: var(--ptg-list-muted);
+    font-size: 13px;
+    font-weight: 600;
+    backdrop-filter: blur(1px);
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-loading-state[hidden],
+body.ptg-modal-document .ak-list-loading-state[hidden] {
+    display: none;
+}
+
+.ak-list-loading-spinner {
+    width: 22px;
+    height: 22px;
+    border: 2px solid rgba(24, 119, 242, .18);
+    border-top-color: #1877F2;
+    border-radius: 999px;
+    animation: ak-list-loading-spin .75s linear infinite;
+}
+
+@keyframes ak-list-loading-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 767.98px) {
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card > .ak-list-toolbar,
+    body.ptg-modal-document .ak-list-card > .ak-list-toolbar {
+        align-items: stretch;
+        min-height: 0;
+        padding: 12px;
+    }
+
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter,
+    body.ptg-modal-document .ak-list-card .ak-filter {
+        flex-flow: row wrap;
+    }
+
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-chips:not(:empty),
+    body.ptg-modal-document .ak-list-card .ak-filter-chips:not(:empty) {
+        flex: 1 0 100%;
+    }
+
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-input-wrap,
+    body.ptg-modal-document .ak-list-card .ak-filter-input-wrap {
+        min-height: 40px;
+        flex: 1 1 auto;
+    }
+
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-toolbar-actions,
+    body.ptg-modal-document .ak-list-card .ak-list-toolbar-actions {
+        width: 100%;
+        flex-wrap: wrap;
+        margin-inline-start: 0;
+    }
+
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-toolbar-actions > *,
+    body.ptg-modal-document .ak-list-card .ak-list-toolbar-actions > * {
+        flex: 1 1 auto;
+    }
+
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-footer,
+    body.ptg-modal-document .ak-list-card .ak-list-footer {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 10px 12px;
+    }
+
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-footer > .ptg-client-pager,
+    body.ptg-modal-document .ak-list-card .ak-list-footer > .ptg-client-pager {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ak-list-loading-spinner {
+        animation-duration: 1.5s;
+    }
+}
+
+@media print {
+    body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card,
+    body.ptg-modal-document .ak-list-card {
+        border-color: #D9DEE7;
+        box-shadow: none;
+    }
+
+    .ak-list-loading-state {
+        display: none !important;
+    }
 }

@@ -107,6 +107,7 @@ public class ContractJourneyController : Controller
             .Include(c => c.Company)
             .Include(c => c.Supplier)
             .Include(c => c.Customer)
+            .Include(c => c.ParentContract)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == contractId);
 
@@ -114,6 +115,9 @@ public class ContractJourneyController : Controller
         {
             return NotFound();
         }
+
+        var (hasMixedLoadingPrices, loadingsValueUsd) = await LoadLoadingPriceSpreadAsync(_db, contract.Id);
+        var subContractItems = await LoadSubContractSummariesAsync(_db, contract.Id);
 
         var pricingResult = await _pricing.CalculateContractPriceAsync(contract);
         var journeyReturnUrl = $"/ContractJourney/Details?contractId={contract.Id}&tab={activeTab}&lockContract={lockContract.ToString().ToLowerInvariant()}";
@@ -133,6 +137,11 @@ public class ContractJourneyController : Controller
             SupplierName = contract.Supplier?.Name,
             CustomerName = contract.Customer?.Name,
             ContractQuantityMt = contract.QuantityMt,
+            HasMixedLoadingPrices = hasMixedLoadingPrices,
+            LoadingsValueUsd = loadingsValueUsd,
+            ParentContractId = contract.ParentContractId,
+            ParentContractNumber = contract.ParentContract?.ContractNumber,
+            SubContractItems = subContractItems,
             Currency = contract.Currency,
             PriceDisplay = ToResolvedPriceDisplay(contract, pricingResult),
             PricingMethodName = ToPricingMethodName(contract),
@@ -1777,6 +1786,11 @@ public class ContractJourneyController : Controller
             SupplierName = baseModel.SupplierName,
             CustomerName = baseModel.CustomerName,
             ContractQuantityMt = baseModel.ContractQuantityMt,
+            HasMixedLoadingPrices = baseModel.HasMixedLoadingPrices,
+            LoadingsValueUsd = baseModel.LoadingsValueUsd,
+            ParentContractId = baseModel.ParentContractId,
+            ParentContractNumber = baseModel.ParentContractNumber,
+            SubContractItems = baseModel.SubContractItems,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,
@@ -1864,6 +1878,73 @@ public class ContractJourneyController : Controller
     // مجموع موجودی دفتری مخزن‌هایی که رسید «ضایعات بعداً از تسویه مخزن» این قرارداد
     // در آن‌ها هنوز موجودی مثبت دارد — یعنی ضایعهٔ نهایی هنوز مشخص نشده (وضعیت موقت).
     // فقط خواندنی است و هیچ stock/ledger نمی‌سازد.
+    // قیمت هر بارگیری مستقل ذخیره می‌شود. اینجا فقط دو چیز خوانده می‌شود: آیا قیمت‌ها متفاوت‌اند،
+    // و ارزش واقعی بارگیری‌ها = Sum(LoadedQuantityMt × LoadingPriceUsd).
+    public static async Task<(bool HasMixedPrices, decimal LoadingsValueUsd)> LoadLoadingPriceSpreadAsync(
+        ApplicationDbContext db,
+        int contractId)
+    {
+        var pricedGroups = await db.LoadingRegisters
+            .AsNoTracking()
+            .Where(l => l.ContractId == contractId && l.LoadingPriceUsd != null && l.LoadingPriceUsd > 0m)
+            .GroupBy(l => l.LoadingPriceUsd!.Value)
+            .Select(g => new { UnitPriceUsd = g.Key, QuantityMt = g.Sum(l => l.LoadedQuantityMt) })
+            .ToListAsync();
+
+        var valueUsd = pricedGroups.Sum(g => decimal.Round(g.QuantityMt * g.UnitPriceUsd, 4, MidpointRounding.AwayFromZero));
+        return (pricedGroups.Count > 1, valueUsd);
+    }
+
+    // گزارش تجمیعی زیرقراردادها برای قرارداد اصلی. فقط خواندنی است؛ پرداخت، دفتر کل و مصارف
+    // روی همان زیرقراردادی می‌مانند که در آن ثبت شده‌اند.
+    public static async Task<IReadOnlyList<ContractJourneySubContractItemViewModel>> LoadSubContractSummariesAsync(
+        ApplicationDbContext db,
+        int contractId)
+    {
+        var children = await db.Contracts
+            .AsNoTracking()
+            .Where(c => c.ParentContractId == contractId)
+            .OrderBy(c => c.ContractNumber)
+            .Select(c => new { c.Id, c.ContractNumber, c.QuantityMt, c.Status })
+            .ToListAsync();
+
+        if (children.Count == 0)
+        {
+            return [];
+        }
+
+        var childIds = children.Select(c => c.Id).ToList();
+        var loadingTotals = await db.LoadingRegisters
+            .AsNoTracking()
+            .Where(l => childIds.Contains(l.ContractId))
+            .GroupBy(l => l.ContractId)
+            .Select(g => new
+            {
+                ContractId = g.Key,
+                LoadedQuantityMt = g.Sum(l => l.LoadedQuantityMt),
+                LoadingsValueUsd = g.Sum(l => l.LoadedQuantityMt * (l.LoadingPriceUsd ?? 0m))
+            })
+            .ToDictionaryAsync(g => g.ContractId);
+
+        return children
+            .Select(child =>
+            {
+                var loaded = loadingTotals.TryGetValue(child.Id, out var totals) ? totals.LoadedQuantityMt : 0m;
+                var value = loadingTotals.TryGetValue(child.Id, out var valueTotals) ? valueTotals.LoadingsValueUsd : 0m;
+                return new ContractJourneySubContractItemViewModel
+                {
+                    ContractId = child.Id,
+                    ContractNumber = child.ContractNumber,
+                    StatusName = ToContractStatusName(child.Status),
+                    QuantityMt = child.QuantityMt,
+                    LoadedQuantityMt = loaded,
+                    RemainingQuantityMt = Math.Max(child.QuantityMt - loaded, 0m),
+                    LoadingsValueUsd = decimal.Round(value, 4, MidpointRounding.AwayFromZero)
+                };
+            })
+            .ToList();
+    }
+
     private async Task<decimal> GetPendingTankSettlementQuantityMtAsync(int contractId)
     {
         var deferredTankIds = await _db.LoadingReceipts.AsNoTracking()
@@ -2946,6 +3027,11 @@ public class ContractJourneyController : Controller
             SupplierName = baseModel.SupplierName,
             CustomerName = baseModel.CustomerName,
             ContractQuantityMt = baseModel.ContractQuantityMt,
+            HasMixedLoadingPrices = baseModel.HasMixedLoadingPrices,
+            LoadingsValueUsd = baseModel.LoadingsValueUsd,
+            ParentContractId = baseModel.ParentContractId,
+            ParentContractNumber = baseModel.ParentContractNumber,
+            SubContractItems = baseModel.SubContractItems,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,
@@ -3620,6 +3706,11 @@ public class ContractJourneyController : Controller
             SupplierName = baseModel.SupplierName,
             CustomerName = baseModel.CustomerName,
             ContractQuantityMt = baseModel.ContractQuantityMt,
+            HasMixedLoadingPrices = baseModel.HasMixedLoadingPrices,
+            LoadingsValueUsd = baseModel.LoadingsValueUsd,
+            ParentContractId = baseModel.ParentContractId,
+            ParentContractNumber = baseModel.ParentContractNumber,
+            SubContractItems = baseModel.SubContractItems,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,

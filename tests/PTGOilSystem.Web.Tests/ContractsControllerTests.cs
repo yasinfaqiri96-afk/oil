@@ -1259,8 +1259,10 @@ public class ContractsControllerTests
         Assert.Equal("Details", redirect.ActionName);
     }
 
+    // قیمت هر بارگیری مستقل است (از فایل اکسل خودش می‌آید)، پس «اصلاح قیمت» بارگیریِ
+    // قیمت‌دار را دست نمی‌زند و نرخ روبلِ قفل‌شده‌اش هم بازقفل نمی‌شود.
     [Fact]
-    public async Task RepricePurchaseLoadings_Overwrites_Finalized_Price_And_Relocks_Rub()
+    public async Task RepricePurchaseLoadings_Keeps_Existing_Loading_Price_And_Rub_Lock()
     {
         var options = NewDbOptions();
 
@@ -1294,10 +1296,10 @@ public class ContractsControllerTests
 
         Assert.IsType<RedirectToActionResult>(result);
         var loading = await db.LoadingRegisters.SingleAsync(l => l.Id == 30);
-        Assert.Equal(600m, loading.LoadingPriceUsd);
+        Assert.Equal(500m, loading.LoadingPriceUsd);
         Assert.Equal(RubSettlementRateStatus.Locked, loading.RubRateStatus);
-        Assert.Equal(6_000m, loading.AmountUsdAtRubLock);
-        Assert.Equal(540_000m, loading.AmountRubAtRubLock); // 10*600*90
+        Assert.Equal(5_000m, loading.AmountUsdAtRubLock);
+        Assert.Equal(450_000m, loading.AmountRubAtRubLock); // 10*500*90 — دست‌نخورده
     }
 
     [Fact]
@@ -1326,8 +1328,10 @@ public class ContractsControllerTests
         Assert.Equal(450_000m, entry.SourceAmount);
     }
 
+    // «اصلاح قیمت» فقط بارگیریِ بدون قیمت را با نرخ فعلی قرارداد تکمیل می‌کند؛
+    // بارگیریِ قیمت‌دار و سطر Legacy دفترش دست‌نخورده می‌مانند.
     [Fact]
-    public async Task RepricePurchaseLoadings_Syncs_Legacy_Ledger_Row_Of_Finalized_Loading()
+    public async Task RepricePurchaseLoadings_Only_Fills_Loadings_Without_A_Price()
     {
         var options = NewDbOptions();
 
@@ -1335,22 +1339,31 @@ public class ContractsControllerTests
         SeedContractContext(db);
         SeedRubFinalizedLoadingWithLegacyLedger(db, loadingId: 27, ledgerEntryId: 501);
         db.Contracts.Single().ManualFinalPriceUsd = 600m;
+        db.LoadingRegisters.Add(new LoadingRegister
+        {
+            Id = 28,
+            ContractId = 1,
+            ProductId = 1,
+            LoadingDate = new DateTime(2026, 5, 7),
+            LoadedQuantityMt = 10m,
+            LoadingPriceUsd = null
+        });
         await db.SaveChangesAsync();
 
-        var controller = BuildController(db);
-
-        // مسیر صریحِ «اصلاح قیمت» باید هم بارگیری را بازقفل کند هم سطر Legacy را هماهنگ کند.
-        var result = await controller.RepricePurchaseLoadings(1);
+        var result = await BuildController(db).RepricePurchaseLoadings(1);
 
         Assert.IsType<RedirectToActionResult>(result);
-        var loading = await db.LoadingRegisters.SingleAsync(l => l.Id == 27);
-        Assert.Equal(600m, loading.LoadingPriceUsd);
-        Assert.Equal(6_000m, loading.AmountUsdAtRubLock);
-        Assert.Equal(540_000m, loading.AmountRubAtRubLock);
+        var pricedLoading = await db.LoadingRegisters.SingleAsync(l => l.Id == 27);
+        Assert.Equal(500m, pricedLoading.LoadingPriceUsd);
+        Assert.Equal(5_000m, pricedLoading.AmountUsdAtRubLock);
+        Assert.Equal(450_000m, pricedLoading.AmountRubAtRubLock);
+
+        var pendingLoading = await db.LoadingRegisters.SingleAsync(l => l.Id == 28);
+        Assert.Equal(600m, pendingLoading.LoadingPriceUsd);
 
         var entry = await db.LedgerEntries.SingleAsync(l => l.Id == 501);
-        Assert.Equal(6_000m, entry.AmountUsd);
-        Assert.Equal(540_000m, entry.SourceAmount);
+        Assert.Equal(5_000m, entry.AmountUsd);
+        Assert.Equal(450_000m, entry.SourceAmount);
     }
 
     // بارگیریِ روبلیِ قطعی‌شده (۱۰ MT × ۵۰۰ USD × ۹۰ RUB) به‌همراه سطر Legacy متناظرش.

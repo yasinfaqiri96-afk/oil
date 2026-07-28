@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.ExcelImport;
 using PTGOilSystem.Web.Models.Loading;
@@ -134,8 +136,8 @@ public sealed class LoadingExcelImportController : Controller
             return NotFound();
         }
 
-        var csv = $"فایل,کل ردیف,ثبت‌شده,ردشده,جدید,به‌روزشده,زمان ثانیه\r\n" +
-                  $"{Csv(snapshot.FileName)},{snapshot.TotalRows},{snapshot.CreatedRows},{snapshot.RejectedRows},{snapshot.CreatedRows},{snapshot.UpdatedRows},{snapshot.ElapsedSeconds}\r\n";
+        var csv = $"فایل,کل ردیف,ثبت‌شده,تکراری,دارای اختلاف,نامعتبر,ردشده,زمان ثانیه\r\n" +
+                  $"{Csv(snapshot.FileName)},{snapshot.TotalRows},{snapshot.CreatedRows},{snapshot.DuplicateRows},{snapshot.ConflictRows},{snapshot.ErrorRows},{snapshot.RejectedRows},{snapshot.ElapsedSeconds}\r\n";
         return File(new UTF8Encoding(true).GetBytes(csv), "text/csv; charset=utf-8", "loading-import-report.csv");
     }
 
@@ -185,31 +187,44 @@ public sealed class LoadingExcelImportController : Controller
                 var imported = (result as ViewResult)?.Model as LoadingCreateViewModel ?? payload.Model;
                 var issues = ReadModelStateIssues(controller, imported.Rows);
 
-                context.Update(ExcelImportJobStage.Validation, $"در حال اعتبارسنجی {imported.Rows.Count} ردیف…", 0, imported.Rows.Count, sheetCount);
+                var totalRows = imported.Rows.Count;
+                context.Update(ExcelImportJobStage.Validation, $"در حال اعتبارسنجی {totalRows} ردیف…", 0, totalRows, sheetCount);
+
+                // بارگیری‌های تکراری و «دارای اختلاف» پیش از اعتبارسنجی کنار گذاشته می‌شوند تا
+                // مرحله ثبت فقط ردیف‌های واقعاً جدید را ببیند و هیچ رکورد تکراری ساخته نشود.
+                var screening = await ScreenDuplicateRowsAsync(
+                    scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+                    imported,
+                    token);
+                issues.AddRange(screening.Issues);
+                imported.Rows = screening.AcceptedRows;
+
                 issues.AddRange(ValidateRows(imported.Rows, context));
-                var duplicates = FindDuplicateRows(imported.Rows);
-                issues.AddRange(duplicates.Select(row => new ExcelImportIssue(row + 1, "مرجع حمل", "این ردیف در همین فایل تکرار شده است.", "warning")));
 
                 var hasGlobalError = issues.Any(issue => issue.Severity == "error" && issue.Row <= 0);
                 var errorRows = hasGlobalError
                     ? Math.Max(imported.Rows.Count, 1)
                     : issues.Where(issue => issue.Severity == "error").Select(issue => issue.Row).Where(row => row > 0).Distinct().Count();
                 var warningRows = issues.Where(issue => issue.Severity == "warning").Select(issue => issue.Row).Where(row => row > 0).Distinct().Count();
-                var totalRows = imported.Rows.Count;
                 payload.Model = imported;
                 payload.Model.ImportWorkbookFile = null;
+                payload.TotalFileRows = totalRows;
+                payload.DuplicateRows = screening.DuplicateRows;
+                payload.ConflictRows = screening.ConflictRows;
+                payload.InvalidRows = errorRows;
 
                 context.Ready(
                     payload,
                     totalRows,
-                    Math.Max(totalRows - errorRows, 0),
+                    Math.Max(imported.Rows.Count - errorRows, 0),
                     warningRows,
                     errorRows,
-                    duplicates.Count,
+                    screening.DuplicateRows,
                     issues.Take(200).ToList(),
                     BuildPreview(imported.Rows),
                     sheetCount,
-                    imported.ImportedSheetName ?? ReadSelectedSheet(normalizedPath));
+                    imported.ImportedSheetName ?? ReadSelectedSheet(normalizedPath),
+                    screening.ConflictRows);
             }
             finally
             {
@@ -249,7 +264,9 @@ public sealed class LoadingExcelImportController : Controller
                 return;
             }
 
-            context.Complete(totalRows, 0, 0, "/Loading");
+            // «ثبت‌شده» فقط ردیف‌های واقعاً درج‌شده است؛ ردشده = تکراری + دارای اختلاف + نامعتبر.
+            var rejectedRows = Math.Max(payload.TotalFileRows - totalRows, 0) + payload.InvalidRows;
+            context.Complete(totalRows, 0, rejectedRows, "/Loading");
         }
         finally
         {
@@ -327,22 +344,113 @@ public sealed class LoadingExcelImportController : Controller
         return 0;
     }
 
-    private static HashSet<int> FindDuplicateRows(IReadOnlyList<LoadingCreateRowViewModel> rows)
+    /// <summary>
+    /// هر ردیف فایل را با بارگیری‌های موجودِ همان قرارداد و با ردیف‌های قبلی همان فایل مقایسه می‌کند.
+    /// ردیف تکراری یا «دارای اختلاف» کنار گذاشته می‌شود و فقط ردیف‌های جدید برای ثبت می‌مانند.
+    /// شمارهٔ سند یکسان در قرارداد دیگر تکراری نیست، چون ContractId جزء کلید است.
+    /// </summary>
+    public static async Task<ImportScreeningResult> ScreenDuplicateRowsAsync(
+        ApplicationDbContext db,
+        LoadingCreateViewModel model,
+        CancellationToken token)
     {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var duplicates = new HashSet<int>();
-        for (var index = 0; index < rows.Count; index++)
+        var keysByRowIndex = new Dictionary<int, string>();
+        for (var index = 0; index < model.Rows.Count; index++)
         {
-            var row = rows[index];
-            var key = $"{row.BillOfLadingNumber?.Trim()}|{row.WagonNumber?.Trim()}|{row.ImportedTransportReference?.Trim()}|{row.LoadingDate:yyyy-MM-dd}";
-            if (key.Replace("|", string.Empty).Length > 10 && !seen.Add(key))
+            var row = model.Rows[index];
+            var contractId = row.ContractId ?? model.ContractId;
+            if (contractId <= 0)
             {
-                duplicates.Add(index + 1);
+                continue;
+            }
+
+            var key = LoadingImportKey.Build(
+                contractId,
+                row.BillOfLadingNumber,
+                row.WagonNumber ?? row.ImportedTransportReference,
+                row.LoadingDate);
+            if (key is not null)
+            {
+                keysByRowIndex[index] = key;
             }
         }
 
-        return duplicates;
+        var keys = keysByRowIndex.Values.Distinct().ToList();
+        var existing = keys.Count == 0
+            ? []
+            : await db.LoadingRegisters
+                .AsNoTracking()
+                .Where(l => l.ImportUniqueKey != null && keys.Contains(l.ImportUniqueKey))
+                .Select(l => new { Key = l.ImportUniqueKey!, l.LoadedQuantityMt, l.LoadingPriceUsd })
+                .ToListAsync(token);
+
+        var existingByKey = existing
+            .GroupBy(l => l.Key, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        var acceptedRows = new List<LoadingCreateRowViewModel>(model.Rows.Count);
+        var issues = new List<ExcelImportIssue>();
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+        var duplicateRows = 0;
+        var conflictRows = 0;
+
+        for (var index = 0; index < model.Rows.Count; index++)
+        {
+            var row = model.Rows[index];
+            if (!keysByRowIndex.TryGetValue(index, out var key))
+            {
+                acceptedRows.Add(row);
+                continue;
+            }
+
+            if (existingByKey.TryGetValue(key, out var stored))
+            {
+                var sameValues = LoadingImportKey.ValuesMatch(stored.LoadedQuantityMt, row.LoadedQuantityMt)
+                    && LoadingImportKey.ValuesMatch(stored.LoadingPriceUsd, row.LoadingPriceUsd);
+                if (sameValues)
+                {
+                    duplicateRows++;
+                    issues.Add(new ExcelImportIssue(
+                        index + 2,
+                        "مرجع حمل",
+                        "این بارگیری قبلاً در همین قرارداد ثبت شده است و دوباره ثبت نمی‌شود.",
+                        "warning"));
+                }
+                else
+                {
+                    conflictRows++;
+                    issues.Add(new ExcelImportIssue(
+                        index + 2,
+                        "مرجع حمل",
+                        $"شمارهٔ سند تکراری است ولی مقدار/قیمت فرق دارد (ثبت‌شده: {LoadingImportKey.Describe(stored.LoadedQuantityMt)} MT / {LoadingImportKey.Describe(stored.LoadingPriceUsd)} USD — فایل: {LoadingImportKey.Describe(row.LoadedQuantityMt)} MT / {LoadingImportKey.Describe(row.LoadingPriceUsd)} USD). این ردیف ثبت نشد.",
+                        "warning"));
+                }
+
+                continue;
+            }
+
+            if (!seenKeys.Add(key))
+            {
+                duplicateRows++;
+                issues.Add(new ExcelImportIssue(
+                    index + 2,
+                    "مرجع حمل",
+                    "این ردیف در همین فایل تکرار شده است و فقط یک بار ثبت می‌شود.",
+                    "warning"));
+                continue;
+            }
+
+            acceptedRows.Add(row);
+        }
+
+        return new ImportScreeningResult(acceptedRows, issues, duplicateRows, conflictRows);
     }
+
+    public sealed record ImportScreeningResult(
+        List<LoadingCreateRowViewModel> AcceptedRows,
+        List<ExcelImportIssue> Issues,
+        int DuplicateRows,
+        int ConflictRows);
 
     private static IReadOnlyList<ExcelImportPreviewRow> BuildPreview(IReadOnlyList<LoadingCreateRowViewModel> rows)
         => rows.Take(10).Select((row, index) => new ExcelImportPreviewRow(index + 2, new Dictionary<string, string>
@@ -409,6 +517,10 @@ public sealed class LoadingExcelImportController : Controller
         }
 
         public LoadingCreateViewModel Model { get; set; }
+        public int TotalFileRows { get; set; }
+        public int DuplicateRows { get; set; }
+        public int ConflictRows { get; set; }
+        public int InvalidRows { get; set; }
         public ClaimsPrincipal Principal { get; }
         public string SourcePath { get; }
         public string Extension { get; }

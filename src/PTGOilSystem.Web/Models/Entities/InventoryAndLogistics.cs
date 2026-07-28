@@ -177,6 +177,9 @@ public class LoadingRegister : BaseEntity
     public decimal LoadedQuantityMt { get; set; }
     [MaxLength(100)] public string? BillOfLadingNumber { get; set; }
     [MaxLength(100)] public string? RwbNo { get; set; }
+    // کلید یکتای «همان بارگیری در همان قرارداد» — با LoadingImportKey ساخته می‌شود و
+    // پشت یک Unique Index می‌نشیند تا ثبت دوبارهٔ یک ردیف اکسل در دیتابیس ممکن نباشد.
+    [MaxLength(300)] public string? ImportUniqueKey { get; set; }
     [MaxLength(200)] public string? WagonNumber { get; set; }
     [MaxLength(200)] public string? RouteDescription { get; set; }
     public int? LogisticsServiceProviderId { get; set; }

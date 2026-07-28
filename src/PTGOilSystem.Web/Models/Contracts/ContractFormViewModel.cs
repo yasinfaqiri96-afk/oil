@@ -28,6 +28,11 @@ public sealed class ContractFormViewModel
     [Display(Name = "وضعیت")]
     public ContractStatus Status { get; set; } = ContractStatus.Draft;
 
+    // اختیاری. خالی = قرارداد مستقل/اصلی؛ مقداردار = زیرقراردادِ همان قرارداد اصلی.
+    // فقط یک سطح مجاز است، پس قراردادی که خودش زیرقرارداد است در این فهرست نمی‌آید.
+    [Display(Name = "قرارداد اصلی")]
+    public int? ParentContractId { get; set; }
+
     [Display(Name = "شرکت")]
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب شرکت الزامی است.")]
     public int CompanyId { get; set; }

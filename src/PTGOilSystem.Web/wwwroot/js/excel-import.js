@@ -99,6 +99,8 @@
             root.querySelector('[data-excel-warning]').textContent = data.warningRows;
             root.querySelector('[data-excel-error]').textContent = data.errorRows;
             root.querySelector('[data-excel-duplicate]').textContent = data.duplicateRows;
+            const conflict = root.querySelector('[data-excel-conflict]');
+            if (conflict) conflict.textContent = data.conflictRows || 0;
             root.querySelector('[data-excel-file-name]').textContent = data.fileName;
             root.querySelector('[data-excel-sheet-info]').textContent = [data.sheetCount ? `${data.sheetCount} شیت` : '', data.selectedSheet ? `شیت: ${data.selectedSheet}` : ''].filter(Boolean).join(' · ');
 
@@ -143,6 +145,12 @@
             if (rejected) rejected.textContent = data.rejectedRows || 0;
             if (added) added.textContent = data.createdRows || 0;
             if (updated) updated.textContent = data.updatedRows || 0;
+            const resultDuplicate = root.querySelector('[data-excel-result-duplicate]');
+            const resultConflict = root.querySelector('[data-excel-result-conflict]');
+            const resultInvalid = root.querySelector('[data-excel-result-invalid]');
+            if (resultDuplicate) resultDuplicate.textContent = data.duplicateRows || 0;
+            if (resultConflict) resultConflict.textContent = data.conflictRows || 0;
+            if (resultInvalid) resultInvalid.textContent = data.errorRows || 0;
             if (duration) duration.textContent = humanTime(data.elapsedSeconds || 0);
             const viewLink = root.querySelector('[data-excel-view]');
             if (viewLink) {

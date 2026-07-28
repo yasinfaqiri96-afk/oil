@@ -7,7 +7,7 @@
     string primaryContract = ViewBag.PrimaryContractNumber;
 }
 
-<div>
+<div class="ak-list-page">
     <div class="ak-page-header">
         <div class="ak-page-header-main">
 <h1 class="ak-page-title">قراردادهای مرتبط با محموله</h1>
@@ -26,14 +26,17 @@
 
     @if (!Model.Any())
     {
-        <div class="ak-note">
-            <i class="bi bi-info-circle-fill"></i>
-            <div>هنوز هیچ قراردادی به این محموله اضافه نشده است. برای سناریوهای multi-contract vessel، قراردادها را از دکمه بالا اضافه کنید.</div>
+        <div class="ak-list ak-list-card">
+            @await Html.PartialAsync(
+                "_EmptyState",
+                ("هنوز قراردادی به این محموله اضافه نشده است",
+                 "برای سناریوهای چندقراردادی، قراردادها را از دکمه بالا اضافه کنید.",
+                 "bi-file-earmark-plus"))
         </div>
     }
     else
     {
-        <div class="ak-form-section">
+        <div class="ak-list ak-form-section">
             <div class="ak-section-body p-0">
                 <div class="ak-table-wrap">
                     <table class="ak-table mb-0">
@@ -59,7 +62,7 @@
                                         </a>
                                     </td>
                                     <td>
-                                        <span class="badge @(row.ContractType == ContractType.Purchase ?"text-bg-primary" : "text-bg-success")">
+                                        <span class="ak-status @(row.ContractType == ContractType.Purchase ? "is-pending" : "is-active")">
                                             @(row.ContractType == ContractType.Purchase ? "خرید" : "فروش")
                                         </span>
                                     </td>

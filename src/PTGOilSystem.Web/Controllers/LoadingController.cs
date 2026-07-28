@@ -1690,6 +1690,11 @@ public partial class LoadingController : Controller
                         FreightCostResponsibility = model.FreightCostResponsibility,
                         Notes = model.Notes
                     };
+                    loading.ImportUniqueKey = LoadingImportKey.Build(
+                        loading.ContractId,
+                        loading.BillOfLadingNumber ?? loading.RwbNo,
+                        loading.WagonNumber ?? row.ImportedTransportReference,
+                        loading.LoadingDate);
                     ApplyRubSnapshotToLoading(loading, row);
                     if (loading.RubRateStatus == RubSettlementRateStatus.Locked)
                     {
@@ -1697,6 +1702,20 @@ public partial class LoadingController : Controller
                     }
 
                     createdRows.Add((row, loading, rowContract));
+                }
+
+                // گارد ضد ثبت تکراری: همان شمارهٔ سند/حمل داخل همان قرارداد نباید دو بار ثبت شود.
+                // پیام روشن اینجا داده می‌شود؛ Unique Index دیتابیس فقط پشتیبان نهایی است.
+                if (!await ValidateNoDuplicateLoadingsAsync(createdRows.Select(row => (row.Row, row.Loading)).ToList()))
+                {
+                    if (transaction is not null)
+                    {
+                        await transaction.RollbackAsync();
+                    }
+
+                    await PopulateLookupsAsync(model);
+                    PrepareRowsForFastPreview(model);
+                    return View(model);
                 }
 
                 _db.LoadingRegisters.AddRange(createdRows.Select(row => row.Loading));
@@ -4435,6 +4454,53 @@ public partial class LoadingController : Controller
             }
 
         }
+    }
+
+    // بارگیری‌هایی که کلید یکتای‌شان از قبل در دیتابیس هست یا داخل همین درخواست تکرار شده‌اند
+    // را رد می‌کند. هیچ داده‌ای حذف یا بازنویسی نمی‌شود؛ فقط ثبت دوباره جلوگیری می‌شود.
+    private async Task<bool> ValidateNoDuplicateLoadingsAsync(
+        IReadOnlyList<(LoadingCreateRowViewModel Row, LoadingRegister Loading)> createdRows)
+    {
+        var keyedRows = createdRows
+            .Where(row => !string.IsNullOrEmpty(row.Loading.ImportUniqueKey))
+            .ToList();
+        if (keyedRows.Count == 0)
+        {
+            return true;
+        }
+
+        var keys = keyedRows.Select(row => row.Loading.ImportUniqueKey!).Distinct().ToList();
+        var existingKeys = (await _db.LoadingRegisters
+                .AsNoTracking()
+                .Where(l => l.ImportUniqueKey != null && keys.Contains(l.ImportUniqueKey))
+                .Select(l => l.ImportUniqueKey!)
+                .ToListAsync())
+            .ToHashSet(StringComparer.Ordinal);
+
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+        var isValid = true;
+        foreach (var keyedRow in keyedRows)
+        {
+            var key = keyedRow.Loading.ImportUniqueKey!;
+            if (existingKeys.Contains(key))
+            {
+                isValid = false;
+                ModelState.AddModelError(
+                    RowField(keyedRow.Row.RowKey, nameof(keyedRow.Row.BillOfLadingNumber)),
+                    "این بارگیری قبلاً در همین قرارداد ثبت شده است و دوباره ثبت نمی‌شود.");
+                continue;
+            }
+
+            if (!seenKeys.Add(key))
+            {
+                isValid = false;
+                ModelState.AddModelError(
+                    RowField(keyedRow.Row.RowKey, nameof(keyedRow.Row.BillOfLadingNumber)),
+                    "این بارگیری در همین فایل تکرار شده است و فقط یک بار ثبت می‌شود.");
+            }
+        }
+
+        return isValid;
     }
 
     private static bool IsBlankRow(LoadingCreateRowViewModel row)

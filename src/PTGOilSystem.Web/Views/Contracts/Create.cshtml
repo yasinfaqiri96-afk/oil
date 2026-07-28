@@ -10,6 +10,7 @@
     var customers = ViewBag.Customers as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
     var locations = ViewBag.Locations as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
     var currencies = ViewBag.Currencies as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var parentContracts = ViewBag.ParentContracts as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
     var productUnitMap = ViewBag.ProductUnitMap as IReadOnlyDictionary<int, int?>
         ?? new Dictionary<int, int?>();
     var partners = (ViewBag.Partners as Microsoft.AspNetCore.Mvc.Rendering.SelectList)?.ToList()
@@ -72,6 +73,17 @@
                                 <option value="1">@UiText.T(Context,"فعال","Active")</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="ak-field">
+                        @* اختیاری: با انتخاب قرارداد اصلی، این قرارداد زیرقرارداد آن می‌شود.
+                           فقط قراردادهایی که خودشان زیرقرارداد نیستند در این فهرست می‌آیند. *@
+                        <label asp-for="ParentContractId" class="ak-label">@UiText.T(Context,"قرارداد اصلی","Parent contract")</label>
+                        <div>
+                            <select asp-for="ParentContractId" asp-items="parentContracts" class="ak-input">
+                                <option value="">@UiText.T(Context,"بدون قرارداد اصلی (مستقل)","No parent (standalone)")</option>
+                            </select>
+                        </div>
+                        <span asp-validation-for="ParentContractId" class="text-danger"></span>
                     </div>
                     <div class="ak-field">
                         <label asp-for="ContractDate" class="ak-label">تاریخ قرارداد <span class="text-danger">*</span></label>

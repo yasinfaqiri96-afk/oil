@@ -10,7 +10,7 @@
     var pageSubtitle = Model.ActiveTab switch { PlattsRatesTabs.Monthly => "میانگین ماهانه نرخ‌های مرجع بر اساس داده‌های روزانه.", PlattsRatesTabs.Manual => "فهرست نرخ‌های ماهانه دستی به عنوان مرجع اختیاری.", _ => "فهرست نرخ‌های روزانه مرجع Platt's." };
 }
 
-<div class="ak-form-page">
+<div class="ak-form-page ak-list-page">
     <div class="ak-page-header">
         <div class="ak-page-heading">
 <h1 class="ak-page-title">@pageTitle</h1>
@@ -26,10 +26,10 @@
         </div>
     </div>
 
-    <div hidden="@(!dailyActive)">
+    <div class="ak-list" hidden="@(!dailyActive)">
     @if (dailyActive)
     {
-        <div class="ak-detail-toolbar">
+        <div class="ak-list-toolbar ak-detail-toolbar">
             <div>
                 <form method="get" class="ak-form-grid">
                     <input type="hidden" name="ActiveTab" value="@PlattsRatesTabs.Daily" />
@@ -116,10 +116,10 @@
     }
     </div>
 
-    <div hidden="@(!monthlyActive)">
+    <div class="ak-list" hidden="@(!monthlyActive)">
     @if (monthlyActive)
     {
-        <div class="ak-detail-toolbar">
+        <div class="ak-list-toolbar ak-detail-toolbar">
             <div>
                 <form method="get" class="ak-form-grid">
                     <input type="hidden" name="ActiveTab" value="@PlattsRatesTabs.Monthly" />
@@ -198,10 +198,10 @@
     }
     </div>
 
-    <div hidden="@(!manualActive)">
+    <div class="ak-list" hidden="@(!manualActive)">
     @if (manualActive)
     {
-        <div class="ak-detail-toolbar">
+        <div class="ak-list-toolbar ak-detail-toolbar">
             <div>
                 <form method="get" class="ak-form-grid">
                     <input type="hidden" name="ActiveTab" value="@PlattsRatesTabs.Manual" />

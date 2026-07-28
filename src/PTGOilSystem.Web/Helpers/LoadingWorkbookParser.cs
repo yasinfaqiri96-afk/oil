@@ -51,6 +51,17 @@ public static class LoadingWorkbookParser
     private static readonly string[] TruckRentTransportAliases = ["truck", NormalizeHeader("نمبرموتر")];
     private static readonly string[] TruckRentPayableAliases = ["payablerent", NormalizeHeader("کرایهپرداختی")];
 
+    // قیمت فی تنِ خودِ بارگیری در شیت موتر. هر بارگیری قیمت مستقل خودش را نگه می‌دارد و
+    // با نرخ قرارداد بازنویسی نمی‌شود، پس ستون قیمت باید همین‌جا خوانده شود.
+    private static readonly string[] TruckLoadingPriceAliases =
+        ["loadingprice", "loadingpriceusd", "price", "unitprice", "priceusd", "usdprice", "pricepermt",
+         NormalizeHeader("قیمت"), NormalizeHeader("قیمت بارگیری"), NormalizeHeader("قیمت فی تن")];
+
+    // fallback «مبلغ ÷ مقدار» فقط با ستون مبلغِ صریح کار می‌کند. «Total» عمداً اینجا نیست:
+    // در شیت موتر ستون‌های Total مجموع کرایه/ترانشیپمنت‌اند، نه مبلغ خرید بارگیری.
+    private static readonly string[] TruckLoadingAmountAliases =
+        ["loadingamount", "amount", "totalamount", "amountusd", NormalizeHeader("مبلغ"), NormalizeHeader("مبلغ کل")];
+
     private static readonly string[] TruckReportDateAliases = ["dateofreport"];
     private static readonly string[] TruckReportVesselAliases = ["vessel"];
     private static readonly string[] TruckReportLocationAliases = ["location"];
@@ -318,6 +329,8 @@ public static class LoadingWorkbookParser
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.LoadedQuantityMt), column, normalizedHeader, QuantityAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.SettlementUnitPriceRub), column, normalizedHeader, RubUnitPriceAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.SettlementValueRub), column, normalizedHeader, RubTotalAliases);
+            AssignColumn(columns, nameof(LoadingCreateRowViewModel.LoadingPriceUsd), column, normalizedHeader, TruckLoadingPriceAliases);
+            AssignColumn(columns, "LoadingAmount", column, normalizedHeader, TruckLoadingAmountAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.DestinationName), column, normalizedHeader, TruckDestinationAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.ConsigneeName), column, normalizedHeader, ConsigneeAliases);
 
@@ -505,17 +518,8 @@ public static class LoadingWorkbookParser
 
         row.LoadedQuantityMt = TryReadDecimal(cells, columns, nameof(LoadingCreateRowViewModel.LoadedQuantityMt), workbookPart) ?? 0m;
         row.PlattsUsd = TryReadDecimal(cells, columns, nameof(LoadingCreateRowViewModel.PlattsUsd), workbookPart);
-        row.LoadingPriceUsd = TryReadDecimal(cells, columns, nameof(LoadingCreateRowViewModel.LoadingPriceUsd), workbookPart);
         ApplyFileRubFigures(row, cells, columns, workbookPart);
-
-        if (!row.LoadingPriceUsd.HasValue)
-        {
-            var amount = TryReadDecimal(cells, columns, "LoadingAmount", workbookPart);
-            if (amount.HasValue && row.LoadedQuantityMt > 0)
-            {
-                row.LoadingPriceUsd = decimal.Round(amount.Value / row.LoadedQuantityMt, 4, MidpointRounding.AwayFromZero);
-            }
-        }
+        ApplyLoadingPrice(row, cells, columns, workbookPart);
 
         if (!string.IsNullOrWhiteSpace(row.BillOfLadingNumber)
             && !string.IsNullOrWhiteSpace(row.WagonNumber)
@@ -553,6 +557,7 @@ public static class LoadingWorkbookParser
 
         row.LoadedQuantityMt = TryReadDecimal(cells, columns, nameof(LoadingCreateRowViewModel.LoadedQuantityMt), workbookPart) ?? 0m;
         ApplyFileRubFigures(row, cells, columns, workbookPart);
+        ApplyLoadingPrice(row, cells, columns, workbookPart);
 
         if (!string.IsNullOrWhiteSpace(billOfLadingNumber)
             && !string.IsNullOrWhiteSpace(importedTransportReference)
@@ -602,6 +607,29 @@ public static class LoadingWorkbookParser
 
         row.SettlementUnitPriceRub = unitPriceRub;
         row.SettlementValueRub = totalRub;
+    }
+
+    // قیمت فی تنِ همین بارگیری را از فایل می‌خواند. اگر ستون قیمت واحد نبود ولی مبلغ کل و
+    // مقدار موجود بود، قیمت واحد = مبلغ ÷ مقدار. قیمت هر بارگیری مستقل نگه داشته می‌شود.
+    private static void ApplyLoadingPrice(
+        LoadingCreateRowViewModel row,
+        IReadOnlyDictionary<string, Cell> cells,
+        IReadOnlyDictionary<string, string> columns,
+        WorkbookPart workbookPart)
+    {
+        row.LoadingPriceUsd = NormalizeNonNegative(
+            TryReadDecimal(cells, columns, nameof(LoadingCreateRowViewModel.LoadingPriceUsd), workbookPart));
+
+        if (row.LoadingPriceUsd.HasValue)
+        {
+            return;
+        }
+
+        var amount = NormalizeNonNegative(TryReadDecimal(cells, columns, "LoadingAmount", workbookPart));
+        if (amount.HasValue && row.LoadedQuantityMt > 0m)
+        {
+            row.LoadingPriceUsd = decimal.Round(amount.Value / row.LoadedQuantityMt, 4, MidpointRounding.AwayFromZero);
+        }
     }
 
     private static decimal? NormalizeNonNegative(decimal? value)

@@ -433,6 +433,33 @@ public class ShellViewStructureTests
         Assert.Contains(selector, css);
     }
 
+    [Fact]
+    public void Shared_List_Card_Composes_Existing_List_Nodes_And_Preserves_Hover_Actions()
+    {
+        var listScript = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/list-toolbar-row.js");
+        var tablesScript = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/tables.js");
+        var components = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+        var listStyles = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/15-system-lists.css");
+        var operationsFooter = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_OperationsListFooter.cshtml");
+        var pagedFooter = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_PagedListFooter.cshtml");
+
+        Assert.Contains("assembleListCard(page, toolbar)", listScript);
+        Assert.Contains("card.classList.add(\"ak-list-card\")", listScript);
+        Assert.Contains("window.PTG.setListCardLoading", listScript);
+        Assert.Contains("--ptg-list-radius: 12px", listStyles);
+        Assert.Contains(".ak-list-card", listStyles);
+        Assert.Contains("height: 54px", listStyles);
+        Assert.Contains(".ak-list-footer", listStyles);
+        Assert.Contains(".ak-list-loading-state", listStyles);
+        Assert.Contains("ak-list-result-count", operationsFooter);
+        Assert.Contains("ak-list-result-count", pagedFooter);
+
+        Assert.Contains("initializeContextualRowActions();", tablesScript);
+        Assert.Contains("action.source.click();", tablesScript);
+        Assert.Contains(".ak-table tbody tr:hover .ak-row-actions", components);
+        Assert.Contains(".ak-table tbody tr:focus-within .ak-row-actions", components);
+    }
+
     [Theory]
     [InlineData("src/PTGOilSystem.Web/Views/Home/Index.cshtml", "ak-form-page")]
     [InlineData("src/PTGOilSystem.Web/Views/Products/Index.cshtml", "ak-list-page")]
@@ -450,6 +477,11 @@ public class ShellViewStructureTests
     [InlineData("src/PTGOilSystem.Web/Views/Payments/Create.cshtml", "ak-form")]
     [InlineData("src/PTGOilSystem.Web/Views/CustomsDeclarations/Create.cshtml", "ak-form")]
     [InlineData("src/PTGOilSystem.Web/Views/CustomsPermitTurnover/Index.cshtml", "ak-list-page")]
+    [InlineData("src/PTGOilSystem.Web/Views/ContractAmendments/Index.cshtml", "ak-list-page")]
+    [InlineData("src/PTGOilSystem.Web/Views/ContractJourney/Index.cshtml", "ak-list-page")]
+    [InlineData("src/PTGOilSystem.Web/Views/Inventory/Index.cshtml", "ak-list-page")]
+    [InlineData("src/PTGOilSystem.Web/Views/PlattsRates/Index.cshtml", "ak-list-page")]
+    [InlineData("src/PTGOilSystem.Web/Views/ShipmentContracts/Index.cshtml", "ak-list-page")]
     [InlineData("src/PTGOilSystem.Web/Views/AccountStatements/Details.cshtml", "ak-form-page")]
     [InlineData("src/PTGOilSystem.Web/Views/ShipmentPnl/Details.cshtml", "ak-form-page")]
     [InlineData("src/PTGOilSystem.Web/Views/Shared/_CreateModalShell.cshtml", "ak-modal")]

@@ -3,44 +3,20 @@
 @{
     ViewData["Title"] = UiText.T(Context,"موجودی","Inventory");
     var movements = Model.Items.ToList();
-    var hasFilter = !string.IsNullOrWhiteSpace(Model.Query);
 }
 
-<div class="ak-form-page">
+<div class="ak-form-page ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "حرکت‌های موجودی", "Inventory Movements"), true,
+                       UiText.T(Context, "ثبت موجودی", "New Movement"), "bi-plus-lg",
+                       (string?)Url.Action("Create"), (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
 
-    <div class="ak-page-header">
-        <div class="ak-page-heading">
-<h1 class="ak-page-title">@UiText.T(Context,"حرکت‌های موجودی","Inventory Movements")</h1>
-        </div>
-    </div>
-
-    <div class="ak-detail-toolbar">
-        <div>
-            <form method="get" class="ak-form-grid">
-                <div class="ak-field">
-                    <label class="ak-label">@UiText.T(Context,"جست‌وجو","Search")</label>
-                    <input name="q" value="@Model.Query" class="ak-input"
-                        placeholder="@UiText.T(Context,"محصول، ترمینال، قرارداد یا مرجع...","Product, terminal, contract or reference...")" />
-                </div>
-                <div class="ak-field ak-col-full">
-                    <div class="ak-detail-toolbar-actions d-flex justify-content-between align-items-center flex-wrap gap-3">
-                        <div class="d-flex align-items-center flex-wrap gap-2">
-                            <button type="submit" class="btn btn-light">@UiText.T(Context,"جست‌وجو","Search")</button>
-                            @if (hasFilter)
-                            {
-                                <a asp-action="Index" class="btn ak-secondary-action">@UiText.T(Context,"پاک‌کردن","Clear")</a>
-                            }
-                        </div>
-                        <div class="d-flex align-items-center flex-wrap gap-2">
-                            <a asp-action="Create" class="btn ak-primary-action">
-                                <i class="bi bi-plus-lg me-1"></i> @UiText.T(Context,"ثبت موجودی","New Movement")
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
+             model="@AkSearchFilterModel.SearchOnly(
+                 "q",
+                 Model.Query,
+                 UiText.T(Context, "محصول، ترمینال، قرارداد یا مرجع...", "Product, terminal, contract or reference..."))" />
 
     <div class="ak-table-wrap">
         <div class="ak-table-wrap">

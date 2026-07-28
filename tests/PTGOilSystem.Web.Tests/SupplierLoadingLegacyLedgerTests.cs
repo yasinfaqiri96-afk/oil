@@ -40,8 +40,10 @@ public class SupplierLoadingLegacyLedgerTests
         Assert.Equal(LedgerSide.Credit, ledger[0].Side);
     }
 
+    // قیمت هر بارگیری مستقل است، پس «اصلاح قیمت» بارگیریِ قیمت‌دار و سطر دفترش را
+    // دست نمی‌زند و سطر دوم هم نمی‌سازد.
     [Fact]
-    public async Task Repricing_Updates_Same_Legacy_Row_To_New_Amount()
+    public async Task Repricing_Keeps_The_Same_Legacy_Row_Of_A_Priced_Loading()
     {
         await using var db = NewDb();
         SeedRubContract(db, fixedRate: 80m);
@@ -57,14 +59,15 @@ public class SupplierLoadingLegacyLedgerTests
 
         Assert.IsType<RedirectToActionResult>(result);
         var loading = await db.LoadingRegisters.SingleAsync();
-        Assert.Equal(1_200m, loading.AmountUsdAtRubLock); // 10 * 120
-        Assert.Equal(96_000m, loading.AmountRubAtRubLock); // 1200 * 80
+        Assert.Equal(100m, loading.LoadingPriceUsd);
+        Assert.Equal(1_000m, loading.AmountUsdAtRubLock); // 10 * 100 — دست‌نخورده
+        Assert.Equal(80_000m, loading.AmountRubAtRubLock);
 
         var ledger = await LegacyRowsAsync(db, LoadingId);
         Assert.Single(ledger);
         Assert.Equal(ledgerIdBefore, ledger[0].Id);
-        Assert.Equal(1_200m, ledger[0].AmountUsd);
-        Assert.Equal(96_000m, ledger[0].SourceAmount);
+        Assert.Equal(1_000m, ledger[0].AmountUsd);
+        Assert.Equal(80_000m, ledger[0].SourceAmount);
     }
 
     [Fact]
@@ -151,7 +154,8 @@ public class SupplierLoadingLegacyLedgerTests
             ProductId = 1,
             LoadingDate = LoadingDate,
             LoadedQuantityMt = 10m,
-            LoadingPriceUsd = 100m,
+            // بدون قیمت ثبت شده: «اصلاح قیمت» فقط همین بارگیری‌ها را با نرخ قرارداد تکمیل می‌کند.
+            LoadingPriceUsd = null,
             SettlementCurrencyCode = "USD"
         });
         await db.SaveChangesAsync();

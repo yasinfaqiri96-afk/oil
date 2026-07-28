@@ -40,6 +40,8 @@ public sealed class ExcelImportJobSnapshot
     public int WarningRows { get; init; }
     public int ErrorRows { get; init; }
     public int DuplicateRows { get; init; }
+    // ردیف‌هایی که شمارهٔ سندشان قبلاً ثبت شده ولی مقدار یا قیمت‌شان با رکورد موجود فرق دارد.
+    public int ConflictRows { get; init; }
     public int CreatedRows { get; init; }
     public int UpdatedRows { get; init; }
     public int RejectedRows { get; init; }

@@ -267,9 +267,13 @@
     var contractNetLabel = pnlOperationalMarginUsd < 0m
         ? T("ضرر خالص قرارداد", "Contract NET Loss")
         : T("سود خالص قرارداد", "Contract NET Profit");
-    var contractDisplayValueUsd = Model.PricingFinalUnitPriceUsd.HasValue && Model.PricingFinalUnitPriceUsd.Value > 0m
-        ? Model.PricingFinalUnitPriceUsd.Value * Model.ContractQuantityMt
-        : Model.MiniPnl.TraceablePurchaseCostUsd;
+    // قیمت هر بارگیری مستقل است: وقتی بارگیری‌ها قیمت‌های متفاوت دارند، ارزش قرارداد
+    // جمع ارزش بارگیری‌ها است، نه مقدار قرارداد × نرخ قرارداد.
+    var contractDisplayValueUsd = Model.HasMixedLoadingPrices && Model.LoadingsValueUsd > 0m
+        ? Model.LoadingsValueUsd
+        : Model.PricingFinalUnitPriceUsd.HasValue && Model.PricingFinalUnitPriceUsd.Value > 0m
+            ? Model.PricingFinalUnitPriceUsd.Value * Model.ContractQuantityMt
+            : Model.MiniPnl.TraceablePurchaseCostUsd;
     var rubSettlement = Model.RubSettlementSummary;
     var rubPendingStatusText = rubSettlement.PendingRateLoadingCount > 0
         ? T("در انتظار نرخ", "Pending rate")
@@ -668,6 +672,51 @@
                     }
                 </ol>
             </section>
+
+            @if (Model.SubContractItems.Any())
+            {
+                <section class="ak-form-section ak-detail-section" data-sub-contracts>
+                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                             model="@((T("زیرقراردادها", "Sub-contracts"), (string?)T("گزارش تجمیعی؛ بارگیری، پرداخت و دفتر کل روی همان زیرقرارداد باقی می‌ماند.", "Aggregated report only; loadings, payments and ledger stay on each sub-contract.")))" />
+                    <div class="ak-table-wrap">
+                        <table class="ak-table ak-detail-table">
+                            <thead>
+                                <tr>
+                                    <th class="ak-col-grow">@T("زیرقرارداد", "Sub-contract")</th>
+                                    <th class="ak-col-num">@T("مقدار قرارداد", "Contract quantity")</th>
+                                    <th class="ak-col-num">@T("بارگیری‌شده", "Loaded")</th>
+                                    <th class="ak-col-num">@T("باقی‌مانده", "Remaining")</th>
+                                    <th class="ak-col-num">@T("ارزش بارگیری‌ها", "Loadings value")</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var subContract in Model.SubContractItems)
+                                {
+                                    <tr>
+                                        <td class="ak-col-grow">
+                                            <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@subContract.ContractId">@subContract.ContractNumber</a>
+                                            <span class="ak-muted">· @subContract.StatusName</span>
+                                        </td>
+                                        <td class="ak-num">@NumberDisplay.Quantity(subContract.QuantityMt)</td>
+                                        <td class="ak-num">@NumberDisplay.Quantity(subContract.LoadedQuantityMt)</td>
+                                        <td class="ak-num">@NumberDisplay.Quantity(subContract.RemainingQuantityMt)</td>
+                                        <td class="ak-num">@subContract.LoadingsValueUsd.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr data-sub-contracts-total>
+                                    <th class="ak-col-grow">@T("مجموع زیرقراردادها", "Sub-contracts total")</th>
+                                    <th class="ak-num">@NumberDisplay.Quantity(Model.SubContractItems.Sum(s => s.QuantityMt))</th>
+                                    <th class="ak-num">@NumberDisplay.Quantity(Model.SubContractItems.Sum(s => s.LoadedQuantityMt))</th>
+                                    <th class="ak-num">@NumberDisplay.Quantity(Model.SubContractItems.Sum(s => s.RemainingQuantityMt))</th>
+                                    <th class="ak-num">@Model.SubContractItems.Sum(s => s.LoadingsValueUsd).ToString("N2")</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </section>
+            }
 
             @if (Model.ShipmentScenarios.Any())
             {

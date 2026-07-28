@@ -124,6 +124,19 @@ public partial class ContractsController : Controller
             "Id",
             "Name",
             model?.DestinationLocationId);
+        // فقط قراردادهایی که خودشان زیرقرارداد نیستند می‌توانند «قرارداد اصلی» باشند (یک سطح).
+        // قرارداد در حال ویرایش هم نمی‌تواند والد خودش باشد.
+        ViewBag.ParentContracts = new SelectList(
+            await _db.Contracts
+                .AsNoTracking()
+                .Where(c => c.ParentContractId == null && (model == null || c.Id != model.Id))
+                .OrderByDescending(c => c.ContractDate)
+                .ThenBy(c => c.ContractNumber)
+                .Select(c => new { c.Id, c.ContractNumber })
+                .ToListAsync(),
+            "Id",
+            "ContractNumber",
+            model?.ParentContractId);
         ViewBag.Currencies = new SelectList(
             await _db.Currencies
                 .AsNoTracking()
@@ -283,6 +296,7 @@ public partial class ContractsController : Controller
             ContractNumber = model.ContractNumber,
             ContractType = model.ContractType,
             Status = model.Status,
+            ParentContractId = model.ParentContractId,
             CompanyId = model.CompanyId,
             ProductId = model.ProductId,
             UnitId = model.UnitId,
@@ -356,6 +370,7 @@ public partial class ContractsController : Controller
                 ("ContractNumber", contract.ContractNumber),
                 ("ContractType", contract.ContractType),
                 ("Status", contract.Status),
+                ("ParentContractId", contract.ParentContractId),
                 ("CompanyId", contract.CompanyId),
                 ("ProductId", contract.ProductId),
                 ("UnitId", contract.UnitId),
@@ -451,6 +466,7 @@ public partial class ContractsController : Controller
             ContractNumber = model.ContractNumber,
             ContractType = model.ContractType,
             Status = model.Status,
+            ParentContractId = model.ParentContractId,
             CompanyId = model.CompanyId,
             ProductId = model.ProductId,
             UnitId = model.UnitId,
@@ -868,7 +884,9 @@ public partial class ContractsController : Controller
             return RepriceRedirect(id, returnUrl);
         }
 
-        var repricedCount = await SyncPurchaseLoadingPricesAsync(contract, repriceFinalized: true);
+        // قیمت مستقل هر بارگیری (که از فایل اکسل خودش آمده) حفظ می‌شود؛ این اکشن فقط
+        // بارگیری‌های بدون قیمت را با نرخ فعلی قرارداد تکمیل می‌کند.
+        var repricedCount = await SyncPurchaseLoadingPricesAsync(contract);
         await _db.SaveChangesAsync();
         await PostRepricedPurchasesAsync(contract.Id);
 
@@ -876,8 +894,8 @@ public partial class ContractsController : Controller
         await _audit.LogAndSaveAsync(nameof(Contract), contract.Id, AuditAction.Update, diff: diff);
 
         TempData["ok"] = repricedCount > 0
-            ? $"قیمت خرید {repricedCount:N0} بارگیری با نرخ فعلی قرارداد اصلاح شد."
-            : "بارگیری‌ای برای اصلاح یافت نشد.";
+            ? $"قیمت خرید {repricedCount:N0} بارگیریِ بدون قیمت با نرخ فعلی قرارداد تکمیل شد."
+            : "بارگیریِ بدون قیمتی برای اصلاح یافت نشد؛ قیمت بارگیری‌های قیمت‌دار دست‌نخورده ماند.";
         return RepriceRedirect(id, returnUrl);
     }
 
@@ -929,7 +947,7 @@ public partial class ContractsController : Controller
 
     private static string BuildPricingSyncMessage(string baseMessage, int skippedFinalizedCount)
         => skippedFinalizedCount > 0
-            ? $"{baseMessage} نرخ قرارداد عوض شد ولی قیمت {skippedFinalizedCount:N0} بارگیریِ قطعی‌شده دست‌نخورده ماند؛ برای اصلاح آن‌ها از «اصلاح قیمت» استفاده کنید."
+            ? $"{baseMessage} نرخ قرارداد عوض شد ولی قیمت {skippedFinalizedCount:N0} بارگیریِ قیمت‌دار عمداً دست‌نخورده ماند؛ قیمت هر بارگیری مستقل است و از صفحهٔ همان بارگیری اصلاح می‌شود."
             : baseMessage;
 
     private async Task<int> SyncPurchaseLoadingPricesAsync(Contract contract, bool repriceFinalized = false)
@@ -1082,6 +1100,49 @@ public partial class ContractsController : Controller
         model.IsPricingCompleted = finalPrice.HasValue && finalPrice.Value > 0m;
     }
 
+    // قواعد قرارداد اصلی/زیرقرارداد: هر زیرقرارداد فقط یک قرارداد اصلی دارد، قرارداد نمی‌تواند
+    // والد خودش باشد و بیشتر از یک سطح مجاز نیست (والدی که خودش زیرقرارداد است رد می‌شود).
+    private async Task ValidateParentContractAsync(ContractFormViewModel model, bool isCreate)
+    {
+        if (!model.ParentContractId.HasValue)
+        {
+            return;
+        }
+
+        if (!isCreate && model.ParentContractId.Value == model.Id)
+        {
+            ModelState.AddModelError(nameof(model.ParentContractId), "قرارداد نمی‌تواند قرارداد اصلی خودش باشد.");
+            return;
+        }
+
+        var parent = await _db.Contracts
+            .AsNoTracking()
+            .Where(c => c.Id == model.ParentContractId.Value)
+            .Select(c => new { c.Id, c.ParentContractId })
+            .FirstOrDefaultAsync();
+
+        if (parent is null)
+        {
+            ModelState.AddModelError(nameof(model.ParentContractId), "قرارداد اصلی انتخاب‌شده معتبر نیست.");
+            return;
+        }
+
+        if (parent.ParentContractId.HasValue)
+        {
+            ModelState.AddModelError(
+                nameof(model.ParentContractId),
+                "قراردادی که خودش زیرقرارداد است نمی‌تواند به‌عنوان قرارداد اصلی انتخاب شود.");
+            return;
+        }
+
+        if (!isCreate && await _db.Contracts.AnyAsync(c => c.ParentContractId == model.Id))
+        {
+            ModelState.AddModelError(
+                nameof(model.ParentContractId),
+                "این قرارداد خودش زیرقرارداد دارد، پس نمی‌تواند زیرقراردادِ قرارداد دیگری شود.");
+        }
+    }
+
     private async Task ValidateLookupsAsync(ContractFormViewModel model, bool isCreate)
     {
         if (await _db.Contracts.AnyAsync(c => c.ContractNumber == model.ContractNumber
@@ -1089,6 +1150,8 @@ public partial class ContractsController : Controller
         {
             ModelState.AddModelError(nameof(model.ContractNumber), "این شماره قرارداد قبلاً ثبت شده است.");
         }
+
+        await ValidateParentContractAsync(model, isCreate);
 
         if (!await _db.Companies.AsNoTracking().AnyAsync(c => c.Id == model.CompanyId && c.IsActive))
         {
@@ -1536,6 +1599,7 @@ public partial class ContractsController : Controller
             ContractNumber = contract.ContractNumber,
             ContractType = contract.ContractType,
             Status = contract.Status,
+            ParentContractId = contract.ParentContractId,
             CompanyId = contract.CompanyId,
             ProductId = contract.ProductId,
             UnitId = contract.UnitId ?? contract.Product?.UnitId,
