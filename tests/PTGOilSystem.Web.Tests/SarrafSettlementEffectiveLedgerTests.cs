@@ -5,6 +5,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
 
@@ -38,7 +39,7 @@ public sealed class SarrafSettlementEffectiveLedgerTests
 
         var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
         Assert.Equal(200_000_000m, row.OriginalAmount);
-        Assert.Equal(200_000_000m, statement.Summary.TotalCreditRub!.Value);
+        Assert.Equal(200_000_000m, statement.Summary.TotalOutflowRub!.Value);
     }
 
     // ۲و۳و۴و۶) اصلی+برگشت+repost: فقط یک سطر مؤثر، با مبلغ و قراردادِ نسخهٔ جدید؛ اصلی/برگشت
@@ -64,7 +65,7 @@ public sealed class SarrafSettlementEffectiveLedgerTests
         Assert.Equal(Family, row.SourceType);
         Assert.Equal(300_000_000m, row.OriginalAmount);            // مبلغ = repost
         Assert.Equal(contract.ContractNumber, row.ContractNumber);  // قرارداد = نسخهٔ جدید
-        Assert.Equal(300_000_000m, statement.Summary.TotalCreditRub!.Value); // نه ۶۰۰ میلیون
+        Assert.Equal(300_000_000m, statement.Summary.TotalOutflowRub!.Value); // نه ۶۰۰ میلیون
     }
 
     // ۵) اصلی و برگشت در دفترکل (Audit) باقی می‌مانند — هیچ سطری حذف نمی‌شود.
@@ -126,7 +127,7 @@ public sealed class SarrafSettlementEffectiveLedgerTests
 
         var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
         Assert.Equal(330_000_000m, row.OriginalAmount);
-        Assert.Equal(330_000_000m, statement.Summary.TotalCreditRub!.Value);
+        Assert.Equal(330_000_000m, statement.Summary.TotalOutflowRub!.Value);
     }
 
     // ۹) چند تسویه با مبلغ یکسان با هم اشتباه نشوند — تفکیک با FK نه مبلغ.
@@ -155,7 +156,7 @@ public sealed class SarrafSettlementEffectiveLedgerTests
 
         // دو سطرِ مؤثر (یکی برای هر تسویه) — نه یک، نه چهار.
         Assert.Equal(2, statement.Rows.Count(r => !r.IsOpeningBalance));
-        Assert.Equal(600_000_000m, statement.Summary.TotalCreditRub!.Value);
+        Assert.Equal(600_000_000m, statement.Summary.TotalOutflowRub!.Value);
     }
 
     // ۱۰و۱۱) پرداخت‌های ۲۰۰/۳۰۰/۵۰۰ میلیون هرکدام یک‌بار؛ مجموع دقیقاً ۱ میلیارد روبل.
@@ -204,7 +205,7 @@ public sealed class SarrafSettlementEffectiveLedgerTests
             .OrderBy(a => a)
             .ToList();
         Assert.Equal(new decimal?[] { 200_000_000m, 300_000_000m, 500_000_000m }, amounts);
-        Assert.Equal(1_000_000_000m, statement.Summary.TotalCreditRub!.Value);
+        Assert.Equal(1_000_000_000m, statement.Summary.TotalOutflowRub!.Value);
     }
 
     // ۱۳) سایر Queryها (مسیر مبلغِ روبلیِ قرارداد) ثبتِ منسوخ را دوباره جمع نزنند.
@@ -360,7 +361,7 @@ public sealed class SarrafSettlementEffectiveLedgerTests
             new PartyStatementFilter { CurrencyCode = "RUB", IncludeOperationalColumns = false });
 
     private static PartyStatementReadService BuildService(ApplicationDbContext db)
-        => new(db, new PartyStatementPolicyResolver(), Options.Create(new PartyStatementOptions()));
+        => new(db, new PartyStatementPolicyResolver(), new CompanyFlowDirectionResolver(), new CompanyFlowBalanceService(), Options.Create(new PartyStatementOptions()));
 
     private static ApplicationDbContext CreateDb()
     {

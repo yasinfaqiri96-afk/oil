@@ -118,7 +118,7 @@
                         var journeyUrl = Url.Action("Details", "ContractJourney", new { contractId = item.Id, tab = "summary", lockContract = true, returnUrl = currentReturnUrl });
                         <tr data-href="@journeyUrl">
                             <td>
-                                <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@partyText" dir="ltr">#@item.ContractNumber</a>
+                                <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@partyText" dir="ltr">@item.ContractNumber</a>
                             </td>
                             <td>
                                 <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((partyText, (string?)"muted"))" />

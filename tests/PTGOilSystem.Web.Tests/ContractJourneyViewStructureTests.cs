@@ -552,12 +552,12 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-transport-details", view);
         Assert.Contains("data-ak-detail-v2=\"true\"", view);
         Assert.Contains("_AkPageHeader.cshtml", view);
-        Assert.Contains("class=\"ak-stat-grid\"", view);
-        Assert.Contains("<vc:stat-card", view);
+        Assert.Contains("_DetailKpiStrip.cshtml", view);
+        Assert.DoesNotContain("<vc:stat-card", view);
         Assert.Contains("_DetailPager.cshtml", view);
-        Assert.Contains("_DetailTimeline.cshtml", view);
-        Assert.Contains("_RelatedRecords.cshtml", view);
+        Assert.Contains("_OperationsDetailMore.cshtml", view);
         Assert.Contains("_DetailActionBar.cshtml", view);
+        Assert.Contains("data-ak-operations-detail=\"true\"", view);
         Assert.DoesNotContain("data-ptcd-tab", view);
         Assert.DoesNotContain("data-ptcd-pager", view);
         Assert.DoesNotContain("ak-form-section ak-detail-section is-receipt", view);
@@ -586,7 +586,9 @@ public class ContractJourneyViewStructureTests
 
             Assert.Contains("ak-form-page", view);
             Assert.Contains("_AkPageHeader.cshtml", view);
-            Assert.Contains("ak-form-section", view);
+            Assert.Contains("ak-operations-overview", view);
+            Assert.Contains("_OperationsDetailMore.cshtml", view);
+            Assert.Contains("data-ak-operations-detail=\"true\"", view);
             Assert.Contains("ViewData[\"HideSectionTabs\"] = true;", view);
 
             foreach (var legacy in new[]
@@ -912,6 +914,9 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("ak-col-actions", view);
         Assert.Contains("ak-col-num", view);
         Assert.Contains("ak-empty", view);
+        Assert.Contains("T(\"دفتر حساب قرارداد\", \"Contract statement\"), \"bi-journal-text\", contractStatementUrl", view);
+        Assert.DoesNotContain("Label = T(\"دفتر حساب قرارداد\", \"Contract statement\")", view);
+        Assert.DoesNotContain("Model.NextRecommendedAction", view);
 
         foreach (var legacy in new[]
         {
@@ -1026,7 +1031,7 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("id=\"loadingReceiptModal\"", view);
         Assert.Contains("_ReceiptCreateForm.cshtml", view);
         Assert.Contains("var loadingExpenseTotal = Model.LoadingExpenseTotalUsd;", view);
-        Assert.Contains("class=\"ak-form-page ak-detail-page\"", view);
+        Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail\"", view);
         Assert.Contains("_AkPageHeader", view);
         Assert.Contains("_AkSectionHead", view);
         Assert.Contains("class=\"ak-form-section", view);
@@ -1075,7 +1080,7 @@ public class ContractJourneyViewStructureTests
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Details.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
 
-        Assert.Contains("class=\"ak-form-page ak-detail-page\"", view);
+        Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail\"", view);
         Assert.Contains("_AkPageHeader", view);
         Assert.Contains("_AkSectionHead", view);
         Assert.Contains("class=\"ak-form-grid", view);

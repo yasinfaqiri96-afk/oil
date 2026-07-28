@@ -21,12 +21,12 @@ public sealed class SupplierIndexItemViewModel
     public int ActivePurchaseContractsCount { get; set; }
     public decimal TotalPurchaseQuantityMt { get; set; }
     public decimal LoadedPurchaseValueUsd { get; set; }
-    public decimal LedgerDebitUsd { get; set; }
-    public decimal LedgerCreditUsd { get; set; }
+    public decimal LedgerOutflowUsd { get; set; }
+    public decimal LedgerReceiptUsd { get; set; }
     // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
     // مثبت یعنی شرکت پیش‌پرداخت دارد. هم‌علامتِ PartyStatementSummary.ClosingBalance
     // است تا صفحاتی که به این مقدار fallback می‌کنند علامت متضاد نشان ندهند.
-    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
+    public decimal LedgerBalanceUsd => LedgerOutflowUsd - LedgerReceiptUsd;
     public decimal TotalPaidUsd { get; set; }
     public decimal SupplierTotalClaimUsd => LoadedPurchaseValueUsd - TotalPaidUsd;
     public DateTime? LastPaymentDate { get; set; }
@@ -59,12 +59,12 @@ public sealed class SupplierProfileViewModel
     public decimal RemainingPurchaseQuantityMt { get; init; }
     public decimal EstimatedRemainingContractValueUsd { get; init; }
     public decimal? EstimatedRemainingContractValueRub { get; init; }
-    public decimal LedgerDebitUsd { get; init; }
-    public decimal LedgerCreditUsd { get; init; }
+    public decimal LedgerOutflowUsd { get; init; }
+    public decimal LedgerReceiptUsd { get; init; }
     // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
     // مثبت یعنی شرکت پیش‌پرداخت دارد. هم‌علامتِ PartyStatementSummary.ClosingBalance
     // است تا صفحاتی که به این مقدار fallback می‌کنند علامت متضاد نشان ندهند.
-    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
+    public decimal LedgerBalanceUsd => LedgerOutflowUsd - LedgerReceiptUsd;
     public decimal TotalPaidUsd { get; init; }
     public decimal? TotalPaidRub { get; init; }
     public decimal TotalPaidActualUsd { get; init; }
@@ -208,12 +208,12 @@ public sealed class SupplierContractSummaryViewModel
     public decimal? EstimatedUnloadedValueRub => EstimatedTotalRub.HasValue && LoadedValueRub.HasValue
         ? Math.Max(EstimatedTotalRub.Value - LoadedValueRub.Value, 0m)
         : null;
-    public decimal LedgerDebitUsd { get; init; }
-    public decimal LedgerCreditUsd { get; init; }
+    public decimal LedgerOutflowUsd { get; init; }
+    public decimal LedgerReceiptUsd { get; init; }
     // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
     // مثبت یعنی شرکت پیش‌پرداخت دارد. هم‌علامتِ PartyStatementSummary.ClosingBalance
     // است تا صفحاتی که به این مقدار fallback می‌کنند علامت متضاد نشان ندهند.
-    public decimal LedgerBalanceUsd => LedgerDebitUsd - LedgerCreditUsd;
+    public decimal LedgerBalanceUsd => LedgerOutflowUsd - LedgerReceiptUsd;
     public decimal PaidUsd { get; init; }
     public decimal? PaidRub { get; init; }
 
@@ -283,12 +283,14 @@ public sealed class SupplierStatementRowViewModel
     public string? ContractNumber { get; init; }
     public string Description { get; init; } = string.Empty;
     public string Currency { get; init; } = "USD";
-    public decimal? Debit { get; init; }
-    public decimal? Credit { get; init; }
-    public decimal? DebitUsd { get; init; }
-    public decimal? CreditUsd { get; init; }
-    public decimal? DebitRubEquivalent { get; init; }
-    public decimal? CreditRubEquivalent { get; init; }
+    /// <summary>برد — ارزشی که شرکت به تأمین‌کننده داده (ارز اصلی سند).</summary>
+    public decimal? Outflow { get; init; }
+    /// <summary>رسید — ارزشی که شرکت از تأمین‌کننده گرفته (ارز اصلی سند).</summary>
+    public decimal? Receipt { get; init; }
+    public decimal? OutflowUsd { get; init; }
+    public decimal? ReceiptUsd { get; init; }
+    public decimal? OutflowRubEquivalent { get; init; }
+    public decimal? ReceiptRubEquivalent { get; init; }
     public decimal RunningBalanceUsd { get; init; }
     public decimal? RunningBalanceRubEquivalent { get; init; }
     public decimal? RubPerUsdRate { get; init; }
@@ -333,21 +335,21 @@ public sealed class SupplierStatementLedgerRowViewModel
     // ارز اصلی سند (معمولاً RUB). اگر USD باشد ستون‌های RUB خالی می‌مانند.
     public string OriginalCurrency { get; init; } = "USD";
     public bool IsOriginalRub { get; init; }
-    public decimal? CreditOriginal { get; init; }
-    public decimal? DebitOriginal { get; init; }
+    public decimal? ReceiptOriginal { get; init; }
+    public decimal? OutflowOriginal { get; init; }
     // مانده جاری به ارز اصلی (RUB) — تجمع per-currency از همان Credit/Debit موجود.
     // اگر سند به USD باشد یا مبلغ اصلی نداشته باشد، null می‌ماند («—»).
     public decimal? RunningBalanceOriginal { get; init; }
-    public decimal? CreditRubEquivalent { get; init; }
-    public decimal? DebitRubEquivalent { get; init; }
+    public decimal? ReceiptRubEquivalent { get; init; }
+    public decimal? OutflowRubEquivalent { get; init; }
     public decimal? RunningBalanceRubEquivalent { get; init; }
 
     // نرخ دالر همان سند (RUB در برابر ۱ USD) و نرخ داخلی برای tooltip.
     public decimal? FxRateDisplayPerUsd { get; init; }
     public decimal? FxRateUsed { get; init; }
 
-    public decimal? CreditUsd { get; init; }
-    public decimal? DebitUsd { get; init; }
+    public decimal? ReceiptUsd { get; init; }
+    public decimal? OutflowUsd { get; init; }
     public decimal RunningBalanceUsd { get; init; }
 
     // badge کوچک نوع حرکت (پرداخت/دریافت/انتقال/مصرف-دموراژ/تهاتر).

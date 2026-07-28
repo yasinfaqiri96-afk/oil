@@ -54,6 +54,13 @@
         ? Model.Pnl.ShortageQuantityMt
         : (receipt?.ShortageQuantityMt ?? 0m);
     var finalResultUsd = Model.Pnl.GrossMarginUsd;
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = T("بارگیری‌شده", "Loaded"), Value = Q(loadedQty), Unit = T("تن", "MT"), Avatar = "loading" },
+        new() { Title = T("تخلیه‌شده", "Unloaded"), Value = Q(unloadedQty), Unit = T("تن", "MT"), Avatar = "tank-farm" },
+        new() { Title = T("کسری", "Shortage"), Value = Q(shortageQty), Unit = T("تن", "MT"), Avatar = "losses" },
+        new() { Title = T("نتیجه نهایی", "Final result"), Value = U(finalResultUsd), Unit = "USD", Avatar = "profit-loss" }
+    };
 
     var salesTotalUsd = Model.Pnl.SalesUsd;
     var soldQty = Model.Pnl.SoldQuantityMt;
@@ -176,21 +183,18 @@
     };
 }
 
-<div class="ak-form-page ak-detail-page" dir="rtl" data-transport-details data-ak-detail-v2="true" data-instant-tabs>
+<div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("حمل", "Transport")} {documentNumber}", false,
                        T("عملیات بعدی بار", "Next cargo operation"), "bi-arrow-right-circle", (string?)null, "nextOperationModal",
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <section class="ak-stat-grid" aria-label="@T("شاخص‌های حمل", "Transport metrics")">
-        <vc:stat-card title="@T("بارگیری‌شده", "Loaded")" value="@Q(loadedQty)" unit="@T("تن", "MT")" avatar="loading"></vc:stat-card>
-        <vc:stat-card title="@T("تخلیه‌شده", "Unloaded")" value="@Q(unloadedQty)" unit="@T("تن", "MT")" avatar="tank-farm"></vc:stat-card>
-        <vc:stat-card title="@T("کسری", "Shortage")" value="@Q(shortageQty)" unit="@T("تن", "MT")" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@T("نتیجه نهایی", "Final result")" value="@U(finalResultUsd)" unit="USD" avatar="profit-loss"></vc:stat-card>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("مشخصات حمل", "Transport profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("مشخصات حمل", "Transport profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+    </div>
 
     <section class="ak-form-section ak-detail-section" aria-labelledby="transport-financial-title">
         <h2 class="ak-section-title" id="transport-financial-title">@T("خلاصه مالی حمل", "Transport financial summary")</h2>
@@ -434,21 +438,10 @@
         </section>
     }
 
-    <section class="ak-form-section ak-detail-section" aria-labelledby="transport-timeline-title">
-        <h2 class="ak-section-title" id="transport-timeline-title">@T("روند حمل", "Transport timeline")</h2>
-        <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-    </section>
-
-    @if (relatedRecords.Count > 0)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="transport-related-title">
-            <h2 class="ak-section-title" id="transport-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
-            <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
-        </section>
-    }
-
-    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
-             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
+             model="@(((IReadOnlyList<AkTimelineItem>)timelineItems,
+                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
+                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     @if (canMarkLoaded)
     {

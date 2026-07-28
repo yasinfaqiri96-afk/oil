@@ -1,5 +1,6 @@
 using System.Globalization;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -9,8 +10,13 @@ namespace PTGOilSystem.Web.Services.Exports;
 internal sealed class PartyStatementPdfDocument(
     PartyStatementResult statement,
     string webRootPath,
+    bool isEnglish = false,
     SupplierContractStatementViewModel? contractGrouping = null) : IDocument
 {
+    // عنوان‌های «رسید/برد/بیلانس» فقط از منبع مرکزی می‌آیند؛ اعداد، جهت، ترتیب ستون‌ها
+    // و فرمول بیلانس با تغییر زبان دست‌نخورده می‌مانند.
+    private string Flow(CompanyFlowTextKey key) => CompanyFlowText.Get(key, isEnglish);
+
     private enum StatementIcon
     {
         Party,
@@ -177,14 +183,14 @@ internal sealed class PartyStatementPdfDocument(
     {
         container.Border(0.7f).BorderColor(Border).CornerRadius(4).Padding(8).Row(row =>
         {
-            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Wallet, "\u0645\u0627\u0646\u062F\u0647 \u0627\u0628\u062A\u062F\u0627\u06CC\u06CC", OpeningBalance(), Green));
+            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Wallet, Flow(CompanyFlowTextKey.OpeningBalance), OpeningBalance(), Green));
             row.ConstantItem(1).Background(Border);
-            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Debit, "\u0645\u062C\u0645\u0648\u0639 Debit", TotalDebit(), Red));
+            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Debit, Flow(CompanyFlowTextKey.TotalReceipt), TotalReceipt(), Red));
             row.ConstantItem(1).Background(Border);
-            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Credit, "\u0645\u062C\u0645\u0648\u0639 Credit", TotalCredit(), Green));
+            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Credit, Flow(CompanyFlowTextKey.TotalOutflow), TotalOutflow(), Green));
             row.ConstantItem(1).Background(Border);
-            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Balance, "\u0645\u0627\u0646\u062F\u0647 \u0646\u0647\u0627\u06CC\u06CC", ClosingBalanceAbsolute(), Purple,
-                statement.Summary.ClosingBalanceMeaning));
+            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Balance, Flow(CompanyFlowTextKey.ClosingBalance), ClosingBalanceAbsolute(), Purple,
+                statement.Summary.ClosingBalanceMeaningFor(isEnglish)));
         });
     }
 
@@ -321,9 +327,9 @@ internal sealed class PartyStatementPdfDocument(
                 HeaderCell(header.Cell(), "\u0634\u0631\u062D");
                 foreach (var column in operational)
                     HeaderCell(header.Cell(), column.Title, Ink, column.Ltr);
-                HeaderCell(header.Cell(), "Debit", Red, true);
-                HeaderCell(header.Cell(), "Credit", Green, true);
-                HeaderCell(header.Cell(), "Balance", Purple, true);
+                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Receipt), Red, true);
+                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Outflow), Green, true);
+                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Balance), Purple, true);
             });
             if (statement.Rows.Count == 0)
             {
@@ -338,7 +344,7 @@ internal sealed class PartyStatementPdfDocument(
                     var shade = row.IsOpeningBalance ? "#EEF7F1" : alternate ? "#FAFAFB" : Colors.White;
                     BodyCell(table.Cell(), FormatDate(row.Date), shade, true);
                     BodyCell(table.Cell(), ValueOrDash(row.Reference), shade, true);
-                    BodyCell(table.Cell(), row.Description, shade);
+                    BodyCell(table.Cell(), row.DescriptionFor(isEnglish), shade);
                     foreach (var column in operational)
                         NumberCell(table.Cell(), column.Value(row), shade, column.Decimals);
                     MoneyCell(table.Cell(), RowDebit(row), shade, Red);
@@ -349,8 +355,8 @@ internal sealed class PartyStatementPdfDocument(
             }
             table.Cell().ColumnSpan((uint)(3 + operational.Count)).Element(TotalCellStyle)
                 .AlignRight().Text("\u0645\u062C\u0645\u0648\u0639 \u062F\u0648\u0631\u0647").Bold().FontSize(7.5f);
-            TotalMoneyCell(table.Cell(), TotalDebit(), Red);
-            TotalMoneyCell(table.Cell(), TotalCredit(), Green);
+            TotalMoneyCell(table.Cell(), TotalReceipt(), Red);
+            TotalMoneyCell(table.Cell(), TotalOutflow(), Green);
             TotalMoneyCell(table.Cell(), ClosingBalance(), Purple);
         });
     }
@@ -375,9 +381,9 @@ internal sealed class PartyStatementPdfDocument(
             {
                 HeaderCell(header.Cell(), "شماره");
                 HeaderCell(header.Cell(), "قرارداد");
-                HeaderCell(header.Cell(), "Debit", Red, true);
-                HeaderCell(header.Cell(), "Credit", Green, true);
-                HeaderCell(header.Cell(), "Balance", Purple, true);
+                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Receipt), Red, true);
+                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Outflow), Green, true);
+                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Balance), Purple, true);
             });
             if (grouping.Rows.Count == 0)
             {
@@ -392,16 +398,16 @@ internal sealed class PartyStatementPdfDocument(
                     string shade = alternate ? "#FAFAFB" : Colors.White;
                     BodyCell(table.Cell(), row.Sequence.ToString(CultureInfo.InvariantCulture), shade, true);
                     ContractTitleCell(table.Cell(), row, shade);
-                    MoneyCell(table.Cell(), Money(row.Debit, row.DebitRub), shade, Red);
-                    MoneyCell(table.Cell(), Money(row.Credit, row.CreditRub), shade, Green);
+                    MoneyCell(table.Cell(), Money(row.Receipt, row.ReceiptRub), shade, Red);
+                    MoneyCell(table.Cell(), Money(row.Outflow, row.OutflowRub), shade, Green);
                     MoneyCell(table.Cell(), Money(row.Balance, row.BalanceRub), shade, Purple);
                     alternate = !alternate;
                 }
             }
             table.Cell().ColumnSpan(2).Element(TotalCellStyle)
-                .AlignRight().Text("مجموع دوره").Bold().FontSize(7.5f);
-            TotalMoneyCell(table.Cell(), Money(grouping.TotalDebit, grouping.TotalDebitRub), Red);
-            TotalMoneyCell(table.Cell(), Money(grouping.TotalCredit, grouping.TotalCreditRub), Green);
+                .AlignRight().Text(Flow(CompanyFlowTextKey.PeriodTotal)).Bold().FontSize(7.5f);
+            TotalMoneyCell(table.Cell(), Money(grouping.TotalReceipt, grouping.TotalReceiptRub), Red);
+            TotalMoneyCell(table.Cell(), Money(grouping.TotalOutflow, grouping.TotalOutflowRub), Green);
             TotalMoneyCell(table.Cell(), Money(grouping.ClosingBalance, grouping.ClosingBalanceRub), Purple);
         });
     }
@@ -554,13 +560,13 @@ internal sealed class PartyStatementPdfDocument(
         ? statement.Summary.OpeningBalanceRub
         : statement.Summary.OpeningBalance;
 
-    private decimal? TotalDebit() => statement.Summary.IsRubPresentation
-        ? statement.Summary.TotalDebitRub
-        : statement.Summary.TotalDebit;
+    private decimal? TotalReceipt() => statement.Summary.IsRubPresentation
+        ? statement.Summary.TotalReceiptRub
+        : statement.Summary.TotalReceipt;
 
-    private decimal? TotalCredit() => statement.Summary.IsRubPresentation
-        ? statement.Summary.TotalCreditRub
-        : statement.Summary.TotalCredit;
+    private decimal? TotalOutflow() => statement.Summary.IsRubPresentation
+        ? statement.Summary.TotalOutflowRub
+        : statement.Summary.TotalOutflow;
 
     private decimal? ClosingBalance() => statement.Summary.IsRubPresentation
         ? statement.Summary.ClosingBalanceRub
@@ -571,10 +577,10 @@ internal sealed class PartyStatementPdfDocument(
         : statement.Summary.ClosingBalanceAbsolute;
 
     private decimal? RowDebit(PartyStatementRow row)
-        => statement.Summary.IsRubPresentation ? row.DebitRub : row.DebitBase;
+        => statement.Summary.IsRubPresentation ? row.ReceiptRub : row.ReceiptBase;
 
     private decimal? RowCredit(PartyStatementRow row)
-        => statement.Summary.IsRubPresentation ? row.CreditRub : row.CreditBase;
+        => statement.Summary.IsRubPresentation ? row.OutflowRub : row.OutflowBase;
 
     private decimal? RowBalance(PartyStatementRow row)
         => statement.Summary.IsRubPresentation ? row.RunningBalanceRub : row.RunningBalance;

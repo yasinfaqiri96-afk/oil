@@ -16,7 +16,7 @@
     <div class="ak-stat-grid" aria-label="آمار استیتمنت">
         <vc:stat-card title="مبلغ منبع" value="@Model.SourceAmount.ToString("N2")" unit="@Model.SourceCurrencyCode" avatar="cash-flow"></vc:stat-card>
         <vc:stat-card title="مبلغ USD" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="exchange-rate"></vc:stat-card>
-        <vc:stat-card title="مانده جاری" value="@Model.RunningBalanceUsd.ToString("N2")" unit="USD" avatar="statement"></vc:stat-card>
+        <vc:stat-card title="@CompanyFlowText.RunningBalance(Context)" value="@Model.RunningBalanceUsd.ToString("N2")" unit="USD" avatar="statement"></vc:stat-card>
     </div>
 
     <div class="ak-form-grid">
@@ -29,7 +29,7 @@
                 <div class="ak-list-row"><dt>نرخ ارز به دالر</dt><dd class="ak-num">@Model.AppliedFxRateToUsd.ToString("N6")</dd></div>
                 <div class="ak-list-row"><dt>تاریخ نرخ</dt><dd>@(Model.AppliedFxRateDate?.ToDisplayDate() ?? "-")</dd></div>
                 <div class="ak-list-row"><dt>مبلغ USD</dt><dd class="ak-num">@Model.AmountUsd.ToString("N2")</dd></div>
-                <div class="ak-list-row"><dt>مانده جاری</dt><dd class="ak-num">@Model.RunningBalanceUsd.ToString("N2") USD</dd></div>
+                <div class="ak-list-row"><dt>@CompanyFlowText.RunningBalance(Context)</dt><dd class="ak-num">@Model.RunningBalanceUsd.ToString("N2") USD</dd></div>
             </dl>
         </section>
 

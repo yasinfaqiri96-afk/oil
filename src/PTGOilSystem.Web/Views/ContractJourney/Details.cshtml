@@ -293,11 +293,13 @@
     var contractPricingUrl = Url.Action("EditPricing", "Contracts", new { id = Model.ContractId }) ?? "#";
     ViewData["AkHeaderStatus"] = LocalizeDisplay(Model.StatusName);
     ViewData["AkHeaderStatusState"] = contractStatusToneClass;
-    ViewData["AkHeaderContext"] = $"{partnerLabel}: {partnerName} · {T("جنس", "Product")}: {TextOrDash(Model.ProductName)}";
+    var headerUnitPriceText = Model.PricingFinalUnitPriceUsd.HasValue && Model.PricingFinalUnitPriceUsd.Value > 0m
+        ? $"{Model.PricingFinalUnitPriceUsd.Value:N2} {UnitUsd()}/{UnitMt()}"
+        : T("در انتظار نرخ", "Pending price");
+    ViewData["AkHeaderContext"] = $"{partnerLabel}: {partnerName} · {T("جنس", "Product")}: {TextOrDash(Model.ProductName)} · {T("قیمت هر تن", "Unit price")}: {headerUnitPriceText}";
     ViewData["AkHeaderKebab"] = new List<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>
     {
         new() { Label = T("انتقال از موجودی", "Inventory transfer"), Href = inventoryTransferUrl, Icon = "bi-truck-front" },
-        new() { Label = T("دفتر حساب قرارداد", "Contract statement"), Href = contractStatementUrl, Icon = "bi-journal-text" },
         new() { Label = T("قیمت‌گذاری قرارداد", "Contract pricing"), Href = contractPricingUrl, Icon = "bi-tag" },
         new() { Label = T("ویرایش قرارداد", "Edit contract"), Href = contractEditUrl, Icon = "bi-pencil-square" }
     };
@@ -542,9 +544,7 @@
 <div class="ak-form-page ak-detail-page" data-contract-journey-page data-ak-detail-v2="true" dir="@pageDirection">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("قرارداد", "Contract")} {Model.ContractNumber}", false,
-                       string.IsNullOrWhiteSpace(Model.NextRecommendedActionUrl) ? T("انتقال از موجودی", "Inventory transfer") : Model.NextRecommendedActionTitle,
-                       string.IsNullOrWhiteSpace(Model.NextRecommendedActionUrl) ? "bi-truck-front" : "bi-signpost-2",
-                       string.IsNullOrWhiteSpace(Model.NextRecommendedActionUrl) ? inventoryTransferUrl : Model.NextRecommendedActionUrl, (string?)null,
+                       T("دفتر حساب قرارداد", "Contract statement"), "bi-journal-text", contractStatementUrl, (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)contractsListBackUrl))" />
 
     <div data-contract-journey-facts-host></div>
@@ -632,17 +632,20 @@
                             T("حاشیه سود", "Margin"), $"{NumberDisplay.Number(marginPercent, 2)}%")
                     };
 
-                    // جهت فلش‌ها: ردیف اول راست→چپ، ردیف دوم چپ→راست (در چیدمان LTR برعکس).
+                    // جهت فلش‌ها: ردیف اول راست→چپ، ردیف دوم چپ→راست، ردیف سوم دوباره راست→چپ
+                    // (در چیدمان LTR برعکس). مرحله‌های ۳ و ۶ مسیر را به ردیف بعد می‌سپارند.
                     var forwardArrowIcon = T("bi-chevron-left", "bi-chevron-right");
                     var backwardArrowIcon = T("bi-chevron-right", "bi-chevron-left");
                 }
                 <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                         model="@((T("چرخه قرارداد", "Contract lifecycle"), (string?)T("از ثبت تا نتیجه", "From start to result")))" />
+                         model="@((T("چرخه قرارداد", "Contract lifecycle"), (string?)null))" />
                 <ol class="ak-journey-flow">
                     @foreach (var step in journeySteps)
                     {
                         var avatarPath = PTGOilSystem.Web.Models.StatCards.StatCardAvatarRegistry.ResolvePath(step.AvatarKey);
-                        var arrowIcon = step.Number == 4 ? "bi-chevron-down" : (step.Number < 4 ? forwardArrowIcon : backwardArrowIcon);
+                        var arrowIcon = step.Number is 3 or 6
+                            ? "bi-chevron-down"
+                            : (step.Number < 3 ? forwardArrowIcon : backwardArrowIcon);
                         <li class="ak-journey-step ak-journey-step--@step.Number @step.State">
                             <span class="ak-journey-step-num">@step.Number</span>
                             @if (!string.IsNullOrEmpty(avatarPath))

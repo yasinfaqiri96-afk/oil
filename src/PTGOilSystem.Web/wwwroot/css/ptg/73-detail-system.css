@@ -272,3 +272,337 @@
     background: var(--ak-detail-surface, var(--ptg-surface));
     border-color: var(--ak-detail-divider, var(--ptg-border));
 }
+
+/* ===================================================================
+   Shared master-data Details content elevation
+   Only top-level content sections receive the dashboard paper surface.
+   Nested and modal sections are excluded by the selector itself.
+   =================================================================== */
+body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .ak-detail-page .ak-detail-section:not(.ak-detail-section .ak-detail-section):not(.modal .ak-detail-section) {
+    border-color: transparent;
+    border-radius: 16px;
+    background: var(--background-paper, #fff);
+    box-shadow: var(--ptg-panel-shadow);
+}
+
+@media print {
+    body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .ak-detail-page .ak-detail-section:not(.ak-detail-section .ak-detail-section):not(.modal .ak-detail-section) {
+        border: 1px solid #ccc;
+        background: #fff;
+        box-shadow: none;
+    }
+}
+
+/* ===================================================================
+   Operations dossier
+   A shared, compact three-second scan rhythm for operational records.
+   The marker is also used by Truck Settlements, which is an editor
+   surface rather than a Details route.
+   =================================================================== */
+.ak-operations-detail {
+    --ak-detail-section-gap: 12px;
+    --ak-detail-card-padding: 13px;
+    --ak-detail-row-gap: 7px;
+    --ak-detail-col-gap: 16px;
+    --ak-operations-panel-radius: 16px;
+    --ak-operations-panel-surface: var(--background-paper, #fff);
+    --ak-operations-panel-shadow: var(--ptg-panel-shadow);
+}
+
+.ak-operations-detail > .ak-page-header,
+.ak-operations-detail > .ak-detail-header {
+    margin-block-end: 0;
+}
+
+.ak-operations-detail .ak-detail-kpi-strip,
+.ak-operations-detail > .ak-stat-grid,
+.ak-operations-detail > .ak-form-page > .ak-stat-grid {
+    --ak-stat-gap: 10px;
+}
+
+body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
+    min-height: 72px;
+    max-height: 112px;
+    padding: 8px 9px;
+    border-color: transparent;
+    border-radius: var(--ak-operations-panel-radius);
+    background: var(--ak-operations-panel-surface);
+    box-shadow: var(--ak-operations-panel-shadow);
+}
+
+.ak-operations-detail [data-ak-tab].ak-stat-grid {
+    margin-block-end: 10px !important;
+}
+
+.ak-operations-detail .ak-detail-section,
+.ak-operations-detail > .ak-form-section {
+    scroll-margin-top: 72px;
+}
+
+.ak-operations-detail .ak-section-head {
+    margin-block-end: 8px;
+    padding-block-end: 8px;
+}
+
+.ak-operations-detail .ak-detail-section,
+.ak-operations-detail.ak-operations-settlement > .ak-list {
+    border-color: transparent;
+    border-radius: var(--ak-operations-panel-radius);
+    background: var(--ak-operations-panel-surface);
+    box-shadow: var(--ak-operations-panel-shadow);
+}
+
+/* Once a primary operation panel is lifted, its internal sections return to
+   whitespace-and-divider separation instead of becoming cards inside cards. */
+.ak-operations-detail .ak-detail-section .ak-detail-section {
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.ak-operations-detail.ak-operations-settlement > .ak-list {
+    padding: var(--ak-detail-card-padding);
+    border-style: solid;
+    border-width: 1px;
+}
+
+.ak-operations-detail .ak-operations-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    gap: 12px;
+    align-items: stretch;
+}
+
+.ak-operations-detail .ak-operations-overview::before {
+    content: attr(aria-label);
+    grid-column: 1 / -1;
+    inline-size: max-content;
+    max-inline-size: 100%;
+    margin-block-end: -2px;
+    padding-inline-start: 8px;
+    border-inline-start: 2px solid var(--ptg-primary);
+    color: var(--ptg-primary);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.ak-operations-detail .ak-operations-overview > .ak-summary-card {
+    margin: 0;
+    min-width: 0;
+    border-color: transparent;
+    border-radius: var(--ak-operations-panel-radius);
+    background: var(--ak-operations-panel-surface);
+    box-shadow: var(--ak-operations-panel-shadow);
+}
+
+.ak-operations-detail .ak-operations-more {
+    overflow: clip;
+    border: 1px solid transparent;
+    border-radius: var(--ak-operations-panel-radius);
+    background: var(--ak-operations-panel-surface);
+    box-shadow: var(--ak-operations-panel-shadow);
+}
+
+.ak-operations-detail .ak-operations-more-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-block-size: 48px;
+    padding: 10px 13px;
+    color: var(--ak-detail-text, var(--ptg-text));
+    cursor: pointer;
+    list-style: none;
+}
+
+.ak-operations-detail .ak-operations-more-summary::-webkit-details-marker {
+    display: none;
+}
+
+.ak-operations-detail .ak-operations-more-summary::after {
+    content: "";
+    inline-size: 8px;
+    block-size: 8px;
+    flex: 0 0 auto;
+    margin-inline-start: 2px;
+    border-inline-end: 1.5px solid currentColor;
+    border-block-end: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform var(--ptg-motion-fast, 140ms) ease-out;
+}
+
+.ak-operations-detail .ak-operations-more[open] > .ak-operations-more-summary::after {
+    transform: rotate(45deg);
+}
+
+.ak-operations-detail .ak-operations-more-summary:focus-visible {
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: -2px;
+}
+
+.ak-operations-detail .ak-operations-more-heading {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+}
+
+.ak-operations-detail .ak-operations-more-heading strong {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.ak-operations-detail .ak-operations-more-heading small {
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.ak-operations-detail .ak-operations-more-count {
+    margin-inline-start: auto;
+    padding: 1px 7px;
+    border-radius: var(--ptg-radius-badge);
+    background: var(--ak-detail-soft, var(--ptg-surface-soft));
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ak-operations-detail .ak-operations-more-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    border-block-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
+}
+
+.ak-operations-detail .ak-operations-more-group {
+    min-width: 0;
+    padding: 13px;
+}
+
+.ak-operations-detail .ak-operations-more-group + .ak-operations-more-group {
+    border-inline-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
+}
+
+.ak-operations-detail .ak-operations-more-title {
+    margin: 0 0 9px;
+    color: var(--ak-detail-text, var(--ptg-text));
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.ak-operations-detail .ak-operations-more .ak-timeline {
+    gap: 8px;
+}
+
+.ak-operations-detail .ak-operations-more .ak-related {
+    gap: 6px;
+}
+
+.ak-operations-detail .ak-operations-tab-fact {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 10px;
+    padding: 8px 11px;
+    border-inline-start: 3px solid var(--ptg-warning, #d97706);
+    background: var(--ak-detail-soft, var(--ptg-surface-soft));
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 12px;
+}
+
+.ak-operations-detail .ak-operations-tab-fact strong {
+    color: var(--ak-detail-text, var(--ptg-text));
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 991.98px) {
+    .ak-operations-detail .ak-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ak-operations-detail .ak-operations-overview {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 767.98px) {
+    .ak-operations-detail {
+        --ak-detail-section-gap: 10px;
+        --ak-detail-card-padding: 12px;
+    }
+
+    .ak-operations-detail .ak-operations-more-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ak-operations-detail .ak-operations-more-group + .ak-operations-more-group {
+        border-inline-start: 0;
+        border-block-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
+    }
+
+    .ak-operations-detail .ak-operations-more-heading small {
+        display: none;
+    }
+}
+
+:root[data-theme="dark"] .ak-operations-detail .ak-stat-card,
+[data-bs-theme="dark"] .ak-operations-detail .ak-stat-card,
+:root[data-theme="dark"] .ak-operations-detail .ak-summary-card,
+[data-bs-theme="dark"] .ak-operations-detail .ak-summary-card,
+:root[data-theme="dark"] .ak-operations-detail .ak-detail-section,
+[data-bs-theme="dark"] .ak-operations-detail .ak-detail-section,
+:root[data-theme="dark"] .ak-operations-detail .ak-operations-more,
+[data-bs-theme="dark"] .ak-operations-detail .ak-operations-more,
+:root[data-theme="dark"] .ak-operations-detail.ak-operations-settlement > .ak-list,
+[data-bs-theme="dark"] .ak-operations-detail.ak-operations-settlement > .ak-list {
+    border-color: transparent;
+    background: var(--background-paper, #fff);
+    box-shadow: var(--ptg-panel-shadow);
+}
+
+/* Modals already own top-level elevation. Shipment record lists keep their own
+   card treatment only when they are the primary surface, not inside a lifted
+   detail panel. These resets deliberately follow the dark surface rule. */
+.ak-operations-detail .ak-detail-section .ak-detail-section,
+.ak-operations-detail .modal .ak-detail-section,
+.ak-operations-detail .ak-detail-section .shipment-record-list {
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+@media print {
+    .ak-operations-detail .ak-stat-card,
+    .ak-operations-detail .ak-summary-card,
+    .ak-operations-detail .ak-detail-section,
+    .ak-operations-detail .ak-operations-more,
+    .ak-operations-detail.ak-operations-settlement > .ak-list {
+        border: 1px solid #ccc;
+        background: #fff;
+        box-shadow: none;
+    }
+
+    .ak-operations-detail .ak-detail-section .ak-detail-section,
+    .ak-operations-detail .modal .ak-detail-section,
+    .ak-operations-detail .ak-detail-section .shipment-record-list {
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .ak-operations-detail .ak-operations-more {
+        overflow: visible;
+    }
+
+    .ak-operations-detail .ak-operations-more > .ak-operations-more-body {
+        display: grid !important;
+    }
+
+    .ak-operations-detail .ak-operations-more-summary::after,
+    .ak-operations-detail .ak-operations-more-count {
+        display: none;
+    }
+}

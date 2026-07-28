@@ -42,16 +42,147 @@ public sealed class AkDetailV2StructureTests
     [Fact]
     public void Pilot_Views_Use_All_Shared_V2_Zones_Without_Legacy_Tab_Pagers()
     {
+        var operationsMore = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_OperationsDetailMore.cshtml");
+
         foreach (var controller in new[] { "InventoryTransportLegs", "Loading" })
         {
             var view = ReadView(controller);
             Assert.Contains("_DetailPager.cshtml", view);
-            Assert.Contains("_DetailTimeline.cshtml", view);
-            Assert.Contains("_RelatedRecords.cshtml", view);
+            Assert.Contains("_OperationsDetailMore.cshtml", view);
             Assert.Contains("_DetailActionBar.cshtml", view);
             Assert.DoesNotContain("data-ptcd-tab", view);
             Assert.DoesNotContain("data-ptcd-pager", view);
         }
+
+        Assert.Contains("_DetailTimeline.cshtml", operationsMore);
+        Assert.Contains("_RelatedRecords.cshtml", operationsMore);
+        Assert.Contains("_DetailInfoGrid.cshtml", operationsMore);
+    }
+
+    [Fact]
+    public void Operations_Details_Use_One_Compact_Shared_Composition()
+    {
+        var operationsDetails = new[]
+        {
+            "Loading", "LoadingReceipts", "Expenses", "Sales", "LossEvents",
+            "CustomsDeclarations", "Dispatch", "InventoryTransportLegs", "ShipmentPnl"
+        };
+
+        foreach (var controller in operationsDetails)
+        {
+            var view = ReadView(controller);
+            Assert.Contains("ak-operations-detail", view);
+            Assert.Contains("data-ak-operations-detail=\"true\"", view);
+        }
+
+        foreach (var controller in operationsDetails.Where(controller => controller != "ShipmentPnl"))
+        {
+            var view = ReadView(controller);
+            Assert.Contains("ak-operations-overview", view);
+            Assert.Contains("_OperationsDetailMore.cshtml", view);
+        }
+
+        var shipment = ReadView("ShipmentPnl");
+        Assert.Equal(7, Count(shipment, "data-ak-tab=\"shipment-"));
+        Assert.DoesNotContain("Estimated shortage value\")\" value=", shipment);
+        Assert.Contains("ak-operations-tab-fact", shipment);
+
+        var settlements = ReadRepoFile("src/PTGOilSystem.Web/Views/TruckSettlements/Index.cshtml");
+        Assert.Contains("ak-operations-settlement", settlements);
+        Assert.Contains("data-ak-operations-detail=\"true\"", settlements);
+
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
+        Assert.Contains(".ak-operations-detail .ak-operations-overview", css);
+        Assert.Contains(".ak-operations-detail .ak-operations-more", css);
+        Assert.Contains("content: attr(aria-label)", css);
+        Assert.Contains("@media (max-width: 991.98px)", css);
+        Assert.Contains(".ak-operations-detail .ak-stat-grid", css);
+        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", css);
+        Assert.Contains("--ak-operations-panel-radius: 16px", css);
+        Assert.Contains("--ak-operations-panel-surface: var(--background-paper, #fff)", css);
+        Assert.Contains("--ak-operations-panel-shadow: var(--ptg-panel-shadow)", css);
+        Assert.Contains(".ak-operations-detail .ak-detail-section", css);
+        Assert.Contains(".ak-operations-detail.ak-operations-settlement > .ak-list", css);
+        Assert.Contains(".ak-operations-detail .ak-detail-section .ak-detail-section", css);
+        Assert.Contains(".ak-operations-detail .modal .ak-detail-section", css);
+        Assert.Contains(".ak-operations-detail .ak-detail-section .shipment-record-list", css);
+        Assert.Contains("border-color: transparent", css);
+        Assert.Contains("@media print", css);
+
+        var operationsSurfaceSelectorLines = css
+            .Split('\n')
+            .Select(line => line.Trim())
+            .Where(line =>
+                (line.Contains(".ak-operations-overview", StringComparison.Ordinal)
+                 || line.Contains(".ak-operations-more", StringComparison.Ordinal)
+                 || line.Contains(".ak-operations-settlement", StringComparison.Ordinal)
+                 || line.Contains(".ak-operations-tab-fact", StringComparison.Ordinal))
+                && (line.EndsWith('{') || line.EndsWith(',')))
+            .ToList();
+        Assert.NotEmpty(operationsSurfaceSelectorLines);
+        Assert.All(
+            operationsSurfaceSelectorLines,
+            selector => Assert.Contains(".ak-operations-detail", selector));
+
+        var modalSelector = css.IndexOf(
+            ".ak-operations-detail .modal .ak-detail-section",
+            StringComparison.Ordinal);
+        var recordListSelector = css.IndexOf(
+            ".ak-operations-detail .ak-detail-section .shipment-record-list",
+            StringComparison.Ordinal);
+        var flatRuleStart = css.IndexOf('{', modalSelector);
+        var flatRuleEnd = css.IndexOf('}', flatRuleStart);
+        Assert.True(modalSelector >= 0 && recordListSelector > modalSelector);
+        Assert.True(flatRuleStart > recordListSelector && flatRuleEnd > flatRuleStart);
+        var flatRule = css[flatRuleStart..flatRuleEnd];
+        Assert.Contains("border-radius: 0", flatRule);
+        Assert.Contains("background: transparent", flatRule);
+        Assert.Contains("box-shadow: none", flatRule);
+
+        var customs = ReadView("CustomsDeclarations");
+        var summaryStart = customs.IndexOf("var summaryItems", StringComparison.Ordinal);
+        var advancedStart = customs.IndexOf("var advancedItems", StringComparison.Ordinal);
+        Assert.True(summaryStart >= 0 && advancedStart > summaryStart);
+        Assert.DoesNotContain(
+            "Model.ConsignmentWeightMt",
+            customs[summaryStart..advancedStart]);
+        Assert.Equal(2, Count(customs, "Model.ConsignmentWeightMt"));
+    }
+
+    [Fact]
+    public void Master_Data_Detail_Content_Cards_Use_Scoped_Elevation_Without_Touching_Kpis()
+    {
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
+        const string contractStart = "/* ===================================================================\n"
+            + "   Shared master-data Details content elevation";
+        const string contractEnd = "/* ===================================================================\n"
+            + "   Operations dossier";
+        const string primarySelector =
+            "body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details "
+            + ".ak-detail-page .ak-detail-section"
+            + ":not(.ak-detail-section .ak-detail-section)"
+            + ":not(.modal .ak-detail-section)";
+
+        var start = css.IndexOf(contractStart, StringComparison.Ordinal);
+        var end = css.IndexOf(contractEnd, start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start);
+
+        var contract = css[start..end];
+        Assert.Equal(2, Count(contract, primarySelector));
+        Assert.Contains("border-color: transparent", contract);
+        Assert.Contains("border-radius: 16px", contract);
+        Assert.Contains("background: var(--background-paper, #fff)", contract);
+        Assert.Contains("box-shadow: var(--ptg-panel-shadow)", contract);
+        Assert.Contains("@media print", contract);
+        Assert.Contains("border: 1px solid #ccc", contract);
+        Assert.Contains("box-shadow: none", contract);
+
+        Assert.DoesNotContain(".ak-stat-card", contract);
+        Assert.DoesNotContain(".ak-stat-grid", contract);
+        Assert.DoesNotContain(".ak-detail-kpi-strip", contract);
+        Assert.DoesNotContain("vc:stat-card", contract);
+        Assert.DoesNotContain(".ak-summary-card", contract);
+        Assert.DoesNotContain(".ak-operations-detail", contract);
     }
 
     [Fact]
@@ -143,6 +274,9 @@ public sealed class AkDetailV2StructureTests
 
     private static string ReadRepoFile(string relativePath)
         => File.ReadAllText(GetRepoPath(relativePath));
+
+    private static int Count(string value, string token)
+        => (value.Length - value.Replace(token, string.Empty, StringComparison.Ordinal).Length) / token.Length;
 
     private static string GetRepoPath(string relativePath, [CallerFilePath] string sourceFilePath = "")
     {

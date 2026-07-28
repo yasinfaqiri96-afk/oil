@@ -110,7 +110,7 @@ public sealed class PartyStatementsController : Controller
         if (Services.Exports.TabularExportSupport.ParseFormat(format) == Services.Exports.TabularExportFormat.Pdf)
         {
             await using var output = new MemoryStream();
-            await _exportService.WriteSupplierContractStatementPdfAsync(statement, grouping, output, ct);
+            await _exportService.WriteSupplierContractStatementPdfAsync(statement, grouping, UiText.IsEn(HttpContext), output, ct);
             var fileName = $"statement-supplier-{id}-contracts-{DateTime.UtcNow:yyyyMMdd}.pdf";
             return File(output.ToArray(), "application/pdf", fileName);
         }
@@ -193,7 +193,7 @@ public sealed class PartyStatementsController : Controller
         }
 
         await using var output = new MemoryStream();
-        await _exportService.WritePartyStatementPdfAsync(statement, output, ct);
+        await _exportService.WritePartyStatementPdfAsync(statement, UiText.IsEn(HttpContext), output, ct);
         var fileName = $"statement-{partyType.ToString().ToLowerInvariant()}-{id}-{DateTime.UtcNow:yyyyMMdd}.pdf";
         return File(output.ToArray(), "application/pdf", fileName);
     }
@@ -271,7 +271,7 @@ public sealed class PartyStatementsController : Controller
     }
 
     // اطلاعات نمایشیِ قرارداد (محصول/مقدار/نرخ/ارزش/بارگیری‌شده) را برای نمای «قراردادها»
-    // بارگذاری می‌کند. صرفاً metadata است؛ اعداد بدهکار/بستانکار/مانده از خودِ سطرهای مالی می‌آیند.
+    // بارگذاری می‌کند. صرفاً metadata است؛ اعداد رسید/برد/بیلانس از خودِ سطرهای مالی می‌آیند.
     private async Task<SupplierContractStatementViewModel> BuildContractGroupingAsync(
         PartyStatementResult statement,
         CancellationToken ct)
@@ -287,7 +287,7 @@ public sealed class PartyStatementsController : Controller
     }
 
     // metadataِ نمایشیِ قرارداد (محصول/مقدار/نرخ/ارزش/بارگیری‌شده). فقط اطلاعاتی است؛ روی
-    // بدهکار/بستانکار/مانده اثری ندارد. با دو کوئری projection (بدون N+1) خوانده می‌شود.
+    // رسید/برد/بیلانس اثری ندارد. با دو کوئری projection (بدون N+1) خوانده می‌شود.
     private async Task<Dictionary<int, SupplierContractStatementBuilder.ContractFacts>> LoadContractFactsAsync(
         IReadOnlyCollection<int> contractIds,
         CancellationToken ct)
@@ -411,7 +411,7 @@ public sealed class PartyStatementsController : Controller
         if (columns.ShowPlatts) headers.Add("Platts");
         if (columns.ShowPremiumOrDiscount) headers.Add("PremiumDiscount");
         if (columns.ShowUnitPrice) headers.Add("UnitPrice");
-        headers.AddRange(["DebitUsd", "CreditUsd", "BalanceUsd"]);
+        headers.AddRange(["ReceiptUsd", "OutflowUsd", "BalanceUsd"]);
         return headers.ToArray();
     }
 
@@ -436,8 +436,8 @@ public sealed class PartyStatementsController : Controller
         if (columns.ShowPlatts) values.Add(CsvExportSupport.Decimal(row.PlattsPrice));
         if (columns.ShowPremiumOrDiscount) values.Add(CsvExportSupport.Decimal(row.PremiumOrDiscount));
         if (columns.ShowUnitPrice) values.Add(CsvExportSupport.Decimal(row.UnitPrice));
-        values.Add(CsvExportSupport.Decimal(row.DebitBase));
-        values.Add(CsvExportSupport.Decimal(row.CreditBase));
+        values.Add(CsvExportSupport.Decimal(row.ReceiptBase));
+        values.Add(CsvExportSupport.Decimal(row.OutflowBase));
         values.Add(CsvExportSupport.Decimal(row.RunningBalance));
         return values.ToArray();
     }

@@ -339,9 +339,9 @@ public class ContractBalanceTransfersControllerTests
         Assert.Equal("TR-M15-M16", transferRow.Reference);
         Assert.Contains("Transfer to contract M-16", transferRow.Description);
         Assert.Equal("M-16", transferRow.RelatedContractNumber);
-        Assert.Equal(6.25m, transferRow.DebitUsd);
-        Assert.Null(transferRow.CreditUsd);
-        Assert.Equal(50m - 6.25m, model.Totals.BalanceUsd);
+        Assert.Equal(6.25m, transferRow.OutflowUsd);
+        Assert.Null(transferRow.ReceiptUsd);
+        Assert.Equal(-(50m - 6.25m), model.Totals.BalanceUsd);
     }
 
     [Fact]

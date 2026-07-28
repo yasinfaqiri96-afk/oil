@@ -1979,7 +1979,7 @@ public partial class SalesController : Controller
             LedgerReference = ledgerEntry?.Reference,
             LedgerDescription = ledgerEntry?.Description,
             LedgerAmountUsd = ledgerEntry?.AmountUsd,
-            LedgerSideName = ledgerEntry?.Side == LedgerSide.Credit ? "بستانکار" : ledgerEntry is null ? null : "بدهکار",
+            LedgerSideName = ledgerEntry is null ? null : UiText.LedgerSideName(HttpContext, ledgerEntry.Side),
             InventoryMovementId = stockOutMovement?.Id,
             InventoryMovementCount = stockOutMovements.Count,
             InventoryMovementIdsText = stockOutMovements.Count == 0

@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Models.Suppliers;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Services.PartyStatements;
 using PTGOilSystem.Web.Models.PartyStatements;
@@ -271,8 +272,8 @@ public partial class SuppliersController : Controller
                 continue;
             }
 
-            item.LedgerDebitUsd = group.Where(x => x.Ledger.Side == LedgerSide.Debit).Sum(x => x.Ledger.AmountUsd);
-            item.LedgerCreditUsd = group.Where(x => x.Ledger.Side == LedgerSide.Credit).Sum(x => x.Ledger.AmountUsd);
+            item.LedgerOutflowUsd = group.Where(x => x.Ledger.Side == LedgerSide.Debit).Sum(x => x.Ledger.AmountUsd);
+            item.LedgerReceiptUsd = group.Where(x => x.Ledger.Side == LedgerSide.Credit).Sum(x => x.Ledger.AmountUsd);
         }
 
         var paymentRows = await _db.PaymentTransactions
@@ -547,8 +548,8 @@ public partial class SuppliersController : Controller
             .ToDictionary(
                 g => g.Key,
                 g => new LedgerTotals(
-                    DebitUsd: g.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd),
-                    CreditUsd: g.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd)));
+                    OutflowUsd: g.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd),
+                    ReceiptUsd: g.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd)));
 
         var directPaidByContract = payments
             .Where(p => p.ContractId.HasValue && p.PaymentKind == PaymentKind.SupplierPayment)
@@ -706,8 +707,8 @@ public partial class SuppliersController : Controller
                     LoadedQuantityMt = loadedQuantityMt,
                     LoadedValueUsd = purchaseAgg?.TraceablePurchaseCostUsd ?? 0m,
                     LoadedValueRub = loadedValueRub,
-                    LedgerDebitUsd = ledger?.DebitUsd ?? 0m,
-                    LedgerCreditUsd = ledger?.CreditUsd ?? 0m,
+                    LedgerOutflowUsd = ledger?.OutflowUsd ?? 0m,
+                    LedgerReceiptUsd = ledger?.ReceiptUsd ?? 0m,
                     PaidUsd = directPaidUsd + sarrafPaidUsd + viaSarrafPaidUsd,
                     PaidRub = SumKnown([directPaidRub, sarrafPaidRub, viaSarrafPaidRub]),
                     Status = c.Status,
@@ -986,8 +987,8 @@ public partial class SuppliersController : Controller
             RemainingPurchaseQuantityMt = contractSummaries.Sum(c => c.RemainingQuantityMt),
             EstimatedRemainingContractValueUsd = contractSummaries.Sum(c => c.EstimatedUnloadedValueUsd ?? 0m),
             EstimatedRemainingContractValueRub = SumKnown(contractSummaries.Select(c => c.EstimatedUnloadedValueRub)),
-            LedgerDebitUsd = ledgerDebitUsd,
-            LedgerCreditUsd = ledgerCreditUsd,
+            LedgerOutflowUsd = ledgerDebitUsd,
+            LedgerReceiptUsd = ledgerCreditUsd,
             TotalPaidUsd = directSupplierPaidUsd + sarrafReductionUsd + viaSarrafReductionUsd,
             TotalPaidRub = totalPaidRub,
             TotalPaidActualUsd = directSupplierPaidUsd + sarrafPaidActualUsd + viaSarrafReductionUsd,
@@ -1225,6 +1226,19 @@ public partial class SuppliersController : Controller
             || ledger.SourceType == SarrafSettlementService.CancelSourceType
             || ledger.SourceType == SarrafSettlementService.EditReversalSourceType;
 
+    // همان تعیین‌کنندهٔ مرکزیِ ثبت‌شده در DI؛ چون بدون حالت است، اینجا مستقیم ساخته می‌شود تا
+    // امضای سازنده‌های موجود دست‌نخورده بماند. منطق دقیقاً همان یک نسخهٔ واحد است.
+    private static readonly ICompanyFlowDirectionResolver SupplierFlowResolver = new CompanyFlowDirectionResolver();
+
+    private static CompanyFlowDirection ResolveSupplierFlow(string sourceType, LedgerSide side)
+        => SupplierFlowResolver.Resolve(new CompanyFlowEvent(
+            sourceType,
+            side,
+            CompanyFlowPartyRole.Supplier,
+            CompanyFlowSourceTypes.IsReversal(sourceType)
+                ? CompanyFlowLifecycle.Reversal
+                : CompanyFlowLifecycle.Original));
+
     private static IReadOnlyList<SupplierStatementRowViewModel> BuildSupplierStatementRows(IEnumerable<LedgerEntry> ledgers)
     {
         var rows = new List<SupplierStatementRowViewModel>();
@@ -1236,9 +1250,13 @@ public partial class SuppliersController : Controller
             .OrderBy(l => l.EntryDate)
             .ThenBy(l => l.Id))
         {
-            var debitUsd = ledger.Side == LedgerSide.Debit ? ledger.AmountUsd : (decimal?)null;
-            var creditUsd = ledger.Side == LedgerSide.Credit ? ledger.AmountUsd : (decimal?)null;
-            runningBalance += (creditUsd ?? 0m) - (debitUsd ?? 0m);
+            // جهت از لایهٔ مرکزی می‌آید تا همین سند در صفحهٔ تأمین‌کننده، صورت‌حساب رسمی و
+            // دفتر قرارداد یک معنی داشته باشد. پیش‌تر مانده جاری اینجا Credit − Debit بود،
+            // یعنی علامتش وارونهٔ کارت «بیلانس» همان صفحه (که Debit − Credit بود).
+            var isReceipt = ResolveSupplierFlow(ledger.SourceType, ledger.Side) == CompanyFlowDirection.Receipt;
+            var receiptUsd = isReceipt ? ledger.AmountUsd : (decimal?)null;
+            var outflowUsd = isReceipt ? (decimal?)null : ledger.AmountUsd;
+            runningBalance += (outflowUsd ?? 0m) - (receiptUsd ?? 0m);
             var currency = ledger.SourceCurrencyCode ?? ledger.Currency;
             var sourceAmount = ledger.SourceAmount ?? ledger.AmountUsd;
             var rubPerUsdRate = GetRubPerUsdRate(ledger.Contract)
@@ -1249,12 +1267,12 @@ public partial class SuppliersController : Controller
             var rubEquivalent = IsRubCurrency(currency) && ledger.SourceAmount.HasValue
                 ? decimal.Round(ledger.SourceAmount.Value, 4, MidpointRounding.AwayFromZero)
                 : ToRubFromUsd(ledger.AmountUsd, rubPerUsdRate);
-            var debitRub = ledger.Side == LedgerSide.Debit ? rubEquivalent : null;
-            var creditRub = ledger.Side == LedgerSide.Credit ? rubEquivalent : null;
-            if (debitRub.HasValue || creditRub.HasValue)
+            var receiptRub = isReceipt ? rubEquivalent : null;
+            var outflowRub = isReceipt ? null : rubEquivalent;
+            if (receiptRub.HasValue || outflowRub.HasValue)
             {
                 hasRunningRub = true;
-                runningBalanceRub += (creditRub ?? 0m) - (debitRub ?? 0m);
+                runningBalanceRub += (outflowRub ?? 0m) - (receiptRub ?? 0m);
             }
 
             rows.Add(new SupplierStatementRowViewModel
@@ -1270,12 +1288,12 @@ public partial class SuppliersController : Controller
                 ContractNumber = ledger.Contract?.ContractNumber,
                 Description = ledger.Description,
                 Currency = currency,
-                Debit = ledger.Side == LedgerSide.Debit ? sourceAmount : null,
-                Credit = ledger.Side == LedgerSide.Credit ? sourceAmount : null,
-                DebitUsd = debitUsd,
-                CreditUsd = creditUsd,
-                DebitRubEquivalent = debitRub,
-                CreditRubEquivalent = creditRub,
+                Outflow = isReceipt ? null : sourceAmount,
+                Receipt = isReceipt ? sourceAmount : null,
+                OutflowUsd = outflowUsd,
+                ReceiptUsd = receiptUsd,
+                OutflowRubEquivalent = outflowRub,
+                ReceiptRubEquivalent = receiptRub,
                 RunningBalanceUsd = runningBalance,
                 RunningBalanceRubEquivalent = hasRunningRub ? runningBalanceRub : null,
                 RubPerUsdRate = rubPerUsdRate,
@@ -1393,7 +1411,7 @@ public partial class SuppliersController : Controller
         model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
     }
 
-    private sealed record LedgerTotals(decimal DebitUsd, decimal CreditUsd);
+    private sealed record LedgerTotals(decimal OutflowUsd, decimal ReceiptUsd);
 
     private sealed class SupplierLedgerMetricProjection
     {
@@ -1539,9 +1557,13 @@ public partial class SuppliersController : Controller
             .OrderBy(l => l.EntryDate)
             .ThenBy(l => l.Id))
         {
-            var debitUsd = ledger.Side == LedgerSide.Debit ? ledger.AmountUsd : (decimal?)null;
-            var creditUsd = ledger.Side == LedgerSide.Credit ? ledger.AmountUsd : (decimal?)null;
-            runningBalance += (creditUsd ?? 0m) - (debitUsd ?? 0m);
+            // جهت از لایهٔ مرکزی می‌آید تا همین سند در صفحهٔ تأمین‌کننده، صورت‌حساب رسمی و
+            // دفتر قرارداد یک معنی داشته باشد. پیش‌تر مانده جاری اینجا Credit − Debit بود،
+            // یعنی علامتش وارونهٔ کارت «بیلانس» همان صفحه (که Debit − Credit بود).
+            var isReceipt = ResolveSupplierFlow(ledger.SourceType, ledger.Side) == CompanyFlowDirection.Receipt;
+            var receiptUsd = isReceipt ? ledger.AmountUsd : (decimal?)null;
+            var outflowUsd = isReceipt ? (decimal?)null : ledger.AmountUsd;
+            runningBalance += (outflowUsd ?? 0m) - (receiptUsd ?? 0m);
             var currency = ledger.SourceCurrencyCode ?? ledger.Currency;
             var sourceAmount = ledger.SourceAmount ?? ledger.AmountUsd;
             var rubPerUsdRate = GetRubPerUsdRateFromContractParts(
@@ -1559,12 +1581,12 @@ public partial class SuppliersController : Controller
             {
                 rubEquivalent = sarrafRubFallback.Value;
             }
-            var debitRub = ledger.Side == LedgerSide.Debit ? rubEquivalent : null;
-            var creditRub = ledger.Side == LedgerSide.Credit ? rubEquivalent : null;
-            if (debitRub.HasValue || creditRub.HasValue)
+            var receiptRub = isReceipt ? rubEquivalent : null;
+            var outflowRub = isReceipt ? null : rubEquivalent;
+            if (receiptRub.HasValue || outflowRub.HasValue)
             {
                 hasRunningRub = true;
-                runningBalanceRub += (creditRub ?? 0m) - (debitRub ?? 0m);
+                runningBalanceRub += (outflowRub ?? 0m) - (receiptRub ?? 0m);
             }
 
             rows.Add(new SupplierStatementRowViewModel
@@ -1580,12 +1602,12 @@ public partial class SuppliersController : Controller
                 ContractNumber = ledger.ContractNumber,
                 Description = ledger.Description,
                 Currency = currency,
-                Debit = ledger.Side == LedgerSide.Debit ? sourceAmount : null,
-                Credit = ledger.Side == LedgerSide.Credit ? sourceAmount : null,
-                DebitUsd = debitUsd,
-                CreditUsd = creditUsd,
-                DebitRubEquivalent = debitRub,
-                CreditRubEquivalent = creditRub,
+                Outflow = isReceipt ? null : sourceAmount,
+                Receipt = isReceipt ? sourceAmount : null,
+                OutflowUsd = outflowUsd,
+                ReceiptUsd = receiptUsd,
+                OutflowRubEquivalent = outflowRub,
+                ReceiptRubEquivalent = receiptRub,
                 RunningBalanceUsd = runningBalance,
                 RunningBalanceRubEquivalent = hasRunningRub ? runningBalanceRub : null,
                 RubPerUsdRate = rubPerUsdRate,

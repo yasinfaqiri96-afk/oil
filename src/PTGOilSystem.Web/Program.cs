@@ -137,6 +137,11 @@ builder.Services.AddScoped<IEmployeeSalaryService, EmployeeSalaryService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.Configure<PTGOilSystem.Web.Models.PartyStatements.PartyStatementOptions>(
     builder.Configuration.GetSection(PTGOilSystem.Web.Models.PartyStatements.PartyStatementOptions.SectionName));
+// لایهٔ مرکزی «رسید، برد و بیلانس» — تنها مرجع تعیین جهت تجاری و محاسبهٔ بیلانس.
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.CompanyFlow.ICompanyFlowDirectionResolver,
+    PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowDirectionResolver>();
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.CompanyFlow.ICompanyFlowBalanceService,
+    PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowBalanceService>();
 builder.Services.AddSingleton<PTGOilSystem.Web.Services.PartyStatements.IPartyStatementPolicyResolver,
     PTGOilSystem.Web.Services.PartyStatements.PartyStatementPolicyResolver>();
 builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.IPartyStatementReadService,

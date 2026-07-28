@@ -10,9 +10,9 @@
                 <th>تاریخ</th>
                 <th>مرجع</th>
                 <th class="ak-col-grow">شرح</th>
-                <th class="ak-col-num">بدهکار USD</th>
-                <th class="ak-col-num">بستانکار USD</th>
-                <th class="ak-col-num">مانده USD</th>
+                <th class="ak-col-num">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "USD", Context)</th>
+                <th class="ak-col-num">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "USD", Context)</th>
+                <th class="ak-col-num">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Balance, "USD", Context)</th>
             </tr>
         </thead>
         <tbody>
@@ -21,9 +21,9 @@
             <tr>
                 <td>@row.Date.ToDisplayDate()</td>
                 <td>@(row.Reference ?? "—")</td>
-                <td class="ak-col-grow">@row.Description</td>
-                <td class="ak-col-num ak-num">@Money(row.DebitBase)</td>
-                <td class="ak-col-num ak-num">@Money(row.CreditBase)</td>
+                <td class="ak-col-grow">@row.DescriptionFor(UiText.IsEn(Context))</td>
+                <td class="ak-col-num ak-num">@Money(row.ReceiptBase)</td>
+                <td class="ak-col-num ak-num">@Money(row.OutflowBase)</td>
                 <td class="ak-col-num ak-num">@Money(row.RunningBalance)</td>
             </tr>
         }

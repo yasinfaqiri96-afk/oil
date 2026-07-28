@@ -153,8 +153,10 @@ public sealed class ContractAccountStatementViewModel
 
 public sealed class ContractAccountStatementTotalsViewModel
 {
-    public decimal TotalDebitUsd { get; init; }
-    public decimal TotalCreditUsd { get; init; }
+    /// <summary>مجموع رسید — ارزشی که شرکت روی این قرارداد دریافت کرده است.</summary>
+    public decimal TotalReceiptUsd { get; init; }
+    /// <summary>مجموع برد — ارزشی که شرکت روی این قرارداد داده است.</summary>
+    public decimal TotalOutflowUsd { get; init; }
     public decimal BalanceUsd { get; init; }
     public IReadOnlyList<ContractAccountCurrencyBalanceViewModel> BalancesByCurrency { get; init; } = [];
 }
@@ -175,16 +177,18 @@ public sealed class ContractAccountStatementRowViewModel
     public decimal? QuantityMt { get; init; }
     public decimal? UnitPrice { get; init; }
     public string? SourceCurrency { get; init; }
-    public decimal? DebitOriginal { get; init; }
-    public decimal? CreditOriginal { get; init; }
+    public decimal? ReceiptOriginal { get; init; }
+    public decimal? OutflowOriginal { get; init; }
     public string? BalanceOriginalByCurrency { get; init; }
     public decimal? FxRateToUsd { get; init; }
-    public decimal? DebitUsd { get; init; }
-    public decimal? CreditUsd { get; init; }
+    public decimal? ReceiptUsd { get; init; }
+    public decimal? OutflowUsd { get; init; }
     public decimal BalanceUsd { get; init; }
     public string? RelatedContractNumber { get; init; }
     public string? Notes { get; init; }
     public string? WarningBadge { get; init; }
     public bool IsFinancial { get; init; }
     public bool IsOperationalOnly { get; init; }
+    /// <summary>سطر برگشت/لغو — برای Audit نمایش داده می‌شود و برچسب واضح دارد.</summary>
+    public bool IsReversalRow { get; init; }
 }

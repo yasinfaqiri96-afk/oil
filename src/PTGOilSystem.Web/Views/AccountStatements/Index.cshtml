@@ -16,8 +16,8 @@
 
     <section class="ak-stat-grid" aria-label="آمار استیتمنت‌های ارزی">
         <vc:stat-card title="تعداد استیتمنت" value="@Model.Items.Count().ToString("N0")" unit="استیتمنت" avatar="statement"></vc:stat-card>
-        <vc:stat-card title="مانده ابتدایی" value="@Model.OpeningBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
-        <vc:stat-card title="مانده اختتامی" value="@Model.ClosingBalanceUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
+        <vc:stat-card title="@CompanyFlowText.OpeningBalance(Context)" value="@Model.OpeningBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
+        <vc:stat-card title="@CompanyFlowText.ClosingBalance(Context)" value="@Model.ClosingBalanceUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
         <vc:stat-card title="خالص تغییرات" value="@netChangeUsd.ToString("N2")" unit="USD" avatar="analysis"></vc:stat-card>
     </section>
 
@@ -57,7 +57,7 @@
                         <th>ارز منبع</th>
                         <th class="ak-col-num">FX به USD</th>
                         <th class="ak-col-num">مبلغ USD</th>
-                        <th class="ak-col-num">Running balance</th>
+                        <th class="ak-col-num">@CompanyFlowText.RunningBalance(Context)</th>
                         <th class="ak-col-grow">@UiText.T(Context,"مرجع","Reference")</th>
                         <th>Source</th>
                         <th>@UiText.T(Context,"قرارداد","Contract")</th>

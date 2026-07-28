@@ -163,7 +163,7 @@
     ViewData["LoadingExpenseEditorAssets"] = true;
 }
 
-<div class="page-stack ak-form-page ak-detail-page" dir="rtl" data-transport-details data-ak-detail-v2="true">
+<div class="page-stack ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("ارسال", "Dispatch")} {documentNumber}", false,
                        headerIsUnload ? T("ثبت تخلیه / فروش", "Register unload or sale") : T("ثبت مصرف", "Register expense"),
@@ -174,11 +174,13 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("منبع، مسیر و موتر", "Source, route & truck"), (string?)null, (IReadOnlyList<AkInfoItem>)routeItems))" />
+    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("منبع، مسیر و موتر", "Source, route & truck"), (string?)null, (IReadOnlyList<AkInfoItem>)routeItems))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("خلاصه مالی ارسال", "Dispatch financial summary"), (string?)null, (IReadOnlyList<AkInfoItem>)financeItems))" />
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("خلاصه مالی ارسال", "Dispatch financial summary"), (string?)null, (IReadOnlyList<AkInfoItem>)financeItems))" />
+    </div>
 
     <div class="ak-form-grid">
         @if (Model.SalesTransactionId.HasValue)
@@ -343,24 +345,10 @@
         }
     </div>
 
-    @if (showTimeline)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="dispatch-timeline-title">
-            <h2 class="ak-section-title" id="dispatch-timeline-title">@T("روند ارسال", "Dispatch timeline")</h2>
-            <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-        </section>
-    }
-
-    @if (relatedRecords.Count > 0)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="dispatch-related-title">
-            <h2 class="ak-section-title" id="dispatch-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
-            <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
-        </section>
-    }
-
-    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
-             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
+             model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
+                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
+                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     <div class="modal fade loading-expense-modal" id="dispatchExpensesModal" tabindex="-1"
          aria-labelledby="dispatchExpensesModalLabel" aria-hidden="true" data-loading-expense-remote-modal>

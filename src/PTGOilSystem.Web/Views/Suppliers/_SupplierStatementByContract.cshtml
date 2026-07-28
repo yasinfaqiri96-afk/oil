@@ -9,11 +9,11 @@
             ContractId = g.Key,
             ContractNumber = g.Select(x => x.ContractNumber).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
             Count = g.Count(),
-            DebitUsd = g.Sum(x => x.DebitUsd ?? 0m),
-            CreditUsd = g.Sum(x => x.CreditUsd ?? 0m),
-            HasRub = g.Any(x => x.DebitRubEquivalent.HasValue || x.CreditRubEquivalent.HasValue),
-            DebitRub = g.Sum(x => x.DebitRubEquivalent ?? 0m),
-            CreditRub = g.Sum(x => x.CreditRubEquivalent ?? 0m)
+            OutflowUsd = g.Sum(x => x.OutflowUsd ?? 0m),
+            ReceiptUsd = g.Sum(x => x.ReceiptUsd ?? 0m),
+            HasRub = g.Any(x => x.OutflowRubEquivalent.HasValue || x.ReceiptRubEquivalent.HasValue),
+            ReceiptRub = g.Sum(x => x.OutflowRubEquivalent ?? 0m),
+            OutflowRub = g.Sum(x => x.ReceiptRubEquivalent ?? 0m)
         })
         .OrderBy(g => g.ContractId == null ? 1 : 0)
         .ThenBy(g => g.ContractNumber)
@@ -28,22 +28,23 @@
             <tr>
                 <th>قرارداد</th>
                 <th class="text-end">تعداد اسناد</th>
-                <th class="text-end">بدهکار USD</th>
-                <th class="text-end">بستانکار USD</th>
-                <th>مانده</th>
+                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "USD", Context)</th>
+                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "USD", Context)</th>
+                <th>@CompanyFlowText.Balance(Context)</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
         @foreach (var g in groups)
         {
-            var balUsd = g.CreditUsd - g.DebitUsd;
-            var balRub = g.CreditRub - g.DebitRub;
+            @* بیلانس = برد − رسید، همان فرمول مرکزی؛ پیش‌تر اینجا علامت وارونه بود. *@
+            var balUsd = g.OutflowUsd - g.ReceiptUsd;
+            var balRub = g.OutflowRub - g.ReceiptRub;
             <tr>
                 <td>@(string.IsNullOrWhiteSpace(g.ContractNumber) ? "بدون قرارداد" : g.ContractNumber)</td>
                 <td class="text-end ak-num">@g.Count.ToString("N0")</td>
-                <td class="text-end ak-num">@Amt(g.DebitUsd)</td>
-                <td class="text-end ak-num">@Amt(g.CreditUsd)</td>
+                <td class="text-end ak-num">@Amt(g.ReceiptUsd)</td>
+                <td class="text-end ak-num">@Amt(g.OutflowUsd)</td>
                 <td class="supplier-balance-cell ak-num">
                     <span>USD @Amt(balUsd)</span>
                     @if (g.HasRub)

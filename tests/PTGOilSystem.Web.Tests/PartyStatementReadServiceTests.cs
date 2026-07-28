@@ -7,6 +7,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
 
@@ -29,26 +30,25 @@ public sealed class PartyStatementReadServiceTests
 
         Assert.Equal(partyType, policy.PartyType);
         Assert.False(string.IsNullOrWhiteSpace(policy.StatementTitleFa));
-        Assert.False(string.IsNullOrWhiteSpace(policy.DebitMeaningFa));
-        Assert.False(string.IsNullOrWhiteSpace(policy.CreditMeaningFa));
+        Assert.False(string.IsNullOrWhiteSpace(policy.ReceiptMeaningFa));
+        Assert.False(string.IsNullOrWhiteSpace(policy.OutflowMeaningFa));
         Assert.NotEqual(policy.BalanceMeaning(1m), policy.BalanceMeaning(-1m));
     }
 
     [Fact]
-    public void CustomerAndSupplierPolicies_ShareTheStatementSideMapping()
+    public void AllPartyPolicies_ShareOneBalanceMeaning()
     {
         var resolver = new PartyStatementPolicyResolver();
 
-        var customer = resolver.Resolve(PartyStatementPartyType.Customer);
-        var supplier = resolver.Resolve(PartyStatementPartyType.Supplier);
-
-        // قرارداد نمایشی یک‌دست: ستون بستانکار = آنچه دادیم، بدهکار = آنچه گرفتیم،
-        // مانده مثبت = شرکت پیش‌پرداخت دارد.
-        Assert.True(customer.ReverseLegacyLedgerSides);
-        Assert.True(supplier.ReverseLegacyLedgerSides);
-        Assert.Contains("قابل دریافت", customer.BalanceMeaning(-1m));
-        Assert.Contains("پیش‌پرداخت", supplier.BalanceMeaning(1m));
-        Assert.Contains("بدهکار", supplier.BalanceMeaning(-1m));
+        // قرارداد نمایشی یک‌دست برای همهٔ طرف‌حساب‌ها: ستون برد = آنچه دادیم،
+        // ستون رسید = آنچه گرفتیم، بیلانس مثبت = شرکت طلب/پیش‌پرداخت دارد.
+        foreach (var partyType in Enum.GetValues<PartyStatementPartyType>())
+        {
+            var policy = resolver.Resolve(partyType);
+            Assert.Contains("طلب", policy.BalanceMeaning(1m));
+            Assert.Contains("بدهکار", policy.BalanceMeaning(-1m));
+            Assert.Contains("تسویه", policy.BalanceMeaning(0m));
+        }
     }
 
     [Fact]
@@ -75,10 +75,10 @@ public sealed class PartyStatementReadServiceTests
                 IncludeOperationalColumns = false
             });
 
-        Assert.Equal(10m, statement.Summary.OpeningBalance);
-        Assert.Equal(100m, statement.Summary.TotalDebit);
-        Assert.Equal(40m, statement.Summary.TotalCredit);
-        Assert.Equal(-50m, statement.Summary.ClosingBalance);
+        Assert.Equal(-10m, statement.Summary.OpeningBalance);
+        Assert.Equal(40m, statement.Summary.TotalReceipt);
+        Assert.Equal(100m, statement.Summary.TotalOutflow);
+        Assert.Equal(50m, statement.Summary.ClosingBalance);
         Assert.Equal(statement.Summary.ClosingBalance, statement.Rows[^1].RunningBalance);
         Assert.True(statement.Rows[0].IsOpeningBalance);
         Assert.Equal("OB", statement.Rows[0].Reference);
@@ -126,8 +126,8 @@ public sealed class PartyStatementReadServiceTests
 
         // بارگیری (Credit دفتر) در ستون بدهکار «گرفته‌شده» و پرداخت (Debit دفتر) در
         // ستون بستانکار «داده‌شده» می‌نشیند؛ مانده = داده − گرفته = ۳۵ − ۱۰۰.
-        Assert.Equal(100m, statement.Summary.TotalDebit);
-        Assert.Equal(35m, statement.Summary.TotalCredit);
+        Assert.Equal(100m, statement.Summary.TotalReceipt);
+        Assert.Equal(35m, statement.Summary.TotalOutflow);
         Assert.Equal(-65m, statement.Summary.ClosingBalance);
         Assert.True(statement.ColumnOptions.ShowRub);
         Assert.True(statement.ColumnOptions.ShowFxRate);
@@ -156,7 +156,7 @@ public sealed class PartyStatementReadServiceTests
             new PartyStatementFilter { IncludeOperationalColumns = false });
 
         Assert.Single(single.Rows);
-        Assert.Equal(-25m, single.Summary.ClosingBalance);
+        Assert.Equal(25m, single.Summary.ClosingBalance);
         Assert.Equal(single.Summary.ClosingBalance, single.Rows[^1].RunningBalance);
     }
 
@@ -179,8 +179,8 @@ public sealed class PartyStatementReadServiceTests
             new PartyStatementFilter { IncludeOperationalColumns = false });
 
         Assert.Equal(30, statement.Rows[0].SourceId);
-        Assert.Equal(20m, statement.Rows[0].RunningBalance);
-        Assert.Equal(-80m, statement.Rows[1].RunningBalance);
+        Assert.Equal(-20m, statement.Rows[0].RunningBalance);
+        Assert.Equal(80m, statement.Rows[1].RunningBalance);
         Assert.Equal(statement.Summary.ClosingBalance, statement.Rows[^1].RunningBalance);
     }
 
@@ -251,10 +251,10 @@ public sealed class PartyStatementReadServiceTests
             new PartyRef(PartyStatementPartyType.Employee, employee.Id),
             new PartyStatementFilter { IncludeOperationalColumns = false });
 
-        Assert.Equal(40m, statement.Summary.TotalDebit);
-        Assert.Equal(100m, statement.Summary.TotalCredit);
-        Assert.Equal(60m, statement.Summary.ClosingBalance);
-        Assert.Contains("کارمند", statement.Summary.ClosingBalanceMeaning);
+        Assert.Equal(100m, statement.Summary.TotalReceipt);
+        Assert.Equal(40m, statement.Summary.TotalOutflow);
+        Assert.Equal(-60m, statement.Summary.ClosingBalance);
+        Assert.Contains("بدهکار", statement.Summary.ClosingBalanceMeaning);
     }
 
     [Fact]
@@ -275,9 +275,9 @@ public sealed class PartyStatementReadServiceTests
             new PartyRef(PartyStatementPartyType.Sarraf, sarraf.Id),
             new PartyStatementFilter { IncludeOperationalColumns = false });
 
-        Assert.Equal(20m, statement.Summary.TotalDebit);
-        Assert.Equal(110m, statement.Summary.TotalCredit);
-        Assert.Equal(90m, statement.Summary.ClosingBalance);
+        Assert.Equal(110m, statement.Summary.TotalReceipt);
+        Assert.Equal(20m, statement.Summary.TotalOutflow);
+        Assert.Equal(-90m, statement.Summary.ClosingBalance);
         Assert.Equal(3, statement.Rows.Count);
     }
 
@@ -301,8 +301,8 @@ public sealed class PartyStatementReadServiceTests
             new PartyStatementFilter { IncludeOperationalColumns = false });
 
         // سهم ۲۵٪ از سند ۲۰۰ = ۵۰؛ سند بارگیری (Credit دفتر) در ستون بدهکار می‌نشیند.
-        Assert.Equal(50m, statement.Summary.TotalDebit);
-        Assert.Equal(0m, statement.Summary.TotalCredit);
+        Assert.Equal(50m, statement.Summary.TotalReceipt);
+        Assert.Equal(0m, statement.Summary.TotalOutflow);
         Assert.Equal(-50m, statement.Summary.ClosingBalance);
         Assert.Single(statement.Rows);
     }
@@ -317,7 +317,7 @@ public sealed class PartyStatementReadServiceTests
                 Date = new DateTime(2026, 1, 1).AddDays(i),
                 Reference = $"REF-{i}",
                 Description = $"Row {i}",
-                CreditBase = 1m,
+                OutflowBase = 1m,
                 RunningBalance = i,
                 SourceType = "Test",
                 SourceId = i
@@ -358,7 +358,7 @@ public sealed class PartyStatementReadServiceTests
         Assert.Contains("statement-authorization", view);
         Assert.Contains("statement-footer", view);
         Assert.DoesNotContain("RunningBalance +=", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("TotalCredit -", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("TotalOutflow -", view, StringComparison.Ordinal);
         Assert.Contains("@media print", css);
         Assert.Contains("@page statement-wide", css);
     }
@@ -464,7 +464,7 @@ public sealed class PartyStatementReadServiceTests
         // بدهی صراف سر جایش است.
         var sarrafRow = Assert.Single(sarrafStatement.Rows.Where(r => !r.IsOpeningBalance));
         Assert.Equal(PaymentsController.ViaSarrafPayableLedgerSourceType, sarrafRow.SourceType);
-        Assert.Equal(2_521_603.8409m, sarrafRow.CreditBase);
+        Assert.Equal(2_521_603.8409m, sarrafRow.ReceiptBase);
 
         // هیچ سطری از دفتر حذف نشده است.
         Assert.Equal(2, await db.LedgerEntries.CountAsync());
@@ -534,8 +534,8 @@ public sealed class PartyStatementReadServiceTests
         Assert.Equal(3, grouping.Rows.Count);
         Assert.Equal(2, grouping.Rows.Count(r => r.ContractId.HasValue));
         // جمع بدهکار/بستانکار/مانده دقیقاً برابر نمای خطی است (گروه‌بندی فقط نمایشی است).
-        Assert.Equal(statement.Summary.TotalDebit, grouping.Rows.Sum(r => r.Debit));
-        Assert.Equal(statement.Summary.TotalCredit, grouping.Rows.Sum(r => r.Credit));
+        Assert.Equal(statement.Summary.TotalReceipt, grouping.Rows.Sum(r => r.Receipt));
+        Assert.Equal(statement.Summary.TotalOutflow, grouping.Rows.Sum(r => r.Outflow));
         Assert.Equal(statement.Summary.ClosingBalance, grouping.ClosingBalance);
         Assert.Equal(statement.Summary.ClosingBalance, grouping.Rows[^1].Balance);
     }
@@ -584,11 +584,11 @@ public sealed class PartyStatementReadServiceTests
         var grouping = SupplierContractStatementBuilder.Build(statement, facts);
 
         var row = Assert.Single(grouping.Rows);
-        Assert.Equal(6_000_000m, row.Debit);              // فقط ارزش بارگیریِ قطعی
-        Assert.Equal(4_000_000m, row.Credit);             // پرداخت
+        Assert.Equal(6_000_000m, row.Receipt);              // فقط ارزش بارگیریِ قطعی
+        Assert.Equal(4_000_000m, row.Outflow);             // پرداخت
         Assert.Equal(-2_000_000m, row.Balance);           // بدهی به تأمین‌کننده
         Assert.Equal(12_000_000m, row.ContractValueUsd);  // ارزش کل قرارداد فقط اطلاعاتی
-        Assert.NotEqual(row.ContractValueUsd, row.Debit);  // ارزش کل قرارداد وارد بدهکار نشده
+        Assert.NotEqual(row.ContractValueUsd, row.Receipt);  // ارزش کل قرارداد وارد بدهکار نشده
         Assert.Equal(10_000m, row.RemainingQuantityMt);   // تعهد باقی‌مانده (نه بدهی)
         Assert.Contains("بدهکار", statement.Summary.ClosingBalanceMeaning);
     }
@@ -675,7 +675,7 @@ public sealed class PartyStatementReadServiceTests
             CompanyInfo = new PartyStatementCompanyInfo(),
             PartyInfo = new PartyStatementPartyInfo { Id = 1, Name = "Customer" },
             DocumentInfo = new PartyStatementDocumentInfo(),
-            Summary = new PartyStatementSummary { TotalCredit = rows.Count, ClosingBalance = rows.Count, BaseCurrencyCode = "USD" },
+            Summary = new PartyStatementSummary { TotalOutflow = rows.Count, ClosingBalance = rows.Count, BaseCurrencyCode = "USD" },
             ColumnOptions = new PartyStatementColumnOptions(),
             Rows = rows,
             Authorization = new PartyStatementAuthorization()
@@ -695,6 +695,8 @@ public sealed class PartyStatementReadServiceTests
         => new(
             db,
             new PartyStatementPolicyResolver(),
+            new CompanyFlowDirectionResolver(),
+            new CompanyFlowBalanceService(),
             Options.Create(new PartyStatementOptions()));
 
     private static ApplicationDbContext CreateDb()

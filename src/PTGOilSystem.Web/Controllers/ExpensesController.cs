@@ -2074,7 +2074,7 @@ public partial class ExpensesController : Controller
             LedgerReference = ledgerEntry?.Reference,
             LedgerDescription = ledgerEntry?.Description,
             LedgerAmountUsd = ledgerEntry?.AmountUsd,
-            LedgerSideName = ledgerEntry?.Side == LedgerSide.Debit ? "بدهکار" : ledgerEntry is null ? null : "بستانکار",
+            LedgerSideName = ledgerEntry is null ? null : UiText.LedgerSideName(HttpContext, ledgerEntry.Side),
             ExpenseBatchId = expense.ExpenseBatchId,
             ExpenseBatchNumber = expense.ExpenseBatch?.BatchNumber
         });

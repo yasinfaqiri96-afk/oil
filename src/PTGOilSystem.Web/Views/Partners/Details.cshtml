@@ -8,7 +8,7 @@
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
     var settlementUsd = officialSummary?.ClosingBalance ?? Model.PartnerGrossProfitUsd;
-    var balanceLabel = officialSummary?.ClosingBalanceMeaning
+    var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (settlementUsd > 0m ? "سهم سود شریک — قابل تسویه" : settlementUsd < 0m ? "سهم زیان شریک — قابل دریافت" : "بدون مانده قابل تسویه");
     var balanceClass = settlementUsd > 0m ? "ak-num" : settlementUsd < 0m ? "ak-num" : "";
 

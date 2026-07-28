@@ -5,7 +5,7 @@ namespace PTGOilSystem.Web.Services.PartyStatements;
 /// <summary>
 /// نمای «قراردادها» را می‌سازد: گروه‌بندیِ صرفاً نمایشیِ همان سطرهای مالیِ صورت‌حساب
 /// (<see cref="PartyStatementResult.Rows"/>) بر اساس قرارداد. هیچ محاسبهٔ مالی جدیدی انجام
-/// نمی‌شود؛ Debit/Credit هر قرارداد فقط جمعِ همان سطرها است، بنابراین جمع کل و مانده نهایی
+/// نمی‌شود؛ رسید/برد هر قرارداد فقط جمعِ همان سطرها است، بنابراین جمع کل و بیلانس نهایی
 /// دقیقاً برابر نمای خطی می‌ماند. تابع خالص است تا مستقل از دیتابیس تست شود.
 /// </summary>
 public static class SupplierContractStatementBuilder
@@ -37,10 +37,10 @@ public static class SupplierContractStatementBuilder
                 ContractNumber = g.Select(r => r.ContractNumber).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)),
                 FirstDate = g.Min(r => r.Date),
                 LastDate = g.Max(r => r.Date),
-                Debit = g.Sum(r => r.DebitBase ?? 0m),
-                Credit = g.Sum(r => r.CreditBase ?? 0m),
-                DebitRub = g.Any(r => r.DebitRub.HasValue) ? g.Sum(r => r.DebitRub ?? 0m) : (decimal?)null,
-                CreditRub = g.Any(r => r.CreditRub.HasValue) ? g.Sum(r => r.CreditRub ?? 0m) : (decimal?)null
+                Receipt = g.Sum(r => r.ReceiptBase ?? 0m),
+                Outflow = g.Sum(r => r.OutflowBase ?? 0m),
+                ReceiptRub = g.Any(r => r.ReceiptRub.HasValue) ? g.Sum(r => r.ReceiptRub ?? 0m) : (decimal?)null,
+                OutflowRub = g.Any(r => r.OutflowRub.HasValue) ? g.Sum(r => r.OutflowRub ?? 0m) : (decimal?)null
             })
             // قراردادها به‌ترتیب اولین رویداد؛ گروهِ «بدون قرارداد» همیشه آخر.
             .OrderBy(g => g.ContractId.HasValue ? 0 : 1)
@@ -55,8 +55,8 @@ public static class SupplierContractStatementBuilder
 
         foreach (var g in groups)
         {
-            running += g.Credit - g.Debit;
-            runningRub += (g.CreditRub ?? 0m) - (g.DebitRub ?? 0m);
+            running += g.Outflow - g.Receipt;
+            runningRub += (g.OutflowRub ?? 0m) - (g.ReceiptRub ?? 0m);
 
             ContractFacts? f = null;
             if (g.ContractId.HasValue)
@@ -83,11 +83,11 @@ public static class SupplierContractStatementBuilder
                 UnitPriceUsd = f?.UnitPriceUsd,
                 ContractValueUsd = f?.ContractValueUsd,
                 LoadedQuantityMt = f?.LoadedQuantityMt,
-                Debit = g.Debit,
-                Credit = g.Credit,
+                Receipt = g.Receipt,
+                Outflow = g.Outflow,
                 Balance = running,
-                DebitRub = g.DebitRub,
-                CreditRub = g.CreditRub,
+                ReceiptRub = g.ReceiptRub,
+                OutflowRub = g.OutflowRub,
                 BalanceRub = isRub ? runningRub : null
             });
         }
@@ -99,11 +99,11 @@ public static class SupplierContractStatementBuilder
             OpeningBalance = opening,
             OpeningBalanceRub = openingRub,
             IsRub = isRub,
-            TotalDebit = statement.Summary.TotalDebit,
-            TotalCredit = statement.Summary.TotalCredit,
+            TotalReceipt = statement.Summary.TotalReceipt,
+            TotalOutflow = statement.Summary.TotalOutflow,
             ClosingBalance = statement.Summary.ClosingBalance,
-            TotalDebitRub = statement.Summary.TotalDebitRub,
-            TotalCreditRub = statement.Summary.TotalCreditRub,
+            TotalReceiptRub = statement.Summary.TotalReceiptRub,
+            TotalOutflowRub = statement.Summary.TotalOutflowRub,
             ClosingBalanceRub = statement.Summary.ClosingBalanceRub
         };
     }

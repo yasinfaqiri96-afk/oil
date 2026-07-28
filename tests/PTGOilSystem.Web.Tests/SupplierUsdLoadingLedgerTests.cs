@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Loading;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
 
@@ -72,8 +73,8 @@ public class SupplierUsdLoadingLedgerTests
         var statement = await BuildStatementAsync(db);
 
         var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
-        Assert.Equal(1_000m, row.DebitBase); // Credit ذخیره‌شده در نمایش Debit می‌شود
-        Assert.Null(row.CreditBase);
+        Assert.Equal(1_000m, row.ReceiptBase); // Credit ذخیره‌شده در نمایش Debit می‌شود
+        Assert.Null(row.OutflowBase);
         Assert.Equal(-1_000m, statement.Summary.ClosingBalance);
     }
 
@@ -88,8 +89,8 @@ public class SupplierUsdLoadingLedgerTests
         var statement = await BuildStatementAsync(db);
 
         // نمایش: بارگیری Debit 1000، پرداخت Credit 400 → مانده = 400 − 1000
-        Assert.Equal(1_000m, statement.Summary.TotalDebit);
-        Assert.Equal(400m, statement.Summary.TotalCredit);
+        Assert.Equal(1_000m, statement.Summary.TotalReceipt);
+        Assert.Equal(400m, statement.Summary.TotalOutflow);
         Assert.Equal(-600m, statement.Summary.ClosingBalance);
     }
 
@@ -234,6 +235,8 @@ public class SupplierUsdLoadingLedgerTests
         => await new PartyStatementReadService(
                 db,
                 new PartyStatementPolicyResolver(),
+                new CompanyFlowDirectionResolver(),
+                new CompanyFlowBalanceService(),
                 Options.Create(new PartyStatementOptions()))
             .GetStatementAsync(
                 new PartyRef(PartyStatementPartyType.Supplier, 1),

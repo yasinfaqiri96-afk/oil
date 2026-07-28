@@ -11,7 +11,9 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.PartyStatements;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -24,16 +26,19 @@ public partial class AccountStatementsController : Controller
     private readonly ApplicationDbContext _db;
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IAuditService _audit;
+    private readonly ICompanyFlowDirectionResolver _flowResolver;
 
     [ActivatorUtilitiesConstructor]
     public AccountStatementsController(
         ApplicationDbContext db,
         ICurrencyConversionService currencyConversion,
-        IAuditService audit)
+        IAuditService audit,
+        ICompanyFlowDirectionResolver flowResolver)
     {
         _db = db;
         _currencyConversion = currencyConversion;
         _audit = audit;
+        _flowResolver = flowResolver;
     }
 
     public AccountStatementsController(
@@ -43,7 +48,8 @@ public partial class AccountStatementsController : Controller
         : this(
             db,
             new CurrencyConversionService(pricing),
-            audit)
+            audit,
+            new CompanyFlowDirectionResolver())
     {
     }
 
@@ -367,9 +373,18 @@ public partial class AccountStatementsController : Controller
 
         var drafts = new List<ContractAccountStatementDraftRow>();
 
+        // نقش طرف‌حسابِ قرارداد — مبنای تعیین جهت برای سطرهایی که SourceType قطعی ندارند.
+        var flowRole = contract.ContractType == ContractType.Purchase
+            ? CompanyFlowPartyRole.Supplier
+            : CompanyFlowPartyRole.Customer;
+
         var ledgerEntries = await _db.LedgerEntries
             .AsNoTracking()
             .Where(l => l.ContractId == contractId)
+            // «بدهی شرکت به صراف» پایِ دومِ یک پرداختِ از طریق صراف است و طرفش صراف است، نه
+            // این قرارداد. تا وقتی هر دو پا اینجا نشان داده می‌شدند، پرداختِ تأمین‌کننده با
+            // بدهیِ صراف خنثی می‌شد و بیلانس قرارداد صفر می‌ماند. حساب صراف آن را می‌بیند.
+            .Where(l => l.SourceType != LedgerEntryOwnership.ViaSarrafPayableSourceType)
             .OrderBy(l => l.EntryDate)
             .ThenBy(l => l.Id)
             .ToListAsync();
@@ -424,6 +439,16 @@ public partial class AccountStatementsController : Controller
                 }
             }
 
+            // جهت تجاری از لایهٔ مرکزی می‌آید تا همین رویداد در صورت‌حساب طرف‌حساب و اینجا
+            // دقیقاً یکسان دیده شود. پیش‌تر اینجا خامِ Debit/Credit نمایش داده می‌شد و مثلاً
+            // «بارگیری» در دفتر قرارداد بستانکار و در صورت‌حساب تأمین‌کننده بدهکار بود.
+            var lifecycle = CompanyFlowSourceTypes.IsReversal(entry.SourceType)
+                ? CompanyFlowLifecycle.Reversal
+                : CompanyFlowLifecycle.Original;
+            var direction = _flowResolver.Resolve(
+                new CompanyFlowEvent(entry.SourceType, entry.Side, flowRole, lifecycle));
+            var isReceipt = direction == CompanyFlowDirection.Receipt;
+
             drafts.Add(new ContractAccountStatementDraftRow
             {
                 Date = entry.EntryDate.Date,
@@ -433,28 +458,35 @@ public partial class AccountStatementsController : Controller
                 Reference = entry.Reference,
                 Description = description,
                 SourceCurrency = sourceCurrency,
-                DebitOriginal = entry.Side == LedgerSide.Debit ? sourceAmount : null,
-                CreditOriginal = entry.Side == LedgerSide.Credit ? sourceAmount : null,
+                ReceiptOriginal = isReceipt ? sourceAmount : null,
+                OutflowOriginal = isReceipt ? null : sourceAmount,
                 FxRateToUsd = fxRate,
-                DebitUsd = entry.Side == LedgerSide.Debit ? entry.AmountUsd : null,
-                CreditUsd = entry.Side == LedgerSide.Credit ? entry.AmountUsd : null,
+                ReceiptUsd = isReceipt ? entry.AmountUsd : null,
+                OutflowUsd = isReceipt ? null : entry.AmountUsd,
                 RelatedContractNumber = relatedContractNumber,
                 Notes = notes,
                 WarningBadge = hasMissingFx ? "Missing FX" : null,
                 IsFinancial = true,
+                IsReversalRow = lifecycle == CompanyFlowLifecycle.Reversal,
                 SortId = entry.Id
             });
         }
 
+        // بارگیری‌هایی که سند مالی دارند نباید دوباره به‌عنوان ردیف عملیاتی تکرار شوند.
+        var postedLoadingIds = ledgerEntries
+            .Where(l => l.SourceType == SupplierLoadingLedger.SourceType)
+            .Select(l => l.SourceId)
+            .ToHashSet();
+
         await AddPaymentWarningRowsAsync(contractId, drafts);
         await AddExpenseWarningRowsAsync(contractId, drafts);
-        await AddOperationalLoadingRowsAsync(contractId, drafts);
+        await AddOperationalLoadingRowsAsync(contractId, drafts, postedLoadingIds);
 
         var rows = BuildContractAccountRows(drafts);
         var totals = new ContractAccountStatementTotalsViewModel
         {
-            TotalDebitUsd = rows.Sum(r => r.DebitUsd ?? 0m),
-            TotalCreditUsd = rows.Sum(r => r.CreditUsd ?? 0m),
+            TotalReceiptUsd = rows.Sum(r => r.ReceiptUsd ?? 0m),
+            TotalOutflowUsd = rows.Sum(r => r.OutflowUsd ?? 0m),
             BalanceUsd = rows.LastOrDefault()?.BalanceUsd ?? 0m,
             BalancesByCurrency = BuildCurrencyBalances(rows)
         };
@@ -605,7 +637,14 @@ public partial class AccountStatementsController : Controller
         }
     }
 
-    private async Task AddOperationalLoadingRowsAsync(int contractId, List<ContractAccountStatementDraftRow> drafts)
+    /// <summary>
+    /// ردیف‌های عملیاتی (بدون سند مالی). بارگیری‌هایی که سند مالی دارند از این فهرست کنار
+    /// می‌روند تا یک بارگیری هم‌زمان به‌صورت مالی و عملیاتی تکرار نشود.
+    /// </summary>
+    private async Task AddOperationalLoadingRowsAsync(
+        int contractId,
+        List<ContractAccountStatementDraftRow> drafts,
+        IReadOnlySet<int> postedLoadingIds)
     {
         var loadings = await _db.LoadingRegisters
             .AsNoTracking()
@@ -617,7 +656,7 @@ public partial class AccountStatementsController : Controller
         var loadingIds = loadings.Select(l => l.Id).ToArray();
         var loadingPriceById = loadings.ToDictionary(l => l.Id, l => l.LoadingPriceUsd);
 
-        foreach (var loading in loadings)
+        foreach (var loading in loadings.Where(l => !postedLoadingIds.Contains(l.Id)))
         {
             drafts.Add(new ContractAccountStatementDraftRow
             {
@@ -735,14 +774,15 @@ public partial class AccountStatementsController : Controller
 
             if (draft.IsFinancial)
             {
-                balanceUsd += (draft.CreditUsd ?? 0m) - (draft.DebitUsd ?? 0m);
+                // بیلانس قرارداد = Σبرد − Σرسید، دقیقاً مثل صورت‌حساب طرف‌حساب.
+                balanceUsd += (draft.OutflowUsd ?? 0m) - (draft.ReceiptUsd ?? 0m);
 
                 if (!string.IsNullOrWhiteSpace(draft.SourceCurrency)
-                    && (draft.CreditOriginal.HasValue || draft.DebitOriginal.HasValue))
+                    && (draft.OutflowOriginal.HasValue || draft.ReceiptOriginal.HasValue))
                 {
                     var currency = draft.SourceCurrency.Trim().ToUpperInvariant();
                     balancesByCurrency.TryGetValue(currency, out var currentBalance);
-                    currentBalance += (draft.CreditOriginal ?? 0m) - (draft.DebitOriginal ?? 0m);
+                    currentBalance += (draft.OutflowOriginal ?? 0m) - (draft.ReceiptOriginal ?? 0m);
                     balancesByCurrency[currency] = currentBalance;
                     originalBalanceDisplay = $"{currentBalance:N2} {currency}";
                 }
@@ -758,18 +798,19 @@ public partial class AccountStatementsController : Controller
                 QuantityMt = draft.QuantityMt,
                 UnitPrice = draft.UnitPrice,
                 SourceCurrency = draft.SourceCurrency,
-                DebitOriginal = draft.DebitOriginal,
-                CreditOriginal = draft.CreditOriginal,
+                ReceiptOriginal = draft.ReceiptOriginal,
+                OutflowOriginal = draft.OutflowOriginal,
                 BalanceOriginalByCurrency = originalBalanceDisplay,
                 FxRateToUsd = draft.FxRateToUsd,
-                DebitUsd = draft.DebitUsd,
-                CreditUsd = draft.CreditUsd,
+                ReceiptUsd = draft.ReceiptUsd,
+                OutflowUsd = draft.OutflowUsd,
                 BalanceUsd = balanceUsd,
                 RelatedContractNumber = draft.RelatedContractNumber,
                 Notes = draft.Notes,
                 WarningBadge = draft.WarningBadge,
                 IsFinancial = draft.IsFinancial,
-                IsOperationalOnly = draft.IsOperationalOnly
+                IsOperationalOnly = draft.IsOperationalOnly,
+                IsReversalRow = draft.IsReversalRow
             });
         }
 
@@ -785,7 +826,7 @@ public partial class AccountStatementsController : Controller
             .Select(g => new ContractAccountCurrencyBalanceViewModel
             {
                 Currency = g.Key,
-                BalanceOriginal = g.Sum(r => (r.CreditOriginal ?? 0m) - (r.DebitOriginal ?? 0m))
+                BalanceOriginal = g.Sum(r => (r.OutflowOriginal ?? 0m) - (r.ReceiptOriginal ?? 0m))
             })
             .OrderBy(r => r.Currency)
             .ToList();
@@ -1024,16 +1065,17 @@ public partial class AccountStatementsController : Controller
         public decimal? QuantityMt { get; init; }
         public decimal? UnitPrice { get; init; }
         public string? SourceCurrency { get; init; }
-        public decimal? DebitOriginal { get; init; }
-        public decimal? CreditOriginal { get; init; }
+        public decimal? ReceiptOriginal { get; init; }
+        public decimal? OutflowOriginal { get; init; }
         public decimal? FxRateToUsd { get; init; }
-        public decimal? DebitUsd { get; init; }
-        public decimal? CreditUsd { get; init; }
+        public decimal? ReceiptUsd { get; init; }
+        public decimal? OutflowUsd { get; init; }
         public string? RelatedContractNumber { get; init; }
         public string? Notes { get; init; }
         public string? WarningBadge { get; init; }
         public bool IsFinancial { get; init; }
         public bool IsOperationalOnly { get; init; }
+        public bool IsReversalRow { get; init; }
     }
 
     private sealed record ContractBalanceTransferLookup(
@@ -1044,6 +1086,5 @@ public partial class AccountStatementsController : Controller
         string? FromContractNumber,
         string? ToContractNumber);
 
-    private static string GetSideName(LedgerSide side)
-        => side == LedgerSide.Debit ? "بدهکار" : "بستانکار";
+    private string GetSideName(LedgerSide side) => UiText.LedgerSideName(HttpContext, side);
 }

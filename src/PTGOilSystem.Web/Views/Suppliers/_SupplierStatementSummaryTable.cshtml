@@ -19,11 +19,11 @@
             <tr>
                 <th>تاریخ</th>
                 <th>شرح</th>
-                <th class="text-end">بدهکار USD</th>
-                <th class="text-end">بستانکار USD</th>
-                <th class="text-end">بدهکار RUB</th>
-                <th class="text-end">بستانکار RUB</th>
-                <th>مانده</th>
+                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "USD", Context)</th>
+                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "USD", Context)</th>
+                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "RUB", Context)</th>
+                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "RUB", Context)</th>
+                <th>@CompanyFlowText.Balance(Context)</th>
             </tr>
         </thead>
         <tbody>
@@ -39,10 +39,10 @@
                         <small>@row.ContractNumber</small>
                     }
                 </td>
-                <td class="text-end ak-num">@Amount(row.CreditUsd)</td>
-                <td class="text-end ak-num">@Amount(row.DebitUsd)</td>
-                <td class="text-end ak-num">@Amount(row.CreditRubEquivalent)</td>
-                <td class="text-end ak-num">@Amount(row.DebitRubEquivalent)</td>
+                <td class="text-end ak-num">@Amount(row.ReceiptUsd)</td>
+                <td class="text-end ak-num">@Amount(row.OutflowUsd)</td>
+                <td class="text-end ak-num">@Amount(row.ReceiptRubEquivalent)</td>
+                <td class="text-end ak-num">@Amount(row.OutflowRubEquivalent)</td>
                 <td class="supplier-balance-cell ak-num">@Html.Raw(Balance(row))</td>
             </tr>
         }

@@ -22,6 +22,21 @@ public static class UiText
     public static string T(string fa, string en)
         => IsEn(null) ? en : fa;
 
+    /// <summary>
+    /// عنوان حسابداریِ سمت سند. این «رسید/برد» نیست — واژگان CompanyFlow در
+    /// <see cref="Services.CompanyFlow.CompanyFlowText"/> است. اینجا فقط متن سمت دفتر کل
+    /// ترجمه می‌شود؛ خودِ LedgerSide و ساختار دیتابیس دست‌نخورده می‌ماند.
+    /// </summary>
+    public static string LedgerSideName(HttpContext? ctx, Models.Entities.LedgerSide side)
+    {
+        // نبودِ درخواست یعنی زبان پیش‌فرض سیستم (فارسی)؛ عنوان حسابداری نباید به
+        // Culture محیط اجرا وابسته باشد.
+        var isEnglish = ctx is not null && IsEn(ctx);
+        return side == Models.Entities.LedgerSide.Debit
+            ? (isEnglish ? "Debit" : "بدهکار")
+            : (isEnglish ? "Credit" : "بستانکار");
+    }
+
     public static string LedgerSource(HttpContext? ctx, string? sourceType)
     {
         if (string.IsNullOrWhiteSpace(sourceType))

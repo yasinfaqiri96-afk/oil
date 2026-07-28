@@ -12,7 +12,7 @@
     // معادل روبلی مانده — همیشه از مدل (اگر داده روبل موجود باشد) تا کنار USD نمایش داده شود.
     var endingRub = Model.SupplierRemainingClaimRub;
     var hasRubBalance = endingRub.HasValue;
-    var balanceLabel = officialSummary?.ClosingBalanceMeaning
+    var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (endingUsd > 0 ? "قابل پرداخت به تأمین‌کننده" : endingUsd < 0 ? "پیش‌پرداخت / طلب ما از تأمین‌کننده" : "حساب تسویه است");
     // رنگ عدد مانده به سبک سیستم: بدهکاری ما (قابل پرداخت) سرخ، طلب/پیش‌پرداخت سبز، تسویه خنثی.
     var balanceValueClass = endingUsd > 0 ? "text-danger" : endingUsd < 0 ? "text-success" : "";

@@ -14,7 +14,7 @@
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
     var bal = officialSummary?.ClosingBalance ?? summary.BalanceUsd;
-    var balanceLabel = officialSummary?.ClosingBalanceMeaning
+    var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (bal > 0 ? "قابل پرداخت به کارمند" : bal < 0 ? "بدهی کارمند به شرکت" : "حساب تسویه است");
     var balanceClass = bal > 0 ? "ak-num" : bal < 0 ? "ak-num" : "";
 

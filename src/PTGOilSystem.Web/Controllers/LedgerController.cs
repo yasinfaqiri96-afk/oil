@@ -8,12 +8,14 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Models.Ledger;
 using PTGOilSystem.Web.Models.Payments;
 using PTGOilSystem.Web.Models.Sarrafs;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exports;
+
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -58,6 +60,7 @@ public partial class LedgerController : Controller
                 EntryDate = l.EntryDate,
                 Side = l.Side,
                 SideName = GetSideName(l.Side),
+                FlowDirectionName = GetFlowName(l),
                 AmountUsd = l.AmountUsd,
                 Currency = l.Currency,
                 Description = l.Description,
@@ -222,6 +225,7 @@ public partial class LedgerController : Controller
                 EntryDate = l.EntryDate,
                 Side = l.Side,
                 SideName = GetSideName(l.Side),
+                FlowDirectionName = GetFlowName(l),
                 AmountUsd = l.AmountUsd,
                 Currency = l.Currency,
                 Description = l.Description,
@@ -278,6 +282,7 @@ public partial class LedgerController : Controller
             EntryDate = entry.EntryDate,
             Side = entry.Side,
             SideName = GetSideName(entry.Side),
+            FlowDirectionName = GetFlowName(entry),
             AmountUsd = entry.AmountUsd,
             Currency = entry.Currency,
             Description = entry.Description,
@@ -729,6 +734,31 @@ public partial class LedgerController : Controller
             _ => sourceType
         };
 
-    private static string GetSideName(LedgerSide side)
-        => side == LedgerSide.Debit ? "بدهکار" : "بستانکار";
+    // عنوان حسابداریِ سمت سند (LedgerSide) — مستقل از واژگان «رسید/برد» است و
+    // فقط متنش ترجمه می‌شود؛ خودِ LedgerSide دست‌نخورده می‌ماند.
+    private string GetSideName(LedgerSide side) => UiText.LedgerSideName(HttpContext, side);
+
+    // تنها تعیین‌کنندهٔ مجازِ «رسید یا برد». نقش طرف‌حساب از FKهای خودِ سند خوانده می‌شود،
+    // چون یک LedgerSide در دو نوع فعالیت معنی تجاری متفاوت دارد.
+    private static readonly ICompanyFlowDirectionResolver LedgerFlowResolver = new CompanyFlowDirectionResolver();
+
+    private string GetFlowName(LedgerEntry entry)
+        => CompanyFlowText.Label(LedgerFlowResolver.Resolve(new CompanyFlowEvent(
+            entry.SourceType,
+            entry.Side,
+            ResolveFlowRole(entry),
+            CompanyFlowSourceTypes.IsReversal(entry.SourceType)
+                ? CompanyFlowLifecycle.Reversal
+                : CompanyFlowLifecycle.Original)), HttpContext);
+
+    private static CompanyFlowPartyRole ResolveFlowRole(LedgerEntry entry)
+    {
+        if (entry.CustomerId.HasValue) return CompanyFlowPartyRole.Customer;
+        if (entry.SupplierId.HasValue) return CompanyFlowPartyRole.Supplier;
+        if (entry.ServiceProviderId.HasValue) return CompanyFlowPartyRole.ServiceProvider;
+        if (entry.DriverId.HasValue) return CompanyFlowPartyRole.Driver;
+        if (entry.EmployeeId.HasValue) return CompanyFlowPartyRole.Employee;
+        if (entry.SourceType == CompanyFlowSourceTypes.SupplierViaSarrafPayable) return CompanyFlowPartyRole.Sarraf;
+        return CompanyFlowPartyRole.Unknown;
+    }
 }

@@ -927,8 +927,8 @@ public class ExpensesControllerTests
         var model = Assert.IsType<ContractAccountStatementViewModel>(view.Model);
         var row = Assert.Single(model.Rows);
         Assert.Equal("Expense", row.SourceType);
-        Assert.Equal(250m, row.DebitUsd);
-        Assert.Null(row.CreditUsd);
+        Assert.Equal(250m, row.ReceiptUsd);
+        Assert.Null(row.OutflowUsd);
         Assert.Contains("Wagon Rent", row.Description);
         Assert.Equal(-250m, model.Totals.BalanceUsd);
     }

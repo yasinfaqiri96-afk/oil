@@ -1,0 +1,52 @@
+namespace PTGOilSystem.Web.Services.CompanyFlow;
+
+/// <summary>
+/// SourceTypeهایی که جهت تجاری‌شان قطعی است و نباید از سمت حسابداری حدس زده شود.
+/// رشته‌ها عیناً همان مقادیری‌اند که در LedgerEntry.SourceType نوشته می‌شوند؛
+/// هیچ داده‌ای تغییر نمی‌کند، فقط اینجا یکجا نام‌گذاری شده‌اند.
+/// </summary>
+public static class CompanyFlowSourceTypes
+{
+    // ---- رویدادهای کالا/خدمت ----
+    public const string Loading = "Loading";
+    public const string Sale = "Sale";
+    public const string Expense = "Expense";
+    public const string ShortageCharge = "ShortageCharge";
+
+    // ---- صراف ----
+    public const string SarrafSettlement = "SarrafSettlement";
+    public const string SarrafSettlementCancel = "SarrafSettlementCancel";
+    public const string SarrafSettlementEditReversal = "SarrafSettlementEditReversal";
+    public const string SarrafSettlementExchangeDifference = "SarrafSettlementExchangeDifference";
+    public const string SupplierViaSarrafPayment = "SupplierViaSarrafPayment";
+    public const string SupplierViaSarrafPayable = "SupplierViaSarrafPayable";
+    public const string SarrafFxGain = "SarrafFxGain";
+
+    // ---- تخصیص پیش‌پرداخت تأمین‌کننده ----
+    public const string SupplierPaymentAllocation = "SupplierPaymentAllocation";
+    public const string SupplierPaymentAllocationReversal = "SupplierPaymentAllocationReversal";
+    public const string SupplierPaymentAllocationExchangeDifference = "SupplierPaymentAllocationExchangeDifference";
+    public const string SupplierPaymentAllocationExchangeDifferenceReversal = "SupplierPaymentAllocationExchangeDifferenceReversal";
+
+    // ---- سایر ----
+    public const string ContractBalanceTransfer = "ContractBalanceTransfer";
+    public const string ThreeWaySettlement = "ThreeWaySettlement";
+    public const string ThreeWaySettlementCancellation = "ThreeWaySettlementCancellation";
+    public const string OpeningBalance = "OpeningBalance";
+
+    // ---- تراکنش معاش کارمند (از EmployeeSalaryTransaction، نه LedgerEntry) ----
+    public const string SalaryAccrual = "SalaryAccrual";
+    public const string SalaryPayment = "SalaryPayment";
+    public const string SalaryAdvance = "SalaryAdvance";
+    public const string SalaryDeduction = "SalaryDeduction";
+    public const string Bonus = "Bonus";
+    public const string Adjustment = "Adjustment";
+
+    /// <summary>سطرهایی که فقط معکوس‌کننده‌اند و باید با lifecycle=Reversal خوانده شوند.</summary>
+    public static bool IsReversal(string? sourceType)
+        => sourceType is SarrafSettlementCancel
+            or SarrafSettlementEditReversal
+            or SupplierPaymentAllocationReversal
+            or SupplierPaymentAllocationExchangeDifferenceReversal
+            or ThreeWaySettlementCancellation;
+}

@@ -47,9 +47,9 @@
                 <tr>
                     <th>تاریخ</th>
                     <th>شرح</th>
-                    <th>DEBIT</th>
-                    <th>CREDIT</th>
-                    <th>BALANCE</th>
+                    <th>@CompanyFlowText.Receipt(Context)</th>
+                    <th>@CompanyFlowText.Outflow(Context)</th>
+                    <th>@CompanyFlowText.Balance(Context)</th>
                 </tr>
             </thead>
             <tbody>
@@ -64,14 +64,14 @@
                         <tr>
                             <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
                             <td class="statement-description">
-                                @row.Description
+                                @row.DescriptionFor(UiText.IsEn(Context))
                                 @if (!string.IsNullOrWhiteSpace(row.Reference))
                                 {
                                     <small class="statement-ref-inline">@row.Reference</small>
                                 }
                             </td>
-                            <td class="statement-money statement-debit">@Base(row.DebitBase, row.DebitRub)</td>
-                            <td class="statement-money statement-credit">@Base(row.CreditBase, row.CreditRub)</td>
+                            <td class="statement-money statement-debit">@Base(row.ReceiptBase, row.ReceiptRub)</td>
+                            <td class="statement-money statement-credit">@Base(row.OutflowBase, row.OutflowRub)</td>
                             <td class="statement-money statement-balance">@Base(row.RunningBalance, row.RunningBalanceRub)</td>
                         </tr>
                     }
@@ -108,7 +108,7 @@
                             <td class="statement-money">@Qty(row.Quantity)</td>
                             <td class="statement-money">@Amount(row.PlattsPrice)</td>
                             <td class="statement-money">@Amount(row.UnitPrice)</td>
-                            <td class="statement-money">@Base(row.DebitBase, row.DebitRub)</td>
+                            <td class="statement-money">@Base(row.ReceiptBase, row.ReceiptRub)</td>
                         </tr>
                     }
                 }

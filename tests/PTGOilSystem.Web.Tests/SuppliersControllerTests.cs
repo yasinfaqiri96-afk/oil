@@ -31,8 +31,8 @@ public class SuppliersControllerTests
         Assert.Equal(1, model.ActivePurchaseContractsCount);
         Assert.Equal(150m, model.TotalPurchaseQuantityMt);
         Assert.Equal(2000m, model.EstimatedContractValueUsd);
-        Assert.Equal(250m, model.LedgerDebitUsd);
-        Assert.Equal(1000m, model.LedgerCreditUsd);
+        Assert.Equal(250m, model.LedgerOutflowUsd);
+        Assert.Equal(1000m, model.LedgerReceiptUsd);
         // مانده نمایشی = Σ(داده − گرفته) = 250 − 1000؛ منفی یعنی بدهی به تأمین‌کننده.
         Assert.Equal(-750m, model.LedgerBalanceUsd);
         Assert.Equal(100m, model.TotalPaidUsd);
@@ -41,9 +41,9 @@ public class SuppliersControllerTests
         Assert.Equal(3, model.StatementRows.Count);
         Assert.Collection(
             model.StatementRows,
-            row => Assert.Equal(1000m, row.RunningBalanceUsd),
-            row => Assert.Equal(800m, row.RunningBalanceUsd),
-            row => Assert.Equal(750m, row.RunningBalanceUsd));
+            row => Assert.Equal(-1000m, row.RunningBalanceUsd),
+            row => Assert.Equal(-800m, row.RunningBalanceUsd),
+            row => Assert.Equal(-750m, row.RunningBalanceUsd));
         Assert.Equal(1, model.StatementRows.Count(r => r.LedgerEntryId == 1));
     }
 
@@ -67,7 +67,7 @@ public class SuppliersControllerTests
         Assert.NotNull(model.SelectedContract);
         var row = Assert.Single(model.StatementRows);
         Assert.Equal(2, row.ContractId);
-        Assert.Equal(-200m, row.RunningBalanceUsd);
+        Assert.Equal(200m, row.RunningBalanceUsd);
     }
 
     [Fact]
@@ -323,9 +323,9 @@ public class SuppliersControllerTests
 
         var row = Assert.Single(model.StatementRows);
         Assert.Equal("RUB", row.Currency);
-        Assert.Equal(100_000m, row.Debit);
-        Assert.Equal(100_000m, row.DebitRubEquivalent);
-        Assert.Equal(-100_000m, row.RunningBalanceRubEquivalent);
+        Assert.Equal(100_000m, row.Outflow);
+        Assert.Equal(100_000m, row.OutflowRubEquivalent);
+        Assert.Equal(100_000m, row.RunningBalanceRubEquivalent);
         Assert.Equal(100_000m, model.TotalPaidRub);
         Assert.Equal(100_000m, Assert.Single(model.Contracts).PaidRub);
         var sarrafRow = Assert.Single(model.SarrafSettlements);
@@ -338,7 +338,7 @@ public class SuppliersControllerTests
         Assert.Equal("RUB", paymentLine.Currency);
         Assert.Equal(1_298.7013m, paymentLine.AmountUsd);
         // USD داخلی دست‌نخورده می‌ماند.
-        Assert.Equal(1_298.7013m, row.DebitUsd);
+        Assert.Equal(1_298.7013m, row.OutflowUsd);
     }
 
     [Fact]
@@ -435,19 +435,19 @@ public class SuppliersControllerTests
 
         var loadingRow = model.StatementRows[0];
         Assert.Equal("RUB", loadingRow.Currency);
-        Assert.Equal(7_700m, loadingRow.Credit);
-        Assert.Equal(7_700m, loadingRow.CreditRubEquivalent);
-        Assert.Equal(77m, loadingRow.RunningBalanceUsd);
-        Assert.Equal(7_700m, loadingRow.RunningBalanceRubEquivalent);
+        Assert.Equal(7_700m, loadingRow.Receipt);
+        Assert.Equal(7_700m, loadingRow.ReceiptRubEquivalent);
+        Assert.Equal(-77m, loadingRow.RunningBalanceUsd);
+        Assert.Equal(-7_700m, loadingRow.RunningBalanceRubEquivalent);
 
         var sarrafRow = model.StatementRows[1];
         Assert.Equal("RUB", sarrafRow.Currency);
-        Assert.Equal(3_000m, sarrafRow.Debit);
-        Assert.Equal(3_000m, sarrafRow.DebitRubEquivalent);
+        Assert.Equal(3_000m, sarrafRow.Outflow);
+        Assert.Equal(3_000m, sarrafRow.OutflowRubEquivalent);
 
-        // مانده نهایی: USD = 47، RUB = 4700.
-        Assert.Equal(47m, sarrafRow.RunningBalanceUsd);
-        Assert.Equal(4_700m, sarrafRow.RunningBalanceRubEquivalent);
+        // بیلانس نهایی = برد − رسید: USD = -47، RUB = -4700 (شرکت هنوز بدهکار است).
+        Assert.Equal(-47m, sarrafRow.RunningBalanceUsd);
+        Assert.Equal(-4_700m, sarrafRow.RunningBalanceRubEquivalent);
     }
 
     [Fact]
@@ -632,8 +632,8 @@ public class SuppliersControllerTests
         Assert.Equal(2_400m, paymentLine.Amount);
 
         var statementRow = Assert.Single(model.StatementRows);
-        Assert.Equal(2_400m, statementRow.DebitRubEquivalent);
-        Assert.Equal(-2_400m, statementRow.RunningBalanceRubEquivalent);
+        Assert.Equal(2_400m, statementRow.OutflowRubEquivalent);
+        Assert.Equal(2_400m, statementRow.RunningBalanceRubEquivalent);
     }
 
     [Fact]

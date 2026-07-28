@@ -73,7 +73,7 @@
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("جزئیات مصرف", "Expense details") + $" #{Model.Id}", false,
                        T("ویرایش", "Edit"), "bi-pencil-square",
@@ -82,19 +82,15 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("مشخصات مصرف", "Expense profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("مشخصات مصرف", "Expense profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+    </div>
 
-    @if (relatedRecords.Count > 0)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="expense-related-title">
-            <h2 class="ak-section-title" id="expense-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
-            <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
-        </section>
-    }
-
-    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
-             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
+             model="@(((IReadOnlyList<AkTimelineItem>)Array.Empty<AkTimelineItem>(),
+                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
+                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

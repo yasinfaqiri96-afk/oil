@@ -90,7 +90,7 @@
                 <tbody>
                     <tr>
                         <td class="ak-col-grow">مشتری: @Model.Customer?.Name</td>
-                        <td><span class="ak-status">بدهکار — طلب مشتری کم شد</span></td>
+                        <td><span class="ak-status">رسید — طلب مشتری کم شد</span></td>
                         <td>
                             @if (Model.CustomerLedgerEntryId.HasValue)
                             {
@@ -106,7 +106,7 @@
                     </tr>
                     <tr>
                         <td class="ak-col-grow">تأمین‌کننده: @Model.Supplier?.Name</td>
-                        <td><span class="ak-status">بدهکار — بدهی تأمین‌کننده کم شد</span></td>
+                        <td><span class="ak-status">برد — بدهی تأمین‌کننده کم شد</span></td>
                         <td>
                             @if (Model.SupplierLedgerEntryId.HasValue)
                             {
@@ -170,7 +170,7 @@
                                     else if (ledger.SupplierId.HasValue) { <span>تأمین‌کننده</span> }
                                     else { <span>-</span> }
                                 </td>
-                                <td>@(ledger.Side == LedgerSide.Debit ? "بدهکار" : "بستانکار")</td>
+                                <td>@CompanyFlowText.Label(ledger.Side == LedgerSide.Debit ? CompanyFlowDirection.Outflow : CompanyFlowDirection.Receipt, Context)</td>
                                 <td>برگشت تسویه سه‌طرفه</td>
                                 <td class="ak-col-num ak-num">@ledger.AmountUsd.ToString("N2") USD</td>
                             </tr>

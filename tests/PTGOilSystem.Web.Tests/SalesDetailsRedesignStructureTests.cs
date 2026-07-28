@@ -18,11 +18,16 @@ public sealed class SalesDetailsRedesignStructureTests
         Assert.Contains("_DetailKpiStrip.cshtml", view);
         Assert.Equal(4, Count(view, "Avatar = \""));
         Assert.Contains("_DetailSummaryCard.cshtml", view);
-        Assert.Contains("_DetailAdvancedSection.cshtml", view);
-        Assert.Contains("_DetailTimeline.cshtml", view);
-        Assert.Contains("_RelatedRecords.cshtml", view);
+        Assert.Contains("_OperationsDetailMore.cshtml", view);
         Assert.Contains("_DetailActionBar.cshtml", view);
         Assert.Contains("ak-list", view);
+        Assert.Contains("ak-operations-overview", view);
+        Assert.Contains("data-ak-operations-detail=\"true\"", view);
+
+        var more = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_OperationsDetailMore.cshtml");
+        Assert.Contains("_DetailTimeline.cshtml", more);
+        Assert.Contains("_RelatedRecords.cshtml", more);
+        Assert.Contains("_DetailInfoGrid.cshtml", more);
 
         // No page-local stat cards or hand-written key/value lists any more.
         Assert.DoesNotContain("<vc:stat-card", view);

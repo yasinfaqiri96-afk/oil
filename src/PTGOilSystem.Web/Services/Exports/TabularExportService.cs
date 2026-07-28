@@ -79,6 +79,7 @@ public sealed class TabularExportService : ITabularExportService
 
     public Task WritePartyStatementPdfAsync(
         Models.PartyStatements.PartyStatementResult statement,
+        bool isEnglish,
         Stream destination,
         CancellationToken cancellationToken)
     {
@@ -88,7 +89,7 @@ public sealed class TabularExportService : ITabularExportService
         if (statement.Rows.Count > _options.PdfMaxRows)
             throw new TabularExportLimitException(statement.Rows.Count, _options.PdfMaxRows);
 
-        var document = new PartyStatementPdfDocument(statement, _environment.WebRootPath);
+        var document = new PartyStatementPdfDocument(statement, _environment.WebRootPath, isEnglish);
         document.GeneratePdf(destination);
         return Task.CompletedTask;
     }
@@ -96,6 +97,7 @@ public sealed class TabularExportService : ITabularExportService
     public Task WriteSupplierContractStatementPdfAsync(
         Models.PartyStatements.PartyStatementResult statement,
         Models.PartyStatements.SupplierContractStatementViewModel contractGrouping,
+        bool isEnglish,
         Stream destination,
         CancellationToken cancellationToken)
     {
@@ -107,7 +109,7 @@ public sealed class TabularExportService : ITabularExportService
         if (contractGrouping.Rows.Count > _options.PdfMaxRows)
             throw new TabularExportLimitException(contractGrouping.Rows.Count, _options.PdfMaxRows);
 
-        var document = new PartyStatementPdfDocument(statement, _environment.WebRootPath, contractGrouping);
+        var document = new PartyStatementPdfDocument(statement, _environment.WebRootPath, isEnglish, contractGrouping);
         document.GeneratePdf(destination);
         return Task.CompletedTask;
     }

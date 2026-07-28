@@ -1411,17 +1411,30 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     display: none;
 }
 
+/* The seven cards already carry their own surface, so the block behind them
+   stays bare — no white panel, border, or side padding around the path. */
+:where(.ak-detail-page) .ak-journey-section,
 .ak-journey-section {
-    padding-top: 12px;
-    padding-bottom: 0;
+    padding: 12px 0 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 /* ---- the path ---- */
 .ak-journey-flow {
+    /* Cards share the full page width but the gap is a wide fixed lane, so the
+       cards come out narrower and every connector has real room to read. */
+    --ak-journey-gap: 58px;
+    --ak-journey-row-gap: 46px;
+    --ak-journey-link: #9BB1D8;
+    --ak-journey-dash: 5px;
+    --ak-journey-head: 9px;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-auto-rows: minmax(0, 1fr);
-    gap: 14px;
+    column-gap: var(--ak-journey-gap);
+    row-gap: var(--ak-journey-row-gap);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -1430,11 +1443,11 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 .ak-journey-step--1 { grid-area: 1 / 1; }
 .ak-journey-step--2 { grid-area: 1 / 2; }
 .ak-journey-step--3 { grid-area: 1 / 3; }
-.ak-journey-step--4 { grid-area: 1 / 4; }
-/* Row two sits under cards 4→2; the column under card 1 stays empty. */
-.ak-journey-step--5 { grid-area: 2 / 4; }
-.ak-journey-step--6 { grid-area: 2 / 3; }
-.ak-journey-step--7 { grid-area: 2 / 2; }
+/* Row two runs back 4→6 under row one, then card 7 drops below card 6. */
+.ak-journey-step--4 { grid-area: 2 / 3; }
+.ak-journey-step--5 { grid-area: 2 / 2; }
+.ak-journey-step--6 { grid-area: 2 / 1; }
+.ak-journey-step--7 { grid-area: 3 / 1; }
 
 .ak-journey-step {
     position: relative;
@@ -1466,9 +1479,9 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 }
 
 .ak-journey-step .ak-cycle-avatar {
-    flex: 0 0 64px;
-    width: 64px;
-    height: 64px;
+    flex: 0 0 84px;
+    width: 84px;
+    height: 84px;
     object-fit: contain;
 }
 
@@ -1537,7 +1550,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 .ak-journey-step .ak-cycle-value {
     flex: 0 0 auto;
     color: var(--ptg-primary-dark, #123258);
-    font-size: 13.5px;
+    font-size: 15.5px;
     font-weight: 700;
     text-align: end;
     white-space: nowrap;
@@ -1607,64 +1620,140 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     color: var(--ptg-success-text, #63914A);
 }
 
+/* ---- figure tone per stage ----
+   The three stages that carry a verdict colour both of their figures: losses
+   amber, the payable balance red, and the P&L card follows its own result. */
+.ak-journey-step.ak-journey-step--5 .ak-cycle-value {
+    color: var(--ptg-warning-text, #B87708);
+}
+
+.ak-journey-step.ak-journey-step--6 .ak-cycle-row:last-of-type .ak-cycle-value {
+    color: var(--ptg-danger-text, #B80000);
+}
+
+.ak-journey-step.ak-journey-step--7.is-gain .ak-cycle-value {
+    color: var(--ptg-success-text, #63914A);
+}
+
+.ak-journey-step.ak-journey-step--7.is-loss .ak-cycle-value {
+    color: var(--ptg-danger-text, #B80000);
+}
+
 /* ---- connectors ----
-   Each link lives in the 14px gap between two neighbouring cards: a 1.5px
-   blue-grey rule with a small chevron on top. Nothing is drawn across a card
-   and no link travels further than the gap it belongs to. */
+   Each link is drawn, not typed: a 2px dashed rule in the card gap ending in
+   a small solid triangle head, both in the same light steel blue. The chevron
+   glyph in the markup only carries the direction, so it is hidden here. */
 .ak-journey-arrow {
     position: absolute;
     top: 50%;
-    display: grid;
-    place-items: center;
-    width: 14px;
-    height: 14px;
+    width: var(--ak-journey-gap, 58px);
+    height: 12px;
     transform: translateY(-50%);
-    color: #64748B;
-    font-size: 12px;
-    line-height: 1;
-}
-
-.ak-journey-arrow::before {
-    content: "";
-    position: absolute;
-    top: 50%;
-    inset-inline: -7px;
-    height: 1.5px;
-    transform: translateY(-50%);
-    background: #94A3B8;
+    pointer-events: none;
 }
 
 .ak-journey-arrow > i {
-    position: relative;
-    -webkit-text-stroke: .4px currentColor;
+    display: none;
 }
 
+.ak-journey-arrow::before,
+.ak-journey-arrow::after {
+    content: "";
+    position: absolute;
+}
+
+/* dashed rule — stops short of the head so the two never overlap */
+.ak-journey-arrow::before {
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--ak-journey-link, #9BB1D8) 0 var(--ak-journey-dash, 5px),
+        transparent var(--ak-journey-dash, 5px) calc(var(--ak-journey-dash, 5px) * 2));
+}
+
+/* triangle head — sized by borders, direction set per stage below */
+.ak-journey-arrow::after {
+    top: 50%;
+    width: 0;
+    height: 0;
+    transform: translateY(-50%);
+}
+
+/* row one runs forward: head at the far end of the gap */
 .ak-journey-step--1 .ak-journey-arrow,
-.ak-journey-step--2 .ak-journey-arrow,
-.ak-journey-step--3 .ak-journey-arrow {
-    inset-inline-end: -14px;
+.ak-journey-step--2 .ak-journey-arrow {
+    inset-inline-end: calc(-1 * var(--ak-journey-gap, 58px));
 }
 
-.ak-journey-step--5 .ak-journey-arrow,
+.ak-journey-step--1 .ak-journey-arrow::before,
+.ak-journey-step--2 .ak-journey-arrow::before {
+    inset-inline: 0 var(--ak-journey-head, 9px);
+}
+
+.ak-journey-step--1 .ak-journey-arrow::after,
+.ak-journey-step--2 .ak-journey-arrow::after {
+    inset-inline-end: 0;
+    border-block: 5px solid transparent;
+    border-inline-start: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
+}
+
+/* row two runs back the other way */
+.ak-journey-step--4 .ak-journey-arrow,
+.ak-journey-step--5 .ak-journey-arrow {
+    inset-inline-start: calc(-1 * var(--ak-journey-gap, 58px));
+}
+
+.ak-journey-step--4 .ak-journey-arrow::before,
+.ak-journey-step--5 .ak-journey-arrow::before {
+    inset-inline: var(--ak-journey-head, 9px) 0;
+}
+
+.ak-journey-step--4 .ak-journey-arrow::after,
+.ak-journey-step--5 .ak-journey-arrow::after {
+    inset-inline-start: 0;
+    border-block: 5px solid transparent;
+    border-inline-end: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
+}
+
+/* Cards 3 and 6 hand the path straight down to the row below. The centring
+   here is physical (left/translateX), not logical — a logical offset flips
+   under RTL and pushes the link off the card's mid-line. */
+.ak-journey-step--3 .ak-journey-arrow,
 .ak-journey-step--6 .ak-journey-arrow {
-    inset-inline-start: -14px;
-}
-
-/* Card 4 hands the path straight down to card 5 in the row below. */
-.ak-journey-step--4 .ak-journey-arrow {
     top: auto;
-    bottom: -14px;
-    inset-inline-start: 50%;
+    right: auto;
+    bottom: calc(-1 * var(--ak-journey-row-gap, 46px));
+    left: 50%;
+    width: 12px;
+    height: var(--ak-journey-row-gap, 46px);
     transform: translateX(-50%);
 }
 
-.ak-journey-step--4 .ak-journey-arrow::before {
-    inset-inline: auto;
-    top: -7px;
-    bottom: -7px;
-    inset-inline-start: 50%;
-    width: 1.5px;
+.ak-journey-step--3 .ak-journey-arrow::before,
+.ak-journey-step--6 .ak-journey-arrow::before {
+    top: 0;
+    right: auto;
+    bottom: var(--ak-journey-head, 9px);
+    left: 50%;
+    width: 2px;
     height: auto;
+    transform: translateX(-50%);
+    background-image: repeating-linear-gradient(
+        to bottom,
+        var(--ak-journey-link, #9BB1D8) 0 var(--ak-journey-dash, 5px),
+        transparent var(--ak-journey-dash, 5px) calc(var(--ak-journey-dash, 5px) * 2));
+}
+
+.ak-journey-step--3 .ak-journey-arrow::after,
+.ak-journey-step--6 .ak-journey-arrow::after {
+    top: auto;
+    right: auto;
+    bottom: 0;
+    left: 50%;
+    border-inline: 5px solid transparent;
+    border-top: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
     transform: translateX(-50%);
 }
 
@@ -1690,18 +1779,40 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
         display: none;
     }
 
-    .ak-journey-arrow {
-        display: none;
+    /* One column, so every link is the same dashed rule pointing straight down. */
+    .ak-journey-step .ak-journey-arrow {
+        top: auto;
+        right: auto;
+        bottom: -26px;
+        left: 50%;
+        width: 12px;
+        height: 26px;
+        transform: translateX(-50%);
     }
 
-    .ak-journey-step:not(.ak-journey-step--7)::after {
-        content: "";
-        position: absolute;
-        bottom: -26px;
-        inset-inline-start: 50%;
-        width: 1.5px;
-        height: 26px;
-        background: #94A3B8;
+    .ak-journey-step .ak-journey-arrow::before {
+        top: 0;
+        right: auto;
+        bottom: var(--ak-journey-head, 9px);
+        left: 50%;
+        width: 2px;
+        height: auto;
+        transform: translateX(-50%);
+        background-image: repeating-linear-gradient(
+            to bottom,
+            var(--ak-journey-link, #9BB1D8) 0 var(--ak-journey-dash, 5px),
+            transparent var(--ak-journey-dash, 5px) calc(var(--ak-journey-dash, 5px) * 2));
+    }
+
+    .ak-journey-step .ak-journey-arrow::after {
+        top: auto;
+        right: auto;
+        bottom: 0;
+        left: 50%;
+        border: 0;
+        border-inline: 5px solid transparent;
+        border-top: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
+        transform: translateX(-50%);
     }
 }
 

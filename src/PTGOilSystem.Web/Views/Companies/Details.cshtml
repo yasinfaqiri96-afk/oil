@@ -36,7 +36,7 @@
             <div class="ak-list-row"><dt>تاریخ ایجاد</dt><dd>@Model.CreatedAtUtc.ToDisplayDateTime()</dd></div>
             @if (officialSummary is not null)
             {
-                <div class="ak-list-row"><dt>مانده حساب</dt><dd class="ak-num">@officialSummary.ClosingBalanceAbsolute.ToString("N2") @officialSummary.BaseCurrencyCode — @officialSummary.ClosingBalanceMeaning</dd></div>
+                <div class="ak-list-row"><dt>مانده حساب</dt><dd class="ak-num">@officialSummary.ClosingBalanceAbsolute.ToString("N2") @officialSummary.BaseCurrencyCode — @officialSummary.ClosingBalanceMeaningFor(UiText.IsEn(Context))</dd></div>
             }
         </dl>
     </section>

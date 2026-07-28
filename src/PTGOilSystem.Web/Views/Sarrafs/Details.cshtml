@@ -18,7 +18,7 @@
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
     var payableUsd = officialSummary?.ClosingBalance ?? Model.PayableUsd;
-    var payableLabel = officialSummary?.ClosingBalanceMeaning ?? (payableUsd > 0
+    var payableLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context)) ?? (payableUsd > 0
         ? "قابل پرداخت به صراف"
         : payableUsd < 0
             ? "طلب ما از صراف"

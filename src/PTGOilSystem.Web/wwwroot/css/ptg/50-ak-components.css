@@ -253,6 +253,15 @@
     white-space: normal;
 }
 
+/* Secondary line inside a table cell. Plain muted text — .ak-note is a
+   callout with a navy rule and must not be reused for this. */
+.ak-table .ak-cell-note {
+    margin-top: 2px;
+    color: var(--ptg-muted, #6b6f7b);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
 .ak-table a.ak-name {
     color: var(--ptg-text);
     text-decoration: none;
@@ -466,6 +475,12 @@ a.ptg-person-name:focus-visible {
 }
 
 .ak-list-row:last-child {
+    border-bottom: 0;
+}
+
+/* Divider-free variant — for short key/value blocks where the rules between
+   rows add noise instead of structure. */
+.ak-list--flush > .ak-list-row {
     border-bottom: 0;
 }
 

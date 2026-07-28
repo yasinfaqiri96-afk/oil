@@ -218,12 +218,13 @@ public class AccountStatementsControllerTests
         var model = Assert.IsType<ContractAccountStatementViewModel>(view.Model);
         var row = Assert.Single(model.Rows);
         Assert.Equal("PAY-1", row.Reference);
-        Assert.Equal(500m, row.CreditUsd);
+        // دریافت پول روی قرارداد ⇒ رسید (شرکت ارزش گرفته است).
+        Assert.Equal(500m, row.ReceiptUsd);
         Assert.True(row.IsFinancial);
     }
 
     [Fact]
-    public async Task Contract_Computes_Credit_Minus_Debit_Balance_Usd()
+    public async Task Contract_Computes_Outflow_Minus_Receipt_Balance_Usd()
     {
         var options = NewOptions();
         await using var db = new ApplicationDbContext(options);
@@ -235,10 +236,11 @@ public class AccountStatementsControllerTests
 
         var model = await GetContractStatementAsync(db, contract.Id);
 
-        Assert.Equal(1000m, model.Totals.TotalCreditUsd);
-        Assert.Equal(250m, model.Totals.TotalDebitUsd);
-        Assert.Equal(750m, model.Totals.BalanceUsd);
-        Assert.Equal(750m, model.Rows.Last().BalanceUsd);
+        // بیلانس قرارداد = Σبرد − Σرسید، همان فرمول صورت‌حساب طرف‌حساب.
+        Assert.Equal(1000m, model.Totals.TotalReceiptUsd);
+        Assert.Equal(250m, model.Totals.TotalOutflowUsd);
+        Assert.Equal(-750m, model.Totals.BalanceUsd);
+        Assert.Equal(-750m, model.Rows.Last().BalanceUsd);
     }
 
     [Fact]
@@ -255,8 +257,8 @@ public class AccountStatementsControllerTests
 
         var model = await GetContractStatementAsync(db, contract.Id);
 
-        Assert.Equal(100m, model.Totals.BalancesByCurrency.Single(b => b.Currency == "USD").BalanceOriginal);
-        Assert.Equal(1500m, model.Totals.BalancesByCurrency.Single(b => b.Currency == "RUB").BalanceOriginal);
+        Assert.Equal(-100m, model.Totals.BalancesByCurrency.Single(b => b.Currency == "USD").BalanceOriginal);
+        Assert.Equal(-1500m, model.Totals.BalancesByCurrency.Single(b => b.Currency == "RUB").BalanceOriginal);
         Assert.Contains("RUB", model.Rows.Last(r => r.SourceCurrency == "RUB").BalanceOriginalByCurrency);
     }
 
@@ -303,7 +305,7 @@ public class AccountStatementsControllerTests
         var model = await GetContractStatementAsync(db, contract.Id);
 
         Assert.Single(model.Rows);
-        Assert.Equal(100m, model.Totals.BalanceUsd);
+        Assert.Equal(-100m, model.Totals.BalanceUsd);
         Assert.DoesNotContain(model.Rows, r => r.WarningBadge == "Payment without Ledger");
     }
 
@@ -332,8 +334,8 @@ public class AccountStatementsControllerTests
         Assert.Equal(nameof(LoadingRegister), row.SourceType);
         Assert.True(row.IsOperationalOnly);
         Assert.Equal("Operational only", row.WarningBadge);
-        Assert.Null(row.DebitUsd);
-        Assert.Null(row.CreditUsd);
+        Assert.Null(row.ReceiptUsd);
+        Assert.Null(row.OutflowUsd);
         Assert.Equal(0m, model.Totals.BalanceUsd);
     }
 
@@ -369,6 +371,41 @@ public class AccountStatementsControllerTests
         Assert.Contains("new { contractId = Model.ContractId }", contents);
         Assert.Contains("href=\"@Model.AccountStatementUrl\"", financePartial);
         Assert.Contains("دفتر حساب قرارداد", contents);
+    }
+
+    [Fact]
+    public void Contract_View_Uses_Compact_Essential_Columns_Without_Losing_Trace_Fields()
+    {
+        var contents = ReadRepoFile("src/PTGOilSystem.Web/Views/AccountStatements/Contract.cshtml");
+
+        foreach (var heading in new[]
+        {
+            "<th>تاریخ</th>",
+            "<th class=\"ak-col-grow\">جزئیات</th>",
+            "<th class=\"ak-col-num\">مبلغ ارز اصلی</th>",
+            // ستون‌های «رسید/برد/بیلانس» از منبع مرکزی می‌آیند تا در انگلیسی
+            // Debit/Credit/Balance شوند؛ ترتیبشان همان است.
+            "<th class=\"ak-col-num\">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, \"USD\", Context)</th>",
+            "<th class=\"ak-col-num\">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, \"USD\", Context)</th>",
+            "<th class=\"ak-col-num\">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Balance, \"USD\", Context)</th>"
+        })
+        {
+            Assert.Contains(heading, contents);
+        }
+
+        Assert.Contains("colspan=\"6\"", contents);
+        Assert.Contains("row.SourceType", contents);
+        Assert.Contains("row.Reference", contents);
+        Assert.Contains("row.RelatedContractNumber", contents);
+        Assert.Contains("row.QuantityMt", contents);
+        Assert.Contains("row.UnitPrice", contents);
+        Assert.Contains("row.FxRateToUsd", contents);
+        Assert.Contains("row.WarningBadge", contents);
+        Assert.DoesNotContain("<th>نوع</th>", contents);
+        Assert.DoesNotContain("<th>وضعیت</th>", contents);
+        Assert.DoesNotContain("<th class=\"ak-col-num\">مقدار (تن)</th>", contents);
+        Assert.DoesNotContain("<th class=\"ak-col-num\">قیمت واحد</th>", contents);
+        Assert.DoesNotContain("<th class=\"ak-col-num\">نرخ ارز</th>", contents);
     }
 
     private static AccountStatementsController BuildController(ApplicationDbContext db)

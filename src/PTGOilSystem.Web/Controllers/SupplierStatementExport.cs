@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.Exports;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -10,6 +12,11 @@ namespace PTGOilSystem.Web.Controllers;
 // اعداد از grouping/rowsِ موجود می‌آیند؛ هیچ محاسبهٔ مالی جدیدی اینجا انجام نمی‌شود.
 internal static class SupplierStatementExport
 {
+    // عنوان ستون‌های «رسید/برد/بیلانس» فقط از منبع مرکزی می‌آید؛ TabularExport خودش
+    // بر اساس زبانِ درخواست بین عنوان فارسی و انگلیسی انتخاب می‌کند.
+    private static string FlowTitle(CompanyFlowTextKey key, string currency, bool isEnglish)
+        => CompanyFlowText.WithCurrencyParenthesized(key, currency, isEnglish);
+
     public static IActionResult Build(
         Controller controller,
         string? format,
@@ -28,7 +35,9 @@ internal static class SupplierStatementExport
             new("ارز", "Currency", currencyLabel)
         };
 
-        var summary = BuildSummaryDocument(statement, grouping, stem, currencyLabel, filters);
+        // زبان خروجی همان زبان صفحه است؛ فقط عنوان‌ها ترجمه می‌شوند، نه اعداد و جهت‌ها.
+        var isEnglish = UiText.IsEn(controller.HttpContext);
+        var summary = BuildSummaryDocument(statement, grouping, stem, currencyLabel, filters, isEnglish);
 
         // PDF فقط خلاصه (هر قرارداد یک سطر).
         if (TabularExportSupport.ParseFormat(format) == TabularExportFormat.Pdf)
@@ -36,16 +45,17 @@ internal static class SupplierStatementExport
             return TabularExportSupport.File(controller, format, summary);
         }
 
-        var details = BuildDetailsDocument(statement, stem, currencyLabel, filters);
+        var details = BuildDetailsDocument(statement, stem, currencyLabel, filters, isEnglish);
         return TabularExportSupport.File(controller, format, new[] { summary, details });
     }
 
-    private static TabularExportDocument BuildSummaryDocument(
+    internal static TabularExportDocument BuildSummaryDocument(
         PartyStatementResult statement,
         SupplierContractStatementViewModel grouping,
         string stem,
         string currency,
-        IReadOnlyList<TabularExportFilter> filters)
+        IReadOnlyList<TabularExportFilter> filters,
+        bool isEnglish)
     {
         var isRub = grouping.IsRub;
         decimal? Money(decimal usd, decimal? rub) => isRub ? rub : usd;
@@ -66,9 +76,9 @@ internal static class SupplierStatementExport
                 new("مقدار قرارداد", "Contract MT", TabularExportValueType.Number, 14),
                 new("بارگیری‌شده", "Loaded MT", TabularExportValueType.Number, 14),
                 new("ارزش قرارداد", "Contract value", TabularExportValueType.Number, 16),
-                new($"بدهکار ({currency})", "Debit", TabularExportValueType.Number, 15),
-                new($"بستانکار ({currency})", "Credit", TabularExportValueType.Number, 15),
-                new($"مانده ({currency})", "Balance", TabularExportValueType.Number, 15)
+                new(FlowTitle(CompanyFlowTextKey.Receipt, currency, false), FlowTitle(CompanyFlowTextKey.Receipt, currency, true), TabularExportValueType.Number, 15),
+                new(FlowTitle(CompanyFlowTextKey.Outflow, currency, false), FlowTitle(CompanyFlowTextKey.Outflow, currency, true), TabularExportValueType.Number, 15),
+                new(FlowTitle(CompanyFlowTextKey.Balance, currency, false), FlowTitle(CompanyFlowTextKey.Balance, currency, true), TabularExportValueType.Number, 15)
             ],
             Rows = grouping.Rows.Select(row => new TabularExportRow(
             [
@@ -78,30 +88,31 @@ internal static class SupplierStatementExport
                 TabularExportCell.Number(row.ContractQuantityMt),
                 TabularExportCell.Number(row.LoadedQuantityMt),
                 TabularExportCell.Number(row.ContractValueUsd),
-                TabularExportCell.Number(Money(row.Debit, row.DebitRub)),
-                TabularExportCell.Number(Money(row.Credit, row.CreditRub)),
+                TabularExportCell.Number(Money(row.Receipt, row.ReceiptRub)),
+                TabularExportCell.Number(Money(row.Outflow, row.OutflowRub)),
                 TabularExportCell.Number(Money(row.Balance, row.BalanceRub))
             ])).ToList(),
             Totals = new TabularExportRow(
             [
                 TabularExportCell.Text(null),
-                TabularExportCell.Text("مجموع دوره"),
+                TabularExportCell.Text(CompanyFlowText.Get(CompanyFlowTextKey.PeriodTotal, isEnglish)),
                 TabularExportCell.Text(null),
                 TabularExportCell.Text(null),
                 TabularExportCell.Text(null),
                 TabularExportCell.Text(null),
-                TabularExportCell.Number(Money(grouping.TotalDebit, grouping.TotalDebitRub)),
-                TabularExportCell.Number(Money(grouping.TotalCredit, grouping.TotalCreditRub)),
+                TabularExportCell.Number(Money(grouping.TotalReceipt, grouping.TotalReceiptRub)),
+                TabularExportCell.Number(Money(grouping.TotalOutflow, grouping.TotalOutflowRub)),
                 TabularExportCell.Number(Money(grouping.ClosingBalance, grouping.ClosingBalanceRub))
             ])
         };
     }
 
-    private static TabularExportDocument BuildDetailsDocument(
+    internal static TabularExportDocument BuildDetailsDocument(
         PartyStatementResult statement,
         string stem,
         string currency,
-        IReadOnlyList<TabularExportFilter> filters)
+        IReadOnlyList<TabularExportFilter> filters,
+        bool isEnglish)
     {
         var isRub = statement.Summary.IsRubPresentation;
         decimal? Money(decimal? usd, decimal? rub) => isRub ? rub : usd;
@@ -122,19 +133,19 @@ internal static class SupplierStatementExport
                 new("شرح", "Description", Width: 28, Wrap: true),
                 new("مقدار", "Quantity", TabularExportValueType.Number, 12),
                 new("نرخ واحد", "Unit price", TabularExportValueType.Number, 12),
-                new($"بدهکار ({currency})", "Debit", TabularExportValueType.Number, 15),
-                new($"بستانکار ({currency})", "Credit", TabularExportValueType.Number, 15),
-                new($"مانده ({currency})", "Balance", TabularExportValueType.Number, 15)
+                new(FlowTitle(CompanyFlowTextKey.Receipt, currency, false), FlowTitle(CompanyFlowTextKey.Receipt, currency, true), TabularExportValueType.Number, 15),
+                new(FlowTitle(CompanyFlowTextKey.Outflow, currency, false), FlowTitle(CompanyFlowTextKey.Outflow, currency, true), TabularExportValueType.Number, 15),
+                new(FlowTitle(CompanyFlowTextKey.Balance, currency, false), FlowTitle(CompanyFlowTextKey.Balance, currency, true), TabularExportValueType.Number, 15)
             ],
             Rows = rows.Select(row => new TabularExportRow(
             [
                 TabularExportCell.Text(row.ContractNumber),
                 TabularExportCell.Date(row.Date),
-                TabularExportCell.Text(row.Description),
+                TabularExportCell.Text(row.DescriptionFor(isEnglish)),
                 TabularExportCell.Number(row.Quantity),
                 TabularExportCell.Number(row.UnitPrice),
-                TabularExportCell.Number(Money(row.DebitBase, row.DebitRub)),
-                TabularExportCell.Number(Money(row.CreditBase, row.CreditRub)),
+                TabularExportCell.Number(Money(row.ReceiptBase, row.ReceiptRub)),
+                TabularExportCell.Number(Money(row.OutflowBase, row.OutflowRub)),
                 TabularExportCell.Number(Money(row.RunningBalance, row.RunningBalanceRub))
             ])).ToList()
         };

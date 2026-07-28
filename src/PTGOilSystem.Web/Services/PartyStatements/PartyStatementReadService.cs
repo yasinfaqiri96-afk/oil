@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Services.CompanyFlow;
 
 namespace PTGOilSystem.Web.Services.PartyStatements;
 
@@ -10,19 +11,55 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
 {
     private const string BaseCurrency = "USD";
     private const string ViaSarrafPayableLedgerSourceType = LedgerEntryOwnership.ViaSarrafPayableSourceType;
+    private const CompanyFlowAccountKind AccountKind = CompanyFlowAccountKind.PartyAccount;
     private readonly ApplicationDbContext _db;
     private readonly IPartyStatementPolicyResolver _policyResolver;
+    private readonly ICompanyFlowDirectionResolver _flowResolver;
+    private readonly ICompanyFlowBalanceService _balanceService;
     private readonly PartyStatementOptions _options;
 
     public PartyStatementReadService(
         ApplicationDbContext db,
         IPartyStatementPolicyResolver policyResolver,
+        ICompanyFlowDirectionResolver flowResolver,
+        ICompanyFlowBalanceService balanceService,
         IOptions<PartyStatementOptions> options)
     {
         _db = db;
         _policyResolver = policyResolver;
+        _flowResolver = flowResolver;
+        _balanceService = balanceService;
         _options = options.Value;
     }
+
+    /// <summary>
+    /// نشاندنِ مبلغ در ستون درست («رسید» یا «برد») با جهتی که لایهٔ مرکزی تعیین کرده است.
+    /// هیچ‌جای دیگری اجازه ندارد Debit/Credit را مستقیم به ستون نمایش تبدیل کند.
+    /// </summary>
+    private void ApplyFlow(PartyStatementRow row, in CompanyFlowEvent flowEvent, decimal amountUsd)
+    {
+        var direction = _flowResolver.Resolve(flowEvent);
+        row.FlowDirection = direction;
+        row.IsReversalRow = flowEvent.Lifecycle == CompanyFlowLifecycle.Reversal;
+        row.IsCancelled = flowEvent.Lifecycle == CompanyFlowLifecycle.Cancelled;
+
+        var amount = Math.Abs(amountUsd);
+        if (direction == CompanyFlowDirection.Receipt)
+        {
+            row.ReceiptBase = amount;
+            row.OutflowBase = null;
+        }
+        else
+        {
+            row.OutflowBase = amount;
+            row.ReceiptBase = null;
+        }
+    }
+
+    private static CompanyFlowLifecycle LifecycleOf(string? sourceType)
+        => CompanyFlowSourceTypes.IsReversal(sourceType)
+            ? CompanyFlowLifecycle.Reversal
+            : CompanyFlowLifecycle.Original;
 
     public async Task<PartyStatementResult> GetStatementAsync(
         PartyRef party,
@@ -56,18 +93,25 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         }
 
         var resultRows = BuildRunningRows(calculation.OpeningBalance, calculation.PeriodRows, filter.FromDate);
-        var totalDebit = calculation.PeriodRows.Sum(r => r.DebitBase ?? 0m);
-        var totalCredit = calculation.PeriodRows.Sum(r => r.CreditBase ?? 0m);
-        var closing = calculation.OpeningBalance + totalCredit - totalDebit;
+        // جمع‌ها از لایهٔ مرکزی می‌آیند: بیلانس = اول دوره + Σبرد − Σرسید.
+        var summary = _balanceService.Summarize(
+            calculation.OpeningBalance,
+            calculation.PeriodRows.Select(r => new CompanyFlowAmount(
+                r.FlowDirection ?? CompanyFlowDirection.Outflow,
+                r.ReceiptBase ?? r.OutflowBase ?? 0m)),
+            AccountKind);
+        var totalReceipt = summary.TotalReceipt;
+        var totalOutflow = summary.TotalOutflow;
+        var closing = summary.ClosingBalance;
 
-        // جمع‌ها و مانده جاری روبلی — فقط از اسناد روبلی؛ اسناد غیرروبلی ارزش روبلی
+        // جمع‌ها و بیلانس جاری روبلی — فقط از اسناد روبلی؛ اسناد غیرروبلی ارزش روبلی
         // ندارند و در این محاسبه شرکت نمی‌کنند (در سطر «—» نمایش داده می‌شوند).
-        decimal? openingRub = null, totalDebitRub = null, totalCreditRub = null, closingRub = null;
+        decimal? openingRub = null, totalReceiptRub = null, totalOutflowRub = null, closingRub = null;
         if (presentInRub)
         {
             openingRub = calculation.OpeningBalance == 0m ? 0m : null;
-            totalDebitRub = calculation.PeriodRows.Sum(r => r.DebitRub ?? 0m);
-            totalCreditRub = calculation.PeriodRows.Sum(r => r.CreditRub ?? 0m);
+            totalReceiptRub = calculation.PeriodRows.Sum(r => r.ReceiptRub ?? 0m);
+            totalOutflowRub = calculation.PeriodRows.Sum(r => r.OutflowRub ?? 0m);
             var runningRub = openingRub ?? 0m;
             foreach (var row in resultRows)
             {
@@ -82,7 +126,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                     row.RunningBalanceRub = runningRub;
                 }
             }
-            closingRub = (openingRub ?? 0m) + totalCreditRub.Value - totalDebitRub.Value;
+            closingRub = _balanceService.Close(openingRub ?? 0m, totalReceiptRub.Value, totalOutflowRub.Value, AccountKind);
         }
 
         var companyInfo = await LoadCompanyInfoAsync(party, filter.ContractId, cancellationToken);
@@ -109,15 +153,16 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             Summary = new PartyStatementSummary
             {
                 OpeningBalance = calculation.OpeningBalance,
-                TotalDebit = totalDebit,
-                TotalCredit = totalCredit,
+                TotalReceipt = totalReceipt,
+                TotalOutflow = totalOutflow,
                 ClosingBalance = closing,
-                ClosingBalanceMeaning = policy.BalanceMeaning(closing),
+                ClosingBalanceMeaning = policy.BalanceMeaning(closing, isEnglish: false),
+                ClosingBalanceMeaningEn = policy.BalanceMeaning(closing, isEnglish: true),
                 BaseCurrencyCode = displayCurrency,
                 IsRubPresentation = presentInRub,
                 OpeningBalanceRub = openingRub,
-                TotalDebitRub = totalDebitRub,
-                TotalCreditRub = totalCreditRub,
+                TotalReceiptRub = totalReceiptRub,
+                TotalOutflowRub = totalOutflowRub,
                 ClosingBalanceRub = closingRub
             },
             ColumnOptions = ResolveColumns(periodRows, filter),
@@ -144,22 +189,11 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         // (سطری که تسویهٔ Posted به آن اشاره می‌کند) می‌ماند. رجوع: SarrafSettlementLedgerEffectiveness.
         var baseQuery = BuildPartyLedgerQuery(party, filter)
             .WhereEffectiveSarrafSettlementLegs(_db);
-        var opening = 0m;
-        if (filter.FromDate.HasValue)
-        {
-            var from = filter.FromDate.Value.Date;
-            opening = await baseQuery
-                .Where(l => l.EntryDate < from)
-                .SumAsync(l => (decimal?)(l.Side == LedgerSide.Credit ? l.AmountUsd : -l.AmountUsd), ct)
-                ?? 0m;
-            if (policy.ReverseLegacyLedgerSides)
-            {
-                opening = -opening;
-            }
-        }
 
-        var periodQuery = ApplyPeriod(baseQuery, filter);
-        var entries = await periodQuery
+        // بیلانس اول دوره دیگر با یک SUM از روی Side محاسبه نمی‌شود: جهت هر سند از لایهٔ
+        // مرکزی می‌آید و ممکن است با سمت حسابداری‌اش یکی نباشد (مثلاً «مصرف»). بنابراین
+        // سطرهای پیش از دوره هم از همان مسیرِ نگاشت عبور می‌کنند و بعد جدا می‌شوند.
+        var entries = await baseQuery
             .OrderBy(l => l.EntryDate)
             .ThenBy(l => l.CreatedAtUtc)
             .ThenBy(l => l.Id)
@@ -182,8 +216,40 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             })
             .ToListAsync(ct);
 
-        var rows = entries.Select(e => MapLedgerRow(e, policy)).ToList();
-        return new StatementCalculation(opening, rows);
+        var allRows = entries.Select(e => MapLedgerRow(e, policy)).ToList();
+        return SplitAtPeriodStart(allRows, filter.FromDate);
+    }
+
+    /// <summary>
+    /// جدا کردن «بیلانس اول دوره» از سطرهای دوره. اثر هر سطر با فرمول مرکزی
+    /// (بیلانس = Σبرد − Σرسید) جمع می‌شود، نه با تفریق خام Debit/Credit.
+    /// </summary>
+    private StatementCalculation SplitAtPeriodStart(List<PartyStatementRow> allRows, DateTime? fromDate)
+    {
+        if (!fromDate.HasValue)
+        {
+            return new StatementCalculation(0m, allRows);
+        }
+
+        var from = fromDate.Value.Date;
+        var opening = 0m;
+        var periodRows = new List<PartyStatementRow>(allRows.Count);
+        foreach (var row in allRows)
+        {
+            if (row.Date < from)
+            {
+                opening += _balanceService.SignedEffect(
+                    row.FlowDirection ?? CompanyFlowDirection.Outflow,
+                    row.ReceiptBase ?? row.OutflowBase ?? 0m,
+                    AccountKind);
+            }
+            else
+            {
+                periodRows.Add(row);
+            }
+        }
+
+        return new StatementCalculation(opening, periodRows);
     }
 
     private IQueryable<LedgerEntry> BuildPartyLedgerQuery(PartyRef party, PartyStatementFilter filter)
@@ -243,33 +309,16 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         return query;
     }
 
-    private static IQueryable<LedgerEntry> ApplyPeriod(IQueryable<LedgerEntry> query, PartyStatementFilter filter)
+    private PartyStatementRow MapLedgerRow(LedgerStatementProjection entry, PartyStatementPolicy policy)
     {
-        if (filter.FromDate.HasValue)
-        {
-            var from = filter.FromDate.Value.Date;
-            query = query.Where(l => l.EntryDate >= from);
-        }
-
-        return query;
-    }
-
-    private static PartyStatementRow MapLedgerRow(LedgerStatementProjection entry, PartyStatementPolicy policy)
-    {
-        var ledgerDebit = entry.Side == LedgerSide.Debit ? entry.AmountUsd : (decimal?)null;
-        var ledgerCredit = entry.Side == LedgerSide.Credit ? entry.AmountUsd : (decimal?)null;
-        var debit = policy.ReverseLegacyLedgerSides ? ledgerCredit : ledgerDebit;
-        var credit = policy.ReverseLegacyLedgerSides ? ledgerDebit : ledgerCredit;
         var currency = NormalizeCurrency(entry.OriginalCurrency);
 
-        return new PartyStatementRow
+        var row = new PartyStatementRow
         {
             Date = entry.Date,
             CreatedAtUtc = entry.CreatedAtUtc,
             Reference = entry.Reference,
             Description = entry.Description,
-            DebitBase = debit,
-            CreditBase = credit,
             OriginalAmount = entry.OriginalAmount,
             OriginalCurrency = currency,
             FxRate = ResolveHistoricalRate(entry.FxRateToUsd, currency),
@@ -280,6 +329,17 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             ContractId = entry.ContractId,
             ContractNumber = entry.ContractNumber
         };
+
+        ApplyFlow(
+            row,
+            new CompanyFlowEvent(
+                entry.SourceType,
+                entry.Side,
+                policy.FlowRole,
+                LifecycleOf(entry.SourceType)),
+            entry.AmountUsd);
+
+        return row;
     }
 
     private async Task<StatementCalculation> BuildPartnerRowsAsync(
@@ -379,10 +439,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             allRows.Add(MapLedgerRow(entry, policy));
         }
 
-        var from = filter.FromDate?.Date;
-        var opening = from.HasValue ? allRows.Where(r => r.Date < from.Value).Sum(r => r.SignedAmount) : 0m;
-        var periodRows = from.HasValue ? allRows.Where(r => r.Date >= from.Value).ToList() : allRows;
-        return new StatementCalculation(opening, periodRows);
+        return SplitAtPeriodStart(allRows, filter.FromDate);
     }
 
     private async Task<StatementCalculation> BuildEmployeeRowsAsync(
@@ -410,21 +467,20 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             .ThenBy(t => t.Id)
             .ToListAsync(ct);
         var allRows = transactions.Select(MapEmployeeRow).ToList();
-        var from = filter.FromDate?.Date;
-        var opening = from.HasValue ? allRows.Where(r => r.Date < from.Value).Sum(r => r.SignedAmount) : 0m;
-        var periodRows = from.HasValue ? allRows.Where(r => r.Date >= from.Value).ToList() : allRows;
-        return new StatementCalculation(opening, periodRows);
+        return SplitAtPeriodStart(allRows, filter.FromDate);
     }
 
-    private static PartyStatementRow MapEmployeeRow(EmployeeSalaryTransaction transaction)
+    /// <summary>
+    /// سطر صورت‌حساب کارمند. ثبت معاش/بونس «رسید» است (شرکت کار و خدمت گرفته) و پرداخت
+    /// معاش/مساعده «برد». پیش‌تر علامت این صورت‌حساب وارونهٔ بقیهٔ طرف‌حساب‌ها بود.
+    /// «اصلاح حساب» جهت ثابتی ندارد و از علامت مبلغِ خودش خوانده می‌شود.
+    /// </summary>
+    private PartyStatementRow MapEmployeeRow(EmployeeSalaryTransaction transaction)
     {
         var amount = Math.Abs(transaction.AmountUsd);
-        var increasesPayable = transaction.TransactionType is EmployeeSalaryTransactionType.SalaryAccrual
-            or EmployeeSalaryTransactionType.Bonus
-            || transaction.TransactionType == EmployeeSalaryTransactionType.Adjustment && transaction.AmountUsd > 0m;
         var currency = NormalizeCurrency(transaction.Currency);
 
-        return new PartyStatementRow
+        var row = new PartyStatementRow
         {
             Date = transaction.TransactionDate,
             CreatedAtUtc = transaction.CreatedAtUtc,
@@ -432,8 +488,6 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             Description = string.IsNullOrWhiteSpace(transaction.Description)
                 ? EmployeeTransactionDescription(transaction.TransactionType)
                 : transaction.Description,
-            DebitBase = increasesPayable ? null : amount,
-            CreditBase = increasesPayable ? amount : null,
             OriginalAmount = Math.Abs(transaction.Amount),
             OriginalCurrency = currency,
             FxRate = ResolveHistoricalRate(transaction.AppliedFxRateToUsd, currency),
@@ -442,6 +496,19 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             SourceId = transaction.Id,
             PostingSequence = transaction.Id
         };
+
+        // «اصلاح حساب» با مبلغ مثبت مثل ثبت معاش عمل می‌کند (تعهد بیشتر) و با مبلغ منفی
+        // مثل پرداخت. برای بقیه، خودِ نوع تراکنش در نگاشت مرکزی تعریف شده است.
+        var adjustmentSide = transaction.AmountUsd > 0m ? LedgerSide.Credit : LedgerSide.Debit;
+        ApplyFlow(
+            row,
+            new CompanyFlowEvent(
+                transaction.TransactionType.ToString(),
+                adjustmentSide,
+                CompanyFlowPartyRole.Employee),
+            amount);
+
+        return row;
     }
 
     private async Task<StatementCalculation> BuildSarrafRowsAsync(
@@ -493,17 +560,17 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         foreach (var settlement in settlements)
         {
             var currency = NormalizeCurrency(settlement.SarrafCurrency);
-            var isPayableIncrease = settlement.Direction == SarrafSettlementDirection.Out;
-            allRows.Add(new PartyStatementRow
+            // Out = صراف از طرف شرکت پرداخت کرد ⇒ صراف برای شرکت ارزش فراهم کرده ⇒ «رسید».
+            // In  = صراف برای شرکت پول گرفت ⇒ پول نزد صراف است ⇒ «برد».
+            var sarrafProvidedValue = settlement.Direction == SarrafSettlementDirection.Out;
+            var row = new PartyStatementRow
             {
                 Date = settlement.SettlementDate,
                 CreatedAtUtc = settlement.CreatedAtUtc,
                 Reference = settlement.ReferenceNumber,
                 Description = string.IsNullOrWhiteSpace(settlement.Description)
-                    ? (isPayableIncrease ? "پرداخت صراف از طرف شرکت" : "دریافت صراف برای شرکت")
+                    ? (sarrafProvidedValue ? "پرداخت صراف از طرف شرکت" : "دریافت صراف برای شرکت")
                     : settlement.Description,
-                DebitBase = isPayableIncrease ? null : settlement.SarrafChargedAmountUsd,
-                CreditBase = isPayableIncrease ? settlement.SarrafChargedAmountUsd : null,
                 OriginalAmount = settlement.SarrafChargedAmount,
                 OriginalCurrency = currency,
                 FxRate = ResolveHistoricalRate(settlement.SarrafFxRateToUsd, currency),
@@ -512,33 +579,49 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 SourceId = settlement.Id,
                 PostingSequence = settlement.Id,
                 ContractId = settlement.ContractId
-            });
+            };
+            ApplyFlow(
+                row,
+                new CompanyFlowEvent(
+                    nameof(SarrafSettlement),
+                    sarrafProvidedValue ? LedgerSide.Credit : LedgerSide.Debit,
+                    CompanyFlowPartyRole.Sarraf),
+                settlement.SarrafChargedAmountUsd);
+            allRows.Add(row);
         }
 
         var viaRows = await viaQuery.ToListAsync(ct);
-        allRows.AddRange(viaRows.Select(ledger => new PartyStatementRow
+        foreach (var ledger in viaRows)
         {
-            Date = ledger.EntryDate,
-            CreatedAtUtc = ledger.CreatedAtUtc,
-            Reference = ledger.Reference,
-            Description = ledger.Description,
-            CreditBase = ledger.AmountUsd,
-            OriginalAmount = ledger.SourceAmount ?? ledger.AmountUsd,
-            OriginalCurrency = NormalizeCurrency(ledger.SourceCurrencyCode ?? ledger.Currency),
-            FxRate = ResolveHistoricalRate(ledger.AppliedFxRateToUsd, ledger.SourceCurrencyCode ?? ledger.Currency),
-            FxRateDisplay = PartyStatementFormatting.FxDisplay(ledger.AppliedFxRateToUsd, ledger.SourceCurrencyCode ?? ledger.Currency),
-            SourceType = ledger.SourceType,
-            SourceId = ledger.Id,
-            PostingSequence = ledger.Id,
-            ContractId = ledger.ContractId
-        }));
+            var row = new PartyStatementRow
+            {
+                Date = ledger.EntryDate,
+                CreatedAtUtc = ledger.CreatedAtUtc,
+                Reference = ledger.Reference,
+                Description = ledger.Description,
+                OriginalAmount = ledger.SourceAmount ?? ledger.AmountUsd,
+                OriginalCurrency = NormalizeCurrency(ledger.SourceCurrencyCode ?? ledger.Currency),
+                FxRate = ResolveHistoricalRate(ledger.AppliedFxRateToUsd, ledger.SourceCurrencyCode ?? ledger.Currency),
+                FxRateDisplay = PartyStatementFormatting.FxDisplay(ledger.AppliedFxRateToUsd, ledger.SourceCurrencyCode ?? ledger.Currency),
+                SourceType = ledger.SourceType,
+                SourceId = ledger.Id,
+                PostingSequence = ledger.Id,
+                ContractId = ledger.ContractId
+            };
+            // صراف به‌جای شرکت به تأمین‌کننده پرداخت کرده ⇒ ارزش را او فراهم کرده ⇒ «رسید».
+            ApplyFlow(
+                row,
+                new CompanyFlowEvent(ledger.SourceType, ledger.Side, CompanyFlowPartyRole.Sarraf, LifecycleOf(ledger.SourceType)),
+                ledger.AmountUsd);
+            allRows.Add(row);
+        }
 
         var payments = await paymentsQuery.ToListAsync(ct);
         foreach (var payment in payments)
         {
             var isPaymentToSarraf = payment.Direction == PaymentDirection.Out;
             var currency = NormalizeCurrency(payment.Currency);
-            allRows.Add(new PartyStatementRow
+            var row = new PartyStatementRow
             {
                 Date = payment.PaymentDate,
                 CreatedAtUtc = payment.CreatedAtUtc,
@@ -546,8 +629,6 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 Description = string.IsNullOrWhiteSpace(payment.Description)
                     ? (isPaymentToSarraf ? "پرداخت شرکت به صراف" : "برگشت وجه از صراف")
                     : payment.Description,
-                DebitBase = isPaymentToSarraf ? payment.AmountUsd : null,
-                CreditBase = isPaymentToSarraf ? null : payment.AmountUsd,
                 OriginalAmount = payment.Amount,
                 OriginalCurrency = currency,
                 FxRate = ResolveHistoricalRate(payment.AppliedFxRateToUsd, currency),
@@ -556,13 +637,19 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 SourceId = payment.Id,
                 PostingSequence = payment.Id,
                 ContractId = payment.ContractId
-            });
+            };
+            // حرکت واقعی پول: خروج از شرکت = برد، ورود به شرکت = رسید.
+            ApplyFlow(
+                row,
+                new CompanyFlowEvent(
+                    nameof(PaymentTransaction),
+                    partyRole: CompanyFlowPartyRole.Sarraf,
+                    paymentDirection: payment.Direction),
+                payment.AmountUsd);
+            allRows.Add(row);
         }
 
-        var from = filter.FromDate?.Date;
-        var opening = from.HasValue ? allRows.Where(r => r.Date < from.Value).Sum(r => r.SignedAmount) : 0m;
-        var periodRows = from.HasValue ? allRows.Where(r => r.Date >= from.Value).ToList() : allRows;
-        return new StatementCalculation(opening, periodRows);
+        return SplitAtPeriodStart(allRows, filter.FromDate);
     }
 
     private async Task AddOperationalColumnsAsync(List<PartyStatementRow> rows, CancellationToken ct)
@@ -709,7 +796,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 Date = fromDate?.Date ?? ordered.FirstOrDefault()?.Date.Date ?? DateTime.UtcNow.Date,
                 CreatedAtUtc = DateTime.MinValue,
                 Reference = "OB",
-                Description = "مانده ابتدایی",
+                Description = CompanyFlowText.Get(CompanyFlowTextKey.OpeningBalance, isEnglish: false),
                 RunningBalance = opening,
                 OriginalCurrency = BaseCurrency,
                 SourceType = "OpeningBalance",
@@ -783,8 +870,8 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         }
 
         var amount = Math.Abs(row.OriginalAmount.Value);
-        row.DebitRub = row.DebitBase.HasValue ? amount : null;
-        row.CreditRub = row.CreditBase.HasValue ? amount : null;
+        row.ReceiptRub = row.ReceiptBase.HasValue ? amount : null;
+        row.OutflowRub = row.OutflowBase.HasValue ? amount : null;
     }
 
     private static string NormalizeCurrency(string? currency)

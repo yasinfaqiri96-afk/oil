@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Accounting;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
@@ -146,8 +147,8 @@ public sealed class ChartOfAccountsController(
 
         ViewBag.NormalBalances = new SelectList(new[]
         {
-            new { Value = (int)NormalBalance.Debit, Text = "بدهکار" },
-            new { Value = (int)NormalBalance.Credit, Text = "بستانکار" }
+            new { Value = (int)NormalBalance.Debit, Text = UiText.T(HttpContext, "بدهکار", "Debit") },
+            new { Value = (int)NormalBalance.Credit, Text = UiText.T(HttpContext, "بستانکار", "Credit") }
         }, "Value", "Text", (int)form.NormalBalance);
 
         ViewBag.MonetaryTreatments = new SelectList(new[]

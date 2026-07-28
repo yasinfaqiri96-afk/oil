@@ -496,6 +496,22 @@ public class ShellViewStructureTests
         Assert.Contains("window.addEventListener(\"ptg:page-ready\"", customsImport);
     }
 
+    [Fact]
+    public void Shared_Stat_Cards_Fit_Long_Values_Without_Ellipsis()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var component = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Components/StatCard/Default.cshtml");
+        var script = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/stat-card-fit.js");
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/52-stat-card.css");
+
+        Assert.Contains("~/js/stat-card-fit.js", layout);
+        Assert.Contains("data-ak-stat-value", component);
+        Assert.Contains("new ResizeObserver", script);
+        Assert.Contains("value.clientWidth / value.scrollWidth", script);
+        Assert.Contains("window.addEventListener(\"ptg:page-ready\"", script);
+        Assert.Contains("text-overflow: clip", css);
+    }
+
     private static string ReadPtgCss()
     {
         var ptgRoot = GetRepoPath("src/PTGOilSystem.Web/wwwroot/css/ptg");

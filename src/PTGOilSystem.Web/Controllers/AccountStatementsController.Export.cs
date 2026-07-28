@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Models.AccountStatements;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.Exports;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -41,7 +42,9 @@ public partial class AccountStatementsController
                 new("ارز منبع", "Source currency", Width: 12),
                 new("نرخ به USD", "FX to USD", TabularExportValueType.Number, 14),
                 new("مبلغ USD", "Amount USD", TabularExportValueType.Number, 16),
-                new("مانده جاری USD", "Running balance USD", TabularExportValueType.Number, 18),
+                new(CompanyFlowText.WithCurrency(CompanyFlowTextKey.RunningBalance, "USD", false),
+                    CompanyFlowText.WithCurrency(CompanyFlowTextKey.RunningBalance, "USD", true),
+                    TabularExportValueType.Number, 18),
                 new("مرجع", "Reference", Width: 20, Wrap: true),
                 new("منبع", "Source", Width: 18),
                 new("قرارداد", "Contract", Width: 18),

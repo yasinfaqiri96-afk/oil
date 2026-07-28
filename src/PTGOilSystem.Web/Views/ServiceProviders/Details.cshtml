@@ -14,7 +14,7 @@
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
     var bal = officialSummary?.ClosingBalance ?? Model.LedgerBalanceUsd;
-    var balanceLabel = officialSummary?.ClosingBalanceMeaning ?? (bal > 0
+    var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context)) ?? (bal > 0
         ? UiText.T(Context, "قابل پرداخت به شرکت خدماتی", "Payable to provider")
         : bal < 0
             ? UiText.T(Context, "پیش‌پرداخت / طلب ما", "Prepaid / they owe us")

@@ -108,7 +108,7 @@
     };
 }
 
-<div class="ak-form-page sf-detail ak-detail-page" data-ak-detail-v2="true" data-instant-tabs data-shipment-details-page>
+<div class="ak-form-page sf-detail ak-detail-page ak-operations-detail" data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs data-shipment-details-page>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((shipmentTitle, false,
                        canRegisterDirectLoss ? T("ثبت کسری", "Add loss") : (string?)null,
@@ -152,7 +152,6 @@
             <vc:stat-card title="@T("ضایعات ثبت‌شده", "Recorded losses")" value="@NumberDisplay.Quantity(Model.RecordedLossQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-losses"></vc:stat-card>
             <vc:stat-card title="@T("کسری تخلیه کشتی", "Vessel unloading shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@T("تن", "MT")" avatar="vessel"></vc:stat-card>
             <vc:stat-card title="@T("کسری حمل", "Transport shortage")" value="@NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt)" unit="@T("تن", "MT")" avatar="transported"></vc:stat-card>
-            <vc:stat-card title="@T("ارزش تخمینی کسری", "Estimated shortage value")" value="@MoneyCard(Model.EstimatedShortageValueUsd)" unit="USD" avatar="statement"></vc:stat-card>
         </div>
 
         <div class="ak-stat-grid mb-3" data-ak-tab="shipment-sales"
@@ -760,6 +759,10 @@
         </div>
 
         <div class="@PaneClass("balance")" id="shipment-balance" role="tabpanel">
+            <p class="ak-operations-tab-fact">
+                <span>@T("ارزش تخمینی کسری", "Estimated shortage value")</span>
+                <strong dir="ltr">@MoneyCard(Model.EstimatedShortageValueUsd) USD</strong>
+            </p>
             <section class="ak-form-section ak-detail-section">
                 <shipment-record-list title="@T("کسری‌ها و ضایعات ثبت‌شده", "Recorded losses & shortages")" count="@lossDisplayRows.Count">
                     <shipment-record-action>

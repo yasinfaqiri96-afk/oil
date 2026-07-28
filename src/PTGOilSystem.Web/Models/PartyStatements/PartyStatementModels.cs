@@ -1,4 +1,5 @@
 using System.Globalization;
+using PTGOilSystem.Web.Services.CompanyFlow;
 
 namespace PTGOilSystem.Web.Models.PartyStatements;
 
@@ -38,30 +39,47 @@ public sealed class PartyStatementPolicy
     public required string PartyInformationTitleFa { get; init; }
     public required string PartyInformationTitleEn { get; init; }
     public required string AccountTypeFa { get; init; }
-    public required string DebitMeaningFa { get; init; }
-    public required string CreditMeaningFa { get; init; }
-    public required string PositiveBalanceMeaningFa { get; init; }
-    public required string NegativeBalanceMeaningFa { get; init; }
-    public string SettledMeaningFa { get; init; } = "حساب تسویه است";
-    public bool ReverseLegacyLedgerSides { get; init; }
+    public required string AccountTypeEn { get; init; }
+    /// <summary>یعنی چه چیزی در ستون «رسید» این طرف‌حساب می‌نشیند.</summary>
+    public required string ReceiptMeaningFa { get; init; }
+    /// <summary>یعنی چه چیزی در ستون «Debit» این طرف‌حساب می‌نشیند.</summary>
+    public required string ReceiptMeaningEn { get; init; }
+    /// <summary>یعنی چه چیزی در ستون «برد» این طرف‌حساب می‌نشیند.</summary>
+    public required string OutflowMeaningFa { get; init; }
+    /// <summary>یعنی چه چیزی در ستون «Credit» این طرف‌حساب می‌نشیند.</summary>
+    public required string OutflowMeaningEn { get; init; }
     public bool SupportsOperationalColumns { get; init; }
 
-    public string BalanceMeaning(decimal balance)
-        => balance > 0m
-            ? PositiveBalanceMeaningFa
-            : balance < 0m
-                ? NegativeBalanceMeaningFa
-                : SettledMeaningFa;
+    /// <summary>نقش طرف‌حساب برای لایهٔ مرکزی تعیین جهت.</summary>
+    public required CompanyFlowPartyRole FlowRole { get; init; }
+
+    public string AccountType(bool isEnglish) => isEnglish ? AccountTypeEn : AccountTypeFa;
+
+    public string ReceiptMeaning(bool isEnglish) => isEnglish ? ReceiptMeaningEn : ReceiptMeaningFa;
+
+    public string OutflowMeaning(bool isEnglish) => isEnglish ? OutflowMeaningEn : OutflowMeaningFa;
+
+    /// <summary>
+    /// معنی علامت بیلانس — علامت و منطقش مستقل از زبان است و فقط متن ترجمه می‌شود.
+    /// همیشه از منبع مرکزی <see cref="CompanyFlowText"/> می‌آید.
+    /// </summary>
+    public string BalanceMeaning(decimal balance, bool isEnglish = false)
+        => CompanyFlowText.BalanceMeaning(balance, CompanyFlowAccountKind.PartyAccount, isEnglish);
 }
 
 public sealed class PartyStatementSummary
 {
     public decimal OpeningBalance { get; init; }
-    public decimal TotalDebit { get; init; }
-    public decimal TotalCredit { get; init; }
+    public decimal TotalReceipt { get; init; }
+    public decimal TotalOutflow { get; init; }
     public decimal ClosingBalance { get; init; }
     public decimal ClosingBalanceAbsolute => Math.Abs(ClosingBalance);
     public string ClosingBalanceMeaning { get; init; } = string.Empty;
+    public string ClosingBalanceMeaningEn { get; init; } = string.Empty;
+
+    /// <summary>معنی بیلانس نهایی در زبان انتخاب‌شده — عدد و علامت تغییر نمی‌کند.</summary>
+    public string ClosingBalanceMeaningFor(bool isEnglish)
+        => isEnglish ? ClosingBalanceMeaningEn : ClosingBalanceMeaning;
     public string BaseCurrencyCode { get; init; } = "USD";
 
     // نمایش روبلی: وقتی ارز روبل انتخاب شود، جمع‌ها با ارزش روبلی واقعیِ هر سند
@@ -69,8 +87,8 @@ public sealed class PartyStatementSummary
     // روبلی ندارند و در این جمع‌ها شرکت نمی‌کنند (در سطر با «—» نمایش داده می‌شوند).
     public bool IsRubPresentation { get; init; }
     public decimal? OpeningBalanceRub { get; init; }
-    public decimal? TotalDebitRub { get; init; }
-    public decimal? TotalCreditRub { get; init; }
+    public decimal? TotalReceiptRub { get; init; }
+    public decimal? TotalOutflowRub { get; init; }
     public decimal? ClosingBalanceRub { get; init; }
     public decimal? ClosingBalanceRubAbsolute => ClosingBalanceRub.HasValue ? Math.Abs(ClosingBalanceRub.Value) : null;
 }
@@ -82,13 +100,25 @@ public sealed class PartyStatementRow
     public DateTime CreatedAtUtc { get; set; }
     public string? Reference { get; set; }
     public string Description { get; set; } = string.Empty;
-    public decimal? DebitBase { get; set; }
-    public decimal? CreditBase { get; set; }
+
+    /// <summary>
+    /// شرح سطر در زبان نمایش. تنها سطری که ترجمه می‌شود سطر «بیلانس اول دوره» است؛ بقیه
+    /// شرحِ خودِ سند هستند و ترجمه نمی‌شوند تا داده تاریخی دست‌نخورده بماند.
+    /// </summary>
+    public string DescriptionFor(bool isEnglish)
+        => IsOpeningBalance
+            ? CompanyFlowText.Get(CompanyFlowTextKey.OpeningBalance, isEnglish)
+            : Description;
+
+    /// <summary>رسید — ارزشی که شرکت در این سطر دریافت کرده است (USD).</summary>
+    public decimal? ReceiptBase { get; set; }
+    /// <summary>برد — ارزشی که شرکت در این سطر داده است (USD).</summary>
+    public decimal? OutflowBase { get; set; }
     public decimal RunningBalance { get; set; }
     // ارزش روبلی سطر با نرخ تاریخی همان سند (فقط اسناد ذاتاً روبلی). null یعنی سند
     // روبلی نیست و در نمایش روبلی «—» نشان داده می‌شود.
-    public decimal? DebitRub { get; set; }
-    public decimal? CreditRub { get; set; }
+    public decimal? ReceiptRub { get; set; }
+    public decimal? OutflowRub { get; set; }
     public decimal? RunningBalanceRub { get; set; }
     public decimal? OriginalAmount { get; set; }
     public string OriginalCurrency { get; set; } = "USD";
@@ -106,11 +136,21 @@ public sealed class PartyStatementRow
     public string? ContractNumber { get; set; }
     public bool IsOpeningBalance { get; set; }
 
-    public decimal SignedAmount => (CreditBase ?? 0m) - (DebitBase ?? 0m);
+    /// <summary>سند لغوشده/جایگزین‌شده — فقط برای Audit نمایش داده می‌شود و در جمع‌ها نمی‌آید.</summary>
+    public bool IsCancelled { get; set; }
 
-    // اثر روبلی سطر روی مانده. null یعنی سند روبلی نیست (در جمع روبلی شرکت نمی‌کند).
+    /// <summary>این سطر خودش سند برگشت است (جهتش وارونهٔ سند اصلی محاسبه شده).</summary>
+    public bool IsReversalRow { get; set; }
+
+    /// <summary>جهت تجاری سطر از دید شرکت — از لایهٔ مرکزی می‌آید، نه از Debit/Credit.</summary>
+    public CompanyFlowDirection? FlowDirection { get; set; }
+
+    // بیلانس طرف‌حساب: اول دوره + Σبرد − Σرسید (مطابق فایل کاری شرکت).
+    public decimal SignedAmount => (OutflowBase ?? 0m) - (ReceiptBase ?? 0m);
+
+    // اثر روبلی سطر روی بیلانس. null یعنی سند روبلی نیست (در جمع روبلی شرکت نمی‌کند).
     public decimal? SignedAmountRub =>
-        CreditRub.HasValue || DebitRub.HasValue ? (CreditRub ?? 0m) - (DebitRub ?? 0m) : null;
+        OutflowRub.HasValue || ReceiptRub.HasValue ? (OutflowRub ?? 0m) - (ReceiptRub ?? 0m) : null;
 }
 
 public sealed class PartyStatementPartyInfo
@@ -219,11 +259,11 @@ public sealed class SupplierContractStatementViewModel
     public decimal OpeningBalance { get; init; }
     public decimal? OpeningBalanceRub { get; init; }
     public bool IsRub { get; init; }
-    public decimal TotalDebit { get; init; }
-    public decimal TotalCredit { get; init; }
+    public decimal TotalReceipt { get; init; }
+    public decimal TotalOutflow { get; init; }
     public decimal ClosingBalance { get; init; }
-    public decimal? TotalDebitRub { get; init; }
-    public decimal? TotalCreditRub { get; init; }
+    public decimal? TotalReceiptRub { get; init; }
+    public decimal? TotalOutflowRub { get; init; }
     public decimal? ClosingBalanceRub { get; init; }
 }
 
@@ -260,11 +300,11 @@ public sealed class SupplierContractStatementRow
         ContractQuantityMt.HasValue && LoadedQuantityMt.HasValue
             ? ContractQuantityMt.Value - LoadedQuantityMt.Value
             : null;
-    public decimal Debit { get; init; }
-    public decimal Credit { get; init; }
+    public decimal Receipt { get; init; }
+    public decimal Outflow { get; init; }
     public decimal Balance { get; init; }
-    public decimal? DebitRub { get; init; }
-    public decimal? CreditRub { get; init; }
+    public decimal? ReceiptRub { get; init; }
+    public decimal? OutflowRub { get; init; }
     public decimal? BalanceRub { get; init; }
 }
 

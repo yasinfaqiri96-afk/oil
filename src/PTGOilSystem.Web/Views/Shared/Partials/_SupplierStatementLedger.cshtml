@@ -9,6 +9,14 @@
     string Money2(decimal? v) => NumberDisplay.Money(v);
     string Qty(decimal? v) => NumberDisplay.Quantity(v);
     string Rate(decimal? v) => NumberDisplay.UnitPrice(v);
+
+    // معنی ستون‌های رسید/برد برای تأمین‌کننده — همان متنی که سیاست صورت‌حساب تأمین‌کننده دارد.
+    var receiptMeaning = UiText.T(Context,
+        "دریافت بارگیری یا کالا و برگشت پول از تأمین‌کننده",
+        "Loadings or goods received and cash returned by the supplier");
+    var outflowMeaning = UiText.T(Context,
+        "پرداخت به تأمین‌کننده (مستقیم یا از طریق صراف)",
+        "Payment to the supplier (direct or through a sarraf)");
 }
 <div class="ak-table-wrap supplier-statement-ledger-wrap">
     <table class="ak-table align-middle mb-0 supplier-statement-ledger" dir="rtl">
@@ -19,13 +27,13 @@
                 <th>شرح</th>
                 <th class="text-end">مقدار MT</th>
                 <th class="text-end">نرخ/قیمت</th>
-                <th class="text-end sl-rub" title="چیزی که شرکت به تأمین‌کننده داده (پرداخت/پیش‌پرداخت/انتقال ورودی)">داده‌شده RUB</th>
-                <th class="text-end sl-rub" title="چیزی که شرکت از تأمین‌کننده گرفته (بار/مصرف/دموراژ/انتقال خروجی)">گرفته‌شده RUB</th>
-                <th class="text-end sl-rub">مانده RUB</th>
+                <th class="text-end sl-rub" title="@receiptMeaning">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "RUB", Context)</th>
+                <th class="text-end sl-rub" title="@outflowMeaning">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "RUB", Context)</th>
+                <th class="text-end sl-rub">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Balance, "RUB", Context)</th>
                 <th class="text-end">نرخ دالر</th>
-                <th class="text-end sl-usd" title="چیزی که شرکت به تأمین‌کننده داده (پرداخت/پیش‌پرداخت/انتقال ورودی)">داده‌شده USD</th>
-                <th class="text-end sl-usd" title="چیزی که شرکت از تأمین‌کننده گرفته (بار/مصرف/دموراژ/انتقال خروجی)">گرفته‌شده USD</th>
-                <th class="text-end sl-usd">مانده USD</th>
+                <th class="text-end sl-usd" title="@receiptMeaning">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "USD", Context)</th>
+                <th class="text-end sl-usd" title="@outflowMeaning">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "USD", Context)</th>
+                <th class="text-end sl-usd">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Balance, "USD", Context)</th>
             </tr>
         </thead>
         <tbody>
@@ -70,8 +78,8 @@
                 </td>
                 <td class="text-end ak-num">@Qty(row.QuantityMt)</td>
                 <td class="text-end ak-num">@Rate(row.UnitPrice)</td>
-                <td class="text-end ak-num sl-rub sl-credit">@Money2(row.CreditOriginal)</td>
-                <td class="text-end ak-num sl-rub sl-debit">@Money2(row.DebitOriginal)</td>
+                <td class="text-end ak-num sl-rub sl-credit">@Money2(row.ReceiptOriginal)</td>
+                <td class="text-end ak-num sl-rub sl-debit">@Money2(row.OutflowOriginal)</td>
                 <td class="text-end sl-rub">
                     @if (row.RunningBalanceOriginal.HasValue)
                     {
@@ -92,8 +100,8 @@
                         <span class="text-muted">—</span>
                     }
                 </td>
-                <td class="text-end ak-num sl-usd sl-credit">@Money2(row.CreditUsd)</td>
-                <td class="text-end ak-num sl-usd sl-debit">@Money2(row.DebitUsd)</td>
+                <td class="text-end ak-num sl-usd sl-credit">@Money2(row.ReceiptUsd)</td>
+                <td class="text-end ak-num sl-usd sl-debit">@Money2(row.OutflowUsd)</td>
                 <td class="text-end sl-usd">
                     <span class="statement-balance-stack">
                         <strong class="ak-num @(row.RunningBalanceUsd < 0 ?"ak-num" : row.RunningBalanceUsd > 0 ? "ak-num" : "")">@NumberDisplay.Money(Math.Abs(row.RunningBalanceUsd))</strong>

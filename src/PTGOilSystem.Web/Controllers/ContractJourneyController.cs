@@ -1531,7 +1531,7 @@ public class ContractJourneyController : Controller
             {
                 LedgerEntryId = l.Id,
                 EntryDate = l.EntryDate,
-                SideName = l.Side == LedgerSide.Credit ? "بستانکار" : "بدهکار",
+                SideName = UiText.LedgerSideName(HttpContext, l.Side),
                 AmountUsd = l.AmountUsd,
                 SourceType = l.SourceType,
                 SourceId = l.SourceId,
@@ -3517,7 +3517,7 @@ public class ContractJourneyController : Controller
             {
                 LedgerEntryId = l.Id,
                 EntryDate = l.EntryDate,
-                SideName = l.Side == LedgerSide.Credit ? "بستانکار" : "بدهکار",
+                SideName = UiText.LedgerSideName(HttpContext, l.Side),
                 AmountUsd = l.AmountUsd,
                 SourceType = l.SourceType,
                 SourceId = l.SourceId,

@@ -120,7 +120,7 @@
     max-width: 100%;
     margin-top: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: clip;
     font-size: clamp(21px, 2vw, 29px);
     font-weight: 800;
     line-height: 1;

@@ -40,7 +40,10 @@ public sealed class LedgerListItemViewModel
     public int Id { get; init; }
     public DateTime EntryDate { get; init; }
     public LedgerSide Side { get; init; }
+    /// <summary>نام سمت حسابداری — فقط برای فیلتر و مرجع فنی نگه داشته شده است.</summary>
     public string SideName { get; init; } = string.Empty;
+    /// <summary>جهت تجاری از دید شرکت («رسید» یا «برد») — از لایهٔ مرکزی CompanyFlow.</summary>
+    public string FlowDirectionName { get; init; } = string.Empty;
     public decimal AmountUsd { get; init; }
     public string Currency { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
@@ -94,7 +97,10 @@ public sealed class LedgerDetailsViewModel
     public int Id { get; init; }
     public DateTime EntryDate { get; init; }
     public LedgerSide Side { get; init; }
+    /// <summary>نام سمت حسابداری — فقط برای فیلتر و مرجع فنی نگه داشته شده است.</summary>
     public string SideName { get; init; } = string.Empty;
+    /// <summary>جهت تجاری از دید شرکت («رسید» یا «برد») — از لایهٔ مرکزی CompanyFlow.</summary>
+    public string FlowDirectionName { get; init; } = string.Empty;
     public decimal AmountUsd { get; init; }
     public string Currency { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;

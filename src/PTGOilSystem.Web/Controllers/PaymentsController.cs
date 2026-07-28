@@ -2285,7 +2285,7 @@ public class PaymentsController : Controller
                     available = true,
                     name = statement.PartyInfo.Name,
                     amountText = statement.Summary.ClosingBalanceAbsolute.ToString("N2") + " " + statement.Summary.BaseCurrencyCode,
-                    label = statement.Summary.ClosingBalanceMeaning,
+                    label = statement.Summary.ClosingBalanceMeaningFor(UiText.IsEn(HttpContext)),
                     tone = closing > 0m ? "positive" : closing < 0m ? "negative" : "zero"
                 });
             }
@@ -4525,8 +4525,7 @@ public class PaymentsController : Controller
             : $"DailyFxRate {sourceCurrency}/{SystemCurrency.BaseCurrencyCode} on {fxRate.EffectiveDate.ToHtmlDateInput()}";
     }
 
-    private static string GetSideName(LedgerSide side)
-        => side == LedgerSide.Debit ? "بدهکار" : "بستانکار";
+    private string GetSideName(LedgerSide side) => UiText.LedgerSideName(HttpContext, side);
 
     private sealed record ResolvedPaymentContext(
         CashAccount CashAccount,

@@ -21,6 +21,7 @@ public interface ITabularExportService
 
     Task WritePartyStatementPdfAsync(
         Models.PartyStatements.PartyStatementResult statement,
+        bool isEnglish,
         Stream destination,
         CancellationToken cancellationToken);
 
@@ -29,6 +30,7 @@ public interface ITabularExportService
     Task WriteSupplierContractStatementPdfAsync(
         Models.PartyStatements.PartyStatementResult statement,
         Models.PartyStatements.SupplierContractStatementViewModel contractGrouping,
+        bool isEnglish,
         Stream destination,
         CancellationToken cancellationToken);
 }

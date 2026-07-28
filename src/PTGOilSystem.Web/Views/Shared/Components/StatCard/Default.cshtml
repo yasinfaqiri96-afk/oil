@@ -41,7 +41,9 @@
     {
         <div class="ak-stat-card__content">
             <span class="ak-stat-card__title" title="@Model.Title">@Model.Title</span>
-            <strong class="ak-stat-card__value ak-number @valueDensityClass" title="@displayValue"><bdi>@displayValue</bdi></strong>
+            <strong class="ak-stat-card__value ak-number @valueDensityClass"
+                    data-ak-stat-value
+                    title="@displayValue"><bdi>@displayValue</bdi></strong>
             @if (!string.IsNullOrWhiteSpace(Model.Unit))
             {
                 <span class="ak-stat-card__unit">@Model.Unit</span>

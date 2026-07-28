@@ -206,7 +206,7 @@
     nextActions.RemoveAll(action => string.Equals(action.ModalTarget, headerPrimaryModal, StringComparison.Ordinal));
 }
 
-<div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("بارگیری", "Loading")} LD-{Model.Id:0000}", false,
                        receiptEditor is not null ? T("ثبت رسید", "Register receipt") : T("ثبت مصارف", "Register expenses"),
@@ -216,43 +216,45 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("ارزش و مصارف", "Value & costs"), (string?)null, (IReadOnlyList<AkInfoItem>)valueItems))" />
+    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("ارزش و مصارف", "Value & costs"), (string?)null, (IReadOnlyList<AkInfoItem>)valueItems))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("حمل و مسیر", "Transport & route"), (string?)null, (IReadOnlyList<AkInfoItem>)transportItems))" />
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("حمل و مسیر", "Transport & route"), (string?)null, (IReadOnlyList<AkInfoItem>)transportItems))" />
 
-    @if (hasFileRub || isRubSettlement)
-    {
-        <section class="ak-form-section ak-detail-section ak-summary-card">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("قیمت روبلی بارگیری", "Ruble pricing"), (string?)null))" />
-            <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml" model="@((IReadOnlyList<AkInfoItem>)rubItems)" />
+        @if (hasFileRub || isRubSettlement)
+        {
+            <section class="ak-form-section ak-detail-section ak-summary-card">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("قیمت روبلی بارگیری", "Ruble pricing"), (string?)null))" />
+                <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml" model="@((IReadOnlyList<AkInfoItem>)rubItems)" />
 
-            @if (showRubRateForm)
-            {
-                <form asp-action="SetRubleRate" asp-route-id="@Model.Id" method="post" class="ak-form">
-                    @Html.AntiForgeryToken()
-                    <input name="Id" value="@rubRateEditor.Id" type="hidden" />
-                    <input name="ReturnUrl" value="@currentPageReturnUrl" type="hidden" />
-                    <div class="ak-form-grid">
-                        <div class="ak-field">
-                            <label class="ak-label" for="RubPerUsdRate">هر ۱ دالر چند روبل؟</label>
-                            <input class="ak-input" id="RubPerUsdRate" name="RubPerUsdRate" value="@(rubRateEditor.RubPerUsdRate?.ToString("0.######"))" type="number" min="0.000001" step="0.000001" placeholder="مثلاً 80" />
+                @if (showRubRateForm)
+                {
+                    <form asp-action="SetRubleRate" asp-route-id="@Model.Id" method="post" class="ak-form">
+                        @Html.AntiForgeryToken()
+                        <input name="Id" value="@rubRateEditor.Id" type="hidden" />
+                        <input name="ReturnUrl" value="@currentPageReturnUrl" type="hidden" />
+                        <div class="ak-form-grid">
+                            <div class="ak-field">
+                                <label class="ak-label" for="RubPerUsdRate">هر ۱ دالر چند روبل؟</label>
+                                <input class="ak-input" id="RubPerUsdRate" name="RubPerUsdRate" value="@(rubRateEditor.RubPerUsdRate?.ToString("0.######"))" type="number" min="0.000001" step="0.000001" placeholder="مثلاً 80" />
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label" for="RubRateDate">تاریخ نرخ</label>
+                                <input class="ak-input" id="RubRateDate" name="RubRateDate" value="@(rubRateEditor.RubRateDate?.ToHtmlDateInput())" type="date" />
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label" for="RubRateSource">مرجع نرخ</label>
+                                <input class="ak-input" id="RubRateSource" name="RubRateSource" value="@rubRateEditor.RubRateSource" type="text" maxlength="200" />
+                            </div>
                         </div>
-                        <div class="ak-field">
-                            <label class="ak-label" for="RubRateDate">تاریخ نرخ</label>
-                            <input class="ak-input" id="RubRateDate" name="RubRateDate" value="@(rubRateEditor.RubRateDate?.ToHtmlDateInput())" type="date" />
-                        </div>
-                        <div class="ak-field">
-                            <label class="ak-label" for="RubRateSource">مرجع نرخ</label>
-                            <input class="ak-input" id="RubRateSource" name="RubRateSource" value="@rubRateEditor.RubRateSource" type="text" maxlength="200" />
-                        </div>
-                    </div>
-                    <div class="ak-footer-actions"><button type="submit" class="ak-save">تعیین نرخ روبل</button></div>
-                </form>
-            }
-        </section>
-    }
+                        <div class="ak-footer-actions"><button type="submit" class="ak-save">تعیین نرخ روبل</button></div>
+                    </form>
+                }
+            </section>
+        }
+    </div>
 
     <div class="ak-form-grid">
         <section id="loading-receipts" class="ak-form-section ak-detail-section">
@@ -344,24 +346,10 @@
         </section>
     </div>
 
-    @if (showTimeline)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="loading-timeline-title">
-            <h2 class="ak-section-title" id="loading-timeline-title">@T("روند بارگیری", "Loading timeline")</h2>
-            <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-        </section>
-    }
-
-    @if (relatedRecords.Count > 0)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="loading-related-title">
-            <h2 class="ak-section-title" id="loading-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
-            <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
-        </section>
-    }
-
-    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
-             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
+             model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
+                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
+                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 

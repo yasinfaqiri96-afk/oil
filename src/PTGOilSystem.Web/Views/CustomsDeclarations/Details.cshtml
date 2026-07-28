@@ -67,7 +67,6 @@
     {
         new() { Label = T("واگن / موتر", "Wagon / truck"), Value = Model.WagonOrTruckNumber },
         new() { Label = T("شماره مرجع", "Reference"), Value = Model.DeclarationReference },
-        new() { Label = T("وزن کنسمنت", "Consignment weight"), Value = Model.ConsignmentWeightMt?.ToString("N4"), Unit = "MT", IsNumeric = true },
         new() { Label = T("شماره واگن بارگیری", "Loading wagon"), Value = Model.WagonNumber },
         new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
     };
@@ -94,7 +93,7 @@
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"اعلامیه گمرکی #{Model.Id}", false,
                        T("افزودن سند", "Add document"), "bi-paperclip",
@@ -103,8 +102,10 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("مشخصات اعلامیه", "Declaration profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("مشخصات اعلامیه", "Declaration profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+    </div>
 
     <section class="ak-form-section ak-detail-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تفکیک اقلام مصارف گمرکی", (string?)null))" />
@@ -247,20 +248,10 @@
         }
     </section>
 
-    @if (showTimeline)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="customs-timeline-title">
-            <h2 class="ak-section-title" id="customs-timeline-title">@T("روند اعلامیه", "Declaration timeline")</h2>
-            <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-        </section>
-    }
-    <section class="ak-form-section ak-detail-section" aria-labelledby="customs-related-title">
-        <h2 class="ak-section-title" id="customs-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
-        <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
-    </section>
-
-    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
-             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
+             model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
+                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
+                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

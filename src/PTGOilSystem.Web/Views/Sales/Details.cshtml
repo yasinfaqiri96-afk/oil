@@ -204,7 +204,7 @@
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("فروش", "Sale") + " " + Model.InvoiceNumber, false,
                        T("نمایش فاکتور", "View invoice"), "bi-receipt",
@@ -213,11 +213,13 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("خلاصه فروش", "Sale summary"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("خلاصه فروش", "Sale summary"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((T("منبع و تحویل", "Source and delivery"), (string?)null, (IReadOnlyList<AkInfoItem>)sourceItems))" />
+        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+                 model="@((T("منبع و تحویل", "Source and delivery"), (string?)null, (IReadOnlyList<AkInfoItem>)sourceItems))" />
+    </div>
 
     <section class="ak-form-section ak-detail-section">
         <header class="ak-section-head ak-detail-section-header">
@@ -247,24 +249,10 @@
         }
     </section>
 
-    @if (showTimeline)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="sale-timeline-title">
-            <h2 class="ak-section-title" id="sale-timeline-title">@T("روند فروش", "Sale timeline")</h2>
-            <partial name="~/Views/Shared/Partials/_DetailTimeline.cshtml" model="@((IReadOnlyList<AkTimelineItem>)timelineItems)" />
-        </section>
-    }
-
-    @if (relatedRecords.Count > 0)
-    {
-        <section class="ak-form-section ak-detail-section" aria-labelledby="sale-related-title">
-            <h2 class="ak-section-title" id="sale-related-title">@T("رکوردهای مرتبط", "Related records")</h2>
-            <partial name="~/Views/Shared/Partials/_RelatedRecords.cshtml" model="@((IReadOnlyList<AkRelatedRecord>)relatedRecords)" />
-        </section>
-    }
-
-    <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
-             model="@(((string?)null, (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
+             model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
+                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
+                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
     <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

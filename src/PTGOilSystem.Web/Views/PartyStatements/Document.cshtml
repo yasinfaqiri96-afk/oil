@@ -58,10 +58,13 @@
     string OptionalAmount(decimal? value, int decimals = 2) => value.HasValue ? value.Value.ToString($"N{decimals}") : "–";
     string Contact(string? value) => string.IsNullOrWhiteSpace(value) ? "–" : value;
 
-    // نمایش روبلی: ستون‌های بدهکار/بستانکار/مانده و جمع‌ها به روبل (ارزش واقعیِ هر
+    // نمایش روبلی: ستون‌های رسید/برد/بیلانس و جمع‌ها به روبل (ارزش واقعیِ هر
     // سند به نرخ تاریخی خودش). اسناد غیرروبلی ارزش روبلی ندارند و «–» می‌مانند.
     var isRub = s.Summary.IsRubPresentation;
     string BaseAmount(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
+
+    // زبان نمایش فقط عنوان‌ها را عوض می‌کند؛ جهت، مبلغ، فرمول و ترتیب ستون‌ها ثابت است.
+    var isEn = UiText.IsEn(Context);
 }
 
 @section Styles {
@@ -191,7 +194,7 @@
                 <div><dt>تاریخ</dt><dd>@s.DocumentInfo.StatementDate.ToString("yyyy/MM/dd")</dd></div>
                 <div><dt>دوره</dt><dd>@(s.DocumentInfo.PeriodFrom?.ToString("yyyy/MM/dd") ?? "ابتدای حساب") تا @(s.DocumentInfo.PeriodTo?.ToString("yyyy/MM/dd") ?? "امروز")</dd></div>
                 <div><dt>ارز مبنا</dt><dd>@s.DocumentInfo.BaseCurrencyCode</dd></div>
-                <div><dt>نوع حساب</dt><dd>@s.Policy.AccountTypeFa</dd></div>
+                <div><dt>نوع حساب</dt><dd>@s.Policy.AccountType(isEn)</dd></div>
             </dl>
         </div>
     </section>
@@ -199,22 +202,22 @@
     <section class="statement-summary" aria-label="خلاصه مالی">
         <div class="statement-summary-item is-opening">
             <span class="statement-summary-icon"><i class="bi bi-wallet2"></i></span>
-            <span class="statement-summary-copy"><small>مانده ابتدایی</small><strong>@BaseAmount(s.Summary.OpeningBalance, s.Summary.OpeningBalanceRub) <em>@baseCurrency</em></strong></span>
+            <span class="statement-summary-copy"><small>@CompanyFlowText.OpeningBalance(Context)</small><strong>@BaseAmount(s.Summary.OpeningBalance, s.Summary.OpeningBalanceRub) <em>@baseCurrency</em></strong></span>
         </div>
         <div class="statement-summary-item is-debit">
             <span class="statement-summary-icon"><i class="bi bi-arrow-down"></i></span>
-            <span class="statement-summary-copy"><small>مجموع بدهی</small><strong>@BaseAmount(s.Summary.TotalDebit, s.Summary.TotalDebitRub) <em>@baseCurrency</em></strong></span>
+            <span class="statement-summary-copy"><small>@CompanyFlowText.TotalReceipt(Context)</small><strong>@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub) <em>@baseCurrency</em></strong></span>
         </div>
         <div class="statement-summary-item is-credit">
             <span class="statement-summary-icon"><i class="bi bi-arrow-up"></i></span>
-            <span class="statement-summary-copy"><small>مجموع طلب</small><strong>@BaseAmount(s.Summary.TotalCredit, s.Summary.TotalCreditRub) <em>@baseCurrency</em></strong></span>
+            <span class="statement-summary-copy"><small>@CompanyFlowText.TotalOutflow(Context)</small><strong>@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub) <em>@baseCurrency</em></strong></span>
         </div>
         <div class="statement-summary-item is-closing">
             <span class="statement-summary-icon"><i class="bi bi-balance-scale"></i></span>
             <span class="statement-summary-copy">
-                <small>مانده نهایی</small>
+                <small>@CompanyFlowText.ClosingBalance(Context)</small>
                 <strong>@BaseAmount(s.Summary.ClosingBalanceAbsolute, s.Summary.ClosingBalanceRubAbsolute) <em>@baseCurrency</em></strong>
-                <span>@s.Summary.ClosingBalanceMeaning</span>
+                <span>@s.Summary.ClosingBalanceMeaningFor(isEn)</span>
             </span>
         </div>
     </section>
@@ -257,9 +260,9 @@
                     @if (c.ShowPlatts) { <th>Platts</th> }
                     @if (c.ShowPremiumOrDiscount) { <th>Premium / Discount</th> }
                     @if (c.ShowUnitPrice) { <th>نرخ واحد</th> }
-                    <th title="@s.Policy.DebitMeaningFa">DEBIT</th>
-                    <th title="@s.Policy.CreditMeaningFa">CREDIT</th>
-                    <th>BALANCE</th>
+                    <th title="@s.Policy.ReceiptMeaning(isEn)">@CompanyFlowText.Receipt(Context)</th>
+                    <th title="@s.Policy.OutflowMeaning(isEn)">@CompanyFlowText.Outflow(Context)</th>
+                    <th>@CompanyFlowText.Balance(Context)</th>
                 </tr>
             </thead>
             <tbody>
@@ -275,7 +278,7 @@
                             <td class="statement-num">@(row.IsOpeningBalance ? "–" : row.Sequence)</td>
                             <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
                             @if (!hideRef) { <td class="statement-ref">@(row.Reference ?? "–")</td> }
-                            <td class="statement-description">@row.Description</td>
+                            <td class="statement-description">@row.DescriptionFor(isEn)</td>
                             @if (c.ShowRub && !isRub) { <td class="statement-money">@(row.OriginalCurrency == "RUB" ? OptionalAmount(row.OriginalAmount, 2) : "–")</td> }
                             @if (c.ShowAed) { <td class="statement-money">@(row.OriginalCurrency == "AED" ? OptionalAmount(row.OriginalAmount, 2) : "–")</td> }
                             @if (c.ShowOriginalAmount) { <td class="statement-money">@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? OptionalAmount(row.OriginalAmount, 2) : "–")</td><td>@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? row.OriginalCurrency : "–")</td> }
@@ -284,8 +287,8 @@
                             @if (c.ShowPlatts) { <td class="statement-money">@OptionalAmount(row.PlattsPrice)</td> }
                             @if (c.ShowPremiumOrDiscount) { <td class="statement-money">@OptionalAmount(row.PremiumOrDiscount)</td> }
                             @if (c.ShowUnitPrice) { <td class="statement-money">@OptionalAmount(row.UnitPrice)</td> }
-                            <td class="statement-money statement-debit">@(isRub ? Amount(row.DebitRub) : Amount(row.DebitBase))</td>
-                            <td class="statement-money statement-credit">@(isRub ? Amount(row.CreditRub) : Amount(row.CreditBase))</td>
+                            <td class="statement-money statement-debit">@(isRub ? Amount(row.ReceiptRub) : Amount(row.ReceiptBase))</td>
+                            <td class="statement-money statement-credit">@(isRub ? Amount(row.OutflowRub) : Amount(row.OutflowBase))</td>
                             <td class="statement-money statement-balance">@(isRub ? Amount(row.RunningBalanceRub) : Amount(row.RunningBalance))</td>
                         </tr>
                     }
@@ -293,9 +296,9 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <th colspan="@((hideRef ? 3 : 4) + ((c.ShowRub && !isRub) ? 1 : 0) + (c.ShowAed ? 1 : 0) + (c.ShowOriginalAmount ? 2 : 0) + (c.ShowFxRate ? 1 : 0) + (c.ShowQuantity ? 1 : 0) + (c.ShowPlatts ? 1 : 0) + (c.ShowPremiumOrDiscount ? 1 : 0) + (c.ShowUnitPrice ? 1 : 0))">مجموع دوره</th>
-                    <th class="statement-money">@BaseAmount(s.Summary.TotalDebit, s.Summary.TotalDebitRub)</th>
-                    <th class="statement-money">@BaseAmount(s.Summary.TotalCredit, s.Summary.TotalCreditRub)</th>
+                    <th colspan="@((hideRef ? 3 : 4) + ((c.ShowRub && !isRub) ? 1 : 0) + (c.ShowAed ? 1 : 0) + (c.ShowOriginalAmount ? 2 : 0) + (c.ShowFxRate ? 1 : 0) + (c.ShowQuantity ? 1 : 0) + (c.ShowPlatts ? 1 : 0) + (c.ShowPremiumOrDiscount ? 1 : 0) + (c.ShowUnitPrice ? 1 : 0))">@CompanyFlowText.PeriodTotal(Context)</th>
+                    <th class="statement-money">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</th>
+                    <th class="statement-money">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</th>
                     <th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th>
                 </tr>
             </tfoot>

@@ -23,6 +23,7 @@ using PTGOilSystem.Web.Models.Sarrafs;
 using PTGOilSystem.Web.Models.Suppliers;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.DeleteSafety;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
 
@@ -1354,7 +1355,7 @@ public class PaymentsControllerTests
         var supplierView = Assert.IsType<ViewResult>(supplierResult);
         var supplier = Assert.IsType<SupplierProfileViewModel>(supplierView.Model);
         var closingRow = Assert.Single(supplier.StatementRows.Where(r => r.Reference == "RUB-PAY-3000"));
-        Assert.Equal(4700m, closingRow.RunningBalanceRubEquivalent);
+        Assert.Equal(-4700m, closingRow.RunningBalanceRubEquivalent);
         Assert.Equal(30m, supplier.TotalPaidUsd);
         Assert.Equal(3000m, supplier.TotalPaidRub);
         Assert.Equal(47m, supplier.SupplierRemainingClaimUsd);
@@ -1576,13 +1577,13 @@ public class PaymentsControllerTests
         var supplierView = Assert.IsType<ViewResult>(supplierResult);
         var supplier = Assert.IsType<SupplierProfileViewModel>(supplierView.Model);
 
-        Assert.All(supplier.StatementRows, r => Assert.NotEqual(109_975.1065m, r.DebitUsd ?? 0m));
-        Assert.Equal(2_521_603.8409m, supplier.StatementRows.Sum(r => r.DebitUsd ?? 0m));
+        Assert.All(supplier.StatementRows, r => Assert.NotEqual(109_975.1065m, r.OutflowUsd ?? 0m));
+        Assert.Equal(2_521_603.8409m, supplier.StatementRows.Sum(r => r.OutflowUsd ?? 0m));
 
         // تست ۷ — پرداخت قرارداد فقط SupplierAcceptedUsd است و تفاوت مانده را جابه‌جا نمی‌کند.
         var contract = Assert.Single(supplier.Contracts);
         Assert.Equal(2_521_603.8409m, contract.PaidUsd);
-        Assert.Equal(2_521_603.8409m, contract.LedgerDebitUsd);
+        Assert.Equal(2_521_603.8409m, contract.LedgerOutflowUsd);
     }
 
     [Fact]
@@ -1673,13 +1674,13 @@ public class PaymentsControllerTests
         var supplierResult = await new SuppliersController(db, new AuditService(db), new MasterDataDeleteSafetyService(db))
             .Details(2, tab: "statement");
         var supplier = Assert.IsType<SupplierProfileViewModel>(Assert.IsType<ViewResult>(supplierResult).Model);
-        Assert.Equal(2_521_603.8409m, supplier.StatementRows.Sum(r => r.DebitUsd ?? 0m));
-        Assert.All(supplier.StatementRows, r => Assert.NotEqual(82_579.4507m, r.CreditUsd ?? 0m));
+        Assert.Equal(2_521_603.8409m, supplier.StatementRows.Sum(r => r.OutflowUsd ?? 0m));
+        Assert.All(supplier.StatementRows, r => Assert.NotEqual(82_579.4507m, r.ReceiptUsd ?? 0m));
 
         // قرارداد فقط مبلغ قبول‌شده را پرداخت‌شده می‌بیند.
         var contract = Assert.Single(supplier.Contracts);
         Assert.Equal(2_521_603.8409m, contract.PaidUsd);
-        Assert.Equal(2_521_603.8409m, contract.LedgerDebitUsd);
+        Assert.Equal(2_521_603.8409m, contract.LedgerOutflowUsd);
 
         // صراف فقط هزینهٔ واقعی شرکت.
         var sarraf = Assert.IsType<SarrafDetailsViewModel>(
@@ -1807,7 +1808,7 @@ public class PaymentsControllerTests
     // برمی‌داشت و مانده را صفر می‌کرد.
 
     private static PartyStatementReadService BuildStatementService(ApplicationDbContext db)
-        => new(db, new PartyStatementPolicyResolver(), Options.Create(new PartyStatementOptions()));
+        => new(db, new PartyStatementPolicyResolver(), new CompanyFlowDirectionResolver(), new CompanyFlowBalanceService(), Options.Create(new PartyStatementOptions()));
 
     [Fact]
     public async Task Create_Post_ViaSarraf_SingleRate_SupplierStatementShowsOnlyThePaymentRow()
@@ -1826,7 +1827,8 @@ public class PaymentsControllerTests
 
         var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
         Assert.Equal(PaymentsController.ViaSarrafSupplierLedgerSourceType, row.SourceType);
-        Assert.Equal(2_521_603.8409m, row.CreditBase);
+        // پرداخت به تأمین‌کننده از طریق صراف = برد ⇒ بیلانس مثبت (طلب/پیش‌پرداخت شرکت).
+        Assert.Equal(2_521_603.8409m, row.OutflowBase);
         Assert.Equal(2_521_603.8409m, statement.Summary.ClosingBalance);
         Assert.DoesNotContain(statement.Rows,
             r => r.SourceType == PaymentsController.ViaSarrafPayableLedgerSourceType);
@@ -1854,8 +1856,9 @@ public class PaymentsControllerTests
 
         var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
         Assert.Equal(PaymentsController.ViaSarrafPayableLedgerSourceType, row.SourceType);
-        Assert.Equal(2_521_603.8409m, row.CreditBase);
-        Assert.Equal(2_521_603.8409m, statement.Summary.ClosingBalance);
+        // بدهی شرکت به صراف: صراف ارزش را فراهم کرده ⇒ رسید ⇒ بیلانس منفی (بدهکاریم).
+        Assert.Equal(2_521_603.8409m, row.ReceiptBase);
+        Assert.Equal(-2_521_603.8409m, statement.Summary.ClosingBalance);
     }
 
     [Fact]
@@ -1883,7 +1886,7 @@ public class PaymentsControllerTests
         var sarrafStatement = await BuildStatementService(db).GetStatementAsync(
             new PartyRef(PartyStatementPartyType.Sarraf, 1),
             new PartyStatementFilter());
-        Assert.Equal(2_521_603.8409m, sarrafStatement.Summary.ClosingBalance);
+        Assert.Equal(-2_521_603.8409m, sarrafStatement.Summary.ClosingBalance);
     }
 
     [Fact]
@@ -1913,7 +1916,7 @@ public class PaymentsControllerTests
             new PartyStatementFilter());
         Assert.Equal(2, sarrafStatement.Rows.Count(r =>
             r.SourceType == PaymentsController.ViaSarrafPayableLedgerSourceType));
-        Assert.Equal(2_522_103.8409m, sarrafStatement.Summary.ClosingBalance);
+        Assert.Equal(-2_522_103.8409m, sarrafStatement.Summary.ClosingBalance);
     }
 
     [Theory]
@@ -1947,7 +1950,7 @@ public class PaymentsControllerTests
             new PartyRef(PartyStatementPartyType.Sarraf, 1),
             new PartyStatementFilter());
         Assert.Equal(
-            decimal.Parse(expectedSarrafClosing, CultureInfo.InvariantCulture),
+            -decimal.Parse(expectedSarrafClosing, CultureInfo.InvariantCulture),
             sarrafStatement.Summary.ClosingBalance);
     }
 

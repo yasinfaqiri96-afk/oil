@@ -13,7 +13,7 @@
     var shortageDebitUsd = ViewData["DriverShortageDebitUsd"] as decimal? ?? 0m;
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
     var netOwedUsd = officialSummary?.ClosingBalance ?? (ViewData["DriverNetOwedUsd"] as decimal? ?? 0m);
-    var netOwedMeaning = officialSummary?.ClosingBalanceMeaning
+    var netOwedMeaning = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (netOwedUsd >= 0m ? "بدهی ما به راننده" : "بدهی راننده به ما");
 
     var editUrl = Url.Action("Edit", new { id = Model.Id }) ?? "#";
@@ -34,7 +34,7 @@
     };
     if (hasLedger)
     {
-        kpis.Add(new AkKpiItem { Title = "کرایهٔ بستانکار", Value = freightCreditUsd.ToString("N2"), Unit = "USD", Avatar = "payments-out" });
+        kpis.Add(new AkKpiItem { Title = "کرایهٔ رسیدشده", Value = freightCreditUsd.ToString("N2"), Unit = "USD", Avatar = "payments-out" });
         if (shortageDebitUsd > 0m)
         {
             kpis.Add(new AkKpiItem { Title = "بدهی خسارت کسری", Value = shortageDebitUsd.ToString("N2"), Unit = "USD", Avatar = "losses", State = "warning" });
