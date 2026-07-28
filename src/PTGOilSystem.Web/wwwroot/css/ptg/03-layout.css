@@ -139,7 +139,6 @@ body.boltz-shell.app-shell-authenticated.boltz-ltr .boltz-topbar-search{
     text-align: left !important;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle,
 body.boltz-shell.app-shell-authenticated .boltz-icon-button,
 body.boltz-shell.app-shell-authenticated .boltz-language-toggle {
     width: 3.75rem;
@@ -157,14 +156,7 @@ body.boltz-shell.app-shell-authenticated .boltz-language-toggle:hover {
     color: var(--ptg-primary) !important;
 }
 
-/* حذف خط/دایره دور آیکون همبرگری (باز و بسته کردن سایدبار) */
-body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle,
-body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle:hover,
-body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle:focus {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-}
+/* ظاهر همبرگر با بقیهٔ کنترل‌های هدر در 74-header-controls.css یکی شده است. */
 
 body.boltz-shell.app-shell-authenticated .boltz-icon-badge,
 body.boltz-shell.app-shell-authenticated .boltz-language-toggle [data-current-language-label] {
@@ -238,35 +230,7 @@ body.boltz-shell.app-shell-authenticated .boltz-footer {
     }
 }
 
-/* ============================================================
-   Header search trigger (small pill: icon + shortcut → dialog)
-   ============================================================ */
-/* Minimal (Akaunting): icon-only ghost trigger, no pill / no shortcut chip. */
-body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    padding: 0;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: background-color var(--layout-transition);
-}
-
-body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger:hover,
-body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger:focus-visible {
-    background: rgba(var(--grey-500-rgb), .08);
-    outline: none;
-}
-
-body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger .ptg-hsearch-ico {
-    font-size: 1.5rem;
-    color: var(--text-secondary);
-}
+/* ماشهٔ جستجوی هدر با بقیهٔ کنترل‌ها در 74-header-controls.css یکسان شده است. */
 
 /* ============================================================
    Search dialog (opened by the trigger / Ctrl+K)
@@ -699,8 +663,7 @@ body.ptg-search-open .ptg-app { overflow: hidden !important; }
     }
 
     body.boltz-shell.app-shell-authenticated .boltz-icon-button,
-    body.boltz-shell.app-shell-authenticated .boltz-language-toggle,
-    body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle {
+    body.boltz-shell.app-shell-authenticated .boltz-language-toggle {
         width: 3.1rem;
         height: 3.1rem;
     }

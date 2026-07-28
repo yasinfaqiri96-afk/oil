@@ -1,0 +1,257 @@
+/* ============================================================
+   74-header-controls.css — سیستم واحد دکمه‌های نوار هدر
+   ------------------------------------------------------------
+   همهٔ کنترل‌های هدر (همبرگر، جستجو، سال مالی، زبان، آواتار) از
+   یک زبان بصری واحد پیروی می‌کنند: بدون کادر، پس‌زمینهٔ شفاف،
+   گوشهٔ کامل گرد، هاور و فوکوس یکسان، اندازهٔ هیت‌اریای برابر.
+   هر قاعده زیر .ptg-topbar قفل است و بیرون هدر اثری ندارد.
+   بعد از 03-layout / 13-compat / boltz-shell می‌آید تا حرف آخر
+   را دربارهٔ ظاهر این پنج کنترل بزند.
+   ============================================================ */
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar {
+    --hdr-ctl-size: 2.5rem;
+    --hdr-ctl-ico: 1.25rem;
+    --hdr-ctl-gap: .25rem;
+    --hdr-ctl-fg: var(--text-secondary);
+    --hdr-ctl-fg-strong: var(--text-primary);
+    --hdr-ctl-hover: rgba(var(--grey-500-rgb), .10);
+    --hdr-ctl-active: rgba(var(--grey-500-rgb), .16);
+    --hdr-ctl-ring: rgba(var(--primary-main-rgb), .28);
+}
+
+/* ---------- فاصله‌گذاری خوشه ---------- */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-header-cluster {
+    gap: var(--hdr-ctl-gap);
+}
+
+/* ---------- پایهٔ مشترک همهٔ کنترل‌ها ---------- */
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
+    .boltz-topbar-toggle,
+    .ptg-hsearch-trigger,
+    .ptg-h3d,
+    .ptg-hfyear,
+    .ptg-havatar-ring
+) {
+    height: var(--hdr-ctl-size);
+    min-height: var(--hdr-ctl-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    margin: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--hdr-ctl-fg);
+    box-shadow: none;
+    cursor: pointer;
+    transition: background-color var(--layout-transition), color var(--layout-transition);
+}
+
+/* کنترل‌های نمادی مربعِ گرد؛ سال مالی چون متن دارد عرض آزاد می‌گیرد. */
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
+    .boltz-topbar-toggle,
+    .ptg-hsearch-trigger,
+    .ptg-h3d,
+    .ptg-havatar-ring
+) {
+    width: var(--hdr-ctl-size);
+    padding: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
+    .boltz-topbar-toggle,
+    .ptg-hsearch-trigger,
+    .ptg-h3d,
+    .ptg-hfyear,
+    .ptg-havatar-ring
+):hover {
+    background: var(--hdr-ctl-hover);
+    color: var(--hdr-ctl-fg-strong);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
+    .boltz-topbar-toggle,
+    .ptg-hsearch-trigger,
+    .ptg-h3d,
+    .ptg-hfyear,
+    .ptg-havatar-ring
+):active {
+    background: var(--hdr-ctl-active);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
+    .boltz-topbar-toggle,
+    .ptg-hsearch-trigger,
+    .ptg-h3d,
+    .ptg-hfyear,
+    .ptg-havatar-ring
+):focus-visible {
+    outline: 2px solid var(--hdr-ctl-ring);
+    outline-offset: 2px;
+    background: var(--hdr-ctl-hover);
+}
+
+/* منوی باز = همان حالت هاور، تا وضعیت فعال هم یکسان دیده شود. */
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
+    .ptg-h3d,
+    .ptg-hfyear
+)[aria-expanded="true"] {
+    background: var(--hdr-ctl-hover);
+    color: var(--hdr-ctl-fg-strong);
+}
+
+/* آیکون‌های خطی: یک اندازه برای همه. */
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
+    .ptg-hsearch-trigger,
+    .ptg-h3d
+) .bi {
+    font-size: var(--hdr-ctl-ico);
+    line-height: 1;
+    color: inherit;
+}
+
+/* ---------- ۱) همبرگر ---------- */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .boltz-topbar-toggle .hamburger {
+    width: var(--hdr-ctl-ico);
+    height: auto;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .28rem;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .boltz-topbar-toggle .line {
+    width: 100%;
+    height: 1.5px;
+    border-radius: 999px;
+    background: currentColor;
+    transition: background-color var(--layout-transition);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .boltz-topbar-toggle .line:last-child {
+    width: 62%;
+    align-self: flex-start;
+}
+
+body.boltz-shell.app-shell-authenticated.boltz-rtl .ptg-topbar .boltz-topbar-toggle .line:last-child {
+    align-self: flex-end;
+}
+
+/* ---------- ۲) جستجو ---------- */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hsearch-trigger .ptg-hsearch-ico {
+    width: auto;
+    height: auto;
+    font-size: var(--hdr-ctl-ico);
+    line-height: 1;
+    color: inherit;
+}
+
+/* ---------- ۳) سال مالی ---------- */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear {
+    gap: .4rem;
+    max-width: 12rem;
+    padding-inline: .7rem .55rem;
+}
+
+/* برچسب بالای عدد در نسخهٔ فعلی خالی است و ارتفاع را دو خطی می‌کند. */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-caption {
+    display: none;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-text {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    line-height: 1;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-ico {
+    font-size: var(--hdr-ctl-ico);
+    color: inherit;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-name {
+    max-width: 7.5rem;
+    font-size: .8125rem;
+    font-weight: 600;
+    color: inherit;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-caret {
+    font-size: .65rem;
+    color: inherit;
+    opacity: .7;
+}
+
+/* وضعیت فقط‌خواندنی تنها نشانهٔ رنگی مجاز در خوشه است. */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear.is-readonly .ptg-hfyear-ico,
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-lock {
+    color: var(--warning-main);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-lock {
+    font-size: .75rem;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-status {
+    display: none;
+}
+
+/* ---------- ۴) پرچم زبان ---------- */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hflag svg {
+    width: 1.4rem;
+    height: 1rem;
+    display: block;
+    border-radius: 4px;
+}
+
+/* ---------- ۵) آواتار ---------- */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-havatar-ring {
+    padding: 2px;
+    overflow: hidden;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-havatar-ring img {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 999px;
+    object-fit: cover;
+    background: transparent;
+}
+
+/* ---------- ریسپانسیو ---------- */
+@media (max-width: 767.98px) {
+    body.boltz-shell.app-shell-authenticated .ptg-topbar {
+        --hdr-ctl-size: 2.375rem;
+        --hdr-ctl-ico: 1.15rem;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear {
+        max-width: 9.5rem;
+        padding-inline: .55rem .45rem;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-name {
+        max-width: 5.5rem;
+    }
+}
+
+/* روی موبایل، پیل سال مالی هم به همان چیپ نمادی جمع می‌شود. */
+@media (max-width: 575.98px) {
+    body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear {
+        width: var(--hdr-ctl-size);
+        max-width: var(--hdr-ctl-size);
+        gap: 0;
+        padding: 0;
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-text,
+    body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-caret {
+        display: none;
+    }
+}

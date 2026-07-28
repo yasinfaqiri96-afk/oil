@@ -15,17 +15,38 @@
  *  - اگر JS یا انیمیشن اجرا نشود، opacity پایه ۱ است؛ صفحه هرگز مخفی نمی‌ماند
  *    (bfcache / Back-Forward امن؛ spa-nav در pageshow هم کلاس را پاک می‌کند).
  *  - prefers-reduced-motion: همه غیرفعال.
+ *
+ * لایهٔ ۲ (بندهای ۷ تا ۹، انتهای فایل): ورود ظریف بخش‌های صفحه — کارت آماری،
+ * نوار ابزار، کارت‌ها، container جدول، تب‌ها، Empty State، سایدبار و دکمه‌ها.
+ * کل لایهٔ ۲ داخل @media (prefers-reduced-motion: no-preference) است.
+ * dropdown/select/datepicker فرم‌ها عمداً بیرون از دامنه‌اند (بند ۹).
  */
 
 :root {
     --ptg-motion-ease: cubic-bezier(0.2, 0, 0, 1);
     --ptg-motion-fast: 120ms;
     --ptg-motion-base: 150ms;
+    /* لایهٔ ۲ — ورود بخش‌های صفحه */
+    --ptg-motion-enter: 200ms;   /* مدت ورود بخش‌ها */
+    --ptg-motion-rise: 6px;      /* بیشترین جابه‌جایی ورود */
+    --ptg-motion-step: 26ms;     /* گام stagger کارت‌ها (حداکثر ۳ گام) */
 }
 
 @keyframes ptg-fade-in {
     from { opacity: 0; }
     to   { opacity: 1; }
+}
+
+/* ورود با ۶px بالا آمدن — فقط transform و opacity */
+@keyframes ptg-rise-in {
+    from { opacity: 0; transform: translateY(var(--ptg-motion-rise)); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* ورود آواتار/تصویر کارت آماری — scale جزئی */
+@keyframes ptg-pop-in {
+    from { opacity: 0; transform: scale(0.94); }
+    to   { opacity: 1; transform: none; }
 }
 
 /* ── 1) ورود صفحه — لود کامل (فقط یک‌بار؛ main در SPA بازسازی نمی‌شود) ──── */
@@ -38,6 +59,8 @@ main.boltz-content.ptg-page-swap {
     opacity: 0 !important;
     animation: none !important;
     transition: none !important;
+    /* تنها جای will-change: کلاسی گذرا که spa-nav یک فریم بعد پاکش می‌کند. */
+    will-change: opacity;
 }
 
 main.boltz-content.ptg-page-reveal {
@@ -70,6 +93,201 @@ body.boltz-shell .modal.show .modal-dialog {
    انیمیشن transform آن را می‌شکند. */
 body.boltz-shell .dropdown-menu.show {
     animation: ptg-fade-in var(--ptg-motion-fast) var(--ptg-motion-ease);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   لایهٔ ۲ — ورود بخش‌های صفحه (Section Entrance)
+   ---------------------------------------------------------------------------
+   قواعد:
+   - همه‌چیز داخل @media (prefers-reduced-motion: no-preference) است؛ پس
+     پشتیبانی از کاهش حرکت رایگان و کامل است و نیازی به لیست تکراری نیست.
+   - فقط transform و opacity؛ هیچ width/height/margin/padding/top/left.
+   - حالت پایهٔ عناصر opacity:1 است؛ اگر انیمیشن اجرا نشود محتوا دیده می‌شود.
+   - stagger فقط روی کارت‌های آماری و حداکثر ۳ گام (~۷۸ms).
+   - جدول‌ها فقط در سطح container animate می‌شوند؛ هیچ ردیفی نه.
+   - هیچ قاعده‌ای pointer-events یا visibility را عوض نمی‌کند، پس کلیک، ارسال
+     فرم و ناوبری هرگز منتظر انیمیشن نمی‌مانند.
+   - dropdown/select/datepicker فرم‌ها عمداً بیرون از دامنه‌اند (بند ۹ پایین).
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+
+    /* ── 7-a) سربرگ، نوار ابزار و نوار خلاصهٔ صفحه ──────────────────────── */
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-page-header,
+        .ak-page-title,
+        .ak-list-toolbar,
+        .ak-detail-toolbar,
+        .ak-reports-header,
+        .summary-strip
+    ) {
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+    }
+
+    /* ── 7-b) کارت‌های آماری — stagger کوتاه و سقف‌دار ──────────────────── */
+    body.boltz-shell.app-shell-authenticated main.boltz-content .ak-stat-grid > * {
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+    }
+
+    body.boltz-shell.app-shell-authenticated main.boltz-content .ak-stat-grid > :nth-child(2) {
+        animation-delay: var(--ptg-motion-step);
+    }
+
+    body.boltz-shell.app-shell-authenticated main.boltz-content .ak-stat-grid > :nth-child(3) {
+        animation-delay: calc(var(--ptg-motion-step) * 2);
+    }
+
+    /* از کارت چهارم به بعد تأخیر ثابت می‌ماند تا گرید بلند «قطره‌ای» نشود. */
+    body.boltz-shell.app-shell-authenticated main.boltz-content .ak-stat-grid > :nth-child(n+4) {
+        animation-delay: calc(var(--ptg-motion-step) * 3);
+    }
+
+    /* آواتار/تصویر کارت آماری — skeleton استثناست (شیمر خودش را دارد). */
+    body.boltz-shell.app-shell-authenticated main.boltz-content
+    .ak-stat-card__visual:not(.ak-stat-card__visual--skeleton) {
+        animation: ptg-pop-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation-delay: 40ms;
+    }
+
+    /* ── 7-c) کارت‌ها و بخش‌های اطلاعاتی ────────────────────────────────── */
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .dash-card,
+        .ak-detail-section,
+        .ak-hub-tile,
+        .ak-report-row
+    ) {
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+    }
+
+    /* بخش‌های فرم فقط fade می‌گیرند (بدون transform): تا هیچ لحظه‌ای
+       containing block تازه نسازند و موقعیت popover تاریخ/combobox داخلشان
+       دست‌نخورده بماند. */
+    body.boltz-shell.app-shell-authenticated main.boltz-content .ak-form-section {
+        animation: ptg-fade-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+    }
+
+    /* ── 7-d) container جدول‌ها و لیست‌ها — بدون ردیف‌به‌ردیف ───────────── */
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-list,
+        .ak-table-wrap,
+        .ak-pager
+    ) {
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+    }
+
+    /* container تودرتو دوبار fade نشود: بیرونی حرف آخر را می‌زند. */
+    body.boltz-shell.app-shell-authenticated main.boltz-content .ak-list .ak-table-wrap {
+        animation: none;
+    }
+
+    /* صریح: هیچ ردیفی animate نمی‌شود — جدول ۱۰۰۰ ردیفی باید ارزان بماند. */
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-table,
+        .ak-table tr,
+        .ak-list-row
+    ) {
+        animation: none;
+    }
+
+    /* ── 7-e) ریل تب‌ها (پنل تب را ptg-tabs.js با .ptg-tab-enter می‌زند) ─── */
+    body.boltz-shell.app-shell-authenticated main.boltz-content .ptg-tabs-rail {
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+    }
+
+    /* ── 7-f) Empty State و Loading واقعی ───────────────────────────────── */
+    body.boltz-shell.app-shell-authenticated main.boltz-content .ak-empty {
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+    }
+
+    /* بلوک بارگذاری فقط fade می‌گیرد. .ak-list-loading-spinner عمداً کنار
+       گذاشته شده تا چرخش بی‌نهایتِ 15-system-lists دست‌نخورده بماند. */
+    body.boltz-shell.app-shell-authenticated main.boltz-content .dash-chart-loading {
+        animation: ptg-fade-in var(--ptg-motion-fast) var(--ptg-motion-ease);
+    }
+
+    /* ── 8-a) سایدبار: ورود یک‌بارهٔ پوسته (در ناوبری SPA بازسازی نمی‌شود) ─ */
+    body.boltz-shell.app-shell-authenticated .boltz-sidebar {
+        animation: ptg-fade-in var(--ptg-motion-enter) var(--ptg-motion-ease);
+    }
+
+    /* ── 8-b) منوی جمع‌شوندهٔ سایدبار — همان مکانیزم 04-sidebar، فقط سریع‌تر
+       و با easing مشترک. max-block-size اینجا اجتناب‌ناپذیر است (آکاردئون)،
+       ولی روی یک زیرمنوی کوچک و بیرون از جریان محتوا اجرا می‌شود. ────────── */
+    body.boltz-shell.app-shell-authenticated .boltz-nav-sub {
+        transition-duration: var(--ptg-motion-enter);
+        transition-timing-function: var(--ptg-motion-ease);
+    }
+
+    /* فلش گروه سایدبار — چرخش ۱۸۰ درجه در 04-sidebar تعریف شده؛ اینجا فقط
+       زمان‌بندی هم‌راستا با بقیهٔ سیستم می‌شود. */
+    body.boltz-shell.app-shell-authenticated .ptg-nav-arrow {
+        transition-duration: var(--ptg-motion-enter);
+        transition-timing-function: var(--ptg-motion-ease);
+    }
+
+    /* ── 8-c) دکمه‌های عملیاتی صفحه و کاشی‌های قابل کلیک ─────────────────
+       دامنه عمداً تنگ است: فقط دکمه‌های سطح صفحه، هرگز دکمه‌های داخل
+       combobox/datepicker/select. */
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-primary-action,
+        .ak-cancel,
+        .ak-page-actions .btn,
+        .ak-list-toolbar-actions .btn
+    ) {
+        transition: transform var(--ptg-motion-fast) var(--ptg-motion-ease),
+                    box-shadow var(--ptg-motion-fast) var(--ptg-motion-ease);
+    }
+
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-primary-action,
+        .ak-cancel,
+        .ak-page-actions .btn,
+        .ak-list-toolbar-actions .btn
+    ):active {
+        transform: translateY(1px);
+    }
+
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-hub-tile,
+        .dash-quick-item
+    ) {
+        transition: transform var(--ptg-motion-base) var(--ptg-motion-ease),
+                    box-shadow var(--ptg-motion-base) var(--ptg-motion-ease);
+    }
+
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-hub-tile,
+        .dash-quick-item
+    ):hover {
+        transform: translateY(-2px);
+    }
+
+    /* ── 9) منطقهٔ ممنوعه — dropdown/select/datepicker فرم‌ها ─────────────
+       این‌ها انیمیشن اختصاصی خودشان را دارند. هیچ کلاس Motion جدیدی نباید
+       رویشان بیفتد. فقط animation صفر می‌شود؛ transform (موقعیت Popper) و
+       transitionهای موجودشان دست‌نخورده می‌مانند. ─────────────────────── */
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-entity-combobox,
+        .ak-entity-menu,
+        .ak-entity-options,
+        .ak-entity-option,
+        .ak-entity-selection,
+        .ak-datepicker,
+        .ak-date-pop,
+        .ak-date-grid,
+        .ak-date-years,
+        .ak-report-parameters-pop,
+        select,
+        .form-select
+    ),
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
+        .ak-entity-combobox,
+        .ak-entity-menu,
+        .ak-datepicker,
+        .ak-date-pop,
+        .ak-report-parameters-pop
+    ) * {
+        animation: none !important;
+    }
 }
 
 /* ── 6) کاهش حرکت (تنظیمات سیستم کاربر) ─────────────────────────────────── */

@@ -339,15 +339,7 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar {
     background: transparent !important;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle,
-body.boltz-shell.app-shell-authenticated .boltz-icon-button,
-body.boltz-shell.app-shell-authenticated .boltz-language-toggle,
-body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger,
-body.boltz-shell.app-shell-authenticated .ptg-h3d,
-body.boltz-shell.app-shell-authenticated .ptg-havatar-ring {
-    width: 2.55rem !important;
-    height: 2.55rem !important;
-}
+/* اندازه و ظاهر کنترل‌های هدر در 74-header-controls.css یکسان‌سازی شده است. */
 
 body.boltz-shell.app-shell-authenticated .ptg-header-cluster {
     align-items: center;
@@ -380,16 +372,6 @@ body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger .ptg-hsearch-ico::
     body.boltz-shell.app-shell-authenticated .ptg-topbar {
         padding: .24rem .75rem !important;
         border-radius: 0 !important;
-    }
-
-    body.boltz-shell.app-shell-authenticated .boltz-topbar-toggle,
-    body.boltz-shell.app-shell-authenticated .boltz-icon-button,
-    body.boltz-shell.app-shell-authenticated .boltz-language-toggle,
-    body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger,
-    body.boltz-shell.app-shell-authenticated .ptg-h3d,
-    body.boltz-shell.app-shell-authenticated .ptg-havatar-ring {
-        width: 2.45rem !important;
-        height: 2.45rem !important;
     }
 }
 
