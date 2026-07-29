@@ -53,13 +53,14 @@
     var shortageQty = Model.Pnl.ShortageQuantityMt > 0m
         ? Model.Pnl.ShortageQuantityMt
         : (receipt?.ShortageQuantityMt ?? 0m);
-    var finalResultUsd = Model.Pnl.GrossMarginUsd;
+    // مصارف کلی = همان مجموعی که تب «مصارف» نشان می‌دهد (مصارف مستقیم + سهم مشترک + گمرک + کرایه).
+    var totalExpensesUsd = Model.Pnl.OperationalExpensesUsd;
     var kpis = new List<AkKpiItem>
     {
         new() { Title = T("بارگیری‌شده", "Loaded"), Value = Q(loadedQty), Unit = T("تن", "MT"), Avatar = "loading" },
         new() { Title = T("تخلیه‌شده", "Unloaded"), Value = Q(unloadedQty), Unit = T("تن", "MT"), Avatar = "tank-farm" },
         new() { Title = T("کسری", "Shortage"), Value = Q(shortageQty), Unit = T("تن", "MT"), Avatar = "losses" },
-        new() { Title = T("نتیجه نهایی", "Final result"), Value = U(finalResultUsd), Unit = "USD", Avatar = "profit-loss" }
+        new() { Title = T("مصارف کلی", "Total expenses"), Value = U(totalExpensesUsd), Unit = "USD", Avatar = "expenses" }
     };
 
     var salesTotalUsd = Model.Pnl.SalesUsd;

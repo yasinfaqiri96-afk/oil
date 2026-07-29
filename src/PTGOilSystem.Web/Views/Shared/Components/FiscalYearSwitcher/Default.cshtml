@@ -41,7 +41,10 @@
         {
             var statusLabel = FiscalStatusDisplay.YearLabel(option.Status);
             var statusCss = FiscalStatusDisplay.YearCss(option.Status);
-            <form asp-controller="FiscalYearContext" asp-action="Select" method="post" class="ptg-hfyear-form">
+            @* سال مالی، کلِ پوسته (هدر، سایدبار، داده‌های صفحه) را عوض می‌کند و ناوبری
+               SPA فقط <main> را جایگزین می‌کند؛ بدون رفرش کامل، عنوان همین انتخاب‌گر
+               روی سال قبلی می‌ماند. پس این فرم عمداً از SPA مستثناست. *@
+            <form asp-controller="FiscalYearContext" asp-action="Select" method="post" class="ptg-hfyear-form" data-no-spa="true">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="fiscalYearId" value="@option.FiscalYearId" />
                 <input type="hidden" name="returnUrl" value="@returnUrl" />

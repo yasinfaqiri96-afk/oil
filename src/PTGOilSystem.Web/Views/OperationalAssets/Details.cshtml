@@ -89,7 +89,7 @@
                  model="@(UiText.T(Context, "بخش‌های دارایی", "Asset sections"), assetTabs)" />
 
         <div class="tab-content ak-detail-content">
-            <div class="tab-pane fade" id="asset-profit" role="tabpanel" hidden="@(activeAssetTab != "profit")">
+            <div class="tab-pane fade @(activeAssetTab == "profit" ? "show active" : "")" id="asset-profit" role="tabpanel" hidden="@(activeAssetTab != "profit")">
                 <div class="ak-form-section ak-detail-section" aria-label="@UiText.T(Context, "گزارش عملکرد مالی دارایی", "Asset financial performance report")">
                     <div class="ak-section-head ak-detail-section-header">
                         <form method="get" class="ak-detail-toolbar" aria-label="@UiText.T(Context, "فیلتر دوره", "Period filter")">
@@ -198,7 +198,7 @@
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="asset-ownership" role="tabpanel" hidden="@(activeAssetTab != "ownership")">
+            <div class="tab-pane fade @(activeAssetTab == "ownership" ? "show active" : "")" id="asset-ownership" role="tabpanel" hidden="@(activeAssetTab != "ownership")">
                 <div class="ak-list" aria-label="@UiText.T(Context, "آمار مالکیت", "Ownership statistics")">
                     <article class="ak-list-row">
                         <span><i class="bi bi-percent"></i> @UiText.T(Context, "مجموع سهم فعال", "Active Share Total")</span>
@@ -316,7 +316,7 @@
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="asset-rents" role="tabpanel" hidden="@(activeAssetTab != "rents")">
+            <div class="tab-pane fade @(activeAssetTab == "rents" ? "show active" : "")" id="asset-rents" role="tabpanel" hidden="@(activeAssetTab != "rents")">
                 <div class="ak-list" aria-label="@UiText.T(Context, "آمار کرایه و استفاده", "Rent and use statistics")">
                     <article class="ak-list-row">
                         <span><i class="bi bi-box-arrow-up-right"></i> @UiText.T(Context, "عواید کرایه بیرونی", "External Rent Revenue")</span>
@@ -494,7 +494,7 @@
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="asset-expenses" role="tabpanel" hidden="@(activeAssetTab != "expenses")">
+            <div class="tab-pane fade @(activeAssetTab == "expenses" ? "show active" : "")" id="asset-expenses" role="tabpanel" hidden="@(activeAssetTab != "expenses")">
                 <div class="ak-section-head ak-detail-section-header">
                     <h3>@UiText.T(Context, "تاریخچه مصارف و مصارف", "Expense History")</h3>
                 </div>
@@ -618,7 +618,7 @@
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="asset-shares" role="tabpanel" hidden="@(activeAssetTab != "shares")">
+            <div class="tab-pane fade @(activeAssetTab == "shares" ? "show active" : "")" id="asset-shares" role="tabpanel" hidden="@(activeAssetTab != "shares")">
                 <div class="ak-section-head ak-detail-section-header">
                     <h3><i class="bi bi-pie-chart"></i> @UiText.T(Context, "توزیع سود مالکین", "Owner Profit Distribution")</h3>
                 </div>

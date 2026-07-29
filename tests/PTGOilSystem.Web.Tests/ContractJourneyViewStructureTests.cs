@@ -473,10 +473,12 @@ public class ContractJourneyViewStructureTests
     public void Entity_Quick_Create_And_Live_Modal_Consumers_Remain_Available()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var pageShell = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_CreatePageShell.cshtml");
         var modalShell = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_CreateModalShell.cshtml");
         var cashAccounts = ReadRepoFile("src/PTGOilSystem.Web/Views/CashAccounts/Index.cshtml");
         var plattsRates = ReadRepoFile("src/PTGOilSystem.Web/Views/PlattsRates/Index.cshtml");
         var receiptForm = ReadRepoFile("src/PTGOilSystem.Web/Views/LoadingReceipts/_ReceiptCreateForm.cshtml");
+        var coreJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/core.js");
         var modalJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/modal-design-system.js");
         var comboboxJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/ak-entity-combobox.js");
         var akPageHeader = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Components/Ak/_AkPageHeader.cshtml");
@@ -496,8 +498,16 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("select.dataset.akQuickCreateTarget", comboboxJs);
         Assert.Contains("select.dataset.akQuickCreateUrl", comboboxJs);
         Assert.Contains("window.PTG.openPageModal", comboboxJs);
+        Assert.Contains("quickCreateSelect: select", comboboxJs);
         Assert.Contains("size: \"compact\"", comboboxJs);
         Assert.Contains("select.dispatchEvent(new Event(\"change\"", comboboxJs);
+        Assert.Contains("asp-route-quickCreate", pageShell);
+        Assert.Contains("data-ptg-quick-create", pageShell);
+        Assert.Contains("initializeQuickCreateForms", coreJs);
+        Assert.Contains("\"X-Requested-With\": \"XMLHttpRequest\"", coreJs);
+        Assert.Contains("window.PTG.completeQuickCreate", coreJs);
+        Assert.Contains("select.add(option)", coreJs);
+        Assert.DoesNotContain("quickCreateSelect: select,\n                        closeOnRedirect: true", comboboxJs);
     }
 
     [Fact]

@@ -108,6 +108,14 @@ body.boltz-shell .dropdown-menu.show {
    - هیچ قاعده‌ای pointer-events یا visibility را عوض نمی‌کند، پس کلیک، ارسال
      فرم و ناوبری هرگز منتظر انیمیشن نمی‌مانند.
    - dropdown/select/datepicker فرم‌ها عمداً بیرون از دامنه‌اند (بند ۹ پایین).
+   - fill-mode همه‌جا backwards است، نه both. حالت پایانیِ هر keyframe دقیقاً
+     همان حالت طبیعی عنصر است (opacity:1 و transform:none)، پس forwards چیزی
+     اضافه نمی‌کرد؛ اما مرورگر transform را بعد از پایان انیمیشن به‌صورت
+     matrix(1,0,0,1,0,0) نگه می‌داشت و همان ماتریسِ همانی — هرچند بی‌اثر بر
+     ظاهر — یک stacking context دائمی می‌ساخت. نتیجه: نوار ابزار و
+     container جدول هرکدام یک لایهٔ جدا می‌شدند و popover جستجو (که داخل
+     نوار ابزار است) زیر جدولِ بعد از خودش می‌رفت. backwards فقط حالت شروع را
+     پیش از اجرا اعمال می‌کند و بعد از پایان هیچ ردی باقی نمی‌گذارد.
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: no-preference) {
 
@@ -120,12 +128,12 @@ body.boltz-shell .dropdown-menu.show {
         .ak-reports-header,
         .summary-strip
     ) {
-        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
     /* ── 7-b) کارت‌های آماری — stagger کوتاه و سقف‌دار ──────────────────── */
     body.boltz-shell.app-shell-authenticated main.boltz-content .ak-stat-grid > * {
-        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
     body.boltz-shell.app-shell-authenticated main.boltz-content .ak-stat-grid > :nth-child(2) {
@@ -144,7 +152,7 @@ body.boltz-shell .dropdown-menu.show {
     /* آواتار/تصویر کارت آماری — skeleton استثناست (شیمر خودش را دارد). */
     body.boltz-shell.app-shell-authenticated main.boltz-content
     .ak-stat-card__visual:not(.ak-stat-card__visual--skeleton) {
-        animation: ptg-pop-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation: ptg-pop-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
         animation-delay: 40ms;
     }
 
@@ -155,14 +163,14 @@ body.boltz-shell .dropdown-menu.show {
         .ak-hub-tile,
         .ak-report-row
     ) {
-        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
     /* بخش‌های فرم فقط fade می‌گیرند (بدون transform): تا هیچ لحظه‌ای
        containing block تازه نسازند و موقعیت popover تاریخ/combobox داخلشان
        دست‌نخورده بماند. */
     body.boltz-shell.app-shell-authenticated main.boltz-content .ak-form-section {
-        animation: ptg-fade-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation: ptg-fade-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
     /* ── 7-d) container جدول‌ها و لیست‌ها — بدون ردیف‌به‌ردیف ───────────── */
@@ -171,7 +179,7 @@ body.boltz-shell .dropdown-menu.show {
         .ak-table-wrap,
         .ak-pager
     ) {
-        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
     /* container تودرتو دوبار fade نشود: بیرونی حرف آخر را می‌زند. */
@@ -190,12 +198,12 @@ body.boltz-shell .dropdown-menu.show {
 
     /* ── 7-e) ریل تب‌ها (پنل تب را ptg-tabs.js با .ptg-tab-enter می‌زند) ─── */
     body.boltz-shell.app-shell-authenticated main.boltz-content .ptg-tabs-rail {
-        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
     /* ── 7-f) Empty State و Loading واقعی ───────────────────────────────── */
     body.boltz-shell.app-shell-authenticated main.boltz-content .ak-empty {
-        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) both;
+        animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
     /* بلوک بارگذاری فقط fade می‌گیرد. .ak-list-loading-spinner عمداً کنار

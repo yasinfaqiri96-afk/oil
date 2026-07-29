@@ -58,9 +58,10 @@
             <span class="badge bg-warning text-dark">هشدار: @r.WarningCount</span>
             <span class="badge bg-success">قبول: @r.PassedCount</span>
             <span class="ms-auto"></span>
-            <a class="btn btn-sm btn-outline-secondary"
+            @* فایل خروجی است نه صفحه: ناوبری SPA نباید آن را به‌جای محتوا swap کند. *@
+            <a class="btn btn-sm btn-outline-secondary" data-no-spa="true"
                asp-action="Json" asp-route-fiscalYearId="@r.FiscalYearId">JSON</a>
-            <a class="btn btn-sm btn-outline-secondary"
+            <a class="btn btn-sm btn-outline-secondary" data-no-spa="true"
                asp-action="Csv" asp-route-fiscalYearId="@r.FiscalYearId">CSV</a>
         </div>
 

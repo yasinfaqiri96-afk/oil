@@ -258,7 +258,7 @@
                 if (window.PTG && typeof window.PTG.openPageModal === "function") {
                     window.PTG.openPageModal(select.dataset.akQuickCreateUrl, {
                         title: select.dataset.akQuickCreateLabel || quickCreate.textContent,
-                        closeOnRedirect: true,
+                        quickCreateSelect: select,
                         size: "compact"
                     });
                 } else {

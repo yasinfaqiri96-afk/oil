@@ -30,6 +30,7 @@
         callIfAvailable("initializeClickableTableRows");
         initializeActivityTabs();
         initializeBulkReceiptForms();
+        initializeQuickCreateForms();
         initializeSubmitGuard();
         callIfAvailable("initializeFinanceForms");
     }
@@ -130,7 +131,10 @@
         if (modalElement) {
             modalElement.addEventListener("hidden.bs.modal", function () {
                 var frame = modalElement.querySelector("[data-page-modal-frame]");
-                if (frame) frame.setAttribute("src", "about:blank");
+                if (frame) {
+                    frame._ptgQuickCreateSelect = null;
+                    frame.setAttribute("src", "about:blank");
+                }
             });
         }
     }
@@ -147,6 +151,10 @@
         var loadingIndicator = modalElement.querySelector("[data-page-modal-loading]");
         var modalUrl = new URL(url, window.location.origin);
         modalUrl.searchParams.set("modal", "1");
+        var quickCreateSelect = options && options.quickCreateSelect;
+        if (quickCreateSelect) {
+            modalUrl.searchParams.set("quickCreate", "1");
+        }
 
         if (title) {
             title.textContent = (options && options.title ? options.title : "فرم عملیاتی").trim();
@@ -175,6 +183,8 @@
         }
 
         if (frame) {
+            frame._ptgQuickCreateSelect = quickCreateSelect || null;
+
             // Drop any stale close-on-redirect handler from a previous open so
             // handlers never stack across modal opens.
             if (frame._ptgModalLoadHandler) {
@@ -241,6 +251,127 @@
         if (redirectUrl) {
             window.location.href = redirectUrl;
         }
+    }
+
+    function completeQuickCreate(item) {
+        var modalElement = document.getElementById("ptgPageModal");
+        var frame = modalElement && modalElement.querySelector("[data-page-modal-frame]");
+        var select = frame && frame._ptgQuickCreateSelect;
+        if (!select || !select.isConnected || !item) return false;
+
+        var valueField = select.dataset.akQuickCreateValueField || "id";
+        var rawValue = item[valueField];
+        var value = rawValue === null || rawValue === undefined ? "" : String(rawValue);
+        var label = item.label === null || item.label === undefined ? "" : String(item.label).trim();
+        if (!value || !label) return false;
+
+        var option = Array.prototype.slice.call(select.options).find(function (candidate) {
+            return candidate.value === value;
+        });
+        if (!option) {
+            option = new Option(label, value);
+            select.add(option);
+        } else {
+            option.textContent = label;
+        }
+
+        select.value = value;
+        option.selected = true;
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        closePageModal();
+        return true;
+    }
+
+    function initializeQuickCreateForms() {
+        if (window.parent === window) return;
+
+        var currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get("modal") !== "1"
+            || currentUrl.searchParams.get("quickCreate") !== "1") {
+            return;
+        }
+
+        document.querySelectorAll("form[method='post'], form[method='POST']").forEach(function (form) {
+            if (form.dataset.ptgQuickCreateReady === "true") return;
+            form.dataset.ptgQuickCreateReady = "true";
+
+            form.addEventListener("submit", async function (event) {
+                if (event.defaultPrevented) return;
+                event.preventDefault();
+
+                if (!lockSubmitGuard(form)) return;
+
+                var action = new URL(form.action || window.location.href, window.location.origin);
+                action.searchParams.set("modal", "1");
+                action.searchParams.set("quickCreate", "1");
+
+                try {
+                    var formData;
+                    try {
+                        formData = new FormData(form, event.submitter);
+                    } catch (error) {
+                        formData = new FormData(form);
+                        if (event.submitter && event.submitter.name) {
+                            formData.append(event.submitter.name, event.submitter.value);
+                        }
+                    }
+
+                    var response = await fetch(action.toString(), {
+                        method: "POST",
+                        body: formData,
+                        credentials: "same-origin",
+                        headers: {
+                            "Accept": "application/json, text/html",
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    });
+                    var contentType = response.headers.get("content-type") || "";
+
+                    if (contentType.indexOf("application/json") >= 0) {
+                        var result = await response.json();
+                        if (response.ok && result.success && result.item
+                            && window.parent.PTG
+                            && typeof window.parent.PTG.completeQuickCreate === "function"
+                            && window.parent.PTG.completeQuickCreate(result.item)) {
+                            return;
+                        }
+
+                        showQuickCreateError(form, result.message);
+                        resetSubmitGuard(form);
+                        return;
+                    }
+
+                    var html = await response.text();
+                    document.open();
+                    document.write(html);
+                    document.close();
+                } catch (error) {
+                    showQuickCreateError(
+                        form,
+                        document.documentElement.lang === "en"
+                            ? "Saving failed. Please try again."
+                            : "ثبت اطلاعات ناموفق بود. دوباره تلاش کنید.");
+                    resetSubmitGuard(form);
+                }
+            });
+        });
+    }
+
+    function showQuickCreateError(form, message) {
+        var summary = form.querySelector("[data-valmsg-summary='true'], .validation-summary-errors, .ak-form-alert");
+        if (!summary) return;
+        summary.classList.remove("validation-summary-valid");
+        summary.classList.add("validation-summary-errors");
+        summary.hidden = false;
+        summary.innerHTML = "";
+        var list = document.createElement("ul");
+        var item = document.createElement("li");
+        item.textContent = message || (document.documentElement.lang === "en"
+            ? "The new item could not be selected."
+            : "انتخاب خودکار رکورد جدید انجام نشد.");
+        list.appendChild(item);
+        summary.appendChild(list);
     }
 
     function initializeBulkReceiptForms() {
@@ -494,48 +625,10 @@
             if (!form || form.tagName !== "FORM" || event.defaultPrevented) return;
             if (form.hasAttribute("data-no-submit-guard")) return;
 
-            // Second submit while the first is still in flight → block it.
-            if (form.dataset.ptgSubmitting === "true") {
+            if (!lockSubmitGuard(form)) {
                 event.preventDefault();
                 event.stopImmediatePropagation();
-                return;
             }
-
-            // Respect native validation: if the form is invalid the browser will
-            // not submit, so don't lock anything (user must be able to correct it).
-            if (!form.noValidate && typeof form.checkValidity === "function" && !form.checkValidity()) {
-                return;
-            }
-
-            form.dataset.ptgSubmitting = "true";
-
-            var buttons = Array.prototype.slice.call(form.querySelectorAll(
-                "button[type=submit], input[type=submit], input[type=image], button:not([type])"
-            ));
-
-            window.setTimeout(function () {
-                buttons.forEach(function (btn) {
-                    if (btn.disabled || btn.hasAttribute("data-no-submit-guard") || btn.hasAttribute("data-bs-dismiss")) {
-                        return;
-                    }
-
-                    btn.dataset.ptgGuarded = "true";
-                    var busyText = btn.getAttribute("data-submitting-text")
-                        || (document.documentElement.lang === "en" ? "Saving…" : "در حال ثبت…");
-
-                    if (btn.tagName === "BUTTON") {
-                        btn.dataset.ptgOriginalHtml = btn.innerHTML;
-                        btn.innerHTML = busyText;
-                    } else {
-                        btn.dataset.ptgOriginalValue = btn.value;
-                        btn.value = busyText;
-                    }
-
-                    btn.disabled = true;
-                    btn.classList.add("is-submitting");
-                    btn.setAttribute("aria-busy", "true");
-                });
-            }, 0);
         }, false);
 
         // A field failing constraint validation means the submit was blocked →
@@ -550,6 +643,52 @@
             if (!event.persisted) return;
             document.querySelectorAll("form[data-ptg-submitting='true']").forEach(resetSubmitGuard);
         });
+    }
+
+    // تنها مالکِ «این فرم در حال ثبت است»: یک پرچم، یک بررسی اعتبار.
+    // مسیرهای دیگر (مودال موجودیت، Quick Create) به‌جای پرچم و شرط خودشان همین را
+    // صدا می‌زنند تا یک فرم دو منطق ضدتکرار نداشته باشد.
+    function claimFormSubmit(form) {
+        if (!form || form.dataset.ptgSubmitting === "true") return false;
+        if (!form.noValidate && typeof form.checkValidity === "function" && !form.checkValidity()) {
+            return false;
+        }
+
+        form.dataset.ptgSubmitting = "true";
+        return true;
+    }
+
+    function lockSubmitGuard(form) {
+        if (!claimFormSubmit(form)) return false;
+
+        var buttons = Array.prototype.slice.call(form.querySelectorAll(
+            "button[type=submit], input[type=submit], input[type=image], button:not([type])"
+        ));
+
+        window.setTimeout(function () {
+            buttons.forEach(function (btn) {
+                if (btn.disabled || btn.hasAttribute("data-no-submit-guard") || btn.hasAttribute("data-bs-dismiss")) {
+                    return;
+                }
+
+                btn.dataset.ptgGuarded = "true";
+                var busyText = btn.getAttribute("data-submitting-text")
+                    || (document.documentElement.lang === "en" ? "Saving…" : "در حال ثبت…");
+
+                if (btn.tagName === "BUTTON") {
+                    btn.dataset.ptgOriginalHtml = btn.innerHTML;
+                    btn.innerHTML = busyText;
+                } else {
+                    btn.dataset.ptgOriginalValue = btn.value;
+                    btn.value = busyText;
+                }
+
+                btn.disabled = true;
+                btn.classList.add("is-submitting");
+                btn.setAttribute("aria-busy", "true");
+            });
+        }, 0);
+        return true;
     }
 
     function resetSubmitGuard(form) {
@@ -580,5 +719,6 @@
     window.PTG.dismissFlashAlert = dismissFlashAlert;
     window.PTG.openPageModal = openPageModal;
     window.PTG.closePageModal = closePageModal;
+    window.PTG.completeQuickCreate = completeQuickCreate;
 
 })();

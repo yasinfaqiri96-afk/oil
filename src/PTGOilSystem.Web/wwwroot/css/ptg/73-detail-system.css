@@ -606,3 +606,54 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
         display: none;
     }
 }
+
+/* ===================================================================
+   Inventory transport details — decisive figures
+   This page is read for four numbers (loaded / unloaded / shortage /
+   total expenses) plus the remaining-in-vehicle and per-tab totals.
+   They get one size step up and a state colour so the answer is
+   readable without hunting; labels and secondary text stay as they are.
+   Scoped to the page marker, so no other detail page shifts.
+   =================================================================== */
+[data-transport-details] .ak-stat-card__value { font-size: clamp(24px, 1.9vw, 30px); }
+[data-transport-details] .ak-stat-card__value--compact { font-size: clamp(20px, 1.6vw, 25px); }
+[data-transport-details] .ak-stat-card__value--dense { font-size: clamp(16px, 1.3vw, 20px); }
+[data-transport-details] .ak-stat-card__value--ultra { font-size: clamp(13px, 1.05vw, 16px); }
+
+/* KPI order is fixed by the view: loaded, unloaded, shortage, total expenses. */
+[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(1) .ak-stat-card__value { color: var(--ptg-primary); }
+[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(2) .ak-stat-card__value { color: var(--ptg-success-text); }
+[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(3) .ak-stat-card__value { color: var(--ptg-danger-text); }
+[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(4) .ak-stat-card__value { color: var(--ptg-warning-text); }
+
+/* Toned summary facts (remaining in vehicle) — colour already comes from the
+   tone class, only the size step is added here. */
+[data-transport-details] .ak-info-value.is-warning,
+[data-transport-details] .ak-info-value.is-danger,
+[data-transport-details] .ak-info-value.is-success {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+/* Record-list figures: quantities and amounts read as values, not body text. */
+[data-transport-details] .ak-list-row > span.ak-num {
+    color: var(--ptg-primary);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+[data-transport-details] .ak-list-row > span.ak-num > small {
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 11px;
+    font-weight: 500;
+}
+
+[data-transport-details] .ak-list-row.is-remaining > span.ak-num {
+    color: var(--ptg-warning-text);
+    font-size: 17px;
+}
+
+/* Tab totals are the closing figure of each tab. */
+[data-transport-details] .ak-detail-totals .ak-list-row > b {
+    font-size: 17px;
+}

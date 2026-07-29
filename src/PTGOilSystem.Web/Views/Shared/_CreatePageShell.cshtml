@@ -6,6 +6,10 @@
     var returnUrl = Url.IsLocalUrl(requestedReturnUrl)
         ? requestedReturnUrl
         : Url.Action("Index") ?? "/";
+    var isQuickCreate = string.Equals(
+        Context.Request.Query["quickCreate"].ToString(),
+        "1",
+        StringComparison.Ordinal);
 
     var requestedLanguage = Context.Request.Cookies["ptg-ui-lang"] ?? "fa";
     var isEn = string.Equals(requestedLanguage, "en", StringComparison.OrdinalIgnoreCase);
@@ -25,7 +29,13 @@
                            T("بازگشت", "Back"), "bi-arrow-right",
                            (string?)returnUrl))" />
 
-        <form asp-action="Create" asp-route-returnUrl="@returnUrl" method="post" class="ak-form">
+        <form asp-action="Create"
+              asp-route-returnUrl="@returnUrl"
+              asp-route-modal="@(isQuickCreate ? "1" : null)"
+              asp-route-quickCreate="@(isQuickCreate ? "1" : null)"
+              method="post"
+              class="ak-form"
+              data-ptg-quick-create="@(isQuickCreate ? "true" : null)">
             @await Html.PartialAsync(formPartialPath, Model)
             <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
                      model="@((T("ذخیره", "Save"), returnUrl, T("انصراف", "Cancel")))" />

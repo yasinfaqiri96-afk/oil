@@ -389,6 +389,18 @@ body.ptg-modal-document .ak-list-card .ak-filter-host {
     margin: 0;
 }
 
+/* The card and its toolbar each trap the search bar's popover: `isolation`
+   above, `z-index: 5` here. Together they cap the open option list far below
+   the dropdown tier the host asks for, so table chrome and page overlays paint
+   over it. Lift both only while the popover is open — the resting list card
+   keeps its flat stacking, and modals/toasts still sit above. */
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card:has(.ak-filter-popover:not([hidden])),
+body.ptg-modal-document .ak-list-card:has(.ak-filter-popover:not([hidden])),
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card > .ak-list-toolbar:has(.ak-filter-popover:not([hidden])),
+body.ptg-modal-document .ak-list-card > .ak-list-toolbar:has(.ak-filter-popover:not([hidden])) {
+    z-index: var(--ptg-z-dropdown, 1000);
+}
+
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter,
 body.ptg-modal-document .ak-list-card .ak-filter {
     min-height: 42px;

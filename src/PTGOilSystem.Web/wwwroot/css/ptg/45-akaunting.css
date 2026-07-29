@@ -523,6 +523,16 @@ body.boltz-shell.app-shell-authenticated .ref-dashboard .ref-kpi-label {
     min-height: 48px;
     margin-block: 20px;
 }
+
+/* The host is itself a stacking context, so the popover's z-index below is
+   capped at the host's level no matter how high it asks for: page chrome above
+   20 (sticky toolbars, card overlays, table chrome) paints over the open
+   options. At rest the bar keeps 20; while the popover is open the host joins
+   the dropdown tier and drops back the moment it closes. */
+.ak-filter-host:has(.ak-filter-popover:not([hidden])) {
+    z-index: var(--ptg-z-dropdown, 1000);
+}
+
 .ak-filter {
     position: relative;
     display: flex;

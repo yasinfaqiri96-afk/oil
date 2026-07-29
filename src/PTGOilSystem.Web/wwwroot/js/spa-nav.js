@@ -2,6 +2,10 @@
     "use strict";
 
     var navigating = false;
+    var navMethod = "";            // متد ناوبری در جریان ("GET"/"POST")
+    var navToken = 0;              // شمارندهٔ یکنواخت: فقط جدیدترین ناوبری اجازهٔ swap دارد
+    var navAbort = null;           // AbortController ناوبری GET در جریان
+    var scrollPositions = {};      // url -> scrollTop، برای بازگردانی در Back/Forward
     var pageStyleLoadTimeoutMs = 1800;
 
     // --- Prefetch cache (perceived-instant navigation) ----------------------
@@ -23,6 +27,9 @@
 
     function init() {
         history.replaceState({ ptgSpa: true }, document.title, location.href);
+        // مرورگر نباید هم‌زمان با ما اسکرول را بازگرداند؛ ظرف اسکرول ما .ptg-app است.
+        if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+        trackScroll();
         document.addEventListener("click", onClick, true);
         document.addEventListener("submit", onSubmit, true);
         document.addEventListener("mouseover", onHover, true);
@@ -97,7 +104,14 @@
         if (a.target && a.target !== "_self") return false;
         if (a.hasAttribute("download")) return false;
         if (a.hasAttribute("data-no-spa")) return false;
+        // خروجی Excel/PDF/CSV یک فایل است نه صفحه: نه prefetch، نه swap، نه
+        // stopPropagation — وگرنه نشانگر بارگذاری tabular-export.js هم اجرا نمی‌شود.
+        if (a.hasAttribute("data-export-link")) return false;
         if (a.hasAttribute("data-bs-toggle") || a.hasAttribute("data-bs-dismiss")) return false;
+        // لینک page-modal را core.js باز می‌کند. این قاعده اینجاست نه در ویوها:
+        // شنوندهٔ ما capture است و stopPropagation می‌کند، پس هر ویویی که یادش
+        // برود data-no-spa بگذارد، مودالش اصلاً باز نمی‌شد و صفحه عوض می‌شد.
+        if (a.hasAttribute("data-page-modal")) return false;
         try {
             var url = new URL(href, location.origin);
             if (url.origin !== location.origin) return false;
@@ -162,10 +176,42 @@
         }
     };
 
+    // پاسخی که HTML نیست (Excel/PDF/CSV/جریان فایل) اصلاً نباید در حافظه خوانده شود؛
+    // بدنه را دور می‌ریزیم و کار را به ناوبری عادی مرورگر می‌سپاریم.
+    function isSwappableHtml(res) {
+        var type = (res.headers.get("content-type") || "").toLowerCase();
+        var disposition = (res.headers.get("content-disposition") || "").toLowerCase();
+        if (disposition.indexOf("attachment") >= 0) return false;
+        return type.indexOf("text/html") >= 0;
+    }
+
+    function releaseBody(res) {
+        try { if (res.body && res.body.cancel) res.body.cancel(); } catch (_) {}
+    }
+
     function go(url, method, body, push) {
-        if (navigating) return;
+        // POST در جریان هرگز قطع نمی‌شود: سرور ممکن است همان لحظه در حال Commit باشد.
+        // ناوبری GET در جریان اما با کلیک تازه لغو می‌شود تا جدیدترین قصد کاربر برنده باشد.
+        if (navigating) {
+            if (navMethod === "POST" || method === "POST") return;
+            abortInFlight();
+        }
+
         navigating = true;
+        navMethod = method;
+        var token = ++navToken;
         loaderStart();
+
+        function settle() {
+            if (token !== navToken) return;   // ناوبری تازه‌تر مسئولیت را گرفته است
+            navigating = false;
+            navMethod = "";
+            navAbort = null;
+            loaderDone();
+        }
+
+        // پاسخ دیررسِ ناوبری قدیمی هرگز نباید صفحهٔ جدیدتر را بازنویسی کند.
+        function isStale() { return token !== navToken; }
 
         // Serve from prefetch cache when a fresh warm copy exists (GET only).
         if (method === "GET" && !body) {
@@ -173,26 +219,53 @@
             if (cached) {
                 delete prefetchCache[url];
                 Promise.resolve(swap(cached.html, cached.finalUrl, push))
-                    .catch(function () { fallback(url); })
-                    .finally(function () { navigating = false; loaderDone(); });
+                    .catch(function () { if (!isStale()) fallback(url); })
+                    .finally(settle);
                 return;
             }
         }
 
+        var controller = null;
+        try { controller = new AbortController(); } catch (_) { controller = null; }
+        navAbort = method === "GET" ? controller : null;
+
         var opts = { method: method, credentials: "same-origin", redirect: "follow", headers: spaHeaders };
         if (body) opts.body = body;
+        if (controller) opts.signal = controller.signal;
+
         fetch(url, opts)
             .then(function (res) {
-                if (!res.ok && res.status >= 500) { fallback(url); return null; }
-                return res.text().then(function (html) { return { html: html, finalUrl: res.url }; });
+                if (isStale()) { releaseBody(res); return null; }
+                if (!res.ok && res.status >= 500) { releaseBody(res); fallback(url); return null; }
+                // دانلود/جریان فایل: بدنه را نمی‌خوانیم، مرورگر خودش می‌برد.
+                if (!isSwappableHtml(res)) { releaseBody(res); fallback(url); return null; }
+                return res.text().then(function (html) {
+                    return { html: html, finalUrl: res.url, redirected: res.redirected };
+                });
             })
             .then(function (result) {
-                if (result) {
-                    return swap(result.html, result.finalUrl, push);
-                }
+                if (!result || isStale()) return;
+                // ثبت ناموفق (اعتبارسنجی) یک صفحهٔ تازه نیست؛ ورودی تاریخچه نمی‌سازد
+                // وگرنه Back کاربر را به همان فرم برمی‌گرداند.
+                var pushEntry = push && !(method === "POST" && !result.redirected);
+                return swap(result.html, result.finalUrl, pushEntry);
             })
-            .catch(function () { fallback(url); })
-            .finally(function () { navigating = false; loaderDone(); });
+            .catch(function (error) {
+                if (isStale()) return;
+                if (error && error.name === "AbortError") return;
+                fallback(url);
+            })
+            .finally(settle);
+    }
+
+    function abortInFlight() {
+        if (navAbort) {
+            try { navAbort.abort(); } catch (_) {}
+        }
+        navAbort = null;
+        navigating = false;
+        navMethod = "";
+        loaderDone();
     }
 
     function cleanupBootstrapOverlays() {
@@ -283,11 +356,54 @@
                     history.replaceState({ ptgSpa: true }, document.title, url);
                 }
 
-                window.scrollTo(0, 0);
+                // صفحهٔ تازه از بالا شروع می‌شود؛ Back/Forward به همان جای قبلی برمی‌گردد.
+                restoreScroll(url, push);
+                if (push) focusMain(curMain);
             } finally {
                 revealMain(curMain);
             }
         });
+    }
+
+    // --- Scroll & focus -----------------------------------------------------
+    // ظرف اسکرول واقعی .ptg-app است (نه window)؛ همان چیزی که navigation.js
+    // برای حالت topbar-scrolled می‌خواند. این ظرف در swap زنده می‌ماند.
+    function scrollHost() {
+        return document.querySelector(".ptg-app") || document.scrollingElement || document.documentElement;
+    }
+
+    function trackScroll() {
+        var ticking = false;
+        function record() {
+            ticking = false;
+            var host = scrollHost();
+            if (host) scrollPositions[location.href] = host.scrollTop || 0;
+        }
+        document.addEventListener("scroll", function () {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(record);
+        }, { capture: true, passive: true });
+    }
+
+    function restoreScroll(url, push) {
+        var host = scrollHost();
+        if (!host) return;
+        var top = push ? 0 : (scrollPositions[url] || scrollPositions[location.href] || 0);
+        host.scrollTop = top;
+        if (host === document.scrollingElement || host === document.documentElement) {
+            window.scrollTo(0, top);
+        }
+    }
+
+    // دسترس‌پذیری: پس از تعویض محتوا، فوکوس باید در صفحهٔ تازه باشد نه روی لینکِ
+    // ناپدیدشده. preventScroll تا فوکوس، اسکرولِ تازه‌تنظیم‌شده را جابه‌جا نکند.
+    function focusMain(main) {
+        if (!main) return;
+        try {
+            if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+            main.focus({ preventScroll: true });
+        } catch (_) {}
     }
 
     function revealMain(main) {
