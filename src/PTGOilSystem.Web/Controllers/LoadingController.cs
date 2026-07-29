@@ -1646,6 +1646,8 @@ public partial class LoadingController : Controller
                     LoadingRegister Loading,
                     Contract Contract)>(model.Rows.Count);
 
+                // همان شمارندهٔ تکرارِ مرحلهٔ اعتبارسنجی، تا کلید ردیف‌ها در ثبت نهایی یکسان بماند.
+                var importKeyOccurrences = new LoadingImportKey.OccurrenceTracker();
                 foreach (var row in model.Rows)
                 {
                     var effectiveContractId = ResolveEffectiveRowContractId(model, row, useRowContracts);
@@ -1694,7 +1696,9 @@ public partial class LoadingController : Controller
                         loading.ContractId,
                         loading.BillOfLadingNumber ?? loading.RwbNo,
                         loading.WagonNumber ?? row.ImportedTransportReference,
-                        loading.LoadingDate);
+                        loading.LoadingDate,
+                        importKeyOccurrences,
+                        loading.LoadedQuantityMt);
                     ApplyRubSnapshotToLoading(loading, row);
                     if (loading.RubRateStatus == RubSettlementRateStatus.Locked)
                     {

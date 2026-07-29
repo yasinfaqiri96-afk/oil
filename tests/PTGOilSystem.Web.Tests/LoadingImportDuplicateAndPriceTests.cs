@@ -66,6 +66,64 @@ public sealed class LoadingImportDuplicateAndPriceTests
         Assert.Equal(2, await db.LoadingRegisters.CountAsync());
     }
 
+    // ۲.۱ — یک واگن که در همان سند به چند خط بارگیری شکسته شده: هر سه خط باید ثبت شوند.
+    // داده واقعی P-006: واگن 54026927 روی RWB 9983257 با مقادیر 33.049 + 3.9 + 21.6.
+    [Fact]
+    public async Task A_Wagon_Split_Across_Several_Lines_Registers_Every_Line()
+    {
+        await using var db = NewDb();
+        SeedPurchaseContract(db, contractId: 1, contractNumber: "PUR-001");
+
+        var model = BuildImportModel(
+            contractId: 1,
+            ("9983257", "54026927", 33.049m, 600.73m),
+            ("9983257", "54026927", 3.9m, 600.73m),
+            ("9983257", "54026927", 21.6m, 600.73m));
+
+        var screening = await LoadingExcelImportController.ScreenDuplicateRowsAsync(db, model, CancellationToken.None);
+
+        Assert.Equal(3, screening.AcceptedRows.Count);
+        Assert.Equal(0, screening.DuplicateRows);
+
+        model.Rows = screening.AcceptedRows;
+        Assert.IsType<RedirectToActionResult>(await BuildLoadingController(db).Create(model));
+
+        var stored = await db.LoadingRegisters.AsNoTracking().ToListAsync();
+        Assert.Equal(3, stored.Count);
+        Assert.Equal(58.549m, stored.Sum(loading => loading.LoadedQuantityMt));
+
+        // کلید بار اول بدون پسوند می‌ماند تا ردیف‌های قبلاً ثبت‌شده بی‌اثر نشوند.
+        var keys = stored.Select(loading => loading.ImportUniqueKey).OrderBy(key => key, StringComparer.Ordinal).ToList();
+        Assert.Equal(["1|9983257|54026927", "1|9983257|54026927#2", "1|9983257|54026927#3"], keys);
+    }
+
+    // ۲.۲ — همان فایلِ واگن‌شکسته دوباره: هیچ ردیف تازه‌ای ساخته نمی‌شود.
+    [Fact]
+    public async Task Re_Importing_A_Split_Wagon_File_Adds_Nothing()
+    {
+        await using var db = NewDb();
+        SeedPurchaseContract(db, contractId: 1, contractNumber: "PUR-001");
+
+        var rows = new (string, string, decimal, decimal)[]
+        {
+            ("9983257", "54026927", 33.049m, 600.73m),
+            ("9983257", "54026927", 3.9m, 600.73m),
+            ("9983257", "54026927", 21.6m, 600.73m)
+        };
+
+        var firstModel = BuildImportModel(1, rows);
+        firstModel.Rows = (await LoadingExcelImportController.ScreenDuplicateRowsAsync(db, firstModel, CancellationToken.None)).AcceptedRows;
+        await BuildLoadingController(db).Create(firstModel);
+        Assert.Equal(3, await db.LoadingRegisters.CountAsync());
+
+        var secondModel = BuildImportModel(1, rows);
+        var screening = await LoadingExcelImportController.ScreenDuplicateRowsAsync(db, secondModel, CancellationToken.None);
+
+        Assert.Empty(screening.AcceptedRows);
+        Assert.Equal(3, screening.DuplicateRows);
+        Assert.Equal(3, await db.LoadingRegisters.CountAsync());
+    }
+
     // ۳ — فایل دوم با تعدادی ردیف قبلی: فقط ردیف‌های جدید ثبت می‌شوند.
     [Fact]
     public async Task Second_File_Only_Registers_The_New_Rows()

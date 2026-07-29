@@ -355,6 +355,7 @@ public sealed class LoadingExcelImportController : Controller
         CancellationToken token)
     {
         var keysByRowIndex = new Dictionary<int, string>();
+        var occurrences = new LoadingImportKey.OccurrenceTracker();
         for (var index = 0; index < model.Rows.Count; index++)
         {
             var row = model.Rows[index];
@@ -368,7 +369,9 @@ public sealed class LoadingExcelImportController : Controller
                 contractId,
                 row.BillOfLadingNumber,
                 row.WagonNumber ?? row.ImportedTransportReference,
-                row.LoadingDate);
+                row.LoadingDate,
+                occurrences,
+                row.LoadedQuantityMt);
             if (key is not null)
             {
                 keysByRowIndex[index] = key;
