@@ -38,9 +38,27 @@
         }, true);
     }
 
+    // قفل ضدتکرار و بررسی اعتبار از core.js می‌آید (پرچم مشترک data-ptg-submitting).
+    // این فایل فقط ظاهر «در حال ثبت» دکمه‌های مودال را نگه می‌دارد.
+    function claimSubmit(form) {
+        if (window.PTG && typeof window.PTG.claimFormSubmit === "function") {
+            return window.PTG.claimFormSubmit(form);
+        }
+        if (form.dataset.ptgSubmitting === "true") return false;
+        form.dataset.ptgSubmitting = "true";
+        return true;
+    }
+
+    function releaseSubmit(form) {
+        if (window.PTG && typeof window.PTG.releaseFormSubmit === "function") {
+            window.PTG.releaseFormSubmit(form);
+            return;
+        }
+        form.dataset.ptgSubmitting = "false";
+    }
+
     function submitEntityModalForm(form) {
-        if (form.dataset.ptgModalSubmitting === "true") return;
-        form.dataset.ptgModalSubmitting = "true";
+        if (!claimSubmit(form)) return;
 
         var modal = form.closest(".modal, [data-entity-modal]");
         var buttons = collectModalSubmitButtons(form);
@@ -72,7 +90,7 @@
             var replaced = replaceEntityModalFormBody(form, result.html);
             if (replaced) {
                 setModalButtonsBusy(buttons, false);
-                form.dataset.ptgModalSubmitting = "false";
+                releaseSubmit(form);
             } else {
                 // No re-rendered form found → treat as a navigation.
                 handleEntityModalSuccess(modal, result.url || action, result.html);
@@ -81,7 +99,7 @@
             // Network/parse failure → fall back to a native submit so the user
             // keeps the normal (pre-fix) behavior and nothing is lost.
             setModalButtonsBusy(buttons, false);
-            form.dataset.ptgModalSubmitting = "false";
+            releaseSubmit(form);
             form.removeAttribute("data-ptg-entity-modal-form");
             form.submit();
         });

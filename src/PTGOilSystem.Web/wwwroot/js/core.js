@@ -720,5 +720,9 @@
     window.PTG.openPageModal = openPageModal;
     window.PTG.closePageModal = closePageModal;
     window.PTG.completeQuickCreate = completeQuickCreate;
+    // برای مسیرهایی که ظاهر «در حال ثبت» خودشان را دارند (modal-design-system):
+    // فقط قفل و بررسی اعتبار مشترک، بدون دست‌زدن به دکمه‌ها.
+    window.PTG.claimFormSubmit = claimFormSubmit;
+    window.PTG.releaseFormSubmit = resetSubmitGuard;
 
 })();
