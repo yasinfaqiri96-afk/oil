@@ -88,8 +88,12 @@ public sealed class QuickCreateResultFilter : IAsyncActionFilter
             })
             .LastOrDefault();
 
+    // فرم‌های Create وقتی returnUrl دارند LocalRedirect برمی‌گردانند؛ این نوع از
+    // RedirectResult ارث نمی‌برد، پس بدون آن پاسخ ثبت موفق به JSON تبدیل نمی‌شد و
+    // iframe به‌جای انتخاب خودکار، صفحهٔ فهرست را نشان می‌داد.
     private static bool IsSuccessfulCreateResult(IActionResult? result)
         => result is RedirectResult
+            or LocalRedirectResult
             or RedirectToActionResult
             or RedirectToRouteResult;
 }

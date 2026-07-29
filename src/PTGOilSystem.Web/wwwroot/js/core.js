@@ -109,6 +109,10 @@
     // لینک‌های page-modal چند بار باز می‌شوند.
     var pageModalReady = false;
 
+    // هر بار باز شدن page-modal یک شمارهٔ تازه می‌گیرد تا تلاش دوبارهٔ بستن،
+    // نمایشِ بعدی را به‌اشتباه نبندد.
+    var pageModalOpenToken = 0;
+
     function initializePageModalLinks() {
         if (pageModalReady) return;
         pageModalReady = true;
@@ -237,6 +241,7 @@
             frame.setAttribute("src", modalUrl.toString());
         }
 
+        pageModalOpenToken += 1;
         window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
     }
 
@@ -245,7 +250,18 @@
         var redirectUrl = options && options.redirectUrl ? options.redirectUrl : null;
 
         if (modalElement && window.bootstrap) {
-            window.bootstrap.Modal.getOrCreateInstance(modalElement).hide();
+            var instance = window.bootstrap.Modal.getOrCreateInstance(modalElement);
+
+            // Bootstrap ignores hide() while the show transition is still running,
+            // so a quick-create that resolves before shown.bs.modal would leave the
+            // modal open forever. Arm a retry for that case; the open token keeps a
+            // leftover retry from closing a later, unrelated open.
+            var token = pageModalOpenToken;
+            modalElement.addEventListener("shown.bs.modal", function () {
+                if (pageModalOpenToken === token) instance.hide();
+            }, { once: true });
+
+            instance.hide();
         }
 
         if (redirectUrl) {

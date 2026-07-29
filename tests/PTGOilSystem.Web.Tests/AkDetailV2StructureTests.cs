@@ -203,6 +203,30 @@ public sealed class AkDetailV2StructureTests
     }
 
     [Fact]
+    public void Operational_Asset_Details_Uses_A_Compact_Tab_First_Composition()
+    {
+        var view = ReadView("OperationalAssets");
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/11-details.css");
+
+        Assert.Contains("data-operational-asset-details", view);
+        Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
+        Assert.DoesNotContain("_DetailSummaryCard.cshtml", view);
+        Assert.Equal(3, Count(view, "class=\"modal fade oa-action-modal\""));
+        Assert.Contains("id=\"oaOwnershipModal\"", view);
+        Assert.Contains("id=\"oaRentModal\"", view);
+        Assert.Contains("id=\"oaExpenseModal\"", view);
+        Assert.Equal(3, Count(view, "data-bs-toggle=\"modal\""));
+        Assert.Equal(3, Count(view, "@Html.AntiForgeryToken()"));
+        Assert.DoesNotContain("data-oa-reopen", view);
+
+        Assert.Contains(".ak-detail-page.operational-asset-details-page", css);
+        Assert.Contains(".operational-asset-details-page .tab-pane > .ak-list", css);
+        Assert.Contains(".operational-asset-details-page [data-oa-split]", css);
+        Assert.Contains(".operational-asset-details-page .oa-modal-trigger", css);
+        Assert.Contains(".operational-asset-details-page .oa-action-modal .modal-dialog", css);
+    }
+
+    [Fact]
     public void Every_Take_In_A_Detail_View_Is_Paired_With_Shared_Server_Pager()
     {
         foreach (var controller in DetailViews)

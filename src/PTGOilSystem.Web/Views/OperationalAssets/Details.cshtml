@@ -45,26 +45,6 @@
         $"profit|{UiText.T(Context, "سود", "Profit")}||{(activeAssetTab == "profit" ? "active" : "")}"
     };
 
-    var assetKpis = new List<AkKpiItem>
-    {
-        new() { Title = UiText.T(Context, "درآمد کرایه", "Rent revenue"), Value = (Model.TotalRentUsd + Model.FreightIncomeUsd).ToString("N2"), Unit = "USD", Avatar = "sales-value" },
-        new() { Title = UiText.T(Context, "جمع مصارف", "Total cost"), Value = totalCostUsd.ToString("N2"), Unit = "USD", Avatar = "expenses" },
-        new() { Title = UiText.T(Context, "نتیجه خالص", "Net result"), Value = Model.NetResultUsd.ToString("N2"), Unit = "USD", Avatar = "profit-loss", State = isNetPositive ? null : "warning" },
-        new() { Title = UiText.T(Context, "مالکین فعال", "Active owners"), Value = activeOwnerCount.ToString("N0"), Avatar = "partners", State = allocationReady ? null : "warning" }
-    };
-
-    // مشخصات پایه — کد و نوع دارایی در خط زمینهٔ سربرگ‌اند و اینجا تکرار نمی‌شوند.
-    var assetSummaryItems = new List<AkInfoItem>
-    {
-        new() { Label = UiText.T(Context, "نوع مالکیت", "Ownership mode"), Value = OperationalAssetLabels.OwnershipMode(Model.OwnershipMode, Context) },
-        new() { Label = UiText.T(Context, "منبع مرتبط", "Linked resource"), Value = Model.LinkedResourceText },
-        new() { Label = UiText.T(Context, "ظرفیت", "Capacity"), Value = Model.CapacityMt?.ToString("N2"), Unit = "MT", IsNumeric = true },
-        new() { Label = UiText.T(Context, "موقعیت", "Location"), Value = Model.LocationName },
-        new() { Label = UiText.T(Context, "ترمینال", "Terminal"), Value = Model.TerminalName },
-        new() { Label = UiText.T(Context, "دوره فعلی گزارش", "Current report period"), Value = $"{Model.FromDate.ToDisplayDate()} - {Model.ToDate.ToDisplayDate()}" },
-        new() { Label = UiText.T(Context, "یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
-    };
-
     var assetAdvancedItems = new List<AkInfoItem>
     {
         new() { Label = UiText.T(Context, "شناسه دارایی", "Asset id"), Value = $"#{Model.Id}", IsNumeric = true },
@@ -74,16 +54,11 @@
     };
 }
 
-<div class="ak-form-page ak-detail-page" data-ak-detail-v2="true">
+<div class="ak-form-page ak-detail-page operational-asset-details-page" data-ak-detail-v2="true" data-operational-asset-details>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((Model.Name, false,
                        UiText.T(Context, "ثبت کرایه", "Record rent"), "bi-calendar-plus", rentUrl, (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Index")))" />
-    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)assetKpis)" />
-
-    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@((UiText.T(Context, "مشخصات پایه دارایی", "Asset basic details"), (string?)null, (IReadOnlyList<AkInfoItem>)assetSummaryItems))" />
-
     <section class="ak-form-section ak-detail-section" aria-label="@UiText.T(Context, "پرونده دارایی عملیاتی", "Operational asset profile")">
         <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
                  model="@(UiText.T(Context, "بخش‌های دارایی", "Asset sections"), assetTabs)" />
@@ -223,18 +198,17 @@
                 </div>
 
                 <div class="ak-form-grid" data-oa-split>
+                    <div class="modal fade oa-action-modal" id="oaOwnershipModal" tabindex="-1" aria-labelledby="oaOwnershipModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h2 class="modal-title" id="oaOwnershipModalLabel">@UiText.T(Context, "افزودن سهم", "Add share")</h2>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
+                                </div>
+                                <div class="modal-body">
                     <form asp-action="AddOwnershipShare" method="post" class="ak-form-section ak-detail-section ak-form" data-oa-owner-form>
                         @Html.AntiForgeryToken()
                         <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
-                        <div class="ak-section-head ak-detail-section-header">
-                            <span>@UiText.T(Context, "افزودن سهم جدید", "Add New Share")</span>
-                            <div >
-                                <button type="button" class="btn btn-light ak-secondary-action" data-oa-collapse title="@UiText.T(Context, "جمع/باز کردن فرم", "Toggle form")">
-                                    <i class="bi bi-layout-sidebar-reverse"></i>
-                                </button>
-                                <i class="bi bi-plus-lg"></i>
-                            </div>
-                        </div>
                         <div class="ak-form-grid">
                             <div class="ak-field">
                                 <label asp-for="NewOwnershipShare.OwnerType" class="ak-label">@UiText.T(Context, "نوع مالک", "Owner Type")</label>
@@ -275,9 +249,13 @@
                         </div>
                         <button type="submit" class="ak-save">@UiText.T(Context, "ثبت سهم", "Save Share")</button>
                     </form>
-                    <button type="button" class="btn btn-light ak-secondary-action" data-oa-reopen hidden title="@UiText.T(Context, "نمایش فرم", "Show Form")">
-                        <i class="bi bi-layout-sidebar-reverse"></i>
-                        <span>@UiText.T(Context, "فرم", "Form")</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary oa-modal-trigger" data-bs-toggle="modal" data-bs-target="#oaOwnershipModal">
+                        <i class="bi bi-plus-lg"></i>
+                        <span>@UiText.T(Context, "افزودن سهم", "Add share")</span>
                     </button>
 
                     <div>
@@ -341,6 +319,14 @@
                 </div>
 
                 <div class="ak-form-grid" data-oa-split>
+                    <div class="modal fade oa-action-modal" id="oaRentModal" tabindex="-1" aria-labelledby="oaRentModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h2 class="modal-title" id="oaRentModalLabel">@UiText.T(Context, "ثبت کرایه", "Record rent")</h2>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
+                                </div>
+                                <div class="modal-body">
                     <form asp-action="CreateRent" method="post" class="ak-form-section ak-detail-section ak-form" data-oa-rent-form="true">
                         @Html.AntiForgeryToken()
                         <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
@@ -348,16 +334,6 @@
                         <input name="Rate" value="@Model.NewRent.Rate" type="hidden" />
                         <input name="Currency" value="@Model.NewRent.Currency" type="hidden" />
                         <input name="FxRateToUsd" value="@Model.NewRent.FxRateToUsd" type="hidden" />
-                        <div class="ak-section-head ak-detail-section-header">
-                            <span>@UiText.T(Context, "ثبت کرایه جدید", "Record New Rent")</span>
-                            <div >
-                                <button type="button" class="btn btn-light ak-secondary-action" data-oa-collapse title="@UiText.T(Context, "جمع/باز کردن فرم", "Toggle form")">
-                                    <i class="bi bi-layout-sidebar-reverse"></i>
-                                </button>
-                                <i class="bi bi-wallet2"></i>
-                            </div>
-                        </div>
-                        <small class="ak-note">@UiText.T(Context, "برای دارایی عملیاتی / شخصی شرکت که به مشتری بیرونی کرایه داده می‌شود و عواید ایجاد می‌کند.", "For a company operational/private asset rented to an external customer to generate income.")</small>
                         <div class="ak-field">
                             <label class="ak-label">@UiText.T(Context, "نوع کرایه", "Rent Type")</label>
                             <div class="ptg-tabs-rail ak-detail-tabs">
@@ -443,11 +419,14 @@
                         <button type="submit" class="ak-save">
                             @UiText.T(Context, "ثبت و تأیید نهایی کرایه", "Save and Confirm Rent") <i class="bi bi-check-circle"></i>
                         </button>
-                        <a asp-action="CreateRent" asp-route-assetId="@Model.Id" class="btn btn-light ak-secondary-action">@UiText.T(Context, "فرم کامل کرایه", "Full Rent Form")</a>
                     </form>
-                    <button type="button" class="btn btn-light ak-secondary-action" data-oa-reopen hidden title="@UiText.T(Context, "نمایش فرم", "Show Form")">
-                        <i class="bi bi-layout-sidebar-reverse"></i>
-                        <span>@UiText.T(Context, "فرم", "Form")</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary oa-modal-trigger" data-bs-toggle="modal" data-bs-target="#oaRentModal">
+                        <i class="bi bi-plus-lg"></i>
+                        <span>@UiText.T(Context, "ثبت کرایه", "Record rent")</span>
                     </button>
 
                     <div>
@@ -521,22 +500,20 @@
                     </article>
                 </div>
                 <div class="ak-form-grid" data-oa-split>
+                    <div class="modal fade oa-action-modal" id="oaExpenseModal" tabindex="-1" aria-labelledby="oaExpenseModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h2 class="modal-title" id="oaExpenseModalLabel">@UiText.T(Context, "ثبت مصرف", "Record expense")</h2>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
+                                </div>
+                                <div class="modal-body">
                     <form asp-controller="Expenses" asp-action="Create" method="post" class="ak-form-section ak-detail-section ak-form">
                         @Html.AntiForgeryToken()
                         <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
                         <input name="Currency" value="USD" type="hidden" />
                         <input name="AppliedFxRateToUsd" value="1" type="hidden" />
                         <input name="ReturnUrl" value="@Context.Request.Path@Context.Request.QueryString" type="hidden" />
-                        <div class="ak-section-head ak-detail-section-header">
-                            <span>@UiText.T(Context, "ثبت مصرف جدید", "Record New Expense")</span>
-                            <div >
-                                <button type="button" class="btn btn-light ak-secondary-action" data-oa-collapse title="@UiText.T(Context, "جمع/باز کردن فرم", "Toggle form")">
-                                    <i class="bi bi-layout-sidebar-reverse"></i>
-                                </button>
-                                <i class="bi bi-wallet2"></i>
-                            </div>
-                        </div>
-                        <small class="ak-note">@UiText.T(Context, "مصرف مستقیم مربوط به همین دارایی عملیاتی را ثبت کنید.", "Record a direct expense linked to this operational asset.")</small>
                         <div class="ak-form-grid">
                             <div class="ak-field">
                                 <label class="ak-label">@UiText.T(Context, "نوع مصرف", "Expense Type")</label>
@@ -558,11 +535,14 @@
                         <button type="submit" class="ak-save">
                             @UiText.T(Context, "ثبت مصرف", "Save Expense") <i class="bi bi-check-circle"></i>
                         </button>
-                        <a asp-controller="Expenses" asp-action="Create" asp-route-operationalAssetId="@Model.Id" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" class="btn btn-light ak-secondary-action">@UiText.T(Context, "فرم کامل مصرف", "Full Expense Form")</a>
                     </form>
-                    <button type="button" class="btn btn-light ak-secondary-action" data-oa-reopen hidden title="@UiText.T(Context, "نمایش فرم", "Show Form")">
-                        <i class="bi bi-layout-sidebar-reverse"></i>
-                        <span>@UiText.T(Context, "فرم", "Form")</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary oa-modal-trigger" data-bs-toggle="modal" data-bs-target="#oaExpenseModal">
+                        <i class="bi bi-plus-lg"></i>
+                        <span>@UiText.T(Context, "ثبت مصرف", "Record expense")</span>
                     </button>
 
                     <div>
@@ -689,27 +669,4 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script>
-    (function () {
-        document.querySelectorAll('[data-oa-collapse]').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var split = btn.closest('[data-oa-split]');
-                if (!split) return;
-                var form = split.querySelector('form');
-                var reopen = split.querySelector('[data-oa-reopen]');
-                if (form) form.hidden = true;
-                if (reopen) reopen.hidden = false;
-            });
-        });
-        document.querySelectorAll('[data-oa-reopen]').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var split = btn.closest('[data-oa-split]');
-                if (!split) return;
-                var form = split.querySelector('form');
-                if (form) form.hidden = false;
-                btn.hidden = true;
-            });
-        });
-    })();
-    </script>
 }

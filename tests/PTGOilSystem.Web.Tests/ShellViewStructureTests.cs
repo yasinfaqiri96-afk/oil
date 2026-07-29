@@ -83,6 +83,23 @@ public class ShellViewStructureTests
     }
 
     [Fact]
+    public void Sidebar_Uses_Slightly_Brighter_Navy_Surfaces_Without_Changing_State_Colors()
+    {
+        var tokensCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/01-tokens.css");
+        var sidebarCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/04-sidebar.css");
+
+        Assert.Contains("--ptg-sidebar-panel: #1A467D", tokensCss);
+        Assert.Contains("--ptg-sidebar-rail: #14355F", tokensCss);
+        Assert.Contains("--ptg-sidebar-panel: #173D6A", tokensCss);
+        Assert.Contains("--ptg-sidebar-rail: #113057", tokensCss);
+        Assert.Contains("--ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.10)", tokensCss);
+        Assert.Contains("--ptg-sidebar-active-bg: rgba(255, 255, 255, 0.14)", tokensCss);
+        Assert.Contains("--ptg-sidebar-danger: #FF9A9A", tokensCss);
+        Assert.Contains("background: var(--ptg-sidebar-panel)", sidebarCss);
+        Assert.Contains("background: var(--ptg-sidebar-rail)", sidebarCss);
+    }
+
+    [Fact]
     public void Shared_PageFrame_Owns_Workspace_Width_Gutters_And_Form_Columns()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");

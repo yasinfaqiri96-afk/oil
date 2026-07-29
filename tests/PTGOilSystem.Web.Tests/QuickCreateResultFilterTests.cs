@@ -54,6 +54,38 @@ public sealed class QuickCreateResultFilterTests
     }
 
     [Fact]
+    public async Task Quick_Create_Local_Redirect_Becomes_Json_With_New_Item()
+    {
+        await using var db = CreateDb();
+
+        var (executing, filters, actionContext) = CreateContext(
+            controller: "Customers",
+            quickCreate: true,
+            db: db);
+        var created = new Customer { Name = "Modal Customer" };
+        ActionExecutedContext? executed = null;
+
+        await new QuickCreateResultFilter().OnActionExecutionAsync(executing, async () =>
+        {
+            db.Customers.Add(created);
+            await db.SaveChangesAsync();
+            executed = new ActionExecutedContext(actionContext, filters, new object())
+            {
+                // فرم Create وقتی returnUrl دارد LocalRedirect برمی‌گرداند.
+                Result = new LocalRedirectResult("/Customers")
+            };
+            return executed;
+        });
+
+        Assert.NotNull(executed);
+        var json = Assert.IsType<JsonResult>(executed.Result);
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(json.Value));
+        Assert.True(payload.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(created.Id.ToString(), payload.RootElement.GetProperty("item").GetProperty("id").GetString());
+        Assert.Equal("Modal Customer", payload.RootElement.GetProperty("item").GetProperty("label").GetString());
+    }
+
+    [Fact]
     public async Task Normal_Create_Keeps_Existing_Redirect()
     {
         await using var db = CreateDb();

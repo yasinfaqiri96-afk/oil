@@ -45,9 +45,9 @@
     /* ---- Sidebar / shell — Deep Navy (the same hue --primary-main now carries).
        Dark navigation + light content: the premium financial-ERP hierarchy.
        Every sidebar colour is centralised here; 04-sidebar.css only references
-       these tokens (no scattered rgba). WCAG: ink 9:1 AAA, accent 6.8:1. ---- */
-    --ptg-sidebar-panel: #173F73;     /* menu panel surface (deep navy blue) */
-    --ptg-sidebar-rail: #113059;      /* outer rail surface (a touch deeper) */
+       these tokens (no scattered rgba). WCAG: sidebar ink remains AAA. ---- */
+    --ptg-sidebar-panel: #1A467D;     /* menu panel surface (slightly brighter navy) */
+    --ptg-sidebar-rail: #14355F;      /* outer rail surface (a touch deeper) */
     --ptg-sidebar-ink: #DCE6F4;       /* nav label text — soft near-white, cool tint */
     --ptg-sidebar-icon: #D2E7FF;      /* nav icon colour — bright cool azure, clearly off the navy */
     --ptg-sidebar-ink-strong: #FFFFFF;/* active label colour */
@@ -421,8 +421,8 @@ body.ptg-modal-document {
 
     /* Sidebar lifts a few points above the darker content canvas (#16161D)
        so the edge stays legible in dark mode; hue stays in the indigo family. */
-    --ptg-sidebar-panel: #143761;
-    --ptg-sidebar-rail: #0F2A4C;
+    --ptg-sidebar-panel: #173D6A;
+    --ptg-sidebar-rail: #113057;
     --ptg-sidebar-plate: #EDEEF5;
 }
 
