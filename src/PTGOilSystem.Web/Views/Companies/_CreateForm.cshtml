@@ -5,7 +5,7 @@
 
 <section class="ak-form-section">
     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-             model="@(("اطلاعات جواز", (string?)"کد، جواز و کشور شرکت را وارد کنید."))" />
+             model="@(("اطلاعات شرکت", (string?)"کد، شرکت و کشور شرکت را وارد کنید."))" />
     <div class="ak-form-grid">
         <div class="ak-field">
             <label asp-for="Code" class="ak-label">کد <span class="ak-req">*</span></label>
@@ -13,7 +13,7 @@
             <span asp-validation-for="Code" class="ak-field-error"></span>
         </div>
         <div class="ak-field">
-            <label asp-for="Name" class="ak-label">جواز <span class="ak-req">*</span></label>
+            <label asp-for="Name" class="ak-label">شرکت <span class="ak-req">*</span></label>
             <input asp-for="Name" class="ak-input" autocomplete="off" />
             <span asp-validation-for="Name" class="ak-field-error"></span>
         </div>

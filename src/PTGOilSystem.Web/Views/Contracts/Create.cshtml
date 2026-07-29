@@ -53,20 +53,13 @@
                                    data-purchase-number="@purchaseContractNumberPreview"
                                    data-sale-number="@saleContractNumberPreview" />
                         </div>
-                        <small class="ak-note">سیستم این شماره کوتاه را خودکار صادر می‌کند.</small>
                         <span asp-validation-for="ContractNumber" class="ak-field-error"></span>
                     </div>
+                    @* نوع قرارداد از فرم برداشته شد؛ مقدارِ آمده از کنترلر (خرید) پنهان ارسال می‌شود
+                       تا اسکریپت شماره‌گذاری و تفکیک تأمین‌کننده/مشتری دست‌نخورده بماند. *@
+                    <input asp-for="ContractType" id="ContractType" type="hidden" />
                     <div class="ak-field">
-                        <label asp-for="ContractType" class="ak-label">نوع قرارداد <span class="text-danger">*</span></label>
-                        <div >
-                            <select asp-for="ContractType" id="ContractType" class="ak-input">
-                                <option value="1">@UiText.T(Context,"خرید","Purchase")</option>
-                                <option value="2">@UiText.T(Context,"فروش","Sale")</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="Status" class="ak-label">وضعیت <span class="text-danger">*</span></label>
+                        <label asp-for="Status" class="ak-label">وضعیت <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="Status" class="ak-input">
                                 <option value="0">@UiText.T(Context,"پیش‌نویس","Draft")</option>
@@ -86,15 +79,15 @@
                         <span asp-validation-for="ParentContractId" class="text-danger"></span>
                     </div>
                     <div class="ak-field">
-                        <label asp-for="ContractDate" class="ak-label">تاریخ قرارداد <span class="text-danger">*</span></label>
+                        <label asp-for="ContractDate" class="ak-label">تاریخ قرارداد <span class="ak-req">*</span></label>
                         <input asp-for="ContractDate" type="date" class="ak-input" />
                     </div>
                     <div class="ak-field">
-                        <label asp-for="StartDate" class="ak-label">تاریخ شروع <span class="text-danger">*</span></label>
+                        <label asp-for="StartDate" class="ak-label">تاریخ شروع <span class="ak-req">*</span></label>
                         <input asp-for="StartDate" type="date" class="ak-input" />
                     </div>
                     <div class="ak-field">
-                        <label asp-for="EndDate" class="ak-label">تاریخ پایان <span class="text-danger">*</span></label>
+                        <label asp-for="EndDate" class="ak-label">تاریخ پایان <span class="ak-req">*</span></label>
                         <input asp-for="EndDate" type="date" class="ak-input" />
                     </div>
                 </div>
@@ -104,7 +97,7 @@
                 @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("طرف‌ها و مالکیت", (string?)null))
                 <div class="ak-form-grid">
                     <div class="ak-field">
-                        <label asp-for="CompanyId" class="ak-label">شرکت داخلی <span class="text-danger">*</span></label>
+                        <label asp-for="CompanyId" class="ak-label">شرکت داخلی <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="CompanyId" asp-items="companies" class="ak-input">
                                 <option value="">@UiText.T(Context,"انتخاب شرکت داخلی","Select Company")</option>
@@ -112,7 +105,7 @@
                         </div>
                     </div>
                     <div class="ak-field">
-                        <label asp-for="ProductId" class="ak-label">محصول <span class="text-danger">*</span></label>
+                        <label asp-for="ProductId" class="ak-label">محصول <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="ProductId" asp-items="products" id="ProductId" class="ak-input">
                                 <option value="">@UiText.T(Context,"انتخاب محصول","Select Product")</option>
@@ -136,16 +129,13 @@
                         </div>
                     </div>
                     <div class="ak-field">
-                        <label asp-for="OwnershipType" class="ak-label">نوع مالکیت قرارداد <span class="text-danger">*</span></label>
+                        <label asp-for="OwnershipType" class="ak-label">نوع مالکیت قرارداد <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="OwnershipType" id="ownershipType" class="ak-input">
                                 <option value="1">@UiText.T(Context,"شخصی","Individual")</option>
                                 <option value="2">@UiText.T(Context,"شراکتی","Partnership")</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="ak-field ak-col-full ak-note pt-0">
-                        اگر قرارداد شراکتی است، سهم‌ها را ثبت کنید. جمع سهم‌ها باید دقیقاً 100 باشد.
                     </div>
                 </div>
 
@@ -229,13 +219,13 @@
                 @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("مقدار و قیمت‌گذاری", (string?)null))
                 <div class="ak-form-grid">
                     <div class="ak-field">
-                        <label asp-for="QuantityMt" class="ak-label">مقدار (MT) <span class="text-danger">*</span></label>
+                        <label asp-for="QuantityMt" class="ak-label">مقدار (MT) <span class="ak-req">*</span></label>
                         <div >
                             <input asp-for="QuantityMt" class="ak-input" placeholder="0.0000" />
                         </div>
                     </div>
                     <div class="ak-field">
-                        <label asp-for="UnitId" class="ak-label">واحد <span class="text-danger">*</span></label>
+                        <label asp-for="UnitId" class="ak-label">واحد <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="UnitId" asp-items="units" id="UnitId" class="ak-input">
                                 <option value="">@UiText.T(Context,"انتخاب واحد","Select Unit")</option>
@@ -243,7 +233,7 @@
                         </div>
                     </div>
                     <div class="ak-field">
-                        <label asp-for="PricingMethod" class="ak-label">نوع نرخ <span class="text-danger">*</span></label>
+                        <label asp-for="PricingMethod" class="ak-label">نوع نرخ <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="PricingMethod" id="pricingMethod" class="ak-input">
                                 <option value="1">نرخ قطعی / توافقی</option>
@@ -255,13 +245,13 @@
                     <div id="fixedPricingSection" class="mt-2">
                         <div class="ak-form-grid">
                             <div class="ak-field" data-rub-rate-field>
-                                <label asp-for="Currency" class="ak-label">ارز <span class="text-danger">*</span></label>
+                                <label asp-for="Currency" class="ak-label">ارز <span class="ak-req">*</span></label>
                                 <select asp-for="Currency" asp-items="currencies" id="contractCurrency" class="ak-input">
                                     <option value="">@UiText.T(Context,"انتخاب کنید","Select")</option>
                                 </select>
                             </div>
                             <div class="ak-field" data-rub-equivalent-field>
-                                <label asp-for="UnitPriceInCurrency" class="ak-label">قیمت واحد <span class="text-danger">*</span></label>
+                                <label asp-for="UnitPriceInCurrency" class="ak-label">قیمت واحد <span class="ak-req">*</span></label>
                                 <input asp-for="UnitPriceInCurrency" class="ak-input" />
                                 <span asp-validation-for="UnitPriceInCurrency" class="ak-field-error"></span>
                             </div>

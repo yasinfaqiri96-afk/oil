@@ -27,7 +27,7 @@
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات شرکت", (string?)null))" />
         <dl class="ak-list">
             <div class="ak-list-row"><dt>کد</dt><dd>@(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)</dd></div>
-            <div class="ak-list-row"><dt>جواز</dt><dd>@Model.Name</dd></div>
+            <div class="ak-list-row"><dt>شرکت</dt><dd>@Model.Name</dd></div>
             <div class="ak-list-row"><dt>نام فارسی</dt><dd>@(string.IsNullOrWhiteSpace(Model.NamePersian) ? notRecorded : Model.NamePersian)</dd></div>
             <div class="ak-list-row"><dt>کشور</dt><dd>@(string.IsNullOrWhiteSpace(Model.Country) ? notRecorded : Model.Country)</dd></div>
             <div class="ak-list-row"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
