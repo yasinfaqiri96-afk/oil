@@ -34,8 +34,7 @@
               asp-route-modal="@(isQuickCreate ? "1" : null)"
               asp-route-quickCreate="@(isQuickCreate ? "1" : null)"
               method="post"
-              class="ak-form"
-              data-ptg-quick-create="@(isQuickCreate ? "true" : null)">
+              class="ak-form">
             @await Html.PartialAsync(formPartialPath, Model)
             <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
                      model="@((T("ذخیره", "Save"), returnUrl, T("انصراف", "Cancel")))" />

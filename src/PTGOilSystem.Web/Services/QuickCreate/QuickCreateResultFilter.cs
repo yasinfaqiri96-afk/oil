@@ -7,13 +7,6 @@ namespace PTGOilSystem.Web.Services.QuickCreate;
 
 public sealed class QuickCreateResultFilter : IAsyncActionFilter
 {
-    private readonly ApplicationDbContext _db;
-
-    public QuickCreateResultFilter(ApplicationDbContext db)
-    {
-        _db = db;
-    }
-
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var controller = context.RouteData.Values["controller"]?.ToString();
@@ -24,7 +17,11 @@ public sealed class QuickCreateResultFilter : IAsyncActionFilter
             return;
         }
 
-        var trackedBefore = _db.ChangeTracker.Entries()
+        // فیلتر سراسری است: DbContext فقط در همین مسیر نادر resolve می‌شود، نه در هر
+        // درخواست. همان نمونهٔ scoped کنترلر است، پس ChangeTracker یکی است.
+        var db = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+        var trackedBefore = db.ChangeTracker.Entries()
             .Select(entry => entry.Entity)
             .ToHashSet(ReferenceEqualityComparer.Instance);
 
@@ -36,7 +33,7 @@ public sealed class QuickCreateResultFilter : IAsyncActionFilter
             return;
         }
 
-        var created = FindCreatedEntity(definition, trackedBefore);
+        var created = FindCreatedEntity(db, definition, trackedBefore);
         if (created is null)
         {
             executed.Result = new ObjectResult(new
@@ -74,10 +71,11 @@ public sealed class QuickCreateResultFilter : IAsyncActionFilter
             && string.Equals(request.Query["quickCreate"], "1", StringComparison.Ordinal)
             && string.Equals(request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
 
-    private EntityEntry? FindCreatedEntity(
+    private static EntityEntry? FindCreatedEntity(
+        ApplicationDbContext db,
         QuickCreateEntityDefinition definition,
         HashSet<object> trackedBefore)
-        => _db.ChangeTracker.Entries()
+        => db.ChangeTracker.Entries()
             .Where(entry => !trackedBefore.Contains(entry.Entity))
             .Where(entry => string.Equals(
                 entry.Metadata.ClrType.Name,

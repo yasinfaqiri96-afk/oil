@@ -501,8 +501,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("quickCreateSelect: select", comboboxJs);
         Assert.Contains("size: \"compact\"", comboboxJs);
         Assert.Contains("select.dispatchEvent(new Event(\"change\"", comboboxJs);
+        // قرارداد واقعی همین دو پارامتر مسیر است: فیلتر سمت سرور روی modal/quickCreate
+        // تصمیم می‌گیرد. صفت data-ptg-quick-create هیچ مصرف‌کننده‌ای نداشت و حذف شد.
         Assert.Contains("asp-route-quickCreate", pageShell);
-        Assert.Contains("data-ptg-quick-create", pageShell);
+        Assert.Contains("asp-route-modal", pageShell);
         Assert.Contains("initializeQuickCreateForms", coreJs);
         Assert.Contains("\"X-Requested-With\": \"XMLHttpRequest\"", coreJs);
         Assert.Contains("window.PTG.completeQuickCreate", coreJs);

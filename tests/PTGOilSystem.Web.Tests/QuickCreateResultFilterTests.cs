@@ -29,11 +29,12 @@ public sealed class QuickCreateResultFilterTests
 
         var (executing, filters, actionContext) = CreateContext(
             controller: "Customers",
-            quickCreate: true);
+            quickCreate: true,
+            db: db);
         var created = new Customer { Name = "Modal Customer" };
         ActionExecutedContext? executed = null;
 
-        await new QuickCreateResultFilter(db).OnActionExecutionAsync(executing, async () =>
+        await new QuickCreateResultFilter().OnActionExecutionAsync(executing, async () =>
         {
             db.Customers.Add(created);
             await db.SaveChangesAsync();
@@ -58,10 +59,11 @@ public sealed class QuickCreateResultFilterTests
         await using var db = CreateDb();
         var (executing, filters, actionContext) = CreateContext(
             controller: "Customers",
-            quickCreate: false);
+            quickCreate: false,
+            db: db);
         ActionExecutedContext? executed = null;
 
-        await new QuickCreateResultFilter(db).OnActionExecutionAsync(executing, () =>
+        await new QuickCreateResultFilter().OnActionExecutionAsync(executing, () =>
         {
             executed = new ActionExecutedContext(actionContext, filters, new object())
             {
@@ -80,11 +82,12 @@ public sealed class QuickCreateResultFilterTests
         await using var db = CreateDb();
         var (executing, filters, actionContext) = CreateContext(
             controller: "Drivers",
-            quickCreate: true);
+            quickCreate: true,
+            db: db);
         var invalidModel = new Driver();
         ActionExecutedContext? executed = null;
 
-        await new QuickCreateResultFilter(db).OnActionExecutionAsync(executing, () =>
+        await new QuickCreateResultFilter().OnActionExecutionAsync(executing, () =>
         {
             executed = new ActionExecutedContext(actionContext, filters, new object())
             {
@@ -124,10 +127,11 @@ public sealed class QuickCreateResultFilterTests
         var (executing, filters, actionContext) = CreateContext(
             controller: controllerName,
             quickCreate: true,
+            db: db,
             controllerInstance: controller);
         ActionExecutedContext? executed = null;
 
-        await new QuickCreateResultFilter(db).OnActionExecutionAsync(executing, async () =>
+        await new QuickCreateResultFilter().OnActionExecutionAsync(executing, async () =>
         {
             var result = controllerName switch
             {
@@ -165,9 +169,14 @@ public sealed class QuickCreateResultFilterTests
         ActionContext ActionContext) CreateContext(
             string controller,
             bool quickCreate,
+            ApplicationDbContext db,
             object? controllerInstance = null)
     {
-        var httpContext = new DefaultHttpContext();
+        var httpContext = new DefaultHttpContext
+        {
+            // فیلتر، DbContext را تنبل از RequestServices می‌گیرد (همان نمونهٔ scoped).
+            RequestServices = new SingleServiceProvider(db)
+        };
         httpContext.Request.Method = HttpMethods.Post;
         if (quickCreate)
         {
@@ -219,6 +228,12 @@ public sealed class QuickCreateResultFilterTests
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
+
+    private sealed class SingleServiceProvider(ApplicationDbContext db) : IServiceProvider
+    {
+        public object? GetService(Type serviceType)
+            => serviceType == typeof(ApplicationDbContext) ? db : null;
+    }
 
     private sealed class InMemoryTempDataProvider : ITempDataProvider
     {
