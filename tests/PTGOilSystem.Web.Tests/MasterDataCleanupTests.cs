@@ -192,9 +192,12 @@ public class MasterDataCleanupTests
         foreach (var controller in tabbedParties)
         {
             var details = ReadRepoFile($"src/PTGOilSystem.Web/Views/{controller}/Details.cshtml");
+            var tabsIndex = details.IndexOf("_DetailsTabs.cshtml", StringComparison.Ordinal);
+            var firstBlockIndex = details.IndexOf("ak-detail-section", StringComparison.Ordinal);
+            Assert.True(tabsIndex >= 0, $"{controller} must render the shared details tabs partial.");
+            Assert.True(firstBlockIndex >= 0, $"{controller} must render at least one detail block.");
             Assert.True(
-                details.IndexOf("_DetailsTabs.cshtml", StringComparison.Ordinal)
-                < details.IndexOf("<div class=\"ak-form-grid\"", StringComparison.Ordinal),
+                tabsIndex < firstBlockIndex,
                 $"{controller} must expose profile navigation before its detail blocks.");
         }
 

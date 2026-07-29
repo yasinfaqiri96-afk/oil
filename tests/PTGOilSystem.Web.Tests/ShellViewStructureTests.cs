@@ -276,8 +276,8 @@ public class ShellViewStructureTests
         Assert.DoesNotContain("dashboard-activity", view);
         Assert.DoesNotContain("RecentActivities", view);
 
-        // Twelve quick-action tiles, exactly one of them the primary call to action.
-        Assert.Equal(12, view.Split("dash-quick-item", StringSplitOptions.None).Length - 1
+        // Seven quick-action tiles, exactly one of them the primary call to action.
+        Assert.Equal(7, view.Split("dash-quick-item", StringSplitOptions.None).Length - 1
             - (view.Split("dash-quick-item--primary", StringSplitOptions.None).Length - 1));
         Assert.Equal(1, view.Split("dash-quick-item--primary", StringSplitOptions.None).Length - 1);
         Assert.Contains("asp-controller=\"Sales\" asp-action=\"Create\"", view);
