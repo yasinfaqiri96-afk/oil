@@ -33,10 +33,18 @@ public sealed class TabularExportService : ITabularExportService
     private readonly TabularExportOptions _options;
     private readonly IWebHostEnvironment _environment;
 
-    public TabularExportService(IOptions<TabularExportOptions> options, IWebHostEnvironment environment)
+    // «تاریخ تولید» روی خروجی باید روز کاری کابل باشد، نه ساعت محلی سیستم‌عاملِ سرور.
+    private readonly PTGOilSystem.Web.Services.Time.IAfghanistanBusinessClock _businessClock;
+
+    public TabularExportService(
+        IOptions<TabularExportOptions> options,
+        IWebHostEnvironment environment,
+        PTGOilSystem.Web.Services.Time.IAfghanistanBusinessClock? businessClock = null)
     {
         _options = options.Value;
         _environment = environment;
+        _businessClock = businessClock
+            ?? new PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock(TimeProvider.System);
         InitializeQuestPdf();
     }
 
@@ -267,7 +275,8 @@ public sealed class TabularExportService : ITabularExportService
         WriteMergedTextRow(
             writer,
             3,
-            (isEnglish ? "Generated: " : "تاریخ تولید: ") + DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
+            (isEnglish ? "Generated: " : "تاریخ تولید: ")
+                + _businessClock.Now.DateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
             MetaStyle);
         WriteMergedTextRow(writer, 4, BuildFilterText(document, isEnglish), MetaStyle);
         writer.WriteElement(new Row { RowIndex = 5 });
@@ -362,7 +371,7 @@ public sealed class TabularExportService : ITabularExportService
         var title = isEnglish ? document.TitleEn : document.TitleFa;
         var company = isEnglish ? _options.CompanyNameEn : _options.CompanyNameFa;
         var filters = BuildFilterText(document, isEnglish);
-        var generatedAt = DateTime.Now;
+        var generatedAt = _businessClock.Now.DateTime;
         var metrics = BuildPdfMetrics(document, isEnglish);
         var brand = BuildBrandHeader(company);
         var columnCount = document.Columns.Count;
@@ -433,33 +442,38 @@ public sealed class TabularExportService : ITabularExportService
                     {
                         var target = header.Cell().Element(cell =>
                             PdfDesignSystem.HeaderCell(cell, dense));
-                        target = AlignHeaderCell(target, column, isEnglish);
+                        target = AlignHeaderCell(target, isEnglish);
                         target.Text(isEnglish ? column.TitleEn : column.TitleFa)
                             .Bold()
                             .FontSize(tableFontSize)
                             .FontColor(PdfDesignSystem.Ink);
                     }
+
+                    header.Cell()
+                        .ColumnSpan((uint)columnCount)
+                        .Element(container => PdfDesignSystem.TableSeparator(container, 1.5f));
                 });
 
                 for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
                     var row = rows[rowIndex];
-                    var background = rowIndex % 2 == 0
-                        ? "#FFFFFF"
-                        : PdfDesignSystem.AlternateRowBackground;
 
                     for (var columnIndex = 0; columnIndex < row.Cells.Count; columnIndex++)
                     {
                         var cell = row.Cells[columnIndex];
                         var column = document.Columns[columnIndex];
                         var target = table.Cell().Element(container =>
-                            PdfDesignSystem.BodyCell(container, background, dense));
+                            PdfDesignSystem.BodyCell(container, "#FFFFFF", dense));
                         target = AlignBodyCell(target, column, cell, isEnglish);
 
-                        target.Text(cell.ToDisplayText(isEnglish))
-                            .FontSize(tableFontSize)
+                        target.Text(PdfDesignSystem.FormatPdfCell(cell, isEnglish))
+                            .FontSize(PdfDesignSystem.CellFontSize(cell, tableFontSize))
                             .FontColor(PdfDesignSystem.ValueColor(cell));
                     }
+
+                    table.Cell()
+                        .ColumnSpan((uint)columnCount)
+                        .Element(container => PdfDesignSystem.TableSeparator(container));
                 }
 
                 if (document.Totals is not null)
@@ -472,11 +486,15 @@ public sealed class TabularExportService : ITabularExportService
                             PdfDesignSystem.TotalCell(container, dense));
                         target = AlignBodyCell(target, column, cell, isEnglish);
 
-                        target.Text(cell.ToDisplayText(isEnglish))
+                        target.Text(PdfDesignSystem.FormatPdfCell(cell, isEnglish))
                             .Bold()
-                            .FontSize(tableFontSize)
+                            .FontSize(PdfDesignSystem.CellFontSize(cell, tableFontSize))
                             .FontColor(PdfDesignSystem.ValueColor(cell));
                     }
+
+                    table.Cell()
+                        .ColumnSpan((uint)columnCount)
+                        .Element(container => PdfDesignSystem.TableSeparator(container));
                 }
             });
 
@@ -495,21 +513,9 @@ public sealed class TabularExportService : ITabularExportService
 
     private static IContainer AlignHeaderCell(
         IContainer target,
-        TabularExportColumn column,
         bool isEnglish)
-        => column.ValueType switch
-        {
-            TabularExportValueType.Integer
-                or TabularExportValueType.Number
-                or TabularExportValueType.Percentage
-                => target.ContentFromLeftToRight().AlignRight(),
-            TabularExportValueType.Date
-                or TabularExportValueType.DateTime
-                or TabularExportValueType.Boolean
-                => target.ContentFromLeftToRight().AlignCenter(),
-            _ when isEnglish => target.ContentFromLeftToRight().AlignLeft(),
-            _ => target.ContentFromRightToLeft().AlignRight()
-        };
+        => (isEnglish ? target.ContentFromLeftToRight() : target.ContentFromRightToLeft())
+            .AlignCenter();
 
     private static IContainer AlignBodyCell(
         IContainer target,
@@ -521,14 +527,17 @@ public sealed class TabularExportService : ITabularExportService
             TabularExportValueType.Integer
                 or TabularExportValueType.Number
                 or TabularExportValueType.Percentage
-                => target.ContentFromLeftToRight().AlignRight(),
+                => target.ContentFromLeftToRight().AlignCenter(),
             TabularExportValueType.Date
                 or TabularExportValueType.DateTime
                 or TabularExportValueType.Boolean
                 => target.ContentFromLeftToRight().AlignCenter(),
-            _ when PdfDesignSystem.IsLeftToRight(cell) || isEnglish
+            _ when column.Wrap && (PdfDesignSystem.IsLeftToRight(cell) || isEnglish)
                 => target.ContentFromLeftToRight().AlignLeft(),
-            _ => target.ContentFromRightToLeft().AlignRight()
+            _ when column.Wrap => target.ContentFromRightToLeft().AlignRight(),
+            _ when PdfDesignSystem.IsLeftToRight(cell) || isEnglish
+                => target.ContentFromLeftToRight().AlignCenter(),
+            _ => target.ContentFromRightToLeft().AlignCenter()
         };
 
     private static IReadOnlyList<PdfSummaryMetric> BuildPdfMetrics(
@@ -557,7 +566,7 @@ public sealed class TabularExportService : ITabularExportService
                     : PdfDesignSystem.Positive;
                 metrics.Add(new PdfSummaryMetric(
                     label,
-                    cell.ToDisplayText(isEnglish),
+                    PdfDesignSystem.FormatPdfCell(cell, isEnglish),
                     color));
             }
         }

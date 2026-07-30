@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Models.ShipmentPnl;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Reporting;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -185,7 +186,7 @@ public partial class ShipmentPnlController : Controller
                 TotalPurchaseCostUsd = rollup.TotalPurchaseCostUsd,
                 TotalOperationalExpensesUsd = rollup.TotalOperationalExpensesUsd,
                 TotalExpensesUsd = totalExpensesUsd,
-                GrossMarginUsd = rollup.TotalSalesUsd - totalExpensesUsd,
+                GrossMarginUsd = PnlMath.GrossProfit(rollup.TotalSalesUsd, totalExpensesUsd),
                 RelatedTransportLegCount = rollup.TransportLegs.Count,
                 RelatedSalesCount = rollup.Sales.Count,
                 RelatedExpensesCount = rollup.Expenses.Count,
@@ -441,7 +442,7 @@ public partial class ShipmentPnlController : Controller
             TotalPurchaseCostUsd = rollup.TotalPurchaseCostUsd,
             TotalOperationalExpensesUsd = rollup.TotalOperationalExpensesUsd,
             TotalExpensesUsd = totalExpensesUsd,
-            GrossMarginUsd = rollup.TotalSalesUsd - totalExpensesUsd,
+            GrossMarginUsd = PnlMath.GrossProfit(rollup.TotalSalesUsd, totalExpensesUsd),
             LedgerEntriesCount = rollup.LedgerEntries.Count,
             LedgerDebitTotalUsd = rollup.LedgerEntries.Where(l => l.SideName == "Debit").Sum(l => l.AmountUsd),
             LedgerCreditTotalUsd = rollup.LedgerEntries.Where(l => l.SideName == "Credit").Sum(l => l.AmountUsd),
@@ -1240,7 +1241,7 @@ public partial class ShipmentPnlController : Controller
                 SalesUsd = legPnl?.SalesUsd ?? 0m,
                 OperationalExpensesUsd = legPnl?.OperationalExpensesUsd ?? 0m,
                 TotalCostUsd = legPnl?.TotalCostUsd ?? purchaseCost,
-                GrossMarginUsd = legPnl?.GrossMarginUsd ?? -purchaseCost,
+                GrossMarginUsd = legPnl?.GrossMarginUsd ?? PnlMath.GrossProfit(0m, purchaseCost),
                 UnsoldQuantityMt = legPnl?.UnsoldQuantityMt ?? leg.QuantityMt,
                 SalesTraceNote = legPnl?.SalesTraceNote ?? "No traceable sale"
             });

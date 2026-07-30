@@ -15,7 +15,7 @@
     };
     var loadingValue = Model.Row.LoadedQuantityMt * (Model.Row.LoadingPriceUsd ?? 0m);
     var selectedContractValue = Model.Row.ContractId?.ToString() ?? "";
-    var effectiveLoadingDate = Model.Row.LoadingDate == default ? DateTime.UtcNow.Date : Model.Row.LoadingDate;
+    var effectiveLoadingDate = Model.Row.LoadingDate == default ? BusinessClock.Today : Model.Row.LoadingDate;
     var logisticsServiceProviderOptions = ViewBag.LogisticsServiceProviders as IReadOnlyList<SelectListItem> ?? Array.Empty<SelectListItem>();
     var selectedLogisticsServiceProviderValue = Model.Row.LogisticsServiceProviderId?.ToString() ?? "";
     var operationalAssetOptions = ViewBag.LoadingOperationalAssets as IReadOnlyList<SelectListItem> ?? Array.Empty<SelectListItem>();

@@ -1,19 +1,15 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Services.Reporting;
 
 namespace PTGOilSystem.Web.Models.Reports;
 
+// مرکز گزارشات هیچ محاسبه‌ای انجام نمی‌دهد؛ فقط دسته‌بندی و مسیر نگه می‌دارد.
+// شمارنده‌های قبلی (فروش/مصارف/قرارداد/...) حذف شدند چون هیچ Query پشتشان نبود.
 public sealed class ReportHubViewModel
 {
-    public int SalesCount { get; init; }
-    public decimal SalesTotalUsd { get; init; }
-    public int ExpenseCount { get; init; }
-    public decimal ExpenseTotalUsd { get; init; }
-    public int ContractCount { get; init; }
-    public int ShipmentCount { get; init; }
-    public int InventoryMovementCount { get; init; }
-    public int DispatchCount { get; init; }
-    public IReadOnlyList<ReportHubCardViewModel> Cards { get; init; } = [];
+    public IReadOnlyList<ReportHubGroupViewModel> Groups { get; init; } = [];
 }
 
 public sealed class ReportHubCardViewModel
@@ -51,10 +47,17 @@ public sealed class CompanyFinancialOverviewViewModel
     public decimal SupplierPayableUsd { get; init; }
     public decimal SarrafNetUsd { get; init; }
     public int WarningCount { get; init; }
+    public int UncostedSaleCount { get; init; }
+    public PnlConfidence PnlConfidence { get; init; } = PnlConfidence.NeedsReview;
     public IReadOnlyList<ReportMetricViewModel> Metrics { get; init; } = [];
     public IReadOnlyList<ContractPnlRowViewModel> TopContracts { get; init; } = [];
-    public decimal GrossProfitUsd => RevenueUsd - PurchaseCostUsd;
-    public decimal NetProfitUsd => RevenueUsd - PurchaseCostUsd - ExpenseUsd - LossCostUsd + ExchangeGainUsd - ExchangeLossUsd;
+    public decimal GrossProfitUsd => PnlMath.GrossProfit(RevenueUsd, PurchaseCostUsd);
+    public decimal NetProfitUsd => PnlMath.NetProfit(
+        RevenueUsd,
+        PurchaseCostUsd,
+        ExpenseUsd + LossCostUsd,
+        ExchangeGainUsd,
+        ExchangeLossUsd);
 }
 
 public sealed class CashFlowReportRowViewModel
@@ -91,9 +94,11 @@ public sealed class ReceivablePayableRowViewModel
     public string PartyType { get; init; } = "";
     public int? PartyId { get; init; }
     public string PartyName { get; init; } = "";
+    public decimal OpeningBalanceUsd { get; init; }
     public decimal DebitUsd { get; init; }
     public decimal CreditUsd { get; init; }
-    public decimal BalanceUsd => CreditUsd - DebitUsd;
+    public decimal PeriodMovementUsd => CreditUsd - DebitUsd;
+    public decimal BalanceUsd => OpeningBalanceUsd + PeriodMovementUsd;
     public string BalanceKind { get; init; } = "";
     public DateTime? LastEntryDate { get; init; }
     public string? DetailsController { get; init; }
@@ -104,9 +109,9 @@ public sealed class ReceivablesPayablesReportViewModel
     public ManagementReportFilterViewModel Filter { get; init; } = new();
     public IReadOnlyList<ReportMetricViewModel> Metrics { get; init; } = [];
     public IReadOnlyList<ReceivablePayableRowViewModel> Rows { get; init; } = [];
-    public decimal CustomerReceivableUsd => -Rows.Where(r => r.PartyType == "Customer" && r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
-    // مانده = Σ(داده − گرفته)؛ بدهیِ ما مانده منفی می‌سازد، پس مثل مشتری منفی‌ها
-    // جمع و علامت‌برگردان می‌شوند تا رقم «بدهی» مثبت نمایش داده شود.
+    public decimal CustomerReceivableUsd => Rows
+        .Where(r => r.PartyType == nameof(PartyStatementPartyType.Customer) && r.BalanceUsd > 0m)
+        .Sum(r => r.BalanceUsd);
     public decimal SupplierPayableUsd => -Rows.Where(r => r.PartyType == "Supplier" && r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
     public decimal ServiceProviderPayableUsd => -Rows.Where(r => r.PartyType == "ServiceProvider" && r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
     public decimal SarrafBalanceUsd => Rows.Where(r => r.PartyType == "Sarraf").Sum(r => r.BalanceUsd);
@@ -232,7 +237,9 @@ public sealed class ContractPnlRowViewModel
     public decimal TotalSoldMt { get; init; }
     public decimal TotalRevenueUsd { get; init; }
     public int DirectSaleQuantityMismatchCount { get; init; }
-    public decimal GrossMarginUsd => TotalRevenueUsd - TotalCostUsd;
+    public int UncostedSaleCount { get; init; }
+    public PnlConfidence PnlConfidence { get; init; } = PnlConfidence.Legacy;
+    public decimal GrossMarginUsd => PnlMath.GrossProfit(TotalRevenueUsd, TotalCostUsd);
     public decimal? MarginPercent => TotalRevenueUsd > 0 ? Math.Round((GrossMarginUsd / TotalRevenueUsd) * 100m, 1) : null;
 }
 
@@ -253,6 +260,8 @@ public sealed class ContractPnlReportViewModel
     public decimal TotalExchangeLossUsd => PurchaseRows.Sum(r => r.ExchangeLossUsd);
     public decimal TotalNetExchangeDifferenceUsd => TotalExchangeLossUsd - TotalExchangeGainUsd;
     public decimal TotalDirectSaleRevenueUsd => PurchaseRows.Sum(r => r.TotalRevenueUsd);
-    public decimal TotalSalesRevenueUsd => SaleRows.Sum(r => r.TotalRevenueUsd) + TotalDirectSaleRevenueUsd;
-    public decimal TotalGrossMarginUsd => TotalSalesRevenueUsd - TotalPurchaseCostUsd;
+    public decimal TotalSalesRevenueUsd => SaleRows.Sum(r => r.TotalRevenueUsd);
+    public decimal TotalRealisedSalesCostUsd => SaleRows.Sum(r => r.TotalCostUsd);
+    public decimal TotalGrossMarginUsd => PnlMath.GrossProfit(TotalSalesRevenueUsd, TotalRealisedSalesCostUsd);
+    public int TotalUncostedSaleCount => SaleRows.Sum(r => r.UncostedSaleCount);
 }

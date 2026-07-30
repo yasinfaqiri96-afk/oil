@@ -85,11 +85,23 @@ public partial class SalesController
         var totalCount = await query.CountAsync();
         var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
 
-        var sumQuantityMt = await _db.PreSaleOrders.AsNoTracking().SumAsync(o => (decimal?)o.QuantityMt) ?? 0m;
+        var activeOrders = _db.PreSaleOrders.AsNoTracking()
+            .Where(o => o.Status != PreSaleOrderStatus.Closed
+                && o.Status != PreSaleOrderStatus.Cancelled);
+        var sumQuantityMt = await activeOrders.SumAsync(o => (decimal?)o.QuantityMt) ?? 0m;
         var sumDeliveredMt = await _db.SalesTransactions.AsNoTracking()
-            .Where(s => s.PreSaleOrderId != null && !s.IsCancelled)
+            .Where(s => s.PreSaleOrderId != null
+                && !s.IsCancelled
+                && s.PreSaleOrder != null
+                && s.PreSaleOrder.Status != PreSaleOrderStatus.Closed
+                && s.PreSaleOrder.Status != PreSaleOrderStatus.Cancelled)
             .SumAsync(s => (decimal?)s.QuantityMt) ?? 0m;
-        var customerCount = await _db.PreSaleOrders.AsNoTracking().Select(o => o.CustomerId).Distinct().CountAsync();
+        var customerCount = await activeOrders.Select(o => o.CustomerId).Distinct().CountAsync();
+        var activeOrderCount = await activeOrders.CountAsync();
+        var closedOrderCount = await _db.PreSaleOrders.AsNoTracking()
+            .CountAsync(o => o.Status == PreSaleOrderStatus.Closed);
+        var cancelledOrderCount = await _db.PreSaleOrders.AsNoTracking()
+            .CountAsync(o => o.Status == PreSaleOrderStatus.Cancelled);
 
         var orders = await query
             .Skip((page - 1) * pageSize)
@@ -129,8 +141,11 @@ public partial class SalesController
             CurrentPage = page,
             PageCount = pageCount,
             TotalCount = totalCount,
+            ActiveOrderCount = activeOrderCount,
+            ClosedOrderCount = closedOrderCount,
+            CancelledOrderCount = cancelledOrderCount,
             SumQuantityMt = sumQuantityMt,
-            SumRemainingMt = decimal.Round(sumQuantityMt - sumDeliveredMt, 4, MidpointRounding.AwayFromZero),
+            SumRemainingMt = decimal.Round(Math.Max(sumQuantityMt - sumDeliveredMt, 0m), 4, MidpointRounding.AwayFromZero),
             CustomerCount = customerCount
         });
     }

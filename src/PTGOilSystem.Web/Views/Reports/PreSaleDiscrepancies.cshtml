@@ -1,0 +1,134 @@
+@using PTGOilSystem.Web.Services.Reporting
+@model PTGOilSystem.Web.Models.Reports.PreSaleDiscrepancyReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "مغایرت‌های پیش‌فروش", "Pre-sale Discrepancies");
+    var hasActiveFilters = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
+        || Model.Filter.ProductId.HasValue || Model.Filter.CustomerId.HasValue;
+
+    Dictionary<string, string?> RouteFor(PreSaleDiscrepancyKind kind, int page) => new()
+    {
+        ["kind"] = kind.ToString(),
+        ["page"] = page.ToString(),
+        ["FromDate"] = Model.Filter.FromDate?.ToString("yyyy-MM-dd"),
+        ["ToDate"] = Model.Filter.ToDate?.ToString("yyyy-MM-dd"),
+        ["ProductId"] = Model.Filter.ProductId?.ToString(),
+        ["CustomerId"] = Model.Filter.CustomerId?.ToString()
+    };
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "مغایرت‌های پیش‌فروش", "Pre-sale Discrepancies"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    <p class="ak-note">@UiText.T(Context, "مواردی که بین تعهد پیش‌فروش، تحویل، موجودی و پول ناهماهنگ هستند. با کلیک روی هر ردیف به سند اصلی می‌روید.", "Items where commitment, delivery, stock and money disagree. Click a row to open the source document.")</p>
+
+    <nav class="ak-chip-group mb-3" aria-label="@UiText.T(Context, "دسته‌های مغایرت", "Discrepancy categories")">
+        @foreach (var item in Model.Summary)
+        {
+            <a class="btn btn-sm @(item.Kind == Model.SelectedKind ? "btn-primary" : "ak-secondary-action")"
+               asp-action="PreSaleDiscrepancies" asp-all-route-data="RouteFor(item.Kind, 1)"
+               aria-current="@(item.Kind == Model.SelectedKind ? "page" : null)">
+                @item.Title
+                <span class="ak-badge @(item.Count > 0 ? "ak-badge-danger" : "ak-badge-success")">@item.Count.ToString("N0")</span>
+            </a>
+        }
+    </nav>
+
+    <div class="ak-list">
+        <form method="get" class="ak-report-parameters" id="rpFilterForm">
+            <input type="hidden" name="kind" value="@Model.SelectedKind" />
+            <div class="ak-report-parameters-bar">
+                <div class="ak-report-parameters-anchor">
+                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="rpFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
+                        <i class="bi bi-funnel"></i>
+                    </button>
+                    <div class="ak-report-parameters-pop" id="rpFilterPop" hidden>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
+                        <input class="ak-input" type="date" name="FromDate" value="@Model.Filter.FromDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
+                        <input class="ak-input" type="date" name="ToDate" value="@Model.Filter.ToDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "جنس", "Product")</label>
+                        <select class="ak-input" name="ProductId" asp-items="ViewBag.Products"><option value="">@UiText.T(Context, "همه اجناس", "All Products")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "مشتری", "Customer")</label>
+                        <select class="ak-input" name="CustomerId" asp-items="ViewBag.Customers"><option value="">@UiText.T(Context, "همه مشتری‌ها", "All Customers")</option></select>
+                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
+                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("PreSaleDiscrepanciesExport"))" />
+                        @if (hasActiveFilters)
+                        {
+                            <a asp-action="PreSaleDiscrepancies" asp-route-kind="@Model.SelectedKind" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@UiText.T(Context, "مورد", "Item")</th>
+                        <th class="ak-col-grow">@UiText.T(Context, "شرح", "Detail")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مقدار MT", "Quantity MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مبلغ USD", "Amount USD")</th>
+                        <th>@UiText.T(Context, "تاریخ سند", "Document date")</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">@row.Title</td>
+                            <td class="ak-col-grow">@row.Detail</td>
+                            <td class="ak-col-num ak-num">@(row.QuantityMt.HasValue ? row.QuantityMt.Value.ToString("N4") : "-")</td>
+                            <td class="ak-col-num ak-num">@(row.AmountUsd.HasValue ? row.AmountUsd.Value.ToString("N2") : "-")</td>
+                            <td>@(row.DocumentDate?.ToDisplayDate() ?? "-")</td>
+                            <td>
+                                @if (row.DocumentId > 0)
+                                {
+                                    <a class="btn btn-sm btn-light"
+                                       asp-controller="@row.DocumentController"
+                                       asp-action="@row.DocumentAction"
+                                       asp-route-id="@row.DocumentId"
+                                       title="@UiText.T(Context, "مشاهده سند", "Open document")">
+                                        <i class="bi bi-box-arrow-up-left"></i>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <a class="btn btn-sm btn-light"
+                                       asp-controller="@row.DocumentController"
+                                       asp-action="@row.DocumentAction"
+                                       title="@UiText.T(Context, "مشاهده فهرست", "Open list")">
+                                        <i class="bi bi-list"></i>
+                                    </a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Rows.Any())
+                    {
+                        <tr><td colspan="6"><div class="ak-empty"><i class="bi bi-check2-circle"></i> @UiText.T(Context, "در این دسته مغایرتی وجود ندارد.", "No discrepancy in this category.")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.PageCount > 1)
+        {
+            <div class="ak-pagination">
+                @for (var p = 1; p <= Model.PageCount; p++)
+                {
+                    <a asp-action="PreSaleDiscrepancies" asp-all-route-data="RouteFor(Model.SelectedKind, p)"
+                       class="btn btn-sm @(p == Model.Page ? "btn-primary" : "ak-secondary-action")">@p</a>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_AkReportFilterScript" />
+}

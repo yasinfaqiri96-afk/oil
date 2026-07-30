@@ -1,0 +1,187 @@
+@using PTGOilSystem.Web.Models.StatCards
+@using PTGOilSystem.Web.Security
+@model PTGOilSystem.Web.Models.DashboardViewModel
+@{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+
+    var reviewItems = new[]
+    {
+        new { Count = Model.ExcessShortageCount, Label = T("بررسی مغایرت تخلیه و حمل‌ونقل", "Review transport discrepancies"), Controller = "LossEvents", Icon = "bi-truck" },
+        new { Count = Model.LoadingsWithoutReceiptCount, Label = T("تکمیل اسناد بارگیری بدون رسید", "Complete loadings without receipts"), Controller = "Loading", Icon = "bi-file-earmark-check" },
+        new { Count = Model.SalesWithoutPaymentCount, Label = T("ثبت رسید دریافت فروش", "Post sales payment receipts"), Controller = "Sales", Icon = "bi-wallet2" },
+        new { Count = Model.LowStockTankCount, Label = T("بررسی اختلاف موجودی مخازن", "Review low tank inventory"), Controller = "StorageTanks", Icon = "bi-database-check" },
+        new { Count = Model.ContractsWithoutFinalPriceCount, Label = T("تکمیل قیمت نهایی قراردادها", "Complete contract final prices"), Controller = "Contracts", Icon = "bi-journal-check" }
+    };
+    var openReviewItems = reviewItems.Where(item => item.Count > 0).Take(4).ToList();
+    var openReviewCategoryCount = reviewItems.Count(item => item.Count > 0);
+}
+
+<section class="dash-insights" aria-label="@T("خلاصه عملیاتی", "Operational summary")">
+    @* ===== آخرین فعالیت‌ها ===== *@
+    <article class="dash-card dash-insight dash-activity-card">
+        <header class="dash-card-head">
+            <h2>@T("آخرین فعالیت‌ها", "Recent activities")</h2>
+        </header>
+
+        @if (Model.RecentActivities.Count == 0)
+        {
+            <partial name="_EmptyState" model="@((T("فعالیت تازه‌ای ثبت نشده است", "No recent activity"), (string?)null, (string?)"bi-clock-history"))" />
+        }
+        else
+        {
+            <ul class="dash-activity-list">
+                @foreach (var activity in Model.RecentActivities.Take(4))
+                {
+                    <li class="dash-activity-row">
+                        <span class="dash-row-icon" aria-hidden="true"><i class="bi @activity.ProductIcon"></i></span>
+                        <div class="dash-activity-copy">
+                            <strong>@activity.Name</strong>
+                            <span><bdi>@activity.Amount</bdi> · @activity.Status</span>
+                        </div>
+                        <time class="dash-activity-time"><bdi>@activity.TimeText</bdi></time>
+                    </li>
+                }
+            </ul>
+
+            @if (User.IsInRole(AuthRoles.Admin))
+            {
+                <a class="dash-foot-link" asp-controller="AuditLogs" asp-action="Index">
+                    @T("مشاهده همه فعالیت‌ها", "View all activities")
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                </a>
+            }
+        }
+    </article>
+
+    @* ===== محموله‌ها و قراردادهای در جریان ===== *@
+    <article class="dash-card dash-insight dash-flow-card">
+        <header class="dash-card-head">
+            <h2>@T("محموله‌ها و قراردادهای در جریان", "Shipments and contracts in progress")</h2>
+            <a class="dash-more" asp-controller="Contracts" asp-action="Index">@T("مشاهده همه", "View all")</a>
+        </header>
+
+        @if (Model.ActiveContractProgress.Count == 0)
+        {
+            <partial name="_EmptyState" model="@((T("قرارداد فعالی وجود ندارد", "No active contract"), (string?)null, (string?)"bi-journal-text"))" />
+        }
+        else
+        {
+            <ul class="dash-flow">
+                @foreach (var item in Model.ActiveContractProgress.Take(3))
+                {
+                    <li class="dash-flow-row">
+                        <img class="dash-flow-avatar" src="@item.AvatarPath" alt="" width="48" height="48" loading="lazy" />
+
+                        <div class="dash-flow-id">
+                            <a class="dash-flow-name" asp-controller="Contracts" asp-action="Details" asp-route-id="@item.ContractId">@item.ContractNumber</a>
+                            @if (!string.IsNullOrWhiteSpace(item.SubtitleText))
+                            {
+                                <p class="dash-flow-sub">@item.SubtitleText</p>
+                            }
+                        </div>
+
+                        <div class="dash-flow-progress">
+                            <div class="dash-flow-qty">
+                                <strong><bdi>@StatCardFormatter.Number(item.LoadedMt, 0) / @StatCardFormatter.Number(item.TotalMt, 0) MT</bdi></strong>
+                                <span>@T("مقدار بارگیری", "Loaded quantity")</span>
+                            </div>
+                            <progress class="dash-progress @item.ProgressTone"
+                                      value="@item.ProgressPercent"
+                                      max="100"
+                                      aria-label="@T("پیشرفت بارگیری", "Loading progress")"></progress>
+                        </div>
+
+                        <div class="dash-flow-state">
+                            <span class="ak-status @item.StatusClass">@item.StatusText</span>
+                            <span><bdi>@item.ProgressPercent.ToString("0")%</bdi></span>
+                        </div>
+                    </li>
+                }
+            </ul>
+
+            <a class="dash-foot-link" asp-controller="Contracts" asp-action="Index">
+                @T("مشاهده همه محموله‌ها و قراردادها", "View all shipments and contracts")
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            </a>
+        }
+    </article>
+
+    <div class="dash-insight-stack">
+        @* ===== ظرفیت مخازن ===== *@
+        <article class="dash-card dash-insight dash-capacity-card">
+            <header class="dash-card-head">
+                <h2>@T("ظرفیت مخازن", "Tank capacity")</h2>
+                <a class="dash-more" asp-controller="StorageTanks" asp-action="Index">@T("مشاهده همه", "View all")</a>
+            </header>
+
+            @if (Model.TankCapacities.Count == 0)
+            {
+                <partial name="_EmptyState" model="@((T("مخزن فعالی ثبت نشده است", "No active tank"), (string?)null, (string?)"bi-database"))" />
+            }
+            else
+            {
+                <div class="dash-capacity-summary">
+                    <strong><bdi>@Model.TankFillPercent.ToString("0")%</bdi></strong>
+                    <span>@T("درصد استفاده کل", "Total utilization")</span>
+                </div>
+
+                <div class="dash-segmented-progress" aria-label="@T("سطح اشغال مخازن", "Tank fill levels")">
+                    @foreach (var tank in Model.TankCapacities.Take(3))
+                    {
+                        <progress value="@tank.FillPercent" max="100" aria-label="@tank.TankName"></progress>
+                    }
+                </div>
+
+                <div class="dash-capacity-legend">
+                    @foreach (var tank in Model.TankCapacities.Take(3))
+                    {
+                        <span>
+                            <i aria-hidden="true"></i>
+                            @tank.TankName
+                            <bdi>@tank.FillPercent.ToString("0")%</bdi>
+                        </span>
+                    }
+                </div>
+            }
+        </article>
+
+        @* ===== نیازمند بررسی ===== *@
+        <article class="dash-card dash-insight dash-review-card">
+            <header class="dash-review-head">
+                <div>
+                    <h2>@T("نیازمند بررسی", "Needs review")</h2>
+                    <span>@T("موارد باز", "Open items")</span>
+                </div>
+                <strong><bdi>@openReviewCategoryCount/@reviewItems.Length</bdi></strong>
+            </header>
+
+            @if (openReviewItems.Count == 0)
+            {
+                <div class="dash-review-empty">
+                    <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                    <span>@T("مورد بازی برای بررسی وجود ندارد", "No open review item")</span>
+                </div>
+            }
+            else
+            {
+                <ul class="dash-review-list">
+                    @foreach (var item in openReviewItems)
+                    {
+                        <li>
+                            <a asp-controller="@item.Controller" asp-action="Index">
+                                <span class="dash-review-indicator" aria-hidden="true"><i class="bi @item.Icon"></i></span>
+                                <span>@item.Label</span>
+                                <bdi>@item.Count</bdi>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <a class="dash-review-more" asp-controller="Reports" asp-action="Index">
+                @T("مشاهده همه موارد", "View all items")
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            </a>
+        </article>
+    </div>
+</section>

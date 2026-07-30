@@ -93,7 +93,7 @@
                     <div class="ak-form-grid">
                         <div class="ak-field">
                             <label class="ak-label" for="bulkReceiptDate-@Model.ContractId">@T("تاریخ رسید", "Receipt date")</label>
-                            <input id="bulkReceiptDate-@Model.ContractId" name="ReceiptDate" type="date" class="ak-input" value="@DateTime.UtcNow.Date.ToHtmlDateInput()" />
+                            <input id="bulkReceiptDate-@Model.ContractId" name="ReceiptDate" type="date" class="ak-input" value="@BusinessClock.Today.ToHtmlDateInput()" />
                         </div>
 
                         <div class="ak-field">

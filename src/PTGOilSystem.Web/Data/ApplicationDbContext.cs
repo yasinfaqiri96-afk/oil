@@ -77,6 +77,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<CustomsDeclaration> CustomsDeclarations => Set<CustomsDeclaration>();
     public DbSet<CustomsDeclarationItem> CustomsDeclarationItems => Set<CustomsDeclarationItem>();
     public DbSet<CustomsDeclarationDocument> CustomsDeclarationDocuments => Set<CustomsDeclarationDocument>();
+    public DbSet<QualityInspection> QualityInspections => Set<QualityInspection>();
+    public DbSet<QualityInspectionDocument> QualityInspectionDocuments => Set<QualityInspectionDocument>();
 
     // --- Sales & Expenses ---
     public DbSet<SalesTransaction> SalesTransactions => Set<SalesTransaction>();
@@ -1659,8 +1661,60 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CustomsDeclarationDocument>()
             .HasIndex(d => d.CustomsDeclarationId);
 
+        ConfigureQualityInspections(modelBuilder);
+
         modelBuilder.ConfigureAccountingCore();
         ConfigureInventoryLineage(modelBuilder);
+    }
+
+    // بخش کیفیت و لابراتوار. همهٔ روابط Restrict هستند تا حذف یک قرارداد/محموله هرگز
+    // سند کیفیت را بی‌سروصدا پاک نکند؛ فقط فایل‌های خودِ آزمایش Cascade می‌شوند.
+    private static void ConfigureQualityInspections(ModelBuilder modelBuilder)
+    {
+        foreach (var (property, precision, scale) in new (string Property, int Precision, int Scale)[]
+        {
+            (nameof(QualityInspection.DensityKgM3), 18, 4),
+            (nameof(QualityInspection.SulphurPercent), 18, 6),
+            (nameof(QualityInspection.FlashPointC), 18, 4),
+            (nameof(QualityInspection.WaterContentPercent), 18, 6),
+            (nameof(QualityInspection.OctaneOrCetaneNumber), 18, 4)
+        })
+        {
+            modelBuilder.Entity<QualityInspection>()
+                .Property(property)
+                .HasPrecision(precision, scale);
+        }
+
+        modelBuilder.Entity<QualityInspection>()
+            .HasOne(q => q.Company).WithMany()
+            .HasForeignKey(q => q.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<QualityInspection>()
+            .HasOne(q => q.Contract).WithMany()
+            .HasForeignKey(q => q.ContractId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<QualityInspection>()
+            .HasOne(q => q.Shipment).WithMany()
+            .HasForeignKey(q => q.ShipmentId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<QualityInspection>()
+            .HasOne(q => q.LoadingRegister).WithMany()
+            .HasForeignKey(q => q.LoadingRegisterId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<QualityInspection>()
+            .HasOne(q => q.CustomsDeclaration).WithMany()
+            .HasForeignKey(q => q.CustomsDeclarationId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<QualityInspection>()
+            .HasOne(q => q.Product).WithMany()
+            .HasForeignKey(q => q.ProductId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<QualityInspection>().HasIndex(q => q.ShipmentId);
+        modelBuilder.Entity<QualityInspection>().HasIndex(q => q.LoadingRegisterId);
+        modelBuilder.Entity<QualityInspection>().HasIndex(q => q.CustomsDeclarationId);
+        modelBuilder.Entity<QualityInspection>().HasIndex(q => q.ContractId);
+        modelBuilder.Entity<QualityInspection>().HasIndex(q => new { q.Status, q.SampleDate });
+
+        modelBuilder.Entity<QualityInspectionDocument>()
+            .HasOne(d => d.QualityInspection).WithMany(q => q.Documents)
+            .HasForeignKey(d => d.QualityInspectionId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<QualityInspectionDocument>()
+            .HasIndex(d => d.QualityInspectionId);
     }
 
     // Phase 2 — Inventory Lineage. تمام پیکربندی در یک متد جدا تا OnModelCreating شلوغ نشود.

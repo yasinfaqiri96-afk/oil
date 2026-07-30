@@ -308,7 +308,9 @@ public class StockService : IStockService
                      TerminalCode = m.Terminal?.Code ?? "",
                      TerminalName = m.Terminal?.Name ?? "",
                      ContractId = ResolveMovementContractId(m),
-                     ContractNumber = ResolveMovementContractNumber(m)
+                     ContractNumber = ResolveMovementContractNumber(m),
+                     m.StorageTankId,
+                     StorageTankCode = m.StorageTank?.TankCode
                  })
                  .OrderBy(g => g.Key.ProductCode)
                  .ThenBy(g => g.Key.TerminalCode)
@@ -341,8 +343,8 @@ public class StockService : IStockService
                     scope.Key.TerminalName,
                     scope.Key.ContractId,
                     scope.Key.ContractNumber,
-                    movement.StorageTankId,
-                    movement.StorageTank?.TankCode,
+                    scope.Key.StorageTankId,
+                    scope.Key.StorageTankCode,
                     movement.ReferenceDocument,
                     movement.Notes));
             }
@@ -352,6 +354,75 @@ public class StockService : IStockService
             .OrderBy(r => r.MovementDate)
             .ThenBy(r => r.MovementId)
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<StockMovementSummaryItem>> GetMovementSummaryAsync(
+        int? productId = null,
+        int? contractId = null,
+        int? terminalId = null,
+        int? storageTankId = null,
+        DateTime? fromUtc = null,
+        DateTime? toUtc = null,
+        CancellationToken ct = default)
+    {
+        var from = NormalizeUtc(fromUtc);
+        var query = BuildMovementQuery(
+            productId: productId,
+            contractId: contractId,
+            terminalId: terminalId,
+            storageTankId: storageTankId,
+            asOfUtc: toUtc);
+
+        return await query
+            .Select(m => new
+            {
+                ProductName = m.Product != null ? m.Product.Name : "",
+                TerminalName = m.Terminal != null ? m.Terminal.Name : "",
+                StorageTankCode = m.StorageTank != null ? m.StorageTank.TankCode : null,
+                ContractId = m.ContractId
+                    ?? (m.LoadingReceipt != null && m.LoadingReceipt.LoadingRegister != null
+                        ? (int?)m.LoadingReceipt.LoadingRegister.ContractId
+                        : null),
+                m.MovementDate,
+                m.Direction,
+                m.QuantityMt
+            })
+            .GroupBy(m => new { m.ProductName, m.TerminalName, m.StorageTankCode, m.ContractId })
+            .Select(g => new StockMovementSummaryItem(
+                g.Key.ProductName,
+                g.Key.TerminalName,
+                g.Key.StorageTankCode,
+                g.Key.ContractId,
+                from.HasValue
+                    ? g.Where(m => m.MovementDate < from.Value).Sum(m =>
+                        m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
+                            ? m.QuantityMt
+                            : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
+                                ? -m.QuantityMt
+                                : 0m)
+                    : 0m,
+                g.Where(m => (!from.HasValue || m.MovementDate >= from.Value)
+                        && m.Direction == MovementDirection.In)
+                    .Sum(m => m.QuantityMt),
+                g.Where(m => (!from.HasValue || m.MovementDate >= from.Value)
+                        && m.Direction == MovementDirection.Out)
+                    .Sum(m => m.QuantityMt),
+                g.Where(m => (!from.HasValue || m.MovementDate >= from.Value)
+                        && m.Direction == MovementDirection.Adjustment)
+                    .Sum(m => m.QuantityMt),
+                g.Where(m => (!from.HasValue || m.MovementDate >= from.Value)
+                        && m.Direction == MovementDirection.Transfer)
+                    .Sum(m => m.QuantityMt),
+                g.Sum(m =>
+                    m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
+                        ? m.QuantityMt
+                        : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
+                            ? -m.QuantityMt
+                            : 0m),
+                g.Count(m => !from.HasValue || m.MovementDate >= from.Value),
+                g.Where(m => !from.HasValue || m.MovementDate >= from.Value)
+                    .Max(m => (DateTime?)m.MovementDate)))
+            .ToListAsync(ct);
     }
 
     public async Task AcquireStockMutationLockAsync(

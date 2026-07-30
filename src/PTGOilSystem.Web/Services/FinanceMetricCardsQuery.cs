@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -14,18 +15,20 @@ public static class FinanceMetricCardsQuery
     public static async Task<FinanceMetricCardsViewModel> BuildAsync(
         ApplicationDbContext db,
         IMemoryCache? cache = null,
-        string? ariaLabel = null)
+        string? ariaLabel = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        businessClock ??= new AfghanistanBusinessClock(TimeProvider.System);
         if (cache is null)
         {
-            return await BuildCoreAsync(db, ariaLabel);
+            return await BuildCoreAsync(db, ariaLabel, businessClock);
         }
 
         var metrics = await cache.GetOrCreateAsync(CacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = CacheTtl;
-            return await BuildCoreAsync(db, ariaLabel: null);
-        }) ?? await BuildCoreAsync(db, ariaLabel: null);
+            return await BuildCoreAsync(db, ariaLabel: null, businessClock);
+        }) ?? await BuildCoreAsync(db, ariaLabel: null, businessClock);
 
         return string.IsNullOrWhiteSpace(ariaLabel)
             ? metrics
@@ -39,9 +42,12 @@ public static class FinanceMetricCardsQuery
             };
     }
 
-    private static async Task<FinanceMetricCardsViewModel> BuildCoreAsync(ApplicationDbContext db, string? ariaLabel)
+    private static async Task<FinanceMetricCardsViewModel> BuildCoreAsync(
+        ApplicationDbContext db,
+        string? ariaLabel,
+        IAfghanistanBusinessClock businessClock)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = businessClock.Today;
 
         var todayTotals = await db.PaymentTransactions
             .AsNoTracking()

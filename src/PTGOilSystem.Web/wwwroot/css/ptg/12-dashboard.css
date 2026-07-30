@@ -267,105 +267,547 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 }
 
 /* ===== quick access ===== */
-/* ردیف کاشی‌ها ثابت است (۹۰px هر کاشی، ۱۲px فاصله) و به لبهٔ راستِ کانتینر
-   می‌چسبد؛ ترتیب نمایش از چپ «ثبت فروش» تا راست «قراردادها» است. */
+.dash-quick-rail {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-inline-size: 0;
+    padding: 10px 16px;
+    border-radius: var(--dash-card-radius);
+    background: var(--ptg-surface-soft);
+}
+
+.dash-quick-rail h2 {
+    flex: 0 0 auto;
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
 .dash-quick {
     display: flex;
+    flex: 1 1 auto;
     flex-wrap: wrap;
-    justify-content: flex-end;
-    align-items: flex-start;
-    gap: 12px;
-    direction: ltr;
+    align-items: center;
+    gap: 8px;
+    min-inline-size: 0;
 }
 
 .dash-quick-item {
-    display: flex;
-    flex: 0 0 90px;
-    flex-direction: column;
-    box-sizing: border-box;
+    display: inline-flex;
+    flex: 1 1 108px;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    inline-size: 90px;
-    min-inline-size: 0;
-    block-size: 92px;
-    min-block-size: 92px;
-    padding: 16px 10px;
-    border: 0;
-    border-radius: 16px;
-    color: #0a2855;
-    background: #f4f5f7;
-    box-shadow: none;
+    gap: 7px;
+    min-inline-size: 96px;
+    min-block-size: 42px;
+    padding: 7px 10px;
+    border: 1px solid rgba(var(--ptg-btn-primary-rgb), .04);
+    border-radius: var(--ptg-radius-lg);
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, .72);
     text-decoration: none;
-    text-align: center;
-    direction: rtl;
-    transition: background-color .16s ease, color .16s ease, box-shadow .16s ease;
+    white-space: nowrap;
+    transition: transform .16s ease, opacity .16s ease;
 }
 
 .dash-quick-item:hover,
 .dash-quick-item:focus-visible {
-    color: #0a2855;
-    background: #eaedf1;
+    color: var(--ptg-btn-primary);
+    opacity: .86;
+    transform: translateY(-1px);
 }
 
 .dash-quick-item:focus-visible {
-    outline: 3px solid rgba(24, 119, 242, .28);
+    outline: 3px solid rgba(var(--ptg-btn-primary-rgb), .2);
     outline-offset: 2px;
 }
 
 .dash-quick-icon {
     display: grid;
     place-items: center;
-    inline-size: 34px;
-    block-size: 34px;
-    line-height: 1;
-    color: #1877f2;
+    flex: 0 0 auto;
+    inline-size: 26px;
+    block-size: 26px;
+    border-radius: var(--ptg-radius-md);
+    color: var(--ptg-btn-primary);
+    background: var(--ptg-btn-primary-tint);
 }
 
 .dash-quick-svg {
     display: block;
-    inline-size: 34px;
-    block-size: 34px;
-}
-
-.dash-quick-item--primary .dash-quick-icon,
-.dash-quick-item--primary:hover .dash-quick-icon {
-    color: #fff;
+    inline-size: 18px;
+    block-size: 18px;
 }
 
 .dash-quick-item strong {
-    max-inline-size: 100%;
-    font-size: 13px;
-    font-weight: 700;
-    line-height: 1.35;
-    text-align: center;
     color: inherit;
+    font-size: 11.5px;
+    font-weight: 650;
+    line-height: 1.3;
 }
 
 .dash-quick-label--stacked {
-    display: block;
-    line-height: 1.35 !important;
+    display: inline-flex;
+    gap: 3px;
 }
 
-/* برچسب دوکلمه‌ای در عرض ثابت ۹۰px همیشه دو سطری می‌ماند. */
-.dash-quick-label--stacked > span {
-    display: block;
+/* ===== lower dashboard bento ===== */
+.dash-insights {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 5fr) minmax(230px, 3fr);
+    gap: 16px;
+    align-items: stretch;
 }
 
-.dash-quick-item--primary {
+.dash-insight {
+    display: grid;
+    gap: 12px;
+    min-inline-size: 0;
+    align-content: start;
+}
+
+.dash-activity-card {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.dash-flow-card {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.dash-insight-stack {
+    display: grid;
+    grid-column: 3;
+    grid-row: 1;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    min-inline-size: 0;
+}
+
+.dash-card-head .dash-more {
+    flex: 0 0 auto;
+    color: var(--ptg-btn-primary);
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: opacity .16s ease;
+}
+
+.dash-card-head .dash-more:hover,
+.dash-card-head .dash-more:focus-visible {
+    opacity: .72;
+}
+
+.dash-foot-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: end;
+    justify-self: start;
+    margin-block-start: auto;
+    padding-block-start: 4px;
+    color: var(--ptg-btn-primary);
+    font-size: 11px;
+    font-weight: 650;
+    text-decoration: none;
+    transition: opacity .16s ease;
+}
+
+.dash-foot-link:hover,
+.dash-foot-link:focus-visible {
+    opacity: .72;
+}
+
+/* Recent activity */
+.dash-activity-list,
+.dash-flow,
+.dash-review-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dash-activity-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-block-size: 61px;
+    padding-block: 9px;
+}
+
+.dash-activity-row + .dash-activity-row,
+.dash-flow-row + .dash-flow-row {
+    border-block-start: 1px solid var(--ptg-border);
+}
+
+.dash-row-icon {
+    display: grid;
+    place-items: center;
+    inline-size: 34px;
+    block-size: 34px;
+    border-radius: 50%;
+    color: var(--ptg-btn-primary);
+    background: var(--ptg-btn-primary-tint);
+    font-size: 15px;
+}
+
+.dash-activity-copy {
+    display: grid;
+    gap: 3px;
+    min-inline-size: 0;
+}
+
+.dash-activity-copy strong,
+.dash-activity-copy span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-activity-copy strong {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.dash-activity-copy span,
+.dash-activity-time {
+    color: var(--text-secondary);
+    font-size: 10.5px;
+}
+
+.dash-activity-time {
+    direction: ltr;
+    white-space: nowrap;
+}
+
+/* In-progress flow */
+.dash-flow-row {
+    display: grid;
+    grid-template-columns: 48px minmax(88px, .8fr) minmax(128px, 1.25fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-block-size: 78px;
+    padding-block: 10px;
+}
+
+.dash-flow-avatar {
+    inline-size: 48px;
+    block-size: 48px;
+    object-fit: contain;
+    border-radius: var(--ptg-radius-lg);
+    background: var(--ptg-surface-soft);
+}
+
+.dash-flow-id,
+.dash-flow-progress,
+.dash-flow-state,
+.dash-flow-qty {
+    display: grid;
+    min-inline-size: 0;
+}
+
+.dash-flow-id,
+.dash-flow-progress,
+.dash-flow-qty {
+    gap: 3px;
+}
+
+.dash-flow-name,
+.dash-flow-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-flow-name {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dash-flow-name:hover,
+.dash-flow-name:focus-visible {
+    color: var(--ptg-btn-primary);
+}
+
+.dash-flow-sub {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.dash-flow-qty strong {
+    color: var(--text-primary);
+    font-size: 10.5px;
+    font-weight: 650;
+    direction: ltr;
+}
+
+.dash-flow-qty span,
+.dash-flow-state > span:last-child {
+    color: var(--text-secondary);
+    font-size: 9.5px;
+}
+
+.dash-flow-state {
+    gap: 4px;
+    justify-items: end;
+}
+
+.dash-progress {
+    appearance: none;
+    inline-size: 100%;
+    block-size: 5px;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--ptg-draft-soft);
+}
+
+.dash-progress::-webkit-progress-bar {
+    border-radius: 999px;
+    background: var(--ptg-draft-soft);
+}
+
+.dash-progress::-webkit-progress-value {
+    border-radius: 999px;
+    background: var(--ptg-btn-primary);
+}
+
+.dash-progress::-moz-progress-bar {
+    border-radius: 999px;
+    background: var(--ptg-btn-primary);
+}
+
+.dash-progress.is-normal::-webkit-progress-value { background: var(--dash-green); }
+.dash-progress.is-warning::-webkit-progress-value { background: var(--dash-amber); }
+.dash-progress.is-critical::-webkit-progress-value { background: var(--dash-red); }
+.dash-progress.is-normal::-moz-progress-bar { background: var(--dash-green); }
+.dash-progress.is-warning::-moz-progress-bar { background: var(--dash-amber); }
+.dash-progress.is-critical::-moz-progress-bar { background: var(--dash-red); }
+
+.dashboard-ref .ak-status {
+    flex: 0 0 auto;
+    padding: 3px 8px;
+    font-size: 9.5px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.dashboard-ref .ak-status.is-pending {
+    color: var(--ptg-warning-text);
+    background: var(--ptg-warning-soft);
+}
+
+.dashboard-ref .ak-status.is-danger {
+    color: var(--ptg-danger-text);
+    background: var(--ptg-danger-soft);
+}
+
+/* Tank capacity */
+.dash-capacity-card {
+    gap: 9px;
+    padding-block: 13px;
+}
+
+.dash-capacity-summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: end;
+    gap: 7px;
+}
+
+.dash-capacity-summary strong {
+    color: var(--text-primary);
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.dash-capacity-summary span {
+    color: var(--text-secondary);
+    font-size: 9.5px;
+}
+
+.dash-segmented-progress {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2px;
+    overflow: hidden;
+    border-radius: 999px;
+}
+
+.dash-segmented-progress progress {
+    appearance: none;
+    inline-size: 100%;
+    block-size: 9px;
+    border: 0;
+    background: #e8eef6;
+}
+
+.dash-segmented-progress progress::-webkit-progress-bar { background: #e8eef6; }
+.dash-segmented-progress progress::-webkit-progress-value { background: #78aef5; }
+.dash-segmented-progress progress:nth-child(2)::-webkit-progress-value { background: #287eea; }
+.dash-segmented-progress progress:nth-child(3)::-webkit-progress-value { background: var(--primary-main); }
+.dash-segmented-progress progress::-moz-progress-bar { background: #78aef5; }
+.dash-segmented-progress progress:nth-child(2)::-moz-progress-bar { background: #287eea; }
+.dash-segmented-progress progress:nth-child(3)::-moz-progress-bar { background: var(--primary-main); }
+
+.dash-capacity-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 10px;
+}
+
+.dash-capacity-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-inline-size: 0;
+    color: var(--text-secondary);
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.dash-capacity-legend i {
+    inline-size: 6px;
+    block-size: 6px;
+    border-radius: 50%;
+    background: #78aef5;
+}
+
+.dash-capacity-legend span:nth-child(2) i { background: #287eea; }
+.dash-capacity-legend span:nth-child(3) i { background: var(--primary-main); }
+
+/* Needs review: the only saturated surface in the lower dashboard. */
+.dash-review-card {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 9px;
     color: #fff;
-    background: #1877f2;
-    box-shadow: none;
+    background: var(--primary-main);
 }
 
-.dash-quick-item--primary strong { color: #fff; }
+.dash-review-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
 
-.dash-quick-item--primary .dash-quick-icon { color: #fff; }
+.dash-review-head div {
+    display: grid;
+    gap: 2px;
+}
 
-.dash-quick-item--primary:hover,
-.dash-quick-item--primary:focus-visible {
+.dash-review-head h2 {
+    margin: 0;
     color: #fff;
-    background: #1466d6;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.dash-review-head span,
+.dash-review-head strong {
+    color: rgba(255, 255, 255, .76);
+    font-size: 10px;
+}
+
+.dash-review-head strong {
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.dash-review-list {
+    align-content: start;
+}
+
+.dash-review-list a {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px;
+    min-block-size: 31px;
+    color: rgba(255, 255, 255, .94);
+    font-size: 9.5px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: opacity .16s ease;
+}
+
+.dash-review-list a:hover,
+.dash-review-list a:focus-visible {
+    color: #fff;
+    opacity: .78;
+}
+
+.dash-review-list a > span:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-review-indicator {
+    display: grid;
+    place-items: center;
+    inline-size: 20px;
+    block-size: 20px;
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 6px;
+    color: #fff;
+    background: rgba(255, 255, 255, .09);
+}
+
+.dash-review-empty {
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 6px;
+    color: rgba(255, 255, 255, .86);
+    font-size: 10px;
+}
+
+.dash-review-empty i {
+    font-size: 20px;
+}
+
+.dash-review-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-self: start;
+    color: rgba(255, 255, 255, .84);
+    font-size: 9.5px;
+    text-decoration: none;
+}
+
+.dash-review-more:hover,
+.dash-review-more:focus-visible {
+    color: #fff;
+}
+
+/* Shared compact empty state. */
+.dash-insight .ak-empty {
+    display: grid;
+    place-content: center;
+    gap: 4px;
+    min-block-size: 110px;
+    padding: 14px 10px;
+    font-size: 11px;
+}
+
+.dash-insight .ak-empty i {
+    margin-bottom: 2px;
+    font-size: 21px;
 }
 
 /* ===== responsive ===== */
@@ -373,18 +815,66 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     .dash-analytics {
         grid-template-columns: 1fr;
     }
+
+    .dash-insights {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dash-flow-card {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        order: 1;
+    }
+
+    .dash-insight-stack {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: none;
+        order: 2;
+    }
+
+    .dash-activity-card {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        order: 3;
+    }
 }
 
-/* زیر این عرض، ردیف ثابت جا نمی‌شود؛ کاشی‌ها سطر بعد می‌روند و وسط‌چین می‌شوند. */
 @media (max-width: 767.98px) {
+    .dash-quick-rail {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+    }
+
     .dash-quick {
-        justify-content: center;
+        inline-size: 100%;
+        flex-wrap: wrap;
+    }
+
+    .dash-quick-item {
+        flex: 1 1 calc(50% - 4px);
+        min-inline-size: 0;
+    }
+
+    .dash-flow-row {
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+    }
+
+    .dash-flow-avatar {
+        inline-size: 42px;
+        block-size: 42px;
+    }
+
+    .dash-flow-progress {
+        grid-column: 2 / -1;
     }
 }
 
 @media (max-width: 575.98px) {
     .dash-card {
-        padding: 16px;
+        padding: 15px;
     }
 
     .dash-trend-head {
@@ -396,15 +886,43 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
         justify-content: space-between;
         gap: 16px;
     }
+
+    .dash-insights {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-insight-stack {
+        grid-column: 1;
+        grid-template-columns: minmax(0, 1fr);
+        order: 1;
+    }
+
+    .dash-flow-card {
+        grid-column: 1;
+        order: 2;
+    }
+
+    .dash-activity-card {
+        grid-column: 1;
+        order: 3;
+    }
+
+    .dash-flow-row {
+        gap: 8px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .dash-quick-item { transition: none; }
+    .dash-quick-item,
+    .dash-card-head .dash-more,
+    .dash-foot-link,
+    .dash-review-list a {
+        transition: none;
+    }
 }
 
 :root[data-theme="dark"] .dashboard-page.dashboard-ref {
     --dash-card-border: 0;
-    /* --ptg-panel-shadow already carries its own dark-mode value. */
     --dash-card-shadow: var(--ptg-panel-shadow);
 }
 
@@ -412,12 +930,6 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     stroke: rgba(255, 255, 255, .08);
 }
 
-:root[data-theme="dark"] .dash-quick-item:not(.dash-quick-item--primary) {
-    color: #e7eef9;
-    background: #1f2938;
-    border-color: rgba(255, 255, 255, .08);
-}
-
-:root[data-theme="dark"] .dash-quick-item:not(.dash-quick-item--primary) .dash-quick-icon {
-    color: #9db4d0;
+:root[data-theme="dark"] .dash-quick-item {
+    background: rgba(255, 255, 255, .05);
 }

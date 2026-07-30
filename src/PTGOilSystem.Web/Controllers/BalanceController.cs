@@ -7,6 +7,10 @@ using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Balance;
 using PTGOilSystem.Web.Models.ContractJourney;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Models.Reports;
+using PTGOilSystem.Web.Services.CompanyFlow;
+using PTGOilSystem.Web.Services.PartyStatements;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -15,10 +19,16 @@ public partial class BalanceController : Controller
 {
     private const int IndexPageSize = 20;
     private readonly ApplicationDbContext _db;
+    private readonly IPartyBalanceReadService _partyBalances;
 
-    public BalanceController(ApplicationDbContext db)
+    public BalanceController(ApplicationDbContext db, IPartyBalanceReadService? partyBalances = null)
     {
         _db = db;
+        _partyBalances = partyBalances ?? new PartyBalanceReadService(
+            db,
+            new PartyStatementPolicyResolver(),
+            new CompanyFlowDirectionResolver(),
+            new CompanyFlowBalanceService());
     }
 
     public IActionResult Index()
@@ -421,6 +431,15 @@ public partial class BalanceController : Controller
             .ToListAsync();
 
         var customerIds = customers.Select(customer => customer.Id).ToList();
+        var officialCustomerBalances = (await _partyBalances.GetBalancesAsync(
+                new ManagementReportFilterViewModel
+                {
+                    FromDate = filter.FromDate,
+                    ToDate = filter.ToDate
+                }))
+            .Where(row => row.PartyType == PartyStatementPartyType.Customer
+                && customerIds.Contains(row.PartyId))
+            .ToDictionary(row => row.PartyId);
 
         var filteredContractsQuery = _db.Contracts
             .AsNoTracking()
@@ -534,7 +553,9 @@ public partial class BalanceController : Controller
                 TotalExpensesUsd = expensesTotal,
                 RelatedLedgerCount = (directLedger?.Count ?? 0) + (contractLedger?.Count ?? 0),
                 // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته).
-                BaseBalanceUsd = debitTotal - creditTotal
+                BaseBalanceUsd = officialCustomerBalances.TryGetValue(customer.Id, out var officialBalance)
+                    ? officialBalance.ClosingBalanceUsd
+                    : 0m
             };
         }).ToList();
 
@@ -588,6 +609,15 @@ public partial class BalanceController : Controller
             .ToListAsync();
 
         var supplierIds = suppliers.Select(supplier => supplier.Id).ToList();
+        var officialSupplierBalances = (await _partyBalances.GetBalancesAsync(
+                new ManagementReportFilterViewModel
+                {
+                    FromDate = filter.FromDate,
+                    ToDate = filter.ToDate
+                }))
+            .Where(row => row.PartyType == PartyStatementPartyType.Supplier
+                && supplierIds.Contains(row.PartyId))
+            .ToDictionary(row => row.PartyId);
 
         var filteredContractsQuery = _db.Contracts
             .AsNoTracking()
@@ -700,7 +730,9 @@ public partial class BalanceController : Controller
                 TotalExpensesUsd = expensesTotal,
                 RelatedLedgerCount = (directLedger?.Count ?? 0) + (contractLedger?.Count ?? 0),
                 // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
-                BaseBalanceUsd = debitTotal - creditTotal
+                BaseBalanceUsd = officialSupplierBalances.TryGetValue(supplier.Id, out var officialBalance)
+                    ? officialBalance.ClosingBalanceUsd
+                    : 0m
             };
         }).ToList();
 

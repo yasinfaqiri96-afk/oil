@@ -393,6 +393,7 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
         output.WriteLine($"Dashboard DB commands: {counter.Count}, elapsed: {stopwatch.ElapsedMilliseconds} ms");
 
         // پیش از بهینه‌سازی ۴۰ فرمان بود؛ بعد از تجمیع OperationalStats و BalanceSummaries به ۲۱ رسید.
+        // کارت‌های بینش (قراردادهای در جریان + ظرفیت مخازن) دو فرمان اضافه کردند: ۲۳.
         // این سقف regression تعداد رفت‌وبرگشت داشبورد را قفل می‌کند.
         Assert.InRange(counter.Count, 1, 25);
     }

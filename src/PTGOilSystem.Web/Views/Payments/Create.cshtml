@@ -23,7 +23,8 @@
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("Index");
     var formUrl = Url.Action(formAction, formRouteId.HasValue ? new { id = formRouteId.Value } : null);
     var directionMode = Model.Direction == PaymentDirection.In ? "in" : "out";
-    var currentTime = DateTime.Now.ToString("hh:mm tt", CultureInfo.InvariantCulture);
+    // ساعت پیش‌فرض فرم به وقت کابل، نه ساعت محلی سیستم‌عاملِ سرور.
+    var currentTime = BusinessClock.Now.DateTime.ToString("hh:mm tt", CultureInfo.InvariantCulture);
     ViewData["SectionTabsActionUrl"] = cancelUrl;
     ViewData["SectionTabsActionLabel"] = "بازگشت";
     ViewData["SectionTabsActionIcon"] = "bi-arrow-right";

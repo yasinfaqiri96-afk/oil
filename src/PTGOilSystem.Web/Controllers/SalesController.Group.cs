@@ -619,6 +619,9 @@ public partial class SalesController
                 ReferenceDocument = sale.InvoiceNumber,
                 Notes = BuildSaleInventoryNotes(sale.SaleStage, sale.InvoiceNumber, $"SaleId={sale.Id} | {owner.Reference}")
             };
+            // قفل هم‌زمانی + چک نقطه‌ای در تاریخ خودِ فروش، داخل تراکنش گروهی.
+            await _stock.AcquireStockMutationLockAsync(movement);
+            await _stock.EnsureSufficientStockForMovementAsync(movement);
             await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(movement);
             _db.InventoryMovements.Add(movement);
         }

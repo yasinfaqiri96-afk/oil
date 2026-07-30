@@ -1107,6 +1107,8 @@ public class DispatchControllerTests
 
         public Task<IReadOnlyList<StockCardItem>> GetStockCardAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
             => throw new NotSupportedException();
+        public Task<IReadOnlyList<StockMovementSummaryItem>> GetMovementSummaryAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
+            => throw new NotSupportedException();
 
         public Task AcquireStockMutationLockAsync(InventoryMovement movement, CancellationToken ct = default)
             => Task.CompletedTask;
@@ -1141,6 +1143,8 @@ public class DispatchControllerTests
             => throw new NotSupportedException();
 
         public Task<IReadOnlyList<StockCardItem>> GetStockCardAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<IReadOnlyList<StockMovementSummaryItem>> GetMovementSummaryAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
             => throw new NotSupportedException();
 
         public Task AcquireStockMutationLockAsync(InventoryMovement movement, CancellationToken ct = default)

@@ -29,21 +29,27 @@ public partial class ReportsController
             Columns =
             [
                 new("طرف حساب", "Party", Width: 24), new("نوع", "Type", Width: 16), new("شرح مانده", "Balance kind", Width: 18),
-                new("بدهکار USD", "Debit USD", TabularExportValueType.Number, 16),
-                new("بستانکار USD", "Credit USD", TabularExportValueType.Number, 16),
+                new("اول دوره USD", "Opening USD", TabularExportValueType.Number, 16),
+                new("رسید USD", "Received USD", TabularExportValueType.Number, 16),
+                new("برد USD", "Given USD", TabularExportValueType.Number, 16),
+                new("گردش دوره USD", "Period movement USD", TabularExportValueType.Number, 17),
                 new("مانده USD", "Balance USD", TabularExportValueType.Number, 16),
                 new("آخرین تاریخ", "Last date", TabularExportValueType.Date, 14)
             ],
             Rows = rows.Select(r => new TabularExportRow(
             [
                 TabularExportCell.Text(r.PartyName), TabularExportCell.Text(r.PartyType), TabularExportCell.Text(r.BalanceKind),
-                TabularExportCell.Number(r.DebitUsd), TabularExportCell.Number(r.CreditUsd), TabularExportCell.Number(r.BalanceUsd),
+                TabularExportCell.Number(r.OpeningBalanceUsd), TabularExportCell.Number(r.DebitUsd),
+                TabularExportCell.Number(r.CreditUsd), TabularExportCell.Number(r.PeriodMovementUsd),
+                TabularExportCell.Number(r.BalanceUsd),
                 TabularExportCell.Date(r.LastEntryDate)
             ])),
             Totals = new TabularExportRow(
             [
                 TabularExportCell.Text("جمع / Total"), TabularExportCell.Text(null), TabularExportCell.Text(null),
+                TabularExportCell.Number(rows.Sum(r => r.OpeningBalanceUsd)),
                 TabularExportCell.Number(rows.Sum(r => r.DebitUsd)), TabularExportCell.Number(rows.Sum(r => r.CreditUsd)),
+                TabularExportCell.Number(rows.Sum(r => r.PeriodMovementUsd)),
                 TabularExportCell.Number(rows.Sum(r => r.BalanceUsd)), TabularExportCell.Date(null)
             ])
         });
@@ -75,7 +81,9 @@ public partial class ReportsController
                 new("مصارف USD", "Expenses USD", TabularExportValueType.Number, 16),
                 new("درآمد USD", "Revenue USD", TabularExportValueType.Number, 16),
                 new("سود/زیان USD", "Profit/loss USD", TabularExportValueType.Number, 17),
-                new("حاشیه", "Margin", TabularExportValueType.Percentage, 12)
+                new("حاشیه", "Margin", TabularExportValueType.Percentage, 12),
+                new("اطمینان", "Confidence", Width: 14),
+                new("فروش بدون COGS", "Sales missing COGS", TabularExportValueType.Number, 14)
             ],
             Rows = rows.Select(r => new TabularExportRow(
             [
@@ -84,7 +92,8 @@ public partial class ReportsController
                 TabularExportCell.Number(r.ContractType == ContractType.Purchase ? r.TotalLoadedMt : r.TotalSoldMt),
                 TabularExportCell.Number(r.PurchaseValueUsd), TabularExportCell.Number(r.TotalCostUsd - r.PurchaseValueUsd),
                 TabularExportCell.Number(r.TotalRevenueUsd), TabularExportCell.Number(r.GrossMarginUsd),
-                TabularExportCell.Percentage(r.MarginPercent.HasValue ? r.MarginPercent.Value / 100m : null)
+                TabularExportCell.Percentage(r.MarginPercent.HasValue ? r.MarginPercent.Value / 100m : null),
+                TabularExportCell.Text(r.PnlConfidence.ToString()), TabularExportCell.Number(r.UncostedSaleCount)
             ]))
         });
     }

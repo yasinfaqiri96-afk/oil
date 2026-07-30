@@ -5,6 +5,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -16,19 +17,29 @@ public class DashboardService : IDashboardService
     private const int AlertLimit = 5;
     private const int MarketWeekSpan = 10;
     private const int DashboardRowLimit = 8;
+    // کارت‌های بینش داشبورد: حداکثر سه ردیف (قرارداد/مخزن) و چهار ردیف فعالیت.
+    private const int InsightRowLimit = 3;
+    // مقیاس رنگ نوار پیشرفت مطابق تصویر مرجع داشبورد: هرچه درصد بالاتر، وضعیت بهتر.
+    private const decimal ProgressWarningPercent = 50m;
+    private const decimal ProgressCriticalPercent = 20m;
 
     private readonly ApplicationDbContext _db;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IAfghanistanBusinessClock _businessClock;
 
-    public DashboardService(ApplicationDbContext db, IHttpContextAccessor httpContextAccessor)
+    public DashboardService(
+        ApplicationDbContext db,
+        IHttpContextAccessor httpContextAccessor,
+        IAfghanistanBusinessClock? businessClock = null)
     {
         _db = db;
         _httpContextAccessor = httpContextAccessor;
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
     }
 
     public async Task<DashboardViewModel> BuildDashboardAsync(CancellationToken ct = default)
     {
-        var todayUtc = DateTime.UtcNow.Date;
+        var todayUtc = _businessClock.Today;
         var currentWeekStart = StartOfWeek(todayUtc, DayOfWeek.Monday);
         var previousWeekStart = currentWeekStart.AddDays(-7);
         var nextWeekStart = currentWeekStart.AddDays(7);
@@ -43,6 +54,7 @@ public class DashboardService : IDashboardService
         await PopulateRecentActivitiesAsync(vm, ct);
         await PopulateOrderPanelsAsync(vm, ct);
         await PopulateOperationalStatsAsync(vm, todayUtc, ct);
+        await PopulateActiveContractProgressAsync(vm, ct);
 
         return vm;
     }
@@ -64,17 +76,155 @@ public class DashboardService : IDashboardService
             await PopulateOperationalStatsWithLinqAsync(vm, todayUtc, tomorrowUtc, monthStartUtc, ct);
         }
 
+        // همان تجمیع قبلی؛ فقط کلید مخزن هم نگه داشته می‌شود تا کارت «ظرفیت مخازن»
+        // بدون کوئری اضافه روی موجودی ساخته شود. معناشناسی LowStockTankCount تغییر نکرده.
         var tankStocks = await _db.InventoryMovements.AsNoTracking()
             .Where(m => m.StorageTankId != null)
             .GroupBy(m => m.StorageTankId)
-            .Select(g => g.Sum(m =>
-                m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
-                    ? m.QuantityMt
-                    : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
-                        ? -m.QuantityMt
-                        : 0m))
+            .Select(g => new
+            {
+                StorageTankId = g.Key,
+                StockMt = g.Sum(m =>
+                    m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
+                        ? m.QuantityMt
+                        : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
+                            ? -m.QuantityMt
+                            : 0m)
+            })
             .ToListAsync(ct);
-        vm.LowStockTankCount = tankStocks.Count(s => s <= LowStockThresholdMt);
+        vm.LowStockTankCount = tankStocks.Count(s => s.StockMt <= LowStockThresholdMt);
+
+        var stockByTankId = tankStocks
+            .Where(s => s.StorageTankId.HasValue)
+            .GroupBy(s => s.StorageTankId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(s => s.StockMt));
+        await PopulateTankCapacitiesAsync(vm, stockByTankId, ct);
+    }
+
+    // کارت «ظرفیت مخازن»: مخازن فعالِ دارای ظرفیت، مرتب بر اساس درصد اشغال.
+    private async Task PopulateTankCapacitiesAsync(
+        DashboardViewModel vm,
+        IReadOnlyDictionary<int, decimal> stockByTankId,
+        CancellationToken ct)
+    {
+        var tanks = await _db.StorageTanks.AsNoTracking()
+            .Where(t => t.IsActive && t.CapacityMt > 0m)
+            .Select(t => new
+            {
+                t.Id,
+                t.TankCode,
+                t.DisplayName,
+                t.CapacityMt,
+                ProductName = t.Product == null ? "" : t.Product.Name
+            })
+            .ToListAsync(ct);
+
+        var tankRows = tanks
+            .Select(t =>
+            {
+                var stock = stockByTankId.TryGetValue(t.Id, out var value) ? value : 0m;
+                var percent = Math.Clamp(stock / t.CapacityMt * 100m, 0m, 100m);
+
+                return new DashboardTankCapacityViewModel
+                {
+                    TankId = t.Id,
+                    TankName = string.IsNullOrWhiteSpace(t.DisplayName) ? t.TankCode : t.DisplayName!,
+                    ProductName = t.ProductName,
+                    StockMt = stock,
+                    CapacityMt = t.CapacityMt,
+                    FillPercent = percent,
+                    ProgressTone = ResolveProgressTone(percent)
+                };
+            })
+            .ToList();
+
+        vm.TotalTankStockMt = tankRows.Sum(t => t.StockMt);
+        vm.TotalTankCapacityMt = tankRows.Sum(t => t.CapacityMt);
+        vm.TankCapacities = tankRows
+            .OrderByDescending(t => t.FillPercent)
+            .ThenBy(t => t.TankName, StringComparer.Ordinal)
+            .Take(InsightRowLimit)
+            .ToList();
+    }
+
+    // کارت «محموله‌ها و قراردادهای در جریان»: قرارداد فعال + مقدار بارگیری‌شدهٔ ثبت‌شده.
+    // همهٔ جمع‌ها به‌صورت زیرکوئری همبسته در یک رفت‌وبرگشت اجرا می‌شوند (بدون N+1).
+    private async Task PopulateActiveContractProgressAsync(DashboardViewModel vm, CancellationToken ct)
+    {
+        var rows = await _db.Contracts.AsNoTracking()
+            .Where(c => c.Status == ContractStatus.Active && c.QuantityMt > 0m)
+            .OrderByDescending(c => c.ContractDate)
+            .ThenByDescending(c => c.Id)
+            .Select(c => new
+            {
+                c.Id,
+                c.ContractNumber,
+                c.QuantityMt,
+                ProductName = c.Product == null ? "" : c.Product.Name,
+                LoadedMt = _db.LoadingRegisters
+                    .Where(l => l.ContractId == c.Id)
+                    .Sum(l => (decimal?)l.LoadedQuantityMt),
+                InTransitLegCount = _db.InventoryTransportLegs
+                    .Count(l => l.SourcePurchaseContractId == c.Id
+                        && l.Status == InventoryTransportLegStatus.InTransit),
+                LoadedLegCount = _db.InventoryTransportLegs
+                    .Count(l => l.SourcePurchaseContractId == c.Id
+                        && l.Status == InventoryTransportLegStatus.Loaded),
+                VesselName = _db.LoadingRegisters
+                    .Where(l => l.ContractId == c.Id && l.VesselId != null && l.Vessel != null)
+                    .OrderByDescending(l => l.LoadingDate)
+                    .Select(l => l.Vessel!.Name)
+                    .FirstOrDefault()
+            })
+            .Take(InsightRowLimit)
+            .ToListAsync(ct);
+
+        vm.ActiveContractProgress = rows
+            .Select(row =>
+            {
+                var loaded = row.LoadedMt ?? 0m;
+                var percent = Math.Clamp(loaded / row.QuantityMt * 100m, 0m, 100m);
+                var hasVessel = !string.IsNullOrWhiteSpace(row.VesselName);
+                var tone = ResolveProgressTone(percent);
+
+                // برچسب از وضعیت واقعی حمل می‌آید؛ حملِ InTransit یعنی «در مسیر» و
+                // حملِ Loaded یعنی بار رسیده و در نوبت تخلیه است.
+                var statusText = row.InTransitLegCount > 0
+                    ? Text("در مسیر", "In transit")
+                    : row.LoadedLegCount > 0
+                        ? Text("در حال تخلیه", "Discharging")
+                        : percent >= 100m
+                            ? Text("آماده تحویل", "Ready for delivery")
+                            : loaded > 0m
+                                ? Text("در حال بارگیری", "Loading")
+                                : Text("در انتظار شروع", "Not started");
+
+                return new DashboardContractProgressViewModel
+                {
+                    ContractId = row.Id,
+                    ContractNumber = row.ContractNumber,
+                    SubtitleText = hasVessel
+                        ? Text($"کشتی {row.VesselName}", $"Vessel {row.VesselName}")
+                        : row.ProductName,
+                    IconClass = hasVessel ? "bi-water" : "bi-journal-text",
+                    AvatarPath = hasVessel
+                        ? "/images/stat-cards/ref-blue/ops-loading.webp"
+                        : "/images/stat-cards/ref-blue/ops-transport.webp",
+                    LoadedMt = loaded,
+                    TotalMt = row.QuantityMt,
+                    ProgressPercent = percent,
+                    StatusText = statusText,
+                    // رنگ برچسب دقیقاً هم‌رنگِ نوار پیشرفت است (مطابق تصویر مرجع).
+                    StatusClass = tone switch
+                    {
+                        "is-critical" => "is-danger",
+                        "is-warning" => "is-pending",
+                        _ => "is-active"
+                    },
+                    ProgressTone = tone
+                };
+            })
+            .ToList();
     }
 
     // نسخه یک رفت‌وبرگشت: همان ۱۸ شمارش/جمع مسیر LINQ پایین، در یک SELECT.
@@ -829,8 +979,29 @@ public class DashboardService : IDashboardService
     private static string DisplayCode(string? code)
         => string.IsNullOrWhiteSpace(code) ? "" : $"({code})";
 
-    private static string FormatActivityTime(DateTime value)
-        => value.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+    private string FormatActivityTime(DateTime value)
+    {
+        var elapsed = DateTime.UtcNow - value.ToUniversalTime();
+        if (elapsed < TimeSpan.Zero)
+        {
+            elapsed = TimeSpan.Zero;
+        }
+
+        return elapsed.TotalDays >= 1
+            ? Text($"{(int)elapsed.TotalDays} روز قبل", $"{(int)elapsed.TotalDays}d ago")
+            : elapsed.TotalHours >= 1
+                ? Text($"{(int)elapsed.TotalHours} ساعت قبل", $"{(int)elapsed.TotalHours}h ago")
+                : elapsed.TotalMinutes >= 1
+                    ? Text($"{(int)elapsed.TotalMinutes} دقیقه قبل", $"{(int)elapsed.TotalMinutes}m ago")
+                    : Text("همین حالا", "Just now");
+    }
+
+    private static string ResolveProgressTone(decimal percent)
+        => percent < ProgressCriticalPercent
+            ? "is-critical"
+            : percent < ProgressWarningPercent
+                ? "is-warning"
+                : "is-normal";
 
     private string FormatDispatchStatus(DispatchStatus status)
         => status switch

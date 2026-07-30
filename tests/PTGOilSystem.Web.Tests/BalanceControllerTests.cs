@@ -11,6 +11,39 @@ namespace PTGOilSystem.Web.Tests;
 public class BalanceControllerTests
 {
     [Fact]
+    public async Task Customer_Balance_Uses_Official_Opening_And_Period_Engine()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.LedgerEntries.AddRange(
+            new LedgerEntry
+            {
+                Id = 91, EntryDate = new DateTime(2026, 3, 31), Side = LedgerSide.Credit,
+                AmountUsd = 1_000m, CustomerId = 1, SourceType = "Sale", SourceId = 91
+            },
+            new LedgerEntry
+            {
+                Id = 92, EntryDate = new DateTime(2026, 4, 5), Side = LedgerSide.Debit,
+                AmountUsd = 200m, CustomerId = 1, SourceType = "CustomerReceipt", SourceId = 92
+            });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(await new BalanceController(db).Customers(
+            new CustomersBalanceFilterViewModel
+            {
+                CustomerId = 1,
+                FromDate = new DateTime(2026, 4, 1),
+                ToDate = new DateTime(2026, 4, 30)
+            }));
+        var item = Assert.Single(Assert.IsType<CustomersBalanceViewModel>(result.Model).Items);
+
+        Assert.Equal(800m, item.BaseBalanceUsd);
+    }
+
+    [Fact]
     public async Task Contracts_Returns_Base_Balance_From_Direct_Contract_Relations()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

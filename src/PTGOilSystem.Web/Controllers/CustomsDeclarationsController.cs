@@ -892,13 +892,6 @@ public partial class CustomsDeclarationsController : Controller
             .Select(g => new { LoadingRegisterId = g.Key, TotalAfn = g.Sum(x => x.TotalAfn), TotalUsd = g.Sum(x => x.TotalUsd), Count = g.Count() })
             .ToListAsync();
 
-        var salesTotals = await _db.SalesTransactions
-            .AsNoTracking()
-            .Where(s => !s.IsCancelled && s.ContractId == contractId)
-            .GroupBy(s => s.ContractId)
-            .Select(g => new { TotalUsd = g.Sum(x => x.TotalUsd) })
-            .FirstOrDefaultAsync();
-
         var rows = loadingRegisters.Select(lr =>
         {
             var ct = customsTotals.FirstOrDefault(c => c.LoadingRegisterId == lr.Id);

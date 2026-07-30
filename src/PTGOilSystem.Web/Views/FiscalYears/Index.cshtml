@@ -32,7 +32,7 @@
             @* اولین سال مالی: فقط وقتی شرکت هیچ سالی ندارد و کاربر مجاز است. *@
             @if (Model.CanManage && Model.OtherYears.Count == 0 && Model.SelectedCompanyId is not null)
             {
-                var today = DateTime.UtcNow.Date;
+                var today = BusinessClock.Today;
                 var defaultStart = new DateTime(today.Year, 1, 1);
                 var defaultEnd = new DateTime(today.Year, 12, 31);
                 <form asp-action="CreateInitialYear" method="post" class="finance-initial-year"

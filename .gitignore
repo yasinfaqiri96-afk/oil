@@ -67,6 +67,14 @@ backups/secure/local-keys/
 backups/secure/*.aes
 backups/secure/*.aes.sha256.txt
 /src/PTGOilSystem.Web/backups/
+/db/backups/
+
+# خروجی‌های ماژول پشتیبان‌گیری در ریشه مخزن (dump دیتابیس، فایل‌های آپلود، تنظیمات محیط تولید).
+*.dump
+/database.dump
+/manifest.json
+/settings.json
+/uploads/
 
 
 # ---------------------------------------------------------

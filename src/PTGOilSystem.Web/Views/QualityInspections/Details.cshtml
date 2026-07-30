@@ -1,0 +1,246 @@
+@using PTGOilSystem.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@using PTGOilSystem.Web.Models.Entities
+@inject IAuthorizationService AuthorizationService
+@model PTGOilSystem.Web.Models.Quality.QualityInspectionDetailsViewModel
+@functions {
+    static string FormatFileSize(long bytes)
+        => bytes >= 1048576 ? (bytes / 1048576d).ToString("N1") + " MB" : (bytes / 1024d).ToString("N0") + " KB";
+}
+@{
+    ViewData["Title"] = "جزئیات آزمایش کیفیت";
+    var canManage = (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.ManageData)).Succeeded;
+
+    static string StatusBadge(QualityInspectionStatus status) => status switch
+    {
+        QualityInspectionStatus.Accepted => "ak-badge-success",
+        QualityInspectionStatus.Rejected => "ak-badge-danger",
+        _ => "ak-badge-warning"
+    };
+
+    static string StatusText(QualityInspectionStatus status) => status switch
+    {
+        QualityInspectionStatus.Accepted => "قبول",
+        QualityInspectionStatus.Rejected => "رد",
+        _ => "در انتظار نتیجه"
+    };
+
+    string Spec(decimal? value, string unit)
+        => value.HasValue ? $"{value.Value:N4} {unit}".Trim() : "—";
+}
+
+<div class="ak-detail-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"آزمایش کیفیت — {Model.ProductName}", false,
+                       canManage ? "ویرایش" : (string?)null,
+                       canManage ? "bi-pencil" : (string?)null,
+                       canManage ? Url.Action("Edit", new { id = Model.Id }) : (string?)null,
+                       (string?)null,
+                       "بازگشت", "bi-arrow-right", Url.Action("Index")))" />
+
+    @if (!Model.IsFinalResult)
+    {
+        <div class="ak-form-alert">
+            <i class="bi bi-info-circle"></i>
+            این آزمایش، آخرین نتیجهٔ این بار نیست. نتیجهٔ نهایی در جدول «آزمایش‌های همین بار» ردیف اول است.
+        </div>
+    }
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("خلاصه", "بار مربوطه، لابراتوار و نتیجه."))" />
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <tbody>
+                    <tr><td class="ak-col-grow">جنس</td><td>@Model.ProductName</td></tr>
+                    <tr><td class="ak-col-grow">جواز/شرکت</td><td>@(Model.CompanyName ?? "—")</td></tr>
+                    <tr>
+                        <td class="ak-col-grow">قرارداد</td>
+                        <td>
+                            @if (Model.ContractId.HasValue)
+                            {
+                                <a asp-controller="Contracts" asp-action="Details" asp-route-id="@Model.ContractId.Value">@Model.ContractNumber</a>
+                            }
+                            else { <text>—</text> }
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="ak-col-grow">محموله</td>
+                        <td>
+                            @if (Model.ShipmentId.HasValue)
+                            {
+                                <a asp-controller="Shipments" asp-action="Details" asp-route-id="@Model.ShipmentId.Value">@Model.ShipmentReference</a>
+                            }
+                            else { <text>—</text> }
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="ak-col-grow">اظهارنامه گمرکی</td>
+                        <td>
+                            @if (Model.CustomsDeclarationId.HasValue)
+                            {
+                                <a asp-controller="CustomsDeclarations" asp-action="Details" asp-route-id="@Model.CustomsDeclarationId.Value">@(Model.CustomsDeclarationReference ?? $"#{Model.CustomsDeclarationId}")</a>
+                            }
+                            else { <text>—</text> }
+                        </td>
+                    </tr>
+                    <tr><td class="ak-col-grow">بارگیری</td><td>@(Model.LoadingReference ?? "—")</td></tr>
+                    <tr><td class="ak-col-grow">لابراتوار</td><td>@Model.LaboratoryName</td></tr>
+                    <tr><td class="ak-col-grow">شماره نتیجه</td><td>@(Model.ResultNumber ?? "—")</td></tr>
+                    <tr><td class="ak-col-grow">تاریخ نمونه‌گیری</td><td>@Model.SampleDate.ToDisplayDate()</td></tr>
+                    <tr><td class="ak-col-grow">تاریخ نتیجه</td><td>@(Model.ResultDate?.ToDisplayDate() ?? "—")</td></tr>
+                    <tr><td class="ak-col-grow">وضعیت</td><td><span class="ak-badge @StatusBadge(Model.Status)">@StatusText(Model.Status)</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("مشخصات کیفیت", "مقادیر خالی یعنی لابراتوار آن آیتم را نداده است."))" />
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <tbody>
+                    <tr><td class="ak-col-grow">دانسیته</td><td class="ak-num">@Spec(Model.DensityKgM3, "kg/m³")</td></tr>
+                    <tr><td class="ak-col-grow">گوگرد</td><td class="ak-num">@Spec(Model.SulphurPercent, "%")</td></tr>
+                    <tr><td class="ak-col-grow">نقطه اشتعال</td><td class="ak-num">@Spec(Model.FlashPointC, "°C")</td></tr>
+                    <tr><td class="ak-col-grow">آب</td><td class="ak-num">@Spec(Model.WaterContentPercent, "%")</td></tr>
+                    <tr><td class="ak-col-grow">عدد اکتان/ستان</td><td class="ak-num">@Spec(Model.OctaneOrCetaneNumber, "")</td></tr>
+                </tbody>
+            </table>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Model.AdditionalSpecifications))
+        {
+            <p class="ak-note">@Model.AdditionalSpecifications</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.Description))
+        {
+            <p class="ak-note">@Model.Description</p>
+        }
+        @if (Model.Status == QualityInspectionStatus.Rejected && !string.IsNullOrWhiteSpace(Model.RejectionReason))
+        {
+            <div class="ak-form-alert"><i class="bi bi-x-octagon"></i> دلیل رد: @Model.RejectionReason</div>
+        }
+    </section>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("فایل نتیجه", "اسکن نتیجهٔ لابراتوار یا هر سند پشتیبان."))" />
+
+        @if (canManage)
+        {
+            <form asp-action="UploadDocument" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" class="ak-form-grid mb-3">
+                @Html.AntiForgeryToken()
+                <div class="ak-field">
+                    <label class="ak-label">فایل</label>
+                    <input type="file" name="file" class="ak-input" accept=".pdf,.jpg,.jpeg,.png,.webp" required />
+                    <span class="ak-note">حداکثر ۱۰ مگابایت — PDF، JPG، PNG یا WEBP.</span>
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label">نوع سند</label>
+                    <input type="text" name="documentType" class="ak-input" maxlength="100" placeholder="نتیجه لابراتوار" />
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label">توضیح</label>
+                    <input type="text" name="notes" class="ak-input" maxlength="1000" />
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i> آپلود</button>
+                </div>
+            </form>
+        }
+
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">نام فایل</th>
+                        <th>نوع</th>
+                        <th class="ak-col-num">حجم</th>
+                        <th>تاریخ آپلود</th>
+                        <th>ثبت‌کننده</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var document in Model.Documents)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">@document.OriginalFileName</td>
+                            <td>@(document.DocumentType ?? "—")</td>
+                            <td class="ak-col-num ak-num">@FormatFileSize(document.FileSizeBytes)</td>
+                            <td>@document.UploadedAt.ToDisplayDate()</td>
+                            <td>@(document.UploadedByUserName ?? "—")</td>
+                            <td>
+                                <a class="btn btn-sm btn-light" asp-action="DownloadDocument" asp-route-id="@document.Id" title="دانلود">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Documents.Any())
+                    {
+                        <tr><td colspan="6"><div class="ak-empty"><i class="bi bi-paperclip"></i> هنوز فایلی پیوست نشده است.</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @if (Model.SiblingInspections.Count > 1)
+    {
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("آزمایش‌های همین بار", "ردیف اول، آخرین نتیجه و در نتیجه نتیجهٔ نهایی است."))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table ak-detail-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">لابراتوار</th>
+                            <th>شماره نتیجه</th>
+                            <th>نمونه‌گیری</th>
+                            <th>نتیجه</th>
+                            <th>وضعیت</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var sibling in Model.SiblingInspections)
+                        {
+                            <tr>
+                                <td class="ak-col-grow">@sibling.LaboratoryName</td>
+                                <td>@(sibling.ResultNumber ?? "—")</td>
+                                <td>@sibling.SampleDate.ToDisplayDate()</td>
+                                <td>@(sibling.ResultDate?.ToDisplayDate() ?? "—")</td>
+                                <td><span class="ak-badge @StatusBadge(sibling.Status)">@StatusText(sibling.Status)</span></td>
+                                <td>
+                                    @if (sibling.Id != Model.Id)
+                                    {
+                                        <a class="btn btn-sm btn-light" asp-action="Details" asp-route-id="@sibling.Id" title="مشاهده">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <span class="ak-badge ak-badge-success">همین سند</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("ثبت و تغییر", "چه کسی و چه وقت این سند را ساخته یا تغییر داده است."))" />
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <tbody>
+                    <tr><td class="ak-col-grow">ثبت‌کننده</td><td>@(Model.CreatedByUserName ?? "—")</td></tr>
+                    <tr><td class="ak-col-grow">تاریخ ثبت</td><td>@Model.CreatedAtUtc.ToDisplayDate()</td></tr>
+                    <tr><td class="ak-col-grow">آخرین تغییر توسط</td><td>@(Model.UpdatedByUserName ?? "—")</td></tr>
+                    <tr><td class="ak-col-grow">تاریخ آخرین تغییر</td><td>@(Model.UpdatedAtUtc?.ToDisplayDate() ?? "—")</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

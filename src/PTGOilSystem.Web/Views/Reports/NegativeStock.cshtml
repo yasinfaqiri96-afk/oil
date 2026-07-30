@@ -1,0 +1,123 @@
+@using PTGOilSystem.Web.Services.Reporting
+@model PTGOilSystem.Web.Models.Reports.NegativeStockReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "موجودی منفی", "Negative Stock");
+    var hasActiveFilters = Model.Filter.ToDate.HasValue || Model.Filter.ProductId.HasValue
+        || Model.Filter.ContractId.HasValue || Model.Filter.TerminalId.HasValue || Model.Filter.StorageTankId.HasValue;
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "موجودی منفی", "Negative Stock"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    <p class="ak-note">@UiText.T(Context, "هر ترکیب جنس/قرارداد/ترمینال/مخزن که مانده‌اش در یک تاریخ زیر صفر رفته است. این گزارش فقط تشخیص می‌دهد و هیچ داده‌ای را اصلاح نمی‌کند.", "Every product/contract/terminal/tank scope whose running balance went below zero. Read-only: nothing is repaired here.")</p>
+
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار موجودی منفی", "Negative stock metrics")">
+        @foreach (var metric in Model.Metrics.Take(4))
+        {
+            @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
+        }
+    </section>
+
+    <div class="ak-list">
+        <form method="get" class="ak-report-parameters" id="rpFilterForm">
+            <div class="ak-report-parameters-bar">
+                <div class="ak-report-parameters-anchor">
+                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="rpFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
+                        <i class="bi bi-funnel"></i>
+                    </button>
+                    <div class="ak-report-parameters-pop" id="rpFilterPop" hidden>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "As of")</label>
+                        <input class="ak-input" type="date" name="ToDate" value="@Model.Filter.ToDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "جنس", "Product")</label>
+                        <select class="ak-input" name="ProductId" asp-items="ViewBag.Products"><option value="">@UiText.T(Context, "همه اجناس", "All Products")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "قرارداد", "Contract")</label>
+                        <select class="ak-input" name="ContractId" asp-items="ViewBag.Contracts"><option value="">@UiText.T(Context, "همه قراردادها", "All Contracts")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "ترمینال", "Terminal")</label>
+                        <select class="ak-input" name="TerminalId" asp-items="ViewBag.Terminals"><option value="">@UiText.T(Context, "همه ترمینال‌ها", "All Terminals")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "مخزن", "Tank")</label>
+                        <select class="ak-input" name="StorageTankId" asp-items="ViewBag.StorageTanks"><option value="">@UiText.T(Context, "همه مخازن", "All Tanks")</option></select>
+                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
+                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("NegativeStockExport"))" />
+                        @if (hasActiveFilters)
+                        {
+                            <a asp-action="NegativeStock" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@UiText.T(Context, "جنس", "Product")</th>
+                        <th>@UiText.T(Context, "جواز", "Company")</th>
+                        <th>@UiText.T(Context, "قرارداد", "Contract")</th>
+                        <th>@UiText.T(Context, "ترمینال", "Terminal")</th>
+                        <th>@UiText.T(Context, "مخزن", "Tank")</th>
+                        <th>@UiText.T(Context, "اولین منفی‌شدن", "First negative")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مانده آن تاریخ", "Balance then")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مانده فعلی", "Closing")</th>
+                        <th class="ak-col-grow">@UiText.T(Context, "علت احتمالی", "Probable cause")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">@row.ProductName</td>
+                            <td>@row.CompanyName</td>
+                            <td>@row.ContractNumber</td>
+                            <td>@row.TerminalName</td>
+                            <td>@row.StorageTankCode</td>
+                            <td>@row.FirstNegativeDate.ToDisplayDate()</td>
+                            <td class="ak-col-num ak-num">@row.FirstNegativeBalanceMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.ClosingBalanceMt.ToString("N4")</td>
+                            <td class="ak-col-grow">@row.ProbableCause</td>
+                            <td>
+                                @if (row.Status == NegativeStockStatus.Open)
+                                {
+                                    <span class="ak-badge ak-badge-danger">@UiText.T(Context, "کسری باز", "Open")</span>
+                                }
+                                else
+                                {
+                                    <span class="ak-badge ak-badge-warning">@UiText.T(Context, "ترتیب تاریخ (Legacy)", "Legacy ordering")</span>
+                                }
+                            </td>
+                            <td>
+                                @if (row.CausingSalesTransactionId.HasValue)
+                                {
+                                    <a class="btn btn-sm btn-light" asp-controller="Sales" asp-action="Details" asp-route-id="@row.CausingSalesTransactionId.Value"
+                                       title="@UiText.T(Context, "سند فروش ایجادکننده", "Causing sale")"><i class="bi bi-box-arrow-up-left"></i></a>
+                                }
+                                else
+                                {
+                                    @* کارت موجودی همان scope؛ حرکت ایجادکننده صفحهٔ جزئیات مستقل ندارد. *@
+                                    <a class="btn btn-sm btn-light" asp-controller="Inventory" asp-action="StockCard"
+                                       asp-route-Filter.ProductId="@row.ProductId"
+                                       asp-route-Filter.ContractId="@row.ContractId"
+                                       asp-route-Filter.TerminalId="@row.TerminalId"
+                                       title="@UiText.T(Context, "کارت موجودی این ترکیب", "Stock card for this scope")"><i class="bi bi-box-arrow-up-left"></i></a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Rows.Any())
+                    {
+                        <tr><td colspan="11"><div class="ak-empty"><i class="bi bi-check2-circle"></i> @UiText.T(Context, "هیچ موجودی منفی‌ای پیدا نشد.", "No negative stock found.")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_AkReportFilterScript" />
+}

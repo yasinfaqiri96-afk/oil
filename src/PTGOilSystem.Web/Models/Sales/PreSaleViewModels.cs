@@ -90,7 +90,9 @@ public sealed class PreSaleListItemViewModel
     public DateTime OrderDate { get; init; }
     public decimal QuantityMt { get; init; }
     public decimal DeliveredMt { get; init; }
-    public decimal RemainingMt => decimal.Round(QuantityMt - DeliveredMt, 4, MidpointRounding.AwayFromZero);
+    public decimal RemainingMt => Status is PreSaleOrderStatus.Closed or PreSaleOrderStatus.Cancelled
+        ? 0m
+        : decimal.Round(Math.Max(QuantityMt - DeliveredMt, 0m), 4, MidpointRounding.AwayFromZero);
     public string Currency { get; init; } = "USD";
     public decimal TotalInCurrency { get; init; }
     public PreSaleOrderStatus Status { get; init; }
@@ -102,6 +104,9 @@ public sealed class PreSaleIndexViewModel
     public int CurrentPage { get; init; } = 1;
     public int PageCount { get; init; } = 1;
     public int TotalCount { get; init; }
+    public int ActiveOrderCount { get; init; }
+    public int ClosedOrderCount { get; init; }
+    public int CancelledOrderCount { get; init; }
     public decimal SumQuantityMt { get; init; }
     public decimal SumRemainingMt { get; init; }
     public int CustomerCount { get; init; }

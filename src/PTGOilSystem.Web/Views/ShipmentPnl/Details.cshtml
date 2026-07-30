@@ -19,7 +19,7 @@
     var shipmentGroupKey = $"SHIP:{Model.Id}";
     ViewData["LoadingExpenseEditorAssets"] = true;
     var canRegisterDirectLoss = Model.TotalShortageRegisterableQuantityMt > 0m;
-    var todayValue = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+    var todayValue = BusinessClock.Today.ToString("yyyy-MM-dd");
     string DecimalInput(decimal value) => value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
     string MoneyInput(decimal value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     var defaultLossAmountUsd = Model.EstimateLossValueUsd(Model.TotalShortageRegisterableQuantityMt);

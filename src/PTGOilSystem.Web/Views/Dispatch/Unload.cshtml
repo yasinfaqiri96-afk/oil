@@ -243,7 +243,7 @@
                     </div>
                     <div class="ak-field">
                         <label>@T("تاریخ فروش", "Sale date") <b>*</b></label>
-                        <input name="SaleDate" type="date" value="@DateTime.UtcNow.Date.ToString("yyyy-MM-dd")" class="ak-input" disabled />
+                        <input name="SaleDate" type="date" value="@BusinessClock.Today.ToString("yyyy-MM-dd")" class="ak-input" disabled />
                     </div>
                     <div class="ak-field">
                         <label>@T("مقدار فروش", "Sale quantity") <b>*</b></label>

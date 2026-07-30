@@ -1,0 +1,141 @@
+@using PTGOilSystem.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
+@model PTGOilSystem.Web.Models.Quality.QualityInspectionIndexViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "کیفیت و لابراتوار", "Quality & Laboratory");
+    var canManage = (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.ManageData)).Succeeded;
+
+    string StatusBadge(PTGOilSystem.Web.Models.Entities.QualityInspectionStatus status) => status switch
+    {
+        PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Accepted => "ak-badge-success",
+        PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Rejected => "ak-badge-danger",
+        _ => "ak-badge-warning"
+    };
+
+    string StatusText(PTGOilSystem.Web.Models.Entities.QualityInspectionStatus status) => status switch
+    {
+        PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Accepted => UiText.T(Context, "قبول", "Accepted"),
+        PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Rejected => UiText.T(Context, "رد", "Rejected"),
+        _ => UiText.T(Context, "در انتظار نتیجه", "Pending")
+    };
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "کیفیت و لابراتوار", "Quality & Laboratory"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <p class="ak-note">@UiText.T(Context, "نتیجهٔ آزمایش‌های کیفیت هر بار. یک بار می‌تواند چند آزمایش داشته باشد؛ آخرین نتیجهٔ قطعی، نتیجهٔ نهایی است.", "Quality results per load. One load can have several tests; the latest final result is the outcome.")</p>
+
+    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار کیفیت", "Quality metrics")">
+        <vc:stat-card title="@UiText.T(Context, "کل آزمایش‌ها", "Total")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "مورد", "items")" avatar="statement"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "در انتظار نتیجه", "Pending")" value="@Model.PendingCount.ToString("N0")" unit="@UiText.T(Context, "مورد", "items")" avatar="in-transit"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "قبول", "Accepted")" value="@Model.AcceptedCount.ToString("N0")" unit="@UiText.T(Context, "مورد", "items")" avatar="sold-quantity"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "رد", "Rejected")" value="@Model.RejectedCount.ToString("N0")" unit="@UiText.T(Context, "مورد", "items")" avatar="warning"></vc:stat-card>
+    </section>
+
+    @if (canManage)
+    {
+        <div class="ak-page-actions mb-3 justify-content-end">
+            <a class="btn btn-primary" asp-action="Create">
+                <i class="bi bi-plus-lg"></i> @UiText.T(Context, "ثبت آزمایش کیفیت", "New inspection")
+            </a>
+        </div>
+    }
+
+    <div class="ak-list">
+        <form method="get" class="ak-report-parameters" id="rpFilterForm">
+            <div class="ak-report-parameters-bar">
+                <div class="ak-report-parameters-anchor">
+                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(Model.Filter.HasAny ? "is-on" : null)" id="rpFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
+                        <i class="bi bi-funnel"></i>
+                    </button>
+                    <div class="ak-report-parameters-pop" id="rpFilterPop" hidden>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
+                        <input class="ak-input" type="date" name="FromDate" value="@Model.Filter.FromDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
+                        <input class="ak-input" type="date" name="ToDate" value="@Model.Filter.ToDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "وضعیت", "Status")</label>
+                        <select class="ak-input" name="Status">
+                            <option value="">@UiText.T(Context, "همه", "All")</option>
+                            <option value="Pending" selected="@(Model.Filter.Status == PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Pending)">@UiText.T(Context, "در انتظار نتیجه", "Pending")</option>
+                            <option value="Accepted" selected="@(Model.Filter.Status == PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Accepted)">@UiText.T(Context, "قبول", "Accepted")</option>
+                            <option value="Rejected" selected="@(Model.Filter.Status == PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Rejected)">@UiText.T(Context, "رد", "Rejected")</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
+                        @if (Model.Filter.HasAny)
+                        {
+                            <a asp-action="Index" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@UiText.T(Context, "جنس", "Product")</th>
+                        <th>@UiText.T(Context, "محموله/بارگیری", "Load")</th>
+                        <th>@UiText.T(Context, "لابراتوار", "Laboratory")</th>
+                        <th>@UiText.T(Context, "شماره نتیجه", "Result no.")</th>
+                        <th>@UiText.T(Context, "نمونه‌گیری", "Sampled")</th>
+                        <th>@UiText.T(Context, "نتیجه", "Result date")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "فایل", "Files")</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">@item.ProductName</td>
+                            <td>@(item.ShipmentReference ?? item.CustomsDeclarationReference ?? item.ContractNumber ?? "-")</td>
+                            <td>@item.LaboratoryName</td>
+                            <td>@(item.ResultNumber ?? "-")</td>
+                            <td>@item.SampleDate.ToDisplayDate()</td>
+                            <td>@(item.ResultDate?.ToDisplayDate() ?? "-")</td>
+                            <td><span class="ak-badge @StatusBadge(item.Status)">@StatusText(item.Status)</span></td>
+                            <td class="ak-col-num ak-num">@item.DocumentCount.ToString("N0")</td>
+                            <td>
+                                <a class="btn btn-sm btn-light" asp-action="Details" asp-route-id="@item.Id"
+                                   title="@UiText.T(Context, "مشاهده", "View")"><i class="bi bi-eye"></i></a>
+                                @if (canManage)
+                                {
+                                    <a class="btn btn-sm btn-light" asp-action="Edit" asp-route-id="@item.Id"
+                                       title="@UiText.T(Context, "ویرایش", "Edit")"><i class="bi bi-pencil"></i></a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Items.Any())
+                    {
+                        <tr><td colspan="9"><div class="ak-empty"><i class="bi bi-clipboard-check"></i> @UiText.T(Context, "هیچ آزمایش کیفیتی ثبت نشده است.", "No quality inspection recorded.")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.PageCount > 1)
+        {
+            <div class="ak-pagination">
+                @for (var p = 1; p <= Model.PageCount; p++)
+                {
+                    <a asp-action="Index" asp-route-page="@p"
+                       asp-route-Status="@Model.Filter.Status"
+                       asp-route-FromDate="@Model.Filter.FromDate?.ToString("yyyy-MM-dd")"
+                       asp-route-ToDate="@Model.Filter.ToDate?.ToString("yyyy-MM-dd")"
+                       class="btn btn-sm @(p == Model.CurrentPage ? "btn-primary" : "ak-secondary-action")">@p</a>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_AkReportFilterScript" />
+}

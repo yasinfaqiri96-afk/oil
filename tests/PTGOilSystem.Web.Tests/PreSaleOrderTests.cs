@@ -17,6 +17,51 @@ namespace PTGOilSystem.Web.Tests;
 public class PreSaleOrderTests
 {
     [Fact]
+    public async Task PreSale_Index_Separates_Active_Commitment_From_Closed_And_Cancelled()
+    {
+        await using var db = NewDb();
+        SeedReferenceData(db);
+        db.PreSaleOrders.AddRange(
+            new PreSaleOrder
+            {
+                Id = 1, OrderNumber = "ACTIVE", CustomerId = 1, ProductId = 1,
+                OrderDate = new DateTime(2026, 5, 1), QuantityMt = 100m,
+                Currency = "USD", Status = PreSaleOrderStatus.Confirmed
+            },
+            new PreSaleOrder
+            {
+                Id = 2, OrderNumber = "CLOSED", CustomerId = 1, ProductId = 1,
+                OrderDate = new DateTime(2026, 5, 1), QuantityMt = 50m,
+                Currency = "USD", Status = PreSaleOrderStatus.Closed
+            },
+            new PreSaleOrder
+            {
+                Id = 3, OrderNumber = "CANCELLED", CustomerId = 1, ProductId = 1,
+                OrderDate = new DateTime(2026, 5, 1), QuantityMt = 30m,
+                Currency = "USD", Status = PreSaleOrderStatus.Cancelled
+            });
+        db.SalesTransactions.Add(new SalesTransaction
+        {
+            Id = 10, PreSaleOrderId = 1, CustomerId = 1, ProductId = 1,
+            InvoiceNumber = "DEL-1", SaleDate = new DateTime(2026, 5, 10),
+            QuantityMt = 20m, Currency = "USD"
+        });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(await BuildController(db).PreSales());
+        var model = Assert.IsType<PreSaleIndexViewModel>(result.Model);
+
+        Assert.Equal(3, model.TotalCount);
+        Assert.Equal(1, model.ActiveOrderCount);
+        Assert.Equal(1, model.ClosedOrderCount);
+        Assert.Equal(1, model.CancelledOrderCount);
+        Assert.Equal(100m, model.SumQuantityMt);
+        Assert.Equal(80m, model.SumRemainingMt);
+        Assert.Equal(0m, model.Items.Single(x => x.Id == 2).RemainingMt);
+        Assert.Equal(0m, model.Items.Single(x => x.Id == 3).RemainingMt);
+    }
+
+    [Fact]
     public async Task PreSaleCreate_Does_Not_Touch_Inventory_Or_Ledger()
     {
         await using var db = NewDb();

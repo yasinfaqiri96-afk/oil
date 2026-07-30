@@ -2343,6 +2343,16 @@ public class SalesControllerTests
             CancellationToken ct = default)
             => throw new NotSupportedException();
 
+        public Task<IReadOnlyList<StockMovementSummaryItem>> GetMovementSummaryAsync(
+            int? productId = null,
+            int? contractId = null,
+            int? terminalId = null,
+            int? storageTankId = null,
+            DateTime? fromUtc = null,
+            DateTime? toUtc = null,
+            CancellationToken ct = default)
+            => throw new NotSupportedException();
+
         public Task AcquireStockMutationLockAsync(
             InventoryMovement movement,
             CancellationToken ct = default)

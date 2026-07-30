@@ -289,13 +289,25 @@ public sealed class TabularExportServiceTests
         Assert.Equal(10.5f, PdfDesignSystem.TitleSize);
         Assert.Equal(8.25f, PdfDesignSystem.MetaSize);
         Assert.Equal(7.5f, PdfDesignSystem.TableSize);
-        Assert.Equal(7f, PdfDesignSystem.DenseTableSize);
-        Assert.Equal(6.8f, PdfDesignSystem.ExtraWideTableSize);
+        Assert.Equal(8f, PdfDesignSystem.NumericTableSize);
+        Assert.Equal(7.5f, PdfDesignSystem.DenseTableSize);
+        Assert.Equal(7.5f, PdfDesignSystem.ExtraWideTableSize);
+        Assert.Equal(
+            "1,250.50",
+            PdfDesignSystem.FormatPdfCell(TabularExportCell.Number(1_250.5m), isEnglish: false));
+        Assert.Equal(
+            "-750",
+            PdfDesignSystem.FormatPdfCell(TabularExportCell.Number(-750m), isEnglish: false));
+        Assert.Equal(
+            "1405/04/26",
+            PdfDesignSystem.FormatPdfCell(
+                TabularExportCell.Date(new DateTime(2026, 7, 17)),
+                isEnglish: false));
         Assert.Equal(128f, PdfDesignSystem.BrandLogoWidth);
         Assert.Equal(42f, PdfDesignSystem.BrandRowHeight);
         Assert.Equal(5.75f, PdfDesignSystem.BrandContactSize);
         Assert.Equal(
-            "تاریخ چاپ: ۱۴۰۵/۵/۸",
+            "تاریخ چاپ: 1405/5/8",
             PdfDesignSystem.FormatPrintDate(new DateTime(2026, 7, 30), isEnglish: false));
     }
 

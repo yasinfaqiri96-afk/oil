@@ -1,14 +1,15 @@
 @model IReadOnlyList<PTGOilSystem.Web.Models.Customs.PerWagonPnlRowViewModel>
 @{
-    ViewData["Title"] = $"گزارش سود/زیان واگن — {ViewBag.ContractNumber}";
+    ViewData["Title"] = $"گزارش عملیاتی و مصارف واگن — {ViewBag.ContractNumber}";
     int contractId = ViewBag.ContractId;
 }
 <div class="ak-form-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@(("گزارش سود و زیان هر واگن", true,
+             model="@(("گزارش عملیاتی و مصارف هر واگن", true,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Details", "ContractJourney", new { contractId })))" />
     <p class="ak-note">قرارداد: <strong>@ViewBag.ContractNumber</strong> — جنس: <strong>@ViewBag.ProductName</strong></p>
+    <p class="ak-note">این صفحه درآمد فروش و بهای تمام‌شدهٔ تخصیص‌یافته به هر واگن را ندارد؛ بنابراین گزارش سود و زیان نیست.</p>
     @if (!Model.Any())
     {
         <div class="ak-empty"><i class="bi bi-info-circle-fill"></i><div>هیچ رکورد بارگیری برای این قرارداد ثبت نشده است.</div></div>

@@ -2,44 +2,24 @@
 @{
     ViewData["Title"] = UiText.T(Context, "گزارش‌ها", "Reports");
 
-    // Akaunting-style grouped report hub. Static links only — no calculation here.
-    var groups = new[]
-    {
-        new
-        {
-            TitleFa = "مالی و حساب‌داری",
-            TitleEn = "Accounting",
-            Items = new[]
-            {
-                new { Action = "CompanyOverview", TitleFa = "نمای کلی مالی", TitleEn = "Company Overview", DescriptionFa = "درآمد، قیمت خرید، مصارف، ضایعات و سود یا زیان خالص شرکت.", DescriptionEn = "Company revenue, cost, expenses, losses and net result.", Icon = "bi-clipboard-data" },
-                new { Action = "ContractPnl", TitleFa = "سود و زیان قراردادها", TitleEn = "Contract P&L", DescriptionFa = "درآمد، بهای خرید، مصارف، ضایعات و اختلاف ارز هر قرارداد.", DescriptionEn = "Revenue, cost, expenses, losses and FX by contract.", Icon = "bi-file-earmark-bar-graph" },
-                new { Action = "FxDifference", TitleFa = "تفاوت نرخ ارز", TitleEn = "FX Difference", DescriptionFa = "سود و ضرر تفاوت نرخ خرید ارز شرکت با نرخ قبول تأمین‌کننده در حواله‌های صراف.", DescriptionEn = "FX gain and loss between the company purchase rate and the supplier accepted rate on sarraf transfers.", Icon = "bi-currency-exchange" },
-                new { Action = "ReceivablesPayables", TitleFa = "دریافتنی‌ها و پرداختنی‌ها", TitleEn = "Receivables & Payables", DescriptionFa = "طلب مشتریان و بدهی تأمین‌کنندگان در یک نگاه.", DescriptionEn = "Customer receivables and supplier payables at a glance.", Icon = "bi-people" }
-            }
-        },
-        new
-        {
-            TitleFa = "نقدینگی و عملیات",
-            TitleEn = "Cash & Operations",
-            Items = new[]
-            {
-                new { Action = "CashFlow", TitleFa = "جریان نقدی", TitleEn = "Cash Flow", DescriptionFa = "ورودی و خروجی واقعی پول از روزنامه و حساب‌های نقدی.", DescriptionEn = "Actual cash inflow and outflow from journal and cash accounts.", Icon = "bi-cash-stack" },
-                new { Action = "InventoryOperations", TitleFa = "موجودی و عملیات", TitleEn = "Inventory & Operations", DescriptionFa = "مقدار موجودی، گردش‌ها و موارد عملیاتی نیازمند بررسی.", DescriptionEn = "Inventory quantities, movements and operational items to review.", Icon = "bi-box-seam" },
-                new { Action = "Warnings", TitleFa = "مغایرت‌ها", TitleEn = "Reconciliation & Warnings", DescriptionFa = "مواردی که برای اصلاح دفتر کل، موجودی یا اسناد نیاز به اقدام دارند.", DescriptionEn = "Ledger, inventory and document issues needing action.", Icon = "bi-exclamation-triangle" }
-            }
-        }
-    };
+    // مرکز گزارشات: فقط پیوند. هیچ محاسبه‌ای در این صفحه انجام نمی‌شود و دسته‌بندی
+    // از کنترلر می‌آید تا در تست قابل بررسی باشد.
 }
 
 <div class="akrep-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
-    @foreach (var group in groups)
+    @foreach (var group in Model.Groups)
     {
         <section class="akrep-group" aria-label="@UiText.T(Context, group.TitleFa, group.TitleEn)">
-            <h2 class="akrep-group-title">@UiText.T(Context, group.TitleFa, group.TitleEn)</h2>
+            <h2 class="akrep-group-title">
+                <i class="bi @group.Icon" aria-hidden="true"></i>
+                @UiText.T(Context, group.TitleFa, group.TitleEn)
+            </h2>
             <div class="akrep-grid">
-                @foreach (var item in group.Items)
+                @foreach (var item in group.Cards)
                 {
-                    <a class="akrep-item" asp-controller="Reports" asp-action="@item.Action">
+                    <a class="akrep-item"
+                       asp-controller="@(string.IsNullOrEmpty(item.Controller) ? "Reports" : item.Controller)"
+                       asp-action="@item.Action">
                         <span class="akrep-ico" aria-hidden="true"><i class="bi @item.Icon"></i></span>
                         <span class="akrep-copy">
                             <strong>@UiText.T(Context, item.TitleFa, item.TitleEn)</strong>

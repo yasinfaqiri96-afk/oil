@@ -275,6 +275,7 @@ public class ShellViewStructureTests
     public void Dashboard_Uses_A_Scoped_Responsive_Erp_Composition()
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Home/Index.cshtml");
+        var insights = ReadRepoFile("src/PTGOilSystem.Web/Views/Home/_DashboardInsights.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/12-dashboard.css");
         var script = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/dashboard.js");
 
@@ -300,6 +301,22 @@ public class ShellViewStructureTests
         Assert.Contains("asp-controller=\"Sales\" asp-action=\"Create\"", view);
         Assert.Contains("asp-controller=\"Loading\" asp-action=\"Index\"", view);
         Assert.Contains("asp-controller=\"Payments\" asp-action=\"Index\"", view);
+        Assert.Contains("dash-quick-rail", view);
+        Assert.Contains("دسترسی سریع", view);
+
+        // The lower dashboard is a scoped 4/5/3 bento: activity, in-progress flow,
+        // and the tank/review stack. It reuses the shared status and empty state.
+        Assert.Contains("dash-activity-card", insights);
+        Assert.Contains("dash-flow-card", insights);
+        Assert.Contains("dash-capacity-card", insights);
+        Assert.Contains("dash-review-card", insights);
+        Assert.Contains("Model.RecentActivities.Take(4)", insights);
+        Assert.Contains("Model.ActiveContractProgress.Take(3)", insights);
+        Assert.Contains("class=\"ak-status @item.StatusClass\"", insights);
+        Assert.Contains("<partial name=\"_EmptyState\"", insights);
+        Assert.Contains("<progress", insights);
+        Assert.DoesNotContain("style=", insights);
+        Assert.DoesNotContain("<script", insights);
 
         // Exactly one trend chart, fed entirely from data-* attributes.
         Assert.Equal(1, view.Split("data-dashboard-chart", StringSplitOptions.None).Length - 1);
@@ -313,6 +330,10 @@ public class ShellViewStructureTests
 
         Assert.Contains(".dashboard-page", css);
         Assert.Contains(".dash-quick-item", css);
+        Assert.Contains("grid-template-columns: minmax(0, 4fr) minmax(0, 5fr) minmax(230px, 3fr)", css);
+        Assert.Contains(".dash-review-card", css);
+        Assert.Contains(".dash-activity-row", css);
+        Assert.Contains(".dash-segmented-progress", css);
         Assert.Contains(".dash-trend", css);
         Assert.Contains(".dash-total", css);
         Assert.DoesNotContain(".dashboard-hero", css);

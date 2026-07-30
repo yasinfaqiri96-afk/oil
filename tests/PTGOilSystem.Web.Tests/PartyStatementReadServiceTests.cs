@@ -7,6 +7,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
@@ -82,6 +83,48 @@ public sealed class PartyStatementReadServiceTests
         Assert.Equal(statement.Summary.ClosingBalance, statement.Rows[^1].RunningBalance);
         Assert.True(statement.Rows[0].IsOpeningBalance);
         Assert.Equal("OB", statement.Rows[0].Reference);
+    }
+
+    [Fact]
+    public async Task BulkBalanceReport_EqualsOfficialPartyStatement_ForOpeningMovementAndClosing()
+    {
+        await using var db = CreateDb();
+        var customer = new Customer { Name = "Shared engine customer", Code = "CUST-SHARED" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.AddRange(
+            Entry(new DateTime(2025, 12, 31), LedgerSide.Debit, 10m, customer.Id, "CustomerReceipt", 1),
+            Entry(new DateTime(2026, 1, 2), LedgerSide.Credit, 100m, customer.Id, "Sale", 2),
+            Entry(new DateTime(2026, 1, 3), LedgerSide.Debit, 40m, customer.Id, "CustomerReceipt", 3));
+        await db.SaveChangesAsync();
+
+        var filter = new ManagementReportFilterViewModel
+        {
+            FromDate = new DateTime(2026, 1, 1),
+            ToDate = new DateTime(2026, 1, 31),
+            CustomerId = customer.Id
+        };
+        var direction = new CompanyFlowDirectionResolver();
+        var balance = new CompanyFlowBalanceService();
+        var policies = new PartyStatementPolicyResolver();
+        var bulk = new PartyBalanceReadService(db, policies, direction, balance);
+        var reportRow = Assert.Single(await bulk.GetBalancesAsync(filter));
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Customer, customer.Id),
+            new PartyStatementFilter
+            {
+                FromDate = filter.FromDate,
+                ToDate = filter.ToDate,
+                IncludeOperationalColumns = false
+            });
+
+        Assert.Equal(statement.Summary.OpeningBalance, reportRow.OpeningBalanceUsd);
+        Assert.Equal(statement.Summary.TotalReceipt, reportRow.TotalReceiptUsd);
+        Assert.Equal(statement.Summary.TotalOutflow, reportRow.TotalOutflowUsd);
+        Assert.Equal(
+            statement.Summary.TotalOutflow - statement.Summary.TotalReceipt,
+            reportRow.PeriodMovementUsd);
+        Assert.Equal(statement.Summary.ClosingBalance, reportRow.ClosingBalanceUsd);
     }
 
     [Fact]
@@ -232,6 +275,98 @@ public sealed class PartyStatementReadServiceTests
         Assert.True(statement.ColumnOptions.ShowFxRate);
         Assert.Null(statement.Rows[0].FxRate);
         Assert.Null(statement.Rows[0].FxRateDisplay);
+    }
+
+    [Fact]
+    public async Task RubPresentation_UsesHistoricalRubOpeningAndPeriodMovement()
+    {
+        await using var db = CreateDb();
+        var supplier = new Supplier { Name = "Historical RUB supplier" };
+        db.Suppliers.Add(supplier);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.AddRange(
+            new LedgerEntry
+            {
+                EntryDate = new DateTime(2025, 12, 31),
+                Side = LedgerSide.Credit,
+                AmountUsd = 100m,
+                Currency = "RUB",
+                SourceAmount = 8_000m,
+                SourceCurrencyCode = "RUB",
+                AppliedFxRateToUsd = 0.0125m,
+                SupplierId = supplier.Id,
+                SourceType = "Loading",
+                SourceId = 1,
+                Description = "Opening loading"
+            },
+            new LedgerEntry
+            {
+                EntryDate = new DateTime(2026, 1, 2),
+                Side = LedgerSide.Debit,
+                AmountUsd = 25m,
+                Currency = "RUB",
+                SourceAmount = 2_000m,
+                SourceCurrencyCode = "RUB",
+                AppliedFxRateToUsd = 0.0125m,
+                SupplierId = supplier.Id,
+                SourceType = nameof(PaymentKind.SupplierPayment),
+                SourceId = 2,
+                Description = "Period payment"
+            });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, supplier.Id),
+            new PartyStatementFilter
+            {
+                FromDate = new DateTime(2026, 1, 1),
+                ToDate = new DateTime(2026, 1, 31),
+                CurrencyCode = "RUB",
+                IncludeOperationalColumns = false
+            });
+
+        Assert.Equal(-8_000m, statement.Summary.OpeningBalanceRub);
+        Assert.Equal(0m, statement.Summary.TotalReceiptRub);
+        Assert.Equal(2_000m, statement.Summary.TotalOutflowRub);
+        Assert.Equal(-6_000m, statement.Summary.ClosingBalanceRub);
+        Assert.Equal(-8_000m, statement.Rows[0].RunningBalanceRub);
+        Assert.Equal(-6_000m, statement.Rows[^1].RunningBalanceRub);
+    }
+
+    [Fact]
+    public async Task RubPresentation_MissingHistoricalOriginalAmount_RemainsUnknown()
+    {
+        await using var db = CreateDb();
+        var supplier = new Supplier { Name = "Unknown RUB supplier" };
+        db.Suppliers.Add(supplier);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.Add(new LedgerEntry
+        {
+            EntryDate = new DateTime(2025, 12, 31),
+            Side = LedgerSide.Credit,
+            AmountUsd = 100m,
+            Currency = "RUB",
+            SourceAmount = null,
+            SourceCurrencyCode = "RUB",
+            SupplierId = supplier.Id,
+            SourceType = "Loading",
+            SourceId = 1,
+            Description = "Legacy RUB without original amount"
+        });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, supplier.Id),
+            new PartyStatementFilter
+            {
+                FromDate = new DateTime(2026, 1, 1),
+                CurrencyCode = "RUB",
+                IncludeOperationalColumns = false
+            });
+
+        Assert.Null(statement.Summary.OpeningBalanceRub);
+        Assert.Null(statement.Summary.ClosingBalanceRub);
+        Assert.Null(statement.Rows[0].RunningBalanceRub);
     }
 
     [Fact]

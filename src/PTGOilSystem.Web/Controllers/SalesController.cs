@@ -1724,10 +1724,14 @@ public partial class SalesController : Controller
                         });
                     }
 
-                    // Forward-pass: a backdated SaleDate must not leave any later
-                    // running balance negative.
+                    // چک موجودی پیش از تراکنش انجام شده، اما بدون قفل. اینجا داخل همان
+                    // تراکنش قفل هم‌زمانی گرفته و چک نقطه‌ای (در تاریخ خودِ فروش) تکرار
+                    // می‌شود تا دو فروش هم‌زمان از یک مخزن نتوانند هر دو عبور کنند و
+                    // موجودی معتبر را منفی کنند.
                     foreach (var stockOutMovement in stockOutMovements)
                     {
+                        await _stock.AcquireStockMutationLockAsync(stockOutMovement);
+                        await _stock.EnsureSufficientStockForMovementAsync(stockOutMovement);
                         await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(stockOutMovement);
                     }
 

@@ -35,7 +35,7 @@
     var sourceLabel = $"{sourceLabelParts[0]}{(sourceLabelParts.Count > 1 ? $" ({sourceLabelParts[1]})" : "")}";
     var sourceReferenceValue = string.IsNullOrWhiteSpace(referenceText) ? sourceLabelParts[0] : referenceText;
     var referenceDocumentValue = string.IsNullOrWhiteSpace(Model.ReferenceDocument) ? sourceReferenceValue : Model.ReferenceDocument;
-    var receiptDateValue = Model.ReceiptDate == default ? DateTime.UtcNow.Date : Model.ReceiptDate;
+    var receiptDateValue = Model.ReceiptDate == default ? BusinessClock.Today : Model.ReceiptDate;
     var displayedReceivedQuantity = Model.ReceivedQuantityMt > 0m ? Model.ReceivedQuantityMt : Math.Max(Model.RemainingToReceiveMt, 0m);
     var displayedActualQuantity = Model.ActualArrivedQuantityMt ?? displayedReceivedQuantity;
 

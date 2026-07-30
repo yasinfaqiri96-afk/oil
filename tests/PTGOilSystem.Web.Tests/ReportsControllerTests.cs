@@ -622,7 +622,8 @@ public class ReportsControllerTests
         Assert.Equal(7500m, row.PurchaseValueUsd);
         Assert.Equal(5000m, row.GrossMarginUsd);
         Assert.Equal(12500m, model.TotalDirectSaleRevenueUsd);
-        Assert.Equal(12500m, model.TotalSalesRevenueUsd);
+        Assert.Equal(0m, model.TotalSalesRevenueUsd);
+        Assert.Equal(0m, model.TotalGrossMarginUsd);
         Assert.Empty(model.SaleRows);
     }
 
@@ -1512,7 +1513,7 @@ public class ReportsControllerTests
         Assert.Equal(800m, balances.CustomerReceivableUsd);
         Assert.Equal(600m, balances.SupplierPayableUsd);
         Assert.Equal(250m, balances.ServiceProviderPayableUsd);
-        Assert.Equal(-300m, balances.SarrafBalanceUsd);
+        Assert.Equal(300m, balances.SarrafBalanceUsd);
 
         var inventory = Assert.IsType<InventoryOperationsReportViewModel>(
             Assert.IsType<ViewResult>(await controller.InventoryOperations(filter)).Model);

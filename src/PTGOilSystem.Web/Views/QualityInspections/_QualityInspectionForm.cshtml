@@ -1,0 +1,150 @@
+@model PTGOilSystem.Web.Models.Quality.QualityInspectionFormViewModel
+@{
+    var isEdit = Model.Id > 0;
+    var formAction = isEdit ? "Edit" : "Create";
+    var cancelUrl = string.IsNullOrWhiteSpace(Model.ReturnUrl)
+        ? (isEdit ? Url.Action("Details", new { id = Model.Id }) : Url.Action("Index"))
+        : Model.ReturnUrl;
+}
+
+<form asp-action="@formAction" method="post" class="ak-form">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="ReturnUrl" />
+    <div asp-validation-summary="ModelOnly" class="ak-form-alert"></div>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@(("بار مربوطه", "مشخص کنید این آزمایش روی کدام جنس و کدام بار انجام شده است."))" />
+        <div class="ak-form-grid">
+            <div class="ak-field">
+                <label asp-for="ProductId" class="ak-label"></label>
+                <select asp-for="ProductId" asp-items="ViewBag.Products" class="ak-input">
+                    <option value="">انتخاب کنید</option>
+                </select>
+                <span asp-validation-for="ProductId" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="CompanyId" class="ak-label"></label>
+                <select asp-for="CompanyId" asp-items="ViewBag.Companies" class="ak-input">
+                    <option value="">نامشخص</option>
+                </select>
+                <span asp-validation-for="CompanyId" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="ContractId" class="ak-label"></label>
+                <select asp-for="ContractId" asp-items="ViewBag.Contracts" class="ak-input">
+                    <option value="">نامشخص</option>
+                </select>
+                <span asp-validation-for="ContractId" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="ShipmentId" class="ak-label"></label>
+                <select asp-for="ShipmentId" asp-items="ViewBag.Shipments" class="ak-input">
+                    <option value="">نامشخص</option>
+                </select>
+                <span asp-validation-for="ShipmentId" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="CustomsDeclarationId" class="ak-label"></label>
+                <select asp-for="CustomsDeclarationId" asp-items="ViewBag.CustomsDeclarations" class="ak-input">
+                    <option value="">نامشخص</option>
+                </select>
+                <span asp-validation-for="CustomsDeclarationId" class="ak-field-error"></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@(("آزمایش", "لابراتوار، شماره نتیجه، تاریخ‌ها و وضعیت نهایی."))" />
+        <div class="ak-form-grid">
+            <div class="ak-field">
+                <label asp-for="LaboratoryName" class="ak-label"></label>
+                <input asp-for="LaboratoryName" class="ak-input" maxlength="200" />
+                <span asp-validation-for="LaboratoryName" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="ResultNumber" class="ak-label"></label>
+                <input asp-for="ResultNumber" class="ak-input" maxlength="100" />
+                <span asp-validation-for="ResultNumber" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="SampleDate" class="ak-label"></label>
+                <input asp-for="SampleDate" type="date" class="ak-input" />
+                <span asp-validation-for="SampleDate" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="ResultDate" class="ak-label"></label>
+                <input asp-for="ResultDate" type="date" class="ak-input" />
+                <span asp-validation-for="ResultDate" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="Status" class="ak-label"></label>
+                <select asp-for="Status" class="ak-input">
+                    <option value="Pending">در انتظار نتیجه</option>
+                    <option value="Accepted">قبول</option>
+                    <option value="Rejected">رد</option>
+                </select>
+                <span asp-validation-for="Status" class="ak-field-error"></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@(("مشخصات کیفیت", "هر مقداری که لابراتوار نداده است خالی بماند؛ رقم حدسی وارد نکنید."))" />
+        <div class="ak-form-grid">
+            <div class="ak-field">
+                <label asp-for="DensityKgM3" class="ak-label"></label>
+                <input asp-for="DensityKgM3" class="ak-input" inputmode="decimal" />
+                <span asp-validation-for="DensityKgM3" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="SulphurPercent" class="ak-label"></label>
+                <input asp-for="SulphurPercent" class="ak-input" inputmode="decimal" />
+                <span asp-validation-for="SulphurPercent" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="FlashPointC" class="ak-label"></label>
+                <input asp-for="FlashPointC" class="ak-input" inputmode="decimal" />
+                <span asp-validation-for="FlashPointC" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="WaterContentPercent" class="ak-label"></label>
+                <input asp-for="WaterContentPercent" class="ak-input" inputmode="decimal" />
+                <span asp-validation-for="WaterContentPercent" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="OctaneOrCetaneNumber" class="ak-label"></label>
+                <input asp-for="OctaneOrCetaneNumber" class="ak-input" inputmode="decimal" />
+                <span asp-validation-for="OctaneOrCetaneNumber" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field ak-col-full">
+                <label asp-for="AdditionalSpecifications" class="ak-label"></label>
+                <textarea asp-for="AdditionalSpecifications" rows="2" class="ak-input" maxlength="2000"></textarea>
+                <span asp-validation-for="AdditionalSpecifications" class="ak-field-error"></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@(("توضیح و دلیل رد", "دلیل رد فقط وقتی لازم است که وضعیت «رد» باشد."))" />
+        <div class="ak-form-grid">
+            <div class="ak-field ak-col-full">
+                <label asp-for="Description" class="ak-label"></label>
+                <textarea asp-for="Description" rows="2" class="ak-input" maxlength="2000"></textarea>
+                <span asp-validation-for="Description" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field ak-col-full">
+                <label asp-for="RejectionReason" class="ak-label"></label>
+                <textarea asp-for="RejectionReason" rows="2" class="ak-input" maxlength="2000"></textarea>
+                <span asp-validation-for="RejectionReason" class="ak-field-error"></span>
+            </div>
+        </div>
+    </section>
+
+    <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+             model="@((isEdit ? "ذخیره تغییرات" : "ثبت آزمایش", cancelUrl ?? "/QualityInspections", "انصراف"))" />
+</form>
