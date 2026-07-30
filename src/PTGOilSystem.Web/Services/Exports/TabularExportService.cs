@@ -89,7 +89,11 @@ public sealed class TabularExportService : ITabularExportService
         if (statement.Rows.Count > _options.PdfMaxRows)
             throw new TabularExportLimitException(statement.Rows.Count, _options.PdfMaxRows);
 
-        var document = new PartyStatementPdfDocument(statement, _environment.WebRootPath, isEnglish);
+        var document = new PartyStatementPdfDocument(
+            statement,
+            _environment.WebRootPath,
+            BuildBrandHeader(isEnglish ? _options.CompanyNameEn : _options.CompanyNameFa),
+            isEnglish);
         document.GeneratePdf(destination);
         return Task.CompletedTask;
     }
@@ -109,7 +113,12 @@ public sealed class TabularExportService : ITabularExportService
         if (contractGrouping.Rows.Count > _options.PdfMaxRows)
             throw new TabularExportLimitException(contractGrouping.Rows.Count, _options.PdfMaxRows);
 
-        var document = new PartyStatementPdfDocument(statement, _environment.WebRootPath, isEnglish, contractGrouping);
+        var document = new PartyStatementPdfDocument(
+            statement,
+            _environment.WebRootPath,
+            BuildBrandHeader(isEnglish ? _options.CompanyNameEn : _options.CompanyNameFa),
+            isEnglish,
+            contractGrouping);
         document.GeneratePdf(destination);
         return Task.CompletedTask;
     }
@@ -134,6 +143,7 @@ public sealed class TabularExportService : ITabularExportService
             RegisterFont("vazirmatn-700.ttf");
             RegisterFont("poppins-400.ttf", "poppins");
             RegisterFont("poppins-700.ttf", "poppins");
+            PdfDesignSystem.RegisterReferenceFonts(_environment.WebRootPath);
             _questPdfInitialized = true;
         }
     }
@@ -352,15 +362,27 @@ public sealed class TabularExportService : ITabularExportService
         var title = isEnglish ? document.TitleEn : document.TitleFa;
         var company = isEnglish ? _options.CompanyNameEn : _options.CompanyNameFa;
         var filters = BuildFilterText(document, isEnglish);
-        var generated = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-        var landscape = document.ForceLandscape || document.Columns.Count > 7;
+        var generatedAt = DateTime.Now;
+        var metrics = BuildPdfMetrics(document, isEnglish);
+        var brand = BuildBrandHeader(company);
+        var columnCount = document.Columns.Count;
+        var dense = columnCount > 6;
+        var extraWide = columnCount > 12;
+        var landscape = document.ForceLandscape || dense;
+        var tableFontSize = PdfDesignSystem.TableFontSize(columnCount);
 
         container.Page(page =>
         {
-            page.Size(landscape ? PageSizes.A4.Landscape() : PageSizes.A4.Portrait());
-            page.Margin(24);
+            page.Size(extraWide
+                ? PageSizes.A3.Landscape()
+                : landscape
+                    ? PageSizes.Letter.Landscape()
+                    : PageSizes.Letter.Portrait());
+            page.MarginHorizontal(PdfDesignSystem.HorizontalMargin);
+            page.MarginTop(PdfDesignSystem.TopMargin);
+            page.MarginBottom(PdfDesignSystem.BottomMargin);
             page.PageColor(QColors.White);
-            page.DefaultTextStyle(style => style.FontFamily(isEnglish ? "Poppins" : "Vazirmatn").FontSize(8).FontColor("#263244"));
+            page.DefaultTextStyle(style => PdfDesignSystem.DefaultTextStyle(style, isEnglish));
 
             var headerContainer = page.Header();
             if (!isEnglish)
@@ -369,14 +391,25 @@ public sealed class TabularExportService : ITabularExportService
             }
             headerContainer.Column(column =>
             {
-                column.Item().Text(company).SemiBold().FontSize(9).FontColor("#64748B");
-                column.Item().PaddingTop(2).Text(title).Bold().FontSize(15).FontColor("#172033");
-                column.Item().PaddingTop(4).Text((isEnglish ? "Generated: " : "تاریخ تولید: ") + generated).FontSize(7).FontColor("#64748B");
-                if (!string.IsNullOrWhiteSpace(filters))
-                {
-                    column.Item().PaddingTop(2).Text(filters).FontSize(7).FontColor("#64748B");
-                }
-                column.Item().PaddingTop(8).LineHorizontal(0.6f).LineColor("#D8DEE8");
+                column.Item().ShowOnce().Element(full =>
+                    PdfDesignSystem.ComposeReportHeader(
+                        full,
+                        title,
+                        generatedAt,
+                        filters,
+                        metrics,
+                        isEnglish,
+                        brand));
+                column.Item().SkipOnce().Element(compact =>
+                    PdfDesignSystem.ComposeReportHeader(
+                        compact,
+                        title,
+                        generatedAt,
+                        filters: null,
+                        metrics: [],
+                        isEnglish: isEnglish,
+                        brand: brand,
+                        compact: true));
             });
 
             var contentContainer = page.Content().PaddingTop(8);
@@ -390,7 +423,7 @@ public sealed class TabularExportService : ITabularExportService
                 {
                     foreach (var column in document.Columns)
                     {
-                        columns.RelativeColumn((float)Math.Max(1D, column.Width));
+                        columns.RelativeColumn(PdfDesignSystem.ColumnWeight(column));
                     }
                 });
 
@@ -398,62 +431,139 @@ public sealed class TabularExportService : ITabularExportService
                 {
                     foreach (var column in document.Columns)
                     {
-                        header.Cell().Element(HeaderCellStyle)
-                            .Text(isEnglish ? column.TitleEn : column.TitleFa)
-                            .SemiBold().FontSize(7.5f).FontColor(QColors.White);
+                        var target = header.Cell().Element(cell =>
+                            PdfDesignSystem.HeaderCell(cell, dense));
+                        target = AlignHeaderCell(target, column, isEnglish);
+                        target.Text(isEnglish ? column.TitleEn : column.TitleFa)
+                            .Bold()
+                            .FontSize(tableFontSize)
+                            .FontColor(PdfDesignSystem.Ink);
                     }
                 });
 
-                var alternate = false;
-                foreach (var row in rows)
+                for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
-                    foreach (var cell in row.Cells)
+                    var row = rows[rowIndex];
+                    var background = rowIndex % 2 == 0
+                        ? "#FFFFFF"
+                        : PdfDesignSystem.AlternateRowBackground;
+
+                    for (var columnIndex = 0; columnIndex < row.Cells.Count; columnIndex++)
                     {
-                        var currentAlternate = alternate;
-                        table.Cell().Element(element => BodyCellStyle(element, currentAlternate))
-                            .Text(cell.ToDisplayText(isEnglish));
+                        var cell = row.Cells[columnIndex];
+                        var column = document.Columns[columnIndex];
+                        var target = table.Cell().Element(container =>
+                            PdfDesignSystem.BodyCell(container, background, dense));
+                        target = AlignBodyCell(target, column, cell, isEnglish);
+
+                        target.Text(cell.ToDisplayText(isEnglish))
+                            .FontSize(tableFontSize)
+                            .FontColor(PdfDesignSystem.ValueColor(cell));
                     }
-                    alternate = !alternate;
                 }
 
                 if (document.Totals is not null)
                 {
-                    foreach (var cell in document.Totals.Cells)
+                    for (var columnIndex = 0; columnIndex < document.Totals.Cells.Count; columnIndex++)
                     {
-                        table.Cell().Element(TotalCellStyle)
-                            .Text(cell.ToDisplayText(isEnglish)).SemiBold();
+                        var cell = document.Totals.Cells[columnIndex];
+                        var column = document.Columns[columnIndex];
+                        var target = table.Cell().Element(container =>
+                            PdfDesignSystem.TotalCell(container, dense));
+                        target = AlignBodyCell(target, column, cell, isEnglish);
+
+                        target.Text(cell.ToDisplayText(isEnglish))
+                            .Bold()
+                            .FontSize(tableFontSize)
+                            .FontColor(PdfDesignSystem.ValueColor(cell));
                     }
                 }
             });
 
-            var footerContainer = page.Footer().PaddingTop(8);
-            if (!isEnglish)
-            {
-                footerContainer = footerContainer.ContentFromRightToLeft();
-            }
-            footerContainer.Row(row =>
-            {
-                row.RelativeItem().Text("PTG Oil System").FontSize(6.5f).FontColor("#94A3B8");
-                row.RelativeItem().AlignRight().Text(text =>
-                {
-                    text.DefaultTextStyle(style => style.FontSize(6.5f).FontColor("#94A3B8"));
-                    text.Span(isEnglish ? "Page " : "صفحه ");
-                    text.CurrentPageNumber();
-                    text.Span(" / ");
-                    text.TotalPages();
-                });
-            });
+            page.Footer().PaddingTop(8).Element(footer =>
+                PdfDesignSystem.ComposeFooter(footer, company, isEnglish));
         });
     }
 
-    private static IContainer HeaderCellStyle(IContainer container)
-        => container.Background("#334155").BorderBottom(0.5f).BorderColor("#CBD5E1").PaddingVertical(5).PaddingHorizontal(4);
+    private PdfBrandHeader BuildBrandHeader(string companyName)
+        => new(
+            companyName,
+            PdfDesignSystem.ResolveWebAsset(_environment.WebRootPath, _options.CompanyLogoPath),
+            _options.CompanyPhone,
+            _options.CompanyEmail,
+            _options.CompanyWebsite);
 
-    private static IContainer BodyCellStyle(IContainer container, bool alternate)
-        => container.Background(alternate ? "#F8FAFC" : "#FFFFFF").BorderBottom(0.35f).BorderColor("#E2E8F0").PaddingVertical(4).PaddingHorizontal(4);
+    private static IContainer AlignHeaderCell(
+        IContainer target,
+        TabularExportColumn column,
+        bool isEnglish)
+        => column.ValueType switch
+        {
+            TabularExportValueType.Integer
+                or TabularExportValueType.Number
+                or TabularExportValueType.Percentage
+                => target.ContentFromLeftToRight().AlignRight(),
+            TabularExportValueType.Date
+                or TabularExportValueType.DateTime
+                or TabularExportValueType.Boolean
+                => target.ContentFromLeftToRight().AlignCenter(),
+            _ when isEnglish => target.ContentFromLeftToRight().AlignLeft(),
+            _ => target.ContentFromRightToLeft().AlignRight()
+        };
 
-    private static IContainer TotalCellStyle(IContainer container)
-        => container.Background("#EEF2F7").BorderTop(0.8f).BorderColor("#94A3B8").PaddingVertical(5).PaddingHorizontal(4);
+    private static IContainer AlignBodyCell(
+        IContainer target,
+        TabularExportColumn column,
+        TabularExportCell cell,
+        bool isEnglish)
+        => column.ValueType switch
+        {
+            TabularExportValueType.Integer
+                or TabularExportValueType.Number
+                or TabularExportValueType.Percentage
+                => target.ContentFromLeftToRight().AlignRight(),
+            TabularExportValueType.Date
+                or TabularExportValueType.DateTime
+                or TabularExportValueType.Boolean
+                => target.ContentFromLeftToRight().AlignCenter(),
+            _ when PdfDesignSystem.IsLeftToRight(cell) || isEnglish
+                => target.ContentFromLeftToRight().AlignLeft(),
+            _ => target.ContentFromRightToLeft().AlignRight()
+        };
+
+    private static IReadOnlyList<PdfSummaryMetric> BuildPdfMetrics(
+        TabularExportDocument document,
+        bool isEnglish)
+    {
+        var metrics = new List<PdfSummaryMetric>(4);
+        if (document.Totals is not null)
+        {
+            for (var index = 0; index < document.Totals.Cells.Count && metrics.Count < 3; index++)
+            {
+                var cell = document.Totals.Cells[index];
+                if (cell.Value is null || cell.ValueType is TabularExportValueType.Text
+                    or TabularExportValueType.Date
+                    or TabularExportValueType.DateTime
+                    or TabularExportValueType.Boolean)
+                {
+                    continue;
+                }
+
+                var label = isEnglish
+                    ? document.Columns[index].TitleEn
+                    : document.Columns[index].TitleFa;
+                var color = PdfDesignSystem.ValueColor(cell) == PdfDesignSystem.Negative
+                    ? PdfDesignSystem.Negative
+                    : PdfDesignSystem.Positive;
+                metrics.Add(new PdfSummaryMetric(
+                    label,
+                    cell.ToDisplayText(isEnglish),
+                    color));
+            }
+        }
+
+        return metrics;
+    }
 
     private static Stylesheet BuildStylesheet(bool isEnglish)
     {

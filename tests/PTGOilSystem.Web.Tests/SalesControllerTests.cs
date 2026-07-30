@@ -414,6 +414,163 @@ public class SalesControllerTests
     }
 
     [Fact]
+    public async Task Create_Post_TerminalStock_Resolves_Shipment_And_SourceContract_From_Tank_Provenance()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+
+        // دو محموله که هر دو به همان قرارداد خرید وصل‌اند: نقشهٔ قرارداد→محموله مبهم است،
+        // پس ResolveShipmentIdForContractAsync به‌درستی جواب نمی‌دهد. تنها منشأ فیزیکیِ مخزن
+        // می‌تواند محموله را تعیین کند.
+        db.Shipments.Add(new Shipment { Id = 1, ShipmentCode = "SHIP-TANK-1", ContractId = 2, QuantityMt = 500m });
+        db.Shipments.Add(new Shipment { Id = 2, ShipmentCode = "SHIP-TANK-2", ContractId = 2, QuantityMt = 500m });
+        db.ShipmentContracts.Add(new ShipmentContract { Id = 1, ShipmentId = 1, ContractId = 2, QuantityMt = 500m });
+        db.ShipmentContracts.Add(new ShipmentContract { Id = 2, ShipmentId = 2, ContractId = 2, QuantityMt = 500m });
+
+        // مخزن ۱ فقط از محمولهٔ ۱ پر شده است.
+        db.InventoryTransportLegs.Add(new InventoryTransportLeg
+        {
+            Id = 1,
+            ShipmentId = 1,
+            SourcePurchaseContractId = 2,
+            ProductId = 1,
+            DestinationTerminalId = 1,
+            DestinationStorageTankId = 1,
+            QuantityMt = 100m
+        });
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            Id = 1,
+            ProductId = 1,
+            ContractId = 2,
+            TerminalId = 1,
+            StorageTankId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 4, 20),
+            QuantityMt = 100m,
+            ReferenceDocument = "TRANSPORT-RECEIPT:1"
+        });
+        db.InventoryTransportReceipts.Add(new InventoryTransportReceipt
+        {
+            Id = 1,
+            InventoryTransportLegId = 1,
+            ReceiptDate = new DateTime(2026, 4, 20),
+            ReceivedQuantityMt = 100m,
+            DestinationTerminalId = 1,
+            DestinationStorageTankId = 1,
+            InventoryMovementId = 1
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        // فرم نه قرارداد خرید می‌دهد و نه محموله — همان‌طور که کاربرِ صفحهٔ فروش وارد می‌کند.
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.TerminalStock,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SourceTerminalId = 1,
+            SourceStorageTankId = 1,
+            SourcePurchaseContractId = null,
+            ShipmentId = null,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 30m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-TANK-1"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        Assert.Equal(1, sale.ShipmentId);                  // از منشأ مخزن استنباط شد
+        Assert.Equal(2, sale.SourcePurchaseContractId);    // از تخصیص موجودی استنباط شد
+
+        // پروندهٔ محموله فروش‌ها را با ShipmentId می‌شمارد؛ باید این فروش را ببیند.
+        var countedByShipment = await db.SalesTransactions
+            .CountAsync(s => s.ShipmentId == 1 && !s.IsCancelled && s.SaleStage != SaleStage.PreSale);
+        Assert.Equal(1, countedByShipment);
+    }
+
+    [Fact]
+    public async Task Create_Post_TerminalStock_Leaves_Shipment_Null_When_Tank_Holds_Mixed_Shipments()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+
+        db.Shipments.Add(new Shipment { Id = 1, ShipmentCode = "SHIP-MIX-1", ContractId = 2, QuantityMt = 500m });
+        db.Shipments.Add(new Shipment { Id = 2, ShipmentCode = "SHIP-MIX-2", ContractId = 2, QuantityMt = 500m });
+
+        // همان مخزن از دو محمولهٔ مختلف پر شده: انتساب مبهم است و نباید حدس زده شود.
+        foreach (var (legId, shipmentId) in new[] { (1, 1), (2, 2) })
+        {
+            db.InventoryTransportLegs.Add(new InventoryTransportLeg
+            {
+                Id = legId,
+                ShipmentId = shipmentId,
+                SourcePurchaseContractId = 2,
+                ProductId = 1,
+                DestinationTerminalId = 1,
+                DestinationStorageTankId = 1,
+                QuantityMt = 50m
+            });
+            db.InventoryTransportReceipts.Add(new InventoryTransportReceipt
+            {
+                Id = legId,
+                InventoryTransportLegId = legId,
+                ReceiptDate = new DateTime(2026, 4, 20),
+                ReceivedQuantityMt = 50m,
+                DestinationTerminalId = 1,
+                DestinationStorageTankId = 1
+            });
+        }
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            Id = 1,
+            ProductId = 1,
+            ContractId = 2,
+            TerminalId = 1,
+            StorageTankId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 4, 20),
+            QuantityMt = 100m,
+            ReferenceDocument = "GRN-MIX"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.TerminalStock,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SourceTerminalId = 1,
+            SourceStorageTankId = 1,
+            SourcePurchaseContractId = null,
+            ShipmentId = null,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 30m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-MIX-1"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        Assert.Null(sale.ShipmentId);                      // مبهم — حدس زده نشد
+        Assert.Equal(2, sale.SourcePurchaseContractId);    // قرارداد یکتاست، پس پر شد
+    }
+
+    [Fact]
     public async Task Create_Post_Allows_TerminalStock_Sale_Without_Sales_Contract_And_Traces_Ledger_To_SourcePurchaseContract()
     {
         var options = NewDbOptions();
@@ -1087,13 +1244,37 @@ public class SalesControllerTests
     }
 
     [Fact]
-    public async Task Create_Post_Blocks_TerminalStock_When_SourcePurchaseContract_Is_Missing()
+    public async Task Create_Post_AutoAllocates_TerminalStock_When_SourcePurchaseContract_Is_Unknown()
     {
         var options = NewDbOptions();
 
         await using var db = new ApplicationDbContext(options);
         SeedReferenceData(db);
-        SeedSaleContract(db, 1);
+        SeedPurchaseContract(db, 2);
+        SeedPurchaseContract(db, 3);
+        db.InventoryMovements.AddRange(
+            new InventoryMovement
+            {
+                ProductId = 1,
+                ContractId = 2,
+                TerminalId = 1,
+                StorageTankId = 1,
+                Direction = MovementDirection.In,
+                MovementDate = new DateTime(2026, 4, 20),
+                QuantityMt = 3m,
+                ReferenceDocument = "GRN-AUTO-1"
+            },
+            new InventoryMovement
+            {
+                ProductId = 1,
+                ContractId = 3,
+                TerminalId = 1,
+                StorageTankId = 1,
+                Direction = MovementDirection.In,
+                MovementDate = new DateTime(2026, 4, 21),
+                QuantityMt = 10m,
+                ReferenceDocument = "GRN-AUTO-2"
+            });
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -1101,23 +1282,37 @@ public class SalesControllerTests
         var result = await controller.Create(new SalesCreateViewModel
         {
             SaleStage = SaleStage.TerminalStock,
-            ContractId = 1,
             CompanyId = 1,
             CustomerId = 1,
             ProductId = 1,
-            DestinationLocationId = 1,
             SourceTerminalId = 1,
             SourceStorageTankId = 1,
             SaleDate = new DateTime(2026, 4, 23),
             QuantityMt = 5m,
             UnitPriceUsd = 450m,
-            InvoiceNumber = "INV-NO-SOURCE-CONTRACT"
+            InvoiceNumber = "INV-AUTO-SOURCE-CONTRACT"
         });
 
-        var view = Assert.IsType<ViewResult>(result);
-        Assert.IsType<SalesCreateViewModel>(view.Model);
-        Assert.False(controller.ModelState.IsValid);
-        Assert.Single(controller.ModelState[nameof(SalesCreateViewModel.SourcePurchaseContractId)]!.Errors);
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(SalesController.Details), redirect.ActionName);
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        Assert.Null(sale.ContractId);
+        Assert.Null(sale.SourcePurchaseContractId);
+
+        var stockOuts = await db.InventoryMovements
+            .Where(m => m.Direction == MovementDirection.Out)
+            .OrderBy(m => m.ContractId)
+            .ToListAsync();
+        Assert.Equal(2, stockOuts.Count);
+        Assert.Equal(3m, stockOuts[0].QuantityMt);
+        Assert.Equal(2, stockOuts[0].ContractId);
+        Assert.Equal(2m, stockOuts[1].QuantityMt);
+        Assert.Equal(3, stockOuts[1].ContractId);
+        Assert.All(stockOuts, movement => Assert.Equal(sale.Id, movement.SalesTransactionId));
+
+        var ledger = await db.LedgerEntries.SingleAsync();
+        Assert.Null(ledger.ContractId);
     }
 
     [Fact]

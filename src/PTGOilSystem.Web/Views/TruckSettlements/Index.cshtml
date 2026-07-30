@@ -33,6 +33,12 @@
         </div>
         <div class="ak-page-actions">
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+            <a asp-action="GroupUnload"
+               asp-route-returnUrl="@Url.Action("Index")"
+               class="btn btn-light ak-secondary-action">
+                <i class="bi bi-box-arrow-in-down" aria-hidden="true"></i>
+                <span>@UiText.T(Context, "تخلیه گروهی", "Group unload")</span>
+            </a>
             <button type="button" class="btn btn-light ak-secondary-action" id="tsToolsToggle" aria-expanded="false" aria-controls="tsToolsPanel">
                 <i class="bi bi-sliders" aria-hidden="true"></i>
                 <span>@UiText.T(Context, "ابزارها", "Tools")</span>

@@ -118,6 +118,100 @@ public class TruckSettlementsControllerTests
         Assert.Equal(130m, expense.AmountUsd);
     }
 
+    // اضافه‌وزن ترازوی مقصد: 10 تن بارگیری، 10.1 تن تخلیه. تسویه باید بپذیرد،
+    // کسری صفر شود، وزن مؤثر (مبنای تخلیه/فروش) 10.1 و کرایه روی وزن بارگیری (10 تن) بماند.
+    [Fact]
+    public async Task Settle_Dispatch_Accepts_Discharge_Above_Loaded_And_Keeps_Freight_On_Loaded_Weight()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var dispatch = await SeedLoadedDispatchAsync(db, loadedMt: 10m);
+        var controller = BuildController(db);
+
+        var result = await controller.Settle(new TruckSettlementIndexViewModel
+        {
+            Inputs =
+            [
+                new TruckSettlementRowInputViewModel
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Dispatch,
+                    SourceId = dispatch.Id,
+                    OperationDate = new DateTime(2026, 5, 8),
+                    QuantityMt = 10.1m,
+                    FreightRateUsdPerMt = 5m,       // کرایه = 5 × 10 = 50 (وزن بارگیری، نه 10.1)
+                    ShortageRateUsd = 10m,
+                    FreightParty = "driver:1"
+                }
+            ]
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+
+        var reloaded = await db.TruckDispatches.SingleAsync(d => d.Id == dispatch.Id);
+        Assert.True(reloaded.IsFreightSettled);
+        Assert.Equal(10.1m, reloaded.DischargedQuantityMt);
+        Assert.Equal(0m, reloaded.ShortageMt);
+        Assert.Equal(0m, reloaded.ChargeableShortageMt);
+        Assert.Null(reloaded.PayableUsd);                // اضافه‌وزن جریمهٔ کسری نمی‌سازد
+        Assert.Equal(50m, reloaded.FreightCostUsd);
+        Assert.Equal(50m, reloaded.FreightPayableUsd);
+        Assert.Empty(await db.LossEvents.ToListAsync());
+
+        var expense = await db.ExpenseTransactions.SingleAsync();
+        Assert.Equal(50m, expense.AmountUsd);
+    }
+
+    // همان اضافه‌وزن برای «حمل از موجودی»: کسری منفی ثبت می‌شود تا باقیماندهٔ قابل
+    // تخلیه/فروش حمل 10.1 شود، و کرایه روی 10 تن بارگیری بماند.
+    [Fact]
+    public async Task Settle_Leg_Accepts_Discharge_Above_Loaded_And_Raises_Remaining_Quantity()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedTruckLegAsync(db, quantityMt: 10m);
+        var controller = BuildController(db);
+
+        var result = await controller.Settle(new TruckSettlementIndexViewModel
+        {
+            Inputs =
+            [
+                new TruckSettlementRowInputViewModel
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Leg,
+                    SourceId = leg.Id,
+                    OperationDate = new DateTime(2026, 5, 8),
+                    QuantityMt = 10.1m,
+                    FreightRateUsdPerMt = 5m,       // کرایه = 5 × 10 = 50
+                    ShortageRateUsd = 10m,
+                    FreightParty = "driver:1"
+                }
+            ]
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+
+        var receipt = await db.InventoryTransportReceipts.SingleAsync();
+        Assert.Equal(0m, receipt.ReceivedQuantityMt);
+        Assert.Equal(-0.1m, receipt.ShortageQuantityMt);     // اضافه‌وزن = کسری منفی
+        Assert.Equal(0m, receipt.ChargeableShortageMt);
+        Assert.Equal(50m, receipt.FreightCostUsd);
+        Assert.Equal(50m, receipt.FreightPayableUsd);
+        Assert.Empty(await db.LossEvents.ToListAsync());
+
+        var reloaded = await db.InventoryTransportLegs.SingleAsync(l => l.Id == leg.Id);
+        Assert.True(reloaded.IsFreightSettled);
+        Assert.Equal(InventoryTransportLegStatus.Loaded, reloaded.Status);
+        // باقیمانده = مقدار حمل − (دریافت + کسری) = 10 − (0 + (−0.1)) = 10.1
+        var consumedMt = await db.InventoryTransportReceipts
+            .Where(r => r.InventoryTransportLegId == leg.Id && !r.IsCancelled)
+            .SumAsync(r => r.ReceivedQuantityMt + r.ShortageQuantityMt);
+        Assert.Equal(10.1m, reloaded.QuantityMt - consumedMt);
+    }
+
     [Fact]
     public async Task Index_Excludes_FreightSettled_Rows()
     {
@@ -136,6 +230,172 @@ public class TruckSettlementsControllerTests
         var after = Assert.IsType<TruckSettlementIndexViewModel>(
             Assert.IsType<ViewResult>(await BuildController(db).Index(null, null)).Model);
         Assert.DoesNotContain(after.Rows, r => r.Kind == TruckSettlementSourceKind.Leg && r.SourceId == leg.Id);
+    }
+
+    [Fact]
+    public async Task GroupUnload_Leg_Uses_Settled_Weight_And_Does_Not_Rebook_Freight()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedTruckLegAsync(db, quantityMt: 30m);
+        var controller = BuildController(db);
+        await controller.Settle(new TruckSettlementIndexViewModel
+        {
+            Inputs =
+            [
+                new TruckSettlementRowInputViewModel
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Leg,
+                    SourceId = leg.Id,
+                    OperationDate = new DateTime(2026, 5, 5),
+                    QuantityMt = 28m,
+                    FreightRateUsdPerMt = 5m,
+                    ShortageRateUsd = 10m,
+                    FreightParty = "driver:1"
+                }
+            ]
+        });
+        var expenseCount = await db.ExpenseTransactions.CountAsync();
+        var ledgerCount = await db.LedgerEntries.CountAsync();
+        controller = BuildController(db);
+
+        var result = await controller.GroupUnload(new GroupUnloadCreateViewModel
+        {
+            SourceKind = TruckSettlementSourceKind.Leg,
+            ReceiptDate = new DateTime(2026, 5, 7),
+            DestinationStorageTankId = 2,
+            DocumentReference = "GR-001",
+            Items =
+            [
+                new GroupUnloadSelectedInput
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Leg,
+                    SourceId = leg.Id
+                }
+            ]
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+        Assert.Equal(InventoryTransportLegStatus.Received, (await db.InventoryTransportLegs.FindAsync(leg.Id))!.Status);
+        var receipt = Assert.Single(
+            await db.InventoryTransportReceipts.Where(item => item.ReceivedQuantityMt > 0m).ToListAsync());
+        Assert.Equal(28m, receipt.ReceivedQuantityMt);
+        Assert.Equal(2, receipt.DestinationStorageTankId);
+        var movement = Assert.Single(
+            await db.InventoryMovements.Where(item => item.ReferenceDocument == $"TRANSPORT-RECEIPT:{receipt.Id}").ToListAsync());
+        Assert.Equal(28m, movement.QuantityMt);
+        Assert.Equal(2, movement.StorageTankId);
+        Assert.Equal(expenseCount, await db.ExpenseTransactions.CountAsync());
+        Assert.Equal(ledgerCount, await db.LedgerEntries.CountAsync());
+    }
+
+    [Fact]
+    public async Task GroupUnload_Dispatch_Creates_Delivery_And_Inbound_Movement_Without_Changing_Settlement()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var dispatch = await SeedLoadedDispatchAsync(db, loadedMt: 30m);
+        var controller = BuildController(db);
+        await controller.Settle(new TruckSettlementIndexViewModel
+        {
+            Inputs =
+            [
+                new TruckSettlementRowInputViewModel
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Dispatch,
+                    SourceId = dispatch.Id,
+                    OperationDate = new DateTime(2026, 5, 6),
+                    QuantityMt = 28m,
+                    FreightRateUsdPerMt = 5m,
+                    ShortageRateUsd = 10m,
+                    FreightParty = "driver:1"
+                }
+            ]
+        });
+        var expenseCount = await db.ExpenseTransactions.CountAsync();
+        controller = BuildController(db);
+
+        var result = await controller.GroupUnload(new GroupUnloadCreateViewModel
+        {
+            SourceKind = TruckSettlementSourceKind.Dispatch,
+            ReceiptDate = new DateTime(2026, 5, 7),
+            DestinationStorageTankId = 2,
+            DocumentReference = "GR-002",
+            Items =
+            [
+                new GroupUnloadSelectedInput
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Dispatch,
+                    SourceId = dispatch.Id
+                }
+            ]
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+        var reloaded = await db.TruckDispatches.SingleAsync(item => item.Id == dispatch.Id);
+        Assert.Equal(DispatchStatus.Delivered, reloaded.Status);
+        Assert.Equal(28m, reloaded.DischargedQuantityMt);
+        Assert.Equal(2m, reloaded.ShortageMt);
+        Assert.Equal(130m, reloaded.FreightPayableUsd);
+        var delivery = Assert.Single(await db.DeliveryReceipts.ToListAsync());
+        Assert.Equal(28m, delivery.ReceivedQuantityMt);
+        Assert.Equal("GR-002", delivery.DocumentReference);
+        var movement = Assert.Single(
+            await db.InventoryMovements.Where(item => item.ReferenceDocument == $"TRUCK-UNLOAD:{dispatch.Id}").ToListAsync());
+        Assert.Equal(28m, movement.QuantityMt);
+        Assert.Equal(2, movement.StorageTankId);
+        Assert.Equal(expenseCount, await db.ExpenseTransactions.CountAsync());
+        var loss = Assert.Single(await db.LossEvents.Where(item => item.TruckDispatchId == dispatch.Id).ToListAsync());
+        Assert.Equal(2, loss.StorageTankId);
+    }
+
+    [Fact]
+    public async Task GroupUnload_Rejects_Mixed_Source_Kinds_Without_Inventory_Effect()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedTruckLegAsync(db, quantityMt: 30m);
+        var dispatch = await SeedLoadedDispatchAsync(db, loadedMt: 30m);
+        leg.IsFreightSettled = true;
+        dispatch.IsFreightSettled = true;
+        dispatch.DischargedQuantityMt = 30m;
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.GroupUnload(new GroupUnloadCreateViewModel
+        {
+            SourceKind = TruckSettlementSourceKind.Leg,
+            ReceiptDate = new DateTime(2026, 5, 7),
+            DestinationStorageTankId = 2,
+            Items =
+            [
+                new GroupUnloadSelectedInput
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Leg,
+                    SourceId = leg.Id
+                },
+                new GroupUnloadSelectedInput
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Dispatch,
+                    SourceId = dispatch.Id
+                }
+            ]
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Empty(await db.DeliveryReceipts.ToListAsync());
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+        Assert.Equal(InventoryTransportLegStatus.Loaded, (await db.InventoryTransportLegs.FindAsync(leg.Id))!.Status);
+        Assert.Equal(DispatchStatus.Loaded, (await db.TruckDispatches.FindAsync(dispatch.Id))!.Status);
     }
 
     private static ApplicationDbContext CreateDb()
@@ -172,6 +432,15 @@ public class TruckSettlementsControllerTests
         db.Terminals.AddRange(
             new Terminal { Id = 1, Code = "SRC", Name = "Source Terminal" },
             new Terminal { Id = 2, Code = "DST", Name = "Destination Terminal" });
+        db.StorageTanks.Add(new StorageTank
+        {
+            Id = 2,
+            TerminalId = 2,
+            TankCode = "DST-01",
+            ProductId = 1,
+            CapacityMt = 1000m,
+            IsActive = true
+        });
         db.Contracts.Add(new Contract
         {
             Id = 1,

@@ -40,16 +40,13 @@
         .OrderByDescending(item => item.LoadedDate)
         .ThenByDescending(item => item.Id)
         .ToList();
-    // تنها عدد رسمی سود/زیان صفحه: RealizedGrossMarginUsd (تحقق‌یافته).
-    // کارت KPI، خلاصهٔ حساب و تب سود و زیان همگی همین را با همین عنوان نشان می‌دهند.
-    var realizedResultIsProfit = Model.NetResultIsProfit;
-    var realizedResultClass = realizedResultIsProfit ? "is-profit" : "is-loss";
-    var realizedResultLabel = realizedResultIsProfit ? T("سود تحقق‌یافته", "Realized profit") : T("زیان تحقق‌یافته", "Realized loss");
-    var realizedResultAvatar = realizedResultIsProfit ? "shipment-profit" : "shipment-loss";
-    var soldCoveragePercent = Model.OriginalShipmentQuantityMt > 0m
-        ? decimal.Round(Math.Min(Model.SoldQuantityMt / Model.OriginalShipmentQuantityMt, 1m) * 100m, 1, MidpointRounding.AwayFromZero)
-        : 0m;
-    var pendingOperationalExpensesUsd = Math.Max(Model.TotalOperationalExpensesUsd - Model.RealizedOperationalExpensesUsd, 0m);
+    // تنها عدد رسمی سود/زیان صفحه: نتیجهٔ کل محموله.
+    // = کل فروش − قیمت کامل خرید همهٔ بار − تمام مصارف.
+    // بار فروش‌نشده برای منفی‌شدن نتیجه نیاز به ثبت ضایعات ندارد.
+    var shipmentResultIsProfit = Model.NetResultIsProfit;
+    var shipmentResultClass = shipmentResultIsProfit ? "is-profit" : "is-loss";
+    var shipmentResultLabel = shipmentResultIsProfit ? T("سود کل محموله", "Shipment profit") : T("زیان کل محموله", "Shipment loss");
+    var shipmentResultAvatar = shipmentResultIsProfit ? "shipment-profit" : "shipment-loss";
     // دسته‌بندی مصارف فقط از منبع واحد مدل (ShipmentExpenseCategorizer) خوانده می‌شود؛
     // KPI، گروه‌های تب مصارف و جدول سود و زیان همگی از همین اعداد استفاده می‌کنند.
     var expenseCategoryGroups = Model.ExpenseCategoryGroups;
@@ -124,7 +121,7 @@
             <vc:stat-card title="@T("کل بار", "Total cargo")" value="@NumberDisplay.Quantity(Model.OriginalShipmentQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-loaded"></vc:stat-card>
             <vc:stat-card title="@T("تخلیه‌شده", "Received")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-discharged"></vc:stat-card>
             <vc:stat-card title="@T("کسری کل", "Total shortage")" value="@NumberDisplay.Quantity(Model.TotalTransportShortageMt)" unit="@T("تن", "MT")" avatar="shipment-losses"></vc:stat-card>
-            <vc:stat-card title="@realizedResultLabel" value="@MoneyCard(Model.RealizedGrossMarginUsd)" unit="@T("دالر", "USD")" avatar="@realizedResultAvatar"></vc:stat-card>
+            <vc:stat-card title="@shipmentResultLabel" value="@MoneyCard(Model.ShipmentNetResultUsd)" unit="@T("دالر", "USD")" avatar="@shipmentResultAvatar"></vc:stat-card>
         </div>
 
         <div class="ak-stat-grid mb-3" data-ak-tab="shipment-flow"
@@ -167,9 +164,9 @@
              hidden="@(activeShipmentTab == "finance" ? null : "hidden")"
              aria-label="@T("خلاصه سود و زیان", "Profit and loss summary")">
             <vc:stat-card title="@T("درآمد فروش", "Sales revenue")" value="@MoneyCard(Model.TotalSalesUsd)" unit="USD" avatar="shipment-sales"></vc:stat-card>
-            <vc:stat-card title="@T("بهای خرید فروش‌شده", "Realized purchase cost")" value="@MoneyCard(Model.RealizedPurchaseCostUsd)" unit="USD" avatar="purchase-value"></vc:stat-card>
-            <vc:stat-card title="@T("مصارف تحقق‌یافته", "Realized expenses")" value="@MoneyCard(Model.RealizedOperationalExpensesUsd)" unit="USD" avatar="shipment-expenses"></vc:stat-card>
-            <vc:stat-card title="@realizedResultLabel" value="@MoneyCard(Model.NetResultAbsUsd)" unit="USD" avatar="@realizedResultAvatar"></vc:stat-card>
+            <vc:stat-card title="@T("قیمت کل خرید بار", "Total cargo purchase")" value="@MoneyCard(Model.TotalPurchaseCostUsd)" unit="USD" avatar="purchase-value"></vc:stat-card>
+            <vc:stat-card title="@T("کل مصارف", "Total expenses")" value="@MoneyCard(Model.TotalOperationalExpensesUsd)" unit="USD" avatar="shipment-expenses"></vc:stat-card>
+            <vc:stat-card title="@shipmentResultLabel" value="@MoneyCard(Model.ShipmentNetResultUsd)" unit="USD" avatar="@shipmentResultAvatar"></vc:stat-card>
         </div>
 
         <div class="ak-stat-grid mb-3" data-ak-tab="shipment-trips"
@@ -272,8 +269,8 @@
                                 <strong class="sf-amount is-positive">@MoneyCard(Model.TotalSalesUsd)</strong>
                             </div>
                             <div class="ak-list-row is-total">
-                                <span class="ak-label"><span class="sf-row-icon"><i class="bi bi-graph-up-arrow"></i></span>@realizedResultLabel</span>
-                                <strong class="ak-num sf-amount @realizedResultClass">@MoneyCard(Model.RealizedGrossMarginUsd)</strong>
+                                <span class="ak-label"><span class="sf-row-icon"><i class="bi bi-graph-up-arrow"></i></span>@shipmentResultLabel</span>
+                                <strong class="ak-num sf-amount @shipmentResultClass">@MoneyCard(Model.ShipmentNetResultUsd)</strong>
                             </div>
                         </div>
                     </section>
@@ -652,8 +649,8 @@
         @* ============ تب: سود و زیان — یک منبع، یک عدد، ساده ============ *@
         <div class="@PaneClass("finance")" id="shipment-finance" role="tabpanel">
             @{
-                var netResultClass = realizedResultClass;
-                var netResultLabel = realizedResultLabel;
+                var netResultClass = shipmentResultClass;
+                var netResultLabel = shipmentResultLabel;
                 var pnlUnpricedContracts = Model.ContractLines
                     .Where(c => c.AllocatedQuantityMt > 0.0001m && !c.HasFinalPrice)
                     .ToList();
@@ -683,8 +680,8 @@
             <section class="ak-form-section ak-detail-section">
                 <div class="ak-field @netResultClass">
                     <span class="ak-label">@netResultLabel</span>
-                    <strong class="ak-num">@MoneyCard(Model.NetResultAbsUsd) <span class="ak-section-desc">@T("دالر", "USD")</span></strong>
-                    <small class="ak-note">@T("سود/زیان قطعیِ تحقق‌یافته روی مقدار فروخته‌شده", "Definite realized profit/loss on the sold quantity")</small>
+                    <strong class="ak-num">@MoneyCard(Model.ShipmentNetResultUsd) <span class="ak-section-desc">@T("دالر", "USD")</span></strong>
+                    <small class="ak-note">@T("نتیجهٔ کل محموله با کسر کامل قیمت خرید بار و تمام مصارف؛ حتی اگر بخشی هنوز فروخته نشده باشد", "Whole-shipment result after deducting the full cargo purchase and all expenses, even when some cargo remains unsold")</small>
                 </div>
             </section>
 
@@ -693,13 +690,9 @@
                 <h3>@T("محاسبهٔ سود و زیان", "Profit & loss calculation")</h3>
                 <div class="ak-summary ak-detail-summary">
                     <div><span>@T("درآمد کل فروش", "Total sales revenue")</span><strong>@MoneyCard(Model.TotalSalesUsd) @T("دالر", "USD")</strong></div>
-                    <div><span>@T("− بهای خرید مقدار فروخته‌شده", "− Cost of sold quantity")</span><strong>@MoneyCard(Model.RealizedPurchaseCostUsd) @T("دالر", "USD")</strong></div>
-                    <div><span>@T("− مجموع هزینه‌های مسیر و عملیات (سهم فروخته‌شده)", "− Route & operation costs (sold share)")</span><strong>@MoneyCard(Model.RealizedOperationalExpensesUsd) @T("دالر", "USD")</strong></div>
-                    @if (Model.CompanyLossQuantityMt > 0m)
-                    {
-                        <div><span>@T("− زیان قطعی غیرقابل وصول (ضرر شرکت)", "− Definite unrecoverable loss (company loss)")</span><strong>@MoneyCard(Model.CompanyLossDeductionUsd) @T("دالر", "USD")</strong></div>
-                    }
-                    <div class="is-total"><span>= @netResultLabel</span><strong class="@netResultClass">@MoneyCard(Model.RealizedGrossMarginUsd) @T("دالر", "USD")</strong></div>
+                    <div><span>@T("− قیمت کامل خرید تمام بار محموله", "− Full purchase price of all shipment cargo")</span><strong>@MoneyCard(Model.TotalPurchaseCostUsd) @T("دالر", "USD")</strong></div>
+                    <div><span>@T("− تمام هزینه‌های مسیر و عملیات", "− All route and operation expenses")</span><strong>@MoneyCard(Model.TotalOperationalExpensesUsd) @T("دالر", "USD")</strong></div>
+                    <div class="is-total"><span>= @netResultLabel</span><strong class="@netResultClass">@MoneyCard(Model.ShipmentNetResultUsd) @T("دالر", "USD")</strong></div>
                 </div>
             </section>
 
@@ -713,7 +706,7 @@
                 </div>
                 @if (!Model.IsFullySold)
                 {
-                    <p class="small text-muted mb-0 mt-2"><i class="bi bi-info-circle"></i> @T("ارزش موجودی باقی‌مانده جدا از سود است؛ تا فروخته نشود سود محسوب نمی‌شود.", "Remaining inventory value is separate from profit; it is not counted as profit until sold.")</p>
+                    <p class="small text-muted mb-0 mt-2"><i class="bi bi-info-circle"></i> @T("این ارزش فقط برای پیگیری موجودی نمایش داده می‌شود؛ قیمت خرید بار فروش‌نشده در نتیجهٔ کل محموله قبلاً به‌صورت کامل کسر شده است.", "This value is shown only for inventory tracking; the purchase cost of unsold cargo is already fully deducted in the shipment result.")</p>
                 }
             </section>
 
@@ -754,7 +747,7 @@
                     </tfoot>
                 </table>
             </shipment-record-list>
-            <p class="small text-muted mb-0 mt-2"><i class="bi bi-info-circle"></i> @T("این جدول کل مصارف محموله است؛ در محاسبهٔ سود بالا فقط سهم مقدار فروخته‌شده کسر می‌شود.", "This table is the whole-cargo expense; only the sold share is deducted in the profit calculation above.")</p>
+            <p class="small text-muted mb-0 mt-2"><i class="bi bi-info-circle"></i> @T("تمام مصارف این جدول به‌صورت کامل در نتیجهٔ کل محموله کسر می‌شوند.", "All expenses in this table are fully deducted in the whole-shipment result.")</p>
 
         </div>
 

@@ -269,11 +269,13 @@ public partial class TruckSettlementsController : Controller
         }
 
         // کسری = باقیماندهٔ بار منهای وزن تخلیه (باقیمانده = مقدار حمل − رسیدهای قبلی).
+        // اگر ترازوی مقصد بیشتر از بارگیری نشان دهد، این عدد منفی می‌شود (اضافه‌وزن) و باقیماندهٔ
+        // قابل تخلیه/فروش حمل را به همان اندازه بالا می‌برد. کسری منفی هیچ جریمه/ضایعاتی نمی‌سازد.
         var consumedMt = await _db.InventoryTransportReceipts
             .Where(r => r.InventoryTransportLegId == leg.Id && !r.IsCancelled)
             .SumAsync(r => r.ReceivedQuantityMt + r.ShortageQuantityMt);
         var remainingMt = decimal.Round(leg.QuantityMt - consumedMt, 4, MidpointRounding.AwayFromZero);
-        var shortageMt = decimal.Round(Math.Max(remainingMt - row.QuantityMt, 0m), 4, MidpointRounding.AwayFromZero);
+        var shortageMt = decimal.Round(remainingMt - row.QuantityMt, 4, MidpointRounding.AwayFromZero);
 
         // مبنای کرایه = کل باقیماندهٔ بار (وزن تخلیه + کسری). کسورات دیگر از کرایهٔ ناخالص کم می‌شود.
         var netFreightUsd = ComputeNetFreight(row, remainingMt);
@@ -393,13 +395,11 @@ public partial class TruckSettlementsController : Controller
         decimal remainingMt,
         string prefix)
     {
+        // وزن تخلیه از ترازوی مقصد می‌آید و می‌تواند از وزن بارگیری بیشتر باشد (اضافه‌وزن ترازو).
+        // همین وزن مبنای تخلیه و فروش است؛ کرایه همچنان روی باقیماندهٔ بارگیری‌شده حساب می‌شود.
         if (row.QuantityMt <= 0m)
         {
             ModelState.AddModelError(prefix + nameof(row.QuantityMt), "وزن تخلیه باید بزرگ‌تر از صفر باشد.");
-        }
-        else if (row.QuantityMt > remainingMt + QuantityEpsilon)
-        {
-            ModelState.AddModelError(prefix + nameof(row.QuantityMt), $"وزن تخلیه از باقیمانده بار بیشتر است ({remainingMt:N4} تن).");
         }
 
         if (!ModelState.IsValid)

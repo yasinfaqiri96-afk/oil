@@ -1,0 +1,468 @@
+@using PTGOilSystem.Web.Models.Shared
+@using PTGOilSystem.Web.Models.TruckSettlements
+@model GroupUnloadCreateViewModel
+@{
+    ViewData["Title"] = "تخلیه گروهی به مخزن";
+    ViewData["HideSectionTabs"] = true;
+    var sources = ViewBag.GroupUnloadSources as IReadOnlyList<GroupUnloadSourceItem> ?? [];
+    var cancelUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl)
+        ? Model.ReturnUrl
+        : Url.Action("Index");
+    IReadOnlyList<AkFilterOption> ProductOptions() => sources
+        .Select(item => item.ProductName)
+        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(value => value)
+        .Select(value => new AkFilterOption(value, value))
+        .ToList();
+    var sourceFilter = new AkSearchFilterModel(
+        "unloadQuery",
+        null,
+        "جستجو در نمبر موتر، راننده، مسیر یا قرارداد...",
+        [
+            new AkFilterDefinition("unloadProduct", "کالا", "select", ProductOptions())
+        ]);
+}
+
+<div class="ak-form-page ak-group-operation-page ak-group-operation-page--wide ak-group-wizard-page">
+    <form asp-action="GroupUnload"
+          method="post"
+          id="groupUnloadForm"
+          class="ak-form"
+          data-no-spa
+          data-no-submit-guard
+          novalidate>
+        @Html.AntiForgeryToken()
+        <input asp-for="ReturnUrl" type="hidden" />
+
+        <header class="ak-page-header">
+            <div class="ak-page-heading">
+                <span class="ak-page-icon"><i class="bi bi-box-arrow-in-down"></i></span>
+                <div>
+                    <h1>تخلیه گروهی به مخزن</h1>
+                    <p>انتخاب حمل‌های تسویه‌شده و ثبت همزمان ورود آن‌ها به یک مخزن</p>
+                </div>
+            </div>
+            <a href="@cancelUrl" class="btn btn-light ak-secondary-action" aria-label="بستن"><i class="bi bi-x-lg"></i></a>
+        </header>
+
+        <partial name="~/Views/Shared/Components/_WizardSteps.cshtml"
+                 model="@(new WizardStepsViewModel(
+                    "مراحل تخلیه گروهی",
+                    "data-step-btn",
+                    new[]
+                    {
+                        new WizardStepItem(1, "انتخاب حمل‌ها", true),
+                        new WizardStepItem(2, "مخزن مقصد"),
+                        new WizardStepItem(3, "بررسی و ثبت")
+                    }))" />
+
+        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
+
+        <section class="ak-form-section ak-group-wizard-workspace" data-step-panel="1">
+            <div class="ak-group-wizard-main">
+                <div class="ak-form-section">
+                    <h2 class="ak-section-title">انتخاب حمل‌های آمادهٔ تخلیه</h2>
+                    <div class="ak-form-grid">
+                        <div class="ak-field">
+                            <label asp-for="SourceKind">نوع منبع <em>*</em></label>
+                            <select asp-for="SourceKind" class="ak-input" id="groupUnloadSourceKind">
+                                <option value="@((int)TruckSettlementSourceKind.Leg)">حمل از موجودی</option>
+                                <option value="@((int)TruckSettlementSourceKind.Dispatch)">ارسال موتر</option>
+                            </select>
+                            <span asp-validation-for="SourceKind" class="field-validation-error"></span>
+                        </div>
+                    </div>
+
+                    <partial name="_AkClientSearchFilter" model="@sourceFilter" />
+
+                    <label class="ak-field">
+                        <input type="checkbox" id="groupUnloadCheckAll" class="ak-check" />
+                        <span>انتخاب همه نتایج (<span id="groupUnloadResultCount">0</span> حمل)</span>
+                    </label>
+
+                    <div class="ak-table-wrap">
+                        <table class="ak-table">
+                            <thead>
+                                <tr>
+                                    <th class="ak-col-check"></th>
+                                    <th>#</th>
+                                    <th>نوع منبع</th>
+                                    <th>نمبر وسیله</th>
+                                    <th>راننده</th>
+                                    <th>مسیر</th>
+                                    <th>کالا / قرارداد</th>
+                                    <th>وزن نهایی تخلیه</th>
+                                    <th>وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody id="groupUnloadSourceBody">
+                                @for (var index = 0; index < sources.Count; index++)
+                                {
+                                    var source = sources[index];
+                                    <tr data-unload-source-row
+                                        data-kind="@((int)source.Kind)"
+                                        data-key="@source.Key"
+                                        data-product="@source.ProductName"
+                                        data-product-id="@source.ProductId"
+                                        data-quantity="@source.QuantityMt.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                        data-search="@($"{source.VehicleNumber} {source.DriverName} {source.Route} {source.ProductName} {source.ContractNumber} {source.TypeLabel}")">
+                                        <td class="ak-col-check">
+                                            <input asp-for="Items[index].Selected" type="checkbox" class="ak-check" data-unload-select />
+                                            <input asp-for="Items[index].Kind" type="hidden" />
+                                            <input asp-for="Items[index].SourceId" type="hidden" />
+                                        </td>
+                                        <td>@(index + 1)</td>
+                                        <td><span class="ak-status is-info">@source.TypeLabel</span></td>
+                                        <td class="ak-num">@source.VehicleNumber</td>
+                                        <td>@(source.DriverName ?? "-")</td>
+                                        <td>@source.Route</td>
+                                        <td>
+                                            <span class="ak-label">@source.ProductName</span>
+                                            <span class="ak-section-desc col-ltr">@source.ContractNumber</span>
+                                        </td>
+                                        <td class="ak-num"><strong>@NumberDisplay.Quantity(source.QuantityMt)</strong> MT</td>
+                                        <td><span class="ak-status is-active">کرایه تسویه‌شده</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <div class="ak-empty" id="groupUnloadEmpty" hidden>
+                            <i class="bi bi-inbox"></i>
+                            برای این نوع منبع، حمل تسویه‌شده و آمادهٔ تخلیه وجود ندارد.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="ak-form-section ak-group-wizard-summary">
+                <div class="ak-form-section ak-list">
+                    <h2 class="ak-section-title">خلاصه انتخاب</h2>
+                    <div class="ak-list-row">
+                        <span>تعداد حمل‌های انتخاب‌شده</span>
+                        <strong class="ak-num" id="groupUnloadSumCount">0</strong>
+                    </div>
+                    <div class="ak-list-row">
+                        <span>مجموع وزن تخلیه</span>
+                        <strong class="ak-num"><span id="groupUnloadSumQuantity">0</span> MT</strong>
+                    </div>
+                    <div class="ak-list-row">
+                        <span>کالاهای انتخاب‌شده</span>
+                        <div id="groupUnloadSumProducts" class="ak-list"></div>
+                    </div>
+                </div>
+            </aside>
+        </section>
+
+        <section class="ak-form-section" data-step-panel="2" hidden>
+            <div class="ak-form-section">
+                <h2 class="ak-section-title">مشخصات تخلیه و مخزن مقصد</h2>
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="ReceiptDate">تاریخ تخلیه <em>*</em></label>
+                        <input asp-for="ReceiptDate" type="date" class="ak-input" />
+                        <span asp-validation-for="ReceiptDate" class="field-validation-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="DestinationStorageTankId">مخزن مقصد <em>*</em></label>
+                        <select asp-for="DestinationStorageTankId"
+                                asp-items="ViewBag.DestinationStorageTanks"
+                                class="ak-input"
+                                id="groupUnloadTank">
+                            <option value="">انتخاب مخزن</option>
+                        </select>
+                        <span asp-validation-for="DestinationStorageTankId" class="field-validation-error"></span>
+                        <script type="application/json" id="groupUnloadTankData">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.GroupUnloadTankMap ?? new object[0]))</script>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="DocumentReference">شماره سند / مرجع</label>
+                        <input asp-for="DocumentReference" class="ak-input" placeholder="RCV-1405-001" />
+                        <span asp-validation-for="DocumentReference" class="field-validation-error"></span>
+                    </div>
+                    <div class="ak-field is-textarea">
+                        <label asp-for="Notes">توضیحات</label>
+                        <textarea asp-for="Notes" rows="3" class="ak-input"></textarea>
+                        <span asp-validation-for="Notes" class="field-validation-error"></span>
+                    </div>
+                </div>
+                <div class="ak-note">
+                    وزن تخلیه، کرایه و کسورات از تسویهٔ نهایی هر ردیف خوانده می‌شود و در این مرحله دوباره محاسبه نمی‌گردد.
+                </div>
+            </div>
+        </section>
+
+        <section class="ak-form-section" data-step-panel="3" hidden>
+            <div class="ak-form-section">
+                <h2 class="ak-section-title">بررسی نهایی تخلیه گروهی</h2>
+                <div class="ak-summary" id="groupUnloadPreviewMeta"></div>
+                <div class="ak-table-wrap">
+                    <table class="ak-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>نوع منبع</th>
+                                <th>نمبر وسیله</th>
+                                <th>کالا / قرارداد</th>
+                                <th>وزن تخلیه</th>
+                            </tr>
+                        </thead>
+                        <tbody id="groupUnloadPreviewBody"></tbody>
+                        <tfoot>
+                            <tr>
+                                <th colspan="4">مجموع</th>
+                                <th class="ak-num"><span id="groupUnloadPreviewTotal">0</span> MT</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <footer class="ak-form-section">
+            <div class="ak-note" id="groupUnloadFooterNote">
+                نوع منبع را انتخاب کنید و حمل‌های موردنظر را تیک بزنید.
+            </div>
+            <div class="ak-footer-actions">
+                <a href="@cancelUrl" class="btn ak-secondary-action">انصراف</a>
+                <button type="button" class="btn ak-secondary-action" id="groupUnloadPrev" hidden>مرحله قبلی</button>
+                <button type="button" class="btn ak-primary-action" id="groupUnloadNext">
+                    مرحله بعدی <i class="bi bi-arrow-left"></i>
+                </button>
+                <button type="submit" class="btn ak-primary-action" id="groupUnloadSubmit" hidden>
+                    <i class="bi bi-check2-circle"></i> ثبت نهایی تخلیه گروهی
+                </button>
+            </div>
+        </footer>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+    (function () {
+        'use strict';
+        var form = document.getElementById('groupUnloadForm');
+        if (!form) return;
+
+        var sourceKind = document.getElementById('groupUnloadSourceKind');
+        var filter = form.querySelector('[data-ak-filter-client]');
+        var rows = Array.from(form.querySelectorAll('[data-unload-source-row]'));
+        var tanks = JSON.parse(document.getElementById('groupUnloadTankData').textContent || '[]');
+        var step = 1;
+        var notes = {
+            1: 'نوع منبع را انتخاب کنید و حمل‌های موردنظر را تیک بزنید.',
+            2: 'یک مخزن مشترک برای تمام حمل‌های انتخاب‌شده تعیین کنید.',
+            3: 'ردیف‌ها، وزن نهایی و مخزن مقصد را بررسی و ثبت کنید.'
+        };
+        var byId = function (id) { return document.getElementById(id); };
+        var quantity = function (row) { return Number.parseFloat(row.dataset.quantity || '0') || 0; };
+        var formatQuantity = function (value) {
+            return Number(value).toLocaleString('en-US', { maximumFractionDigits: 4 });
+        };
+        var selectedRows = function () {
+            return rows.filter(function (row) {
+                return row.querySelector('[data-unload-select]').checked;
+            });
+        };
+        var filterValue = function (name) {
+            var field = filter.querySelector('[data-ak-filter-param][name="' + name + '"]');
+            return field ? field.value : '';
+        };
+
+        function applyFilters() {
+            var kind = sourceKind.value;
+            var query = (byId('unloadQuery').value || '').trim().toLowerCase();
+            var product = filterValue('unloadProduct');
+            var visible = 0;
+            rows.forEach(function (row) {
+                var show = row.dataset.kind === kind
+                    && (!product || row.dataset.product === product)
+                    && (!query || row.dataset.search.toLowerCase().indexOf(query) >= 0);
+                row.hidden = !show;
+                if (show) visible++;
+            });
+            byId('groupUnloadResultCount').textContent = visible;
+            byId('groupUnloadEmpty').hidden = visible > 0;
+            syncCheckAll();
+        }
+
+        function syncCheckAll() {
+            var visible = rows.filter(function (row) { return !row.hidden; });
+            var checked = visible.filter(function (row) {
+                return row.querySelector('[data-unload-select]').checked;
+            });
+            var checkAll = byId('groupUnloadCheckAll');
+            checkAll.checked = visible.length > 0 && checked.length === visible.length;
+            checkAll.indeterminate = checked.length > 0 && checked.length < visible.length;
+        }
+
+        function renderSummary() {
+            var selected = selectedRows();
+            byId('groupUnloadSumCount').textContent = selected.length;
+            byId('groupUnloadSumQuantity').textContent = formatQuantity(
+                selected.reduce(function (sum, row) { return sum + quantity(row); }, 0));
+            var products = {};
+            selected.forEach(function (row) {
+                products[row.dataset.product] = (products[row.dataset.product] || 0) + 1;
+                row.classList.add('is-selected');
+            });
+            rows.filter(function (row) { return selected.indexOf(row) < 0; })
+                .forEach(function (row) { row.classList.remove('is-selected'); });
+            var productSummary = byId('groupUnloadSumProducts');
+            productSummary.innerHTML = '';
+            var productNames = Object.keys(products);
+            if (productNames.length === 0) {
+                var emptyProduct = document.createElement('div');
+                emptyProduct.className = 'ak-note';
+                emptyProduct.textContent = '—';
+                productSummary.appendChild(emptyProduct);
+            } else {
+                productNames.forEach(function (product) {
+                    var item = document.createElement('div');
+                    var name = document.createElement('span');
+                    var count = document.createElement('b');
+                    name.textContent = product;
+                    count.textContent = products[product];
+                    item.appendChild(name);
+                    item.appendChild(count);
+                    productSummary.appendChild(item);
+                });
+            }
+            syncCheckAll();
+        }
+
+        function validateSelection() {
+            if (selectedRows().length === 0) {
+                window.alert('حداقل یک حمل را برای تخلیه انتخاب کنید.');
+                return false;
+            }
+            return true;
+        }
+
+        function validateDestination() {
+            var tankId = byId('groupUnloadTank').value;
+            if (!tankId) {
+                window.alert('مخزن مقصد را انتخاب کنید.');
+                return false;
+            }
+            var tank = tanks.find(function (item) { return String(item.id) === String(tankId); });
+            var incompatible = tank && tank.productId
+                ? selectedRows().some(function (row) {
+                    return String(row.dataset.productId) !== String(tank.productId);
+                })
+                : false;
+            if (incompatible) {
+                window.alert('یکی از کالاهای انتخاب‌شده با مخزن مقصد سازگار نیست.');
+                return false;
+            }
+            return true;
+        }
+
+        function renderPreview() {
+            var body = byId('groupUnloadPreviewBody');
+            body.innerHTML = '';
+            var total = 0;
+            selectedRows().forEach(function (row, index) {
+                total += quantity(row);
+                var cells = row.querySelectorAll('td');
+                var preview = document.createElement('tr');
+                [String(index + 1), cells[2].textContent.trim(), cells[3].textContent.trim(),
+                    cells[6].textContent.trim(), formatQuantity(quantity(row)) + ' MT']
+                    .forEach(function (text, cellIndex) {
+                        var cell = document.createElement('td');
+                        cell.textContent = text;
+                        if (cellIndex === 4) cell.className = 'ak-num';
+                        preview.appendChild(cell);
+                    });
+                body.appendChild(preview);
+            });
+            var tank = byId('groupUnloadTank');
+            var previewMeta = byId('groupUnloadPreviewMeta');
+            previewMeta.innerHTML = '';
+            [
+                ['مخزن مقصد', tank.selectedOptions[0] ? tank.selectedOptions[0].textContent : '-'],
+                ['تعداد حمل', String(selectedRows().length)]
+            ].forEach(function (entry) {
+                var item = document.createElement('div');
+                var label = document.createElement('span');
+                var value = document.createElement('strong');
+                label.textContent = entry[0];
+                value.textContent = entry[1];
+                item.appendChild(label);
+                item.appendChild(value);
+                previewMeta.appendChild(item);
+            });
+            byId('groupUnloadPreviewTotal').textContent = formatQuantity(total);
+        }
+
+        function goStep(next) {
+            if (next < 1 || next > 3) return;
+            if (next > 1 && !validateSelection()) return;
+            if (next > 2 && !validateDestination()) return;
+            step = next;
+            form.querySelectorAll('[data-step-panel]').forEach(function (panel) {
+                panel.hidden = Number(panel.dataset.stepPanel) !== step;
+            });
+            form.querySelectorAll('[data-step-btn]').forEach(function (button) {
+                var buttonStep = Number(button.dataset.stepBtn);
+                button.classList.toggle('is-active', buttonStep === step);
+                button.classList.toggle('is-done', buttonStep < step);
+            });
+            byId('groupUnloadPrev').hidden = step === 1;
+            byId('groupUnloadNext').hidden = step === 3;
+            byId('groupUnloadSubmit').hidden = step !== 3;
+            byId('groupUnloadFooterNote').textContent = notes[step];
+            if (step === 3) renderPreview();
+        }
+
+        sourceKind.addEventListener('change', function () {
+            rows.forEach(function (row) {
+                row.querySelector('[data-unload-select]').checked = false;
+            });
+            applyFilters();
+            renderSummary();
+        });
+        filter.addEventListener('ak:filter-change', applyFilters);
+        byId('groupUnloadCheckAll').addEventListener('change', function () {
+            var checked = this.checked;
+            rows.filter(function (row) { return !row.hidden; }).forEach(function (row) {
+                row.querySelector('[data-unload-select]').checked = checked;
+            });
+            renderSummary();
+        });
+        rows.forEach(function (row) {
+            var checkbox = row.querySelector('[data-unload-select]');
+            checkbox.addEventListener('change', renderSummary);
+            row.addEventListener('click', function (event) {
+                if (event.target.closest('input, button, a, select, label')) return;
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        });
+        form.querySelectorAll('[data-step-btn]').forEach(function (button) {
+            button.addEventListener('click', function () { goStep(Number(button.dataset.stepBtn)); });
+        });
+        byId('groupUnloadNext').addEventListener('click', function () { goStep(step + 1); });
+        byId('groupUnloadPrev').addEventListener('click', function () { goStep(step - 1); });
+        var isSubmitting = false;
+        form.addEventListener('submit', function (event) {
+            if (!validateSelection() || !validateDestination()) {
+                event.preventDefault();
+                return;
+            }
+            if (isSubmitting) {
+                event.preventDefault();
+                return;
+            }
+            isSubmitting = true;
+            var button = byId('groupUnloadSubmit');
+            button.disabled = true;
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> در حال ثبت…';
+        });
+
+        applyFilters();
+        renderSummary();
+        goStep(1);
+    })();
+    </script>
+}

@@ -110,7 +110,10 @@ public sealed class InventoryTransportReceiptService
             modelState.AddModelError(keyPrefix + nameof(model.ReceivedQuantityMt), $"مقدار دریافت نمی‌تواند از باقیمانده حمل بیشتر باشد ({remainingMt:N4} MT).");
         }
 
-        if (leg.TransportType != LoadingTransportType.Truck && model.ShortageQuantityMt < 0m)
+        // «فقط تسویه» کسری منفی (اضافه‌وزن ترازوی مقصد) را برای هر نوع حملی می‌پذیرد.
+        if (!model.SettlementOnly
+            && leg.TransportType != LoadingTransportType.Truck
+            && model.ShortageQuantityMt < 0m)
         {
             modelState.AddModelError(keyPrefix + nameof(model.ShortageQuantityMt), "Shortage quantity cannot be negative.");
         }
@@ -546,7 +549,8 @@ public sealed class InventoryTransportReceiptService
         }
 
         // کسری دیگر «مقدار کل منهای دریافت» نیست؛ کاربر آن را در همان تخلیه دستی ثبت می‌کند (باقیمانده در وسیله می‌ماند).
-        if (model.ShortageQuantityMt < 0m)
+        // در «فقط تسویه» کسری منفی نگه داشته می‌شود: اضافه‌وزن ترازوی مقصد، باقیماندهٔ قابل تخلیه/فروش را بالا می‌برد.
+        if (!model.SettlementOnly && model.ShortageQuantityMt < 0m)
         {
             model.ShortageQuantityMt = 0m;
         }
@@ -609,7 +613,8 @@ public sealed class InventoryTransportReceiptService
         string keyPrefix)
     {
         // کسری دستی است؛ فقط منفی نبودن و اینکه مجموع دریافت + کسری از باقیمانده حمل بیشتر نشود بررسی می‌شود.
-        if (model.ShortageQuantityMt < 0m)
+        // استثنا: «فقط تسویه» کسری منفی (اضافه‌وزن ترازو) را مجاز می‌داند.
+        if (!model.SettlementOnly && model.ShortageQuantityMt < 0m)
         {
             modelState.AddModelError(keyPrefix + nameof(model.ShortageQuantityMt), "کسری نمی‌تواند منفی باشد.");
         }

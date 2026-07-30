@@ -151,7 +151,7 @@ public class ShipmentPnlControllerTests
     }
 
     [Fact]
-    public void Details_ViewModel_Calculates_Realized_Cards_From_Final_Sales_Only()
+    public void Details_ViewModel_Calculates_Whole_Shipment_Result_From_Full_Costs()
     {
         var model = new ShipmentPnlDetailsViewModel
         {
@@ -168,6 +168,8 @@ public class ShipmentPnlControllerTests
         Assert.Equal(4_000m, model.RealizedPurchaseCostUsd);
         Assert.Equal(400m, model.RealizedOperationalExpensesUsd);
         Assert.Equal(1_600m, model.RealizedGrossMarginUsd);
+        Assert.Equal(-5_000m, model.ShipmentNetResultUsd);
+        Assert.False(model.NetResultIsProfit);
     }
 
     [Fact]
@@ -180,7 +182,7 @@ public class ShipmentPnlControllerTests
     }
 
     [Fact]
-    public void Details_ViewModel_Deducts_Company_Loss_Shortage_And_Expense_Share_From_Realized_Margin()
+    public void Details_ViewModel_Does_Not_Double_Deduct_Company_Loss_From_Whole_Shipment_Result()
     {
         var model = new ShipmentPnlDetailsViewModel
         {
@@ -197,8 +199,11 @@ public class ShipmentPnlControllerTests
         // سهم مصارف ضایعات: 1000 × (10/100) = 100
         Assert.Equal(100m, model.CompanyLossExpenseShareUsd);
         Assert.Equal(1_100m, model.CompanyLossDeductionUsd);
-        // 6000 − 4000 − 400 − 1100 = 500
+        // محاسبهٔ تحقق‌یافتهٔ قدیمی برای سازگاری داخلی باقی است.
         Assert.Equal(500m, model.RealizedGrossMarginUsd);
+        // نتیجهٔ رسمی کل محموله: 6000 − 10000 − 1000 = −5000.
+        // ثبت «ضرر شرکت» قیمت همان بار را دوباره کم نمی‌کند.
+        Assert.Equal(-5_000m, model.ShipmentNetResultUsd);
     }
 
     [Fact]
@@ -865,6 +870,7 @@ public class ShipmentPnlControllerTests
         Assert.Equal(700m, model.TotalOperationalExpensesUsd);
         Assert.Equal(4700m, model.TotalExpensesUsd);
         Assert.Equal(300m, model.GrossMarginUsd);
+        Assert.Equal(300m, model.ShipmentNetResultUsd);
         var leg = Assert.Single(model.TransportLegs);
         Assert.Equal(10m, leg.SoldQuantityMt);
         Assert.Equal(5000m, leg.SalesUsd);
@@ -1401,6 +1407,7 @@ public class ShipmentPnlControllerTests
         Assert.Equal(13600m, model.EstimatedShortageValueUsd);
         Assert.Equal(1657600m, model.TotalPurchaseCostUsd);
         Assert.Equal(-1657600m, model.GrossMarginUsd);
+        Assert.Equal(-1657600m, model.ShipmentNetResultUsd);
 
         var secondResult = await controller.RegisterDirectLoss(new ShipmentDirectLossCreateViewModel
         {
@@ -1904,28 +1911,33 @@ public class ShipmentPnlControllerTests
     }
 
     [Fact]
-    public void Finance_Tab_Uses_Single_Realized_Source_And_Drops_Duplicate_Projections()
+    public void Finance_Tab_Uses_Single_Whole_Shipment_Result_And_Full_Costs()
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/ShipmentPnl/Details.cshtml");
 
-        // نتیجهٔ واحد و واضح + ساختار سادهٔ موردنظر. عنوان رسمی: «سود/زیان تحقق‌یافته».
-        Assert.Contains("سود تحقق‌یافته", view);
-        Assert.Contains("زیان تحقق‌یافته", view);
-        Assert.Contains("− بهای خرید مقدار فروخته‌شده", view);
-        Assert.Contains("مجموع هزینه‌های مسیر و عملیات", view);
+        // نتیجهٔ واحد و واضح: کل فروش منهای قیمت کامل خرید تمام بار و همهٔ مصارف.
+        Assert.Contains("سود کل محموله", view);
+        Assert.Contains("زیان کل محموله", view);
+        Assert.Contains("− قیمت کامل خرید تمام بار محموله", view);
+        Assert.Contains("− تمام هزینه‌های مسیر و عملیات", view);
         Assert.Contains("جزئیات هزینه‌ها بر اساس دسته", view);
         Assert.Contains("ارزش موجودی باقی‌مانده", view);
-        Assert.Contains("Model.RealizedGrossMarginUsd", view);
+        Assert.Contains("Model.ShipmentNetResultUsd", view);
+        Assert.Contains("Model.TotalPurchaseCostUsd", view);
+        Assert.Contains("Model.TotalOperationalExpensesUsd", view);
 
-        // محاسبه‌های تکراری/گمراه‌کننده حذف شده‌اند: پروجکشن «سود کل محموله»،
-        // جدول per-leg (که بهای خرید را بین حمل‌ها دوباره می‌شمرد) و هر نمایشِ GrossMarginUsd.
-        Assert.DoesNotContain("سود کل محموله", view);
+        // سهم فروخته‌شده و ضرر شرکت نباید دوباره از نتیجهٔ کل محموله کم شوند.
+        Assert.DoesNotContain("Model.RealizedPurchaseCostUsd", view);
+        Assert.DoesNotContain("Model.RealizedOperationalExpensesUsd", view);
+        Assert.DoesNotContain("Model.CompanyLossDeductionUsd", view);
+        Assert.DoesNotContain("Model.RealizedGrossMarginUsd", view);
+        // جدول per-leg همچنان نباید نتیجهٔ موازی بسازد.
         Assert.DoesNotContain("سود و زیان به تفکیک حمل", view);
         Assert.DoesNotContain("Model.GrossMarginUsd", view);
     }
 
     [Fact]
-    public void ViewModel_Remaining_Inventory_Value_Is_Separate_From_Realized_Margin()
+    public void ViewModel_Remaining_Inventory_Is_Tracked_But_Full_Purchase_Is_Deducted()
     {
         var model = new ShipmentPnlDetailsViewModel
         {
@@ -1939,13 +1951,14 @@ public class ShipmentPnlControllerTests
         Assert.Equal(60m, model.RemainingUnsoldQuantityMt);
         // میانگین بهای خرید = 10000/100 = 100 → ارزش موجودی باقی‌مانده = 60 × 100 = 6000.
         Assert.Equal(6_000m, model.RemainingInventoryValueUsd);
-        // سود تحقق‌یافته فقط روی مقدار فروخته‌شده؛ ارزش موجودی باقی‌مانده در آن نیست.
+        // ارزش موجودی برای پیگیری باقی می‌ماند، ولی قیمت کامل خرید در نتیجه کسر می‌شود.
         Assert.Equal(1_600m, model.RealizedGrossMarginUsd);
+        Assert.Equal(-5_000m, model.ShipmentNetResultUsd);
         Assert.False(model.IsFullySold);
     }
 
     [Fact]
-    public void ViewModel_Unsold_Cargo_Does_Not_Produce_Fake_Final_Profit()
+    public void ViewModel_Unsold_Cargo_Is_Deducted_Without_Registering_Manual_Loss()
     {
         var model = new ShipmentPnlDetailsViewModel
         {
@@ -1956,10 +1969,12 @@ public class ShipmentPnlControllerTests
             TotalOperationalExpensesUsd = 1_000m
         };
 
-        // بدون فروش: سود تحقق‌یافته صفر است، نه یک زیانِ کلِّ بهای خرید.
+        // بدون فروش و بدون ثبت ضایعات: کل خرید و کل مصارف خودکار منفی می‌شوند.
         Assert.Equal(0m, model.RealizedPurchaseCostUsd);
         Assert.Equal(0m, model.RealizedOperationalExpensesUsd);
         Assert.Equal(0m, model.RealizedGrossMarginUsd);
+        Assert.Equal(-11_000m, model.ShipmentNetResultUsd);
+        Assert.False(model.NetResultIsProfit);
         // کلِّ ارزش بار به‌صورت موجودی جدا نگهداری می‌شود.
         Assert.Equal(10_000m, model.RemainingInventoryValueUsd);
     }
@@ -1980,8 +1995,10 @@ public class ShipmentPnlControllerTests
         };
 
         Assert.Equal(0m, model.CompanyLossDeductionUsd);
-        // همان نتیجهٔ حالت بدون ضرر شرکت: 6000 − 4000 − 400 = 1600.
+        // نتیجهٔ قدیمی تحقق‌یافته همچنان برای سازگاری داخلی 1600 است.
         Assert.Equal(1_600m, model.RealizedGrossMarginUsd);
+        // نتیجهٔ رسمی به نوع کسری وابسته نیست؛ کل خرید قبلاً کامل کسر شده است.
+        Assert.Equal(-5_000m, model.ShipmentNetResultUsd);
     }
 
     [Fact]
@@ -2005,6 +2022,7 @@ public class ShipmentPnlControllerTests
             model.TotalSalesUsd - model.TotalPurchaseCostUsd - model.TotalOperationalExpensesUsd,
             model.RealizedGrossMarginUsd);
         Assert.Equal(4_000m, model.RealizedGrossMarginUsd);
+        Assert.Equal(4_000m, model.ShipmentNetResultUsd);
     }
 
     private static void AddTwoContractShipmentAllocations(ApplicationDbContext db)

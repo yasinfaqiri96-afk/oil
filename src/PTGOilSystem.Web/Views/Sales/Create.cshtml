@@ -14,7 +14,6 @@
     var showFxRateField = !string.Equals(Model.Currency, baseCurrencyCode, StringComparison.OrdinalIgnoreCase);
     var displayCurrencyCode = string.IsNullOrWhiteSpace(Model.Currency) ? baseCurrencyCode : Model.Currency;
     var shipmentContractMapJson = System.Text.Json.JsonSerializer.Serialize(ViewData["ShipmentContractMap"] ?? Array.Empty<object>());
-    var saleContractDestinationMapJson = System.Text.Json.JsonSerializer.Serialize(ViewData["SaleContractDestinationMap"] ?? Array.Empty<object>());
     var pageTitle = isEdit ? UiText.T(Context, "ویرایش فاکتور فروش", "Edit Sales Invoice") : UiText.T(Context, "ثبت فاکتور فروش", "New Sales Invoice");
     var submitLabel = isEdit ? UiText.T(Context, "ذخیره تغییرات", "Save changes") : UiText.T(Context, "ذخیره و ثبت", "Save & submit");
 }
@@ -29,18 +28,21 @@
           data-sales-create-form="true"
           data-sales-stock-balance-url="@Url.Action("SourceStockBalance", "Sales")"
           data-sales-base-currency="@baseCurrencyCode"
-          data-sales-shipment-contract-map="@shipmentContractMapJson"
-          data-sales-contract-destination-map="@saleContractDestinationMapJson">
+          data-sales-shipment-contract-map="@shipmentContractMapJson">
         @{ ViewData["OpHeaderBackUrl"] = cancelUrl; }
         @Html.AntiForgeryToken()
         @Html.FormToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <input asp-for="DestinationLocationId" type="hidden" data-sales-destination-id />
+        @if (Model.ContractId.HasValue)
+        {
+            <input asp-for="ContractId" type="hidden" />
+        }
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
 
-        <section class="ak-form-section" aria-label="@UiText.T(Context, "اطلاعات خریدار و فروش", "Buyer and sale information")">
+        <section class="ak-form-section" aria-label="@UiText.T(Context, "اطلاعات فروش", "Sale information")">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@((UiText.T(Context, "اطلاعات خریدار و فروش", "Buyer & Sale Information"), (string?)null))" />
+                     model="@((UiText.T(Context, "اطلاعات فروش", "Sale Information"), (string?)UiText.T(Context, "مشخصات خریدار، شرکت و سند فروش را وارد کنید.", "Enter the buyer, company and sales document details.")))" />
             <div class="ak-form-grid">
                 <div class="ak-field">
                     <label asp-for="CustomerId" class="ak-label">@UiText.T(Context, "خریدار", "Buyer") <span class="ak-req">*</span></label>
@@ -50,14 +52,25 @@
                     <span asp-validation-for="CustomerId" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
+                    <label asp-for="CompanyId" class="ak-label">@UiText.T(Context, "شرکت", "Company") <span class="ak-req">*</span></label>
+                    <select asp-for="CompanyId" asp-items="ViewBag.Companies" class="ak-input" data-sales-company><option value="">@UiText.T(Context, "انتخاب شرکت", "Select company")</option></select>
+                    <span asp-validation-for="CompanyId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
                     <label asp-for="SaleDate" class="ak-label">@UiText.T(Context, "تاریخ فروش", "Sale date") <span class="ak-req">*</span></label>
                     <input asp-for="SaleDate" type="date" class="ak-input" data-sales-date />
                     <span asp-validation-for="SaleDate" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
-                    <label asp-for="InvoiceNumber" class="ak-label">@UiText.T(Context, "شماره فاکتور", "Invoice number")</label>
-                    <input asp-for="InvoiceNumber" class="ak-input" placeholder="@UiText.T(Context, "شماره فاکتور (اختیاری)", "Invoice number (optional)")" />
+                    <label asp-for="InvoiceNumber" class="ak-label">@UiText.T(Context, "شماره فاکتور", "Invoice number") <span class="ak-req">*</span></label>
+                    <input asp-for="InvoiceNumber" class="ak-input" placeholder="@UiText.T(Context, "شماره فاکتور", "Invoice number")" />
                     <span asp-validation-for="InvoiceNumber" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="SaleStage" class="ak-label">@UiText.T(Context, "مرحله فروش", "Sale stage") <span class="ak-req">*</span></label>
+                    <select asp-for="SaleStage" asp-items="ViewBag.SaleStages" class="ak-input" data-sales-stage></select>
+                    <div id="saleStageHelp" class="form-text"></div>
+                    <span asp-validation-for="SaleStage" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
                     <label asp-for="Currency" class="ak-label">@UiText.T(Context, "ارز", "Currency") <span class="ak-req">*</span></label>
@@ -72,86 +85,54 @@
             </div>
         </section>
 
-        <details class="ak-advanced"@(!ViewData.ModelState.IsValid ? " open" : "")>
-            <summary class="ak-advanced-summary">
-                <span><i class="bi bi-sliders2" aria-hidden="true"></i>@UiText.T(Context, "تنظیمات بیشتر", "More settings")</span>
-            </summary>
+        <section class="ak-form-section" data-sales-stage-scope="terminal" aria-label="@UiText.T(Context, "منبع فروش", "Sale source")">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@((UiText.T(Context, "منبع فروش", "Sale Source"), (string?)UiText.T(Context, "ترمینال و مخزنی را انتخاب کنید که کالا از آن خارج می‌شود.", "Select the terminal and tank the product will leave from.")))" />
             <div class="ak-form-grid">
-                <section class="ak-form-section" aria-label="@UiText.T(Context, "مرحله، شرکت و قرارداد", "Stage, company and contract")">
-                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                             model="@((UiText.T(Context, "مرحله، شرکت و قرارداد", "Stage, Company & Contract"), (string?)null))" />
-                    <div class="ak-form-grid">
-                        <div class="ak-field">
-                            <label asp-for="SaleStage" class="ak-label">@UiText.T(Context, "مرحله فروش", "Sale stage") <span class="ak-req">*</span></label>
-                            <select asp-for="SaleStage" asp-items="ViewBag.SaleStages" class="ak-input" data-sales-stage></select>
-                            <div id="saleStageHelp" class="form-text"></div>
-                            <span asp-validation-for="SaleStage" class="ak-field-error"></span>
-                        </div>
-                        <div class="ak-field">
-                            <label asp-for="CompanyId" class="ak-label">@UiText.T(Context, "شرکت", "Company") <span class="ak-req">*</span></label>
-                            <select asp-for="CompanyId" asp-items="ViewBag.Companies" class="ak-input"><option value="">@UiText.T(Context, "انتخاب شرکت", "Select company")</option></select>
-                            <span asp-validation-for="CompanyId" class="ak-field-error"></span>
-                        </div>
-                        <div class="ak-field" data-sales-contract-field>
-                            <label asp-for="ContractId" class="ak-label">
-                                @UiText.T(Context, "قرارداد فروش", "Sales contract")
-                                <span class="ak-req" data-sales-contract-required-mark hidden>*</span>
-                            </label>
-                            <select asp-for="ContractId" asp-items="ViewBag.Contracts" class="ak-input" data-sales-contract-id><option value="">@UiText.T(Context, "بدون قرارداد فروش", "No sales contract")</option></select>
-                            <div id="salesContractHelp" class="form-text" data-sales-contract-help></div>
-                            <div id="salesContractShipmentHint" class="form-text text-primary" data-sales-contract-shipment-hint hidden></div>
-                            <span asp-validation-for="ContractId" class="ak-field-error"></span>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="ak-form-section" data-sales-stage-scope="terminal" aria-label="@UiText.T(Context, "فروش از مخزن", "Terminal stock sale")">
-                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                             model="@((UiText.T(Context, "منبع موجودی مخزن", "Tank Stock Source"), (string?)null))" />
-                    <div class="ak-form-grid">
-                        <div class="ak-field">
-                            <label asp-for="SourcePurchaseContractId" class="ak-label">@UiText.T(Context, "قرارداد خرید منبع", "Source purchase contract") <span class="ak-req">*</span></label>
-                            <select asp-for="SourcePurchaseContractId" asp-items="ViewBag.SourcePurchaseContracts" class="ak-input" data-suggested-price-url="@Url.Action("SuggestedPrice", "Sales")" data-sales-source-contract><option value=""></option></select>
-                            <span asp-validation-for="SourcePurchaseContractId" class="ak-field-error"></span>
-                        </div>
-                        <div class="ak-field">
-                            <label asp-for="SourceTerminalId" class="ak-label">@UiText.T(Context, "ترمینال منبع", "Source terminal") <span class="ak-req">*</span></label>
-                            <select asp-for="SourceTerminalId" asp-items="ViewBag.SourceTerminals" class="ak-input" data-sales-source-terminal><option value=""></option></select>
-                            <span asp-validation-for="SourceTerminalId" class="ak-field-error"></span>
-                        </div>
-                        <div class="ak-field">
-                            <label asp-for="SourceStorageTankId" class="ak-label">@UiText.T(Context, "مخزن منبع", "Source tank") <span class="ak-req">*</span></label>
-                            <select asp-for="SourceStorageTankId" asp-items="ViewBag.SourceStorageTanks" class="ak-input" data-sales-source-tank><option value=""></option></select>
-                            <span asp-validation-for="SourceStorageTankId" class="ak-field-error"></span>
-                        </div>
-                        <div class="ak-field ak-col-full" data-sales-stock-alert hidden>
-                            <span class="ak-label">@UiText.T(Context, "موجودی فعلی مخزن", "Current tank stock")</span>
-                            <strong data-sales-stock-alert-value>-- MT</strong>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="ak-form-section" data-sales-stage-scope="transit border customs" aria-label="@UiText.T(Context, "ردیابی مسیر", "Route trace")">
-                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                             model="@((UiText.T(Context, "ردیابی مسیر", "Route Trace"), (string?)null))" />
-                    <div class="ak-form-grid">
-                        <div class="ak-field">
-                            <label asp-for="ShipmentId" class="ak-label">@UiText.T(Context, "محموله / کشتی", "Shipment / Vessel")</label>
-                            <select asp-for="ShipmentId" asp-items="ViewBag.Shipments" class="ak-input" data-sales-shipment><option value=""></option></select>
-                            <span asp-validation-for="ShipmentId" class="ak-field-error"></span>
-                        </div>
-                        <div class="ak-field">
-                            <label asp-for="TicketSerialNumber" class="ak-label">@UiText.T(Context, "سریال تکت", "Ticket serial")</label>
-                            <input asp-for="TicketSerialNumber" class="ak-input" data-sales-ticket />
-                        </div>
-                        <div class="ak-field">
-                            <label asp-for="StockSourceType" class="ak-label">@UiText.T(Context, "منبع ردیابی", "Trace source")</label>
-                            <select asp-for="StockSourceType" asp-items="Html.GetEnumSelectList<StockSourceType>()" class="ak-input" data-sales-stock-source><option value=""></option></select>
-                        </div>
-                    </div>
-                </section>
+                <div class="ak-field">
+                    <label asp-for="SourceTerminalId" class="ak-label">@UiText.T(Context, "ترمینال منبع", "Source terminal") <span class="ak-req">*</span></label>
+                    <select asp-for="SourceTerminalId" asp-items="ViewBag.SourceTerminals" class="ak-input" data-sales-source-terminal><option value=""></option></select>
+                    <span asp-validation-for="SourceTerminalId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="SourceStorageTankId" class="ak-label">@UiText.T(Context, "مخزن منبع", "Source tank") <span class="ak-req">*</span></label>
+                    <select asp-for="SourceStorageTankId" asp-items="ViewBag.SourceStorageTanks" class="ak-input" data-sales-source-tank><option value=""></option></select>
+                    <span asp-validation-for="SourceStorageTankId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full">
+                    <label asp-for="SourcePurchaseContractId" class="ak-label">@UiText.T(Context, "قرارداد خرید منبع (اختیاری)", "Source purchase contract (optional)")</label>
+                    <select asp-for="SourcePurchaseContractId" asp-items="ViewBag.SourcePurchaseContracts" class="ak-input" data-suggested-price-url="@Url.Action("SuggestedPrice", "Sales")" data-sales-source-contract>
+                        <option value="">@UiText.T(Context, "نمی‌دانم — محاسبه خودکار از موجودی مخزن", "Unknown — auto-allocate from tank stock")</option>
+                    </select>
+                    <div class="form-text">@UiText.T(Context, "اگر قرارداد را نمی‌دانید، سیستم فروش را از موجودی همین شرکت و مخزن به‌صورت خودکار تخصیص می‌دهد.", "If unknown, the system automatically allocates the sale from this company and tank stock.")</div>
+                    <span asp-validation-for="SourcePurchaseContractId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full" data-sales-stock-alert hidden>
+                    <span class="ak-label">@UiText.T(Context, "موجودی قابل فروش مخزن", "Available tank stock")</span>
+                    <strong class="ak-num" data-sales-stock-alert-value>-- MT</strong>
+                </div>
             </div>
-        </details>
+        </section>
+
+        <section class="ak-form-section" data-sales-stage-scope="transit border customs" aria-label="@UiText.T(Context, "ردیابی مسیر", "Route trace")">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@((UiText.T(Context, "ردیابی مسیر", "Route Trace"), (string?)UiText.T(Context, "اطلاعات محموله و تکت را برای ردیابی فروش وارد کنید.", "Enter shipment and ticket details to trace this sale.")))" />
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label asp-for="ShipmentId" class="ak-label">@UiText.T(Context, "محموله / کشتی", "Shipment / Vessel")</label>
+                    <select asp-for="ShipmentId" asp-items="ViewBag.Shipments" class="ak-input" data-sales-shipment><option value=""></option></select>
+                    <span asp-validation-for="ShipmentId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="TicketSerialNumber" class="ak-label">@UiText.T(Context, "سریال تکت", "Ticket serial")</label>
+                    <input asp-for="TicketSerialNumber" class="ak-input" data-sales-ticket />
+                </div>
+                <div class="ak-field">
+                    <label asp-for="StockSourceType" class="ak-label">@UiText.T(Context, "منبع ردیابی", "Trace source")</label>
+                    <select asp-for="StockSourceType" asp-items="Html.GetEnumSelectList<StockSourceType>()" class="ak-input" data-sales-stock-source><option value=""></option></select>
+                </div>
+            </div>
+        </section>
 
         <section class="ak-form-section" aria-label="@UiText.T(Context, "اقلام فروش", "Sale items")">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
@@ -174,14 +155,28 @@
             </div>
         </section>
 
-        <section class="ak-form-section" data-sales-save-summary aria-live="polite" aria-label="@UiText.T(Context, "خلاصه و توضیحات", "Summary and notes")">
+        <section class="ak-form-section" data-sales-save-summary aria-live="polite" aria-label="@UiText.T(Context, "مرور نهایی فروش", "Final sale review")">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@((UiText.T(Context, "خلاصه ثبت فروش", "Sale Summary"), (string?)null))" />
+                     model="@((UiText.T(Context, "مرور نهایی فروش", "Final Sale Review"), (string?)UiText.T(Context, "مقدار و مبلغ را پیش از ثبت بررسی کنید.", "Review the quantity and amount before saving.")))" />
+            <dl class="ak-summary-list ak-summary">
+                <div>
+                    <dt>@UiText.T(Context, "مقدار فروش", "Sale quantity")</dt>
+                    <dd class="ak-num"><span data-sales-summary-qty>0.000</span> MT</dd>
+                </div>
+                <div>
+                    <dt>@UiText.T(Context, "مبلغ فاکتور", "Invoice amount")</dt>
+                    <dd class="ak-num"><span data-sales-summary-amount>0.00</span> <span data-sales-summary-amount-unit>@displayCurrencyCode</span></dd>
+                </div>
+                <div>
+                    <dt>@UiText.T(Context, "معادل", "Equivalent") @baseCurrencyCode</dt>
+                    <dd class="ak-num"><span data-sales-summary-base>0.00</span> @baseCurrencyCode</dd>
+                </div>
+            </dl>
+            <div class="ak-note">
+                <ul class="mb-0" data-sales-save-summary-list></ul>
+                <div class="form-text" data-sales-save-summary-warning hidden></div>
+            </div>
             <div class="ak-form-grid">
-                <div class="ak-field"><span class="ak-label">@UiText.T(Context, "جمع مقدار", "Total quantity")</span><strong><span data-sales-summary-qty>0.000</span> MT</strong></div>
-                <div class="ak-field"><span class="ak-label">@UiText.T(Context, "جمع مبلغ", "Total amount")</span><strong><span data-sales-summary-amount>0.00</span> <span data-sales-summary-amount-unit>@displayCurrencyCode</span></strong></div>
-                <div class="ak-field"><span class="ak-label">@UiText.T(Context, "معادل", "Equivalent") @baseCurrencyCode</span><strong><span data-sales-summary-base>0.00</span> @baseCurrencyCode</strong></div>
-                <div class="ak-field ak-col-full"><ul data-sales-save-summary-list hidden></ul><div class="form-text" data-sales-save-summary-warning hidden></div></div>
                 <div class="ak-field ak-col-full"><label asp-for="Notes" class="ak-label">@UiText.T(Context, "توضیحات (اختیاری)", "Notes (optional)")</label><textarea asp-for="Notes" rows="4" class="ak-input" placeholder="@UiText.T(Context, "توضیحات را وارد کنید...", "Enter notes...")"></textarea></div>
             </div>
         </section>

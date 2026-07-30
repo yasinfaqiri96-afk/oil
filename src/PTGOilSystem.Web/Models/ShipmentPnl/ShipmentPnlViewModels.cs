@@ -305,7 +305,8 @@ public sealed class ShipmentPnlDetailsViewModel
     public decimal? LineageCustomsUsd { get; init; }
     public decimal LossQuantityMt { get; init; }
     public decimal DirectLossQuantityMt { get; init; }
-    // مجموع مقدار ضایعاتی که مسئولیتش «ضرر شرکت» ثبت شده — از سود تحقق‌یافته کسر می‌شود.
+    // مجموع مقدار ضایعاتی که مسئولیتش «ضرر شرکت» ثبت شده — فقط در محاسبهٔ تحقق‌یافتهٔ
+    // قدیمی استفاده می‌شود؛ نتیجهٔ کل محموله قیمت خرید بار را قبلاً کامل کسر کرده است.
     public decimal CompanyLossQuantityMt { get; init; }
 
     // ===== مرحله‌های مستقل جریان مقدار (MT) =====
@@ -466,18 +467,30 @@ public sealed class ShipmentPnlDetailsViewModel
     // مجموع کسرِ «ضرر شرکت» از سود: هم بهای جنس ضایع‌شده، هم سهم مصارف آن.
     public decimal CompanyLossDeductionUsd
         => decimal.Round(CompanyLossPurchaseCostUsd + CompanyLossExpenseShareUsd, 4, MidpointRounding.AwayFromZero);
-    // ===== منبع قطعی و یگانهٔ نتیجهٔ سود/زیان =====
-    // این تنها عددِ نتیجه است؛ کارت KPI، خلاصهٔ حساب و تب سود و زیان همگی باید همین را نشان دهند.
-    // = درآمد واقعی فروش − بهای خرید مقدار فروخته‌شده − هزینه‌های قطعی همان مقدار − زیان قطعی غیرقابل‌وصول (ضرر شرکت).
+    // ===== نتیجهٔ کل محموله =====
+    // منبع رسمی صفحهٔ جزئیات و فهرست محموله‌ها:
+    // کل فروش − قیمت کامل خرید همهٔ بار − تمام مصارف مسیر و عملیات.
+    // مقدار فروش‌نشده برای منفی‌شدن نتیجه نیاز به ثبت ضایعات ندارد؛ قیمت خرید آن از ابتدا
+    // داخل TotalPurchaseCostUsd است. LossEvent فقط برای ردیابی کسری/مسئولیت است و نباید
+    // هزینهٔ همان بار را دوباره از نتیجه کم کند.
+    public decimal ShipmentNetResultUsd
+        => decimal.Round(
+            TotalSalesUsd - TotalPurchaseCostUsd - TotalOperationalExpensesUsd,
+            4,
+            MidpointRounding.AwayFromZero);
+
+    // محاسبهٔ تحقق‌یافتهٔ قدیمی برای سازگاری داخلی نگه داشته شده است، اما UI پروندهٔ
+    // محموله دیگر آن را به‌عنوان نتیجهٔ اصلی نمایش نمی‌دهد.
     public decimal RealizedGrossMarginUsd
         => decimal.Round(
             TotalSalesUsd - RealizedPurchaseCostUsd - RealizedOperationalExpensesUsd - CompanyLossDeductionUsd,
             4,
             MidpointRounding.AwayFromZero);
-    public bool NetResultIsProfit => RealizedGrossMarginUsd >= 0m;
-    public decimal NetResultAbsUsd => Math.Abs(RealizedGrossMarginUsd);
+    public bool NetResultIsProfit => ShipmentNetResultUsd >= 0m;
+    public decimal NetResultAbsUsd => Math.Abs(ShipmentNetResultUsd);
     public bool IsFullySold => RemainingUnsoldQuantityMt <= 0.0001m;
-    // ارزش موجودی باقی‌مانده به بهای خرید — جدا از سود؛ هرگز با درآمد/سود تحقق‌یافته مخلوط نمی‌شود.
+    // ارزش موجودی باقی‌مانده به بهای خرید فقط برای پیگیری موجودی؛ قیمت خرید این مقدار
+    // در ShipmentNetResultUsd از قبل به‌صورت کامل کسر شده است.
     public decimal RemainingInventoryValueUsd
         => AverageCostPerMtUsd > 0m && RemainingUnsoldQuantityMt > 0m
             ? decimal.Round(RemainingUnsoldQuantityMt * AverageCostPerMtUsd, 2, MidpointRounding.AwayFromZero)

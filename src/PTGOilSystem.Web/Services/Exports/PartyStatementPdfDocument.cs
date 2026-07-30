@@ -10,6 +10,7 @@ namespace PTGOilSystem.Web.Services.Exports;
 internal sealed class PartyStatementPdfDocument(
     PartyStatementResult statement,
     string webRootPath,
+    PdfBrandHeader brandHeader,
     bool isEnglish = false,
     SupplierContractStatementViewModel? contractGrouping = null) : IDocument
 {
@@ -20,19 +21,15 @@ internal sealed class PartyStatementPdfDocument(
     private enum StatementIcon
     {
         Party,
-        Document,
-        Wallet,
-        Debit,
-        Credit,
-        Balance
+        Document
     }
 
-    private const string Ink = "#171923";
-    private const string Muted = "#667085";
-    private const string Border = "#D9DEE7";
-    private const string Green = "#07883F";
-    private const string Red = "#E5222A";
-    private const string Purple = "#5B3FA3";
+    private const string Ink = PdfDesignSystem.Ink;
+    private const string Muted = PdfDesignSystem.Muted;
+    private const string Border = PdfDesignSystem.Border;
+    private const string Green = PdfDesignSystem.Positive;
+    private const string Red = PdfDesignSystem.Negative;
+    private const string Purple = PdfDesignSystem.Balance;
 
     public DocumentMetadata GetMetadata() => new()
     {
@@ -47,13 +44,13 @@ internal sealed class PartyStatementPdfDocument(
     {
         container.Page(page =>
         {
-            // ستون‌های عملیاتی در عرض A4 عمودی جا نمی‌شوند؛ همان قاعدهٔ صفحهٔ وب.
-            page.Size(statement.ColumnOptions.UseLandscape ? PageSizes.A4.Landscape() : PageSizes.A4);
-            page.MarginHorizontal(28);
-            page.MarginTop(22);
-            page.MarginBottom(20);
+            // ستون‌های عملیاتی در عرض Letter عمودی جا نمی‌شوند؛ همان قاعدهٔ صفحهٔ وب.
+            page.Size(statement.ColumnOptions.UseLandscape ? PageSizes.Letter.Landscape() : PageSizes.Letter);
+            page.MarginHorizontal(PdfDesignSystem.HorizontalMargin);
+            page.MarginTop(PdfDesignSystem.TopMargin);
+            page.MarginBottom(PdfDesignSystem.BottomMargin);
             page.PageColor(Colors.White);
-            page.DefaultTextStyle(style => style.FontFamily("Vazirmatn").FontSize(8).FontColor(Ink));
+            page.DefaultTextStyle(style => PdfDesignSystem.DefaultTextStyle(style, isEnglish));
             page.Header().Column(column =>
             {
                 column.Item().ShowOnce().Element(ComposeBrandHeader);
@@ -66,41 +63,27 @@ internal sealed class PartyStatementPdfDocument(
 
     private void ComposeBrandHeader(IContainer container)
     {
-        container.Column(column =>
-        {
-            column.Item().Row(row =>
-            {
-                var logoPath = ResolveWebAsset(statement.CompanyInfo.LogoPath);
-                if (logoPath is not null)
-                    row.RelativeItem(1.7f).Height(58).AlignLeft().Image(logoPath).FitArea();
-                else
-                    row.RelativeItem(1.7f).AlignMiddle().Text(statement.CompanyInfo.Name).Bold().FontSize(15);
-
-                row.RelativeItem().ContentFromRightToLeft().AlignRight().Column(contact =>
-                {
-                    contact.Item().Text(statement.CompanyInfo.Name).Bold().FontSize(10.5f);
-                    ContactLine(contact.Item(), statement.CompanyInfo.Address);
-                    ContactLine(contact.Item(), statement.CompanyInfo.Phone, true);
-                    ContactLine(contact.Item(), statement.CompanyInfo.Email, true);
-                    ContactLine(contact.Item(), statement.CompanyInfo.Website, true);
-                });
-            });
-            column.Item().PaddingTop(8).Element(ComposeTriColorRule);
-        });
+        PdfDesignSystem.ComposeReportHeader(
+            container,
+            isEnglish ? statement.Policy.StatementTitleEn : statement.Policy.StatementTitleFa,
+            statement.DocumentInfo.GeneratedAtUtc,
+            FormatPeriod(statement.DocumentInfo.PeriodFrom, statement.DocumentInfo.PeriodTo),
+            BuildSummaryMetrics(),
+            isEnglish,
+            brandHeader);
     }
 
     private void ComposeCompactHeader(IContainer container)
     {
-        container.Column(column =>
-        {
-            column.Item().Row(row =>
-            {
-                row.RelativeItem().Text(statement.CompanyInfo.Name).SemiBold().FontSize(8.5f);
-                row.RelativeItem().AlignRight().Text(statement.DocumentInfo.StatementNumber)
-                    .FontSize(7).FontColor(Muted);
-            });
-            column.Item().PaddingTop(5).Element(ComposeTriColorRule);
-        });
+        PdfDesignSystem.ComposeReportHeader(
+            container,
+            isEnglish ? statement.Policy.StatementTitleEn : statement.Policy.StatementTitleFa,
+            statement.DocumentInfo.GeneratedAtUtc,
+            filters: null,
+            metrics: [],
+            isEnglish: isEnglish,
+            brand: brandHeader,
+            compact: true);
     }
 
     private void ComposeContent(ColumnDescriptor column)
@@ -108,12 +91,8 @@ internal sealed class PartyStatementPdfDocument(
         column.Spacing(10);
         column.Item().Row(row =>
         {
-            row.RelativeItem().AlignRight().Column(title =>
-            {
-                title.Item().Text(statement.Policy.StatementTitleFa).Bold().FontSize(18);
-                title.Item().PaddingTop(1).ContentFromLeftToRight()
-                    .Text(statement.Policy.StatementTitleEn).FontFamily("Poppins").FontSize(7).FontColor(Muted);
-            });
+            row.RelativeItem().AlignRight().ContentFromLeftToRight()
+                .Text(statement.DocumentInfo.StatementNumber).FontSize(7).FontColor(Muted);
             row.RelativeItem().AlignLeft().AlignMiddle().Text(statement.CourtesyText).FontSize(8).FontColor(Muted);
         });
         column.Item().Row(row =>
@@ -122,7 +101,6 @@ internal sealed class PartyStatementPdfDocument(
             row.ConstantItem(10);
             row.RelativeItem().Element(ComposePartyInfo);
         });
-        column.Item().Element(ComposeSummary);
         // تب «قراردادها» جدول خلاصهٔ قراردادی دارد، بقیهٔ تب‌ها جدول گردش حساب. بقیهٔ سند
         // (سربرگ، اطلاعات طرف‌حساب، خلاصهٔ مالی، امضا، فوتر) در هر دو حالت یکی است.
         column.Item().Element(contractGrouping is null ? ComposeLedgerTable : ComposeContractTable);
@@ -179,58 +157,30 @@ internal sealed class PartyStatementPdfDocument(
         });
     }
 
-    private void ComposeSummary(IContainer container)
-    {
-        container.Border(0.7f).BorderColor(Border).CornerRadius(4).Padding(8).Row(row =>
-        {
-            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Wallet, Flow(CompanyFlowTextKey.OpeningBalance), OpeningBalance(), Green));
-            row.ConstantItem(1).Background(Border);
-            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Debit, Flow(CompanyFlowTextKey.TotalReceipt), TotalReceipt(), Red));
-            row.ConstantItem(1).Background(Border);
-            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Credit, Flow(CompanyFlowTextKey.TotalOutflow), TotalOutflow(), Green));
-            row.ConstantItem(1).Background(Border);
-            row.RelativeItem().Element(card => SummaryCard(card, StatementIcon.Balance, Flow(CompanyFlowTextKey.ClosingBalance), ClosingBalanceAbsolute(), Purple,
-                statement.Summary.ClosingBalanceMeaningFor(isEnglish)));
-        });
-    }
+    private IReadOnlyList<PdfSummaryMetric> BuildSummaryMetrics()
+        =>
+        [
+            new(
+                Flow(CompanyFlowTextKey.OpeningBalance),
+                FormatMoney(OpeningBalance()) + " " + statement.DocumentInfo.BaseCurrencyCode,
+                BalanceColor(OpeningBalance())),
+            new(
+                Flow(CompanyFlowTextKey.TotalReceipt),
+                FormatMoney(TotalReceipt()) + " " + statement.DocumentInfo.BaseCurrencyCode,
+                Red),
+            new(
+                Flow(CompanyFlowTextKey.TotalOutflow),
+                FormatMoney(TotalOutflow()) + " " + statement.DocumentInfo.BaseCurrencyCode,
+                Green),
+            new(
+                Flow(CompanyFlowTextKey.ClosingBalance),
+                FormatMoney(ClosingBalanceAbsolute()) + " " + statement.DocumentInfo.BaseCurrencyCode,
+                BalanceColor(ClosingBalance()),
+                statement.Summary.ClosingBalanceMeaningFor(isEnglish))
+        ];
 
-    private void SummaryCard(
-        IContainer container,
-        StatementIcon icon,
-        string label,
-        decimal? value,
-        string color,
-        string? detail = null)
-    {
-        container.PaddingHorizontal(6).ContentFromLeftToRight().Row(row =>
-        {
-            row.ConstantItem(32).Height(32)
-                .Background(IconBackground(icon))
-                .CornerRadius(16)
-                .Padding(7)
-                .Element(iconContainer => ComposeIcon(iconContainer, icon, color));
-            row.ConstantItem(7);
-            row.RelativeItem().ContentFromRightToLeft().Column(column =>
-            {
-                column.Item().AlignRight().Text(label).FontSize(6.5f).FontColor(Muted);
-                column.Item().ContentFromLeftToRight().Text(text =>
-                {
-                    text.Span(FormatMoney(value)).Bold().FontSize(9.5f).FontColor(color);
-                    text.Span("  " + statement.DocumentInfo.BaseCurrencyCode).FontSize(5.5f).FontColor(Muted);
-                });
-                if (!string.IsNullOrWhiteSpace(detail))
-                    column.Item().AlignRight().Text(detail).FontSize(5.5f).FontColor(Muted);
-            });
-        });
-    }
-
-    private static string IconBackground(StatementIcon icon)
-        => icon switch
-        {
-            StatementIcon.Debit => "#FDE9E7",
-            StatementIcon.Balance => "#F0EEF8",
-            _ => "#E7F4EC"
-        };
+    private static string BalanceColor(decimal? value)
+        => value < 0 ? Red : value > 0 ? Green : Ink;
 
     private static void ComposeIcon(IContainer container, StatementIcon icon, string color)
         => container.Svg(IconSvg(icon, color));
@@ -248,26 +198,6 @@ internal sealed class PartyStatementPdfDocument(
                 """
                 <path d="M6 2h8l4 4v16H6z"/>
                 <path d="M14 2v5h5M9 12h6M9 16h6"/>
-                """,
-            StatementIcon.Wallet =>
-                """
-                <path d="M3 6.5h15a2 2 0 0 1 2 2v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <path d="M5 6.5V5a2 2 0 0 1 2-2h9v3.5M15 11h6v6h-6a3 3 0 0 1 0-6z"/>
-                <circle cx="16" cy="14" r=".8" fill="CURRENT_COLOR" stroke="none"/>
-                """,
-            StatementIcon.Debit =>
-                """
-                <path d="M12 3v17M5 13l7 7 7-7"/>
-                """,
-            StatementIcon.Credit =>
-                """
-                <path d="M12 21V4M5 11l7-7 7 7"/>
-                """,
-            StatementIcon.Balance =>
-                """
-                <path d="M12 3v18M7 21h10M5 6h14"/>
-                <path d="M6 6 2.5 14h7zM18 6l-3.5 8h7z"/>
-                <path d="M2.5 14c.7 2 2 3 3.5 3s2.8-1 3.5-3M14.5 14c.7 2 2 3 3.5 3s2.8-1 3.5-3"/>
                 """,
             _ => string.Empty
         };
@@ -414,62 +344,58 @@ internal sealed class PartyStatementPdfDocument(
 
     private static void ContractTitleCell(IContainer container, SupplierContractStatementRow row, string background)
     {
-        container.ShowEntire().Background(background).BorderBottom(0.45f).BorderColor(Border)
-            .PaddingVertical(5).PaddingHorizontal(4).Column(column =>
+        container.ShowEntire().Element(cell => PdfDesignSystem.BodyCell(cell, background)).Column(column =>
             {
-                column.Item().Text(row.Title).SemiBold().FontSize(6.8f);
+                column.Item().Text(row.Title).Bold().FontSize(PdfDesignSystem.TableSize);
                 if (row.ContractQuantityMt.HasValue || row.LoadedQuantityMt.HasValue)
                 {
                     column.Item().Text(
                             $"قرارداد {FormatNumber(row.ContractQuantityMt, 3)} MT / بارگیری {FormatNumber(row.LoadedQuantityMt, 3)} MT")
-                        .FontSize(6).FontColor(Muted);
+                        .FontSize(6.5f).FontColor(Muted);
                 }
             });
     }
 
     private static void HeaderCell(IContainer container, string text, string color = Ink, bool ltr = false)
     {
-        var cell = container.Background("#ECEFF3").BorderBottom(1).BorderColor("#C9CFD8")
-            .PaddingVertical(6).PaddingHorizontal(4).AlignMiddle().AlignCenter();
+        var cell = container.Element(target => PdfDesignSystem.HeaderCell(target)).AlignCenter();
         if (ltr)
             cell = cell.ContentFromLeftToRight();
-        cell.Text(text).SemiBold().FontSize(7).FontColor(color);
+        cell.Text(text).Bold().FontSize(PdfDesignSystem.TableSize).FontColor(color);
     }
 
     private static void BodyCell(IContainer container, string text, string background, bool ltr = false)
     {
-        var cell = container.ShowEntire().Background(background).BorderBottom(0.45f).BorderColor(Border)
-            .PaddingVertical(5).PaddingHorizontal(4).AlignMiddle();
+        var cell = container.ShowEntire().Element(target => PdfDesignSystem.BodyCell(target, background));
         if (ltr)
             cell = cell.ContentFromLeftToRight();
-        cell.Text(text).FontSize(6.8f);
+        cell.Text(text).FontSize(PdfDesignSystem.TableSize);
     }
 
     private static void MoneyCell(IContainer container, decimal? value, string background, string color)
     {
-        container.ShowEntire().Background(background).BorderBottom(0.45f).BorderColor(Border)
-            .PaddingVertical(5).PaddingHorizontal(4).AlignMiddle().AlignRight()
-            .ContentFromLeftToRight().Text(FormatMoney(value)).FontSize(6.8f).FontColor(color);
+        container.ShowEntire().Element(target => PdfDesignSystem.BodyCell(target, background))
+            .AlignRight().ContentFromLeftToRight().Text(FormatMoney(value))
+            .FontSize(PdfDesignSystem.TableSize).FontColor(color);
     }
 
     private static void NumberCell(IContainer container, decimal? value, string background, int decimals)
     {
-        container.ShowEntire().Background(background).BorderBottom(0.45f).BorderColor(Border)
-            .PaddingVertical(5).PaddingHorizontal(4).AlignMiddle().AlignRight()
-            .ContentFromLeftToRight().Text(FormatNumber(value, decimals)).FontSize(6.8f);
+        container.ShowEntire().Element(target => PdfDesignSystem.BodyCell(target, background))
+            .AlignRight().ContentFromLeftToRight().Text(FormatNumber(value, decimals))
+            .FontSize(PdfDesignSystem.TableSize);
     }
 
     private static IContainer EmptyCellStyle(IContainer container)
-        => container.BorderBottom(0.45f).BorderColor(Border).PaddingVertical(12).AlignCenter();
+        => PdfDesignSystem.BodyCell(container).PaddingVertical(12).AlignCenter();
 
     private static IContainer TotalCellStyle(IContainer container)
-        => container.ShowEntire().Background("#E9ECF1").BorderTop(1).BorderColor("#AEB6C2")
-            .PaddingVertical(6).PaddingHorizontal(4).AlignMiddle();
+        => container.ShowEntire().Element(target => PdfDesignSystem.TotalCell(target));
 
     private static void TotalMoneyCell(IContainer container, decimal? value, string color)
     {
         TotalCellStyle(container).AlignRight().ContentFromLeftToRight()
-            .Text(FormatMoney(value)).Bold().FontSize(7.5f).FontColor(color);
+            .Text(FormatMoney(value)).Bold().FontSize(PdfDesignSystem.TableSize).FontColor(color);
     }
 
     private void ComposeClosingSection(IContainer container)
@@ -501,60 +427,8 @@ internal sealed class PartyStatementPdfDocument(
 
     private void ComposeFooter(IContainer container)
     {
-        container.PaddingTop(8).Column(column =>
-        {
-            column.Item().Element(ComposeTriColorRule);
-            column.Item().PaddingTop(5).Row(row =>
-            {
-                row.RelativeItem().ContentFromRightToLeft().Text(statement.CompanyInfo.Name).SemiBold().FontSize(6.5f);
-                row.RelativeItem().AlignRight().ContentFromLeftToRight().Text(text =>
-                {
-                    text.DefaultTextStyle(style => style.FontSize(6).FontColor(Muted));
-                    text.Span("\u0635\u0641\u062D\u0647 ");
-                    text.CurrentPageNumber();
-                    text.Span(" \u0627\u0632 ");
-                    text.TotalPages();
-                });
-            });
-            column.Item().PaddingTop(2).Row(row =>
-            {
-                row.RelativeItem().ContentFromRightToLeft().Text(CompanyContactSummary()).FontSize(5.5f).FontColor(Muted);
-                row.RelativeItem().AlignRight().ContentFromLeftToRight()
-                    .Text("\u062A\u0648\u0644\u06CC\u062F: " + FormatGeneratedAt(statement.DocumentInfo.GeneratedAtUtc))
-                    .FontSize(5.5f).FontColor(Muted);
-            });
-        });
+        PdfDesignSystem.ComposeFooter(container.PaddingTop(8), statement.CompanyInfo.Name, isEnglish);
     }
-
-    private static void ComposeTriColorRule(IContainer container)
-    {
-        container.Height(2).Row(row =>
-        {
-            row.RelativeItem().Background(Green);
-            row.RelativeItem().Background(Ink);
-            row.RelativeItem().Background(Red);
-        });
-    }
-
-    private static void ContactLine(IContainer container, string? value, bool ltr = false)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return;
-
-        var target = container.PaddingTop(2).AlignRight();
-        if (ltr)
-            target = target.ContentFromLeftToRight();
-        target.Text(value.Trim()).FontSize(6.5f).FontColor(Muted);
-    }
-
-    private string CompanyContactSummary()
-        => string.Join("  -  ", new[]
-        {
-            statement.CompanyInfo.Address,
-            statement.CompanyInfo.Phone,
-            statement.CompanyInfo.Email,
-            statement.CompanyInfo.Website
-        }.Where(value => !string.IsNullOrWhiteSpace(value)));
 
     private decimal? OpeningBalance() => statement.Summary.IsRubPresentation
         ? statement.Summary.OpeningBalanceRub
@@ -590,14 +464,7 @@ internal sealed class PartyStatementPdfDocument(
         if (string.IsNullOrWhiteSpace(configuredPath) || string.IsNullOrWhiteSpace(webRootPath))
             return null;
 
-        var root = Path.GetFullPath(webRootPath)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        var relative = configuredPath.Trim().TrimStart('~', '/', '\\')
-            .Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-        var candidate = Path.GetFullPath(Path.Combine(root, relative));
-        return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(candidate)
-            ? candidate
-            : null;
+        return PdfDesignSystem.ResolveWebAsset(webRootPath, configuredPath);
     }
 
     private static string ValueOrDash(string? value)
@@ -608,9 +475,6 @@ internal sealed class PartyStatementPdfDocument(
 
     private static string FormatPeriod(DateTime? from, DateTime? to)
         => $"{(from.HasValue ? FormatDate(from.Value) : "\u0627\u0628\u062A\u062F\u0627\u06CC \u062D\u0633\u0627\u0628")} - {(to.HasValue ? FormatDate(to.Value) : "\u0627\u0645\u0631\u0648\u0632")}";
-
-    private static string FormatGeneratedAt(DateTime value)
-        => value.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture) + " UTC";
 
     internal static string FormatMoney(decimal? value)
         => value.HasValue ? value.Value.ToString("N2", CultureInfo.InvariantCulture) : "\u2014";

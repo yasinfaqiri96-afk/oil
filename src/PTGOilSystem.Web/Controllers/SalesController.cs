@@ -405,18 +405,21 @@ public partial class SalesController : Controller
         int terminalId,
         int storageTankId,
         int companyId,
-        int sourcePurchaseContractId)
+        int? sourcePurchaseContractId)
     {
-        var preferredAvailable = await _stock.GetFreeQuantityMtAsync(
-            productId,
-            terminalId: terminalId,
-            contractId: sourcePurchaseContractId,
-            storageTankId: storageTankId,
-            asOfUtc: saleDate);
-
-        if (preferredAvailable >= quantityMt)
+        if (sourcePurchaseContractId.HasValue)
         {
-            return [new TerminalStockAllocation(sourcePurchaseContractId, quantityMt)];
+            var preferredAvailable = await _stock.GetFreeQuantityMtAsync(
+                productId,
+                terminalId: terminalId,
+                contractId: sourcePurchaseContractId.Value,
+                storageTankId: storageTankId,
+                asOfUtc: saleDate);
+
+            if (preferredAvailable >= quantityMt)
+            {
+                return [new TerminalStockAllocation(sourcePurchaseContractId.Value, quantityMt)];
+            }
         }
 
         var balances = await GetTerminalStockSourceBalancesAsync(
@@ -427,7 +430,7 @@ public partial class SalesController : Controller
 
         var eligibleBalances = balances
             .Where(b => b.CompanyId == companyId && b.AvailableMt > 0m)
-            .OrderBy(b => b.ContractId == sourcePurchaseContractId ? 0 : 1)
+            .OrderBy(b => sourcePurchaseContractId.HasValue && b.ContractId == sourcePurchaseContractId.Value ? 0 : 1)
             .ThenBy(b => b.ContractDate)
             .ThenBy(b => b.ContractNumber)
             .ThenBy(b => b.ContractId)
@@ -1240,31 +1243,47 @@ public partial class SalesController : Controller
     public async Task<IActionResult> SourceStockBalance(
         int? productId,
         int? sourcePurchaseContractId,
+        int? companyId,
         int? sourceTerminalId,
         int? sourceStorageTankId,
         DateTime? saleDate,
         CancellationToken ct)
     {
         if (!productId.HasValue || productId.Value <= 0
-            || !sourcePurchaseContractId.HasValue || sourcePurchaseContractId.Value <= 0
             || !sourceTerminalId.HasValue || sourceTerminalId.Value <= 0
-            || !sourceStorageTankId.HasValue || sourceStorageTankId.Value <= 0)
+            || !sourceStorageTankId.HasValue || sourceStorageTankId.Value <= 0
+            || (!sourcePurchaseContractId.HasValue && (!companyId.HasValue || companyId.Value <= 0)))
         {
             return Json(new
             {
                 ok = false,
                 availableMt = (decimal?)null,
-                message = "برای نمایش موجودی، قرارداد خرید، ترمینال و مخزن را انتخاب کنید."
+                message = "برای نمایش موجودی، شرکت، محصول، ترمینال و مخزن را انتخاب کنید."
             });
         }
 
-        var available = await _stock.GetFreeQuantityMtAsync(
-            productId.Value,
-            terminalId: sourceTerminalId.Value,
-            contractId: sourcePurchaseContractId.Value,
-            storageTankId: sourceStorageTankId.Value,
-            asOfUtc: (saleDate ?? DateTime.UtcNow).Date,
-            ct: ct);
+        decimal available;
+        if (sourcePurchaseContractId is > 0)
+        {
+            available = await _stock.GetFreeQuantityMtAsync(
+                productId.Value,
+                terminalId: sourceTerminalId.Value,
+                contractId: sourcePurchaseContractId.Value,
+                storageTankId: sourceStorageTankId.Value,
+                asOfUtc: (saleDate ?? DateTime.UtcNow).Date,
+                ct: ct);
+        }
+        else
+        {
+            var balances = await GetTerminalStockSourceBalancesAsync(
+                productId.Value,
+                sourceTerminalId.Value,
+                sourceStorageTankId.Value,
+                (saleDate ?? DateTime.UtcNow).Date);
+            available = balances
+                .Where(balance => balance.CompanyId == companyId!.Value)
+                .Sum(balance => balance.AvailableMt);
+        }
 
         return Json(new
         {
@@ -1344,11 +1363,6 @@ public partial class SalesController : Controller
             if (!model.SourceStorageTankId.HasValue)
             {
                 ModelState.AddModelError(nameof(model.SourceStorageTankId), "برای فروش از مخزن، انتخاب مخزن مبدا الزامی است.");
-            }
-
-            if (!model.SourcePurchaseContractId.HasValue)
-            {
-                ModelState.AddModelError(nameof(model.SourcePurchaseContractId), "برای فروش از مخزن، انتخاب قرارداد خرید منبع موجودی الزامی است.");
             }
 
             var sourceTerminal = model.SourceTerminalId.HasValue
@@ -1617,7 +1631,7 @@ public partial class SalesController : Controller
                     model.SourceTerminalId!.Value,
                     model.SourceStorageTankId!.Value,
                     model.CompanyId,
-                    model.SourcePurchaseContractId!.Value);
+                    model.SourcePurchaseContractId);
 
             }
 
@@ -1654,7 +1668,35 @@ public partial class SalesController : Controller
                         model.SourceTerminalId!.Value,
                         model.SourceStorageTankId.Value,
                         model.CompanyId,
-                        model.SourcePurchaseContractId!.Value);
+                        model.SourcePurchaseContractId);
+
+                    // قرارداد منبع و محموله در فرم اختیاری‌اند (کاربرِ فروش نمی‌داند بار از کدام
+                    // قرارداد/محموله است). هر دو از همان تخصیصِ موجودی که همین‌جا محاسبه شد و از
+                    // منشأ فیزیکی مخزن استنباط می‌شوند، تا پروندهٔ محموله — که فروش‌ها را با
+                    // ShipmentId می‌شمارد — این فروش‌ها را از دست ندهد. فقط وقتی نتیجه یکتاست
+                    // مقدار داده می‌شود؛ حالت مبهم دست‌نخورده (null) می‌ماند.
+                    if (sale.SourcePurchaseContractId is null)
+                    {
+                        var allocatedContractIds = stockAllocations
+                            .Select(a => a.ContractId)
+                            .Distinct()
+                            .ToList();
+                        if (allocatedContractIds.Count == 1)
+                        {
+                            sale.SourcePurchaseContractId = allocatedContractIds[0];
+                        }
+                    }
+
+                    if (sale.ShipmentId is null)
+                    {
+                        sale.ShipmentId =
+                            await ResolveShipmentIdForTankAsync(model.SourceStorageTankId.Value);
+
+                        if (sale.ShipmentId is null && sale.SourcePurchaseContractId is int sourceContractId)
+                        {
+                            sale.ShipmentId = await ResolveShipmentIdForContractAsync(sourceContractId);
+                        }
+                    }
                 }
 
                 _db.SalesTransactions.Add(sale);
@@ -1709,10 +1751,18 @@ public partial class SalesController : Controller
                     await _lossWorkflow.CreateAsync(lossSubmission);
                 }
 
+                var resolvedSourceContractId = model.SourcePurchaseContractId
+                    ?? (stockOutMovements
+                        .Select(movement => movement.ContractId)
+                        .Distinct()
+                        .Take(2)
+                        .Count() == 1
+                            ? stockOutMovements[0].ContractId
+                            : null);
                 var ledgerEntry = SaleLedgerFactory.BuildSaleLedgerEntry(
                     sale,
                     conversion,
-                    contractId: sale.ContractId ?? model.SourcePurchaseContractId);
+                    contractId: sale.ContractId ?? resolvedSourceContractId);
 
                 _db.LedgerEntries.Add(ledgerEntry);
                 await _db.SaveChangesAsync();
@@ -2510,21 +2560,27 @@ public partial class SalesController : Controller
             .ToList();
 
     private static List<SelectListItem> GetSaleStageItems(SaleStage selectedStage)
-        => new[]
+    {
+        var stages = new List<SaleStage>
         {
-            SaleStage.PreSale,
             SaleStage.InTransit,
             SaleStage.Border,
             SaleStage.AfterCustoms,
             SaleStage.TerminalStock
+        };
+        if (selectedStage == SaleStage.PreSale)
+        {
+            stages.Insert(0, SaleStage.PreSale);
         }
-        .Select(stage => new SelectListItem
+
+        return stages.Select(stage => new SelectListItem
         {
             Value = ((int)stage).ToString(),
             Text = SaleStageLabels.ToPersian(stage),
             Selected = stage == selectedStage
         })
         .ToList();
+    }
 
     private static void NormalizeCreateModel(SalesCreateViewModel model)
     {

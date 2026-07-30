@@ -1163,12 +1163,15 @@ public class ContractJourneyViewStructureTests
     }
 
     [Fact]
-    public void Sales_Create_Explains_Sales_Contract_And_Source_Purchase_Contract()
+    public void Sales_Create_Removes_Sales_Contract_And_Offers_Automatic_Purchase_Allocation()
     {
         var contents = ReadRepoFile("src/PTGOilSystem.Web/Views/Sales/Create.cshtml");
 
         Assert.Contains("SourcePurchaseContractId", contents);
-        Assert.Contains("قرارداد فروش", contents);
+        Assert.Contains("نمی‌دانم — محاسبه خودکار از موجودی مخزن", contents);
+        Assert.Contains("قرارداد خرید منبع (اختیاری)", contents);
+        Assert.DoesNotContain("<label asp-for=\"ContractId\"", contents);
+        Assert.DoesNotContain("data-sales-contract-id", contents);
     }
 
     [Fact]
@@ -1325,7 +1328,7 @@ public class ContractJourneyViewStructureTests
     }
 
     [Fact]
-    public void Sales_Create_Exposes_Sales_Contract_Destination_Fx_And_Total_Context()
+    public void Sales_Create_Exposes_Automatic_Stock_Source_Destination_Fx_And_Total_Context()
     {
         var contents = ReadRepoFile("src/PTGOilSystem.Web/Views/Sales/Create.cshtml");
         var financeForms = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/finance-forms.js");
@@ -1340,11 +1343,13 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("class=\"sales-create-form\"", contents);
         Assert.DoesNotContain("contract-form-section", contents);
         Assert.DoesNotContain("sales-items-table", contents);
-        Assert.Contains("asp-for=\"ContractId\"", contents);
-        Assert.Contains("data-sales-contract-id", contents);
-        Assert.Contains("<label asp-for=\"ContractId\"", contents);
-        Assert.Contains("data-sales-contract-help", contents);
-        Assert.Contains("data-sales-contract-shipment-hint", contents);
+        Assert.Contains("<input asp-for=\"ContractId\" type=\"hidden\" />", contents);
+        Assert.DoesNotContain("data-sales-contract-id", contents);
+        Assert.DoesNotContain("<label asp-for=\"ContractId\"", contents);
+        Assert.DoesNotContain("data-sales-contract-help", contents);
+        Assert.DoesNotContain("data-sales-contract-shipment-hint", contents);
+        Assert.Contains("data-sales-company", contents);
+        Assert.Contains("نمی‌دانم — محاسبه خودکار از موجودی مخزن", contents);
         Assert.Contains("asp-for=\"DestinationLocationId\" type=\"hidden\" data-sales-destination-id", contents);
         Assert.Contains("asp-for=\"AppliedFxRateToUsd\"", contents);
         Assert.Contains("asp-for=\"SaleDate\"", contents);
@@ -1364,7 +1369,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("overflow: visible;", componentsCss);
         Assert.Contains(".ak-entity-quick-create[hidden]", componentsCss);
         Assert.Contains("data-sales-save-summary", contents);
-        Assert.Contains("خلاصه ثبت فروش", contents);
+        Assert.Contains("مرور نهایی فروش", contents);
+        Assert.Contains("class=\"ak-summary-list ak-summary\"", contents);
+        Assert.DoesNotContain("<details class=\"ak-advanced\"", contents);
+        Assert.DoesNotContain("تنظیمات بیشتر", contents);
         Assert.Contains(".ak-form-section[data-sales-stage-scope]", financeForms);
         Assert.Contains(".ak-field, .ak-col-full", financeForms);
         Assert.DoesNotContain(".contract-form-section[data-sales-stage-scope]", financeForms);

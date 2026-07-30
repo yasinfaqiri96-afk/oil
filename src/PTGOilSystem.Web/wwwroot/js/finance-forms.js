@@ -95,21 +95,17 @@ customs: "4"
 };
 var baseCurrency = normalizeCurrency(form.getAttribute("data-sales-base-currency") || "USD");
 var shipmentContractMap = parseJsonDataAttribute(form, "data-sales-shipment-contract-map");
-var saleContractDestinationMap = parseJsonDataAttribute(form, "data-sales-contract-destination-map");
 var shipmentById = new Map(shipmentContractMap.map(function (item) {
 return [String(item.shipmentId), item];
 }));
-var destinationByContractId = new Map(saleContractDestinationMap.map(function (item) {
-return [String(item.contractId), item.destinationLocationId];
-}));
 
 var stageSelect = form.querySelector("[data-sales-stage]");
+var companySelect = form.querySelector("[data-sales-company]");
 var productSelect = form.querySelector("[data-sales-product]");
 var sourceContractSelect = form.querySelector("[data-sales-source-contract]");
 var sourceTerminalSelect = form.querySelector("[data-sales-source-terminal]");
 var sourceTankSelect = form.querySelector("[data-sales-source-tank]");
 var shipmentSelect = form.querySelector("[data-sales-shipment]");
-var contractSelect = form.querySelector("[data-sales-contract-id]");
 var destinationInput = form.querySelector("[data-sales-destination-id]");
 var quantityInput = form.querySelector("[data-sales-quantity]");
 var unitPriceInput = form.querySelector("[data-sales-unit-price]");
@@ -120,9 +116,6 @@ var totalValue = form.querySelector("[data-sales-total-value]");
 var saleDateInput = form.querySelector("[data-sales-date]");
 var stockAlert = form.querySelector("[data-sales-stock-alert]");
 var stockAlertValue = form.querySelector("[data-sales-stock-alert-value]");
-var contractHelp = form.querySelector("[data-sales-contract-help]");
-var contractShipmentHint = form.querySelector("[data-sales-contract-shipment-hint]");
-var contractRequiredMark = form.querySelector("[data-sales-contract-required-mark]");
 var saveSummaryList = form.querySelector("[data-sales-save-summary-list]");
 var saveSummaryWarning = form.querySelector("[data-sales-save-summary-warning]");
 var summaryQty = form.querySelector("[data-sales-summary-qty]");
@@ -137,7 +130,6 @@ var reason = form.querySelector("#suggestedPriceReason");
 var fallback = form.querySelector("#suggestedPriceFallback");
 var stageHelp = form.querySelector("#saleStageHelp");
 var endpointBase = sourceContractSelect ? sourceContractSelect.getAttribute("data-suggested-price-url") : "";
-var initialContractId = contractSelect ? contractSelect.value : "";
 var initialDestinationId = destinationInput ? destinationInput.value : "";
 var stockRequestController = null;
 var lastStageValue = stageSelect ? String(stageSelect.value || saleStages.terminal) : saleStages.terminal;
@@ -203,7 +195,7 @@ return splitTokens(element.getAttribute("data-sales-stage-scope"));
 }
 function clearWrapperControls(wrapper) {
 wrapper.querySelectorAll("input, select, textarea").forEach(function (input) {
-if (input.type === "hidden" || input.matches("[data-sales-stage]") || input.matches("[data-sales-contract-id]")) return;
+if (input.type === "hidden" || input.matches("[data-sales-stage]")) return;
 input.value = "";
 });
 }
@@ -241,8 +233,8 @@ if (!stageHelp) return;
 var stageName = currentStageName();
 if (stageName === "terminal") {
 stageHelp.textContent = text(
-"فروش از موجودی واقعی مخزن است. ترمینال، مخزن و قرارداد خرید منبع را مشخص کنید.",
-"This stage sells from real tank stock. Pick terminal, tank and source purchase contract.");
+"فروش از موجودی واقعی مخزن است. اگر قرارداد خرید منبع را نمی‌دانید، سیستم آن را از موجودی همین شرکت و مخزن محاسبه می‌کند.",
+"This stage sells from real tank stock. If the source purchase contract is unknown, the system calculates it from this company and tank stock.");
 return;
 }
 if (stageName === "presale") {
@@ -267,74 +259,17 @@ stageHelp.textContent = text(
 "فروش بعد از گمرک است. شیپمنت، تکت و منبع ردیابی را در صورت امکان وارد کنید.",
 "After-customs sale. Provide shipment, ticket and trace source when available.");
 }
-function syncDestinationFromContract(contractId) {
-if (!destinationInput) return;
-var mapped = contractId && destinationByContractId.get(String(contractId));
-destinationInput.value = mapped ? String(mapped) : "";
-}
-function refreshContractHelp() {
-var stageName = currentStageName();
-if (contractRequiredMark) {
-contractRequiredMark.hidden = stageName !== "presale";
-}
-if (contractHelp) {
-if (stageName === "presale") {
-contractHelp.textContent = text(
-"این فروش باید به یک قرارداد فروش وصل شود. مشتری و جنس باید با قرارداد هم‌خوان باشند.",
-"This sale must link to a sales contract. Customer and product must match the contract.");
-} else if (stageName === "terminal") {
-contractHelp.textContent = text(
-"اختیاری: اگر قرارداد فروش انتخاب نشود، فروش مستقیم از مخزن ثبت می‌شود.",
-"Optional: without a sales contract, a direct tank sale is recorded.");
-} else {
-contractHelp.textContent = text(
-"اگر شیپمنت انتخاب شود، قرارداد فروش از همان شیپمنت پر می‌شود.",
-"If you pick a shipment, the sales contract is filled from that shipment.");
-}
-}
-}
-function updateContractContext() {
+function updateShipmentContext() {
 if (!destinationInput) return;
 var stageName = currentStageName();
-refreshContractHelp();
-if (contractShipmentHint) {
-contractShipmentHint.hidden = true;
-contractShipmentHint.textContent = "";
-}
-if (contractSelect) {
-contractSelect.disabled = false;
-}
 if (stageName === "terminal" || stageName === "presale") {
-if (contractSelect && !contractSelect.value && initialContractId) {
-contractSelect.value = initialContractId;
-}
-syncDestinationFromContract(contractSelect ? contractSelect.value : "");
+destinationInput.value = initialDestinationId;
 return;
 }
 var shipment = shipmentById.get(String((shipmentSelect && shipmentSelect.value) || ""));
-if (!shipment || !shipment.contractId) {
-if (contractSelect && !contractSelect.value && initialContractId) {
-contractSelect.value = initialContractId;
-}
-syncDestinationFromContract(contractSelect ? contractSelect.value : initialContractId);
-return;
-}
-var contractId = String(shipment.contractId);
-if (contractSelect) {
-contractSelect.value = contractId;
-contractSelect.disabled = true;
-}
-if (contractShipmentHint) {
-contractShipmentHint.hidden = false;
-contractShipmentHint.textContent = text(
-"قرارداد فروش از شیپمنت انتخاب‌شده پر شد: " + selectedOptionText(shipmentSelect),
-"Sales contract filled from shipment: " + selectedOptionText(shipmentSelect));
-}
-var shipmentDestinationId = shipment.destinationLocationId ? String(shipment.destinationLocationId) : "";
-var contractDestinationId = destinationByContractId.get(contractId)
-? String(destinationByContractId.get(contractId))
-: "";
-destinationInput.value = shipmentDestinationId || contractDestinationId || "";
+destinationInput.value = shipment && shipment.destinationLocationId
+? String(shipment.destinationLocationId)
+: initialDestinationId;
 }
 function computeUsdTotal(quantity, unitPrice, currency, fxRate) {
 currency = normalizeCurrency(currency) || baseCurrency;
@@ -364,9 +299,7 @@ summaryBase.textContent = formatMoney(baseEquivalent);
 }
 var lines = [];
 lines.push(selectedOptionText(stageSelect) || text("فروش", "Sale"));
-if (contractSelect && contractSelect.value) {
-lines.push(text("قرارداد: ", "Contract: ") + selectedOptionText(contractSelect));
-} else if (stageName === "terminal") {
+if (stageName === "terminal") {
 lines.push(text("فروش مستقیم از مخزن", "Direct tank sale"));
 }
 if (stageName === "terminal" && sourceTankSelect && sourceTankSelect.value) {
@@ -374,6 +307,13 @@ var sourceParts = [];
 if (sourceTerminalSelect && sourceTerminalSelect.value) sourceParts.push(selectedOptionText(sourceTerminalSelect));
 sourceParts.push(selectedOptionText(sourceTankSelect));
 lines.push(text("منبع: ", "Source: ") + sourceParts.join(" / "));
+if (sourceContractSelect && sourceContractSelect.value) {
+lines.push(text("قرارداد خرید: ", "Purchase contract: ") + selectedOptionText(sourceContractSelect));
+} else {
+lines.push(text(
+"تخصیص قرارداد خرید: خودکار از موجودی مخزن",
+"Purchase contract allocation: automatic from tank stock"));
+}
 } else if (stageName !== "terminal" && shipmentSelect && shipmentSelect.value) {
 lines.push(text("محموله: ", "Shipment: ") + selectedOptionText(shipmentSelect));
 }
@@ -427,10 +367,11 @@ hideStockAlert();
 return;
 }
 var productId = productSelect && productSelect.value;
+var companyId = companySelect && companySelect.value;
 var sourcePurchaseContractId = sourceContractSelect && sourceContractSelect.value;
 var sourceTerminalId = sourceTerminalSelect && sourceTerminalSelect.value;
 var sourceStorageTankId = sourceTankSelect && sourceTankSelect.value;
-if (!productId || !sourcePurchaseContractId || !sourceTerminalId || !sourceStorageTankId) {
+if (!productId || !companyId || !sourceTerminalId || !sourceStorageTankId) {
 hideStockAlert();
 return;
 }
@@ -446,7 +387,8 @@ stockAlert.classList.remove("is-warning");
 stockAlertValue.textContent = "در حال بررسی موجودی...";
 var url = new URL(balanceUrl, window.location.origin);
 url.searchParams.set("productId", productId);
-url.searchParams.set("sourcePurchaseContractId", sourcePurchaseContractId);
+url.searchParams.set("companyId", companyId);
+if (sourcePurchaseContractId) url.searchParams.set("sourcePurchaseContractId", sourcePurchaseContractId);
 url.searchParams.set("sourceTerminalId", sourceTerminalId);
 url.searchParams.set("sourceStorageTankId", sourceStorageTankId);
 if (saleDateInput && saleDateInput.value) url.searchParams.set("saleDate", saleDateInput.value);
@@ -506,7 +448,7 @@ hideHint();
 }
 function refreshStage() {
 refreshStageFields();
-updateContractContext();
+updateShipmentContext();
 refreshStockAlert();
 refreshSaveSummary();
 }
@@ -531,15 +473,8 @@ refreshStage();
 refreshStageHelp();
 }
 if (stageSelect) stageSelect.addEventListener("change", handleStageChange);
-if (shipmentSelect) shipmentSelect.addEventListener("change", updateContractContext);
-if (contractSelect) contractSelect.addEventListener("change", function () {
-if (currentStageName() === "terminal" || currentStageName() === "presale") {
-initialContractId = contractSelect.value;
-syncDestinationFromContract(contractSelect.value);
-}
-refreshSaveSummary();
-});
-[productSelect, sourceTerminalSelect, sourceTankSelect, saleDateInput].forEach(function (input) {
+if (shipmentSelect) shipmentSelect.addEventListener("change", updateShipmentContext);
+[companySelect, productSelect, sourceTerminalSelect, sourceTankSelect, saleDateInput].forEach(function (input) {
 if (input) input.addEventListener("change", refreshStockAlert);
 });
 if (sourceContractSelect) sourceContractSelect.addEventListener("change", function () {
@@ -558,14 +493,10 @@ if (currencySelect) currencySelect.addEventListener("change", function () {
 refreshFxRateVisibility();
 refreshTotal();
 });
-form.addEventListener("submit", function () {
-if (contractSelect) contractSelect.disabled = false;
-});
 refreshStage();
 refreshFxRateVisibility();
 refreshTotal();
 refreshStageHelp();
-refreshContractHelp();
 if (sourceContractSelect && sourceContractSelect.value) loadSuggestedPrice();
 form.dataset.salesReady = "true";
 }

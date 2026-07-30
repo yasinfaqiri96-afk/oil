@@ -52,7 +52,7 @@ Contract → Platt's / FX → Loading → Receipt → Inventory (Ilinka Stock)
 - حساب صراف بیرون از `Ledger` است؛ پرداخت به صراف از مسیر `ManualPayment` + `SarrafId` انجام می‌شود (`ViaSarraf` یک جریان جداگانه است).
 - کمیسیون دو رکورد می‌سازد: `Expense` (P&L) + خروج نقدی (`CommissionPayment`) یا `SarrafPayable` — بدون double-count.
 - ثبت گروهی (مصرف/فروش) یک رکورد parent (`ExpenseBatch` / `SalesBatch`) می‌سازد و سهم‌ها رکوردهای عادی با Ledger خودشان هستند.
-- سود/زیان پروندهٔ محموله فقط از `RealizedGrossMarginUsd` خوانده می‌شود.
+- سود/زیان پروندهٔ محموله فقط از `ShipmentNetResultUsd` خوانده می‌شود: کل فروش منهای قیمت کامل خرید همهٔ بار و تمام مصارف. بار فروش‌نشده برای منفی‌شدن نتیجه نیاز به ثبت ضایعات ندارد.
 - `ContractAmendment` immutable است؛ متمم قرارداد قبلی را بازنویسی نمی‌کند.
 
 ## قراردادهای schema

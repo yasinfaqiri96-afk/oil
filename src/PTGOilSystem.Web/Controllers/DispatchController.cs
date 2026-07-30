@@ -1135,10 +1135,8 @@ public partial class DispatchController : Controller
             nameof(model.ServiceProviderId),
             nameof(model.OperationalAssetId));
 
-        if (model.DischargedQuantityMt.HasValue && model.DischargedQuantityMt > model.LoadedQuantityMt)
-        {
-            ModelState.AddModelError(nameof(model.DischargedQuantityMt), "Discharged quantity cannot exceed loaded quantity.");
-        }
+        // Discharged weight comes from the destination scale and may exceed the loaded weight
+        // (scale overage). Shortage then becomes zero; freight still follows the loaded weight.
 
         if (!ModelState.IsValid)
         {
@@ -1327,11 +1325,8 @@ public partial class DispatchController : Controller
             nameof(model.ServiceProviderId),
             nameof(model.OperationalAssetId));
 
-        if (model.DischargedQuantityMt > dispatch.LoadedQuantityMt)
-        {
-            ModelState.AddModelError(nameof(model.DischargedQuantityMt), "وزن تخلیه‌شده نمی‌تواند از وزن بارگیری‌شده بیشتر باشد.");
-        }
-
+        // وزن تخلیه از ترازوی مقصد می‌آید و می‌تواند از وزن بارگیری بیشتر باشد (اضافه‌وزن ترازو)؛
+        // کسری در این حالت صفر می‌شود و کرایه همچنان روی وزن بارگیری‌شده محاسبه می‌گردد.
         var computedShortageMt = Math.Max(dispatch.LoadedQuantityMt - model.DischargedQuantityMt, 0m);
         if (model.ShortageMt.HasValue && !QuantitiesMatch(model.ShortageMt.Value, computedShortageMt))
         {
@@ -1998,10 +1993,7 @@ public partial class DispatchController : Controller
             }
         }
 
-        if (model.DischargedQuantityMt.HasValue && model.DischargedQuantityMt > model.LoadedQuantityMt)
-        {
-            ModelState.AddModelError(nameof(model.DischargedQuantityMt), "وزن تخلیه‌شده نمی‌تواند از وزن بارگیری‌شده بیشتر باشد.");
-        }
+        // وزن تخلیه از ترازوی مقصد می‌آید و می‌تواند از وزن بارگیری بیشتر باشد (اضافه‌وزن ترازو).
 
         await ValidateOperationalPartyAsync(
             model.ServiceProviderId,

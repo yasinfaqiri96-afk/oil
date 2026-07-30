@@ -314,6 +314,32 @@ public partial class SalesController
         return null;
     }
 
+    // محمولهٔ یک فروشِ از موجودی مخزن، از منشأ فیزیکیِ خودِ مخزن استنباط می‌شود، نه از قرارداد.
+    // کاربرِ صفحهٔ فروش نمی‌داند بارِ داخل مخزن از کدام قرارداد خرید آمده (به همین دلیل انتخاب
+    // قرارداد منبع اختیاری است)، و یک قرارداد می‌تواند به چند محموله وصل باشد که
+    // ResolveShipmentIdForContractAsync را به‌درستی مبهم و بی‌جواب می‌گذارد.
+    // اما موجودی فقط از راه رسیدهای انتقال به مخزن می‌رسد و هر رسید محمولهٔ خودش را می‌داند؛
+    // اگر همهٔ رسیدهای یک مخزن به یک محموله برسند، فروشِ آن مخزن هم به همان محموله تعلق دارد.
+    // در حالت مخلوط (چند محموله در یک مخزن) عمداً null برمی‌گردد تا حدس زده نشود.
+    private async Task<int?> ResolveShipmentIdForTankAsync(int storageTankId)
+    {
+        if (storageTankId <= 0)
+        {
+            return null;
+        }
+
+        var fromReceipts = await _db.InventoryTransportReceipts.AsNoTracking()
+            .Where(r => !r.IsCancelled
+                && r.DestinationStorageTankId == storageTankId
+                && r.InventoryTransportLeg != null
+                && r.InventoryTransportLeg.ShipmentId != null)
+            .Select(r => r.InventoryTransportLeg!.ShipmentId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        return fromReceipts.Count == 1 ? fromReceipts[0] : null;
+    }
+
     private static string BuildGroupRoute(string? source, string? destination)
     {
         if (!string.IsNullOrWhiteSpace(source) || !string.IsNullOrWhiteSpace(destination))

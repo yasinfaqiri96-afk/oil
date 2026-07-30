@@ -95,3 +95,55 @@ public sealed class TruckSettlementIndexViewModel
 // گزینهٔ طرف کرایه برای selectها (راننده / شرکت خدماتی / دارایی عملیاتی).
 // نوع public لازم است: viewها با dynamic روی نوع anonymous (internal) به RuntimeBinderException می‌خورند.
 public sealed record TruckSettlementPartyOption(int Id, string Name);
+
+// منبعی که کرایه/کسری آن در مرحلهٔ قبل نهایی شده و اکنون فقط باید به مخزن رسید شود.
+public sealed class GroupUnloadSourceItem
+{
+    public TruckSettlementSourceKind Kind { get; init; }
+    public int SourceId { get; init; }
+    public string Key => $"{(int)Kind}:{SourceId}";
+    public string TypeLabel { get; init; } = "";
+    public string VehicleNumber { get; init; } = "";
+    public string? DriverName { get; init; }
+    public string ProductName { get; init; } = "";
+    public string ContractNumber { get; init; } = "";
+    public string Route { get; init; } = "";
+    public DateTime OperationDate { get; init; }
+    public decimal QuantityMt { get; init; }
+    public int ProductId { get; init; }
+}
+
+public sealed class GroupUnloadSelectedInput
+{
+    public bool Selected { get; set; }
+    public TruckSettlementSourceKind Kind { get; set; }
+    public int SourceId { get; set; }
+}
+
+public sealed class GroupUnloadCreateViewModel
+{
+    [Display(Name = "نوع منبع")]
+    [Required(ErrorMessage = "نوع منبع را انتخاب کنید.")]
+    public TruckSettlementSourceKind? SourceKind { get; set; } = TruckSettlementSourceKind.Leg;
+
+    [Display(Name = "تاریخ تخلیه")]
+    [DataType(DataType.Date)]
+    public DateTime ReceiptDate { get; set; } = DateTime.UtcNow.Date;
+
+    [Display(Name = "مخزن مقصد")]
+    [Range(1, int.MaxValue, ErrorMessage = "مخزن مقصد را انتخاب کنید.")]
+    public int DestinationStorageTankId { get; set; }
+
+    [Display(Name = "شماره سند / مرجع")]
+    [StringLength(100)]
+    public string? DocumentReference { get; set; }
+
+    [Display(Name = "توضیحات")]
+    [StringLength(1000)]
+    public string? Notes { get; set; }
+
+    [StringLength(1000)]
+    public string? ReturnUrl { get; set; }
+
+    public List<GroupUnloadSelectedInput> Items { get; set; } = [];
+}
