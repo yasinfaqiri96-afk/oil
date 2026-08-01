@@ -143,10 +143,10 @@ public class ShipmentPnlControllerTests
         // ریشهٔ Scope صفحه باید وجود داشته باشد تا CSS کامپوننت فعال شود.
         Assert.Contains("data-shipment-details-page", view);
 
-        // هر شش لیست رکوردی تب‌ها از همان یک shell می‌آید (رسیدها، مصارف،
-        // فروش‌ها، سود و زیان، کسری‌ها، سفرها).
+        // پنج لیست رکوردی تب‌ها از همان یک shell می‌آید (رسیدها، مصارف،
+        // فروش‌ها، کسری‌ها و سفرها). تب سود و زیان اکنون خلاصهٔ مدیریتی است، نه جدول رکوردی.
         var shellCount = Regex.Matches(view, "<shipment-record-list ").Count;
-        Assert.Equal(6, shellCount);
+        Assert.Equal(5, shellCount);
 
         // تنها جدول باقی‌ماندهٔ ak-table در این صفحه، جدول ورودیِ فرم تقسیم کسری
         // داخل مودال است؛ هیچ لیست رکوردیِ تب دیگری مارک‌آپ مستقل ندارد.
