@@ -43,7 +43,8 @@
             }
         </div>
 
-        @await Html.PartialAsync("_Pagination", (currentPage, pageCount))
+        @* این بخش اندازهٔ صفحهٔ ثابت خود را دارد؛ انتخابگر تعداد سطرِ لیست اصلی نباید اینجا تکرار شود. *@
+        @await Html.PartialAsync("_Pagination", (currentPage, pageCount), new ViewDataDictionary(ViewData) { ["PageSize"] = null })
     }
     else
     {

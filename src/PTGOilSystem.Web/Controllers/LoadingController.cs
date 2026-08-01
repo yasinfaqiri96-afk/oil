@@ -17,6 +17,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -55,6 +56,8 @@ public partial class LoadingController : Controller
     private sealed record TruckLookupOption(int Id, string PlateNumber);
     private sealed record DriverLookupOption(int Id, string FullName);
 
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     public LoadingController(
         ApplicationDbContext db,
         IAuditService audit,
@@ -63,8 +66,11 @@ public partial class LoadingController : Controller
         IPricingService? pricing = null,
         IMemoryCache? cache = null,
         Services.Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null,
-        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null)
+        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _purchaseAccounting = purchaseAccounting;
         _expenseAccounting = expenseAccounting;
         _db = db;
@@ -633,8 +639,8 @@ public partial class LoadingController : Controller
         var model = new LoadingReceiptCreateViewModel
         {
             LoadingRegisterId = loading.Id,
-            ReceiptDate = DateTime.UtcNow.Date,
-            DirectDispatchDate = DateTime.UtcNow.Date,
+            ReceiptDate = AfghanistanBusinessClock.SystemToday,
+            DirectDispatchDate = AfghanistanBusinessClock.SystemToday,
             ReturnUrl = returnUrl,
             ContractNumber = loading.Contract?.ContractNumber ?? string.Empty,
             ProductName = loading.Product?.Name ?? string.Empty,
@@ -762,9 +768,12 @@ public partial class LoadingController : Controller
         int? contractId = null,
         DateTime? fromDate = null,
         DateTime? toDate = null,
-        int page = 1)
+        int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 5;
+        var pageSize = ListPageSize.Resolve(perPage, 5);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
         var normalizedQuery = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
         ViewData["q"] = normalizedQuery;
@@ -951,7 +960,7 @@ public partial class LoadingController : Controller
     {
         var model = new LoadingCreateViewModel
         {
-            LoadingDate = DateTime.UtcNow.Date,
+            LoadingDate = _businessClock.Today,
             TransportType = LoadingTransportType.Unspecified,
             LockContract = false,
             Rows =
@@ -959,7 +968,7 @@ public partial class LoadingController : Controller
                 new LoadingCreateRowViewModel
                 {
                     RowKey = CreateRowKey(0),
-                    LoadingDate = DateTime.UtcNow.Date
+                    LoadingDate = _businessClock.Today
                 }
             ]
         };
@@ -1244,7 +1253,7 @@ public partial class LoadingController : Controller
                 new LoadingCreateRowViewModel
                 {
                     RowKey = CreateRowKey(0),
-                    LoadingDate = model.LoadingDate == default ? DateTime.UtcNow.Date : model.LoadingDate
+                    LoadingDate = model.LoadingDate == default ? _businessClock.Today : model.LoadingDate
                 }
             ];
         }
@@ -3890,7 +3899,7 @@ public partial class LoadingController : Controller
         {
             _db.LedgerEntries.Add(new LedgerEntry
             {
-                EntryDate = DateTime.UtcNow.Date,
+                EntryDate = _businessClock.Today,
                 Side = ReverseSide(originalLedger.Side),
                 AmountUsd = originalLedger.AmountUsd,
                 Currency = originalLedger.Currency,
@@ -4090,7 +4099,7 @@ public partial class LoadingController : Controller
                 row.Loss ??= new StageLossCaptureInput { Stage = LossEventStage.LoadingDifference };
                 if (row.LoadingDate == default)
                 {
-                    row.LoadingDate = model.LoadingDate == default ? DateTime.UtcNow.Date : model.LoadingDate;
+                    row.LoadingDate = model.LoadingDate == default ? _businessClock.Today : model.LoadingDate;
                 }
 
                 return row;
@@ -4107,7 +4116,7 @@ public partial class LoadingController : Controller
         {
             RowKey = CreateRowKey(0),
             ContractId = model.ContractId > 0 ? model.ContractId : null,
-            LoadingDate = model.LoadingDate == default ? DateTime.UtcNow.Date : model.LoadingDate,
+            LoadingDate = model.LoadingDate == default ? _businessClock.Today : model.LoadingDate,
             VesselId = model.VesselId,
             TruckId = model.TruckId,
             BillOfLadingNumber = model.BillOfLadingNumber,
@@ -4185,7 +4194,7 @@ public partial class LoadingController : Controller
             model.Rows.Add(new LoadingCreateRowViewModel
             {
                 RowKey = CreateRowKey(0),
-                LoadingDate = model.LoadingDate == default ? DateTime.UtcNow.Date : model.LoadingDate
+                LoadingDate = model.LoadingDate == default ? AfghanistanBusinessClock.SystemToday : model.LoadingDate
             });
         }
 
@@ -4195,7 +4204,7 @@ public partial class LoadingController : Controller
             row.RowKey = string.IsNullOrWhiteSpace(row.RowKey) ? CreateRowKey(index) : row.RowKey.Trim();
             if (row.LoadingDate == default)
             {
-                row.LoadingDate = model.LoadingDate == default ? DateTime.UtcNow.Date : model.LoadingDate;
+                row.LoadingDate = model.LoadingDate == default ? AfghanistanBusinessClock.SystemToday : model.LoadingDate;
             }
         }
     }
@@ -4203,7 +4212,7 @@ public partial class LoadingController : Controller
     private static void NormalizeRow(LoadingCreateRowViewModel row, LoadingTransportType transportType, DateTime fallbackDate)
     {
         row.RowKey = string.IsNullOrWhiteSpace(row.RowKey) ? CreateRowKey(0) : row.RowKey.Trim();
-        row.LoadingDate = row.LoadingDate == default ? (fallbackDate == default ? DateTime.UtcNow.Date : fallbackDate) : row.LoadingDate;
+        row.LoadingDate = row.LoadingDate == default ? (fallbackDate == default ? AfghanistanBusinessClock.SystemToday : fallbackDate) : row.LoadingDate;
         row.BillOfLadingNumber = NormalizeNullable(row.BillOfLadingNumber);
         row.ImportedTransportReference = NormalizeNullable(row.ImportedTransportReference);
         row.WagonNumber = NormalizeNullable(row.WagonNumber);

@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -21,12 +22,17 @@ public class InventoryTransportReceiptsController : Controller
     private readonly ILogger<InventoryTransportReceiptsController> _logger;
     private readonly InventoryTransportReceiptService _receiptService;
 
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     public InventoryTransportReceiptsController(
         ApplicationDbContext db,
         ICurrencyConversionService currencyConversion,
         ILogger<InventoryTransportReceiptsController> logger,
-        IInventoryLineageWriter? lineage = null)
+        IInventoryLineageWriter? lineage = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
         _currencyConversion = currencyConversion;
         _logger = logger;
@@ -58,7 +64,7 @@ public class InventoryTransportReceiptsController : Controller
         var model = new InventoryTransportReceiptCreateViewModel
         {
             InventoryTransportLegId = leg.Id,
-            ReceiptDate = DateTime.UtcNow.Date,
+            ReceiptDate = _businessClock.Today,
             ReceiptDestination = selectedDestination,
             DestinationTerminalId = leg.DestinationTerminalId,
             DestinationStorageTankId = leg.DestinationStorageTankId,
@@ -67,9 +73,9 @@ public class InventoryTransportReceiptsController : Controller
             AllowanceMt = leg.TransportType is LoadingTransportType.Truck or LoadingTransportType.Wagon ? 0m : null,
             ChargeableShortageMt = leg.TransportType is LoadingTransportType.Truck or LoadingTransportType.Wagon ? 0m : null,
             ShortageChargeUsd = leg.TransportType is LoadingTransportType.Truck or LoadingTransportType.Wagon ? 0m : null,
-            SaleDate = DateTime.UtcNow.Date,
+            SaleDate = _businessClock.Today,
             SaleCurrency = SystemCurrency.BaseCurrencyCode,
-            DirectDispatchDate = DateTime.UtcNow.Date,
+            DirectDispatchDate = _businessClock.Today,
             DirectDispatchLoadedQuantityMt = remainingMt,
             DirectDispatchDestinationLocationId = leg.DestinationLocationId
         };

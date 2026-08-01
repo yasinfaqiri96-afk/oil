@@ -121,9 +121,14 @@
         </article>
     </section>
 
+    @* ===== کارت‌های بینش عملیاتی ===== *@
+    <partial name="_DashboardInsights" model="Model" />
+
     @* ===== نوار دسترسی سریع ===== *@
     @* Solar Icon Set — Bold Duotone by 480 Design, CC BY 4.0: https://github.com/480-Design/Solar-Icon-Set *@
-    <section class="dash-quick" aria-label="@T("دسترسی سریع", "Quick access")">
+    <section class="dash-quick-rail" aria-labelledby="dashQuickTitle">
+        <h2 id="dashQuickTitle" class="visually-hidden">@T("دسترسی سریع", "Quick access")</h2>
+        <div class="dash-quick">
         <a asp-controller="Sales" asp-action="Create" class="dash-quick-item dash-quick-item--primary">
             <span class="dash-quick-icon" aria-hidden="true">
                 <svg class="dash-quick-svg dash-quick-svg--plus" viewBox="0 0 24 24" focusable="false">
@@ -190,5 +195,6 @@
             </span>
             <strong>@T("قراردادها", "Contracts")</strong>
         </a>
+        </div>
     </section>
 </div>

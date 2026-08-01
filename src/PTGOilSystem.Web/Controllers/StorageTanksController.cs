@@ -13,6 +13,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -45,9 +46,11 @@ public class StorageTanksController : Controller
         ViewBag.Products = new SelectList(await _db.Products.AsNoTracking().OrderBy(p => p.Code).ToListAsync(), "Id", "Name", current?.ProductId);
     }
 
-    public async Task<IActionResult> Index(int? terminalId, int? productId, bool? isActive, string? q, int page = 1)
+    public async Task<IActionResult> Index(int? terminalId, int? productId, bool? isActive, string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 8;
+        var pageSize = ListPageSize.Resolve(perPage, 8);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 8;
 
         var query = _db.StorageTanks
             .AsNoTracking()
@@ -470,7 +473,7 @@ public class StorageTanksController : Controller
             CurrentQuantityMt = currentMt,
             SettleableQuantityMt = settleableMt,
             AllocationMode = TankLossAllocationMode.Proportional,
-            EventDate = DateTime.UtcNow.Date,
+            EventDate = AfghanistanBusinessClock.SystemToday,
             ActualRemainingMt = 0m,
             ReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : null,
             ContractRows = BuildSettlementRows(balances, settleableMt, 0m),
@@ -612,7 +615,7 @@ public class StorageTanksController : Controller
                         : null,
                     TerminalId = tank.TerminalId,
                     StorageTankId = tank.Id,
-                    EventDate = model.EventDate == default ? DateTime.UtcNow.Date : model.EventDate,
+                    EventDate = model.EventDate == default ? AfghanistanBusinessClock.SystemToday : model.EventDate,
                     ExpectedQuantityMt = balance.BalanceMt,
                     ActualQuantityMt = balance.BalanceMt - lossMt,
                     ToleranceQuantityMt = 0m,

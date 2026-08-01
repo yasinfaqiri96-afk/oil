@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Models.Customs;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -23,11 +24,16 @@ public partial class CustomsDeclarationsController : Controller
     private static readonly HashSet<string> AllowedDocumentExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".jpg", ".jpeg", ".png", ".webp" };
 
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     public CustomsDeclarationsController(
         ApplicationDbContext db,
         ILogger<CustomsDeclarationsController> logger,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
         _logger = logger;
         _environment = environment;
@@ -48,9 +54,12 @@ public partial class CustomsDeclarationsController : Controller
         string? q = null,
         DateTime? fromDate = null,
         DateTime? toDate = null,
-        int page = 1)
+        int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 5;
+        var pageSize = ListPageSize.Resolve(perPage, 5);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
         var normalizedQuery = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
 
@@ -396,7 +405,7 @@ public partial class CustomsDeclarationsController : Controller
 
             var sourceSelectionModel = new CustomsDeclarationCreateViewModel
             {
-                DeclarationDate = DateTime.UtcNow.Date,
+                DeclarationDate = _businessClock.Today,
                 ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var sourceReturnUrl) ? sourceReturnUrl : null
             };
             await PopulateCreateSourceOptionsAsync();
@@ -411,7 +420,7 @@ public partial class CustomsDeclarationsController : Controller
             var transportModel = new CustomsDeclarationCreateViewModel
             {
                 TransportLegId = transportLegId,
-                DeclarationDate = DateTime.UtcNow.Date,
+                DeclarationDate = _businessClock.Today,
                 ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var transportReturnUrl) ? transportReturnUrl : null,
                 Items = BuildDefaultItemRows()
             };
@@ -427,7 +436,7 @@ public partial class CustomsDeclarationsController : Controller
             var dispatchModel = new CustomsDeclarationCreateViewModel
             {
                 TruckDispatchId = truckDispatchId,
-                DeclarationDate = DateTime.UtcNow.Date,
+                DeclarationDate = _businessClock.Today,
                 ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var dispatchReturnUrl) ? dispatchReturnUrl : null,
                 Items = BuildDefaultItemRows()
             };
@@ -452,7 +461,7 @@ public partial class CustomsDeclarationsController : Controller
         var model = new CustomsDeclarationCreateViewModel
         {
             LoadingRegisterId = loadingRegisterId,
-            DeclarationDate = DateTime.UtcNow.Date,
+            DeclarationDate = _businessClock.Today,
             WagonOrTruckNumber = lr.WagonNumber,
             ConsignmentWeightMt = lr.ChargeableQuantityMt ?? lr.LoadedQuantityMt,
             LoadingRegisterLabel = $"بارگیری #{lr.Id} — {DateDisplay.Date(lr.LoadingDate)}",
@@ -892,13 +901,6 @@ public partial class CustomsDeclarationsController : Controller
             .Select(g => new { LoadingRegisterId = g.Key, TotalAfn = g.Sum(x => x.TotalAfn), TotalUsd = g.Sum(x => x.TotalUsd), Count = g.Count() })
             .ToListAsync();
 
-        var salesTotals = await _db.SalesTransactions
-            .AsNoTracking()
-            .Where(s => !s.IsCancelled && s.ContractId == contractId)
-            .GroupBy(s => s.ContractId)
-            .Select(g => new { TotalUsd = g.Sum(x => x.TotalUsd) })
-            .FirstOrDefaultAsync();
-
         var rows = loadingRegisters.Select(lr =>
         {
             var ct = customsTotals.FirstOrDefault(c => c.LoadingRegisterId == lr.Id);
@@ -1195,7 +1197,7 @@ public partial class CustomsDeclarationsController : Controller
             {
                 TransportLegId = scope == CustomsImportScope.InventoryTransport ? matchedId : null,
                 TruckDispatchId = scope == CustomsImportScope.TruckDispatch ? matchedId : null,
-                DeclarationDate = row.Date?.Date ?? DateTime.UtcNow.Date,
+                DeclarationDate = row.Date?.Date ?? _businessClock.Today,
                 WagonOrTruckNumber = row.PlateNumber,
                 DeclarationReference = row.Simir,
                 Route = row.Destination,

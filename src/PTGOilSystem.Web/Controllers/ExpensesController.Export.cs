@@ -18,6 +18,7 @@ public partial class ExpensesController
             new("نوع مصرف", "Expense type", TabularExportValueType.Text, 19, "ExpenseTypeName"),
             new("قرارداد/محموله", "Contract/shipment", TabularExportValueType.Text, 19, "ContractNumber", "ShipmentCode"),
             new("مرجع حمل", "Transport ref.", TabularExportValueType.Text, 19, "TruckDispatchLabel", "TransportLegLabel"),
+            new("نمبر وسیله", "Vehicle no.", TabularExportValueType.Text, 16, "VehicleNumber"),
             new("شرکت/دارایی", "Provider/asset", TabularExportValueType.Text, 20, "ServiceProviderName", "OperationalAssetName"),
             new("مبلغ", "Amount", TabularExportValueType.Number, 15, "Amount"),
             new("ارز", "Currency", TabularExportValueType.Text, 10, "Currency"),

@@ -69,7 +69,9 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
 
     private static async Task<int> SeedOperationalDataAsync(ApplicationDbContext db)
     {
-        var todayUtc = DateTime.UtcNow.Date;
+        // «امروز» باید همان روز کاری کابلی باشد که DashboardService استفاده می‌کند؛
+        // با DateTime.UtcNow.Date این تست بین 19:30 تا 23:59 UTC (بعد از نیمه‌شب کابل) می‌شکست.
+        var todayUtc = BusinessToday;
         var marker = Guid.NewGuid().ToString("N")[..12];
 
         var product = new Product { Code = $"P-{marker}", Name = $"Product {marker}" };
@@ -255,6 +257,10 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
         return contract.Id;
     }
 
+    // تنها مرجع «امروز» در این تست، همان ساعت تجاری کابل است که سرویس هم از آن استفاده می‌کند.
+    private static DateTime BusinessToday
+        => new PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock(TimeProvider.System).Today;
+
     private sealed record BalanceReference(int ItemCount, decimal DebitTotalUsd, decimal CreditTotalUsd);
 
     private static async Task<BalanceReference> ComputeBalanceReferenceAsync(IQueryable<LedgerEntry> query)
@@ -274,7 +280,7 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
         await using var seedDb = CreateContext();
         await SeedOperationalDataAsync(seedDb);
 
-        var todayUtc = DateTime.UtcNow.Date;
+        var todayUtc = BusinessToday;
         var tomorrowUtc = todayUtc.AddDays(1);
         var monthStartUtc = new DateTime(todayUtc.Year, todayUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -393,6 +399,7 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
         output.WriteLine($"Dashboard DB commands: {counter.Count}, elapsed: {stopwatch.ElapsedMilliseconds} ms");
 
         // پیش از بهینه‌سازی ۴۰ فرمان بود؛ بعد از تجمیع OperationalStats و BalanceSummaries به ۲۱ رسید.
+        // کارت‌های بینش (قراردادهای در جریان + ظرفیت مخازن) دو فرمان اضافه کردند: ۲۳.
         // این سقف regression تعداد رفت‌وبرگشت داشبورد را قفل می‌کند.
         Assert.InRange(counter.Count, 1, 25);
     }

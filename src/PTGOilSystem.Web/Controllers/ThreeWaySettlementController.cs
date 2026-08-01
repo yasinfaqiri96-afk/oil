@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.ThreeWaySettlement;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -213,7 +214,7 @@ public class ThreeWaySettlementController : Controller
 
         await using var transaction = await BeginTransactionIfRelationalAsync();
 
-        var cancellationDate = DateTime.UtcNow.Date;
+        var cancellationDate = AfghanistanBusinessClock.SystemToday;
         var customerReversal = BuildCancellationLedger(settlement.CustomerLedgerEntry!, settlement, cleanReason!, cancellationDate);
         var supplierReversal = BuildCancellationLedger(settlement.SupplierLedgerEntry!, settlement, cleanReason!, cancellationDate);
         _db.LedgerEntries.AddRange(customerReversal, supplierReversal);

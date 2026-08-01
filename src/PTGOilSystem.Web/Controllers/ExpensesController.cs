@@ -16,6 +16,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -33,14 +34,19 @@ public partial class ExpensesController : Controller
     private const int LookupLimit = 200;
     private const string DefaultWagonRentExpenseName = "Wagon Rent";
 
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     [ActivatorUtilitiesConstructor]
     public ExpensesController(
         ApplicationDbContext db,
         ICurrencyConversionService currencyConversion,
         IAuditService audit,
         ILogger<ExpensesController> logger,
-        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null)
+        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
         _currencyConversion = currencyConversion;
         _audit = audit;
@@ -399,9 +405,11 @@ public partial class ExpensesController : Controller
         return description.Length <= 1000 ? description : description[..1000];
     }
 
-    public async Task<IActionResult> Index([FromQuery] ExpenseIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] ExpenseIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 5;
+        var pageSize = ListPageSize.Resolve(perPage, 5);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
         filter ??= new ExpenseIndexFilterViewModel();
 
@@ -459,6 +467,14 @@ public partial class ExpensesController : Controller
                 TransportLegLabel = e.TransportLeg == null
                     ? null
                     : $"#{e.TransportLeg.Id} - {(e.TransportLeg.WagonNumber ?? e.TransportLeg.RwbNo ?? "Transport leg")}",
+                // نمبر وسیله برای اینکه در خروجی معلوم باشد مصرف برای کدام موتر/واگن است.
+                VehicleNumber = e.TruckDispatch != null && e.TruckDispatch.Truck != null
+                    ? e.TruckDispatch.Truck.PlateNumber
+                    : e.TransportLeg != null
+                        ? (e.TransportLeg.Truck != null
+                            ? e.TransportLeg.Truck.PlateNumber
+                            : e.TransportLeg.WagonNumber ?? e.TransportLeg.RwbNo)
+                        : null,
                 ServiceProviderName = e.ServiceProvider != null ? e.ServiceProvider.Name : null,
                 OperationalAssetName = e.OperationalAsset != null ? e.OperationalAsset.AssetCode + " - " + e.OperationalAsset.Name : null,
                 Amount = e.Amount,
@@ -537,7 +553,7 @@ public partial class ExpensesController : Controller
 
         var reversal = new LedgerEntry
         {
-            EntryDate = DateTime.UtcNow.Date,
+            EntryDate = _businessClock.Today,
             Side = ReverseSide(originalLedger.Side),
             AmountUsd = originalLedger.AmountUsd,
             Currency = originalLedger.Currency,
@@ -570,7 +586,7 @@ public partial class ExpensesController : Controller
     {
         var model = new ExpenseCreateViewModel
         {
-            ExpenseDate = DateTime.UtcNow.Date,
+            ExpenseDate = _businessClock.Today,
             Currency = SystemCurrency.BaseCurrencyCode
         };
 
@@ -631,7 +647,7 @@ public partial class ExpensesController : Controller
     {
         var model = new WagonRentCreateViewModel
         {
-            ExpenseDate = DateTime.UtcNow.Date,
+            ExpenseDate = _businessClock.Today,
             ContractId = contractId ?? 0,
             Currency = SystemCurrency.BaseCurrencyCode,
             AppliedFxRateToUsd = 1m,
@@ -2175,7 +2191,7 @@ public partial class ExpensesController : Controller
 
         var model = new CustomsBatchViewModel
         {
-            ExpenseDate = DateTime.UtcNow.Date,
+            ExpenseDate = _businessClock.Today,
             Currency = "AFN",
             ContractId = contractId ?? 0,
             TruckDispatchId = dispatchId,
@@ -2548,7 +2564,7 @@ public partial class ExpensesController : Controller
     {
         var model = new GroupExpenseCreateViewModel
         {
-            ExpenseDate = DateTime.UtcNow.Date,
+            ExpenseDate = _businessClock.Today,
             Currency = SystemCurrency.BaseCurrencyCode,
             ReturnUrl = returnUrl
         };
@@ -2938,7 +2954,7 @@ public partial class ExpensesController : Controller
             expense.IsCancelled = true;
             _db.LedgerEntries.Add(new LedgerEntry
             {
-                EntryDate = DateTime.UtcNow.Date,
+                EntryDate = _businessClock.Today,
                 Side = ReverseSide(originalLedger.Side),
                 AmountUsd = originalLedger.AmountUsd,
                 Currency = originalLedger.Currency,

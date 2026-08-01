@@ -14,6 +14,7 @@ using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -53,13 +54,17 @@ public partial class AccountStatementsController : Controller
     {
     }
 
-    public async Task<IActionResult> Index([FromQuery] AccountStatementFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] AccountStatementFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         filter ??= new AccountStatementFilterViewModel();
         NormalizeFilter(filter);
         await PopulateLookupsAsync(filter: filter);
 
-        var statementRows = await BuildStatementRowsAsync(filter, page);
+        var pageSize = ListPageSize.Resolve(perPage, 20);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 20;
+
+        var statementRows = await BuildStatementRowsAsync(filter, page, pageSize);
         return View(new AccountStatementIndexViewModel
         {
             Filter = filter,
@@ -154,7 +159,7 @@ public partial class AccountStatementsController : Controller
     {
         var model = new AccountStatementCreateViewModel
         {
-            EntryDate = DateTime.UtcNow.Date,
+            EntryDate = AfghanistanBusinessClock.SystemToday,
             SourceCurrencyCode = BaseCurrency
         };
 
@@ -273,9 +278,9 @@ public partial class AccountStatementsController : Controller
 
     private async Task<AccountStatementRowsResult> BuildStatementRowsAsync(
         AccountStatementFilterViewModel filter,
-        int page = 1)
+        int page = 1,
+        int pageSize = 20)
     {
-        const int pageSize = 20;
 
         var query = BuildFilteredLedgerQuery(filter, applyDates: false);
         var openingBalance = 0m;

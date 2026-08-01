@@ -19,7 +19,7 @@
     var shipmentGroupKey = $"SHIP:{Model.Id}";
     ViewData["LoadingExpenseEditorAssets"] = true;
     var canRegisterDirectLoss = Model.TotalShortageRegisterableQuantityMt > 0m;
-    var todayValue = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+    var todayValue = BusinessClock.Today.ToString("yyyy-MM-dd");
     string DecimalInput(decimal value) => value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
     string MoneyInput(decimal value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     var defaultLossAmountUsd = Model.EstimateLossValueUsd(Model.TotalShortageRegisterableQuantityMt);
@@ -74,6 +74,7 @@
         $"#shipment-finance|{T("سود و زیان", "Profit & loss")}|bi-graph-up-arrow|{(activeShipmentTab == "finance" ? "active" : "")}",
         $"#shipment-trips|{T("موجودی و انتقالات", "Inventory & transfers")}|bi-truck|{(activeShipmentTab == "trips" ? "active" : "")}"
     };
+    var shipmentExportTabs = new[] { "summary", "flow", "compliance", "balance", "sales", "finance", "trips" };
 
     // ===== مقدارهای نمایشی مدیریتی (فقط نمایش؛ از همان فیلدهای موجود ViewModel مشتق می‌شوند) =====
     var hasActiveLineage = Model.IsLineageCalculationActive && Model.HasLineageData;
@@ -89,6 +90,7 @@
     };
     var totalSourceAllocationMt = Model.ContractLines.Sum(c => c.AllocatedQuantityMt);
     var avgSalePriceUsd = Model.SoldQuantityMt > 0m ? Model.TotalSalesUsd / Model.SoldQuantityMt : 0m;
+    var totalShipmentCostUsd = Model.TotalPurchaseCostUsd + Model.TotalOperationalExpensesUsd;
     var lineageNoteFa = hasActiveLineage && isApproxLineage
         ? T("بخشی از اطلاعات این پرونده از داده‌های قدیمی یا تخمینی ساخته شده است.",
             "Some information in this file is based on legacy or estimated data.")
@@ -112,6 +114,22 @@
                        "bi-clipboard-minus", (string?)null,
                        canRegisterDirectLoss ? "shipmentDirectLossModal" : (string?)null,
                        T("برگشت", "Back"), "bi-arrow-right", Url.Action("Index")))" />
+
+    @foreach (var exportTab in shipmentExportTabs)
+    {
+        <div class="ak-page-actions" data-ak-tab="shipment-@exportTab"
+             hidden="@(activeShipmentTab == exportTab ? null : "hidden")">
+            @* همان کامپوننت مشترک سیستم، با خروجی اختصاصی تب فعال. *@
+            <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                     model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel(
+                         "DetailsExport",
+                         RouteValues: new Dictionary<string, string?>
+                         {
+                             ["id"] = Model.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                             ["tab"] = exportTab
+                         }))" />
+        </div>
+    }
 
     <section class="ak-form-page">
         @* هر تب فقط کارت‌های آماری خودش را پیش از نوار تب‌ها نمایش می‌دهد. *@
@@ -164,8 +182,7 @@
              hidden="@(activeShipmentTab == "finance" ? null : "hidden")"
              aria-label="@T("خلاصه سود و زیان", "Profit and loss summary")">
             <vc:stat-card title="@T("درآمد فروش", "Sales revenue")" value="@MoneyCard(Model.TotalSalesUsd)" unit="USD" avatar="shipment-sales"></vc:stat-card>
-            <vc:stat-card title="@T("قیمت کل خرید بار", "Total cargo purchase")" value="@MoneyCard(Model.TotalPurchaseCostUsd)" unit="USD" avatar="purchase-value"></vc:stat-card>
-            <vc:stat-card title="@T("کل مصارف", "Total expenses")" value="@MoneyCard(Model.TotalOperationalExpensesUsd)" unit="USD" avatar="shipment-expenses"></vc:stat-card>
+            <vc:stat-card title="@T("کل بهای محموله", "Total shipment cost")" value="@MoneyCard(totalShipmentCostUsd)" unit="USD" avatar="purchase-value"></vc:stat-card>
             <vc:stat-card title="@shipmentResultLabel" value="@MoneyCard(Model.ShipmentNetResultUsd)" unit="USD" avatar="@shipmentResultAvatar"></vc:stat-card>
         </div>
 
@@ -456,6 +473,7 @@
                             <tr>
                                 <th scope="col" class="is-date">@T("تاریخ", "Date")</th>
                                 <th scope="col" class="is-entity">@T("نوع", "Type")</th>
+                                <th scope="col" class="is-text">@T("نمبر وسیله", "Vehicle no.")</th>
                                 <th scope="col" class="is-text">@T("شرح", "Description")</th>
                                 <th scope="col" class="is-amount">@T("مبلغ", "Amount")</th>
                                 <th scope="col" class="is-actions no-print"><span class="visually-hidden">@T("عملیات", "Actions")</span></th>
@@ -471,6 +489,7 @@
                                     <partial name="Partials/_ShipmentRecordEntity"
                                              model="@(new ShipmentRecordEntityCell(item.ExpenseTypeName, T(cat.Fa, cat.En), AvatarIcon: cat.Icon))" />
                                 </td>
+                                <td class="is-text">@(item.VehicleNumber ?? "-")</td>
                                 <td class="is-text" title="@item.Description">@(item.Description ?? "-")</td>
                                 <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(item.AmountUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
                                 <td class="is-actions no-print">
@@ -488,7 +507,7 @@
                                 </td>
                             </tr>
                             <tr class="shipment-record-table__breakdown" data-contract-breakdown-row="@breakdownKey" hidden>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <table class="shipment-record-subtable">
                                         <thead>
                                             <tr>
@@ -516,7 +535,7 @@
                         @if (cat.Rows.Count == 0)
                         {
                             <partial name="Partials/_ShipmentRecordEmpty"
-                                     model="@(new ShipmentRecordEmptyCell(5, T("در این دسته مصرفی ثبت نشده است.", "No expenses in this category."), "bi-receipt"))" />
+                                     model="@(new ShipmentRecordEmptyCell(6, T("در این دسته مصرفی ثبت نشده است.", "No expenses in this category."), "bi-receipt"))" />
                         }
                         </tbody>
                         <tfoot>
@@ -553,6 +572,7 @@
                         <tr>
                             <th scope="col" class="is-entity">@T("مشتری", "Customer")</th>
                             <th scope="col" class="is-date">@T("تاریخ", "Date")</th>
+                            <th scope="col" class="is-text">@T("نمبر وسیله", "Vehicle no.")</th>
                             <th scope="col" class="is-quantity">@T("مقدار", "Quantity")</th>
                             <th scope="col" class="is-price">@T("قیمت واحد", "Unit price")</th>
                             <th scope="col" class="is-amount">@T("مبلغ", "Amount")</th>
@@ -575,6 +595,8 @@
                                 @if (hasTime)
                                 { <span class="shipment-record-subtext">@item.SaleDate.ToString("h:mm tt")</span> }
                             </td>
+                            <td class="is-text">@(item.VehicleNumber ?? "-")</td>
+                            <td class="is-text">@(item.VehicleNumber ?? "-")</td>
                             <td class="is-quantity"><span class="shipment-record-figure">@NumberDisplay.Quantity(item.QuantityMt)</span> <span class="shipment-record-unit">@T("تن", "MT")</span></td>
                             <td class="is-price"><span class="shipment-record-figure">@MoneyCard(item.UnitPriceUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
                             <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(item.TotalUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
@@ -598,7 +620,7 @@
                             </td>
                         </tr>
                         <tr class="shipment-record-table__breakdown" data-contract-breakdown-row="@breakdownKey" hidden>
-                            <td colspan="7">
+                            <td colspan="8">
                                 <table class="shipment-record-subtable">
                                     <thead>
                                         <tr>
@@ -626,7 +648,7 @@
                     @if (!saleDisplayRows.Any())
                     {
                         <partial name="Partials/_ShipmentRecordEmpty"
-                                 model="@(new ShipmentRecordEmptyCell(7, T("فروشی ثبت نشده است.", "No sales recorded."), "bi-cart-x"))" />
+                                 model="@(new ShipmentRecordEmptyCell(8, T("فروشی ثبت نشده است.", "No sales recorded."), "bi-cart-x"))" />
                     }
                     </tbody>
                 </table>
@@ -646,7 +668,7 @@
             }
         </div>
 
-        @* ============ تب: سود و زیان — یک منبع، یک عدد، ساده ============ *@
+        @* ============ تب: سود و زیان — خلاصهٔ مدیریتی و بدون تکرار تب‌های دیگر ============ *@
         <div class="@PaneClass("finance")" id="shipment-finance" role="tabpanel">
             @{
                 var netResultClass = shipmentResultClass;
@@ -654,15 +676,6 @@
                 var pnlUnpricedContracts = Model.ContractLines
                     .Where(c => c.AllocatedQuantityMt > 0.0001m && !c.HasFinalPrice)
                     .ToList();
-                // دسته‌های هزینه فقط برای جدول جزئیات؛ جمعشان = کل مصارف عملیاتی محموله.
-                var expenseCategories = new (string Fa, string En, decimal Amount)[]
-                {
-                    ("کرایه حمل", "Freight", freightExpenseUsd),
-                    ("گمرک و مصارف گمرکی", "Customs", customsExpenseUsd),
-                    ("اسناد و مجوز", "Documents & permits", documentExpenseUsd),
-                    ("ترمینال و انبار", "Terminal & storage", terminalExpenseUsd),
-                    ("سایر مصارف", "Other", otherExpenseUsd)
-                };
             }
 
             @if (Model.PurchasePricingIncomplete)
@@ -676,79 +689,36 @@
                 </div>
             }
 
-            @* نتیجهٔ اصلی و کاملاً واضح: سبز = سود، قرمز = زیان. *@
             <section class="ak-form-section ak-detail-section">
-                <div class="ak-field @netResultClass">
-                    <span class="ak-label">@netResultLabel</span>
-                    <strong class="ak-num">@MoneyCard(Model.ShipmentNetResultUsd) <span class="ak-section-desc">@T("دالر", "USD")</span></strong>
-                    <small class="ak-note">@T("نتیجهٔ کل محموله با کسر کامل قیمت خرید بار و تمام مصارف؛ حتی اگر بخشی هنوز فروخته نشده باشد", "Whole-shipment result after deducting the full cargo purchase and all expenses, even when some cargo remains unsold")</small>
+                <div class="ak-section-heading">
+                    <div>
+                        <h3>@T("جمع‌بندی مالی محموله", "Shipment financial summary")</h3>
+                        <p class="ak-section-desc">@T("نتیجهٔ کل از درآمد فروش پس از کسر بهای کامل خرید و مصارف عملیاتی محاسبه شده است.", "The whole-shipment result is sales revenue less the full purchase cost and operating expenses.")</p>
+                    </div>
                 </div>
-            </section>
-
-            @* محاسبهٔ شفاف؛ همان عددِ نتیجه بالا از همین ردیف‌ها می‌آید. *@
-            <section class="ak-form-section ak-detail-section">
-                <h3>@T("محاسبهٔ سود و زیان", "Profit & loss calculation")</h3>
                 <div class="ak-summary ak-detail-summary">
-                    <div><span>@T("درآمد کل فروش", "Total sales revenue")</span><strong>@MoneyCard(Model.TotalSalesUsd) @T("دالر", "USD")</strong></div>
-                    <div><span>@T("− قیمت کامل خرید تمام بار محموله", "− Full purchase price of all shipment cargo")</span><strong>@MoneyCard(Model.TotalPurchaseCostUsd) @T("دالر", "USD")</strong></div>
-                    <div><span>@T("− تمام هزینه‌های مسیر و عملیات", "− All route and operation expenses")</span><strong>@MoneyCard(Model.TotalOperationalExpensesUsd) @T("دالر", "USD")</strong></div>
+                    <div><span>@T("درآمد فروش", "Sales revenue")</span><strong>@MoneyCard(Model.TotalSalesUsd) @T("دالر", "USD")</strong></div>
+                    <div><span>@T("منهای قیمت کامل خرید بار", "Less full cargo purchase")</span><strong>@MoneyCard(Model.TotalPurchaseCostUsd) @T("دالر", "USD")</strong></div>
+                    <div><span>@T("منهای مصارف عملیاتی", "Less operating expenses")</span><strong>@MoneyCard(Model.TotalOperationalExpensesUsd) @T("دالر", "USD")</strong></div>
                     <div class="is-total"><span>= @netResultLabel</span><strong class="@netResultClass">@MoneyCard(Model.ShipmentNetResultUsd) @T("دالر", "USD")</strong></div>
                 </div>
-            </section>
-
-            @* مقدار فروخته‌شده و باقی‌مانده — ارزش موجودی باقی‌مانده جدا و هرگز سود شمرده نمی‌شود. *@
-            <section class="ak-form-section ak-detail-section">
-                <h3>@T("مقدار فروخته‌شده و باقی‌مانده", "Sold & remaining quantity")</h3>
-                <div class="ak-summary ak-detail-summary">
-                    <div><span>@T("مقدار فروخته‌شده", "Sold quantity")</span><strong>@NumberDisplay.Quantity(Model.SoldQuantityMt) @T("تن", "MT")</strong></div>
-                    <div><span>@T("باقی‌مانده فروش‌نشده", "Unsold balance")</span><strong>@NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt) @T("تن", "MT")</strong></div>
-                    <div><span>@T("ارزش موجودی باقی‌مانده به بهای تمام‌شده", "Remaining inventory value (at cost)")</span><strong>@MoneyCard(Model.RemainingInventoryValueUsd) @T("دالر", "USD")</strong></div>
-                </div>
+                @if (Model.RealisedPnl.HasUncostedSales)
+                {
+                    <div class="alert alert-danger mt-2 mb-0">
+                        <i class="bi bi-exclamation-octagon"></i>
+                        @T($"بهای تمام‌شدهٔ {Model.RealisedPnl.UncostedSaleCount} فروش کامل نیست؛ نتیجه تا تکمیل این اطلاعات قطعی نیست.",
+                           $"Cost data is incomplete for {Model.RealisedPnl.UncostedSaleCount} sale(s); the result is not final until this is resolved.")
+                    </div>
+                }
                 @if (!Model.IsFullySold)
                 {
-                    <p class="small text-muted mb-0 mt-2"><i class="bi bi-info-circle"></i> @T("این ارزش فقط برای پیگیری موجودی نمایش داده می‌شود؛ قیمت خرید بار فروش‌نشده در نتیجهٔ کل محموله قبلاً به‌صورت کامل کسر شده است.", "This value is shown only for inventory tracking; the purchase cost of unsold cargo is already fully deducted in the shipment result.")</p>
+                    <p class="small text-muted mb-0 mt-2">
+                        <i class="bi bi-info-circle"></i>
+                        @T($"{NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt)} تن هنوز فروخته نشده است؛ بهای خرید آن در نتیجهٔ کل بالا کسر شده و ارزش موجودی، سود محسوب نمی‌شود.",
+                           $"{NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt)} MT remains unsold; its purchase cost is included above and inventory value is not treated as profit.")
+                    </p>
                 }
             </section>
-
-            @* جدول سادهٔ جزئیات هزینه‌ها بر اساس دسته. جمع = کل مصارف عملیاتی محموله. *@
-            @{
-                var pnlExpenseRows = expenseCategories.Where(c => c.Amount > 0m).ToList();
-            }
-            <shipment-record-list title="@T("جزئیات هزینه‌ها بر اساس دسته", "Expense details by category")" count="@pnlExpenseRows.Count">
-                <table class="shipment-record-table">
-                    <thead>
-                        <tr>
-                            <th scope="col" class="is-entity">@T("دستهٔ هزینه", "Category")</th>
-                            <th scope="col" class="is-amount">@T("مبلغ (کل محموله)", "Amount (whole cargo)")</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var category in pnlExpenseRows)
-                    {
-                        <tr>
-                            <td class="is-entity">
-                                <partial name="Partials/_ShipmentRecordEntity"
-                                         model="@(new ShipmentRecordEntityCell(T(category.Fa, category.En), AvatarIcon: "bi-receipt-cutoff"))" />
-                            </td>
-                            <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(category.Amount)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
-                        </tr>
-                    }
-                    @if (Model.TotalOperationalExpensesUsd <= 0m)
-                    {
-                        <partial name="Partials/_ShipmentRecordEmpty"
-                                 model="@(new ShipmentRecordEmptyCell(2, T("مصرفی ثبت نشده است.", "No expenses recorded."), "bi-receipt"))" />
-                    }
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th scope="row">@T("کل هزینه‌های مسیر و عملیات", "Total route & operation costs")</th>
-                            <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(Model.TotalOperationalExpensesUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </shipment-record-list>
-            <p class="small text-muted mb-0 mt-2"><i class="bi bi-info-circle"></i> @T("تمام مصارف این جدول به‌صورت کامل در نتیجهٔ کل محموله کسر می‌شوند.", "All expenses in this table are fully deducted in the whole-shipment result.")</p>
-
         </div>
 
         <div class="@PaneClass("balance")" id="shipment-balance" role="tabpanel">
@@ -765,6 +735,7 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="is-date">@T("تاریخ", "Date")</th>
+                                <th scope="col" class="is-text">@T("نمبر وسیله", "Vehicle no.")</th>
                                 <th scope="col" class="is-quantity">@T("مقدار کل کسرات", "Total shortage")</th>
                                 <th scope="col" class="is-amount">@T("ارزش تخمینی", "Estimated value")</th>
                                 <th scope="col" class="is-entity">@T("نوع مسئولیت", "Responsibility")</th>
@@ -777,6 +748,7 @@
                             var breakdownKey = $"loss-{item.Id}";
                             <tr data-breakdown-parent="@breakdownKey">
                                 <td class="is-date"><span class="shipment-record-figure">@item.EventDate.ToDisplayDate()</span></td>
+                                <td class="is-text">@(item.VehicleNumber ?? "-")</td>
                                 <td class="is-quantity"><span class="shipment-record-figure">@NumberDisplay.Quantity(item.QuantityMt)</span> <span class="shipment-record-unit">@T("تن", "MT")</span></td>
                                 <td class="is-amount"><span class="shipment-record-figure">@MoneyCard(item.EstimatedValueUsd)</span> <span class="shipment-record-unit">@T("دالر", "USD")</span></td>
                                 <td class="is-entity">
@@ -798,7 +770,7 @@
                                 </td>
                             </tr>
                             <tr class="shipment-record-table__breakdown" data-contract-breakdown-row="@breakdownKey" hidden>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <table class="shipment-record-subtable">
                                         <thead>
                                             <tr>
@@ -826,7 +798,7 @@
                         @if (!lossDisplayRows.Any())
                         {
                             <partial name="Partials/_ShipmentRecordEmpty"
-                                     model="@(new ShipmentRecordEmptyCell(5, T("کسری یا ضایعاتی ثبت نشده است.", "No losses or shortages recorded."), "bi-clipboard-check"))" />
+                                     model="@(new ShipmentRecordEmptyCell(6, T("کسری یا ضایعاتی ثبت نشده است.", "No losses or shortages recorded."), "bi-clipboard-check"))" />
                         }
                         </tbody>
                     </table>

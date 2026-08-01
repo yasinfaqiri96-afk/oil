@@ -1,0 +1,102 @@
+@using PTGOilSystem.Web.Services.Reporting
+@model PTGOilSystem.Web.Models.Reports.SellableStockReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "موجودی قابل فروش", "Sellable Stock");
+    var hasActiveFilters = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
+        || Model.Filter.ProductId.HasValue || Model.Filter.TerminalId.HasValue || Model.Filter.StorageTankId.HasValue;
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "موجودی قابل فروش", "Sellable Stock"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    <p class="ak-note">@UiText.T(Context, "موجودی فیزیکی منهای رزرو فعال پیش‌فروش. موجودی در مسیر در این رقم شمرده نمی‌شود.", "Physical stock minus active pre-sale reservation. Goods in transit are not counted.")</p>
+
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار موجودی قابل فروش", "Sellable stock metrics")">
+        @foreach (var metric in Model.Metrics.Take(4))
+        {
+            @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
+        }
+    </section>
+
+    <div class="ak-list">
+        <form method="get" class="ak-report-parameters" id="rpFilterForm">
+            <div class="ak-report-parameters-bar">
+                <div class="ak-report-parameters-anchor">
+                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="rpFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
+                        <i class="bi bi-funnel"></i>
+                    </button>
+                    <div class="ak-report-parameters-pop" id="rpFilterPop" hidden>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "As of")</label>
+                        <input class="ak-input" type="date" name="ToDate" value="@Model.Filter.ToDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "جنس", "Product")</label>
+                        <select class="ak-input" name="ProductId" asp-items="ViewBag.Products"><option value="">@UiText.T(Context, "همه اجناس", "All Products")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "ترمینال", "Terminal")</label>
+                        <select class="ak-input" name="TerminalId" asp-items="ViewBag.Terminals"><option value="">@UiText.T(Context, "همه ترمینال‌ها", "All Terminals")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "مخزن", "Tank")</label>
+                        <select class="ak-input" name="StorageTankId" asp-items="ViewBag.StorageTanks"><option value="">@UiText.T(Context, "همه مخازن", "All Tanks")</option></select>
+                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
+                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("SellableStockExport"))" />
+                        @if (hasActiveFilters)
+                        {
+                            <a asp-action="SellableStock" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@UiText.T(Context, "جنس", "Product")</th>
+                        <th>@UiText.T(Context, "جواز", "Company")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "موجودی فیزیکی", "Physical")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "رزرو پیش‌فروش", "Reserved")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "قابل فروش", "Sellable")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "رزرو بدون منبع", "Unallocated")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">@row.ProductName</td>
+                            <td>@row.CompanyName</td>
+                            <td class="ak-col-num ak-num">@row.PhysicalStockMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.ReservedMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.SellableMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@(row.UnallocatedReservedMt > 0m ? row.UnallocatedReservedMt.ToString("N4") : "-")</td>
+                            <td>
+                                @if (row.IsOverReserved)
+                                {
+                                    <span class="ak-badge ak-badge-danger">@UiText.T(Context, "رزرو بیشتر از موجودی", "Over-reserved")</span>
+                                }
+                                else if (row.Attribution == ReservationAttribution.Unallocated)
+                                {
+                                    <span class="ak-badge ak-badge-warning">@UiText.T(Context, "بدون جواز مشخص", "Unallocated")</span>
+                                }
+                                else
+                                {
+                                    <span class="ak-badge ak-badge-success">@UiText.T(Context, "سالم", "OK")</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Rows.Any())
+                    {
+                        <tr><td colspan="7"><div class="ak-empty"><i class="bi bi-box-seam"></i> @UiText.T(Context, "موجودی‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No stock found; change the filters.")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_AkReportFilterScript" />
+}

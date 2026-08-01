@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.Accounting;
 
@@ -196,7 +197,7 @@ public sealed class ThreeWaySettlementAccountingAdapter(
         var request = new AccountingReversalRequest(
             original.Id,
             journalNumberGenerator.ForThreeWaySettlementReversal(companyId.Value, settlement.Id),
-            DateTime.UtcNow.Date,
+            AfghanistanBusinessClock.SystemToday,
             SourceModule,
             reversedEventId,
             $"Reversal of three-way settlement #{settlement.Id}");

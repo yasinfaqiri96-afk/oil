@@ -34,8 +34,12 @@ public partial class LedgerController : Controller
         _summaryCache = summaryCache;
     }
 
-    public async Task<IActionResult> Index([FromQuery] LedgerIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] LedgerIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         filter ??= new LedgerIndexFilterViewModel();
 
         await PopulateLookupsAsync(filter);
@@ -46,38 +50,17 @@ public partial class LedgerController : Controller
             .AsNoTracking(), filter);
 
         var totalCount = await query.CountAsync();
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
-        var items = await query
-            .OrderByDescending(l => l.EntryDate)
-            .ThenByDescending(l => l.Id)
-            .Skip((page - 1) * IndexPageSize)
-            .Take(IndexPageSize)
-            .Select(l => new LedgerListItemViewModel
-            {
-                Id = l.Id,
-                EntryDate = l.EntryDate,
-                Side = l.Side,
-                SideName = GetSideName(l.Side),
-                FlowDirectionName = GetFlowName(l),
-                AmountUsd = l.AmountUsd,
-                Currency = l.Currency,
-                Description = l.Description,
-                SourceType = l.SourceType,
-                SourceTypeLabel = GetSourceTypeLabel(l.SourceType),
-                SourceId = l.SourceId,
-                Reference = l.Reference,
-                SourceDetailsController = IsThreeWaySettlementSource(l.SourceType) ? "ThreeWaySettlement" : null,
-                SourceDetailsAction = IsThreeWaySettlementSource(l.SourceType) ? "Details" : null,
-                SourceDetailsRouteId = IsThreeWaySettlementSource(l.SourceType) ? l.SourceId : null,
-                ContractNumber = l.Contract != null ? l.Contract.ContractNumber : null,
-                CustomerName = l.Customer != null ? l.Customer.Name : null,
-                SupplierName = l.Supplier != null ? l.Supplier.Name : null,
-                EmployeeName = l.Employee != null ? l.Employee.FullName : null,
-                ShipmentCode = l.Shipment != null ? l.Shipment.ShipmentCode : null
-            })
+        var rows = await ProjectRows(query
+                .OrderByDescending(l => l.EntryDate)
+                .ThenByDescending(l => l.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize))
             .ToListAsync();
+
+        var items = rows.Select(ToListItem).ToList();
 
         return View(new LedgerIndexViewModel
         {
@@ -211,39 +194,96 @@ public partial class LedgerController : Controller
 
     private async Task<List<LedgerListItemViewModel>> BuildLedgerRowsAsync(LedgerIndexFilterViewModel filter)
     {
-        // Projected to LedgerListItemViewModel below, so EF ignores any Include
+        // Projected to LedgerRowData below, so EF ignores any Include
         // on these navs — kept lean: the Select emits the needed LEFT JOINs.
         var query = ApplyLedgerFilter(_db.LedgerEntries
             .AsNoTracking(), filter);
 
-        return await query
-            .OrderByDescending(l => l.EntryDate)
-            .ThenByDescending(l => l.Id)
-            .Select(l => new LedgerListItemViewModel
-            {
-                Id = l.Id,
-                EntryDate = l.EntryDate,
-                Side = l.Side,
-                SideName = GetSideName(l.Side),
-                FlowDirectionName = GetFlowName(l),
-                AmountUsd = l.AmountUsd,
-                Currency = l.Currency,
-                Description = l.Description,
-                SourceType = l.SourceType,
-                SourceTypeLabel = GetSourceTypeLabel(l.SourceType),
-                SourceId = l.SourceId,
-                Reference = l.Reference,
-                SourceDetailsController = IsThreeWaySettlementSource(l.SourceType) ? "ThreeWaySettlement" : null,
-                SourceDetailsAction = IsThreeWaySettlementSource(l.SourceType) ? "Details" : null,
-                SourceDetailsRouteId = IsThreeWaySettlementSource(l.SourceType) ? l.SourceId : null,
-                ContractNumber = l.Contract != null ? l.Contract.ContractNumber : null,
-                CustomerName = l.Customer != null ? l.Customer.Name : null,
-                SupplierName = l.Supplier != null ? l.Supplier.Name : null,
-                EmployeeName = l.Employee != null ? l.Employee.FullName : null,
-                ShipmentCode = l.Shipment != null ? l.Shipment.ShipmentCode : null
-            })
+        var rows = await ProjectRows(query
+                .OrderByDescending(l => l.EntryDate)
+                .ThenByDescending(l => l.Id))
             .ToListAsync();
+
+        return rows.Select(ToListItem).ToList();
     }
+
+    /// <summary>
+    /// ردیف خام دفتر کل — فقط ستون‌های قابل ترجمه به SQL.
+    /// </summary>
+    private sealed record LedgerRowData(
+        int Id,
+        DateTime EntryDate,
+        LedgerSide Side,
+        decimal AmountUsd,
+        string Currency,
+        string Description,
+        string SourceType,
+        int SourceId,
+        string? Reference,
+        int? CustomerId,
+        int? SupplierId,
+        int? ServiceProviderId,
+        int? DriverId,
+        int? EmployeeId,
+        string? ContractNumber,
+        string? CustomerName,
+        string? SupplierName,
+        string? EmployeeName,
+        string? ShipmentCode);
+
+    // EF Core اجازه نمی‌دهد متدهای نمونهٔ کنترلر (GetSideName / GetFlowName) داخل projection
+    // بمانند و خطای «client projection contains a reference to a constant expression» می‌دهد
+    // که کل صفحهٔ دفتر کل را ۵۰۰ می‌کرد. پس اول ستون‌های قابل ترجمه خوانده می‌شوند و
+    // برچسب‌های نمایشی بعد از materialize در حافظه ساخته می‌شوند. فیلترها و ترتیب تغییر نکرده‌اند.
+    private static IQueryable<LedgerRowData> ProjectRows(IQueryable<LedgerEntry> query)
+        => query.Select(l => new LedgerRowData(
+            l.Id,
+            l.EntryDate,
+            l.Side,
+            l.AmountUsd,
+            l.Currency,
+            l.Description,
+            l.SourceType,
+            l.SourceId,
+            l.Reference,
+            l.CustomerId,
+            l.SupplierId,
+            l.ServiceProviderId,
+            l.DriverId,
+            l.EmployeeId,
+            l.Contract != null ? l.Contract.ContractNumber : null,
+            l.Customer != null ? l.Customer.Name : null,
+            l.Supplier != null ? l.Supplier.Name : null,
+            l.Employee != null ? l.Employee.FullName : null,
+            l.Shipment != null ? l.Shipment.ShipmentCode : null));
+
+    private LedgerListItemViewModel ToListItem(LedgerRowData row)
+        => new()
+        {
+            Id = row.Id,
+            EntryDate = row.EntryDate,
+            Side = row.Side,
+            SideName = GetSideName(row.Side),
+            FlowDirectionName = GetFlowName(
+                row.SourceType,
+                row.Side,
+                ResolveFlowRole(row.CustomerId, row.SupplierId, row.ServiceProviderId, row.DriverId, row.EmployeeId, row.SourceType)),
+            AmountUsd = row.AmountUsd,
+            Currency = row.Currency,
+            Description = row.Description,
+            SourceType = row.SourceType,
+            SourceTypeLabel = GetSourceTypeLabel(row.SourceType),
+            SourceId = row.SourceId,
+            Reference = row.Reference,
+            SourceDetailsController = IsThreeWaySettlementSource(row.SourceType) ? "ThreeWaySettlement" : null,
+            SourceDetailsAction = IsThreeWaySettlementSource(row.SourceType) ? "Details" : null,
+            SourceDetailsRouteId = IsThreeWaySettlementSource(row.SourceType) ? row.SourceId : null,
+            ContractNumber = row.ContractNumber,
+            CustomerName = row.CustomerName,
+            SupplierName = row.SupplierName,
+            EmployeeName = row.EmployeeName,
+            ShipmentCode = row.ShipmentCode
+        };
 
     public async Task<IActionResult> Details(int id, string? returnUrl = null)
     {
@@ -743,22 +783,40 @@ public partial class LedgerController : Controller
     private static readonly ICompanyFlowDirectionResolver LedgerFlowResolver = new CompanyFlowDirectionResolver();
 
     private string GetFlowName(LedgerEntry entry)
+        => GetFlowName(entry.SourceType, entry.Side, ResolveFlowRole(entry));
+
+    private string GetFlowName(string sourceType, LedgerSide side, CompanyFlowPartyRole role)
         => CompanyFlowText.Label(LedgerFlowResolver.Resolve(new CompanyFlowEvent(
-            entry.SourceType,
-            entry.Side,
-            ResolveFlowRole(entry),
-            CompanyFlowSourceTypes.IsReversal(entry.SourceType)
+            sourceType,
+            side,
+            role,
+            CompanyFlowSourceTypes.IsReversal(sourceType)
                 ? CompanyFlowLifecycle.Reversal
                 : CompanyFlowLifecycle.Original)), HttpContext);
 
     private static CompanyFlowPartyRole ResolveFlowRole(LedgerEntry entry)
+        => ResolveFlowRole(
+            entry.CustomerId,
+            entry.SupplierId,
+            entry.ServiceProviderId,
+            entry.DriverId,
+            entry.EmployeeId,
+            entry.SourceType);
+
+    private static CompanyFlowPartyRole ResolveFlowRole(
+        int? customerId,
+        int? supplierId,
+        int? serviceProviderId,
+        int? driverId,
+        int? employeeId,
+        string sourceType)
     {
-        if (entry.CustomerId.HasValue) return CompanyFlowPartyRole.Customer;
-        if (entry.SupplierId.HasValue) return CompanyFlowPartyRole.Supplier;
-        if (entry.ServiceProviderId.HasValue) return CompanyFlowPartyRole.ServiceProvider;
-        if (entry.DriverId.HasValue) return CompanyFlowPartyRole.Driver;
-        if (entry.EmployeeId.HasValue) return CompanyFlowPartyRole.Employee;
-        if (entry.SourceType == CompanyFlowSourceTypes.SupplierViaSarrafPayable) return CompanyFlowPartyRole.Sarraf;
+        if (customerId.HasValue) return CompanyFlowPartyRole.Customer;
+        if (supplierId.HasValue) return CompanyFlowPartyRole.Supplier;
+        if (serviceProviderId.HasValue) return CompanyFlowPartyRole.ServiceProvider;
+        if (driverId.HasValue) return CompanyFlowPartyRole.Driver;
+        if (employeeId.HasValue) return CompanyFlowPartyRole.Employee;
+        if (sourceType == CompanyFlowSourceTypes.SupplierViaSarrafPayable) return CompanyFlowPartyRole.Sarraf;
         return CompanyFlowPartyRole.Unknown;
     }
 }

@@ -1,0 +1,198 @@
+@model PTGOilSystem.Web.Models.Loading.LoadingBulkDeleteViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "حذف گروهی بارگیری", "Bulk delete loadings");
+    ViewData["HideSectionTabs"] = true;
+    var contracts = ViewBag.BulkDeleteContracts as SelectList;
+    var cancelUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Model.ReturnUrl : Url.Action("Index");
+}
+
+<div class="ak-list-page">
+    <header class="ak-page-header">
+        <div class="ak-page-heading">
+            <span class="ak-page-icon"><i class="bi bi-trash3"></i></span>
+            <div>
+                <h1>@UiText.T(Context, "حذف گروهی بارگیری", "Bulk delete loadings")</h1>
+                <p>@UiText.T(Context,
+                    "برگرداندن یک ایمپورت اکسل اشتباه. فقط بارگیری‌هایی حذف می‌شوند که هیچ کاری روی آن‌ها انجام نشده است.",
+                    "Undo a wrong Excel import. Only loadings with no downstream work are deletable.")</p>
+            </div>
+        </div>
+        <a href="@cancelUrl" class="btn btn-light ak-secondary-action" aria-label="@UiText.T(Context, "بستن", "Close")"><i class="bi bi-x-lg"></i></a>
+    </header>
+
+    <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        @UiText.T(Context,
+            "حذف برگشت‌ناپذیر است. ردیف‌هایی که رسید، اظهارنامه گمرکی، کنترل کیفیت، ضایعه یا مصرف فعال دارند قفل هستند و حذف نمی‌شوند.",
+            "Deletion is permanent. Rows with a receipt, customs declaration, quality inspection, loss event or active expense are locked and never deleted.")
+    </div>
+
+    <form method="get" asp-action="BulkDelete" class="ak-filter-form card card-body mb-3">
+        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="contractId">@UiText.T(Context, "قرارداد خرید", "Purchase contract")</label>
+                <select id="contractId" name="contractId" class="form-select" asp-items="contracts">
+                    <option value="">@UiText.T(Context, "— انتخاب کنید —", "— select —")</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="importedFrom">@UiText.T(Context, "ثبت از (UTC)", "Created from (UTC)")</label>
+                <input id="importedFrom" name="importedFrom" type="datetime-local" class="form-control"
+                       value="@(Model.ImportedFrom?.ToString("yyyy-MM-ddTHH:mm"))" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="importedTo">@UiText.T(Context, "ثبت تا (UTC)", "Created to (UTC)")</label>
+                <input id="importedTo" name="importedTo" type="datetime-local" class="form-control"
+                       value="@(Model.ImportedTo?.ToString("yyyy-MM-ddTHH:mm"))" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> @UiText.T(Context, "جستجو", "Search")
+                </button>
+            </div>
+        </div>
+        <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="onlyImported" name="onlyImported" value="true"
+                   checked="@Model.OnlyImported" />
+            <input type="hidden" name="onlyImported" value="false" />
+            <label class="form-check-label" for="onlyImported">
+                @UiText.T(Context, "فقط بارگیری‌های وارد شده از اکسل", "Only Excel-imported loadings")
+            </label>
+        </div>
+    </form>
+
+    @if (!Model.HasSearched)
+    {
+        <div class="ak-empty">
+            <i class="bi bi-funnel"></i>
+            @UiText.T(Context, "برای دیدن بارگیری‌ها ابتدا یک قرارداد انتخاب کنید.", "Pick a contract to list its loadings.")
+        </div>
+    }
+    else if (Model.Rows.Count == 0)
+    {
+        <div class="ak-empty">
+            <i class="bi bi-inbox"></i>
+            @UiText.T(Context, "هیچ بارگیری‌ای با این فیلتر پیدا نشد.", "No loading matches this filter.")
+        </div>
+    }
+    else
+    {
+        <form method="post" asp-action="BulkDelete" id="bulkDeleteForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="contractId" value="@Model.ContractId" />
+            <input type="hidden" name="importedFrom" value="@(Model.ImportedFrom?.ToString("yyyy-MM-ddTHH:mm"))" />
+            <input type="hidden" name="importedTo" value="@(Model.ImportedTo?.ToString("yyyy-MM-ddTHH:mm"))" />
+            <input type="hidden" name="onlyImported" value="@Model.OnlyImported.ToString().ToLowerInvariant()" />
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+
+            <div class="d-flex flex-wrap gap-3 align-items-center mb-2">
+                <span class="ak-status is-active">
+                    @UiText.T(Context, "قابل حذف", "Deletable"): @Model.DeletableCount.ToString("N0")
+                    (@NumberDisplay.Quantity(Model.DeletableQuantityMt) MT)
+                </span>
+                <span class="ak-status is-inactive">
+                    @UiText.T(Context, "قفل", "Locked"): @Model.BlockedCount.ToString("N0")
+                </span>
+            </div>
+
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-check">
+                                <input type="checkbox" class="ak-check" id="bulkDeleteSelectAll"
+                                       aria-label="@UiText.T(Context, "انتخاب همه", "Select all")" />
+                            </th>
+                            <th>@UiText.T(Context, "تاریخ بارگیری", "Loading date")</th>
+                            <th>@UiText.T(Context, "زمان ثبت (UTC)", "Created (UTC)")</th>
+                            <th>@UiText.T(Context, "جنس", "Product")</th>
+                            <th>@UiText.T(Context, "حمل", "Transport")</th>
+                            <th>@UiText.T(Context, "سند", "Document")</th>
+                            <th>@UiText.T(Context, "مقدار", "Quantity")</th>
+                            <th>@UiText.T(Context, "ارزش", "Value")</th>
+                            <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr class="@(row.CanDelete ? null : "table-secondary")">
+                            <td class="ak-col-check">
+                                @if (row.CanDelete)
+                                {
+                                    <input type="checkbox" class="ak-check" name="ids" value="@row.Id"
+                                           data-bulk-delete-row
+                                           aria-label="@UiText.T(Context, "انتخاب ردیف", "Select row")" />
+                                }
+                                else
+                                {
+                                    <i class="bi bi-lock" aria-hidden="true"></i>
+                                }
+                            </td>
+                            <td>@row.LoadingDate.ToString("yyyy-MM-dd")</td>
+                            <td><span class="ak-section-desc">@row.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span></td>
+                            <td>@row.ProductName</td>
+                            <td><bdi>@(string.IsNullOrWhiteSpace(row.VehicleSummary) ? "-" : row.VehicleSummary)</bdi></td>
+                            <td><bdi>@(string.IsNullOrWhiteSpace(row.BillOfLadingNumber) ? "-" : row.BillOfLadingNumber)</bdi></td>
+                            <td><span class="ak-num">@NumberDisplay.Quantity(row.LoadedQuantityMt) MT</span></td>
+                            <td><span class="ak-num">@(row.LoadingValueUsd.HasValue ? row.LoadingValueUsd.Value.ToString("N2") + " USD" : "-")</span></td>
+                            <td>
+                                @if (row.CanDelete)
+                                {
+                                    <span class="ak-status is-active">@UiText.T(Context, "قابل حذف", "Deletable")</span>
+                                }
+                                else
+                                {
+                                    <span class="ak-status is-inactive">@string.Join("، ", row.Blockers)</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-end mt-3">
+                <button type="submit" class="btn btn-danger" id="bulkDeleteSubmit" disabled>
+                    <i class="bi bi-trash3"></i> @UiText.T(Context, "حذف انتخاب‌شده‌ها", "Delete selected")
+                </button>
+            </div>
+        </form>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById('bulkDeleteForm');
+            if (!form) return;
+            var rows = Array.prototype.slice.call(form.querySelectorAll('[data-bulk-delete-row]'));
+            var selectAll = document.getElementById('bulkDeleteSelectAll');
+            var submit = document.getElementById('bulkDeleteSubmit');
+
+            function sync() {
+                var count = rows.filter(function (c) { return c.checked; }).length;
+                submit.disabled = count === 0;
+            }
+
+            rows.forEach(function (c) { c.addEventListener('change', sync); });
+            if (selectAll) {
+                selectAll.addEventListener('change', function () {
+                    rows.forEach(function (c) { c.checked = selectAll.checked; });
+                    sync();
+                });
+            }
+
+            form.addEventListener('submit', function (e) {
+                var count = rows.filter(function (c) { return c.checked; }).length;
+                if (count === 0) { e.preventDefault(); return; }
+                if (!window.confirm(count + ' بارگیری برای همیشه حذف می‌شود. ادامه می‌دهید؟')) {
+                    e.preventDefault();
+                }
+            });
+
+            sync();
+        })();
+    </script>
+}

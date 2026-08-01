@@ -1,18 +1,27 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+// ثابت‌های SourceType دفتر کلِ تسویهٔ سه‌جانبه همان‌جایی می‌مانند که نوشته می‌شوند؛
+// اینجا فقط خوانده می‌شوند تا دو تعریف موازی ساخته نشود.
+using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
 using PTGOilSystem.Web.Models.Reconciliation;
 using PTGOilSystem.Web.Models.ThreeWaySettlement;
 
-namespace PTGOilSystem.Web.Controllers;
+namespace PTGOilSystem.Web.Services.Reconciliation;
 
 // D2 — گزارش «پول‌های معلق / Suspense Money».
 // کاملاً read-only: فقط queryهای AsNoTracking روی داده‌ٔ موجود اجرا می‌شود.
 // هیچ Payment یا LedgerEntry ساخته یا تغییر داده نمی‌شود و هیچ رکوردی اصلاح نمی‌شود.
-public partial class ReconciliationController
+public partial class ReconciliationService
 {
-    public async Task<IActionResult> SuspenseMoney(string? severity = null, DateTime? fromDate = null, DateTime? toDate = null)
+    /// <summary>
+    /// فیلتر شدت و بازهٔ تاریخ روی همان مجموعهٔ ساخته‌شده اعمال می‌شود؛ کنترلر فقط
+    /// پارامترها را می‌دهد و منطق تشخیص «پول معلق» اینجا می‌ماند.
+    /// </summary>
+    public async Task<SuspenseMoneyViewModel> BuildSuspenseMoneyAsync(
+        string? severity,
+        DateTime? fromDate,
+        DateTime? toDate)
     {
         var all = await BuildSuspenseMoneyAsync();
         IEnumerable<SuspenseMoneyItemViewModel> filtered = all.Items;
@@ -36,16 +45,16 @@ public partial class ReconciliationController
             filtered = filtered.Where(i => i.Date <= toDate.Value.Date);
         }
 
-        return View(new SuspenseMoneyViewModel
+        return new SuspenseMoneyViewModel
         {
             Items = filtered.ToList(),
             SelectedSeverity = severity,
             FromDate = fromDate,
             ToDate = toDate
-        });
+        };
     }
 
-    private async Task<SuspenseMoneyViewModel> BuildSuspenseMoneyAsync()
+    public async Task<SuspenseMoneyViewModel> BuildSuspenseMoneyAsync()
     {
         var items = new List<SuspenseMoneyItemViewModel>();
 

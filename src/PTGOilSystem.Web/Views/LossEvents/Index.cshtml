@@ -11,15 +11,17 @@
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "کسری و ضایعات", "Loss events"), true, UiText.T(Context, "ثبت کسری جدید", "New loss event"), "bi-plus-lg", Url.Action("Create"), (string?)null, (string?)null, (string?)null, (string?)null))" />
     @{
-        var sumDifference = (decimal)(ViewBag.SumDifferenceQuantity ?? 0m);
+        // کسری و اضافه‌بار جداگانه نمایش داده می‌شوند تا ارقام واقعی پشت یک عددِ خالص پنهان نشود.
+        var sumShortage = (decimal)(ViewBag.SumShortageQuantity ?? 0m);
+        var sumSurplus = (decimal)(ViewBag.SumSurplusQuantity ?? 0m);
         var sumChargeable = (decimal)(ViewBag.SumChargeableLoss ?? 0m);
-        var needsReviewCount = (int)(ViewBag.NeedsReviewCount ?? 0);
+        var netDifference = sumShortage - sumSurplus;
     }
-    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار کسری و ضایعات", "Loss statistics")">
-        <vc:stat-card title="@UiText.T(Context, "کل رویدادها", "Total events")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "رویداد", "events")" avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "کل مقدار کسری", "Total loss quantity")" value="@NumberDisplay.Quantity(sumDifference)" unit="MT" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "کسری قابل مطالبه", "Chargeable loss")" value="@NumberDisplay.Quantity(sumChargeable)" unit="MT" avatar="receivables"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "نیازمند بررسی", "Needs review")" value="@needsReviewCount.ToString("N0")" unit="@UiText.T(Context, "رویداد", "events")" avatar="quality"></vc:stat-card>
+    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار کسری و اضافه‌بار", "Shortage and surplus statistics")">
+        <vc:stat-card title="@UiText.T(Context, "مجموع کسری", "Total shortage")" value="@NumberDisplay.Quantity(sumShortage)" unit="MT" avatar="losses"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مجموع اضافه‌بار", "Total surplus")" value="@NumberDisplay.Quantity(sumSurplus)" unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کسری قابل جریمه", "Chargeable shortage")" value="@NumberDisplay.Quantity(sumChargeable)" unit="MT" avatar="receivables"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تفاوت خالص", "Net difference")" value="@NumberDisplay.Quantity(netDifference)" unit="MT" avatar="quality"></vc:stat-card>
     </section>
     <div class="ak-list">
         @{
@@ -36,6 +38,7 @@
                     new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", LossOpts(ViewBag.Products), LossQ("Filter.ProductId")),
                     new("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", LossOpts(ViewBag.Contracts), LossQ("Filter.ContractId")),
                     new("Filter.Stage", UiText.T(Context, "مرحله", "Stage"), "select", LossOpts(ViewBag.Stages), LossQ("Filter.Stage")),
+                    new("Filter.Variance", UiText.T(Context, "نوع تفاوت", "Variance type"), "select", LossOpts(ViewBag.VarianceOptions), LossQ("Filter.Variance")),
                     new("Filter.AffectsInventory", UiText.T(Context, "اثر بر موجودی", "Affects inventory"), "select", LossOpts(ViewBag.AffectsInventoryOptions), LossQ("Filter.AffectsInventory"))
                 });
         }
@@ -52,7 +55,8 @@
                         <th class="col-name">@UiText.T(Context,"رویداد","Event")</th>
                         <th>@UiText.T(Context,"جنس / قرارداد","Product / Contract")</th>
                         <th>@UiText.T(Context,"مسئول","Responsible")</th>
-                        <th>@UiText.T(Context,"مقدار","Quantity")</th>
+                        <th>@UiText.T(Context,"تفاوت","Difference")</th>
+                        <th>@UiText.T(Context,"قابل جریمه","Chargeable")</th>
                         <th class="col-status">@UiText.T(Context,"وضعیت","Status")</th>
                         <th class="col-actions">@UiText.T(Context,"عملیات","Action")</th>
                     </tr>
@@ -77,6 +81,17 @@
                             </td>
                             <td>@(string.IsNullOrWhiteSpace(item.ResponsiblePartyName) ? "-" : item.ResponsiblePartyName)</td>
                             <td>
+                                @{
+                                    var isSurplus = item.DifferenceQuantityMt < 0m;
+                                    var varianceLabel = isSurplus ? UiText.T(Context, "اضافه‌بار", "Surplus") : UiText.T(Context, "کسری", "Shortage");
+                                }
+                                <span class="ak-status @(isSurplus ? "is-active" : "is-pending")" title="@varianceLabel">
+                                    <i class="bi @(isSurplus ? "bi-arrow-up-circle" : "bi-arrow-down-circle")" aria-hidden="true"></i>
+                                    @varianceLabel
+                                </span>
+                                <span class="col-ltr @(isSurplus ? "finance-positive" : "finance-negative")">@item.DifferenceQuantityMt.ToString("N4") MT</span>
+                            </td>
+                            <td>
                                 <span class="col-ltr">@item.ChargeableLossMt.ToString("N2") MT</span>
                             </td>
                             <td class="col-status"><span class="ak-status @(needsReview ?"is-pending" : "is-active")" title="@statusText">@statusText</span></td>
@@ -90,7 +105,7 @@
                     @if (!Model.Items.Any())
                     {
                     <tr>
-                            <td colspan="7">
+                            <td colspan="8">
                                 <div class="ak-empty">
                                     <i class="bi bi-exclamation-diamond"></i>
                                     رویدادی یافت نشد

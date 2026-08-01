@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.AccountStatements;
 
@@ -78,7 +79,7 @@ public sealed class AccountStatementCreateViewModel
     [Display(Name = "تاریخ")]
     [DataType(DataType.Date)]
     [Required(ErrorMessage = "تاریخ الزامی است.")]
-    public DateTime EntryDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime EntryDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "سمت")]
     [Required(ErrorMessage = "سمت الزامی است.")]

@@ -622,7 +622,8 @@ public class ReportsControllerTests
         Assert.Equal(7500m, row.PurchaseValueUsd);
         Assert.Equal(5000m, row.GrossMarginUsd);
         Assert.Equal(12500m, model.TotalDirectSaleRevenueUsd);
-        Assert.Equal(12500m, model.TotalSalesRevenueUsd);
+        Assert.Equal(0m, model.TotalSalesRevenueUsd);
+        Assert.Equal(0m, model.TotalGrossMarginUsd);
         Assert.Empty(model.SaleRows);
     }
 
@@ -1512,7 +1513,7 @@ public class ReportsControllerTests
         Assert.Equal(800m, balances.CustomerReceivableUsd);
         Assert.Equal(600m, balances.SupplierPayableUsd);
         Assert.Equal(250m, balances.ServiceProviderPayableUsd);
-        Assert.Equal(-300m, balances.SarrafBalanceUsd);
+        Assert.Equal(300m, balances.SarrafBalanceUsd);
 
         var inventory = Assert.IsType<InventoryOperationsReportViewModel>(
             Assert.IsType<ViewResult>(await controller.InventoryOperations(filter)).Model);
@@ -1523,6 +1524,89 @@ public class ReportsControllerTests
         var warnings = Assert.IsType<ReportsWarningsViewModel>(
             Assert.IsType<ViewResult>(await controller.Warnings()).Model);
         Assert.True(warnings.TotalIssueCount > 0);
+    }
+
+    // فروش مستقیم از موتر نه InventoryMovement دارد و نه تخصیصِ DirectSale؛ قبلاً کل عایدش —
+    // شامل عایدِ اضافه‌بار — از سود و زیان قرارداد خرید بیرون می‌ماند. حالا از Lineage خودِ موتر
+    // به همان قرارداد می‌رسد و هیچ قیمت خریدی هم برای اضافه‌بار ساخته نمی‌شود.
+    [Fact]
+    public async Task ContractPnl_Counts_Direct_Truck_Sale_Revenue_Including_Surplus()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Contracts.Add(new Contract
+        {
+            Id = 40,
+            ContractNumber = "PUR-TRUCK-SALE",
+            ContractType = ContractType.Purchase,
+            CompanyId = 1,
+            ProductId = 1,
+            SupplierId = 1,
+            ContractDate = new DateTime(2026, 4, 1),
+            QuantityMt = 100m,
+            PricingMethod = PricingMethod.Fixed,
+            UnitPriceUsd = 400m
+        });
+        db.LoadingRegisters.Add(new LoadingRegister
+        {
+            Id = 40,
+            ContractId = 40,
+            ProductId = 1,
+            LoadingDate = new DateTime(2026, 4, 2),
+            LoadedQuantityMt = 10m,
+            LoadingPriceUsd = 400m
+        });
+        db.Trucks.Add(new Truck { Id = 40, PlateNumber = "TRK-40", IsActive = true });
+        db.TruckDispatches.Add(new TruckDispatch
+        {
+            Id = 40,
+            DispatchMode = TruckDispatchMode.DirectFromReceipt,
+            ContractId = 40,
+            ProductId = 1,
+            TruckId = 40,
+            DispatchDate = new DateTime(2026, 4, 3),
+            LoadedQuantityMt = 10m,
+            DischargedQuantityMt = 10.2m,
+            SalesTransactionId = 40
+        });
+        db.SalesTransactions.Add(new SalesTransaction
+        {
+            Id = 40,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SourcePurchaseContractId = 40,
+            TruckDispatchId = 40,
+            SaleStage = SaleStage.InTransit,
+            InvoiceNumber = "TRK-SALE-40",
+            SaleDate = new DateTime(2026, 4, 4),
+            QuantityMt = 10.2m,
+            Currency = "USD",
+            UnitPriceInCurrency = 500m,
+            UnitPriceUsd = 500m,
+            TotalInCurrency = 5100m,
+            TotalUsd = 5100m
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new ReportsController(db);
+        var result = await controller.ContractPnl(new ManagementReportFilterViewModel { ContractId = 40 });
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<ContractPnlReportViewModel>(view.Model);
+        var row = Assert.Single(model.PurchaseRows);
+
+        // عاید کاملِ ۱۰.۲ تن — دقیقاً یک بار، با وجود اینکه هر دو مسیرِ لینک روی همین فروش ست است.
+        Assert.Equal(10.2m, row.TotalSoldMt);
+        Assert.Equal(5100m, row.TotalRevenueUsd);
+
+        // قیمت خرید فقط از ۱۰ تنِ خریداری‌شده؛ برای ۰.۲ تن اضافه‌بار قیمت ساختگی ساخته نمی‌شود.
+        Assert.Equal(10m, row.TotalLoadedMt);
+        Assert.Equal(4000m, row.PurchaseValueUsd);
     }
 
     private static void SeedReferenceData(ApplicationDbContext db)

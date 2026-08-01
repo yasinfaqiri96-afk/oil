@@ -33,8 +33,33 @@
                 <div class="summary-tile"><div class="summary-tile-label">Contract</div><div class="summary-tile-value">@Model.ContractNumber</div></div>
                 <div class="summary-tile"><div class="summary-tile-label">Product</div><div class="summary-tile-value">@Model.ProductName</div></div>
                 <div class="summary-tile"><div class="summary-tile-label">Truck</div><div class="summary-tile-value">@Model.TruckPlateNumber</div></div>
-                <div class="summary-tile"><div class="summary-tile-label">مقدار ارسال MT</div><div class="summary-tile-value">@NumberDisplay.Quantity(Model.DispatchLoadedQuantityMt)</div></div>
+                <div class="summary-tile"><div class="summary-tile-label">مقدار بارگیری MT</div><div class="summary-tile-value">@NumberDisplay.Quantity(Model.DispatchLoadedQuantityMt)</div></div>
+                @if (Model.DispatchDischargedQuantityMt.HasValue)
+                {
+                    <div class="summary-tile"><div class="summary-tile-label">مقدار تخلیه MT</div><div class="summary-tile-value">@NumberDisplay.Quantity(Model.DispatchDischargedQuantityMt.Value)</div></div>
+                }
+                @if (Model.DispatchSurplusMt > 0m)
+                {
+                    <div class="summary-tile"><div class="summary-tile-label">اضافه‌بار MT</div><div class="summary-tile-value finance-positive">@NumberDisplay.Quantity(Model.DispatchSurplusMt)</div></div>
+                }
+                @if (Model.DispatchAlreadySoldQuantityMt > 0m)
+                {
+                    <div class="summary-tile"><div class="summary-tile-label">فروش‌شده قبلی MT</div><div class="summary-tile-value">@NumberDisplay.Quantity(Model.DispatchAlreadySoldQuantityMt)</div></div>
+                    <div class="summary-tile"><div class="summary-tile-label">باقی‌مانده MT</div><div class="summary-tile-value">@NumberDisplay.Quantity(Model.DispatchRemainingQuantityMt)</div></div>
+                }
             </div>
+
+            @if (Model.DispatchSurplusMt > 0m)
+            {
+                <div class="warning-note">
+                    <i class="bi bi-arrow-up-circle"></i>
+                    <div>
+                        این موتر @NumberDisplay.Quantity(Model.DispatchSurplusMt) MT بیشتر از وزن بارگیری تخلیه کرده است.
+                        فروش روی مقدار واقعیِ تخلیه‌شده ثبت می‌شود و طلب مشتری هم بر همان مقدار محاسبه می‌گردد.
+                        برای این اضافه‌بار هیچ قیمت خریدی ساخته نمی‌شود.
+                    </div>
+                </div>
+            }
 
             <div class="ak-form-grid g-3">
                 <div class="ak-field">
@@ -56,9 +81,12 @@
                 </div>
                 <div class="ak-field">
                     <label asp-for="QuantityMt" class="ak-label"></label>
-                    <input asp-for="QuantityMt" class="ak-input" readonly />
+                    <input asp-for="QuantityMt" class="ak-input" type="number" step="0.0001" min="0.0001" max="@Model.DispatchRemainingQuantityMt" />
                     <span asp-validation-for="QuantityMt" class="text-danger"></span>
-                    <div class="ak-section-desc">Phase 5E supports full-dispatch sale only.</div>
+                    <div class="ak-section-desc">
+                        مبنای فروش، مقدار واقعیِ تخلیه‌شدهٔ موتر است (@NumberDisplay.Quantity(Model.DispatchSellableQuantityMt) MT).
+                        فروش قسمتی مجاز است و باقی‌ماندهٔ قابل فروش @NumberDisplay.Quantity(Model.DispatchRemainingQuantityMt) MT می‌باشد.
+                    </div>
                 </div>
                 <div class="ak-field">
                     <label asp-for="Currency" class="ak-label"></label>

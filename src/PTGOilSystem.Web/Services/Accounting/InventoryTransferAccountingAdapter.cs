@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.Accounting;
 
@@ -218,7 +219,7 @@ public sealed class InventoryTransferAccountingAdapter(
         var request = new AccountingReversalRequest(
             original.Id,
             journalNumberGenerator.ForTransportLegLoadReversal(companyId.Value, leg.Id),
-            DateTime.UtcNow.Date,
+            AfghanistanBusinessClock.SystemToday,
             SourceModule,
             reversedEventId,
             $"Reversal of transport leg #{leg.Id} load");

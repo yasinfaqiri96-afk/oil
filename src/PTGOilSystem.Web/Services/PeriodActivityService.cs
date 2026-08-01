@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Accounting;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -16,6 +17,15 @@ public interface IPeriodActivityService
         int fiscalPeriodId,
         int companyId,
         bool accountingEnabled,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// دورهٔ پیش‌فرض وقتی کاربر بدون شناسهٔ دوره وارد صفحه می‌شود (مثلاً از «مرکز گزارشات»):
+    /// دوره‌ای که تاریخِ امروز داخلِ بازهٔ آن است، وگرنه تازه‌ترین دورهٔ همان شرکت.
+    /// اگر شرکت هیچ دوره‌ای نداشته باشد <c>null</c> برمی‌گردد. فقط‌خواندنی.
+    /// </summary>
+    Task<int?> FindDefaultPeriodIdAsync(
+        int companyId,
         CancellationToken cancellationToken = default);
 }
 
@@ -60,7 +70,7 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
 
         // بازهٔ نیمه‌باز. Kind را صریحاً Utc می‌کنیم چون ستون‌های تاریخِ عملیاتی روی PostgreSQL
         // از نوع timestamptz هستند و پارامترِ با Kind=Unspecified را رد می‌کنند (همان قراردادی که
-        // DashboardService با DateTime.UtcNow.Date رعایت می‌کند). InMemory این را نادیده می‌گیرد.
+        // DashboardService با AfghanistanBusinessClock.SystemToday رعایت می‌کند). InMemory این را نادیده می‌گیرد.
         var start = DateTime.SpecifyKind(period.StartDate.Date, DateTimeKind.Utc);
         var endExclusive = DateTime.SpecifyKind(period.EndDate.Date, DateTimeKind.Utc).AddDays(1);
 
@@ -81,6 +91,32 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
             period.Id, period.FiscalYearId, period.FiscalYearName, period.Name,
             period.StartDate, period.EndDate, companyName, accountingEnabled,
             kpis, purchases, loadings, sales, receipts, payments, expenses, movements, journals);
+    }
+
+    public async Task<int?> FindDefaultPeriodIdAsync(
+        int companyId,
+        CancellationToken cancellationToken = default)
+    {
+        // همان قرارداد Kind=Utc که BuildAsync رعایت می‌کند (ستون‌های timestamptz روی PostgreSQL).
+        var today = DateTime.SpecifyKind(AfghanistanBusinessClock.SystemToday.Date, DateTimeKind.Utc);
+
+        var containingToday = await db.FiscalPeriods.AsNoTracking()
+            .Where(p => p.CompanyId == companyId && p.StartDate <= today && p.EndDate >= today)
+            .OrderByDescending(p => p.StartDate)
+            .ThenByDescending(p => p.Id)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (containingToday is not null)
+            return containingToday;
+
+        // امروز در هیچ دوره‌ای نیست (سال مالی هنوز شروع نشده یا تمام شده) → تازه‌ترین دوره.
+        return await db.FiscalPeriods.AsNoTracking()
+            .Where(p => p.CompanyId == companyId)
+            .OrderByDescending(p => p.StartDate)
+            .ThenByDescending(p => p.Id)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     // خرید — قراردادهای خرید که تاریخشان در بازهٔ دوره است. شرکت دارد → فیلترِ شرکت اعمال می‌شود.

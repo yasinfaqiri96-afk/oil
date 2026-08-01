@@ -4,6 +4,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.CompanyFlow;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.PartyStatements;
 
@@ -17,19 +18,22 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
     private readonly ICompanyFlowDirectionResolver _flowResolver;
     private readonly ICompanyFlowBalanceService _balanceService;
     private readonly PartyStatementOptions _options;
+    private readonly IAfghanistanBusinessClock _businessClock;
 
     public PartyStatementReadService(
         ApplicationDbContext db,
         IPartyStatementPolicyResolver policyResolver,
         ICompanyFlowDirectionResolver flowResolver,
         ICompanyFlowBalanceService balanceService,
-        IOptions<PartyStatementOptions> options)
+        IOptions<PartyStatementOptions> options,
+        IAfghanistanBusinessClock? businessClock = null)
     {
         _db = db;
         _policyResolver = policyResolver;
         _flowResolver = flowResolver;
         _balanceService = balanceService;
         _options = options.Value;
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
     }
 
     /// <summary>
@@ -109,10 +113,11 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         decimal? openingRub = null, totalReceiptRub = null, totalOutflowRub = null, closingRub = null;
         if (presentInRub)
         {
-            openingRub = calculation.OpeningBalance == 0m ? 0m : null;
+            openingRub = calculation.OpeningBalanceRub;
             totalReceiptRub = calculation.PeriodRows.Sum(r => r.ReceiptRub ?? 0m);
             totalOutflowRub = calculation.PeriodRows.Sum(r => r.OutflowRub ?? 0m);
             var runningRub = openingRub ?? 0m;
+            var runningRubKnown = openingRub.HasValue;
             foreach (var row in resultRows)
             {
                 if (row.IsOpeningBalance)
@@ -120,19 +125,21 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                     row.RunningBalanceRub = openingRub;
                     continue;
                 }
-                if (row.SignedAmountRub.HasValue)
+                if (runningRubKnown && row.SignedAmountRub.HasValue)
                 {
                     runningRub += row.SignedAmountRub.Value;
                     row.RunningBalanceRub = runningRub;
                 }
             }
-            closingRub = _balanceService.Close(openingRub ?? 0m, totalReceiptRub.Value, totalOutflowRub.Value, AccountKind);
+            closingRub = openingRub.HasValue
+                ? _balanceService.Close(openingRub.Value, totalReceiptRub.Value, totalOutflowRub.Value, AccountKind)
+                : null;
         }
 
         var companyInfo = await LoadCompanyInfoAsync(party, filter.ContractId, cancellationToken);
         var periodRows = resultRows.Where(r => !r.IsOpeningBalance).ToList();
         var periodFrom = filter.FromDate?.Date ?? periodRows.FirstOrDefault()?.Date.Date;
-        var periodTo = filter.ToDate?.Date ?? periodRows.LastOrDefault()?.Date.Date ?? DateTime.UtcNow.Date;
+        var periodTo = filter.ToDate?.Date ?? periodRows.LastOrDefault()?.Date.Date ?? _businessClock.Today;
         var displayCurrency = presentInRub ? "RUB" : NormalizeCurrency(_options.BaseCurrencyCode);
 
         return new PartyStatementResult
@@ -144,7 +151,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             DocumentInfo = new PartyStatementDocumentInfo
             {
                 StatementNumber = BuildStatementNumber(party, periodTo),
-                StatementDate = DateTime.UtcNow.Date,
+                StatementDate = _businessClock.Today,
                 PeriodFrom = periodFrom,
                 PeriodTo = periodTo,
                 BaseCurrencyCode = displayCurrency,
@@ -204,7 +211,9 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 CreatedAtUtc = l.CreatedAtUtc,
                 Side = l.Side,
                 AmountUsd = l.AmountUsd,
-                OriginalAmount = l.SourceAmount ?? l.AmountUsd,
+                OriginalAmount = l.SourceCurrencyCode == null || l.SourceCurrencyCode == "USD"
+                    ? l.SourceAmount ?? l.AmountUsd
+                    : l.SourceAmount,
                 OriginalCurrency = l.SourceCurrencyCode ?? l.Currency,
                 FxRateToUsd = l.AppliedFxRateToUsd,
                 Reference = l.Reference,
@@ -212,13 +221,105 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 SourceType = l.SourceType,
                 SourceId = l.SourceId,
                 ContractId = l.ContractId,
+                ShipmentId = l.ShipmentId,
                 ContractNumber = l.Contract != null ? l.Contract.ContractNumber : null
             })
             .ToListAsync(ct);
 
         var allRows = entries.Select(e => MapLedgerRow(e, policy)).ToList();
+
+        // یک خدمتِ ثبت‌شده روی یک محموله، هنگام ثبت به‌تناسبِ هر قرارداد تقسیم می‌شود و
+        // چند سند مصرف می‌سازد. در حساب شرکت خدماتی طرفِ واقعی یکی است و باید یک سطر با
+        // مبلغ کل دیده شود، نه سهمِ هر قرارداد. تقسیم در Ledger دست‌نخورده می‌ماند.
+        if (party.PartyType == PartyStatementPartyType.ServiceProvider)
+        {
+            allRows = await MergeShipmentExpenseSharesAsync(entries, allRows, ct);
+        }
+
         return SplitAtPeriodStart(allRows, filter.FromDate);
     }
+
+    private const string ExpenseSourceType = "Expense";
+
+    /// <summary>
+    /// ادغامِ صرفاً نمایشیِ سهم‌های یک خدمت روی یک محموله. کلید ادغام = (محموله، نوع مصرف،
+    /// تاریخ، ارز، جهت). جمعِ سهم‌ها دقیقاً همان مبلغ کل است، پس جمع‌ها و بیلانس تغییر نمی‌کند.
+    /// </summary>
+    private async Task<List<PartyStatementRow>> MergeShipmentExpenseSharesAsync(
+        List<LedgerStatementProjection> entries,
+        List<PartyStatementRow> rows,
+        CancellationToken ct)
+    {
+        var expenseIds = entries
+            .Where(e => e.SourceType == ExpenseSourceType && e.ShipmentId.HasValue)
+            .Select(e => e.SourceId)
+            .Distinct()
+            .ToList();
+        if (expenseIds.Count == 0)
+        {
+            return rows;
+        }
+
+        var expenseMeta = await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => expenseIds.Contains(e.Id))
+            .Select(e => new
+            {
+                e.Id,
+                e.ExpenseTypeId,
+                TypeCode = e.ExpenseType != null ? e.ExpenseType.Code : null
+            })
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var merged = new List<PartyStatementRow>(rows.Count);
+        var heads = new Dictionary<string, PartyStatementRow>(StringComparer.Ordinal);
+
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var entry = entries[i];
+            var row = rows[i];
+
+            if (entry.SourceType != ExpenseSourceType
+                || !entry.ShipmentId.HasValue
+                || !expenseMeta.TryGetValue(entry.SourceId, out var meta))
+            {
+                merged.Add(row);
+                continue;
+            }
+
+            var key = string.Join(
+                '|',
+                entry.ShipmentId.Value,
+                meta.ExpenseTypeId,
+                row.Date.ToString("yyyyMMdd"),
+                row.OriginalCurrency,
+                row.FlowDirection);
+
+            if (!heads.TryGetValue(key, out var head))
+            {
+                heads[key] = row;
+                merged.Add(row);
+                continue;
+            }
+
+            head.ReceiptBase = Add(head.ReceiptBase, row.ReceiptBase);
+            head.OutflowBase = Add(head.OutflowBase, row.OutflowBase);
+            head.OriginalAmount = Add(head.OriginalAmount, row.OriginalAmount);
+            // سطرِ ادغام‌شده به یک قرارداد تعلق ندارد؛ مرجع هم کلیدِ نوع مصرف می‌شود
+            // تا به سهمِ یک قرارداد اشاره نکند.
+            head.ContractId = null;
+            head.ContractNumber = null;
+            if (!string.IsNullOrWhiteSpace(meta.TypeCode))
+            {
+                head.Reference = meta.TypeCode;
+            }
+        }
+
+        return merged;
+    }
+
+    private static decimal? Add(decimal? left, decimal? right)
+        => left.HasValue || right.HasValue ? (left ?? 0m) + (right ?? 0m) : null;
 
     /// <summary>
     /// جدا کردن «بیلانس اول دوره» از سطرهای دوره. اثر هر سطر با فرمول مرکزی
@@ -226,13 +327,20 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
     /// </summary>
     private StatementCalculation SplitAtPeriodStart(List<PartyStatementRow> allRows, DateTime? fromDate)
     {
+        foreach (var row in allRows)
+        {
+            ApplyRubValues(row);
+        }
+
         if (!fromDate.HasValue)
         {
-            return new StatementCalculation(0m, allRows);
+            return new StatementCalculation(0m, 0m, allRows);
         }
 
         var from = fromDate.Value.Date;
         var opening = 0m;
+        var openingRub = 0m;
+        var openingRubKnown = true;
         var periodRows = new List<PartyStatementRow>(allRows.Count);
         foreach (var row in allRows)
         {
@@ -242,6 +350,18 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                     row.FlowDirection ?? CompanyFlowDirection.Outflow,
                     row.ReceiptBase ?? row.OutflowBase ?? 0m,
                     AccountKind);
+
+                if (string.Equals(row.OriginalCurrency, "RUB", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (row.SignedAmountRub.HasValue)
+                    {
+                        openingRub += row.SignedAmountRub.Value;
+                    }
+                    else
+                    {
+                        openingRubKnown = false;
+                    }
+                }
             }
             else
             {
@@ -249,7 +369,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             }
         }
 
-        return new StatementCalculation(opening, periodRows);
+        return new StatementCalculation(opening, openingRubKnown ? openingRub : null, periodRows);
     }
 
     private IQueryable<LedgerEntry> BuildPartyLedgerQuery(PartyRef party, PartyStatementFilter filter)
@@ -260,7 +380,13 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         {
             PartyStatementPartyType.Customer => query.Where(l =>
                 l.CustomerId == party.PartyId
-                || (l.CustomerId == null && l.Contract != null && l.Contract.CustomerId == party.PartyId)
+                || (l.CustomerId == null
+                    && l.SupplierId == null
+                    && l.ServiceProviderId == null
+                    && l.DriverId == null
+                    && l.EmployeeId == null
+                    && l.Contract != null
+                    && l.Contract.CustomerId == party.PartyId)
                 || (l.SourceType == "Sale" && _db.SalesTransactions.Any(s => s.Id == l.SourceId && s.CustomerId == party.PartyId))),
             // انتساب تأمین‌کننده از تعریف مرکزی می‌آید تا اسنادِ متعلق به طرف‌حسابِ دیگر
             // (مثلاً کرایهٔ حملِ ServiceProvider/Driver روی همان قرارداد خرید) وارد
@@ -365,7 +491,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             .ToListAsync(ct);
         if (shares.Count == 0)
         {
-            return new StatementCalculation(0m, []);
+            return new StatementCalculation(0m, 0m, []);
         }
 
         var shareByContract = shares.ToDictionary(x => x.ContractId, x => x.SharePercent);
@@ -408,7 +534,9 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 CreatedAtUtc = l.CreatedAtUtc,
                 Side = l.Side,
                 AmountUsd = l.AmountUsd,
-                OriginalAmount = l.SourceAmount ?? l.AmountUsd,
+                OriginalAmount = l.SourceCurrencyCode == null || l.SourceCurrencyCode == "USD"
+                    ? l.SourceAmount ?? l.AmountUsd
+                    : l.SourceAmount,
                 OriginalCurrency = l.SourceCurrencyCode ?? l.Currency,
                 FxRateToUsd = l.AppliedFxRateToUsd,
                 Reference = l.Reference,
@@ -427,14 +555,20 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 ?? (entry.SourceType == "Sale" && saleMap.TryGetValue(entry.SourceId, out var saleContractId)
                     ? saleContractId
                     : (int?)null);
-            if (!contractId.HasValue || !shareByContract.TryGetValue(contractId.Value, out var sharePercent))
+            if (!contractId.HasValue)
+            {
+                continue;
+            }
+            if (!shareByContract.TryGetValue(contractId.Value, out var sharePercent))
             {
                 continue;
             }
 
             var ratio = sharePercent / 100m;
             entry.AmountUsd = decimal.Round(entry.AmountUsd * ratio, 2, MidpointRounding.AwayFromZero);
-            entry.OriginalAmount = decimal.Round(entry.OriginalAmount * ratio, 4, MidpointRounding.AwayFromZero);
+            entry.OriginalAmount = entry.OriginalAmount.HasValue
+                ? decimal.Round(entry.OriginalAmount.Value * ratio, 4, MidpointRounding.AwayFromZero)
+                : null;
             entry.ContractId = contractId;
             allRows.Add(MapLedgerRow(entry, policy));
         }
@@ -599,7 +733,10 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 CreatedAtUtc = ledger.CreatedAtUtc,
                 Reference = ledger.Reference,
                 Description = ledger.Description,
-                OriginalAmount = ledger.SourceAmount ?? ledger.AmountUsd,
+                OriginalAmount = ledger.SourceCurrencyCode == null
+                    || string.Equals(ledger.SourceCurrencyCode, "USD", StringComparison.OrdinalIgnoreCase)
+                        ? ledger.SourceAmount ?? ledger.AmountUsd
+                        : ledger.SourceAmount,
                 OriginalCurrency = NormalizeCurrency(ledger.SourceCurrencyCode ?? ledger.Currency),
                 FxRate = ResolveHistoricalRate(ledger.AppliedFxRateToUsd, ledger.SourceCurrencyCode ?? ledger.Currency),
                 FxRateDisplay = PartyStatementFormatting.FxDisplay(ledger.AppliedFxRateToUsd, ledger.SourceCurrencyCode ?? ledger.Currency),
@@ -773,7 +910,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         };
     }
 
-    private static List<PartyStatementRow> BuildRunningRows(
+    private List<PartyStatementRow> BuildRunningRows(
         decimal opening,
         List<PartyStatementRow> periodRows,
         DateTime? fromDate)
@@ -793,7 +930,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             result.Add(new PartyStatementRow
             {
                 Sequence = 0,
-                Date = fromDate?.Date ?? ordered.FirstOrDefault()?.Date.Date ?? DateTime.UtcNow.Date,
+                Date = fromDate?.Date ?? ordered.FirstOrDefault()?.Date.Date ?? _businessClock.Today,
                 CreatedAtUtc = DateTime.MinValue,
                 Reference = "OB",
                 Description = CompanyFlowText.Get(CompanyFlowTextKey.OpeningBalance, isEnglish: false),
@@ -810,6 +947,9 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             balance += row.SignedAmount;
             row.Sequence = sequence++;
             row.RunningBalance = balance;
+            // سند رسمی فقط متن کوتاه می‌خواهد؛ دنبالهٔ ردیابیِ Ledger اینجا نمایش داده نمی‌شود.
+            row.Reference = PartyStatementFormatting.ShortReference(row.Reference);
+            row.Description = PartyStatementFormatting.ShortDescription(row.Description);
             result.Add(row);
         }
 
@@ -895,7 +1035,10 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             _ => "تراکنش معاش"
         };
 
-    private sealed record StatementCalculation(decimal OpeningBalance, List<PartyStatementRow> PeriodRows);
+    private sealed record StatementCalculation(
+        decimal OpeningBalance,
+        decimal? OpeningBalanceRub,
+        List<PartyStatementRow> PeriodRows);
 
     private sealed class LedgerStatementProjection
     {
@@ -904,7 +1047,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         public DateTime CreatedAtUtc { get; init; }
         public LedgerSide Side { get; init; }
         public decimal AmountUsd { get; set; }
-        public decimal OriginalAmount { get; set; }
+        public decimal? OriginalAmount { get; set; }
         public string OriginalCurrency { get; init; } = BaseCurrency;
         public decimal? FxRateToUsd { get; init; }
         public string? Reference { get; init; }
@@ -912,6 +1055,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         public string SourceType { get; init; } = string.Empty;
         public int SourceId { get; init; }
         public int? ContractId { get; set; }
+        public int? ShipmentId { get; init; }
         public string? ContractNumber { get; init; }
     }
 }

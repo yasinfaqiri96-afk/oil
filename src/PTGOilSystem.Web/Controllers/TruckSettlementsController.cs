@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Models.TruckSettlements;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -407,10 +408,11 @@ public partial class TruckSettlementsController : Controller
             return false;
         }
 
-        // کسری = باقیماندهٔ بار منهای وزن تخلیه. حواکت (تلورانس) از کسری کم می‌شود؛ فقط کسری قابل خسارت جریمه دارد.
-        var shortageMt = decimal.Round(Math.Max(remainingMt - row.QuantityMt, 0m), 4, MidpointRounding.AwayFromZero);
+        // تفاوت = باقیماندهٔ بار منهای وزن تخلیه، با علامت واقعی (همان قرارداد DispatchController):
+        //   مثبت = کسری، منفی = اضافه‌بار. حواکت (تلورانس) فقط از کسری کم می‌شود و اضافه‌بار هرگز جریمه نمی‌گیرد.
+        var differenceMt = TransportVarianceMath.Difference(remainingMt, row.QuantityMt);
         var allowanceMt = NormalizePositiveDecimal(row.AllowanceMt) ?? 0m;
-        var chargeableShortageMt = FreightShortageMath.ChargeableShortage(shortageMt, allowanceMt);
+        var chargeableShortageMt = TransportVarianceMath.ChargeableShortage(differenceMt, allowanceMt);
         var shortageRateUsd = NormalizePositiveDecimal(row.ShortageRateUsd);
         var shortageChargeUsd = decimal.Round(
             FreightShortageMath.ShortageChargeUsd(chargeableShortageMt, shortageRateUsd), 4, MidpointRounding.AwayFromZero);
@@ -421,7 +423,7 @@ public partial class TruckSettlementsController : Controller
 
         // وزن تخلیه‌شده = مبنای مؤثر این ارسال (نه وزن بارگیری). فروش گروهی همین را نمایش/می‌فروشد.
         dispatch.DischargedQuantityMt = row.QuantityMt;
-        dispatch.ShortageMt = shortageMt;
+        dispatch.ShortageMt = differenceMt;
         dispatch.AllowanceMt = allowanceMt;
         dispatch.ToleranceMt = allowanceMt;
         dispatch.ChargeableShortageMt = chargeableShortageMt;
@@ -438,33 +440,18 @@ public partial class TruckSettlementsController : Controller
         dispatch.IsFreightSettled = true;
         dispatch.FreightSettledDate = row.OperationDate.Date;
 
-        // رکورد کسری برای سابقه (بدون اثر موجودی) — تخلیه‌ای رخ نمی‌دهد، بار برای مرحلهٔ بعدی می‌ماند.
-        if (shortageMt > 0m)
-        {
-            var metrics = _lossWorkflow.ComputeMetrics(remainingMt, row.QuantityMt, allowanceMt);
-            _db.LossEvents.Add(new LossEvent
-            {
-                Stage = LossEventStage.DispatchShortage,
-                TruckDispatchId = dispatch.Id,
-                ProductId = dispatch.ProductId,
-                ContractId = dispatch.ContractId,
-                EventDate = row.OperationDate.Date,
-                ExpectedQuantityMt = remainingMt,
-                ActualQuantityMt = row.QuantityMt,
-                DifferenceQuantityMt = metrics.DifferenceQuantityMt,
-                ToleranceQuantityMt = allowanceMt,
-                AllowableLossMt = metrics.AllowableLossMt,
-                ChargeableLossMt = metrics.ChargeableLossMt,
-                ResponsiblePartyType = "Driver",
-                ResponsiblePartyName = dispatch.Driver?.FullName,
-                FinancialTreatment = shortageChargeUsd > 0m
-                    ? $"Driver shortage charge/deduction: {shortageChargeUsd:N2} USD."
-                    : "No driver shortage charge.",
-                AffectsInventory = false,
-                Reference = $"TRUCK-FREIGHT-SETTLE:{dispatch.Id}",
-                Notes = NormalizeNullable(row.Notes)
-            });
-        }
+        // رکورد تفاوت برای سابقه (بدون اثر موجودی) — تخلیه‌ای رخ نمی‌دهد، بار برای مرحلهٔ بعدی می‌ماند.
+        await UpsertDispatchVarianceAsync(
+            dispatch,
+            expectedQuantityMt: remainingMt,
+            dischargedQuantityMt: row.QuantityMt,
+            allowanceMt: allowanceMt,
+            eventDate: row.OperationDate.Date,
+            shortageChargeUsd: shortageChargeUsd,
+            terminalId: null,
+            storageTankId: null,
+            reference: $"TRUCK-FREIGHT-SETTLE:{dispatch.Id}",
+            notes: NormalizeNullable(row.Notes));
 
         await _db.SaveChangesAsync();
         await DispatchFreightExpenseSync.SyncAsync(_db, dispatch, _expenseAccounting);
@@ -484,6 +471,102 @@ public partial class TruckSettlementsController : Controller
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// ثبت/به‌روزرسانی رکورد «تفاوت حمل» یک دیسپچ — دقیقاً همان قرارداد <see cref="TransportVarianceMath"/>
+    /// که مسیر تخلیهٔ DispatchController دارد، تا «راپور کسری و اضافه‌بار حمل» هر دو مسیر را یکسان ببیند:
+    ///   • تفاوت = بارگیری − تخلیه ⇒ مثبت = کسری، منفی = اضافه‌بار.
+    ///   • هر تفاوت غیرصفر یک رکورد قابل ردیابی می‌سازد؛ رکورد موجودِ همین دیسپچ به‌روز می‌شود (نه رکورد تکراری).
+    ///   • تفاوت صفر ⇒ رکورد قبلی لغو می‌شود.
+    ///   • اضافه‌بار هرگز مقدار قابل جریمه ندارد.
+    /// این متد چیزی را ذخیره نمی‌کند؛ SaveChanges با فراخوان است.
+    /// </summary>
+    private async Task UpsertDispatchVarianceAsync(
+        TruckDispatch dispatch,
+        decimal expectedQuantityMt,
+        decimal dischargedQuantityMt,
+        decimal allowanceMt,
+        DateTime eventDate,
+        decimal shortageChargeUsd,
+        int? terminalId,
+        int? storageTankId,
+        string? reference,
+        string? notes)
+    {
+        var lossEvent = await _db.LossEvents
+            .Where(l => l.TruckDispatchId == dispatch.Id && l.Stage == LossEventStage.DispatchShortage)
+            .OrderByDescending(l => l.Id)
+            .FirstOrDefaultAsync();
+
+        var differenceMt = TransportVarianceMath.Difference(expectedQuantityMt, dischargedQuantityMt);
+        if (!TransportVarianceMath.HasVariance(differenceMt))
+        {
+            if (lossEvent is not null && !lossEvent.IsCancelled)
+            {
+                lossEvent.IsCancelled = true;
+            }
+
+            return;
+        }
+
+        var metrics = _lossWorkflow.ComputeMetrics(expectedQuantityMt, dischargedQuantityMt, allowanceMt);
+        var isSurplus = TransportVarianceMath.IsSurplus(differenceMt);
+        var lossEventIsNew = lossEvent is null;
+        lossEvent ??= new LossEvent
+        {
+            Stage = LossEventStage.DispatchShortage,
+            TruckDispatchId = dispatch.Id
+        };
+
+        lossEvent.Stage = LossEventStage.DispatchShortage;
+        lossEvent.TruckDispatchId = dispatch.Id;
+        lossEvent.ProductId = dispatch.ProductId;
+        lossEvent.ContractId = dispatch.ContractId;
+        lossEvent.EventDate = eventDate;
+        lossEvent.ExpectedQuantityMt = expectedQuantityMt;
+        lossEvent.ActualQuantityMt = dischargedQuantityMt;
+        lossEvent.DifferenceQuantityMt = metrics.DifferenceQuantityMt;
+        lossEvent.ToleranceQuantityMt = allowanceMt;
+        lossEvent.AllowableLossMt = metrics.AllowableLossMt;
+        lossEvent.ChargeableLossMt = metrics.ChargeableLossMt;
+        lossEvent.ResponsiblePartyType = "Driver";
+        lossEvent.ResponsiblePartyName = dispatch.Driver?.FullName;
+        lossEvent.FinancialTreatment = isSurplus
+            ? "Truck unload positive variance (surplus). Never charged to the driver."
+            : shortageChargeUsd > 0m
+                ? $"Driver shortage charge/deduction: {shortageChargeUsd:N2} USD."
+                : "No driver shortage charge.";
+        lossEvent.AffectsInventory = false;
+        lossEvent.InventoryMovementId = null;
+        lossEvent.IsCancelled = false;
+
+        // مقصد/سند/یادداشت فقط وقتی بازنویسی می‌شوند که فراخوان مقدار تازه داشته باشد،
+        // تا مرحلهٔ تخلیه، اطلاعات ثبت‌شدهٔ مرحلهٔ تسویه را پاک نکند.
+        if (terminalId.HasValue)
+        {
+            lossEvent.TerminalId = terminalId;
+        }
+
+        if (storageTankId.HasValue)
+        {
+            lossEvent.StorageTankId = storageTankId;
+        }
+
+        if (reference is not null)
+        {
+            lossEvent.Reference = reference;
+        }
+
+        if (notes is not null)
+        {
+            lossEvent.Notes = notes;
+        }
+
+        if (lossEventIsNew)
+        {
+            _db.LossEvents.Add(lossEvent);
+        }
     }
 
     // ── طرف کرایه: شرکت خدماتی / دارایی عملیاتی (موتر خودی) / راننده (موجود یا ساخت خودکار) ──
@@ -805,7 +888,7 @@ public partial class TruckSettlementsController : Controller
             {
                 Kind = row.Kind,
                 SourceId = row.SourceId,
-                OperationDate = DateTime.UtcNow.Date,
+                OperationDate = AfghanistanBusinessClock.SystemToday,
                 QuantityMt = row.RemainingQuantityMt,
                 FreightParty = row.DefaultFreightParty
             });

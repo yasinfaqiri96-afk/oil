@@ -1,0 +1,251 @@
+@using PTGOilSystem.Web.Models.Reports
+@model PTGOilSystem.Web.Models.Reports.TransportVarianceReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "راپور کسری و اضافه‌بار حمل", "Transport Shortage & Surplus Report");
+    var f = Model.Filter;
+    var t = Model.Totals;
+    var hasActiveFilters = f.HasAny;
+
+    // کسری سرخ، اضافه‌بار سبز — نشانهٔ رنگی و متنی هر دو، تا فقط با رنگ تشخیص داده نشود.
+    string KindTone(TransportVarianceKind kind)
+        => kind == TransportVarianceKind.Surplus ? "finance-positive" : "finance-negative";
+    string KindBadge(TransportVarianceKind kind)
+        => kind == TransportVarianceKind.Surplus ? "ak-status is-active" : "ak-status is-pending";
+    string KindIcon(TransportVarianceKind kind)
+        => kind == TransportVarianceKind.Surplus ? "bi-arrow-up-circle" : "bi-arrow-down-circle";
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "راپور کسری و اضافه‌بار حمل", "Transport Shortage & Surplus Report"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    <p class="ak-note">
+        @UiText.T(Context,
+            "تفاوت وزن بارگیری و وزن تخلیهٔ هر حمل. تفاوت مثبت «کسری» و تفاوت منفی «اضافه‌بار» است. اضافه‌بار هرگز جریمه نمی‌شود و مجموع کسری و مجموع اضافه‌بار جداگانه محاسبه می‌شوند.",
+            "Difference between loaded and unloaded weight per transport. Positive is shortage, negative is surplus. Surplus is never charged, and shortage and surplus totals are calculated separately.")
+    </p>
+
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "خلاصه کسری و اضافه‌بار", "Shortage and surplus summary")">
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-arrow-down-circle",
+            UiText.T(Context, "مجموع کسری", "Total shortage"), $"{t.TotalShortageMt:N4} MT",
+            $"{t.ShortageCount:N0} " + UiText.T(Context, "حمل", "transports"),
+            t.TotalShortageMt > 0m ? "finance-negative" : ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-arrow-up-circle",
+            UiText.T(Context, "مجموع اضافه‌بار", "Total surplus"), $"{t.TotalSurplusMt:N4} MT",
+            $"{t.SurplusCount:N0} " + UiText.T(Context, "حمل", "transports"),
+            t.TotalSurplusMt > 0m ? "finance-positive" : ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-cash-coin",
+            UiText.T(Context, "کسری قابل جریمه", "Chargeable shortage"), $"{t.TotalChargeableShortageMt:N4} MT",
+            UiText.T(Context, "اضافه‌بار در آن سهم ندارد", "Surplus never contributes"),
+            t.TotalChargeableShortageMt > 0m ? "finance-negative" : ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-calculator",
+            UiText.T(Context, "تفاوت خالص", "Net difference"), $"{t.NetDifferenceMt:N4} MT",
+            t.NetDifferenceMt > 0m
+                ? UiText.T(Context, "خالص کسری", "Net shortage")
+                : t.NetDifferenceMt < 0m
+                    ? UiText.T(Context, "خالص اضافه‌بار", "Net surplus")
+                    : UiText.T(Context, "بدون تفاوت خالص", "No net difference"),
+            t.NetDifferenceMt > 0m ? "finance-negative" : t.NetDifferenceMt < 0m ? "finance-positive" : ""))
+    </section>
+
+    @* سود و زیانِ اضافه‌بار: اضافه‌بار تا وقتی فروخته نشده فقط موجودی است؛ سود فقط از بخش
+       فروخته‌شده می‌آید و قیمت خرید ندارد، چون شرکت برای آن تن‌ها پولی نداده است. *@
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "سود و زیان اضافه‌بار", "Surplus profit and loss")">
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-box-seam",
+            UiText.T(Context, "اضافه‌بار فروخته‌شده", "Surplus sold"), $"{t.TotalSurplusSoldMt:N4} MT",
+            UiText.T(Context, "فروخته‌نشده", "Unsold") + $": {t.TotalSurplusUnsoldMt:N4} MT",
+            t.TotalSurplusSoldMt > 0m ? "finance-positive" : ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-cash-stack",
+            UiText.T(Context, "عاید اضافه‌بار", "Surplus revenue"), $"{t.TotalSurplusRevenueUsd:N2} USD",
+            UiText.T(Context, "بدون قیمت خرید — خرید تازه‌ای انجام نشده", "No purchase cost — nothing extra was bought"),
+            t.TotalSurplusRevenueUsd > 0m ? "finance-positive" : ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-receipt",
+            UiText.T(Context, "مصارف قابل تخصیص اضافه‌بار", "Surplus allocatable expense"), $"{t.TotalSurplusExpenseUsd:N2} USD",
+            UiText.T(Context, "سهم کرایه، کمیسیون و سایر مصارف واقعی", "Share of freight, commission and other real expenses"),
+            t.TotalSurplusExpenseUsd > 0m ? "finance-negative" : ""))
+        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-graph-up-arrow",
+            UiText.T(Context, "منفعت خالص اضافه‌بار", "Surplus net profit"), $"{t.TotalSurplusNetProfitUsd:N2} USD",
+            UiText.T(Context, "عاید منهای مصارف قابل تخصیص", "Revenue minus allocatable expense"),
+            t.TotalSurplusNetProfitUsd > 0m ? "finance-positive" : t.TotalSurplusNetProfitUsd < 0m ? "finance-negative" : ""))
+    </section>
+
+    <div class="ak-list">
+        <form method="get" class="ak-report-parameters" id="tvFilterForm">
+            <div class="ak-report-parameters-bar">
+                <div class="ak-report-parameters-anchor">
+                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="tvFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
+                        <i class="bi bi-funnel"></i>
+                    </button>
+                    <div class="ak-report-parameters-pop" id="tvFilterPop" hidden>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "نوع تفاوت", "Variance type")</label>
+                        <select class="ak-input" name="Kind">
+                            <option value="All" selected="@(f.Kind == TransportVarianceFilterKind.All)">@UiText.T(Context, "همه", "All")</option>
+                            <option value="ShortageOnly" selected="@(f.Kind == TransportVarianceFilterKind.ShortageOnly)">@UiText.T(Context, "فقط کسری", "Shortage only")</option>
+                            <option value="SurplusOnly" selected="@(f.Kind == TransportVarianceFilterKind.SurplusOnly)">@UiText.T(Context, "فقط اضافه‌بار", "Surplus only")</option>
+                        </select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "مسیر ثبت", "Source")</label>
+                        <select class="ak-input" name="Source">
+                            <option value="">@UiText.T(Context, "همه مسیرها", "All sources")</option>
+                            <option value="TruckDispatch" selected="@(f.Source == TransportVarianceSource.TruckDispatch)">@UiText.T(Context, "تخلیه موتر", "Truck unload")</option>
+                            <option value="InventoryTransfer" selected="@(f.Source == TransportVarianceSource.InventoryTransfer)">@UiText.T(Context, "انتقال داخلی", "Internal transfer")</option>
+                        </select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
+                        <input class="ak-input" type="date" name="FromDate" value="@f.FromDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
+                        <input class="ak-input" type="date" name="ToDate" value="@f.ToDate?.ToHtmlDateInput()" />
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "جنس", "Product")</label>
+                        <select class="ak-input" name="ProductId" asp-items="ViewBag.TransportVarianceProducts"><option value="">@UiText.T(Context, "همه اجناس", "All products")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "قرارداد", "Contract")</label>
+                        <select class="ak-input" name="ContractId" asp-items="ViewBag.TransportVarianceContracts"><option value="">@UiText.T(Context, "همه قراردادها", "All contracts")</option></select>
+                        <label class="ak-report-parameters-field">@UiText.T(Context, "موتر یا راننده", "Vehicle or driver")</label>
+                        <input class="ak-input" type="text" name="Search" value="@f.Search" />
+                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
+                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("TransportVarianceExport"))" />
+                        @if (hasActiveFilters)
+                        {
+                            <a asp-action="TransportVariance" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                        <th>@UiText.T(Context, "مسیر ثبت", "Source")</th>
+                        <th>@UiText.T(Context, "موتر / وسیله", "Vehicle")</th>
+                        <th>@UiText.T(Context, "راننده", "Driver")</th>
+                        <th>@UiText.T(Context, "جنس", "Product")</th>
+                        <th>@UiText.T(Context, "قرارداد", "Contract")</th>
+                        <th>@UiText.T(Context, "مسیر", "Route")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "بارگیری MT", "Loaded MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "تخلیه MT", "Unloaded MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "تفاوت MT", "Difference MT")</th>
+                        <th>@UiText.T(Context, "نوع تفاوت", "Variance type")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "فیصدی تفاوت", "Difference %")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "قابل جریمه MT", "Chargeable MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "اضافه‌بار فروخته‌شده MT", "Surplus sold MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "عاید اضافه‌بار USD", "Surplus revenue USD")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مصارف اضافه‌بار USD", "Surplus expense USD")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "منفعت اضافه‌بار USD", "Surplus profit USD")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td>@row.EventDate.ToDisplayDate()</td>
+                            <td>@PTGOilSystem.Web.Controllers.ReportsController.TransportVarianceSourceLabel(row.Source)</td>
+                            <td>
+                                @if (row.TruckDispatchId.HasValue)
+                                {
+                                    <a asp-controller="Dispatch" asp-action="Details" asp-route-id="@row.TruckDispatchId">@(row.VehicleNumber ?? "—")</a>
+                                }
+                                else if (row.TransportLegId.HasValue)
+                                {
+                                    <a asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@row.TransportLegId">@(row.VehicleNumber ?? "—")</a>
+                                }
+                                else
+                                {
+                                    @(row.VehicleNumber ?? "—")
+                                }
+                            </td>
+                            <td>@(row.DriverName ?? "—")</td>
+                            <td>@row.ProductName</td>
+                            <td>@(row.ContractNumber ?? "—")</td>
+                            <td>@(row.RouteText ?? "—")</td>
+                            <td class="ak-col-num ak-num">@row.LoadedQuantityMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.UnloadedQuantityMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num @KindTone(row.Kind)">@row.DifferenceQuantityMt.ToString("N4")</td>
+                            <td>
+                                <span class="@KindBadge(row.Kind)">
+                                    <i class="bi @KindIcon(row.Kind)" aria-hidden="true"></i>
+                                    @PTGOilSystem.Web.Controllers.ReportsController.TransportVarianceKindLabel(row.Kind)
+                                    <span class="col-ltr">@row.AbsoluteDifferenceMt.ToString("N4") MT</span>
+                                </span>
+                            </td>
+                            <td class="ak-col-num ak-num @KindTone(row.Kind)">@row.DifferencePercent.ToString("N2")%</td>
+                            <td class="ak-col-num ak-num">@row.ChargeableShortageMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num @(row.SurplusSoldMt > 0m ? "finance-positive" : null)">
+                                @row.SurplusSoldMt.ToString("N4")
+                                @if (row.Kind == TransportVarianceKind.Surplus && row.SurplusUnsoldMt > 0m)
+                                {
+                                    <span class="ak-section-desc col-ltr">@UiText.T(Context, "فروخته‌نشده", "Unsold"): @row.SurplusUnsoldMt.ToString("N4")</span>
+                                }
+                            </td>
+                            <td class="ak-col-num ak-num">
+                                @row.SurplusRevenueUsd.ToString("N2")
+                                @if (!string.IsNullOrWhiteSpace(row.SurplusSaleInvoiceNumber))
+                                {
+                                    <span class="ak-section-desc col-ltr">@row.SurplusSaleInvoiceNumber</span>
+                                }
+                            </td>
+                            <td class="ak-col-num ak-num">@row.SurplusAllocatableExpenseUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num @(row.SurplusNetProfitUsd > 0m ? "finance-positive" : row.SurplusNetProfitUsd < 0m ? "finance-negative" : null)">@row.SurplusNetProfitUsd.ToString("N2")</td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="17">
+                                <div class="ak-empty">
+                                    <i class="bi bi-truck"></i>
+                                    @UiText.T(Context, "حملی با کسری یا اضافه‌بار پیدا نشد؛ فیلترها را تغییر دهید.", "No transport with shortage or surplus found; change the filters.")
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                @if (Model.Rows.Count > 0)
+                {
+                    <tfoot>
+                        <tr>
+                            <td colspan="7"><strong>@UiText.T(Context, "جمع کل نتایج فیلترشده", "Total of filtered results")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalLoadedMt.ToString("N4")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalUnloadedMt.ToString("N4")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.NetDifferenceMt.ToString("N4")</strong></td>
+                            <td>
+                                <span class="finance-negative">@UiText.T(Context, "کسری", "Shortage"): @t.TotalShortageMt.ToString("N4")</span>
+                                <span class="finance-positive">@UiText.T(Context, "اضافه‌بار", "Surplus"): @t.TotalSurplusMt.ToString("N4")</span>
+                            </td>
+                            <td></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalChargeableShortageMt.ToString("N4")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalSurplusSoldMt.ToString("N4")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalSurplusRevenueUsd.ToString("N2")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalSurplusExpenseUsd.ToString("N2")</strong></td>
+                            <td class="ak-col-num ak-num"><strong>@t.TotalSurplusNetProfitUsd.ToString("N2")</strong></td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+
+        @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var toggle = document.getElementById('tvFilterToggle');
+            var pop = document.getElementById('tvFilterPop');
+            if (!toggle || !pop) return;
+            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
+            toggle.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var open = pop.hidden;
+                pop.hidden = !open;
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+            document.addEventListener('click', function (e) {
+                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
+            });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+        })();
+    </script>
+}

@@ -9,6 +9,10 @@
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        "Reconciliation", "bi-arrow-right", Url.Action("Index")))" />
 
+    <div class="ak-page-actions">
+        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("EmployeeTransactionsExport"))" />
+    </div>
+
     <p class="ak-note">این صفحه فقط خواندنی است و هیچ تراکنش، Ledger یا حساب نقدی را اصلاح نمی‌کند. اصلاح باید از مسیر رسمی تراکنش معاش، Payment یا Ledger انجام شود.</p>
 
     @await Html.PartialAsync("_EmployeeIssueTable", (Title: "تراکنش نقدی بدون Ledger", Rows: Model.TransactionsWithoutLedger))

@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -438,7 +439,7 @@ public class ExpenseRulesController : Controller
 
         generation ??= new ExpenseRuleGenerateExpenseViewModel
         {
-            ExpenseDate = DateTime.UtcNow.Date
+            ExpenseDate = AfghanistanBusinessClock.SystemToday
         };
 
         await PopulateLookupsAsync(generateModel: generation);

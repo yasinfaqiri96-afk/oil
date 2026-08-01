@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Contracts;
 
@@ -60,7 +61,7 @@ public sealed class ContractFormViewModel
 
     [Display(Name = "تاریخ قرارداد")]
     [DataType(DataType.Date)]
-    public DateTime ContractDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ContractDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "شروع")]
     [DataType(DataType.Date)]

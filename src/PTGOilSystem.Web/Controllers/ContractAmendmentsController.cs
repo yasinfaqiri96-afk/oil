@@ -6,6 +6,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -46,7 +47,7 @@ public class ContractAmendmentsController : Controller
         return View(new ContractAmendment
         {
             ContractId = contractId,
-            AmendmentDate = DateTime.UtcNow.Date,
+            AmendmentDate = AfghanistanBusinessClock.SystemToday,
             NewQuantityMt = contract.QuantityMt,
             NewUnitPriceUsd = contract.UnitPriceUsd,
             NewPremiumUsd = contract.PremiumUsd,

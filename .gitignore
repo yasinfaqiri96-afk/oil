@@ -67,6 +67,8 @@ backups/secure/local-keys/
 backups/secure/*.aes
 backups/secure/*.aes.sha256.txt
 /src/PTGOilSystem.Web/backups/
+/db/backups/
+/database.dump
 
 
 # ---------------------------------------------------------
@@ -151,6 +153,11 @@ artifacts/
 /docs/*.pdf
 /docs/contract-audit/
 /tools/PtgImporter/loadings.json
+/docs/*.zip
+/exel/
+/uploads/
+/manifest.json
+/settings.json
 
 
 # ---------------------------------------------------------

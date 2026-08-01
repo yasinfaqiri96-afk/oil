@@ -109,22 +109,26 @@ public class CashAccountsController : Controller
         return query;
     }
 
-    public async Task<IActionResult> Index([FromQuery] CashAccountIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] CashAccountIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         filter ??= new CashAccountIndexFilterViewModel();
 
         await PopulateCurrenciesAsync(filter.Currency);
         PopulateIndexLookups(filter);
 
+        var pageSize = PTGOilSystem.Web.Helpers.ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         var query = ApplyIndexFilter(_db.CashAccounts.AsNoTracking(), filter);
         var totalCount = await query.CountAsync();
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
         var items = await query
             .OrderBy(a => a.Code)
-            .Skip((page - 1) * IndexPageSize)
-            .Take(IndexPageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
         return View(new CashAccountIndexViewModel

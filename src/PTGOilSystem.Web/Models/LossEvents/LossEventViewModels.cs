@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.LossEvents;
 
@@ -55,7 +56,7 @@ public sealed class LossEventCreateViewModel
 
     [Display(Name = "تاریخ رویداد")]
     [DataType(DataType.Date)]
-    public DateTime EventDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime EventDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مقدار مورد انتظار (MT)")]
     [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "مقدار مورد انتظار نامعتبر است.")]
@@ -121,6 +122,17 @@ public sealed class LossEventIndexFilterViewModel
 
     [Display(Name = "اثر بر موجودی")]
     public bool? AffectsInventory { get; set; }
+
+    // فیلتر نوع تفاوت: کسری (تفاوت مثبت) و اضافه‌بار (تفاوت منفی) هرگز با هم جمع نمی‌شوند.
+    [Display(Name = "نوع تفاوت")]
+    public LossEventVarianceFilter Variance { get; set; } = LossEventVarianceFilter.All;
+}
+
+public enum LossEventVarianceFilter
+{
+    All = 0,
+    ShortageOnly = 1,
+    SurplusOnly = 2
 }
 
 public sealed class LossEventListItemViewModel
@@ -136,6 +148,8 @@ public sealed class LossEventListItemViewModel
     public decimal ChargeableLossMt { get; init; }
     public bool AffectsInventory { get; init; }
     public string? ResponsiblePartyName { get; init; }
+    /// <summary>نمبر وسیلهٔ مرحله‌ای که کسری روی آن ثبت شده (ارسال، حمل یا بارگیری).</summary>
+    public string? VehicleNumber { get; init; }
 }
 
 public sealed class LossEventIndexViewModel

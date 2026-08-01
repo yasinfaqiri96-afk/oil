@@ -800,6 +800,43 @@ a.ak-list-row:focus-visible {
     justify-content: flex-end;
 }
 
+/* نوار پایین لیست: انتخابگر تعداد سطر + صفحه‌بندی */
+.ak-pager-bar {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.ak-pager-bar > .ak-pager {
+    padding-top: 0;
+    margin-inline-start: auto;
+}
+
+.ak-page-size {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ak-page-size-label {
+    color: var(--ptg-list-muted, #6B7A90);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.ak-page-size-select {
+    width: auto;
+    min-width: 72px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 /* Empty state */
 .ak-empty {
     padding: 48px 12px;

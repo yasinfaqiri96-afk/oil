@@ -48,7 +48,12 @@
                         new List<AkFilterOption> { new("USD", "USD"), new("AFN", "AFN") }, PermitQ("displayCurrency"))
                 });
         }
-        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="permitFilter" />
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="permitFilter" />
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+            </div>
+        </div>
 
         <section class="ak-stat-grid" aria-label="آمار جوازهای گمرکی">
             <vc:stat-card title="تعداد موترها" value="@Model.VehicleCount.ToString("N0")" unit="موتر" avatar="transported"></vc:stat-card>

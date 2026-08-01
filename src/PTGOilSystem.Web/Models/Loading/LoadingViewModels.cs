@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.LossEvents;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Loading;
 
@@ -40,7 +41,7 @@ public sealed class LoadingCreateViewModel
 
     [Display(Name = "تاریخ بارگیری")]
     [DataType(DataType.Date)]
-    public DateTime LoadingDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime LoadingDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مقدار بارگیری‌شده (MT)")]
     public decimal LoadedQuantityMt { get; set; }
@@ -93,7 +94,7 @@ public sealed class LoadingCreateRowViewModel
 
     [Display(Name = "تاریخ بارگیری")]
     [DataType(DataType.Date)]
-    public DateTime LoadingDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime LoadingDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "کشتی")]
     public int? VesselId { get; set; }
@@ -584,6 +585,8 @@ public sealed class LoadingReceiptIndexItemViewModel
     public string TerminalName { get; init; } = "";
     public string? StorageTankCode { get; init; }
     public decimal ReceivedQuantityMt { get; init; }
+    /// <summary>نمبر وسیلهٔ بارگیریِ این رسید: پلاک موتر یا شمارهٔ واگن/بارنامه.</summary>
+    public string? VehicleNumber { get; init; }
     public string? ReferenceDocument { get; init; }
 }
 
@@ -614,7 +617,7 @@ public sealed class LoadingReceiptCreateViewModel
 
     [Display(Name = "تاریخ رسید / تخلیه")]
     [DataType(DataType.Date)]
-    public DateTime ReceiptDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ReceiptDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     // Gap #3 — arrival date tracking
     [Display(Name = "تاریخ رسیدن (ورود به مقصد)")]
@@ -767,7 +770,7 @@ public sealed class LoadingReceiptBulkCreateViewModel
 
     [Display(Name = "تاریخ رسید")]
     [DataType(DataType.Date)]
-    public DateTime ReceiptDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ReceiptDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "ترمینال رسید")]
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب ترمینال رسید الزامی است.")]
@@ -1099,4 +1102,51 @@ public sealed class LossEventSummaryItem
     public string? ResponsiblePartyName { get; init; }
     public string? Reference { get; init; }
     public string? Notes { get; init; }
+}
+
+// ── حذف گروهی بارگیری‌های اشتباه ایمپورت‌شده ──────────────────────────────────
+// فقط برای پاک‌کردن یک ایمپورت اشتباه است، نه یک ابزار حذف عمومی. هر ردیفی که
+// پایین‌دستش کاری انجام شده (رسید، اظهارنامه، کنترل کیفیت، ضایعه، مصرف/کرایه فعال)
+// «قفل» می‌شود و هرگز حذف نمی‌گردد؛ دلیل قفل روی همان ردیف نشان داده می‌شود.
+
+public sealed class LoadingBulkDeleteViewModel
+{
+    public int? ContractId { get; init; }
+    public string? ContractNumber { get; init; }
+    // پنجرهٔ زمان ثبت (CreatedAtUtc) — «همان ایمپورتی که چند دقیقه پیش انجام شد».
+    public DateTime? ImportedFrom { get; init; }
+    public DateTime? ImportedTo { get; init; }
+    // فقط ردیف‌هایی که از اکسل آمده‌اند (ImportUniqueKey دارند).
+    public bool OnlyImported { get; init; } = true;
+    public bool HasSearched { get; init; }
+    public IReadOnlyList<LoadingBulkDeleteRowViewModel> Rows { get; init; } = [];
+    public string? ReturnUrl { get; init; }
+
+    public int DeletableCount => Rows.Count(r => r.CanDelete);
+    public int BlockedCount => Rows.Count(r => !r.CanDelete);
+    public decimal DeletableQuantityMt => Rows.Where(r => r.CanDelete).Sum(r => r.LoadedQuantityMt);
+}
+
+public sealed class LoadingBulkDeleteRowViewModel
+{
+    public int Id { get; init; }
+    public DateTime LoadingDate { get; init; }
+    public DateTime CreatedAtUtc { get; init; }
+    public string ContractNumber { get; init; } = "";
+    public string ProductName { get; init; } = "";
+    public string VehicleSummary { get; init; } = "";
+    public string? BillOfLadingNumber { get; init; }
+    public decimal LoadedQuantityMt { get; init; }
+    public decimal? LoadingValueUsd { get; init; }
+    public bool IsImported { get; init; }
+    // دلایل قفل‌شدن ردیف؛ خالی یعنی حذف امن است.
+    public IReadOnlyList<string> Blockers { get; init; } = [];
+    public bool CanDelete => Blockers.Count == 0;
+}
+
+public sealed class LoadingBulkDeleteResultViewModel
+{
+    public int DeletedCount { get; init; }
+    public int SkippedCount { get; init; }
+    public IReadOnlyList<string> SkippedMessages { get; init; } = [];
 }

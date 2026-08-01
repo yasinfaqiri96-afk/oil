@@ -1,0 +1,90 @@
+@using PTGOilSystem.Web.Models.StatCards
+@model PTGOilSystem.Web.Models.DashboardViewModel
+@{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+
+    // Same illustration the storage-tank stat cards use, so the dashboard reads as one set.
+    var tankAvatar = StatCardAvatarRegistry.ResolvePath("storage-tanks");
+}
+
+<section class="dash-insights" aria-label="@T("خلاصه عملیاتی", "Operational summary")">
+    @* ===== محموله‌های در جریان ===== *@
+    <article class="dash-card dash-insight dash-flow-card">
+        <header class="dash-card-head">
+            <h2>@T("محموله‌های در جریان", "Shipments in progress")</h2>
+            <a class="dash-more" asp-controller="ShipmentPnl" asp-action="Index">@T("مشاهده همه", "View all")</a>
+        </header>
+
+        @if (Model.ActiveShipmentProgress.Count == 0)
+        {
+            <partial name="_EmptyState" model="@((T("محموله‌ای ثبت نشده است", "No shipment"), (string?)null, (string?)"bi-box-seam"))" />
+        }
+        else
+        {
+            <ul class="dash-flow">
+                @foreach (var item in Model.ActiveShipmentProgress.Take(3))
+                {
+                    <li class="dash-flow-row">
+                        <img class="dash-flow-avatar" src="@item.AvatarPath" alt="" width="38" height="38" loading="lazy" />
+
+                        <div class="dash-flow-id">
+                            <a class="dash-flow-name" asp-controller="ShipmentPnl" asp-action="Details" asp-route-id="@item.ShipmentId">
+                                @(string.IsNullOrWhiteSpace(item.SubtitleText) ? T("محموله", "Shipment") : item.SubtitleText)
+                            </a>
+                        </div>
+
+                        <div class="dash-flow-progress">
+                            <progress class="dash-progress @item.ProgressTone"
+                                      value="@item.ProgressPercent"
+                                      max="100"
+                                      aria-label="@T("پیشرفت حمل محموله", "Shipment transport progress")"></progress>
+                        </div>
+
+                        <div class="dash-flow-state">
+                            <span class="ak-status @item.StatusClass" title="@item.StatusText">
+                                <bdi>@StatCardFormatter.Number(item.LoadedMt, 0) / @StatCardFormatter.Number(item.TotalMt, 0) MT</bdi>
+                            </span>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </article>
+
+    <div class="dash-insight-stack">
+        @* ===== ظرفیت مخازن ===== *@
+        <article class="dash-card dash-insight dash-capacity-card">
+            <header class="dash-card-head">
+                <h2>@T("ظرفیت مخازن", "Tank capacity")</h2>
+                <a class="dash-more" asp-controller="StorageTanks" asp-action="Index">@T("مشاهده همه", "View all")</a>
+            </header>
+
+            @if (Model.TankCapacities.Count == 0)
+            {
+                <partial name="_EmptyState" model="@((T("مخزن فعالی ثبت نشده است", "No active tank"), (string?)null, (string?)"bi-database"))" />
+            }
+            else
+            {
+                <ul class="dash-capacity-list">
+                    @foreach (var tank in Model.TankCapacities.Take(3))
+                    {
+                        <li class="dash-capacity-row">
+                            <div class="dash-capacity-row-head">
+                                <img class="dash-capacity-avatar" src="@tankAvatar" alt="" width="26" height="26" loading="lazy" />
+                                <span class="dash-capacity-name" title="@tank.TankName">@tank.TankName</span>
+                            </div>
+                            <strong class="dash-capacity-pct"><bdi>@tank.FillPercent.ToString("0")%</bdi></strong>
+                            <progress class="dash-progress @tank.ProgressTone"
+                                      value="@tank.FillPercent"
+                                      max="100"
+                                      aria-label="@tank.TankName"></progress>
+                            <p class="dash-capacity-meta">
+                                <bdi>@StatCardFormatter.Number(tank.StockMt, 0) MT</bdi>
+                            </p>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    </div>
+</section>

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.ContractBalanceTransfers;
 
@@ -7,7 +8,7 @@ public sealed class ContractBalanceTransferCreateViewModel
     [Display(Name = "تاریخ انتقال")]
     [DataType(DataType.Date)]
     [Required(ErrorMessage = "تاریخ انتقال الزامی است.")]
-    public DateTime TransferDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime TransferDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "از قرارداد")]
     [Required(ErrorMessage = "قرارداد مبدا الزامی است.")]

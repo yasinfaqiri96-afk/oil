@@ -142,12 +142,13 @@
                         <span asp-validation-for="ReceivedQuantityMt" class="ak-field-error"></span>
                     </div>
                     <div class="ak-field">
-                        <label asp-for="ShortageQuantityMt">@T("کسری (اختیاری)", "Shortage (optional)")</label>
+                        <label asp-for="ShortageQuantityMt">@T("کسری یا مازاد (اختیاری)", "Shortage or surplus (optional)")</label>
                         <div>
-                            <input asp-for="ShortageQuantityMt" type="number" step="0.0001" min="0" class="ak-input" data-shortage-input />
+                            @* min حذف شد: مقدار منفی یعنی «مازاد» و باید از خود فرم قابل ثبت باشد. *@
+                            <input asp-for="ShortageQuantityMt" type="number" step="0.0001" class="ak-input" data-shortage-input />
                             <span>MT</span>
                         </div>
-                        <small>@T("باقیمانده پس از تخلیه و کسری در وسیله می‌ماند و قابل تخلیه مجدد است.", "Remaining after unload and shortage stays in the vehicle for re-unload.")</small>
+                        <small>@T("عدد مثبت = کسری، عدد منفی = مازاد. مازاد جریمه نمی‌شود و از کرایه کم نمی‌گردد. باقیمانده پس از تخلیه و کسری در وسیله می‌ماند و قابل تخلیه مجدد است.", "Positive = shortage, negative = surplus. Surplus is never charged or deducted from freight. Remaining after unload and shortage stays in the vehicle for re-unload.")</small>
                         <span asp-validation-for="ShortageQuantityMt" class="ak-field-error"></span>
                     </div>
                     <div class="ak-field" data-to-inventory-field>

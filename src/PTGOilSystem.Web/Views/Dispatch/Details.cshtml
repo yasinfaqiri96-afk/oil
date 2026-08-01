@@ -47,7 +47,8 @@
     var payableAmount = Model.DriverShortageChargeUsd ?? Model.PayableUsd;
 
     var canUnload = !isCancelled && !Model.SalesTransactionId.HasValue;
-    var canDirectSale = !isCancelled && !Model.SalesTransactionId.HasValue && !Model.DeliveryReceipts.Any();
+    // فروش قسمتی مجاز است؛ تا وقتی باقی‌ماندهٔ قابل فروش وجود دارد دکمهٔ فروش باز می‌ماند.
+    var canDirectSale = !isCancelled && Model.RemainingSellableQuantityMt > 0m && !Model.DeliveryReceipts.Any();
 
     // مقدار (وزن) تا ۴ رقم اعشار، بدون صفر اضافه و با جداکنندهٔ هزار
     string Q(decimal v) => v.ToString("#,##0.####");

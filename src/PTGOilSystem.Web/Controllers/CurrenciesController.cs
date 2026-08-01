@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
@@ -7,6 +7,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.DeleteSafety;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -27,9 +28,11 @@ public class CurrenciesController : Controller
         _deleteSafety = deleteSafety;
     }
 
-    public async Task<IActionResult> Index(string? q, bool? isActive, int page = 1)
+    public async Task<IActionResult> Index(string? q, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 12;
+        var pageSize = ListPageSize.Resolve(perPage, 12);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 12;
 
         var query = _db.Currencies.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.InventoryTransport;
 
@@ -58,7 +59,7 @@ public sealed class InventoryTransportLegCreateViewModel
 
     [Display(Name = "Loaded Date")]
     [DataType(DataType.Date)]
-    public DateTime LoadedDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime LoadedDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "Expected Arrival")]
     [DataType(DataType.Date)]
@@ -165,7 +166,7 @@ public sealed class InventoryTransportFromInventoryViewModel
     public int ProductId { get; set; }
 
     [DataType(DataType.Date)]
-    public DateTime TransportDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime TransportDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     public InventoryTransportSubmissionMode SubmissionMode { get; set; }
 
@@ -249,7 +250,7 @@ public sealed class ShipmentTransportCreateViewModel
     public LoadingTransportType TransportType { get; set; } = LoadingTransportType.Truck;
 
     [DataType(DataType.Date)]
-    public DateTime LoadedDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime LoadedDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [DataType(DataType.Date)]
     public DateTime? ExpectedArrivalDate { get; set; }
@@ -456,7 +457,7 @@ public sealed class InventoryTransportGroupReceiptCreateViewModel
 
     [Display(Name = "تاریخ رسید")]
     [DataType(DataType.Date)]
-    public DateTime ReceiptDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ReceiptDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مقدار تخلیه‌شده")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "مقدار تخلیه‌شده باید بزرگ‌تر از صفر باشد.")]
@@ -528,7 +529,7 @@ public sealed class InventoryTransportGroupExpenseCreateViewModel
 
     [Display(Name = "تاریخ مصرف")]
     [DataType(DataType.Date)]
-    public DateTime ExpenseDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ExpenseDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مبلغ کل")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "مبلغ مصرف باید بزرگ‌تر از صفر باشد.")]
@@ -770,7 +771,7 @@ public sealed class InventoryTransportReceiptCreateViewModel
 
     [Display(Name = "Receipt Date")]
     [DataType(DataType.Date)]
-    public DateTime ReceiptDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ReceiptDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "Received Quantity (MT)")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "Received quantity must be greater than zero.")]
@@ -1020,7 +1021,7 @@ public sealed class InventoryTransportGroupOperationViewModel
 
     [Display(Name = "تاریخ")]
     [DataType(DataType.Date)]
-    public DateTime OperationDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime OperationDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     // مشترک — رسید به مخزن
     [Display(Name = "ترمینال مقصد")]
@@ -1149,7 +1150,7 @@ public sealed class InventoryTransportGroupTransferViewModel
 
     [Display(Name = "تاریخ انتقال")]
     [DataType(DataType.Date)]
-    public DateTime TransferDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime TransferDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "روش تقسیم")]
     public InventoryTransportTransferSplitMode SplitMode { get; set; } = InventoryTransportTransferSplitMode.Equal;

@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -49,9 +50,11 @@ public partial class LossEventsController : Controller
         return false;
     }
 
-    public async Task<IActionResult> Index([FromQuery] LossEventIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] LossEventIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 5;
+        var pageSize = ListPageSize.Resolve(perPage, 5);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
         filter ??= new LossEventIndexFilterViewModel();
         await PopulateLookupsAsync(filter: filter);
@@ -77,6 +80,16 @@ public partial class LossEventsController : Controller
         }
         if (filter.AffectsInventory.HasValue) query = query.Where(e => e.AffectsInventory == filter.AffectsInventory.Value);
 
+        // تفاوت مثبت = کسری، تفاوت منفی = اضافه‌بار (تخلیهٔ بیشتر از بارگیری).
+        if (filter.Variance == LossEventVarianceFilter.ShortageOnly)
+        {
+            query = query.Where(e => e.DifferenceQuantityMt > 0m);
+        }
+        else if (filter.Variance == LossEventVarianceFilter.SurplusOnly)
+        {
+            query = query.Where(e => e.DifferenceQuantityMt < 0m);
+        }
+
         var totalCount = await query.CountAsync();
         var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
@@ -98,12 +111,31 @@ public partial class LossEventsController : Controller
                 AllowableLossMt = e.AllowableLossMt,
                 ChargeableLossMt = e.ChargeableLossMt,
                 AffectsInventory = e.AffectsInventory,
-                ResponsiblePartyName = e.ResponsiblePartyName
+                ResponsiblePartyName = e.ResponsiblePartyName,
+                // نمبر وسیله از همان مرحله‌ای که کسری روی آن ثبت شده.
+                VehicleNumber = e.TruckDispatch != null && e.TruckDispatch.Truck != null
+                    ? e.TruckDispatch.Truck.PlateNumber
+                    : e.TransportLeg != null
+                        ? (e.TransportLeg.Truck != null
+                            ? e.TransportLeg.Truck.PlateNumber
+                            : e.TransportLeg.WagonNumber ?? e.TransportLeg.RwbNo)
+                        : e.LoadingRegister != null
+                            ? (e.LoadingRegister.Truck != null
+                                ? e.LoadingRegister.Truck.PlateNumber
+                                : e.LoadingRegister.WagonNumber ?? e.LoadingRegister.RwbNo)
+                            : e.LoadingReceipt != null && e.LoadingReceipt.LoadingRegister != null
+                                ? (e.LoadingReceipt.LoadingRegister.Truck != null
+                                    ? e.LoadingReceipt.LoadingRegister.Truck.PlateNumber
+                                    : e.LoadingReceipt.LoadingRegister.WagonNumber ?? e.LoadingReceipt.LoadingRegister.RwbNo)
+                                : null
             })
             .ToListAsync();
 
         // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
+        // کسری و اضافه‌بار در دو جمعِ جدا می‌مانند تا یکدیگر را خنثی نکنند؛ «خالص» جداگانه محاسبه می‌شود.
         ViewBag.SumChargeableLoss = await query.SumAsync(e => e.ChargeableLossMt);
+        ViewBag.SumShortageQuantity = await query.SumAsync(e => e.DifferenceQuantityMt > 0m ? e.DifferenceQuantityMt : 0m);
+        ViewBag.SumSurplusQuantity = await query.SumAsync(e => e.DifferenceQuantityMt < 0m ? -e.DifferenceQuantityMt : 0m);
         ViewBag.SumDifferenceQuantity = await query.SumAsync(e => e.DifferenceQuantityMt);
         ViewBag.NeedsReviewCount = await query.CountAsync(e => e.ChargeableLossMt > 0m);
 
@@ -154,7 +186,7 @@ public partial class LossEventsController : Controller
                     TerminalId = linkedMovement.TerminalId,
                     StorageTankId = linkedMovement.StorageTankId,
                     Direction = MovementDirection.In,
-                    MovementDate = DateTime.UtcNow.Date,
+                    MovementDate = AfghanistanBusinessClock.SystemToday,
                     QuantityMt = linkedMovement.QuantityMt,
                     ReferenceDocument = (linkedMovement.ReferenceDocument ?? $"LOSS-{item.Id}") + "-CANCEL",
                     Notes = $"Reversal for cancelled LossEventId={item.Id}"
@@ -188,7 +220,7 @@ public partial class LossEventsController : Controller
     {
         var model = new LossEventCreateViewModel
         {
-            EventDate = DateTime.UtcNow.Date,
+            EventDate = AfghanistanBusinessClock.SystemToday,
             Stage = LossEventStage.ReceiptShortage
         };
 
@@ -943,6 +975,17 @@ public partial class LossEventsController : Controller
             "Id",
             "Name",
             filter?.AffectsInventory?.ToString().ToLowerInvariant());
+
+        ViewBag.VarianceOptions = new SelectList(
+            new[]
+            {
+                new { Id = nameof(LossEventVarianceFilter.All), Name = "همه" },
+                new { Id = nameof(LossEventVarianceFilter.ShortageOnly), Name = "فقط کسری" },
+                new { Id = nameof(LossEventVarianceFilter.SurplusOnly), Name = "فقط اضافه‌بار" }
+            },
+            "Id",
+            "Name",
+            (filter?.Variance ?? LossEventVarianceFilter.All).ToString());
     }
 
     private async Task<LossEvent?> LoadLossEventForEditAsync(int id)

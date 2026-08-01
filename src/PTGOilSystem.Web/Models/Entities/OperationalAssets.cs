@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Entities;
 
@@ -86,7 +87,7 @@ public class AssetOwnershipShare : BaseEntity
     public Partner? Partner { get; set; }
     [MaxLength(200)] public string? OwnerName { get; set; }
     public decimal SharePercent { get; set; }
-    public DateTime EffectiveFrom { get; set; } = DateTime.UtcNow.Date;
+    public DateTime EffectiveFrom { get; set; } = AfghanistanBusinessClock.SystemToday;
     public DateTime? EffectiveTo { get; set; }
     [MaxLength(1000)] public string? Notes { get; set; }
 }
@@ -103,7 +104,7 @@ public class AssetRentTransaction : BaseEntity
     public InventoryTransportReceipt? InventoryTransportReceipt { get; set; }
     public int? TruckDispatchId { get; set; }
     public TruckDispatch? TruckDispatch { get; set; }
-    public DateTime RentDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime RentDate { get; set; } = AfghanistanBusinessClock.SystemToday;
     public AssetRentUsageType UsageType { get; set; } = AssetRentUsageType.InternalCompanyUse;
     public AssetRentChargedToType ChargedToType { get; set; } = AssetRentChargedToType.CompanyInternal;
     public int? ChargedToContractId { get; set; }

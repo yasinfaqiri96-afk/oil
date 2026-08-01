@@ -83,7 +83,10 @@ public sealed class AkDetailV2StructureTests
         }
 
         var shipment = ReadView("ShipmentPnl");
-        Assert.Equal(7, Count(shipment, "data-ak-tab=\"shipment-"));
+
+        // Seven fixed tabs plus the templated tab the export tab loop renders.
+        Assert.Equal(8, Count(shipment, "data-ak-tab=\"shipment-"));
+        Assert.Contains("data-ak-tab=\"shipment-@exportTab\"", shipment);
         Assert.DoesNotContain("Estimated shortage value\")\" value=", shipment);
         Assert.Contains("ak-operations-tab-fact", shipment);
 
@@ -296,8 +299,10 @@ public sealed class AkDetailV2StructureTests
     private static string ReadView(string controller)
         => ReadRepoFile($"src/PTGOilSystem.Web/Views/{controller}/Details.cshtml");
 
+    // پایان خط فایل‌ها روی ویندوز CRLF و روی لینوکس LF است؛ قراردادهای چندخطیِ این تست‌ها
+    // با "\n" نوشته شده‌اند. نرمال‌سازی، تست را مستقل از سکو می‌کند و هیچ فایل UI را تغییر نمی‌دهد.
     private static string ReadRepoFile(string relativePath)
-        => File.ReadAllText(GetRepoPath(relativePath));
+        => File.ReadAllText(GetRepoPath(relativePath)).Replace("\r\n", "\n").Replace("\r", "\n");
 
     private static int Count(string value, string token)
         => (value.Length - value.Replace(token, string.Empty, StringComparison.Ordinal).Length) / token.Length;

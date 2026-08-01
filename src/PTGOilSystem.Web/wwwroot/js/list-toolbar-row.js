@@ -42,6 +42,12 @@
         var isListSurface = page.classList.contains("ak-list-page");
         var pageActions = page.querySelector(".ak-page-header:not(.ak-detail-header) .ak-page-actions");
         var exportMenu = page.querySelector(".ak-export-menu");
+        // Tab-scoped export menus ([data-ak-tab]) must stay inside their own strip:
+        // moving one out detaches it from the tab that owns it, so it stays on screen
+        // next to the active tab's own menu and exports the wrong tab.
+        if (exportMenu && exportMenu.closest("[data-ak-tab]")) {
+            exportMenu = null;
+        }
         var hasToolbarContent = pageActions
             || exportMenu
             || page.querySelector(".ak-filter-host, .ak-list-toolbar");
@@ -201,13 +207,13 @@
 
         candidates.forEach(function (node) {
             if (!node || node === footer || footer.contains(node)) return;
-            if (node.matches && node.matches(".ak-pager, .ptg-client-pager, .ak-list-result-count")) {
+            if (node.matches && node.matches(".ak-pager-bar, .ak-pager, .ptg-client-pager, .ak-list-result-count")) {
                 footer.appendChild(node);
             }
         });
 
         card.querySelectorAll(
-            ":scope > .ak-pager, :scope > .ptg-client-pager, :scope > .ak-list-result-count"
+            ":scope > .ak-pager-bar, :scope > .ak-pager, :scope > .ptg-client-pager, :scope > .ak-list-result-count"
         ).forEach(function (node) {
             if (node !== footer && !footer.contains(node)) {
                 footer.appendChild(node);

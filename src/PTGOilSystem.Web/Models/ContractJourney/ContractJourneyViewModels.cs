@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.Reports;
 
 namespace PTGOilSystem.Web.Models.ContractJourney;
 
@@ -421,6 +422,8 @@ public sealed class ContractJourneyLoadingItemViewModel
     public string? DestinationName { get; init; }
     public string? Notes { get; init; }
     public string? VehicleSummary { get; init; }
+    /// <summary>نمبر وسیله: پلاک موتر یا شمارهٔ واگن/بارنامهٔ همین بارگیری.</summary>
+    public string? VehicleNumber { get; init; }
 }
 
 public sealed class ContractJourneyReceiptItemViewModel
@@ -494,6 +497,8 @@ public sealed class ContractJourneyTransportLegItemViewModel
     public DateTime? ReceivedDate { get; init; }
     public string TransportTypeName { get; init; } = string.Empty;
     public string? WagonNumber { get; init; }
+    /// <summary>نمبر وسیله: پلاک موتر یا شمارهٔ واگن همین سفر حمل.</summary>
+    public string? VehicleNumber { get; init; }
     public string? RwbNo { get; init; }
     public string SourceTerminalName { get; init; } = string.Empty;
     public string? SourceTankCode { get; init; }
@@ -662,6 +667,8 @@ public sealed class ContractJourneyExpenseItemViewModel
     public decimal? TransportLegQuantityMt { get; init; }
     public decimal? TransportLegExpensePerMtUsd { get; init; }
     public string? Description { get; init; }
+    /// <summary>نمبر وسیلهٔ مرتبط با این مصرف: پلاک موتر ارسال یا شمارهٔ واگن حمل.</summary>
+    public string? VehicleNumber { get; init; }
     public string TraceKind { get; init; } = string.Empty;
 }
 
@@ -692,6 +699,8 @@ public sealed class ContractJourneyLossItemViewModel
     public decimal AllowableLossMt { get; init; }
     public decimal ChargeableLossMt { get; init; }
     public int? RelatedMovementId { get; init; }
+    /// <summary>نمبر وسیلهٔ مرحله‌ای که کسری روی آن ثبت شده: بارگیری، حمل داخلی یا ارسال با موتر.</summary>
+    public string? VehicleNumber { get; init; }
     public string TraceKind { get; init; } = string.Empty;
 }
 
@@ -801,6 +810,24 @@ public sealed class ContractJourneyMiniPnlViewModel
     // سود محقق‌شده روی فروش = فروش − هزینه کالای فروخته‌شده − سهم مصارف فروش.
     [Display(Name = "حاشیه ناخالص")]
     public decimal GrossMarginUsd => TraceableSalesRevenueUsd - CostOfGoodsSoldUsd - ExpensesForSoldUsd;
+
+    // ===== سود محقق‌شدهٔ حسابداری: تنها منبع مجاز ProfitAndLossService =====
+    // اعداد بالا برآورد عملیاتی قرارداد هستند (میانگین وزنی خرید + تسهیم مصارف).
+    // اعداد زیر همان چیزی است که در Company/Contract P&L و گزارش‌ها گزارش می‌شود.
+    public RealisedPnlViewModel Realised { get; init; } = RealisedPnlViewModel.Empty;
+
+    public decimal OperationalVsRealisedVarianceUsd
+        => decimal.Round(GrossMarginUsd - Realised.GrossProfitUsd, 2, MidpointRounding.AwayFromZero);
+
+    public bool HasOperationalVsRealisedVariance
+        => Math.Abs(OperationalVsRealisedVarianceUsd) > 0.01m;
+
+    public string OperationalVsRealisedVarianceReasonFa
+        => Realised.HasUncostedSales
+            ? $"{Realised.UncostedSaleCount} فروش این قرارداد بهای تمام‌شدهٔ فعال ندارد؛ سود حسابداری برای آن‌ها صفر COGS نمی‌گیرد و «قطعی» شمرده نمی‌شود."
+            : NeedsReview
+                ? "بخشی از خرید هنوز قیمت‌گذاری نشده؛ برآورد عملیاتی ناقص است."
+                : "برآورد عملیاتی سهم مصارف مسیر را هم کسر می‌کند، اما COGS حسابداری فقط بهای انبارِ مصرف‌شده است.";
 
     public string Note { get; init; } = string.Empty;
 }

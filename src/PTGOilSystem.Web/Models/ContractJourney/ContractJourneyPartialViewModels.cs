@@ -225,6 +225,17 @@ public sealed class ContractJourneyFinanceSummaryViewModel
     public string GrossMarginText { get; init; } = string.Empty;
     public string GrossMarginToneClass { get; init; } = string.Empty;
     public string Note { get; init; } = string.Empty;
+
+    // سود محقق‌شدهٔ حسابداری (ProfitAndLossService) در کنار برآورد عملیاتی بالا.
+    public string RealisedRevenueText { get; init; } = string.Empty;
+    public string RealisedCogsText { get; init; } = string.Empty;
+    public string RealisedGrossProfitText { get; init; } = string.Empty;
+    public string RealisedToneClass { get; init; } = string.Empty;
+    public string RealisedConfidenceLabel { get; init; } = string.Empty;
+    public string RealisedConfidenceTone { get; init; } = string.Empty;
+    public string? RealisedUncostedWarning { get; init; }
+    public string? RealisedVarianceText { get; init; }
+    public string? RealisedVarianceReason { get; init; }
 }
 
 public sealed class ContractJourneyFinanceTabViewModel

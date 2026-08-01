@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.PlattsRates;
 
@@ -71,7 +72,7 @@ public sealed class DailyPlattsRateFormViewModel
     public string BenchmarkCode { get; set; } = string.Empty;
 
     [Display(Name = "تاریخ قیمت")]
-    public DateTime PriceDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime PriceDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "قیمت USD/MT")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "قیمت باید بزرگ‌تر از صفر باشد.")]

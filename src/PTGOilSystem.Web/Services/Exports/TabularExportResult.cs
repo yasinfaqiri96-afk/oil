@@ -8,6 +8,11 @@ public sealed class TabularExportResult(
     TabularExportDocument document,
     TabularExportFormat format) : IActionResult
 {
+    /// <summary>سندی که قرار است نوشته شود. تست‌ها با همین، «صفحه == خروجی» را می‌سنجند.</summary>
+    public TabularExportDocument Document => document;
+
+    public TabularExportFormat Format => format;
+
     public async Task ExecuteResultAsync(ActionContext context)
     {
         var httpContext = context.HttpContext;

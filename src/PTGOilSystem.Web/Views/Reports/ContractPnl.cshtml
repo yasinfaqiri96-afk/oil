@@ -171,12 +171,15 @@
                             <th class="ak-col-num">@UiText.T(Context,"فروخته‌شده MT","Sold MT")</th>
                             <th class="ak-col-num">@UiText.T(Context,"قیمت واحد","Unit Price")</th>
                             <th class="ak-col-num">@UiText.T(Context,"درآمد کل USD","Total Revenue USD")</th>
+                            <th class="ak-col-num">@UiText.T(Context,"بهای تمام‌شده","COGS")</th>
+                            <th class="ak-col-num">@UiText.T(Context,"سود ناخالص","Gross Profit")</th>
+                            <th>@UiText.T(Context,"اطمینان","Confidence")</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (!Model.SaleRows.Any())
                         {
-                            <tr><td colspan="8"><div class="ak-empty"><i class="bi bi-file-earmark-x"></i> @UiText.T(Context,"قراردادی یافت نشد؛ فیلترها را تغییر دهید.","No contracts found; change the filters.")</div></td></tr>
+                            <tr><td colspan="11"><div class="ak-empty"><i class="bi bi-file-earmark-x"></i> @UiText.T(Context,"قراردادی یافت نشد؛ فیلترها را تغییر دهید.","No contracts found; change the filters.")</div></td></tr>
                         }
                         @foreach (var row in Model.SaleRows)
                         {
@@ -189,6 +192,15 @@
                                 <td class="ak-col-num ak-num">@NumberDisplay.Quantity(row.TotalSoldMt)</td>
                                 <td class="ak-col-num ak-num">@(row.ContractUnitPriceUsd?.ToString("N2") ?? "—")</td>
                                 <td class="ak-col-num ak-num">@row.TotalRevenueUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@row.TotalCostUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@row.GrossMarginUsd.ToString("N2")</td>
+                                <td>
+                                    <span class="ak-status">@row.PnlConfidence</span>
+                                    @if (row.UncostedSaleCount > 0)
+                                    {
+                                        <small>@row.UncostedSaleCount @UiText.T(Context, "فروش بدون COGS", "sale(s) missing COGS")</small>
+                                    }
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -200,6 +212,9 @@
                                 <td class="ak-col-num ak-num fw-bold">@NumberDisplay.Quantity(Model.SaleRows.Sum(r => r.TotalSoldMt))</td>
                                 <td></td>
                                 <td class="ak-col-num ak-num fw-bold">@Model.TotalSalesRevenueUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num fw-bold">@Model.TotalRealisedSalesCostUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num fw-bold">@Model.TotalGrossMarginUsd.ToString("N2")</td>
+                                <td></td>
                             </tr>
                         </tfoot>
                     }
@@ -211,8 +226,12 @@
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context,"خلاصه P&L","P&L Summary"), (string?)null))" />
             <dl class="ak-summary-list ak-summary">
                 <div><dt>@UiText.T(Context,"درآمد فروش","Sales Revenue")</dt><dd class="ak-num">@Model.TotalSalesRevenueUsd.ToString("N2") USD</dd></div>
-                <div><dt>@UiText.T(Context,"مصرف خرید","Purchase Cost")</dt><dd class="ak-num">@Model.TotalPurchaseCostUsd.ToString("N2") USD</dd></div>
+                <div><dt>@UiText.T(Context,"بهای تمام‌شدهٔ فروش","Realised COGS")</dt><dd class="ak-num">@Model.TotalRealisedSalesCostUsd.ToString("N2") USD</dd></div>
                 <div><dt>@UiText.T(Context,"سود ناخالص","Gross Profit")</dt><dd class="ak-num @(Model.TotalGrossMarginUsd >= 0 ?"ak-num" : "ak-num")">@Model.TotalGrossMarginUsd.ToString("N2") USD @(Model.TotalSalesRevenueUsd > 0 ? $"({marginPct}%)" : "")</dd></div>
+                @if (Model.TotalUncostedSaleCount > 0)
+                {
+                    <div><dt>@UiText.T(Context,"فروش نیازمند بازبینی","Sales needing review")</dt><dd>@Model.TotalUncostedSaleCount</dd></div>
+                }
             </dl>
         </section>
     </div>

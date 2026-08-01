@@ -1,3 +1,6 @@
+using PTGOilSystem.Web.Models.Reports;
+using PTGOilSystem.Web.Services.Time;
+
 namespace PTGOilSystem.Web.Models.ShipmentPnl;
 
 public sealed class ShipmentPnlListItemViewModel
@@ -24,6 +27,9 @@ public sealed class ShipmentPnlListItemViewModel
     public int RelatedSalesCount { get; init; }
     public int RelatedExpensesCount { get; init; }
     public int RelatedLedgerCount { get; init; }
+
+    // ===== سود محقق‌شدهٔ فروش: تنها منبع مجاز ProfitAndLossService است =====
+    public RealisedPnlViewModel RealisedPnl { get; init; } = RealisedPnlViewModel.Empty;
 }
 
 public sealed class ShipmentPnlIndexViewModel
@@ -47,6 +53,8 @@ public sealed class ShipmentPnlSalesItemViewModel
     // true = فروش مستقیم از محموله (ShipmentId روی خود فروش)، false = فروش پس از ورود به مخزن که
     // Lineage آن به همین محموله می‌رسد. برای تفکیک نمایشی؛ هر فروش فقط یک بار در جمع می‌آید.
     public bool IsDirectShipmentSale { get; init; }
+    /// <summary>نمبر وسیلهٔ فروش: پلاک موتری که فروش از آن انجام شده.</summary>
+    public string? VehicleNumber { get; init; }
     public IReadOnlyList<ShipmentContractBreakdownLine> ContractBreakdownLines { get; init; } = [];
 }
 
@@ -59,6 +67,8 @@ public sealed class ShipmentPnlExpenseItemViewModel
     public string? Description { get; init; }
     public string? ContractNumber { get; init; }
     public string? TruckDispatchLabel { get; init; }
+    /// <summary>نمبر وسیلهٔ مصرف: پلاک موتر یا شمارهٔ واگن/بارنامهٔ سفر حمل.</summary>
+    public string? VehicleNumber { get; init; }
     public decimal AllocationQuantityMt { get; init; }
     public string SourceKey { get; init; } = string.Empty;
     public bool IsCustoms { get; init; }
@@ -217,6 +227,8 @@ public sealed class ShipmentPnlDetailsViewModel
     public decimal TotalOperationalExpensesUsd { get; init; }
     public decimal TotalExpensesUsd { get; init; }
     public decimal GrossMarginUsd { get; init; }
+    // سود محقق‌شدهٔ فروش، مستقیماً از ProfitAndLossService.
+    public RealisedPnlViewModel RealisedPnl { get; init; } = RealisedPnlViewModel.Empty;
     public int LedgerEntriesCount { get; init; }
     public decimal LedgerDebitTotalUsd { get; init; }
     public decimal LedgerCreditTotalUsd { get; init; }
@@ -486,6 +498,23 @@ public sealed class ShipmentPnlDetailsViewModel
             TotalSalesUsd - RealizedPurchaseCostUsd - RealizedOperationalExpensesUsd - CompanyLossDeductionUsd,
             4,
             MidpointRounding.AwayFromZero);
+
+    // ===== تطبیق سود عملیاتی محموله با سود محقق‌شدهٔ حسابداری =====
+    // عدد سمت راست از ProfitAndLossService می‌آید (درآمد فروش معتبر منهای COGS فعال).
+    // عدد سمت چپ برآورد عملیاتی سهم فروخته‌شده از بهای بار و مصارف مسیر است.
+    // اختلاف پنهان نمی‌شود؛ با مقدار و دلیل نمایش داده می‌شود.
+    public decimal OperationalVsRealisedVarianceUsd
+        => decimal.Round(RealizedGrossMarginUsd - RealisedPnl.GrossProfitUsd, 4, MidpointRounding.AwayFromZero);
+
+    public bool HasOperationalVsRealisedVariance
+        => Math.Abs(OperationalVsRealisedVarianceUsd) > 0.01m;
+
+    public string OperationalVsRealisedVarianceReasonFa
+        => RealisedPnl.HasUncostedSales
+            ? $"{RealisedPnl.UncostedSaleCount} فروش بدون بهای تمام‌شدهٔ ثبت‌شده است؛ COGS حسابداری کمتر از بهای عملیاتی می‌ماند."
+            : PurchasePricingIncomplete
+                ? "نرخ نهایی خرید بعضی قراردادهای این محموله ثبت نشده؛ بهای عملیاتی ناقص است."
+                : "برآورد عملیاتی سهم مصارف مسیر و ضایعاتِ شرکت را هم کسر می‌کند، اما COGS حسابداری فقط بهای انبارِ مصرف‌شده است.";
     public bool NetResultIsProfit => ShipmentNetResultUsd >= 0m;
     public decimal NetResultAbsUsd => Math.Abs(ShipmentNetResultUsd);
     public bool IsFullySold => RemainingUnsoldQuantityMt <= 0.0001m;
@@ -534,7 +563,7 @@ public static class ShipmentShortageResponsibilityTypes
 public sealed class ShipmentDirectLossCreateViewModel
 {
     public int ShipmentId { get; set; }
-    public DateTime EventDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime EventDate { get; set; } = AfghanistanBusinessClock.SystemToday;
     public decimal LossQuantityMt { get; set; }
     public decimal? LossAmountUsd { get; set; }
     public string ResponsibilityType { get; set; } = ShipmentShortageResponsibilityTypes.CompanyLoss;

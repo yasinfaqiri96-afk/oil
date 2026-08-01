@@ -33,5 +33,18 @@ public interface ITabularExportService
         bool isEnglish,
         Stream destination,
         CancellationToken cancellationToken);
+
+    // خلاصهٔ گشت قرارداد با همان زبان گرافیکی صورت‌حساب؛ به‌جای جدول خشکِ تب خلاصه.
+    Task WriteContractJourneySummaryPdfAsync(
+        Models.ContractJourney.ContractJourneySummaryPdfModel model,
+        bool isEnglish,
+        Stream destination,
+        CancellationToken cancellationToken);
+
+    Task WriteShipmentSummaryPdfAsync(
+        Models.ShipmentPnl.ShipmentSummaryPdfModel model,
+        bool isEnglish,
+        Stream destination,
+        CancellationToken cancellationToken);
 }
 

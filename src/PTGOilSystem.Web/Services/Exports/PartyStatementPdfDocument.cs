@@ -260,18 +260,21 @@ internal sealed class PartyStatementPdfDocument(
                 HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Receipt), Red, true);
                 HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Outflow), Green, true);
                 HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Balance), Purple, true);
+                header.Cell().ColumnSpan((uint)(6 + operational.Count))
+                    .Element(container => PdfDesignSystem.TableSeparator(container, 1.5f));
             });
             if (statement.Rows.Count == 0)
             {
                 table.Cell().ColumnSpan((uint)(6 + operational.Count)).Element(EmptyCellStyle)
                     .Text("\u062F\u0631 \u0627\u06CC\u0646 \u062F\u0648\u0631\u0647 \u062A\u0631\u0627\u06A9\u0646\u0634\u06CC \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.").FontColor(Muted);
+                table.Cell().ColumnSpan((uint)(6 + operational.Count))
+                    .Element(container => PdfDesignSystem.TableSeparator(container));
             }
             else
             {
-                var alternate = false;
                 foreach (var row in statement.Rows)
                 {
-                    var shade = row.IsOpeningBalance ? "#EEF7F1" : alternate ? "#FAFAFB" : Colors.White;
+                    var shade = Colors.White;
                     BodyCell(table.Cell(), FormatDate(row.Date), shade, true);
                     BodyCell(table.Cell(), ValueOrDash(row.Reference), shade, true);
                     BodyCell(table.Cell(), row.DescriptionFor(isEnglish), shade);
@@ -280,7 +283,8 @@ internal sealed class PartyStatementPdfDocument(
                     MoneyCell(table.Cell(), RowDebit(row), shade, Red);
                     MoneyCell(table.Cell(), RowCredit(row), shade, Green);
                     MoneyCell(table.Cell(), RowBalance(row), shade, Purple);
-                    alternate = !alternate;
+                    table.Cell().ColumnSpan((uint)(6 + operational.Count))
+                        .Element(container => PdfDesignSystem.TableSeparator(container));
                 }
             }
             table.Cell().ColumnSpan((uint)(3 + operational.Count)).Element(TotalCellStyle)
@@ -288,6 +292,8 @@ internal sealed class PartyStatementPdfDocument(
             TotalMoneyCell(table.Cell(), TotalReceipt(), Red);
             TotalMoneyCell(table.Cell(), TotalOutflow(), Green);
             TotalMoneyCell(table.Cell(), ClosingBalance(), Purple);
+            table.Cell().ColumnSpan((uint)(6 + operational.Count))
+                .Element(container => PdfDesignSystem.TableSeparator(container));
         });
     }
 
@@ -314,24 +320,28 @@ internal sealed class PartyStatementPdfDocument(
                 HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Receipt), Red, true);
                 HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Outflow), Green, true);
                 HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Balance), Purple, true);
+                header.Cell().ColumnSpan(5)
+                    .Element(container => PdfDesignSystem.TableSeparator(container, 1.5f));
             });
             if (grouping.Rows.Count == 0)
             {
                 table.Cell().ColumnSpan(5).Element(EmptyCellStyle)
                     .Text("در این دوره قراردادی با گردش مالی ثبت نشده است.").FontColor(Muted);
+                table.Cell().ColumnSpan(5)
+                    .Element(container => PdfDesignSystem.TableSeparator(container));
             }
             else
             {
-                var alternate = false;
                 foreach (var row in grouping.Rows)
                 {
-                    string shade = alternate ? "#FAFAFB" : Colors.White;
+                    var shade = Colors.White;
                     BodyCell(table.Cell(), row.Sequence.ToString(CultureInfo.InvariantCulture), shade, true);
                     ContractTitleCell(table.Cell(), row, shade);
                     MoneyCell(table.Cell(), Money(row.Receipt, row.ReceiptRub), shade, Red);
                     MoneyCell(table.Cell(), Money(row.Outflow, row.OutflowRub), shade, Green);
                     MoneyCell(table.Cell(), Money(row.Balance, row.BalanceRub), shade, Purple);
-                    alternate = !alternate;
+                    table.Cell().ColumnSpan(5)
+                        .Element(container => PdfDesignSystem.TableSeparator(container));
                 }
             }
             table.Cell().ColumnSpan(2).Element(TotalCellStyle)
@@ -339,14 +349,17 @@ internal sealed class PartyStatementPdfDocument(
             TotalMoneyCell(table.Cell(), Money(grouping.TotalReceipt, grouping.TotalReceiptRub), Red);
             TotalMoneyCell(table.Cell(), Money(grouping.TotalOutflow, grouping.TotalOutflowRub), Green);
             TotalMoneyCell(table.Cell(), Money(grouping.ClosingBalance, grouping.ClosingBalanceRub), Purple);
+            table.Cell().ColumnSpan(5)
+                .Element(container => PdfDesignSystem.TableSeparator(container));
         });
     }
 
-    private static void ContractTitleCell(IContainer container, SupplierContractStatementRow row, string background)
+    private void ContractTitleCell(IContainer container, SupplierContractStatementRow row, string background)
     {
         container.ShowEntire().Element(cell => PdfDesignSystem.BodyCell(cell, background)).Column(column =>
             {
-                column.Item().Text(row.Title).Bold().FontSize(PdfDesignSystem.TableSize);
+                column.Item().Text(PdfDesignSystem.ToEnglishDigits(row.Title))
+                    .Bold().FontSize(PdfDesignSystem.TableSize);
                 if (row.ContractQuantityMt.HasValue || row.LoadedQuantityMt.HasValue)
                 {
                     column.Item().Text(
@@ -369,21 +382,22 @@ internal sealed class PartyStatementPdfDocument(
         var cell = container.ShowEntire().Element(target => PdfDesignSystem.BodyCell(target, background));
         if (ltr)
             cell = cell.ContentFromLeftToRight();
-        cell.Text(text).FontSize(PdfDesignSystem.TableSize);
+        cell.Text(PdfDesignSystem.ToEnglishDigits(text))
+            .FontSize(ltr ? PdfDesignSystem.NumericTableSize : PdfDesignSystem.TableSize);
     }
 
-    private static void MoneyCell(IContainer container, decimal? value, string background, string color)
+    private void MoneyCell(IContainer container, decimal? value, string background, string color)
     {
         container.ShowEntire().Element(target => PdfDesignSystem.BodyCell(target, background))
             .AlignRight().ContentFromLeftToRight().Text(FormatMoney(value))
-            .FontSize(PdfDesignSystem.TableSize).FontColor(color);
+            .FontSize(PdfDesignSystem.NumericTableSize).FontColor(color);
     }
 
-    private static void NumberCell(IContainer container, decimal? value, string background, int decimals)
+    private void NumberCell(IContainer container, decimal? value, string background, int decimals)
     {
         container.ShowEntire().Element(target => PdfDesignSystem.BodyCell(target, background))
             .AlignRight().ContentFromLeftToRight().Text(FormatNumber(value, decimals))
-            .FontSize(PdfDesignSystem.TableSize);
+            .FontSize(PdfDesignSystem.NumericTableSize);
     }
 
     private static IContainer EmptyCellStyle(IContainer container)
@@ -392,10 +406,10 @@ internal sealed class PartyStatementPdfDocument(
     private static IContainer TotalCellStyle(IContainer container)
         => container.ShowEntire().Element(target => PdfDesignSystem.TotalCell(target));
 
-    private static void TotalMoneyCell(IContainer container, decimal? value, string color)
+    private void TotalMoneyCell(IContainer container, decimal? value, string color)
     {
         TotalCellStyle(container).AlignRight().ContentFromLeftToRight()
-            .Text(FormatMoney(value)).Bold().FontSize(PdfDesignSystem.TableSize).FontColor(color);
+            .Text(FormatMoney(value)).Bold().FontSize(PdfDesignSystem.NumericTableSize).FontColor(color);
     }
 
     private void ComposeClosingSection(IContainer container)
@@ -470,17 +484,19 @@ internal sealed class PartyStatementPdfDocument(
     private static string ValueOrDash(string? value)
         => string.IsNullOrWhiteSpace(value) ? "\u2014" : value.Trim();
 
-    private static string FormatDate(DateTime value)
-        => value.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+    private string FormatDate(DateTime value)
+        => PdfDesignSystem.FormatPdfDate(value, isEnglish);
 
-    private static string FormatPeriod(DateTime? from, DateTime? to)
+    private string FormatPeriod(DateTime? from, DateTime? to)
         => $"{(from.HasValue ? FormatDate(from.Value) : "\u0627\u0628\u062A\u062F\u0627\u06CC \u062D\u0633\u0627\u0628")} - {(to.HasValue ? FormatDate(to.Value) : "\u0627\u0645\u0631\u0648\u0632")}";
 
-    internal static string FormatMoney(decimal? value)
-        => value.HasValue ? value.Value.ToString("N2", CultureInfo.InvariantCulture) : "\u2014";
-
-    private static string FormatNumber(decimal? value, int decimals)
+    private string FormatMoney(decimal? value)
         => value.HasValue
-            ? value.Value.ToString("N" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture)
+            ? PdfDesignSystem.FormatPdfNumber(value.Value, isEnglish)
+            : "\u2014";
+
+    private string FormatNumber(decimal? value, int decimals)
+        => value.HasValue
+            ? PdfDesignSystem.FormatPdfNumber(value.Value, isEnglish, decimals)
             : "\u2014";
 }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.Accounting;
 
@@ -226,7 +227,7 @@ public sealed class SarrafSettlementAccountingAdapter(
             var request = new AccountingReversalRequest(
                 original.Id,
                 journalNumberGenerator.ForSarrafSettlementReversal(companyId.Value, settlement.Id, revision),
-                DateTime.UtcNow.Date,
+                AfghanistanBusinessClock.SystemToday,
                 SourceModule,
                 reversedEventId,
                 $"Reversal of sarraf settlement #{settlement.Id} revision {revision}");

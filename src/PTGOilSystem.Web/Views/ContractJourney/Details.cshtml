@@ -1,5 +1,8 @@
 ﻿@using PTGOilSystem.Web.Models.ContractJourney
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Mvc.Rendering
+@using PTGOilSystem.Web.Security
+@inject IAuthorizationService AuthorizationService
 @model PTGOilSystem.Web.Models.ContractJourney.ContractJourneyDetailsViewModel
 @{
     var isAjaxTabRequest = string.Equals(Context.Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
@@ -239,6 +242,7 @@
     }
 
     var loadingValueUsd = useSummaryMetrics ? summaryMetrics.LoadingValueUsd : Model.LoadingItems.Sum(l => l.LoadingValueUsd ?? 0m);
+    var loadingValueRub = Model.LoadingItems.Sum(l => l.AmountRubLive ?? l.FileRubAmount ?? 0m);
     var loadingWastageMt = Model.LoadingDifferenceLossMt;
     var receiptShortageWastageMt = Model.ReceiptShortageLossMt;
     var dispatchShortageWastageMt = Model.DispatchShortageLossMt;
@@ -301,12 +305,29 @@
         ? $"{Model.PricingFinalUnitPriceUsd.Value:N2} {UnitUsd()}/{UnitMt()}"
         : T("در انتظار نرخ", "Pending price");
     ViewData["AkHeaderContext"] = $"{partnerLabel}: {partnerName} · {T("جنس", "Product")}: {TextOrDash(Model.ProductName)} · {T("قیمت هر تن", "Unit price")}: {headerUnitPriceText}";
-    ViewData["AkHeaderKebab"] = new List<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>
+    var headerKebabItems = new List<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>
     {
         new() { Label = T("انتقال از موجودی", "Inventory transfer"), Href = inventoryTransferUrl, Icon = "bi-truck-front" },
         new() { Label = T("قیمت‌گذاری قرارداد", "Contract pricing"), Href = contractPricingUrl, Icon = "bi-tag" },
         new() { Label = T("ویرایش قرارداد", "Edit contract"), Href = contractEditUrl, Icon = "bi-pencil-square" }
     };
+    // «حذف گروهی بارگیری» فقط برای ادمین و فقط روی قرارداد خرید معنا دارد (بارگیری مالِ خرید است).
+    if (Model.IsPurchaseContract
+        && (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.AdminOnly)).Succeeded)
+    {
+        headerKebabItems.Add(new PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem
+        {
+            Label = T("حذف گروهی بارگیری", "Bulk delete loadings"),
+            Href = Url.Action(
+                "BulkDelete",
+                "Loading",
+                new { contractId = Model.ContractId, returnUrl = Context.Request.Path + Context.Request.QueryString }),
+            Icon = "bi-trash3",
+            IsDestructive = true
+        });
+    }
+
+    ViewData["AkHeaderKebab"] = headerKebabItems;
 
     var detailTabsRailModel = new ContractJourneyDetailTabsRailViewModel
     {
@@ -538,6 +559,21 @@
             SupplierRemainingToneClass = supplierRemainingToneClass,
             GrossMarginText = $"{Model.MiniPnl.GrossMarginUsd:N2} {UnitUsd()}",
             GrossMarginToneClass = pnlToneClass,
+            RealisedRevenueText = $"{Model.MiniPnl.Realised.RevenueUsd:N2} {UnitUsd()}",
+            RealisedCogsText = $"{Model.MiniPnl.Realised.CostOfGoodsSoldUsd:N2} {UnitUsd()}",
+            RealisedGrossProfitText = $"{Model.MiniPnl.Realised.GrossProfitUsd:N2} {UnitUsd()}",
+            RealisedToneClass = Model.MiniPnl.Realised.GrossProfitUsd >= 0m ? "text-success" : "text-danger",
+            RealisedConfidenceLabel = Model.MiniPnl.Realised.ConfidenceLabelFa,
+            RealisedConfidenceTone = Model.MiniPnl.Realised.ConfidenceTone,
+            RealisedUncostedWarning = Model.MiniPnl.Realised.HasUncostedSales
+                ? $"{Model.MiniPnl.Realised.UncostedSaleCount} فروش بدون بهای تمام‌شدهٔ فعال؛ سود این بخش قطعی نیست."
+                : null,
+            RealisedVarianceText = Model.MiniPnl.HasOperationalVsRealisedVariance
+                ? $"{Model.MiniPnl.OperationalVsRealisedVarianceUsd:N2} {UnitUsd()}"
+                : null,
+            RealisedVarianceReason = Model.MiniPnl.HasOperationalVsRealisedVariance
+                ? Model.MiniPnl.OperationalVsRealisedVarianceReasonFa
+                : null,
             Note = LocalizeDisplay(Model.MiniPnl.Note)
         },
         Items = pagedPaymentItems,
@@ -550,6 +586,18 @@
              model="@(($"{T("قرارداد", "Contract")} {Model.ContractNumber}", false,
                        T("دفتر حساب قرارداد", "Contract statement"), "bi-journal-text", contractStatementUrl, (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)contractsListBackUrl))" />
+
+    <div class="ak-page-actions">
+        <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                 model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel(
+                     "DetailsExport",
+                     RouteValues: new Dictionary<string, string?>
+                     {
+                         ["contractId"] = Model.ContractId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                         ["tab"] = activeTab,
+                         ["lockContract"] = Model.LockContract.ToString().ToLowerInvariant()
+                     }))" />
+    </div>
 
     <div data-contract-journey-facts-host></div>
 
@@ -766,7 +814,7 @@
                 <vc:stat-card title="@T("تعداد بارگیری‌ها", "Loadings")" value="@loadingCount.ToString("N0")" unit="@T("بارگیری", "loadings")" avatar="loading-terminal"></vc:stat-card>
                 <vc:stat-card title="@T("مقدار کل بارگیری‌شده", "Total loaded")" value="@NumberDisplay.Quantity(loadingQuantityMt)" unit="@UnitMt()" avatar="loading"></vc:stat-card>
                 <vc:stat-card title="@T("مبلغ کل بارگیری", "Loading value")" value="@loadingValueUsd.ToString("N0")" unit="@UnitUsd()" avatar="purchase-value"></vc:stat-card>
-                <vc:stat-card title="@T("میانگین قیمت", "Average price")" value="@(loadingQuantityMt> 0m ? (loadingValueUsd / loadingQuantityMt).ToString("N2") : "—")" unit="@($"{UnitUsd()}/{UnitMt()}")" avatar="analysis"></vc:stat-card>
+                <vc:stat-card title="@T("ارزش روبلی بارگیری‌ها", "Loading value (RUB)")" value="@loadingValueRub.ToString("N0")" unit="@T("روبل", "RUB")" avatar="purchase-value"></vc:stat-card>
             </section>
             <partial name="_ContractJourneyLoadingsTab" model="loadingsTabModel" />
             break;

@@ -13,6 +13,44 @@ namespace PTGOilSystem.Web.Tests;
 
 public class ShipmentPnlControllerTests
 {
+    [Theory]
+    [InlineData("summary", 4)]
+    [InlineData("flow", 6)]
+    // ستون «نمبر وسیله» به هر سه تب اضافه شده است.
+    [InlineData("compliance", 6)]
+    [InlineData("balance", 6)]
+    [InlineData("sales", 8)]
+    [InlineData("trips", 9)]
+    public void Details_Tab_Export_Builds_A_Dedicated_Document(
+        string tab,
+        int expectedColumnCount)
+    {
+        var model = new ShipmentPnlDetailsViewModel
+        {
+            Id = 17,
+            ShipmentCode = "SHIP-17",
+            ContractNumber = "CTR-17",
+            ProductName = "Diesel",
+            OriginalShipmentQuantityMt = 100m
+        };
+
+        var document = ShipmentPnlController.BuildDetailsTabExportDocument(model, tab, isEnglish: true);
+
+        // سربرگ خروجی فقط نام محموله است؛ نام تب در نام فایل می‌ماند و خط فیلترها حذف شده.
+        Assert.Equal("Shipment SHIP-17", document.TitleEn);
+        Assert.Contains(tab, document.FileNameStem, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(document.Filters);
+        Assert.Equal(expectedColumnCount, document.Columns.Count);
+        Assert.Equal(tab, ShipmentPnlController.NormalizeDetailsExportTab(tab));
+    }
+
+    [Fact]
+    public void Details_Tab_Export_Normalizes_Unknown_Tabs_To_Summary_And_Keeps_Finance()
+    {
+        Assert.Equal("summary", ShipmentPnlController.NormalizeDetailsExportTab("unknown"));
+        Assert.Equal("finance", ShipmentPnlController.NormalizeDetailsExportTab(" FINANCE "));
+    }
+
     [Fact]
     public void Details_View_Uses_Vessel_Case_File_Sections_And_Trip_Actions()
     {
@@ -35,8 +73,10 @@ public class ShipmentPnlControllerTests
         Assert.True(statisticsPosition >= 0, "Shipment key indicators must be rendered.");
         Assert.True(tabsPosition > statisticsPosition, "Shipment tabs must follow the statistic cards.");
         Assert.True(tabContentPosition > tabsPosition, "Shipment tab content must follow the tab rail.");
-        Assert.Equal(7, Regex.Matches(view, "data-ak-tab=\"shipment-").Count);
+        Assert.Equal(8, Regex.Matches(view, "data-ak-tab=\"shipment-").Count);
         Assert.Equal(7, Regex.Matches(view, "class=\"ak-stat-grid mb-3\" data-ak-tab=").Count);
+        Assert.Single(Regex.Matches(view, "new PTGOilSystem.Web.Services.Exports.ExportMenuModel\\("));
+        Assert.Contains("[\"tab\"] = exportTab", view);
         var lastStatisticsPosition = view.LastIndexOf("class=\"ak-stat-grid mb-3\" data-ak-tab=", StringComparison.Ordinal);
         Assert.True(tabsPosition > lastStatisticsPosition, "Every tab-specific statistic grid must precede the tab rail.");
         Assert.Contains("ak-summary", view);
@@ -1918,13 +1958,17 @@ public class ShipmentPnlControllerTests
         // نتیجهٔ واحد و واضح: کل فروش منهای قیمت کامل خرید تمام بار و همهٔ مصارف.
         Assert.Contains("سود کل محموله", view);
         Assert.Contains("زیان کل محموله", view);
-        Assert.Contains("− قیمت کامل خرید تمام بار محموله", view);
-        Assert.Contains("− تمام هزینه‌های مسیر و عملیات", view);
-        Assert.Contains("جزئیات هزینه‌ها بر اساس دسته", view);
-        Assert.Contains("ارزش موجودی باقی‌مانده", view);
+        Assert.Contains("جمع‌بندی مالی محموله", view);
+        Assert.Contains("منهای قیمت کامل خرید بار", view);
+        Assert.Contains("منهای مصارف عملیاتی", view);
         Assert.Contains("Model.ShipmentNetResultUsd", view);
         Assert.Contains("Model.TotalPurchaseCostUsd", view);
         Assert.Contains("Model.TotalOperationalExpensesUsd", view);
+
+        // جزئیات تکراری در تب‌های فروش و مصارف می‌مانند؛ تب مالی فقط خلاصهٔ مفید را نشان می‌دهد.
+        Assert.DoesNotContain("جزئیات هزینه‌ها بر اساس دسته", view);
+        Assert.DoesNotContain("سود ناخالص محقق‌شده", view);
+        Assert.DoesNotContain("ارزش موجودی باقی‌مانده به بهای تمام‌شده", view);
 
         // سهم فروخته‌شده و ضرر شرکت نباید دوباره از نتیجهٔ کل محموله کم شوند.
         Assert.DoesNotContain("Model.RealizedPurchaseCostUsd", view);

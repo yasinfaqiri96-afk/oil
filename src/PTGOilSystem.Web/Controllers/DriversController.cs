@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
@@ -8,6 +8,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -25,9 +26,11 @@ public class DriversController : Controller
         _partyStatements = partyStatements;
     }
 
-    public async Task<IActionResult> Index(string? q, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1)
+    public async Task<IActionResult> Index(string? q, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 8;
+        var pageSize = ListPageSize.Resolve(perPage, 8);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 8;
         var search = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
         var query = _db.Drivers.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))

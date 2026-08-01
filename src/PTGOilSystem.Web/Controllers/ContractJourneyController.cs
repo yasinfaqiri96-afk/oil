@@ -1,20 +1,24 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
+using PTGOilSystem.Web.Infrastructure.RateLimiting;
+using PTGOilSystem.Web.Services.Exports;
 using PTGOilSystem.Web.Models.ContractJourney;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Services.Reporting;
 
 namespace PTGOilSystem.Web.Controllers;
 
 [Authorize]
-public class ContractJourneyController : Controller
+public partial class ContractJourneyController : Controller
 {
     private static readonly string[] PaymentLedgerSourceTypes = Enum.GetNames<PaymentKind>();
 
@@ -22,17 +26,20 @@ public class ContractJourneyController : Controller
     private readonly IStockService _stock;
     private readonly IPricingService _pricing;
     private readonly IPurchaseAggregationService _purchaseAggregation;
+    private readonly IProfitAndLossService _profitAndLoss;
 
     public ContractJourneyController(
         ApplicationDbContext db,
         IStockService stock,
         IPricingService? pricing = null,
-        IPurchaseAggregationService? purchaseAggregation = null)
+        IPurchaseAggregationService? purchaseAggregation = null,
+        IProfitAndLossService? profitAndLoss = null)
     {
         _db = db;
         _stock = stock;
         _pricing = pricing ?? new PricingService(db);
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
+        _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db);
     }
 
     private async Task PopulateContractsAsync(int? selectedContractId = null)
@@ -61,7 +68,48 @@ public class ContractJourneyController : Controller
         var activeTab = ContractJourneyTabs.Index.Normalize(tab);
         await PopulateContractsAsync();
 
-        var items = await _db.Contracts
+        return View(new ContractJourneyIndexViewModel
+        {
+            ActiveTab = activeTab,
+            Items = await BuildIndexItemsAsync()
+        });
+    }
+
+    /// <summary>
+    /// خروجی Excel/PDF فهرست قراردادها — دقیقاً همان ردیف‌های صفحهٔ Index، بدون هیچ محاسبهٔ جدید.
+    /// </summary>
+    [EnableRateLimiting(RateLimitPolicies.CsvExport)]
+    public async Task<IActionResult> Export(string? format)
+    {
+        var items = await BuildIndexItemsAsync();
+
+        return TabularExportSupport.File(this, format, new TabularExportDocument
+        {
+            FileNameStem = "PTG_Contract_Journey",
+            TitleFa = "مسیر قرارداد",
+            TitleEn = "Contract Journey",
+            KnownRowCount = items.Count,
+            Columns =
+            [
+                new("قرارداد", "Contract", Width: 18), new("نوع", "Type", Width: 12),
+                new("جنس", "Product", Width: 18), new("طرف قرارداد", "Counterparty", Width: 22),
+                new("واحد", "Unit", Width: 10),
+                new("مقدار MT", "Quantity MT", TabularExportValueType.Number, 15),
+                new("تاریخ قرارداد", "Contract date", TabularExportValueType.Date, 14),
+                new("وضعیت", "Status", Width: 14)
+            ],
+            Rows = items.Select(item => new TabularExportRow(
+            [
+                TabularExportCell.Text(item.ContractNumber), TabularExportCell.Text(item.ContractTypeName),
+                TabularExportCell.Text(item.ProductName), TabularExportCell.Text(item.PartnerName),
+                TabularExportCell.Text(item.ContractUnitText), TabularExportCell.Number(item.QuantityMt),
+                TabularExportCell.Date(item.ContractDate), TabularExportCell.Text(item.StatusName)
+            ]))
+        });
+    }
+
+    private async Task<List<ContractJourneyIndexItemViewModel>> BuildIndexItemsAsync()
+        => await _db.Contracts
             .Include(c => c.Product)
             .Include(c => c.Unit)
             .Include(c => c.Supplier)
@@ -89,13 +137,6 @@ public class ContractJourneyController : Controller
                 StatusName = ToContractStatusName(c.Status)
             })
             .ToListAsync();
-
-        return View(new ContractJourneyIndexViewModel
-        {
-            ActiveTab = activeTab,
-            Items = items
-        });
-    }
 
     public async Task<IActionResult> Details(int contractId, string? tab = null, bool lockContract = false)
     {
@@ -255,7 +296,8 @@ public class ContractJourneyController : Controller
                 ConsigneeName = l.ConsigneeName,
                 DestinationName = l.DestinationName,
                 Notes = l.Notes,
-                VehicleSummary = BuildVehicleSummary(l.Vessel?.Name, l.Truck?.PlateNumber)
+                VehicleSummary = BuildVehicleSummary(l.Vessel?.Name, l.Truck?.PlateNumber),
+                VehicleNumber = BuildVehicleNumber(l)
             })
             .ToList();
         var totalLoadedQuantityMt = purchaseAgg.TotalLoadedQuantityMt;
@@ -266,6 +308,8 @@ public class ContractJourneyController : Controller
             .Include(l => l.DestinationTerminal)
             .Include(l => l.DestinationStorageTank)
             .Include(l => l.DestinationLocation)
+            // برای نمایش «نمبر وسیله» در سفرهای موتری.
+            .Include(l => l.Truck)
             .AsNoTracking()
             .Where(l => l.SourcePurchaseContractId == contractId)
             .OrderBy(l => l.LoadedDate)
@@ -396,6 +440,7 @@ public class ContractJourneyController : Controller
                     ReceivedDate = receipt?.ReceiptDate,
                     TransportTypeName = ToLoadingTransportTypeName(l.TransportType),
                     WagonNumber = l.WagonNumber,
+                    VehicleNumber = BuildVehicleNumber(l),
                     RwbNo = l.RwbNo,
                     SourceTerminalName = l.SourceTerminal?.Name ?? string.Empty,
                     SourceTankCode = StorageTankDisplay.BuildOptional(l.SourceStorageTank),
@@ -849,32 +894,73 @@ public class ContractJourneyController : Controller
         var directInventoryTransportSaleIdSet = directInventoryTransportSaleItems
             .Select(s => s.SalesTransactionId)
             .ToHashSet();
-        var directDispatchSaleDispatches = await _db.TruckDispatches
-            .Include(d => d.SalesTransaction)
-                .ThenInclude(s => s!.Customer)
-            .Include(d => d.SalesTransaction)
-                .ThenInclude(s => s!.Contract)
-            .Include(d => d.LoadingReceiptAllocation)
-                .ThenInclude(a => a!.SourcePurchaseContract)
+        // فروش مستقیم از موتر: هر دو مسیرِ لینک خوانده می‌شود — SalesTransaction.TruckDispatchId
+        // (که فروش قسمتی و فروشِ باقی‌مانده را هم پوشش می‌دهد) و TruckDispatch.SalesTransactionId
+        // (رکوردهای قدیمی). حالت دیسپچ (DirectFromReceipt یا FromInventory) فیلتر نمی‌شود، چون
+        // فروشِ موترِ بارگیری‌شده از مخزن هم InventoryMovementِ فروش ندارد و بدون این مسیر گم می‌شد.
+        var contractDispatchIds = await _db.TruckDispatches
             .AsNoTracking()
-            .Where(d =>
-                d.DispatchMode == TruckDispatchMode.DirectFromReceipt
-                && d.ContractId == contractId
-                && d.SalesTransactionId.HasValue)
-            .OrderByDescending(d => d.SalesTransaction!.SaleDate)
-            .ThenByDescending(d => d.SalesTransactionId)
+            .Where(d => d.ContractId == contractId)
+            .Select(d => d.Id)
             .ToListAsync();
+        var directDispatchSaleDispatches = contractDispatchIds.Count == 0
+            ? []
+            : await _db.TruckDispatches
+                .Include(d => d.SalesTransaction)
+                    .ThenInclude(s => s!.Customer)
+                .Include(d => d.SalesTransaction)
+                    .ThenInclude(s => s!.Contract)
+                .Include(d => d.LoadingReceiptAllocation)
+                    .ThenInclude(a => a!.SourcePurchaseContract)
+                .AsNoTracking()
+                .Where(d => contractDispatchIds.Contains(d.Id)
+                    && (d.SalesTransactionId.HasValue
+                        || _db.SalesTransactions.Any(s => s.TruckDispatchId == d.Id && !s.IsCancelled)))
+                .ToListAsync();
+        var dispatchSalesByDispatchId = contractDispatchIds.Count == 0
+            ? new Dictionary<int, List<SalesTransaction>>()
+            : (await _db.SalesTransactions
+                .Include(s => s.Customer)
+                .Include(s => s.Contract)
+                .AsNoTracking()
+                .Where(s => s.TruckDispatchId.HasValue
+                    && contractDispatchIds.Contains(s.TruckDispatchId.Value))
+                .ToListAsync())
+                .GroupBy(s => s.TruckDispatchId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
         var directDispatchSaleItems = directDispatchSaleDispatches
-            .Where(d => d.SalesTransaction is not null
-                && !d.SalesTransaction.IsCancelled
-                && d.SalesTransaction.SaleStage != SaleStage.PreSale
-                && !inventorySaleIdSet.Contains(d.SalesTransactionId!.Value)
-                && !directSaleIdSet.Contains(d.SalesTransactionId.Value)
-                && !directInventoryTransportSaleIdSet.Contains(d.SalesTransactionId.Value))
-            .Select(d =>
+            .SelectMany(d =>
             {
-                var sale = d.SalesTransaction!;
-                var hasQuantityMismatch = d.LoadedQuantityMt != sale.QuantityMt;
+                var sales = new List<SalesTransaction>();
+                if (dispatchSalesByDispatchId.TryGetValue(d.Id, out var linked))
+                {
+                    sales.AddRange(linked);
+                }
+
+                if (d.SalesTransaction is not null && sales.All(s => s.Id != d.SalesTransaction.Id))
+                {
+                    sales.Add(d.SalesTransaction);
+                }
+
+                return sales.Select(sale => (Dispatch: d, Sale: sale));
+            })
+            .Where(x => !x.Sale.IsCancelled
+                && x.Sale.SaleStage != SaleStage.PreSale
+                && !inventorySaleIdSet.Contains(x.Sale.Id)
+                && !directSaleIdSet.Contains(x.Sale.Id)
+                && !directInventoryTransportSaleIdSet.Contains(x.Sale.Id))
+            .GroupBy(x => x.Sale.Id)
+            .Select(g => g.First())
+            .OrderByDescending(x => x.Sale.SaleDate)
+            .ThenByDescending(x => x.Sale.Id)
+            .Select(x =>
+            {
+                var d = x.Dispatch;
+                var sale = x.Sale;
+                // مبنای مقایسه مقدار واقعیِ تخلیه‌شده است، نه وزن بارگیری: فروشِ اضافه‌بار و فروش
+                // قسمتی هر دو عادی‌اند و نباید علامت مغایرت بگیرند؛ فقط فروشِ بیش از مقدارِ
+                // تخلیه‌شده واقعاً مغایرت است.
+                var hasQuantityMismatch = sale.QuantityMt > (d.DischargedQuantityMt ?? d.LoadedQuantityMt);
                 return new ContractJourneySaleItemViewModel
                 {
                     SalesTransactionId = sale.Id,
@@ -1176,6 +1262,9 @@ public class ContractJourneyController : Controller
                         ? e.AmountUsd / transportLeg.QuantityMt
                         : null,
                     DispatchLabel = e.TruckDispatch is null ? null : $"#{e.TruckDispatch.Id} - {e.TruckDispatch.Truck?.PlateNumber ?? "بدون پلاک"}",
+                    VehicleNumber = NullIfEmpty(
+                        BuildVehicleNumber(e.TruckDispatch),
+                        BuildVehicleNumber(transportLeg)),
                     Description = e.Description,
                     TraceKind = ResolveExpenseTraceKind(e, contractId, shipmentIdSet, dispatchIdSet, inventoryTransportLegIds)
                 };
@@ -1430,6 +1519,42 @@ public class ContractJourneyController : Controller
                     : 0m;
             });
 
+        // نمبر وسیلهٔ کسری از همان مرحله‌ای می‌آید که کسری روی آن ثبت شده؛
+        // اگر کسری مستقیم به وسیله وصل نباشد، از رسید/حرکت به بارگیری آن می‌رسیم.
+        string? ResolveLossVehicleNumber(LossEvent loss)
+        {
+            if (loss.TruckDispatchId.HasValue && dispatchById.TryGetValue(loss.TruckDispatchId.Value, out var lossDispatch))
+            {
+                return BuildVehicleNumber(lossDispatch);
+            }
+
+            if (loss.TransportLegId.HasValue && inventoryTransportLegById.TryGetValue(loss.TransportLegId.Value, out var lossLeg))
+            {
+                return BuildVehicleNumber(lossLeg);
+            }
+
+            var loadingRegisterId = loss.LoadingRegisterId;
+            if (!loadingRegisterId.HasValue
+                && loss.LoadingReceiptId.HasValue
+                && receiptById.TryGetValue(loss.LoadingReceiptId.Value, out var lossReceipt))
+            {
+                loadingRegisterId = lossReceipt.LoadingRegisterId;
+            }
+
+            if (!loadingRegisterId.HasValue
+                && loss.InventoryMovementId.HasValue
+                && movementById.TryGetValue(loss.InventoryMovementId.Value, out var lossMovement)
+                && lossMovement.LoadingReceiptId.HasValue
+                && receiptById.TryGetValue(lossMovement.LoadingReceiptId.Value, out lossReceipt))
+            {
+                loadingRegisterId = lossReceipt.LoadingRegisterId;
+            }
+
+            return loadingRegisterId.HasValue && loadingById.TryGetValue(loadingRegisterId.Value, out var lossLoading)
+                ? BuildVehicleNumber(lossLoading)
+                : null;
+        }
+
         var recordedLossItems = activeLosses
             .Select(e => new ContractJourneyLossItemViewModel
             {
@@ -1443,6 +1568,7 @@ public class ContractJourneyController : Controller
                 AllowableLossMt = e.AllowableLossMt,
                 ChargeableLossMt = e.ChargeableLossMt,
                 RelatedMovementId = e.InventoryMovementId,
+                VehicleNumber = ResolveLossVehicleNumber(e),
                 TraceKind = ResolveLossTraceKind(e, contractId, shipmentIdSet, dispatchIdSet, loadingIds, receiptIds, movementIds, inventoryTransportLegIds)
             })
             .ToList();
@@ -1464,6 +1590,7 @@ public class ContractJourneyController : Controller
                     ToleranceQuantityMt = toleranceQuantityMt,
                     AllowableLossMt = Math.Min(x.DifferenceQuantityMt, toleranceQuantityMt),
                     ChargeableLossMt = Math.Max(x.Dispatch.ChargeableShortageMt ?? 0m, 0m),
+                    VehicleNumber = BuildVehicleNumber(x.Dispatch),
                     TraceKind = $"TruckDispatch #{x.Dispatch.Id}"
                 };
             })
@@ -1640,8 +1767,14 @@ public class ContractJourneyController : Controller
             loadingOperationalExpenseUsd +
             customsDeclarationTotalUsd +
             traceableLossCostUsd;
+        // سود محقق‌شدهٔ بخش مالی پرونده قرارداد فقط از ProfitAndLossService می‌آید.
+        // نگاشت فروش‌های قابل‌ردیابیِ این قرارداد (saleItems) کار همین کنترلر است،
+        // اما درآمد و COGS آن‌ها بازمحاسبه نمی‌شود.
+        var realisedContractPnl = await _profitAndLoss.BuildForSalesAsync(
+            saleItems.Select(s => s.SalesTransactionId).ToList());
         var miniPnl = new ContractJourneyMiniPnlViewModel
         {
+            Realised = realisedContractPnl.ToViewModel(),
             TraceableSalesRevenueUsd = salesRevenueUsd,
             SoldQuantityMt = soldQuantityMt,
             TraceablePurchaseCostUsd = traceablePurchaseCostUsd,
@@ -4159,6 +4292,24 @@ public class ContractJourneyController : Controller
 
         return parts.Count == 0 ? null : string.Join(" | ", parts);
     }
+
+    // «نمبر وسیله»: پلاک موتر، شمارهٔ واگن یا شمارهٔ بارنامه — هرکدام که روی همان رکورد ثبت شده.
+    // فقط نمایش است؛ هیچ عددی از این مسیر در محاسبه وارد نمی‌شود.
+    private static string? BuildVehicleNumber(LoadingRegister? loading)
+        => loading is null
+            ? null
+            : NullIfEmpty(loading.Truck?.PlateNumber, loading.WagonNumber, loading.RwbNo, loading.BillOfLadingNumber);
+
+    private static string? BuildVehicleNumber(InventoryTransportLeg? leg)
+        => leg is null
+            ? null
+            : NullIfEmpty(leg.Truck?.PlateNumber, leg.WagonNumber, leg.RwbNo, leg.BillOfLadingNumber);
+
+    private static string? BuildVehicleNumber(TruckDispatch? dispatch)
+        => dispatch is null ? null : NullIfEmpty(dispatch.Truck?.PlateNumber);
+
+    private static string? NullIfEmpty(params string?[] values)
+        => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private static string BuildTransportLegReference(InventoryTransportLeg leg)
         => FirstNonEmpty(

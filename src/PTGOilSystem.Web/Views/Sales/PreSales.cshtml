@@ -18,13 +18,16 @@
         </header>
 
         <section class="ak-stat-grid mb-3" aria-label="آمار پیش‌فروش">
-            <vc:stat-card title="کل پیش‌فروش‌ها" value="@Model.TotalCount.ToString("N0")" unit="سفارش" avatar="statement"></vc:stat-card>
-            <vc:stat-card title="کل مقدار" value="@NumberDisplay.Quantity(Model.SumQuantityMt)" unit="MT" avatar="sold-quantity"></vc:stat-card>
+            <vc:stat-card title="تعهدهای فعال" value="@Model.ActiveOrderCount.ToString("N0")" unit="سفارش" avatar="statement"></vc:stat-card>
             <vc:stat-card title="باقی‌مانده تحویل" value="@NumberDisplay.Quantity(Model.SumRemainingMt)" unit="MT" avatar="in-transit"></vc:stat-card>
-            <vc:stat-card title="مشتریان" value="@Model.CustomerCount.ToString("N0")" unit="مشتری" avatar="customers"></vc:stat-card>
+            <vc:stat-card title="بسته‌شده" value="@Model.ClosedOrderCount.ToString("N0")" unit="سفارش" avatar="sold-quantity"></vc:stat-card>
+            <vc:stat-card title="لغوشده" value="@Model.CancelledOrderCount.ToString("N0")" unit="سفارش" avatar="warning"></vc:stat-card>
         </section>
 
         <div class="ak-page-actions mb-3 justify-content-end">
+            @* خروجی از همان جدول و همان محاسبهٔ تحویل‌شدهٔ صفحه خوانده می‌شود. *@
+            <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                     model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("PreSalesExport"))" />
             <a asp-action="PreSaleCreate" class="btn btn-success"><i class="bi bi-plus-lg"></i> ثبت پیش‌فروش</a>
             <a asp-action="Index" class="btn ak-secondary-action">بازگشت به فروش</a>
         </div>

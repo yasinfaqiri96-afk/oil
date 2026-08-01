@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Sales;
 
@@ -55,7 +56,7 @@ public sealed class PreSaleCreateViewModel
 
     [Display(Name = "تاریخ پیش‌فروش")]
     [DataType(DataType.Date)]
-    public DateTime OrderDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime OrderDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "تحویل از تاریخ")]
     [DataType(DataType.Date)]
@@ -90,7 +91,9 @@ public sealed class PreSaleListItemViewModel
     public DateTime OrderDate { get; init; }
     public decimal QuantityMt { get; init; }
     public decimal DeliveredMt { get; init; }
-    public decimal RemainingMt => decimal.Round(QuantityMt - DeliveredMt, 4, MidpointRounding.AwayFromZero);
+    public decimal RemainingMt => Status is PreSaleOrderStatus.Closed or PreSaleOrderStatus.Cancelled
+        ? 0m
+        : decimal.Round(Math.Max(QuantityMt - DeliveredMt, 0m), 4, MidpointRounding.AwayFromZero);
     public string Currency { get; init; } = "USD";
     public decimal TotalInCurrency { get; init; }
     public PreSaleOrderStatus Status { get; init; }
@@ -102,6 +105,9 @@ public sealed class PreSaleIndexViewModel
     public int CurrentPage { get; init; } = 1;
     public int PageCount { get; init; } = 1;
     public int TotalCount { get; init; }
+    public int ActiveOrderCount { get; init; }
+    public int ClosedOrderCount { get; init; }
+    public int CancelledOrderCount { get; init; }
     public decimal SumQuantityMt { get; init; }
     public decimal SumRemainingMt { get; init; }
     public int CustomerCount { get; init; }
@@ -208,7 +214,7 @@ public sealed class PreSaleDeliveryCreateViewModel
 
     [Display(Name = "تاریخ تحویل")]
     [DataType(DataType.Date)]
-    public DateTime DeliveryDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime DeliveryDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مقدار تحویل (تن)")]
     public decimal? QuantityMt { get; set; }

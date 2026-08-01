@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
 using System.Text.Json;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -37,8 +38,12 @@ public class OperationalAssetsController : Controller
     {
     }
 
-    public async Task<IActionResult> Index([FromQuery] OperationalAssetIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] OperationalAssetIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         filter ??= new OperationalAssetIndexFilterViewModel();
         var query = _db.OperationalAssets
             .AsNoTracking()
@@ -72,7 +77,7 @@ public class OperationalAssetsController : Controller
         var totalCount = await filteredAssetIdQuery.CountAsync();
         var pageCount = page <= 0
             ? 1
-            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
 
         var assets = await (page <= 0
@@ -80,8 +85,8 @@ public class OperationalAssetsController : Controller
                 : query
                     .OrderBy(a => a.AssetCode)
                     .ThenBy(a => a.Name)
-                    .Skip((currentPage - 1) * IndexPageSize)
-                    .Take(IndexPageSize))
+                    .Skip((currentPage - 1) * pageSize)
+                    .Take(pageSize))
             .ToListAsync();
 
         var filteredRentTotals = totalCount == 0
@@ -305,7 +310,7 @@ public class OperationalAssetsController : Controller
         var model = new AssetRentCreateViewModel
         {
             OperationalAssetId = assetId ?? 0,
-            RentDate = DateTime.UtcNow.Date,
+            RentDate = AfghanistanBusinessClock.SystemToday,
             Currency = SystemCurrency.BaseCurrencyCode,
             FxRateToUsd = 1m
         };
@@ -613,7 +618,7 @@ public class OperationalAssetsController : Controller
         var newRent = new AssetRentCreateViewModel
         {
             OperationalAssetId = asset.Id,
-            RentDate = DateTime.UtcNow.Date,
+            RentDate = AfghanistanBusinessClock.SystemToday,
             UsageType = AssetRentUsageType.ExternalCustomerRental,
             ChargedToType = AssetRentChargedToType.Customer,
             Rate = asset.DefaultExternalRateUsd ?? asset.DefaultInternalRateUsd ?? 1m,
@@ -655,7 +660,7 @@ public class OperationalAssetsController : Controller
             NewOwnershipShare = new AssetOwnershipShareCreateViewModel
             {
                 OperationalAssetId = asset.Id,
-                EffectiveFrom = DateTime.UtcNow.Date
+                EffectiveFrom = AfghanistanBusinessClock.SystemToday
             },
             NewRent = newRent
         };
@@ -1222,7 +1227,7 @@ public class OperationalAssetsController : Controller
             EffectiveFrom = share.EffectiveFrom,
             EffectiveTo = share.EffectiveTo,
             Notes = share.Notes,
-            IsActiveNow = IsActiveOn(share, DateTime.UtcNow.Date)
+            IsActiveNow = IsActiveOn(share, AfghanistanBusinessClock.SystemToday)
         };
 
     private AssetRentRowViewModel ToRentRow(AssetRentTransaction rent)

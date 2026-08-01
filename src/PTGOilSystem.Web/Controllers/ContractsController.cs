@@ -12,6 +12,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -166,9 +167,11 @@ public partial class ContractsController : Controller
         ViewBag.SaleContractNumberPreview = await GenerateNextContractNumberAsync(ContractType.Sale);
     }
 
-    public async Task<IActionResult> Index(string? q, ContractType? type, ContractStatus? status, int page = 1)
+    public async Task<IActionResult> Index(string? q, ContractType? type, ContractStatus? status, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 20;
+        var pageSize = ListPageSize.Resolve(perPage, 20);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 20;
 
         var query = _db.Contracts
             .Include(c => c.Company)
@@ -211,10 +214,9 @@ public partial class ContractsController : Controller
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
 
         var items = await (page <= 0
-                ? query.OrderByDescending(c => c.ContractDate).ThenByDescending(c => c.Id)
+                ? query.OrderBy(c => c.Id)
                 : query
-                    .OrderByDescending(c => c.ContractDate)
-                    .ThenByDescending(c => c.Id)
+                    .OrderBy(c => c.Id)
                     .Skip((currentPage - 1) * pageSize)
                     .Take(pageSize))
             .ToListAsync();
@@ -255,7 +257,7 @@ public partial class ContractsController : Controller
         var model = new ContractFormViewModel
         {
             ContractNumber = await GenerateNextContractNumberAsync(ContractType.Purchase),
-            ContractDate = DateTime.UtcNow.Date,
+            ContractDate = AfghanistanBusinessClock.SystemToday,
             Status = ContractStatus.Active,
             PricingMethod = PricingMethod.ManualFinalPrice,
             UiPricingType = UiPricingType.Agreed,
@@ -812,7 +814,7 @@ public partial class ContractsController : Controller
         if (canEnterRubRate && model.ContractRubPerUsdRate.HasValue && model.ContractRubPerUsdRate.Value > 0m)
         {
             contract.ContractRubPerUsdRate = model.ContractRubPerUsdRate;
-            contract.ContractRubRateDate = model.ContractRubRateDate ?? DateTime.UtcNow.Date;
+            contract.ContractRubRateDate = model.ContractRubRateDate ?? AfghanistanBusinessClock.SystemToday;
             contract.ContractRubRateSource = string.IsNullOrWhiteSpace(model.ContractRubRateSource)
                 ? null
                 : model.ContractRubRateSource.Trim();

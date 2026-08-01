@@ -145,6 +145,10 @@ public sealed class InventoryTransportLegLoadService
 
     public async Task EnsureTankScopedStockAsync(InventoryTransportLeg leg)
     {
+        // عمداً بدون asOfUtc: بارگیریِ تاریخ‌گذشته با «موجودی فعلی» سنجیده می‌شود، نه با
+        // موجودیِ تاریخِ بارگیری. این همان تصمیم عملیات است که رسیدِ دیرثبت‌شده نباید
+        // بارگیریِ قبلاً انجام‌شده را بلاک کند
+        // (تست: MarkLoaded_Uses_Current_Source_Stock_For_Backdated_Transport).
         var available = await _stock.GetFreeQuantityMtAsync(
             leg.ProductId,
             terminalId: leg.SourceTerminalId,

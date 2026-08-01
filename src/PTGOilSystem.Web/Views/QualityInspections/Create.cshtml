@@ -1,0 +1,18 @@
+@model PTGOilSystem.Web.Models.Quality.QualityInspectionFormViewModel
+@{
+    ViewData["Title"] = "ثبت آزمایش کیفیت";
+    ViewData["HideSectionTabs"] = true;
+}
+
+<div class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("ثبت آزمایش کیفیت", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       "بازگشت", "bi-arrow-right", Url.Action("Index")))" />
+
+    <partial name="_QualityInspectionForm" model="Model" />
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

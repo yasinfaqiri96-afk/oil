@@ -26,15 +26,17 @@ public class ServiceProvidersController : Controller
         _partyStatements = partyStatements;
     }
 
-    public async Task<IActionResult> Index(string? q = null, int page = 1)
+    public async Task<IActionResult> Index(string? q = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         await PopulateLookupsAsync();
-        return View(await BuildIndexModelAsync(q, page));
+        return View(await BuildIndexModelAsync(q, page, perPage));
     }
 
-    private async Task<ServiceProviderIndexViewModel> BuildIndexModelAsync(string? q = null, int page = 1)
+    private async Task<ServiceProviderIndexViewModel> BuildIndexModelAsync(string? q = null, int page = 1, int? perPage = null)
     {
-        const int pageSize = 20;
+        var pageSize = ListPageSize.Resolve(perPage, 20);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 20;
 
         var query = _db.ServiceProviders.AsNoTracking();
 

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Payments;
 
@@ -99,7 +100,7 @@ public sealed class PaymentCreateViewModel
 
     [Display(Name = "تاریخ")]
     [DataType(DataType.Date)]
-    public DateTime PaymentDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime PaymentDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "جهت")]
     public PaymentDirection Direction { get; set; } = PaymentDirection.In;

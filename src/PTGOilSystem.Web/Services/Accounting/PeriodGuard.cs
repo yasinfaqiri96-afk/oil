@@ -42,8 +42,15 @@ public interface IPeriodGuard
 public sealed class PeriodGuard(
     ApplicationDbContext db,
     IFiscalCalendarService fiscalCalendar,
-    IAuditService? audit = null) : IPeriodGuard
+    IAuditService? audit = null,
+    Time.IAfghanistanBusinessClock? businessClock = null) : IPeriodGuard
 {
+    // «امروز» باید روز کاری کابل باشد. کابل UTC+04:30 است، پس بین 19:30 تا 23:59 به وقت
+    // UTC، «امروزِ کابل» یک روز جلوتر از تاریخ UTC است؛ با معیار UTC، سندی که همین امروز
+    // در کابل ثبت می‌شود به‌اشتباه «تاریخ آینده» شناخته می‌شد.
+    private readonly Time.IAfghanistanBusinessClock _businessClock =
+        businessClock ?? new Time.AfghanistanBusinessClock(TimeProvider.System);
+
     public Task<FiscalCalendarSelection> EnsurePostingAllowedAsync(
         int companyId,
         DateTime accountingDate,
@@ -73,7 +80,7 @@ public sealed class PeriodGuard(
 
         // تاریخ آینده هرگز — سندی که هنوز اتفاق نیفتاده نباید دفتر را تکان بدهد. تاریخِ گذشته
         // به‌خودی‌خود ممنوع نیست؛ آنچه Backdating را محدود می‌کند قفلِ دوره است، نه قدمتِ تاریخ.
-        if (accountingDate.Date > DateTime.UtcNow.Date)
+        if (accountingDate.Date > _businessClock.Today)
         {
             throw new AccountingValidationException(
                 "ACCOUNTING_DATE_OUT_OF_RANGE",

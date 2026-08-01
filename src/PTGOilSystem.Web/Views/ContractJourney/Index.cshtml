@@ -20,6 +20,7 @@
             <p class="ak-note">قرارداد را انتخاب کنید تا خلاصه عملیات، موجودی، فروش، مصرف و پرداخت‌های آن در یک صفحه خوانا باز شود.</p>
         </div>
         <div class="ak-page-actions">
+            <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
             <a asp-controller="Reports" asp-action="Index" class="btn ak-secondary-action">
                 <i class="bi bi-arrow-right"></i>
                 بازگشت به گزارش‌ها

@@ -343,4 +343,70 @@ public static class PartyStatementFormatting
         var perUsd = 1m / basePerTransactionCurrency.Value;
         return $"1 USD = {perUsd.ToString("0.####", CultureInfo.InvariantCulture)} {currency?.ToUpperInvariant()}";
     }
+
+    // ── کوتاه‌سازی متن‌های صورت‌حساب رسمی ────────────────────────────────────────────
+    // شرح/مرجعِ ذخیره‌شده در Ledger برای ردیابی ساخته شده و دنبالهٔ ماشینی دارد
+    // (GroupKey / Contract / Leg / Quantity / Share / …). در سند رسمی فقط متنِ انسانی
+    // لازم است. این کوتاه‌سازی فقط نمایشی است؛ دادهٔ Ledger دست‌نخورده می‌ماند.
+    public const int DescriptionMaxLength = 60;
+    public const int ReferenceMaxLength = 24;
+
+    private static readonly string[] MachineSegmentPrefixes =
+    [
+        "GroupKey:",
+        "Transport group:",
+        "Original total:",
+        "Original total USD:",
+        "Total USD:",
+        "Contract:",
+        "Leg:",
+        "Quantity:",
+        "Share:",
+        "Qty=",
+        "Rate=",
+        "Base=",
+        "Percent=",
+        "Flat=",
+        "RuleAmount=",
+        "EXP-"
+    ];
+
+    /// <summary>شرح کوتاهِ سطر: بخش‌های ماشینی حذف و طول محدود می‌شود.</summary>
+    public static string ShortDescription(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var kept = text
+            .Split('|')
+            .Select(part => CollapseWhitespace(part))
+            .Where(part => part.Length > 0 && !IsMachineSegment(part))
+            .ToList();
+
+        var joined = kept.Count == 0 ? CollapseWhitespace(text) : string.Join(" – ", kept);
+        return Truncate(joined, DescriptionMaxLength);
+    }
+
+    /// <summary>مرجع کوتاهِ سطر: فقط کلید سند، بدون دنبالهٔ شرح.</summary>
+    public static string? ShortReference(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var head = CollapseWhitespace(text.Split('|')[0]);
+        return Truncate(head.Length == 0 ? CollapseWhitespace(text) : head, ReferenceMaxLength);
+    }
+
+    private static bool IsMachineSegment(string segment)
+        => MachineSegmentPrefixes.Any(prefix => segment.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+
+    private static string CollapseWhitespace(string value)
+        => string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    private static string Truncate(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[..(maxLength - 1)].TrimEnd() + "…";
 }

@@ -17,6 +17,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -34,6 +35,8 @@ public partial class DispatchController : Controller
     private const int LookupLimit = 200;
     private sealed record TransportResolution(int TruckId, int? DriverId, Truck? CreatedTruck, Driver? CreatedDriver);
 
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     [ActivatorUtilitiesConstructor]
     public DispatchController(
         ApplicationDbContext db,
@@ -43,8 +46,11 @@ public partial class DispatchController : Controller
         ILossEventWorkflowService? lossWorkflow = null,
         ICurrencyConversionService? currencyConversion = null,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
-        Services.Accounting.ISalesAccountingAdapter? salesAccounting = null)
+        Services.Accounting.ISalesAccountingAdapter? salesAccounting = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _salesAccounting = salesAccounting;
         _db = db;
         _stock = stock;
@@ -615,10 +621,88 @@ public partial class DispatchController : Controller
         }
     }
 
+    /// <summary>
+    /// وزن قابل فروشِ یک موتر = وزن واقعیِ تخلیه‌شده (اگر ثبت شده)، وگرنه وزن بارگیری.
+    /// همان قراردادی که فروش گروهی (<c>SalesController.Group</c>) از قبل استفاده می‌کند، تا
+    /// اضافه‌بارِ تخلیه‌شده در فروش مستقیم از موتر هم گم نشود. این فقط مقدارِ فروش را تعیین
+    /// می‌کند؛ هیچ قیمت خرید یا حرکت موجودی تازه‌ای نمی‌سازد.
+    /// </summary>
+    private static decimal ResolveSellableQuantityMt(TruckDispatch dispatch)
+        => decimal.Round(
+            dispatch.DischargedQuantityMt ?? dispatch.LoadedQuantityMt,
+            4,
+            MidpointRounding.AwayFromZero);
+
+    private static void ApplySellableQuantityContext(
+        DispatchDirectFromReceiptSaleCreateViewModel model,
+        TruckDispatch dispatch,
+        decimal alreadySoldQuantityMt = 0m)
+    {
+        model.DispatchLoadedQuantityMt = dispatch.LoadedQuantityMt;
+        model.DispatchDischargedQuantityMt = dispatch.DischargedQuantityMt;
+        model.DispatchSellableQuantityMt = ResolveSellableQuantityMt(dispatch);
+        model.DispatchSurplusMt = TransportVarianceMath.Surplus(
+            TransportVarianceMath.Difference(dispatch.LoadedQuantityMt, model.DispatchSellableQuantityMt));
+        model.DispatchAlreadySoldQuantityMt = alreadySoldQuantityMt;
+        model.DispatchRemainingQuantityMt = ResolveRemainingSellableQuantityMt(
+            model.DispatchSellableQuantityMt,
+            alreadySoldQuantityMt);
+    }
+
+    /// <summary>
+    /// مقدارِ فروخته‌شدهٔ یک موتر = مجموع مقدارِ فروش‌های لغونشدهٔ وصل‌شده به همان موتر.
+    /// دو مسیرِ لینک با هم dedupe می‌شوند: <c>SalesTransaction.TruckDispatchId</c> (مسیر فعلی که
+    /// فروش قسمتی را هم پوشش می‌دهد) و <c>TruckDispatch.SalesTransactionId</c> (رکوردهای قدیمی که
+    /// پیش از افزودن آن فیلد ثبت شده‌اند). هیچ عددی ذخیره نمی‌شود؛ همیشه از فروش‌های فعال محاسبه
+    /// می‌گردد، پس لغو فروش به‌طور خودکار باقی‌مانده را برمی‌گرداند و دوباره‌شماری ممکن نیست.
+    /// </summary>
+    private async Task<decimal> GetSoldQuantityMtAsync(TruckDispatch dispatch, int? excludeSaleId = null)
+    {
+        var legacySaleId = dispatch.SalesTransactionId;
+        var soldMt = await _db.SalesTransactions
+            .AsNoTracking()
+            .Where(s => !s.IsCancelled
+                && (s.TruckDispatchId == dispatch.Id
+                    || (legacySaleId != null && s.Id == legacySaleId.Value))
+                && (excludeSaleId == null || s.Id != excludeSaleId.Value))
+            .SumAsync(s => (decimal?)s.QuantityMt) ?? 0m;
+
+        return decimal.Round(soldMt, 4, MidpointRounding.AwayFromZero);
+    }
+
+    private static decimal ResolveRemainingSellableQuantityMt(decimal sellableQuantityMt, decimal soldQuantityMt)
+        => Math.Max(
+            decimal.Round(sellableQuantityMt - soldQuantityMt, 4, MidpointRounding.AwayFromZero),
+            0m);
+
+    /// <summary>
+    /// محمولهٔ یک فروشِ مستقیم از موتر فقط از Lineage واقعیِ همان موتر گرفته می‌شود:
+    /// موتر → رسید انتقال داخلی → حملِ همان محموله. مسیر «تخصیصِ رسید بارگیری» هیچ گره‌ای به
+    /// محموله ندارد، پس آنجا عمداً null می‌ماند و محموله حدس زده نمی‌شود.
+    /// </summary>
+    private async Task<int?> ResolveDispatchShipmentIdAsync(TruckDispatch dispatch)
+    {
+        if (!dispatch.InventoryTransportReceiptId.HasValue)
+        {
+            return null;
+        }
+
+        return await _db.InventoryTransportReceipts
+            .AsNoTracking()
+            .Where(r => r.Id == dispatch.InventoryTransportReceiptId.Value)
+            .Join(
+                _db.InventoryTransportLegs.AsNoTracking(),
+                r => r.InventoryTransportLegId,
+                l => l.Id,
+                (_, l) => l.ShipmentId)
+            .FirstOrDefaultAsync();
+    }
+
     private static void ApplyDirectFromReceiptSaleContext(
         DispatchDirectFromReceiptSaleCreateViewModel model,
         TruckDispatch dispatch,
         LoadingReceiptAllocation allocation,
+        decimal alreadySoldQuantityMt,
         string? returnUrl = null)
     {
         model.TruckDispatchId = dispatch.Id;
@@ -637,7 +721,7 @@ public partial class DispatchController : Controller
             ?? allocation.DestinationName
             ?? allocation.DestinationLocation?.Name
             ?? allocation.DestinationReference;
-        model.DispatchLoadedQuantityMt = dispatch.LoadedQuantityMt;
+        ApplySellableQuantityContext(model, dispatch, alreadySoldQuantityMt);
 
         if (returnUrl is not null)
         {
@@ -648,6 +732,7 @@ public partial class DispatchController : Controller
     private static void ApplyFromInventorySaleContext(
         DispatchDirectFromReceiptSaleCreateViewModel model,
         TruckDispatch dispatch,
+        decimal alreadySoldQuantityMt,
         string? returnUrl = null)
     {
         model.TruckDispatchId = dispatch.Id;
@@ -658,7 +743,7 @@ public partial class DispatchController : Controller
         model.TruckPlateNumber = dispatch.Truck?.PlateNumber ?? "";
         model.DriverName = dispatch.Driver?.FullName;
         model.DestinationName = dispatch.DestinationLocation?.Name;
-        model.DispatchLoadedQuantityMt = dispatch.LoadedQuantityMt;
+        ApplySellableQuantityContext(model, dispatch, alreadySoldQuantityMt);
 
         if (returnUrl is not null)
         {
@@ -724,9 +809,11 @@ public partial class DispatchController : Controller
             .SingleOrDefaultAsync(t => t.Id == storageTankId);
     }
 
-    public async Task<IActionResult> Index([FromQuery] DispatchIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] DispatchIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 5;
+        var pageSize = ListPageSize.Resolve(perPage, 5);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
         filter ??= new DispatchIndexFilterViewModel();
 
@@ -776,7 +863,9 @@ public partial class DispatchController : Controller
         // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
         ViewBag.SumQuantity = await query.SumAsync(d => d.LoadedQuantityMt);
         ViewBag.DeliveredCount = await query.CountAsync(d => d.Status == DispatchStatus.Delivered);
-        ViewBag.SumShortage = await query.SumAsync(d => d.ShortageMt ?? 0m);
+        // تفاوتِ ذخیره‌شده علامت‌دار است؛ این جمع فقط بخش کسری را برمی‌دارد تا اضافه‌بار آن را خنثی نکند.
+        // تفکیک کامل کسری/اضافه‌بار در «راپور کسری و اضافه‌بار حمل» (Reports/TransportVariance) است.
+        ViewBag.SumShortage = await query.SumAsync(d => d.ShortageMt.HasValue && d.ShortageMt.Value > 0m ? d.ShortageMt.Value : 0m);
 
         return View(new DispatchIndexViewModel
         {
@@ -956,7 +1045,7 @@ public partial class DispatchController : Controller
                 TerminalId = stockOutMovement.TerminalId,
                 StorageTankId = stockOutMovement.StorageTankId,
                 Direction = MovementDirection.In,
-                MovementDate = DateTime.UtcNow.Date,
+                MovementDate = _businessClock.Today,
                 QuantityMt = stockOutMovement.QuantityMt,
                 ReferenceDocument = stockOutMovement.ReferenceDocument + "-CANCEL",
                 Notes = $"Reversal for cancelled DispatchId={dispatch.Id}"
@@ -998,7 +1087,7 @@ public partial class DispatchController : Controller
     {
         var model = new DispatchCreateViewModel
         {
-            DispatchDate = DateTime.UtcNow.Date
+            DispatchDate = _businessClock.Today
         };
 
         if (contractId.HasValue)
@@ -1041,7 +1130,7 @@ public partial class DispatchController : Controller
         {
             LoadingReceiptAllocationId = allocation.Id,
             DestinationLocationId = allocation.DestinationLocationId,
-            DispatchDate = DateTime.UtcNow.Date,
+            DispatchDate = _businessClock.Today,
             LoadedQuantityMt = remainingQuantityMt
         };
 
@@ -1235,20 +1324,21 @@ public partial class DispatchController : Controller
             .FirstOrDefaultAsync();
         var unloadMovement = await FindTruckUnloadInventoryMovementAsync(id);
 
+        // تفاوت علامت‌دار: مثبت = کسری، منفی = اضافه‌بار.
         var shortageMt = dispatch.ShortageMt
             ?? (dispatch.DischargedQuantityMt.HasValue
-                ? Math.Max(dispatch.LoadedQuantityMt - dispatch.DischargedQuantityMt.Value, 0m)
+                ? TransportVarianceMath.Difference(dispatch.LoadedQuantityMt, dispatch.DischargedQuantityMt.Value)
                 : (decimal?)null);
         var allowanceMt = dispatch.ToleranceMt ?? dispatch.AllowanceMt;
         var chargeableShortageMt = dispatch.ChargeableShortageMt
-            ?? ComputeChargeableShortage(shortageMt ?? 0m, allowanceMt ?? 0m);
+            ?? TransportVarianceMath.ChargeableShortage(shortageMt ?? 0m, allowanceMt ?? 0m);
         var driverShortageChargeUsd = dispatch.PayableUsd
             ?? ComputeShortageChargeUsd(chargeableShortageMt, dispatch.ShortageRateUsd);
 
         var model = new DispatchUnloadViewModel
         {
             TruckDispatchId = dispatch.Id,
-            ReceiptDate = deliveryReceipt?.ReceiptDate ?? DateTime.UtcNow.Date,
+            ReceiptDate = deliveryReceipt?.ReceiptDate ?? _businessClock.Today,
             DestinationTerminalId = unloadMovement?.TerminalId
                 ?? dispatch.LoadingReceiptAllocation?.DestinationTerminalId
                 ?? 0,
@@ -1325,12 +1415,13 @@ public partial class DispatchController : Controller
             nameof(model.ServiceProviderId),
             nameof(model.OperationalAssetId));
 
-        // وزن تخلیه از ترازوی مقصد می‌آید و می‌تواند از وزن بارگیری بیشتر باشد (اضافه‌وزن ترازو)؛
-        // کسری در این حالت صفر می‌شود و کرایه همچنان روی وزن بارگیری‌شده محاسبه می‌گردد.
-        var computedShortageMt = Math.Max(dispatch.LoadedQuantityMt - model.DischargedQuantityMt, 0m);
+        // وزن تخلیه از ترازوی مقصد می‌آید و می‌تواند از وزن بارگیری کمتر (کسری) یا بیشتر (اضافه‌بار) باشد.
+        // تفاوت با علامتِ واقعی ذخیره می‌شود تا هیچ اختلافی گم نشود؛ اضافه‌بار هرگز جریمه نمی‌گیرد و
+        // کرایه همچنان روی وزن بارگیری‌شده محاسبه می‌گردد.
+        var computedShortageMt = TransportVarianceMath.Difference(dispatch.LoadedQuantityMt, model.DischargedQuantityMt);
         if (model.ShortageMt.HasValue && !QuantitiesMatch(model.ShortageMt.Value, computedShortageMt))
         {
-            ModelState.AddModelError(nameof(model.ShortageMt), $"کسری باید برابر تفاوت وزن بارگیری و وزن تخلیه باشد ({computedShortageMt:N4} MT).");
+            ModelState.AddModelError(nameof(model.ShortageMt), $"تفاوت باید برابر وزن بارگیری منهای وزن تخلیه باشد ({computedShortageMt:N4} MT). عدد مثبت = کسری، عدد منفی = اضافه‌بار.");
         }
 
         var terminal = await _db.Terminals
@@ -1366,8 +1457,11 @@ public partial class DispatchController : Controller
 
         var normalizedShortageMt = computedShortageMt;
         var normalizedAllowanceMt = model.AllowanceMt ?? 0m;
-        var chargeableShortageMt = model.ChargeableShortageMt
-            ?? ComputeChargeableShortage(normalizedShortageMt, normalizedAllowanceMt);
+        // اضافه‌بار هرگز قابل جریمه نیست: مقدار قابل جریمه فقط از بخش کسریِ تفاوت ساخته می‌شود.
+        var chargeableShortageMt = TransportVarianceMath.IsSurplus(normalizedShortageMt)
+            ? 0m
+            : model.ChargeableShortageMt
+                ?? TransportVarianceMath.ChargeableShortage(normalizedShortageMt, normalizedAllowanceMt);
         var driverShortageChargeUsd = ComputeShortageChargeUsd(chargeableShortageMt, model.ShortageRateUsd);
         var freightPayableUsd = ComputeFreightPayable(
             model.FreightCostUsd,
@@ -1466,12 +1560,15 @@ public partial class DispatchController : Controller
                 _db.InventoryMovements.Add(unloadMovement);
             }
 
-            if (normalizedShortageMt > 0m)
+            // هر تفاوت غیر صفر — کسری یا اضافه‌بار — یک رکورد قابل ردیابی می‌سازد و رکورد موجودِ
+            // همین دیسپچ به‌روزرسانی می‌شود (نه رکورد تکراری). تفاوت صفر رکورد قبلی را لغو می‌کند.
+            if (TransportVarianceMath.HasVariance(normalizedShortageMt))
             {
                 var metrics = _lossWorkflow.ComputeMetrics(
                     dispatch.LoadedQuantityMt,
                     model.DischargedQuantityMt,
                     normalizedAllowanceMt);
+                var isSurplus = TransportVarianceMath.IsSurplus(normalizedShortageMt);
 
                 lossEvent ??= new LossEvent
                 {
@@ -1494,7 +1591,9 @@ public partial class DispatchController : Controller
                 lossEvent.ChargeableLossMt = metrics.ChargeableLossMt;
                 lossEvent.ResponsiblePartyType = "Driver";
                 lossEvent.ResponsiblePartyName = dispatch.Driver?.FullName;
-                lossEvent.FinancialTreatment = BuildDriverFinancialTreatment(driverShortageChargeUsd, freightPayableUsd);
+                lossEvent.FinancialTreatment = isSurplus
+                    ? "Truck unload positive variance (surplus). Never charged to the driver."
+                    : BuildDriverFinancialTreatment(driverShortageChargeUsd, freightPayableUsd);
                 lossEvent.AffectsInventory = false;
                 lossEvent.InventoryMovementId = null;
                 lossEvent.Reference = model.DocumentReference;
@@ -1636,14 +1735,20 @@ public partial class DispatchController : Controller
             return RedirectToAction(nameof(Details), new { id = dispatch.Id });
         }
 
-        if (dispatch.SalesTransactionId.HasValue)
-        {
-            return RedirectToAction(nameof(Details), new { id = dispatch.Id });
-        }
-
         if (await _db.DeliveryReceipts.AsNoTracking().AnyAsync(r => r.TruckDispatchId == dispatch.Id))
         {
             TempData["error"] = "این دیسپچ قبلا به مخزن تخلیه شده است و دیگر نمی‌تواند فروش مستقیم از واگن ثبت کند.";
+            return RedirectToAction(nameof(Details), new { id = dispatch.Id });
+        }
+
+        // باقی‌مانده = مقدار تخلیه‌شده منهای فروش‌های فعال قبلی. اگر چیزی باقی نمانده، فروش تازه
+        // معنی ندارد و کاربر به جزئیات همان موتر برمی‌گردد (رفتار قبلیِ «قبلاً فروخته شده»).
+        var alreadySoldQuantityMt = await GetSoldQuantityMtAsync(dispatch);
+        var remainingQuantityMt = ResolveRemainingSellableQuantityMt(
+            ResolveSellableQuantityMt(dispatch),
+            alreadySoldQuantityMt);
+        if (remainingQuantityMt <= 0m)
+        {
             return RedirectToAction(nameof(Details), new { id = dispatch.Id });
         }
 
@@ -1651,18 +1756,19 @@ public partial class DispatchController : Controller
         {
             TruckDispatchId = dispatch.Id,
             CustomerId = 0,
-            SaleDate = DateTime.UtcNow.Date,
-            QuantityMt = dispatch.LoadedQuantityMt,
+            SaleDate = _businessClock.Today,
+            // پیش‌فرض = باقی‌ماندهٔ مقدار واقعیِ تخلیه‌شده (شامل اضافه‌بار).
+            QuantityMt = remainingQuantityMt,
             Currency = SystemCurrency.BaseCurrencyCode
         };
 
         if (dispatch.LoadingReceiptAllocation is not null)
         {
-            ApplyDirectFromReceiptSaleContext(model, dispatch, dispatch.LoadingReceiptAllocation, returnUrl);
+            ApplyDirectFromReceiptSaleContext(model, dispatch, dispatch.LoadingReceiptAllocation, alreadySoldQuantityMt, returnUrl);
         }
         else
         {
-            ApplyFromInventorySaleContext(model, dispatch, returnUrl);
+            ApplyFromInventorySaleContext(model, dispatch, alreadySoldQuantityMt, returnUrl);
         }
 
         await PopulateDirectFromReceiptSaleLookupsAsync(model);
@@ -1700,11 +1806,6 @@ public partial class DispatchController : Controller
             ModelState.AddModelError(string.Empty, "Cancelled direct dispatch cannot be sold.");
         }
 
-        if (dispatch.SalesTransactionId.HasValue)
-        {
-            ModelState.AddModelError(string.Empty, "This direct dispatch already has a linked sale.");
-        }
-
         if (await _db.DeliveryReceipts.AsNoTracking().AnyAsync(r => r.TruckDispatchId == dispatch.Id))
         {
             ModelState.AddModelError(string.Empty, "This dispatch already has a delivery receipt and cannot be sold as direct-from-wagon.");
@@ -1735,17 +1836,28 @@ public partial class DispatchController : Controller
             ModelState.AddModelError(nameof(model.Currency), "Invalid currency selection.");
         }
 
+        // مبنای فروش وزن واقعیِ تخلیه‌شده است، نه وزن بارگیری؛ پس اضافه‌بار هم فروخته می‌شود و
+        // طلب مشتری روی مقدار واقعی می‌نشیند. (قبلاً به وزن بارگیری قفل بود و اضافه‌بار گم می‌شد.)
+        // فروش قسمتی مجاز است: سقفِ هر فروش «باقی‌ماندهٔ» همان موتر است، نه کلِ تخلیه؛ فروش‌های
+        // لغوشده در باقی‌مانده حساب نمی‌شوند، پس لغو یک فروش مقدارش را دوباره قابل فروش می‌کند.
+        var sellableQuantityMt = ResolveSellableQuantityMt(dispatch);
+        var alreadySoldQuantityMt = await GetSoldQuantityMtAsync(dispatch);
+        var remainingQuantityMt = ResolveRemainingSellableQuantityMt(sellableQuantityMt, alreadySoldQuantityMt);
         if (model.QuantityMt <= 0m)
         {
             ModelState.AddModelError(nameof(model.QuantityMt), "Sale quantity must be greater than zero.");
         }
-        else if (model.QuantityMt > dispatch.LoadedQuantityMt)
+        else if (remainingQuantityMt <= 0m)
         {
-            ModelState.AddModelError(nameof(model.QuantityMt), $"Sale quantity exceeds dispatch quantity ({dispatch.LoadedQuantityMt:N4} MT).");
+            ModelState.AddModelError(
+                string.Empty,
+                $"تمام مقدار تخلیه‌شدهٔ این موتر قبلاً فروخته شده است ({sellableQuantityMt:N4} MT).");
         }
-        else if (model.QuantityMt != dispatch.LoadedQuantityMt)
+        else if (model.QuantityMt > remainingQuantityMt)
         {
-            ModelState.AddModelError(nameof(model.QuantityMt), "This phase only supports selling the full direct dispatch quantity.");
+            ModelState.AddModelError(
+                nameof(model.QuantityMt),
+                $"مقدار فروش از باقی‌ماندهٔ قابل فروش این موتر بیشتر است ({remainingQuantityMt:N4} MT).");
         }
 
         if (model.UnitPriceInCurrency <= 0m)
@@ -1784,11 +1896,11 @@ public partial class DispatchController : Controller
             model.Notes = normalizedNotes;
             if (allocation is not null)
             {
-                ApplyDirectFromReceiptSaleContext(model, dispatch, allocation);
+                ApplyDirectFromReceiptSaleContext(model, dispatch, allocation, alreadySoldQuantityMt);
             }
             else
             {
-                ApplyFromInventorySaleContext(model, dispatch);
+                ApplyFromInventorySaleContext(model, dispatch, alreadySoldQuantityMt);
             }
 
             await PopulateDirectFromReceiptSaleLookupsAsync(model);
@@ -1796,6 +1908,9 @@ public partial class DispatchController : Controller
         }
 
         var totalInCurrency = decimal.Round(model.QuantityMt * model.UnitPriceInCurrency, 4, MidpointRounding.AwayFromZero);
+        // ContractId قراردادِ *فروش* است و این فروش قرارداد فروش ندارد ⇒ null می‌ماند.
+        // قرارداد خرید و محموله فقط از Lineage واقعیِ همین موتر می‌آیند (نه حدس) تا عاید در
+        // سود و زیان قرارداد و محموله دیده شود.
         var sale = new SalesTransaction
         {
             ContractId = null,
@@ -1803,7 +1918,9 @@ public partial class DispatchController : Controller
             CustomerId = model.CustomerId,
             ProductId = dispatch.ProductId,
             DestinationLocationId = dispatch.DestinationLocationId ?? allocation?.DestinationLocationId,
-            ShipmentId = null,
+            ShipmentId = await ResolveDispatchShipmentIdAsync(dispatch),
+            SourcePurchaseContractId = sourcePurchaseContract.Id,
+            TruckDispatchId = dispatch.Id,
             SaleStage = SaleStage.InTransit,
             InvoiceNumber = normalizedInvoice,
             SaleDate = model.SaleDate.Date,
@@ -1829,7 +1946,10 @@ public partial class DispatchController : Controller
             _db.SalesTransactions.Add(sale);
             await _db.SaveChangesAsync();
 
-            dispatch.SalesTransactionId = sale.Id;
+            // TruckDispatch.SalesTransactionId یکتاست و فقط «اولین فروشِ فعالِ موتر» را نگه می‌دارد
+            // (سازگاری عقب‌رو با گزارش‌ها و ویوهای موجود). فروش‌های قسمتیِ بعدی از راه
+            // SalesTransaction.TruckDispatchId ردیابی می‌شوند.
+            dispatch.SalesTransactionId ??= sale.Id;
 
             var ledgerEntry = SaleLedgerFactory.BuildSaleLedgerEntry(
                 sale,
@@ -1854,6 +1974,8 @@ public partial class DispatchController : Controller
                     ("Source", usesAllocation ? "DirectDispatchToTruck allocation" : "TruckDispatch purchase contract"),
                     ("TruckDispatchId", dispatch.Id),
                     ("ContractId", sale.ContractId),
+                    ("SourcePurchaseContractId", sale.SourcePurchaseContractId),
+                    ("ShipmentId", sale.ShipmentId),
                     ("CompanyId", sale.CompanyId),
                     ("CustomerId", sale.CustomerId),
                     ("ProductId", sale.ProductId),
@@ -2664,12 +2786,13 @@ public partial class DispatchController : Controller
         TruckDispatch dispatch,
         DispatchCreateViewModel model)
     {
+        // تفاوت علامت‌دار: مثبت = کسری، منفی = اضافه‌بار. هر دو رکورد قابل ردیابی می‌سازند.
         var lossQuantityMt = model.ShortageMt
             ?? (model.DischargedQuantityMt.HasValue
-                ? Math.Max(model.LoadedQuantityMt - model.DischargedQuantityMt.Value, 0m)
+                ? TransportVarianceMath.Difference(model.LoadedQuantityMt, model.DischargedQuantityMt.Value)
                 : 0m);
 
-        if (lossQuantityMt <= 0m)
+        if (!TransportVarianceMath.HasVariance(lossQuantityMt))
         {
             return null;
         }
@@ -2786,6 +2909,11 @@ public partial class DispatchController : Controller
 
         ViewBag.ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var localReturnUrl) ? localReturnUrl : null;
 
+        var soldQuantityMt = await GetSoldQuantityMtAsync(dispatch);
+        var remainingSellableQuantityMt = ResolveRemainingSellableQuantityMt(
+            ResolveSellableQuantityMt(dispatch),
+            soldQuantityMt);
+
         return View(new DispatchDetailsViewModel
         {
             Id = dispatch.Id,
@@ -2825,6 +2953,8 @@ public partial class DispatchController : Controller
             SaleInvoiceNumber = dispatch.SalesTransaction?.InvoiceNumber,
             SaleQuantityMt = dispatch.SalesTransaction?.QuantityMt,
             SaleTotalUsd = dispatch.SalesTransaction?.TotalUsd,
+            SoldQuantityMt = soldQuantityMt,
+            RemainingSellableQuantityMt = remainingSellableQuantityMt,
             AllocationQuantityMt = directAllocation?.QuantityMt,
             AllocationTotalDirectDispatchedQuantityMt = allocationTotalDirectDispatchedQuantityMt,
             AllocationRemainingQuantityMt = allocationRemainingQuantityMt,

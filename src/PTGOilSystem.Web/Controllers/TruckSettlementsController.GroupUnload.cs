@@ -204,17 +204,23 @@ public partial class TruckSettlementsController
                     Notes = BuildGroupUnloadNotes(model, source)
                 });
 
-                var loss = await _db.LossEvents
-                    .Where(item => item.TruckDispatchId == dispatch.Id
-                        && item.Stage == LossEventStage.DispatchShortage
-                        && !item.IsCancelled)
-                    .OrderByDescending(item => item.Id)
-                    .FirstOrDefaultAsync();
-                if (loss is not null)
-                {
-                    loss.TerminalId = tank.TerminalId;
-                    loss.StorageTankId = tank.Id;
-                }
+                // هر موتر جداگانه کسری/اضافه‌بارِ خودش را می‌گیرد و مقصد واقعی روی همان رکورد می‌نشیند.
+                // مبنای مقایسه همان مبنای تسویه است (بارگیری منهای تخلیه‌های جزئی فرم قدیمی)، پس ثبت
+                // دوباره رکورد تکراری نمی‌سازد و اگر تفاوت صفر باشد رکورد قبلی لغو می‌شود.
+                var arrivalsMt = await GetArrivalDischargedMtAsync(dispatch.Id);
+                var expectedQuantityMt = decimal.Round(
+                    dispatch.LoadedQuantityMt - arrivalsMt, 4, MidpointRounding.AwayFromZero);
+                await UpsertDispatchVarianceAsync(
+                    dispatch,
+                    expectedQuantityMt,
+                    dischargedQuantityMt,
+                    allowanceMt: dispatch.AllowanceMt ?? 0m,
+                    eventDate: model.ReceiptDate,
+                    shortageChargeUsd: dispatch.PayableUsd ?? 0m,
+                    terminalId: tank.TerminalId,
+                    storageTankId: tank.Id,
+                    reference: null,
+                    notes: null);
             }
 
             await _db.SaveChangesAsync();

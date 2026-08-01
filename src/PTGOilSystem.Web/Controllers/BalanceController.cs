@@ -7,6 +7,10 @@ using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Balance;
 using PTGOilSystem.Web.Models.ContractJourney;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Models.Reports;
+using PTGOilSystem.Web.Services.CompanyFlow;
+using PTGOilSystem.Web.Services.PartyStatements;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -15,10 +19,16 @@ public partial class BalanceController : Controller
 {
     private const int IndexPageSize = 20;
     private readonly ApplicationDbContext _db;
+    private readonly IPartyBalanceReadService _partyBalances;
 
-    public BalanceController(ApplicationDbContext db)
+    public BalanceController(ApplicationDbContext db, IPartyBalanceReadService? partyBalances = null)
     {
         _db = db;
+        _partyBalances = partyBalances ?? new PartyBalanceReadService(
+            db,
+            new PartyStatementPolicyResolver(),
+            new CompanyFlowDirectionResolver(),
+            new CompanyFlowBalanceService());
     }
 
     public IActionResult Index()
@@ -229,16 +239,20 @@ public partial class BalanceController : Controller
         return query;
     }
 
-    public async Task<IActionResult> Contracts([FromQuery] ContractsBalanceFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Contracts([FromQuery] ContractsBalanceFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         filter ??= new ContractsBalanceFilterViewModel();
         await PopulateContractsLookupsAsync(filter);
+
+        var pageSize = PTGOilSystem.Web.Helpers.ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
 
         var contractQuery = ApplyContractsFilter(_db.Contracts.AsNoTracking(), filter);
         var totalCount = await contractQuery.CountAsync();
         var pageCount = page <= 0
             ? 1
-            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
 
         var orderedContracts = contractQuery
@@ -248,8 +262,8 @@ public partial class BalanceController : Controller
         var contracts = await (page <= 0
                 ? orderedContracts
                 : orderedContracts
-                    .Skip((currentPage - 1) * IndexPageSize)
-                    .Take(IndexPageSize))
+                    .Skip((currentPage - 1) * pageSize)
+                    .Take(pageSize))
             .Select(c => new
             {
                 c.Id,
@@ -393,16 +407,20 @@ public partial class BalanceController : Controller
             new { contractId = id, tab = ContractJourneyTabs.Details.Finance });
     }
 
-    public async Task<IActionResult> Customers([FromQuery] CustomersBalanceFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Customers([FromQuery] CustomersBalanceFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         filter ??= new CustomersBalanceFilterViewModel();
         await PopulateCustomersLookupsAsync(filter);
+
+        var pageSize = PTGOilSystem.Web.Helpers.ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
 
         var customerQuery = ApplyCustomersFilter(_db.Customers.AsNoTracking(), filter);
         var totalCount = await customerQuery.CountAsync();
         var pageCount = page <= 0
             ? 1
-            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
 
         var orderedCustomers = customerQuery.OrderBy(c => c.Name);
@@ -410,8 +428,8 @@ public partial class BalanceController : Controller
         var customers = await (page <= 0
                 ? orderedCustomers
                 : orderedCustomers
-                    .Skip((currentPage - 1) * IndexPageSize)
-                    .Take(IndexPageSize))
+                    .Skip((currentPage - 1) * pageSize)
+                    .Take(pageSize))
             .Select(c => new
             {
                 c.Id,
@@ -421,6 +439,15 @@ public partial class BalanceController : Controller
             .ToListAsync();
 
         var customerIds = customers.Select(customer => customer.Id).ToList();
+        var officialCustomerBalances = (await _partyBalances.GetBalancesAsync(
+                new ManagementReportFilterViewModel
+                {
+                    FromDate = filter.FromDate,
+                    ToDate = filter.ToDate
+                }))
+            .Where(row => row.PartyType == PartyStatementPartyType.Customer
+                && customerIds.Contains(row.PartyId))
+            .ToDictionary(row => row.PartyId);
 
         var filteredContractsQuery = _db.Contracts
             .AsNoTracking()
@@ -534,7 +561,9 @@ public partial class BalanceController : Controller
                 TotalExpensesUsd = expensesTotal,
                 RelatedLedgerCount = (directLedger?.Count ?? 0) + (contractLedger?.Count ?? 0),
                 // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته).
-                BaseBalanceUsd = debitTotal - creditTotal
+                BaseBalanceUsd = officialCustomerBalances.TryGetValue(customer.Id, out var officialBalance)
+                    ? officialBalance.ClosingBalanceUsd
+                    : 0m
             };
         }).ToList();
 
@@ -560,16 +589,20 @@ public partial class BalanceController : Controller
         return RedirectToAction("Details", "Customers", new { id });
     }
 
-    public async Task<IActionResult> Suppliers([FromQuery] SuppliersBalanceFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Suppliers([FromQuery] SuppliersBalanceFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         filter ??= new SuppliersBalanceFilterViewModel();
         await PopulateSuppliersLookupsAsync(filter);
+
+        var pageSize = PTGOilSystem.Web.Helpers.ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
 
         var supplierQuery = ApplySuppliersFilter(_db.Suppliers.AsNoTracking(), filter);
         var totalCount = await supplierQuery.CountAsync();
         var pageCount = page <= 0
             ? 1
-            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
 
         var orderedSuppliers = supplierQuery.OrderBy(s => s.Name);
@@ -577,8 +610,8 @@ public partial class BalanceController : Controller
         var suppliers = await (page <= 0
                 ? orderedSuppliers
                 : orderedSuppliers
-                    .Skip((currentPage - 1) * IndexPageSize)
-                    .Take(IndexPageSize))
+                    .Skip((currentPage - 1) * pageSize)
+                    .Take(pageSize))
             .Select(s => new
             {
                 s.Id,
@@ -588,6 +621,15 @@ public partial class BalanceController : Controller
             .ToListAsync();
 
         var supplierIds = suppliers.Select(supplier => supplier.Id).ToList();
+        var officialSupplierBalances = (await _partyBalances.GetBalancesAsync(
+                new ManagementReportFilterViewModel
+                {
+                    FromDate = filter.FromDate,
+                    ToDate = filter.ToDate
+                }))
+            .Where(row => row.PartyType == PartyStatementPartyType.Supplier
+                && supplierIds.Contains(row.PartyId))
+            .ToDictionary(row => row.PartyId);
 
         var filteredContractsQuery = _db.Contracts
             .AsNoTracking()
@@ -700,7 +742,9 @@ public partial class BalanceController : Controller
                 TotalExpensesUsd = expensesTotal,
                 RelatedLedgerCount = (directLedger?.Count ?? 0) + (contractLedger?.Count ?? 0),
                 // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
-                BaseBalanceUsd = debitTotal - creditTotal
+                BaseBalanceUsd = officialSupplierBalances.TryGetValue(supplier.Id, out var officialBalance)
+                    ? officialBalance.ClosingBalanceUsd
+                    : 0m
             };
         }).ToList();
 

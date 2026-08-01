@@ -19,6 +19,8 @@ public sealed class ShipmentJourneyLossItem
     public string? Reference { get; init; }
     public string? AllocationGroupKey { get; init; }
     public string? Notes { get; init; }
+    /// <summary>نمبر وسیلهٔ مرحله‌ای که کسری روی آن ثبت شده.</summary>
+    public string? VehicleNumber { get; init; }
     public string ResponsibilityTypeName
         => ResponsiblePartyType switch
         {

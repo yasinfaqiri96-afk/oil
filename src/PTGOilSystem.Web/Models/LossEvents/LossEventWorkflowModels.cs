@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.LossEvents;
 
@@ -51,7 +52,7 @@ public sealed class LossEventSubmission
     public int? SalesTransactionId { get; set; }
     public int? TerminalId { get; set; }
     public int? StorageTankId { get; set; }
-    public DateTime EventDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime EventDate { get; set; } = AfghanistanBusinessClock.SystemToday;
     public decimal ExpectedQuantityMt { get; set; }
     public decimal ActualQuantityMt { get; set; }
     public decimal ToleranceQuantityMt { get; set; }

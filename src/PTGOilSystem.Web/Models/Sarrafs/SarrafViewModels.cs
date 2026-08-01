@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Shared;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Sarrafs;
 
@@ -257,7 +258,7 @@ public sealed class SarrafSettlementCreateViewModel
 
     [Display(Name = "تاریخ تسویه")]
     [DataType(DataType.Date)]
-    public DateTime SettlementDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime SettlementDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب صراف الزامی است.")]
     [Display(Name = "صراف")]

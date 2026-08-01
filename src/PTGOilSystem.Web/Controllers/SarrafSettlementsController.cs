@@ -23,8 +23,12 @@ public class SarrafSettlementsController : Controller
 
     private const int IndexPageSize = 50;
 
-    public async Task<IActionResult> Index(int? sarrafId = null, int? supplierId = null, int? contractId = null, string? search = null, int page = 1)
+    public async Task<IActionResult> Index(int? sarrafId = null, int? supplierId = null, int? contractId = null, string? search = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = PTGOilSystem.Web.Helpers.ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         var query = _db.SarrafSettlements
             .AsNoTracking()
             .Include(s => s.Sarraf)
@@ -60,14 +64,14 @@ public class SarrafSettlementsController : Controller
 
         // صفحه‌بندی سمت SQL — جایگزین سقف ثابت Take(300) که ردیف‌های بعدی را نامرئی می‌کرد.
         var totalCount = await query.CountAsync();
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
         var items = await query
             .OrderByDescending(s => s.SettlementDate)
             .ThenByDescending(s => s.Id)
-            .Skip((page - 1) * IndexPageSize)
-            .Take(IndexPageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(s => new SarrafSettlementListItemViewModel
             {
                 Id = s.Id,

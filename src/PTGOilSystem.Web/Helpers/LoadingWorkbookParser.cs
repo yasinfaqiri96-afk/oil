@@ -4,6 +4,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Loading;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Helpers;
 
@@ -508,7 +509,7 @@ public static class LoadingWorkbookParser
     {
         var row = new LoadingCreateRowViewModel
         {
-            LoadingDate = TryReadDate(cells, columns, nameof(LoadingCreateRowViewModel.LoadingDate), workbookPart) ?? DateTime.UtcNow.Date,
+            LoadingDate = TryReadDate(cells, columns, nameof(LoadingCreateRowViewModel.LoadingDate), workbookPart) ?? AfghanistanBusinessClock.SystemToday,
             BillOfLadingNumber = ReadText(cells, columns, nameof(LoadingCreateRowViewModel.BillOfLadingNumber), workbookPart),
             WagonNumber = ReadText(cells, columns, nameof(LoadingCreateRowViewModel.WagonNumber), workbookPart),
             LogisticsCompanyName = ReadText(cells, columns, nameof(LoadingCreateRowViewModel.LogisticsCompanyName), workbookPart),
@@ -547,7 +548,7 @@ public static class LoadingWorkbookParser
 
         var row = new LoadingCreateRowViewModel
         {
-            LoadingDate = TryReadDate(cells, columns, nameof(LoadingCreateRowViewModel.LoadingDate), workbookPart) ?? metadata.ReportDate ?? DateTime.UtcNow.Date,
+            LoadingDate = TryReadDate(cells, columns, nameof(LoadingCreateRowViewModel.LoadingDate), workbookPart) ?? metadata.ReportDate ?? AfghanistanBusinessClock.SystemToday,
             BillOfLadingNumber = billOfLadingNumber,
             ImportedTransportReference = importedTransportReference,
             DestinationName = destinationName,

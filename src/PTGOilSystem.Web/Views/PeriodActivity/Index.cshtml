@@ -15,6 +15,10 @@
                        (string?)"بازگشت", (string?)"bi-arrow-right",
                        (string?)Url.Action("Index", "FiscalYears")))" />
 
+    <div class="ak-page-actions">
+        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+    </div>
+
     <div class="ak-table-wrap">
         <table class="ak-table" aria-label="مشخصات دوره">
             <tbody>

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Expenses;
 
@@ -33,7 +34,7 @@ public sealed class ExpenseCreateViewModel
 
     [Display(Name = "تاریخ مصرف")]
     [DataType(DataType.Date)]
-    public DateTime ExpenseDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ExpenseDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مبلغ")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "مبلغ مصرف باید بزرگ‌تر از صفر باشد.")]
@@ -82,7 +83,7 @@ public sealed class WagonRentCreateViewModel
 
     [Display(Name = "تاریخ مصرف")]
     [DataType(DataType.Date)]
-    public DateTime ExpenseDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ExpenseDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "M-Tone")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "M-Tone باید بزرگ‌تر از صفر باشد.")]
@@ -143,7 +144,7 @@ public sealed class CustomsBatchViewModel
 
     [Display(Name = "تاریخ مصرف")]
     [DataType(DataType.Date)]
-    public DateTime ExpenseDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ExpenseDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "ارز")]
     [Required(ErrorMessage = "ارز الزامی است.")]
@@ -213,6 +214,8 @@ public sealed class ExpenseListItemViewModel
     public string? ShipmentCode { get; init; }
     public string? TruckDispatchLabel { get; init; }
     public string? TransportLegLabel { get; init; }
+    /// <summary>نمبر وسیله: پلاک موتر ارسال یا شمارهٔ واگن سفر حمل مربوط به این مصرف.</summary>
+    public string? VehicleNumber { get; init; }
     public string? ServiceProviderName { get; init; }
     public string? OperationalAssetName { get; init; }
     public decimal Amount { get; init; }

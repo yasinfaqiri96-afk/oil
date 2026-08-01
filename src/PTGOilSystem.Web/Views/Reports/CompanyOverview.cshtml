@@ -12,6 +12,12 @@
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "گزارشات", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
 
+    <div class="ak-page-actions">
+        @* خروجی همان فیلترهای صفحه را می‌گیرد و همان BuildCompanyFinancialOverviewAsync را می‌خواند. *@
+        <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                 model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("CompanyOverviewExport"))" />
+    </div>
+
     <p class="finance-page-lead">@UiText.T(Context, "شش عدد اصلی برای دیدن وضعیت مالی؛ همه مستقیماً از فروش، مصارف، روزنامه و دفتر سیستم خوانده می‌شوند.", "Six essential figures read directly from sales, expenses, journal and ledger records.")</p>
 
     <section class="ak-stat-grid finance-overview-metrics" aria-label="@UiText.T(Context, "خلاصهٔ مالی", "Financial summary")">

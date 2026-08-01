@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -29,8 +30,12 @@ public class ContractBalanceTransfersController : Controller
 
     private const int IndexPageSize = 50;
 
-    public async Task<IActionResult> Index(int? contractId = null, string? search = null, int page = 1)
+    public async Task<IActionResult> Index(int? contractId = null, string? search = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         var query = _db.ContractBalanceTransfers
             .Include(t => t.FromContract)
             .Include(t => t.ToContract)
@@ -61,14 +66,14 @@ public class ContractBalanceTransfersController : Controller
 
         // صفحه‌بندی سمت SQL — جایگزین سقف ثابت Take(200) که ردیف‌های بعدی را نامرئی می‌کرد.
         var totalCount = await query.CountAsync();
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
         var items = await query
             .OrderByDescending(t => t.TransferDate)
             .ThenByDescending(t => t.Id)
-            .Skip((page - 1) * IndexPageSize)
-            .Take(IndexPageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(t => new ContractBalanceTransferListItemViewModel
             {
                 Id = t.Id,
@@ -157,7 +162,7 @@ public class ContractBalanceTransfersController : Controller
     {
         var model = new ContractBalanceTransferCreateViewModel
         {
-            TransferDate = DateTime.UtcNow.Date,
+            TransferDate = AfghanistanBusinessClock.SystemToday,
             FromContractId = fromContractId ?? 0,
             ToContractId = toContractId ?? 0,
             CurrencyCode = SystemCurrency.BaseCurrencyCode,

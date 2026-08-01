@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -36,9 +37,11 @@ public class UsersController : Controller
         ViewBag.Roles = new SelectList(roles, "Id", "Name", selectedRoleId);
     }
 
-    public async Task<IActionResult> Index(string? q, string? status, DateTime? date, int page = 1)
+    public async Task<IActionResult> Index(string? q, string? status, DateTime? date, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 20;
+        var pageSize = ListPageSize.Resolve(perPage, 20);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 20;
 
         var query = _db.Users.Include(u => u.Role).AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))

@@ -104,19 +104,10 @@ public sealed class InventoryTransportReceiptService
             modelState.AddModelError(keyPrefix + nameof(model.ReceivedQuantityMt), "Received quantity must be greater than zero.");
         }
 
-        // فقط موتر اجازهٔ دریافت بیش از باقیمانده (و کسری منفی) را دارد؛ واگن مثل سایر حالت‌ها محدود به باقیمانده است.
-        if (leg.TransportType != LoadingTransportType.Truck && model.ReceivedQuantityMt > remainingMt + 0.0001m)
-        {
-            modelState.AddModelError(keyPrefix + nameof(model.ReceivedQuantityMt), $"مقدار دریافت نمی‌تواند از باقیمانده حمل بیشتر باشد ({remainingMt:N4} MT).");
-        }
-
-        // «فقط تسویه» کسری منفی (اضافه‌وزن ترازوی مقصد) را برای هر نوع حملی می‌پذیرد.
-        if (!model.SettlementOnly
-            && leg.TransportType != LoadingTransportType.Truck
-            && model.ShortageQuantityMt < 0m)
-        {
-            modelState.AddModelError(keyPrefix + nameof(model.ShortageQuantityMt), "Shortage quantity cannot be negative.");
-        }
+        // تخلیهٔ واقعی می‌تواند از بارگیری بیشتر یا کمتر باشد (اختلاف ترازوی مبدأ و مقصد).
+        // هیچ نوع حملی به‌خاطر «بیشتر از باقیمانده» مسدود نمی‌شود؛ اختلاف مثبت به‌عنوان
+        // مازاد و اختلاف منفی به‌عنوان کسری ثبت می‌شود. تنها قید باقی‌مانده این است که
+        // حملِ کاملاً تخلیه‌شده رسید جدید نگیرد (بالاتر بررسی شده است).
 
         if (UsesUnloadFreightFlow(leg))
         {
@@ -240,8 +231,17 @@ public sealed class InventoryTransportReceiptService
         InventoryMovement? inboundMovement = null;
         SalesTransaction? directSale = null;
 
-        if (model.ShortageQuantityMt > 0m)
+        // اختلاف تخلیه در هر دو جهت یک رویداد ثبت می‌شود تا راپور «کسری و اضافه‌بار حمل» کامل باشد.
+        // قرارداد علامت با تخلیهٔ موتر یکی است (TransportVarianceMath):
+        // مقدار مثبت = کسری (قابل جریمه)، مقدار منفی = اضافه‌بار (هرگز قابل جریمه نیست).
+        // اضافه‌بار فقط وقتی رویداد می‌سازد که تخلیهٔ واقعی باشد؛ در «فقط تسویه» بار هنوز داخل
+        // وسیله است و کسری منفی صرفاً باقیماندهٔ قابل تخلیه را بالا می‌برد.
+        var recordsVariance = TransportVarianceMath.IsShortage(model.ShortageQuantityMt)
+            || (TransportVarianceMath.IsSurplus(model.ShortageQuantityMt) && !model.SettlementOnly);
+        if (recordsVariance)
         {
+            var isSurplus = TransportVarianceMath.IsSurplus(model.ShortageQuantityMt);
+            var allowanceMt = model.AllowanceMt ?? 0m;
             shortageLoss = new LossEvent
             {
                 Stage = LossEventStage.ReceiptShortage,
@@ -255,12 +255,16 @@ public sealed class InventoryTransportReceiptService
                 ExpectedQuantityMt = model.ReceivedQuantityMt + model.ShortageQuantityMt,
                 ActualQuantityMt = model.ReceivedQuantityMt,
                 DifferenceQuantityMt = model.ShortageQuantityMt,
-                ToleranceQuantityMt = model.AllowanceMt ?? 0m,
-                AllowableLossMt = model.AllowanceMt ?? 0m,
-                ChargeableLossMt = model.ChargeableShortageMt ?? model.ShortageQuantityMt,
+                ToleranceQuantityMt = allowanceMt,
+                AllowableLossMt = TransportVarianceMath.AllowableShortage(model.ShortageQuantityMt, allowanceMt),
+                ChargeableLossMt = isSurplus
+                    ? 0m
+                    : model.ChargeableShortageMt ?? TransportVarianceMath.ChargeableShortage(model.ShortageQuantityMt, allowanceMt),
                 AffectsInventory = false,
                 Reference = $"TRANSPORT-RECEIPT:{receipt.Id}",
-                Notes = "Inventory transport receipt shortage"
+                Notes = isSurplus
+                    ? "Inventory transport receipt positive variance (surplus)"
+                    : "Inventory transport receipt shortage"
             };
             _db.LossEvents.Add(shortageLoss);
         }
@@ -550,10 +554,8 @@ public sealed class InventoryTransportReceiptService
 
         // کسری دیگر «مقدار کل منهای دریافت» نیست؛ کاربر آن را در همان تخلیه دستی ثبت می‌کند (باقیمانده در وسیله می‌ماند).
         // در «فقط تسویه» کسری منفی نگه داشته می‌شود: اضافه‌وزن ترازوی مقصد، باقیماندهٔ قابل تخلیه/فروش را بالا می‌برد.
-        if (!model.SettlementOnly && model.ShortageQuantityMt < 0m)
-        {
-            model.ShortageQuantityMt = 0m;
-        }
+        // کسری منفی یعنی مازاد (تخلیهٔ بیشتر از بارگیری) و پاک نمی‌شود؛
+        // «کسری قابل شارژ» خودش مقدار منفی را صفر می‌کند، پس مازاد هرگز جریمه نمی‌گیرد.
 
         // مقدار مبنای این رسید = دریافت + کسری همین تخلیه (در تخلیهٔ کامل برابر با مقدار حمل می‌شود).
         // در «فقط تسویه» کرایه بر کل باقیماندهٔ حمل (بارِ رسیده + کسری مسیر) محاسبه می‌شود.
@@ -614,16 +616,9 @@ public sealed class InventoryTransportReceiptService
     {
         // کسری دستی است؛ فقط منفی نبودن و اینکه مجموع دریافت + کسری از باقیمانده حمل بیشتر نشود بررسی می‌شود.
         // استثنا: «فقط تسویه» کسری منفی (اضافه‌وزن ترازو) را مجاز می‌داند.
-        if (!model.SettlementOnly && model.ShortageQuantityMt < 0m)
-        {
-            modelState.AddModelError(keyPrefix + nameof(model.ShortageQuantityMt), "کسری نمی‌تواند منفی باشد.");
-        }
-
-        var baseQuantityMt = model.ReceivedQuantityMt + model.ShortageQuantityMt;
-        if (baseQuantityMt > remainingMt + 0.0001m)
-        {
-            modelState.AddModelError(keyPrefix + nameof(model.ShortageQuantityMt), $"مجموع دریافت و کسری نمی‌تواند از باقیمانده حمل بیشتر باشد ({remainingMt:N4} MT).");
-        }
+        // تخلیهٔ واقعی می‌تواند از بارگیری کمتر (کسری) یا بیشتر (مازاد) باشد؛ هیچ‌کدام مسدود
+        // نمی‌شود. حدِ واقعی فقط این است که حملِ کاملاً تخلیه‌شده رسید جدید نگیرد، که در
+        // ValidateAsync بررسی شده است.
 
         if (model.AllowanceMt is < 0m)
             modelState.AddModelError(keyPrefix + nameof(model.AllowanceMt), "Allowance cannot be negative.");

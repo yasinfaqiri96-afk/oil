@@ -56,8 +56,10 @@
                         <th class="ak-col-grow">@UiText.T(Context, "طرف حساب", "Party")</th>
                         <th>@UiText.T(Context, "نوع", "Type")</th>
                         <th>@UiText.T(Context, "شرح مانده", "Balance Kind")</th>
-                        <th class="ak-col-num">Debit</th>
-                        <th class="ak-col-num">Credit</th>
+                        <th class="ak-col-num">@UiText.T(Context, "اول دوره", "Opening")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "رسید", "Received")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "برد", "Given")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "گردش دوره", "Period movement")</th>
                         <th class="ak-col-num">@UiText.T(Context, "مانده", "Balance")</th>
                         <th>@UiText.T(Context, "آخرین تاریخ", "Last Date")</th>
                     </tr>
@@ -69,15 +71,17 @@
                             <td class="ak-col-grow">@row.PartyName</td>
                             <td>@row.PartyType</td>
                             <td>@row.BalanceKind</td>
+                            <td class="ak-col-num ak-num">@row.OpeningBalanceUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@row.DebitUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@row.CreditUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num">@row.PeriodMovementUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num @(row.BalanceUsd >= 0 ?"ak-num" : "ak-num")">@row.BalanceUsd.ToString("N2")</td>
                             <td>@(row.LastEntryDate?.ToDisplayDate() ?? "-")</td>
                         </tr>
                     }
                     @if (!Model.Rows.Any())
                     {
-                        <tr><td colspan="7"><div class="ak-empty"><i class="bi bi-people"></i> @UiText.T(Context, "مانده‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No balance found; change the filters.")</div></td></tr>
+                        <tr><td colspan="9"><div class="ak-empty"><i class="bi bi-people"></i> @UiText.T(Context, "مانده‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No balance found; change the filters.")</div></td></tr>
                     }
                 </tbody>
             </table>

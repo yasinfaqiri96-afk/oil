@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.OperationalAssets;
 
@@ -132,7 +133,7 @@ public sealed class AssetOwnershipShareCreateViewModel
 
     [Display(Name = "از تاریخ")]
     [DataType(DataType.Date)]
-    public DateTime EffectiveFrom { get; set; } = DateTime.UtcNow.Date;
+    public DateTime EffectiveFrom { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "تا تاریخ")]
     [DataType(DataType.Date)]
@@ -153,7 +154,7 @@ public sealed class AssetRentCreateViewModel
 
     [Display(Name = "تاریخ کرایه / استفاده")]
     [DataType(DataType.Date)]
-    public DateTime RentDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime RentDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "نوع استفاده")]
     public AssetRentUsageType UsageType { get; set; } = AssetRentUsageType.InternalCompanyUse;

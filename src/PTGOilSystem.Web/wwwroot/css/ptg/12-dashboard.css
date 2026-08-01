@@ -267,105 +267,519 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 }
 
 /* ===== quick access ===== */
-/* ردیف کاشی‌ها ثابت است (۹۰px هر کاشی، ۱۲px فاصله) و به لبهٔ راستِ کانتینر
-   می‌چسبد؛ ترتیب نمایش از چپ «ثبت فروش» تا راست «قراردادها» است. */
-.dash-quick {
+.dash-quick-rail {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    align-items: flex-start;
-    gap: 12px;
-    direction: ltr;
+    align-items: center;
+    gap: 18px;
+    min-inline-size: 0;
+    padding: 0;
+    background: none;
 }
 
-.dash-quick-item {
+.dash-quick-rail h2 {
+    flex: 0 0 auto;
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* The tiles stay on one line at every width; they shrink instead of wrapping. */
+.dash-quick {
     display: flex;
-    flex: 0 0 90px;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+    min-inline-size: 0;
+}
+
+/* Square tiles: icon above its label, soft grey surface, first tile filled. */
+.dash-quick-item {
+    display: inline-flex;
+    flex: 0 1 104px;
     flex-direction: column;
-    box-sizing: border-box;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    inline-size: 90px;
+    gap: 9px;
     min-inline-size: 0;
-    block-size: 92px;
-    min-block-size: 92px;
-    padding: 16px 10px;
+    min-block-size: 104px;
+    padding: 14px 8px;
+    overflow: hidden;
     border: 0;
-    border-radius: 16px;
-    color: #0a2855;
-    background: #f4f5f7;
-    box-shadow: none;
+    border-radius: 18px;
+    color: var(--text-primary);
+    background: var(--ptg-surface-soft);
     text-decoration: none;
-    text-align: center;
-    direction: rtl;
-    transition: background-color .16s ease, color .16s ease, box-shadow .16s ease;
+    white-space: nowrap;
+    transition: transform .16s ease, opacity .16s ease;
 }
 
 .dash-quick-item:hover,
 .dash-quick-item:focus-visible {
-    color: #0a2855;
-    background: #eaedf1;
+    color: var(--ptg-btn-primary);
+    opacity: .86;
+    transform: translateY(-1px);
 }
 
 .dash-quick-item:focus-visible {
-    outline: 3px solid rgba(24, 119, 242, .28);
+    outline: 3px solid rgba(var(--ptg-btn-primary-rgb), .2);
     outline-offset: 2px;
+}
+
+.dash-quick-item--primary,
+.dash-quick-item--primary:hover,
+.dash-quick-item--primary:focus-visible {
+    color: #fff;
+    background: var(--ptg-btn-primary);
 }
 
 .dash-quick-icon {
     display: grid;
     place-items: center;
-    inline-size: 34px;
-    block-size: 34px;
-    line-height: 1;
-    color: #1877f2;
+    flex: 0 0 auto;
+    inline-size: 28px;
+    block-size: 28px;
+    color: var(--ptg-btn-primary);
+    background: none;
+}
+
+.dash-quick-item--primary .dash-quick-icon {
+    color: #fff;
 }
 
 .dash-quick-svg {
     display: block;
-    inline-size: 34px;
-    block-size: 34px;
+    inline-size: 28px;
+    block-size: 28px;
 }
 
-.dash-quick-item--primary .dash-quick-icon,
-.dash-quick-item--primary:hover .dash-quick-icon {
-    color: #fff;
+.dash-quick-svg--plus {
+    inline-size: 30px;
+    block-size: 30px;
 }
 
 .dash-quick-item strong {
+    display: block;
     max-inline-size: 100%;
-    font-size: 13px;
-    font-weight: 700;
+    min-inline-size: 0;
+    overflow: hidden;
+    color: inherit;
+    font-size: 12px;
+    font-weight: 650;
     line-height: 1.35;
     text-align: center;
-    color: inherit;
+    text-overflow: ellipsis;
 }
 
 .dash-quick-label--stacked {
-    display: block;
-    line-height: 1.35 !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: center;
 }
 
-/* برچسب دوکلمه‌ای در عرض ثابت ۹۰px همیشه دو سطری می‌ماند. */
-.dash-quick-label--stacked > span {
-    display: block;
+/* The global link rule in 45-akaunting.css loads later and would paint every
+   tile navy, including the filled one. Repeated here with the tile class so
+   the idle tiles stay neutral and the primary tile stays white. */
+body.boltz-shell.app-shell-authenticated a.dash-quick-item:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link) {
+    color: var(--text-primary);
 }
 
-.dash-quick-item--primary {
+body.boltz-shell.app-shell-authenticated a.dash-quick-item:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):hover,
+body.boltz-shell.app-shell-authenticated a.dash-quick-item:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):focus-visible {
+    color: var(--ptg-btn-primary);
+}
+
+body.boltz-shell.app-shell-authenticated a.dash-quick-item--primary:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link),
+body.boltz-shell.app-shell-authenticated a.dash-quick-item--primary:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):hover,
+body.boltz-shell.app-shell-authenticated a.dash-quick-item--primary:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):focus-visible {
     color: #fff;
-    background: #1877f2;
-    box-shadow: none;
 }
 
-.dash-quick-item--primary strong { color: #fff; }
+/* ===== lower dashboard bento ===== */
+.dash-insights {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(230px, 3fr);
+    gap: 16px;
+    align-items: stretch;
+}
 
-.dash-quick-item--primary .dash-quick-icon { color: #fff; }
+.dash-insight {
+    display: grid;
+    gap: 12px;
+    min-inline-size: 0;
+    align-content: start;
+}
 
-.dash-quick-item--primary:hover,
-.dash-quick-item--primary:focus-visible {
-    color: #fff;
-    background: #1466d6;
+.dash-flow-card {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.dash-insight-stack {
+    display: grid;
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-rows: minmax(0, 1fr);
+    align-content: stretch;
+    align-items: stretch;
+    gap: 12px;
+    min-inline-size: 0;
+}
+
+.dash-card-head .dash-more {
+    flex: 0 0 auto;
+    color: var(--ptg-btn-primary);
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: opacity .16s ease;
+}
+
+.dash-card-head .dash-more:hover,
+.dash-card-head .dash-more:focus-visible {
+    opacity: .72;
+}
+
+/* Recent activity */
+.dash-activity-list,
+.dash-flow {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dash-activity-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-block-size: 61px;
+    padding-block: 9px;
+}
+
+.dash-activity-row + .dash-activity-row,
+.dash-flow-row + .dash-flow-row {
+    border-block-start: 1px solid var(--ptg-border);
+}
+
+.dash-row-icon {
+    display: grid;
+    place-items: center;
+    inline-size: 34px;
+    block-size: 34px;
+    border-radius: 50%;
+    color: var(--ptg-btn-primary);
+    background: var(--ptg-btn-primary-tint);
+    font-size: 15px;
+}
+
+.dash-activity-copy {
+    display: grid;
+    gap: 3px;
+    min-inline-size: 0;
+}
+
+.dash-activity-copy strong,
+.dash-activity-copy span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-activity-copy strong {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.dash-activity-copy span,
+.dash-activity-time {
+    color: var(--text-secondary);
+    font-size: 10.5px;
+}
+
+.dash-activity-time {
+    direction: ltr;
+    white-space: nowrap;
+}
+
+/* In-progress flow */
+.dash-flow-row {
+    display: grid;
+    grid-template-columns: 38px minmax(80px, .62fr) minmax(150px, 1.38fr) minmax(96px, auto);
+    align-items: center;
+    gap: 14px;
+    min-block-size: 50px;
+    padding-block: 5px;
+}
+
+/* Every row is its own grid, so an auto capsule track made each bar start and
+   end at a different x. Subgrid hands all rows one shared column set: the name
+   and capsule tracks size to the widest content (no dead gap beside the name)
+   and every bar lines up exactly. */
+@media (min-width: 768px) {
+    @supports (grid-template-columns: subgrid) {
+        .dash-flow {
+            grid-template-columns: 38px fit-content(190px) minmax(150px, 1fr) fit-content(150px);
+            column-gap: 16px;
+        }
+
+        .dash-flow-row {
+            grid-column: 1 / -1;
+            grid-template-columns: subgrid;
+            column-gap: 16px;
+        }
+    }
+}
+
+.dash-flow-avatar {
+    inline-size: 38px;
+    block-size: 38px;
+    object-fit: contain;
+    border-radius: var(--ptg-radius-lg);
+    background: var(--ptg-surface-soft);
+}
+
+.dash-flow-id,
+.dash-flow-progress,
+.dash-flow-state {
+    display: grid;
+    min-inline-size: 0;
+}
+
+.dash-flow-id {
+    gap: 3px;
+}
+
+/* Bar and capsule share one centre line: both columns centre their single row. */
+.dash-flow-progress,
+.dash-flow-state {
+    align-content: center;
+}
+
+/* A touch more air on the capsule side than the plain column gap. */
+.dash-flow-progress {
+    padding-inline-end: 6px;
+}
+
+.dash-flow-name,
+.dash-flow-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-flow-name {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dash-flow-name:hover,
+.dash-flow-name:focus-visible {
+    color: var(--ptg-btn-primary);
+}
+
+.dash-flow-sub {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.dash-flow-state {
+    justify-items: end;
+}
+
+.dash-progress {
+    appearance: none;
+    inline-size: 100%;
+    block-size: 10px;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--ptg-draft-soft);
+}
+
+.dash-progress::-webkit-progress-bar {
+    border-radius: 999px;
+    background: var(--ptg-draft-soft);
+}
+
+.dash-progress::-webkit-progress-value {
+    border-radius: 999px;
+    background: var(--ptg-btn-primary);
+}
+
+.dash-progress::-moz-progress-bar {
+    border-radius: 999px;
+    background: var(--ptg-btn-primary);
+}
+
+.dash-progress.is-normal::-webkit-progress-value { background: var(--dash-green); }
+.dash-progress.is-warning::-webkit-progress-value { background: var(--dash-amber); }
+.dash-progress.is-critical::-webkit-progress-value { background: var(--dash-red); }
+.dash-progress.is-normal::-moz-progress-bar { background: var(--dash-green); }
+.dash-progress.is-warning::-moz-progress-bar { background: var(--dash-amber); }
+.dash-progress.is-critical::-moz-progress-bar { background: var(--dash-red); }
+
+.dashboard-ref .ak-status {
+    flex: 0 0 auto;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+/* The shipment capsule carries the moved/total figures instead of a label:
+   tighter and lighter than a normal status chip. The shared capsule treatment
+   in 71-typography.css pins every .ak-status to min-height 28px / padding
+   0 12px with !important, so this override has to be equally strong. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-status,
+.dash-flow-state .ak-status {
+    min-height: 19px !important;
+    padding: 0 7px !important;
+    font-size: 9.5px !important;
+    font-weight: 600 !important;
+    line-height: 1.5 !important;
+}
+
+.dash-flow-state .ak-status bdi {
+    direction: ltr;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Shipment bars are always blue (reference sheet); only the tank bars use the
+   green/amber/red fill tones. */
+.dash-flow-progress .dash-progress::-webkit-progress-value,
+.dash-flow-progress .dash-progress.is-normal::-webkit-progress-value,
+.dash-flow-progress .dash-progress.is-warning::-webkit-progress-value,
+.dash-flow-progress .dash-progress.is-critical::-webkit-progress-value {
+    background: linear-gradient(90deg, #4f8ef8 0%, #1b5fe0 100%);
+}
+
+.dash-flow-progress .dash-progress::-moz-progress-bar,
+.dash-flow-progress .dash-progress.is-normal::-moz-progress-bar,
+.dash-flow-progress .dash-progress.is-warning::-moz-progress-bar,
+.dash-flow-progress .dash-progress.is-critical::-moz-progress-bar {
+    background: linear-gradient(90deg, #4f8ef8 0%, #1b5fe0 100%);
+}
+
+.dashboard-ref .ak-status.is-pending {
+    color: var(--ptg-warning-text);
+    background: var(--ptg-warning-soft);
+}
+
+.dashboard-ref .ak-status.is-danger {
+    color: var(--ptg-danger-text);
+    background: var(--ptg-danger-soft);
+}
+
+/* Tank capacity: header row, then the tanks side by side as equal columns.
+   The card matches the shipments card height; the tank columns stay centred in
+   the leftover space so no dead gap collects at the bottom. */
+.dash-capacity-card {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 14px;
+    align-content: stretch;
+    padding-block: 15px;
+}
+
+/* Tanks stay on a single row at every width — columns shrink, they never wrap. */
+.dash-capacity-list {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dash-capacity-row {
+    display: grid;
+    align-content: start;
+    gap: 9px;
+    min-inline-size: 0;
+}
+
+.dash-capacity-row-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-inline-size: 0;
+}
+
+.dash-capacity-avatar {
+    flex: 0 0 auto;
+    inline-size: 26px;
+    block-size: 26px;
+    padding: 2px;
+    object-fit: contain;
+    border-radius: var(--ptg-radius-lg);
+    background: var(--ptg-surface-soft);
+}
+
+.dash-capacity-name {
+    overflow: hidden;
+    min-inline-size: 0;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-capacity-pct {
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1;
+    direction: ltr;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-capacity-row .dash-progress {
+    block-size: 8px;
+}
+
+.dash-capacity-meta {
+    margin: 0;
+    min-inline-size: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 10.5px;
+    direction: ltr;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-capacity-meta bdi {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Shared compact empty state. */
+.dash-insight .ak-empty {
+    display: grid;
+    place-content: center;
+    gap: 4px;
+    min-block-size: 110px;
+    padding: 14px 10px;
+    font-size: 11px;
+}
+
+.dash-insight .ak-empty i {
+    margin-bottom: 2px;
+    font-size: 21px;
 }
 
 /* ===== responsive ===== */
@@ -373,18 +787,57 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     .dash-analytics {
         grid-template-columns: 1fr;
     }
+
+    .dash-insights {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dash-flow-card {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        order: 1;
+    }
+
+    .dash-insight-stack {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+        order: 2;
+    }
 }
 
-/* زیر این عرض، ردیف ثابت جا نمی‌شود؛ کاشی‌ها سطر بعد می‌روند و وسط‌چین می‌شوند. */
 @media (max-width: 767.98px) {
-    .dash-quick {
-        justify-content: center;
+    /* Still one row on phones: the tiles drop their label and keep the icon. */
+    .dash-quick-item {
+        flex: 1 1 0;
+        gap: 0;
+        min-block-size: 56px;
+        padding: 10px 6px;
+        border-radius: 14px;
+    }
+
+    .dash-quick-item strong {
+        display: none;
+    }
+
+    .dash-flow-row {
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+    }
+
+    .dash-flow-avatar {
+        inline-size: 38px;
+        block-size: 38px;
+    }
+
+    .dash-flow-progress {
+        grid-column: 2 / -1;
     }
 }
 
 @media (max-width: 575.98px) {
     .dash-card {
-        padding: 16px;
+        padding: 15px;
     }
 
     .dash-trend-head {
@@ -396,15 +849,50 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
         justify-content: space-between;
         gap: 16px;
     }
+
+    .dash-insights {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-insight-stack {
+        grid-column: 1;
+        grid-template-columns: minmax(0, 1fr);
+        order: 1;
+    }
+
+    .dash-flow-card {
+        grid-column: 1;
+        order: 2;
+    }
+
+    .dash-flow-row {
+        gap: 8px;
+    }
+
+    /* Single row is kept on phones too — the columns just get tighter. */
+    .dash-capacity-list {
+        gap: 9px;
+    }
+
+    .dash-capacity-row-head {
+        gap: 5px;
+    }
+
+    .dash-capacity-avatar {
+        inline-size: 22px;
+        block-size: 22px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .dash-quick-item { transition: none; }
+    .dash-quick-item,
+    .dash-card-head .dash-more {
+        transition: none;
+    }
 }
 
 :root[data-theme="dark"] .dashboard-page.dashboard-ref {
     --dash-card-border: 0;
-    /* --ptg-panel-shadow already carries its own dark-mode value. */
     --dash-card-shadow: var(--ptg-panel-shadow);
 }
 
@@ -412,12 +900,6 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     stroke: rgba(255, 255, 255, .08);
 }
 
-:root[data-theme="dark"] .dash-quick-item:not(.dash-quick-item--primary) {
-    color: #e7eef9;
-    background: #1f2938;
-    border-color: rgba(255, 255, 255, .08);
-}
-
-:root[data-theme="dark"] .dash-quick-item:not(.dash-quick-item--primary) .dash-quick-icon {
-    color: #9db4d0;
+:root[data-theme="dark"] .dash-quick-item {
+    background: rgba(255, 255, 255, .05);
 }

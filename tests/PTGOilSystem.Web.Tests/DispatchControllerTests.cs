@@ -743,6 +743,172 @@ public class DispatchControllerTests
     }
 
     [Fact]
+    public async Task Unload_Post_Records_Surplus_As_Negative_Variance_And_Never_Charges_The_Driver()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedDirectDispatchAllocationAsync(db);
+        db.StorageTanks.Add(new StorageTank
+        {
+            Id = 1,
+            TerminalId = 1,
+            TankCode = "TK-01",
+            ProductId = 1,
+            CapacityMt = 500m,
+            IsActive = true
+        });
+        db.Drivers.Add(new Driver { Id = 1, FullName = "Driver A", IsActive = true });
+        db.TruckDispatches.Add(new TruckDispatch
+        {
+            Id = 1,
+            DispatchMode = TruckDispatchMode.DirectFromReceipt,
+            LoadingReceiptAllocationId = 1,
+            ContractId = 1,
+            ProductId = 1,
+            TruckId = 1,
+            DriverId = 1,
+            DispatchDate = new DateTime(2026, 4, 24),
+            Status = DispatchStatus.Loaded,
+            LoadedQuantityMt = 10m,
+            TicketSerialNumber = "DIR-002"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new DispatchController(
+            db,
+            new ThrowingStockService(new InvalidOperationException("StockService must not be called for truck unload.")),
+            new AuditService(db),
+            NullLogger<DispatchController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        // بارگیری ۱۰ تن، تخلیه ۱۰.۲ تن ⇒ ۰.۲ تن اضافه‌بار.
+        var result = await controller.Unload(1, new DispatchUnloadViewModel
+        {
+            TruckDispatchId = 1,
+            ReceiptDate = new DateTime(2026, 4, 25),
+            DestinationTerminalId = 1,
+            DestinationStorageTankId = 1,
+            DischargedQuantityMt = 10.2m,
+            ShortageMt = -0.2m,
+            FreightCostUsd = 1000m,
+            ShortageRateUsd = 200m,
+            DocumentReference = "UNL-002"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var dispatch = await db.TruckDispatches.SingleAsync();
+        Assert.Equal(10.2m, dispatch.DischargedQuantityMt);
+        // تفاوت با علامت واقعی ذخیره می‌شود و صفر نمی‌گردد.
+        Assert.Equal(-0.2m, dispatch.ShortageMt);
+        Assert.Equal(0m, dispatch.ChargeableShortageMt);
+        Assert.Null(dispatch.PayableUsd);
+        // اضافه‌بار از کرایه کم نمی‌شود.
+        Assert.Equal(1000m, dispatch.FreightPayableUsd);
+
+        // موجودی مقصد دقیقاً به اندازهٔ تخلیهٔ واقعی زیاد می‌شود.
+        var movement = await db.InventoryMovements.SingleAsync();
+        Assert.Equal(MovementDirection.In, movement.Direction);
+        Assert.Equal(10.2m, movement.QuantityMt);
+        Assert.Equal("TRUCK-UNLOAD:1", movement.ReferenceDocument);
+
+        var receipt = await db.DeliveryReceipts.SingleAsync();
+        Assert.Equal(10.2m, receipt.ReceivedQuantityMt);
+
+        // رکورد قابل ردیابی ساخته می‌شود و هرگز قابل جریمه نیست.
+        var variance = await db.LossEvents.SingleAsync();
+        Assert.Equal(LossEventStage.DispatchShortage, variance.Stage);
+        Assert.Equal(1, variance.TruckDispatchId);
+        Assert.Equal(10m, variance.ExpectedQuantityMt);
+        Assert.Equal(10.2m, variance.ActualQuantityMt);
+        Assert.Equal(-0.2m, variance.DifferenceQuantityMt);
+        Assert.Equal(0m, variance.AllowableLossMt);
+        Assert.Equal(0m, variance.ChargeableLossMt);
+        Assert.False(variance.AffectsInventory);
+        Assert.False(variance.IsCancelled);
+    }
+
+    [Fact]
+    public async Task Unload_Post_Replaces_The_Same_Variance_Record_When_Re_Submitted()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedDirectDispatchAllocationAsync(db);
+        db.StorageTanks.Add(new StorageTank
+        {
+            Id = 1,
+            TerminalId = 1,
+            TankCode = "TK-01",
+            ProductId = 1,
+            CapacityMt = 500m,
+            IsActive = true
+        });
+        db.Drivers.Add(new Driver { Id = 1, FullName = "Driver A", IsActive = true });
+        db.TruckDispatches.Add(new TruckDispatch
+        {
+            Id = 1,
+            DispatchMode = TruckDispatchMode.DirectFromReceipt,
+            LoadingReceiptAllocationId = 1,
+            ContractId = 1,
+            ProductId = 1,
+            TruckId = 1,
+            DriverId = 1,
+            DispatchDate = new DateTime(2026, 4, 24),
+            Status = DispatchStatus.Loaded,
+            LoadedQuantityMt = 10m,
+            TicketSerialNumber = "DIR-003"
+        });
+        await db.SaveChangesAsync();
+
+        DispatchUnloadViewModel BuildModel(decimal dischargedMt, decimal differenceMt) => new()
+        {
+            TruckDispatchId = 1,
+            ReceiptDate = new DateTime(2026, 4, 25),
+            DestinationTerminalId = 1,
+            DestinationStorageTankId = 1,
+            DischargedQuantityMt = dischargedMt,
+            ShortageMt = differenceMt,
+            DocumentReference = "UNL-003"
+        };
+
+        DispatchController BuildController() => new(
+            db,
+            new ThrowingStockService(new InvalidOperationException("StockService must not be called for truck unload.")),
+            new AuditService(db),
+            NullLogger<DispatchController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        // اول کسری، بعد اصلاح به اضافه‌بار: یک رکورد به‌روزرسانی می‌شود، نه رکورد تکراری.
+        Assert.IsType<RedirectToActionResult>(await BuildController().Unload(1, BuildModel(9.8m, 0.2m)));
+        var afterShortage = await db.LossEvents.SingleAsync();
+        Assert.Equal(0.2m, afterShortage.DifferenceQuantityMt);
+
+        Assert.IsType<RedirectToActionResult>(await BuildController().Unload(1, BuildModel(10.2m, -0.2m)));
+        var afterSurplus = await db.LossEvents.SingleAsync();
+        Assert.Equal(afterShortage.Id, afterSurplus.Id);
+        Assert.Equal(-0.2m, afterSurplus.DifferenceQuantityMt);
+        Assert.Equal(0m, afterSurplus.ChargeableLossMt);
+        Assert.False(afterSurplus.IsCancelled);
+        Assert.Equal(-0.2m, (await db.TruckDispatches.SingleAsync()).ShortageMt);
+
+        // تخلیهٔ برابر با بارگیری: تفاوتی نمانده، پس رکورد قبلی لغو می‌شود.
+        Assert.IsType<RedirectToActionResult>(await BuildController().Unload(1, BuildModel(10m, 0m)));
+        var afterBalanced = await db.LossEvents.SingleAsync();
+        Assert.Equal(afterShortage.Id, afterBalanced.Id);
+        Assert.True(afterBalanced.IsCancelled);
+    }
+
+    [Fact]
     public async Task CreateDirectFromReceipt_Post_Rejects_OverDispatch_Without_Creating_Dispatch()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -1015,6 +1181,368 @@ public class DispatchControllerTests
         Assert.Null((await db.TruckDispatches.SingleAsync()).SalesTransactionId);
     }
 
+    // سناریوی واقعی: ۱۰ تن بارگیری، ۱۰.۲ تن تخلیه، تمام ۱۰.۲ تن به مشتری فروخته می‌شود.
+    // فروش و طلب مشتری باید روی مقدار واقعی بنشیند، نه روی وزن بارگیری.
+    [Fact]
+    public async Task CreateSaleFromDirectDispatch_Post_Sells_The_Real_Unloaded_Quantity_Including_Surplus()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedDirectDispatchAllocationAsync(db);
+        db.TruckDispatches.Add(new TruckDispatch
+        {
+            Id = 1,
+            DispatchMode = TruckDispatchMode.FromInventory,
+            ContractId = 1,
+            ProductId = 1,
+            TruckId = 1,
+            DestinationLocationId = 1,
+            DispatchDate = new DateTime(2026, 4, 24),
+            LoadedQuantityMt = 10m,
+            DischargedQuantityMt = 10.2m,
+            ShortageMt = -0.2m
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new DispatchController(
+            db,
+            new ThrowingStockService(new InvalidOperationException("StockService must not be called for surplus sale.")),
+            new AuditService(db),
+            NullLogger<DispatchController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        var result = await controller.CreateSaleFromDirectDispatch(new DispatchDirectFromReceiptSaleCreateViewModel
+        {
+            TruckDispatchId = 1,
+            CustomerId = 1,
+            SaleDate = new DateTime(2026, 4, 25),
+            QuantityMt = 10.2m,
+            Currency = "USD",
+            UnitPriceInCurrency = 500m,
+            InvoiceNumber = "SUR-001"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        Assert.Equal(10.2m, sale.QuantityMt);
+        Assert.Equal(5100m, sale.TotalUsd);
+
+        // طلب مشتری = عاید کاملِ ۱۰.۲ تن، نه ۱۰ تن.
+        var ledger = await db.LedgerEntries.SingleAsync();
+        Assert.Equal(5100m, ledger.AmountUsd);
+
+        // اضافه‌بار قیمت خرید نمی‌سازد و حرکت موجودی تازه‌ای هم ندارد.
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+    }
+
+    // اضافه‌بار حداکثر تا مقدار تخلیه فروخته می‌شود؛ بیش از آن رد می‌شود و هیچ رکوردی نمی‌سازد.
+    [Fact]
+    public async Task CreateSaleFromDirectDispatch_Post_Rejects_A_Sale_Above_The_Unloaded_Quantity()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedDirectDispatchAllocationAsync(db);
+        db.TruckDispatches.Add(new TruckDispatch
+        {
+            Id = 1,
+            DispatchMode = TruckDispatchMode.FromInventory,
+            ContractId = 1,
+            ProductId = 1,
+            TruckId = 1,
+            DispatchDate = new DateTime(2026, 4, 24),
+            LoadedQuantityMt = 10m,
+            DischargedQuantityMt = 10.2m,
+            ShortageMt = -0.2m
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new DispatchController(
+            db,
+            new ThrowingStockService(new InvalidOperationException("StockService must not be called for rejected surplus sale.")),
+            new AuditService(db),
+            NullLogger<DispatchController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        var result = await controller.CreateSaleFromDirectDispatch(new DispatchDirectFromReceiptSaleCreateViewModel
+        {
+            TruckDispatchId = 1,
+            CustomerId = 1,
+            SaleDate = new DateTime(2026, 4, 25),
+            QuantityMt = 10.5m,
+            Currency = "USD",
+            UnitPriceInCurrency = 500m,
+            InvoiceNumber = "SUR-OVER"
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Empty(await db.SalesTransactions.ToListAsync());
+        Assert.Empty(await db.LedgerEntries.ToListAsync());
+        Assert.Null((await db.TruckDispatches.SingleAsync()).SalesTransactionId);
+    }
+
+    // کسری مسیر فروش را تغییر نمی‌دهد: مبنای فروش باز هم مقدار واقعیِ تخلیه‌شده است.
+    [Fact]
+    public async Task CreateSaleFromDirectDispatch_Get_Defaults_To_The_Real_Unloaded_Quantity()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedDirectDispatchAllocationAsync(db);
+        db.TruckDispatches.Add(new TruckDispatch
+        {
+            Id = 1,
+            DispatchMode = TruckDispatchMode.FromInventory,
+            ContractId = 1,
+            ProductId = 1,
+            TruckId = 1,
+            DispatchDate = new DateTime(2026, 4, 24),
+            LoadedQuantityMt = 10m,
+            DischargedQuantityMt = 9.8m,
+            ShortageMt = 0.2m
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new DispatchController(
+            db,
+            new ThrowingStockService(new InvalidOperationException("StockService must not be called on GET.")),
+            new AuditService(db),
+            NullLogger<DispatchController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        var view = Assert.IsType<ViewResult>(await controller.CreateSaleFromDirectDispatch(1));
+        var model = Assert.IsType<DispatchDirectFromReceiptSaleCreateViewModel>(view.Model);
+
+        Assert.Equal(9.8m, model.QuantityMt);
+        Assert.Equal(9.8m, model.DispatchSellableQuantityMt);
+        Assert.Equal(10m, model.DispatchLoadedQuantityMt);
+        Assert.Equal(0m, model.DispatchSurplusMt);
+    }
+
+    // فروش مستقیم از موتر باید Lineage واقعیِ همان موتر را روی خودِ فروش بنشاند تا عاید در
+    // سود و زیان قرارداد خرید و محموله دیده شود؛ بدون این فیلدها فروش هیچ قرارداد و محموله‌ای نداشت.
+    [Fact]
+    public async Task CreateSaleFromDirectDispatch_Post_Stamps_The_Real_Purchase_Contract_Lineage()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedDirectDispatchAllocationAsync(db);
+        db.TruckDispatches.Add(new TruckDispatch
+        {
+            Id = 1,
+            DispatchMode = TruckDispatchMode.DirectFromReceipt,
+            LoadingReceiptAllocationId = 1,
+            ContractId = 1,
+            ProductId = 1,
+            TruckId = 1,
+            DispatchDate = new DateTime(2026, 4, 24),
+            LoadedQuantityMt = 10m,
+            DischargedQuantityMt = 10.2m
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildDirectSaleController(db);
+
+        Assert.IsType<RedirectToActionResult>(await controller.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 10.2m, invoiceNumber: "LIN-001")));
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        Assert.Null(sale.ContractId);                    // قرارداد فروش ندارد
+        Assert.Equal(1, sale.SourcePurchaseContractId);  // قرارداد خرید از Lineage واقعی
+        Assert.Equal(1, sale.TruckDispatchId);           // موترِ منبع
+        Assert.Null(sale.ShipmentId);                    // این مسیر محموله ندارد ⇒ حدس زده نمی‌شود
+        Assert.Equal(1, (await db.TruckDispatches.SingleAsync()).SalesTransactionId);
+    }
+
+    // فروش قسمتی: ۱۰.۲ تخلیه، ۱۰.۰۵ فروش اول، ۰.۱۵ باقی‌مانده که باید قابل فروش بماند.
+    [Fact]
+    public async Task CreateSaleFromDirectDispatch_Post_Supports_Partial_Sale_And_Then_The_Remainder()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedPartialSaleDispatchAsync(db);
+
+        var controller = BuildDirectSaleController(db);
+        Assert.IsType<RedirectToActionResult>(await controller.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 10.05m, invoiceNumber: "PART-001")));
+
+        // باقی‌مانده روی فرم بعدی دقیقاً ۰.۱۵ است.
+        var view = Assert.IsType<ViewResult>(await controller.CreateSaleFromDirectDispatch(1));
+        var model = Assert.IsType<DispatchDirectFromReceiptSaleCreateViewModel>(view.Model);
+        Assert.Equal(10.05m, model.DispatchAlreadySoldQuantityMt);
+        Assert.Equal(0.15m, model.DispatchRemainingQuantityMt);
+        Assert.Equal(0.15m, model.QuantityMt);
+
+        Assert.IsType<RedirectToActionResult>(await controller.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 0.15m, invoiceNumber: "PART-002")));
+
+        var sales = await db.SalesTransactions.OrderBy(s => s.Id).ToListAsync();
+        Assert.Equal(2, sales.Count);
+        Assert.All(sales, s => Assert.Equal(1, s.TruckDispatchId));
+        Assert.All(sales, s => Assert.Equal(1, s.SourcePurchaseContractId));
+        Assert.Equal(10.2m, sales.Sum(s => s.QuantityMt));
+
+        // لینک یکتای موتر روی اولین فروش می‌ماند و فروش دوم آن را جابه‌جا نمی‌کند.
+        Assert.Equal(sales[0].Id, (await db.TruckDispatches.SingleAsync()).SalesTransactionId);
+        Assert.Equal(2, await db.LedgerEntries.CountAsync());
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+    }
+
+    // فروش بیشتر از باقی‌مانده باید رد شود و هیچ رکوردی نسازد.
+    [Fact]
+    public async Task CreateSaleFromDirectDispatch_Post_Rejects_A_Sale_Above_The_Remaining_Quantity()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedPartialSaleDispatchAsync(db);
+
+        var controller = BuildDirectSaleController(db);
+        Assert.IsType<RedirectToActionResult>(await controller.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 10.05m, invoiceNumber: "REM-001")));
+
+        Assert.IsType<ViewResult>(await controller.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 0.2m, invoiceNumber: "REM-002")));
+        Assert.False(controller.ModelState.IsValid);
+
+        Assert.Single(await db.SalesTransactions.ToListAsync());
+        Assert.Single(await db.LedgerEntries.ToListAsync());
+    }
+
+    // ثبت دوبارهٔ همان درخواست (کلیک دوباره) فروش تکراری نمی‌سازد: شمارهٔ فاکتور یکتاست.
+    [Fact]
+    public async Task CreateSaleFromDirectDispatch_Post_Does_Not_Create_A_Duplicate_Sale_On_Resubmit()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedPartialSaleDispatchAsync(db);
+
+        var controller = BuildDirectSaleController(db);
+        Assert.IsType<RedirectToActionResult>(await controller.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 10.2m, invoiceNumber: "DUP-001")));
+
+        Assert.IsType<ViewResult>(await controller.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 10.2m, invoiceNumber: "DUP-001")));
+        Assert.False(controller.ModelState.IsValid);
+
+        Assert.Single(await db.SalesTransactions.ToListAsync());
+        Assert.Single(await db.LedgerEntries.ToListAsync());
+    }
+
+    // لغو فروش موتر باید لینک یکتا را آزاد کند تا همان مقدار دوباره قابل فروش شود.
+    [Fact]
+    public async Task Cancelling_A_Direct_Truck_Sale_Frees_The_Dispatch_For_A_New_Sale()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await SeedPartialSaleDispatchAsync(db);
+
+        var dispatchController = BuildDirectSaleController(db);
+        Assert.IsType<RedirectToActionResult>(await dispatchController.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 10.2m, invoiceNumber: "CAN-001")));
+
+        var saleId = (await db.SalesTransactions.SingleAsync()).Id;
+        var salesController = new SalesController(
+            db,
+            new StockService(db),
+            new AuditService(db),
+            NullLogger<SalesController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        await salesController.Cancel(saleId);
+
+        var dispatch = await db.TruckDispatches.SingleAsync();
+        Assert.Null(dispatch.SalesTransactionId);
+
+        // باقی‌مانده دوباره کل مقدار تخلیه‌شده است و فروش تازه ثبت می‌شود.
+        var view = Assert.IsType<ViewResult>(await dispatchController.CreateSaleFromDirectDispatch(1));
+        var model = Assert.IsType<DispatchDirectFromReceiptSaleCreateViewModel>(view.Model);
+        Assert.Equal(0m, model.DispatchAlreadySoldQuantityMt);
+        Assert.Equal(10.2m, model.DispatchRemainingQuantityMt);
+
+        Assert.IsType<RedirectToActionResult>(await dispatchController.CreateSaleFromDirectDispatch(
+            BuildDirectSaleInput(quantityMt: 10.2m, invoiceNumber: "CAN-002")));
+
+        Assert.Equal(1, await db.SalesTransactions.CountAsync(s => !s.IsCancelled));
+        Assert.Equal(10.2m, await db.SalesTransactions.Where(s => !s.IsCancelled).SumAsync(s => s.QuantityMt));
+    }
+
+    private static DispatchController BuildDirectSaleController(ApplicationDbContext db)
+        => new(
+            db,
+            new ThrowingStockService(new InvalidOperationException("StockService must not be called for a direct truck sale.")),
+            new AuditService(db),
+            NullLogger<DispatchController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+    private static DispatchDirectFromReceiptSaleCreateViewModel BuildDirectSaleInput(
+        decimal quantityMt,
+        string invoiceNumber)
+        => new()
+        {
+            TruckDispatchId = 1,
+            CustomerId = 1,
+            SaleDate = new DateTime(2026, 4, 25),
+            QuantityMt = quantityMt,
+            Currency = "USD",
+            UnitPriceInCurrency = 500m,
+            InvoiceNumber = invoiceNumber
+        };
+
+    // ۱۰ تن بارگیری، ۱۰.۲ تن تخلیه (۰.۲ اضافه‌بار) — مبنای سناریوهای فروش قسمتی.
+    private static async Task SeedPartialSaleDispatchAsync(ApplicationDbContext db)
+    {
+        await SeedDirectDispatchAllocationAsync(db);
+        db.TruckDispatches.Add(new TruckDispatch
+        {
+            Id = 1,
+            DispatchMode = TruckDispatchMode.DirectFromReceipt,
+            LoadingReceiptAllocationId = 1,
+            ContractId = 1,
+            ProductId = 1,
+            TruckId = 1,
+            DestinationLocationId = 1,
+            DispatchDate = new DateTime(2026, 4, 24),
+            LoadedQuantityMt = 10m,
+            DischargedQuantityMt = 10.2m,
+            ShortageMt = -0.2m
+        });
+        await db.SaveChangesAsync();
+    }
+
     private static TempDataDictionary BuildTempData()
         => new(new DefaultHttpContext(), new InMemoryTempDataProvider());
 
@@ -1107,6 +1635,8 @@ public class DispatchControllerTests
 
         public Task<IReadOnlyList<StockCardItem>> GetStockCardAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
             => throw new NotSupportedException();
+        public Task<IReadOnlyList<StockMovementSummaryItem>> GetMovementSummaryAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
+            => throw new NotSupportedException();
 
         public Task AcquireStockMutationLockAsync(InventoryMovement movement, CancellationToken ct = default)
             => Task.CompletedTask;
@@ -1141,6 +1671,8 @@ public class DispatchControllerTests
             => throw new NotSupportedException();
 
         public Task<IReadOnlyList<StockCardItem>> GetStockCardAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<IReadOnlyList<StockMovementSummaryItem>> GetMovementSummaryAsync(int? productId = null, int? contractId = null, int? terminalId = null, int? storageTankId = null, DateTime? fromUtc = null, DateTime? toUtc = null, CancellationToken ct = default)
             => throw new NotSupportedException();
 
         public Task AcquireStockMutationLockAsync(InventoryMovement movement, CancellationToken ct = default)

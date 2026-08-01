@@ -18,6 +18,8 @@ public sealed class ShipmentSaleDisplayRow
     public decimal UnitPriceUsd { get; init; }
     public decimal TotalUsd { get; init; }
     public bool IsDirectShipmentSale { get; init; }
+    /// <summary>نمبر وسیله؛ اگر سطر گروهی چند وسیله داشته باشد «چند وسیله».</summary>
+    public string? VehicleNumber { get; init; }
     public IReadOnlyList<ShipmentContractBreakdownLine> ContractBreakdownLines { get; init; } = [];
 }
 
@@ -33,6 +35,8 @@ public sealed class ShipmentExpenseDisplayRow
     public string? ExpenseTypeCategory { get; init; }
     /// <summary>دستهٔ نمایشی واحد — منبع مشترک KPI و جدول‌های صفحهٔ پروندهٔ محموله.</summary>
     public ShipmentExpenseCategory Category => ShipmentExpenseCategorizer.Categorize(this);
+    /// <summary>نمبر وسیله؛ اگر سطر گروهی چند وسیله داشته باشد «چند وسیله».</summary>
+    public string? VehicleNumber { get; init; }
     public IReadOnlyList<ShipmentContractBreakdownLine> ContractBreakdownLines { get; init; } = [];
 }
 
@@ -44,6 +48,8 @@ public sealed class ShipmentLossDisplayRow
     public decimal EstimatedValueUsd { get; init; }
     public string ResponsibilityTypeName { get; init; } = "-";
     public string? Description { get; init; }
+    /// <summary>نمبر وسیله؛ اگر سطر گروهی چند وسیله داشته باشد «چند وسیله».</summary>
+    public string? VehicleNumber { get; init; }
     public IReadOnlyList<ShipmentContractBreakdownLine> ContractBreakdownLines { get; init; } = [];
 }
 
@@ -65,6 +71,9 @@ public sealed class ShipmentTransportDisplayRow
 
 public static class ShipmentPnlDisplayGrouping
 {
+    // وقتی چند رکورد با وسیله‌های مختلف در یک سطر گروه می‌شوند، عدد واحدی وجود ندارد.
+    private const string MixedVehicleText = "چند وسیله";
+
     public static IReadOnlyList<ShipmentTransportDisplayRow> GroupTransports(
         IReadOnlyList<ShipmentPnlTransportLegItemViewModel> transports)
         => transports
@@ -147,6 +156,9 @@ public static class ShipmentPnlDisplayGrouping
                         : RoundMoney(ordered.First().UnitPriceUsd),
                     TotalUsd = totalUsd,
                     IsDirectShipmentSale = ordered.Any(sale => sale.IsDirectShipmentSale),
+                    VehicleNumber = ResolveSingleOrMixed(
+                        ordered.Select(sale => sale.VehicleNumber),
+                        MixedVehicleText),
                     ContractBreakdownLines = breakdown
                 };
             })
@@ -191,6 +203,9 @@ public static class ShipmentPnlDisplayGrouping
                     ExpenseTypeCategory = ordered
                         .Select(expense => expense.ExpenseTypeCategory)
                         .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
+                    VehicleNumber = ResolveSingleOrMixed(
+                        ordered.Select(expense => expense.VehicleNumber),
+                        MixedVehicleText),
                     ContractBreakdownLines = breakdown
                 };
             })
@@ -233,6 +248,9 @@ public static class ShipmentPnlDisplayGrouping
                         1 => descriptions[0],
                         _ => string.Join("؛ ", descriptions)
                     },
+                    VehicleNumber = ResolveSingleOrMixed(
+                        ordered.Select(loss => loss.VehicleNumber),
+                        MixedVehicleText),
                     ContractBreakdownLines = breakdown
                 };
             })

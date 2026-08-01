@@ -69,11 +69,42 @@ public sealed class TabularExportDocument
     public required string TitleEn { get; init; }
     public required IReadOnlyList<TabularExportColumn> Columns { get; init; }
     public required IEnumerable<TabularExportRow> Rows { get; init; }
+
+    /// <summary>
+    /// منبع سطرِ صفحه‌به‌صفحه برای گزارش‌های حجیم. اگر مقدار داشته باشد به‌جای
+    /// <see cref="Rows"/> خوانده می‌شود و نویسندهٔ Excel سطرها را همان‌طور که می‌رسند
+    /// می‌نویسد؛ بنابراین هیچ‌وقت کل نتیجه در حافظه جمع نمی‌شود.
+    /// </summary>
+    public IAsyncEnumerable<TabularExportRow>? RowsAsync { get; init; }
+
     public IReadOnlyList<TabularExportFilter> Filters { get; init; } = [];
     public TabularExportRow? Totals { get; init; }
     public int? KnownRowCount { get; init; }
     public bool ForceLandscape { get; init; }
+
+    /// <summary>منبع واحدِ سطرها؛ هر دو حالت همگام و ناهمگام از همین‌جا خوانده می‌شوند.</summary>
+    public async IAsyncEnumerable<TabularExportRow> EnumerateRowsAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (RowsAsync is not null)
+        {
+            await foreach (var row in RowsAsync.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                yield return row;
+            }
+            yield break;
+        }
+
+        foreach (var row in Rows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return row;
+        }
+    }
 }
 
-public sealed record ExportMenuModel(string Action, string? Controller = null);
+public sealed record ExportMenuModel(
+    string Action,
+    string? Controller = null,
+    IReadOnlyDictionary<string, string?>? RouteValues = null);
 

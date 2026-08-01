@@ -81,6 +81,19 @@ public interface IStockService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Server-side movement aggregation for reports. Opening and closing use the
+    /// exact stock sign policy; period movement counts exclude opening rows.
+    /// </summary>
+    Task<IReadOnlyList<StockMovementSummaryItem>> GetMovementSummaryAsync(
+        int? productId = null,
+        int? contractId = null,
+        int? terminalId = null,
+        int? storageTankId = null,
+        DateTime? fromUtc = null,
+        DateTime? toUtc = null,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Throws <see cref="Exceptions.BusinessRuleException"/> if the requested
     /// outgoing quantity exceeds the free stock for the same scope.
     /// Use this before persisting an Out-direction <see cref="InventoryMovement"/>.
@@ -185,3 +198,17 @@ public sealed record StockCardItem(
     string? StorageTankCode,
     string? ReferenceDocument,
     string? Notes);
+
+public sealed record StockMovementSummaryItem(
+    string ProductName,
+    string TerminalName,
+    string? StorageTankCode,
+    int? ContractId,
+    decimal OpeningQuantityMt,
+    decimal InQuantityMt,
+    decimal OutQuantityMt,
+    decimal AdjustmentQuantityMt,
+    decimal TransferQuantityMt,
+    decimal ClosingQuantityMt,
+    int MovementCount,
+    DateTime? LastMovementDate);

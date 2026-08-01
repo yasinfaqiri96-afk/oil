@@ -14,6 +14,7 @@ using PTGOilSystem.Web.Services.Employees;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -50,8 +51,12 @@ public class EmployeesController : Controller
         _partyStatements = partyStatements;
     }
 
-    public async Task<IActionResult> Index([FromQuery] EmployeeIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] EmployeeIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         filter ??= new EmployeeIndexFilterViewModel();
         NormalizeFilter(filter);
         await PopulateLookupsAsync(filter: filter);
@@ -99,7 +104,7 @@ public class EmployeesController : Controller
         var totalCount = await query.CountAsync();
         var pageCount = page <= 0
             ? 1
-            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
 
         var employees = await (page <= 0
@@ -107,8 +112,8 @@ public class EmployeesController : Controller
                 : query
                     .OrderByDescending(e => e.IsActive)
                     .ThenBy(e => e.EmployeeCode)
-                    .Skip((currentPage - 1) * IndexPageSize)
-                    .Take(IndexPageSize))
+                    .Skip((currentPage - 1) * pageSize)
+                    .Take(pageSize))
             .Select(e => new
             {
                 e.Id,
@@ -176,7 +181,7 @@ public class EmployeesController : Controller
     {
         var model = new EmployeeFormViewModel
         {
-            HireDate = DateTime.UtcNow.Date,
+            HireDate = AfghanistanBusinessClock.SystemToday,
             SalaryCurrency = SystemCurrency.BaseCurrencyCode,
             IsActive = true
         };
@@ -484,7 +489,7 @@ public class EmployeesController : Controller
             return NotFound();
         }
 
-        var now = DateTime.UtcNow.Date;
+        var now = AfghanistanBusinessClock.SystemToday;
         var model = new EmployeeSalaryTransactionCreateViewModel
         {
             EmployeeId = employee.Id,

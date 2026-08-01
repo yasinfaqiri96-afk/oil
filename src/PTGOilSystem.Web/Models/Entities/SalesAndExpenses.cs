@@ -55,6 +55,14 @@ public class SalesTransaction : BaseEntity
     public int? SourcePurchaseContractId { get; set; }
     public Contract? SourcePurchaseContract { get; set; }
 
+    // موترِ منبعِ این فروش (nullable، backward-compatible). فروش مستقیم از موتر هیچ InventoryMovement
+    // نمی‌سازد (بار هنگام بارگیریِ موتر قبلاً از موجودی خارج شده)، پس بدون این لینک هیچ Lineage واقعی
+    // برای رساندنِ عاید به قرارداد خرید/محموله باقی نمی‌ماند. TruckDispatch.SalesTransactionId یکتاست و
+    // فقط یک فروش را نگه می‌دارد؛ این فیلد فروشِ قسمتی و فروشِ باقی‌ماندهٔ همان موتر را ممکن می‌کند
+    // بدون ساختن مسیر مالی موازی — هر فروش همان SalesTransaction عادی با Ledger خودش است.
+    public int? TruckDispatchId { get; set; }
+    public TruckDispatch? TruckDispatch { get; set; }
+
     [Required, MaxLength(50)] public string InvoiceNumber { get; set; } = "";
     // Gap #4 — ticket serial number for dispatch / sales tracking
     [MaxLength(100)] public string? TicketSerialNumber { get; set; }

@@ -14,6 +14,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -64,7 +65,7 @@ public partial class SalesController : Controller
             return;
         }
 
-        var reversalDate = DateTime.UtcNow.Date;
+        var reversalDate = _businessClock.Today;
 
         try
         {
@@ -95,6 +96,8 @@ public partial class SalesController : Controller
         DateTime ContractDate,
         decimal AvailableMt);
 
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     [ActivatorUtilitiesConstructor]
     public SalesController(
         ApplicationDbContext db,
@@ -107,8 +110,11 @@ public partial class SalesController : Controller
         IMemoryCache? cache = null,
         IInventoryLineageWriter? lineage = null,
         IFormTokenGuard? formTokens = null,
-        Services.Accounting.ISalesAccountingAdapter? salesAccounting = null)
+        Services.Accounting.ISalesAccountingAdapter? salesAccounting = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _salesAccounting = salesAccounting;
         _db = db;
         _stock = stock;
@@ -542,9 +548,11 @@ public partial class SalesController : Controller
         return false;
     }
 
-    public async Task<IActionResult> Index([FromQuery] SalesIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] SalesIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 5;
+        var pageSize = ListPageSize.Resolve(perPage, 5);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
         filter ??= new SalesIndexFilterViewModel();
 
@@ -559,6 +567,10 @@ public partial class SalesController : Controller
             var contractId = filter.ContractId.Value;
             query = query.Where(s =>
                 s.ContractId == contractId
+                || s.SourcePurchaseContractId == contractId
+                || _db.TruckDispatches.Any(d =>
+                    d.Id == s.TruckDispatchId
+                    && d.ContractId == contractId)
                 || _db.LoadingReceiptAllocations.Any(a =>
                     a.SourcePurchaseContractId == contractId
                     && a.SalesTransactionId == s.Id)
@@ -612,6 +624,10 @@ public partial class SalesController : Controller
                 CustomerName = s.Customer != null ? s.Customer.Name : "",
                 ProductName = s.Product != null ? s.Product.Name : "",
                 DestinationName = s.DestinationLocation != null ? s.DestinationLocation.Name : null,
+                // نمبر وسیله برای فروش‌هایی که مستقیماً از موتر انجام شده‌اند.
+                VehicleNumber = s.TruckDispatch != null && s.TruckDispatch.Truck != null
+                    ? s.TruckDispatch.Truck.PlateNumber
+                    : null,
                 QuantityMt = s.QuantityMt,
                 Currency = s.Currency,
                 UnitPriceInCurrency = s.UnitPriceInCurrency,
@@ -689,9 +705,26 @@ public partial class SalesController : Controller
 
         sale.IsCancelled = true;
 
+        // فروش مستقیم از موتر حرکت موجودی ندارد و تنها ردِ آن لینکِ موتر است. اگر
+        // TruckDispatch.SalesTransactionId (که یکتاست) روی همین فروشِ لغوشده مانده باشد، موتر برای
+        // فروش دوبارهٔ باقی‌مانده قفل می‌ماند. لینک را به یک فروشِ فعالِ دیگرِ همان موتر منتقل
+        // می‌کنیم و اگر نبود آزادش می‌کنیم. مقدار باقی‌مانده جای دیگری ذخیره نشده و همیشه از
+        // فروش‌های لغونشده محاسبه می‌شود، پس هیچ عددی نیاز به برگشت دستی ندارد.
+        var linkedDispatch = await _db.TruckDispatches
+            .FirstOrDefaultAsync(d => d.SalesTransactionId == sale.Id);
+        if (linkedDispatch is not null)
+        {
+            var dispatchId = linkedDispatch.Id;
+            linkedDispatch.SalesTransactionId = await _db.SalesTransactions
+                .Where(s => s.Id != sale.Id && !s.IsCancelled && s.TruckDispatchId == dispatchId)
+                .OrderBy(s => s.Id)
+                .Select(s => (int?)s.Id)
+                .FirstOrDefaultAsync();
+        }
+
         var reversalLedger = new LedgerEntry
         {
-            EntryDate = DateTime.UtcNow.Date,
+            EntryDate = _businessClock.Today,
             Side = LedgerSide.Debit,
             AmountUsd = originalLedger.AmountUsd,
             Currency = originalLedger.Currency,
@@ -720,7 +753,7 @@ public partial class SalesController : Controller
                 StorageTankId = stockOutMovement.StorageTankId,
                 SalesTransactionId = sale.Id,
                 Direction = MovementDirection.In,
-                MovementDate = DateTime.UtcNow.Date,
+                MovementDate = _businessClock.Today,
                 QuantityMt = stockOutMovement.QuantityMt,
                 ReferenceDocument = (stockOutMovement.ReferenceDocument ?? sale.InvoiceNumber) + "-CANCEL",
                 Notes = $"Reversal for cancelled SaleId={sale.Id}"
@@ -773,7 +806,7 @@ public partial class SalesController : Controller
     {
         var model = new SalesCreateViewModel
         {
-            SaleDate = DateTime.UtcNow.Date,
+            SaleDate = _businessClock.Today,
             SaleStage = SaleStage.TerminalStock,
             Currency = SystemCurrency.BaseCurrencyCode
         };
@@ -842,7 +875,7 @@ public partial class SalesController : Controller
         }
 
         model.QuantityMt = ResolveShipmentFlowAvailableMt(context, model.SourcePurchaseContractId);
-        model.SaleDate = DateTime.UtcNow.Date;
+        model.SaleDate = _businessClock.Today;
         model.Currency = SystemCurrency.BaseCurrencyCode;
         model.InvoiceNumber = $"SHIP-{shipmentId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
         model.ReturnUrl = NormalizeLocalReturnUrl(returnUrl);
@@ -1724,10 +1757,14 @@ public partial class SalesController : Controller
                         });
                     }
 
-                    // Forward-pass: a backdated SaleDate must not leave any later
-                    // running balance negative.
+                    // چک موجودی پیش از تراکنش انجام شده، اما بدون قفل. اینجا داخل همان
+                    // تراکنش قفل هم‌زمانی گرفته و چک نقطه‌ای (در تاریخ خودِ فروش) تکرار
+                    // می‌شود تا دو فروش هم‌زمان از یک مخزن نتوانند هر دو عبور کنند و
+                    // موجودی معتبر را منفی کنند.
                     foreach (var stockOutMovement in stockOutMovements)
                     {
+                        await _stock.AcquireStockMutationLockAsync(stockOutMovement);
+                        await _stock.EnsureSufficientStockForMovementAsync(stockOutMovement);
                         await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(stockOutMovement);
                     }
 

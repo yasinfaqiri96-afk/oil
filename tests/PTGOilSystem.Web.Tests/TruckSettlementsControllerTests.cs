@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Models.TruckSettlements;
 using PTGOilSystem.Web.Services;
 using Xunit;
@@ -116,10 +117,19 @@ public class TruckSettlementsControllerTests
         Assert.Equal("TRUCK-DISPATCH-FREIGHT", expense.ExpenseType?.Code);
         Assert.Equal(1, expense.DriverId);
         Assert.Equal(130m, expense.AmountUsd);
+
+        // کسری یک رکورد قابل ردیابی می‌سازد تا در «راپور کسری و اضافه‌بار حمل» دیده شود.
+        var loss = Assert.Single(await db.LossEvents.ToListAsync());
+        Assert.Equal(LossEventStage.DispatchShortage, loss.Stage);
+        Assert.Equal(30m, loss.ExpectedQuantityMt);
+        Assert.Equal(28m, loss.ActualQuantityMt);
+        Assert.Equal(2m, loss.DifferenceQuantityMt);
+        Assert.Equal(2m, loss.ChargeableLossMt);
+        Assert.False(loss.IsCancelled);
     }
 
     // اضافه‌وزن ترازوی مقصد: 10 تن بارگیری، 10.1 تن تخلیه. تسویه باید بپذیرد،
-    // کسری صفر شود، وزن مؤثر (مبنای تخلیه/فروش) 10.1 و کرایه روی وزن بارگیری (10 تن) بماند.
+    // تفاوت منفی (اضافه‌بار) ثبت شود، وزن مؤثر (مبنای تخلیه/فروش) 10.1 و کرایه روی وزن بارگیری (10 تن) بماند.
     [Fact]
     public async Task Settle_Dispatch_Accepts_Discharge_Above_Loaded_And_Keeps_Freight_On_Loaded_Weight()
     {
@@ -152,12 +162,21 @@ public class TruckSettlementsControllerTests
         var reloaded = await db.TruckDispatches.SingleAsync(d => d.Id == dispatch.Id);
         Assert.True(reloaded.IsFreightSettled);
         Assert.Equal(10.1m, reloaded.DischargedQuantityMt);
-        Assert.Equal(0m, reloaded.ShortageMt);
+        Assert.Equal(-0.1m, reloaded.ShortageMt);        // اضافه‌بار = تفاوت منفی
         Assert.Equal(0m, reloaded.ChargeableShortageMt);
         Assert.Null(reloaded.PayableUsd);                // اضافه‌وزن جریمهٔ کسری نمی‌سازد
         Assert.Equal(50m, reloaded.FreightCostUsd);
         Assert.Equal(50m, reloaded.FreightPayableUsd);
-        Assert.Empty(await db.LossEvents.ToListAsync());
+
+        // اضافه‌بار هم رکورد قابل ردیابی می‌سازد — بدون هیچ مقدار قابل جریمه.
+        var loss = Assert.Single(await db.LossEvents.ToListAsync());
+        Assert.Equal(LossEventStage.DispatchShortage, loss.Stage);
+        Assert.Equal(10m, loss.ExpectedQuantityMt);
+        Assert.Equal(10.1m, loss.ActualQuantityMt);
+        Assert.Equal(-0.1m, loss.DifferenceQuantityMt);
+        Assert.Equal(0m, loss.ChargeableLossMt);
+        Assert.Equal(0m, loss.AllowableLossMt);
+        Assert.False(loss.IsCancelled);
 
         var expense = await db.ExpenseTransactions.SingleAsync();
         Assert.Equal(50m, expense.AmountUsd);
@@ -351,8 +370,109 @@ public class TruckSettlementsControllerTests
         Assert.Equal(28m, movement.QuantityMt);
         Assert.Equal(2, movement.StorageTankId);
         Assert.Equal(expenseCount, await db.ExpenseTransactions.CountAsync());
+        // تسویه رکورد کسری را ساخته و تخلیهٔ گروهی همان را به‌روز می‌کند — نه رکورد تکراری.
         var loss = Assert.Single(await db.LossEvents.Where(item => item.TruckDispatchId == dispatch.Id).ToListAsync());
         Assert.Equal(2, loss.StorageTankId);
+        Assert.Equal(2m, loss.DifferenceQuantityMt);
+        Assert.Equal(2m, loss.ChargeableLossMt);
+        Assert.False(loss.IsCancelled);
+    }
+
+    // تخلیهٔ گروهی با اضافه‌بار: 10 تن بارگیری، 10.1 تن تخلیه.
+    // یک رکورد اضافه‌بار (بدون جریمه) باقی می‌ماند، موجودی مقصد به اندازهٔ وزن واقعی تخلیه‌شده
+    // ثبت می‌شود و تسویهٔ کرایهٔ موتر دست‌نخورده می‌ماند.
+    [Fact]
+    public async Task GroupUnload_Dispatch_Surplus_Keeps_Single_Surplus_LossEvent_And_Books_Full_Discharge()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var dispatch = await SeedLoadedDispatchAsync(db, loadedMt: 10m);
+        await SettleDispatchAsync(db, dispatch.Id, quantityMt: 10.1m);
+        var expenseCount = await db.ExpenseTransactions.CountAsync();
+        var freightPayableUsd = (await db.TruckDispatches.SingleAsync(item => item.Id == dispatch.Id)).FreightPayableUsd;
+        var controller = BuildController(db);
+
+        var result = await controller.GroupUnload(BuildGroupUnloadModel(dispatch.Id, "GR-003"));
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+
+        var reloaded = await db.TruckDispatches.SingleAsync(item => item.Id == dispatch.Id);
+        Assert.Equal(DispatchStatus.Delivered, reloaded.Status);
+        Assert.Equal(10.1m, reloaded.DischargedQuantityMt);
+        Assert.Equal(-0.1m, reloaded.ShortageMt);
+        Assert.Equal(0m, reloaded.ChargeableShortageMt);
+        Assert.Null(reloaded.PayableUsd);
+        Assert.Equal(freightPayableUsd, reloaded.FreightPayableUsd);      // تسویهٔ کرایه دست‌نخورده
+        Assert.Equal(expenseCount, await db.ExpenseTransactions.CountAsync());
+
+        // موجودی مقصد = وزن واقعی تخلیه‌شده، نه وزن بارگیری.
+        var movement = Assert.Single(
+            await db.InventoryMovements.Where(item => item.ReferenceDocument == $"TRUCK-UNLOAD:{dispatch.Id}").ToListAsync());
+        Assert.Equal(10.1m, movement.QuantityMt);
+        Assert.Equal(2, movement.StorageTankId);
+        Assert.Equal(MovementDirection.In, movement.Direction);
+
+        var loss = Assert.Single(await db.LossEvents.Where(item => item.TruckDispatchId == dispatch.Id).ToListAsync());
+        Assert.Equal(-0.1m, loss.DifferenceQuantityMt);
+        Assert.Equal(0m, loss.ChargeableLossMt);
+        Assert.Equal(2, loss.StorageTankId);
+        Assert.False(loss.IsCancelled);
+    }
+
+    // رکورد اضافه‌بارِ ساخته‌شده باید در «راپور کسری و اضافه‌بار حمل» به‌عنوان اضافه‌بار دیده شود.
+    [Fact]
+    public async Task TransportVariance_Report_Shows_Dispatch_Surplus_After_GroupUnload()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var dispatch = await SeedLoadedDispatchAsync(db, loadedMt: 10m);
+        await SettleDispatchAsync(db, dispatch.Id, quantityMt: 10.1m);
+        await BuildController(db).GroupUnload(BuildGroupUnloadModel(dispatch.Id, "GR-004"));
+
+        var view = Assert.IsType<ViewResult>(
+            await new ReportsController(db).TransportVariance());
+        var model = Assert.IsType<TransportVarianceReportViewModel>(view.Model);
+
+        var row = Assert.Single(model.Rows);
+        Assert.Equal(TransportVarianceKind.Surplus, row.Kind);
+        Assert.Equal(TransportVarianceSource.TruckDispatch, row.Source);
+        Assert.Equal(10m, row.LoadedQuantityMt);
+        Assert.Equal(10.1m, row.UnloadedQuantityMt);
+        Assert.Equal(-0.1m, row.DifferenceQuantityMt);
+        Assert.Equal(0m, row.ChargeableShortageMt);
+        Assert.Equal(0.1m, model.Totals.TotalSurplusMt);
+        Assert.Equal(0m, model.Totals.TotalShortageMt);
+        Assert.Equal(1, model.Totals.SurplusCount);
+    }
+
+    // اگر وزن تخلیه بعداً برابر وزن بارگیری شود، رکورد قبلی لغو می‌شود (نه رکورد دوم).
+    [Fact]
+    public async Task GroupUnload_Cancels_LossEvent_When_Difference_Becomes_Zero()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var dispatch = await SeedLoadedDispatchAsync(db, loadedMt: 30m);
+        await SettleDispatchAsync(db, dispatch.Id, quantityMt: 28m);
+        Assert.Single(await db.LossEvents.Where(item => item.TruckDispatchId == dispatch.Id).ToListAsync());
+
+        // اصلاح وزن تخلیه به وزن بارگیری پیش از تخلیهٔ گروهی.
+        var tracked = await db.TruckDispatches.SingleAsync(item => item.Id == dispatch.Id);
+        tracked.DischargedQuantityMt = 30m;
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+        var result = await controller.GroupUnload(BuildGroupUnloadModel(dispatch.Id, "GR-005"));
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+
+        var loss = Assert.Single(await db.LossEvents.Where(item => item.TruckDispatchId == dispatch.Id).ToListAsync());
+        Assert.True(loss.IsCancelled);
+
+        // رکورد لغوشده در راپور دیده نمی‌شود.
+        var view = Assert.IsType<ViewResult>(await new ReportsController(db).TransportVariance());
+        Assert.Empty(Assert.IsType<TransportVarianceReportViewModel>(view.Model).Rows);
     }
 
     [Fact]
@@ -477,6 +597,50 @@ public class TruckSettlementsControllerTests
         await db.SaveChangesAsync();
         return leg;
     }
+
+    // تسویهٔ کرایهٔ یک دیسپچ با وزن تخلیهٔ داده‌شده (مبنای مشترک تست‌های تخلیهٔ گروهی).
+    private static async Task SettleDispatchAsync(ApplicationDbContext db, int dispatchId, decimal quantityMt)
+    {
+        var controller = BuildController(db);
+        var result = await controller.Settle(new TruckSettlementIndexViewModel
+        {
+            Inputs =
+            [
+                new TruckSettlementRowInputViewModel
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Dispatch,
+                    SourceId = dispatchId,
+                    OperationDate = new DateTime(2026, 5, 6),
+                    QuantityMt = quantityMt,
+                    FreightRateUsdPerMt = 5m,
+                    ShortageRateUsd = 10m,
+                    FreightParty = "driver:1"
+                }
+            ]
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+    }
+
+    private static GroupUnloadCreateViewModel BuildGroupUnloadModel(int dispatchId, string documentReference)
+        => new()
+        {
+            SourceKind = TruckSettlementSourceKind.Dispatch,
+            ReceiptDate = new DateTime(2026, 5, 7),
+            DestinationStorageTankId = 2,
+            DocumentReference = documentReference,
+            Items =
+            [
+                new GroupUnloadSelectedInput
+                {
+                    Selected = true,
+                    Kind = TruckSettlementSourceKind.Dispatch,
+                    SourceId = dispatchId
+                }
+            ]
+        };
 
     private static async Task<TruckDispatch> SeedLoadedDispatchAsync(ApplicationDbContext db, decimal loadedMt)
     {

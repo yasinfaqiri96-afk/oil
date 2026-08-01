@@ -5,6 +5,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -313,7 +314,7 @@ public sealed class InventoryTransportBatchService
                 SourceLoadingReceiptId = null,
                 ReceiptReference = VesselSourceKind,
                 SourceKind = VesselSourceKind,
-                SourceDate = DateTime.UtcNow.Date,
+                SourceDate = AfghanistanBusinessClock.SystemToday,
                 ProductId = productId,
                 TerminalId = terminalId,
                 StorageTankId = 0,

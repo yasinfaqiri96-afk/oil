@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -186,7 +187,7 @@ public sealed class CustomerPaymentAllocationService(ApplicationDbContext db)
             PaymentTransactionId = payment.Id,
             PreSaleOrderId = order.Id,
             AllocationDate = request.AllocationDate == default
-                ? DateTime.UtcNow.Date
+                ? AfghanistanBusinessClock.SystemToday
                 : request.AllocationDate.Date,
             AllocatedPaymentAmount = request.AllocatedPaymentAmount,
             PaymentCurrencyCode = payment.Currency,

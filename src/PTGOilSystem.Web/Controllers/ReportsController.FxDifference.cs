@@ -43,11 +43,17 @@ public partial class ReportsController
     public async Task<IActionResult> FxDifference(
         [FromQuery] FxDifferenceReportFilterViewModel? filter = null,
         int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null,
         CancellationToken cancellationToken = default)
     {
         filter ??= new FxDifferenceReportFilterViewModel();
         await PopulateFxDifferenceLookupsAsync(filter, cancellationToken);
-        return View(await BuildFxDifferenceReportAsync(filter, page, paginate: true, cancellationToken));
+
+        var pageSize = ListPageSize.Resolve(perPage, FxDifferencePageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = FxDifferencePageSize;
+
+        return View(await BuildFxDifferenceReportAsync(filter, page, paginate: true, cancellationToken, pageSize));
     }
 
     [HttpGet]
@@ -229,7 +235,8 @@ public partial class ReportsController
         FxDifferenceReportFilterViewModel filter,
         int page,
         bool paginate,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int pageSize = FxDifferencePageSize)
     {
         var settlements = await BuildFxDifferenceQuery(filter)
             .OrderByDescending(s => s.SettlementDate)
@@ -279,11 +286,11 @@ public partial class ReportsController
         var totals = BuildFxDifferenceTotals(rows);
 
         var pageCount = paginate
-            ? Math.Max(1, (int)Math.Ceiling(rows.Count / (double)FxDifferencePageSize))
+            ? Math.Max(1, (int)Math.Ceiling(rows.Count / (double)pageSize))
             : 1;
         var currentPage = paginate ? Math.Clamp(page, 1, pageCount) : 1;
         var pageRows = paginate
-            ? rows.Skip((currentPage - 1) * FxDifferencePageSize).Take(FxDifferencePageSize).ToList()
+            ? rows.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList()
             : rows;
 
         return new FxDifferenceReportViewModel

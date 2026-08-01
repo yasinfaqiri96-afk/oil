@@ -21,6 +21,7 @@ using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Exports;
 using PTGOilSystem.Web.Services.PartyStatements;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -52,6 +53,8 @@ public class PaymentsController : Controller
     private const string SummaryCacheKey = "payments-index-summary-v1";
     private static readonly TimeSpan SummaryCacheTtl = TimeSpan.FromSeconds(45);
 
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     [ActivatorUtilitiesConstructor]
     public PaymentsController(
         ApplicationDbContext db,
@@ -67,8 +70,11 @@ public class PaymentsController : Controller
         Services.Accounting.IViaSarrafAccountingAdapter? viaSarrafAccounting = null,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
         IPartyStatementReadService? partyStatements = null,
-        IPaymentCorrectionService? paymentCorrection = null)
+        IPaymentCorrectionService? paymentCorrection = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
         _currencyConversion = currencyConversion;
         _allocations = allocations;
@@ -114,12 +120,17 @@ public class PaymentsController : Controller
         return false;
     }
 
-    public async Task<IActionResult> Index([FromQuery] PaymentIndexFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> Index([FromQuery] PaymentIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         filter ??= new PaymentIndexFilterViewModel();
         NormalizeFilter(filter);
         await PopulateLookupsAsync(filter: filter);
-        var (rows, totalCount, currentPage, pageCount) = await BuildRowsAsync(filter, page);
+
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
+        var (rows, totalCount, currentPage, pageCount) = await BuildRowsAsync(filter, page, pageSize);
         var summary = await BuildSummaryAsync();
 
         return View(new PaymentIndexViewModel
@@ -143,7 +154,7 @@ public class PaymentsController : Controller
     [HttpGet]
     public async Task<IActionResult> Hub()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = _businessClock.Today;
 
         var todayTotals = await _db.PaymentTransactions
             .AsNoTracking()
@@ -493,7 +504,7 @@ public class PaymentsController : Controller
     {
         var model = new PaymentCreateViewModel
         {
-            PaymentDate = DateTime.UtcNow.Date,
+            PaymentDate = _businessClock.Today,
             Currency = SystemCurrency.BaseCurrencyCode,
             ContractId = contractId,
             CustomerId = customerId,
@@ -1287,7 +1298,7 @@ public class PaymentsController : Controller
             PaymentAmountUsd = payment.AmountUsd,
             AllocatableBalanceUsd = await _allocations.GetAllocatableBalanceUsdAsync(payment.Id),
             AllocatableBalanceAmount = await _allocations.GetAllocatablePaymentAmountAsync(payment.Id),
-            AllocationDate = DateTime.UtcNow.Date,
+            AllocationDate = _businessClock.Today,
             ContractCurrencyPerUsdRate = 1m,
             // پیش‌فرض = نرخ روز پرداخت؛ کاربر آن را با نرخ روز تخصیص جایگزین می‌کند.
             PaymentCurrencyPerUsdRateAtAllocation = PaymentPerUsdRate(payment),
@@ -1464,7 +1475,8 @@ public class PaymentsController : Controller
 
     private async Task<(IReadOnlyList<PaymentListItemViewModel> Items, int TotalCount, int CurrentPage, int PageCount)> BuildRowsAsync(
         PaymentIndexFilterViewModel filter,
-        int page = 1)
+        int page = 1,
+        int pageSize = IndexPageSize)
     {
         NormalizeFilter(filter);
 
@@ -1667,11 +1679,11 @@ public class PaymentsController : Controller
         var totalCount = allRows.Count;
         var pageCount = page <= 0
             ? 1
-            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
 
         var items = page > 0
-            ? allRows.Skip((currentPage - 1) * IndexPageSize).Take(IndexPageSize).ToList()
+            ? allRows.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList()
             : allRows;
 
         return (items, totalCount, currentPage, pageCount);
@@ -2003,7 +2015,7 @@ public class PaymentsController : Controller
 
     private async Task<PaymentIndexSummary> BuildSummaryCoreAsync()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = _businessClock.Today;
         var todayTotals = await _db.PaymentTransactions
             .AsNoTracking()
             .Where(p => p.PaymentDate == today)

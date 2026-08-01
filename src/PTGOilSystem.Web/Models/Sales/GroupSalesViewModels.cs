@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Sales;
 
@@ -53,7 +54,7 @@ public sealed class GroupSaleCreateViewModel
 
     [Display(Name = "تاریخ فروش")]
     [DataType(DataType.Date)]
-    public DateTime SaleDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime SaleDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "ارز")]
     [Required(ErrorMessage = "ارز الزامی است.")]

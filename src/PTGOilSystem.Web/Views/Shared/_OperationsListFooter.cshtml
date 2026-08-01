@@ -1,7 +1,9 @@
 @model (int CurrentPage, int PageCount, int TotalCount, int PageSize)
 
 @{
-    var safePageSize = Math.Max(1, Model.PageSize);
+    // اگر کنترلر اندازهٔ صفحه را در ViewData گذاشته باشد، همان معتبر است (کاربر می‌تواند تغییرش دهد).
+    var effectivePageSize = ViewData["PageSize"] as int? ?? Model.PageSize;
+    var safePageSize = Math.Max(1, effectivePageSize);
     var firstResult = Model.TotalCount == 0 ? 0 : ((Math.Max(1, Model.CurrentPage) - 1) * safePageSize) + 1;
     var lastResult = Math.Min(Model.TotalCount, firstResult + safePageSize - 1);
     var resultSummary = UiText.T(

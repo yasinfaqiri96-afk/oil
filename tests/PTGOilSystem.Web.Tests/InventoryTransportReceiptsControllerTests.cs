@@ -240,11 +240,62 @@ public class InventoryTransportReceiptsControllerTests
     }
 
     [Fact]
-    public async Task Create_Rejects_ReceivedQuantity_Greater_Than_Leg_Quantity()
+    public async Task Create_Accepts_ReceivedQuantity_Greater_Than_Leg_Quantity_As_Surplus()
     {
         await using var db = CreateDb();
         await SeedReferenceDataAsync(db);
         var leg = await SeedLoadedLegAsync(db, quantityMt: 30m);
+        var controller = BuildController(db);
+
+        // ترازوی مقصد بیشتر از مبدأ خوانده است؛ ثبت تخلیهٔ واقعی مسدود نمی‌شود.
+        var result = await controller.Create(new InventoryTransportReceiptCreateViewModel
+        {
+            InventoryTransportLegId = leg.Id,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            ReceiptDate = new DateTime(2026, 5, 5),
+            ReceivedQuantityMt = 31m,
+            ShortageQuantityMt = -1m,
+            DestinationTerminalId = 2,
+            DestinationStorageTankId = 2
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+
+        var receipt = await db.InventoryTransportReceipts.SingleAsync();
+        Assert.Equal(31m, receipt.ReceivedQuantityMt);
+        Assert.Equal(-1m, receipt.ShortageQuantityMt);
+        Assert.Equal(0m, receipt.ChargeableShortageMt);
+
+        var movement = await db.InventoryMovements
+            .SingleAsync(m => m.ReferenceDocument == $"TRANSPORT-RECEIPT:{receipt.Id}");
+        Assert.Equal(31m, movement.QuantityMt);
+    }
+
+    /// <summary>
+    /// سه سناریوی پایهٔ تخلیه، دقیقاً همان‌طور که کاربر انتظار دارد:
+    /// ۱۰→۱۰ عادی، ۱۰→۱۰٫۱ مازاد، ۱۰→۹٫۹ کسری.
+    /// موجودی مقصد همیشه به‌اندازهٔ تخلیهٔ واقعی زیاد می‌شود و مازاد هرگز جریمه نمی‌شود.
+    /// این تست منطق را تغییر نمی‌دهد؛ فقط رفتار فعلی را قفل می‌کند.
+    /// </summary>
+    // decimal در attribute مجاز نیست، پس مقادیر به‌صورت رشته می‌آیند و دقیق parse می‌شوند.
+    [Theory]
+    [InlineData("10", "10", "0")]      // عادی
+    [InlineData("10", "10.1", "-0.1")] // مازاد
+    [InlineData("10", "9.9", "0.1")]   // کسری
+    public async Task Unload_Records_The_Real_Quantity_For_Normal_Surplus_And_Shortage(
+        string loadedText,
+        string unloadedText,
+        string shortageText)
+    {
+        var loadedMt = decimal.Parse(loadedText, System.Globalization.CultureInfo.InvariantCulture);
+        var unloadedMt = decimal.Parse(unloadedText, System.Globalization.CultureInfo.InvariantCulture);
+        var expectedShortageMt = decimal.Parse(shortageText, System.Globalization.CultureInfo.InvariantCulture);
+
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedLegAsync(db, quantityMt: loadedMt);
+        var stock = new StockService(db);
         var controller = BuildController(db);
 
         var result = await controller.Create(new InventoryTransportReceiptCreateViewModel
@@ -252,15 +303,44 @@ public class InventoryTransportReceiptsControllerTests
             InventoryTransportLegId = leg.Id,
             ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
             ReceiptDate = new DateTime(2026, 5, 5),
-            ReceivedQuantityMt = 31m,
+            ReceivedQuantityMt = unloadedMt,
+            ShortageQuantityMt = expectedShortageMt,
             DestinationTerminalId = 2,
             DestinationStorageTankId = 2
         });
 
-        Assert.IsType<ViewResult>(result);
-        Assert.False(controller.ModelState.IsValid);
-        Assert.Empty(await db.InventoryTransportReceipts.ToListAsync());
-        Assert.DoesNotContain(await db.InventoryMovements.ToListAsync(), m => m.ReferenceDocument != null && m.ReferenceDocument.StartsWith("TRANSPORT-RECEIPT:"));
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(controller.ModelState.IsValid);
+
+        var receipt = await db.InventoryTransportReceipts.SingleAsync();
+        Assert.Equal(unloadedMt, receipt.ReceivedQuantityMt);
+        Assert.Equal(expectedShortageMt, receipt.ShortageQuantityMt);
+
+        // مازاد (عدد منفی) هرگز به کسریِ قابل‌شارژ تبدیل نمی‌شود.
+        Assert.Equal(Math.Max(0m, expectedShortageMt), receipt.ChargeableShortageMt);
+
+        // موجودی مقصد دقیقاً به اندازهٔ تخلیهٔ واقعی زیاد می‌شود، نه مقدار بارگیری.
+        var movement = await db.InventoryMovements
+            .SingleAsync(m => m.ReferenceDocument == $"TRANSPORT-RECEIPT:{receipt.Id}");
+        Assert.Equal(unloadedMt, movement.QuantityMt);
+        Assert.Equal(
+            unloadedMt,
+            await stock.GetFreeQuantityMtAsync(1, terminalId: 2, contractId: 1, storageTankId: 2));
+
+        // اختلاف (چه کسری چه مازاد) به‌عنوان رویداد ثبت می‌شود تا ردیابی شود؛ ولی
+        // مازاد هیچ‌وقت مبلغ قابل‌شارژ ندارد. تخلیهٔ برابر هیچ رویدادی نمی‌سازد.
+        var losses = await db.LossEvents.ToListAsync();
+        if (expectedShortageMt == 0m)
+        {
+            Assert.Empty(losses);
+        }
+        else
+        {
+            var loss = Assert.Single(losses);
+            Assert.Equal(LossEventStage.ReceiptShortage, loss.Stage);
+            Assert.Equal(expectedShortageMt, loss.DifferenceQuantityMt);
+            Assert.Equal(expectedShortageMt > 0m ? expectedShortageMt : 0m, loss.ChargeableLossMt);
+        }
     }
 
     [Fact]
@@ -758,6 +838,121 @@ public class InventoryTransportReceiptsControllerTests
             UnitPriceUsd = 500m
         });
         await db.SaveChangesAsync();
+    }
+
+    // ===== تخلیهٔ واقعی برابر/بیشتر/کمتر از بارگیری (واگن) =====
+    // بارگیری ۱۰ تن؛ تخلیه ۱۰ = بدون اختلاف، ۱۰٫۱ = مازاد، ۹٫۹ = کسری.
+    // در هر سه حالت ثبت باید بپذیرد، موجودی مقصد به اندازهٔ تخلیهٔ واقعی زیاد شود و حمل بسته شود.
+
+    [Fact]
+    public async Task Unload_Equal_To_Loaded_Quantity_Closes_Leg_Without_Variance()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedLegAsync(db, quantityMt: 10m);
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new InventoryTransportReceiptCreateViewModel
+        {
+            InventoryTransportLegId = leg.Id,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            ReceiptDate = new DateTime(2026, 5, 5),
+            ReceivedQuantityMt = 10m,
+            DestinationTerminalId = 2,
+            DestinationStorageTankId = 2
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var receipt = await db.InventoryTransportReceipts.SingleAsync();
+        Assert.Equal(10m, receipt.ReceivedQuantityMt);
+        Assert.Equal(0m, receipt.ShortageQuantityMt);
+
+        var movement = await db.InventoryMovements
+            .SingleAsync(m => m.ReferenceDocument == $"TRANSPORT-RECEIPT:{receipt.Id}");
+        Assert.Equal(MovementDirection.In, movement.Direction);
+        Assert.Equal(10m, movement.QuantityMt);
+
+        Assert.Empty(await db.LossEvents.ToListAsync());
+        Assert.Equal(
+            InventoryTransportLegStatus.Received,
+            (await db.InventoryTransportLegs.SingleAsync(l => l.Id == leg.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Unload_More_Than_Loaded_Is_Accepted_And_Recorded_As_Positive_Variance()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedLegAsync(db, quantityMt: 10m);
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new InventoryTransportReceiptCreateViewModel
+        {
+            InventoryTransportLegId = leg.Id,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            ReceiptDate = new DateTime(2026, 5, 5),
+            ReceivedQuantityMt = 10.1m,
+            ShortageQuantityMt = -0.1m,
+            DestinationTerminalId = 2,
+            DestinationStorageTankId = 2
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var receipt = await db.InventoryTransportReceipts.SingleAsync();
+        Assert.Equal(10.1m, receipt.ReceivedQuantityMt);
+
+        // موجودی مقصد دقیقاً به اندازهٔ تخلیهٔ واقعی زیاد می‌شود.
+        var movement = await db.InventoryMovements
+            .SingleAsync(m => m.ReferenceDocument == $"TRANSPORT-RECEIPT:{receipt.Id}");
+        Assert.Equal(10.1m, movement.QuantityMt);
+
+        // مازاد ۰٫۱ تن ثبت می‌شود و هرگز قابل شارژ نیست.
+        var variance = await db.LossEvents.SingleAsync();
+        Assert.Equal(LossEventStage.ReceiptShortage, variance.Stage);
+        Assert.Equal(-0.1m, variance.DifferenceQuantityMt);
+        Assert.Equal(0m, variance.ChargeableLossMt);
+        Assert.Equal(leg.Id, variance.TransportLegId);
+
+        // حمل بسته می‌شود.
+        Assert.Equal(
+            InventoryTransportLegStatus.Received,
+            (await db.InventoryTransportLegs.SingleAsync(l => l.Id == leg.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Unload_Less_Than_Loaded_Is_Recorded_As_Chargeable_Shortage()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedLegAsync(db, quantityMt: 10m);
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new InventoryTransportReceiptCreateViewModel
+        {
+            InventoryTransportLegId = leg.Id,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            ReceiptDate = new DateTime(2026, 5, 5),
+            ReceivedQuantityMt = 9.9m,
+            ShortageQuantityMt = 0.1m,
+            DestinationTerminalId = 2,
+            DestinationStorageTankId = 2
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var receipt = await db.InventoryTransportReceipts.SingleAsync();
+        Assert.Equal(9.9m, receipt.ReceivedQuantityMt);
+
+        var movement = await db.InventoryMovements
+            .SingleAsync(m => m.ReferenceDocument == $"TRANSPORT-RECEIPT:{receipt.Id}");
+        Assert.Equal(9.9m, movement.QuantityMt);
+
+        var shortage = await db.LossEvents.SingleAsync();
+        Assert.Equal(0.1m, shortage.DifferenceQuantityMt);
+        Assert.Equal(0.1m, shortage.ChargeableLossMt);
+
+        Assert.Equal(
+            InventoryTransportLegStatus.Received,
+            (await db.InventoryTransportLegs.SingleAsync(l => l.Id == leg.Id)).Status);
     }
 
     private static async Task<InventoryTransportLeg> SeedLoadedLegAsync(ApplicationDbContext db, decimal quantityMt)

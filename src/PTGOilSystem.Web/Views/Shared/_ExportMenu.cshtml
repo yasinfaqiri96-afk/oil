@@ -11,6 +11,13 @@
             routeValues[item.Key] = item.Value.ToString();
         }
     }
+    if (Model.RouteValues is not null)
+    {
+        foreach (var item in Model.RouteValues)
+        {
+            routeValues[item.Key] = item.Value;
+        }
+    }
     routeValues["format"] = "excel";
     var excelUrl = Url.Action(Model.Action, Model.Controller, routeValues);
     routeValues["format"] = "pdf";

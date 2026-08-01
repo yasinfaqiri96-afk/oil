@@ -126,9 +126,38 @@
             <div class="ak-list-row"><dt>@T("قابل پرداخت به تأمین‌کننده", "Total payable to supplier")</dt><dd class="ak-num">@Model.Summary.SupplierPayableTotalText</dd></div>
             <div class="ak-list-row"><dt>@T("پرداخت/تسویه‌شده", "Paid or settled")</dt><dd class="ak-num">@Model.Summary.SupplierPaidText</dd></div>
             <div class="ak-list-row"><dt>@T("مانده قابل پرداخت", "Remaining payable")</dt><dd class="ak-num @Model.Summary.SupplierRemainingToneClass">@Model.Summary.SupplierRemainingText</dd></div>
-            <div class="ak-list-row"><dt>@T("خلاصه سود و زیان", "P&L summary")</dt><dd class="ak-num @Model.Summary.GrossMarginToneClass">@Model.Summary.GrossMarginText</dd></div>
+            <div class="ak-list-row"><dt>@T("برآورد عملیاتی سود", "Operational margin estimate")</dt><dd class="ak-num @Model.Summary.GrossMarginToneClass">@Model.Summary.GrossMarginText</dd></div>
         </dl>
         <p class="ak-note">@Model.Summary.Note</p>
+    </section>
+
+    @* سود محقق‌شده — تنها منبع رسمی: ProfitAndLossService (فروش معتبر منهای COGS فعال). *@
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@((T("سود محقق‌شدهٔ فروش", "Realised sales profit"), (string?)T("درآمد فروش معتبر منهای بهای تمام‌شدهٔ فعال", "Valid sales revenue less active cost of goods sold")))" />
+        <dl class="ak-list">
+            <div class="ak-list-row"><dt>@T("درآمد فروش معتبر", "Valid sales revenue")</dt><dd class="ak-num">@Model.Summary.RealisedRevenueText</dd></div>
+            <div class="ak-list-row"><dt>@T("بهای تمام‌شدهٔ فروش", "Cost of goods sold")</dt><dd class="ak-num">@Model.Summary.RealisedCogsText</dd></div>
+            <div class="ak-list-row">
+                <dt>@T("سود ناخالص محقق‌شده", "Realised gross profit")</dt>
+                <dd class="ak-num @Model.Summary.RealisedToneClass">
+                    @Model.Summary.RealisedGrossProfitText
+                    <span class="badge text-bg-@Model.Summary.RealisedConfidenceTone ms-2">@Model.Summary.RealisedConfidenceLabel</span>
+                </dd>
+            </div>
+        </dl>
+        @if (!string.IsNullOrEmpty(Model.Summary.RealisedUncostedWarning))
+        {
+            <div class="alert alert-danger mb-0"><i class="bi bi-exclamation-octagon"></i> @Model.Summary.RealisedUncostedWarning</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.Summary.RealisedVarianceText))
+        {
+            <div class="alert alert-warning mb-0 mt-2">
+                <i class="bi bi-shuffle"></i>
+                @T("اختلاف با برآورد عملیاتی:", "Variance versus operational estimate:")
+                <strong class="ak-num">@Model.Summary.RealisedVarianceText</strong> — @Model.Summary.RealisedVarianceReason
+            </div>
+        }
     </section>
 
     <section class="ak-form-section">

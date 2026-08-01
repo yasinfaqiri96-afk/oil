@@ -9,7 +9,8 @@ public interface IChartOfAccountsReadService
     Task<ChartOfAccountsIndexViewModel> BuildAsync(
         string? search,
         int page,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int? pageSize = null);
 }
 
 /// <summary>
@@ -25,8 +26,10 @@ public sealed class ChartOfAccountsReadService(
     public async Task<ChartOfAccountsIndexViewModel> BuildAsync(
         string? search,
         int page,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? pageSize = null)
     {
+        var effectivePageSize = PTGOilSystem.Web.Helpers.ListPageSize.Resolve(pageSize, PageSize);
         var normalizedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         var ownerCompanyId = await systemCompany.FindOwnerCompanyIdAsync(cancellationToken);
 
@@ -39,7 +42,7 @@ public sealed class ChartOfAccountsReadService(
                 CurrentPage: 1,
                 PageCount: 1,
                 TotalCount: 0,
-                PageSize);
+                effectivePageSize);
         }
 
         var query = db.Accounts.AsNoTracking()
@@ -56,7 +59,7 @@ public sealed class ChartOfAccountsReadService(
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)effectivePageSize));
         var currentPage = Math.Clamp(page, 1, pageCount);
 
         var items = await query
@@ -65,8 +68,8 @@ public sealed class ChartOfAccountsReadService(
                 : account.Code)
             .ThenBy(account => account.ParentAccountId.HasValue)
             .ThenBy(account => account.Code)
-            .Skip((currentPage - 1) * PageSize)
-            .Take(PageSize)
+            .Skip((currentPage - 1) * effectivePageSize)
+            .Take(effectivePageSize)
             .Select(account => new ChartOfAccountsRowViewModel(
                 account.Id,
                 account.CompanyId,
@@ -87,6 +90,6 @@ public sealed class ChartOfAccountsReadService(
             currentPage,
             pageCount,
             totalCount,
-            PageSize);
+            effectivePageSize);
     }
 }

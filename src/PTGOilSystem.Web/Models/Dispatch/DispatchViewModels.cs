@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Dispatch;
 
@@ -45,7 +46,7 @@ public sealed class DispatchCreateViewModel
 
     [Display(Name = "تاریخ دیسپچ")]
     [DataType(DataType.Date)]
-    public DateTime DispatchDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime DispatchDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "وزن بارگیری‌شده (MT)")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "وزن بارگیری‌شده باید بزرگ‌تر از صفر باشد.")]
@@ -59,8 +60,10 @@ public sealed class DispatchCreateViewModel
     [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "تلورانس نمی‌تواند منفی باشد.")]
     public decimal? AllowanceMt { get; set; }
 
-    [Display(Name = "کسری (MT)")]
-    [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "کسری نمی‌تواند منفی باشد.")]
+    // تفاوت علامت‌دار: عدد مثبت = کسری، عدد منفی = اضافه‌بار (تخلیهٔ بیشتر از بارگیری).
+    // بازه عمداً منفی را می‌پذیرد تا اضافه‌بار در فرم قابل ثبت باشد و در گزارش گم نشود.
+    [Display(Name = "کسری یا اضافه‌بار (MT)")]
+    [Range(typeof(decimal), "-79228162514264337593543950335", "79228162514264337593543950335", ErrorMessage = "مقدار تفاوت خارج از بازه مجاز است.")]
     public decimal? ShortageMt { get; set; }
 
     [Display(Name = "کرایه (USD)")]
@@ -130,7 +133,7 @@ public sealed class DispatchDirectFromReceiptCreateViewModel
 
     [Display(Name = "تاریخ دیسپچ")]
     [DataType(DataType.Date)]
-    public DateTime DispatchDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime DispatchDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "وزن بارگیری‌شده (MT)")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "وزن بارگیری‌شده باید بزرگ‌تر از صفر باشد.")]
@@ -144,8 +147,10 @@ public sealed class DispatchDirectFromReceiptCreateViewModel
     [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "تلورانس نمی‌تواند منفی باشد.")]
     public decimal? AllowanceMt { get; set; }
 
-    [Display(Name = "کسری (MT)")]
-    [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "کسری نمی‌تواند منفی باشد.")]
+    // تفاوت علامت‌دار: عدد مثبت = کسری، عدد منفی = اضافه‌بار (تخلیهٔ بیشتر از بارگیری).
+    // بازه عمداً منفی را می‌پذیرد تا اضافه‌بار در فرم قابل ثبت باشد و در گزارش گم نشود.
+    [Display(Name = "کسری یا اضافه‌بار (MT)")]
+    [Range(typeof(decimal), "-79228162514264337593543950335", "79228162514264337593543950335", ErrorMessage = "مقدار تفاوت خارج از بازه مجاز است.")]
     public decimal? ShortageMt { get; set; }
 
     [Display(Name = "کرایه (USD)")]
@@ -201,7 +206,7 @@ public sealed class DispatchDirectFromReceiptSaleCreateViewModel
 
     [Display(Name = "تاریخ فروش")]
     [DataType(DataType.Date)]
-    public DateTime SaleDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime SaleDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مقدار فروش (MT)")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "Sale quantity must be greater than zero.")]
@@ -239,6 +244,21 @@ public sealed class DispatchDirectFromReceiptSaleCreateViewModel
     public string? DriverName { get; set; }
     public string? DestinationName { get; set; }
     public decimal DispatchLoadedQuantityMt { get; set; }
+
+    /// <summary>وزن واقعیِ تخلیه‌شده؛ تا وقتی تخلیه ثبت نشده null است.</summary>
+    public decimal? DispatchDischargedQuantityMt { get; set; }
+
+    /// <summary>مبنای فروش = وزن تخلیه‌شده (اگر ثبت شده)، وگرنه وزن بارگیری.</summary>
+    public decimal DispatchSellableQuantityMt { get; set; }
+
+    /// <summary>اضافه‌بارِ قابل فروش = تخلیه منهای بارگیری (فقط وقتی مثبت باشد).</summary>
+    public decimal DispatchSurplusMt { get; set; }
+
+    /// <summary>مجموع فروش‌های لغونشدهٔ قبلیِ همین موتر (مبنای محاسبهٔ باقی‌مانده).</summary>
+    public decimal DispatchAlreadySoldQuantityMt { get; set; }
+
+    /// <summary>باقی‌ماندهٔ قابل فروش = مقدار تخلیه‌شده منهای فروش‌های فعال قبلی.</summary>
+    public decimal DispatchRemainingQuantityMt { get; set; }
 }
 
 public sealed class DispatchUnloadViewModel
@@ -247,7 +267,7 @@ public sealed class DispatchUnloadViewModel
 
     [Display(Name = "تاریخ تخلیه")]
     [DataType(DataType.Date)]
-    public DateTime ReceiptDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ReceiptDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "ترمینال مقصد")]
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب ترمینال مقصد الزامی است.")]
@@ -260,8 +280,10 @@ public sealed class DispatchUnloadViewModel
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "وزن تخلیه‌شده باید بزرگ‌تر از صفر باشد.")]
     public decimal DischargedQuantityMt { get; set; }
 
-    [Display(Name = "کسری (MT)")]
-    [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "کسری نمی‌تواند منفی باشد.")]
+    // تفاوت علامت‌دار: عدد مثبت = کسری، عدد منفی = اضافه‌بار (تخلیهٔ بیشتر از بارگیری).
+    // بازه عمداً منفی را می‌پذیرد تا اضافه‌بار در فرم قابل ثبت باشد و در گزارش گم نشود.
+    [Display(Name = "کسری یا اضافه‌بار (MT)")]
+    [Range(typeof(decimal), "-79228162514264337593543950335", "79228162514264337593543950335", ErrorMessage = "مقدار تفاوت خارج از بازه مجاز است.")]
     public decimal? ShortageMt { get; set; }
 
     [Display(Name = "حواکت / تلورانس مجاز (MT)")]
@@ -414,6 +436,12 @@ public sealed class DispatchDetailsViewModel
     public string? SaleInvoiceNumber { get; init; }
     public decimal? SaleQuantityMt { get; init; }
     public decimal? SaleTotalUsd { get; init; }
+
+    /// <summary>مجموع فروش‌های لغونشدهٔ این موتر (شامل فروش‌های قسمتی).</summary>
+    public decimal SoldQuantityMt { get; init; }
+
+    /// <summary>باقی‌ماندهٔ قابل فروش = مقدار تخلیه‌شده منهای فروش‌های فعال.</summary>
+    public decimal RemainingSellableQuantityMt { get; init; }
     public decimal? AllocationQuantityMt { get; init; }
     public decimal? AllocationTotalDirectDispatchedQuantityMt { get; init; }
     public decimal? AllocationRemainingQuantityMt { get; init; }

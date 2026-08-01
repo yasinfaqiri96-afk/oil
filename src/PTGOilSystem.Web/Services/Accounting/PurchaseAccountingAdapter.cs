@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.Accounting;
 
@@ -354,7 +355,7 @@ public sealed class PurchaseAccountingAdapter(
                 new AccountingReversalRequest(
                     journal.Id,
                     journalNumberGenerator.ForPurchaseReversal(companyId.Value, loading.Id, revision),
-                    DateTime.UtcNow.Date,
+                    AfghanistanBusinessClock.SystemToday,
                     SourceModule,
                     reversedEventId,
                     $"Reversal of purchase #{loading.Id} revision {revision}"),
@@ -434,7 +435,7 @@ public sealed class PurchaseAccountingAdapter(
             new AccountingReversalRequest(
                 original.Id,
                 journalNumberGenerator.ForInventoryReceiptReversal(companyId.Value, receipt.Id),
-                DateTime.UtcNow.Date,
+                AfghanistanBusinessClock.SystemToday,
                 SourceModule,
                 reversedEventId,
                 $"Reversal of inventory receipt #{receipt.Id}"),

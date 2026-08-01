@@ -47,7 +47,7 @@ public partial class SalesController
 
     private async Task<List<GroupSaleSourceItem>> LoadSellableTerminalStockAsync()
     {
-        var asOf = DateTime.UtcNow.Date;
+        var asOf = _businessClock.Today;
 
         var balances = await _db.InventoryMovements
             .AsNoTracking()
@@ -370,7 +370,7 @@ public partial class SalesController
     {
         var model = new GroupSaleCreateViewModel
         {
-            SaleDate = DateTime.UtcNow.Date,
+            SaleDate = _businessClock.Today,
             Currency = SystemCurrency.BaseCurrencyCode,
             ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var local) ? local : null
         };
@@ -619,6 +619,9 @@ public partial class SalesController
                 ReferenceDocument = sale.InvoiceNumber,
                 Notes = BuildSaleInventoryNotes(sale.SaleStage, sale.InvoiceNumber, $"SaleId={sale.Id} | {owner.Reference}")
             };
+            // قفل هم‌زمانی + چک نقطه‌ای در تاریخ خودِ فروش، داخل تراکنش گروهی.
+            await _stock.AcquireStockMutationLockAsync(movement);
+            await _stock.EnsureSufficientStockForMovementAsync(movement);
             await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(movement);
             _db.InventoryMovements.Add(movement);
         }
@@ -671,6 +674,10 @@ public partial class SalesController
             ProductId = dispatch.ProductId,
             DestinationLocationId = dispatch.DestinationLocationId,
             ShipmentId = await ResolveShipmentIdForContractAsync(dispatch.ContractId),
+            // قرارداد خرید و موترِ منبع از خودِ دیسپچ می‌آیند (Lineage واقعی) تا عاید این فروش در
+            // سود و زیان همان قرارداد شمرده شود؛ همان فیلدهایی که فروش مستقیم از موتر پر می‌کند.
+            SourcePurchaseContractId = sourceContract.Id,
+            TruckDispatchId = dispatch.Id,
             SaleStage = SaleStage.InTransit,
             SalesBatchId = owner.SalesBatchId,
             PreSaleOrderId = owner.PreSaleOrderId,
@@ -987,7 +994,7 @@ public partial class SalesController
         {
             _db.LedgerEntries.Add(new LedgerEntry
             {
-                EntryDate = DateTime.UtcNow.Date,
+                EntryDate = _businessClock.Today,
                 Side = LedgerSide.Debit,
                 AmountUsd = originalLedger.AmountUsd,
                 Currency = originalLedger.Currency,
@@ -1021,7 +1028,7 @@ public partial class SalesController
                 StorageTankId = m.StorageTankId,
                 SalesTransactionId = sale.Id,
                 Direction = MovementDirection.In,
-                MovementDate = DateTime.UtcNow.Date,
+                MovementDate = _businessClock.Today,
                 QuantityMt = m.QuantityMt,
                 ReferenceDocument = (m.ReferenceDocument ?? sale.InvoiceNumber) + "-CANCEL",
                 Notes = $"Reversal for cancelled group SaleId={sale.Id}"

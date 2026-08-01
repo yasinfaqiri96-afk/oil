@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Expenses;
 
@@ -77,7 +78,7 @@ public sealed class ExpenseRuleGenerateExpenseViewModel
 {
     [Display(Name = "تاریخ مصرف")]
     [DataType(DataType.Date)]
-    public DateTime ExpenseDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ExpenseDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "قرارداد")]
     public int? ContractId { get; set; }

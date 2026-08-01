@@ -14,7 +14,7 @@ namespace PTGOilSystem.Web.Tests;
 public sealed class TabularExportServiceTests
 {
     [Fact]
-    public async Task Excel_Uses_Rtl_Typed_Cells_Filters_And_Formula_Injection_Protection()
+    public async Task Excel_Uses_Reference_View_Typed_Cells_And_Formula_Injection_Protection()
     {
         var service = CreateService(excelMaxRows: 10, pdfMaxRows: 10);
         var document = BuildDocument();
@@ -27,12 +27,61 @@ public sealed class TabularExportServiceTests
         var workbookPart = Assert.IsType<WorkbookPart>(workbook.WorkbookPart);
         var worksheetPart = workbookPart.WorksheetParts.Single();
         var worksheet = worksheetPart.Worksheet;
-        Assert.True(worksheet.GetFirstChild<SheetViews>()!.Elements<SheetView>().Single().RightToLeft!.Value);
-        Assert.NotNull(worksheet.GetFirstChild<AutoFilter>());
+        var sheetView = worksheet.GetFirstChild<SheetViews>()!.Elements<SheetView>().Single();
+        Assert.False(sheetView.RightToLeft!.Value);
+        Assert.True(sheetView.ShowGridLines!.Value);
+        Assert.Null(sheetView.GetFirstChild<Pane>());
+        Assert.Null(worksheet.GetFirstChild<AutoFilter>());
 
         var cells = worksheet.Descendants<Cell>().ToList();
         Assert.Contains(cells, cell => cell.DataType?.Value == CellValues.Number && cell.CellValue?.Text == "1250.5");
         Assert.Contains(cells, cell => cell.InlineString?.InnerText == "'=SUM(A1:A2)");
+    }
+
+    [Fact]
+    public async Task Excel_Uses_Compact_Organization_Header_Soft_System_Palette_And_Print_Setup()
+    {
+        var service = CreateService(excelMaxRows: 10, pdfMaxRows: 10);
+        await using var stream = new MemoryStream();
+
+        await service.WriteAsync(BuildDocument(), TabularExportFormat.Excel, isEnglish: false, stream, CancellationToken.None);
+        stream.Position = 0;
+
+        using var workbook = SpreadsheetDocument.Open(stream, false);
+        var workbookPart = workbook.WorkbookPart!;
+        var worksheet = workbookPart.WorksheetParts.Single().Worksheet;
+        var rows = worksheet.GetFirstChild<SheetData>()!.Elements<Row>().ToList();
+
+        Assert.Equal(new[] { 40D, 40D, 25D }, rows.Take(3).Select(row => row.Height!.Value));
+        Assert.Equal(ExcelDesignSystem.OrganizationName, rows[0].Elements<Cell>().First().InlineString!.InnerText);
+        Assert.Equal("گزارش آزمایشی", rows[1].Elements<Cell>().First().InlineString!.InnerText);
+        Assert.Equal("#", rows[2].Elements<Cell>().First().InlineString!.InnerText);
+        Assert.Equal("تاریخ", rows[2].Elements<Cell>().Skip(1).First().InlineString!.InnerText);
+        Assert.Equal("1", rows[3].Elements<Cell>().First().CellValue!.Text);
+        Assert.DoesNotContain(
+            rows.SelectMany(row => row.Elements<Cell>()),
+            cell => cell.InlineString?.InnerText == "+92 21 711 722 399");
+
+        var mergeReferences = worksheet.GetFirstChild<MergeCells>()!
+            .Elements<MergeCell>()
+            .Select(merge => merge.Reference!.Value)
+            .ToArray();
+        Assert.Equal(new[] { "A1:D1", "A2:C2" }, mergeReferences);
+
+        Assert.Equal(ExcelDesignSystem.Navy, FillColor(workbookPart, rows[1].Elements<Cell>().First()));
+        Assert.Equal(ExcelDesignSystem.Blue, FillColor(workbookPart, rows[2].Elements<Cell>().First()));
+        Assert.Equal(ExcelDesignSystem.PrimaryText, FontColor(workbookPart, rows[2].Elements<Cell>().First()));
+        Assert.Equal(ExcelDesignSystem.Blue, FillColor(workbookPart, rows[3].Elements<Cell>().First()));
+        Assert.Equal(ExcelDesignSystem.AmountBackground, FillColor(workbookPart, rows[3].Elements<Cell>().Last()));
+
+        var totalRow = rows.Last();
+        Assert.Equal("Total", totalRow.Elements<Cell>().First().InlineString!.InnerText);
+        Assert.Equal(ExcelDesignSystem.TotalBlue, FillColor(workbookPart, totalRow.Elements<Cell>().Last()));
+
+        var pageSetup = worksheet.GetFirstChild<PageSetup>()!;
+        Assert.Equal(1U, pageSetup.FitToWidth!.Value);
+        Assert.Equal(0U, pageSetup.FitToHeight!.Value);
+        Assert.Equal(OrientationValues.Portrait, pageSetup.Orientation!.Value);
     }
 
     [Fact]
@@ -70,7 +119,7 @@ public sealed class TabularExportServiceTests
         var worksheet = workbook.WorkbookPart!.WorksheetParts.Single().Worksheet;
 
         Assert.False(worksheet.GetFirstChild<SheetViews>()!.Elements<SheetView>().Single().RightToLeft!.Value);
-        Assert.NotNull(worksheet.GetFirstChild<AutoFilter>());
+        Assert.Null(worksheet.GetFirstChild<AutoFilter>());
     }
 
     [Fact]
@@ -170,6 +219,14 @@ public sealed class TabularExportServiceTests
             TabularExportFormat.Pdf,
             false,
             wide,
+            CancellationToken.None);
+
+        await using var wideExcel = File.Create(Path.Combine(sampleDirectory, "PTG_Export_Wide_16_Columns_fa.xlsx"));
+        await service.WriteAsync(
+            BuildWideDocument(),
+            TabularExportFormat.Excel,
+            false,
+            wideExcel,
             CancellationToken.None);
     }
 
@@ -289,13 +346,25 @@ public sealed class TabularExportServiceTests
         Assert.Equal(10.5f, PdfDesignSystem.TitleSize);
         Assert.Equal(8.25f, PdfDesignSystem.MetaSize);
         Assert.Equal(7.5f, PdfDesignSystem.TableSize);
-        Assert.Equal(7f, PdfDesignSystem.DenseTableSize);
-        Assert.Equal(6.8f, PdfDesignSystem.ExtraWideTableSize);
+        Assert.Equal(8f, PdfDesignSystem.NumericTableSize);
+        Assert.Equal(7.5f, PdfDesignSystem.DenseTableSize);
+        Assert.Equal(7.5f, PdfDesignSystem.ExtraWideTableSize);
+        Assert.Equal(
+            "1,250.50",
+            PdfDesignSystem.FormatPdfCell(TabularExportCell.Number(1_250.5m), isEnglish: false));
+        Assert.Equal(
+            "-750",
+            PdfDesignSystem.FormatPdfCell(TabularExportCell.Number(-750m), isEnglish: false));
+        Assert.Equal(
+            "1405/04/26",
+            PdfDesignSystem.FormatPdfCell(
+                TabularExportCell.Date(new DateTime(2026, 7, 17)),
+                isEnglish: false));
         Assert.Equal(128f, PdfDesignSystem.BrandLogoWidth);
         Assert.Equal(42f, PdfDesignSystem.BrandRowHeight);
         Assert.Equal(5.75f, PdfDesignSystem.BrandContactSize);
         Assert.Equal(
-            "تاریخ چاپ: ۱۴۰۵/۵/۸",
+            "تاریخ چاپ: 1405/5/8",
             PdfDesignSystem.FormatPrintDate(new DateTime(2026, 7, 30), isEnglish: false));
     }
 
@@ -395,6 +464,22 @@ public sealed class TabularExportServiceTests
         };
     }
 
+    private static string? FillColor(WorkbookPart workbookPart, Cell cell)
+    {
+        var stylesheet = workbookPart.WorkbookStylesPart!.Stylesheet;
+        var format = stylesheet.CellFormats!.Elements<CellFormat>().ElementAt((int)cell.StyleIndex!.Value);
+        var fill = stylesheet.Fills!.Elements<Fill>().ElementAt((int)format.FillId!.Value);
+        return fill.PatternFill?.ForegroundColor?.Rgb?.Value;
+    }
+
+    private static string? FontColor(WorkbookPart workbookPart, Cell cell)
+    {
+        var stylesheet = workbookPart.WorkbookStylesPart!.Stylesheet;
+        var format = stylesheet.CellFormats!.Elements<CellFormat>().ElementAt((int)cell.StyleIndex!.Value);
+        var font = stylesheet.Fonts!.Elements<Font>().ElementAt((int)format.FontId!.Value);
+        return font.Color?.Rgb?.Value;
+    }
+
     private static TabularExportService CreateService(int excelMaxRows, int pdfMaxRows)
     {
         var webRoot = FindWebRoot();
@@ -434,7 +519,13 @@ public sealed class TabularExportServiceTests
             [
                 new([TabularExportCell.Date(new DateTime(2026, 7, 17)), TabularExportCell.Text("دریافت نقدی"), TabularExportCell.Number(1250.5m)]),
                 new([TabularExportCell.Date(new DateTime(2026, 7, 18)), TabularExportCell.Text("=SUM(A1:A2)"), TabularExportCell.Number(75m)])
-            ]
+            ],
+            Totals = new TabularExportRow(
+            [
+                TabularExportCell.Text("جمع / Total"),
+                TabularExportCell.Text(null),
+                TabularExportCell.Number(1_325.5m)
+            ])
         };
 
     private static TabularExportDocument BuildLongDocument()

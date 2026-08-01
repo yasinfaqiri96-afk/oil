@@ -18,6 +18,7 @@ public partial class LossEventsController
             new("مرحله", "Stage", TabularExportValueType.Text, 15, "Stage"),
             new("جنس", "Product", TabularExportValueType.Text, 18, "ProductName"),
             new("قرارداد/محموله", "Contract/shipment", TabularExportValueType.Text, 19, "ContractNumber", "ShipmentCode"),
+            new("نمبر وسیله", "Vehicle no.", TabularExportValueType.Text, 16, "VehicleNumber"),
             new("مسئول", "Responsible", TabularExportValueType.Text, 19, "ResponsiblePartyName"),
             new("تفاوت MT", "Difference MT", TabularExportValueType.Number, 14, "DifferenceQuantityMt"),
             new("مجاز MT", "Allowance MT", TabularExportValueType.Number, 14, "AllowableLossMt"),

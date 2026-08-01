@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Accounting;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.Accounting;
 
@@ -309,7 +310,7 @@ public sealed class FiscalYearOverviewService(
         if (years.Count == 0)
             return null;
 
-        var today = DateTime.UtcNow.Date;
+        var today = AfghanistanBusinessClock.SystemToday;
         return years.FirstOrDefault(y => y.IsCurrent)
             ?? years.FirstOrDefault(y => y.StartDate <= today && y.EndDate >= today)
             ?? years[0];
@@ -372,7 +373,7 @@ public sealed class FiscalYearOverviewService(
             })
             .ToListAsync(cancellationToken);
 
-        var today = DateTime.UtcNow.Date;
+        var today = AfghanistanBusinessClock.SystemToday;
 
         return years.Select(y =>
         {
@@ -412,7 +413,7 @@ public sealed class FiscalYearOverviewService(
     /// </summary>
     private static FiscalYearSummary? PickCurrentYear(List<FiscalYearSummary> years)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = AfghanistanBusinessClock.SystemToday;
         return years.FirstOrDefault(y => y.IsCurrent)
             ?? years.FirstOrDefault(y => y.StartDate <= today && y.EndDate >= today)
             ?? years.FirstOrDefault();

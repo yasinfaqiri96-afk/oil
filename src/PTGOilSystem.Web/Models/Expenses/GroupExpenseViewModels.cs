@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Expenses;
 
@@ -40,7 +41,7 @@ public sealed class GroupExpenseCreateViewModel
 
     [Display(Name = "تاریخ مصرف")]
     [DataType(DataType.Date)]
-    public DateTime ExpenseDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ExpenseDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "ارز")]
     [Required(ErrorMessage = "ارز الزامی است.")]

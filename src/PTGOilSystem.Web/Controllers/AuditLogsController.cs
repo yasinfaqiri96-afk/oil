@@ -1,15 +1,16 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Audit;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Controllers;
 
 [Authorize(Policy = AuthPolicies.AdminOnly)]
-public class AuditLogsController : Controller
+public partial class AuditLogsController : Controller
 {
     private const int IndexPageSize = 20;
     private const int DefaultLimit = 250;
@@ -160,21 +161,21 @@ public class AuditLogsController : Controller
         _db = db;
     }
 
-    public async Task<IActionResult> Index(
-        string? q = null,
-        string? user = null,
-        string? category = null,
-        string? module = null,
-        [FromQuery] string? action = null,
-        string? severity = null,
-        string? success = null,
-        DateTime? fromUtc = null,
-        DateTime? toUtc = null,
-        int? limit = null,
-        int page = 1)
+    /// <summary>
+    /// فیلتر واحد فهرست ممیزی. صفحهٔ Index و خروجی هر دو از همین متد می‌خوانند تا
+    /// هیچ‌وقت فیلتر صفحه و فیلتر خروجی از هم جدا نشوند.
+    /// </summary>
+    private IQueryable<AuditLog> BuildFilteredQuery(
+        string? q,
+        string? user,
+        string? category,
+        string? module,
+        string? action,
+        string? severity,
+        string? success,
+        DateTime? fromUtc,
+        DateTime? toUtc)
     {
-        _ = limit;
-
         var normalizedFromUtc = NormalizeUtc(fromUtc);
         var normalizedToUtc = NormalizeUtc(toUtc);
         var normalizedSeverity = NormalizeSeverity(severity);
@@ -248,6 +249,35 @@ public class AuditLogsController : Controller
             query = query.Where(log => log.ActionAtUtc < toExclusiveUtc);
         }
 
+        return query;
+    }
+
+    public async Task<IActionResult> Index(
+        string? q = null,
+        string? user = null,
+        string? category = null,
+        string? module = null,
+        [FromQuery] string? action = null,
+        string? severity = null,
+        string? success = null,
+        DateTime? fromUtc = null,
+        DateTime? toUtc = null,
+        int? limit = null,
+        int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null)
+    {
+        _ = limit;
+
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
+        // همان مقادیر نرمال‌شده که در فیلتر به کار می‌روند، برای نمایش در فرم هم لازم‌اند.
+        var normalizedFromUtc = NormalizeUtc(fromUtc);
+        var normalizedToUtc = NormalizeUtc(toUtc);
+        var normalizedSeverity = NormalizeSeverity(severity);
+        var query = BuildFilteredQuery(q, user, category, module, action, severity, success, fromUtc, toUtc);
+
         var counts = await query
             .GroupBy(_ => 1)
             .Select(g => new
@@ -267,14 +297,14 @@ public class AuditLogsController : Controller
         var lastActivityAtUtc = await query
             .Select(log => (DateTime?)log.ActionAtUtc)
             .MaxAsync();
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
         var rawItems = await query
             .OrderByDescending(log => log.ActionAtUtc)
             .ThenByDescending(log => log.Id)
-            .Skip((page - 1) * IndexPageSize)
-            .Take(IndexPageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
         var items = rawItems.Select(ToListItemViewModel).ToList();
@@ -322,7 +352,7 @@ public class AuditLogsController : Controller
                 Success = success,
                 FromUtc = normalizedFromUtc,
                 ToUtc = normalizedToUtc,
-                Limit = IndexPageSize,
+                Limit = pageSize,
                 Page = page,
             },
             Items = items,

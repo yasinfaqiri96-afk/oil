@@ -16,6 +16,7 @@ public partial class LoadingReceiptsController
             new("تاریخ", "Date", TabularExportValueType.Date, 13, "ReceiptDate"),
             new("قرارداد", "Contract", TabularExportValueType.Text, 16, "ContractNumber"),
             new("جنس", "Product", TabularExportValueType.Text, 18, "ProductName"),
+            new("نمبر وسیله", "Vehicle no.", TabularExportValueType.Text, 16, "VehicleNumber"),
             new("ترمینال", "Terminal", TabularExportValueType.Text, 18, "TerminalName"),
             new("مخزن", "Tank", TabularExportValueType.Text, 15, "StorageTankCode"),
             new("مقدار MT", "Quantity MT", TabularExportValueType.Number, 14, "ReceivedQuantityMt"),

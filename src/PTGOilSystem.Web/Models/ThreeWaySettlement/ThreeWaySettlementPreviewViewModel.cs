@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Sarrafs;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.ThreeWaySettlement;
 
@@ -9,7 +10,7 @@ public sealed class ThreeWaySettlementPreviewViewModel
 {
     [Display(Name = "تاریخ حواله")]
     [DataType(DataType.Date)]
-    public DateTime SettlementDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime SettlementDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     public int? SourcePaymentTransactionId { get; set; }
 

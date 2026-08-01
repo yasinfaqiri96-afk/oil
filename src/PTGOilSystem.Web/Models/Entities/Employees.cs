@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Entities;
 
@@ -46,7 +47,7 @@ public class Employee : BaseEntity
     public EmployeeSalaryType SalaryType { get; set; } = EmployeeSalaryType.Monthly;
     public decimal BaseSalaryAmount { get; set; }
     [Required, MaxLength(10)] public string SalaryCurrency { get; set; } = "USD";
-    public DateTime HireDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime HireDate { get; set; } = AfghanistanBusinessClock.SystemToday;
     public DateTime? EndDate { get; set; }
     public bool IsActive { get; set; } = true;
     [MaxLength(2000)] public string? Notes { get; set; }
@@ -61,7 +62,7 @@ public class EmployeeSalaryTransaction : BaseEntity
     public int EmployeeId { get; set; }
     public Employee? Employee { get; set; }
 
-    public DateTime TransactionDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime TransactionDate { get; set; } = AfghanistanBusinessClock.SystemToday;
     public EmployeeSalaryTransactionType TransactionType { get; set; }
     public decimal Amount { get; set; }
     [Required, MaxLength(10)] public string Currency { get; set; } = "USD";

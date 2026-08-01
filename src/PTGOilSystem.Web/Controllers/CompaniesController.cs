@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -32,9 +33,11 @@ public class CompaniesController : Controller
         _partyStatements = partyStatements;
     }
 
-    public async Task<IActionResult> Index(string? q, int page = 1)
+    public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 20;
+        var pageSize = ListPageSize.Resolve(perPage, 20);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 20;
 
         var query = _db.Companies.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))

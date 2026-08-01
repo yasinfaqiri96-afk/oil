@@ -32,6 +32,13 @@ public class DashboardViewModel
     public string MarketSubtitle { get; set; } = "";
     public string MarketRangeLabel { get; set; } = "";
     public List<DashboardActivityViewModel> RecentActivities { get; set; } = new();
+    public List<DashboardShipmentProgressViewModel> ActiveShipmentProgress { get; set; } = new();
+    public List<DashboardTankCapacityViewModel> TankCapacities { get; set; } = new();
+    public decimal TotalTankStockMt { get; set; }
+    public decimal TotalTankCapacityMt { get; set; }
+    public decimal TankFillPercent => TotalTankCapacityMt <= 0m
+        ? 0m
+        : Math.Clamp(TotalTankStockMt / TotalTankCapacityMt * 100m, 0m, 100m);
     public DashboardOrderPanelViewModel OutboundOrderPanel { get; set; } = new();
     public DashboardOrderPanelViewModel InboundOrderPanel { get; set; } = new();
     public decimal PurchaseReserveUsd { get; set; }
@@ -86,6 +93,34 @@ public class DashboardActivityViewModel
     public string AmountClass { get; set; } = "is-positive";
     public string Status { get; set; } = "";
     public string StatusClass { get; set; } = "status-badge-neutral";
+}
+
+// یک ردیف «محموله در جریان»: مقدار حمل‌شده در برابر مقدار کل محموله.
+public class DashboardShipmentProgressViewModel
+{
+    public int ShipmentId { get; set; }
+    public string ShipmentCode { get; set; } = "";
+    public string SubtitleText { get; set; } = "";
+    public string IconClass { get; set; } = "bi-box-seam";
+    public string AvatarPath { get; set; } = "/images/stat-cards/ref-blue/ops-transport.webp";
+    public decimal LoadedMt { get; set; }
+    public decimal TotalMt { get; set; }
+    public decimal ProgressPercent { get; set; }
+    public string StatusText { get; set; } = "";
+    public string StatusClass { get; set; } = "is-inactive";
+    public string ProgressTone { get; set; } = "is-normal";
+}
+
+// یک ردیف «ظرفیت مخزن»: موجودی جاری در برابر ظرفیت اسمی مخزن.
+public class DashboardTankCapacityViewModel
+{
+    public int TankId { get; set; }
+    public string TankName { get; set; } = "";
+    public string ProductName { get; set; } = "";
+    public decimal StockMt { get; set; }
+    public decimal CapacityMt { get; set; }
+    public decimal FillPercent { get; set; }
+    public string ProgressTone { get; set; } = "is-normal";
 }
 
 public class DashboardOrderPanelViewModel

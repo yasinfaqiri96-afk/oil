@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Models.Shipments;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -52,7 +53,7 @@ public class ShipmentsController : Controller
     {
         var model = new ShipmentCreateViewModel
         {
-            DepartureDate = DateTime.UtcNow.Date,
+            DepartureDate = AfghanistanBusinessClock.SystemToday,
             ReturnUrl = returnUrl,
             ContractAllocations = BuildEmptyAllocationRows()
         };
@@ -442,7 +443,7 @@ public class ShipmentsController : Controller
                 SourceStorageTankId = plan.Tank.Id,
                 SourceStorageTank = plan.Tank,
                 TransportType = LoadingTransportType.Unspecified,
-                LoadedDate = DateTime.UtcNow.Date,
+                LoadedDate = AfghanistanBusinessClock.SystemToday,
                 QuantityMt = plan.QuantityMt,
                 Status = InventoryTransportLegStatus.Draft,
                 Notes = T("بارگیری از موجودی هنگام ثبت محموله", "Loaded from inventory at shipment creation")

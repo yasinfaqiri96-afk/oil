@@ -11,6 +11,10 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
 using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.CompanyFlow;
+using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Services.Reporting;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -19,15 +23,43 @@ public partial class ReportsController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly IPurchaseAggregationService _purchaseAggregation;
+    private readonly IProfitAndLossService _profitAndLoss;
+    private readonly IPartyBalanceReadService _partyBalances;
+    private readonly IStockService _stock;
+    private readonly IPreSaleReservationService _preSaleReservations;
+    private readonly INegativeStockAnalysisService _negativeStock;
+    private readonly Services.Accounting.ISystemCompanyProvider _systemCompany;
     private readonly IMemoryCache? _cache;
+
+    private readonly IAfghanistanBusinessClock _businessClock;
 
     public ReportsController(
         ApplicationDbContext db,
         IPurchaseAggregationService? purchaseAggregation = null,
-        IMemoryCache? cache = null)
+        IProfitAndLossService? profitAndLoss = null,
+        IPartyBalanceReadService? partyBalances = null,
+        IStockService? stock = null,
+        IPreSaleReservationService? preSaleReservations = null,
+        INegativeStockAnalysisService? negativeStock = null,
+        IAfghanistanBusinessClock? clock = null,
+        IMemoryCache? cache = null,
+        Services.Accounting.ISystemCompanyProvider? systemCompany = null)
     {
         _db = db;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
+        _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db);
+        _partyBalances = partyBalances ?? new PartyBalanceReadService(
+            db,
+            new PartyStatementPolicyResolver(),
+            new CompanyFlowDirectionResolver(),
+            new CompanyFlowBalanceService());
+        _stock = stock ?? new StockService(db);
+        // یک مرجع واحد ساعت کابل برای همهٔ گزارش‌ها و خروجی‌های همین کنترلر.
+        _businessClock = clock ?? new AfghanistanBusinessClock(TimeProvider.System);
+        _preSaleReservations = preSaleReservations ?? new PreSaleReservationService(db, _businessClock);
+        _negativeStock = negativeStock ?? new NegativeStockAnalysisService(db);
+        // مرجع واحدِ «شرکت مالک سیستم» — گزارش کشتی‌ها سال‌های مالی را فقط از همین شرکت می‌خواند.
+        _systemCompany = systemCompany ?? new Services.Accounting.SystemCompanyProvider(db);
         _cache = cache;
     }
 
@@ -50,31 +82,11 @@ public partial class ReportsController : Controller
         })!;
     }
 
-    public async Task<IActionResult> Index()
+    public IActionResult Index()
     {
-        var sales = await _db.SalesTransactions
-            .AsNoTracking()
-            .GroupBy(_ => 1)
-            .Select(g => new { Count = g.Count(), Total = g.Sum(x => x.TotalUsd) })
-            .FirstOrDefaultAsync();
-
-        var expenses = await _db.ExpenseTransactions
-            .AsNoTracking()
-            .GroupBy(_ => 1)
-            .Select(g => new { Count = g.Count(), Total = g.Sum(x => x.AmountUsd) })
-            .FirstOrDefaultAsync();
-
         return View(new ReportHubViewModel
         {
-            SalesCount = sales?.Count ?? 0,
-            SalesTotalUsd = sales?.Total ?? 0m,
-            ExpenseCount = expenses?.Count ?? 0,
-            ExpenseTotalUsd = expenses?.Total ?? 0m,
-            ContractCount = await _db.Contracts.AsNoTracking().CountAsync(),
-            ShipmentCount = await _db.Shipments.AsNoTracking().CountAsync(),
-            InventoryMovementCount = await _db.InventoryMovements.AsNoTracking().CountAsync(),
-            DispatchCount = await _db.TruckDispatches.AsNoTracking().CountAsync(),
-            Cards = BuildReportHubCards()
+            Groups = BuildReportHubGroups()
         });
     }
 
@@ -116,108 +128,329 @@ public partial class ReportsController : Controller
         return View(await BuildReportsWarningsAsync());
     }
 
-    private static IReadOnlyList<ReportHubCardViewModel> BuildReportHubCards()
+    /// <summary>
+    /// مرکز گزارشات: هشت دستهٔ اصلی، هر دسته فقط چند گزارش کلیدی. هیچ گزارشی دو بار
+    /// در دو دسته تکرار نمی‌شود و هیچ محاسبه‌ای اینجا انجام نمی‌گیرد — فقط مسیر.
+    /// Routeهای قدیمی (InventoryOperations، Warnings و غیره) دست‌نخورده باقی می‌مانند؛
+    /// این فهرست فقط تعیین می‌کند چه چیزی در مرکز گزارشات دیده شود.
+    /// </summary>
+    private static IReadOnlyList<ReportHubGroupViewModel> BuildReportHubGroups()
         =>
         [
             new()
             {
-                Action = nameof(CompanyOverview),
-                TitleFa = "نمای کلی مالی",
-                TitleEn = "Company Financial Overview",
-                DescriptionFa = "وضعیت کلی فروش، مصارف، سود و مانده‌های مهم شرکت.",
-                DescriptionEn = "Company sales, costs, profit and key balances.",
+                TitleFa = "امروز و مدیریت",
+                TitleEn = "Today & Management",
                 Icon = "bi-speedometer2",
-                ToneClass = "tone-mint"
+                Cards =
+                [
+                    new()
+                    {
+                        Controller = "Home", Action = "Index",
+                        TitleFa = "خلاصهٔ امروز", TitleEn = "Today at a glance",
+                        DescriptionFa = "کارهای امروز، هشدارها و ارقام کلیدی در یک صفحه.",
+                        DescriptionEn = "Today's work, warnings and key figures on one page.",
+                        Icon = "bi-house-door", ToneClass = "tone-mint"
+                    },
+                    new()
+                    {
+                        Action = nameof(CompanyOverview),
+                        TitleFa = "نمای کلی مالی", TitleEn = "Company Overview",
+                        DescriptionFa = "فروش، بهای تمام‌شده، مصارف و سود خالص شرکت.",
+                        DescriptionEn = "Company revenue, COGS, expenses and net profit.",
+                        Icon = "bi-clipboard-data", ToneClass = "tone-mint"
+                    },
+                    new()
+                    {
+                        Controller = "PeriodActivity", Action = "Index",
+                        TitleFa = "فعالیت دوره", TitleEn = "Period Activity",
+                        DescriptionFa = "حجم ثبت‌ها و فعالیت سیستم در هر دورهٔ مالی.",
+                        DescriptionEn = "Entry volume and system activity per fiscal period.",
+                        Icon = "bi-calendar-range", ToneClass = "tone-sky"
+                    }
+                ]
             },
             new()
             {
-                Action = nameof(ContractPnl),
-                TitleFa = "سود و زیان قراردادها",
-                TitleEn = "Contract P&L",
-                DescriptionFa = "درآمد، قیمت خرید، مصارف، ضایعات و سود هر قرارداد.",
-                DescriptionEn = "Revenue, purchase cost, expenses, losses and profit by contract.",
-                Icon = "bi-graph-up-arrow",
-                ToneClass = "tone-lavender"
+                TitleFa = "قراردادها و محموله‌ها",
+                TitleEn = "Contracts & Shipments",
+                Icon = "bi-file-earmark-text",
+                Cards =
+                [
+                    new()
+                    {
+                        Controller = "ContractJourney", Action = "Index",
+                        TitleFa = "مسیر قرارداد", TitleEn = "Contract Journey",
+                        DescriptionFa = "از عقد قرارداد تا بارگیری، حمل، فروش و تسویه.",
+                        DescriptionEn = "From contract to loading, transport, sale and settlement.",
+                        Icon = "bi-signpost-split", ToneClass = "tone-lavender"
+                    },
+                    new()
+                    {
+                        Action = nameof(ContractPnl),
+                        TitleFa = "سود و زیان قراردادها", TitleEn = "Contract P&L",
+                        DescriptionFa = "درآمد، بهای تمام‌شده، مصارف و سود هر قرارداد.",
+                        DescriptionEn = "Revenue, COGS, expenses and profit by contract.",
+                        Icon = "bi-graph-up-arrow", ToneClass = "tone-lavender"
+                    },
+                    new()
+                    {
+                        Controller = "ShipmentPnl", Action = "Index",
+                        TitleFa = "سود و زیان محموله‌ها", TitleEn = "Shipment P&L",
+                        DescriptionFa = "درآمد و هزینهٔ هر محموله به‌تفکیک.",
+                        DescriptionEn = "Revenue and cost per shipment.",
+                        Icon = "bi-truck", ToneClass = "tone-blue"
+                    },
+                    new()
+                    {
+                        Action = nameof(VesselVoyages),
+                        TitleFa = "گزارش کشتی‌ها", TitleEn = "Vessel Voyages",
+                        DescriptionFa = "هر سفر کشتی با محصول، مقدار، Shipperها، مقصد و کرایهٔ آن.",
+                        DescriptionEn = "Each vessel voyage with product, quantity, shippers, destination and freight.",
+                        Icon = "bi-water", ToneClass = "tone-sky"
+                    }
+                ]
             },
             new()
             {
-                Action = nameof(FxDifference),
-                TitleFa = "تفاوت نرخ ارز",
-                TitleEn = "FX Difference",
-                DescriptionFa = "سود و ضرر تفاوت نرخ خرید ارز شرکت با نرخ قبول تأمین‌کننده در حواله‌های صراف.",
-                DescriptionEn = "FX gain and loss between the company purchase rate and the supplier accepted rate on sarraf transfers.",
-                Icon = "bi-currency-exchange",
-                ToneClass = "tone-amber"
-            },
-            new()
-            {
-                Action = nameof(CashFlow),
-                TitleFa = "جریان نقدی",
-                TitleEn = "Cash Flow",
-                DescriptionFa = "پول واقعی ورودی و خروجی بر اساس رزنامچه و حساب‌های نقدی.",
-                DescriptionEn = "Actual cash inflow and outflow from payments and cash accounts.",
-                Icon = "bi-cash-stack",
-                ToneClass = "tone-sky"
-            },
-            new()
-            {
-                Action = nameof(ReceivablesPayables),
-                TitleFa = "بدهی‌ها و طلب‌ها",
-                TitleEn = "Receivables & Payables",
-                DescriptionFa = "مانده مشتریان، تأمین‌کنندگان، شرکت‌های خدماتی و صراف‌ها.",
-                DescriptionEn = "Customer, supplier, service provider and sarraf balances.",
-                Icon = "bi-people",
-                ToneClass = "tone-amber"
-            },
-            new()
-            {
-                Controller = "Inventory",
-                Action = "Index",
-                TitleFa = "موجودی",
-                TitleEn = "Inventory",
-                DescriptionFa = "موجودی انبارها، مخازن و حرکت‌های موجودی.",
-                DescriptionEn = "Warehouse and tank inventory and stock movements.",
-                Icon = "bi-box-seam-fill",
-                ToneClass = "tone-teal"
-            },
-            new()
-            {
-                Action = nameof(InventoryOperations),
-                TitleFa = "موجودی و عملیات",
-                TitleEn = "Inventory & Operations",
-                DescriptionFa = "خلاصه موجودی، حرکت‌ها و هشدارهای عملیاتی مهم.",
-                DescriptionEn = "Inventory, movements and important operational warnings.",
+                TitleFa = "موجودی و مسیر بار",
+                TitleEn = "Inventory & In-transit",
                 Icon = "bi-box-seam",
-                ToneClass = "tone-blue"
+                Cards =
+                [
+                    new()
+                    {
+                        Action = nameof(InventoryOperations),
+                        TitleFa = "موجودی و عملیات", TitleEn = "Inventory & Operations",
+                        DescriptionFa = "مقدار موجودی، گردش‌ها و مواردی که بررسی لازم دارند.",
+                        DescriptionEn = "Stock quantities, movements and items needing review.",
+                        Icon = "bi-box-seam", ToneClass = "tone-teal"
+                    },
+                    new()
+                    {
+                        Controller = "Inventory", Action = "StockCard",
+                        TitleFa = "کارت موجودی", TitleEn = "Stock Card",
+                        DescriptionFa = "ورود و خروج هر جنس با مانده در هر تاریخ.",
+                        DescriptionEn = "In/out per product with running balance.",
+                        Icon = "bi-card-list", ToneClass = "tone-teal"
+                    },
+                    new()
+                    {
+                        Controller = "InventoryTransportLegs", Action = "Index",
+                        TitleFa = "بار در مسیر", TitleEn = "Goods in Transit",
+                        DescriptionFa = "باری که از مخزن خارج شده اما هنوز تحویل نشده است.",
+                        DescriptionEn = "Stock that left the tank but has not been received yet.",
+                        Icon = "bi-arrow-left-right", ToneClass = "tone-blue"
+                    },
+                    new()
+                    {
+                        Action = nameof(NegativeStock),
+                        TitleFa = "موجودی منفی", TitleEn = "Negative Stock",
+                        DescriptionFa = "جاهایی که مانده زیر صفر رفته، با علت و سند ایجادکننده.",
+                        DescriptionEn = "Scopes that went below zero, with cause and source document.",
+                        Icon = "bi-exclamation-octagon", ToneClass = "tone-rose"
+                    }
+                ]
             },
             new()
             {
-                Action = nameof(Warnings),
-                TitleFa = "مغایرت‌ها",
-                TitleEn = "Reconciliation & Warnings",
-                DescriptionFa = "مواردی که برای اصلاح ledger، موجودی یا اسناد نیاز به اقدام دارند.",
-                DescriptionEn = "Actionable ledger, inventory and document issues.",
-                Icon = "bi-exclamation-triangle",
-                ToneClass = "tone-rose"
+                TitleFa = "فروش و تعهدات",
+                TitleEn = "Sales & Commitments",
+                Icon = "bi-cart-check",
+                Cards =
+                [
+                    new()
+                    {
+                        Controller = "Sales", Action = "Index",
+                        TitleFa = "فروش‌ها", TitleEn = "Sales",
+                        DescriptionFa = "فهرست فروش‌ها با مقدار، قیمت و مشتری.",
+                        DescriptionEn = "Sales list with quantity, price and customer.",
+                        Icon = "bi-cart-check", ToneClass = "tone-amber"
+                    },
+                    new()
+                    {
+                        Controller = "Sales", Action = "PreSales",
+                        TitleFa = "پیش‌فروش‌ها", TitleEn = "Pre-sales",
+                        DescriptionFa = "تعهدهای فروش آینده و مقدار باقی‌ماندهٔ تحویل.",
+                        DescriptionEn = "Future sale commitments and remaining delivery.",
+                        Icon = "bi-bookmark-check", ToneClass = "tone-amber"
+                    },
+                    new()
+                    {
+                        Action = nameof(SellableStock),
+                        TitleFa = "موجودی قابل فروش", TitleEn = "Sellable Stock",
+                        DescriptionFa = "موجودی فیزیکی منهای رزرو پیش‌فروش.",
+                        DescriptionEn = "Physical stock minus active pre-sale reservation.",
+                        Icon = "bi-box-arrow-up-right", ToneClass = "tone-teal"
+                    },
+                    new()
+                    {
+                        Action = nameof(PreSaleDiscrepancies),
+                        TitleFa = "ناهماهنگی‌های پیش‌فروش", TitleEn = "Pre-sale Discrepancies",
+                        DescriptionFa = "تحویل بیشتر از تعهد، تعهد سررسیدشده و پیش‌پرداخت مصرف‌نشده.",
+                        DescriptionEn = "Over-delivery, overdue commitments and unconsumed advances.",
+                        Icon = "bi-exclamation-triangle", ToneClass = "tone-rose"
+                    }
+                ]
+            },
+            new()
+            {
+                TitleFa = "پول و طرف‌حساب‌ها",
+                TitleEn = "Money & Parties",
+                Icon = "bi-wallet2",
+                Cards =
+                [
+                    new()
+                    {
+                        Action = nameof(ReceivablesPayables),
+                        TitleFa = "طلب و بدهی", TitleEn = "Receivables & Payables",
+                        DescriptionFa = "مانده مشتریان، تأمین‌کنندگان، خدماتی‌ها و صراف‌ها.",
+                        DescriptionEn = "Customer, supplier, service provider and sarraf balances.",
+                        Icon = "bi-people", ToneClass = "tone-amber"
+                    },
+                    new()
+                    {
+                        Action = nameof(CashFlow),
+                        TitleFa = "جریان پول", TitleEn = "Cash Flow",
+                        DescriptionFa = "پول واقعی وارد و خارج‌شده از حساب‌های نقدی.",
+                        DescriptionEn = "Actual cash in and out of the cash accounts.",
+                        Icon = "bi-cash-stack", ToneClass = "tone-sky"
+                    },
+                    new()
+                    {
+                        Controller = "AccountStatements", Action = "Index",
+                        TitleFa = "صورت‌حساب طرف‌حساب", TitleEn = "Party Statement",
+                        DescriptionFa = "اول دوره، رسید، برد و مانده هر طرف‌حساب.",
+                        DescriptionEn = "Opening, received, given and closing per party.",
+                        Icon = "bi-journal-text", ToneClass = "tone-lavender"
+                    },
+                    new()
+                    {
+                        Controller = "Balance", Action = "Contracts",
+                        TitleFa = "مانده قراردادها", TitleEn = "Contract Balances",
+                        DescriptionFa = "مانده هر قرارداد با مشتری و تأمین‌کنندهٔ آن.",
+                        DescriptionEn = "Balance per contract with its customer and supplier.",
+                        Icon = "bi-scales", ToneClass = "tone-blue"
+                    }
+                ]
+            },
+            new()
+            {
+                TitleFa = "مصارف، کسری و سود",
+                TitleEn = "Expenses, Losses & Margin",
+                Icon = "bi-receipt",
+                Cards =
+                [
+                    new()
+                    {
+                        Controller = "Expenses", Action = "Index",
+                        TitleFa = "مصارف", TitleEn = "Expenses",
+                        DescriptionFa = "مصارف ثبت‌شده به‌تفکیک نوع، قرارداد و تاریخ.",
+                        DescriptionEn = "Recorded expenses by type, contract and date.",
+                        Icon = "bi-receipt", ToneClass = "tone-amber"
+                    },
+                    new()
+                    {
+                        Action = nameof(TransportVariance),
+                        TitleFa = "راپور کسری و اضافه‌بار حمل", TitleEn = "Transport Shortage & Surplus",
+                        DescriptionFa = "تفاوت وزن بارگیری و تخلیهٔ هر حمل، با مجموع جداگانهٔ کسری و اضافه‌بار.",
+                        DescriptionEn = "Loaded vs unloaded weight per transport, with separate shortage and surplus totals.",
+                        Icon = "bi-truck", ToneClass = "tone-rose"
+                    },
+                    new()
+                    {
+                        Controller = "LossEvents", Action = "Index",
+                        TitleFa = "کسری و ضایعات", TitleEn = "Shortage & Loss",
+                        DescriptionFa = "کسری بار، ضایعات و مبلغ قابل مطالبهٔ هر مورد.",
+                        DescriptionEn = "Shortage, loss and the chargeable amount of each case.",
+                        Icon = "bi-droplet-half", ToneClass = "tone-amber"
+                    },
+                    new()
+                    {
+                        Action = nameof(FxDifference),
+                        TitleFa = "تفاوت نرخ ارز", TitleEn = "FX Difference",
+                        DescriptionFa = "سود و ضرر تفاوت نرخ ارز در حواله‌های صراف.",
+                        DescriptionEn = "FX gain and loss on sarraf transfers.",
+                        Icon = "bi-currency-exchange", ToneClass = "tone-sky"
+                    }
+                ]
+            },
+            new()
+            {
+                TitleFa = "گمرک، اسناد و کیفیت",
+                TitleEn = "Customs, Documents & Quality",
+                Icon = "bi-shield-check",
+                Cards =
+                [
+                    new()
+                    {
+                        Controller = "CustomsDeclarations", Action = "Index",
+                        TitleFa = "اظهارنامه‌های گمرکی", TitleEn = "Customs Declarations",
+                        DescriptionFa = "اظهارنامه‌ها، محصولات و مصارف گمرکی هر محموله.",
+                        DescriptionEn = "Declarations, products and customs costs per shipment.",
+                        Icon = "bi-file-earmark-check", ToneClass = "tone-teal"
+                    },
+                    new()
+                    {
+                        Controller = "CustomsPermitTurnover", Action = "Index",
+                        TitleFa = "گردش جواز گمرکی", TitleEn = "Permit Turnover",
+                        DescriptionFa = "مقدار مصرف‌شده و باقی‌ماندهٔ هر جواز گمرکی.",
+                        DescriptionEn = "Consumed and remaining quantity per customs permit.",
+                        Icon = "bi-card-checklist", ToneClass = "tone-blue"
+                    },
+                    new()
+                    {
+                        Controller = "QualityInspections", Action = "Index",
+                        TitleFa = "کیفیت و لابراتوار", TitleEn = "Quality & Laboratory",
+                        DescriptionFa = "نتیجهٔ آزمایش هر بار: در انتظار، قبول یا رد.",
+                        DescriptionEn = "Inspection result per load: pending, accepted or rejected.",
+                        Icon = "bi-clipboard-check", ToneClass = "tone-mint"
+                    }
+                ]
+            },
+            new()
+            {
+                TitleFa = "حساب‌داری و تاریخچه",
+                TitleEn = "Accounting & History",
+                Icon = "bi-journal-text",
+                Cards =
+                [
+                    new()
+                    {
+                        Controller = "Ledger", Action = "Index",
+                        TitleFa = "دفتر کل", TitleEn = "Ledger",
+                        DescriptionFa = "تمام اسناد مالی ثبت‌شده با منبع و مبلغ.",
+                        DescriptionEn = "All posted financial entries with source and amount.",
+                        Icon = "bi-journals", ToneClass = "tone-lavender"
+                    },
+                    new()
+                    {
+                        // Summary فقط endpoint‌ـی JSON برای شمارنده‌های AJAX است و صفحه ندارد؛
+                        // ورودی کاربر باید Index باشد.
+                        Controller = "Reconciliation", Action = "Index",
+                        TitleFa = "بررسی ناهماهنگی‌ها", TitleEn = "Reconciliation",
+                        DescriptionFa = "مواردی که بین عملیات، موجودی و حساب‌ها جور نیستند.",
+                        DescriptionEn = "Items where operations, stock and accounts disagree.",
+                        Icon = "bi-clipboard-check", ToneClass = "tone-rose"
+                    },
+                    new()
+                    {
+                        Controller = "AuditLogs", Action = "Index",
+                        TitleFa = "تاریخچهٔ تغییرات", TitleEn = "Change History",
+                        DescriptionFa = "چه کسی، چه وقت و چه چیزی را تغییر داده یا لغو کرده است.",
+                        DescriptionEn = "Who changed or cancelled what, and when.",
+                        Icon = "bi-clock-history", ToneClass = "tone-sky"
+                    }
+                ]
             }
         ];
 
     private async Task<CompanyFinancialOverviewViewModel> BuildCompanyFinancialOverviewAsync(ManagementReportFilterViewModel filter)
     {
-        var salesQuery = _db.SalesTransactions.AsNoTracking().Where(s => !s.IsCancelled);
-        if (filter.FromDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate >= filter.FromDate.Value.Date);
-        if (filter.ToDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate <= filter.ToDate.Value.Date);
-        if (filter.ProductId.HasValue) salesQuery = salesQuery.Where(s => s.ProductId == filter.ProductId.Value);
-        if (filter.ContractId.HasValue) salesQuery = salesQuery.Where(s => s.ContractId == filter.ContractId.Value);
-        if (filter.CustomerId.HasValue) salesQuery = salesQuery.Where(s => s.CustomerId == filter.CustomerId.Value);
-
-        var revenueUsd = await salesQuery.SumAsync(s => (decimal?)s.TotalUsd) ?? 0m;
-
-        var expenseQuery = _db.ExpenseTransactions.AsNoTracking().Where(e => !e.IsCancelled);
-        if (filter.FromDate.HasValue) expenseQuery = expenseQuery.Where(e => e.ExpenseDate >= filter.FromDate.Value.Date);
-        if (filter.ToDate.HasValue) expenseQuery = expenseQuery.Where(e => e.ExpenseDate <= filter.ToDate.Value.Date);
-        if (filter.ContractId.HasValue) expenseQuery = expenseQuery.Where(e => e.ContractId == filter.ContractId.Value);
-        var expenseUsd = await expenseQuery.SumAsync(e => (decimal?)e.AmountUsd) ?? 0m;
+        var companyPnl = await _profitAndLoss.BuildCompanyAsync(filter);
+        var revenueUsd = companyPnl.Sales.RevenueUsd;
+        var cogsUsd = companyPnl.Sales.CostOfGoodsSoldUsd;
+        var expenseUsd = companyPnl.OperatingExpenseUsd;
 
         var paymentQuery = ApplyPaymentFilters(_db.PaymentTransactions.AsNoTracking(), filter);
         var cashInUsd = await paymentQuery
@@ -240,23 +473,25 @@ public partial class ReportsController : Controller
         {
             Filter = filter,
             RevenueUsd = revenueUsd,
-            PurchaseCostUsd = pnl.PurchaseRows.Sum(r => r.PurchaseValueUsd),
+            PurchaseCostUsd = cogsUsd,
             ExpenseUsd = expenseUsd,
-            LossCostUsd = pnl.PurchaseRows.Sum(r => r.LossCostUsd),
-            ExchangeGainUsd = pnl.TotalExchangeGainUsd,
-            ExchangeLossUsd = pnl.TotalExchangeLossUsd,
+            LossCostUsd = 0m,
+            ExchangeGainUsd = companyPnl.ExchangeGainUsd,
+            ExchangeLossUsd = companyPnl.ExchangeLossUsd,
             NetCashMovementUsd = cashInUsd - cashOutUsd,
             CustomerReceivableUsd = balances.CustomerReceivableUsd,
             SupplierPayableUsd = balances.SupplierPayableUsd,
             SarrafNetUsd = balances.SarrafBalanceUsd,
             WarningCount = warnings.TotalIssueCount,
+            UncostedSaleCount = companyPnl.Sales.UncostedSaleCount,
+            PnlConfidence = companyPnl.Sales.Confidence,
             TopContracts = topContracts,
             Metrics =
             [
                 new() { Label = "فروش کل", Value = Money(revenueUsd), Detail = "Sales revenue", Icon = "bi-cart-check", ToneClass = "finance-positive" },
-                new() { Label = "قیمت خرید", Value = Money(pnl.PurchaseRows.Sum(r => r.PurchaseValueUsd)), Detail = "Purchase cost", Icon = "bi-box-arrow-in-down", ToneClass = "" },
+                new() { Label = "بهای تمام‌شده فروش", Value = Money(cogsUsd), Detail = "Realised COGS", Icon = "bi-box-arrow-in-down", ToneClass = "" },
                 new() { Label = "مصارف", Value = Money(expenseUsd), Detail = "Official expenses", Icon = "bi-receipt", ToneClass = "finance-negative" },
-                new() { Label = "سود خالص", Value = Money(revenueUsd - pnl.PurchaseRows.Sum(r => r.PurchaseValueUsd) - expenseUsd - pnl.PurchaseRows.Sum(r => r.LossCostUsd) + pnl.TotalExchangeGainUsd - pnl.TotalExchangeLossUsd), Detail = "Net profit", Icon = "bi-graph-up-arrow", ToneClass = revenueUsd - pnl.PurchaseRows.Sum(r => r.PurchaseValueUsd) - expenseUsd - pnl.PurchaseRows.Sum(r => r.LossCostUsd) + pnl.TotalExchangeGainUsd - pnl.TotalExchangeLossUsd >= 0m ? "finance-positive" : "finance-negative" },
+                new() { Label = "سود خالص", Value = Money(companyPnl.NetProfitUsd), Detail = companyPnl.Sales.UncostedSaleCount == 0 ? "Net profit" : $"{companyPnl.Sales.UncostedSaleCount:N0} sale(s) need COGS review", Icon = "bi-graph-up-arrow", ToneClass = companyPnl.NetProfitUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = "حرکت نقدی", Value = Money(cashInUsd - cashOutUsd), Detail = "Payment inflow - outflow", Icon = "bi-cash-stack", ToneClass = cashInUsd - cashOutUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = "مغایرت‌ها", Value = warnings.TotalIssueCount.ToString("N0"), Detail = "Open warnings", Icon = "bi-exclamation-triangle", ToneClass = warnings.TotalIssueCount == 0 ? "finance-positive" : "finance-negative" }
             ]
@@ -321,189 +556,22 @@ public partial class ReportsController : Controller
 
     private async Task<ReceivablesPayablesReportViewModel> BuildReceivablesPayablesReportAsync(ManagementReportFilterViewModel filter)
     {
-        var ledgerQuery = _db.LedgerEntries.AsNoTracking().AsQueryable();
-        // گزارش مانده باید ماندهٔ تجمعی تا تاریخ پایان را نشان دهد؛ FromDate فقط مرز دورهٔ
-        // گردش است و نباید Opening Balance را از مانده حذف کند.
-        if (filter.ToDate.HasValue) ledgerQuery = ledgerQuery.Where(l => l.EntryDate <= filter.ToDate.Value.Date);
-        if (filter.ContractId.HasValue) ledgerQuery = ledgerQuery.Where(l => l.ContractId == filter.ContractId.Value);
-
-        var rows = new List<ReceivablePayableRowViewModel>();
-
-        if (!filter.SupplierId.HasValue)
+        var balanceRows = await _partyBalances.GetBalancesAsync(filter);
+        var rows = balanceRows.Select(balance => new ReceivablePayableRowViewModel
         {
-            var customerRows = await ledgerQuery
-                .Where(l => l.CustomerId.HasValue && (!filter.CustomerId.HasValue || l.CustomerId == filter.CustomerId.Value))
-                .GroupBy(l => new { l.CustomerId, PartyName = l.Customer != null ? l.Customer.Name : "" })
-                .Select(g => new
-                {
-                    g.Key.CustomerId,
-                    g.Key.PartyName,
-                    DebitUsd = g.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd),
-                    CreditUsd = g.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd),
-                    LastEntryDate = g.Max(l => (DateTime?)l.EntryDate)
-                })
-                .ToListAsync();
-
-            rows.AddRange(customerRows.Select(r => new ReceivablePayableRowViewModel
-            {
-                PartyType = "Customer",
-                PartyId = r.CustomerId,
-                PartyName = string.IsNullOrWhiteSpace(r.PartyName) ? "-" : r.PartyName,
-                // Policy مشتری: Credit قدیمی Ledger = فروش/Statement Debit و
-                // Debit قدیمی Ledger = دریافت/Statement Credit.
-                DebitUsd = r.CreditUsd,
-                CreditUsd = r.DebitUsd,
-                LastEntryDate = r.LastEntryDate,
-                BalanceKind = r.DebitUsd - r.CreditUsd >= 0m ? "اعتبار / پیش‌پرداخت مشتری" : "طلب از مشتری",
-                DetailsController = "Customers"
-            }));
-        }
-
-        if (!filter.CustomerId.HasValue)
-        {
-            var supplierRows = await ledgerQuery
-                .Where(l => l.SupplierId.HasValue && (!filter.SupplierId.HasValue || l.SupplierId == filter.SupplierId.Value))
-                .GroupBy(l => new { l.SupplierId, PartyName = l.Supplier != null ? l.Supplier.Name : "" })
-                .Select(g => new
-                {
-                    g.Key.SupplierId,
-                    g.Key.PartyName,
-                    DebitUsd = g.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd),
-                    CreditUsd = g.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd),
-                    LastEntryDate = g.Max(l => (DateTime?)l.EntryDate)
-                })
-                .ToListAsync();
-
-            rows.AddRange(supplierRows.Select(r => new ReceivablePayableRowViewModel
-            {
-                PartyType = "Supplier",
-                PartyId = r.SupplierId,
-                PartyName = string.IsNullOrWhiteSpace(r.PartyName) ? "-" : r.PartyName,
-                // Policy تأمین‌کننده: Credit قدیمی Ledger = بار/Statement Debit و
-                // Debit قدیمی Ledger = پرداخت/Statement Credit.
-                DebitUsd = r.CreditUsd,
-                CreditUsd = r.DebitUsd,
-                LastEntryDate = r.LastEntryDate,
-                BalanceKind = r.DebitUsd - r.CreditUsd >= 0m ? "پیش‌پرداخت تأمین‌کننده" : "بدهی به تأمین‌کننده",
-                DetailsController = "Suppliers"
-            }));
-
-            var serviceRows = await ledgerQuery
-                .Where(l => l.ServiceProviderId.HasValue)
-                .GroupBy(l => new { l.ServiceProviderId, PartyName = l.ServiceProvider != null ? l.ServiceProvider.Name : "" })
-                .Select(g => new
-                {
-                    g.Key.ServiceProviderId,
-                    g.Key.PartyName,
-                    DebitUsd = g.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd),
-                    CreditUsd = g.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd),
-                    LastEntryDate = g.Max(l => (DateTime?)l.EntryDate)
-                })
-                .ToListAsync();
-
-            rows.AddRange(serviceRows.Select(r => new ReceivablePayableRowViewModel
-            {
-                PartyType = "ServiceProvider",
-                PartyId = r.ServiceProviderId,
-                PartyName = string.IsNullOrWhiteSpace(r.PartyName) ? "-" : r.PartyName,
-                // Policy شرکت خدماتی: Credit قدیمی Ledger = خدمت/Statement Debit و
-                // Debit قدیمی Ledger = پرداخت/Statement Credit.
-                DebitUsd = r.CreditUsd,
-                CreditUsd = r.DebitUsd,
-                LastEntryDate = r.LastEntryDate,
-                BalanceKind = r.DebitUsd - r.CreditUsd >= 0m ? "پیش‌پرداخت خدماتی" : "بدهی خدماتی",
-                DetailsController = "ServiceProviders"
-            }));
-        }
-
-        if (!filter.CustomerId.HasValue && !filter.SupplierId.HasValue)
-        {
-            var sarrafPaymentQuery = _db.PaymentTransactions.AsNoTracking().Where(p => p.SarrafId.HasValue);
-            var sarrafSettlementQuery = _db.SarrafSettlements.AsNoTracking()
-                .Where(s => s.Status == SarrafSettlementStatus.Posted);
-            var sarrafViaQuery = _db.LedgerEntries.AsNoTracking()
-                .Where(l => l.SourceType == PaymentsController.ViaSarrafPayableLedgerSourceType);
-            if (filter.ToDate.HasValue)
-            {
-                var end = filter.ToDate.Value.Date.AddDays(1);
-                sarrafPaymentQuery = sarrafPaymentQuery.Where(p => p.PaymentDate < end);
-                sarrafSettlementQuery = sarrafSettlementQuery.Where(s => s.SettlementDate < end);
-                sarrafViaQuery = sarrafViaQuery.Where(l => l.EntryDate < end);
-            }
-            if (filter.ContractId.HasValue)
-            {
-                sarrafPaymentQuery = sarrafPaymentQuery.Where(p => p.ContractId == filter.ContractId.Value);
-                sarrafSettlementQuery = sarrafSettlementQuery.Where(s => s.ContractId == filter.ContractId.Value);
-                sarrafViaQuery = sarrafViaQuery.Where(l => l.ContractId == filter.ContractId.Value);
-            }
-
-            var sarrafPayments = await sarrafPaymentQuery
-                .Where(p => p.SarrafId.HasValue)
-                .GroupBy(p => p.SarrafId!.Value)
-                .Select(g => new
-                {
-                    SarrafId = g.Key,
-                    DebitUsd = g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => p.AmountUsd),
-                    CreditUsd = g.Where(p => p.Direction == PaymentDirection.In).Sum(p => p.AmountUsd),
-                    LastEntryDate = g.Max(p => (DateTime?)p.PaymentDate)
-                })
-                .ToListAsync();
-
-            var sarrafSettlements = await sarrafSettlementQuery
-                .GroupBy(s => s.SarrafId)
-                .Select(g => new
-                {
-                    SarrafId = g.Key,
-                    DebitUsd = g.Where(s => s.Direction == SarrafSettlementDirection.In).Sum(s => s.SarrafChargedAmountUsd),
-                    CreditUsd = g.Where(s => s.Direction == SarrafSettlementDirection.Out).Sum(s => s.SarrafChargedAmountUsd),
-                    LastEntryDate = g.Max(s => (DateTime?)s.SettlementDate)
-                })
-                .ToListAsync();
-
-            var sarrafVia = await sarrafViaQuery
-                .GroupBy(l => l.SourceId)
-                .Select(g => new
-                {
-                    SarrafId = g.Key,
-                    CreditUsd = g.Sum(l => l.AmountUsd),
-                    LastEntryDate = g.Max(l => (DateTime?)l.EntryDate)
-                })
-                .ToListAsync();
-
-            var sarrafIds = sarrafPayments.Select(x => x.SarrafId)
-                .Concat(sarrafSettlements.Select(x => x.SarrafId))
-                .Concat(sarrafVia.Select(x => x.SarrafId))
-                .Distinct()
-                .ToList();
-            var sarrafNames = await _db.Sarrafs.AsNoTracking()
-                .Where(s => sarrafIds.Contains(s.Id))
-                .ToDictionaryAsync(s => s.Id, s => s.Name);
-
-            rows.AddRange(sarrafIds.Select(sarrafId =>
-            {
-                var payment = sarrafPayments.FirstOrDefault(x => x.SarrafId == sarrafId);
-                var settlement = sarrafSettlements.FirstOrDefault(x => x.SarrafId == sarrafId);
-                var via = sarrafVia.FirstOrDefault(x => x.SarrafId == sarrafId);
-                var debit = (payment?.DebitUsd ?? 0m) + (settlement?.DebitUsd ?? 0m);
-                var credit = (payment?.CreditUsd ?? 0m) + (settlement?.CreditUsd ?? 0m) + (via?.CreditUsd ?? 0m);
-                return new ReceivablePayableRowViewModel
-                {
-                    PartyType = "Sarraf",
-                    PartyId = sarrafId,
-                    PartyName = sarrafNames.GetValueOrDefault(sarrafId, "-"),
-                    DebitUsd = debit,
-                    CreditUsd = credit,
-                    LastEntryDate = new[] { payment?.LastEntryDate, settlement?.LastEntryDate, via?.LastEntryDate }.Max(),
-                    BalanceKind = credit - debit >= 0m ? "قابل پرداخت به صراف" : "طلب شرکت از صراف",
-                    DetailsController = "Sarrafs"
-                };
-            }));
-        }
-
-        rows = rows
-            .Where(r => r.DebitUsd != 0m || r.CreditUsd != 0m)
-            .OrderByDescending(r => Math.Abs(r.BalanceUsd))
-            .ToList();
+            PartyType = balance.PartyType.ToString(),
+            PartyId = balance.PartyId,
+            PartyName = balance.PartyName,
+            OpeningBalanceUsd = balance.OpeningBalanceUsd,
+            // The report keeps its historical Debit/Credit column names for route/UI
+            // compatibility. Their values now come from the official statement
+            // convention: Debit = received, Credit = given.
+            DebitUsd = balance.TotalReceiptUsd,
+            CreditUsd = balance.TotalOutflowUsd,
+            LastEntryDate = balance.LastEntryDate,
+            BalanceKind = balance.BalanceMeaning,
+            DetailsController = balance.DetailsController
+        }).ToList();
 
         var model = new ReceivablesPayablesReportViewModel
         {
@@ -520,87 +588,30 @@ public partial class ReportsController : Controller
                 new() { Label = "طلب مشتریان", Value = Money(model.CustomerReceivableUsd), Detail = "Customer receivable", Icon = "bi-person-lines-fill", ToneClass = "finance-positive" },
                 new() { Label = "بدهی تأمین‌کنندگان", Value = Money(model.SupplierPayableUsd), Detail = "Supplier payable", Icon = "bi-building-check", ToneClass = "finance-negative" },
                 new() { Label = "بدهی خدماتی", Value = Money(model.ServiceProviderPayableUsd), Detail = "Service providers", Icon = "bi-building-gear", ToneClass = "finance-negative" },
-                new() { Label = "صراف‌ها", Value = Money(model.SarrafBalanceUsd), Detail = "Payment net", Icon = "bi-currency-exchange", ToneClass = model.SarrafBalanceUsd >= 0m ? "finance-negative" : "finance-positive" }
+                new() { Label = "صراف‌ها", Value = Money(model.SarrafBalanceUsd), Detail = "Official statement balance", Icon = "bi-currency-exchange", ToneClass = model.SarrafBalanceUsd >= 0m ? "finance-positive" : "finance-negative" }
             ]
         };
     }
 
     private async Task<InventoryOperationsReportViewModel> BuildInventoryOperationsReportAsync(ManagementReportFilterViewModel filter)
     {
-        static decimal SignedQuantity(MovementDirection direction, decimal quantityMt) => direction switch
-        {
-            MovementDirection.In => quantityMt,
-            MovementDirection.Adjustment => quantityMt,
-            MovementDirection.Out => -quantityMt,
-            MovementDirection.Transfer => -quantityMt,
-            _ => 0m
-        };
-
-        var movementsQuery = _db.InventoryMovements
-            .AsNoTracking()
-            .AsQueryable();
-
-        if (filter.ToDate.HasValue) movementsQuery = movementsQuery.Where(m => m.MovementDate <= filter.ToDate.Value.Date);
-        if (filter.ProductId.HasValue) movementsQuery = movementsQuery.Where(m => m.ProductId == filter.ProductId.Value);
-        if (filter.ContractId.HasValue)
-        {
-            var contractId = filter.ContractId.Value;
-            movementsQuery = movementsQuery.Where(m =>
-                m.ContractId == contractId
-                || (m.ContractId == null
-                    && m.LoadingReceipt != null
-                    && m.LoadingReceipt.LoadingRegister != null
-                    && m.LoadingReceipt.LoadingRegister.ContractId == contractId));
-        }
-        if (filter.TerminalId.HasValue) movementsQuery = movementsQuery.Where(m => m.TerminalId == filter.TerminalId.Value);
-        if (filter.StorageTankId.HasValue) movementsQuery = movementsQuery.Where(m => m.StorageTankId == filter.StorageTankId.Value);
-
-        var movementRows = await movementsQuery
-            .Select(m => new
-            {
-                ProductName = m.Product != null ? m.Product.Name : "",
-                TerminalName = m.Terminal != null ? m.Terminal.Name : "",
-                StorageTankCode = m.StorageTank == null
-                    ? null
-                    : m.StorageTank.DisplayName == null || m.StorageTank.DisplayName == ""
-                        ? m.StorageTank.TankCode
-                        : m.StorageTank.DisplayName,
-                ContractId = m.ContractId ?? (m.LoadingReceipt != null && m.LoadingReceipt.LoadingRegister != null
-                    ? m.LoadingReceipt.LoadingRegister.ContractId
-                    : null),
-                m.Direction,
-                m.QuantityMt,
-                m.MovementDate
-            })
-            .ToListAsync();
-
-        var scopedRows = movementRows
-            .Where(r => !filter.FromDate.HasValue || r.MovementDate >= filter.FromDate.Value.Date)
-            .ToList();
-        var scopedGroups = scopedRows
-            .GroupBy(r => new { r.ProductName, r.TerminalName, r.StorageTankCode, r.ContractId })
-            .ToDictionary(
-                g => g.Key,
-                g => new
-                {
-                    MovementCount = g.Count(),
-                    LastMovementDate = g.Max(r => (DateTime?)r.MovementDate)
-                });
+        var movementRows = await _stock.GetMovementSummaryAsync(
+            productId: filter.ProductId,
+            contractId: filter.ContractId,
+            terminalId: filter.TerminalId,
+            storageTankId: filter.StorageTankId,
+            fromUtc: filter.FromDate?.Date,
+            toUtc: filter.ToDate?.Date);
         var stockRows = movementRows
-            .GroupBy(r => new { r.ProductName, r.TerminalName, r.StorageTankCode, r.ContractId })
-            .Where(g => !filter.FromDate.HasValue || scopedGroups.ContainsKey(g.Key))
-            .Select(g =>
+            .Where(r => !filter.FromDate.HasValue || r.MovementCount > 0)
+            .Select(r => new
             {
-                var scoped = scopedGroups.GetValueOrDefault(g.Key);
-                return new
-                {
-                    g.Key.ProductName,
-                    g.Key.TerminalName,
-                    g.Key.StorageTankCode,
-                    QuantityMt = g.Sum(r => SignedQuantity(r.Direction, r.QuantityMt)),
-                    MovementCount = scoped?.MovementCount ?? 0,
-                    LastMovementDate = scoped?.LastMovementDate
-                };
+                r.ProductName,
+                r.TerminalName,
+                r.StorageTankCode,
+                QuantityMt = r.ClosingQuantityMt,
+                r.MovementCount,
+                r.LastMovementDate
             })
             .ToList();
 
@@ -642,6 +653,28 @@ public partial class ReportsController : Controller
             .CountAsync(l => !l.IsCancelled && l.ChargeableLossMt > 0m);
         var negativeStockCount = stockRows.Count(r => r.QuantityMt < 0m);
         var totalQuantityMt = productRows.Sum(r => r.QuantityMt);
+        var canAttributeReservation = !filter.ContractId.HasValue
+            && !filter.TerminalId.HasValue
+            && !filter.StorageTankId.HasValue;
+        decimal? reservedPreSaleMt = null;
+        if (canAttributeReservation)
+        {
+            var activePreSales = _db.PreSaleOrders.AsNoTracking()
+                .Where(o => o.Status == PreSaleOrderStatus.Confirmed
+                    || o.Status == PreSaleOrderStatus.PartiallyDelivered);
+            if (filter.ProductId.HasValue)
+            {
+                activePreSales = activePreSales.Where(o => o.ProductId == filter.ProductId.Value);
+            }
+
+            reservedPreSaleMt = await activePreSales
+                .Select(o => o.QuantityMt
+                    - _db.SalesTransactions
+                        .Where(s => s.PreSaleOrderId == o.Id && !s.IsCancelled)
+                        .Sum(s => (decimal?)s.QuantityMt).GetValueOrDefault())
+                .SumAsync();
+            reservedPreSaleMt = Math.Max(0m, reservedPreSaleMt.Value);
+        }
 
         var warnings = new List<InventoryOperationsWarningViewModel>();
         if (unreceiptedLoadingCount > 0)
@@ -689,6 +722,8 @@ public partial class ReportsController : Controller
             Metrics =
             [
                 new() { Label = "موجودی کل", Value = $"{totalQuantityMt:N4} MT", Detail = "Stock balance", Icon = "bi-box-seam", ToneClass = "" },
+                new() { Label = "تعهد پیش‌فروش", Value = reservedPreSaleMt.HasValue ? $"{reservedPreSaleMt:N4} MT" : "—", Detail = reservedPreSaleMt.HasValue ? "Active undelivered commitment" : "Reservation cannot be attributed to contract/terminal/tank", Icon = "bi-bookmark-check", ToneClass = "" },
+                new() { Label = "موجودی قابل فروش", Value = reservedPreSaleMt.HasValue ? $"{totalQuantityMt - reservedPreSaleMt.Value:N4} MT" : "—", Detail = "Physical stock - active pre-sale commitment", Icon = "bi-box-arrow-up-right", ToneClass = reservedPreSaleMt.HasValue && totalQuantityMt - reservedPreSaleMt.Value < 0m ? "finance-negative" : "" },
                 new() { Label = "محصولات", Value = productRows.Count.ToString("N0"), Detail = "Products with stock", Icon = "bi-droplet", ToneClass = "" },
                 new() { Label = "مخزن/ترمینال", Value = terminalRows.Count.ToString("N0"), Detail = "Storage groups", Icon = "bi-database", ToneClass = "" },
                 new() { Label = "هشدار عملیاتی", Value = warnings.Sum(w => w.Count).ToString("N0"), Detail = "Needs review", Icon = "bi-exclamation-triangle", ToneClass = warnings.Any() ? "finance-negative" : "finance-positive" }
@@ -859,6 +894,54 @@ public partial class ReportsController : Controller
                 .ToDictionaryAsync(
                     x => x.ContractId,
                     x => (x.TotalSoldMt, x.TotalRevenueUsd));
+
+        // ── In-transit direct sales (truck / internal transport receipt) ────
+        // این فروش‌ها عمداً هیچ InventoryMovement نمی‌سازند (بار هنگام بارگیریِ موتر یا حمل قبلاً از
+        // موجودی خارج شده) و LoadingReceiptAllocation نوع DirectSale هم ندارند، پس در هیچ‌کدام از دو
+        // منبعِ بالا دیده نمی‌شدند و کل عایدشان — شامل عایدِ اضافه‌بارِ تخلیه — از سود و زیان قرارداد
+        // خرید بیرون می‌ماند. قرارداد از Lineage واقعی گرفته می‌شود: موتر → TruckDispatch.ContractId،
+        // رسید انتقال → InventoryTransportLeg.SourcePurchaseContractId. هیچ قراردادی حدس زده نمی‌شود.
+        var inTransitSaleLinks = purchaseIds.Count == 0
+            ? new List<(int ContractId, int SaleId)>()
+            : await BuildInTransitDirectSaleLinksAsync(purchaseIds);
+
+        var countedSaleIds = directSaleSaleIds.ToHashSet();
+        if (purchaseIds.Count > 0)
+        {
+            foreach (var saleId in await stockMovementQuery
+                .Select(m => m.SalesTransactionId!.Value)
+                .Distinct()
+                .ToListAsync())
+            {
+                countedSaleIds.Add(saleId);
+            }
+        }
+
+        var inTransitSaleAggById = new Dictionary<int, (decimal TotalSoldMt, decimal TotalRevenueUsd)>();
+        var newInTransitLinks = inTransitSaleLinks
+            .Where(link => countedSaleIds.Add(link.SaleId))
+            .ToList();
+        if (newInTransitLinks.Count > 0)
+        {
+            var inTransitSaleIds = newInTransitLinks.Select(l => l.SaleId).ToList();
+            var inTransitSales = await _db.SalesTransactions.AsNoTracking()
+                .Where(s => !s.IsCancelled && inTransitSaleIds.Contains(s.Id))
+                .Select(s => new { s.Id, s.QuantityMt, s.TotalUsd })
+                .ToDictionaryAsync(s => s.Id);
+
+            foreach (var link in newInTransitLinks)
+            {
+                if (!inTransitSales.TryGetValue(link.SaleId, out var row))
+                {
+                    continue;
+                }
+
+                inTransitSaleAggById.TryGetValue(link.ContractId, out var current);
+                inTransitSaleAggById[link.ContractId] = (
+                    current.TotalSoldMt + row.QuantityMt,
+                    current.TotalRevenueUsd + row.TotalUsd);
+            }
+        }
 
         // ── Loss valuation per purchase contract (read-only) ────────────────
         // Chargeable losses are converted to USD using the originating
@@ -1093,6 +1176,7 @@ public partial class ReportsController : Controller
             sarrafDifferenceByContract.TryGetValue(c.Id, out var sarrafDifference);
             var hasDirectSaleAgg = directSaleAggById.TryGetValue(c.Id, out var directSaleAgg);
             var hasStockSaleAgg = stockSaleAggById.TryGetValue(c.Id, out var stockSaleAgg);
+            inTransitSaleAggById.TryGetValue(c.Id, out var inTransitSaleAgg);
             // Official wagon rent (ServiceProvider) is counted via ExpenseTransactions
             // (generalExpense). For LEGACY loadings the inline railway field mirrors that
             // same amount, so it must be dropped to avoid double counting. For row-based
@@ -1132,9 +1216,14 @@ public partial class ReportsController : Controller
                 SarrafSupplierShortfallUsd = sarrafDifference.SupplierShortfallUsd,
                 ExchangeGainUsd = sarrafDifference.ExchangeGainUsd,
                 ExchangeLossUsd = sarrafDifference.ExchangeLossUsd,
-                TotalSoldMt = directSoldMt + stockSoldMt,
-                TotalRevenueUsd = directRevenueUsd + stockRevenueUsd,
-                DirectSaleQuantityMismatchCount = hasDirectSaleAgg ? directSaleAgg.QuantityMismatchCount : 0
+                TotalSoldMt = directSoldMt + stockSoldMt + inTransitSaleAgg.TotalSoldMt,
+                TotalRevenueUsd = directRevenueUsd + stockRevenueUsd + inTransitSaleAgg.TotalRevenueUsd,
+                DirectSaleQuantityMismatchCount = hasDirectSaleAgg ? directSaleAgg.QuantityMismatchCount : 0,
+                PnlConfidence = (agg?.PendingLoadingCount ?? 0) > 0
+                    || (hasDirectSaleAgg && directSaleAgg.QuantityMismatchCount > 0)
+                    || lossAgg.UnvaluedCount > 0
+                        ? PnlConfidence.NeedsReview
+                        : PnlConfidence.Estimated
             };
         }).ToList();
 
@@ -1165,14 +1254,15 @@ public partial class ReportsController : Controller
             : await _db.SalesTransactions.AsNoTracking()
                 .Where(s => !s.IsCancelled && s.ContractId.HasValue && saleIds.Contains(s.ContractId.Value))
                 .GroupBy(s => s.ContractId!.Value)
-                .Select(g => new { ContractId = g.Key, TotalSoldMt = g.Sum(s => s.QuantityMt), TotalRevenue = g.Sum(s => s.TotalUsd) })
+                .Select(g => new { ContractId = g.Key, TotalSoldMt = g.Sum(s => s.QuantityMt) })
                 .ToListAsync();
-
         var salesAggById = salesAgg.ToDictionary(x => x.ContractId);
+        var realisedPnlByContract = await _profitAndLoss.BuildForSaleContractsAsync(saleIds);
 
         var saleRows = saleContracts.Select(c =>
         {
             salesAggById.TryGetValue(c.Id, out var agg);
+            realisedPnlByContract.TryGetValue(c.Id, out var realisedPnl);
             return new ContractPnlRowViewModel
             {
                 ContractId = c.Id,
@@ -1184,7 +1274,10 @@ public partial class ReportsController : Controller
                 ContractQuantityMt = c.QuantityMt,
                 ContractUnitPriceUsd = c.UnitPriceUsd,
                 TotalSoldMt      = agg?.TotalSoldMt  ?? 0m,
-                TotalRevenueUsd  = agg?.TotalRevenue ?? 0m
+                TotalRevenueUsd  = realisedPnl?.RevenueUsd ?? 0m,
+                PurchaseValueUsd = realisedPnl?.CostOfGoodsSoldUsd ?? 0m,
+                UncostedSaleCount = realisedPnl?.UncostedSaleCount ?? 0,
+                PnlConfidence = realisedPnl?.Confidence ?? PnlConfidence.Verified
             };
         }).ToList();
 
@@ -1194,6 +1287,61 @@ public partial class ReportsController : Controller
             PurchaseRows = purchaseRows,
             SaleRows = saleRows
         };
+    }
+
+    /// <summary>
+    /// جفت‌های (قرارداد خرید، فروش) برای فروش‌های «در جریان» که هیچ حرکت موجودی و هیچ تخصیصِ
+    /// DirectSale ندارند. هر جفت فقط از Lineage واقعیِ همان عملیات ساخته می‌شود:
+    /// <list type="bullet">
+    /// <item>موتر: <c>SalesTransaction.TruckDispatchId</c> (فروش قسمتی را هم پوشش می‌دهد) یا
+    /// <c>TruckDispatch.SalesTransactionId</c> برای رکوردهای قدیمی → <c>TruckDispatch.ContractId</c>.</item>
+    /// <item>رسید انتقال داخلی: <c>InventoryTransportReceipt.SalesTransactionId</c> →
+    /// <c>InventoryTransportLeg.SourcePurchaseContractId</c>.</item>
+    /// </list>
+    /// خروجی می‌تواند برای یک فروش چند ردیف داشته باشد؛ فراخوان با dedupe روی شناسهٔ فروش
+    /// تضمین می‌کند هیچ عایدی دو بار شمرده نشود.
+    /// </summary>
+    private async Task<List<(int ContractId, int SaleId)>> BuildInTransitDirectSaleLinksAsync(
+        List<int> purchaseIds)
+    {
+        var links = new List<(int ContractId, int SaleId)>();
+
+        var dispatchLinks = await _db.SalesTransactions.AsNoTracking()
+            .Where(s => !s.IsCancelled
+                && s.TruckDispatchId.HasValue
+                && s.TruckDispatch != null
+                && s.TruckDispatch.Status != DispatchStatus.Cancelled
+                && purchaseIds.Contains(s.TruckDispatch.ContractId))
+            .Select(s => new { ContractId = s.TruckDispatch!.ContractId, SaleId = s.Id })
+            .ToListAsync();
+        links.AddRange(dispatchLinks.Select(x => (x.ContractId, x.SaleId)));
+
+        var legacyDispatchLinks = await _db.TruckDispatches.AsNoTracking()
+            .Where(d => d.Status != DispatchStatus.Cancelled
+                && d.SalesTransactionId.HasValue
+                && d.SalesTransaction != null
+                && !d.SalesTransaction.IsCancelled
+                && purchaseIds.Contains(d.ContractId))
+            .Select(d => new { d.ContractId, SaleId = d.SalesTransactionId!.Value })
+            .ToListAsync();
+        links.AddRange(legacyDispatchLinks.Select(x => (x.ContractId, x.SaleId)));
+
+        var transportReceiptLinks = await _db.InventoryTransportReceipts.AsNoTracking()
+            .Where(r => !r.IsCancelled
+                && r.SalesTransactionId.HasValue
+                && r.SalesTransaction != null
+                && !r.SalesTransaction.IsCancelled
+                && r.InventoryTransportLeg != null
+                && purchaseIds.Contains(r.InventoryTransportLeg.SourcePurchaseContractId))
+            .Select(r => new
+            {
+                ContractId = r.InventoryTransportLeg!.SourcePurchaseContractId,
+                SaleId = r.SalesTransactionId!.Value
+            })
+            .ToListAsync();
+        links.AddRange(transportReceiptLinks.Select(x => (x.ContractId, x.SaleId)));
+
+        return links;
     }
 
     private async Task PopulateLookupsAsync(

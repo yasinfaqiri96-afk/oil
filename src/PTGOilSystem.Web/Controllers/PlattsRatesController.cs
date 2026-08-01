@@ -8,6 +8,7 @@ using PTGOilSystem.Web.Models.PlattsRates;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -252,7 +253,7 @@ public class PlattsRatesController : Controller
         model.ActiveTab = NormalizeTab(model.ActiveTab);
         model.MonthlyFilter.Year ??= DateTime.UtcNow.Year;
         model.DailyForm.PriceDate = model.DailyForm.PriceDate == default
-            ? DateTime.UtcNow.Date
+            ? AfghanistanBusinessClock.SystemToday
             : NormalizeDate(model.DailyForm.PriceDate);
         model.MonthlyManualForm.Month = model.MonthlyManualForm.Month == default
             ? NormalizeMonth(DateTime.UtcNow)

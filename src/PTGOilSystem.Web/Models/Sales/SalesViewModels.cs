@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.LossEvents;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Sales;
 
@@ -112,7 +113,7 @@ public sealed class SalesCreateViewModel
 
     [Display(Name = "تاریخ فروش")]
     [DataType(DataType.Date)]
-    public DateTime SaleDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime SaleDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "یادداشت")]
     [StringLength(1000)]
@@ -163,7 +164,7 @@ public sealed class ShipmentFlowSaleCreateViewModel
 
     [Display(Name = "تاریخ فروش")]
     [DataType(DataType.Date)]
-    public DateTime SaleDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime SaleDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "شماره فاکتور / مرجع")]
     [Required(ErrorMessage = "شماره فاکتور الزامی است.")]
@@ -245,6 +246,8 @@ public sealed class SalesListItemViewModel
     public string CustomerName { get; init; } = string.Empty;
     public string ProductName { get; init; } = string.Empty;
     public string? DestinationName { get; init; }
+    /// <summary>نمبر وسیله: پلاک موتری که این فروش از آن انجام شده (فروش مستقیم از موتر).</summary>
+    public string? VehicleNumber { get; init; }
     public decimal QuantityMt { get; init; }
     public string Currency { get; init; } = "USD";
     public decimal UnitPriceInCurrency { get; init; }

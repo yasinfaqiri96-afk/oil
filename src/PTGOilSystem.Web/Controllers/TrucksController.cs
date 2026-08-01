@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
@@ -6,6 +6,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -21,9 +22,11 @@ public class TrucksController : Controller
         _audit = audit;
     }
 
-    public async Task<IActionResult> Index(string? q, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1)
+    public async Task<IActionResult> Index(string? q, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 8;
+        var pageSize = ListPageSize.Resolve(perPage, 8);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 8;
         var search = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
         var query = _db.Trucks.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))

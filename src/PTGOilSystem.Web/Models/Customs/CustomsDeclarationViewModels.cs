@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Customs;
 
@@ -14,7 +15,7 @@ public sealed class CustomsDeclarationCreateViewModel
 
     [Display(Name = "تاریخ اعلامیه گمرکی")]
     [DataType(DataType.Date)]
-    public DateTime DeclarationDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime DeclarationDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "شماره واگن / موتر")]
     [StringLength(200)]

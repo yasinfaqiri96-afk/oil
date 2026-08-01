@@ -30,6 +30,7 @@
         </div>
         <button type="submit" class="btn btn-primary">نمایش</button>
         <a asp-action="SuspenseMoney" class="btn btn-light">پاک‌سازی</a>
+        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("SuspenseMoneyExport"))" />
     </form>
 
     <section class="ak-stat-grid" aria-label="آمار پول‌های معلق">

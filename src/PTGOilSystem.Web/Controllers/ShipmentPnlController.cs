@@ -11,17 +11,22 @@ using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Models.ShipmentPnl;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Reporting;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
 [Authorize]
 public partial class ShipmentPnlController : Controller
 {
+    private static readonly SalesPnlSnapshot EmptySalesPnl =
+        new(0m, 0m, 0, 0, 0, PnlConfidence.Verified);
     private const int IndexPageSize = 5;
     private const string FooterTotalsCacheKey = "ShipmentPnl.Index.FooterTotals";
     private static readonly TimeSpan FooterTotalsCacheTtl = TimeSpan.FromSeconds(60);
     private readonly ApplicationDbContext _db;
     private readonly InventoryLineagePnlService _lineagePnl;
+    private readonly IProfitAndLossService _profitAndLoss;
     private readonly LineageOptions _lineageOptions;
     private readonly IMemoryCache? _cache;
 
@@ -29,26 +34,32 @@ public partial class ShipmentPnlController : Controller
         ApplicationDbContext db,
         InventoryLineagePnlService? lineagePnl = null,
         IOptions<LineageOptions>? lineageOptions = null,
-        IMemoryCache? cache = null)
+        IMemoryCache? cache = null,
+        IProfitAndLossService? profitAndLoss = null)
     {
         _db = db;
         _lineagePnl = lineagePnl ?? new InventoryLineagePnlService(db);
+        _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db);
         _lineageOptions = lineageOptions?.Value ?? new LineageOptions();
         _cache = cache;
     }
 
-    public async Task<IActionResult> Index(int page = 1)
+    public async Task<IActionResult> Index(int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         var shipmentQuery = _db.Shipments.AsNoTracking();
         var totalCount = await shipmentQuery.CountAsync();
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
         var shipmentIds = await shipmentQuery
             .OrderByDescending(s => s.DepartureDate)
             .ThenByDescending(s => s.Id)
-            .Skip((page - 1) * IndexPageSize)
-            .Take(IndexPageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(s => s.Id)
             .ToListAsync();
 
@@ -185,11 +196,12 @@ public partial class ShipmentPnlController : Controller
                 TotalPurchaseCostUsd = rollup.TotalPurchaseCostUsd,
                 TotalOperationalExpensesUsd = rollup.TotalOperationalExpensesUsd,
                 TotalExpensesUsd = totalExpensesUsd,
-                GrossMarginUsd = rollup.TotalSalesUsd - totalExpensesUsd,
+                GrossMarginUsd = PnlMath.GrossProfit(rollup.TotalSalesUsd, totalExpensesUsd),
                 RelatedTransportLegCount = rollup.TransportLegs.Count,
                 RelatedSalesCount = rollup.Sales.Count,
                 RelatedExpensesCount = rollup.Expenses.Count,
-                RelatedLedgerCount = rollup.LedgerEntries.Count
+                RelatedLedgerCount = rollup.LedgerEntries.Count,
+                RealisedPnl = rollup.RealisedSales.ToViewModel()
             };
         }).ToList();
     }
@@ -318,7 +330,23 @@ public partial class ShipmentPnlController : Controller
                 ResponsiblePartyName = l.ResponsiblePartyName,
                 FinancialTreatment = l.FinancialTreatment,
                 Reference = l.Reference,
-                Notes = l.Notes
+                Notes = l.Notes,
+                // نمبر وسیله از همان مرحله‌ای که کسری روی آن ثبت شده: ارسال، حمل، بارگیری، رسید.
+                VehicleNumber = l.TruckDispatch != null && l.TruckDispatch.Truck != null
+                    ? l.TruckDispatch.Truck.PlateNumber
+                    : l.TransportLeg != null
+                        ? (l.TransportLeg.Truck != null
+                            ? l.TransportLeg.Truck.PlateNumber
+                            : l.TransportLeg.WagonNumber ?? l.TransportLeg.RwbNo)
+                        : l.LoadingRegister != null
+                            ? (l.LoadingRegister.Truck != null
+                                ? l.LoadingRegister.Truck.PlateNumber
+                                : l.LoadingRegister.WagonNumber ?? l.LoadingRegister.RwbNo)
+                            : l.LoadingReceipt != null && l.LoadingReceipt.LoadingRegister != null
+                                ? (l.LoadingReceipt.LoadingRegister.Truck != null
+                                    ? l.LoadingReceipt.LoadingRegister.Truck.PlateNumber
+                                    : l.LoadingReceipt.LoadingRegister.WagonNumber ?? l.LoadingReceipt.LoadingRegister.RwbNo)
+                                : null
             })
             .ToListAsync();
 
@@ -441,7 +469,8 @@ public partial class ShipmentPnlController : Controller
             TotalPurchaseCostUsd = rollup.TotalPurchaseCostUsd,
             TotalOperationalExpensesUsd = rollup.TotalOperationalExpensesUsd,
             TotalExpensesUsd = totalExpensesUsd,
-            GrossMarginUsd = rollup.TotalSalesUsd - totalExpensesUsd,
+            GrossMarginUsd = PnlMath.GrossProfit(rollup.TotalSalesUsd, totalExpensesUsd),
+            RealisedPnl = rollup.RealisedSales.ToViewModel(),
             LedgerEntriesCount = rollup.LedgerEntries.Count,
             LedgerDebitTotalUsd = rollup.LedgerEntries.Where(l => l.SideName == "Debit").Sum(l => l.AmountUsd),
             LedgerCreditTotalUsd = rollup.LedgerEntries.Where(l => l.SideName == "Credit").Sum(l => l.AmountUsd),
@@ -560,7 +589,7 @@ public partial class ShipmentPnlController : Controller
         }
 
         var eventDate = model.EventDate == default
-            ? DateTime.UtcNow.Date
+            ? AfghanistanBusinessClock.SystemToday
             : model.EventDate.Date;
         var estimatedAmountUsd = model.LossAmountUsd.HasValue && model.LossAmountUsd.Value > 0m
             ? decimal.Round(model.LossAmountUsd.Value, 2, MidpointRounding.AwayFromZero)
@@ -1240,7 +1269,7 @@ public partial class ShipmentPnlController : Controller
                 SalesUsd = legPnl?.SalesUsd ?? 0m,
                 OperationalExpensesUsd = legPnl?.OperationalExpensesUsd ?? 0m,
                 TotalCostUsd = legPnl?.TotalCostUsd ?? purchaseCost,
-                GrossMarginUsd = legPnl?.GrossMarginUsd ?? -purchaseCost,
+                GrossMarginUsd = legPnl?.GrossMarginUsd ?? PnlMath.GrossProfit(0m, purchaseCost),
                 UnsoldQuantityMt = legPnl?.UnsoldQuantityMt ?? leg.QuantityMt,
                 SalesTraceNote = legPnl?.SalesTraceNote ?? "No traceable sale"
             });
@@ -1254,6 +1283,7 @@ public partial class ShipmentPnlController : Controller
                     AmountUsd = legPnl.ReceiptFreightExpenseUsd,
                     Description = $"حمل #{leg.Id}",
                     ContractNumber = contract?.ContractNumber,
+                    VehicleNumber = leg.WagonNumber ?? leg.RwbNo,
                     AllocationQuantityMt = leg.QuantityMt,
                     SourceKey = $"RECEIPT-FREIGHT:{leg.Id}",
                     ExpenseTypeCategory = "Transport"
@@ -1296,6 +1326,9 @@ public partial class ShipmentPnlController : Controller
         var sales = await _db.SalesTransactions
             .Include(s => s.Contract)
             .Include(s => s.Customer)
+            // برای نمایش «نمبر وسیله» در فروش‌های مستقیم از موتر.
+            .Include(s => s.TruckDispatch)
+                .ThenInclude(d => d!.Truck)
             .AsNoTracking()
             .Where(s => !s.IsCancelled
                 && s.SaleStage != SaleStage.PreSale
@@ -1339,6 +1372,7 @@ public partial class ShipmentPnlController : Controller
                 UnitPriceUsd = sale.UnitPriceUsd,
                 TotalUsd = sale.TotalUsd,
                 IsDirectShipmentSale = isDirectShipmentSale,
+                VehicleNumber = sale.TruckDispatch?.Truck?.PlateNumber,
                 ContractBreakdownLines = saleBreakdownBySaleId.TryGetValue(sale.Id, out var breakdown)
                     ? breakdown
                     : sale.Contract is null
@@ -1354,8 +1388,19 @@ public partial class ShipmentPnlController : Controller
                             }
                         ]
             });
-            rollups[shipmentId].TotalSalesUsd += sale.TotalUsd;
             rollups[shipmentId].SoldQuantityMt += sale.QuantityMt;
+        }
+
+        // درآمد و بهای تمام‌شدهٔ فروشِ محقق‌شده فقط از ProfitAndLossService می‌آید.
+        // نگاشت فروش→محموله (lineage) مسئولیت همین کنترلر است، اما هیچ فرمول مستقل
+        // درآمد/COGS اینجا نوشته نمی‌شود.
+        var realisedByShipment = await _profitAndLoss.BuildForSaleGroupsAsync(saleToShipment);
+        foreach (var rollup in rollups.Values)
+        {
+            rollup.RealisedSales = realisedByShipment.TryGetValue(rollup.ShipmentId, out var realised)
+                ? realised
+                : EmptySalesPnl;
+            rollup.TotalSalesUsd = rollup.RealisedSales.RevenueUsd;
         }
 
         // مصرف‌هایی که از مسیر موتر ثبت شده‌اند (کرایه موتر، مصرف دستی/گروهی روی دیسپچ) فقط TruckDispatchId دارند؛
@@ -1419,6 +1464,9 @@ public partial class ShipmentPnlController : Controller
                 TruckDispatchLabel = expense.TruckDispatch == null
                     ? null
                     : $"#{expense.TruckDispatch.Id} - {expense.TruckDispatch.Truck!.PlateNumber}",
+                VehicleNumber = expense.TruckDispatch?.Truck?.PlateNumber
+                    ?? expense.TransportLeg?.WagonNumber
+                    ?? expense.TransportLeg?.RwbNo,
                 AllocationQuantityMt = expense.TransportLeg?.QuantityMt
                     ?? expense.TruckDispatch?.LoadedQuantityMt
                     ?? 0m,
@@ -1455,6 +1503,7 @@ public partial class ShipmentPnlController : Controller
                 AmountUsd = customs.TotalUsd,
                 Description = BuildCustomsDescription(customs),
                 ContractNumber = customs.TransportLeg?.SourcePurchaseContract?.ContractNumber,
+                VehicleNumber = customs.TransportLeg?.WagonNumber ?? customs.TransportLeg?.RwbNo,
                 AllocationQuantityMt = customs.TransportLeg?.QuantityMt ?? 0m,
                 SourceKey = $"CUSTOMS:{customs.Id}",
                 IsCustoms = true
@@ -1470,6 +1519,9 @@ public partial class ShipmentPnlController : Controller
             : await _db.CustomsDeclarations
                 .Include(c => c.TruckDispatch)
                     .ThenInclude(d => d!.InventoryTransportReceipt)
+                // برای نمایش «نمبر وسیله» در گمرک‌های ثبت‌شده از مسیر موتر.
+                .Include(c => c.TruckDispatch)
+                    .ThenInclude(d => d!.Truck)
                 .AsNoTracking()
                 .Where(c => !c.TransportLegId.HasValue
                     && c.TruckDispatchId.HasValue
@@ -1495,6 +1547,7 @@ public partial class ShipmentPnlController : Controller
                 AmountUsd = customs.TotalUsd,
                 Description = BuildCustomsDescription(customs),
                 ContractNumber = null,
+                VehicleNumber = customs.TruckDispatch.Truck?.PlateNumber,
                 AllocationQuantityMt = customs.TruckDispatch.LoadedQuantityMt,
                 SourceKey = $"CUSTOMS:{customs.Id}",
                 IsCustoms = true
@@ -1578,8 +1631,23 @@ public partial class ShipmentPnlController : Controller
             select new { r.InventoryTransportLegId, SalesTransactionId = d.SalesTransactionId!.Value })
             .ToListAsync();
 
+        // فروش‌های قسمتیِ همان موتر که از راه SalesTransaction.TruckDispatchId وصل‌اند
+        // (TruckDispatch.SalesTransactionId یکتاست و فقط اولین فروش را نگه می‌دارد).
+        var partialDispatchLinks = await (
+            from s in _db.SalesTransactions.AsNoTracking()
+            where !s.IsCancelled && s.TruckDispatchId.HasValue
+            join d in _db.TruckDispatches.AsNoTracking()
+                on s.TruckDispatchId!.Value equals d.Id
+            where d.Status != DispatchStatus.Cancelled && d.InventoryTransportReceiptId.HasValue
+            join r in _db.InventoryTransportReceipts.AsNoTracking()
+                on d.InventoryTransportReceiptId!.Value equals r.Id
+            where !r.IsCancelled && legIds.Contains(r.InventoryTransportLegId)
+            select new { r.InventoryTransportLegId, SalesTransactionId = s.Id })
+            .ToListAsync();
+
         return receiptLinks
             .Concat(dispatchLinks)
+            .Concat(partialDispatchLinks)
             .Where(r => legToShipment.ContainsKey(r.InventoryTransportLegId))
             .GroupBy(r => r.SalesTransactionId)
             .ToDictionary(g => g.Key, g => legToShipment[g.First().InventoryTransportLegId]);
@@ -2042,6 +2110,7 @@ public partial class ShipmentPnlController : Controller
         }
 
         public int ShipmentId { get; }
+        public SalesPnlSnapshot RealisedSales { get; set; } = EmptySalesPnl;
         public decimal TotalSalesUsd { get; set; }
         public decimal SoldQuantityMt { get; set; }
         public decimal TotalPurchaseCostUsd { get; set; }

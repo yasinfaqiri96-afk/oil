@@ -7,6 +7,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
@@ -82,6 +83,48 @@ public sealed class PartyStatementReadServiceTests
         Assert.Equal(statement.Summary.ClosingBalance, statement.Rows[^1].RunningBalance);
         Assert.True(statement.Rows[0].IsOpeningBalance);
         Assert.Equal("OB", statement.Rows[0].Reference);
+    }
+
+    [Fact]
+    public async Task BulkBalanceReport_EqualsOfficialPartyStatement_ForOpeningMovementAndClosing()
+    {
+        await using var db = CreateDb();
+        var customer = new Customer { Name = "Shared engine customer", Code = "CUST-SHARED" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.AddRange(
+            Entry(new DateTime(2025, 12, 31), LedgerSide.Debit, 10m, customer.Id, "CustomerReceipt", 1),
+            Entry(new DateTime(2026, 1, 2), LedgerSide.Credit, 100m, customer.Id, "Sale", 2),
+            Entry(new DateTime(2026, 1, 3), LedgerSide.Debit, 40m, customer.Id, "CustomerReceipt", 3));
+        await db.SaveChangesAsync();
+
+        var filter = new ManagementReportFilterViewModel
+        {
+            FromDate = new DateTime(2026, 1, 1),
+            ToDate = new DateTime(2026, 1, 31),
+            CustomerId = customer.Id
+        };
+        var direction = new CompanyFlowDirectionResolver();
+        var balance = new CompanyFlowBalanceService();
+        var policies = new PartyStatementPolicyResolver();
+        var bulk = new PartyBalanceReadService(db, policies, direction, balance);
+        var reportRow = Assert.Single(await bulk.GetBalancesAsync(filter));
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Customer, customer.Id),
+            new PartyStatementFilter
+            {
+                FromDate = filter.FromDate,
+                ToDate = filter.ToDate,
+                IncludeOperationalColumns = false
+            });
+
+        Assert.Equal(statement.Summary.OpeningBalance, reportRow.OpeningBalanceUsd);
+        Assert.Equal(statement.Summary.TotalReceipt, reportRow.TotalReceiptUsd);
+        Assert.Equal(statement.Summary.TotalOutflow, reportRow.TotalOutflowUsd);
+        Assert.Equal(
+            statement.Summary.TotalOutflow - statement.Summary.TotalReceipt,
+            reportRow.PeriodMovementUsd);
+        Assert.Equal(statement.Summary.ClosingBalance, reportRow.ClosingBalanceUsd);
     }
 
     [Fact]
@@ -232,6 +275,98 @@ public sealed class PartyStatementReadServiceTests
         Assert.True(statement.ColumnOptions.ShowFxRate);
         Assert.Null(statement.Rows[0].FxRate);
         Assert.Null(statement.Rows[0].FxRateDisplay);
+    }
+
+    [Fact]
+    public async Task RubPresentation_UsesHistoricalRubOpeningAndPeriodMovement()
+    {
+        await using var db = CreateDb();
+        var supplier = new Supplier { Name = "Historical RUB supplier" };
+        db.Suppliers.Add(supplier);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.AddRange(
+            new LedgerEntry
+            {
+                EntryDate = new DateTime(2025, 12, 31),
+                Side = LedgerSide.Credit,
+                AmountUsd = 100m,
+                Currency = "RUB",
+                SourceAmount = 8_000m,
+                SourceCurrencyCode = "RUB",
+                AppliedFxRateToUsd = 0.0125m,
+                SupplierId = supplier.Id,
+                SourceType = "Loading",
+                SourceId = 1,
+                Description = "Opening loading"
+            },
+            new LedgerEntry
+            {
+                EntryDate = new DateTime(2026, 1, 2),
+                Side = LedgerSide.Debit,
+                AmountUsd = 25m,
+                Currency = "RUB",
+                SourceAmount = 2_000m,
+                SourceCurrencyCode = "RUB",
+                AppliedFxRateToUsd = 0.0125m,
+                SupplierId = supplier.Id,
+                SourceType = nameof(PaymentKind.SupplierPayment),
+                SourceId = 2,
+                Description = "Period payment"
+            });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, supplier.Id),
+            new PartyStatementFilter
+            {
+                FromDate = new DateTime(2026, 1, 1),
+                ToDate = new DateTime(2026, 1, 31),
+                CurrencyCode = "RUB",
+                IncludeOperationalColumns = false
+            });
+
+        Assert.Equal(-8_000m, statement.Summary.OpeningBalanceRub);
+        Assert.Equal(0m, statement.Summary.TotalReceiptRub);
+        Assert.Equal(2_000m, statement.Summary.TotalOutflowRub);
+        Assert.Equal(-6_000m, statement.Summary.ClosingBalanceRub);
+        Assert.Equal(-8_000m, statement.Rows[0].RunningBalanceRub);
+        Assert.Equal(-6_000m, statement.Rows[^1].RunningBalanceRub);
+    }
+
+    [Fact]
+    public async Task RubPresentation_MissingHistoricalOriginalAmount_RemainsUnknown()
+    {
+        await using var db = CreateDb();
+        var supplier = new Supplier { Name = "Unknown RUB supplier" };
+        db.Suppliers.Add(supplier);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.Add(new LedgerEntry
+        {
+            EntryDate = new DateTime(2025, 12, 31),
+            Side = LedgerSide.Credit,
+            AmountUsd = 100m,
+            Currency = "RUB",
+            SourceAmount = null,
+            SourceCurrencyCode = "RUB",
+            SupplierId = supplier.Id,
+            SourceType = "Loading",
+            SourceId = 1,
+            Description = "Legacy RUB without original amount"
+        });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, supplier.Id),
+            new PartyStatementFilter
+            {
+                FromDate = new DateTime(2026, 1, 1),
+                CurrencyCode = "RUB",
+                IncludeOperationalColumns = false
+            });
+
+        Assert.Null(statement.Summary.OpeningBalanceRub);
+        Assert.Null(statement.Summary.ClosingBalanceRub);
+        Assert.Null(statement.Rows[0].RunningBalanceRub);
     }
 
     [Fact]
@@ -592,6 +727,123 @@ public sealed class PartyStatementReadServiceTests
         Assert.Equal(10_000m, row.RemainingQuantityMt);   // تعهد باقی‌مانده (نه بدهی)
         Assert.Contains("بدهکار", statement.Summary.ClosingBalanceMeaning);
     }
+
+    [Fact]
+    public async Task ServiceProviderStatement_MergesOneServiceOnOneShipment_IntoASingleTotalRow()
+    {
+        await using var db = CreateDb();
+        var company = new Company { Code = "C1", Name = "Company 1" };
+        var supplier = new Supplier { Name = "Supplier" };
+        var carrier = new ServiceProvider { Name = "Carrier co" };
+        var expenseType = new ExpenseType { Code = "RAIL-FREIGHT", Name = "Rail freight", NamePersian = "کرایه ریلی" };
+        db.AddRange(company, supplier, carrier, expenseType);
+        await db.SaveChangesAsync();
+
+        var shipment = new Shipment { ShipmentCode = "SHP-1" };
+        var c1 = new Contract { ContractNumber = "P-1", ContractType = ContractType.Purchase, CompanyId = company.Id, SupplierId = supplier.Id };
+        var c2 = new Contract { ContractNumber = "P-2", ContractType = ContractType.Purchase, CompanyId = company.Id, SupplierId = supplier.Id };
+        db.AddRange(shipment, c1, c2);
+        await db.SaveChangesAsync();
+
+        // یک خدمت روی یک محموله، هنگام ثبت به دو سهم قراردادی تقسیم شده است.
+        var share1 = ShipmentServiceExpense(expenseType.Id, c1.Id, shipment.Id, carrier.Id, 600m);
+        var share2 = ShipmentServiceExpense(expenseType.Id, c2.Id, shipment.Id, carrier.Id, 400m);
+        db.AddRange(share1, share2);
+        await db.SaveChangesAsync();
+
+        db.LedgerEntries.AddRange(
+            ShipmentServiceLedger(share1, "RAIL-FREIGHT", "P-1", 60m),
+            ShipmentServiceLedger(share2, "RAIL-FREIGHT", "P-2", 40m));
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.ServiceProvider, carrier.Id),
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+
+        var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
+        Assert.Equal(1_000m, row.ReceiptBase);
+        Assert.Null(row.ContractId);
+        Assert.Equal("RAIL-FREIGHT", row.Reference);
+        // جمع‌ها و بیلانس تغییری نمی‌کنند؛ ادغام فقط نمایشی است.
+        Assert.Equal(1_000m, statement.Summary.TotalReceipt);
+        Assert.Equal(-1_000m, statement.Summary.ClosingBalance);
+        Assert.Equal(2, await db.LedgerEntries.CountAsync());
+    }
+
+    [Fact]
+    public async Task StatementRows_DropLedgerTracingTail_FromDescriptionAndReference()
+    {
+        await using var db = CreateDb();
+        var carrier = new ServiceProvider { Name = "Carrier co" };
+        db.Add(carrier);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.Add(new LedgerEntry
+        {
+            EntryDate = new DateTime(2026, 7, 19),
+            Side = LedgerSide.Credit,
+            AmountUsd = 500m,
+            Currency = "USD",
+            ServiceProviderId = carrier.Id,
+            SourceType = "Expense",
+            SourceId = 91,
+            Reference = "RAIL-FREIGHT-91 | مصرف انتقال از موجودی | GroupKey: ITG-1 | Contract: P-1",
+            Description = "ثبت هزینه کرایه ریلی - مصرف انتقال | GroupKey: ITG-1 | Total USD: 1,000.0000 | Contract: P-1 | Leg: #4 | Quantity: 300.0000 MT | Share: 60.0000%"
+        });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.ServiceProvider, carrier.Id),
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+
+        var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
+        Assert.Equal("RAIL-FREIGHT-91", row.Reference);
+        Assert.Equal("ثبت هزینه کرایه ریلی - مصرف انتقال", row.Description);
+        Assert.DoesNotContain("GroupKey", row.Description, StringComparison.Ordinal);
+        Assert.DoesNotContain("Share:", row.Description, StringComparison.Ordinal);
+        Assert.True(row.Description.Length <= PartyStatementFormatting.DescriptionMaxLength);
+    }
+
+    private static ExpenseTransaction ShipmentServiceExpense(
+        int expenseTypeId,
+        int contractId,
+        int shipmentId,
+        int serviceProviderId,
+        decimal amountUsd)
+        => new()
+        {
+            ExpenseTypeId = expenseTypeId,
+            ContractId = contractId,
+            ShipmentId = shipmentId,
+            ServiceProviderId = serviceProviderId,
+            ExpenseDate = new DateTime(2026, 7, 19),
+            Amount = amountUsd,
+            Currency = "USD",
+            AppliedFxRateToUsd = 1m,
+            AmountUsd = amountUsd
+        };
+
+    private static LedgerEntry ShipmentServiceLedger(
+        ExpenseTransaction expense,
+        string expenseTypeCode,
+        string contractNumber,
+        decimal sharePercent)
+        => new()
+        {
+            EntryDate = expense.ExpenseDate,
+            Side = LedgerSide.Credit,
+            AmountUsd = expense.AmountUsd,
+            Currency = "USD",
+            SourceAmount = expense.Amount,
+            SourceCurrencyCode = "USD",
+            AppliedFxRateToUsd = 1m,
+            ContractId = expense.ContractId,
+            ShipmentId = expense.ShipmentId,
+            ServiceProviderId = expense.ServiceProviderId,
+            SourceType = "Expense",
+            SourceId = expense.Id,
+            Reference = $"{expenseTypeCode}-{expense.Id} | مصرف انتقال از موجودی",
+            Description = $"ثبت هزینه کرایه ریلی - مصرف انتقال از موجودی | GroupKey: ITG-1 | Total USD: 1,000.0000 | Contract: {contractNumber} | Share: {sharePercent:N4}%"
+        };
 
     private static LedgerEntry LegacySupplierEntry(int contractId, decimal amountUsd, int sourceId)
         => new()

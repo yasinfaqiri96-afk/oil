@@ -16,6 +16,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -236,9 +237,11 @@ public partial class LoadingReceiptsController : Controller
         }
     }
 
-    public async Task<IActionResult> Index(string? q = null, DateTime? fromDate = null, DateTime? toDate = null, int page = 1)
+    public async Task<IActionResult> Index(string? q = null, DateTime? fromDate = null, DateTime? toDate = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 5;
+        var pageSize = ListPageSize.Resolve(perPage, 5);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
         var normalizedQuery = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
 
@@ -299,6 +302,12 @@ public partial class LoadingReceiptsController : Controller
                         ? receipt.StorageTank.TankCode
                         : receipt.StorageTank.DisplayName,
                 ReceivedQuantityMt = receipt.ReceivedQuantityMt,
+                // نمبر وسیلهٔ همان بارگیری تا در خروجی معلوم باشد بار با کدام وسیله رسیده.
+                VehicleNumber = receipt.LoadingRegister == null
+                    ? null
+                    : receipt.LoadingRegister.Truck != null
+                        ? receipt.LoadingRegister.Truck.PlateNumber
+                        : receipt.LoadingRegister.WagonNumber ?? receipt.LoadingRegister.RwbNo,
                 ReferenceDocument = receipt.ReferenceDocument
             })
             .ToListAsync();
@@ -1391,8 +1400,8 @@ public partial class LoadingReceiptsController : Controller
         {
             var sourceSelectionModel = new LoadingReceiptCreateViewModel
             {
-                ReceiptDate = DateTime.UtcNow.Date,
-                DirectDispatchDate = DateTime.UtcNow.Date,
+                ReceiptDate = AfghanistanBusinessClock.SystemToday,
+                DirectDispatchDate = AfghanistanBusinessClock.SystemToday,
                 ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var localReturnUrl) ? localReturnUrl : null
             };
             await PopulateReceiptSourceOptionsAsync();
@@ -1408,8 +1417,8 @@ public partial class LoadingReceiptsController : Controller
         var model = new LoadingReceiptCreateViewModel
         {
             LoadingRegisterId = loadingId.Value,
-            ReceiptDate = DateTime.UtcNow.Date,
-            DirectDispatchDate = DateTime.UtcNow.Date,
+            ReceiptDate = AfghanistanBusinessClock.SystemToday,
+            DirectDispatchDate = AfghanistanBusinessClock.SystemToday,
             ReturnUrl = returnUrl
         };
 

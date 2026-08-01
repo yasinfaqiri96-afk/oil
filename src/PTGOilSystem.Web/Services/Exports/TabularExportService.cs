@@ -8,35 +8,29 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using QuestPDF.Drawing;
 using QColors = QuestPDF.Helpers.Colors;
-using SColor = DocumentFormat.OpenXml.Spreadsheet.Color;
-using SFonts = DocumentFormat.OpenXml.Spreadsheet.Fonts;
 
 namespace PTGOilSystem.Web.Services.Exports;
 
 public sealed class TabularExportService : ITabularExportService
 {
-    private const uint TitleStyle = 1;
-    private const uint MetaStyle = 2;
-    private const uint HeaderStyle = 3;
-    private const uint TextStyle = 4;
-    private const uint IntegerStyle = 5;
-    private const uint NumberStyle = 6;
-    private const uint PercentageStyle = 7;
-    private const uint DateStyle = 8;
-    private const uint DateTimeStyle = 9;
-    private const uint TotalTextStyle = 10;
-    private const uint TotalNumberStyle = 11;
-
     private static readonly object QuestPdfInitializationLock = new();
     private static bool _questPdfInitialized;
 
     private readonly TabularExportOptions _options;
     private readonly IWebHostEnvironment _environment;
 
-    public TabularExportService(IOptions<TabularExportOptions> options, IWebHostEnvironment environment)
+    // «تاریخ تولید» روی خروجی باید روز کاری کابل باشد، نه ساعت محلی سیستم‌عاملِ سرور.
+    private readonly PTGOilSystem.Web.Services.Time.IAfghanistanBusinessClock _businessClock;
+
+    public TabularExportService(
+        IOptions<TabularExportOptions> options,
+        IWebHostEnvironment environment,
+        PTGOilSystem.Web.Services.Time.IAfghanistanBusinessClock? businessClock = null)
     {
         _options = options.Value;
         _environment = environment;
+        _businessClock = businessClock
+            ?? new PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock(TimeProvider.System);
         InitializeQuestPdf();
     }
 
@@ -123,6 +117,46 @@ public sealed class TabularExportService : ITabularExportService
         return Task.CompletedTask;
     }
 
+    public Task WriteContractJourneySummaryPdfAsync(
+        Models.ContractJourney.ContractJourneySummaryPdfModel model,
+        bool isEnglish,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(destination);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var document = new ContractJourneySummaryPdfDocument(
+            model,
+            BuildBrandHeader(isEnglish ? _options.CompanyNameEn : _options.CompanyNameFa),
+            isEnglish);
+        document.GeneratePdf(destination);
+        return Task.CompletedTask;
+    }
+
+    public Task WriteShipmentSummaryPdfAsync(
+        Models.ShipmentPnl.ShipmentSummaryPdfModel model,
+        bool isEnglish,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(destination);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // این سند اجرایی فقط نام گروه را در برند نگه می‌دارد و اطلاعات تماسِ اضافی ندارد.
+        var brand = BuildBrandHeader(isEnglish ? _options.CompanyNameEn : _options.CompanyNameFa) with
+        {
+            Phone = null,
+            Email = null,
+            Website = null
+        };
+        var document = new ShipmentSummaryPdfDocument(model, brand, isEnglish);
+        document.GeneratePdf(destination);
+        return Task.CompletedTask;
+    }
+
     private void InitializeQuestPdf()
     {
         lock (QuestPdfInitializationLock)
@@ -185,7 +219,7 @@ public sealed class TabularExportService : ITabularExportService
         }
     }
 
-    private Task WriteExcelWorkbookAsync(
+    private async Task WriteExcelWorkbookAsync(
         IReadOnlyList<TabularExportDocument> documents,
         bool isEnglish,
         Stream destination,
@@ -196,7 +230,7 @@ public sealed class TabularExportService : ITabularExportService
         workbookPart.Workbook = new Workbook();
 
         var stylesPart = workbookPart.AddNewPart<WorkbookStylesPart>();
-        stylesPart.Stylesheet = BuildStylesheet(isEnglish);
+        stylesPart.Stylesheet = ExcelDesignSystem.BuildStylesheet();
         stylesPart.Stylesheet.Save();
 
         var sheets = workbookPart.Workbook.AppendChild(new Sheets());
@@ -205,7 +239,7 @@ public sealed class TabularExportService : ITabularExportService
         foreach (var document in documents)
         {
             var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
-            WriteWorksheet(worksheetPart, document, isEnglish, cancellationToken);
+            await WriteWorksheetAsync(worksheetPart, document, isEnglish, cancellationToken).ConfigureAwait(false);
             sheets.Append(new Sheet
             {
                 Id = workbookPart.GetIdOfPart(worksheetPart),
@@ -215,46 +249,52 @@ public sealed class TabularExportService : ITabularExportService
         }
 
         workbookPart.Workbook.Save();
-        return Task.CompletedTask;
     }
 
-    private void WriteWorksheet(
+    private async Task WriteWorksheetAsync(
         WorksheetPart worksheetPart,
         TabularExportDocument document,
         bool isEnglish,
         CancellationToken cancellationToken)
     {
-        var lastColumn = GetColumnName(document.Columns.Count);
-        const uint headerRowIndex = 6;
+        var totalColumnCount = document.Columns.Count + 1;
+        var lastColumn = GetColumnName(totalColumnCount);
+        var titleLastColumn = GetColumnName(totalColumnCount - 1);
+        const uint headerRowIndex = 3;
         var rowIndex = headerRowIndex + 1;
         var rowCount = 0;
         var rowLimit = _options.ExcelMaxRows;
 
         using var writer = OpenXmlWriter.Create(worksheetPart);
         writer.WriteStartElement(new Worksheet());
+        writer.WriteElement(new SheetProperties(
+            new PageSetupProperties { FitToPage = true, AutoPageBreaks = false }));
         writer.WriteElement(new SheetViews(
-            new SheetView(
-                new Pane
-                {
-                    VerticalSplit = 6D,
-                    TopLeftCell = "A7",
-                    ActivePane = PaneValues.BottomLeft,
-                    State = PaneStateValues.Frozen
-                })
+            new SheetView
             {
                 WorkbookViewId = 0,
-                RightToLeft = !isEnglish,
-                ShowGridLines = false
+                RightToLeft = false,
+                ShowGridLines = true,
+                ZoomScale = 100U,
+                ZoomScaleNormal = 100U
             }));
+        writer.WriteElement(new SheetFormatProperties { DefaultRowHeight = ExcelDesignSystem.BodyRowHeight });
 
         writer.WriteStartElement(new Columns());
+        writer.WriteElement(new Column
+        {
+            Min = 1U,
+            Max = 1U,
+            Width = ExcelDesignSystem.SequenceColumnWidth,
+            CustomWidth = true
+        });
         for (var index = 0; index < document.Columns.Count; index++)
         {
-            var width = Math.Clamp(document.Columns[index].Width, 8D, 42D);
+            var width = ExcelDesignSystem.NormalizeColumnWidth(document.Columns[index].Width);
             writer.WriteElement(new Column
             {
-                Min = (uint)index + 1,
-                Max = (uint)index + 1,
+                Min = (uint)index + 2,
+                Max = (uint)index + 2,
                 Width = width,
                 CustomWidth = true
             });
@@ -262,24 +302,31 @@ public sealed class TabularExportService : ITabularExportService
         writer.WriteEndElement();
 
         writer.WriteStartElement(new SheetData());
-        WriteMergedTextRow(writer, 1, isEnglish ? _options.CompanyNameEn : _options.CompanyNameFa, TitleStyle);
-        WriteMergedTextRow(writer, 2, isEnglish ? document.TitleEn : document.TitleFa, TitleStyle);
         WriteMergedTextRow(
             writer,
-            3,
-            (isEnglish ? "Generated: " : "تاریخ تولید: ") + DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
-            MetaStyle);
-        WriteMergedTextRow(writer, 4, BuildFilterText(document, isEnglish), MetaStyle);
-        writer.WriteElement(new Row { RowIndex = 5 });
+            1,
+            totalColumnCount,
+            ExcelDesignSystem.OrganizationName,
+            ExcelDesignSystem.OrganizationStyle,
+            ExcelDesignSystem.OrganizationRowHeight);
+        WriteReportTitleRow(
+            writer,
+            2,
+            totalColumnCount,
+            isEnglish ? document.TitleEn : document.TitleFa,
+            _businessClock.Now.DateTime.ToString("yyyy/M/d", CultureInfo.InvariantCulture));
 
-        writer.WriteStartElement(new Row { RowIndex = headerRowIndex, Height = 24D, CustomHeight = true });
+        writer.WriteStartElement(new Row { RowIndex = headerRowIndex, Height = ExcelDesignSystem.HeaderRowHeight, CustomHeight = true });
+        WriteInlineTextCell(writer, "#", ExcelDesignSystem.HeaderStyle);
         foreach (var column in document.Columns)
         {
-            WriteInlineTextCell(writer, isEnglish ? column.TitleEn : column.TitleFa, HeaderStyle);
+            WriteInlineTextCell(writer, isEnglish ? column.TitleEn : column.TitleFa, ExcelDesignSystem.HeaderStyle);
         }
         writer.WriteEndElement();
 
-        foreach (var row in document.Rows)
+        // سطرها همان‌طور که از منبع می‌رسند نوشته می‌شوند؛ برای منبعِ صفحه‌به‌صفحه فقط
+        // یک chunk در حافظه است، نه کل نتیجه.
+        await foreach (var row in document.EnumerateRowsAsync(cancellationToken).ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
             rowCount++;
@@ -292,60 +339,98 @@ public sealed class TabularExportService : ITabularExportService
                 throw new InvalidOperationException($"Export row {rowCount:N0} does not match the column count.");
             }
 
-            writer.WriteStartElement(new Row { RowIndex = rowIndex++ });
-            foreach (var cell in row.Cells)
+            writer.WriteStartElement(new Row
             {
-                WriteExcelCell(writer, cell, isEnglish, isTotal: false);
+                RowIndex = rowIndex++,
+                Height = GetBodyRowHeight(document.Columns, row, isEnglish),
+                CustomHeight = true
+            });
+            WriteNumberCell(writer, rowCount.ToString(CultureInfo.InvariantCulture), ExcelDesignSystem.SequenceStyle);
+            for (var columnIndex = 0; columnIndex < row.Cells.Count; columnIndex++)
+            {
+                WriteExcelCell(writer, document.Columns[columnIndex], row.Cells[columnIndex], isEnglish, isTotal: false);
             }
             writer.WriteEndElement();
         }
 
         if (document.Totals is not null)
         {
-            writer.WriteStartElement(new Row { RowIndex = rowIndex++ });
-            foreach (var cell in document.Totals.Cells)
+            writer.WriteStartElement(new Row
             {
-                WriteExcelCell(writer, cell, isEnglish, isTotal: true);
+                RowIndex = rowIndex++,
+                Height = ExcelDesignSystem.TotalRowHeight,
+                CustomHeight = true
+            });
+            WriteInlineTextCell(writer, "Total", ExcelDesignSystem.TotalTextStyle);
+            for (var columnIndex = 0; columnIndex < document.Totals.Cells.Count; columnIndex++)
+            {
+                var cell = document.Totals.Cells[columnIndex];
+                if (IsTotalLabel(cell))
+                {
+                    cell = new TabularExportCell(cell.ValueType, null);
+                }
+                WriteExcelCell(writer, document.Columns[columnIndex], cell, isEnglish, isTotal: true);
             }
             writer.WriteEndElement();
         }
 
         writer.WriteEndElement();
-        writer.WriteElement(new AutoFilter { Reference = $"A{headerRowIndex}:{lastColumn}{Math.Max(headerRowIndex, rowIndex - 1)}" });
         writer.WriteElement(new MergeCells(
             new MergeCell { Reference = $"A1:{lastColumn}1" },
-            new MergeCell { Reference = $"A2:{lastColumn}2" },
-            new MergeCell { Reference = $"A3:{lastColumn}3" },
-            new MergeCell { Reference = $"A4:{lastColumn}4" }));
+            new MergeCell { Reference = $"A2:{titleLastColumn}2" }));
+        writer.WriteElement(new PageMargins
+        {
+            Left = 0.7D,
+            Right = 0.7D,
+            Top = 0.75D,
+            Bottom = 0.75D,
+            Header = 0.3D,
+            Footer = 0.3D
+        });
+        writer.WriteElement(new PageSetup
+        {
+            PaperSize = 9U,
+            Orientation = document.ForceLandscape || totalColumnCount > 7
+                ? OrientationValues.Landscape
+                : OrientationValues.Portrait,
+            FitToWidth = 1U,
+            FitToHeight = 0U,
+            PageOrder = PageOrderValues.DownThenOver
+        });
         writer.WriteEndElement();
     }
 
-    private Task WritePdfWorkbookAsync(
+    private async Task WritePdfWorkbookAsync(
         IReadOnlyList<TabularExportDocument> documents,
         bool isEnglish,
         Stream destination,
         CancellationToken cancellationToken)
     {
+        // PDF ذاتاً باید کل صفحه‌بندی را بشناسد، پس سطرها قبل از ساخت سند جمع می‌شوند؛
+        // ولی سقف PdfMaxRows همان‌جا اعمال می‌شود تا حافظه بی‌مرز رشد نکند.
+        var collected = new List<IReadOnlyList<TabularExportRow>>(documents.Count);
+        foreach (var document in documents)
+        {
+            collected.Add(await CollectPdfRowsAsync(document, cancellationToken).ConfigureAwait(false));
+        }
+
         var pdf = Document.Create(container =>
         {
-            foreach (var document in documents)
+            for (var index = 0; index < documents.Count; index++)
             {
-                AddPdfPage(container, document, isEnglish, cancellationToken);
+                AddPdfPage(container, documents[index], collected[index], isEnglish);
             }
         });
 
         pdf.GeneratePdf(destination);
-        return Task.CompletedTask;
     }
 
-    private void AddPdfPage(
-        IDocumentContainer container,
+    private async Task<IReadOnlyList<TabularExportRow>> CollectPdfRowsAsync(
         TabularExportDocument document,
-        bool isEnglish,
         CancellationToken cancellationToken)
     {
         var rows = new List<TabularExportRow>(Math.Min(document.KnownRowCount ?? 256, _options.PdfMaxRows));
-        foreach (var row in document.Rows)
+        await foreach (var row in document.EnumerateRowsAsync(cancellationToken).ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (rows.Count >= _options.PdfMaxRows)
@@ -359,10 +444,19 @@ public sealed class TabularExportService : ITabularExportService
             rows.Add(row);
         }
 
+        return rows;
+    }
+
+    private void AddPdfPage(
+        IDocumentContainer container,
+        TabularExportDocument document,
+        IReadOnlyList<TabularExportRow> rows,
+        bool isEnglish)
+    {
         var title = isEnglish ? document.TitleEn : document.TitleFa;
         var company = isEnglish ? _options.CompanyNameEn : _options.CompanyNameFa;
         var filters = BuildFilterText(document, isEnglish);
-        var generatedAt = DateTime.Now;
+        var generatedAt = _businessClock.Now.DateTime;
         var metrics = BuildPdfMetrics(document, isEnglish);
         var brand = BuildBrandHeader(company);
         var columnCount = document.Columns.Count;
@@ -433,33 +527,38 @@ public sealed class TabularExportService : ITabularExportService
                     {
                         var target = header.Cell().Element(cell =>
                             PdfDesignSystem.HeaderCell(cell, dense));
-                        target = AlignHeaderCell(target, column, isEnglish);
+                        target = AlignHeaderCell(target, isEnglish);
                         target.Text(isEnglish ? column.TitleEn : column.TitleFa)
                             .Bold()
                             .FontSize(tableFontSize)
                             .FontColor(PdfDesignSystem.Ink);
                     }
+
+                    header.Cell()
+                        .ColumnSpan((uint)columnCount)
+                        .Element(container => PdfDesignSystem.TableSeparator(container, 1.5f));
                 });
 
                 for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
                     var row = rows[rowIndex];
-                    var background = rowIndex % 2 == 0
-                        ? "#FFFFFF"
-                        : PdfDesignSystem.AlternateRowBackground;
 
                     for (var columnIndex = 0; columnIndex < row.Cells.Count; columnIndex++)
                     {
                         var cell = row.Cells[columnIndex];
                         var column = document.Columns[columnIndex];
                         var target = table.Cell().Element(container =>
-                            PdfDesignSystem.BodyCell(container, background, dense));
+                            PdfDesignSystem.BodyCell(container, "#FFFFFF", dense));
                         target = AlignBodyCell(target, column, cell, isEnglish);
 
-                        target.Text(cell.ToDisplayText(isEnglish))
-                            .FontSize(tableFontSize)
+                        target.Text(PdfDesignSystem.FormatPdfCell(cell, isEnglish))
+                            .FontSize(PdfDesignSystem.CellFontSize(cell, tableFontSize))
                             .FontColor(PdfDesignSystem.ValueColor(cell));
                     }
+
+                    table.Cell()
+                        .ColumnSpan((uint)columnCount)
+                        .Element(container => PdfDesignSystem.TableSeparator(container));
                 }
 
                 if (document.Totals is not null)
@@ -472,11 +571,15 @@ public sealed class TabularExportService : ITabularExportService
                             PdfDesignSystem.TotalCell(container, dense));
                         target = AlignBodyCell(target, column, cell, isEnglish);
 
-                        target.Text(cell.ToDisplayText(isEnglish))
+                        target.Text(PdfDesignSystem.FormatPdfCell(cell, isEnglish))
                             .Bold()
-                            .FontSize(tableFontSize)
+                            .FontSize(PdfDesignSystem.CellFontSize(cell, tableFontSize))
                             .FontColor(PdfDesignSystem.ValueColor(cell));
                     }
+
+                    table.Cell()
+                        .ColumnSpan((uint)columnCount)
+                        .Element(container => PdfDesignSystem.TableSeparator(container));
                 }
             });
 
@@ -495,21 +598,9 @@ public sealed class TabularExportService : ITabularExportService
 
     private static IContainer AlignHeaderCell(
         IContainer target,
-        TabularExportColumn column,
         bool isEnglish)
-        => column.ValueType switch
-        {
-            TabularExportValueType.Integer
-                or TabularExportValueType.Number
-                or TabularExportValueType.Percentage
-                => target.ContentFromLeftToRight().AlignRight(),
-            TabularExportValueType.Date
-                or TabularExportValueType.DateTime
-                or TabularExportValueType.Boolean
-                => target.ContentFromLeftToRight().AlignCenter(),
-            _ when isEnglish => target.ContentFromLeftToRight().AlignLeft(),
-            _ => target.ContentFromRightToLeft().AlignRight()
-        };
+        => (isEnglish ? target.ContentFromLeftToRight() : target.ContentFromRightToLeft())
+            .AlignCenter();
 
     private static IContainer AlignBodyCell(
         IContainer target,
@@ -521,14 +612,17 @@ public sealed class TabularExportService : ITabularExportService
             TabularExportValueType.Integer
                 or TabularExportValueType.Number
                 or TabularExportValueType.Percentage
-                => target.ContentFromLeftToRight().AlignRight(),
+                => target.ContentFromLeftToRight().AlignCenter(),
             TabularExportValueType.Date
                 or TabularExportValueType.DateTime
                 or TabularExportValueType.Boolean
                 => target.ContentFromLeftToRight().AlignCenter(),
-            _ when PdfDesignSystem.IsLeftToRight(cell) || isEnglish
+            _ when column.Wrap && (PdfDesignSystem.IsLeftToRight(cell) || isEnglish)
                 => target.ContentFromLeftToRight().AlignLeft(),
-            _ => target.ContentFromRightToLeft().AlignRight()
+            _ when column.Wrap => target.ContentFromRightToLeft().AlignRight(),
+            _ when PdfDesignSystem.IsLeftToRight(cell) || isEnglish
+                => target.ContentFromLeftToRight().AlignCenter(),
+            _ => target.ContentFromRightToLeft().AlignCenter()
         };
 
     private static IReadOnlyList<PdfSummaryMetric> BuildPdfMetrics(
@@ -557,7 +651,7 @@ public sealed class TabularExportService : ITabularExportService
                     : PdfDesignSystem.Positive;
                 metrics.Add(new PdfSummaryMetric(
                     label,
-                    cell.ToDisplayText(isEnglish),
+                    PdfDesignSystem.FormatPdfCell(cell, isEnglish),
                     color));
             }
         }
@@ -565,105 +659,121 @@ public sealed class TabularExportService : ITabularExportService
         return metrics;
     }
 
-    private static Stylesheet BuildStylesheet(bool isEnglish)
+    private static void WriteMergedTextRow(
+        OpenXmlWriter writer,
+        uint rowIndex,
+        int columnCount,
+        string value,
+        uint styleIndex,
+        double height)
     {
-        var fontName = isEnglish ? "Poppins" : "Vazirmatn";
-        var fonts = new SFonts(
-            new Font(new FontName { Val = fontName }, new FontSize { Val = 10D }, new FontFamilyNumbering { Val = 2 }),
-            new Font(new Bold(), new FontName { Val = fontName }, new FontSize { Val = 15D }, new FontFamilyNumbering { Val = 2 }),
-            new Font(new Bold(), new SColor { Rgb = "FFFFFFFF" }, new FontName { Val = fontName }, new FontSize { Val = 10D }, new FontFamilyNumbering { Val = 2 }),
-            new Font(new Bold(), new FontName { Val = fontName }, new FontSize { Val = 10D }, new FontFamilyNumbering { Val = 2 }));
-
-        var fills = new Fills(
-            new Fill(new PatternFill { PatternType = PatternValues.None }),
-            new Fill(new PatternFill { PatternType = PatternValues.Gray125 }),
-            new Fill(new PatternFill(new ForegroundColor { Rgb = "FF334155" }) { PatternType = PatternValues.Solid }),
-            new Fill(new PatternFill(new ForegroundColor { Rgb = "FFEEF2F7" }) { PatternType = PatternValues.Solid }));
-
-        var borders = new Borders(
-            new Border(),
-            new Border(
-                new LeftBorder { Style = BorderStyleValues.Hair, Color = new SColor { Rgb = "FFD8DEE8" } },
-                new RightBorder { Style = BorderStyleValues.Hair, Color = new SColor { Rgb = "FFD8DEE8" } },
-                new TopBorder { Style = BorderStyleValues.Hair, Color = new SColor { Rgb = "FFD8DEE8" } },
-                new BottomBorder { Style = BorderStyleValues.Hair, Color = new SColor { Rgb = "FFD8DEE8" } },
-                new DiagonalBorder()));
-
-        var numberFormats = new NumberingFormats(
-            new NumberingFormat { NumberFormatId = 164, FormatCode = "#,##0" },
-            new NumberingFormat { NumberFormatId = 165, FormatCode = "#,##0.00" },
-            new NumberingFormat { NumberFormatId = 166, FormatCode = "0.00%" },
-            new NumberingFormat { NumberFormatId = 167, FormatCode = "yyyy-mm-dd" },
-            new NumberingFormat { NumberFormatId = 168, FormatCode = "yyyy-mm-dd hh:mm" });
-
-        var cellFormats = new CellFormats(
-            new CellFormat { FontId = 0, FillId = 0, BorderId = 0 },
-            new CellFormat { FontId = 1, FillId = 0, BorderId = 0, ApplyFont = true, Alignment = new Alignment { Horizontal = isEnglish ? HorizontalAlignmentValues.Left : HorizontalAlignmentValues.Right } },
-            new CellFormat { FontId = 0, FillId = 0, BorderId = 0, ApplyFont = true, Alignment = new Alignment { Horizontal = isEnglish ? HorizontalAlignmentValues.Left : HorizontalAlignmentValues.Right } },
-            new CellFormat { FontId = 2, FillId = 2, BorderId = 1, ApplyFont = true, ApplyFill = true, ApplyBorder = true, Alignment = new Alignment { Horizontal = HorizontalAlignmentValues.Center, Vertical = VerticalAlignmentValues.Center, WrapText = true } },
-            new CellFormat { FontId = 0, FillId = 0, BorderId = 1, ApplyBorder = true, Alignment = new Alignment { Horizontal = isEnglish ? HorizontalAlignmentValues.Left : HorizontalAlignmentValues.Right, Vertical = VerticalAlignmentValues.Center, WrapText = true } },
-            NumberCellFormat(164),
-            NumberCellFormat(165),
-            NumberCellFormat(166),
-            NumberCellFormat(167),
-            NumberCellFormat(168),
-            new CellFormat { FontId = 3, FillId = 3, BorderId = 1, ApplyFont = true, ApplyFill = true, ApplyBorder = true, Alignment = new Alignment { Horizontal = isEnglish ? HorizontalAlignmentValues.Left : HorizontalAlignmentValues.Right } },
-            new CellFormat { FontId = 3, FillId = 3, BorderId = 1, NumberFormatId = 165, ApplyFont = true, ApplyFill = true, ApplyBorder = true, ApplyNumberFormat = true, Alignment = new Alignment { Horizontal = HorizontalAlignmentValues.Right } });
-
-        return new Stylesheet(numberFormats, fonts, fills, borders, cellFormats);
-
-        static CellFormat NumberCellFormat(uint numberFormatId)
-            => new()
-            {
-                FontId = 0,
-                FillId = 0,
-                BorderId = 1,
-                NumberFormatId = numberFormatId,
-                ApplyBorder = true,
-                ApplyNumberFormat = true,
-                Alignment = new Alignment { Horizontal = HorizontalAlignmentValues.Right, Vertical = VerticalAlignmentValues.Center }
-            };
-    }
-
-    private static void WriteMergedTextRow(OpenXmlWriter writer, uint rowIndex, string value, uint styleIndex)
-    {
-        writer.WriteStartElement(new Row { RowIndex = rowIndex });
+        writer.WriteStartElement(new Row { RowIndex = rowIndex, Height = height, CustomHeight = true });
         WriteInlineTextCell(writer, value, styleIndex);
+        for (var index = 1; index < columnCount; index++)
+        {
+            WriteInlineTextCell(writer, null, styleIndex);
+        }
         writer.WriteEndElement();
     }
 
-    private static void WriteExcelCell(OpenXmlWriter writer, TabularExportCell cell, bool isEnglish, bool isTotal)
+    private static void WriteReportTitleRow(
+        OpenXmlWriter writer,
+        uint rowIndex,
+        int columnCount,
+        string title,
+        string exportDate)
     {
+        writer.WriteStartElement(new Row
+        {
+            RowIndex = rowIndex,
+            Height = ExcelDesignSystem.ReportTitleRowHeight,
+            CustomHeight = true
+        });
+        WriteInlineTextCell(writer, title, ExcelDesignSystem.ReportTitleStyle);
+        for (var index = 1; index < columnCount - 1; index++)
+        {
+            WriteInlineTextCell(writer, null, ExcelDesignSystem.ReportTitleStyle);
+        }
+        WriteInlineTextCell(writer, exportDate, ExcelDesignSystem.ExportDateStyle);
+        writer.WriteEndElement();
+    }
+
+    private static void WriteExcelCell(
+        OpenXmlWriter writer,
+        TabularExportColumn column,
+        TabularExportCell cell,
+        bool isEnglish,
+        bool isTotal)
+    {
+        var style = isTotal
+            ? ExcelDesignSystem.ResolveTotalStyle(column, cell)
+            : ExcelDesignSystem.ResolveBodyStyle(column, cell);
         if (cell.Value is null)
         {
-            writer.WriteElement(new Cell { StyleIndex = isTotal ? TotalTextStyle : TextStyle });
+            writer.WriteElement(new Cell { StyleIndex = style });
             return;
         }
 
         switch (cell.ValueType)
         {
             case TabularExportValueType.Integer:
-                WriteNumberCell(writer, Convert.ToInt64(cell.Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), isTotal ? TotalNumberStyle : IntegerStyle);
+                WriteNumberCell(writer, Convert.ToInt64(cell.Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), style);
                 break;
             case TabularExportValueType.Number:
-                WriteNumberCell(writer, Convert.ToDecimal(cell.Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), isTotal ? TotalNumberStyle : NumberStyle);
+                WriteNumberCell(writer, Convert.ToDecimal(cell.Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), style);
                 break;
             case TabularExportValueType.Percentage:
-                WriteNumberCell(writer, Convert.ToDecimal(cell.Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), isTotal ? TotalNumberStyle : PercentageStyle);
+                WriteNumberCell(writer, Convert.ToDecimal(cell.Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), style);
                 break;
             case TabularExportValueType.Date when cell.Value is DateTime date:
-                WriteNumberCell(writer, date.ToOADate().ToString(CultureInfo.InvariantCulture), DateStyle);
+                WriteNumberCell(writer, date.ToOADate().ToString(CultureInfo.InvariantCulture), style);
                 break;
             case TabularExportValueType.DateTime when cell.Value is DateTime dateTime:
-                WriteNumberCell(writer, dateTime.ToOADate().ToString(CultureInfo.InvariantCulture), DateTimeStyle);
+                WriteNumberCell(writer, dateTime.ToOADate().ToString(CultureInfo.InvariantCulture), style);
                 break;
             case TabularExportValueType.Boolean:
-                WriteInlineTextCell(writer, Convert.ToBoolean(cell.Value, CultureInfo.InvariantCulture) ? (isEnglish ? "Yes" : "بلی") : (isEnglish ? "No" : "نخیر"), isTotal ? TotalTextStyle : TextStyle);
+                WriteInlineTextCell(writer, Convert.ToBoolean(cell.Value, CultureInfo.InvariantCulture) ? (isEnglish ? "Yes" : "بلی") : (isEnglish ? "No" : "نخیر"), style);
                 break;
             default:
-                WriteInlineTextCell(writer, SanitizeSpreadsheetText(Convert.ToString(cell.Value, CultureInfo.InvariantCulture)), isTotal ? TotalTextStyle : TextStyle);
+                WriteInlineTextCell(writer, SanitizeSpreadsheetText(Convert.ToString(cell.Value, CultureInfo.InvariantCulture)), style);
                 break;
         }
+    }
+
+    private static bool IsTotalLabel(TabularExportCell cell)
+    {
+        if (cell.ValueType != TabularExportValueType.Text || cell.Value is null)
+        {
+            return false;
+        }
+
+        var value = Convert.ToString(cell.Value, CultureInfo.InvariantCulture) ?? string.Empty;
+        return value.Contains("Total", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("جمع", StringComparison.Ordinal);
+    }
+
+    private static double GetBodyRowHeight(
+        IReadOnlyList<TabularExportColumn> columns,
+        TabularExportRow row,
+        bool isEnglish)
+    {
+        for (var index = 0; index < columns.Count; index++)
+        {
+            if (!columns[index].Wrap)
+            {
+                continue;
+            }
+
+            var text = row.Cells[index].ToDisplayText(isEnglish);
+            if (text.Contains('\n', StringComparison.Ordinal)
+                || text.Contains('\r', StringComparison.Ordinal)
+                || text.Length > columns[index].Width * 1.35D)
+            {
+                return ExcelDesignSystem.WrappedBodyRowHeight;
+            }
+        }
+
+        return ExcelDesignSystem.BodyRowHeight;
     }
 
     private static void WriteNumberCell(OpenXmlWriter writer, string value, uint styleIndex)
@@ -695,7 +805,8 @@ public sealed class TabularExportService : ITabularExportService
             : value;
     }
 
-    private static string BuildFilterText(TabularExportDocument document, bool isEnglish)
+    // سندی که فیلتر فعالی ندارد، خط فیلتر هم نمی‌گیرد؛ سربرگ فقط عنوان می‌ماند.
+    private static string? BuildFilterText(TabularExportDocument document, bool isEnglish)
     {
         var activeFilters = document.Filters
             .Where(filter => !string.IsNullOrWhiteSpace(filter.Value))
@@ -703,8 +814,8 @@ public sealed class TabularExportService : ITabularExportService
             .ToArray();
 
         return activeFilters.Length == 0
-            ? (isEnglish ? "Filters: none" : "فیلترها: بدون فیلتر")
-            : string.Join(isEnglish ? " | " : " | ", activeFilters);
+            ? null
+            : string.Join(" | ", activeFilters);
     }
 
     private static string GetColumnName(int columnCount)

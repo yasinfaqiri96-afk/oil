@@ -42,6 +42,7 @@
                         <label class="ak-report-parameters-field">@UiText.T(Context, "مخزن", "Tank")</label>
                         <select class="ak-input" name="StorageTankId" asp-items="ViewBag.StorageTanks"><option value="">@UiText.T(Context, "همه مخزن‌ها", "All Tanks")</option></select>
                         <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
+                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("InventoryOperationsExport"))" />
                         @if (hasActiveFilters)
                         {
                             <a asp-action="InventoryOperations" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>

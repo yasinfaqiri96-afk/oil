@@ -60,27 +60,31 @@ public static class RoleAccessRules
         new(RoleNavigationKeys.Contracts, "قراردادها", "bi-file-earmark-text-fill",
             ["Contracts", "ContractAmendments", "ContractJourney", "ContractBalanceTransfers"]),
         new(RoleNavigationKeys.Operations, "عملیات", "bi-truck-front-fill",
-            ["Loading", "InventoryTransportLegs", "ShipmentPnl", "Dispatch", "TruckSettlements", "Expenses", "LossEvents", "LoadingReceipts", "CustomsDeclarations"]),
+            ["Loading", "LoadingExcelImport", "InventoryTransportLegs", "InventoryTransportReceipts", "InventoryLineage",
+                "Shipments", "ShipmentContracts", "ShipmentPnl", "Dispatch", "TruckSettlements", "Expenses",
+                "LossEvents", "LoadingReceipts", "CustomsDeclarations", "QualityInspections"]),
         new(RoleNavigationKeys.Inventory, "موجودی", "bi-box-seam-fill",
-            ["Inventory"]),
+            ["Inventory", "InventoryReports"]),
         new(RoleNavigationKeys.OperationalAssets, "دارایی‌های عملیاتی", "bi-truck-front-fill",
             ["OperationalAssets"]),
         new(RoleNavigationKeys.Sales, "فروش", "bi-cart-check-fill",
-            ["Sales"]),
+            ["Sales", "Invoices"]),
         new(RoleNavigationKeys.CashAccounts, "حساب‌ها و مالی", "bi-wallet-fill",
-            ["CashAccounts", "Ledger", "Balance", "Finance"]),
+            ["CashAccounts", "Ledger", "Balance", "Finance", "AccountingReadiness", "ChartOfAccounts",
+                "ClosingChecklist", "FinalClose", "FiscalYears", "FiscalYearContext", "PeriodActivity", "TrialClose"]),
         new(RoleNavigationKeys.Payments, "روزنامچه و حواله‌ها", "bi-credit-card-2-front-fill",
-            ["Payments", "AccountStatements", "SarrafSettlements"]),
+            ["Payments", "AccountStatements", "PartyStatements", "SarrafSettlements", "ThreeWaySettlement", "ViaSarrafPayments"]),
         new(RoleNavigationKeys.Reports, "گزارشات", "bi-clipboard-data-fill",
-            ["Reports", "CustomsPermitTurnover"]),
+            ["Reports", "Reconciliation", "CustomsPermitTurnover"]),
         new(RoleNavigationKeys.Partners, "اشخاص", "bi-person-vcard-fill",
             ["Partners", "Companies", "Suppliers", "Customers", "ServiceProviders", "Sarrafs", "Employees"]),
         new(RoleNavigationKeys.BaseDefinitions, "تعاریف پایه", "bi-database-fill-gear",
-            ["Products", "Units", "Currencies", "DailyFxRates", "Locations", "ExpenseTypes", "ExpenseRules", "Terminals", "StorageTanks", "Trucks", "Wagons", "Drivers", "Vessels"]),
+            ["Products", "Units", "Currencies", "DailyFxRates", "Locations", "ExpenseTypes", "ExpenseRules",
+                "Terminals", "StorageTanks", "Trucks", "Wagons", "Drivers", "Vessels", "AutoCodes"]),
         new(RoleNavigationKeys.Rates, "نرخ‌ها و قواعد", "bi-bar-chart-line-fill",
             ["PlattsRates"]),
         new(RoleNavigationKeys.Management, "مدیریت کاربران", "bi-person-fill-gear",
-            ["Users", "Roles", "AuditLogs", "Backups", "BackupRestore"], IsSensitive: true)
+            ["Users", "Roles", "AuditLogs", "Backups", "BackupRestore", "Maintenance"], IsSensitive: true)
     ];
 
     public static IReadOnlySet<string> BusinessNavigationKeys { get; } =
@@ -241,5 +245,8 @@ public static class RoleAccessRules
     }
 
     public static bool CanAccessController(ClaimsPrincipal user, string? controller)
-        => CanAccessNavigation(user, NavigationKeyForController(controller));
+    {
+        var navigationKey = NavigationKeyForController(controller);
+        return navigationKey is not null && CanAccessNavigation(user, navigationKey);
+    }
 }

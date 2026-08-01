@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -106,8 +107,12 @@ public partial class InventoryController : Controller
             createModel?.StorageTankId);
     }
 
-    public async Task<IActionResult> Index(string? q, int page = 1)
+    public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         var query = _db.InventoryMovements.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -125,14 +130,14 @@ public partial class InventoryController : Controller
         }
 
         var totalCount = await query.CountAsync();
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
         var items = await query
             .OrderByDescending(m => m.MovementDate)
             .ThenByDescending(m => m.Id)
-            .Skip((page - 1) * IndexPageSize)
-            .Take(IndexPageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(m => new InventoryMovementListItemViewModel
             {
                 Id = m.Id,
@@ -167,7 +172,7 @@ public partial class InventoryController : Controller
     {
         var model = new InventoryMovementCreateViewModel
         {
-            MovementDate = DateTime.UtcNow.Date,
+            MovementDate = AfghanistanBusinessClock.SystemToday,
             Direction = MovementDirection.In
         };
 
@@ -304,8 +309,12 @@ public partial class InventoryController : Controller
         return View(model);
     }
 
-    public async Task<IActionResult> StockSummary(int page = 1)
+    public async Task<IActionResult> StockSummary(int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         var rows = (await _stock.GetStockSummaryAsync())
             .Select(r => new InventoryStockSummaryRowViewModel
             {
@@ -324,14 +333,14 @@ public partial class InventoryController : Controller
             .ToList();
 
         var totalCount = rows.Count;
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
         return View(new InventoryStockSummaryIndexViewModel
         {
             Rows = rows
-                .Skip((page - 1) * IndexPageSize)
-                .Take(IndexPageSize)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToList(),
             CurrentPage = page,
             PageCount = pageCount,
@@ -339,8 +348,12 @@ public partial class InventoryController : Controller
         });
     }
 
-    public async Task<IActionResult> StockCard([Bind(Prefix = "Filter")] InventoryStockCardFilterViewModel? filter = null, int page = 1)
+    public async Task<IActionResult> StockCard([Bind(Prefix = "Filter")] InventoryStockCardFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
+        var pageSize = ListPageSize.Resolve(perPage, IndexPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = IndexPageSize;
+
         filter ??= new InventoryStockCardFilterViewModel();
 
         if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate)
@@ -393,15 +406,15 @@ public partial class InventoryController : Controller
             .ToList();
 
         var totalCount = rows.Count;
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)IndexPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
         return View(new InventoryStockCardViewModel
         {
             Filter = filter,
             Rows = rows
-                .Skip((page - 1) * IndexPageSize)
-                .Take(IndexPageSize)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToList(),
             CurrentPage = page,
             PageCount = pageCount,

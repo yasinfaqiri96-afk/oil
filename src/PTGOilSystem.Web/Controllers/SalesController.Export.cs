@@ -25,7 +25,8 @@ public partial class SalesController
             new("مجموع", "Total", TabularExportValueType.Number, 15, "TotalInCurrency"),
             new("ارز", "Currency", TabularExportValueType.Text, 10, "Currency"),
             new("مجموع USD", "Total USD", TabularExportValueType.Number, 15, "TotalUsd"),
-            new("مقصد", "Destination", TabularExportValueType.Text, 18, "DestinationName")
+            new("مقصد", "Destination", TabularExportValueType.Text, 18, "DestinationName"),
+            new("نمبر وسیله", "Vehicle no.", TabularExportValueType.Text, 16, "VehicleNumber")
         ], TabularExportSupport.FiltersFromQuery(Request), forceLandscape: true);
         return TabularExportSupport.File(this, format, document);
     }

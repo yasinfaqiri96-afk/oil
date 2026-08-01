@@ -6,6 +6,18 @@ namespace PTGOilSystem.Web.Tests;
 public class ContractJourneyViewStructureTests
 {
     [Fact]
+    public void Contract_Details_Uses_Shared_Export_Menu_For_The_Active_Tab()
+    {
+        var details = ReadContractJourneyDetailsMarkup();
+
+        Assert.Contains("_ExportMenu.cshtml", details);
+        Assert.Contains("\"DetailsExport\"", details);
+        Assert.Contains("[\"contractId\"] = Model.ContractId", details);
+        Assert.Contains("[\"tab\"] = activeTab", details);
+        Assert.Contains("[\"lockContract\"] = Model.LockContract", details);
+    }
+
+    [Fact]
     public void ContractJourney_Views_Hide_Global_SectionTabs()
     {
         var details = ReadContractJourneyDetailsMarkup();

@@ -1,53 +1,88 @@
 @model (int CurrentPage, int PageCount)
-@if (Model.PageCount > 1)
-{
+@{
     var current = Model.Item1;
     var total = Model.Item2;
+
+    // اندازهٔ صفحهٔ جاری را کنترلر در ViewData می‌گذارد؛ اگر نگذاشته باشد انتخابگر نمایش داده نمی‌شود.
+    var currentPageSize = ViewData["PageSize"] as int? ?? 0;
+    var defaultPageSize = ViewData["DefaultPageSize"] as int? ?? currentPageSize;
+    var showPageSize = currentPageSize > 0;
+
     var qs = Context.Request.Query
-        .Where(kv => !string.Equals(kv.Key, "page", StringComparison.OrdinalIgnoreCase))
+        .Where(kv => !string.Equals(kv.Key, "page", StringComparison.OrdinalIgnoreCase)
+                     && !string.Equals(kv.Key, "pageSize", StringComparison.OrdinalIgnoreCase))
         .SelectMany(kv => kv.Value.Select(v => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(v ?? "")}"))
         .ToList();
 
-    string PageUrl(int p)
+    string BuildUrl(int p, int size)
     {
         var parts = new System.Collections.Generic.List<string>(qs) { $"page={p}" };
+        if (size > 0)
+        {
+            parts.Add($"pageSize={size}");
+        }
         return "?" + string.Join("&", parts);
     }
+
+    string PageUrl(int p) => BuildUrl(p, currentPageSize);
 
     int windowStart = Math.Max(1, current - 2);
     int windowEnd = Math.Min(total, windowStart + 4);
     if (windowEnd - windowStart < 4) windowStart = Math.Max(1, windowEnd - 4);
+}
 
-    <nav aria-label="صفحه‌بندی" class="ak-pager">
-        <ul class="pagination pagination-sm mb-0">
-            <li class="page-item @(current == 1 ?"disabled" : "")">
-                <a class="page-link" href="@PageUrl(current - 1)">«</a>
-            </li>
-            @if (windowStart > 1)
-            {
-                <li class="page-item"><a class="page-link" href="@PageUrl(1)">۱</a></li>
-                @if (windowStart > 2)
-                {
-                    <li class="page-item disabled"><span class="page-link">…</span></li>
-                }
-            }
-            @for (int i = windowStart; i <= windowEnd; i++)
-            {
-                <li class="page-item @(i == current ?"active" : "")">
-                    <a class="page-link" href="@PageUrl(i)">@i</a>
-                </li>
-            }
-            @if (windowEnd < total)
-            {
-                @if (windowEnd < total - 1)
-                {
-                    <li class="page-item disabled"><span class="page-link">…</span></li>
-                }
-                <li class="page-item"><a class="page-link" href="@PageUrl(total)">@total</a></li>
-            }
-            <li class="page-item @(current == total ?"disabled" : "")">
-                <a class="page-link" href="@PageUrl(current + 1)">»</a>
-            </li>
-        </ul>
-    </nav>
+@if (showPageSize || total > 1)
+{
+    <div class="ak-pager-bar">
+        @if (showPageSize)
+        {
+            <div class="ak-page-size">
+                <span class="ak-page-size-label">@UiText.T(Context, "تعداد سطر:", "Rows:")</span>
+                <select class="form-select form-select-sm ak-page-size-select"
+                        aria-label="@UiText.T(Context, "تعداد سطر در هر صفحه", "Rows per page")"
+                        onchange="if(this.value) window.location.href = this.value;">
+                    @foreach (var size in ListPageSize.OptionsFor(defaultPageSize, currentPageSize))
+                    {
+                        <option value="@BuildUrl(1, size)" selected="@(size == currentPageSize)">@size</option>
+                    }
+                </select>
+            </div>
+        }
+
+        @if (total > 1)
+        {
+            <nav aria-label="صفحه‌بندی" class="ak-pager">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(current == 1 ? "disabled" : "")">
+                        <a class="page-link" href="@PageUrl(current - 1)">«</a>
+                    </li>
+                    @if (windowStart > 1)
+                    {
+                        <li class="page-item"><a class="page-link" href="@PageUrl(1)">۱</a></li>
+                        @if (windowStart > 2)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                    }
+                    @for (int i = windowStart; i <= windowEnd; i++)
+                    {
+                        <li class="page-item @(i == current ? "active" : "")">
+                            <a class="page-link" href="@PageUrl(i)">@i</a>
+                        </li>
+                    }
+                    @if (windowEnd < total)
+                    {
+                        @if (windowEnd < total - 1)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        <li class="page-item"><a class="page-link" href="@PageUrl(total)">@total</a></li>
+                    }
+                    <li class="page-item @(current == total ? "disabled" : "")">
+                        <a class="page-link" href="@PageUrl(current + 1)">»</a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    </div>
 }

@@ -2,52 +2,128 @@
 @{
     ViewData["Title"] = UiText.T(Context, "گزارش‌ها", "Reports");
 
-    // Akaunting-style grouped report hub. Static links only — no calculation here.
-    var groups = new[]
+    // مرکز گزارشات: فقط پیوند. هیچ محاسبه‌ای در این صفحه انجام نمی‌شود و دسته‌بندی
+    // از کنترلر می‌آید تا در تست قابل بررسی باشد.
+
+    // نگاشت آواتار سه‌بعدی هر گزارش. کلید = "Controller|Action" همان مسیری که کنترلر
+    // می‌دهد. اینجا نگهداری می‌شود تا کنترلر، مدل و منطق گزارش‌ها دست‌نخورده بماند.
+    var avatarMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Home|Index"] = "/images/stat-cards/ref-icons/reports.webp",
+        ["Reports|CompanyOverview"] = "/images/stat-cards/ref-reports/rep-finance-pnl.webp",
+        ["PeriodActivity|Index"] = "/images/stat-cards/ref-reports/rep-analysis.webp",
+        ["ContractJourney|Index"] = "/images/stat-cards/ref-blue/sale-contracts.webp",
+        ["Reports|ContractPnl"] = "/images/stat-cards/ref-contract/contract-profit.webp",
+        ["ShipmentPnl|Index"] = "/images/stat-cards/ref-shipment/profit.webp",
+        ["Reports|VesselVoyages"] = "/images/stat-cards/ref-shipment/loaded.webp",
+        ["Reports|InventoryOperations"] = "/images/stat-cards/ref-reports/rep-inventory.webp",
+        ["Inventory|StockCard"] = "/images/stat-cards/ref-shipment/remaining.webp",
+        ["InventoryTransportLegs|Index"] = "/images/stat-cards/ref-blue/ops-transport.webp",
+        ["Reports|NegativeStock"] = "/images/stat-cards/ref-shipment/losses.webp",
+        ["Sales|Index"] = "/images/stat-cards/ref-reports/rep-sales.webp",
+        ["Sales|PreSales"] = "/images/stat-cards/ref-contracts/contracts-total.webp",
+        ["Reports|SellableStock"] = "/images/stat-cards/ref-reconciliation/recon-stock.webp",
+        ["Reports|PreSaleDiscrepancies"] = "/images/stat-cards/ref-reconciliation/recon-documents.webp",
+        ["Reports|ReceivablesPayables"] = "/images/stat-cards/ref-reconciliation/recon-amount.webp",
+        ["Reports|CashFlow"] = "/images/stat-cards/ref-blue/party-payment.webp",
+        ["AccountStatements|Index"] = "/images/stat-cards/ref-icons/security.webp",
+        ["Balance|Contracts"] = "/images/stat-cards/ref-reconciliation/recon-ledger.webp",
+        ["Expenses|Index"] = "/images/stat-cards/ref-blue/sale-expense.webp",
+        ["LossEvents|Index"] = "/images/stat-cards/ref-shipment/loss.webp",
+        ["Reports|FxDifference"] = "/images/stat-cards/ref-people/exchange-rate.webp",
+        ["CustomsDeclarations|Index"] = "/images/stat-cards/ref-icons/rules-checklist.webp",
+        ["CustomsPermitTurnover|Index"] = "/images/stat-cards/ref-icons/documents.webp",
+        ["QualityInspections|Index"] = "/images/stat-cards/ref-icons/quality.webp",
+        ["Ledger|Index"] = "/images/stat-cards/ref-icons/ledger.webp",
+        ["Reconciliation|Index"] = "/images/stat-cards/ref-reconciliation/recon-operations.webp",
+        ["AuditLogs|Index"] = "/images/stat-cards/ref-reconciliation/recon-audit.webp"
+    };
+    const string fallbackAvatar = "/images/stat-cards/ref-reports/rep-analysis.webp";
+
+    // دو تب مرکز گزارشات. کلید = "Controller|Action" همان مسیری که کنترلر می‌دهد؛
+    // هر گزارشی که اینجا نامش نیامده باشد در تب «عملیاتی» می‌ماند.
+    var financeReportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Reports|CompanyOverview",
+        "Reports|ReceivablesPayables",
+        "Reports|CashFlow",
+        "AccountStatements|Index",
+        "Balance|Contracts",
+        "Expenses|Index",
+        "LossEvents|Index",
+        "Reports|FxDifference",
+        "Ledger|Index",
+        "Reconciliation|Index",
+        "AuditLogs|Index"
+    };
+
+    var allCards = Model.Groups
+        .SelectMany(g => g.Cards)
+        .Select(c => new
+        {
+            Card = c,
+            Key = $"{(string.IsNullOrEmpty(c.Controller) ? "Reports" : c.Controller)}|{c.Action}"
+        })
+        .ToList();
+
+    var tabs = new[]
     {
         new
         {
-            TitleFa = "مالی و حساب‌داری",
-            TitleEn = "Accounting",
-            Items = new[]
-            {
-                new { Action = "CompanyOverview", TitleFa = "نمای کلی مالی", TitleEn = "Company Overview", DescriptionFa = "درآمد، قیمت خرید، مصارف، ضایعات و سود یا زیان خالص شرکت.", DescriptionEn = "Company revenue, cost, expenses, losses and net result.", Icon = "bi-clipboard-data" },
-                new { Action = "ContractPnl", TitleFa = "سود و زیان قراردادها", TitleEn = "Contract P&L", DescriptionFa = "درآمد، بهای خرید، مصارف، ضایعات و اختلاف ارز هر قرارداد.", DescriptionEn = "Revenue, cost, expenses, losses and FX by contract.", Icon = "bi-file-earmark-bar-graph" },
-                new { Action = "FxDifference", TitleFa = "تفاوت نرخ ارز", TitleEn = "FX Difference", DescriptionFa = "سود و ضرر تفاوت نرخ خرید ارز شرکت با نرخ قبول تأمین‌کننده در حواله‌های صراف.", DescriptionEn = "FX gain and loss between the company purchase rate and the supplier accepted rate on sarraf transfers.", Icon = "bi-currency-exchange" },
-                new { Action = "ReceivablesPayables", TitleFa = "دریافتنی‌ها و پرداختنی‌ها", TitleEn = "Receivables & Payables", DescriptionFa = "طلب مشتریان و بدهی تأمین‌کنندگان در یک نگاه.", DescriptionEn = "Customer receivables and supplier payables at a glance.", Icon = "bi-people" }
-            }
+            Id = "rep-operational",
+            Label = UiText.T(Context, "گزارش‌های عملیاتی", "Operational reports"),
+            Cards = allCards.Where(x => !financeReportKeys.Contains(x.Key)).ToList()
         },
         new
         {
-            TitleFa = "نقدینگی و عملیات",
-            TitleEn = "Cash & Operations",
-            Items = new[]
-            {
-                new { Action = "CashFlow", TitleFa = "جریان نقدی", TitleEn = "Cash Flow", DescriptionFa = "ورودی و خروجی واقعی پول از روزنامه و حساب‌های نقدی.", DescriptionEn = "Actual cash inflow and outflow from journal and cash accounts.", Icon = "bi-cash-stack" },
-                new { Action = "InventoryOperations", TitleFa = "موجودی و عملیات", TitleEn = "Inventory & Operations", DescriptionFa = "مقدار موجودی، گردش‌ها و موارد عملیاتی نیازمند بررسی.", DescriptionEn = "Inventory quantities, movements and operational items to review.", Icon = "bi-box-seam" },
-                new { Action = "Warnings", TitleFa = "مغایرت‌ها", TitleEn = "Reconciliation & Warnings", DescriptionFa = "مواردی که برای اصلاح دفتر کل، موجودی یا اسناد نیاز به اقدام دارند.", DescriptionEn = "Ledger, inventory and document issues needing action.", Icon = "bi-exclamation-triangle" }
-            }
+            Id = "rep-financial",
+            Label = UiText.T(Context, "گزارش‌های مالی", "Financial reports"),
+            Cards = allCards.Where(x => financeReportKeys.Contains(x.Key)).ToList()
         }
     };
 }
 
-<div class="akrep-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
-    @foreach (var group in groups)
-    {
-        <section class="akrep-group" aria-label="@UiText.T(Context, group.TitleFa, group.TitleEn)">
-            <h2 class="akrep-group-title">@UiText.T(Context, group.TitleFa, group.TitleEn)</h2>
-            <div class="akrep-grid">
-                @foreach (var item in group.Items)
+<div class="rephub-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
+    @* دو تب درون‌صفحه‌ای. موتور تب همان ptg-tabs.js مشترک سیستم است: هر تب با
+       href="#id" پنل خودش را باز می‌کند، ARIA و کیبورد و hash را خودش می‌بندد. *@
+    <div class="rephub-tabs" data-section-tabs="true">
+        <div data-section-tabs-scroll="true">
+            <nav class="ptg-tabs-rail" role="tablist" aria-label="@UiText.T(Context, "دسته‌های گزارش", "Report groups")">
+                @foreach (var tab in tabs)
                 {
-                    <a class="akrep-item" asp-controller="Reports" asp-action="@item.Action">
-                        <span class="akrep-ico" aria-hidden="true"><i class="bi @item.Icon"></i></span>
-                        <span class="akrep-copy">
-                            <strong>@UiText.T(Context, item.TitleFa, item.TitleEn)</strong>
-                            <small>@UiText.T(Context, item.DescriptionFa, item.DescriptionEn)</small>
+                    <a class="ptg-tab-item @(tab == tabs[0] ? "is-active" : null)"
+                       href="#@tab.Id"
+                       role="tab"
+                       aria-controls="@tab.Id"
+                       aria-selected="@(tab == tabs[0] ? "true" : "false")">
+                        <span data-tab-label="@tab.Label">@tab.Label</span>
+                    </a>
+                }
+            </nav>
+        </div>
+    </div>
+
+    @foreach (var tab in tabs)
+    {
+        <div id="@tab.Id" class="rephub-panel" role="tabpanel" aria-label="@tab.Label" hidden="@(tab == tabs[0] ? null : "hidden")">
+            <div class="rephub-grid">
+                @foreach (var entry in tab.Cards)
+                {
+                    var item = entry.Card;
+                    var controller = string.IsNullOrEmpty(item.Controller) ? "Reports" : item.Controller;
+                    var avatar = avatarMap.TryGetValue(entry.Key, out var mapped) ? mapped : fallbackAvatar;
+                    var title = UiText.T(Context, item.TitleFa, item.TitleEn);
+                    <a class="rephub-card"
+                       asp-controller="@controller"
+                       asp-action="@item.Action"
+                       title="@title">
+                        <span class="rephub-card-art">
+                            <img src="@avatar" alt="" aria-hidden="true" width="128" height="128" loading="lazy" decoding="async" />
                         </span>
+                        <span class="rephub-card-title">@title</span>
                     </a>
                 }
             </div>
-        </section>
+        </div>
     }
 </div>

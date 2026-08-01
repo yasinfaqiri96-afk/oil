@@ -25,8 +25,14 @@ public sealed class ChartOfAccountsController(
     public async Task<IActionResult> Index(
         string? q,
         int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null,
         CancellationToken cancellationToken = default)
-        => View(await service.BuildAsync(q, page, cancellationToken));
+    {
+        var model = await service.BuildAsync(q, page, cancellationToken, perPage);
+        ViewData["PageSize"] = model.PageSize;
+        ViewData["DefaultPageSize"] = 20;
+        return View(model);
+    }
 
     [HttpGet("create")]
     [Authorize(Policy = AuthPolicies.ManageData)]

@@ -1221,3 +1221,138 @@ body.is-finance-workspace .akrep-copy small {
         column-gap: 0;
     }
 }
+
+/* =====================================================================
+   Reports hub — avatar card grid  (.rephub-*)
+   Scoped to the reports hub page only. The Akaunting row list above
+   (.akrep-*) stays untouched because Views/Finance/Index.cshtml uses it.
+   Two in-page tabs, each holding one flat six-column grid of soft cards.
+   ===================================================================== */
+body.is-finance-workspace .rephub-page {
+    --rephub-cols: 6;
+    /* قطر دایرهٔ کارت */
+    --rephub-card-w: 150px;
+    --rephub-col-gap: 18px;
+    --rephub-row-gap: 18px;
+
+    inline-size: 100%;
+    padding-inline: 20px;
+    padding-block: 4px 24px;
+}
+
+body.is-finance-workspace .rephub-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--rephub-cols), minmax(0, var(--rephub-card-w)));
+    justify-content: center;
+    justify-items: center;
+    column-gap: var(--rephub-col-gap);
+    row-gap: var(--rephub-row-gap);
+    margin-inline: auto;
+}
+
+/* نوار دو تب — پوستهٔ ریل مشترک سیستم (16-system-tabs.css) بدون بازتعریف. */
+body.is-finance-workspace .rephub-tabs {
+    margin-block-end: 18px;
+}
+
+/* کارت = یک دایرهٔ کامل با آواتار، و عنوان درست زیر آن. عنوان بیرون دایره
+   می‌ماند چون داخل دایره لبه‌های گرد متن فارسی را می‌بُرند. */
+body.is-finance-workspace .rephub-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+
+    /* اندازهٔ عنوان به عرض خود کارت بسته است نه به عرض پنجره */
+    container-type: inline-size;
+
+    inline-size: 100%;
+    max-inline-size: var(--rephub-card-w);
+    padding: 0;
+    background: transparent;
+    border: 0;
+
+    text-decoration: none;
+}
+
+body.is-finance-workspace .rephub-card-art {
+    position: relative;
+    inline-size: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    /* بدون بوردر و بدون سایه — دایره فقط با یک تُنِ بسیار ملایم دیده می‌شود. */
+    background: #F4F7FC;
+    transition: background-color .2s ease;
+}
+
+body.is-finance-workspace .rephub-card:hover .rephub-card-art,
+body.is-finance-workspace .rephub-card:focus-visible .rephub-card-art {
+    background: #E8EFFA;
+}
+
+body.is-finance-workspace .rephub-card:focus-visible {
+    outline: none;
+}
+
+body.is-finance-workspace .rephub-card:focus-visible .rephub-card-art {
+    outline: 2px solid var(--primary-main);
+    outline-offset: 3px;
+}
+
+/* آواتار داخل دایره فرو نشسته تا هاله‌اش به لبهٔ دایره نچسبد. */
+body.is-finance-workspace .rephub-card-art img {
+    position: absolute;
+    inset-block-start: 13%;
+    inset-inline-start: 13%;
+    inline-size: 74%;
+    block-size: 74%;
+    object-fit: contain;
+}
+
+/* عنوان یک‌خطی با ارتفاع ثابت، پس کف همهٔ کارت‌ها یک‌تراز می‌ماند. */
+body.is-finance-workspace .rephub-card-title {
+    flex: 0 0 auto;
+    inline-size: 100%;
+    block-size: 1.45em;
+    font-size: clamp(12px, 8.8cqi, 14.5px);
+    font-weight: 600;
+    line-height: 1.45;
+    color: #0B2868;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* زیر دسکتاپ بزرگ، عنوان دسته یک سطر کامل مستقل می‌شود تا کارت‌ها فشرده نشوند. */
+@media (max-width: 1199px) {
+    body.is-finance-workspace .rephub-page {
+        --rephub-cols: 4;
+    }
+}
+
+@media (max-width: 900px) {
+    body.is-finance-workspace .rephub-page {
+        --rephub-cols: 3;
+    }
+}
+
+@media (max-width: 640px) {
+    body.is-finance-workspace .rephub-page {
+        --rephub-cols: 2;
+        padding-inline: 14px;
+    }
+}
+
+/* موبایل باریک: یک ستون */
+@media (max-width: 420px) {
+    body.is-finance-workspace .rephub-page {
+        --rephub-cols: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.is-finance-workspace .rephub-card {
+        transition: none;
+    }
+}

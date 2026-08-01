@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Inventory;
 
@@ -29,7 +30,7 @@ public class InventoryMovementCreateViewModel
 
     [Display(Name = "تاریخ حرکت")]
     [DataType(DataType.Date)]
-    public DateTime MovementDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime MovementDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مرجع")]
     [StringLength(500)]

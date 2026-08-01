@@ -260,7 +260,12 @@ public class PeriodGuardTests
     public async Task A_Future_Accounting_Date_Is_Rejected()
     {
         await using var db = NewDb();
-        var today = DateTime.UtcNow.Date;
+        // «امروز» را از همان مرجعی می‌گیریم که PeriodGuard استفاده می‌کند (روز کاری کابل).
+        // با DateTime.UtcNow.Date این تست بین 19:30 تا 23:59 UTC می‌شکست، چون آن لحظه
+        // در کابل روز بعد است و «فردای UTC» دیگر آینده نبود.
+        var utcNow = new DateTimeOffset(2026, 5, 2, 6, 0, 0, TimeSpan.Zero);
+        var today = new PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock(
+            new FixedTimeProvider(utcNow)).Today;
         db.Companies.Add(new Company { Id = 1, Code = "A", Name = "A", Country = "AF", IsActive = true });
         db.FiscalYears.Add(new FiscalYear
         {
@@ -287,12 +292,26 @@ public class PeriodGuardTests
 
         // فردا داخل همان دورهٔ باز است و باز هم رد می‌شود: قفلِ دوره تنها قاعده نیست.
         var error = await Assert.ThrowsAsync<AccountingValidationException>(
-            () => NewGuard(db).EnsurePostingAllowedAsync(1, today.AddDays(1)));
+            () => NewGuardAt(db, utcNow).EnsurePostingAllowedAsync(1, today.AddDays(1)));
         Assert.Equal("ACCOUNTING_DATE_OUT_OF_RANGE", error.Code);
 
         // امروز قبول است — مرزِ «آینده» روز است، نه لحظه.
-        var selection = await NewGuard(db).EnsurePostingAllowedAsync(1, today);
+        var selection = await NewGuardAt(db, utcNow).EnsurePostingAllowedAsync(1, today);
         Assert.Equal(1, selection.FiscalPeriod.Id);
+
+        // مرز نیمه‌شب کابل: 19:30 UTC یعنی 00:00 روز بعد در کابل. سندی که در کابل
+        // «امروز» است باید پذیرفته شود، هرچند به وقت UTC هنوز فردا نشده است.
+        var justAfterKabulMidnight = new DateTimeOffset(2026, 5, 2, 19, 30, 0, TimeSpan.Zero);
+        var kabulToday = today.AddDays(1);
+        var acceptedAtBoundary = await NewGuardAt(db, justAfterKabulMidnight)
+            .EnsurePostingAllowedAsync(1, kabulToday);
+        Assert.Equal(1, acceptedAtBoundary.FiscalPeriod.Id);
+
+        // و یک ثانیه پیش از آن (23:59:59 کابل) همان تاریخ هنوز آینده است و رد می‌شود.
+        var justBeforeKabulMidnight = new DateTimeOffset(2026, 5, 2, 19, 29, 59, TimeSpan.Zero);
+        var boundaryError = await Assert.ThrowsAsync<AccountingValidationException>(
+            () => NewGuardAt(db, justBeforeKabulMidnight).EnsurePostingAllowedAsync(1, kabulToday));
+        Assert.Equal("ACCOUNTING_DATE_OUT_OF_RANGE", boundaryError.Code);
     }
 
     [Fact]
@@ -531,6 +550,19 @@ public class PeriodGuardTests
 
     private static PeriodGuard NewGuard(ApplicationDbContext db)
         => new(db, new FiscalCalendarService(db), new AuditService(db));
+
+    // ساعت قطعی برای آزمون مرز روز کاری کابل؛ ساعت سیستم عامل هیچ‌جا مرجع نیست.
+    private static PeriodGuard NewGuardAt(ApplicationDbContext db, DateTimeOffset utcNow)
+        => new(
+            db,
+            new FiscalCalendarService(db),
+            new AuditService(db),
+            new PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock(new FixedTimeProvider(utcNow)));
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
 
     private static FiscalPeriodLockService NewLockService(ApplicationDbContext db)
         => new(db, new AuditService(db));

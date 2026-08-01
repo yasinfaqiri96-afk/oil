@@ -10,6 +10,17 @@
         <div class="ak-list-toolbar">
             <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
                      model="@AkSearchFilterModel.SearchOnly("q", q, UiText.T(Context, "شماره سند، کاربر، بخش یا متن...", "Document, user, module, or text..."))" />
+            @* خروجی همان فیلتر صفحه را می‌گیرد؛ لینک دوم فقط لغوها و برگشت‌ها را می‌دهد. *@
+            <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                     model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+            <a class="btn btn-light ak-secondary-action"
+               asp-action="Export"
+               asp-route-format="excel"
+               asp-route-q="@q"
+               asp-route-cancellationsOnly="true">
+                <i class="bi bi-x-octagon" aria-hidden="true"></i>
+                <span>@UiText.T(Context, "خروجی لغوها", "Cancellations export")</span>
+            </a>
         </div>
 
         <div class="ak-table-wrap">

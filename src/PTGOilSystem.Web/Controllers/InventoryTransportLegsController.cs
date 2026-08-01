@@ -16,6 +16,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -47,6 +48,8 @@ public partial class InventoryTransportLegsController : Controller
     {
     }
 
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     [ActivatorUtilitiesConstructor]
     public InventoryTransportLegsController(
         ApplicationDbContext db,
@@ -57,8 +60,11 @@ public partial class InventoryTransportLegsController : Controller
         IAuditService audit,
         ILogger<InventoryTransportLegsController> logger,
         IInventoryLineageWriter lineage,
-        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null)
+        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
         _stock = stock;
         _legLoad = legLoad;
@@ -73,9 +79,11 @@ public partial class InventoryTransportLegsController : Controller
     // مرحله ۵ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IExpenseAccountingAdapter? _expenseAccounting;
 
-    public async Task<IActionResult> Index(InventoryTransportLegIndexFilterViewModel filter, int page = 1)
+    public async Task<IActionResult> Index(InventoryTransportLegIndexFilterViewModel filter, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 5;
+        var pageSize = ListPageSize.Resolve(perPage, 5);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
 
         var query = _db.InventoryTransportLegs
@@ -288,7 +296,7 @@ public partial class InventoryTransportLegsController : Controller
             SourceStorageTankId = hasPrefilledSource ? sourceStorageTankId!.Value : 0,
             ProductId = hasPrefilledSource ? productId!.Value : 0,
             ActiveStep = hasPrefilledSource ? 2 : 1,
-            TransportDate = DateTime.UtcNow.Date,
+            TransportDate = _businessClock.Today,
             Vehicles = [new InventoryTransportVehicleInput()]
         };
         await PopulateCreateFromInventoryLookupsAsync(model);
@@ -1072,7 +1080,7 @@ public partial class InventoryTransportLegsController : Controller
         {
             GroupKey = BuildTransportGroupKey(first),
             Mode = mode == InventoryTransportReceiptDestination.Mixed ? InventoryTransportReceiptDestination.ToInventory : mode,
-            OperationDate = DateTime.UtcNow.Date,
+            OperationDate = _businessClock.Today,
             DestinationTerminalId = first.DestinationTerminalId,
             DestinationStorageTankId = first.DestinationStorageTankId,
             DirectDispatchDestinationLocationId = first.DestinationLocationId,
@@ -1390,7 +1398,7 @@ public partial class InventoryTransportLegsController : Controller
     {
         var model = new InventoryTransportGroupTransferViewModel
         {
-            TransferDate = DateTime.UtcNow.Date,
+            TransferDate = _businessClock.Today,
             ReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true ? returnUrl : null,
             ActiveStep = shipmentId.HasValue && shipmentId.Value > 0 ? 2 : 1
         };
@@ -2667,7 +2675,7 @@ public partial class InventoryTransportLegsController : Controller
                         TransportLegId = leg.Id,
                         ServiceProviderId = provider?.Id,
                         OperationalAssetId = asset?.Id,
-                        ExpenseDate = DateTime.UtcNow.Date,
+                        ExpenseDate = _businessClock.Today,
                         Amount = legAmount,
                         Currency = SystemCurrency.BaseCurrencyCode,
                         AppliedFxRateToUsd = 1m,
@@ -3938,7 +3946,7 @@ public partial class InventoryTransportLegsController : Controller
     {
         var model = new InventoryTransportGroupReceiptCreateViewModel
         {
-            ReceiptDate = DateTime.UtcNow.Date,
+            ReceiptDate = AfghanistanBusinessClock.SystemToday,
             ReturnUrl = returnUrl
         };
 
@@ -4360,7 +4368,7 @@ public partial class InventoryTransportLegsController : Controller
     {
         var model = new InventoryTransportGroupExpenseCreateViewModel
         {
-            ExpenseDate = DateTime.UtcNow.Date,
+            ExpenseDate = AfghanistanBusinessClock.SystemToday,
             Currency = SystemCurrency.BaseCurrencyCode,
             AppliedFxRateToUsd = 1m,
             ReturnUrl = returnUrl
@@ -5143,7 +5151,7 @@ public partial class InventoryTransportLegsController : Controller
     {
         model.GroupKey = (model.GroupKey ?? string.Empty).Trim();
         model.TransportReference = (model.TransportReference ?? string.Empty).Trim();
-        model.ReceiptDate = model.ReceiptDate == default ? DateTime.UtcNow.Date : model.ReceiptDate.Date;
+        model.ReceiptDate = model.ReceiptDate == default ? AfghanistanBusinessClock.SystemToday : model.ReceiptDate.Date;
         model.Notes = NormalizeString(model.Notes);
         model.DocumentReference = NormalizeString(model.DocumentReference);
         model.AllowanceMt = model.AllowanceMt.HasValue
@@ -5162,7 +5170,7 @@ public partial class InventoryTransportLegsController : Controller
         model.Description = (model.Description ?? string.Empty).Trim();
         model.ManualExpenseTypeName = NormalizeString(model.ManualExpenseTypeName);
         model.Currency = SystemCurrency.Normalize(model.Currency);
-        model.ExpenseDate = model.ExpenseDate == default ? DateTime.UtcNow.Date : model.ExpenseDate.Date;
+        model.ExpenseDate = model.ExpenseDate == default ? AfghanistanBusinessClock.SystemToday : model.ExpenseDate.Date;
         model.ServiceProviderId = NormalizePositiveInt(model.ServiceProviderId);
         model.OperationalAssetId = NormalizePositiveInt(model.OperationalAssetId);
 

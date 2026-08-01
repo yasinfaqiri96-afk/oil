@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Models.Customs;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Exports;
 using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -40,6 +43,98 @@ public class CustomsPermitTurnoverController : Controller
         string? route = null,
         decimal taxPercent = 0m,
         string? displayCurrency = "USD")
+        => View(await BuildAsync(
+            fromDate, toDate, permitHolder, permitNumber, accd, vehicle, type, goods, route, taxPercent, displayCurrency));
+
+    /// <summary>
+    /// خروجی Excel/PDF همان گزارش. دقیقاً همان <see cref="BuildAsync"/> صفحه با همان فیلترها
+    /// خوانده می‌شود؛ هیچ مبلغ گمرکی یا نرخی اینجا دوباره محاسبه نمی‌شود.
+    /// </summary>
+    [EnableRateLimiting(RateLimitPolicies.CsvExport)]
+    public async Task<IActionResult> Export(
+        string? format,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        string? permitHolder = null,
+        string? permitNumber = null,
+        string? accd = null,
+        string? vehicle = null,
+        string? type = null,
+        string? goods = null,
+        string? route = null,
+        decimal taxPercent = 0m,
+        string? displayCurrency = "USD")
+    {
+        var model = await BuildAsync(
+            fromDate, toDate, permitHolder, permitNumber, accd, vehicle, type, goods, route, taxPercent, displayCurrency);
+        var rows = model.Rows.ToList();
+
+        return TabularExportSupport.File(this, format, new TabularExportDocument
+        {
+            FileNameStem = "PTG_Customs_Permit_Turnover",
+            TitleFa = "گردش جواز گمرکی",
+            TitleEn = "Customs Permit Turnover",
+            KnownRowCount = rows.Count,
+            ForceLandscape = true,
+            Filters = TabularExportSupport.FilterSummary(
+                ("از تاریخ / From", model.FromDate?.ToString("yyyy-MM-dd")),
+                ("تا تاریخ / To", model.ToDate?.ToString("yyyy-MM-dd")),
+                ("صاحب جواز / Permit holder", model.PermitHolderName),
+                ("نمبر جواز / Permit number", model.PermitNumber),
+                ("نمبر ACCD / ACCD", model.AccdNumber),
+                ("نمبر موتر / Vehicle", model.VehicleNumber),
+                ("نوع / Type", model.CustomsType),
+                ("جنس / Goods", model.GoodsName),
+                ("مسیر / Route", model.Route),
+                ("ارز نمایش / Display currency", model.SelectedCurrency)),
+            Columns =
+            [
+                new("تاریخ", "Date", TabularExportValueType.Date, 13),
+                new("نمبر ACCD", "ACCD", Width: 16), new("نمبر موتر", "Vehicle", Width: 15),
+                new("نمبر جواز", "Permit", Width: 16), new("صاحب جواز", "Permit holder", Width: 22),
+                new("نوع", "Type", Width: 14), new("جنس", "Goods", Width: 18),
+                new("مقدار MT", "Quantity MT", TabularExportValueType.Number, 14),
+                new("محصولی AFN", "Mahsooli AFN", TabularExportValueType.Number, 16),
+                new("محصولی USD", "Mahsooli USD", TabularExportValueType.Number, 16),
+                new("جمع گمرک AFN", "Total customs AFN", TabularExportValueType.Number, 17),
+                new("جمع گمرک USD", "Total customs USD", TabularExportValueType.Number, 17),
+                new("نرخ USD/AFN", "Rate USD/AFN", TabularExportValueType.Number, 14),
+                new("مسیر", "Route", Width: 20)
+            ],
+            Rows = rows.Select(row => new TabularExportRow(
+            [
+                TabularExportCell.Date(row.DeclarationDate), TabularExportCell.Text(row.AccdNumber),
+                TabularExportCell.Text(row.VehicleNumber), TabularExportCell.Text(row.PermitNumber),
+                TabularExportCell.Text(row.PermitHolderName), TabularExportCell.Text(row.CustomsType),
+                TabularExportCell.Text(row.GoodsName), TabularExportCell.Number(row.QuantityMt),
+                TabularExportCell.Number(row.MahsooliAfn), TabularExportCell.Number(row.MahsooliUsd),
+                TabularExportCell.Number(row.TotalCustomsAfn), TabularExportCell.Number(row.TotalCustomsUsd),
+                TabularExportCell.Number(row.RateUsdToAfn), TabularExportCell.Text(row.Route)
+            ])),
+            Totals = new TabularExportRow(
+            [
+                TabularExportCell.Date(null), TabularExportCell.Text(null), TabularExportCell.Text(null),
+                TabularExportCell.Text(null), TabularExportCell.Text(null), TabularExportCell.Text(null),
+                TabularExportCell.Text(null), TabularExportCell.Number(model.TotalQuantityMt),
+                TabularExportCell.Number(model.TotalMahsooliAfn), TabularExportCell.Number(model.TotalMahsooliUsd),
+                TabularExportCell.Number(model.TotalCustomsAfn), TabularExportCell.Number(model.TotalCustomsUsd),
+                TabularExportCell.Number(null), TabularExportCell.Text(null)
+            ])
+        });
+    }
+
+    private async Task<CustomsPermitTurnoverViewModel> BuildAsync(
+        DateTime? fromDate,
+        DateTime? toDate,
+        string? permitHolder,
+        string? permitNumber,
+        string? accd,
+        string? vehicle,
+        string? type,
+        string? goods,
+        string? route,
+        decimal taxPercent,
+        string? displayCurrency)
     {
         string? N(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -258,7 +353,7 @@ public class CustomsPermitTurnoverController : Controller
         model.TotalCustomsEquivalentAmount = rows.Sum(r => r.TotalCustomsEquivalentAmount);
         model.TotalCustomsEquivalentCurrency = rows.FirstOrDefault()?.TotalCustomsEquivalentCurrency ?? "AFN";
 
-        return View(model);
+        return model;
     }
 
     // یک قلم گمرکی فقط یک مبلغ اصلی دارد؛ این تابع جفت معادلِ (AFN, USD) را برمی‌گرداند:

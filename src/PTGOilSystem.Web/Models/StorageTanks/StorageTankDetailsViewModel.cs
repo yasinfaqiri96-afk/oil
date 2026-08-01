@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.StorageTanks;
 
@@ -189,7 +190,7 @@ public sealed class StorageTankSettlementViewModel
 
     [Display(Name = "تاریخ تسویه")]
     [DataType(DataType.Date)]
-    public DateTime EventDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime EventDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     // مقدار واقعی باقیمانده در مخزن؛ پیش‌فرض ۰ = مخزن کاملاً خالی شده است.
     // فقط در حالت «تقسیم نسبتی» استفاده می‌شود.

@@ -5366,6 +5366,188 @@ namespace PTGOilSystem.Web.Migrations
                     b.ToTable("Products");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.QualityInspection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdditionalSpecifications")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("CompanyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ContractId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CreatedByUserName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int?>("CustomsDeclarationId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("DensityKgM3")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<decimal?>("FlashPointC")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("LaboratoryName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("LoadingRegisterId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("OctaneOrCetaneNumber")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime?>("ResultDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResultNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("SampleDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ShipmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("SulphurPercent")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UpdatedByUserName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<decimal?>("WaterContentPercent")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("CustomsDeclarationId");
+
+                    b.HasIndex("LoadingRegisterId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ShipmentId");
+
+                    b.HasIndex("Status", "SampleDate");
+
+                    b.ToTable("QualityInspections");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.QualityInspectionDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DocumentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("QualityInspectionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UploadedByUserName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QualityInspectionId");
+
+                    b.ToTable("QualityInspectionDocuments");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Role", b =>
                 {
                     b.Property<int>("Id")
@@ -5682,6 +5864,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal>("TotalUsd")
                         .HasColumnType("numeric(18,4)");
 
+                    b.Property<int?>("TruckDispatchId")
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("UnitPriceInCurrency")
                         .HasColumnType("numeric(18,4)");
 
@@ -5716,6 +5901,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("ShipmentId");
 
                     b.HasIndex("SourcePurchaseContractId");
+
+                    b.HasIndex("TruckDispatchId");
 
                     b.ToTable("SalesTransactions");
                 });
@@ -8933,6 +9120,63 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.QualityInspection", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Contract", "Contract")
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.CustomsDeclaration", "CustomsDeclaration")
+                        .WithMany()
+                        .HasForeignKey("CustomsDeclarationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.LoadingRegister", "LoadingRegister")
+                        .WithMany()
+                        .HasForeignKey("LoadingRegisterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Shipment", "Shipment")
+                        .WithMany()
+                        .HasForeignKey("ShipmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("CustomsDeclaration");
+
+                    b.Navigation("LoadingRegister");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Shipment");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.QualityInspectionDocument", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.QualityInspection", "QualityInspection")
+                        .WithMany("Documents")
+                        .HasForeignKey("QualityInspectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("QualityInspection");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.SaleLotAllocation", b =>
                 {
                     b.HasOne("PTGOilSystem.Web.Models.Entities.InventoryLot", "InventoryLot")
@@ -9019,6 +9263,11 @@ namespace PTGOilSystem.Web.Migrations
                         .HasForeignKey("SourcePurchaseContractId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.TruckDispatch", "TruckDispatch")
+                        .WithMany()
+                        .HasForeignKey("TruckDispatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Company");
 
                     b.Navigation("Contract");
@@ -9036,6 +9285,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Shipment");
 
                     b.Navigation("SourcePurchaseContract");
+
+                    b.Navigation("TruckDispatch");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.SarrafSettlement", b =>
@@ -9456,6 +9707,11 @@ namespace PTGOilSystem.Web.Migrations
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PreSaleOrder", b =>
                 {
                     b.Navigation("Deliveries");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.QualityInspection", b =>
+                {
+                    b.Navigation("Documents");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.SalesBatch", b =>

@@ -1,14 +1,18 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using PTGOilSystem.Web.Helpers;
+using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Exports;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -76,20 +80,34 @@ public partial class SalesController
 
     // ---------- فهرست ----------
 
-    public async Task<IActionResult> PreSales(int page = 1)
+    public async Task<IActionResult> PreSales(int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int pageSize = 25;
+        var pageSize = ListPageSize.Resolve(perPage, 25);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 25;
         page = page < 1 ? 1 : page;
 
         var query = _db.PreSaleOrders.AsNoTracking().OrderByDescending(o => o.Id);
         var totalCount = await query.CountAsync();
         var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
 
-        var sumQuantityMt = await _db.PreSaleOrders.AsNoTracking().SumAsync(o => (decimal?)o.QuantityMt) ?? 0m;
+        var activeOrders = _db.PreSaleOrders.AsNoTracking()
+            .Where(o => o.Status != PreSaleOrderStatus.Closed
+                && o.Status != PreSaleOrderStatus.Cancelled);
+        var sumQuantityMt = await activeOrders.SumAsync(o => (decimal?)o.QuantityMt) ?? 0m;
         var sumDeliveredMt = await _db.SalesTransactions.AsNoTracking()
-            .Where(s => s.PreSaleOrderId != null && !s.IsCancelled)
+            .Where(s => s.PreSaleOrderId != null
+                && !s.IsCancelled
+                && s.PreSaleOrder != null
+                && s.PreSaleOrder.Status != PreSaleOrderStatus.Closed
+                && s.PreSaleOrder.Status != PreSaleOrderStatus.Cancelled)
             .SumAsync(s => (decimal?)s.QuantityMt) ?? 0m;
-        var customerCount = await _db.PreSaleOrders.AsNoTracking().Select(o => o.CustomerId).Distinct().CountAsync();
+        var customerCount = await activeOrders.Select(o => o.CustomerId).Distinct().CountAsync();
+        var activeOrderCount = await activeOrders.CountAsync();
+        var closedOrderCount = await _db.PreSaleOrders.AsNoTracking()
+            .CountAsync(o => o.Status == PreSaleOrderStatus.Closed);
+        var cancelledOrderCount = await _db.PreSaleOrders.AsNoTracking()
+            .CountAsync(o => o.Status == PreSaleOrderStatus.Cancelled);
 
         var orders = await query
             .Skip((page - 1) * pageSize)
@@ -129,11 +147,111 @@ public partial class SalesController
             CurrentPage = page,
             PageCount = pageCount,
             TotalCount = totalCount,
+            ActiveOrderCount = activeOrderCount,
+            ClosedOrderCount = closedOrderCount,
+            CancelledOrderCount = cancelledOrderCount,
             SumQuantityMt = sumQuantityMt,
-            SumRemainingMt = decimal.Round(sumQuantityMt - sumDeliveredMt, 4, MidpointRounding.AwayFromZero),
+            SumRemainingMt = decimal.Round(Math.Max(sumQuantityMt - sumDeliveredMt, 0m), 4, MidpointRounding.AwayFromZero),
             CustomerCount = customerCount
         });
     }
+
+    /// <summary>
+    /// خروجی «تعهدات پیش‌فروش». همان مجموعهٔ صفحهٔ <see cref="PreSales"/> است — همان جدول،
+    /// همان ترتیب و همان محاسبهٔ تحویل‌شده — فقط بدون صفحه‌بندی صفحه، چون خروجی کل فهرست است.
+    /// هیچ فرمول مالی جدیدی اینجا نوشته نشده است.
+    /// </summary>
+    [HttpGet]
+    [EnableRateLimiting(RateLimitPolicies.CsvExport)]
+    public async Task<IActionResult> PreSalesExport(string? format, CancellationToken ct = default)
+    {
+        var isEn = UiText.IsEn(HttpContext);
+
+        var rows = await _db.PreSaleOrders.AsNoTracking()
+            .OrderByDescending(o => o.Id)
+            .Select(o => new
+            {
+                o.Id,
+                o.OrderNumber,
+                CustomerName = o.Customer != null ? o.Customer.Name : "",
+                ProductName = o.Product != null ? o.Product.Name : "",
+                o.OrderDate,
+                o.ExpectedDeliveryTo,
+                o.QuantityMt,
+                o.Currency,
+                o.TotalInCurrency,
+                o.TotalUsd,
+                o.Status,
+                DeliveredMt = _db.SalesTransactions
+                    .Where(s => s.PreSaleOrderId == o.Id && !s.IsCancelled)
+                    .Sum(s => (decimal?)s.QuantityMt) ?? 0m
+            })
+            .ToListAsync(ct);
+
+        return TabularExportSupport.File(this, format, new TabularExportDocument
+        {
+            FileNameStem = "PTG_PreSale_Commitments",
+            TitleFa = "تعهدات پیش‌فروش",
+            TitleEn = "Pre-sale Commitments",
+            KnownRowCount = rows.Count,
+            ForceLandscape = true,
+            Filters = TabularExportSupport.FilterSummary(
+                ("تاریخ تولید (کابل) / Generated (Kabul)", _businessClock.Today.ToString("yyyy-MM-dd"))),
+            Columns =
+            [
+                new("شمارهٔ سفارش", "Order no.", Width: 18),
+                new("مشتری", "Customer", Width: 22),
+                new("جنس", "Product", Width: 16),
+                new("تاریخ سفارش", "Order date", TabularExportValueType.Date, 13),
+                new("مهلت تحویل", "Delivery due", TabularExportValueType.Date, 13),
+                new("تعهد MT", "Committed MT", TabularExportValueType.Number, 14),
+                new("تحویل‌شده MT", "Delivered MT", TabularExportValueType.Number, 14),
+                new("باقیمانده MT", "Remaining MT", TabularExportValueType.Number, 14),
+                new("ارز", "Currency", Width: 10),
+                new("مبلغ به ارز", "Amount in currency", TabularExportValueType.Number, 16),
+                new("مبلغ USD", "Amount USD", TabularExportValueType.Number, 16),
+                new("وضعیت", "Status", Width: 16)
+            ],
+            Rows = rows.Select(r => new TabularExportRow(
+            [
+                TabularExportCell.Text(r.OrderNumber),
+                TabularExportCell.Text(r.CustomerName),
+                TabularExportCell.Text(r.ProductName),
+                TabularExportCell.Date(r.OrderDate),
+                TabularExportCell.Date(r.ExpectedDeliveryTo),
+                TabularExportCell.Number(r.QuantityMt),
+                TabularExportCell.Number(r.DeliveredMt),
+                TabularExportCell.Number(decimal.Round(Math.Max(r.QuantityMt - r.DeliveredMt, 0m), 4, MidpointRounding.AwayFromZero)),
+                TabularExportCell.Text(r.Currency),
+                TabularExportCell.Number(r.TotalInCurrency),
+                TabularExportCell.Number(r.TotalUsd),
+                TabularExportCell.Text(isEn ? r.Status.ToString() : PreSaleStatusFa(r.Status))
+            ])),
+            Totals = new TabularExportRow(
+            [
+                TabularExportCell.Text(isEn ? "Total" : "جمع"),
+                TabularExportCell.Text(null), TabularExportCell.Text(null),
+                TabularExportCell.Date(null), TabularExportCell.Date(null),
+                TabularExportCell.Number(rows.Sum(r => r.QuantityMt)),
+                TabularExportCell.Number(rows.Sum(r => r.DeliveredMt)),
+                TabularExportCell.Number(rows.Sum(r => Math.Max(r.QuantityMt - r.DeliveredMt, 0m))),
+                TabularExportCell.Text(null), TabularExportCell.Text(null),
+                TabularExportCell.Number(rows.Sum(r => r.TotalUsd)),
+                TabularExportCell.Text(null)
+            ])
+        });
+    }
+
+    private static string PreSaleStatusFa(PreSaleOrderStatus status) => status switch
+    {
+        PreSaleOrderStatus.Draft => "پیش‌نویس",
+        PreSaleOrderStatus.Confirmed => "تأییدشده",
+        PreSaleOrderStatus.PartiallyDelivered => "تحویل جزئی",
+        PreSaleOrderStatus.FullyDelivered => "تحویل کامل",
+        PreSaleOrderStatus.Closed => "بسته",
+        PreSaleOrderStatus.Cancelled => "لغوشده",
+        _ => status.ToString()
+    };
 
     // ---------- ایجاد ----------
 
@@ -142,7 +260,7 @@ public partial class SalesController
     {
         var model = new PreSaleCreateViewModel
         {
-            OrderDate = DateTime.UtcNow.Date,
+            OrderDate = _businessClock.Today,
             Currency = SystemCurrency.BaseCurrencyCode,
             ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var local) ? local : null
         };
@@ -745,7 +863,7 @@ public partial class SalesController
             var allocation = await CustomerAllocations.AllocateAsync(new CustomerPaymentAllocationCreateRequest(
                 paymentTransactionId,
                 id,
-                allocationDate ?? DateTime.UtcNow.Date,
+                allocationDate ?? _businessClock.Today,
                 amount,
                 CreatedByUserName: User?.Identity?.Name));
 

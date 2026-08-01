@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.TruckSettlements;
 
@@ -42,7 +43,7 @@ public sealed class TruckSettlementRowInputViewModel
 
     [Display(Name = "تاریخ")]
     [DataType(DataType.Date)]
-    public DateTime OperationDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime OperationDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     // وزن تخلیه (تن): مبنای محاسبهٔ کسری = باقیمانده − وزن تخلیه. بار برای تخلیهٔ بعدی می‌ماند.
     [Display(Name = "وزن تخلیه (تن)")]
@@ -128,7 +129,7 @@ public sealed class GroupUnloadCreateViewModel
 
     [Display(Name = "تاریخ تخلیه")]
     [DataType(DataType.Date)]
-    public DateTime ReceiptDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime ReceiptDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "مخزن مقصد")]
     [Range(1, int.MaxValue, ErrorMessage = "مخزن مقصد را انتخاب کنید.")]

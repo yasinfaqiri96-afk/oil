@@ -9,6 +9,10 @@
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        "مغایرت‌گیری", "bi-arrow-right", Url.Action("Index")))" />
 
+    <div class="ak-page-actions">
+        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("RoznamchaExport"))" />
+    </div>
+
     <p class="ak-note">این گزارش فقط خواندنی است و هیچ سند مالی را اصلاح نمی‌کند.</p>
 
     <section class="ak-stat-grid" aria-label="آمار مغایرت‌های رزنامچه">

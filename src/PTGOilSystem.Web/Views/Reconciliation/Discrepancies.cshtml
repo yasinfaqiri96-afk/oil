@@ -1,0 +1,159 @@
+@model PTGOilSystem.Web.Models.Reconciliation.ReconciliationDiscrepanciesViewModel
+@using PTGOilSystem.Web.Models.Reconciliation
+@{
+    ViewData["Title"] = "Discrepancies";
+    var detail = Model.Selected;
+}
+
+<div class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("مغایرت‌های تفصیلی", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       "Reconciliation", "bi-arrow-right", Url.Action("Index")))" />
+
+    <div class="ak-page-actions">
+@* _ExportMenu همان query string صفحه را عیناً به Export می‌دهد؛ بنابراین فیلتر صفحه و
+   فیلتر خروجی همیشه یکی است و هیچ فیلتر جداگانه‌ای برای Export تعریف نشده است. *@
+        <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                 model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("DiscrepanciesExport"))" />
+    </div>
+
+    <p class="ak-note">
+        تاریخ تولید گزارش به وقت کابل: <span dir="ltr" class="ak-num">@Model.GeneratedOnBusinessDate.ToString("yyyy-MM-dd")</span>
+        — شمارش و صفحه‌بندی هر دسته مستقل و در پایگاه داده انجام می‌شود.
+    </p>
+
+    <section class="ak-form-section">
+        <form method="get" class="ak-filter-row">
+            <input type="hidden" name="category" value="@Model.SelectedCategory" />
+            <label>از تاریخ<input type="date" class="form-control" name="fromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" /></label>
+            <label>تا تاریخ<input type="date" class="form-control" name="toDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" /></label>
+            <button type="submit" class="btn btn-primary btn-sm">اعمال فیلتر</button>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="Discrepancies">پاک‌کردن</a>
+        </form>
+    </section>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("دسته‌های مغایرت", (string?)null))" />
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@UiText.T(Context, "دسته", "Category")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "تعداد", "Count")</th>
+                        <th>@UiText.T(Context, "شدت", "Severity")</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var count in Model.Counts)
+                {
+                    <tr class="@(Model.SelectedCategory == count.Category ? "table-active" : null)">
+                        <td class="ak-col-grow">@(UiText.IsEn(Context) ? count.TitleEn : count.TitleFa)</td>
+                        <td class="ak-col-num ak-num">@count.Count.ToString("N0")</td>
+                        <td>
+                            <span class="ak-status @(count.Severity == "critical" ? "text-danger" : "text-warning")">
+                                @(count.Severity == "critical" ? "بحرانی" : "هشدار")
+                            </span>
+                        </td>
+                        <td>
+                            @if (count.Count > 0)
+                            {
+                                <a class="btn btn-sm btn-outline-primary"
+                                   asp-action="Discrepancies"
+                                   asp-route-category="@count.Category"
+                                   asp-route-fromDate="@(Model.FromDate?.ToString("yyyy-MM-dd"))"
+                                   asp-route-toDate="@(Model.ToDate?.ToString("yyyy-MM-dd"))">مشاهده</a>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.TotalCount == 0)
+                {
+                    <tr>
+                        <td colspan="4">
+                            <div class="ak-empty"><i class="bi bi-check2-circle"></i> هیچ مغایرتی در این بازه پیدا نشد.</div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @if (detail is not null)
+    {
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@((ReconciliationDiscrepancyText.TitleFa(detail.Category), (string?)$"{detail.TotalCount:N0} مورد"))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "مرجع", "Reference")</th>
+                            <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مبلغ USD", "Amount USD")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مقدار MT", "Quantity MT")</th>
+                            <th class="ak-col-grow">@UiText.T(Context, "توضیح", "Detail")</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in detail.Rows)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">@row.Reference</td>
+                            <td dir="ltr" class="ak-num">@(row.Date?.ToString("yyyy-MM-dd") ?? "-")</td>
+                            <td class="ak-col-num ak-num">@(row.AmountUsd?.ToString("N2") ?? "-")</td>
+                            <td class="ak-col-num ak-num">@(row.QuantityMt?.ToString("N3") ?? "-")</td>
+                            <td class="ak-col-grow">@row.Detail</td>
+                            <td>
+                                @if (row.HasDrillDown)
+                                {
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       href="@Url.Action(row.DrillDownAction, row.DrillDownController, new { id = row.DrillDownId })">سند</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (detail.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6">
+                                <div class="ak-empty"><i class="bi bi-check2-circle"></i> در این صفحه موردی نیست.</div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (detail.PageCount > 1)
+            {
+                <nav class="ak-pager" aria-label="صفحه‌بندی">
+                    @if (detail.HasPrevious)
+                    {
+                        <a class="btn btn-sm btn-outline-secondary"
+                           asp-action="Discrepancies"
+                           asp-route-category="@detail.Category"
+                           asp-route-page="@(detail.Page - 1)"
+                           asp-route-pageSize="@detail.PageSize"
+                           asp-route-fromDate="@(Model.FromDate?.ToString("yyyy-MM-dd"))"
+                           asp-route-toDate="@(Model.ToDate?.ToString("yyyy-MM-dd"))">قبلی</a>
+                    }
+                    <span class="ak-num" dir="ltr">@detail.Page / @detail.PageCount</span>
+                    @if (detail.HasNext)
+                    {
+                        <a class="btn btn-sm btn-outline-secondary"
+                           asp-action="Discrepancies"
+                           asp-route-category="@detail.Category"
+                           asp-route-page="@(detail.Page + 1)"
+                           asp-route-pageSize="@detail.PageSize"
+                           asp-route-fromDate="@(Model.FromDate?.ToString("yyyy-MM-dd"))"
+                           asp-route-toDate="@(Model.ToDate?.ToString("yyyy-MM-dd"))">بعدی</a>
+                    }
+                </nav>
+            }
+        </section>
+    }
+</div>

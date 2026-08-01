@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Employees;
 
@@ -178,7 +179,7 @@ public sealed class EmployeeFormViewModel
 
     [Display(Name = "تاریخ شروع کار")]
     [DataType(DataType.Date)]
-    public DateTime HireDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime HireDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "تاریخ ختم کار")]
     [DataType(DataType.Date)]
@@ -269,7 +270,7 @@ public sealed class EmployeeSalaryTransactionCreateViewModel
 
     [Display(Name = "تاریخ")]
     [DataType(DataType.Date)]
-    public DateTime TransactionDate { get; set; } = DateTime.UtcNow.Date;
+    public DateTime TransactionDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     [Display(Name = "نوع تراکنش")]
     public EmployeeSalaryTransactionType TransactionType { get; set; } = EmployeeSalaryTransactionType.SalaryAccrual;

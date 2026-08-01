@@ -12,6 +12,54 @@ namespace PTGOilSystem.Web.Tests;
 
 public class ContractJourneyControllerTests
 {
+    [Theory]
+    [InlineData("summary", 1)]
+    [InlineData("loadings", 1)]
+    [InlineData("receipts", 1)]
+    [InlineData("inventory", 1)]
+    [InlineData("inventorytransport", 1)]
+    [InlineData("dispatch", 1)]
+    [InlineData("sales", 2)]
+    [InlineData("costs", 2)]
+    [InlineData("finance", 2)]
+    public void Details_Export_Builds_Documents_For_Every_Visible_Tab(
+        string tab,
+        int expectedDocumentCount)
+    {
+        var model = new ContractJourneyDetailsViewModel
+        {
+            ContractId = 17,
+            ContractNumber = "PUR-17",
+            ContractTypeName = "Purchase",
+            CompanyName = "PTG",
+            ProductName = "Diesel",
+            ContractQuantityMt = 100m,
+            IsPurchaseContract = true,
+            LoadingItems = [new ContractJourneyLoadingItemViewModel { Id = 1, LoadingDate = new DateTime(2026, 8, 1), LoadedQuantityMt = 10m }],
+            ReceiptItems = [new ContractJourneyReceiptItemViewModel { Id = 1, LoadingRegisterId = 1, ReceiptDate = new DateTime(2026, 8, 2), ReceivedQuantityMt = 9m }],
+            InventoryMovementItems = [new ContractJourneyInventoryMovementItemViewModel { Id = 1, MovementDate = new DateTime(2026, 8, 2), SignedQuantityMt = 9m, RunningBalanceMt = 9m }],
+            InventoryTransportLegItems = [new ContractJourneyTransportLegItemViewModel { Id = 1, LoadedDate = new DateTime(2026, 8, 3), QuantityMt = 9m, ReceivedQuantityMt = 8m, ShortageQuantityMt = 1m }],
+            DispatchItems = [new ContractJourneyDispatchItemViewModel { Id = 1, DispatchDate = new DateTime(2026, 8, 3), LoadedQuantityMt = 8m }],
+            SalesItems = [new ContractJourneySaleItemViewModel { SalesTransactionId = 1, SaleDate = new DateTime(2026, 8, 4), QuantityMt = 5m, AmountUsd = 2_500m }],
+            PreSaleItems = [new ContractJourneyPreSaleItemViewModel { SalesTransactionId = 2, SaleDate = new DateTime(2026, 8, 4), QuantityMt = 2m }],
+            ExpenseItems = [new ContractJourneyExpenseItemViewModel { ExpenseTransactionId = 1, ExpenseDate = new DateTime(2026, 8, 4), AmountUsd = 100m }],
+            LossItems = [new ContractJourneyLossItemViewModel { LossEventId = 1, EventDate = new DateTime(2026, 8, 4), DifferenceQuantityMt = 1m }],
+            PaymentItems = [new ContractJourneyPaymentItemViewModel { PaymentTransactionId = 1, PaymentDate = new DateTime(2026, 8, 5), AmountUsd = 500m }],
+            SarrafSettlementItems = [new ContractJourneySarrafSettlementItemViewModel { SarrafSettlementId = 1, SettlementDate = new DateTime(2026, 8, 5), RequestedAmountUsd = 500m }]
+        };
+
+        var documents = ContractJourneyController.BuildDetailsExportDocuments(model, tab);
+
+        Assert.Equal(expectedDocumentCount, documents.Count);
+        Assert.All(documents, document =>
+        {
+            Assert.NotEmpty(document.Columns);
+            Assert.Contains(tab, document.FileNameStem, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(document.Filters, filter => filter.Value == tab);
+            Assert.All(document.Rows, row => Assert.Equal(document.Columns.Count, row.Cells.Count));
+        });
+    }
+
     [Fact]
     public async Task Index_Returns_Contracts_For_Selection()
     {

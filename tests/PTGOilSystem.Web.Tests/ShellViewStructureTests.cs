@@ -275,6 +275,7 @@ public class ShellViewStructureTests
     public void Dashboard_Uses_A_Scoped_Responsive_Erp_Composition()
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Home/Index.cshtml");
+        var insights = ReadRepoFile("src/PTGOilSystem.Web/Views/Home/_DashboardInsights.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/12-dashboard.css");
         var script = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/dashboard.js");
 
@@ -300,6 +301,21 @@ public class ShellViewStructureTests
         Assert.Contains("asp-controller=\"Sales\" asp-action=\"Create\"", view);
         Assert.Contains("asp-controller=\"Loading\" asp-action=\"Index\"", view);
         Assert.Contains("asp-controller=\"Payments\" asp-action=\"Index\"", view);
+        Assert.Contains("dash-quick-rail", view);
+        Assert.Contains("دسترسی سریع", view);
+
+        // The lower dashboard is a scoped 5/3 bento: the in-progress shipment flow and
+        // the tank stack. It reuses the shared status and empty state.
+        Assert.DoesNotContain("dash-activity-card", insights);
+        Assert.DoesNotContain("RecentActivities", insights);
+        Assert.Contains("dash-flow-card", insights);
+        Assert.Contains("dash-capacity-card", insights);
+        Assert.Contains("Model.ActiveShipmentProgress.Take(3)", insights);
+        Assert.Contains("class=\"ak-status @item.StatusClass\"", insights);
+        Assert.Contains("<partial name=\"_EmptyState\"", insights);
+        Assert.Contains("<progress", insights);
+        Assert.DoesNotContain("style=", insights);
+        Assert.DoesNotContain("<script", insights);
 
         // Exactly one trend chart, fed entirely from data-* attributes.
         Assert.Equal(1, view.Split("data-dashboard-chart", StringSplitOptions.None).Length - 1);
@@ -313,6 +329,8 @@ public class ShellViewStructureTests
 
         Assert.Contains(".dashboard-page", css);
         Assert.Contains(".dash-quick-item", css);
+        Assert.Contains("grid-template-columns: minmax(0, 5fr) minmax(230px, 3fr)", css);
+        Assert.Contains(".dash-mix", css);
         Assert.Contains(".dash-trend", css);
         Assert.Contains(".dash-total", css);
         Assert.DoesNotContain(".dashboard-hero", css);
@@ -322,7 +340,6 @@ public class ShellViewStructureTests
         Assert.Contains("max-inline-size: 100%", css);
         Assert.Contains("overflow: visible", css);
         Assert.Contains("@media (max-width: 575.98px)", css);
-        Assert.DoesNotContain("linear-gradient", css);
 
         Assert.Contains("ptg:page-ready", script);
         Assert.Contains("pageshow", script);

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Accounting;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.Accounting;
 
@@ -155,7 +156,7 @@ public sealed class FiscalYearContextService : IFiscalYearContext
     /// </summary>
     private static YearRow PickCurrentYear(List<YearRow> years)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = AfghanistanBusinessClock.SystemToday;
         return years.FirstOrDefault(y => y.IsCurrent)
             ?? years.FirstOrDefault(y => y.StartDate <= today && y.EndDate >= today)
             ?? years[0];

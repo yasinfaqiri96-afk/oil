@@ -32,7 +32,6 @@ internal static class PdfDesignSystem
     public const string SummaryBackground = "#F5F5F5";
     public const string HeaderBackground = "#F1F5F9";
     public const string Border = "#E2E8F0";
-    public const string AlternateRowBackground = "#FAFBFC";
     public const string TotalsBackground = "#F1F5F9";
     public const string Positive = "#059669";
     public const string Negative = "#DC2626";
@@ -44,8 +43,9 @@ internal static class PdfDesignSystem
     public const float TitleSize = 10.5f;
     public const float MetaSize = 8.25f;
     public const float TableSize = 7.5f;
-    public const float DenseTableSize = 7f;
-    public const float ExtraWideTableSize = 6.8f;
+    public const float NumericTableSize = 8f;
+    public const float DenseTableSize = 7.5f;
+    public const float ExtraWideTableSize = 7.5f;
     public const float ReportMetaSize = 7f;
     public const float FooterSize = 7.99f;
     public const float BrandLogoWidth = 128f;
@@ -230,9 +230,7 @@ internal static class PdfDesignSystem
     public static IContainer HeaderCell(IContainer container, bool dense = false)
         => container
             .Background(HeaderBackground)
-            .Border(0.55f)
-            .BorderColor(Border)
-            .PaddingVertical(dense ? 4.5f : 6.55f)
+            .PaddingVertical(6.55f)
             .PaddingHorizontal(dense ? 2.5f : 4)
             .AlignMiddle();
 
@@ -245,20 +243,19 @@ internal static class PdfDesignSystem
     public static IContainer BodyCell(IContainer container, string background, bool dense)
         => container
             .Background(background)
-            .Border(0.45f)
-            .BorderColor(Border)
-            .PaddingVertical(dense ? 3.75f : 5.05f)
+            .PaddingVertical(5.05f)
             .PaddingHorizontal(dense ? 2.5f : 4)
             .AlignMiddle();
 
     public static IContainer TotalCell(IContainer container, bool dense = false)
         => container
             .Background(TotalsBackground)
-            .Border(0.55f)
-            .BorderColor(Border)
-            .PaddingVertical(dense ? 4 : 5)
+            .PaddingVertical(5)
             .PaddingHorizontal(dense ? 2.5f : 4)
             .AlignMiddle();
+
+    public static IContainer TableSeparator(IContainer container, float thickness = 0.75f)
+        => container.Height(thickness).Background(Border);
 
     public static float TableFontSize(int columnCount)
         => columnCount switch
@@ -267,6 +264,15 @@ internal static class PdfDesignSystem
             <= 12 => DenseTableSize,
             _ => ExtraWideTableSize
         };
+
+    public static float CellFontSize(TabularExportCell cell, float textSize)
+        => cell.ValueType is TabularExportValueType.Integer
+            or TabularExportValueType.Number
+            or TabularExportValueType.Percentage
+            or TabularExportValueType.Date
+            or TabularExportValueType.DateTime
+                ? NumericTableSize
+                : textSize;
 
     public static float ColumnWeight(TabularExportColumn column)
     {
@@ -314,7 +320,7 @@ internal static class PdfDesignSystem
         var date = string.Create(
             CultureInfo.InvariantCulture,
             $"{calendar.GetYear(value)}/{calendar.GetMonth(value)}/{calendar.GetDayOfMonth(value)}");
-        return "تاریخ چاپ: " + ToPersianDigits(date);
+        return "تاریخ چاپ: " + date;
     }
 
     public static string ToPersianDigits(string value)
@@ -353,6 +359,87 @@ internal static class PdfDesignSystem
         };
 
         return number < 0 ? Negative : Ink;
+    }
+
+    public static string FormatPdfCell(TabularExportCell cell, bool isEnglish)
+    {
+        if (cell.Value is null)
+        {
+            return string.Empty;
+        }
+
+        var value = cell.ValueType switch
+        {
+            TabularExportValueType.Date when cell.Value is DateTime date
+                => FormatPdfDate(date, isEnglish),
+            TabularExportValueType.DateTime when cell.Value is DateTime dateTime
+                => $"{FormatPdfDate(dateTime, isEnglish)} {dateTime:HH:mm}",
+            TabularExportValueType.Integer
+                => FormatPdfNumber(
+                    Convert.ToDecimal(cell.Value, CultureInfo.InvariantCulture),
+                    true,
+                    0),
+            TabularExportValueType.Number
+                => FormatPdfNumber(
+                    Convert.ToDecimal(cell.Value, CultureInfo.InvariantCulture),
+                    true),
+            TabularExportValueType.Percentage
+                => FormatPdfNumber(
+                    Convert.ToDecimal(cell.Value, CultureInfo.InvariantCulture) * 100m,
+                    true,
+                    2) + "%",
+            _ => cell.ToDisplayText(isEnglish)
+        };
+
+        return ToEnglishDigits(value);
+    }
+
+    public static string FormatPdfNumber(
+        decimal value,
+        bool isEnglish,
+        int? decimals = null)
+    {
+        _ = isEnglish;
+        var precision = decimals ?? (value == decimal.Truncate(value) ? 0 : 2);
+        return value.ToString($"N{precision}", CultureInfo.InvariantCulture);
+    }
+
+    public static string FormatPdfDate(DateTime value, bool isEnglish)
+    {
+        if (isEnglish)
+        {
+            return value.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+        }
+
+        var calendar = new PersianCalendar();
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{calendar.GetYear(value):0000}/{calendar.GetMonth(value):00}/{calendar.GetDayOfMonth(value):00}");
+    }
+
+    public static string ToEnglishDigits(string value)
+    {
+        const string persian = "۰۱۲۳۴۵۶۷۸۹";
+        const string arabic = "٠١٢٣٤٥٦٧٨٩";
+        var characters = value.ToCharArray();
+        for (var index = 0; index < characters.Length; index++)
+        {
+            var digit = persian.IndexOf(characters[index]);
+            if (digit < 0)
+            {
+                digit = arabic.IndexOf(characters[index]);
+            }
+
+            if (digit >= 0)
+            {
+                characters[index] = (char)('0' + digit);
+            }
+        }
+
+        return new string(characters)
+            .Replace("\u066C", ",", StringComparison.Ordinal)
+            .Replace("\u066B", ".", StringComparison.Ordinal)
+            .Replace("\u066A", "%", StringComparison.Ordinal);
     }
 
     public static string? ResolveWebAsset(string webRootPath, string? configuredPath)

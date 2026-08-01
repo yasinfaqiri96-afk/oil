@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -560,7 +561,7 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
     private static LedgerEntry BuildReversalLedger(LedgerEntry original, SarrafSettlement settlement, string? reason, string sourceType = CancelSourceType)
         => new()
         {
-            EntryDate = DateTime.UtcNow.Date,
+            EntryDate = AfghanistanBusinessClock.SystemToday,
             Side = original.Side == LedgerSide.Debit ? LedgerSide.Credit : LedgerSide.Debit,
             AmountUsd = original.AmountUsd,
             Currency = original.Currency,
