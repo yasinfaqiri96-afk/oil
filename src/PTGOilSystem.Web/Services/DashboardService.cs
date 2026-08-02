@@ -254,8 +254,8 @@ public class DashboardService : IDashboardService
                 (SELECT COUNT(*)::int FROM "Sarrafs" WHERE "IsActive") AS "ActiveSarrafCount",
                 (SELECT COUNT(*)::int FROM "LoadingRegisters" WHERE "LoadingDate" >= {todayUtc} AND "LoadingDate" < {tomorrowUtc}) AS "TodayLoadingCount",
                 (SELECT COUNT(*)::int FROM "TruckDispatches" WHERE "Status" <> {(int)DispatchStatus.Cancelled} AND "DispatchDate" >= {todayUtc} AND "DispatchDate" < {tomorrowUtc}) AS "TodayDispatchCount",
-                (SELECT COUNT(*)::int FROM "LoadingRegisters" l WHERE NOT EXISTS (SELECT 1 FROM "LoadingReceipts" r WHERE r."LoadingRegisterId" = l."Id")) AS "LoadingsWithoutReceiptCount",
-                (SELECT COUNT(*)::int FROM "LoadingReceipts" r WHERE NOT EXISTS (SELECT 1 FROM "LoadingReceiptAllocations" a WHERE a."LoadingReceiptId" = r."Id")) AS "ReceiptsWithoutAllocationCount",
+                (SELECT COUNT(*)::int FROM "LoadingRegisters" l WHERE NOT EXISTS (SELECT 1 FROM "LoadingReceipts" r WHERE r."LoadingRegisterId" = l."Id" AND NOT r."IsCancelled")) AS "LoadingsWithoutReceiptCount",
+                (SELECT COUNT(*)::int FROM "LoadingReceipts" r WHERE NOT r."IsCancelled" AND NOT EXISTS (SELECT 1 FROM "LoadingReceiptAllocations" a WHERE a."LoadingReceiptId" = r."Id")) AS "ReceiptsWithoutAllocationCount",
                 (SELECT COUNT(*)::int FROM "LoadingRegisters" l WHERE NOT EXISTS (SELECT 1 FROM "CustomsDeclarations" c WHERE c."LoadingRegisterId" = l."Id")) AS "LoadingsWithoutCustomsCount",
                 (SELECT COUNT(*)::int FROM "SalesTransactions" s WHERE NOT "IsCancelled" AND NOT EXISTS (SELECT 1 FROM "PaymentTransactions" p WHERE p."SalesTransactionId" = s."Id")) AS "SalesWithoutPaymentCount",
                 (SELECT COUNT(*)::int FROM "Contracts" WHERE "Status" = {(int)ContractStatus.Active} AND "UnitPriceUsd" IS NULL AND "ManualFinalPriceUsd" IS NULL AND "PlattsManualPriceUsd" IS NULL) AS "ContractsWithoutFinalPriceCount",
@@ -322,9 +322,9 @@ public class DashboardService : IDashboardService
             .CountAsync(d => d.Status != DispatchStatus.Cancelled && d.DispatchDate >= todayUtc && d.DispatchDate < tomorrowUtc, ct);
 
         vm.LoadingsWithoutReceiptCount = await _db.LoadingRegisters.AsNoTracking()
-            .CountAsync(l => !_db.LoadingReceipts.Any(r => r.LoadingRegisterId == l.Id), ct);
+            .CountAsync(l => !_db.LoadingReceipts.Any(r => r.LoadingRegisterId == l.Id && !r.IsCancelled), ct);
         vm.ReceiptsWithoutAllocationCount = await _db.LoadingReceipts.AsNoTracking()
-            .CountAsync(r => !_db.LoadingReceiptAllocations.Any(a => a.LoadingReceiptId == r.Id), ct);
+            .CountAsync(r => !r.IsCancelled && !_db.LoadingReceiptAllocations.Any(a => a.LoadingReceiptId == r.Id), ct);
         vm.LoadingsWithoutCustomsCount = await _db.LoadingRegisters.AsNoTracking()
             .CountAsync(l => !_db.CustomsDeclarations.Any(c => c.LoadingRegisterId == l.Id), ct);
         vm.SalesWithoutPaymentCount = await _db.SalesTransactions.AsNoTracking()
@@ -370,7 +370,7 @@ public class DashboardService : IDashboardService
         vm.ActiveContractCount = await _db.Contracts.AsNoTracking().CountAsync(c => c.Status == ContractStatus.Active, ct);
         vm.TotalContractCount = await _db.Contracts.AsNoTracking().CountAsync(ct);
         vm.LoadingCount = await _db.LoadingRegisters.AsNoTracking().CountAsync(ct);
-        vm.LoadingReceiptCount = await _db.LoadingReceipts.AsNoTracking().CountAsync(ct);
+        vm.LoadingReceiptCount = await _db.LoadingReceipts.AsNoTracking().CountAsync(r => !r.IsCancelled, ct);
         vm.SalesCount = await _db.SalesTransactions.AsNoTracking().CountAsync(s => !s.IsCancelled, ct);
         vm.ShipmentCount = await _db.Shipments.AsNoTracking().CountAsync(ct);
         vm.RecentDispatchCount = await _db.TruckDispatches.AsNoTracking()
@@ -400,9 +400,9 @@ public class DashboardService : IDashboardService
             .SumAsync(e => (decimal?)e.AmountUsd, ct) ?? 0m;
 
         var currentLoadingReceipts = await _db.LoadingReceipts.AsNoTracking()
-            .CountAsync(r => r.ReceiptDate >= currentWeekStart && r.ReceiptDate < nextWeekStart, ct);
+            .CountAsync(r => !r.IsCancelled && r.ReceiptDate >= currentWeekStart && r.ReceiptDate < nextWeekStart, ct);
         var previousLoadingReceipts = await _db.LoadingReceipts.AsNoTracking()
-            .CountAsync(r => r.ReceiptDate >= previousWeekStart && r.ReceiptDate < currentWeekStart, ct);
+            .CountAsync(r => !r.IsCancelled && r.ReceiptDate >= previousWeekStart && r.ReceiptDate < currentWeekStart, ct);
         var currentLedgerEntries = await _db.LedgerEntries.AsNoTracking()
             .CountAsync(l => l.EntryDate >= currentWeekStart && l.EntryDate < nextWeekStart, ct);
         var previousLedgerEntries = await _db.LedgerEntries.AsNoTracking()
@@ -429,7 +429,7 @@ public class DashboardService : IDashboardService
                 (SELECT COUNT(*)::int FROM "Contracts" WHERE "Status" = {(int)ContractStatus.Active}) AS "ActiveContractCount",
                 (SELECT COUNT(*)::int FROM "Contracts") AS "TotalContractCount",
                 (SELECT COUNT(*)::int FROM "LoadingRegisters") AS "LoadingCount",
-                (SELECT COUNT(*)::int FROM "LoadingReceipts") AS "LoadingReceiptCount",
+                (SELECT COUNT(*)::int FROM "LoadingReceipts" WHERE NOT "IsCancelled") AS "LoadingReceiptCount",
                 (SELECT COUNT(*)::int FROM "SalesTransactions" WHERE NOT "IsCancelled") AS "SalesCount",
                 (SELECT COUNT(*)::int FROM "Shipments") AS "ShipmentCount",
                 (SELECT COUNT(*)::int FROM "TruckDispatches" WHERE "Status" <> {(int)DispatchStatus.Cancelled} AND "DispatchDate" >= {recentDispatchFromUtc}) AS "RecentDispatchCount",
@@ -440,8 +440,8 @@ public class DashboardService : IDashboardService
                 (SELECT COALESCE(SUM("TotalUsd"), 0) FROM "SalesTransactions" WHERE NOT "IsCancelled" AND "SaleDate" >= {previousWeekStart} AND "SaleDate" < {currentWeekStart}) AS "PreviousSalesUsd",
                 (SELECT COALESCE(SUM("AmountUsd"), 0) FROM "ExpenseTransactions" WHERE NOT "IsCancelled" AND "ExpenseDate" >= {currentWeekStart} AND "ExpenseDate" < {nextWeekStart}) AS "CurrentExpensesUsd",
                 (SELECT COALESCE(SUM("AmountUsd"), 0) FROM "ExpenseTransactions" WHERE NOT "IsCancelled" AND "ExpenseDate" >= {previousWeekStart} AND "ExpenseDate" < {currentWeekStart}) AS "PreviousExpensesUsd",
-                (SELECT COUNT(*)::int FROM "LoadingReceipts" WHERE "ReceiptDate" >= {currentWeekStart} AND "ReceiptDate" < {nextWeekStart}) AS "CurrentLoadingReceipts",
-                (SELECT COUNT(*)::int FROM "LoadingReceipts" WHERE "ReceiptDate" >= {previousWeekStart} AND "ReceiptDate" < {currentWeekStart}) AS "PreviousLoadingReceipts",
+                (SELECT COUNT(*)::int FROM "LoadingReceipts" WHERE NOT "IsCancelled" AND "ReceiptDate" >= {currentWeekStart} AND "ReceiptDate" < {nextWeekStart}) AS "CurrentLoadingReceipts",
+                (SELECT COUNT(*)::int FROM "LoadingReceipts" WHERE NOT "IsCancelled" AND "ReceiptDate" >= {previousWeekStart} AND "ReceiptDate" < {currentWeekStart}) AS "PreviousLoadingReceipts",
                 (SELECT COUNT(*)::int FROM "LedgerEntries" WHERE "EntryDate" >= {currentWeekStart} AND "EntryDate" < {nextWeekStart}) AS "CurrentLedgerEntries",
                 (SELECT COUNT(*)::int FROM "LedgerEntries" WHERE "EntryDate" >= {previousWeekStart} AND "EntryDate" < {currentWeekStart}) AS "PreviousLedgerEntries"
             """).SingleAsync(ct);

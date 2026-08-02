@@ -377,7 +377,9 @@ public sealed class DispatchListItemViewModel
     public DateTime DispatchDate { get; init; }
     public string TruckPlateNumber { get; init; } = "";
     public string ProductName { get; init; } = "";
+    public string ContractName { get; init; } = "";
     public string ContractNumber { get; init; } = "";
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string? DriverName { get; init; }
     public string? DestinationName { get; init; }
     public decimal LoadedQuantityMt { get; init; }

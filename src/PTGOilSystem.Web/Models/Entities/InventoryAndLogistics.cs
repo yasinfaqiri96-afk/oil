@@ -241,6 +241,16 @@ public class LoadingReceipt : BaseEntity
     [MaxLength(500)] public string? ReferenceDocument { get; set; }
     [MaxLength(1000)] public string? Notes { get; set; }
 
+    // لغو نرم رسید (الگوی InventoryTransportReceipt.IsCancelled و LossEvent.IsCancelled).
+    // رکورد هرگز حذف نمی‌شود؛ اثرهای موجودی/مالی با سند معکوس برگردانده می‌شوند و رسید
+    // لغوشده از همهٔ محاسبات عملیاتی (دریافت‌شده، باقی‌مانده، کسری، گزارش‌ها) خارج می‌ماند.
+    public bool IsCancelled { get; set; }
+    public DateTime? CancelledAtUtc { get; set; }
+    public int? CancelledByUserId { get; set; }
+    [MaxLength(500)] public string? CancellationReason { get; set; }
+    // Concurrency token (xmin) تا لغو هم‌زمان دو کاربر روی یک رسید دوباره‌کاری نسازد.
+    public uint RowVersion { get; set; }
+
     public InventoryMovement? InventoryMovement { get; set; }
     public ICollection<LoadingReceiptAllocation> Allocations { get; set; } = new List<LoadingReceiptAllocation>();
 }

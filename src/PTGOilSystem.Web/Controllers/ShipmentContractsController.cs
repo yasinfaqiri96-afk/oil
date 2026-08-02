@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 
@@ -46,6 +47,7 @@ public class ShipmentContractsController : Controller
                 Id = sc.Id,
                 ShipmentId = sc.ShipmentId,
                 ContractId = sc.ContractId,
+                ContractName = sc.Contract != null ? sc.Contract.ContractName : "",
                 ContractNumber = sc.Contract != null ? sc.Contract.ContractNumber : "",
                 ContractType = sc.Contract != null ? sc.Contract.ContractType : ContractType.Purchase,
                 ProductName = sc.Contract != null && sc.Contract.Product != null ? sc.Contract.Product.Name : "",
@@ -56,7 +58,7 @@ public class ShipmentContractsController : Controller
 
         ViewBag.ShipmentId = shipmentId;
         ViewBag.ShipmentCode = shipment.ShipmentCode;
-        ViewBag.PrimaryContractNumber = shipment.Contract?.ContractNumber ?? "—";
+        ViewBag.PrimaryContractNumber = shipment.Contract?.DisplayLabel ?? "—";
         return View(links);
     }
 
@@ -76,19 +78,14 @@ public class ShipmentContractsController : Controller
         var contracts = await _db.Contracts
             .AsNoTracking()
             .Where(c => !existingContractIds.Contains(c.Id))
-            .Include(c => c.Product)
             .OrderByDescending(c => c.ContractDate)
             .Take(200)
-            .Select(c => new SelectListItem
-            {
-                Value = c.Id.ToString(),
-                Text = $"{c.ContractNumber} — {(c.Product != null ? c.Product.Name : "")} ({(c.ContractType == ContractType.Purchase ? "خرید" : "فروش")})"
-            })
+            .Select(c => new ContractOptionRow(c.Id, c.ContractName, c.ContractNumber))
             .ToListAsync();
 
         ViewBag.ShipmentId = shipmentId;
         ViewBag.ShipmentCode = shipment.ShipmentCode;
-        ViewBag.ContractOptions = contracts;
+        ViewBag.ContractOptions = ToContractOptions(contracts);
         ViewBag.ReturnUrl = returnUrl;
         return View(new ShipmentContractCreateViewModel { ShipmentId = shipmentId, ReturnUrl = returnUrl });
     }
@@ -111,16 +108,13 @@ public class ShipmentContractsController : Controller
             {
                 var existingIds = await _db.ShipmentContracts.AsNoTracking()
                     .Where(sc => sc.ShipmentId == model.ShipmentId).Select(sc => sc.ContractId).ToListAsync();
-                ViewBag.ContractOptions = await _db.Contracts.AsNoTracking()
+                var contractRows = await _db.Contracts.AsNoTracking()
                     .Where(c => !existingIds.Contains(c.Id))
-                    .Include(c => c.Product)
                     .OrderByDescending(c => c.ContractDate)
                     .Take(200)
-                    .Select(c => new SelectListItem
-                    {
-                        Value = c.Id.ToString(),
-                        Text = $"{c.ContractNumber} — {(c.Product != null ? c.Product.Name : "")} ({(c.ContractType == ContractType.Purchase ? "خرید" : "فروش")})"
-                    }).ToListAsync();
+                    .Select(c => new ContractOptionRow(c.Id, c.ContractName, c.ContractNumber))
+                    .ToListAsync();
+                ViewBag.ContractOptions = ToContractOptions(contractRows);
             }
             ViewBag.ShipmentId = model.ShipmentId;
             ViewBag.ShipmentCode = shipment?.ShipmentCode ?? "";
@@ -161,6 +155,15 @@ public class ShipmentContractsController : Controller
         if (TryGetLocalReturnUrl(returnUrl, out var local)) return Redirect(local);
         return RedirectToAction(nameof(Index), new { shipmentId });
     }
+
+    private static List<SelectListItem> ToContractOptions(IEnumerable<ContractOptionRow> rows)
+        => rows.Select(contract => new SelectListItem
+        {
+            Value = contract.Id.ToString(),
+            Text = ContractUiText.FormatDisplayLabel(contract.ContractName, contract.ContractNumber)
+        }).ToList();
+
+    private sealed record ContractOptionRow(int Id, string ContractName, string ContractNumber);
 }
 
 // Local ViewModels for Gap#7
@@ -169,7 +172,9 @@ public sealed class ShipmentContractRowViewModel
     public int Id { get; init; }
     public int ShipmentId { get; init; }
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = "";
     public string ContractNumber { get; init; } = "";
+    public string DisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public ContractType ContractType { get; init; }
     public string ProductName { get; init; } = "";
     public decimal? QuantityMt { get; init; }

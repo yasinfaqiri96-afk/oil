@@ -276,7 +276,7 @@ public class PartnersController : Controller
         }
 
         var shareByContract = partnerLinks.ToDictionary(cp => cp.ContractId, cp => cp.SharePercent);
-        var contractNumberById = contracts.ToDictionary(c => c.Id, c => c.ContractNumber);
+        var contractNumberById = contracts.ToDictionary(c => c.Id, c => c.DisplayLabel);
         var contractTypeById = contracts.ToDictionary(c => c.Id, c => c.ContractType);
         var finalPriceByContract = contracts.ToDictionary(
             c => c.Id,
@@ -393,7 +393,7 @@ public class PartnersController : Controller
             => payment.ContractId ?? payment.SalesTransaction?.ContractId;
 
         static string? ResolvePaymentContractNumber(PaymentTransaction payment)
-            => payment.Contract?.ContractNumber ?? payment.SalesTransaction?.Contract?.ContractNumber;
+            => payment.Contract?.DisplayLabel ?? payment.SalesTransaction?.Contract?.DisplayLabel;
 
         var paymentSummaries = payments
             .Select(p =>
@@ -508,6 +508,7 @@ public class PartnersController : Controller
                 return new PartnerContractSummaryViewModel
                 {
                     ContractId = contract.Id,
+                    ContractName = contract.ContractName,
                     ContractNumber = contract.ContractNumber,
                     ContractType = contract.ContractType,
                     ContractTypeName = GetContractTypeName(contract.ContractType),
@@ -603,6 +604,7 @@ public class PartnersController : Controller
                 .Select(c => new PartnerStatementContractFilterOptionViewModel
                 {
                     ContractId = c.ContractId,
+                    ContractName = c.ContractName,
                     ContractNumber = c.ContractNumber
                 })
                 .ToList(),

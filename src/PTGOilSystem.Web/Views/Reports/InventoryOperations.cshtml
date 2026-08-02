@@ -1,9 +1,6 @@
 @model PTGOilSystem.Web.Models.Reports.InventoryOperationsReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "موجودی و عملیات", "Inventory & Operations");
-    var hasActiveFilters = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || Model.Filter.ProductId.HasValue || Model.Filter.ContractId.HasValue
-        || Model.Filter.TerminalId.HasValue || Model.Filter.StorageTankId.HasValue;
 }
 
 <div class="ak-list-page">
@@ -22,35 +19,32 @@
     </section>
 
     <div class="ak-list">
-        <form method="get" class="ak-report-parameters" id="ioFilterForm">
-            <div class="ak-report-parameters-bar">
-                <div class="ak-report-parameters-anchor">
-                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ?"is-on" : null)" id="ioFilterToggle" aria-label="فیلتر" aria-expanded="false">
-                        <i class="bi bi-funnel"></i>
-                    </button>
-                    <div class="ak-report-parameters-pop" id="ioFilterPop" hidden>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
-                        <input class="ak-input" type="date" name="FromDate" value="@Model.Filter.FromDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
-                        <input class="ak-input" type="date" name="ToDate" value="@Model.Filter.ToDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "جنس", "Product")</label>
-                        <select class="ak-input" name="ProductId" asp-items="ViewBag.Products"><option value="">@UiText.T(Context, "همه اجناس", "All Products")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "قرارداد", "Contract")</label>
-                        <select class="ak-input" name="ContractId" asp-items="ViewBag.Contracts"><option value="">@UiText.T(Context, "همه قراردادها", "All Contracts")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "ترمینال", "Terminal")</label>
-                        <select class="ak-input" name="TerminalId" asp-items="ViewBag.Terminals"><option value="">@UiText.T(Context, "همه ترمینال‌ها", "All Terminals")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "مخزن", "Tank")</label>
-                        <select class="ak-input" name="StorageTankId" asp-items="ViewBag.StorageTanks"><option value="">@UiText.T(Context, "همه مخزن‌ها", "All Tanks")</option></select>
-                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
-                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("InventoryOperationsExport"))" />
-                        @if (hasActiveFilters)
-                        {
-                            <a asp-action="InventoryOperations" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
-                        }
-                    </div>
-                </div>
+        @{
+            List<AkFilterOption> InvOpsOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+            var invOpsFilter = new AkSearchFilterModel("", null,
+                UiText.T(Context, "فیلتر موجودی و عملیات...", "Filter inventory and operations..."),
+                new List<AkFilterDefinition>
+                {
+                    new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                        Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                    new("ProductId", UiText.T(Context, "جنس", "Product"), "select", InvOpsOpts(ViewBag.Products),
+                        Model.Filter.ProductId?.ToString()),
+                    new("ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", InvOpsOpts(ViewBag.Contracts),
+                        Model.Filter.ContractId?.ToString()),
+                    new("TerminalId", UiText.T(Context, "ترمینال", "Terminal"), "select", InvOpsOpts(ViewBag.Terminals),
+                        Model.Filter.TerminalId?.ToString()),
+                    new("StorageTankId", UiText.T(Context, "مخزن", "Tank"), "select", InvOpsOpts(ViewBag.StorageTanks),
+                        Model.Filter.StorageTankId?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="invOpsFilter" />
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("InventoryOperationsExport"))" />
             </div>
-        </form>
+        </div>
 
         @if (Model.Warnings.Any())
         {
@@ -111,24 +105,3 @@
         </div>
     </div>
 </div>
-
-@section Scripts {
-    <script>
-        (function () {
-            var toggle = document.getElementById('ioFilterToggle');
-            var pop = document.getElementById('ioFilterPop');
-            if (!toggle || !pop) return;
-            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-            toggle.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var open = pop.hidden;
-                pop.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-            document.addEventListener('click', function (e) {
-                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
-            });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-        })();
-    </script>
-}

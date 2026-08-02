@@ -27,36 +27,18 @@ public static class ContractUiText
     }
 
     public static string FormatLookup(Contract contract)
-        => FormatLookup(
-            contract.ContractNumber,
-            contract.ContractType,
-            contract.Product?.Name,
-            ResolveUnitText(contract.Unit));
+        => contract.DisplayLabel;
+
+    public static string FormatDisplayLabel(string? contractName, string? contractNumber)
+        => Contract.BuildDisplayLabel(contractName, contractNumber);
 
     public static string FormatLookup(
+        string? contractName,
         string contractNumber,
         ContractType contractType,
         string? productName,
         string? unitText)
-    {
-        var parts = new List<string>
-        {
-            contractNumber.Trim(),
-            contractType == ContractType.Purchase ? "خرید" : "فروش"
-        };
-
-        if (!string.IsNullOrWhiteSpace(productName))
-        {
-            parts.Add(productName.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(unitText) && unitText.Trim() != "—")
-        {
-            parts.Add($"واحد {unitText.Trim()}");
-        }
-
-        return string.Join(" | ", parts);
-    }
+        => FormatDisplayLabel(contractName, contractNumber);
 
     public static IReadOnlyList<ContractLookupOption> ToLookupOptions(IEnumerable<Contract> contracts)
         => contracts

@@ -469,7 +469,10 @@ public class ContractJourneyControllerTests
             ContractId = 1,
             ProductId = 1,
             LoadingDate = new DateTime(2026, 5, 1),
-            LoadedQuantityMt = 100m
+            TransportType = LoadingTransportType.Truck,
+            TruckId = 1,
+            LoadedQuantityMt = 100m,
+            LoadingPriceUsd = 250m
         });
         await db.SaveChangesAsync();
 
@@ -484,6 +487,12 @@ public class ContractJourneyControllerTests
         Assert.Contains("loadingId=1", model.NextRecommendedActionUrl);
         var bulkCandidate = Assert.Single(model.BulkReceiptCandidates);
         Assert.Equal(1, bulkCandidate.LoadingRegisterId);
+        Assert.Equal("TRK-01", bulkCandidate.VehicleNumber);
+        Assert.Equal("Gas Oil", bulkCandidate.ProductName);
+        Assert.Equal("موتر", bulkCandidate.TransportTypeLabel);
+        Assert.Equal(100m, bulkCandidate.LoadedQuantityMt);
+        Assert.Equal(250m, bulkCandidate.LoadingPriceUsd);
+        Assert.Equal(25_000m, bulkCandidate.LoadingValueUsd);
         Assert.Equal(100m, bulkCandidate.RemainingQuantityMt);
     }
 

@@ -87,19 +87,22 @@ public partial class CustomsDeclarationsController : Controller
                 || (cd.WagonOrTruckNumber != null && cd.WagonOrTruckNumber.Contains(normalizedQuery))
                 || (cd.LoadingRegister != null
                     && cd.LoadingRegister.Contract != null
-                    && cd.LoadingRegister.Contract.ContractNumber.Contains(normalizedQuery))
+                    && (cd.LoadingRegister.Contract.ContractName.Contains(normalizedQuery)
+                        || cd.LoadingRegister.Contract.ContractNumber.Contains(normalizedQuery)))
                 || (cd.LoadingRegister != null
                     && cd.LoadingRegister.Product != null
                     && cd.LoadingRegister.Product.Name.Contains(normalizedQuery))
                 || (cd.TransportLeg != null
                     && cd.TransportLeg.SourcePurchaseContract != null
-                    && cd.TransportLeg.SourcePurchaseContract.ContractNumber.Contains(normalizedQuery))
+                    && (cd.TransportLeg.SourcePurchaseContract.ContractName.Contains(normalizedQuery)
+                        || cd.TransportLeg.SourcePurchaseContract.ContractNumber.Contains(normalizedQuery)))
                 || (cd.TransportLeg != null
                     && cd.TransportLeg.Product != null
                     && cd.TransportLeg.Product.Name.Contains(normalizedQuery))
                 || (cd.TruckDispatch != null
                     && cd.TruckDispatch.Contract != null
-                    && cd.TruckDispatch.Contract.ContractNumber.Contains(normalizedQuery))
+                    && (cd.TruckDispatch.Contract.ContractName.Contains(normalizedQuery)
+                        || cd.TruckDispatch.Contract.ContractNumber.Contains(normalizedQuery)))
                 || (cd.TruckDispatch != null
                     && cd.TruckDispatch.Product != null
                     && cd.TruckDispatch.Product.Name.Contains(normalizedQuery)));
@@ -841,15 +844,18 @@ public partial class CustomsDeclarationsController : Controller
                 (cd.DeclarationReference != null && cd.DeclarationReference.Contains(normalizedQuery))
                 || (cd.WagonOrTruckNumber != null && cd.WagonOrTruckNumber.Contains(normalizedQuery))
                 || (cd.LoadingRegister != null && cd.LoadingRegister.Contract != null
-                    && cd.LoadingRegister.Contract.ContractNumber.Contains(normalizedQuery))
+                    && (cd.LoadingRegister.Contract.ContractName.Contains(normalizedQuery)
+                        || cd.LoadingRegister.Contract.ContractNumber.Contains(normalizedQuery)))
                 || (cd.LoadingRegister != null && cd.LoadingRegister.Product != null
                     && cd.LoadingRegister.Product.Name.Contains(normalizedQuery))
                 || (cd.TransportLeg != null && cd.TransportLeg.SourcePurchaseContract != null
-                    && cd.TransportLeg.SourcePurchaseContract.ContractNumber.Contains(normalizedQuery))
+                    && (cd.TransportLeg.SourcePurchaseContract.ContractName.Contains(normalizedQuery)
+                        || cd.TransportLeg.SourcePurchaseContract.ContractNumber.Contains(normalizedQuery)))
                 || (cd.TransportLeg != null && cd.TransportLeg.Product != null
                     && cd.TransportLeg.Product.Name.Contains(normalizedQuery))
                 || (cd.TruckDispatch != null && cd.TruckDispatch.Contract != null
-                    && cd.TruckDispatch.Contract.ContractNumber.Contains(normalizedQuery))
+                    && (cd.TruckDispatch.Contract.ContractName.Contains(normalizedQuery)
+                        || cd.TruckDispatch.Contract.ContractNumber.Contains(normalizedQuery)))
                 || (cd.TruckDispatch != null && cd.TruckDispatch.Product != null
                     && cd.TruckDispatch.Product.Name.Contains(normalizedQuery)));
         }

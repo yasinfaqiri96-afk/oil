@@ -62,6 +62,9 @@
             </a>
         </div>
 
+        <partial name="_ContractJourneyListFilter"
+                 model="@(("loadingsQ", (string?)Context.Request.Query["loadingsQ"].ToString(), T("جستجو در سوابق بارگیری...", "Search loading records..."), "loadingsPage"))" />
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

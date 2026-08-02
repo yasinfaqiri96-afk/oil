@@ -255,6 +255,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<LoadingReceipt>().Property(r => r.LossMode).HasDefaultValue(ReceiptLossMode.ImmediateKnownLoss);
         modelBuilder.Entity<LoadingReceipt>().HasIndex(r => r.LossMode);
 
+        // لغو نرم رسید بارگیری: پرچم لغو ایندکس می‌شود چون تقریباً همهٔ محاسبات عملیاتی روی آن فیلتر دارند.
+        modelBuilder.Entity<LoadingReceipt>().HasIndex(r => r.IsCancelled);
+        modelBuilder.Entity<LoadingReceipt>().Property(r => r.RowVersion).IsRowVersion();
+
         // New fields on TruckDispatch (Gap #4 + #5)
         ConfigureWeight<TruckDispatch>(modelBuilder, d => d.ToleranceMt!);
         ConfigureWeight<TruckDispatch>(modelBuilder, d => d.ChargeableShortageMt!);

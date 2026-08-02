@@ -45,8 +45,8 @@ public class ContractBalanceTransfersController : Controller
         if (!string.IsNullOrWhiteSpace(search))
         {
             query = query.Where(t =>
-                (t.FromContract != null && t.FromContract.ContractNumber.Contains(search))
-                || (t.ToContract != null && t.ToContract.ContractNumber.Contains(search))
+                (t.FromContract != null && (t.FromContract.ContractName.Contains(search) || t.FromContract.ContractNumber.Contains(search)))
+                || (t.ToContract != null && (t.ToContract.ContractName.Contains(search) || t.ToContract.ContractNumber.Contains(search)))
                 || (t.Reference != null && t.Reference.Contains(search)));
         }
 
@@ -78,7 +78,9 @@ public class ContractBalanceTransfersController : Controller
             {
                 Id = t.Id,
                 TransferDate = t.TransferDate,
+                FromContractName = t.FromContract != null ? t.FromContract.ContractName : "",
                 FromContractNumber = t.FromContract != null ? t.FromContract.ContractNumber : "",
+                ToContractName = t.ToContract != null ? t.ToContract.ContractName : "",
                 ToContractNumber = t.ToContract != null ? t.ToContract.ContractNumber : "",
                 AmountOriginal = t.AmountOriginal,
                 CurrencyCode = t.CurrencyCode,
@@ -93,7 +95,7 @@ public class ContractBalanceTransfersController : Controller
         return View(new ContractBalanceTransferIndexViewModel
         {
             ContractId = contractId,
-            ContractNumber = selectedContract?.ContractNumber,
+            ContractNumber = selectedContract?.DisplayLabel,
             Items = items,
             CurrentPage = page,
             PageCount = pageCount,
@@ -127,6 +129,7 @@ public class ContractBalanceTransfersController : Controller
                 Id = l.Id,
                 EntryDate = l.EntryDate,
                 Side = l.Side == LedgerSide.Debit ? "Debit" : "Credit",
+                ContractName = l.Contract != null ? l.Contract.ContractName : "",
                 ContractNumber = l.Contract != null ? l.Contract.ContractNumber : "",
                 AmountUsd = l.AmountUsd,
                 SourceCurrencyCode = l.SourceCurrencyCode,
@@ -139,9 +142,9 @@ public class ContractBalanceTransfersController : Controller
             Id = transfer.Id,
             TransferDate = transfer.TransferDate,
             FromContractId = transfer.FromContractId,
-            FromContractNumber = transfer.FromContract?.ContractNumber ?? "",
+            FromContractNumber = transfer.FromContract?.DisplayLabel ?? "",
             ToContractId = transfer.ToContractId,
-            ToContractNumber = transfer.ToContract?.ContractNumber ?? "",
+            ToContractNumber = transfer.ToContract?.DisplayLabel ?? "",
             AmountOriginal = transfer.AmountOriginal,
             CurrencyCode = transfer.CurrencyCode,
             FxRateToUsd = transfer.FxRateToUsd,

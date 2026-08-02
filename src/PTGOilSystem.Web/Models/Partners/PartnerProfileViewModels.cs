@@ -55,13 +55,17 @@ public sealed class PartnerProfileViewModel
 public sealed class PartnerStatementContractFilterOptionViewModel
 {
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string DisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
 }
 
 public sealed class PartnerContractSummaryViewModel
 {
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string DisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public ContractType ContractType { get; init; }
     public string ContractTypeName { get; init; } = string.Empty;
     public string Product { get; init; } = string.Empty;

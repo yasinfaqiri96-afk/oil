@@ -322,6 +322,7 @@ public class PaymentsController : Controller
                 p.EmployeeId,
                 EmployeeName = p.Employee != null ? p.Employee.FullName : null,
                 p.ContractId,
+                ContractName = p.Contract != null ? p.Contract.ContractName : null,
                 ContractNumber = p.Contract != null ? p.Contract.ContractNumber : null,
                 p.ShipmentId,
                 ShipmentCode = p.Shipment != null ? p.Shipment.ShipmentCode : null,
@@ -393,6 +394,7 @@ public class PaymentsController : Controller
                     Id = a.Id,
                     AllocationDate = a.AllocationDate,
                     ContractId = a.ContractId,
+                    ContractName = a.Contract != null ? a.Contract.ContractName : string.Empty,
                     ContractNumber = a.Contract != null ? a.Contract.ContractNumber : string.Empty,
                     AllocatedPaymentAmount = a.AllocatedPaymentAmount,
                     PaymentCurrencyCode = a.PaymentCurrencyCode,
@@ -464,7 +466,7 @@ public class PaymentsController : Controller
             EmployeeId = payment.EmployeeId,
             EmployeeName = payment.EmployeeName,
             ContractId = payment.ContractId,
-            ContractNumber = payment.ContractNumber,
+            ContractNumber = ContractUiText.FormatDisplayLabel(payment.ContractName, payment.ContractNumber),
             ShipmentId = payment.ShipmentId,
             ShipmentCode = payment.ShipmentCode,
             SalesTransactionId = payment.SalesTransactionId,
@@ -1461,11 +1463,13 @@ public class PaymentsController : Controller
             .OrderByDescending(c => c.ContractDate)
             .ThenBy(c => c.ContractNumber)
             .Take(LookupLimit)
-            .Select(c => new { c.Id, c.ContractNumber, c.Currency })
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber, c.Currency })
             .ToListAsync();
 
         ViewBag.AllocationContracts = new SelectList(
-            contracts.Select(c => new { c.Id, Display = $"{c.ContractNumber} ({SystemCurrency.Normalize(c.Currency)})" }),
+            contracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
             "Id",
             "Display",
             model.ContractId);
@@ -1586,7 +1590,7 @@ public class PaymentsController : Controller
                 || (p.Sarraf != null && p.Sarraf.Name.Contains(search))
                 || (p.Employee != null && p.Employee.FullName.Contains(search))
                 || (p.Driver != null && p.Driver.FullName.Contains(search))
-                || (p.Contract != null && p.Contract.ContractNumber.Contains(search))
+                || (p.Contract != null && (p.Contract.ContractName.Contains(search) || p.Contract.ContractNumber.Contains(search)))
                 || (p.Shipment != null && p.Shipment.ShipmentCode.Contains(search))
                 || (p.SalesTransaction != null && p.SalesTransaction.InvoiceNumber.Contains(search))
                 || (p.ExpenseTransaction != null && p.ExpenseTransaction.Description != null && p.ExpenseTransaction.Description.Contains(search)));
@@ -1618,6 +1622,7 @@ public class PaymentsController : Controller
                 DriverId = p.DriverId,
                 DriverName = p.Driver != null ? p.Driver.FullName : null,
                 ContractId = p.ContractId,
+                ContractName = p.Contract != null ? p.Contract.ContractName : null,
                 ContractNumber = p.Contract != null ? p.Contract.ContractNumber : null,
                 ShipmentId = p.ShipmentId,
                 ShipmentCode = p.Shipment != null ? p.Shipment.ShipmentCode : null,
@@ -1760,7 +1765,7 @@ public class PaymentsController : Controller
                 || (s.Description != null && s.Description.Contains(search))
                 || (s.Sarraf != null && s.Sarraf.Name.Contains(search))
                 || (s.Supplier != null && s.Supplier.Name.Contains(search))
-                || (s.Contract != null && s.Contract.ContractNumber.Contains(search)));
+                || (s.Contract != null && (s.Contract.ContractName.Contains(search) || s.Contract.ContractNumber.Contains(search))));
         }
 
         return await settlementQuery
@@ -1911,7 +1916,7 @@ public class PaymentsController : Controller
                 (l.Reference != null && l.Reference.Contains(search))
                 || l.Description.Contains(search)
                 || (l.Supplier != null && l.Supplier.Name.Contains(search))
-                || (l.Contract != null && l.Contract.ContractNumber.Contains(search))
+                || (l.Contract != null && (l.Contract.ContractName.Contains(search) || l.Contract.ContractNumber.Contains(search)))
                 || _db.Sarrafs.Any(s => s.Id == l.SourceId && s.Name.Contains(search)));
         }
 
@@ -2142,7 +2147,9 @@ public class PaymentsController : Controller
             DriverId = payment.DriverId,
             Driver = payment.DriverName is null ? null : new Driver { FullName = payment.DriverName },
             ContractId = payment.ContractId,
-            Contract = payment.ContractNumber is null ? null : new Contract { ContractNumber = payment.ContractNumber },
+            Contract = payment.ContractNumber is null
+                ? null
+                : new Contract { ContractName = payment.ContractName ?? string.Empty, ContractNumber = payment.ContractNumber },
             ShipmentId = payment.ShipmentId,
             Shipment = payment.ShipmentCode is null ? null : new Shipment { ShipmentCode = payment.ShipmentCode },
             SalesTransactionId = payment.SalesTransactionId,
@@ -2199,7 +2206,7 @@ public class PaymentsController : Controller
             SarrafName = payment.Sarraf?.Name,
             EmployeeName = payment.Employee?.FullName,
             DriverName = payment.Driver?.FullName,
-            ContractNumber = payment.Contract?.ContractNumber,
+            ContractNumber = payment.Contract?.DisplayLabel,
             ShipmentCode = payment.Shipment?.ShipmentCode,
             SalesInvoiceNumber = payment.SalesTransaction?.InvoiceNumber,
             ExpenseDescription = payment.ExpenseTransaction?.Description,
@@ -2647,6 +2654,7 @@ public class PaymentsController : Controller
             {
                 c.Id,
                 c.SupplierId,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -2664,6 +2672,7 @@ public class PaymentsController : Controller
                 SupplierId = c.SupplierId,
                 ContractType = c.ContractType,
                 Display = ContractUiText.FormatLookup(
+                    c.ContractName,
                     c.ContractNumber,
                     c.ContractType,
                     c.ProductName,
@@ -4591,6 +4600,7 @@ public class PaymentsController : Controller
         public int? DriverId { get; init; }
         public string? DriverName { get; init; }
         public int? ContractId { get; init; }
+        public string? ContractName { get; init; }
         public string? ContractNumber { get; init; }
         public int? ShipmentId { get; init; }
         public string? ShipmentCode { get; init; }

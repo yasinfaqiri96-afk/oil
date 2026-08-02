@@ -18,15 +18,12 @@
         <div class="sadd-login-slides" data-login-carousel>
             <figure class="sadd-login-slide is-active">
                 <img src="~/images/auth/scene-1.png" asp-append-version="true" alt="" loading="eager" />
-                <figcaption>@T("نواتیک؛ سازندهٔ راه‌حل‌های نرم‌افزاری صنعت نفت و گاز", "Novatech — builder of oil &amp; gas software solutions")</figcaption>
             </figure>
             <figure class="sadd-login-slide">
                 <img src="~/images/auth/scene-2.webp" asp-append-version="true" alt="" loading="lazy" />
-                <figcaption>@T("حساب دقیق دالر، روبل و افغانی و کنترل صرافی‌ها", "Precise USD, RUB &amp; AFN accounting with money-changer control")</figcaption>
             </figure>
             <figure class="sadd-login-slide">
                 <img src="~/images/auth/scene-3.png" asp-append-version="true" alt="" loading="lazy" />
-                <figcaption>@T("محاسبهٔ ضایعات از ثبت قرارداد تا مرحلهٔ آخر", "Loss tracking from contract registration to the final stage")</figcaption>
             </figure>
         </div>
 
@@ -85,26 +82,17 @@
                 <span asp-validation-for="Password" class="sadd-login-error"></span>
             </div>
 
-            <div class="sadd-login-row">
-                <label class="sadd-login-remember">
-                    <input type="checkbox" name="RememberMe" value="true" />
-                    <span>@T("مرا به خاطر بسپار", "Remember Me")</span>
-                </label>
-
-                <details class="sadd-login-help">
-                    <summary>@T("رمز عبور را فراموش کرده‌ام", "I forgot my password")</summary>
-                    <p>@T("برای تنظیم مجدد رمز عبور با مدیر سیستم تماس بگیرید.", "Contact the system administrator to reset your password.")</p>
-                </details>
-            </div>
-
             <div class="sadd-login-actions" dir="ltr">
                 <button type="submit" class="sadd-login-submit">@T("ورود", "SIGN IN")</button>
                 <span class="sadd-login-signup" aria-disabled="true"
                       title="@T("ثبت‌نام عمومی در این سیستم فعال نیست.", "Public sign-up is not enabled for this system.")">@T("ثبت‌نام", "SIGN UP")</span>
             </div>
 
-            <div class="sadd-login-divider">
-                <span>@T("یا ورود با", "OR LOGIN WITH")</span>
+            <div class="sadd-login-row">
+                <label class="sadd-login-remember">
+                    <input type="checkbox" name="RememberMe" value="true" />
+                    <span>@T("مرا به خاطر بسپار", "Remember Me")</span>
+                </label>
             </div>
 
             <div class="sadd-login-social" aria-label="@T("روش‌های ورود غیرفعال", "Unavailable social sign-ins")">

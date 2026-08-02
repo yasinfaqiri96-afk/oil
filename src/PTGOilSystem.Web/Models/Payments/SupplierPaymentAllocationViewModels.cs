@@ -9,7 +9,9 @@ public sealed class SupplierPaymentAllocationListItemViewModel
     public int Id { get; init; }
     public DateTime AllocationDate { get; init; }
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public decimal AllocatedPaymentAmount { get; init; }
     public string PaymentCurrencyCode { get; init; } = "USD";
     public decimal AllocatedBookAmountUsd { get; init; }

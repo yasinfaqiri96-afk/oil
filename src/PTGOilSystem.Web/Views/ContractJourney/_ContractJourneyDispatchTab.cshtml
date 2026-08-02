@@ -43,6 +43,9 @@
             </a>
         </div>
 
+        <partial name="_ContractJourneyListFilter"
+                 model="@(("dispatchQ", (string?)Context.Request.Query["dispatchQ"].ToString(), T("جستجو در نقل و انتقالات...", "Search transfers..."), "dispatchPage"))" />
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

@@ -179,6 +179,7 @@ public partial class SalesController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -199,6 +200,7 @@ public partial class SalesController : Controller
                 .Select(c => new ContractLookupOption(
                     c.Id,
                     ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,
@@ -336,6 +338,7 @@ public partial class SalesController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -352,6 +355,7 @@ public partial class SalesController : Controller
                 .Select(c =>
                 {
                     var display = ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,
@@ -616,6 +620,7 @@ public partial class SalesController : Controller
                 SaleDate = s.SaleDate,
                 SaleStage = s.SaleStage,
                 InvoiceNumber = s.InvoiceNumber,
+                ContractName = s.Contract != null ? s.Contract.ContractName : string.Empty,
                 ContractNumber = s.Contract != null ? s.Contract.ContractNumber : SalesContractText.WithoutSalesContract,
                 // CompanyId=null یعنی فروش چندجوازی؛ «چند جواز» نمایش داده می‌شود نه خالی/«بدون جواز».
                 CompanyName = s.CompanyId == null
@@ -2044,7 +2049,7 @@ public partial class SalesController : Controller
             CreatedByName = createdByName,
             SaleDate = sale.SaleDate,
             SaleStage = sale.SaleStage,
-            ContractNumber = sale.Contract?.ContractNumber ?? SalesContractText.WithoutSalesContract,
+            ContractNumber = sale.Contract?.DisplayLabel ?? SalesContractText.WithoutSalesContract,
             CompanyName = sale.CompanyId is null ? SalesContractText.MultiLicense : (sale.Company?.Name ?? ""),
             CustomerName = sale.Customer?.Name ?? "",
             ProductName = sale.Product?.Name ?? "",
@@ -2081,8 +2086,8 @@ public partial class SalesController : Controller
                 : BuildInventoryTransportReference(inventoryTransportReceipt.InventoryTransportLeg),
             SourcePurchaseContractNumber = stockOutContractNumbers.Count > 0
                 ? string.Join(", ", stockOutContractNumbers)
-                : receiptAllocation?.SourcePurchaseContract?.ContractNumber
-                    ?? inventoryTransportReceipt?.InventoryTransportLeg?.SourcePurchaseContract?.ContractNumber,
+                : receiptAllocation?.SourcePurchaseContract?.DisplayLabel
+                    ?? inventoryTransportReceipt?.InventoryTransportLeg?.SourcePurchaseContract?.DisplayLabel,
             SourceTerminalName = stockOutMovement?.Terminal?.Name
                 ?? receiptAllocation?.Terminal?.Name
                 ?? inventoryTransportReceipt?.InventoryTransportLeg?.SourceTerminal?.Name,
@@ -2347,7 +2352,7 @@ public partial class SalesController : Controller
                 return new ShipmentFlowSaleContractRowViewModel
                 {
                     ContractId = group.Key,
-                    ContractNumber = group.First().SourcePurchaseContract?.ContractNumber ?? $"#{group.Key}",
+                    ContractNumber = group.First().SourcePurchaseContract?.DisplayLabel ?? $"#{group.Key}",
                     CompanyName = group.First().SourcePurchaseContract?.Company?.Name,
                     ProductName = group.First().Product?.Name,
                     LoadedQuantityMt = loaded,

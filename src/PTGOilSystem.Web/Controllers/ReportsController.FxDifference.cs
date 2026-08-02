@@ -754,9 +754,12 @@ public partial class ReportsController
                 .Select(s => new LookupOption(s.Id, s.Name)).ToListAsync(cancellationToken),
             nameof(LookupOption.Id), nameof(LookupOption.Name), filter.SarrafId);
 
+        var contracts = await _db.Contracts.AsNoTracking().OrderByDescending(c => c.ContractDate)
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber }).ToListAsync(cancellationToken);
         ViewBag.Contracts = new SelectList(
-            await _db.Contracts.AsNoTracking().OrderByDescending(c => c.ContractDate)
-                .Select(c => new LookupOption(c.Id, c.ContractNumber)).ToListAsync(cancellationToken),
+            contracts.Select(c => new LookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
             nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ContractId);
 
         var currencies = await _db.SarrafSettlements.AsNoTracking()

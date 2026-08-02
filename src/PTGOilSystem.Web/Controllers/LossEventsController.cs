@@ -105,6 +105,7 @@ public partial class LossEventsController : Controller
                 EventDate = e.EventDate,
                 Stage = e.Stage,
                 ProductName = e.Product != null ? e.Product.Name : "",
+                ContractName = e.Contract != null ? e.Contract.ContractName : null,
                 ContractNumber = e.Contract != null ? e.Contract.ContractNumber : null,
                 ShipmentCode = e.Shipment != null ? e.Shipment.ShipmentCode : null,
                 DifferenceQuantityMt = e.DifferenceQuantityMt,
@@ -387,6 +388,10 @@ public partial class LossEventsController : Controller
             if (receipt is null)
             {
                 ModelState.AddModelError(nameof(model.LoadingReceiptId), "Loading Receipt انتخاب‌شده معتبر نیست.");
+            }
+            else if (receipt.IsCancelled)
+            {
+                ModelState.AddModelError(nameof(model.LoadingReceiptId), "رسید بارگیری انتخاب‌شده لغو شده است.");
             }
             else if (receipt.LoadingRegister is not null)
             {
@@ -812,6 +817,7 @@ public partial class LossEventsController : Controller
             EventDate = item.EventDate,
             Stage = item.Stage,
             ProductName = item.Product?.Name ?? "",
+            ContractName = item.Contract?.ContractName,
             ContractNumber = item.Contract?.ContractNumber,
             ShipmentCode = item.Shipment?.ShipmentCode,
             LoadingRegisterLabel = item.LoadingRegister is null
@@ -896,6 +902,7 @@ public partial class LossEventsController : Controller
         ViewBag.Receipts = new SelectList(
             await _db.LoadingReceipts
                 .AsNoTracking()
+                .Where(r => !r.IsCancelled)
                 .OrderByDescending(r => r.ReceiptDate)
                 .ThenByDescending(r => r.Id)
                 .Take(200)
@@ -1033,7 +1040,7 @@ public partial class LossEventsController : Controller
         ViewBag.LossEventId = item.Id;
         ViewBag.StageLabel = LossEventStageLabels.ToPersian(item.Stage);
         ViewBag.ProductName = item.Product?.Name ?? string.Empty;
-        ViewBag.ContractNumber = item.Contract?.ContractNumber;
+        ViewBag.ContractNumber = item.Contract?.DisplayLabel;
         ViewBag.ShipmentCode = item.Shipment?.ShipmentCode;
         ViewBag.LoadingRegisterLabel = item.LoadingRegister is null
             ? null

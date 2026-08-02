@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Loading;
 using PTGOilSystem.Web.Security;
@@ -351,7 +352,7 @@ public partial class LoadingController
 
         Add(
             await _db.LoadingReceipts.AsNoTracking()
-                .Where(x => ids.Contains(x.LoadingRegisterId))
+                .Where(x => ids.Contains(x.LoadingRegisterId) && !x.IsCancelled)
                 .Select(x => x.LoadingRegisterId)
                 .Distinct()
                 .ToListAsync(cancellationToken),
@@ -407,24 +408,32 @@ public partial class LoadingController
     }
 
     private async Task<string?> ResolveContractNumberAsync(int? contractId, CancellationToken cancellationToken)
-        => contractId.HasValue
-            ? await _db.Contracts.AsNoTracking()
-                .Where(c => c.Id == contractId.Value)
-                .Select(c => c.ContractNumber)
-                .FirstOrDefaultAsync(cancellationToken)
-            : null;
+    {
+        if (!contractId.HasValue) return null;
+
+        var contract = await _db.Contracts.AsNoTracking()
+            .Where(c => c.Id == contractId.Value)
+            .Select(c => new { c.ContractName, c.ContractNumber })
+            .FirstOrDefaultAsync(cancellationToken);
+        return contract is null
+            ? null
+            : ContractUiText.FormatDisplayLabel(contract.ContractName, contract.ContractNumber);
+    }
 
     private async Task PopulateBulkDeleteLookupsAsync(int? contractId, CancellationToken cancellationToken)
     {
-        ViewBag.BulkDeleteContracts = new SelectList(
-            await _db.Contracts.AsNoTracking()
+        var contracts = await _db.Contracts.AsNoTracking()
                 .Where(c => c.ContractType == ContractType.Purchase)
                 .OrderByDescending(c => c.ContractDate)
-                .Select(c => new { c.Id, c.ContractNumber })
+                .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
                 .Take(LookupLimit)
-                .ToListAsync(cancellationToken),
+                .ToListAsync(cancellationToken);
+        ViewBag.BulkDeleteContracts = new SelectList(
+            contracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
             "Id",
-            "ContractNumber",
+            "Display",
             contractId);
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PTGOilSystem.Web.Models.Entities;
 
@@ -12,7 +13,21 @@ public enum RubSettlementRatePolicy { NotApplicable = 0, FixedContractRate = 1, 
 
 public class Contract : BaseEntity
 {
+    [Required, MaxLength(200)] public string ContractName { get; set; } = "";
     [Required, MaxLength(50)] public string ContractNumber { get; set; } = "";
+
+    [NotMapped]
+    public string DisplayLabel => BuildDisplayLabel(ContractName, ContractNumber);
+
+    public static string BuildDisplayLabel(string? contractName, string? contractNumber)
+    {
+        var name = contractName?.Trim();
+        var number = contractNumber?.Trim() ?? string.Empty;
+        return string.IsNullOrWhiteSpace(name) || string.Equals(name, number, StringComparison.Ordinal)
+            ? number
+            : $"{name} — {number}";
+    }
+
     public ContractType ContractType { get; set; }
     public ContractStatus Status { get; set; } = ContractStatus.Draft;
 

@@ -255,16 +255,14 @@ body.boltz-shell .dropdown-menu.show {
     }
 
     body.boltz-shell.app-shell-authenticated main.boltz-content :is(
-        .ak-hub-tile,
-        .dash-quick-item
+        .ak-hub-tile
     ) {
         transition: transform var(--ptg-motion-base) var(--ptg-motion-ease),
                     box-shadow var(--ptg-motion-base) var(--ptg-motion-ease);
     }
 
     body.boltz-shell.app-shell-authenticated main.boltz-content :is(
-        .ak-hub-tile,
-        .dash-quick-item
+        .ak-hub-tile
     ):hover {
         transform: translateY(-2px);
     }
@@ -283,7 +281,6 @@ body.boltz-shell .dropdown-menu.show {
         .ak-date-pop,
         .ak-date-grid,
         .ak-date-years,
-        .ak-report-parameters-pop,
         select,
         .form-select
     ),
@@ -291,8 +288,7 @@ body.boltz-shell .dropdown-menu.show {
         .ak-entity-combobox,
         .ak-entity-menu,
         .ak-datepicker,
-        .ak-date-pop,
-        .ak-report-parameters-pop
+        .ak-date-pop
     ) * {
         animation: none !important;
     }

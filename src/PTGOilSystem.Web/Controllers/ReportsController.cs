@@ -647,7 +647,7 @@ public partial class ReportsController : Controller
         if (filter.ContractId.HasValue) loadingQuery = loadingQuery.Where(l => l.ContractId == filter.ContractId.Value);
 
         var unreceiptedLoadingCount = await loadingQuery
-            .CountAsync(l => !_db.LoadingReceipts.Any(r => r.LoadingRegisterId == l.Id));
+            .CountAsync(l => !_db.LoadingReceipts.Any(r => r.LoadingRegisterId == l.Id && !r.IsCancelled));
         var activeChargeableLossCount = await _db.LossEvents
             .AsNoTracking()
             .CountAsync(l => !l.IsCancelled && l.ChargeableLossMt > 0m);
@@ -808,7 +808,7 @@ public partial class ReportsController : Controller
             .OrderByDescending(c => c.ContractDate)
             .Select(c => new
             {
-                c.Id, c.ContractNumber, c.Status, c.QuantityMt, c.UnitPriceUsd, c.ManualFinalPriceUsd,
+                c.Id, c.ContractName, c.ContractNumber, c.Status, c.QuantityMt, c.UnitPriceUsd, c.ManualFinalPriceUsd,
                 ProductName = c.Product != null ? c.Product.Name : "",
                 CounterpartyName = c.Supplier != null ? c.Supplier.Name : null
             })
@@ -1000,7 +1000,8 @@ public partial class ReportsController : Controller
         if (purchaseIds.Count > 0)
         {
             var deferredPairs = await _db.LoadingReceipts.AsNoTracking()
-                .Where(r => r.LossMode == ReceiptLossMode.DeferredTankSettlement
+                .Where(r => !r.IsCancelled
+                    && r.LossMode == ReceiptLossMode.DeferredTankSettlement
                     && r.ReceiptDestination == LoadingReceiptDestination.ToInventory
                     && r.StorageTankId != null
                     && r.LoadingRegister != null
@@ -1192,6 +1193,7 @@ public partial class ReportsController : Controller
             return new ContractPnlRowViewModel
             {
                 ContractId = c.Id,
+                ContractName = c.ContractName,
                 ContractNumber = c.ContractNumber,
                 ContractType = ContractType.Purchase,
                 Status = c.Status,
@@ -1241,7 +1243,7 @@ public partial class ReportsController : Controller
             .OrderByDescending(c => c.ContractDate)
             .Select(c => new
             {
-                c.Id, c.ContractNumber, c.Status, c.QuantityMt, c.UnitPriceUsd,
+                c.Id, c.ContractName, c.ContractNumber, c.Status, c.QuantityMt, c.UnitPriceUsd,
                 ProductName = c.Product != null ? c.Product.Name : "",
                 CounterpartyName = c.Customer != null ? c.Customer.Name : null
             })
@@ -1266,6 +1268,7 @@ public partial class ReportsController : Controller
             return new ContractPnlRowViewModel
             {
                 ContractId = c.Id,
+                ContractName = c.ContractName,
                 ContractNumber = c.ContractNumber,
                 ContractType = ContractType.Sale,
                 Status = c.Status,
@@ -1370,6 +1373,7 @@ public partial class ReportsController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -1385,6 +1389,7 @@ public partial class ReportsController : Controller
                 .Select(c => new ContractLookupOption(
                     c.Id,
                     ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,

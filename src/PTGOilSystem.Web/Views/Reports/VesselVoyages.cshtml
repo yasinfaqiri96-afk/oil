@@ -4,9 +4,6 @@
     ViewData["Title"] = UiText.T(Context, "گزارش کشتی‌ها", "Vessel Voyages Report");
     var f = Model.Filter;
     var t = Model.Totals;
-    var hasActiveFilters = f.HasAny;
-    var moreFiltersOpen = f.CustomerId.HasValue || f.SupplierId.HasValue
-        || f.DestinationLocationId.HasValue || f.ServiceProviderId.HasValue;
 }
 
 <div class="ak-list-page">
@@ -44,48 +41,39 @@
     </section>
 
     <div class="ak-list">
-        <form method="get" class="ak-report-parameters" id="vvFilterForm">
-            <div class="ak-report-parameters-bar">
-                <div class="ak-report-parameters-anchor">
-                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="vvFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
-                        <i class="bi bi-funnel"></i>
-                    </button>
-                    <div class="ak-report-parameters-pop" id="vvFilterPop" hidden>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "سال مالی", "Fiscal year")</label>
-                        <select class="ak-input" name="FiscalYearId" asp-items="ViewBag.VesselVoyageFiscalYears"><option value="">@UiText.T(Context, "همه سال‌ها", "All years")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
-                        <input class="ak-input" type="date" name="FromDate" value="@f.FromDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
-                        <input class="ak-input" type="date" name="ToDate" value="@f.ToDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "کشتی", "Vessel")</label>
-                        <select class="ak-input" name="VesselId" asp-items="ViewBag.VesselVoyageVessels"><option value="">@UiText.T(Context, "همه کشتی‌ها", "All vessels")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "محصول", "Product")</label>
-                        <select class="ak-input" name="ProductId" asp-items="ViewBag.VesselVoyageProducts"><option value="">@UiText.T(Context, "همه محصولات", "All products")</option></select>
-
-                        @* فیلترهای کم‌استفاده جمع می‌شوند تا نوار فیلتر شلوغ نشود. *@
-                        <details open="@(moreFiltersOpen ? "open" : null)">
-                            <summary>@UiText.T(Context, "فیلترهای بیشتر", "More filters")</summary>
-                            <label class="ak-report-parameters-field">@UiText.T(Context, "مشتری", "Customer")</label>
-                            <select class="ak-input" name="CustomerId" asp-items="ViewBag.VesselVoyageCustomers"><option value="">@UiText.T(Context, "همه مشتریان", "All customers")</option></select>
-                            <label class="ak-report-parameters-field">@UiText.T(Context, "تأمین‌کننده / Shipper", "Supplier / Shipper")</label>
-                            <select class="ak-input" name="SupplierId" asp-items="ViewBag.VesselVoyageSuppliers"><option value="">@UiText.T(Context, "همه تأمین‌کنندگان", "All suppliers")</option></select>
-                            <label class="ak-report-parameters-field">@UiText.T(Context, "مقصد", "Destination")</label>
-                            <select class="ak-input" name="DestinationLocationId" asp-items="ViewBag.VesselVoyageDestinations"><option value="">@UiText.T(Context, "همه مقصدها", "All destinations")</option></select>
-                            <label class="ak-report-parameters-field">@UiText.T(Context, "کمپنی ترانسپورتی", "Transport company")</label>
-                            <select class="ak-input" name="ServiceProviderId" asp-items="ViewBag.VesselVoyageServiceProviders"><option value="">@UiText.T(Context, "همه کمپنی‌ها", "All companies")</option></select>
-                        </details>
-
-                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
-                        @* چاپ از راه «خروجی PDF» همین منو انجام می‌شود؛ دکمهٔ چاپ مستقل طبق قرارداد پروژه ممنوع است. *@
-                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("VesselVoyagesExport"))" />
-                        @if (hasActiveFilters)
-                        {
-                            <a asp-action="VesselVoyages" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
-                        }
-                    </div>
-                </div>
+        @{
+            List<AkFilterOption> VoyageOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+            var voyageFilter = new AkSearchFilterModel("", null,
+                UiText.T(Context, "فیلتر سفرهای کشتی...", "Filter vessel voyages..."),
+                new List<AkFilterDefinition>
+                {
+                    new("FiscalYearId", UiText.T(Context, "سال مالی", "Fiscal year"), "select", VoyageOpts(ViewBag.VesselVoyageFiscalYears),
+                        f.FiscalYearId?.ToString()),
+                    new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                        f.FromDate?.ToString("yyyy-MM-dd"), "ToDate", f.ToDate?.ToString("yyyy-MM-dd")),
+                    new("VesselId", UiText.T(Context, "کشتی", "Vessel"), "select", VoyageOpts(ViewBag.VesselVoyageVessels),
+                        f.VesselId?.ToString()),
+                    new("ProductId", UiText.T(Context, "محصول", "Product"), "select", VoyageOpts(ViewBag.VesselVoyageProducts),
+                        f.ProductId?.ToString()),
+                    new("CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", VoyageOpts(ViewBag.VesselVoyageCustomers),
+                        f.CustomerId?.ToString()),
+                    new("SupplierId", UiText.T(Context, "تأمین‌کننده / Shipper", "Supplier / Shipper"), "select", VoyageOpts(ViewBag.VesselVoyageSuppliers),
+                        f.SupplierId?.ToString()),
+                    new("DestinationLocationId", UiText.T(Context, "مقصد", "Destination"), "select", VoyageOpts(ViewBag.VesselVoyageDestinations),
+                        f.DestinationLocationId?.ToString()),
+                    new("ServiceProviderId", UiText.T(Context, "کمپنی ترانسپورتی", "Transport company"), "select", VoyageOpts(ViewBag.VesselVoyageServiceProviders),
+                        f.ServiceProviderId?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="voyageFilter" />
+            <div class="ak-list-toolbar-actions">
+                @* چاپ از راه «خروجی PDF» همین منو انجام می‌شود؛ دکمهٔ چاپ مستقل طبق قرارداد پروژه ممنوع است. *@
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("VesselVoyagesExport"))" />
             </div>
-        </form>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">
@@ -270,24 +258,3 @@
         @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
     </div>
 </div>
-
-@section Scripts {
-    <script>
-        (function () {
-            var toggle = document.getElementById('vvFilterToggle');
-            var pop = document.getElementById('vvFilterPop');
-            if (!toggle || !pop) return;
-            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-            toggle.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var open = pop.hidden;
-                pop.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-            document.addEventListener('click', function (e) {
-                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
-            });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-        })();
-    </script>
-}

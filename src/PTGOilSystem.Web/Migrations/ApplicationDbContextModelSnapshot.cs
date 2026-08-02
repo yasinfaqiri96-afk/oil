@@ -1007,6 +1007,11 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<DateTime>("ContractDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ContractName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("ContractNumber")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -4203,11 +4208,24 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<DateTime?>("ArrivalDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CancelledByUserId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("IsCancelled")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime?>("LeakDate")
                         .HasColumnType("timestamp with time zone");
@@ -4237,6 +4255,12 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.Property<int?>("StorageTankId")
                         .HasColumnType("integer");
 
@@ -4250,6 +4274,8 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsCancelled");
 
                     b.HasIndex("LoadingRegisterId");
 

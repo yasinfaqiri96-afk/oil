@@ -539,7 +539,8 @@
                             <span>@T("تغییر رمز عبور", "Change Password")</span>
                         </a>
 
-                        <form asp-controller="Auth" asp-action="Logout" method="post">
+                        <form asp-controller="Auth" asp-action="Logout" method="post"
+                              data-no-spa="true" data-no-submit-guard>
                             @Html.AntiForgeryToken()
                             <button type="submit" class="boltz-sidebar-foot-link boltz-sidebar-foot-link-danger">
                                 <i class="ptg-nav-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-logout"></use></svg></i>
@@ -791,7 +792,8 @@
                         </a>
                     </nav>
 
-                    <form asp-controller="Auth" asp-action="Logout" method="post" class="ptg-account-logout-form">
+                    <form asp-controller="Auth" asp-action="Logout" method="post" class="ptg-account-logout-form"
+                          data-no-spa="true" data-no-submit-guard>
                         @Html.AntiForgeryToken()
                         <button type="submit" class="ptg-account-logout">
                             @T("خروج", "Logout")

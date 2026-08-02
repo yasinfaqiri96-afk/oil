@@ -64,6 +64,9 @@
             </div>
         </div>
 
+        <partial name="_ContractJourneyListFilter"
+                 model="@(("paymentsQ", (string?)Context.Request.Query["paymentsQ"].ToString(), T("جستجو در پرداخت‌ها...", "Search payments..."), "paymentsPage"))" />
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>
@@ -163,6 +166,8 @@
     <section class="ak-form-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                  model="@((T("تسویه‌های صراف", "Sarraf settlements"), (string?)T("ردیف‌های تسویه و کاهش بدهی", "Settlement rows and liability reductions")))" />
+        <partial name="_ContractJourneyListFilter"
+                 model="@(("settlementsQ", (string?)Context.Request.Query["settlementsQ"].ToString(), T("جستجو در تسویه‌های صراف...", "Search sarraf settlements..."), "settlementsPage"))" />
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

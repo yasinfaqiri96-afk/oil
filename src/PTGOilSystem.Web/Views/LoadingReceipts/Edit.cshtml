@@ -59,8 +59,9 @@
                 </div>
                 <div class="ak-field">
                     <label asp-for="ActualArrivedQuantityMt"></label>
-                    <input asp-for="ActualArrivedQuantityMt" type="number" step="0.0001" class="ak-input" placeholder="0.0000" />
-                    <span asp-validation-for="ActualArrivedQuantityMt"></span>
+                    <input asp-for="ActualArrivedQuantityMt" type="number" step="0.0001" class="ak-input" placeholder="0.0000" readonly disabled />
+                    <small>@UiText.T(Context, "این مقدار اثر عملیاتی دارد؛ اصلاح آن فقط از مسیر «اصلاح مقدار» (لغو و ثبت دوباره) انجام می‌شود.", "This quantity has operational effects; correct it through cancel and re-register.")</small>
+                    <a class="ak-link" asp-controller="LoadingReceipts" asp-action="Correct" asp-route-id="@Model.Id" asp-route-returnUrl="@Model.ReturnUrl">@UiText.T(Context, "اصلاح مقدار", "Correct quantity")</a>
                 </div>
             </div>
         </section>

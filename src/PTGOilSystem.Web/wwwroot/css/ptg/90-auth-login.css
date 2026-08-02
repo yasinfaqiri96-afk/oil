@@ -16,8 +16,8 @@ body.controller-auth.action-login .boltz-public-shell {
 }
 
 .sadd-login-page {
-    --login-accent: #6ea84f;
-    --login-accent-hover: #609345;
+    --login-accent: #1877f2;
+    --login-accent-hover: #1267d6;
     --login-text: #2d3035;
     --login-muted: #7f8793;
     --login-border: #cbd1df;
@@ -57,9 +57,8 @@ body.controller-auth.action-login .boltz-public-shell {
     position: absolute;
     inset: 0;
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
     justify-items: center;
-    gap: 1rem;
     margin: 0;
     opacity: 0;
     visibility: hidden;
@@ -297,7 +296,7 @@ input.sadd-login-input {
 input.sadd-login-input:focus {
     border-color: var(--login-accent);
     background-color: #fff;
-    box-shadow: 0 0 0 3px rgba(110, 168, 79, 0.14);
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.14);
 }
 
 .sadd-login-input.input-validation-error {
@@ -329,23 +328,23 @@ input.sadd-login-input:focus {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    margin: 1.35rem 0 1.15rem;
+    gap: 0.6rem;
+    margin: 1rem 0 0.9rem;
     color: #5e626a;
-    font-size: 0.98rem;
+    font-size: 0.82rem;
 }
 
 .sadd-login-remember {
     display: inline-flex;
     align-items: center;
-    gap: 0.68rem;
+    gap: 0.42rem;
     margin: 0;
     cursor: pointer;
 }
 
 .sadd-login-remember input {
-    width: 1.2rem;
-    height: 1.2rem;
+    width: 0.95rem;
+    height: 0.95rem;
     margin: 0;
     border: 1px solid #cfd5df;
     border-radius: 0.12rem;
@@ -417,13 +416,13 @@ input.sadd-login-input:focus {
 .sadd-login-submit:hover {
     border-color: var(--login-accent-hover);
     background: var(--login-accent-hover);
-    box-shadow: 0 8px 18px rgba(110, 168, 79, 0.2);
+    box-shadow: 0 8px 18px rgba(24, 119, 242, 0.2);
 }
 
 .sadd-login-submit:focus-visible,
 .sadd-social-button:focus-visible,
 .sadd-login-help summary:focus-visible {
-    outline: 3px solid rgba(110, 168, 79, 0.28);
+    outline: 3px solid rgba(24, 119, 242, 0.28);
     outline-offset: 3px;
 }
 
@@ -459,7 +458,7 @@ input.sadd-login-input:focus {
 }
 
 .sadd-login-signup:hover {
-    background: rgba(110, 168, 79, 0.08);
+    background: rgba(24, 119, 242, 0.08);
 }
 
 .sadd-login-divider {
@@ -485,30 +484,32 @@ input.sadd-login-input:focus {
 .sadd-login-social {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.72rem;
+    gap: 0.55rem;
+    width: min(100%, 18rem);
+    margin: 0 auto;
 }
 
 .sadd-social-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.62rem;
-    height: 2.9rem;
-    padding: 0 0.85rem;
+    gap: 0.45rem;
+    height: 2.5rem;
+    padding: 0 0.6rem;
     border: 1px solid #dde1e7;
     border-radius: 0.62rem;
     background: #fff;
     color: #42464d;
     font: inherit;
-    font-size: 0.92rem;
+    font-size: 0.82rem;
     font-weight: 400;
     line-height: 1;
 }
 
 .sadd-social-button svg {
     flex: 0 0 auto;
-    width: 1.3rem;
-    height: 1.3rem;
+    width: 1.1rem;
+    height: 1.1rem;
 }
 
 .sadd-social-button:disabled {
@@ -578,7 +579,7 @@ input.sadd-login-input:focus {
     }
 
     .sadd-login-row {
-        margin-top: 1.35rem;
+        margin-top: 1rem;
     }
 }
 
@@ -610,8 +611,8 @@ input.sadd-login-input:focus {
 
     .sadd-login-row {
         align-items: flex-start;
-        margin-top: 1.75rem;
-        font-size: 0.88rem;
+        margin: 1.1rem 0 0.9rem;
+        font-size: 0.8rem;
     }
 
     .sadd-login-help summary {
@@ -645,7 +646,7 @@ input.sadd-login-input:focus {
     }
 
     .sadd-login-row {
-        margin: 1.2rem 0 1.25rem;
+        margin: 0.95rem 0 1rem;
     }
 
     .sadd-login-divider {

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
@@ -15,6 +16,72 @@ namespace PTGOilSystem.Web.Tests;
 
 public class ContractsControllerTests
 {
+    [Theory]
+    [InlineData("دیزل جنوری ۲۰۲۶", "CNT-2026-014", "دیزل جنوری ۲۰۲۶ — CNT-2026-014")]
+    [InlineData("", "CNT-2026-014", "CNT-2026-014")]
+    [InlineData("CNT-2026-014", "CNT-2026-014", "CNT-2026-014")]
+    public void Contract_DisplayLabel_Uses_Name_And_Number_With_Legacy_Fallback(
+        string contractName,
+        string contractNumber,
+        string expected)
+    {
+        var contract = new Contract { ContractName = contractName, ContractNumber = contractNumber };
+
+        Assert.Equal(expected, contract.DisplayLabel);
+        Assert.Equal(expected, ContractUiText.FormatDisplayLabel(contractName, contractNumber));
+    }
+
+    [Fact]
+    public void ContractFormViewModel_Requires_ContractName()
+    {
+        var model = new ContractFormViewModel { ContractName = string.Empty };
+        var results = new List<ValidationResult>();
+
+        var isValid = Validator.TryValidateObject(model, new ValidationContext(model), results, validateAllProperties: true);
+
+        Assert.False(isValid);
+        Assert.Contains(results, result => result.MemberNames.Contains(nameof(ContractFormViewModel.ContractName))
+            && result.ErrorMessage == "لطفاً نام قرارداد را وارد کنید.");
+    }
+
+    [Fact]
+    public async Task Index_Search_Finds_Contract_By_Name()
+    {
+        var options = NewDbOptions();
+        await using var db = new ApplicationDbContext(options);
+        SeedContractContext(db);
+        db.Contracts.Single().ContractName = "دیزل جنوری ۲۰۲۶";
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.Index("جنوری", null, null);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<ContractIndexViewModel>(view.Model);
+        Assert.Single(model.Items);
+        Assert.Equal("دیزل جنوری ۲۰۲۶ — PUR-001", model.Items[0].DisplayLabel);
+    }
+
+    [Fact]
+    public async Task Create_Persists_Normalized_ContractName()
+    {
+        var options = NewDbOptions();
+        await using var db = new ApplicationDbContext(options);
+        SeedContractContext(db);
+        db.Currencies.Add(new Currency { Id = 1, Code = "USD", Name = "US Dollar", IsActive = true });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        var model = NewBaseCreateModel();
+        model.ContractName = "  دیزل جنوری ۲۰۲۶  ";
+
+        var result = await controller.Create(model);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var saved = await db.Contracts.SingleAsync(c => c.Id != 1);
+        Assert.Equal("دیزل جنوری ۲۰۲۶", saved.ContractName);
+        Assert.Equal($"دیزل جنوری ۲۰۲۶ — {saved.ContractNumber}", saved.DisplayLabel);
+    }
+
     [Fact]
     public async Task Details_Redirects_To_Locked_ContractJourney_Summary()
     {
@@ -1442,6 +1509,7 @@ public class ContractsControllerTests
 
     private static ContractFormViewModel NewBaseCreateModel() => new()
     {
+        ContractName = "قرارداد آزمایشی",
         ContractType = ContractType.Purchase,
         Status = ContractStatus.Draft,
         CompanyId = 1,
@@ -1466,6 +1534,7 @@ public class ContractsControllerTests
         db.Contracts.Add(new Contract
         {
             Id = 1,
+            ContractName = "قرارداد خرید آزمایشی",
             ContractNumber = "PUR-001",
             ContractType = ContractType.Purchase,
             Status = ContractStatus.Active,

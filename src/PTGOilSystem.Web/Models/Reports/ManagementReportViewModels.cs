@@ -180,7 +180,9 @@ public sealed class ManagementReportFilterViewModel
 public sealed class ContractPnlRowViewModel
 {
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = "";
     public string ContractNumber { get; init; } = "";
+    public string DisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public ContractType ContractType { get; init; }
     public ContractStatus Status { get; init; }
     public string ProductName { get; init; } = "";

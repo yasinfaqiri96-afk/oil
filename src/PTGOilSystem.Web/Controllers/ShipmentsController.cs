@@ -769,7 +769,7 @@ public class ShipmentsController : Controller
         {
             ContractId = contract.Id,
             ProductId = contract.ProductId,
-            ContractNumber = contract.ContractNumber,
+            ContractNumber = contract.DisplayLabel,
             ProductName = contract.Product?.Name,
             TotalAvailableQuantityMt = tanks.Sum(t => t.FreeQuantityMt),
             Tanks = tanks
@@ -909,22 +909,17 @@ public class ShipmentsController : Controller
 
         var contracts = await _db.Contracts
             .AsNoTracking()
-            .Include(c => c.Product)
-            .Include(c => c.Supplier)
             .Where(c => c.ContractType == ContractType.Purchase)
             .OrderByDescending(c => c.ContractDate)
             .ThenBy(c => c.ContractNumber)
-            .Select(c => new SelectListItem
-            {
-                Value = c.Id.ToString(),
-                Text = c.ContractNumber
-                    + " - "
-                    + (c.Product != null ? c.Product.Name : "Product")
-                    + (c.Supplier != null ? " / " + c.Supplier.Name : "")
-            })
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
             .ToListAsync();
 
-        ViewBag.PurchaseContracts = contracts;
+        ViewBag.PurchaseContracts = contracts.Select(c => new SelectListItem
+        {
+            Value = c.Id.ToString(),
+            Text = ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber)
+        }).ToList();
     }
 
     private static List<ShipmentContractAllocationInput> GetEffectiveAllocations(ShipmentCreateViewModel model)

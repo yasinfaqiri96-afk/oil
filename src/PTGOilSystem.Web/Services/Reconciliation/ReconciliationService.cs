@@ -319,7 +319,7 @@ public partial class ReconciliationService : IReconciliationService
         var receivedByContract = await _db.LoadingReceipts
             .AsNoTracking()
             .Include(r => r.LoadingRegister)
-            .Where(r => r.LoadingRegister != null)
+            .Where(r => r.LoadingRegister != null && !r.IsCancelled)
             .GroupBy(r => r.LoadingRegister!.ContractId)
             .Select(g => new { ContractId = g.Key, Quantity = g.Sum(r => r.ReceivedQuantityMt) })
             .ToDictionaryAsync(x => x.ContractId, x => x.Quantity);
@@ -1259,7 +1259,8 @@ public partial class ReconciliationService : IReconciliationService
             .Include(r => r.LoadingRegister)
                 .ThenInclude(lr => lr!.Contract)
             .Include(r => r.Terminal)
-            .Where(r => r.ReceiptDestination == LoadingReceiptDestination.ToInventory
+            .Where(r => !r.IsCancelled
+                && r.ReceiptDestination == LoadingReceiptDestination.ToInventory
                 && !r.Allocations.Any())
             .OrderByDescending(r => r.ReceiptDate)
             .ThenByDescending(r => r.Id)
@@ -2100,7 +2101,8 @@ public partial class ReconciliationService : IReconciliationService
             .Include(r => r.StorageTank)
             .Include(r => r.LoadingRegister)
                 .ThenInclude(l => l!.Contract)
-            .Where(r => r.LossMode == ReceiptLossMode.DeferredTankSettlement
+            .Where(r => !r.IsCancelled
+                && r.LossMode == ReceiptLossMode.DeferredTankSettlement
                 && r.ReceiptDestination == LoadingReceiptDestination.ToInventory
                 && r.StorageTankId != null
                 && r.LoadingRegister != null)

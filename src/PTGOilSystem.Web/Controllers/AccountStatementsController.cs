@@ -361,6 +361,7 @@ public partial class AccountStatementsController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -688,7 +689,7 @@ public partial class AccountStatementsController : Controller
 
         var receipts = await _db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => loadingIds.Contains(r.LoadingRegisterId))
+            .Where(r => loadingIds.Contains(r.LoadingRegisterId) && !r.IsCancelled)
             .OrderBy(r => r.ReceiptDate)
             .ThenBy(r => r.Id)
             .ToListAsync();
@@ -928,6 +929,7 @@ public partial class AccountStatementsController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -943,6 +945,7 @@ public partial class AccountStatementsController : Controller
                 .Select(c => new ContractLookupOption(
                     c.Id,
                     ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,

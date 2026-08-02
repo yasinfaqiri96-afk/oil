@@ -87,7 +87,7 @@
                             </td>
                             <td>
                                 @{
-                                    var saleContractNo = string.Equals(item.ContractNumber, SalesContractText.WithoutSalesContract, StringComparison.Ordinal) ? null : item.ContractNumber;
+                                    var saleContractNo = string.Equals(item.ContractNumber, SalesContractText.WithoutSalesContract, StringComparison.Ordinal) ? null : item.ContractDisplayLabel;
                                 }
                                 <span class="col-ltr">@(string.IsNullOrWhiteSpace(saleContractNo) ? "-" : saleContractNo)</span>
                                 @if (!string.IsNullOrWhiteSpace(item.ProductName))
@@ -130,22 +130,6 @@
 
 @section Scripts {
     <script>
-        (function () {
-            var toggle = document.getElementById('salesFilterToggle');
-            var pop = document.getElementById('salesFilterPop');
-            if (!toggle || !pop) return;
-            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-            toggle.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var open = pop.hidden;
-                pop.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-            document.addEventListener('click', function (e) {
-                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
-            });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-        })();
         (function () {
             document.querySelectorAll('.ak-list-page .ak-table tbody tr[data-href]').forEach(function (row) {
                 row.style.cursor = 'pointer';

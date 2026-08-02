@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.Expenses;
@@ -210,7 +211,9 @@ public sealed class ExpenseListItemViewModel
     public int Id { get; init; }
     public DateTime ExpenseDate { get; init; }
     public string ExpenseTypeName { get; init; } = string.Empty;
+    public string? ContractName { get; init; }
     public string? ContractNumber { get; init; }
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string? ShipmentCode { get; init; }
     public string? TruckDispatchLabel { get; init; }
     public string? TransportLegLabel { get; init; }

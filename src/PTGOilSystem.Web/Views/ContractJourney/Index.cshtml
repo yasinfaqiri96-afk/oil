@@ -112,7 +112,10 @@
                             @foreach (var item in Model.Items)
                             {
                                 <tr>
-                                    <td><strong>@item.ContractNumber</strong></td>
+                                    <td>
+                                        <strong>@item.ContractName</strong>
+                                        <div class="ak-muted" dir="ltr">@item.ContractNumber</div>
+                                    </td>
                                     <td><span class="@item.ContractTypeBadgeClass">@item.ContractTypeName</span></td>
                                     <td>@item.ProductName</td>
                                     <td>@item.ContractUnitText</td>

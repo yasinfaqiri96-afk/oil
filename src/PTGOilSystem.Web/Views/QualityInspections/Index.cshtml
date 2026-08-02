@@ -36,46 +36,37 @@
         <vc:stat-card title="@UiText.T(Context, "رد", "Rejected")" value="@Model.RejectedCount.ToString("N0")" unit="@UiText.T(Context, "مورد", "items")" avatar="warning"></vc:stat-card>
     </section>
 
-    <div class="ak-page-actions mb-3 justify-content-end">
-        @* خروجی همان فیلترهای صفحه را می‌گیرد و همان query را اجرا می‌کند. *@
-        <partial name="~/Views/Shared/_ExportMenu.cshtml"
-                 model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
-        @if (canManage)
-        {
-            <a class="btn btn-primary" asp-action="Create">
-                <i class="bi bi-plus-lg"></i> @UiText.T(Context, "ثبت آزمایش کیفیت", "New inspection")
-            </a>
-        }
-    </div>
-
     <div class="ak-list">
-        <form method="get" class="ak-report-parameters" id="rpFilterForm">
-            <div class="ak-report-parameters-bar">
-                <div class="ak-report-parameters-anchor">
-                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(Model.Filter.HasAny ? "is-on" : null)" id="rpFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
-                        <i class="bi bi-funnel"></i>
-                    </button>
-                    <div class="ak-report-parameters-pop" id="rpFilterPop" hidden>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
-                        <input class="ak-input" type="date" name="FromDate" value="@Model.Filter.FromDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
-                        <input class="ak-input" type="date" name="ToDate" value="@Model.Filter.ToDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "وضعیت", "Status")</label>
-                        <select class="ak-input" name="Status">
-                            <option value="">@UiText.T(Context, "همه", "All")</option>
-                            <option value="Pending" selected="@(Model.Filter.Status == PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Pending)">@UiText.T(Context, "در انتظار نتیجه", "Pending")</option>
-                            <option value="Accepted" selected="@(Model.Filter.Status == PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Accepted)">@UiText.T(Context, "قبول", "Accepted")</option>
-                            <option value="Rejected" selected="@(Model.Filter.Status == PTGOilSystem.Web.Models.Entities.QualityInspectionStatus.Rejected)">@UiText.T(Context, "رد", "Rejected")</option>
-                        </select>
-                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
-                        @if (Model.Filter.HasAny)
+        @{
+            var qualityFilter = new AkSearchFilterModel("", null,
+                UiText.T(Context, "فیلتر آزمایش‌های کیفیت...", "Filter quality inspections..."),
+                new List<AkFilterDefinition>
+                {
+                    new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                        Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                    new("Status", UiText.T(Context, "وضعیت", "Status"), "select",
+                        new List<AkFilterOption>
                         {
-                            <a asp-action="Index" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
-                        }
-                    </div>
-                </div>
+                            new("Pending", UiText.T(Context, "در انتظار نتیجه", "Pending")),
+                            new("Accepted", UiText.T(Context, "قبول", "Accepted")),
+                            new("Rejected", UiText.T(Context, "رد", "Rejected"))
+                        }, Model.Filter.Status?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="qualityFilter" />
+            <div class="ak-list-toolbar-actions">
+                @* خروجی همان فیلترهای صفحه را می‌گیرد و همان query را اجرا می‌کند. *@
+                <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                         model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+                @if (canManage)
+                {
+                    <a class="btn btn-primary" asp-action="Create">
+                        <i class="bi bi-plus-lg"></i> @UiText.T(Context, "ثبت آزمایش کیفیت", "New inspection")
+                    </a>
+                }
             </div>
-        </form>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">
@@ -138,7 +129,3 @@
         }
     </div>
 </div>
-
-@section Scripts {
-    <partial name="_AkReportFilterScript" />
-}

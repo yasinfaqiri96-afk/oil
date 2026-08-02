@@ -241,7 +241,9 @@ public sealed class SalesListItemViewModel
     public DateTime SaleDate { get; init; }
     public SaleStage SaleStage { get; init; }
     public string InvoiceNumber { get; init; } = string.Empty;
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string CompanyName { get; init; } = string.Empty;
     public string CustomerName { get; init; } = string.Empty;
     public string ProductName { get; init; } = string.Empty;

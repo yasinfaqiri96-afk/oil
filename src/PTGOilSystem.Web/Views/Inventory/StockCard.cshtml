@@ -15,23 +15,31 @@
         </div>
     </div>
 
-    <div class="ak-detail-toolbar">
-        <div>
-            <form method="get" class="ak-form-grid">
-                <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-0"></div>
-                <div class="ak-field"><label asp-for="Filter.ProductId" class="ak-label"></label><select asp-for="Filter.ProductId" asp-items="ViewBag.Products" class="ak-input"><option value="">@UiText.T(Context,"همه اجناس","All Products")</option></select></div>
-                <div class="ak-field"><label asp-for="Filter.ContractId" class="ak-label"></label><select asp-for="Filter.ContractId" asp-items="ViewBag.Contracts" class="ak-input"><option value="">همه قراردادهای منبع موجودی</option></select></div>
-                <div class="ak-field"><label asp-for="Filter.TerminalId" class="ak-label"></label><select asp-for="Filter.TerminalId" asp-items="ViewBag.Terminals" class="ak-input"><option value="">همه ترمینال‌ها</option></select></div>
-                <div class="ak-field"><label asp-for="Filter.FromDate" class="ak-label"></label><input asp-for="Filter.FromDate" type="date" class="ak-input" /></div>
-                <div class="ak-field"><label asp-for="Filter.ToDate" class="ak-label"></label><input asp-for="Filter.ToDate" type="date" class="ak-input" /></div>
-                <div class="ak-field ak-col-full">
-                    <div class="ak-detail-toolbar-actions">
-                        <button type="submit" class="btn ak-primary-action">@UiText.T(Context,"اعمال فیلتر","Apply Filter")</button>
-                        <a asp-action="StockCard" class="btn ak-secondary-action">@UiText.T(Context,"پاک‌کردن","Clear")</a>
-                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("StockCardExport"))" />
-                    </div>
-                </div>
-            </form>
+    @* خطای بازهٔ تاریخ نامعتبر از کنترلر می‌آید و باید بالای نوار فیلتر دیده شود. *@
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-0"></div>
+
+    @{
+        List<AkFilterOption> StockCardOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+            ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+            .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+        var stockCardFilter = new AkSearchFilterModel("", null,
+            UiText.T(Context, "فیلتر کارت موجودی...", "Filter stock card..."),
+            new List<AkFilterDefinition>
+            {
+                new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                    Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", StockCardOpts(ViewBag.Products),
+                    Model.Filter.ProductId?.ToString()),
+                new("Filter.ContractId", UiText.T(Context, "قرارداد منبع موجودی", "Stock source contract"), "select", StockCardOpts(ViewBag.Contracts),
+                    Model.Filter.ContractId?.ToString()),
+                new("Filter.TerminalId", UiText.T(Context, "ترمینال", "Terminal"), "select", StockCardOpts(ViewBag.Terminals),
+                    Model.Filter.TerminalId?.ToString())
+            });
+    }
+    <div class="ak-list-toolbar">
+        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="stockCardFilter" />
+        <div class="ak-list-toolbar-actions">
+            <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("StockCardExport"))" />
         </div>
     </div>
 

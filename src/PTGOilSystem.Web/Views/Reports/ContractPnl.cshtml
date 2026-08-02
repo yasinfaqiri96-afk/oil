@@ -1,9 +1,6 @@
 @model PTGOilSystem.Web.Models.Reports.ContractPnlReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context,"سود و زیان قراردادها","Contract P&L");
-    var hasActiveFilters = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || Model.Filter.ProductId.HasValue || Model.Filter.CustomerId.HasValue
-        || Model.Filter.SupplierId.HasValue;
     var marginPct = Model.TotalSalesRevenueUsd > 0
         ? Math.Round((Model.TotalGrossMarginUsd / Model.TotalSalesRevenueUsd) * 100m, 1)
         : 0m;
@@ -25,33 +22,30 @@
     </section>
 
     <div class="ak-list">
-        <form method="get" class="ak-report-parameters" id="pnlFilterForm">
-            <div class="ak-report-parameters-bar">
-                <div class="ak-report-parameters-anchor">
-                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ?"is-on" : null)" id="pnlFilterToggle" aria-label="فیلتر" aria-expanded="false">
-                        <i class="bi bi-funnel"></i>
-                    </button>
-                    <div class="ak-report-parameters-pop" id="pnlFilterPop" hidden>
-                        <label class="ak-report-parameters-field">@UiText.T(Context,"از تاریخ","From Date")</label>
-                        <input asp-for="Filter.FromDate" type="date" class="ak-input" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context,"تا تاریخ","To Date")</label>
-                        <input asp-for="Filter.ToDate" type="date" class="ak-input" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context,"جنس","Product")</label>
-                        <select asp-for="Filter.ProductId" asp-items="ViewBag.Products" class="ak-input"><option value="">@UiText.T(Context,"همه اجناس","All Products")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context,"تأمین‌کننده","Supplier")</label>
-                        <select asp-for="Filter.SupplierId" asp-items="ViewBag.Suppliers" class="ak-input"><option value="">@UiText.T(Context,"همه تأمین‌کنندگان","All Suppliers")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context,"مشتری","Customer")</label>
-                        <select asp-for="Filter.CustomerId" asp-items="ViewBag.Customers" class="ak-input"><option value="">@UiText.T(Context,"همه مشتری‌ها","All Customers")</option></select>
-                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context,"اعمال","Apply")</button>
-                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("ContractPnlExport"))" />
-                        @if (hasActiveFilters)
-                        {
-                            <a asp-action="ContractPnl" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context,"پاک‌کردن","Clear")</a>
-                        }
-                    </div>
-                </div>
+        @{
+            List<AkFilterOption> PnlOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+            var pnlFilter = new AkSearchFilterModel("", null,
+                UiText.T(Context, "فیلتر سود و زیان قراردادها...", "Filter contract P&L..."),
+                new List<AkFilterDefinition>
+                {
+                    new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                        Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                    new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", PnlOpts(ViewBag.Products),
+                        Model.Filter.ProductId?.ToString()),
+                    new("Filter.SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), "select", PnlOpts(ViewBag.Suppliers),
+                        Model.Filter.SupplierId?.ToString()),
+                    new("Filter.CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", PnlOpts(ViewBag.Customers),
+                        Model.Filter.CustomerId?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="pnlFilter" />
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("ContractPnlExport"))" />
             </div>
-        </form>
+        </div>
 
         <section class="ak-form-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context,"قراردادهای خرید — تحلیل مصرف","Purchase Contracts — Cost Analysis"), (string?)null))" />
@@ -90,7 +84,7 @@
                         {
                             <tr>
                                 <td class="ak-col-grow">
-                                    <a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-id="@row.ContractId">@row.ContractNumber</a>
+                                    <a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-id="@row.ContractId">@row.DisplayLabel</a>
                                     @if (row.HasPendingTankSettlement)
                                     {
                                         <span class="ak-status">@UiText.T(Context, "موقت", "Provisional")</span>
@@ -184,7 +178,7 @@
                         @foreach (var row in Model.SaleRows)
                         {
                             <tr>
-                                <td class="ak-col-grow"><a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-id="@row.ContractId">@row.ContractNumber</a></td>
+                                <td class="ak-col-grow"><a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-id="@row.ContractId">@row.DisplayLabel</a></td>
                                 <td>@row.ProductName</td>
                                 <td>@(row.CounterpartyName ?? "—")</td>
                                 <td><span class="ak-status">@row.Status</span></td>
@@ -236,24 +230,3 @@
         </section>
     </div>
 </div>
-
-@section Scripts {
-    <script>
-        (function () {
-            var toggle = document.getElementById('pnlFilterToggle');
-            var pop = document.getElementById('pnlFilterPop');
-            if (!toggle || !pop) return;
-            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-            toggle.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var open = pop.hidden;
-                pop.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-            document.addEventListener('click', function (e) {
-                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
-            });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-        })();
-    </script>
-}

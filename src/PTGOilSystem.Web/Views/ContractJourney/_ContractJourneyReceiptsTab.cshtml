@@ -8,17 +8,22 @@
     string ReturnUrl(string tab)
         => Url.Action("Details", "ContractJourney", new { contractId = Model.ContractId, tab, lockContract = Model.LockContract })
             ?? $"/ContractJourney/Details?contractId={Model.ContractId}&tab={tab}&lockContract={Model.LockContract.ToString().ToLowerInvariant()}";
+    // یک بار تولید می‌شود: در جدول‌های زیر برای هر ردیف سه بار استفاده می‌شد و هر بار
+    // Url.Action دوباره مسیر را می‌ساخت.
+    var receiptsReturnUrl = ReturnUrl(ContractJourneyTabs.Details.Receipts);
 }
 
 <div id="journey-tab-lists" class="ak-tab-panel" dir="@Model.PageDirection">
 
     @* ─── بارگیری‌های در انتظار رسید + فرم رسید گروهی ─── *@
+    <partial name="_ContractJourneyListFilter"
+             model="@(("pendingReceiptsQ", (string?)Context.Request.Query["pendingReceiptsQ"].ToString(), T("جستجو در بارگیری‌های منتظر رسید...", "Search pending receipt loadings..."), "pendingReceiptsPage"))" />
     @if (Model.BulkReceiptCandidates.Any())
     {
         <form asp-controller="LoadingReceipts" asp-action="BulkCreate" method="post" class="ak-form" data-bulk-receipt-form data-bulk-receipt-collapsed="true" data-no-spa="true">
             @Html.AntiForgeryToken()
             <input type="hidden" name="ContractId" value="@Model.ContractId" />
-            <input type="hidden" name="ReturnUrl" value="@ReturnUrl(ContractJourneyTabs.Details.Receipts)" />
+            <input type="hidden" name="ReturnUrl" value="@receiptsReturnUrl" />
 
             <section class="ak-form-section">
                 <div class="ak-section-head">
@@ -48,10 +53,13 @@
                         <thead>
                             <tr>
                                 <th class="ak-col-check"></th>
-                                <th class="ak-col-grow">@T("بارگیری", "Loading")</th>
+                                <th class="ak-col-grow">@T("نمبر وسیله", "Vehicle No")</th>
                                 <th>@T("تاریخ", "Date")</th>
-                                <th>@T("مقصد", "Destination")</th>
-                                <th class="ak-col-num">@T("مانده", "Remaining") (@UnitMt())</th>
+                                <th>@T("جنس", "Product")</th>
+                                <th>@T("وسیله حمل", "Transport")</th>
+                                <th class="ak-col-num text-end">@T("مقدار بارگیری‌شده", "Loaded quantity")</th>
+                                <th class="ak-col-num text-end">@T("قیمت فی تن", "Unit price")</th>
+                                <th class="ak-col-num text-end">@T("ارزش بارگیری", "Loading value")</th>
                                 <th class="ak-col-actions">@T("عملیات", "Actions")</th>
                             </tr>
                         </thead>
@@ -63,11 +71,15 @@
                                         <input class="ak-check" type="checkbox" name="LoadingRegisterIds" value="@item.LoadingRegisterId" data-bulk-receipt-row data-bulk-receipt-qty="@item.RemainingQuantityMt.ToString(System.Globalization.CultureInfo.InvariantCulture)" checked aria-label="@T("انتخاب بارگیری", "Select loading") #@item.LoadingRegisterId" />
                                     </td>
                                     <td class="ak-col-grow">
-                                        <a asp-controller="Loading" asp-action="Details" asp-route-id="@item.LoadingRegisterId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Receipts)" class="ak-name">#@item.LoadingRegisterId</a>
+                                        <a asp-controller="Loading" asp-action="Details" asp-route-id="@item.LoadingRegisterId" asp-route-returnUrl="@receiptsReturnUrl" class="ak-name">@TextOrDash(item.VehicleNumber)</a>
+                                        <span class="ak-section-desc">#@item.LoadingRegisterId</span>
                                     </td>
                                     <td>@item.LoadingDate.ToDisplayDate()</td>
-                                    <td>@TextOrDash(item.DestinationName ?? item.ConsigneeName)</td>
-                                    <td class="ak-num">@NumberDisplay.Quantity(item.RemainingQuantityMt)</td>
+                                    <td>@TextOrDash(item.ProductName)</td>
+                                    <td>@TextOrDash(item.TransportTypeLabel)</td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@NumberDisplay.Quantity(item.LoadedQuantityMt) @UnitMt()</span></td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@(item.LoadingPriceUsd.HasValue ? $"{item.LoadingPriceUsd.Value:N2} {T("دالر", "USD")}/{UnitMt()}" : "-")</span></td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@(item.LoadingValueUsd.HasValue ? $"{item.LoadingValueUsd.Value:N2} {T("دالر", "USD")}" : "-")</span></td>
                                     <td class="ak-col-actions">
                                         <div class="dropdown ak-row-menu">
                                             <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
@@ -75,7 +87,7 @@
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
                                                 <li>
-                                                    <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@item.LoadingRegisterId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Receipts)" class="dropdown-item" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@item.LoadingRegisterId">
+                                                    <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@item.LoadingRegisterId" asp-route-returnUrl="@receiptsReturnUrl" class="dropdown-item" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@item.LoadingRegisterId">
                                                         <i class="bi bi-box-arrow-in-down"></i> @T("ثبت تکی", "Single receipt")
                                                     </a>
                                                 </li>
@@ -189,12 +201,15 @@
             </div>
             @if (!Model.BulkReceiptCandidates.Any() && Model.FirstLoadingId.HasValue)
             {
-                <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@Model.FirstLoadingId.Value" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Receipts)" class="btn btn-primary ak-primary-action" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@Model.FirstLoadingId.Value">
+                <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@Model.FirstLoadingId.Value" asp-route-returnUrl="@receiptsReturnUrl" class="btn btn-primary ak-primary-action" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@Model.FirstLoadingId.Value">
                     <i class="bi bi-box-arrow-in-down"></i>
                     <span>@T("ثبت رسید جدید", "New receipt")</span>
                 </a>
             }
         </div>
+
+        <partial name="_ContractJourneyListFilter"
+                 model="@(("receiptsQ", (string?)Context.Request.Query["receiptsQ"].ToString(), T("جستجو در رسیدهای ثبت‌شده...", "Search registered receipts..."), "receiptsPage"))" />
 
         <div class="ak-table-wrap">
             <table class="ak-table">
@@ -213,7 +228,7 @@
                 {
                     <tr>
                         <td class="ak-col-grow">
-                            <a asp-controller="LoadingReceipts" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Receipts)" class="ak-name">#@item.Id</a>
+                            <a asp-controller="LoadingReceipts" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@receiptsReturnUrl" class="ak-name">#@item.Id</a>
                         </td>
                         <td>#@item.LoadingRegisterId</td>
                         <td>@item.ReceiptDate.ToDisplayDate()</td>
@@ -225,8 +240,8 @@
                                     <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
-                                    <li><a asp-controller="LoadingReceipts" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Receipts)" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
-                                    <li><a asp-controller="LoadingReceipts" asp-action="Edit" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Receipts)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                    <li><a asp-controller="LoadingReceipts" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@receiptsReturnUrl" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
+                                    <li><a asp-controller="LoadingReceipts" asp-action="Edit" asp-route-id="@item.Id" asp-route-returnUrl="@receiptsReturnUrl" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
                                 </ul>
                             </div>
                         </td>

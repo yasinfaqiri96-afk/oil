@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.ContractBalanceTransfers;
@@ -65,8 +66,12 @@ public sealed class ContractBalanceTransferListItemViewModel
 {
     public int Id { get; init; }
     public DateTime TransferDate { get; init; }
+    public string FromContractName { get; init; } = string.Empty;
     public string FromContractNumber { get; init; } = string.Empty;
+    public string FromContractDisplayLabel => Contract.BuildDisplayLabel(FromContractName, FromContractNumber);
+    public string ToContractName { get; init; } = string.Empty;
     public string ToContractNumber { get; init; } = string.Empty;
+    public string ToContractDisplayLabel => Contract.BuildDisplayLabel(ToContractName, ToContractNumber);
     public decimal AmountOriginal { get; init; }
     public string CurrencyCode { get; init; } = string.Empty;
     public decimal FxRateToUsd { get; init; }
@@ -112,7 +117,9 @@ public sealed class ContractBalanceTransferLedgerEntryViewModel
     public int Id { get; init; }
     public DateTime EntryDate { get; init; }
     public string Side { get; init; } = string.Empty;
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public decimal AmountUsd { get; init; }
     public string? SourceCurrencyCode { get; init; }
     public decimal? SourceAmount { get; init; }

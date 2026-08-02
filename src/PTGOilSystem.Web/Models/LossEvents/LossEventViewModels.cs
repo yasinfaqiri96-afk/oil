@@ -141,7 +141,9 @@ public sealed class LossEventListItemViewModel
     public DateTime EventDate { get; init; }
     public LossEventStage Stage { get; init; }
     public string ProductName { get; init; } = string.Empty;
+    public string? ContractName { get; init; }
     public string? ContractNumber { get; init; }
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string? ShipmentCode { get; init; }
     public decimal DifferenceQuantityMt { get; init; }
     public decimal AllowableLossMt { get; init; }
@@ -167,7 +169,9 @@ public sealed class LossEventDetailsViewModel
     public DateTime EventDate { get; init; }
     public LossEventStage Stage { get; init; }
     public string ProductName { get; init; } = string.Empty;
+    public string? ContractName { get; init; }
     public string? ContractNumber { get; init; }
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string? ShipmentCode { get; init; }
     public string? LoadingRegisterLabel { get; init; }
     public string? LoadingReceiptLabel { get; init; }

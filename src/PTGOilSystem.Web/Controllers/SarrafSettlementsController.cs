@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Sarrafs;
 using PTGOilSystem.Web.Services;
@@ -44,7 +45,7 @@ public class SarrafSettlementsController : Controller
                 (s.ReferenceNumber != null && s.ReferenceNumber.Contains(search))
                 || (s.Sarraf != null && s.Sarraf.Name.Contains(search))
                 || (s.Supplier != null && s.Supplier.Name.Contains(search))
-                || (s.Contract != null && s.Contract.ContractNumber.Contains(search)));
+                || (s.Contract != null && (s.Contract.ContractName.Contains(search) || s.Contract.ContractNumber.Contains(search))));
         }
 
         if (sarrafId.HasValue)
@@ -204,17 +205,20 @@ public class SarrafSettlementsController : Controller
             "Name",
             model.SupplierId);
 
-        ViewBag.Contracts = new SelectList(
-            await _db.Contracts
+        var contracts = await _db.Contracts
                 .AsNoTracking()
                 .Where(c => c.ContractType == ContractType.Purchase)
                 .OrderByDescending(c => c.ContractDate)
                 .ThenBy(c => c.ContractNumber)
-                .Select(c => new { c.Id, Label = c.ContractNumber })
+                .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
                 .Take(300)
-                .ToListAsync(),
+                .ToListAsync();
+        ViewBag.Contracts = new SelectList(
+            contracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
             "Id",
-            "Label",
+            "Display",
             model.ContractId);
 
         ViewBag.CashAccounts = new SelectList(

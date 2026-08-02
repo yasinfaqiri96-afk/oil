@@ -9,7 +9,7 @@
     Layout = isAjaxTabRequest ? null : "_Layout";
     ViewData["HideSectionTabs"] = true;
     ViewData["ContractJourneyAssets"] = true;
-    ViewData["Title"] = $"مرکز عملیات قرارداد {Model.ContractNumber}";
+    ViewData["Title"] = $"مرکز عملیات قرارداد {Model.ContractName}";
 
     var partnerLabel = Model.IsPurchaseContract ? "تأمین‌کننده" : "مشتری";
     var partnerName = Model.IsPurchaseContract
@@ -359,32 +359,75 @@
     int PageCountFor(int totalCount, int pageSize = journeyListPageSize)
         => Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
 
+    string ReadListSearch(string key)
+        => Context.Request.Query.TryGetValue(key, out var values) ? values.ToString().Trim() : string.Empty;
+
+    bool MatchesListSearch(string search, params object?[] values)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        return values.Any(value => value is not null
+            && Convert.ToString(value, System.Globalization.CultureInfo.CurrentCulture)?
+                .Contains(search, StringComparison.CurrentCultureIgnoreCase) == true);
+    }
+
     async Task<Microsoft.AspNetCore.Html.IHtmlContent> DetailPager(string pageKey, int currentPage, int pageCount)
         => await Html.PartialAsync(
             "~/Views/Shared/Partials/_DetailPager.cshtml",
             (currentPage, pageCount, pageKey, (string?)"journey-tab-lists"));
 
-    var loadingPageCount = PageCountFor(loadingCount, loadingListPageSize);
+    var subContractsSearch = ReadListSearch("subContractsQ");
+    var filteredSubContractItems = Model.SubContractItems
+        .Where(item => MatchesListSearch(subContractsSearch, item.ContractId, item.ContractNumber, item.StatusName, item.QuantityMt, item.LoadedQuantityMt, item.RemainingQuantityMt, item.LoadingsValueUsd))
+        .ToList();
+    var shipmentsSearch = ReadListSearch("shipmentsQ");
+    var filteredShipmentScenarios = Model.ShipmentScenarios
+        .Where(item => MatchesListSearch(shipmentsSearch, item.ShipmentId, item.ShipmentCode, item.VesselName, item.OriginName, item.DestinationName, item.AllocatedQuantityMt, item.SoldQuantityMt))
+        .ToList();
+
+    var loadingsSearch = ReadListSearch("loadingsQ");
+    var filteredLoadingItems = Model.LoadingItems
+        .Where(item => MatchesListSearch(loadingsSearch, item.Id, item.LoadingDate.ToDisplayDate(), item.ProductName, item.BillOfLadingNumber, item.RwbNo, item.WagonNumber, item.TransportTypeLabel, item.DocumentSummary, item.RouteDescription, item.LogisticsCompanyName))
+        .ToList();
+    var loadingPageCount = PageCountFor(filteredLoadingItems.Count, loadingListPageSize);
     var loadingPage = Math.Min(ReadPositivePage("loadingsPage"), loadingPageCount);
-    var pagedLoadingItems = Model.LoadingItems
+    var pagedLoadingItems = filteredLoadingItems
         .Skip((loadingPage - 1) * loadingListPageSize)
         .Take(loadingListPageSize)
         .ToList();
-    var receiptPageCount = PageCountFor(receiptCount, receiptListPageSize);
+
+    var pendingReceiptsSearch = ReadListSearch("pendingReceiptsQ");
+    var filteredBulkReceiptCandidates = bulkReceiptCandidates
+        .Where(item => MatchesListSearch(pendingReceiptsSearch, item.LoadingRegisterId, item.VehicleNumber, item.LoadingDate.ToDisplayDate(), item.ProductName, item.TransportTypeLabel, item.LoadedQuantityMt, item.LoadingPriceUsd, item.LoadingValueUsd, item.BillOfLadingNumber, item.RwbNo, item.WagonNumber))
+        .ToList();
+    var receiptsSearch = ReadListSearch("receiptsQ");
+    var filteredReceiptItems = Model.ReceiptItems
+        .Where(item => MatchesListSearch(receiptsSearch, item.Id, item.LoadingRegisterId, item.ReceiptDate.ToDisplayDate(), item.TerminalName, item.StorageTankCode, item.ReferenceDocument))
+        .ToList();
+    var receiptPageCount = PageCountFor(filteredReceiptItems.Count, receiptListPageSize);
     var receiptPage = Math.Min(ReadPositivePage("receiptsPage"), receiptPageCount);
-    var pagedReceiptItems = Model.ReceiptItems
+    var pagedReceiptItems = filteredReceiptItems
         .Skip((receiptPage - 1) * receiptListPageSize)
         .Take(receiptListPageSize)
         .ToList();
 
-    var dispatchPageCount = PageCountFor(dispatchCount);
+    var dispatchSearch = ReadListSearch("dispatchQ");
+    var filteredDispatchItems = Model.DispatchItems
+        .Where(item => MatchesListSearch(dispatchSearch, item.Id, item.DispatchDate.ToDisplayDate(), item.TruckPlateNumber, item.DriverName, item.DestinationName, item.StatusName, item.ReferenceDocument))
+        .ToList();
+    var dispatchPageCount = PageCountFor(filteredDispatchItems.Count);
     var dispatchPage = Math.Min(ReadPositivePage("dispatchPage"), dispatchPageCount);
-    var pagedDispatchItems = Model.DispatchItems
+    var pagedDispatchItems = filteredDispatchItems
         .Skip((dispatchPage - 1) * journeyListPageSize)
         .Take(journeyListPageSize)
         .ToList();
 
+    var transportLegsSearch = ReadListSearch("transportLegsQ");
     var transportJourneyItems = Model.InventoryTransportLegItems
+        .Where(item => MatchesListSearch(transportLegsSearch, item.Id, item.LoadedDate.ToDisplayDate(), item.TransportTypeName, item.WagonNumber, item.VehicleNumber, item.RwbNo, item.SourceTerminalName, item.SourceTankCode, item.DestinationTerminalName, item.DestinationTankCode, item.StatusName))
         .OrderBy(l => l.LoadedDate)
         .ThenBy(l => l.Id)
         .ToList();
@@ -395,10 +438,13 @@
         .Take(journeyListPageSize)
         .ToList();
 
-    var saleInvoiceCount = Model.SalesItems.Count;
-    var salesPageCount = PageCountFor(saleInvoiceCount);
+    var salesSearch = ReadListSearch("salesQ");
+    var filteredSalesItems = Model.SalesItems
+        .Where(item => MatchesListSearch(salesSearch, item.SalesTransactionId, item.InvoiceNumber, item.SaleDate.ToDisplayDate(), item.CustomerName, item.SalesContractDisplay, item.SourcePurchaseContractNumber, item.InventoryTransportReference))
+        .ToList();
+    var salesPageCount = PageCountFor(filteredSalesItems.Count);
     var salesPage = Math.Min(ReadPositivePage("salesPage"), salesPageCount);
-    var pagedSalesItems = Model.SalesItems
+    var pagedSalesItems = filteredSalesItems
         .Skip((salesPage - 1) * journeyListPageSize)
         .Take(journeyListPageSize)
         .ToList();
@@ -411,25 +457,45 @@
         .Take(journeyListPageSize)
         .ToList();
 
-    var expensesPageCount = PageCountFor(expenseCount);
+    var expensesSearch = ReadListSearch("expensesQ");
+    var filteredExpenseItems = Model.ExpenseItems
+        .Where(item => MatchesListSearch(expensesSearch, item.ExpenseTransactionId, item.ExpenseDate.ToDisplayDate(), item.ExpenseTypeName, item.ShipmentCode, item.DispatchLabel, item.TransportLegLabel, item.Description, item.VehicleNumber, item.TraceKind))
+        .ToList();
+    var expensesPageCount = PageCountFor(filteredExpenseItems.Count);
     var expensesPage = Math.Min(ReadPositivePage("expensesPage"), expensesPageCount);
-    var pagedExpenseItems = Model.ExpenseItems
+    var pagedExpenseItems = filteredExpenseItems
         .Skip((expensesPage - 1) * journeyListPageSize)
         .Take(journeyListPageSize)
         .ToList();
 
-    var lossesPageCount = PageCountFor(lossEventCount);
+    var allocationsSearch = ReadListSearch("allocationsQ");
+    var filteredExpenseAllocations = Model.InventoryTransportExpenseAllocations
+        .Where(item => MatchesListSearch(allocationsSearch, item.TransportLegId, item.LoadedDate.ToDisplayDate(), item.TransportTypeName, item.TransportReference, item.RwbNo, item.SourceLocation, item.DestinationLocation))
+        .ToList();
+    var lossesSearch = ReadListSearch("lossesQ");
+    var filteredLossItems = Model.LossItems
+        .Where(item => MatchesListSearch(lossesSearch, item.LossEventId, item.EventDate.ToDisplayDate(), item.StageName, item.VehicleNumber, item.TraceKind, item.RelatedMovementId))
+        .ToList();
+    var lossesPageCount = PageCountFor(filteredLossItems.Count);
     var lossesPage = Math.Min(ReadPositivePage("lossesPage"), lossesPageCount);
-    var pagedLossItems = Model.LossItems
+    var pagedLossItems = filteredLossItems
         .Skip((lossesPage - 1) * journeyListPageSize)
         .Take(journeyListPageSize)
         .ToList();
 
-    var paymentsPageCount = PageCountFor(paymentCount);
+    var paymentsSearch = ReadListSearch("paymentsQ");
+    var filteredPaymentItems = Model.PaymentItems
+        .Where(item => MatchesListSearch(paymentsSearch, item.PaymentTransactionId, item.PaymentDate.ToDisplayDate(), item.DirectionName, item.PaymentKindName, item.CashAccountName, item.Currency, item.Reference, item.LedgerEntryId))
+        .ToList();
+    var paymentsPageCount = PageCountFor(filteredPaymentItems.Count);
     var paymentsPage = Math.Min(ReadPositivePage("paymentsPage"), paymentsPageCount);
-    var pagedPaymentItems = Model.PaymentItems
+    var pagedPaymentItems = filteredPaymentItems
         .Skip((paymentsPage - 1) * journeyListPageSize)
         .Take(journeyListPageSize)
+        .ToList();
+    var settlementsSearch = ReadListSearch("settlementsQ");
+    var filteredSarrafSettlements = Model.SarrafSettlementItems
+        .Where(item => MatchesListSearch(settlementsSearch, item.SarrafSettlementId, item.SettlementDate.ToDisplayDate(), item.SarrafName, item.SupplierName, item.ReferenceNumber, item.Status, item.LedgerEntryId))
         .ToList();
 
     var loadingsTabModel = new ContractJourneyLoadingsTabViewModel
@@ -455,7 +521,7 @@
         LockContract = Model.LockContract,
         PageDirection = pageDirection,
         FirstLoadingId = firstLoading?.Id,
-        BulkReceiptDefaultQuantityMt = bulkReceiptDefaultQuantityMt,
+        BulkReceiptDefaultQuantityMt = filteredBulkReceiptCandidates.Sum(item => item.RemainingQuantityMt),
         NoRecordsText = T("داده‌ای ثبت نشده است.", "No records yet."),
         PagerHtml = await DetailPager("receiptsPage", receiptPage, receiptPageCount),
         Pager = new ContractJourneyPagerViewModel
@@ -467,7 +533,7 @@
         },
         BulkReceiptTerminals = bulkReceiptTerminals.ToList(),
         BulkReceiptStorageTanks = bulkReceiptStorageTanks.ToList(),
-        BulkReceiptCandidates = bulkReceiptCandidates,
+        BulkReceiptCandidates = filteredBulkReceiptCandidates,
         Items = pagedReceiptItems
     };
 
@@ -577,15 +643,16 @@
             Note = LocalizeDisplay(Model.MiniPnl.Note)
         },
         Items = pagedPaymentItems,
-        SarrafSettlements = Model.SarrafSettlementItems
+        SarrafSettlements = filteredSarrafSettlements
     };
 }
 
 <div class="ak-form-page ak-detail-page" data-contract-journey-page data-ak-detail-v2="true" dir="@pageDirection">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@(($"{T("قرارداد", "Contract")} {Model.ContractNumber}", false,
+             model="@(($"{T("قرارداد", "Contract")} {Model.ContractName}", false,
                        T("دفتر حساب قرارداد", "Contract statement"), "bi-journal-text", contractStatementUrl, (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)contractsListBackUrl))" />
+    <div class="ak-muted" dir="ltr">@Model.ContractNumber</div>
 
     <div class="ak-page-actions">
         <partial name="~/Views/Shared/_ExportMenu.cshtml"
@@ -726,6 +793,8 @@
                 <section class="ak-form-section ak-detail-section" data-sub-contracts>
                     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                              model="@((T("زیرقراردادها", "Sub-contracts"), (string?)T("گزارش تجمیعی؛ بارگیری، پرداخت و دفتر کل روی همان زیرقرارداد باقی می‌ماند.", "Aggregated report only; loadings, payments and ledger stay on each sub-contract.")))" />
+                    <partial name="_ContractJourneyListFilter"
+                             model="@(("subContractsQ", (string?)subContractsSearch, T("جستجو در زیرقراردادها...", "Search sub-contracts..."), "subContractsPage"))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>
@@ -738,11 +807,11 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var subContract in Model.SubContractItems)
+                                @foreach (var subContract in filteredSubContractItems)
                                 {
                                     <tr>
                                         <td class="ak-col-grow">
-                                            <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@subContract.ContractId">@subContract.ContractNumber</a>
+                                            <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@subContract.ContractId">@subContract.DisplayLabel</a>
                                             <span class="ak-muted">· @subContract.StatusName</span>
                                         </td>
                                         <td class="ak-num">@NumberDisplay.Quantity(subContract.QuantityMt)</td>
@@ -751,14 +820,18 @@
                                         <td class="ak-num">@subContract.LoadingsValueUsd.ToString("N2")</td>
                                     </tr>
                                 }
+                                @if (!filteredSubContractItems.Any())
+                                {
+                                    <tr><td colspan="5"><div class="ak-empty">@T("نتیجه‌ای پیدا نشد.", "No results found.")</div></td></tr>
+                                }
                             </tbody>
                             <tfoot>
                                 <tr data-sub-contracts-total>
                                     <th class="ak-col-grow">@T("مجموع زیرقراردادها", "Sub-contracts total")</th>
-                                    <th class="ak-num">@NumberDisplay.Quantity(Model.SubContractItems.Sum(s => s.QuantityMt))</th>
-                                    <th class="ak-num">@NumberDisplay.Quantity(Model.SubContractItems.Sum(s => s.LoadedQuantityMt))</th>
-                                    <th class="ak-num">@NumberDisplay.Quantity(Model.SubContractItems.Sum(s => s.RemainingQuantityMt))</th>
-                                    <th class="ak-num">@Model.SubContractItems.Sum(s => s.LoadingsValueUsd).ToString("N2")</th>
+                                    <th class="ak-num">@NumberDisplay.Quantity(filteredSubContractItems.Sum(s => s.QuantityMt))</th>
+                                    <th class="ak-num">@NumberDisplay.Quantity(filteredSubContractItems.Sum(s => s.LoadedQuantityMt))</th>
+                                    <th class="ak-num">@NumberDisplay.Quantity(filteredSubContractItems.Sum(s => s.RemainingQuantityMt))</th>
+                                    <th class="ak-num">@filteredSubContractItems.Sum(s => s.LoadingsValueUsd).ToString("N2")</th>
                                 </tr>
                             </tfoot>
                         </table>
@@ -771,6 +844,8 @@
                 <section class="ak-form-section ak-detail-section">
                     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                              model="@((T("کشتی‌های مرتبط", "Related shipments"), (string?)null))" />
+                    <partial name="_ContractJourneyListFilter"
+                             model="@(("shipmentsQ", (string?)shipmentsSearch, T("جستجو در کشتی‌های مرتبط...", "Search related shipments..."), "shipmentsPage"))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>
@@ -782,7 +857,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var scenario in Model.ShipmentScenarios)
+                                @foreach (var scenario in filteredShipmentScenarios)
                                 {
                                     <tr>
                                         <td class="ak-col-grow">@scenario.ShipmentCode @(string.IsNullOrWhiteSpace(scenario.VesselName) ? "" : $"· {scenario.VesselName}")</td>
@@ -799,6 +874,10 @@
                                             </div>
                                         </td>
                                     </tr>
+                                }
+                                @if (!filteredShipmentScenarios.Any())
+                                {
+                                    <tr><td colspan="4"><div class="ak-empty">@T("نتیجه‌ای پیدا نشد.", "No results found.")</div></td></tr>
                                 }
                             </tbody>
                         </table>
@@ -847,6 +926,8 @@
                             <span>@T("انتقال تکی از موجودی", "Single inventory transfer")</span>
                         </a>
                     </div>
+                    <partial name="_ContractJourneyListFilter"
+                             model="@(("transportLegsQ", (string?)transportLegsSearch, T("جستجو در جریان حمل بار...", "Search cargo flow..."), "transportLegPage"))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>
@@ -972,6 +1053,8 @@
                             </div>
                         </div>
                     </div>
+                    <partial name="_ContractJourneyListFilter"
+                             model="@(("expensesQ", (string?)expensesSearch, T("جستجو در مصارف...", "Search expenses..."), "expensesPage"))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>
@@ -1002,7 +1085,7 @@
                                     </td>
                                 </tr>
                             }
-                            @if (!Model.ExpenseItems.Any())
+                            @if (!filteredExpenseItems.Any())
                             {
                                 <tr>
                                     <td colspan="4">
@@ -1028,6 +1111,8 @@
                 <section class="ak-form-section ak-detail-section">
                     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                              model="@((T("تخصیص مصارف جریان حمل بار", "Cargo flow expense allocation"), (string?)null))" />
+                    <partial name="_ContractJourneyListFilter"
+                             model="@(("allocationsQ", (string?)allocationsSearch, T("جستجو در تخصیص مصارف...", "Search expense allocations..."), "allocationsPage"))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>
@@ -1042,7 +1127,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                            @foreach (var allocation in Model.InventoryTransportExpenseAllocations)
+                            @foreach (var allocation in filteredExpenseAllocations)
                             {
                                 <tr>
                                     <td class="ak-col-grow">
@@ -1056,7 +1141,7 @@
                                     <td class="ak-num">@allocation.ExpenseCount.ToString("N0")</td>
                                 </tr>
                             }
-                            @if (!Model.InventoryTransportExpenseAllocations.Any())
+                            @if (!filteredExpenseAllocations.Any())
                             {
                                 <tr>
                                     <td colspan="7">
@@ -1088,6 +1173,8 @@
                             <span>@T("ثبت کسری جدید", "New loss")</span>
                         </a>
                     </div>
+                    <partial name="_ContractJourneyListFilter"
+                             model="@(("lossesQ", (string?)lossesSearch, T("جستجو در کسری و ضایعات...", "Search losses and wastage..."), "lossesPage"))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>

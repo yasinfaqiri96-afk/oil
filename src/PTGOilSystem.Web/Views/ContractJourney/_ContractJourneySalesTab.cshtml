@@ -31,6 +31,9 @@
             }
         </div>
 
+        <partial name="_ContractJourneyListFilter"
+                 model="@(("salesQ", (string?)Context.Request.Query["salesQ"].ToString(), T("جستجو در فاکتورهای فروش...", "Search sales invoices..."), "salesPage"))" />
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

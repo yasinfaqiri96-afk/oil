@@ -23,7 +23,7 @@
 
 <div class="ak-form-page">
     @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkPageHeader.cshtml",
-        ($"ویرایش قرارداد {Model.ContractNumber}", false,
+        ($"ویرایش قرارداد {PTGOilSystem.Web.Models.Entities.Contract.BuildDisplayLabel(Model.ContractName, Model.ContractNumber)}", false,
          (string?)null, (string?)null, (string?)null, (string?)null,
          UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Details", new { id = Model.Id })))
 
@@ -36,6 +36,11 @@
             <section class="ak-form-section">
                 @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("هویت قرارداد", (string?)null))
                 <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="ContractName" class="ak-label"></label>
+                        <input asp-for="ContractName" class="ak-input" placeholder="مثلاً: دیزل جنوری ۲۰۲۶ – سولفکس" autocomplete="off" />
+                        <span asp-validation-for="ContractName" class="ak-field-error"></span>
+                    </div>
                     <div class="ak-field">
                         <label asp-for="ContractNumber" class="ak-label"></label>
                         <input asp-for="ContractNumber" class="ak-input" />

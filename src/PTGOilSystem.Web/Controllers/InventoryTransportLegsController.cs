@@ -127,7 +127,7 @@ public partial class InventoryTransportLegsController : Controller
             query = query.Where(l =>
                 (l.WagonNumber != null && l.WagonNumber.ToLower().Contains(searchTerm)) ||
                 (l.RwbNo != null && l.RwbNo.ToLower().Contains(searchTerm)) ||
-                (l.SourcePurchaseContract != null && l.SourcePurchaseContract.ContractNumber.ToLower().Contains(searchTerm)) ||
+                (l.SourcePurchaseContract != null && (l.SourcePurchaseContract.ContractName.ToLower().Contains(searchTerm) || l.SourcePurchaseContract.ContractNumber.ToLower().Contains(searchTerm))) ||
                 (l.Product != null && l.Product.Name.ToLower().Contains(searchTerm)));
         }
 
@@ -193,9 +193,12 @@ public partial class InventoryTransportLegsController : Controller
             .AsNoTracking()
             .Where(c => c.ContractType == ContractType.Purchase)
             .OrderByDescending(c => c.Id)
-            .Select(c => new { c.Id, c.ContractNumber })
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
             .ToListAsync();
-        ViewBag.Contracts = new SelectList(contracts, "Id", "ContractNumber");
+        var contractOptions = contracts.Select(c => new ContractLookupOption(
+            c.Id,
+            ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber)));
+        ViewBag.Contracts = new SelectList(contractOptions, "Id", "Display");
 
         var products = await _db.Products
             .AsNoTracking()
@@ -4857,15 +4860,18 @@ public partial class InventoryTransportLegsController : Controller
 
     private async Task PopulateLookupsAsync()
     {
-        ViewBag.Contracts = new SelectList(
-            await _db.Contracts
+        var contracts = await _db.Contracts
                 .AsNoTracking()
                 .Where(c => c.ContractType == ContractType.Purchase)
                 .OrderBy(c => c.ContractNumber)
-                .Select(c => new { c.Id, Text = c.ContractNumber })
-                .ToListAsync(),
+                .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
+                .ToListAsync();
+        ViewBag.Contracts = new SelectList(
+            contracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
             "Id",
-            "Text");
+            "Display");
 
         ViewBag.Products = new SelectList(
             await _db.Products

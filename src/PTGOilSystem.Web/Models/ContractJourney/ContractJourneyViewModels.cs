@@ -60,7 +60,9 @@ public sealed class ContractJourneyIndexViewModel
 public sealed class ContractJourneyIndexItemViewModel
 {
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string DisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string ContractTypeName { get; init; } = string.Empty;
     public string ContractTypeBadgeClass { get; init; } = "status-badge status-badge-neutral";
     public string ProductName { get; init; } = string.Empty;
@@ -75,7 +77,9 @@ public sealed class ContractJourneyIndexItemViewModel
 public sealed class ContractJourneySubContractItemViewModel
 {
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string DisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string StatusName { get; init; } = string.Empty;
     public decimal QuantityMt { get; init; }
     public decimal LoadedQuantityMt { get; init; }
@@ -89,7 +93,9 @@ public sealed class ContractJourneyDetailsViewModel
     public string ActiveTab { get; init; } = ContractJourneyTabs.Details.Summary;
     public bool LockContract { get; init; }
     public bool IsInitialSummaryPayload { get; init; }
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string DisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string ContractTypeName { get; init; } = string.Empty;
     public string ContractTypeBadgeClass { get; init; } = "status-badge status-badge-neutral";
     public string CompanyName { get; init; } = string.Empty;
@@ -445,10 +451,15 @@ public sealed class ContractJourneyBulkReceiptCandidateViewModel
 {
     public int LoadingRegisterId { get; init; }
     public DateTime LoadingDate { get; init; }
+    public string ProductName { get; init; } = string.Empty;
+    public string TransportTypeLabel { get; init; } = string.Empty;
+    public string? VehicleNumber { get; init; }
     public string? BillOfLadingNumber { get; init; }
     public string? RwbNo { get; init; }
     public string? WagonNumber { get; init; }
     public decimal LoadedQuantityMt { get; init; }
+    public decimal? LoadingPriceUsd { get; init; }
+    public decimal? LoadingValueUsd { get; init; }
     public decimal AlreadyReceivedQuantityMt { get; init; }
     public decimal RemainingQuantityMt { get; init; }
     public string? ConsigneeName { get; init; }

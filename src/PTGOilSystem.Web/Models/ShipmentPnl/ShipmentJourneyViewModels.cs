@@ -1,3 +1,5 @@
+using PTGOilSystem.Web.Models.Entities;
+
 namespace PTGOilSystem.Web.Models.ShipmentPnl;
 
 // «ضایعات محموله» — مدل نمایشی ردیف ضایعات که در صفحهٔ مادر
@@ -12,7 +14,9 @@ public sealed class ShipmentJourneyLossItem
     public decimal DifferenceQuantityMt { get; init; }
     public decimal ChargeableLossMt { get; init; }
     public int? ContractId { get; init; }
+    public string? ContractName { get; init; }
     public string? ContractNumber { get; init; }
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string? ResponsiblePartyType { get; init; }
     public string? ResponsiblePartyName { get; init; }
     public string? FinancialTreatment { get; init; }

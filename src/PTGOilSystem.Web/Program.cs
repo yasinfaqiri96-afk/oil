@@ -133,6 +133,9 @@ builder.Services.AddScoped<
     PTGOilSystem.Web.Services.Reporting.INegativeStockAnalysisService,
     PTGOilSystem.Web.Services.Reporting.NegativeStockAnalysisService>();
 builder.Services.AddScoped<ILossEventWorkflowService, LossEventWorkflowService>();
+builder.Services.AddScoped<
+    PTGOilSystem.Web.Services.LoadingReceipts.ILoadingReceiptCancellationService,
+    PTGOilSystem.Web.Services.LoadingReceipts.LoadingReceiptCancellationService>();
 builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<ICurrencyConversionService, CurrencyConversionService>();
 builder.Services.AddScoped<IUnitConversionService, UnitConversionService>();

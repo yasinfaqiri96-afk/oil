@@ -363,7 +363,8 @@ public class StorageTanksController : Controller
         // بارگیری/واگن‌هایی که موجودی وارد این مخزن کرده‌اند.
         var feedingReceipts = await _db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => r.StorageTankId == tankId
+            .Where(r => !r.IsCancelled
+                && r.StorageTankId == tankId
                 && r.ReceiptDestination == LoadingReceiptDestination.ToInventory
                 && r.LoadingRegister != null)
             .Select(r => new

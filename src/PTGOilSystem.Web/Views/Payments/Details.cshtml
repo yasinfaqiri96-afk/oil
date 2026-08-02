@@ -182,7 +182,7 @@
                         {
                             <tr class="@(a.IsActive ?"" : "ak-row-muted")">
                                 <td>@a.AllocationDate.ToDisplayDate()</td>
-                                <td class="ak-col-grow"><a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@a.ContractId" asp-route-returnUrl="@selfUrl">@a.ContractNumber</a></td>
+                                <td class="ak-col-grow"><a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@a.ContractId" asp-route-returnUrl="@selfUrl">@a.ContractDisplayLabel</a></td>
                                 <td class="ak-col-num ak-num">
                                     @a.AllocatedPaymentAmount.ToString("N2") @a.PaymentCurrencyCode
                                     <div class="ak-note">ارزش تاریخی: @a.AllocatedBookAmountUsd.ToString("N2") USD</div>
@@ -238,7 +238,7 @@
                                 </div>
                                 <div class="modal-body">
                                     <p class="ak-note">
-                                        تخصیص #@a.Id به قرارداد @a.ContractNumber به مبلغ @a.AllocatedPaymentAmount.ToString("N2") @a.PaymentCurrencyCode برگشت داده می‌شود.
+                                        تخصیص #@a.Id به قرارداد @a.ContractDisplayLabel به مبلغ @a.AllocatedPaymentAmount.ToString("N2") @a.PaymentCurrencyCode برگشت داده می‌شود.
                                         @if (a.HasExchangeDifference)
                                         {
                                             <text>@a.ExchangeDifferenceName به مبلغ @Math.Abs(a.ExchangeDifferenceUsd).ToString("N2") USD نیز معکوس می‌شود.</text>

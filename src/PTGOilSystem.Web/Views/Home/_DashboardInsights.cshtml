@@ -2,9 +2,6 @@
 @model PTGOilSystem.Web.Models.DashboardViewModel
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
-
-    // Same illustration the storage-tank stat cards use, so the dashboard reads as one set.
-    var tankAvatar = StatCardAvatarRegistry.ResolvePath("storage-tanks");
 }
 
 <section class="dash-insights" aria-label="@T("خلاصه عملیاتی", "Operational summary")">
@@ -51,40 +48,4 @@
         }
     </article>
 
-    <div class="dash-insight-stack">
-        @* ===== ظرفیت مخازن ===== *@
-        <article class="dash-card dash-insight dash-capacity-card">
-            <header class="dash-card-head">
-                <h2>@T("ظرفیت مخازن", "Tank capacity")</h2>
-                <a class="dash-more" asp-controller="StorageTanks" asp-action="Index">@T("مشاهده همه", "View all")</a>
-            </header>
-
-            @if (Model.TankCapacities.Count == 0)
-            {
-                <partial name="_EmptyState" model="@((T("مخزن فعالی ثبت نشده است", "No active tank"), (string?)null, (string?)"bi-database"))" />
-            }
-            else
-            {
-                <ul class="dash-capacity-list">
-                    @foreach (var tank in Model.TankCapacities.Take(3))
-                    {
-                        <li class="dash-capacity-row">
-                            <div class="dash-capacity-row-head">
-                                <img class="dash-capacity-avatar" src="@tankAvatar" alt="" width="26" height="26" loading="lazy" />
-                                <span class="dash-capacity-name" title="@tank.TankName">@tank.TankName</span>
-                            </div>
-                            <strong class="dash-capacity-pct"><bdi>@tank.FillPercent.ToString("0")%</bdi></strong>
-                            <progress class="dash-progress @tank.ProgressTone"
-                                      value="@tank.FillPercent"
-                                      max="100"
-                                      aria-label="@tank.TankName"></progress>
-                            <p class="dash-capacity-meta">
-                                <bdi>@StatCardFormatter.Number(tank.StockMt, 0) MT</bdi>
-                            </p>
-                        </li>
-                    }
-                </ul>
-            }
-        </article>
-    </div>
 </section>

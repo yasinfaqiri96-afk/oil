@@ -78,7 +78,7 @@
                                 @await Html.PartialAsync("_OperationsListIdentity", ("bi-receipt", item.ExpenseTypeName, item.ExpenseDate.ToDisplayDate(), false))
                             </td>
                             <td>
-                                <span class="col-ltr">@(item.ContractNumber ?? "-")</span>
+                                <span>@(string.IsNullOrWhiteSpace(item.ContractDisplayLabel) ? "-" : item.ContractDisplayLabel)</span>
                                 @{
                                     var expenseRef = item.ShipmentCode ?? item.TruckDispatchLabel ?? item.TransportLegLabel;
                                 }

@@ -103,12 +103,20 @@
     var receiptEditUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }) ?? "#";
     var newReceiptUrl = Url.Action("Create", new { loadingId = Model.LoadingRegisterId, returnUrl = backUrl });
 
-    ViewData["AkHeaderStatus"] = allocBalanced ? T("تخصیص متوازن", "Allocation balanced") : T("اختلاف تخصیص", "Allocation mismatch");
-    ViewData["AkHeaderStatusState"] = allocBalanced ? "is-active" : "is-warning";
+    ViewData["AkHeaderStatus"] = Model.IsCancelled
+        ? T("لغوشده", "Cancelled")
+        : allocBalanced ? T("تخصیص متوازن", "Allocation balanced") : T("اختلاف تخصیص", "Allocation mismatch");
+    ViewData["AkHeaderStatusState"] = Model.IsCancelled ? "is-danger" : allocBalanced ? "is-active" : "is-warning";
     ViewData["AkHeaderContext"] = $"{Model.ContractNumber} · {Model.ProductName} · {Model.ReceiptDate.ToDisplayDate()}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
-        new() { Label = T("ویرایش", "Edit"), Href = receiptEditUrl, Icon = "bi-pencil" },
+        new() { Label = T("ویرایش", "Edit"), Href = Model.IsCancelled ? null : receiptEditUrl, Icon = "bi-pencil" },
+        new()
+        {
+            Label = T("اصلاح مقدار", "Correct quantity"),
+            Href = Model.IsCancelled ? null : Url.Action("Correct", new { id = Model.Id, returnUrl = currentReturnUrl }),
+            Icon = "bi-arrow-repeat"
+        },
         new() { Label = T("نمای قرارداد", "Contract journey"), Href = Model.ContractId > 0 ? receiptJourneyUrl : null, Icon = "bi-diagram-3" }
     };
 
@@ -218,6 +226,46 @@
 }
 
 <div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+
+    @if (Model.IsCancelled)
+    {
+        <div class="alert alert-danger">
+            <strong>@T("این رسید لغو شده است.", "This receipt has been cancelled.")</strong>
+            <div class="ak-section-desc">
+                @T("دلیل", "Reason"): @Model.CancellationReason
+                @if (Model.CancelledAtUtc.HasValue)
+                {
+                    @($" · {T("تاریخ لغو", "Cancelled at")}: {Model.CancelledAtUtc.Value.ToDisplayDate()}")
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.CancelledByUserName))
+                {
+                    @($" · {T("کاربر", "User")}: {Model.CancelledByUserName}")
+                }
+            </div>
+            <div class="ak-section-desc">
+                @T("موجودی، کسری، فروش، دیسپچ و اسناد مالی این رسید با سند معکوس برگشته‌اند و در هیچ گزارشی شمرده نمی‌شوند.",
+                   "Inventory, loss, sale, dispatch and financial documents of this receipt were reversed and are excluded from every report.")
+            </div>
+        </div>
+    }
+    else
+    {
+        <form method="post" asp-action="Cancel" asp-route-id="@Model.Id" class="ak-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
+            <input type="hidden" name="returnUrl" value="@currentReturnUrl" />
+            <div class="ak-field ak-span-2">
+                <label class="ak-label" for="receiptCancelReason">@T("دلیل لغو رسید", "Receipt cancellation reason")</label>
+                <div class="d-flex gap-2 align-items-start flex-wrap">
+                    <input class="ak-input" id="receiptCancelReason" name="reason" maxlength="500" required
+                           placeholder="@T("مثلاً مقدار اشتباه ثبت شده بود", "e.g. wrong quantity registered")" />
+                    <button type="submit" class="btn btn-outline-danger">
+                        <i class="bi bi-x-octagon"></i> @T("لغو رسید", "Cancel receipt")
+                    </button>
+                </div>
+            </div>
+        </form>
+    }
 
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
          model="@((pageTitle, false,

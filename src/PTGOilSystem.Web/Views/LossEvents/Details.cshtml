@@ -53,7 +53,7 @@
     };
 
     var relatedRecords = new List<AkRelatedRecord>();
-    if (!string.IsNullOrWhiteSpace(Model.ContractNumber)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("قرارداد", "Contract"), Label = Model.ContractNumber, Icon = "bi-file-earmark-text" });
+    if (!string.IsNullOrWhiteSpace(Model.ContractDisplayLabel)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("قرارداد", "Contract"), Label = Model.ContractDisplayLabel, Icon = "bi-file-earmark-text" });
     if (!string.IsNullOrWhiteSpace(Model.ShipmentCode)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("محموله", "Shipment"), Label = Model.ShipmentCode, Icon = "bi-box-seam" });
     if (!string.IsNullOrWhiteSpace(Model.LoadingRegisterLabel)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("بارگیری", "Loading"), Label = Model.LoadingRegisterLabel, Icon = "bi-box-arrow-up" });
     if (!string.IsNullOrWhiteSpace(Model.LoadingReceiptLabel)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("رسید بارگیری", "Loading receipt"), Label = Model.LoadingReceiptLabel, Icon = "bi-box-arrow-in-down" });

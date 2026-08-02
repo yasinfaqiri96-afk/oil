@@ -81,6 +81,7 @@ public class ExpenseRulesController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -96,6 +97,7 @@ public class ExpenseRulesController : Controller
                 .Select(c => new ContractLookupOption(
                     c.Id,
                     ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,

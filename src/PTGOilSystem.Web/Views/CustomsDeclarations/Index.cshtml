@@ -129,22 +129,6 @@
 @section Scripts {
     <script>
         (function () {
-            var toggle = document.getElementById('customsFilterToggle');
-            var pop = document.getElementById('customsFilterPop');
-            if (!toggle || !pop) return;
-            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-            toggle.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var open = pop.hidden;
-                pop.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-            document.addEventListener('click', function (e) {
-                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
-            });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-        })();
-        (function () {
             document.querySelectorAll('.ak-list-page .ak-table tbody tr[data-href]').forEach(function (row) {
                 row.style.cursor = 'pointer';
                 row.addEventListener('click', function (e) {

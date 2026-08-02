@@ -126,7 +126,6 @@
         if (form.hasAttribute("data-no-spa")) return;
         if (form.enctype === "multipart/form-data") return;
         var action = form.getAttribute("action") || location.href;
-        if (/logout/i.test(action)) return;
         e.preventDefault();
         e.stopPropagation();
         var method = (form.method || "get").toUpperCase();

@@ -2,8 +2,6 @@
 @model PTGOilSystem.Web.Models.Reports.SellableStockReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "موجودی قابل فروش", "Sellable Stock");
-    var hasActiveFilters = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || Model.Filter.ProductId.HasValue || Model.Filter.TerminalId.HasValue || Model.Filter.StorageTankId.HasValue;
 }
 
 <div class="ak-list-page">
@@ -22,31 +20,30 @@
     </section>
 
     <div class="ak-list">
-        <form method="get" class="ak-report-parameters" id="rpFilterForm">
-            <div class="ak-report-parameters-bar">
-                <div class="ak-report-parameters-anchor">
-                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="rpFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
-                        <i class="bi bi-funnel"></i>
-                    </button>
-                    <div class="ak-report-parameters-pop" id="rpFilterPop" hidden>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "As of")</label>
-                        <input class="ak-input" type="date" name="ToDate" value="@Model.Filter.ToDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "جنس", "Product")</label>
-                        <select class="ak-input" name="ProductId" asp-items="ViewBag.Products"><option value="">@UiText.T(Context, "همه اجناس", "All Products")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "ترمینال", "Terminal")</label>
-                        <select class="ak-input" name="TerminalId" asp-items="ViewBag.Terminals"><option value="">@UiText.T(Context, "همه ترمینال‌ها", "All Terminals")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "مخزن", "Tank")</label>
-                        <select class="ak-input" name="StorageTankId" asp-items="ViewBag.StorageTanks"><option value="">@UiText.T(Context, "همه مخازن", "All Tanks")</option></select>
-                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
-                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("SellableStockExport"))" />
-                        @if (hasActiveFilters)
-                        {
-                            <a asp-action="SellableStock" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
-                        }
-                    </div>
-                </div>
+        @{
+            List<AkFilterOption> StockOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+            var stockFilter = new AkSearchFilterModel("", null,
+                UiText.T(Context, "فیلتر موجودی قابل فروش...", "Filter sellable stock..."),
+                new List<AkFilterDefinition>
+                {
+                    new("ToDate", UiText.T(Context, "تا تاریخ", "As of"), "date", null,
+                        Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                    new("ProductId", UiText.T(Context, "جنس", "Product"), "select", StockOpts(ViewBag.Products),
+                        Model.Filter.ProductId?.ToString()),
+                    new("TerminalId", UiText.T(Context, "ترمینال", "Terminal"), "select", StockOpts(ViewBag.Terminals),
+                        Model.Filter.TerminalId?.ToString()),
+                    new("StorageTankId", UiText.T(Context, "مخزن", "Tank"), "select", StockOpts(ViewBag.StorageTanks),
+                        Model.Filter.StorageTankId?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="stockFilter" />
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("SellableStockExport"))" />
             </div>
-        </form>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">
@@ -96,7 +93,3 @@
         </div>
     </div>
 </div>
-
-@section Scripts {
-    <partial name="_AkReportFilterScript" />
-}

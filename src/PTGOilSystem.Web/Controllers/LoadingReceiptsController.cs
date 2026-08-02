@@ -47,6 +47,9 @@ public partial class LoadingReceiptsController : Controller
     // مراحل ۶ و ۷ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IPurchaseAccountingAdapter? _purchaseAccounting;
     private readonly Services.Accounting.ISalesAccountingAdapter? _salesAccounting;
+    // لغو امن رسید (لغو تکی، لغو گروهی، و مسیر «اصلاح مقدار» = لغو + ثبت دوباره).
+    private readonly Services.LoadingReceipts.ILoadingReceiptCancellationService? _cancellation;
+    private readonly Security.ICurrentUserContext? _currentUser;
 
     public LoadingReceiptsController(
         ApplicationDbContext db,
@@ -55,10 +58,14 @@ public partial class LoadingReceiptsController : Controller
         ILossEventWorkflowService? lossWorkflow = null,
         ICurrencyConversionService? currencyConversion = null,
         Services.Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null,
-        Services.Accounting.ISalesAccountingAdapter? salesAccounting = null)
+        Services.Accounting.ISalesAccountingAdapter? salesAccounting = null,
+        Services.LoadingReceipts.ILoadingReceiptCancellationService? cancellation = null,
+        Security.ICurrentUserContext? currentUser = null)
     {
         _purchaseAccounting = purchaseAccounting;
         _salesAccounting = salesAccounting;
+        _cancellation = cancellation;
+        _currentUser = currentUser;
         _db = db;
         _audit = audit;
         _lossWorkflow = lossWorkflow ?? new LossEventWorkflowService(db, new StockService(db), audit);
@@ -266,7 +273,8 @@ public partial class LoadingReceiptsController : Controller
                 (receipt.ReferenceDocument != null && receipt.ReferenceDocument.Contains(normalizedQuery))
                 || (receipt.LoadingRegister != null
                     && receipt.LoadingRegister.Contract != null
-                    && receipt.LoadingRegister.Contract.ContractNumber.Contains(normalizedQuery))
+                    && (receipt.LoadingRegister.Contract.ContractName.Contains(normalizedQuery)
+                        || receipt.LoadingRegister.Contract.ContractNumber.Contains(normalizedQuery)))
                 || (receipt.LoadingRegister != null
                     && receipt.LoadingRegister.Product != null
                     && receipt.LoadingRegister.Product.Name.Contains(normalizedQuery))
@@ -289,6 +297,9 @@ public partial class LoadingReceiptsController : Controller
             {
                 Id = receipt.Id,
                 ReceiptDate = receipt.ReceiptDate,
+                ContractName = receipt.LoadingRegister != null && receipt.LoadingRegister.Contract != null
+                    ? receipt.LoadingRegister.Contract.ContractName
+                    : "",
                 ContractNumber = receipt.LoadingRegister != null && receipt.LoadingRegister.Contract != null
                     ? receipt.LoadingRegister.Contract.ContractNumber
                     : "",
@@ -308,14 +319,18 @@ public partial class LoadingReceiptsController : Controller
                     : receipt.LoadingRegister.Truck != null
                         ? receipt.LoadingRegister.Truck.PlateNumber
                         : receipt.LoadingRegister.WagonNumber ?? receipt.LoadingRegister.RwbNo,
-                ReferenceDocument = receipt.ReferenceDocument
+                ReferenceDocument = receipt.ReferenceDocument,
+                IsCancelled = receipt.IsCancelled,
+                CancellationReason = receipt.CancellationReason
             })
             .ToListAsync();
 
         // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
-        ViewBag.SumQuantity = await query.SumAsync(receipt => receipt.ReceivedQuantityMt);
-        ViewBag.WithTankCount = await query.CountAsync(receipt => receipt.StorageTank != null);
-        ViewBag.WithReferenceCount = await query.CountAsync(receipt =>
+        // رسیدهای لغوشده در فهرست دیده می‌شوند اما در هیچ جمعی شمرده نمی‌شوند.
+        var activeQuery = query.Where(receipt => !receipt.IsCancelled);
+        ViewBag.SumQuantity = await activeQuery.SumAsync(receipt => receipt.ReceivedQuantityMt);
+        ViewBag.WithTankCount = await activeQuery.CountAsync(receipt => receipt.StorageTank != null);
+        ViewBag.WithReferenceCount = await activeQuery.CountAsync(receipt =>
             receipt.ReferenceDocument != null
             && receipt.ReferenceDocument != ""
             && !receipt.ReferenceDocument.ToUpper().StartsWith("BULK-RCPT-"));
@@ -1166,7 +1181,7 @@ public partial class LoadingReceiptsController : Controller
     {
         var receivedQuantityMt = await _db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => r.LoadingRegisterId == loadingRegisterId)
+            .Where(r => r.LoadingRegisterId == loadingRegisterId && !r.IsCancelled)
             .SumAsync(r => (decimal?)r.ReceivedQuantityMt) ?? 0m;
 
         var receiptShortageLossMt = await GetCommittedReceiptShortageQuantityMtAsync(loadingRegisterId);
@@ -1210,7 +1225,7 @@ public partial class LoadingReceiptsController : Controller
 
         var receivedByLoadingId = await _db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => loadingRegisterIds.Contains(r.LoadingRegisterId))
+            .Where(r => loadingRegisterIds.Contains(r.LoadingRegisterId) && !r.IsCancelled)
             .GroupBy(r => r.LoadingRegisterId)
             .Select(g => new { LoadingRegisterId = g.Key, ReceivedQuantityMt = g.Sum(r => r.ReceivedQuantityMt) })
             .ToDictionaryAsync(g => g.LoadingRegisterId, g => g.ReceivedQuantityMt);
@@ -1373,7 +1388,7 @@ public partial class LoadingReceiptsController : Controller
         LoadingRegister loading,
         LoadingReceiptQuantitySnapshot quantities)
     {
-        model.ContractNumber = loading.Contract?.ContractNumber ?? "";
+        model.ContractNumber = loading.Contract?.DisplayLabel ?? "";
         model.ProductName = loading.Product?.Name ?? "";
         model.LoadingDate = loading.LoadingDate;
         model.LoadedQuantityMt = loading.LoadedQuantityMt;
@@ -1447,7 +1462,8 @@ public partial class LoadingReceiptsController : Controller
                 l.Id,
                 l.LoadingDate,
                 l.LoadedQuantityMt,
-                ReceivedQuantityMt = l.Receipts.Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m,
+                ReceivedQuantityMt = l.Receipts.Where(r => !r.IsCancelled).Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m,
+                ContractName = l.Contract != null ? l.Contract.ContractName : "",
                 ContractNumber = l.Contract != null ? l.Contract.ContractNumber : "",
                 ProductName = l.Product != null ? l.Product.Name : "",
                 Reference = l.WagonNumber ?? l.BillOfLadingNumber ?? l.RwbNo
@@ -1466,7 +1482,7 @@ public partial class LoadingReceiptsController : Controller
                     s.LoadedQuantityMt - receiptShortageByLoadingId.GetValueOrDefault(s.Id),
                     0m),
                 s.ReceivedQuantityMt,
-                s.ContractNumber,
+                ContractNumber = ContractUiText.FormatDisplayLabel(s.ContractName, s.ContractNumber),
                 s.ProductName,
                 s.Reference
             })
@@ -1725,6 +1741,37 @@ public partial class LoadingReceiptsController : Controller
                     }
 
                     return NotFound();
+                }
+
+                // «اصلاح مقدار»: رسید قبلی داخل همین تراکنش لغو می‌شود تا ظرفیت باقی‌مانده و
+                // اثرهای موجودی/مالی آن پیش از ثبت رسید اصلاح‌شده برگردد.
+                if (model.CorrectionOfReceiptId is > 0)
+                {
+                    var correctionReason = string.IsNullOrWhiteSpace(model.CorrectionReason)
+                        ? $"اصلاح رسید #{model.CorrectionOfReceiptId.Value} و ثبت دوباره"
+                        : model.CorrectionReason!.Trim();
+
+                    var cancellationResult = await Cancellation.CancelWithinCurrentTransactionAsync(
+                        [model.CorrectionOfReceiptId.Value],
+                        correctionReason,
+                        _currentUser?.UserId);
+
+                    if (!cancellationResult.Succeeded)
+                    {
+                        if (transaction is not null)
+                        {
+                            await transaction.RollbackAsync();
+                        }
+
+                        ModelState.AddModelError(string.Empty, BuildBlockerMessage(cancellationResult.Blockers));
+                        model.ReferenceDocument = normalizedReference;
+                        model.Notes = normalizedNotes;
+                        model.AllocationDestinationName = normalizedDestinationName;
+                        model.DestinationReference = normalizedDestinationReference;
+                        EnsureAllocationLineEditorRows(model);
+                        await PopulateLookupsAsync(model);
+                        return View(model);
+                    }
                 }
 
                 var committedQuantities = await GetCommittedReceiptQuantitySnapshotAsync(loading.Id);
@@ -2151,7 +2198,7 @@ public partial class LoadingReceiptsController : Controller
             ? new Dictionary<int, decimal>()
             : await _db.LoadingReceipts
                 .AsNoTracking()
-                .Where(r => selectedLoadingIds.Contains(r.LoadingRegisterId))
+                .Where(r => selectedLoadingIds.Contains(r.LoadingRegisterId) && !r.IsCancelled)
                 .GroupBy(r => r.LoadingRegisterId)
                 .Select(g => new { LoadingRegisterId = g.Key, ReceivedQuantityMt = g.Sum(r => r.ReceivedQuantityMt) })
                 .ToDictionaryAsync(g => g.LoadingRegisterId, g => g.ReceivedQuantityMt);
@@ -2539,6 +2586,13 @@ public partial class LoadingReceiptsController : Controller
             return NotFound();
         }
 
+        // رسید لغوشده ویرایش نمی‌شود؛ برای اصلاح باید رسید جدید ثبت شود.
+        if (receipt.IsCancelled)
+        {
+            TempData["err"] = "این رسید لغو شده است و ویرایش نمی‌شود.";
+            return RedirectToAction(nameof(Details), new { id = receipt.Id, returnUrl });
+        }
+
         var model = new LoadingReceiptEditViewModel
         {
             Id = receipt.Id,
@@ -2550,7 +2604,7 @@ public partial class LoadingReceiptsController : Controller
             Notes = receipt.Notes,
             ReceiptDate = receipt.ReceiptDate,
             ReceivedQuantityMt = receipt.ReceivedQuantityMt,
-            ContractNumber = receipt.LoadingRegister.Contract?.ContractNumber ?? "",
+            ContractNumber = receipt.LoadingRegister.Contract?.DisplayLabel ?? "",
             ProductName = receipt.LoadingRegister.Product?.Name ?? "",
             WagonNumber = receipt.LoadingRegister.WagonNumber,
             BillOfLadingNumber = receipt.LoadingRegister.BillOfLadingNumber,
@@ -2581,10 +2635,20 @@ public partial class LoadingReceiptsController : Controller
             return NotFound();
         }
 
+        // رسید لغوشده ویرایش نمی‌شود.
+        if (receipt.IsCancelled)
+        {
+            TempData["err"] = "این رسید لغو شده است و ویرایش نمی‌شود.";
+            return RedirectToAction(nameof(Details), new { id = receipt.Id });
+        }
+
         // restore read-only context for re-render on error
         model.ReceiptDate = receipt.ReceiptDate;
         model.ReceivedQuantityMt = receipt.ReceivedQuantityMt;
-        model.ContractNumber = receipt.LoadingRegister.Contract?.ContractNumber ?? "";
+        // مقدار واقعی رسیده اثر عملیاتی دارد (کسری/مازاد) و با Update ساده تغییر نمی‌کند؛
+        // اصلاح آن فقط از مسیر «لغو + ثبت دوباره» انجام می‌شود.
+        model.ActualArrivedQuantityMt = receipt.ActualArrivedQuantityMt;
+        model.ContractNumber = receipt.LoadingRegister.Contract?.DisplayLabel ?? "";
         model.ProductName = receipt.LoadingRegister.Product?.Name ?? "";
         model.WagonNumber = receipt.LoadingRegister.WagonNumber;
         model.BillOfLadingNumber = receipt.LoadingRegister.BillOfLadingNumber;
@@ -2596,13 +2660,11 @@ public partial class LoadingReceiptsController : Controller
 
         var oldArrivalDate = receipt.ArrivalDate;
         var oldLeakDate = receipt.LeakDate;
-        var oldActualQty = receipt.ActualArrivedQuantityMt;
         var oldRef = receipt.ReferenceDocument;
         var oldNotes = receipt.Notes;
 
         receipt.ArrivalDate = model.ArrivalDate;
         receipt.LeakDate = model.LeakDate;
-        receipt.ActualArrivedQuantityMt = model.ActualArrivedQuantityMt;
         receipt.ReferenceDocument = string.IsNullOrWhiteSpace(model.ReferenceDocument) ? null : model.ReferenceDocument.Trim();
         receipt.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
 
@@ -2615,7 +2677,6 @@ public partial class LoadingReceiptsController : Controller
             diff: AuditDiffFormatter.ForUpdate(
                 ("ArrivalDate", oldArrivalDate, receipt.ArrivalDate),
                 ("LeakDate", oldLeakDate, receipt.LeakDate),
-                ("ActualArrivedQuantityMt", oldActualQty, receipt.ActualArrivedQuantityMt),
                 ("ReferenceDocument", oldRef, receipt.ReferenceDocument),
                 ("Notes", oldNotes, receipt.Notes)));
 
@@ -2691,7 +2752,7 @@ public partial class LoadingReceiptsController : Controller
 
         var totalReceivedQuantityMt = await _db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => r.LoadingRegisterId == receipt.LoadingRegisterId)
+            .Where(r => r.LoadingRegisterId == receipt.LoadingRegisterId && !r.IsCancelled)
             .SumAsync(r => (decimal?)r.ReceivedQuantityMt) ?? 0m;
         var receiptShortageLossMt = await GetCommittedReceiptShortageQuantityMtAsync(receipt.LoadingRegisterId);
 
@@ -2716,17 +2777,29 @@ public partial class LoadingReceiptsController : Controller
 
         ViewBag.ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var localReturnUrl) ? localReturnUrl : null;
 
+        var cancelledByUserName = receipt.CancelledByUserId is null
+            ? null
+            : await _db.Users.AsNoTracking()
+                .Where(u => u.Id == receipt.CancelledByUserId.Value)
+                .Select(u => u.Username)
+                .FirstOrDefaultAsync();
+
         return View(new LoadingReceiptDetailsViewModel
         {
             Id = receipt.Id,
             LoadingRegisterId = receipt.LoadingRegisterId,
+            IsCancelled = receipt.IsCancelled,
+            CancelledAtUtc = receipt.CancelledAtUtc,
+            CancellationReason = receipt.CancellationReason,
+            CancelledByUserName = cancelledByUserName,
+            RowVersion = receipt.RowVersion,
             ReceiptDestination = receipt.ReceiptDestination,
             ReceiptDate = receipt.ReceiptDate,
             ArrivalDate = receipt.ArrivalDate,
             LeakDate = receipt.LeakDate,
             ActualArrivedQuantityMt = receipt.ActualArrivedQuantityMt,
             ContractId = receipt.LoadingRegister.ContractId,
-            ContractNumber = receipt.LoadingRegister.Contract?.ContractNumber ?? "",
+            ContractNumber = receipt.LoadingRegister.Contract?.DisplayLabel ?? "",
             ProductName = receipt.LoadingRegister.Product?.Name ?? "",
             LoadingDate = receipt.LoadingRegister.LoadingDate,
             LoadedQuantityMt = receipt.LoadingRegister.LoadedQuantityMt,
@@ -2750,7 +2823,7 @@ public partial class LoadingReceiptsController : Controller
                     Destination = a.Destination,
                     Status = a.Status,
                     QuantityMt = a.QuantityMt,
-                    SourcePurchaseContractNumber = a.SourcePurchaseContract?.ContractNumber,
+                    SourcePurchaseContractNumber = a.SourcePurchaseContract?.DisplayLabel,
                     TerminalName = a.Terminal?.Name ?? "",
                     StorageTankCode = StorageTankDisplay.BuildOptional(a.StorageTank),
                     DestinationTerminalName = a.DestinationTerminal?.Name,

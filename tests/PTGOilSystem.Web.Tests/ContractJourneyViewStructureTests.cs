@@ -243,6 +243,32 @@ public class ContractJourneyViewStructureTests
     }
 
     [Fact]
+    public void ContractJourney_Every_Detail_List_Uses_Independent_Shared_Search_Filter()
+    {
+        var details = ReadContractJourneyDetailsMarkup();
+        var filter = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_ContractJourneyListFilter.cshtml");
+        var searchKeys = new[]
+        {
+            "subContractsQ", "shipmentsQ", "loadingsQ", "pendingReceiptsQ", "receiptsQ",
+            "inventoryQ", "transportLegsQ", "dispatchQ", "salesQ", "expensesQ",
+            "allocationsQ", "lossesQ", "paymentsQ", "settlementsQ"
+        };
+
+        Assert.Equal(14, details.Split("_ContractJourneyListFilter", StringSplitOptions.None).Length - 1);
+        Assert.All(searchKeys, key => Assert.Contains($"\"{key}\"", details));
+        Assert.Contains("_AkSearchFilter", filter);
+        Assert.Contains("Context.Request.Query", filter);
+        Assert.Contains("Model.PageKey", filter);
+        Assert.Contains("filteredLoadingItems.Count", details);
+        Assert.Contains("filteredReceiptItems.Count", details);
+        Assert.Contains("filteredDispatchItems.Count", details);
+        Assert.Contains("filteredSalesItems.Count", details);
+        Assert.Contains("filteredExpenseItems.Count", details);
+        Assert.Contains("filteredLossItems.Count", details);
+        Assert.Contains("filteredPaymentItems.Count", details);
+    }
+
+    [Fact]
     public void Contract_Backlinks_Target_ContractJourney_Not_Legacy_Details_View()
     {
         var files = new[]
@@ -715,7 +741,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("asp-route-returnUrl=\"@ReturnUrl(ContractJourneyTabs.Details.Loadings)\"", contents);
         Assert.Contains("asp-controller=\"LoadingReceipts\"", contents);
         Assert.Contains("asp-route-id=\"@item.Id\"", contents);
-        Assert.Contains("asp-route-returnUrl=\"@ReturnUrl(ContractJourneyTabs.Details.Receipts)\"", contents);
+        // تب رسید، آدرس بازگشت را یک بار می‌سازد و در هر ردیف همان را استفاده می‌کند
+        // (Url.Action برای هر ردیف سه بار اجرا نشود).
+        Assert.Contains("var receiptsReturnUrl = ReturnUrl(ContractJourneyTabs.Details.Receipts);", contents);
+        Assert.Contains("asp-route-returnUrl=\"@receiptsReturnUrl\"", contents);
         Assert.Contains("asp-controller=\"Dispatch\"", contents);
         Assert.Contains("asp-route-id=\"@item.Id\"", contents);
         Assert.Contains("asp-route-returnUrl=\"@ReturnUrl(ContractJourneyTabs.Details.Dispatch)\"", contents);
@@ -890,6 +919,20 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-bulk-receipt-selected-count", block);
         Assert.Contains("data-bulk-receipt-selected-qty", block);
         Assert.Contains("name=\"LoadingRegisterIds\"", block);
+        Assert.Contains("T(\"نمبر وسیله\", \"Vehicle No\")", block);
+        Assert.Contains("T(\"جنس\", \"Product\")", block);
+        Assert.Contains("T(\"وسیله حمل\", \"Transport\")", block);
+        Assert.Contains("T(\"مقدار بارگیری‌شده\", \"Loaded quantity\")", block);
+        Assert.Contains("T(\"قیمت فی تن\", \"Unit price\")", block);
+        Assert.Contains("T(\"ارزش بارگیری\", \"Loading value\")", block);
+        Assert.Contains("item.VehicleNumber", block);
+        Assert.Contains("item.ProductName", block);
+        Assert.Contains("item.TransportTypeLabel", block);
+        Assert.Contains("item.LoadedQuantityMt", block);
+        Assert.Contains("item.LoadingPriceUsd", block);
+        Assert.Contains("item.LoadingValueUsd", block);
+        Assert.Equal(3, block.Split("<th class=\"ak-col-num text-end\">", StringSplitOptions.None).Length - 1);
+        Assert.Equal(3, block.Split("<td class=\"ak-col-num text-end\"><span class=\"ak-num\">", StringSplitOptions.None).Length - 1);
         Assert.Contains("name=\"LossMode\"", block);
         Assert.Contains("data-loss-mode=\"immediate\"", block);
         Assert.Contains("BulkReceiptLossMode.None", block);
@@ -1195,6 +1238,21 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("<input asp-for=\"ReturnUrl\" type=\"hidden\" />", contents);
         Assert.Contains("var submitText = isEdit ?", contents);
         Assert.Contains("@submitText", contents);
+    }
+
+    [Fact]
+    public void Payments_Create_Uses_Compact_Advance_Labels_Without_Changing_Inputs()
+    {
+        var contents = ReadRepoFile("src/PTGOilSystem.Web/Views/Payments/Create.cshtml");
+
+        Assert.Contains("name=\"IsAdvancePayment\"", contents);
+        Assert.Contains("name=\"IsCustomerAdvance\"", contents);
+        Assert.Contains(">پیش‌پرداخت</label>", contents);
+        Assert.Contains("پرداخت آزاد؛ تخصیص به قرارداد در آینده.", contents);
+        Assert.Contains(">پیش‌دریافت</label>", contents);
+        Assert.Contains("دریافت آزاد؛ اتصال به فروش در آینده.", contents);
+        Assert.DoesNotContain("پیش‌پرداخت است", contents);
+        Assert.DoesNotContain("پیش‌دریافت است", contents);
     }
 
     [Fact]

@@ -174,7 +174,8 @@ public partial class BalanceController : Controller
         {
             var search = filter.Search.Trim();
             query = query.Where(c =>
-                c.ContractNumber.Contains(search)
+                c.ContractName.Contains(search)
+                || c.ContractNumber.Contains(search)
                 || (c.Customer != null && c.Customer.Name.Contains(search))
                 || (c.Supplier != null && c.Supplier.Name.Contains(search))
                 || (c.Product != null && c.Product.Name.Contains(search)));

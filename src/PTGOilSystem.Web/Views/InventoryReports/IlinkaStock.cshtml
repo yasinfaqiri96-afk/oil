@@ -93,26 +93,6 @@
     </div>
 </div>
 
-@section Scripts {
-    <script>
-        (function () {
-            var toggle = document.getElementById('ilinkaFilterToggle');
-            var pop = document.getElementById('ilinkaFilterPop');
-            if (!toggle || !pop) return;
-            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-            toggle.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var open = pop.hidden;
-                pop.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-            document.addEventListener('click', function (e) {
-                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
-            });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-        })();
-    </script>
-}
 
 @functions {
     private static string DisplayQuantity(decimal value)

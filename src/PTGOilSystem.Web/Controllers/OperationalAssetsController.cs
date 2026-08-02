@@ -1023,13 +1023,12 @@ public class OperationalAssetsController : Controller
             .ThenByDescending(c => c.ContractDate)
             .ThenBy(c => c.ContractNumber)
             .Take(LookupLimit)
-            .Select(c => new
-            {
-                c.Id,
-                Text = c.ContractNumber + " - " + c.ContractType.ToString()
-            })
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
             .ToListAsync();
-        return new SelectList(contracts, "Id", "Text", selectedId);
+        var options = contracts.Select(c => new ContractLookupOption(
+            c.Id,
+            ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber)));
+        return new SelectList(options, "Id", "Display", selectedId);
     }
 
     private static void ApplyAssetForm(OperationalAsset asset, OperationalAssetFormViewModel model)

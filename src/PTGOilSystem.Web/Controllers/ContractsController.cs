@@ -127,16 +127,19 @@ public partial class ContractsController : Controller
             model?.DestinationLocationId);
         // فقط قراردادهایی که خودشان زیرقرارداد نیستند می‌توانند «قرارداد اصلی» باشند (یک سطح).
         // قرارداد در حال ویرایش هم نمی‌تواند والد خودش باشد.
+        var parentContracts = await _db.Contracts
+            .AsNoTracking()
+            .Where(c => c.ParentContractId == null && (model == null || c.Id != model.Id))
+            .OrderByDescending(c => c.ContractDate)
+            .ThenBy(c => c.ContractNumber)
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
+            .ToListAsync();
         ViewBag.ParentContracts = new SelectList(
-            await _db.Contracts
-                .AsNoTracking()
-                .Where(c => c.ParentContractId == null && (model == null || c.Id != model.Id))
-                .OrderByDescending(c => c.ContractDate)
-                .ThenBy(c => c.ContractNumber)
-                .Select(c => new { c.Id, c.ContractNumber })
-                .ToListAsync(),
+            parentContracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
             "Id",
-            "ContractNumber",
+            "Display",
             model?.ParentContractId);
         ViewBag.Currencies = new SelectList(
             await _db.Currencies
@@ -189,9 +192,11 @@ public partial class ContractsController : Controller
         {
             var term = q.Trim();
             query = query.Where(c =>
+                c.ContractName.Contains(term) ||
                 c.ContractNumber.Contains(term) ||
                 (c.Supplier != null && c.Supplier.Name.Contains(term)) ||
                 (c.Customer != null && c.Customer.Name.Contains(term)) ||
+                (c.Product != null && c.Product.Name.Contains(term)) ||
                 c.ContractPartners.Any(cp => cp.Partner != null && cp.Partner.Name.Contains(term)));
         }
         if (type.HasValue) query = query.Where(c => c.ContractType == type.Value);
@@ -295,6 +300,7 @@ public partial class ContractsController : Controller
 
         var contract = new Contract
         {
+            ContractName = model.ContractName,
             ContractNumber = model.ContractNumber,
             ContractType = model.ContractType,
             Status = model.Status,
@@ -369,6 +375,7 @@ public partial class ContractsController : Controller
             contract.Id,
             AuditAction.Insert,
             diff: AuditDiffFormatter.ForCreate(
+                ("ContractName", contract.ContractName),
                 ("ContractNumber", contract.ContractNumber),
                 ("ContractType", contract.ContractType),
                 ("Status", contract.Status),
@@ -465,6 +472,7 @@ public partial class ContractsController : Controller
         var candidate = new Contract
         {
             Id = existing.Id,
+            ContractName = model.ContractName,
             ContractNumber = model.ContractNumber,
             ContractType = model.ContractType,
             Status = model.Status,
@@ -520,6 +528,7 @@ public partial class ContractsController : Controller
         var nextPartnerSummary = BuildPartnerSummary(normalizedPartnerShares);
 
         var diff = AuditDiffFormatter.ForUpdate(
+            ("ContractName", existing.ContractName, candidate.ContractName),
             ("ContractNumber", existing.ContractNumber, candidate.ContractNumber),
             ("ContractType", existing.ContractType, candidate.ContractType),
             ("Status", existing.Status, candidate.Status),
@@ -557,6 +566,7 @@ public partial class ContractsController : Controller
             ("ManualFinalPriceUsd", existing.ManualFinalPriceUsd, candidate.ManualFinalPriceUsd),
             ("PricingFormulaNote", existing.PricingFormulaNote, candidate.PricingFormulaNote));
 
+        existing.ContractName = candidate.ContractName;
         existing.ContractNumber = candidate.ContractNumber;
         existing.ContractType = candidate.ContractType;
         existing.Status = candidate.Status;
@@ -1598,6 +1608,7 @@ public partial class ContractsController : Controller
         var model = new ContractFormViewModel
         {
             Id = contract.Id,
+            ContractName = contract.ContractName,
             ContractNumber = contract.ContractNumber,
             ContractType = contract.ContractType,
             Status = contract.Status,
@@ -1690,6 +1701,7 @@ public partial class ContractsController : Controller
 
     private static void NormalizeFormModel(ContractFormViewModel model)
     {
+        model.ContractName = (model.ContractName ?? string.Empty).Trim();
         model.ContractNumber = (model.ContractNumber ?? string.Empty).Trim().ToUpperInvariant();
         model.Currency = SystemCurrency.Normalize(model.Currency);
         model.SettlementCurrencyCode = SystemCurrency.Normalize(model.SettlementCurrencyCode);

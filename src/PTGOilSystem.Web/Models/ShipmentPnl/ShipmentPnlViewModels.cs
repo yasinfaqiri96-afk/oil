@@ -1,4 +1,5 @@
 using PTGOilSystem.Web.Models.Reports;
+using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.ShipmentPnl;
@@ -129,7 +130,9 @@ public sealed class ShipmentPnlLedgerItemViewModel
 public sealed class ShipmentContractLineViewModel
 {
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string DisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string? SupplierName { get; init; }
     public string? ProductName { get; init; }
     public string ContractUnitText { get; init; } = "-";

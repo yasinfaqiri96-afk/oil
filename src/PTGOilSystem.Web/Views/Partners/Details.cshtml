@@ -90,7 +90,7 @@
                     <option value="">همه قراردادهای شریک</option>
                     @foreach (var option in Model.StatementContractOptions)
                     {
-                        <option value="@option.ContractId" selected="@(Model.SelectedContractId == option.ContractId)">@option.ContractNumber</option>
+                        <option value="@option.ContractId" selected="@(Model.SelectedContractId == option.ContractId)">@option.DisplayLabel</option>
                     }
                 </select>
             </div>
@@ -179,7 +179,7 @@
                     var rowClass = row.PartnerGrossProfitUsd > 0m ? "ak-num" : row.PartnerGrossProfitUsd < 0m ? "ak-num" : "";
                     var partnerCost = row.TotalCostUsd * row.SharePercent / 100m;
                     <tr>
-                        <td class="ak-col-grow"><a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@row.ContractId">@row.ContractNumber</a></td>
+                        <td class="ak-col-grow"><a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@row.ContractId">@row.DisplayLabel</a></td>
                         <td>@row.ContractTypeName</td>
                         <td>@row.CounterpartyName</td>
                         <td>@row.Product</td>

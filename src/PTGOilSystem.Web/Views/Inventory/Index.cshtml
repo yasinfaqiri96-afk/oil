@@ -57,7 +57,7 @@
                             </td>
                             <td>@item.ProductName</td>
                             <td>@item.TerminalName</td>
-                            <td>@(item.ContractNumber ?? "—")</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.ContractDisplayLabel) ? "—" : item.ContractDisplayLabel)</td>
                             <td>@(item.StorageTankCode ?? "—")</td>
                             <td class="text-end fw-semibold">@NumberDisplay.Quantity(item.QuantityMt)</td>
                             <td>@(item.ReferenceDocument ?? "—")</td>

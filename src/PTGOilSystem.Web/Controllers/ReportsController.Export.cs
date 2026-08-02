@@ -74,6 +74,7 @@ public partial class ReportsController
             KnownRowCount = rows.Count, ForceLandscape = true, Filters = BuildReportExportFilters(filter),
             Columns =
             [
+                new("نام قرارداد", "Contract name", Width: 20),
                 new("قرارداد", "Contract", Width: 17), new("نوع", "Type", Width: 11), new("جنس", "Product", Width: 17),
                 new("طرف قرارداد", "Counterparty", Width: 20), new("وضعیت", "Status", Width: 12),
                 new("مقدار قرارداد MT", "Contract qty MT", TabularExportValueType.Number, 16),
@@ -88,7 +89,7 @@ public partial class ReportsController
             ],
             Rows = rows.Select(r => new TabularExportRow(
             [
-                TabularExportCell.Text(r.ContractNumber), TabularExportCell.Text(r.ContractType.ToString()), TabularExportCell.Text(r.ProductName),
+                TabularExportCell.Text(r.ContractName), TabularExportCell.Text(r.ContractNumber), TabularExportCell.Text(r.ContractType.ToString()), TabularExportCell.Text(r.ProductName),
                 TabularExportCell.Text(r.CounterpartyName), TabularExportCell.Text(r.Status.ToString()), TabularExportCell.Number(r.ContractQuantityMt),
                 TabularExportCell.Number(r.ContractType == ContractType.Purchase ? r.TotalLoadedMt : r.TotalSoldMt),
                 TabularExportCell.Number(r.PurchaseValueUsd), TabularExportCell.Number(r.TotalCostUsd - r.PurchaseValueUsd),

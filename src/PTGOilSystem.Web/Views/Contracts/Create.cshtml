@@ -43,6 +43,11 @@
                 @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("هویت قرارداد", (string?)null))
                 <div class="ak-form-grid">
                     <div class="ak-field">
+                        <label asp-for="ContractName" class="ak-label">نام قرارداد <span class="ak-req">*</span></label>
+                        <input asp-for="ContractName" class="ak-input" placeholder="مثلاً: دیزل جنوری ۲۰۲۶ – سولفکس" autocomplete="off" />
+                        <span asp-validation-for="ContractName" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
                         <label asp-for="ContractNumber" class="ak-label">شماره قرارداد</label>
                         <div >
                             <input asp-for="ContractNumber"

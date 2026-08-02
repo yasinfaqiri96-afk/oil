@@ -2,9 +2,6 @@
 @model PTGOilSystem.Web.Models.Reports.PreSaleDiscrepancyReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "مغایرت‌های پیش‌فروش", "Pre-sale Discrepancies");
-    var hasActiveFilters = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || Model.Filter.ProductId.HasValue || Model.Filter.CustomerId.HasValue;
-
     Dictionary<string, string?> RouteFor(PreSaleDiscrepancyKind kind, int page) => new()
     {
         ["kind"] = kind.ToString(),
@@ -37,32 +34,30 @@
     </nav>
 
     <div class="ak-list">
-        <form method="get" class="ak-report-parameters" id="rpFilterForm">
-            <input type="hidden" name="kind" value="@Model.SelectedKind" />
-            <div class="ak-report-parameters-bar">
-                <div class="ak-report-parameters-anchor">
-                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="rpFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
-                        <i class="bi bi-funnel"></i>
-                    </button>
-                    <div class="ak-report-parameters-pop" id="rpFilterPop" hidden>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
-                        <input class="ak-input" type="date" name="FromDate" value="@Model.Filter.FromDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
-                        <input class="ak-input" type="date" name="ToDate" value="@Model.Filter.ToDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "جنس", "Product")</label>
-                        <select class="ak-input" name="ProductId" asp-items="ViewBag.Products"><option value="">@UiText.T(Context, "همه اجناس", "All Products")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "مشتری", "Customer")</label>
-                        <select class="ak-input" name="CustomerId" asp-items="ViewBag.Customers"><option value="">@UiText.T(Context, "همه مشتری‌ها", "All Customers")</option></select>
-                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
-                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("PreSaleDiscrepanciesExport"))" />
-                        @if (hasActiveFilters)
-                        {
-                            <a asp-action="PreSaleDiscrepancies" asp-route-kind="@Model.SelectedKind" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
-                        }
-                    </div>
-                </div>
+        @{
+            List<AkFilterOption> DiscrepancyOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+            var discrepancyFilter = new AkSearchFilterModel("", null,
+                UiText.T(Context, "فیلتر مغایرت‌ها...", "Filter discrepancies..."),
+                new List<AkFilterDefinition>
+                {
+                    new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                        Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                    new("ProductId", UiText.T(Context, "جنس", "Product"), "select", DiscrepancyOpts(ViewBag.Products),
+                        Model.Filter.ProductId?.ToString()),
+                    new("CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", DiscrepancyOpts(ViewBag.Customers),
+                        Model.Filter.CustomerId?.ToString())
+                },
+                // دستهٔ انتخاب‌شده جزو فیلترهای نواری نیست؛ فقط باید در هر جست‌وجو حفظ شود.
+                new Dictionary<string, string> { ["kind"] = Model.SelectedKind.ToString() });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="discrepancyFilter" />
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("PreSaleDiscrepanciesExport"))" />
             </div>
-        </form>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">
@@ -128,7 +123,3 @@
         }
     </div>
 </div>
-
-@section Scripts {
-    <partial name="_AkReportFilterScript" />
-}

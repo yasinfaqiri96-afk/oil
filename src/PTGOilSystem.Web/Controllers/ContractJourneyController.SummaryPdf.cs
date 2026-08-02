@@ -195,6 +195,7 @@ public partial class ContractJourneyController
 
         var contractInfo = new List<ContractJourneySummaryPdfLine>
         {
+            new(T("نام قرارداد", "Contract name"), TextOrDash(model.ContractName)),
             new(T("شماره قرارداد", "Contract no."), TextOrDash(model.ContractNumber)),
             new(T("نوع قرارداد", "Contract type"), TextOrDash(model.ContractTypeName)),
             new(T("جنس", "Product"), TextOrDash(model.ProductName)),
@@ -328,7 +329,7 @@ public partial class ContractJourneyController
                   ? string.Empty
                   : $" — {model.NextRecommendedActionDescription.Trim()}");
 
-        var journeyName = T($"گشت قرارداد {model.ContractNumber}", $"Contract journey {model.ContractNumber}");
+        var journeyName = T($"گشت قرارداد {model.DisplayLabel}", $"Contract journey {model.DisplayLabel}");
         var subtitleParts = new[]
         {
             model.ContractTypeName,

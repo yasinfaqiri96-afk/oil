@@ -230,7 +230,9 @@ public sealed class LoadingListItemViewModel
     public DateTime LoadingDate { get; init; }
     public LoadingTransportType TransportType { get; init; }
     public string TransportTypeLabel { get; init; } = "";
+    public string ContractName { get; init; } = "";
     public string ContractNumber { get; init; } = "";
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string ProductName { get; init; } = "";
     public string? OriginLocationName { get; init; }
     public string VehicleSummary { get; init; } = "";
@@ -574,13 +576,22 @@ public sealed class LoadingReceiptListItemViewModel
     public decimal ReceivedQuantityMt { get; init; }
     public string? ReferenceDocument { get; init; }
     public int InventoryMovementId { get; init; }
+
+    // رسید لغوشده در فهرست دیده می‌شود اما در هیچ جمع یا محاسبه‌ای شمرده نمی‌شود.
+    public bool IsCancelled { get; init; }
+    public DateTime? CancelledAtUtc { get; init; }
+    public string? CancellationReason { get; init; }
+    public string? CancelledByUserName { get; init; }
+    public uint RowVersion { get; init; }
 }
 
 public sealed class LoadingReceiptIndexItemViewModel
 {
     public int Id { get; init; }
     public DateTime ReceiptDate { get; init; }
+    public string ContractName { get; init; } = "";
     public string ContractNumber { get; init; } = "";
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string ProductName { get; init; } = "";
     public string TerminalName { get; init; } = "";
     public string? StorageTankCode { get; init; }
@@ -588,6 +599,8 @@ public sealed class LoadingReceiptIndexItemViewModel
     /// <summary>نمبر وسیلهٔ بارگیریِ این رسید: پلاک موتر یا شمارهٔ واگن/بارنامه.</summary>
     public string? VehicleNumber { get; init; }
     public string? ReferenceDocument { get; init; }
+    public bool IsCancelled { get; init; }
+    public string? CancellationReason { get; init; }
 }
 
 public sealed class LoadingReceiptIndexViewModel
@@ -604,6 +617,14 @@ public sealed class LoadingReceiptIndexViewModel
 public sealed class LoadingReceiptCreateViewModel
 {
     public int LoadingRegisterId { get; set; }
+
+    // مسیر «اصلاح مقدار»: رسید قبلی در همان تراکنش لغو و رسید اصلاح‌شده ثبت می‌شود تا
+    // Audit Trail کامل بماند (هیچ فیلد اثرگذاری با Update ساده تغییر نمی‌کند).
+    public int? CorrectionOfReceiptId { get; set; }
+
+    [Display(Name = "دلیل اصلاح")]
+    [StringLength(500)]
+    public string? CorrectionReason { get; set; }
 
     [Display(Name = "مقصد رسید")]
     public LoadingReceiptDestination ReceiptDestination { get; set; } = LoadingReceiptDestination.ToInventory;
@@ -1037,6 +1058,13 @@ public sealed class LoadingReceiptDetailsViewModel
 {
     public int Id { get; init; }
     public int LoadingRegisterId { get; init; }
+
+    // وضعیت لغو رسید؛ رکورد حذف نمی‌شود و دلیل/تاریخ/کاربر لغو قابل مشاهده می‌ماند.
+    public bool IsCancelled { get; init; }
+    public DateTime? CancelledAtUtc { get; init; }
+    public string? CancellationReason { get; init; }
+    public string? CancelledByUserName { get; init; }
+    public uint RowVersion { get; init; }
     public LoadingReceiptDestination ReceiptDestination { get; init; } = LoadingReceiptDestination.ToInventory;
     public DateTime ReceiptDate { get; init; }
     // Gap #3 — arrival tracking

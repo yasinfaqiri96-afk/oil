@@ -85,7 +85,7 @@
                         <tr data-href="@Url.Action("Details", new { id = item.Id, returnUrl = currentUrl })">
                             <td class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
                             <td class="ak-col-grow">
-                                <a asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@currentUrl" class="ak-name">@item.ContractNumber</a>
+                                <a asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@currentUrl" class="ak-name">@item.ContractDisplayLabel</a>
                             </td>
                             <td>
                                 <span class="ak-name">@item.ProductName</span>

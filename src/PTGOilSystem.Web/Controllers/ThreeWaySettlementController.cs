@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.ThreeWaySettlement;
 using PTGOilSystem.Web.Services.Time;
@@ -735,23 +736,29 @@ public class ThreeWaySettlementController : Controller
                 .ToListAsync(),
             "Id", "Name", model.SarrafId);
 
-        ViewBag.SaleContracts = new SelectList(
-            await _db.Contracts.AsNoTracking()
+        var saleContracts = await _db.Contracts.AsNoTracking()
                 .Where(c => c.ContractType == ContractType.Sale)
                 .OrderByDescending(c => c.ContractDate)
-                .Select(c => new { c.Id, c.ContractNumber })
+                .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
                 .Take(300)
-                .ToListAsync(),
-            "Id", "ContractNumber", model.CustomerSaleContractId);
+                .ToListAsync();
+        ViewBag.SaleContracts = new SelectList(
+            saleContracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
+            "Id", "Display", model.CustomerSaleContractId);
 
-        ViewBag.PurchaseContracts = new SelectList(
-            await _db.Contracts.AsNoTracking()
+        var purchaseContracts = await _db.Contracts.AsNoTracking()
                 .Where(c => c.ContractType == ContractType.Purchase)
                 .OrderByDescending(c => c.ContractDate)
-                .Select(c => new { c.Id, c.ContractNumber })
+                .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
                 .Take(300)
-                .ToListAsync(),
-            "Id", "ContractNumber", model.SupplierPurchaseContractId);
+                .ToListAsync();
+        ViewBag.PurchaseContracts = new SelectList(
+            purchaseContracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
+            "Id", "Display", model.SupplierPurchaseContractId);
 
         ViewBag.Currencies = new SelectList(
             await _db.Currencies.AsNoTracking()

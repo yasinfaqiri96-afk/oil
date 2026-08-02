@@ -45,6 +45,8 @@
     int PageCountFor(int totalCount)
         => Math.Max(1, (int)Math.Ceiling(totalCount / (double)detailListPageSize));
 
+    // رسیدهای لغوشده دیده می‌شوند اما در شمارش عملیاتی نمی‌آیند.
+    var activeReceiptCount = Model.ReceiptItems.Count(r => !r.IsCancelled);
     var receiptsPageCount = PageCountFor(Model.ReceiptItems.Count);
     var receiptsPage = Math.Min(ReadPositivePage("receiptsPage"), receiptsPageCount);
     var pagedReceiptItems = Model.ReceiptItems
@@ -260,15 +262,43 @@
         <section id="loading-receipts" class="ak-form-section ak-detail-section">
             <header class="ak-section-head ak-detail-section-header">
                 <h2 class="ak-section-title">@T("رسیدها", "Receipts")</h2>
-                <span class="ak-status">@Model.ReceiptItems.Count</span>
+                <span class="ak-status">@activeReceiptCount</span>
+                @if (activeReceiptCount > 0)
+                {
+                    <button type="button" class="btn btn-outline-danger btn-sm ms-auto"
+                            data-bs-toggle="modal" data-bs-target="#receiptCancelModal"
+                            data-receipt-id="" data-receipt-row-version="">
+                        <i class="bi bi-x-octagon"></i> @T("لغو گروهی", "Bulk cancel")
+                    </button>
+                }
             </header>
             <div class="ak-list">
                 @foreach (var item in pagedReceiptItems)
                 {
                     <div class="ak-list-row">
+                        @if (!item.IsCancelled)
+                        {
+                            <input type="checkbox" class="form-check-input js-receipt-select" form="receiptCancelForm"
+                                   name="ids" value="@item.Id" aria-label="@T("انتخاب رسید", "Select receipt")" />
+                        }
                         <div class="ak-col-grow">
                             <span>@item.ReceiptDate.ToDisplayDate()</span>
                             <strong>@item.TerminalName@(string.IsNullOrWhiteSpace(item.StorageTankCode) ? "" : " / " + item.StorageTankCode)</strong>
+                            @if (item.IsCancelled)
+                            {
+                                <span class="badge text-bg-danger">@T("لغوشده", "Cancelled")</span>
+                                <span class="ak-section-desc">
+                                    @item.CancellationReason
+                                    @if (item.CancelledAtUtc.HasValue)
+                                    {
+                                        @($" · {item.CancelledAtUtc.Value.ToDisplayDate()}")
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.CancelledByUserName))
+                                    {
+                                        @($" · {item.CancelledByUserName}")
+                                    }
+                                </span>
+                            }
                         </div>
                         <div class="ak-num">
                             <strong>@NumberDisplay.Quantity(item.ReceivedQuantityMt) MT</strong>
@@ -277,6 +307,16 @@
                                 <span>@item.ReferenceDocument</span>
                             }
                         </div>
+                        <a class="ak-row-menu-btn" href="@Url.Action("Details", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("مشاهده", "View")" aria-label="@T("مشاهده", "View")"><i class="bi bi-eye"></i></a>
+                        @if (!item.IsCancelled)
+                        {
+                            <a class="ak-row-menu-btn" href="@Url.Action("Edit", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("ویرایش", "Edit")" aria-label="@T("ویرایش", "Edit")"><i class="bi bi-pencil"></i></a>
+                            <a class="ak-row-menu-btn" href="@Url.Action("Correct", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("اصلاح مقدار", "Correct quantity")" aria-label="@T("اصلاح مقدار", "Correct quantity")"><i class="bi bi-arrow-repeat"></i></a>
+                            <button type="button" class="ak-row-menu-btn text-danger"
+                                    data-bs-toggle="modal" data-bs-target="#receiptCancelModal"
+                                    data-receipt-id="@item.Id" data-receipt-row-version="@item.RowVersion"
+                                    title="@T("لغو", "Cancel")" aria-label="@T("لغو", "Cancel")"><i class="bi bi-x-octagon"></i></button>
+                        }
                     </div>
                 }
                 @if (Model.ReceiptItems.Count == 0)
@@ -367,6 +407,43 @@
         </div>
     </div>
 
+    @* لغو رسید: یک فرم و یک مودال برای هر دو حالت تکی و گروهی. دلیل لغو اجباری است. *@
+    <form id="receiptCancelForm" method="post"
+          action="@(Url.Action("BulkCancel", "LoadingReceipts") ?? "/LoadingReceipts/BulkCancel")"
+          data-single-url="@(Url.Action("Cancel", "LoadingReceipts") ?? "/LoadingReceipts/Cancel")"
+          data-bulk-url="@(Url.Action("BulkCancel", "LoadingReceipts") ?? "/LoadingReceipts/BulkCancel")">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="returnUrl" value="@currentPageReturnUrl" />
+        <input type="hidden" name="id" id="receiptCancelId" disabled />
+        <input type="hidden" name="rowVersion" id="receiptCancelRowVersion" disabled />
+
+        <div class="modal fade" id="receiptCancelModal" tabindex="-1" aria-labelledby="receiptCancelModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="receiptCancelModalLabel">@T("لغو رسید بارگیری", "Cancel loading receipt")</h2>
+                        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="ak-section-desc" id="receiptCancelSummary"></p>
+                        <p class="ak-section-desc">
+                            @T("رسید حذف نمی‌شود؛ موجودی، کسری، فروش، دیسپچ و اسناد مالی مرتبط با سند معکوس برمی‌گردند.",
+                               "The receipt is not deleted; inventory, loss, sale, dispatch and financial documents are reversed.")
+                        </p>
+                        <div class="ak-field">
+                            <label class="ak-label" for="receiptCancelReason">@T("دلیل لغو", "Cancellation reason")</label>
+                            <textarea class="ak-input" id="receiptCancelReason" name="reason" rows="3" maxlength="500" required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@T("انصراف", "Back")</button>
+                        <button type="submit" class="btn btn-danger">@T("لغو رسید", "Cancel receipt")</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
     @if (receiptEditor is not null)
     {
         <div class="modal fade" id="loadingReceiptModal" tabindex="-1" aria-labelledby="loadingReceiptModalLabel" aria-hidden="true">
@@ -390,4 +467,45 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        // لغو تکی: id و نسخهٔ سطر ارسال می‌شود. لغو گروهی: چک‌باکس‌های انتخاب‌شده.
+        (function () {
+            var modal = document.getElementById('receiptCancelModal');
+            var form = document.getElementById('receiptCancelForm');
+            if (!modal || !form) { return; }
+
+            var idInput = document.getElementById('receiptCancelId');
+            var rowVersionInput = document.getElementById('receiptCancelRowVersion');
+            var summary = document.getElementById('receiptCancelSummary');
+
+            modal.addEventListener('show.bs.modal', function (event) {
+                var trigger = event.relatedTarget;
+                var receiptId = trigger ? trigger.getAttribute('data-receipt-id') : '';
+
+                if (receiptId) {
+                    idInput.disabled = false;
+                    idInput.value = receiptId;
+                    rowVersionInput.disabled = false;
+                    rowVersionInput.value = trigger.getAttribute('data-receipt-row-version') || '';
+                    form.setAttribute('action', form.getAttribute('data-single-url'));
+                    summary.textContent = '@T("رسید انتخاب‌شده", "Selected receipt")' + ': #' + receiptId;
+                    return;
+                }
+
+                var selected = document.querySelectorAll('.js-receipt-select:checked');
+                idInput.disabled = true;
+                rowVersionInput.disabled = true;
+                form.setAttribute('action', form.getAttribute('data-bulk-url'));
+                summary.textContent = '@T("تعداد رسید انتخاب‌شده", "Selected receipts")' + ': ' + selected.length;
+            });
+
+            form.addEventListener('submit', function (event) {
+                if (!idInput.disabled) { return; }
+                if (document.querySelectorAll('.js-receipt-select:checked').length === 0) {
+                    event.preventDefault();
+                    summary.textContent = '@T("هیچ رسیدی انتخاب نشده است.", "No receipt selected.")';
+                }
+            });
+        })();
+    </script>
 }

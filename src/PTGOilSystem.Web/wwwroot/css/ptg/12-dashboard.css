@@ -266,143 +266,11 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     font-variant-numeric: tabular-nums;
 }
 
-/* ===== quick access ===== */
-.dash-quick-rail {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    min-inline-size: 0;
-    padding: 0;
-    background: none;
-}
-
-.dash-quick-rail h2 {
-    flex: 0 0 auto;
-    margin: 0;
-    color: var(--text-primary);
-    font-size: 14px;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-/* The tiles stay on one line at every width; they shrink instead of wrapping. */
-.dash-quick {
-    display: flex;
-    flex: 1 1 auto;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 10px;
-    min-inline-size: 0;
-}
-
-/* Square tiles: icon above its label, soft grey surface, first tile filled. */
-.dash-quick-item {
-    display: inline-flex;
-    flex: 0 1 104px;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    min-inline-size: 0;
-    min-block-size: 104px;
-    padding: 14px 8px;
-    overflow: hidden;
-    border: 0;
-    border-radius: 18px;
-    color: var(--text-primary);
-    background: var(--ptg-surface-soft);
-    text-decoration: none;
-    white-space: nowrap;
-    transition: transform .16s ease, opacity .16s ease;
-}
-
-.dash-quick-item:hover,
-.dash-quick-item:focus-visible {
-    color: var(--ptg-btn-primary);
-    opacity: .86;
-    transform: translateY(-1px);
-}
-
-.dash-quick-item:focus-visible {
-    outline: 3px solid rgba(var(--ptg-btn-primary-rgb), .2);
-    outline-offset: 2px;
-}
-
-.dash-quick-item--primary,
-.dash-quick-item--primary:hover,
-.dash-quick-item--primary:focus-visible {
-    color: #fff;
-    background: var(--ptg-btn-primary);
-}
-
-.dash-quick-icon {
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-    inline-size: 28px;
-    block-size: 28px;
-    color: var(--ptg-btn-primary);
-    background: none;
-}
-
-.dash-quick-item--primary .dash-quick-icon {
-    color: #fff;
-}
-
-.dash-quick-svg {
-    display: block;
-    inline-size: 28px;
-    block-size: 28px;
-}
-
-.dash-quick-svg--plus {
-    inline-size: 30px;
-    block-size: 30px;
-}
-
-.dash-quick-item strong {
-    display: block;
-    max-inline-size: 100%;
-    min-inline-size: 0;
-    overflow: hidden;
-    color: inherit;
-    font-size: 12px;
-    font-weight: 650;
-    line-height: 1.35;
-    text-align: center;
-    text-overflow: ellipsis;
-}
-
-.dash-quick-label--stacked {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    align-items: center;
-}
-
-/* The global link rule in 45-akaunting.css loads later and would paint every
-   tile navy, including the filled one. Repeated here with the tile class so
-   the idle tiles stay neutral and the primary tile stays white. */
-body.boltz-shell.app-shell-authenticated a.dash-quick-item:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link) {
-    color: var(--text-primary);
-}
-
-body.boltz-shell.app-shell-authenticated a.dash-quick-item:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):hover,
-body.boltz-shell.app-shell-authenticated a.dash-quick-item:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):focus-visible {
-    color: var(--ptg-btn-primary);
-}
-
-body.boltz-shell.app-shell-authenticated a.dash-quick-item--primary:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link),
-body.boltz-shell.app-shell-authenticated a.dash-quick-item--primary:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):hover,
-body.boltz-shell.app-shell-authenticated a.dash-quick-item--primary:not(.btn):not(.boltz-nav-link):not(.dropdown-item):not(.ptg-tab-item):not(.page-link):focus-visible {
-    color: #fff;
-}
-
 /* ===== lower dashboard bento ===== */
+/* Only the shipments card lives here now, so it spans the full width. */
 .dash-insights {
     display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(230px, 3fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     align-items: stretch;
 }
@@ -417,17 +285,6 @@ body.boltz-shell.app-shell-authenticated a.dash-quick-item--primary:not(.btn):no
 .dash-flow-card {
     grid-column: 1;
     grid-row: 1;
-}
-
-.dash-insight-stack {
-    display: grid;
-    grid-column: 2;
-    grid-row: 1;
-    grid-template-rows: minmax(0, 1fr);
-    align-content: stretch;
-    align-items: stretch;
-    gap: 12px;
-    min-inline-size: 0;
 }
 
 .dash-card-head .dash-more {
@@ -681,92 +538,6 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
     background: var(--ptg-danger-soft);
 }
 
-/* Tank capacity: header row, then the tanks side by side as equal columns.
-   The card matches the shipments card height; the tank columns stay centred in
-   the leftover space so no dead gap collects at the bottom. */
-.dash-capacity-card {
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 14px;
-    align-content: stretch;
-    padding-block: 15px;
-}
-
-/* Tanks stay on a single row at every width — columns shrink, they never wrap. */
-.dash-capacity-list {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    align-content: center;
-    gap: 14px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.dash-capacity-row {
-    display: grid;
-    align-content: start;
-    gap: 9px;
-    min-inline-size: 0;
-}
-
-.dash-capacity-row-head {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    min-inline-size: 0;
-}
-
-.dash-capacity-avatar {
-    flex: 0 0 auto;
-    inline-size: 26px;
-    block-size: 26px;
-    padding: 2px;
-    object-fit: contain;
-    border-radius: var(--ptg-radius-lg);
-    background: var(--ptg-surface-soft);
-}
-
-.dash-capacity-name {
-    overflow: hidden;
-    min-inline-size: 0;
-    color: var(--text-primary);
-    font-size: 11px;
-    font-weight: 650;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.dash-capacity-pct {
-    color: var(--text-primary);
-    font-size: 15px;
-    font-weight: 800;
-    line-height: 1;
-    direction: ltr;
-    text-align: left;
-    font-variant-numeric: tabular-nums;
-}
-
-.dash-capacity-row .dash-progress {
-    block-size: 8px;
-}
-
-.dash-capacity-meta {
-    margin: 0;
-    min-inline-size: 0;
-    overflow: hidden;
-    color: var(--text-secondary);
-    font-size: 10.5px;
-    direction: ltr;
-    text-align: left;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.dash-capacity-meta bdi {
-    font-variant-numeric: tabular-nums;
-}
-
 /* Shared compact empty state. */
 .dash-insight .ak-empty {
     display: grid;
@@ -788,39 +559,13 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
         grid-template-columns: 1fr;
     }
 
-    .dash-insights {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .dash-flow-card {
-        grid-column: 1 / -1;
+        grid-column: 1;
         grid-row: auto;
-        order: 1;
-    }
-
-    .dash-insight-stack {
-        grid-column: 1 / -1;
-        grid-row: auto;
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: none;
-        order: 2;
     }
 }
 
 @media (max-width: 767.98px) {
-    /* Still one row on phones: the tiles drop their label and keep the icon. */
-    .dash-quick-item {
-        flex: 1 1 0;
-        gap: 0;
-        min-block-size: 56px;
-        padding: 10px 6px;
-        border-radius: 14px;
-    }
-
-    .dash-quick-item strong {
-        display: none;
-    }
-
     .dash-flow-row {
         grid-template-columns: 38px minmax(0, 1fr) auto;
     }
@@ -850,42 +595,16 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
         gap: 16px;
     }
 
-    .dash-insights {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .dash-insight-stack {
-        grid-column: 1;
-        grid-template-columns: minmax(0, 1fr);
-        order: 1;
-    }
-
     .dash-flow-card {
         grid-column: 1;
-        order: 2;
     }
 
     .dash-flow-row {
         gap: 8px;
     }
-
-    /* Single row is kept on phones too — the columns just get tighter. */
-    .dash-capacity-list {
-        gap: 9px;
-    }
-
-    .dash-capacity-row-head {
-        gap: 5px;
-    }
-
-    .dash-capacity-avatar {
-        inline-size: 22px;
-        block-size: 22px;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .dash-quick-item,
     .dash-card-head .dash-more {
         transition: none;
     }
@@ -898,8 +617,4 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
 
 :root[data-theme="dark"] .dash-chart-grid {
     stroke: rgba(255, 255, 255, .08);
-}
-
-:root[data-theme="dark"] .dash-quick-item {
-    background: rgba(255, 255, 255, .05);
 }

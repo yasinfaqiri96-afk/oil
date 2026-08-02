@@ -70,7 +70,7 @@
                         <tr>
                             <td>@entry.EntryDate.ToDisplayDate()</td>
                             <td><span class="ak-status @(entry.Side =="Credit" ? "is-active" : "")">@CompanyFlowText.Label(entry.Side == "Credit" ? CompanyFlowDirection.Receipt : CompanyFlowDirection.Outflow, Context)</span></td>
-                            <td class="ak-col-grow">@entry.ContractNumber</td>
+                            <td class="ak-col-grow">@entry.ContractDisplayLabel</td>
                             <td class="ak-col-num ak-num">@((entry.SourceAmount ?? 0m).ToString("N2")) @(entry.SourceCurrencyCode ?? Model.CurrencyCode)</td>
                             <td class="ak-col-num ak-num">@entry.AmountUsd.ToString("N2") USD</td>
                             <td class="ak-col-actions"><a asp-controller="Ledger" asp-action="Details" asp-route-id="@entry.Id">مشاهده</a></td>

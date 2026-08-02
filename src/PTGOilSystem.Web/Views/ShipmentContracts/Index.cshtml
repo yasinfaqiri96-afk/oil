@@ -58,7 +58,7 @@
                                     <td>@row.Id</td>
                                     <td>
                                         <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@row.ContractId" asp-route-lockContract="true">
-                                            <code>@row.ContractNumber</code>
+                                            @row.DisplayLabel
                                         </a>
                                     </td>
                                     <td>

@@ -244,8 +244,8 @@
                                     <div class="ak-list-row">
                                         <div class="ak-section-head ak-detail-section-header">
                                             <span class="ak-label">
-                                                <strong>@(line.SupplierName ?? line.ContractNumber)</strong>
-                                                <small>@line.ContractNumber</small>
+                                                <strong>@(line.SupplierName ?? line.ContractName)</strong>
+                                                <small>@line.DisplayLabel</small>
                                             </span>
                                             <span class="ak-num">
                                                 <strong>@NumberDisplay.Quantity(line.AllocatedQuantityMt) @T("تن", "MT")</strong>
@@ -1000,7 +1000,7 @@
                                     <option value="" data-unit-cost="@MoneyInput(Model.AverageCostPerMtUsd)">@T("تقسیم نسبتی بین قراردادها", "Proportional by contracts")</option>
                                     @foreach (var line in Model.ContractLines)
                                     {
-                                        <option value="@line.ContractId" data-unit-cost="@MoneyInput(line.UnitPriceUsd ?? 0m)">@line.ContractNumber - @NumberDisplay.Quantity(line.ShortageRegisterableQuantityMt) @T("تن قابل ثبت", "MT available")</option>
+                                        <option value="@line.ContractId" data-unit-cost="@MoneyInput(line.UnitPriceUsd ?? 0m)">@line.DisplayLabel - @NumberDisplay.Quantity(line.ShortageRegisterableQuantityMt) @T("تن قابل ثبت", "MT available")</option>
                                     }
                                 </select>
                             </div>

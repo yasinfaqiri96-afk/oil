@@ -121,6 +121,7 @@ public partial class LoadingController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 c.ProductId,
@@ -136,6 +137,7 @@ public partial class LoadingController : Controller
             .Select(c => new ContractLookupOption(
                 c.Id,
                 ContractUiText.FormatLookup(
+                    c.ContractName,
                     c.ContractNumber,
                     c.ContractType,
                     c.ProductName,
@@ -642,7 +644,7 @@ public partial class LoadingController : Controller
             ReceiptDate = AfghanistanBusinessClock.SystemToday,
             DirectDispatchDate = AfghanistanBusinessClock.SystemToday,
             ReturnUrl = returnUrl,
-            ContractNumber = loading.Contract?.ContractNumber ?? string.Empty,
+            ContractNumber = loading.Contract?.DisplayLabel ?? string.Empty,
             ProductName = loading.Product?.Name ?? string.Empty,
             LoadingDate = loading.LoadingDate,
             LoadedQuantityMt = loading.LoadedQuantityMt,
@@ -806,7 +808,7 @@ public partial class LoadingController : Controller
         if (!string.IsNullOrWhiteSpace(normalizedQuery))
         {
             query = query.Where(l =>
-                (l.Contract != null && l.Contract.ContractNumber.Contains(normalizedQuery)) ||
+                (l.Contract != null && (l.Contract.ContractName.Contains(normalizedQuery) || l.Contract.ContractNumber.Contains(normalizedQuery))) ||
                 (l.Product != null && l.Product.Name.Contains(normalizedQuery)) ||
                 (l.WagonNumber != null && l.WagonNumber.Contains(normalizedQuery)) ||
                 (l.BillOfLadingNumber != null && l.BillOfLadingNumber.Contains(normalizedQuery)) ||
@@ -824,7 +826,7 @@ public partial class LoadingController : Controller
                 TotalCount = g.Count(),
                 SumQuantity = g.Sum(l => l.LoadedQuantityMt),
                 SumValue = g.Sum(l => l.LoadedQuantityMt * (l.LoadingPriceUsd ?? 0m)),
-                SumReceivedQuantity = g.Sum(l => l.Receipts.Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m),
+                SumReceivedQuantity = g.Sum(l => l.Receipts.Where(r => !r.IsCancelled).Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m),
                 PricePendingCount = g.Count(l => l.LoadingPriceUsd == null || l.LoadingPriceUsd <= 0m)
             })
             .FirstOrDefaultAsync();
@@ -847,13 +849,14 @@ public partial class LoadingController : Controller
                 l.VesselId,
                 l.TruckId,
                 l.WagonNumber,
+                ContractName = l.Contract != null ? l.Contract.ContractName : "",
                 ContractNumber = l.Contract != null ? l.Contract.ContractNumber : "",
                 ProductName = l.Product != null ? l.Product.Name : "",
                 OriginLocationName = l.OriginLocation != null ? l.OriginLocation.Name : null,
                 VesselName = l.Vessel != null ? l.Vessel.Name : null,
                 TruckPlateNumber = l.Truck != null ? l.Truck.PlateNumber : null,
                 l.LoadedQuantityMt,
-                TotalReceivedQuantityMt = l.Receipts.Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m,
+                TotalReceivedQuantityMt = l.Receipts.Where(r => !r.IsCancelled).Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m,
                 l.BillOfLadingNumber,
                 l.RouteDescription,
                 l.LogisticsServiceProviderId,
@@ -894,6 +897,7 @@ public partial class LoadingController : Controller
                     LoadingDate = l.LoadingDate,
                     TransportType = transportType,
                     TransportTypeLabel = GetTransportTypeLabel(transportType),
+                    ContractName = l.ContractName,
                     ContractNumber = l.ContractNumber,
                     ProductName = l.ProductName,
                     OriginLocationName = l.OriginLocationName,
@@ -1877,11 +1881,19 @@ public partial class LoadingController : Controller
                         : r.StorageTank.DisplayName,
                 ReceivedQuantityMt = r.ReceivedQuantityMt,
                 ReferenceDocument = r.ReferenceDocument,
-                InventoryMovementId = r.InventoryMovement != null ? r.InventoryMovement.Id : 0
+                InventoryMovementId = r.InventoryMovement != null ? r.InventoryMovement.Id : 0,
+                IsCancelled = r.IsCancelled,
+                CancelledAtUtc = r.CancelledAtUtc,
+                CancellationReason = r.CancellationReason,
+                CancelledByUserName = r.CancelledByUserId == null
+                    ? null
+                    : _db.Users.Where(u => u.Id == r.CancelledByUserId).Select(u => u.Username).FirstOrDefault(),
+                RowVersion = r.RowVersion
             })
             .ToListAsync();
 
-        var totalReceivedQuantityMt = receiptItems.Sum(r => r.ReceivedQuantityMt);
+        // رسیدهای لغوشده در فهرست دیده می‌شوند اما در هیچ جمعی شمرده نمی‌شوند.
+        var totalReceivedQuantityMt = receiptItems.Where(r => !r.IsCancelled).Sum(r => r.ReceivedQuantityMt);
         var transportType = ResolveTransportType(loading.TransportType, loading.VesselId, loading.TruckId, loading.WagonNumber);
 
         var lossItems = await _db.LossEvents
@@ -1973,7 +1985,7 @@ public partial class LoadingController : Controller
             TransportType = transportType,
             TransportTypeLabel = GetTransportTypeLabel(transportType),
             ContractId = loading.ContractId,
-            ContractNumber = loading.Contract?.ContractNumber ?? "",
+            ContractNumber = loading.Contract?.DisplayLabel ?? "",
             ProductName = loading.Product?.Name ?? "",
             OriginLocationName = loading.OriginLocation?.Name,
             VesselName = loading.Vessel?.Name,
@@ -2217,7 +2229,7 @@ public partial class LoadingController : Controller
 
         var totalReceivedMt = await _db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => r.LoadingRegisterId == loading.Id)
+            .Where(r => r.LoadingRegisterId == loading.Id && !r.IsCancelled)
             .SumAsync(r => (decimal?)r.ReceivedQuantityMt) ?? 0m;
 
         var transportType = ResolveTransportType(loading.TransportType, loading.VesselId, loading.TruckId, loading.WagonNumber);
@@ -2225,7 +2237,7 @@ public partial class LoadingController : Controller
         {
             Id = loading.Id,
             LoadingDate = loading.LoadingDate,
-            ContractNumber = loading.Contract?.ContractNumber ?? "",
+            ContractNumber = loading.Contract?.DisplayLabel ?? "",
             ProductName = loading.Product?.Name ?? "",
             VehicleSummary = BuildVehicleSummary(transportType, loading.Vessel?.Name, loading.Truck?.PlateNumber, loading.WagonNumber),
             LoadedQuantityMt = loading.LoadedQuantityMt,
@@ -2267,7 +2279,7 @@ public partial class LoadingController : Controller
         }
 
         var transportType = ResolveTransportType(loading.TransportType, loading.VesselId, loading.TruckId, loading.WagonNumber);
-        model.ContractNumber = loading.Contract?.ContractNumber ?? "";
+        model.ContractNumber = loading.Contract?.DisplayLabel ?? "";
         model.ProductName = loading.Product?.Name ?? "";
         model.VehicleSummary = BuildVehicleSummary(transportType, loading.Vessel?.Name, loading.Truck?.PlateNumber, loading.WagonNumber);
         model.BillOfLadingNumber = NormalizeNullable(model.BillOfLadingNumber);
@@ -2283,7 +2295,7 @@ public partial class LoadingController : Controller
         // اصلاح وزن: نباید کمتر از مقدار رسیدشده باشد و نباید مجموع بارگیری قرارداد را از مقدار کل بیشتر کند.
         var totalReceivedMt = await _db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => r.LoadingRegisterId == loading.Id)
+            .Where(r => r.LoadingRegisterId == loading.Id && !r.IsCancelled)
             .SumAsync(r => (decimal?)r.ReceivedQuantityMt) ?? 0m;
         model.TotalReceivedQuantityMt = totalReceivedMt;
 
@@ -2439,7 +2451,7 @@ public partial class LoadingController : Controller
         return new LoadingRubleRateEditViewModel
         {
             Id = loading.Id,
-            ContractNumber = loading.Contract?.ContractNumber ?? "",
+            ContractNumber = loading.Contract?.DisplayLabel ?? "",
             LoadedQuantityMt = loading.LoadedQuantityMt,
             LoadingPriceUsd = loading.LoadingPriceUsd,
             LoadingValueUsd = loadingValueUsd,
@@ -2457,7 +2469,7 @@ public partial class LoadingController : Controller
         LoadingRegister loading)
     {
         model.Id = loading.Id;
-        model.ContractNumber = loading.Contract?.ContractNumber ?? "";
+        model.ContractNumber = loading.Contract?.DisplayLabel ?? "";
         model.LoadedQuantityMt = loading.LoadedQuantityMt;
         model.LoadingPriceUsd = loading.LoadingPriceUsd;
         model.LoadingValueUsd = CalculateLoadingValueUsd(loading.LoadedQuantityMt, loading.LoadingPriceUsd);
@@ -2557,7 +2569,7 @@ public partial class LoadingController : Controller
             LoadingDate = loading.LoadingDate,
             TransportType = transportType,
             TransportTypeLabel = GetTransportTypeLabel(transportType),
-            ContractNumber = loading.Contract?.ContractNumber ?? "",
+            ContractNumber = loading.Contract?.DisplayLabel ?? "",
             ProductName = loading.Product?.Name ?? "",
             VehicleSummary = BuildVehicleSummary(transportType, loading.Vessel?.Name, loading.Truck?.PlateNumber, loading.WagonNumber),
             LoadedQuantityMt = loading.LoadedQuantityMt,
@@ -2586,7 +2598,7 @@ public partial class LoadingController : Controller
         {
             Id = loading.Id,
             LoadingDate = loading.LoadingDate,
-            ContractNumber = loading.Contract?.ContractNumber ?? "",
+            ContractNumber = loading.Contract?.DisplayLabel ?? "",
             ProductName = loading.Product?.Name ?? "",
             VehicleSummary = BuildVehicleSummary(transportType, loading.Vessel?.Name, loading.Truck?.PlateNumber, loading.WagonNumber),
             LoadedQuantityMt = loading.LoadedQuantityMt,
@@ -2603,7 +2615,7 @@ public partial class LoadingController : Controller
         var transportType = ResolveTransportType(loading.TransportType, loading.VesselId, loading.TruckId, loading.WagonNumber);
 
         model.LoadingDate = loading.LoadingDate;
-        model.ContractNumber = loading.Contract?.ContractNumber ?? "";
+        model.ContractNumber = loading.Contract?.DisplayLabel ?? "";
         model.ProductName = loading.Product?.Name ?? "";
         model.VehicleSummary = BuildVehicleSummary(transportType, loading.Vessel?.Name, loading.Truck?.PlateNumber, loading.WagonNumber);
         model.LoadedQuantityMt = loading.LoadedQuantityMt;
@@ -2618,7 +2630,7 @@ public partial class LoadingController : Controller
         model.LoadingDate = loading.LoadingDate;
         model.TransportType = transportType;
         model.TransportTypeLabel = GetTransportTypeLabel(transportType);
-        model.ContractNumber = loading.Contract?.ContractNumber ?? "";
+        model.ContractNumber = loading.Contract?.DisplayLabel ?? "";
         model.ProductName = loading.Product?.Name ?? "";
         model.VehicleSummary = BuildVehicleSummary(transportType, loading.Vessel?.Name, loading.Truck?.PlateNumber, loading.WagonNumber);
         model.LoadedQuantityMt = loading.LoadedQuantityMt;

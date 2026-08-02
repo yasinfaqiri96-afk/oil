@@ -279,9 +279,9 @@ public class ShellViewStructureTests
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/12-dashboard.css");
         var script = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/dashboard.js");
 
-        // The dashboard is the `dash-*` composition: a quick-action tile grid, headline
-        // totals and one trend chart. The older `dashboard-shortcut` / `dashboard-chart-*`
-        // naming and the hero banner are gone and must not come back.
+        // The dashboard is the `dash-*` composition: headline totals, the sales mix and
+        // one trend chart. The older `dashboard-shortcut` / `dashboard-chart-*` naming and
+        // the hero banner are gone and must not come back.
         Assert.Contains("ViewData[\"DashboardAssets\"] = true", view);
         Assert.DoesNotContain("dashboard-hero", view);
         Assert.DoesNotContain("dashboard-period", view);
@@ -294,22 +294,18 @@ public class ShellViewStructureTests
         Assert.DoesNotContain("dashboard-activity", view);
         Assert.DoesNotContain("RecentActivities", view);
 
-        // Seven quick-action tiles, exactly one of them the primary call to action.
-        Assert.Equal(7, view.Split("dash-quick-item", StringSplitOptions.None).Length - 1
-            - (view.Split("dash-quick-item--primary", StringSplitOptions.None).Length - 1));
-        Assert.Equal(1, view.Split("dash-quick-item--primary", StringSplitOptions.None).Length - 1);
-        Assert.Contains("asp-controller=\"Sales\" asp-action=\"Create\"", view);
-        Assert.Contains("asp-controller=\"Loading\" asp-action=\"Index\"", view);
-        Assert.Contains("asp-controller=\"Payments\" asp-action=\"Index\"", view);
-        Assert.Contains("dash-quick-rail", view);
-        Assert.Contains("دسترسی سریع", view);
+        // The quick-action rail was removed from the dashboard; navigation lives in the shell.
+        Assert.DoesNotContain("dash-quick", view);
+        Assert.DoesNotContain("dash-quick", insights);
+        Assert.DoesNotContain("دسترسی سریع", view);
 
-        // The lower dashboard is a scoped 5/3 bento: the in-progress shipment flow and
-        // the tank stack. It reuses the shared status and empty state.
+        // The lower dashboard is the in-progress shipment flow on its own full-width row.
+        // It reuses the shared status and empty state.
         Assert.DoesNotContain("dash-activity-card", insights);
         Assert.DoesNotContain("RecentActivities", insights);
         Assert.Contains("dash-flow-card", insights);
-        Assert.Contains("dash-capacity-card", insights);
+        Assert.DoesNotContain("dash-capacity", insights);
+        Assert.DoesNotContain("dash-insight-stack", insights);
         Assert.Contains("Model.ActiveShipmentProgress.Take(3)", insights);
         Assert.Contains("class=\"ak-status @item.StatusClass\"", insights);
         Assert.Contains("<partial name=\"_EmptyState\"", insights);
@@ -328,8 +324,9 @@ public class ShellViewStructureTests
         Assert.Contains("class=\"dash-dot\" style=\"background:@seg.color\"", view);
 
         Assert.Contains(".dashboard-page", css);
-        Assert.Contains(".dash-quick-item", css);
-        Assert.Contains("grid-template-columns: minmax(0, 5fr) minmax(230px, 3fr)", css);
+        Assert.DoesNotContain(".dash-quick", css);
+        Assert.DoesNotContain(".dash-capacity", css);
+        Assert.Contains(".dash-insights", css);
         Assert.Contains(".dash-mix", css);
         Assert.Contains(".dash-trend", css);
         Assert.Contains(".dash-total", css);
@@ -560,6 +557,35 @@ public class ShellViewStructureTests
         Assert.Contains("dispatchEvent(new CustomEvent(\"ptg:page-ready\"", spaNav);
         Assert.Contains("window.addEventListener('ptg:page-ready'", excelImport);
         Assert.Contains("window.addEventListener(\"ptg:page-ready\"", customsImport);
+    }
+
+    [Fact]
+    public void Contracts_List_Uses_The_Shared_Row_Selection_Contract()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Contracts/Index.cshtml");
+
+        Assert.Contains("data-operations-list", view);
+        Assert.Contains("class=\"ak-col-check\"", view);
+        Assert.Contains("data-ops-select-all", view);
+        Assert.Contains("data-ops-row-select", view);
+        Assert.Contains("_OperationsListFooter", view);
+        Assert.Contains("colspan=\"7\"", view);
+        Assert.True(
+            view.IndexOf("data-ops-select-all", StringComparison.Ordinal)
+            < view.IndexOf("@T(\"قرارداد\", \"Contract\")", StringComparison.Ordinal));
+        Assert.Contains("@item.ContractName", view);
+        Assert.Contains("@item.ContractNumber", view);
+    }
+
+    [Fact]
+    public void Logout_Forms_Use_Native_Post_Without_Spa_Or_Submit_Guard_Interception()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var spaNav = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/spa-nav.js");
+
+        Assert.Equal(2, layout.Split("asp-action=\"Logout\"", StringSplitOptions.None).Length - 1);
+        Assert.Equal(2, layout.Split("data-no-spa=\"true\" data-no-submit-guard", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("/logout/i.test(action)", spaNav);
     }
 
     [Fact]

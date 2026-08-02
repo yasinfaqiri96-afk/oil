@@ -18,6 +18,11 @@ public sealed class ContractFormViewModel
 {
     public int Id { get; set; }
 
+    [Display(Name = "نام قرارداد")]
+    [Required(ErrorMessage = "لطفاً نام قرارداد را وارد کنید.")]
+    [StringLength(200)]
+    public string ContractName { get; set; } = string.Empty;
+
     [Display(Name = "شماره قرارداد")]
     [Required(ErrorMessage = "شماره قرارداد الزامی است.")]
     [StringLength(50)]

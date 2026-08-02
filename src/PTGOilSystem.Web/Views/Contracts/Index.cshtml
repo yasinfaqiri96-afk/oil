@@ -55,7 +55,7 @@
 
 }
 
-<div class="ak-form-page ak-list-page">
+<div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("قراردادها", "Contracts"), true,
                        T("قرارداد جدید", "New Contract"), "bi-plus-lg",
@@ -102,7 +102,8 @@
             <table class="ak-table">
                 <thead>
                     <tr>
-                        <th>@T("کد", "Code")</th>
+                        <th class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-select-all aria-label="@T("انتخاب همه", "Select all")" /></th>
+                        <th>@T("قرارداد", "Contract")</th>
                         <th>@T("طرف قرارداد", "Party")</th>
                         <th>@T("مقدار", "Quantity")</th>
                         <th>@T("محصول", "Product")</th>
@@ -117,8 +118,10 @@
                         var productText = DashIfEmpty(item.Product?.Name);
                         var journeyUrl = Url.Action("Details", "ContractJourney", new { contractId = item.Id, tab = "summary", lockContract = true, returnUrl = currentReturnUrl });
                         <tr data-href="@journeyUrl">
+                            <td class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@T("انتخاب ردیف", "Select row")" /></td>
                             <td>
-                                <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@partyText" dir="ltr">@item.ContractNumber</a>
+                                <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@item.DisplayLabel">@item.ContractName</a>
+                                <div class="ak-muted" dir="ltr">@item.ContractNumber</div>
                             </td>
                             <td>
                                 <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((partyText, (string?)"muted"))" />
@@ -141,7 +144,7 @@
                     @if (!items.Any())
                     {
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="ak-empty"><i class="bi bi-file-earmark-text"></i>@T("قراردادی پیدا نشد", "No contracts found")</div>
                             </td>
                         </tr>
@@ -150,5 +153,7 @@
             </table>
         </div>
 
-    @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
+    <div class="ak-pager">
+        @await Html.PartialAsync("_OperationsListFooter", (Model.CurrentPage, Model.PageCount, Model.TotalCount, 20))
+    </div>
 </div>

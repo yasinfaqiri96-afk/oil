@@ -152,9 +152,37 @@ public class AuthControllerTests
         Assert.DoesNotContain(authService.LastPrincipal.FindAll(AppClaimTypes.Permission), c => c.Value == AppPermissions.ManageUsers);
     }
 
+    [Fact]
+    public async Task Logout_Signs_Out_And_Redirects_To_Login()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        var authService = new RecordingAuthenticationService();
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(authService)
+            .BuildServiceProvider();
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var controller = new AuthController(new UserService(db), NullLogger<AuthController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext },
+            TempData = new TempDataDictionary(httpContext, new InMemoryTempDataProvider())
+        };
+        controller.Url = new StubUrlHelper();
+
+        var result = await controller.Logout();
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Login", redirect.ActionName);
+        Assert.True(authService.SignedOut);
+    }
+
     private sealed class RecordingAuthenticationService : IAuthenticationService
     {
         public ClaimsPrincipal? LastPrincipal { get; private set; }
+        public bool SignedOut { get; private set; }
 
         public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme)
             => Task.FromResult(AuthenticateResult.NoResult());
@@ -172,7 +200,10 @@ public class AuthControllerTests
         }
 
         public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties)
-            => Task.CompletedTask;
+        {
+            SignedOut = true;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class InMemoryTempDataProvider : ITempDataProvider

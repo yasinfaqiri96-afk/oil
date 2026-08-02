@@ -58,14 +58,20 @@
                         <tr data-href="@Url.Action("Details", new { id = item.Id })">
                             <td class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
                             <td class="ak-col-grow">
-                                @await Html.PartialAsync("_OperationsListIdentity", ("bi-box-arrow-in-down", string.IsNullOrWhiteSpace(item.ContractNumber) ? "-" : item.ContractNumber, item.ReceiptDate.ToDisplayDate(), true))
+                                @await Html.PartialAsync("_OperationsListIdentity", ("bi-box-arrow-in-down", string.IsNullOrWhiteSpace(item.ContractDisplayLabel) ? "-" : item.ContractDisplayLabel, item.ReceiptDate.ToDisplayDate(), true))
                             </td>
                             <td>@(string.IsNullOrWhiteSpace(item.ProductName) ? "-" : item.ProductName)</td>
                             <td>
                                 <span class="ak-name">@(item.StorageTankCode ?? item.TerminalName)</span>
                                 <small>@item.TerminalName</small>
                             </td>
-                            <td class="ak-num">@NumberDisplay.Quantity(item.ReceivedQuantityMt) MT</td>
+                            <td class="ak-num">
+                                @NumberDisplay.Quantity(item.ReceivedQuantityMt) MT
+                                @if (item.IsCancelled)
+                                {
+                                    <span class="badge text-bg-danger" title="@item.CancellationReason">@UiText.T(Context, "لغوشده", "Cancelled")</span>
+                                }
+                            </td>
                             <td>
                                 @{
                                     var receiptRef = item.ReferenceDocument != null && item.ReferenceDocument.StartsWith("BULK-RCPT-", StringComparison.OrdinalIgnoreCase)
@@ -104,22 +110,6 @@
 
 @section Scripts {
     <script>
-        (function () {
-            var toggle = document.getElementById('lrFilterToggle');
-            var pop = document.getElementById('lrFilterPop');
-            if (!toggle || !pop) return;
-            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-            toggle.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var open = pop.hidden;
-                pop.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-            document.addEventListener('click', function (e) {
-                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
-            });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-        })();
         (function () {
             document.querySelectorAll('.ak-table tbody tr[data-href]').forEach(function (row) {
                 row.style.cursor = 'pointer';

@@ -4,7 +4,6 @@
     ViewData["Title"] = UiText.T(Context, "راپور کسری و اضافه‌بار حمل", "Transport Shortage & Surplus Report");
     var f = Model.Filter;
     var t = Model.Totals;
-    var hasActiveFilters = f.HasAny;
 
     // کسری سرخ، اضافه‌بار سبز — نشانهٔ رنگی و متنی هر دو، تا فقط با رنگ تشخیص داده نشود.
     string KindTone(TransportVarianceKind kind)
@@ -72,45 +71,42 @@
     </section>
 
     <div class="ak-list">
-        <form method="get" class="ak-report-parameters" id="tvFilterForm">
-            <div class="ak-report-parameters-bar">
-                <div class="ak-report-parameters-anchor">
-                    <button type="button" class="btn btn-light ak-report-parameters-toggle @(hasActiveFilters ? "is-on" : null)" id="tvFilterToggle" aria-label="@UiText.T(Context, "فیلتر", "Filter")" aria-expanded="false">
-                        <i class="bi bi-funnel"></i>
-                    </button>
-                    <div class="ak-report-parameters-pop" id="tvFilterPop" hidden>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "نوع تفاوت", "Variance type")</label>
-                        <select class="ak-input" name="Kind">
-                            <option value="All" selected="@(f.Kind == TransportVarianceFilterKind.All)">@UiText.T(Context, "همه", "All")</option>
-                            <option value="ShortageOnly" selected="@(f.Kind == TransportVarianceFilterKind.ShortageOnly)">@UiText.T(Context, "فقط کسری", "Shortage only")</option>
-                            <option value="SurplusOnly" selected="@(f.Kind == TransportVarianceFilterKind.SurplusOnly)">@UiText.T(Context, "فقط اضافه‌بار", "Surplus only")</option>
-                        </select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "مسیر ثبت", "Source")</label>
-                        <select class="ak-input" name="Source">
-                            <option value="">@UiText.T(Context, "همه مسیرها", "All sources")</option>
-                            <option value="TruckDispatch" selected="@(f.Source == TransportVarianceSource.TruckDispatch)">@UiText.T(Context, "تخلیه موتر", "Truck unload")</option>
-                            <option value="InventoryTransfer" selected="@(f.Source == TransportVarianceSource.InventoryTransfer)">@UiText.T(Context, "انتقال داخلی", "Internal transfer")</option>
-                        </select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "از تاریخ", "From")</label>
-                        <input class="ak-input" type="date" name="FromDate" value="@f.FromDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "تا تاریخ", "To")</label>
-                        <input class="ak-input" type="date" name="ToDate" value="@f.ToDate?.ToHtmlDateInput()" />
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "جنس", "Product")</label>
-                        <select class="ak-input" name="ProductId" asp-items="ViewBag.TransportVarianceProducts"><option value="">@UiText.T(Context, "همه اجناس", "All products")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "قرارداد", "Contract")</label>
-                        <select class="ak-input" name="ContractId" asp-items="ViewBag.TransportVarianceContracts"><option value="">@UiText.T(Context, "همه قراردادها", "All contracts")</option></select>
-                        <label class="ak-report-parameters-field">@UiText.T(Context, "موتر یا راننده", "Vehicle or driver")</label>
-                        <input class="ak-input" type="text" name="Search" value="@f.Search" />
-                        <button type="submit" class="btn btn-primary ak-report-parameters-apply">@UiText.T(Context, "اعمال", "Apply")</button>
-                        <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("TransportVarianceExport"))" />
-                        @if (hasActiveFilters)
+        @{
+            List<AkFilterOption> VarianceOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+            // «همه» مقدار پیش‌فرض است و فیلتر به حساب نمی‌آید، پس چیپ نمی‌سازد.
+            var varianceKindValue = f.Kind == TransportVarianceFilterKind.All ? null : f.Kind.ToString();
+            var varianceFilter = new AkSearchFilterModel("Search", f.Search,
+                UiText.T(Context, "جست‌وجوی موتر یا راننده...", "Search vehicle or driver..."),
+                new List<AkFilterDefinition>
+                {
+                    new("Kind", UiText.T(Context, "نوع تفاوت", "Variance type"), "select",
+                        new List<AkFilterOption>
                         {
-                            <a asp-action="TransportVariance" class="btn btn-light ak-report-parameters-apply">@UiText.T(Context, "پاک‌کردن", "Clear")</a>
-                        }
-                    </div>
-                </div>
+                            new("ShortageOnly", UiText.T(Context, "فقط کسری", "Shortage only")),
+                            new("SurplusOnly", UiText.T(Context, "فقط اضافه‌بار", "Surplus only"))
+                        }, varianceKindValue),
+                    new("Source", UiText.T(Context, "مسیر ثبت", "Source"), "select",
+                        new List<AkFilterOption>
+                        {
+                            new("TruckDispatch", UiText.T(Context, "تخلیه موتر", "Truck unload")),
+                            new("InventoryTransfer", UiText.T(Context, "انتقال داخلی", "Internal transfer"))
+                        }, f.Source?.ToString()),
+                    new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                        f.FromDate?.ToString("yyyy-MM-dd"), "ToDate", f.ToDate?.ToString("yyyy-MM-dd")),
+                    new("ProductId", UiText.T(Context, "جنس", "Product"), "select", VarianceOpts(ViewBag.TransportVarianceProducts),
+                        f.ProductId?.ToString()),
+                    new("ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", VarianceOpts(ViewBag.TransportVarianceContracts),
+                        f.ContractId?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="varianceFilter" />
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("TransportVarianceExport"))" />
             </div>
-        </form>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">
@@ -228,24 +224,3 @@
         @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
     </div>
 </div>
-
-@section Scripts {
-    <script>
-        (function () {
-            var toggle = document.getElementById('tvFilterToggle');
-            var pop = document.getElementById('tvFilterPop');
-            if (!toggle || !pop) return;
-            function close() { pop.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-            toggle.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var open = pop.hidden;
-                pop.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-            document.addEventListener('click', function (e) {
-                if (!pop.hidden && !pop.contains(e.target) && e.target !== toggle) close();
-            });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-        })();
-    </script>
-}

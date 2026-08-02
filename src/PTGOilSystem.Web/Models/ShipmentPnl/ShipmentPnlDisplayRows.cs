@@ -293,8 +293,9 @@ public static class ShipmentPnlDisplayGrouping
         if (loss.ContractId.HasValue)
         {
             var contract = contractLines.FirstOrDefault(line => line.ContractId == loss.ContractId.Value);
-            var contractNumber = loss.ContractNumber
-                ?? contract?.ContractNumber
+            var contractNumber = !string.IsNullOrWhiteSpace(loss.ContractDisplayLabel)
+                ? loss.ContractDisplayLabel
+                : contract?.DisplayLabel
                 ?? $"#{loss.ContractId.Value}";
             var amountUsd = contract?.UnitPriceUsd is > 0m
                 ? RoundMoney(loss.DifferenceQuantityMt * contract.UnitPriceUsd.Value)

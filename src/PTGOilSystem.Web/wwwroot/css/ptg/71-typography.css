@@ -148,7 +148,6 @@
     }
 
     body.boltz-shell.app-shell-authenticated :where(
-        .ak-report-parameters-pop label,
         .ak-filter-popover .ak-option-meta,
         .ak-pop-head,
         .ak-date-panel label,
@@ -160,7 +159,6 @@
         .boltz-footer
     ),
     body.ptg-modal-document :where(
-        .ak-report-parameters-pop label,
         .ak-filter-popover .ak-option-meta,
         .ak-pop-head,
         .ak-date-panel label,

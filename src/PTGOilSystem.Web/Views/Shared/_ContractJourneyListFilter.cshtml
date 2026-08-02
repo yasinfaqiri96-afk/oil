@@ -1,0 +1,17 @@
+@model (string SearchName, string? SearchValue, string Placeholder, string PageKey)
+@{
+    var hidden = Context.Request.Query
+        .Where(pair => !string.Equals(pair.Key, Model.SearchName, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(pair.Key, Model.PageKey, StringComparison.OrdinalIgnoreCase))
+        .ToDictionary(pair => pair.Key, pair => pair.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+
+    var filterModel = AkSearchFilterModel.SearchOnly(
+        Model.SearchName,
+        Model.SearchValue,
+        Model.Placeholder) with
+    {
+        Hidden = hidden
+    };
+}
+
+<partial name="_AkSearchFilter" model="filterModel" />

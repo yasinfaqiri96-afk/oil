@@ -222,6 +222,7 @@ public partial class DispatchController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -237,6 +238,7 @@ public partial class DispatchController : Controller
                 .Select(c => new ContractLookupOption(
                     c.Id,
                     ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,
@@ -529,7 +531,7 @@ public partial class DispatchController : Controller
             .FirstOrDefaultAsync();
 
         model.TruckDispatchId = dispatch.Id;
-        model.ContractNumber = dispatch.Contract?.ContractNumber ?? "";
+        model.ContractNumber = dispatch.Contract?.DisplayLabel ?? "";
         model.ProductName = dispatch.Product?.Name ?? "";
         model.TruckPlateNumber = dispatch.Truck?.PlateNumber ?? "";
         model.DriverName = dispatch.Driver?.FullName;
@@ -604,8 +606,8 @@ public partial class DispatchController : Controller
         model.LoadingReceiptAllocationId = allocation.Id;
         model.LoadingReceiptId = allocation.LoadingReceiptId;
         model.LoadingRegisterId = allocation.LoadingReceipt?.LoadingRegisterId ?? 0;
-        model.ContractNumber = allocation.SourcePurchaseContract?.ContractNumber
-            ?? allocation.LoadingReceipt?.LoadingRegister?.Contract?.ContractNumber
+        model.ContractNumber = allocation.SourcePurchaseContract?.DisplayLabel
+            ?? allocation.LoadingReceipt?.LoadingRegister?.Contract?.DisplayLabel
             ?? "";
         model.ProductName = allocation.LoadingReceipt?.LoadingRegister?.Product?.Name ?? "";
         model.SourceTerminalName = allocation.Terminal?.Name ?? "";
@@ -708,9 +710,9 @@ public partial class DispatchController : Controller
         model.TruckDispatchId = dispatch.Id;
         model.LoadingReceiptAllocationId = allocation.Id;
         model.LoadingReceiptId = allocation.LoadingReceiptId;
-        model.ContractNumber = allocation.SourcePurchaseContract?.ContractNumber
-            ?? allocation.LoadingReceipt?.LoadingRegister?.Contract?.ContractNumber
-            ?? dispatch.Contract?.ContractNumber
+        model.ContractNumber = allocation.SourcePurchaseContract?.DisplayLabel
+            ?? allocation.LoadingReceipt?.LoadingRegister?.Contract?.DisplayLabel
+            ?? dispatch.Contract?.DisplayLabel
             ?? "";
         model.ProductName = dispatch.Product?.Name
             ?? allocation.LoadingReceipt?.LoadingRegister?.Product?.Name
@@ -738,7 +740,7 @@ public partial class DispatchController : Controller
         model.TruckDispatchId = dispatch.Id;
         model.LoadingReceiptAllocationId = null;
         model.LoadingReceiptId = null;
-        model.ContractNumber = dispatch.Contract?.ContractNumber ?? "";
+        model.ContractNumber = dispatch.Contract?.DisplayLabel ?? "";
         model.ProductName = dispatch.Product?.Name ?? "";
         model.TruckPlateNumber = dispatch.Truck?.PlateNumber ?? "";
         model.DriverName = dispatch.Driver?.FullName;
@@ -846,6 +848,7 @@ public partial class DispatchController : Controller
                 DispatchDate = d.DispatchDate,
                 TruckPlateNumber = d.Truck != null ? d.Truck.PlateNumber : "",
                 ProductName = d.Product != null ? d.Product.Name : "",
+                ContractName = d.Contract != null ? d.Contract.ContractName : "",
                 ContractNumber = d.Contract != null ? d.Contract.ContractNumber : "",
                 DriverName = d.Driver != null ? d.Driver.FullName : null,
                 DestinationName = d.DestinationLocation != null ? d.DestinationLocation.Name : null,
@@ -2922,7 +2925,7 @@ public partial class DispatchController : Controller
             LoadingReceiptId = directAllocation?.LoadingReceiptId,
             LoadingRegisterId = directAllocation?.LoadingReceipt?.LoadingRegisterId,
             DispatchDate = dispatch.DispatchDate,
-            ContractNumber = dispatch.Contract?.ContractNumber ?? "",
+            ContractNumber = dispatch.Contract?.DisplayLabel ?? "",
             ProductName = dispatch.Product?.Name ?? "",
             TruckPlateNumber = dispatch.Truck?.PlateNumber ?? "",
             DriverName = dispatch.Driver?.FullName,

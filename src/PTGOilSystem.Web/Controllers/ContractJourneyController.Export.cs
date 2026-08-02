@@ -55,7 +55,8 @@ public partial class ContractJourneyController
         var activeTab = ContractJourneyTabs.Details.Normalize(tab);
         var filters = TabularExportSupport.FilterSummary(
             ("تاریخ تولید (کابل) / Generated (Kabul)", AfghanistanBusinessClock.SystemToday.ToString("yyyy-MM-dd")),
-            ("قرارداد / Contract", model.ContractNumber),
+            ("نام قرارداد / Contract name", model.ContractName),
+            ("شماره قرارداد / Contract no.", model.ContractNumber),
             ("نوع قرارداد / Contract type", model.ContractTypeName),
             ("شرکت / Company", model.CompanyName),
             ("جنس / Product", model.ProductName),
@@ -96,6 +97,7 @@ public partial class ContractJourneyController
         var partnerName = model.IsPurchaseContract ? model.SupplierName : model.CustomerName;
         var rows = new List<TabularExportRow>
         {
+            Metric("نام قرارداد / Contract name", null, null, model.ContractName),
             Metric("شماره قرارداد / Contract no.", null, null, model.ContractNumber),
             Metric("طرف قرارداد / Counterparty", null, null, partnerName),
             Metric("مقدار قرارداد / Contract quantity", model.ContractQuantityMt, null, model.ContractUnitText),

@@ -41,8 +41,8 @@
                 {
                     <tr data-href="@Url.Action("Details", new { id = item.Id })">
                         <td>@item.TransferDate.ToDisplayDate()</td>
-                        <td class="ak-col-grow"><a class="ak-name" asp-action="Details" asp-route-id="@item.Id">@item.FromContractNumber</a></td>
-                        <td>@item.ToContractNumber</td>
+                        <td class="ak-col-grow"><a class="ak-name" asp-action="Details" asp-route-id="@item.Id">@item.FromContractDisplayLabel</a></td>
+                        <td>@item.ToContractDisplayLabel</td>
                         <td class="ak-col-num ak-num">@item.AmountOriginal.ToString("N2") @item.CurrencyCode</td>
                         <td class="ak-col-num ak-num">@item.FxRateToUsd.ToString("N6")</td>
                         <td class="ak-col-num ak-num">@item.AmountUsd.ToString("N2") USD</td>

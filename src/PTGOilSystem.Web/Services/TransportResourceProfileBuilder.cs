@@ -343,7 +343,7 @@ public static class TransportResourceProfileBuilder
 
         var receiptDocs = await db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => loadingIds.Contains(r.LoadingRegisterId) && r.ReferenceDocument != null)
+            .Where(r => loadingIds.Contains(r.LoadingRegisterId) && !r.IsCancelled && r.ReferenceDocument != null)
             .OrderByDescending(r => r.ReceiptDate)
             .Select(r => new TransportResourceDocumentItem
             {

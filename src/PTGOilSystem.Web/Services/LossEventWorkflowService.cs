@@ -117,6 +117,10 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
             {
                 addError(nameof(submission.LoadingReceiptId), "رسید بارگیری انتخاب‌شده معتبر نیست.");
             }
+            else if (receipt.IsCancelled)
+            {
+                addError(nameof(submission.LoadingReceiptId), "رسید بارگیری انتخاب‌شده لغو شده است.");
+            }
             else if (receipt.LoadingRegister is not null)
             {
                 if (receipt.LoadingRegister.ProductId != submission.ProductId)

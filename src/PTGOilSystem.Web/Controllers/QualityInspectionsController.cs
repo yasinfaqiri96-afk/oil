@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Quality;
 using PTGOilSystem.Web.Security;
@@ -539,10 +540,13 @@ public partial class QualityInspectionsController : Controller
                 .Select(c => new { c.Id, c.Name }).ToListAsync(ct),
             "Id", "Name", model.CompanyId);
 
+        var contracts = await _db.Contracts.AsNoTracking().OrderByDescending(c => c.ContractDate)
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber }).Take(500).ToListAsync(ct);
         ViewBag.Contracts = new SelectList(
-            await _db.Contracts.AsNoTracking().OrderByDescending(c => c.ContractDate)
-                .Select(c => new { c.Id, Name = c.ContractNumber }).Take(500).ToListAsync(ct),
-            "Id", "Name", model.ContractId);
+            contracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
+            "Id", "Display", model.ContractId);
 
         ViewBag.Shipments = new SelectList(
             await _db.Shipments.AsNoTracking().OrderByDescending(s => s.Id)

@@ -271,7 +271,7 @@ public partial class ShipmentPnlController : Controller
                 Id = r.Id,
                 ReceiptDate = r.ReceiptDate,
                 ContractNumber = r.InventoryTransportLeg!.SourcePurchaseContract != null
-                    ? r.InventoryTransportLeg.SourcePurchaseContract.ContractNumber
+                    ? r.InventoryTransportLeg.SourcePurchaseContract.DisplayLabel
                     : $"#{r.InventoryTransportLeg.SourcePurchaseContractId}",
                 DestinationTerminalName = r.DestinationTerminal != null ? r.DestinationTerminal.Name : "-",
                 DestinationTankName = r.DestinationStorageTank != null
@@ -325,6 +325,7 @@ public partial class ShipmentPnlController : Controller
                 DifferenceQuantityMt = l.DifferenceQuantityMt,
                 ChargeableLossMt = l.ChargeableLossMt,
                 ContractId = l.ContractId,
+                ContractName = l.Contract != null ? l.Contract.ContractName : null,
                 ContractNumber = l.Contract != null ? l.Contract.ContractNumber : null,
                 ResponsiblePartyType = l.ResponsiblePartyType,
                 ResponsiblePartyName = l.ResponsiblePartyName,
@@ -811,6 +812,7 @@ public partial class ShipmentPnlController : Controller
                 return new ShipmentContractLineViewModel
                 {
                     ContractId = sc.ContractId,
+                    ContractName = sc.Contract?.ContractName ?? string.Empty,
                     ContractNumber = sc.Contract?.ContractNumber ?? $"#{sc.ContractId}",
                     SupplierName = sc.Contract?.Supplier?.Name,
                     ProductName = sc.Contract?.Product?.Name,
@@ -1201,7 +1203,7 @@ public partial class ShipmentPnlController : Controller
             .SelectMany(pair =>
             {
                 var leg = transportLegById[pair.Key];
-                var contractNumber = leg.SourcePurchaseContract?.ContractNumber
+                var contractNumber = leg.SourcePurchaseContract?.DisplayLabel
                     ?? $"#{leg.SourcePurchaseContractId}";
                 return pair.Value.Sales.Select(sale => new
                 {
@@ -1243,7 +1245,7 @@ public partial class ShipmentPnlController : Controller
             {
                 Id = leg.Id,
                 LoadedDate = leg.LoadedDate,
-                ContractNumber = contract?.ContractNumber,
+                ContractNumber = contract?.DisplayLabel,
                 ContractUnitText = contract != null ? ContractUiText.ResolveUnitText(contract.Unit) : "-",
                 ProductName = contract?.Product?.Name ?? leg.Product?.Name,
                 SupplierName = contract?.Supplier?.Name,
@@ -1282,7 +1284,7 @@ public partial class ShipmentPnlController : Controller
                     ExpenseTypeName = "کرایه رسید حمل",
                     AmountUsd = legPnl.ReceiptFreightExpenseUsd,
                     Description = $"حمل #{leg.Id}",
-                    ContractNumber = contract?.ContractNumber,
+                    ContractNumber = contract?.DisplayLabel,
                     VehicleNumber = leg.WagonNumber ?? leg.RwbNo,
                     AllocationQuantityMt = leg.QuantityMt,
                     SourceKey = $"RECEIPT-FREIGHT:{leg.Id}",
@@ -1367,7 +1369,7 @@ public partial class ShipmentPnlController : Controller
                 SaleDate = sale.SaleDate,
                 InvoiceNumber = sale.InvoiceNumber,
                 CustomerName = sale.Customer?.Name,
-                ContractNumber = sale.Contract?.ContractNumber,
+                ContractNumber = sale.Contract?.DisplayLabel,
                 QuantityMt = sale.QuantityMt,
                 UnitPriceUsd = sale.UnitPriceUsd,
                 TotalUsd = sale.TotalUsd,
@@ -1381,7 +1383,7 @@ public partial class ShipmentPnlController : Controller
                         [
                             new ShipmentContractBreakdownLine
                             {
-                                ContractNumber = sale.Contract.ContractNumber,
+                                ContractNumber = sale.Contract.DisplayLabel,
                                 QuantityMt = sale.QuantityMt,
                                 AmountUsd = sale.TotalUsd,
                                 Description = sale.InvoiceNumber
@@ -1460,7 +1462,7 @@ public partial class ShipmentPnlController : Controller
                 ExpenseTypeName = expense.ExpenseType != null ? (expense.ExpenseType.NamePersian ?? expense.ExpenseType.Name) : string.Empty,
                 AmountUsd = expense.AmountUsd,
                 Description = UserDescription(expense.Description),
-                ContractNumber = expense.Contract?.ContractNumber,
+                ContractNumber = expense.Contract?.DisplayLabel,
                 TruckDispatchLabel = expense.TruckDispatch == null
                     ? null
                     : $"#{expense.TruckDispatch.Id} - {expense.TruckDispatch.Truck!.PlateNumber}",
@@ -1502,7 +1504,7 @@ public partial class ShipmentPnlController : Controller
                 ExpenseTypeName = "مصارف محصولی",
                 AmountUsd = customs.TotalUsd,
                 Description = BuildCustomsDescription(customs),
-                ContractNumber = customs.TransportLeg?.SourcePurchaseContract?.ContractNumber,
+                ContractNumber = customs.TransportLeg?.SourcePurchaseContract?.DisplayLabel,
                 VehicleNumber = customs.TransportLeg?.WagonNumber ?? customs.TransportLeg?.RwbNo,
                 AllocationQuantityMt = customs.TransportLeg?.QuantityMt ?? 0m,
                 SourceKey = $"CUSTOMS:{customs.Id}",

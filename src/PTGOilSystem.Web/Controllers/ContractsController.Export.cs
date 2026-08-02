@@ -17,9 +17,11 @@ public partial class ContractsController
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim();
-            query = query.Where(c => c.ContractNumber.Contains(term)
+            query = query.Where(c => c.ContractName.Contains(term)
+                || c.ContractNumber.Contains(term)
                 || (c.Supplier != null && c.Supplier.Name.Contains(term))
                 || (c.Customer != null && c.Customer.Name.Contains(term))
+                || (c.Product != null && c.Product.Name.Contains(term))
                 || c.ContractPartners.Any(cp => cp.Partner != null && cp.Partner.Name.Contains(term)));
         }
         if (type.HasValue) query = query.Where(c => c.ContractType == type.Value);
@@ -29,6 +31,7 @@ public partial class ContractsController
             .OrderByDescending(c => c.ContractDate).ThenByDescending(c => c.Id)
             .Select(c => new
             {
+                c.ContractName,
                 c.ContractNumber,
                 Party = c.ContractType == ContractType.Purchase ? c.Supplier!.Name : c.Customer!.Name,
                 Product = c.Product != null ? c.Product.Name : "",
@@ -46,7 +49,8 @@ public partial class ContractsController
             Filters = TabularExportSupport.FilterSummary(("جستجو / Search", q), ("نوع / Type", type), ("وضعیت / Status", status)),
             Columns =
             [
-                new("شماره قرارداد", "Contract no.", Width: 17), new("طرف قرارداد", "Party", Width: 22),
+                new("نام قرارداد", "Contract name", Width: 24), new("شماره قرارداد", "Contract no.", Width: 17),
+                new("طرف قرارداد", "Party", Width: 22),
                 new("جنس", "Product", Width: 18), new("مقدار", "Quantity", TabularExportValueType.Number, 15),
                 new("واحد", "Unit", Width: 10), new("نوع", "Type", Width: 12),
                 new("تاریخ قرارداد", "Contract date", TabularExportValueType.Date, 14),
@@ -54,7 +58,8 @@ public partial class ContractsController
             ],
             Rows = rows.Select(r => new TabularExportRow(
             [
-                TabularExportCell.Text(r.ContractNumber), TabularExportCell.Text(r.Party), TabularExportCell.Text(r.Product),
+                TabularExportCell.Text(r.ContractName), TabularExportCell.Text(r.ContractNumber),
+                TabularExportCell.Text(r.Party), TabularExportCell.Text(r.Product),
                 TabularExportCell.Number(r.QuantityMt), TabularExportCell.Text(r.Unit), TabularExportCell.Text(r.ContractType.ToString()),
                 TabularExportCell.Date(r.ContractDate), TabularExportCell.Date(r.EndDate), TabularExportCell.Text(r.Status.ToString())
             ]))

@@ -72,6 +72,21 @@
     }
     <input asp-for="LoadingRegisterId" type="hidden" />
     <input asp-for="ReturnUrl" type="hidden" />
+    @if (Model.CorrectionOfReceiptId is > 0)
+    {
+        @* اصلاح مقدار: رسید قبلی هنگام ثبت، در همان تراکنش لغو می‌شود. *@
+        <input asp-for="CorrectionOfReceiptId" type="hidden" />
+        <div class="alert alert-warning">
+            @T("اصلاح رسید", "Correcting receipt") #@Model.CorrectionOfReceiptId —
+            @T("با ثبت این فرم، رسید قبلی لغو و رسید اصلاح‌شده ثبت می‌شود.",
+               "Submitting this form cancels the previous receipt and registers the corrected one.")
+        </div>
+        <div class="ak-field ak-span-2">
+            <label class="ak-label" asp-for="CorrectionReason"></label>
+            <input class="ak-input" asp-for="CorrectionReason" maxlength="500" required />
+            <span asp-validation-for="CorrectionReason"></span>
+        </div>
+    }
     <input asp-for="Loss.Stage" type="hidden" />
     <input asp-for="ReceiptDestination" type="hidden" id="ReceiptDestination" />
     <input asp-for="AllocationDestination" type="hidden" id="AllocationDestination" />

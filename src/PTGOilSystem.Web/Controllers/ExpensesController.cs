@@ -98,6 +98,7 @@ public partial class ExpensesController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -133,6 +134,7 @@ public partial class ExpensesController : Controller
                 .Select(c => new ContractLookupOption(
                     c.Id,
                     ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,
@@ -293,6 +295,7 @@ public partial class ExpensesController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -308,6 +311,7 @@ public partial class ExpensesController : Controller
                 .Select(c => new ContractLookupOption(
                     c.Id,
                     ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,
@@ -459,6 +463,7 @@ public partial class ExpensesController : Controller
                 Id = e.Id,
                 ExpenseDate = e.ExpenseDate,
                 ExpenseTypeName = e.ExpenseType != null ? e.ExpenseType.NamePersian ?? e.ExpenseType.Name : string.Empty,
+                ContractName = e.Contract != null ? e.Contract.ContractName : null,
                 ContractNumber = e.Contract != null ? e.Contract.ContractNumber : null,
                 ShipmentCode = e.Shipment != null ? e.Shipment.ShipmentCode : null,
                 TruckDispatchLabel = e.TruckDispatch == null
@@ -3114,10 +3119,16 @@ public partial class ExpensesController : Controller
             .OrderBy(c => model.ContractId > 0 && c.Id == model.ContractId ? 0 : 1)
             .ThenByDescending(c => c.ContractDate)
             .Take(LookupLimit)
-            .Select(c => new { c.Id, Label = c.ContractNumber + " - " + (c.Product != null ? c.Product.Name : "") })
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
             .ToListAsync();
 
-        ViewBag.Contracts = new SelectList(contracts, "Id", "Label", model.ContractId > 0 ? model.ContractId : null);
+        ViewBag.Contracts = new SelectList(
+            contracts.Select(c => new ContractLookupOption(
+                c.Id,
+                ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
+            "Id",
+            "Display",
+            model.ContractId > 0 ? model.ContractId : null);
 
         var dispatches = await _db.TruckDispatches
             .AsNoTracking()

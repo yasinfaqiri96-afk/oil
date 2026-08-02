@@ -7,7 +7,7 @@
     // جهت حرکت از علامت SignedQuantityMt خوانده می‌شود (ورود و تعدیل مثبت، خروج و انتقال منفی).
     // DirectionName متن نمایشی فارسی است و نباید مبنای محاسبه باشد.
     // گروه‌بندی حرکات بر اساس ترمینال + مخزن
-    var tankGroups = Model.Items
+    var allTankGroups = Model.Items
         .GroupBy(i => new { Terminal = i.TerminalName, Tank = i.StorageTankCode ?? "" })
         .Select(g => new {
             TerminalName = g.Key.Terminal,
@@ -20,6 +20,12 @@
             OutCount = g.Count(i => i.SignedQuantityMt < 0m),
         })
         .OrderByDescending(g => g.CurrentBalance)
+        .ToList();
+    var inventorySearch = Context.Request.Query["inventoryQ"].ToString().Trim();
+    var tankGroups = allTankGroups
+        .Where(group => string.IsNullOrWhiteSpace(inventorySearch)
+            || group.TerminalName.Contains(inventorySearch, StringComparison.CurrentCultureIgnoreCase)
+            || group.TankName.Contains(inventorySearch, StringComparison.CurrentCultureIgnoreCase))
         .ToList();
 }
 
@@ -34,6 +40,9 @@
                 <span>@T("کارت موجودی", "Stock card")</span>
             </a>
         </div>
+
+        <partial name="_ContractJourneyListFilter"
+                 model="@(("inventoryQ", (string?)Context.Request.Query["inventoryQ"].ToString(), T("جستجو در وضعیت موجودی...", "Search inventory status..."), "inventoryPage"))" />
 
         <div class="ak-table-wrap">
             <table class="ak-table">

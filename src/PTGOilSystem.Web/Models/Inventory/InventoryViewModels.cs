@@ -49,7 +49,9 @@ public sealed class InventoryMovementListItemViewModel
     public decimal QuantityMt { get; init; }
     public string ProductName { get; init; } = "";
     public string TerminalName { get; init; } = "";
+    public string? ContractName { get; init; }
     public string? ContractNumber { get; init; }
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string? StorageTankCode { get; init; }
     public string? ReferenceDocument { get; init; }
     public string? Notes { get; init; }

@@ -120,6 +120,7 @@ public partial class ContractJourneyController : Controller
             .Select(c => new ContractJourneyIndexItemViewModel
             {
                 ContractId = c.Id,
+                ContractName = c.ContractName,
                 ContractNumber = c.ContractNumber,
                 ContractTypeName = ToContractTypeName(c.ContractType),
                 ContractTypeBadgeClass = c.ContractType == ContractType.Purchase
@@ -167,6 +168,7 @@ public partial class ContractJourneyController : Controller
         var baseModel = new ContractJourneyDetailsViewModel
         {
             ContractId = contract.Id,
+            ContractName = contract.ContractName,
             ContractNumber = contract.ContractNumber,
             ContractTypeName = ToContractTypeName(contract.ContractType),
             ContractTypeBadgeClass = contract.ContractType == ContractType.Purchase
@@ -181,7 +183,7 @@ public partial class ContractJourneyController : Controller
             HasMixedLoadingPrices = hasMixedLoadingPrices,
             LoadingsValueUsd = loadingsValueUsd,
             ParentContractId = contract.ParentContractId,
-            ParentContractNumber = contract.ParentContract?.ContractNumber,
+            ParentContractNumber = contract.ParentContract?.DisplayLabel,
             SubContractItems = subContractItems,
             Currency = contract.Currency,
             PriceDisplay = ToResolvedPriceDisplay(contract, pricingResult),
@@ -214,11 +216,18 @@ public partial class ContractJourneyController : Controller
             return View(await BuildPurchaseInitialSummaryDetailsAsync(contract, baseModel, pricingResult.FinalUnitPrice, lockContract));
         }
 
+        // تب «رسید بارگیری» فقط بارگیری‌ها، رسیدها و کسری رسید را نشان می‌دهد. مسیر کامل
+        // پایین (فروش، دیسپچ، مصارف، پرداخت، دفتر کل، P&L) هیچ‌کدام در این تب رندر نمی‌شوند،
+        // پس مثل تب خلاصه یک مسیر سبک جدا دارد: ۵ کوئری به‌جای ~۴۰.
+        if (activeTab == ContractJourneyTabs.Details.Receipts)
+        {
+            return View(await BuildPurchaseReceiptsDetailsAsync(contract, baseModel, pricingResult, lockContract));
+        }
+
         var notesForReview = new List<string>();
         var contractFinalPriceUsd = pricingResult.FinalUnitPrice;
         var needsInventoryTransportRowDetails = activeTab == ContractJourneyTabs.Details.InventoryTransport;
         var needsShipmentScenarios = activeTab == ContractJourneyTabs.Details.Sales;
-        var needsBulkReceiptLookups = activeTab == ContractJourneyTabs.Details.Receipts;
 
         var loadingRegisters = await _db.LoadingRegisters
             .Include(l => l.Vessel)
@@ -256,50 +265,19 @@ public partial class ContractJourneyController : Controller
             ? new Dictionary<int, decimal>()
             : await _db.LoadingReceipts
                 .AsNoTracking()
-                .Where(r => loadingIds.Contains(r.LoadingRegisterId))
+                .Where(r => loadingIds.Contains(r.LoadingRegisterId) && !r.IsCancelled)
                 .GroupBy(r => r.LoadingRegisterId)
                 .Select(g => new { LoadingRegisterId = g.Key, TotalReceived = g.Sum(r => r.ReceivedQuantityMt) })
                 .ToDictionaryAsync(g => g.LoadingRegisterId, g => g.TotalReceived);
 
-        var loadingItems = loadingRegisters
-            .Select(l => new ContractJourneyLoadingItemViewModel
-            {
-                Id = l.Id,
-                LoadingDate = l.LoadingDate,
-                ProductName = productName,
-                BillOfLadingNumber = l.BillOfLadingNumber,
-                RwbNo = l.RwbNo,
-                TransportTypeName = ToLoadingTransportTypeName(l.TransportType),
-                TransportTypeLabel = ToLoadingTransportTypeName(l.TransportType),
-                DocumentSummary = BuildLoadingDocumentSummary(l),
-                WagonNumber = l.WagonNumber,
-                RouteDescription = l.RouteDescription,
-                LogisticsCompanyName = l.LogisticsCompanyName,
-                LoadedQuantityMt = l.LoadedQuantityMt,
-                TotalReceivedQuantityMt = receiptQuantityByLoadingId.TryGetValue(l.Id, out var receivedQty) ? receivedQty : 0m,
-                PlattsUsd = l.PlattsUsd ?? pricingResult.BasePlattsPrice,
-                PremiumDiscountUsd = pricingResult.PremiumDiscountUsd,
-                LoadingPriceUsd = ResolveEffectiveLoadingPriceUsd(l),
-                SettlementCurrencyCode = l.SettlementCurrencyCode,
-                RubRateStatus = l.RubRateStatus,
-                RubPerUsdRate = l.RubPerUsdRate,
-                RubRateDate = l.RubRateDate,
-                RubRateSource = l.RubRateSource,
-                AmountUsdAtRubLock = l.AmountUsdAtRubLock,
-                AmountRubAtRubLock = l.AmountRubAtRubLock,
-                SettlementUnitPriceRub = l.SettlementUnitPriceRub,
-                SettlementValueRub = l.SettlementValueRub,
-                TransportExpenseUsd = l.TransportExpenseUsd,
-                WarehouseExpenseUsd = l.WarehouseExpenseUsd,
-                OtherExpenseUsd = l.OtherExpenseUsd,
-                RailwayExpenseUsd = l.RailwayExpenseUsd,
-                ConsigneeName = l.ConsigneeName,
-                DestinationName = l.DestinationName,
-                Notes = l.Notes,
-                VehicleSummary = BuildVehicleSummary(l.Vessel?.Name, l.Truck?.PlateNumber),
-                VehicleNumber = BuildVehicleNumber(l)
-            })
-            .ToList();
+        var loadingItems = BuildLoadingItems(
+            loadingRegisters,
+            productName,
+            receiptQuantityByLoadingId,
+            pricingResult.BasePlattsPrice,
+            pricingResult.PremiumDiscountUsd,
+            ResolveEffectiveLoadingPriceUsd);
+        var loadingItemById = loadingItems.ToDictionary(item => item.Id);
         var totalLoadedQuantityMt = purchaseAgg.TotalLoadedQuantityMt;
 
         var inventoryTransportLegs = await _db.InventoryTransportLegs
@@ -506,7 +484,7 @@ public partial class ContractJourneyController : Controller
                 .Include(r => r.StorageTank)
                 .Include(r => r.InventoryMovement)
                 .AsNoTracking()
-                .Where(r => loadingIds.Contains(r.LoadingRegisterId))
+                .Where(r => loadingIds.Contains(r.LoadingRegisterId) && !r.IsCancelled)
                 .OrderBy(r => r.LoadingRegisterId)
                 .ThenBy(r => r.ReceiptDate)
                 .ThenBy(r => r.Id)
@@ -586,7 +564,7 @@ public partial class ContractJourneyController : Controller
                     DestinationName = ToLoadingReceiptAllocationDestinationName(a.Destination),
                     StatusName = ToLoadingReceiptAllocationStatusName(a.Status),
                     QuantityMt = a.QuantityMt,
-                    SourcePurchaseContractNumber = a.SourcePurchaseContract?.ContractNumber ?? contract.ContractNumber,
+                    SourcePurchaseContractNumber = a.SourcePurchaseContract?.DisplayLabel ?? contract.DisplayLabel,
                     TerminalName = a.Terminal?.Name,
                     StorageTankCode = StorageTankDisplay.BuildOptional(a.StorageTank),
                     DestinationTerminalName = a.DestinationTerminal?.Name,
@@ -634,29 +612,11 @@ public partial class ContractJourneyController : Controller
             .ToDictionary(
                 g => g.Key,
                 g => g.Sum(e => e.DifferenceQuantityMt > 0m ? e.DifferenceQuantityMt : Math.Max(e.ChargeableLossMt, 0m)));
-        var bulkReceiptCandidates = loadingRegisters
-            .Select(l =>
-            {
-                var alreadyReceivedQuantityMt = receiptQuantityByLoadingId.GetValueOrDefault(l.Id);
-                var receiptShortageQuantityMt = receiptShortageQuantityByLoadingId.GetValueOrDefault(l.Id);
-                return new ContractJourneyBulkReceiptCandidateViewModel
-                {
-                    LoadingRegisterId = l.Id,
-                    LoadingDate = l.LoadingDate,
-                    BillOfLadingNumber = l.BillOfLadingNumber,
-                    RwbNo = l.RwbNo,
-                    WagonNumber = l.WagonNumber,
-                    LoadedQuantityMt = l.LoadedQuantityMt,
-                    AlreadyReceivedQuantityMt = alreadyReceivedQuantityMt,
-                    RemainingQuantityMt = Math.Max(l.LoadedQuantityMt - alreadyReceivedQuantityMt - receiptShortageQuantityMt, 0m),
-                    ConsigneeName = l.ConsigneeName,
-                    DestinationName = l.DestinationName
-                };
-            })
-            .Where(l => l.RemainingQuantityMt > 0m)
-            .OrderBy(l => l.LoadingDate)
-            .ThenBy(l => l.LoadingRegisterId)
-            .ToList();
+        var bulkReceiptCandidates = BuildBulkReceiptCandidates(
+            loadingRegisters,
+            loadingItemById,
+            receiptQuantityByLoadingId,
+            receiptShortageQuantityByLoadingId);
         var unreceiptedLoadingCount = loadingRegisters.Count(l => !receiptQuantityByLoadingId.ContainsKey(l.Id));
         var receiptDifferenceQuantityMt = loadingReceipts
             .Where(r => r.ActualArrivedQuantityMt.HasValue)
@@ -777,11 +737,11 @@ public partial class ContractJourneyController : Controller
                     QuantityMt = quantityMt,
                     UnitPriceUsd = sale.UnitPriceUsd,
                     AmountUsd = decimal.Round(sale.UnitPriceUsd * quantityMt, 4, MidpointRounding.AwayFromZero),
-                    SalesContractDisplay = sale.Contract?.ContractNumber ?? SalesContractText.WithoutSalesContract,
+                    SalesContractDisplay = sale.Contract?.DisplayLabel ?? SalesContractText.WithoutSalesContract,
                     StockSourceTypeName = sale.StockSourceType.HasValue ? ToStockSourceTypeName(sale.StockSourceType.Value) : null,
                     SaleStageName = SaleStageLabels.ToPersian(sale.SaleStage),
                     HasInventoryMovementTrace = true,
-                    SourcePurchaseContractNumber = contract.ContractNumber,
+                    SourcePurchaseContractNumber = contract.DisplayLabel,
                     TraceKind = "مستقیم از خروج موجودی و شناسه فروش"
                 };
             })
@@ -825,11 +785,11 @@ public partial class ContractJourneyController : Controller
                     QuantityMt = sale.QuantityMt,
                     UnitPriceUsd = sale.UnitPriceUsd,
                     AmountUsd = sale.TotalUsd,
-                    SalesContractDisplay = sale.Contract?.ContractNumber ?? SalesContractText.WithoutSalesContract,
+                    SalesContractDisplay = sale.Contract?.DisplayLabel ?? SalesContractText.WithoutSalesContract,
                     StockSourceTypeName = sale.StockSourceType.HasValue ? ToStockSourceTypeName(sale.StockSourceType.Value) : null,
                     SaleStageName = SaleStageLabels.ToPersian(sale.SaleStage),
                     HasInventoryMovementTrace = false,
-                    SourcePurchaseContractNumber = a.SourcePurchaseContract?.ContractNumber ?? contract.ContractNumber,
+                    SourcePurchaseContractNumber = a.SourcePurchaseContract?.DisplayLabel ?? contract.DisplayLabel,
                     LoadingReceiptAllocationId = a.Id,
                     AllocationQuantityMt = a.QuantityMt,
                     HasQuantityMismatch = hasQuantityMismatch,
@@ -877,11 +837,11 @@ public partial class ContractJourneyController : Controller
                     QuantityMt = sale.QuantityMt,
                     UnitPriceUsd = sale.UnitPriceUsd,
                     AmountUsd = sale.TotalUsd,
-                    SalesContractDisplay = sale.Contract?.ContractNumber ?? SalesContractText.WithoutSalesContract,
+                    SalesContractDisplay = sale.Contract?.DisplayLabel ?? SalesContractText.WithoutSalesContract,
                     StockSourceTypeName = sale.StockSourceType.HasValue ? ToStockSourceTypeName(sale.StockSourceType.Value) : null,
                     SaleStageName = SaleStageLabels.ToPersian(sale.SaleStage),
                     HasInventoryMovementTrace = false,
-                    SourcePurchaseContractNumber = contract.ContractNumber,
+                    SourcePurchaseContractNumber = contract.DisplayLabel,
                     InventoryTransportReference = BuildTransportLegReference(leg),
                     AllocationQuantityMt = r.ReceivedQuantityMt,
                     HasQuantityMismatch = hasQuantityMismatch,
@@ -972,11 +932,11 @@ public partial class ContractJourneyController : Controller
                     QuantityMt = sale.QuantityMt,
                     UnitPriceUsd = sale.UnitPriceUsd,
                     AmountUsd = sale.TotalUsd,
-                    SalesContractDisplay = sale.Contract?.ContractNumber ?? SalesContractText.WithoutSalesContract,
+                    SalesContractDisplay = sale.Contract?.DisplayLabel ?? SalesContractText.WithoutSalesContract,
                     StockSourceTypeName = sale.StockSourceType.HasValue ? ToStockSourceTypeName(sale.StockSourceType.Value) : null,
                     SaleStageName = SaleStageLabels.ToPersian(sale.SaleStage),
                     HasInventoryMovementTrace = false,
-                    SourcePurchaseContractNumber = d.LoadingReceiptAllocation?.SourcePurchaseContract?.ContractNumber ?? contract.ContractNumber,
+                    SourcePurchaseContractNumber = d.LoadingReceiptAllocation?.SourcePurchaseContract?.DisplayLabel ?? contract.DisplayLabel,
                     LoadingReceiptAllocationId = d.LoadingReceiptAllocationId,
                     AllocationQuantityMt = d.LoadingReceiptAllocation?.QuantityMt,
                     HasQuantityMismatch = hasQuantityMismatch,
@@ -1023,7 +983,7 @@ public partial class ContractJourneyController : Controller
                 CustomerName = s.Customer?.Name ?? string.Empty,
                 SaleDate = s.SaleDate,
                 QuantityMt = s.QuantityMt,
-                SalesContractDisplay = s.Contract?.ContractNumber ?? SalesContractText.WithoutSalesContract,
+                SalesContractDisplay = s.Contract?.DisplayLabel ?? SalesContractText.WithoutSalesContract,
                 TraceKind = "مستقیم از قرارداد فروش"
             })
             .ToList();
@@ -1874,26 +1834,6 @@ public partial class ContractJourneyController : Controller
             warnings.Add(directSaleQuantityMismatchWarning);
         }
 
-        if (needsBulkReceiptLookups)
-        {
-            ViewBag.BulkReceiptTerminals = new SelectList(
-                await _db.Terminals
-                    .AsNoTracking()
-                    .Where(t => t.IsActive)
-                    .OrderBy(t => t.Code)
-                    .ToListAsync(),
-                "Id",
-                "Name");
-            ViewBag.BulkReceiptStorageTanks = (await StorageTankDisplay.LoadOptionsAsync(
-                    _db.StorageTanks.AsNoTracking().OrderBy(t => t.DisplayName ?? t.TankCode)))
-                .Select(t => new ContractJourneyBulkReceiptStorageTankOptionViewModel
-                {
-                    Id = t.Id,
-                    TerminalId = t.TerminalId,
-                    DisplayName = t.Display
-                })
-                .ToList();
-        }
         var visibleShipmentCount = directShipments
             .Select(s => s.Id)
             .Concat(shipmentScenarios.Select(s => s.ShipmentId))
@@ -1910,6 +1850,7 @@ public partial class ContractJourneyController : Controller
             ActiveTab = activeTab,
             LockContract = lockContract,
             ContractId = baseModel.ContractId,
+            ContractName = baseModel.ContractName,
             ContractNumber = baseModel.ContractNumber,
             ContractTypeName = baseModel.ContractTypeName,
             ContractTypeBadgeClass = baseModel.ContractTypeBadgeClass,
@@ -2038,7 +1979,7 @@ public partial class ContractJourneyController : Controller
             .AsNoTracking()
             .Where(c => c.ParentContractId == contractId)
             .OrderBy(c => c.ContractNumber)
-            .Select(c => new { c.Id, c.ContractNumber, c.QuantityMt, c.Status })
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber, c.QuantityMt, c.Status })
             .ToListAsync();
 
         if (children.Count == 0)
@@ -2067,6 +2008,7 @@ public partial class ContractJourneyController : Controller
                 return new ContractJourneySubContractItemViewModel
                 {
                     ContractId = child.Id,
+                    ContractName = child.ContractName,
                     ContractNumber = child.ContractNumber,
                     StatusName = ToContractStatusName(child.Status),
                     QuantityMt = child.QuantityMt,
@@ -2081,7 +2023,8 @@ public partial class ContractJourneyController : Controller
     private async Task<decimal> GetPendingTankSettlementQuantityMtAsync(int contractId)
     {
         var deferredTankIds = await _db.LoadingReceipts.AsNoTracking()
-            .Where(r => r.LossMode == ReceiptLossMode.DeferredTankSettlement
+            .Where(r => !r.IsCancelled
+                && r.LossMode == ReceiptLossMode.DeferredTankSettlement
                 && r.ReceiptDestination == LoadingReceiptDestination.ToInventory
                 && r.StorageTankId != null
                 && r.LoadingRegister != null
@@ -2116,6 +2059,305 @@ public partial class ContractJourneyController : Controller
                             : 0m));
 
         return balanceByTank.Values.Where(b => b > 0m).Sum();
+    }
+
+    private static List<ContractJourneyLoadingItemViewModel> BuildLoadingItems(
+        IReadOnlyList<LoadingRegister> loadingRegisters,
+        string productName,
+        IReadOnlyDictionary<int, decimal> receiptQuantityByLoadingId,
+        decimal? basePlattsPrice,
+        decimal? premiumDiscountUsd,
+        Func<LoadingRegister, decimal?> resolveEffectiveLoadingPriceUsd)
+        => loadingRegisters
+            .Select(l => new ContractJourneyLoadingItemViewModel
+            {
+                Id = l.Id,
+                LoadingDate = l.LoadingDate,
+                ProductName = productName,
+                BillOfLadingNumber = l.BillOfLadingNumber,
+                RwbNo = l.RwbNo,
+                TransportTypeName = ToLoadingTransportTypeName(l.TransportType),
+                TransportTypeLabel = ToLoadingTransportTypeName(l.TransportType),
+                DocumentSummary = BuildLoadingDocumentSummary(l),
+                WagonNumber = l.WagonNumber,
+                RouteDescription = l.RouteDescription,
+                LogisticsCompanyName = l.LogisticsCompanyName,
+                LoadedQuantityMt = l.LoadedQuantityMt,
+                TotalReceivedQuantityMt = receiptQuantityByLoadingId.TryGetValue(l.Id, out var receivedQty) ? receivedQty : 0m,
+                PlattsUsd = l.PlattsUsd ?? basePlattsPrice,
+                PremiumDiscountUsd = premiumDiscountUsd,
+                LoadingPriceUsd = resolveEffectiveLoadingPriceUsd(l),
+                SettlementCurrencyCode = l.SettlementCurrencyCode,
+                RubRateStatus = l.RubRateStatus,
+                RubPerUsdRate = l.RubPerUsdRate,
+                RubRateDate = l.RubRateDate,
+                RubRateSource = l.RubRateSource,
+                AmountUsdAtRubLock = l.AmountUsdAtRubLock,
+                AmountRubAtRubLock = l.AmountRubAtRubLock,
+                SettlementUnitPriceRub = l.SettlementUnitPriceRub,
+                SettlementValueRub = l.SettlementValueRub,
+                TransportExpenseUsd = l.TransportExpenseUsd,
+                WarehouseExpenseUsd = l.WarehouseExpenseUsd,
+                OtherExpenseUsd = l.OtherExpenseUsd,
+                RailwayExpenseUsd = l.RailwayExpenseUsd,
+                ConsigneeName = l.ConsigneeName,
+                DestinationName = l.DestinationName,
+                Notes = l.Notes,
+                VehicleSummary = BuildVehicleSummary(l.Vessel?.Name, l.Truck?.PlateNumber),
+                VehicleNumber = BuildVehicleNumber(l)
+            })
+            .ToList();
+
+    private static List<ContractJourneyBulkReceiptCandidateViewModel> BuildBulkReceiptCandidates(
+        IReadOnlyList<LoadingRegister> loadingRegisters,
+        IReadOnlyDictionary<int, ContractJourneyLoadingItemViewModel> loadingItemById,
+        IReadOnlyDictionary<int, decimal> receiptQuantityByLoadingId,
+        IReadOnlyDictionary<int, decimal> receiptShortageQuantityByLoadingId)
+        => loadingRegisters
+            .Select(l =>
+            {
+                var alreadyReceivedQuantityMt = receiptQuantityByLoadingId.GetValueOrDefault(l.Id);
+                var receiptShortageQuantityMt = receiptShortageQuantityByLoadingId.GetValueOrDefault(l.Id);
+                var loadingItem = loadingItemById[l.Id];
+                return new ContractJourneyBulkReceiptCandidateViewModel
+                {
+                    LoadingRegisterId = l.Id,
+                    LoadingDate = l.LoadingDate,
+                    ProductName = loadingItem.ProductName,
+                    TransportTypeLabel = loadingItem.TransportTypeLabel,
+                    VehicleNumber = loadingItem.VehicleNumber,
+                    BillOfLadingNumber = l.BillOfLadingNumber,
+                    RwbNo = l.RwbNo,
+                    WagonNumber = l.WagonNumber,
+                    LoadedQuantityMt = l.LoadedQuantityMt,
+                    LoadingPriceUsd = loadingItem.LoadingPriceUsd,
+                    LoadingValueUsd = loadingItem.LoadingValueUsd,
+                    AlreadyReceivedQuantityMt = alreadyReceivedQuantityMt,
+                    RemainingQuantityMt = Math.Max(l.LoadedQuantityMt - alreadyReceivedQuantityMt - receiptShortageQuantityMt, 0m),
+                    ConsigneeName = l.ConsigneeName,
+                    DestinationName = l.DestinationName
+                };
+            })
+            .Where(l => l.RemainingQuantityMt > 0m)
+            .OrderBy(l => l.LoadingDate)
+            .ThenBy(l => l.LoadingRegisterId)
+            .ToList();
+
+    // مسیر سبک تب «رسید بارگیری». فقط داده‌ای که همین تب رندر می‌کند خوانده می‌شود:
+    // بارگیری‌ها، رسیدهای بارگیری، رویدادهای کسری رسید و گزینه‌های ترمینال/مخزن فرم رسید
+    // گروهی. محاسبات فروش، دیسپچ، مصارف، پرداخت، دفتر کل و P&L در این تب نمایش داده
+    // نمی‌شوند و اجرا نمی‌شوند — منطق مالی/موجودی تغییری نکرده، فقط خوانده نمی‌شود.
+    private async Task<ContractJourneyDetailsViewModel> BuildPurchaseReceiptsDetailsAsync(
+        Contract contract,
+        ContractJourneyDetailsViewModel baseModel,
+        ContractPriceResult pricingResult,
+        bool lockContract)
+    {
+        var contractId = contract.Id;
+        var contractFinalPriceUsd = pricingResult.FinalUnitPrice;
+
+        var loadingRegisters = await _db.LoadingRegisters
+            .Include(l => l.Vessel)
+            .Include(l => l.Truck)
+            .AsNoTracking()
+            .Where(l => l.ContractId == contractId)
+            .OrderBy(l => l.LoadingDate)
+            .ThenBy(l => l.Id)
+            .ToListAsync();
+        var loadingIds = loadingRegisters.Select(l => l.Id).ToList();
+        var loadingById = loadingRegisters.ToDictionary(l => l.Id);
+        var rubSettlementSummary = BuildRubSettlementSummary(contract, loadingRegisters, contractFinalPriceUsd);
+
+        decimal? ResolveEffectiveLoadingPriceUsd(LoadingRegister loading)
+            => HasValidLoadingPrice(loading.LoadingPriceUsd)
+                ? loading.LoadingPriceUsd
+                : contractFinalPriceUsd;
+
+        var loadingReceipts = loadingIds.Count == 0
+            ? new List<LoadingReceipt>()
+            : await _db.LoadingReceipts
+                .Include(r => r.Terminal)
+                .Include(r => r.StorageTank)
+                .Include(r => r.InventoryMovement)
+                .AsNoTracking()
+                .Where(r => loadingIds.Contains(r.LoadingRegisterId) && !r.IsCancelled)
+                .OrderBy(r => r.LoadingRegisterId)
+                .ThenBy(r => r.ReceiptDate)
+                .ThenBy(r => r.Id)
+                .ToListAsync();
+        var receiptIds = loadingReceipts.Select(r => r.Id).ToList();
+        var receiptLoadingById = loadingReceipts.ToDictionary(r => r.Id, r => r.LoadingRegisterId);
+        // همان فیلترِ مسیر کامل (`!IsCancelled`) — پس جمع رسیدها یکسان می‌ماند.
+        var receiptQuantityByLoadingId = loadingReceipts
+            .GroupBy(r => r.LoadingRegisterId)
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.ReceivedQuantityMt));
+
+        var loadingItems = BuildLoadingItems(
+            loadingRegisters,
+            contract.Product?.Name ?? string.Empty,
+            receiptQuantityByLoadingId,
+            pricingResult.BasePlattsPrice,
+            pricingResult.PremiumDiscountUsd,
+            ResolveEffectiveLoadingPriceUsd);
+        var loadingItemById = loadingItems.ToDictionary(item => item.Id);
+
+        var receiptItems = new List<ContractJourneyReceiptItemViewModel>();
+        foreach (var receiptGroup in loadingReceipts.GroupBy(r => r.LoadingRegisterId))
+        {
+            var loadedQuantityMt = loadingById.TryGetValue(receiptGroup.Key, out var loading)
+                ? loading.LoadedQuantityMt
+                : 0m;
+            decimal cumulativeReceiptQuantityMt = 0m;
+
+            foreach (var receipt in receiptGroup.OrderBy(r => r.ReceiptDate).ThenBy(r => r.Id))
+            {
+                cumulativeReceiptQuantityMt += receipt.ReceivedQuantityMt;
+                receiptItems.Add(new ContractJourneyReceiptItemViewModel
+                {
+                    Id = receipt.Id,
+                    LoadingRegisterId = receipt.LoadingRegisterId,
+                    ReceiptDate = receipt.ReceiptDate,
+                    ReceivedQuantityMt = receipt.ReceivedQuantityMt,
+                    TerminalName = receipt.Terminal?.Name ?? string.Empty,
+                    StorageTankCode = StorageTankDisplay.BuildOptional(receipt.StorageTank),
+                    InventoryMovementId = receipt.InventoryMovement?.Id,
+                    RemainingLoadingMt = Math.Max(loadedQuantityMt - cumulativeReceiptQuantityMt, 0m),
+                    ActualArrivedQuantityMt = receipt.ActualArrivedQuantityMt,
+                    DifferenceQuantityMt = receipt.ActualArrivedQuantityMt.HasValue
+                        ? receipt.ActualArrivedQuantityMt.Value - receipt.ReceivedQuantityMt
+                        : null,
+                    ReferenceDocument = receipt.ReferenceDocument ?? receipt.InventoryMovement?.ReferenceDocument
+                });
+            }
+        }
+
+        // دامنهٔ رویدادهای کسری رسید دقیقاً همان دامنهٔ مسیر کامل است (قرارداد، بارگیری،
+        // رسید، دیسپچ، سفر حمل و سند موجودیِ همین قرارداد) — فقط با EXISTS در یک کوئری.
+        var hasLoadingIds = loadingIds.Count > 0;
+        var hasReceiptIds = receiptIds.Count > 0;
+        var receiptShortageRows = await _db.LossEvents
+            .AsNoTracking()
+            .Where(e => e.Stage == LossEventStage.ReceiptShortage
+                && !e.IsCancelled
+                && (e.ContractId == contractId
+                    || (hasLoadingIds && e.LoadingRegisterId.HasValue && loadingIds.Contains(e.LoadingRegisterId.Value))
+                    || (hasReceiptIds && e.LoadingReceiptId.HasValue && receiptIds.Contains(e.LoadingReceiptId.Value))
+                    || (e.TruckDispatchId.HasValue
+                        && _db.TruckDispatches.Any(d => d.Id == e.TruckDispatchId.Value && d.ContractId == contractId))
+                    || (e.TransportLegId.HasValue
+                        && _db.InventoryTransportLegs.Any(l => l.Id == e.TransportLegId.Value && l.SourcePurchaseContractId == contractId))
+                    || (e.InventoryMovementId.HasValue
+                        && _db.InventoryMovements.Any(m => m.Id == e.InventoryMovementId.Value && m.ContractId == contractId))))
+            .Select(e => new
+            {
+                e.Id,
+                e.LoadingRegisterId,
+                e.LoadingReceiptId,
+                e.DifferenceQuantityMt,
+                e.ChargeableLossMt
+            })
+            .ToListAsync();
+        var receiptShortageLossRows = receiptShortageRows
+            .GroupBy(e => e.Id)
+            .Select(g => g.First())
+            .ToList();
+        static decimal DisplayShortageQuantityMt(decimal differenceQuantityMt, decimal chargeableLossMt)
+            => differenceQuantityMt > 0m ? differenceQuantityMt : Math.Max(chargeableLossMt, 0m);
+        var receiptShortageLossMt = receiptShortageLossRows
+            .Sum(e => DisplayShortageQuantityMt(e.DifferenceQuantityMt, e.ChargeableLossMt));
+        var receiptShortageQuantityByLoadingId = receiptShortageLossRows
+            .Select(e => new
+            {
+                LoadingRegisterId = e.LoadingRegisterId
+                    ?? (e.LoadingReceiptId.HasValue && receiptLoadingById.TryGetValue(e.LoadingReceiptId.Value, out var receiptLoadingId)
+                        ? receiptLoadingId
+                        : (int?)null),
+                e.DifferenceQuantityMt,
+                e.ChargeableLossMt
+            })
+            .Where(e => e.LoadingRegisterId.HasValue)
+            .GroupBy(e => e.LoadingRegisterId!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Sum(e => DisplayShortageQuantityMt(e.DifferenceQuantityMt, e.ChargeableLossMt)));
+
+        var bulkReceiptCandidates = BuildBulkReceiptCandidates(
+            loadingRegisters,
+            loadingItemById,
+            receiptQuantityByLoadingId,
+            receiptShortageQuantityByLoadingId);
+
+        ViewBag.BulkReceiptTerminals = new SelectList(
+            await _db.Terminals
+                .AsNoTracking()
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.Code)
+                .Select(t => new { t.Id, t.Name })
+                .ToListAsync(),
+            "Id",
+            "Name");
+        ViewBag.BulkReceiptStorageTanks = (await StorageTankDisplay.LoadOptionsAsync(
+                _db.StorageTanks.AsNoTracking().OrderBy(t => t.DisplayName ?? t.TankCode)))
+            .Select(t => new ContractJourneyBulkReceiptStorageTankOptionViewModel
+            {
+                Id = t.Id,
+                TerminalId = t.TerminalId,
+                DisplayName = t.Display
+            })
+            .ToList();
+
+        return new ContractJourneyDetailsViewModel
+        {
+            ActiveTab = ContractJourneyTabs.Details.Receipts,
+            LockContract = lockContract,
+            ContractId = baseModel.ContractId,
+            ContractName = baseModel.ContractName,
+            ContractNumber = baseModel.ContractNumber,
+            ContractTypeName = baseModel.ContractTypeName,
+            ContractTypeBadgeClass = baseModel.ContractTypeBadgeClass,
+            CompanyName = baseModel.CompanyName,
+            ProductName = baseModel.ProductName,
+            ContractUnitText = baseModel.ContractUnitText,
+            SupplierName = baseModel.SupplierName,
+            CustomerName = baseModel.CustomerName,
+            ContractQuantityMt = baseModel.ContractQuantityMt,
+            HasMixedLoadingPrices = baseModel.HasMixedLoadingPrices,
+            LoadingsValueUsd = baseModel.LoadingsValueUsd,
+            ParentContractId = baseModel.ParentContractId,
+            ParentContractNumber = baseModel.ParentContractNumber,
+            SubContractItems = baseModel.SubContractItems,
+            Currency = baseModel.Currency,
+            PriceDisplay = baseModel.PriceDisplay,
+            PricingMethodName = baseModel.PricingMethodName,
+            PricingStatusName = baseModel.PricingStatusName,
+            RubSettlementSummary = rubSettlementSummary,
+            EditPricingUrl = baseModel.EditPricingUrl,
+            PricingFormulaText = baseModel.PricingFormulaText,
+            PricingFinalUnitPriceUsd = baseModel.PricingFinalUnitPriceUsd,
+            PricingNeedsReview = baseModel.PricingNeedsReview,
+            PricingReason = baseModel.PricingReason,
+            PricingFallbackApplied = baseModel.PricingFallbackApplied,
+            PricingFormulaNote = baseModel.PricingFormulaNote,
+            StatusName = baseModel.StatusName,
+            StatusBadgeClass = baseModel.StatusBadgeClass,
+            ContractDate = baseModel.ContractDate,
+            StartDate = baseModel.StartDate,
+            EndDate = baseModel.EndDate,
+            Notes = baseModel.Notes,
+            IsPurchaseContract = baseModel.IsPurchaseContract,
+            UnreceiptedLoadingCount = loadingRegisters.Count(l => !receiptQuantityByLoadingId.ContainsKey(l.Id)),
+            ReceiptDifferenceQuantityMt = loadingReceipts
+                .Where(r => r.ActualArrivedQuantityMt.HasValue)
+                .Sum(r => r.ActualArrivedQuantityMt!.Value - r.ReceivedQuantityMt),
+            ReceiptShortageLossMt = receiptShortageLossMt,
+            LoadingDocumentReferences = BuildLoadingDocumentReferences(loadingRegisters),
+            LoadingItems = loadingItems,
+            ReceiptItems = receiptItems
+                .OrderByDescending(r => r.ReceiptDate)
+                .ThenByDescending(r => r.Id)
+                .ToList(),
+            BulkReceiptCandidates = bulkReceiptCandidates
+        };
     }
 
     private async Task<ContractJourneyDetailsViewModel> BuildPurchaseInitialSummaryDetailsAsync(
@@ -2179,7 +2421,7 @@ public partial class ContractJourneyController : Controller
 
         var receiptRows = await _db.LoadingReceipts
             .AsNoTracking()
-            .Where(r => loadingIds.Contains(r.LoadingRegisterId))
+            .Where(r => loadingIds.Contains(r.LoadingRegisterId) && !r.IsCancelled)
             .Select(r => new
             {
                 r.Id,
@@ -3151,6 +3393,7 @@ public partial class ContractJourneyController : Controller
             LockContract = lockContract,
             IsInitialSummaryPayload = true,
             ContractId = baseModel.ContractId,
+            ContractName = baseModel.ContractName,
             ContractNumber = baseModel.ContractNumber,
             ContractTypeName = baseModel.ContractTypeName,
             ContractTypeBadgeClass = baseModel.ContractTypeBadgeClass,
@@ -3628,12 +3871,12 @@ public partial class ContractJourneyController : Controller
                 QuantityMt = s.QuantityMt,
                 UnitPriceUsd = s.UnitPriceUsd,
                 AmountUsd = s.TotalUsd,
-                SalesContractDisplay = contract.ContractNumber,
+                SalesContractDisplay = contract.DisplayLabel,
                 StockSourceTypeName = s.StockSourceType.HasValue ? ToStockSourceTypeName(s.StockSourceType.Value) : null,
                 SaleStageName = SaleStageLabels.ToPersian(s.SaleStage),
                 HasInventoryMovementTrace = saleMovementBySaleId.ContainsKey(s.Id),
                 SourcePurchaseContractNumber = saleMovementBySaleId.ContainsKey(s.Id)
-                    ? saleMovementBySaleId[s.Id].Contract?.ContractNumber
+                    ? saleMovementBySaleId[s.Id].Contract?.DisplayLabel
                     : null,
                 TraceKind = "مستقیم از قرارداد فروش"
             })
@@ -3830,6 +4073,7 @@ public partial class ContractJourneyController : Controller
             ActiveTab = activeTab,
             LockContract = lockContract,
             ContractId = baseModel.ContractId,
+            ContractName = baseModel.ContractName,
             ContractNumber = baseModel.ContractNumber,
             ContractTypeName = baseModel.ContractTypeName,
             ContractTypeBadgeClass = baseModel.ContractTypeBadgeClass,

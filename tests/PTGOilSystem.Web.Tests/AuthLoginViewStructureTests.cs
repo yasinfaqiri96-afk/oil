@@ -30,8 +30,18 @@ public class AuthLoginViewStructureTests
         Assert.Contains("class=\"sadd-login-panel\"", view);
         Assert.Contains("class=\"sadd-login-form\"", view);
         Assert.Contains("class=\"sadd-login-submit\"", view);
+        Assert.DoesNotContain("<figcaption", view);
+        Assert.DoesNotContain("class=\"sadd-login-help\"", view);
+        Assert.DoesNotContain("class=\"sadd-login-divider\"", view);
         Assert.Contains(".sadd-login-art", css);
         Assert.Contains(".sadd-login-panel", css);
+        Assert.Contains("--login-accent: #1877f2;", css);
+        Assert.Contains("width: 0.95rem;", css);
+        Assert.Contains("width: min(100%, 18rem);", css);
+        Assert.Contains("height: 2.5rem;", css);
+        Assert.True(
+            view.IndexOf("class=\"sadd-login-actions\"", StringComparison.Ordinal)
+            < view.IndexOf("class=\"sadd-login-row\"", StringComparison.Ordinal));
         Assert.All(artwork, image =>
         {
             Assert.True(image.Exists);

@@ -52,6 +52,7 @@ public partial class InventoryController : Controller
             .Select(c => new
             {
                 c.Id,
+                c.ContractName,
                 c.ContractNumber,
                 c.ContractType,
                 ProductName = c.Product != null ? c.Product.Name : null,
@@ -78,6 +79,7 @@ public partial class InventoryController : Controller
                 .Select(c => new ContractLookupOption(
                     c.Id,
                     ContractUiText.FormatLookup(
+                        c.ContractName,
                         c.ContractNumber,
                         c.ContractType,
                         c.ProductName,
@@ -121,7 +123,7 @@ public partial class InventoryController : Controller
             query = query.Where(m =>
                 (m.Product != null && m.Product.Name.ToLower().Contains(searchTerm)) ||
                 (m.Terminal != null && m.Terminal.Name.ToLower().Contains(searchTerm)) ||
-                (m.Contract != null && m.Contract.ContractNumber.ToLower().Contains(searchTerm)) ||
+                (m.Contract != null && (m.Contract.ContractName.ToLower().Contains(searchTerm) || m.Contract.ContractNumber.ToLower().Contains(searchTerm))) ||
                 (m.StorageTank != null && (
                     m.StorageTank.TankCode.ToLower().Contains(searchTerm)
                     || (m.StorageTank.DisplayName != null && m.StorageTank.DisplayName.ToLower().Contains(searchTerm)))) ||
@@ -146,6 +148,7 @@ public partial class InventoryController : Controller
                 QuantityMt = m.QuantityMt,
                 ProductName = m.Product != null ? m.Product.Name : "",
                 TerminalName = m.Terminal != null ? m.Terminal.Name : "",
+                ContractName = m.Contract != null ? m.Contract.ContractName : null,
                 ContractNumber = m.Contract != null ? m.Contract.ContractNumber : null,
                 StorageTankCode = m.StorageTank == null
                     ? null
@@ -315,7 +318,18 @@ public partial class InventoryController : Controller
         ViewData["PageSize"] = pageSize;
         ViewData["DefaultPageSize"] = IndexPageSize;
 
-        var rows = (await _stock.GetStockSummaryAsync())
+        var stockSummary = await _stock.GetStockSummaryAsync();
+        var summaryContractIds = stockSummary
+            .Where(r => r.ContractId.HasValue)
+            .Select(r => r.ContractId!.Value)
+            .Distinct()
+            .ToList();
+        var summaryContractLabels = await _db.Contracts.AsNoTracking()
+            .Where(c => summaryContractIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
+            .ToDictionaryAsync(c => c.Id, c => Contract.BuildDisplayLabel(c.ContractName, c.ContractNumber));
+
+        var rows = stockSummary
             .Select(r => new InventoryStockSummaryRowViewModel
             {
                 ProductId = r.ProductId,
@@ -325,7 +339,9 @@ public partial class InventoryController : Controller
                 TerminalCode = r.TerminalCode,
                 TerminalName = r.TerminalName,
                 ContractId = r.ContractId,
-                ContractNumber = r.ContractNumber,
+                ContractNumber = r.ContractId.HasValue
+                    ? summaryContractLabels.GetValueOrDefault(r.ContractId.Value, r.ContractNumber ?? "")
+                    : r.ContractNumber,
                 FreeQuantityMt = r.FreeQuantityMt,
                 LastMovementDate = r.LastMovementDate,
                 MovementCount = r.MovementCount
@@ -377,6 +393,15 @@ public partial class InventoryController : Controller
             terminalId: filter.TerminalId,
             fromUtc: filter.FromDate,
             toUtc: filter.ToDate);
+        var cardContractIds = stockRows
+            .Where(r => r.ContractId.HasValue)
+            .Select(r => r.ContractId!.Value)
+            .Distinct()
+            .ToList();
+        var cardContractLabels = await _db.Contracts.AsNoTracking()
+            .Where(c => cardContractIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
+            .ToDictionaryAsync(c => c.Id, c => Contract.BuildDisplayLabel(c.ContractName, c.ContractNumber));
         var tankIds = stockRows
             .Where(r => r.StorageTankId.HasValue)
             .Select(r => r.StorageTankId!.Value)
@@ -398,7 +423,9 @@ public partial class InventoryController : Controller
                 ProductName = r.ProductName,
                 TerminalCode = r.TerminalCode,
                 TerminalName = r.TerminalName,
-                ContractNumber = r.ContractNumber,
+                ContractNumber = r.ContractId.HasValue
+                    ? cardContractLabels.GetValueOrDefault(r.ContractId.Value, r.ContractNumber ?? "")
+                    : r.ContractNumber,
                 StorageTankCode = StorageTankDisplay.Resolve(tankNames, r.StorageTankId, r.StorageTankCode),
                 ReferenceDocument = r.ReferenceDocument,
                 Notes = r.Notes
