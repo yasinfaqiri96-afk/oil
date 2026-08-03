@@ -65,13 +65,6 @@
 
     ViewData["AkHeaderStatus"] = statusText;
     ViewData["AkHeaderStatusState"] = isCancelled ? "is-danger" : statusDone ? "is-active" : "is-warning";
-    ViewData["AkHeaderContext"] = string.Join(" · ", new[]
-    {
-        Model.ContractNumber,
-        productName,
-        Model.TruckPlateNumber,
-        Model.DispatchDate.ToDisplayDate()
-    }.Where(part => !string.IsNullOrWhiteSpace(part)));
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-pencil-square" },
@@ -157,6 +150,7 @@
     {
         nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصرف / کرایه", "Register expense"), ModalTarget = "dispatchExpensesModal", Icon = "bi-receipt" });
     }
+    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     ViewData["Title"] = T("جزئیات ارسال با موتر", "Truck dispatch details");
     ViewData["HideSectionTabs"] = true;
@@ -407,7 +401,6 @@
     <button type="button" class="visually-hidden" data-bs-toggle="modal" data-bs-target="#dispatchExpensesModal"
             data-expense-url="@Url.Action("CreateExpenseModal", "Dispatch", new { id = Model.Id, returnUrl = currentPageReturnUrl })" tabindex="-1" aria-hidden="true"></button>
 
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>
 
 @section Scripts {

@@ -19,7 +19,8 @@ public sealed class SalesDetailsRedesignStructureTests
         Assert.Equal(4, Count(view, "Avatar = \""));
         Assert.Contains("_DetailSummaryCard.cshtml", view);
         Assert.Contains("_OperationsDetailMore.cshtml", view);
-        Assert.Contains("_DetailActionBar.cshtml", view);
+        Assert.Contains("AkHeaderOverflowActions", view);
+        Assert.DoesNotContain("_DetailActionBar.cshtml", view);
         Assert.Contains("ak-list", view);
         Assert.Contains("ak-operations-overview", view);
         Assert.Contains("ak-operations-overview ak-operations-clean-overview", view);

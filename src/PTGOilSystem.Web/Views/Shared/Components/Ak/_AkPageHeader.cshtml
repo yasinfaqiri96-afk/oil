@@ -16,6 +16,8 @@
                                                      (max 3 facts joined with "·").
       - ViewData["AkHeaderKebab"]       : IReadOnlyList<AkHeaderMenuItem>
                                           -> kebab menu for secondary/destructive actions.
+      - ViewData["AkHeaderOverflowActions"] : IReadOnlyList<AkHeaderMenuItem>
+                                          -> page-level secondary actions merged into the kebab.
       - ViewData["AkHeaderCompanionAction"] : AkHeaderMenuItem
                                           -> optional visible link beside the primary action.
 *@
@@ -51,6 +53,10 @@
     var kebabItems = (ViewData["AkHeaderKebab"] as IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>)
         ?.Where(item => item.IsRenderable)
         .ToList() ?? new List<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>();
+    var overflowItems = (ViewData["AkHeaderOverflowActions"] as IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>)
+        ?.Where(item => item.IsRenderable)
+        .ToList() ?? new List<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>();
+    kebabItems.AddRange(overflowItems);
     var companionAction = ViewData["AkHeaderCompanionAction"] as PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem;
     var hasCompanionAction = companionAction is { IsRenderable: true }
         && string.IsNullOrWhiteSpace(companionAction.PostUrl);
@@ -64,6 +70,15 @@
             Icon = icon
         });
     }
+    kebabItems = kebabItems
+        .GroupBy(item => !string.IsNullOrWhiteSpace(item.PostUrl)
+                ? $"post:{item.PostUrl}"
+                : !string.IsNullOrWhiteSpace(item.ModalTarget)
+                    ? $"modal:{item.ModalTarget}"
+                    : $"href:{item.Href}",
+            StringComparer.OrdinalIgnoreCase)
+        .Select(group => group.First())
+        .ToList();
     var hasStatus = !string.IsNullOrWhiteSpace(statusText);
     var hasKebab = kebabItems.Count > 0;
     var statusAriaLabel = hasStatus

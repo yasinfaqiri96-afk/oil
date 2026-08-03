@@ -13,12 +13,6 @@
 
     ViewData["AkHeaderStatus"] = ledgerStatus;
     ViewData["AkHeaderStatusState"] = ledgerRecorded ? "is-active" : "is-warning";
-    ViewData["AkHeaderContext"] = string.Join(" · ", new[]
-    {
-        Model.ExpenseTypeName,
-        providerText,
-        Model.ExpenseDate.ToDisplayDate()
-    }.Where(part => !string.IsNullOrWhiteSpace(part)));
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-pencil-square" }
@@ -68,6 +62,7 @@
     {
         new() { Label = T("مصرف جدید", "New expense"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
     };
+    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     ViewData["Title"] = T("جزئیات مصرف", "Expense Details");
     ViewData["HideSectionTabs"] = true;
@@ -75,7 +70,7 @@
 
 <div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((T("جزئیات مصرف", "Expense details") + $" #{Model.Id}", false,
+             model="@((T("مصرف", "Expense") + $" #{Model.Id}", false,
                        T("ویرایش", "Edit"), "bi-pencil-square",
                        Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
@@ -92,5 +87,4 @@
                         (IReadOnlyList<AkRelatedRecord>)relatedRecords,
                         (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

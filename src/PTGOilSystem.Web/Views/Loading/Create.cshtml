@@ -1713,6 +1713,9 @@
             // تا ابد روی حالت «در حال ثبت» بماند؛ این نگهبان آن را آزاد و پیام روشن نشان می‌دهد.
             const loadingSubmitTimeoutMs = 120000;
             let loadingSubmitWatchdogId = null;
+            // آیا همین حالا یک POST واقعی روی سیم است؟ فقط وقتی true می‌شود که رویداد
+            // submit تا آخر بدون لغو رد شده باشد.
+            let loadingPostInFlight = false;
 
             function clearLoadingSubmitWatchdog() {
                 if (loadingSubmitWatchdogId !== null) {
@@ -1721,9 +1724,24 @@
                 }
             }
 
-            function showOperationFailure(title, detail) {
-                loadingSubmitInProgress = false;
-                setLoadingSaveBusy(false);
+            // قفلِ ضدِ ارسالِ دوباره مالِ core.js است و روی خودِ فرم می‌نشیند
+            // (data-ptg-submitting). اگر صفحه فقط حالتِ داخلی خودش را آزاد کند و این قفل
+            // را نگه دارد، دکمه فعال به‌نظر می‌رسد ولی هر ذخیرهٔ بعدی تا پایان مهلتِ کهنگی
+            // با پیام «ثبت قبلی هنوز در جریان است» لغو می‌شود و کاربر مجبور به رفرش است.
+            // پس هر مسیرِ آزادسازی باید همین‌جا قفل مشترک را هم پس بدهد.
+            function releaseSharedSubmitLock() {
+                // تا وقتی POST زنده است قفل دست‌نخورده می‌ماند؛ آزادکردن زودهنگام یعنی
+                // اجازهٔ ثبت دوباره وسط همان ثبت.
+                if (loadingPostInFlight || !loadingForm) {
+                    return;
+                }
+
+                window.PTG?.releaseFormSubmit?.(loadingForm);
+            }
+
+            // فقط نقاشیِ جعبهٔ وضعیت؛ هیچ قفلی آزاد نمی‌کند. برای حالتی است که POST واقعاً
+            // در جریان است و قفل باید سرِ جایش بماند.
+            function paintOperationFailure(title, detail) {
                 if (!operationStatus) {
                     return;
                 }
@@ -1735,10 +1753,16 @@
                 if (operationDetail) operationDetail.textContent = detail;
             }
 
+            // ثبت انجام نشد و هیچ POSTی در جریان نیست: همان بازنشانی مشترک (نگهبان، قفل
+            // مشترک، دکمه) و بعد نمایش علت.
+            function showOperationFailure(title, detail) {
+                resetLoadingSubmissionUi(true);
+                paintOperationFailure(title, detail);
+            }
+
             // بخشِ سطرهای مجازی وقتی ثبت را متوقف می‌کند، علت را در همین جعبهٔ وضعیت
             // (بالای جدول، کنار دکمه) نشان می‌دهد نه فقط در نوار کوچک ایمپورت.
             window.loadingShowSubmitBlocked = function (title, detail) {
-                clearLoadingSubmitWatchdog();
                 showOperationFailure(title, detail);
             };
 
@@ -1748,6 +1772,7 @@
                 clearLoadingSubmitWatchdog();
                 loadingSubmitInProgress = false;
                 setLoadingSaveBusy(false);
+                releaseSharedSubmitLock();
                 if (!operationStatus) {
                     return;
                 }
@@ -1788,6 +1813,8 @@
 
             // بازگشت با دکمهٔ Back مرورگر نباید دکمه را قفل نگه دارد.
             window.addEventListener('pageshow', function () {
+                // صفحه از bfcache برگشته: هیچ POSTی از آن ارسال زنده نمانده است.
+                loadingPostInFlight = false;
                 resetLoadingSubmissionUi(true);
             });
 
@@ -1802,9 +1829,11 @@
             loadingForm?.addEventListener('ptg:submit-blocked', function (event) {
                 const reason = event.detail?.reason;
                 if (reason === 'in-progress') {
-                    showOperationFailure(
+                    // اینجا تنها جایی است که قفل عمداً نگه داشته می‌شود: یعنی واقعاً یک POST
+                    // در جریان است و آزادکردن قفل، همان ثبت تکراری را ممکن می‌کرد.
+                    paintOperationFailure(
                         'ثبت قبلی هنوز در جریان است.',
-                        'تا پایان ثبت قبلی صبر کنید. اگر پاسخی نیامد، صفحه را تازه کرده و دوباره تلاش کنید.');
+                        'تا پایان ثبت قبلی صبر کنید؛ نیازی به رفرش نیست. اگر پاسخی نیامد، بعد از پایان مهلت دوباره ذخیره کنید.');
                     return;
                 }
 
@@ -1853,6 +1882,9 @@
                 }
 
                 loadingSubmitInProgress = true;
+                // از این لحظه POST واقعاً روی سیم است؛ تا وقتی خلافش ثابت نشود قفل مشترک
+                // آزاد نمی‌شود، وگرنه ارسال دوم همان بارگیری‌ها را دوباره ثبت می‌کرد.
+                loadingPostInFlight = true;
                 setLoadingSaveBusy(true);
                 const rowCount = document.querySelector('[data-lic-count-total]')?.textContent || '';
                 showOperationStatus(
@@ -1862,6 +1894,9 @@
                 clearLoadingSubmitWatchdog();
                 loadingSubmitWatchdogId = window.setTimeout(function () {
                     loadingSubmitWatchdogId = null;
+                    // مهلت تمام شد: POST مرده حساب می‌شود تا کاربر بدون رفرش دوباره
+                    // تلاش کند. مهلت کهنگی قفل core.js هم دقیقاً همین اندازه است.
+                    loadingPostInFlight = false;
                     showOperationFailure(
                         'پاسخی از سرور دریافت نشد.',
                         'ثبت انجام نشد یا پاسخ آن نرسید. ابتدا فهرست بارگیری‌ها را بررسی کنید؛ اگر ثبت نشده بود دوباره ذخیره کنید.');
@@ -1873,6 +1908,7 @@
                 // بعد سنجیده می‌شود تا دکمه هرگز روی حالت «در حال ثبت» قفل نماند.
                 window.setTimeout(function () {
                     if (event.defaultPrevented) {
+                        loadingPostInFlight = false;
                         resetLoadingSubmissionUi();
                     }
                 }, 0);

@@ -83,7 +83,6 @@
     var loadingComplete = Model.RemainingToReceiveMt <= 0m;
     ViewData["AkHeaderStatus"] = loadingComplete ? T("تکمیل رسید", "Receipt completed") : T("در انتظار رسید", "Awaiting receipt");
     ViewData["AkHeaderStatusState"] = loadingComplete ? "is-active" : "is-warning";
-    ViewData["AkHeaderContext"] = $"{Model.ContractNumber} · {Model.ProductName} · {Model.LoadingDate.ToDisplayDate()}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-pencil-square" },
@@ -206,6 +205,7 @@
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" });
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت کسری", "Register loss"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" });
     nextActions.RemoveAll(action => string.Equals(action.ModalTarget, headerPrimaryModal, StringComparison.Ordinal));
+    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     var loadingRecordsTab = (Context.Request.Query["recordsTab"].ToString() ?? string.Empty).Trim().ToLowerInvariant();
     loadingRecordsTab = loadingRecordsTab is "customs" or "losses" ? loadingRecordsTab : "receipts";
@@ -408,8 +408,6 @@
              model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
                         (IReadOnlyList<AkRelatedRecord>)relatedRecords,
                         (IReadOnlyList<AkInfoItem>)advancedItems))" />
-
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
     <div class="modal fade" id="loadingExpensesModal" tabindex="-1" aria-labelledby="loadingExpensesModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">

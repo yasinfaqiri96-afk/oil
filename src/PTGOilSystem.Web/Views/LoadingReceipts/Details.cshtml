@@ -107,7 +107,6 @@
         ? T("لغوشده", "Cancelled")
         : allocBalanced ? T("تخصیص متوازن", "Allocation balanced") : T("اختلاف تخصیص", "Allocation mismatch");
     ViewData["AkHeaderStatusState"] = Model.IsCancelled ? "is-danger" : allocBalanced ? "is-active" : "is-warning";
-    ViewData["AkHeaderContext"] = $"{Model.ContractNumber} · {Model.ProductName} · {Model.ReceiptDate.ToDisplayDate()}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = Model.IsCancelled ? null : receiptEditUrl, Icon = "bi-pencil" },
@@ -219,6 +218,7 @@
 
     // اکشن اصلی سربرگ («رسید جدید») در نوار عملیات پایانی تکرار نمی‌شود.
     var nextActions = new List<AkHeaderMenuItem>();
+    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     ViewData["Title"] = pageTitle;
     ViewData["HideSectionTabs"] = true;
@@ -268,7 +268,7 @@
     }
 
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-         model="@((pageTitle, false,
+         model="@(($"{T("رسید", "Receipt")} #{Model.Id}", false,
                     Model.RemainingToReceiveMt > 0 ? T("رسید جدید", "New receipt") : (string?)null, "bi-box-arrow-in-down",
                     Model.RemainingToReceiveMt > 0 ? newReceiptUrl : null, (string?)null,
                    T("بازگشت", "Back"), "bi-arrow-right", backUrl))" />
@@ -370,7 +370,5 @@
              model="@(((IReadOnlyList<AkTimelineItem>)timelineItems,
                         (IReadOnlyList<AkRelatedRecord>)relatedRecords,
                         (IReadOnlyList<AkInfoItem>)advancedItems))" />
-
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
 </div>

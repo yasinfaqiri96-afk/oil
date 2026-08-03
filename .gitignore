@@ -59,6 +59,7 @@ yarn-error.log*
 *.sqlite3
 *.bak
 *.backup
+*.dump
 
 backups/postgres/
 # آرشیوهای ماژول پشتیبان‌گیری (Backup:StorageDirectory) هرگز نباید وارد مخزن شوند.

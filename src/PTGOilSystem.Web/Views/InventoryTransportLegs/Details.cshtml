@@ -95,7 +95,6 @@
     };
     ViewData["AkHeaderStatus"] = statusText;
     ViewData["AkHeaderStatusState"] = headerStatusState;
-    ViewData["AkHeaderContext"] = $"{Model.ContractNumber} · {productName} · {Model.LoadedDate.ToDisplayDate()}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-pencil-square" }
@@ -166,6 +165,16 @@
     {
         nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصرف / کرایه", "Register expense"), ModalTarget = "transportExpensesModal", Icon = "bi-receipt" });
     }
+    if (canMarkLoaded)
+    {
+        nextActions.Add(new AkHeaderMenuItem
+        {
+            Label = T("تأیید خروج", "Confirm outbound"),
+            PostUrl = Url.Action("MarkLoaded", "InventoryTransportLegs", new { id = Model.Id }),
+            Icon = "bi-check2-circle"
+        });
+    }
+    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     ViewData["Title"] = T("جزئیات حمل از موجودی", "Inventory transport details");
     ViewData["HideSectionTabs"] = true;
@@ -452,16 +461,8 @@
                         (IReadOnlyList<AkRelatedRecord>)relatedRecords,
                         (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
-    @if (canMarkLoaded)
-    {
-        <form asp-action="MarkLoaded" asp-route-id="@Model.Id" method="post" class="ak-detail-inline-action no-print">
-            @Html.AntiForgeryToken()
-            <button type="submit" class="btn btn-light ak-secondary-action"><i class="bi bi-check2-circle" aria-hidden="true"></i>@T("تأیید خروج", "Confirm outbound")</button>
-        </form>
-    }
     <button type="button" id="nextOpExpenseTrigger" class="visually-hidden" data-bs-toggle="modal" data-bs-target="#transportExpensesModal"
             data-expense-url="@Url.Action("CreateGroupExpenseModal", "InventoryTransportLegs", new { legId = Model.Id, returnUrl = currentPageReturnUrl })" tabindex="-1" aria-hidden="true"></button>
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
     <div class="modal fade ptcd-detail-modal" id="ptcdDetailModal" tabindex="-1" aria-labelledby="ptcdDetailTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">

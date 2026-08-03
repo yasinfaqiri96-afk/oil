@@ -225,6 +225,7 @@
     {
         new() { Label = T("فروش جدید", "New sale"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
     };
+    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     ViewData["Title"] = T("جزئیات فروش", "Sale details");
     ViewData["HideSectionTabs"] = true;
@@ -315,5 +316,4 @@
                         (IReadOnlyList<AkRelatedRecord>)relatedRecords,
                         (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

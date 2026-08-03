@@ -22,7 +22,6 @@
 
     ViewData["AkHeaderStatus"] = hasDocs ? T($"{Model.Documents.Count} سند", $"{Model.Documents.Count} documents") : T("بدون سند", "No document");
     ViewData["AkHeaderStatusState"] = hasDocs ? "is-active" : "is-warning";
-    ViewData["AkHeaderContext"] = $"{Model.ContractNumber} · {Model.ProductName} · {Model.DeclarationDate.ToDisplayDate()}";
     var customsKebab = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = canManageDocuments ? Url.Action("Edit", new { id = Model.Id, returnUrl = currentUrl }) : null, Icon = "bi-pencil-square" },
@@ -88,6 +87,7 @@
     {
         new() { Label = T("اعلامیه جدید", "New declaration"), Href = newDeclarationUrl, Icon = "bi-plus-lg" }
     };
+    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     ViewData["Title"] = "جزئیات اعلامیه گمرکی";
     ViewData["HideSectionTabs"] = true;
@@ -95,7 +95,7 @@
 
 <div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@(($"اعلامیه گمرکی #{Model.Id}", false,
+             model="@(($"{T("اعلامیه", "Declaration")} #{Model.Id}", false,
                        T("افزودن سند", "Add document"), "bi-paperclip",
                        (string?)"#customs-documents", (string?)null,
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
@@ -253,5 +253,4 @@
                         (IReadOnlyList<AkRelatedRecord>)relatedRecords,
                         (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 </div>

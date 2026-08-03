@@ -49,7 +49,8 @@ public sealed class AkDetailV2StructureTests
             var view = ReadView(controller);
             Assert.Contains("_DetailPager.cshtml", view);
             Assert.Contains("_OperationsDetailMore.cshtml", view);
-            Assert.Contains("_DetailActionBar.cshtml", view);
+            Assert.Contains("AkHeaderOverflowActions", view);
+            Assert.DoesNotContain("_DetailActionBar.cshtml", view);
             Assert.DoesNotContain("data-ptcd-tab", view);
             Assert.DoesNotContain("data-ptcd-pager", view);
         }

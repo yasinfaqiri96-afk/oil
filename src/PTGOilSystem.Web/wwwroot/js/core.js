@@ -6,20 +6,6 @@
 (function () {
     "use strict";
 
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initializeShell, { once: true });
-    } else {
-        initializeShell();
-    }
-
-    // SPA navigation replaces <main>.innerHTML without a page reload, so
-    // DOMContentLoaded never fires again. Re-run the shared initializer on the
-    // canonical ptg:page-ready signal (same hook tables.js/ptg-tabs.js use) so
-    // freshly-swapped content — e.g. the bulk-receipt toggle — gets wired up.
-    // Every initializer here is idempotent (per-element/per-body *Ready guards),
-    // so re-running never double-binds listeners on surviving elements.
-    window.addEventListener("ptg:page-ready", initializeShell);
-
     function initializeShell() {
         callIfAvailable("initializeLanguageSwitcher");
         initializeFlashAlerts();
@@ -627,7 +613,12 @@
     // ناقص) پرچم روی فرم می‌ماند و از آن به بعد هر ارسالِ بعدی بی‌صدا حذف می‌شد —
     // یعنی هیچ POST ساخته نمی‌شد و کاربر هیچ دلیلی نمی‌دید. قفل بعد از این مدت کهنه
     // شمرده و آزاد می‌شود تا صفحه هرگز به‌طور دائم مرده نماند.
-    var STALE_SUBMIT_LOCK_MS = 90000;
+    //
+    // این مهلت باید از نگهبانِ ثبتِ صفحه‌ها کوتاه‌تر نباشد (فعلاً ۱۲۰ ثانیه در فرم ثبت
+    // بارگیری). اگر کوتاه‌تر باشد، در فاصلهٔ بین این دو، قفل خودبه‌خود کهنه می‌شود در حالی
+    // که POST هنوز در جریان است و ارسال دوم اجازهٔ عبور می‌گیرد؛ یعنی همان ثبت تکراری که
+    // این گارد جلویش را می‌گرفت. صفحه‌ها با PTG.releaseFormSubmit زودتر قفل را پس می‌دهند.
+    var STALE_SUBMIT_LOCK_MS = 120000;
 
     function isSubmitLockStale(form) {
         var startedAt = Number(form.dataset.ptgSubmittingAt || 0);
@@ -744,5 +735,33 @@
     // فقط قفل و بررسی اعتبار مشترک، بدون دست‌زدن به دکمه‌ها.
     window.PTG.claimFormSubmit = claimFormSubmit;
     window.PTG.releaseFormSubmit = resetSubmitGuard;
+
+    // ---------------------------------------------------------------------
+    // Bootstrap — must stay at the very BOTTOM of the module.
+    //
+    // این فراخوانی قبلاً بالای فایل بود. چون صفحه‌ها core.js را با defer/انتهای
+    // body بار می‌کنند، readyState دیگر "loading" نیست و initializeShell()
+    // همان‌جا اجرا می‌شد — یعنی *پیش از* اجرای دستورهای `var ...Ready = false`
+    // که پایین‌تر در همین ماژول‌اند. hoisting فقط اعلان را بالا می‌برد نه مقدار
+    // را؛ پس پرچم در نخستین اجرا undefined بود، بایندینگ انجام می‌شد، پرچم true
+    // می‌شد و بلافاصله بعد، خطِ `var submitGuardReady = false;` دوباره صفرش
+    // می‌کرد. نتیجه: هر ناوبری SPA یک شنوندهٔ submit دوم اضافه می‌کرد؛ شنوندهٔ
+    // اول قفل را می‌گرفت و شنوندهٔ دوم همان ارسال را با دلیل "in-progress" لغو
+    // می‌کرد. هیچ POSTی ساخته نمی‌شد و فقط رفرش کامل صفحه درستش می‌کرد.
+    // همین اشکال روی pageModalReady و bulkReceiptDelegationReady هم بود.
+    // ---------------------------------------------------------------------
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeShell, { once: true });
+    } else {
+        initializeShell();
+    }
+
+    // SPA navigation replaces <main>.innerHTML without a page reload, so
+    // DOMContentLoaded never fires again. Re-run the shared initializer on the
+    // canonical ptg:page-ready signal (same hook tables.js/ptg-tabs.js use) so
+    // freshly-swapped content — e.g. the bulk-receipt toggle — gets wired up.
+    // Every initializer here is idempotent (per-element/per-body *Ready guards),
+    // so re-running never double-binds listeners on surviving elements.
+    window.addEventListener("ptg:page-ready", initializeShell);
 
 })();

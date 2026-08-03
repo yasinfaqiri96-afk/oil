@@ -606,14 +606,14 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("<vc:stat-card", view);
         Assert.Contains("_DetailPager.cshtml", view);
         Assert.Contains("_OperationsDetailMore.cshtml", view);
-        Assert.Contains("_DetailActionBar.cshtml", view);
+        Assert.Contains("AkHeaderOverflowActions", view);
+        Assert.DoesNotContain("_DetailActionBar.cshtml", view);
         Assert.Contains("data-ak-operations-detail=\"true\"", view);
         Assert.DoesNotContain("data-ptcd-tab", view);
         Assert.DoesNotContain("data-ptcd-pager", view);
         Assert.DoesNotContain("ak-form-section ak-detail-section is-receipt", view);
         Assert.Contains("عملیات بعدی بار", view);
         Assert.Contains("ثبت گمرک", view);
-        Assert.Contains("_DetailActionBar.cshtml", view);
         Assert.DoesNotContain("ptg-transport-clean-details", view);
         Assert.DoesNotContain("ptcd-summary-card", view);
     }
@@ -627,7 +627,9 @@ public class ContractJourneyViewStructureTests
             "src/PTGOilSystem.Web/Views/LossEvents/Details.cshtml",
             "src/PTGOilSystem.Web/Views/Dispatch/Details.cshtml",
             "src/PTGOilSystem.Web/Views/CustomsDeclarations/Details.cshtml",
-            "src/PTGOilSystem.Web/Views/LoadingReceipts/Details.cshtml"
+            "src/PTGOilSystem.Web/Views/LoadingReceipts/Details.cshtml",
+            "src/PTGOilSystem.Web/Views/Loading/Details.cshtml",
+            "src/PTGOilSystem.Web/Views/InventoryTransportLegs/Details.cshtml"
         };
 
         foreach (var path in pages)
@@ -640,6 +642,9 @@ public class ContractJourneyViewStructureTests
             Assert.Contains("_OperationsDetailMore.cshtml", view);
             Assert.Contains("data-ak-operations-detail=\"true\"", view);
             Assert.Contains("ViewData[\"HideSectionTabs\"] = true;", view);
+            Assert.Contains("AkHeaderOverflowActions", view);
+            Assert.DoesNotContain("AkHeaderContext", view);
+            Assert.DoesNotContain("_DetailActionBar.cshtml", view);
 
             foreach (var legacy in new[]
             {

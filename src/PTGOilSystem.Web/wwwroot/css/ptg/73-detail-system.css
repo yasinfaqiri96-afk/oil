@@ -668,12 +668,40 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
    to scan. This scope is shared by Sales and the related Operations pages;
    page-specific content and workflows remain unchanged.
    ------------------------------------------------------------------- */
-/* The invoice number is a label, not a headline — 30px made it shout over the
-   figures that actually matter. */
+/* Keep the operations header quiet and compact; repeated record facts live in
+   the summary cards, while secondary page actions stay in the kebab menu. */
+.ak-operations-clean-page > .ak-detail-header {
+    gap: 12px;
+    padding-block: 2px 8px;
+    border-block-end: 0;
+}
+
+.ak-operations-clean-page > .ak-detail-header .ak-detail-header-main {
+    gap: 2px;
+}
+
 body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 1.4;
+    font-size: 18px;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
+.ak-operations-clean-page > .ak-detail-header .ak-detail-status {
+    padding: 3px 8px;
+    font-size: 11px;
+    line-height: 15px;
+}
+
+.ak-operations-clean-page > .ak-detail-header .ak-detail-actions {
+    gap: 6px;
+}
+
+.ak-operations-clean-page > .ak-detail-header .ak-detail-actions > .btn,
+.ak-operations-clean-page > .ak-detail-header .ak-detail-actions > .dropdown > .btn {
+    min-height: 34px;
+    padding: 5px 10px;
+    border-radius: var(--ptg-radius-md);
+    font-size: 13px;
 }
 
 .ak-operations-clean-page .ak-stat-card__title {
