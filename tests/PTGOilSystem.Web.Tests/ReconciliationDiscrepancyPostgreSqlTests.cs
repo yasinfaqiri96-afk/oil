@@ -11,6 +11,8 @@ namespace PTGOilSystem.Web.Tests;
 /// هیچ دیتابیس توسعه یا تولیدی لمس نمی‌شود.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class ReconciliationDiscrepancyPostgreSqlTests(AccountingPostgreSqlFixture fixture)
 {
     public static TheoryData<ReconciliationDiscrepancyCategory> Categories()

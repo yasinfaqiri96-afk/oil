@@ -958,6 +958,27 @@ a.ak-list-row:focus-visible {
     grid-column: 1 / -1;
 }
 
+/* Three fields per row (e.g. contract + product + origin). Collapses to the
+   standard 2-column grid on narrow desktops and to 1 column on phones. */
+.ak-form-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 24px;
+}
+
+/* Five compact peer fields on wide form pages. Opt-in so existing forms keep
+   their established two/three-column rhythm. */
+.ak-form-grid--5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    column-gap: 16px;
+}
+
+@media (max-width: 1199.98px) {
+    .ak-form-grid--3,
+    .ak-form-grid--5 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 .ak-field {
     display: flex;
     flex-direction: column;
@@ -1384,6 +1405,63 @@ select.ak-input {
 .ak-cancel:focus-visible {
     background: transparent;
     color: var(--primary-main);
+}
+
+/*
+ * Shared secondary button of the Ak layer (toolbars, in-form actions).
+ * Same metrics as .ak-save so a row of controls lines up, but neutral surface
+ * so the primary submit stays the loudest button on the page.
+ * Use .ak-btn for real actions and .ak-btn--ghost for borderless links.
+ */
+.ak-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 6px 14px;
+    border: 1px solid var(--ptg-field-border);
+    border-radius: var(--ptg-radius-md, 8px);
+    background: var(--ptg-field-bg);
+    color: var(--ptg-text);
+    font: inherit;
+    font-size: 14px;
+    line-height: 24px;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+.ak-btn:hover:not(:disabled),
+.ak-btn:focus-visible {
+    border-color: var(--primary-main);
+    color: var(--primary-main);
+    text-decoration: none;
+}
+
+.ak-btn:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 3px var(--ptg-field-focus-ring);
+}
+
+.ak-btn:disabled,
+.ak-btn[aria-disabled="true"] {
+    opacity: .55;
+    cursor: default;
+}
+
+.ak-btn--ghost {
+    padding-inline: 8px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--primary-main);
+}
+
+.ak-btn--ghost:hover:not(:disabled),
+.ak-btn--ghost:focus-visible {
+    border-color: transparent;
+    background: var(--ptg-surface-subtle, #F7F8FA);
 }
 
 .ak-upload {
@@ -1921,29 +1999,10 @@ select.ak-input {
     min-width: 150px;
 }
 
-[data-loading-date-picker] .loading-octane-date-icon {
-    display: inline-grid;
-    place-items: center;
-    flex: 0 0 36px;
-    border: 1px solid #C7C9D9;
-    border-inline-end: 0;
-    border-radius: 8px 0 0 8px;
-    background: var(--ptg-surface);
-    color: var(--primary-main);
-}
-
-[dir="rtl"] [data-loading-date-picker] .loading-octane-date-icon {
-    border-radius: 0 8px 8px 0;
-}
-
 [data-loading-date-picker] .loading-octane-date-display {
-    border-radius: 0 8px 8px 0;
+    width: 100%;
     direction: ltr;
     text-align: center;
-}
-
-[dir="rtl"] [data-loading-date-picker] .loading-octane-date-display {
-    border-radius: 8px 0 0 8px;
 }
 
 [data-loading-date-overlay] {
@@ -3020,20 +3079,14 @@ select.ak-input {
 }
 
 /* =============================================================
- * LOADING REGISTRATION (Loading/Create + Loading/ImportWorkbook)
- * Page-scoped UI/UX redesign. Wide flat canvas, sized line-item
- * table with horizontal scroll, summary strip, paginated preview
- * and sticky action footer. Markup names / model binding / Excel
- * import / calculations are untouched — this governs layout,
- * sizing and the preview affordances only.
+ * LOADING REGISTRATION (Loading/Create)
+ * فقط چیدمان: کارت‌های آماری از کامپوننت مشترک (ak-stat-grid /
+ * vc:stat-card) و جدول از کامپوننت مشترک (.ak-table-wrap/.ak-table)
+ * می‌آید؛ این بخش فقط عرض خوانای سلول‌های فرم‌دار را حفظ می‌کند و
+ * اسکرول را داخل wrapper خود جدول نگه می‌دارد. منطق و بایندینگ دست‌نخورده است.
  * Scope: [data-loading-create-page] (alias .loading-import-workbook)
  * ============================================================= */
-[data-loading-create-page].loading-import-workbook {
-    --lic-table-min: 1440px;
-    --lic-row-h: 76px;
-}
-
-/* Loading/Create uses the full 1200px PageFrame as its wide table canvas. */
+/* Page shell: the wide PageFrame is the table canvas. */
 .ak-form-page:has(> form[data-loading-create-form]) {
     --ak-form-content-wide-max: var(--layout-content-max);
     --ak-form-page-gutter: 0px;
@@ -3044,200 +3097,154 @@ select.ak-input {
     max-width: none;
 }
 
-/* ---- Summary strip: one full-width row, hairline top/bottom,
-   thin vertical dividers between items, tabular figures. ---- */
-.loading-import-workbook .lic-summary-strip {
-    display: flex;
+/* Compact inline pricing notice; the existing Bootstrap alert palette remains
+   the single source for warning colours. */
+.loading-import-workbook .loading-pricing-notice {
+    display: inline-flex;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 0;
-    column-gap: 0;
-    row-gap: 0;
-    padding-block: 16px;
-    border-block: 1px solid var(--divider);
+    width: fit-content;
+    max-width: 100%;
+    gap: 6px;
+    margin: 0 0 16px;
+    padding: 6px 10px;
+    border-radius: var(--ptg-radius-md, 8px);
+    font-size: 12.5px;
+    line-height: 1.35;
 }
 
-.loading-import-workbook .lic-summary-strip > .ak-field {
-    flex: 1 1 0;
-    min-width: 150px;
-    gap: 4px;
-    padding-inline: 20px;
-    border-inline-start: 1px solid var(--divider);
+.loading-import-workbook .loading-pricing-notice > i {
+    flex: none;
+    font-size: 13px;
 }
 
-.loading-import-workbook .lic-summary-strip > .ak-field:first-child {
-    border-inline-start: 0;
-    padding-inline-start: 0;
-}
-
-.loading-import-workbook .lic-summary-strip > .ak-field.ak-col-full {
-    flex-basis: 100%;
-    border-inline-start: 0;
-    padding-inline-start: 0;
-}
-
-.loading-import-workbook .lic-summary-strip .ak-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--ptg-muted);
-}
-
-.loading-import-workbook .lic-summary-strip .ak-num {
-    font-size: 17px;
+.loading-import-workbook .loading-pricing-notice > strong {
     font-weight: 600;
-    color: var(--ptg-text);
 }
 
-/* ---- Line-item table: sized, scrollable, never crushed. ---- */
+.loading-import-workbook .loading-pricing-notice > span:empty {
+    display: none;
+}
+
+/* The statistics and the line-item toolbar are separate visual groups. */
+.loading-import-workbook .ak-stat-grid + .ak-form-section {
+    margin-top: 40px;
+}
+
+/* Freight toggle follows the same 42px control rhythm as neighbouring fields,
+   while staying compact instead of filling the whole grid column. */
+.loading-import-workbook .loading-freight-toggle-field {
+    align-self: start;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    width: min(100%, 180px);
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.loading-import-workbook .loading-freight-toggle-control {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    height: 42px;
+    margin: 0;
+    padding-block: 0;
+    padding-inline-end: 12px;
+    border: 1px solid var(--ptg-field-border);
+    border-radius: var(--ptg-radius-md);
+    background: var(--ptg-field-bg);
+    white-space: nowrap;
+}
+
+/* ---- Line-item table ----------------------------------------------------
+ * همان جدول مشترک سیستم (.ak-table-wrap/.ak-table) است. عرض خوانای فیلدها
+ * حفظ می‌شود و اسکرول افقی فقط داخل wrapper مشترک انجام می‌گیرد.
+ * ---------------------------------------------------------------------- */
 .loading-import-workbook .ak-table-wrap {
-    overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: thin;
 }
 
-.loading-import-workbook .ak-table-wrap::-webkit-scrollbar {
-    height: 9px;
-}
-
-.loading-import-workbook .ak-table-wrap::-webkit-scrollbar-thumb {
-    background: var(--ptg-field-border);
-    border-radius: 9999px;
-}
-
 .loading-import-workbook .ak-table {
-    min-width: var(--lic-table-min);
+    table-layout: auto;
+    min-width: 2100px;
 }
 
 .loading-import-workbook .ak-table > thead > tr > th,
 .loading-import-workbook .ak-table > tbody > tr > td {
-    padding: 10px 10px;
-    white-space: nowrap;
-}
-
-.loading-import-workbook .ak-table > thead > tr > th {
-    font-size: 12.5px;
-    font-weight: 600;
-    background: var(--ptg-surface-subtle, #FAFAFC);
+    padding: 6px 8px;
 }
 
 .loading-import-workbook .ak-table > tbody > tr > td {
-    height: var(--lic-row-h);
     vertical-align: middle;
-    border-bottom: 1px solid #ECEEF3;
 }
 
-/* In-cell controls: readable, full-cell, comfortable min widths so
-   text and figures never bleed onto the neighbouring column. */
+/* Controls fill a readable cell; they no longer collapse until their content
+   is clipped. */
 .loading-import-workbook .ak-table td .ak-input {
-    height: 38px;
+    width: 100%;
+    min-width: 112px;
+    height: 36px;
     padding: 0 10px;
-    border-radius: 7px;
-    font-size: 13.5px;
-    min-width: 120px;
-}
-
-.loading-import-workbook .ak-table td.ak-col-num .ak-input {
-    min-width: 108px;
+    border-radius: var(--ptg-radius-sm, 6px);
+    font-size: 13px;
 }
 
 .loading-import-workbook .ak-table td [data-loading-date-picker] {
-    min-width: 150px;
+    min-width: 132px;
 }
 
 .loading-import-workbook .ak-table td [data-loading-logistics-pair] {
     display: flex;
-    gap: 6px;
-    min-width: 260px;
+    gap: 8px;
+    min-width: 300px;
 }
 
 .loading-import-workbook .ak-table td [data-loading-logistics-pair] > * {
     flex: 1 1 0;
-    min-width: 0;
+    min-width: 140px;
 }
 
-/* Computed (read-only) money/qty cells render as text, right/end aligned. */
-.loading-import-workbook .ak-table td.ak-col-num > span {
-    display: inline-block;
-    min-width: 108px;
+.loading-import-workbook .ak-table td[data-loading-contract-cell] {
+    min-width: 180px;
 }
 
-/* Per-cell premium / rub-status helper text stays on its own line, small. */
-.loading-import-workbook .ak-table td .ak-section-desc {
-    display: block;
-    margin-top: 3px;
-    font-size: 11.5px;
-    line-height: 1.25;
-    white-space: normal;
-    max-width: 100%;
+.loading-import-workbook .ak-table > thead > tr > :is(th:nth-child(4), th:nth-child(5), th:nth-last-child(3), th:nth-last-child(2)),
+.loading-import-workbook .ak-table > tbody > tr > :is(td:nth-child(4), td:nth-child(5), td:nth-last-child(3), td:nth-last-child(2)) {
+    min-width: 150px;
 }
 
-/* Keep price/ruble helper copy inside its own cell. These cells sit directly
-   beside computed totals, so visible overflow makes the helper appear on top
-   of the loading value / ruble equivalent. */
-.loading-import-workbook .ak-table td:is(.loading-price-cell, .loading-rub-rate-cell) {
-    overflow: hidden;
+.loading-import-workbook .ak-table > thead > tr > th.ak-col-num,
+.loading-import-workbook .ak-table > tbody > tr > td.ak-col-num {
+    min-width: 112px;
 }
 
-.loading-import-workbook .ak-table td:is(.loading-price-cell, .loading-rub-rate-cell) .ak-section-desc {
-    display: block !important;
-    position: static !important;
-    inset: auto !important;
-    width: auto !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    margin-top: 4px !important;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    direction: rtl;
-    text-align: center;
-}
-
-/* Isolate calculated money values from neighbouring RTL helper text. */
-.loading-import-workbook .ak-table td:is(.loading-value-cell, .loading-rub-value-cell) {
-    overflow: hidden;
-}
-
-.loading-import-workbook .ak-table td:is(.loading-value-cell, .loading-rub-value-cell) > span {
-    display: block;
-    width: 100%;
-    min-width: 108px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    direction: ltr;
-    unicode-bidi: isolate;
-    text-align: end;
-}
-
-/* Sticky index (#) + actions columns so the row stays anchored while
-   the middle scrolls horizontally. */
 .loading-import-workbook .ak-table > thead > tr > th:first-child,
 .loading-import-workbook .ak-table > tbody > tr > td:first-child {
-    position: sticky;
-    inset-inline-start: 0;
-    z-index: 2;
-    background: var(--ptg-surface);
-}
-.loading-import-workbook .ak-table > thead > tr > th:first-child {
-    background: var(--ptg-surface-subtle, #FAFAFC);
-    z-index: 3;
+    width: 34px;
+    max-width: 34px;
+    padding-inline: 4px;
 }
 
 .loading-import-workbook .ak-table > thead > tr > th.ak-col-actions,
 .loading-import-workbook .ak-table > tbody > tr > td.ak-col-actions {
-    position: sticky;
-    inset-inline-end: 0;
-    z-index: 2;
-    background: var(--ptg-surface);
-}
-.loading-import-workbook .ak-table > thead > tr > th.ak-col-actions {
-    background: var(--ptg-surface-subtle, #FAFAFC);
-    z-index: 3;
+    width: 40px;
+    max-width: 40px;
+    padding-inline: 2px;
 }
 
-.loading-import-workbook .ak-table > tbody > tr:hover > td:first-child,
-.loading-import-workbook .ak-table > tbody > tr:hover > td.ak-col-actions {
-    background: #F7F8FA;
+/* Computed money/quantity cells stay complete; the table wrapper owns overflow. */
+.loading-import-workbook .ak-table td.ak-col-num > span {
+    display: block;
+    min-width: 112px;
+    white-space: nowrap;
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: end;
 }
 
 /* Soft error state for a preview row (client-side heuristic only). */
@@ -3253,11 +3260,10 @@ select.ak-input {
     display: none;
 }
 
-/* ---- Table toolbar: counts + search + filters (flat, no card). ---- */
+/* ---- Table toolbar: counts | row actions | search + filters (flat, no card). ---- */
 .loading-import-workbook .lic-table-toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 14px;
@@ -3267,8 +3273,35 @@ select.ak-input {
     display: flex;
     align-items: center;
     gap: 16px;
+    /* counts stay at the start; actions and filters travel together at the end */
+    margin-inline-end: auto;
     font-size: 13px;
     color: var(--ptg-muted);
+}
+
+/* Row actions (افزودن سطر / امپورت از اکسل) — shared .ak-btn only, no local look. */
+.loading-import-workbook .lic-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.loading-import-workbook .lic-toolbar-actions .lic-excel-import-btn {
+    border-color: var(--ptg-success);
+    background: var(--ptg-success);
+    color: #fff;
+}
+
+.loading-import-workbook .lic-toolbar-actions .lic-excel-import-btn:hover,
+.loading-import-workbook .lic-toolbar-actions .lic-excel-import-btn:focus-visible {
+    border-color: var(--ptg-success-text);
+    background: var(--ptg-success-text);
+    color: #fff;
+}
+
+.loading-import-workbook .lic-toolbar-actions .lic-excel-import-btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(var(--ptg-success-rgb), 0.24);
 }
 
 .loading-import-workbook .lic-toolbar-counts strong {
@@ -3288,22 +3321,51 @@ select.ak-input {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
+/* ---- Excel import: one toolbar button, one status line. No panel, no steps. ---- */
+.loading-import-workbook .lic-import-note {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border: 1px solid var(--ptg-field-border);
+    border-radius: 7px;
+    background: #F7F8FA;
+    font-size: 13px;
+    color: var(--ptg-text);
+}
+
+.loading-import-workbook .lic-import-note.is-error {
+    border-color: var(--ptg-danger-text, #C0392B);
+    background: var(--ptg-danger-soft, #FEF4F4);
+    color: var(--ptg-danger-text, #C0392B);
+}
+
+.loading-import-workbook .lic-import-note.is-clickable {
+    cursor: pointer;
+}
+
+/* Field that came from Excel with a problem: same error border as the rest of the form. */
+.loading-import-workbook .ak-table .lic-input-error {
+    border-color: var(--ptg-danger-text, #C0392B);
+    background: var(--ptg-danger-soft, #FEF4F4);
+}
+
+/* Same height/radius as .ak-btn so the whole toolbar row sits on one baseline. */
 .loading-import-workbook .lic-search,
 .loading-import-workbook .lic-filter,
 .loading-import-workbook .lic-pagesize {
-    height: 38px;
+    height: 36px;
     padding: 0 10px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: 7px;
+    border-radius: var(--ptg-radius-md, 8px);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
     font-size: 13.5px;
 }
 
 .loading-import-workbook .lic-search {
-    min-width: 240px;
+    min-width: 200px;
 }
 
 .loading-import-workbook .lic-search:focus,
@@ -3362,6 +3424,11 @@ select.ak-input {
     color: var(--ptg-text);
 }
 
+.loading-import-workbook .loading-operation-status.is-error {
+    border-color: color-mix(in srgb, var(--error-main, #dc3545) 45%, var(--divider));
+    background: color-mix(in srgb, var(--error-main, #dc3545) 8%, var(--ptg-surface));
+}
+
 .loading-import-workbook .loading-operation-status > div {
     display: grid;
     gap: 2px;
@@ -3390,18 +3457,6 @@ select.ak-input {
     color: var(--ptg-muted);
 }
 
-.loading-import-workbook :is(#excelFilePickBtn, #excelImportBtn) {
-    min-height: 38px;
-    white-space: nowrap;
-}
-
-.loading-import-workbook #excelFileName {
-    max-width: min(320px, 100%);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .loading-import-workbook .lic-footer-count strong {
     color: var(--ptg-text);
     font-variant-numeric: tabular-nums;
@@ -3411,21 +3466,16 @@ select.ak-input {
     color: var(--ptg-danger-text, #C0392B);
 }
 
-@media (max-width: 991.98px) {
-    .loading-import-workbook .lic-summary-strip > .ak-field {
-        flex-basis: 33.333%;
-    }
-}
-
 @media (max-width: 640px) {
-    .loading-import-workbook .lic-summary-strip > .ak-field {
-        flex-basis: 50%;
-        padding-inline: 12px;
-    }
     .loading-import-workbook .lic-table-toolbar,
-    .loading-import-workbook .lic-toolbar-controls {
+    .loading-import-workbook .lic-toolbar-controls,
+    .loading-import-workbook .lic-toolbar-actions {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .loading-import-workbook .lic-toolbar-actions .ak-btn {
+        width: 100%;
     }
     .loading-import-workbook .lic-search {
         min-width: 0;

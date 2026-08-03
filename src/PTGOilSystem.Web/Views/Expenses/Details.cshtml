@@ -73,7 +73,7 @@
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("جزئیات مصرف", "Expense details") + $" #{Model.Id}", false,
                        T("ویرایش", "Edit"), "bi-pencil-square",
@@ -82,7 +82,7 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
         <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
                  model="@((T("مشخصات مصرف", "Expense profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
     </div>

@@ -86,15 +86,24 @@ public partial class SuppliersController : Controller
         });
     }
 
-    public async Task<IActionResult> Details(int id, int? contractId = null, string? tab = null)
+    public async Task<IActionResult> Details(int id, int? contractId = null, string? tab = null, string? currency = null)
     {
-        var item = await BuildSupplierProfileAsync(id, contractId, tab);
+        var displayCurrency = NormalizeDisplayCurrency(currency);
+        var item = await BuildSupplierProfileAsync(id, contractId, tab, displayCurrency);
         if (item == null) return NotFound();
         if (_partyStatements is not null)
         {
             var statement = await _partyStatements.GetStatementAsync(
                 new PartyRef(PartyStatementPartyType.Supplier, id),
-                new PartyStatementFilter { ContractId = contractId, IncludeOperationalColumns = false },
+                new PartyStatementFilter
+                {
+                    ContractId = contractId,
+                    // ارز فقط در نمای روبل پاس می‌شود. در سرویس، CurrencyCode = RUB یعنی
+                    // «نمایش روبلی»، ولی هر ارز دیگری فیلترِ اسناد است؛ پس در نمای USD چیزی
+                    // پاس نمی‌شود تا خلاصهٔ دالریِ فعلی مو‌به‌مو مثل قبل بماند.
+                    CurrencyCode = IsRubCurrency(displayCurrency) ? "RUB" : null,
+                    IncludeOperationalColumns = false
+                },
                 HttpContext.RequestAborted);
             ViewData["PartyStatementSummary"] = statement.Summary;
             ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
@@ -317,7 +326,15 @@ public partial class SuppliersController : Controller
         }
     }
 
-    private async Task<SupplierProfileViewModel?> BuildSupplierProfileAsync(int id, int? contractId, string? tab)
+    // نمای ارز فقط نمایشی است: هیچ مبلغی بر اساس آن دوباره محاسبه یا تبدیل نمی‌شود.
+    private static string NormalizeDisplayCurrency(string? currency)
+        => IsRubCurrency(currency) ? "RUB" : "USD";
+
+    private async Task<SupplierProfileViewModel?> BuildSupplierProfileAsync(
+        int id,
+        int? contractId,
+        string? tab,
+        string displayCurrency = "USD")
     {
         var supplier = await _db.Suppliers
             .AsNoTracking()
@@ -453,6 +470,24 @@ public partial class SuppliersController : Controller
                 })
                 .ToListAsync();
 
+        // معادل روبلیِ یک پرداخت فقط از منبع قفل‌شدهٔ خودِ همان سند می‌آید:
+        //   • پرداخت ذاتاً روبلی → مبلغ واقعی سند.
+        //   • پرداخت دالری → فقط اگر تخصیصِ همان پرداخت به ارز روبل قفل شده باشد
+        //     (AllocatedContractCurrencyAmount با ContractCurrencyCode = RUB).
+        // نرخ عمومی، نرخ امروز یا نسبت پرداخت‌ها هرگز برای ساختن روبل استفاده نمی‌شود.
+        var lockedRubByPaymentId = advanceAllocations
+            .Where(a => a.Status == SupplierPaymentAllocationStatus.Active
+                && IsRubCurrency(a.ContractCurrencyCode)
+                && a.AllocatedContractCurrencyAmount > 0m)
+            .GroupBy(a => a.PaymentTransactionId)
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.AllocatedContractCurrencyAmount));
+
+        decimal? PaymentRub(SupplierPaymentProjection payment)
+            => GetPaymentRubEquivalent(payment)
+                ?? (lockedRubByPaymentId.TryGetValue(payment.Id, out var lockedRub)
+                    ? decimal.Round(lockedRub, 4, MidpointRounding.AwayFromZero)
+                    : null);
+
         // Projected to a slim read-model instead of full SarrafSettlement + Sarraf +
         // Contract per row. Same filter/order; Sarraf name + Contract scalars carried
         // so settlement amounts, RUB/USD and reduction totals stay identical.
@@ -561,7 +596,7 @@ public partial class SuppliersController : Controller
         var directPaidRubByContract = payments
             .Where(p => p.ContractId.HasValue && p.PaymentKind == PaymentKind.SupplierPayment)
             .GroupBy(p => p.ContractId!.Value)
-            .ToDictionary(g => g.Key, g => SumKnown(g.Select(GetPaymentRubEquivalent)));
+            .ToDictionary(g => g.Key, g => SumKnown(g.Select(PaymentRub)));
 
         var sarrafPaidByContract = sarrafSettlements
             .Where(s => s.Status == SarrafSettlementStatus.Posted && s.ContractId.HasValue)
@@ -600,24 +635,37 @@ public partial class SuppliersController : Controller
                 SettlementValueRub = l.SettlementValueRub
             })
             .ToListAsync();
-        var loadedRubByContract = loadingRubRows
+        var loadingRubFactsByContract = loadingRubRows
             .GroupBy(l => l.ContractId)
-            .ToDictionary(
-                g => g.Key,
-                g => SumKnown(g.Select(l =>
-                {
-                    finalPriceByContract.TryGetValue(l.ContractId, out var finalPriceUsd);
-                    return GetLoadingRubEquivalent(l, finalPriceUsd);
-                })));
+            .ToDictionary(g => g.Key, g => g.Select(ToLoadingRubFacts).ToList());
+        // ارزش روبلی هر قرارداد از منبع مشترکِ LoadingRubValuation خوانده می‌شود — همان منبعی
+        // که صفحهٔ جریان قرارداد استفاده می‌کند — تا دو صفحه برای یک قرارداد دو عدد ندهند.
+        var loadedRubByContract = contracts.ToDictionary(
+            c => c.Id,
+            c =>
+            {
+                purchaseAggregates.TryGetValue(c.Id, out var purchaseAgg);
+                loadingRubFactsByContract.TryGetValue(c.Id, out var facts);
+                finalPriceByContract.TryGetValue(c.Id, out var finalPriceUsd);
+                return LoadingRubValuation.AggregateForContract(
+                    facts ?? [],
+                    finalPriceUsd,
+                    IsRubCurrency(c.Currency) ? c.UnitPriceInCurrency : null,
+                    purchaseAgg?.TotalLoadedQuantityMt ?? 0m,
+                    purchaseAgg?.TraceablePurchaseCostUsd ?? 0m,
+                    GetRubPerUsdRate(c));
+            });
 
         // نرخ مؤثر روبل از خودِ بارگیری‌های روبلیِ همین قرارداد: مجموع روبلِ واقعیِ بارگیری‌ها
         // ÷ بهای دالریِ همان بارگیری‌ها. این یک منبع روبلیِ واقعی و قابل‌ردیابی است (نرخ ثبت‌شدهٔ
         // بارگیری، مبلغ روبلی فایل، یا snapshot قفل‌شده) — برخلاف نسبت پرداخت‌ها که منبع نیست.
+        // جمعِ تخمینی (تبدیل‌شده با نرخ قرارداد) منبع نیست و نرخ از آن ساخته نمی‌شود.
         decimal? GetLoadingDerivedRubPerUsdRate(int rateContractId)
         {
             if (!loadedRubByContract.TryGetValue(rateContractId, out var loadedRub)
-                || !loadedRub.HasValue
-                || loadedRub.Value <= 0m
+                || loadedRub.IsEstimated
+                || !loadedRub.AmountRub.HasValue
+                || loadedRub.AmountRub.Value <= 0m
                 || !purchaseAggregates.TryGetValue(rateContractId, out var purchaseAgg)
                 || purchaseAgg.TraceablePurchaseCostUsd <= 0m)
             {
@@ -625,7 +673,7 @@ public partial class SuppliersController : Controller
             }
 
             return decimal.Round(
-                loadedRub.Value / purchaseAgg.TraceablePurchaseCostUsd,
+                loadedRub.AmountRub.Value / purchaseAgg.TraceablePurchaseCostUsd,
                 6,
                 MidpointRounding.AwayFromZero);
         }
@@ -684,10 +732,7 @@ public partial class SuppliersController : Controller
                 var estimatedTotalRub = GetContractTotalRub(c, finalPriceUsd, rubPerUsdRate);
                 var loadedQuantityMt = purchaseAgg?.TotalLoadedQuantityMt ?? 0m;
                 loadedRubByContract.TryGetValue(c.Id, out var loadingRub);
-                var loadedValueRub = loadingRub
-                    ?? (IsRubCurrency(c.Currency) && c.UnitPriceInCurrency.HasValue
-                        ? decimal.Round(loadedQuantityMt * c.UnitPriceInCurrency.Value, 4, MidpointRounding.AwayFromZero)
-                        : ToRubFromUsd(purchaseAgg?.TraceablePurchaseCostUsd ?? 0m, rubPerUsdRate));
+                var loadedValueRub = loadingRub.AmountRub;
                 return new SupplierContractSummaryViewModel
                 {
                     ContractId = c.Id,
@@ -709,6 +754,7 @@ public partial class SuppliersController : Controller
                     LoadedQuantityMt = loadedQuantityMt,
                     LoadedValueUsd = purchaseAgg?.TraceablePurchaseCostUsd ?? 0m,
                     LoadedValueRub = loadedValueRub,
+                    LoadedValueRubIsEstimated = loadingRub.IsEstimated,
                     LedgerOutflowUsd = ledger?.OutflowUsd ?? 0m,
                     LedgerReceiptUsd = ledger?.ReceiptUsd ?? 0m,
                     PaidUsd = directPaidUsd + sarrafPaidUsd + viaSarrafPaidUsd,
@@ -737,7 +783,7 @@ public partial class SuppliersController : Controller
                 AppliedFxRateToUsd = p.AppliedFxRateToUsd,
                 AmountUsd = p.AmountUsd,
                 RubPerUsdRate = GetRubPerUsdRate(p),
-                AmountRubEquivalent = GetPaymentRubEquivalent(p),
+                AmountRubEquivalent = PaymentRub(p),
                 Reference = p.Reference,
                 Description = p.Description,
                 IsAdvancePayment = p.IsAdvancePayment,
@@ -960,6 +1006,7 @@ public partial class SuppliersController : Controller
 
         return new SupplierProfileViewModel
         {
+            DisplayCurrency = displayCurrency,
             HasAdvances = advancePayments.Count > 0 || advanceAllocations.Count > 0,
             AdvanceTotalUsd = advanceTotalUsd,
             AdvanceAllocatedUsd = advanceAllocatedUsd,
@@ -986,6 +1033,7 @@ public partial class SuppliersController : Controller
             LoadedPurchaseQuantityMt = contractSummaries.Sum(c => c.LoadedQuantityMt),
             LoadedPurchaseValueUsd = contractSummaries.Sum(c => c.LoadedValueUsd),
             LoadedPurchaseValueRub = SumKnown(contractSummaries.Select(c => c.LoadedValueRub)),
+            LoadedPurchaseValueRubIsEstimated = contractSummaries.Any(c => c.LoadedValueRubIsEstimated),
             RemainingPurchaseQuantityMt = contractSummaries.Sum(c => c.RemainingQuantityMt),
             EstimatedRemainingContractValueUsd = contractSummaries.Sum(c => c.EstimatedUnloadedValueUsd ?? 0m),
             EstimatedRemainingContractValueRub = SumKnown(contractSummaries.Select(c => c.EstimatedUnloadedValueRub)),
@@ -1032,25 +1080,14 @@ public partial class SuppliersController : Controller
             ? settlement.RequestedAmountUsd
             : settlement.SupplierAcceptedAmountUsd;
 
+    // نرخ روبل قرارداد از همان منبع مشترکِ صفحهٔ جریان قرارداد خوانده می‌شود.
     private static decimal? GetRubPerUsdRate(Contract? contract)
-    {
-        if (contract is null)
-        {
-            return null;
-        }
-
-        if (contract.ContractRubPerUsdRate.HasValue && contract.ContractRubPerUsdRate.Value > 0m)
-        {
-            return contract.ContractRubPerUsdRate.Value;
-        }
-
-        if (IsRubCurrency(contract.Currency) && contract.AppliedFxRateToUsd.HasValue && contract.AppliedFxRateToUsd.Value > 0m)
-        {
-            return decimal.Round(1m / contract.AppliedFxRateToUsd.Value, 6, MidpointRounding.AwayFromZero);
-        }
-
-        return null;
-    }
+        => contract is null
+            ? null
+            : LoadingRubValuation.ContractRubPerUsdRate(
+                contract.Currency,
+                contract.ContractRubPerUsdRate,
+                contract.AppliedFxRateToUsd);
 
     private static decimal? GetRubPerUsdRateFromFx(string? currency, decimal? fxRateToUsd)
         => IsRubCurrency(currency) && fxRateToUsd.HasValue && fxRateToUsd.Value > 0m
@@ -1124,57 +1161,18 @@ public partial class SuppliersController : Controller
     private static decimal? GetSarrafAmountRub(decimal sourceAmount, string sourceCurrency, decimal amountUsd, Contract? contract)
         => GetRubEquivalent(sourceAmount, sourceCurrency, amountUsd, GetRubPerUsdRate(contract));
 
-    private static decimal? GetLoadingRubEquivalent(SupplierLoadingRubProjection loading, decimal? contractFinalPriceUsd)
-    {
-        if (!IsRubCurrency(loading.SettlementCurrencyCode))
-        {
-            return null;
-        }
-
-        // بارگیریِ قفل‌شده: همان snapshot قفل ملاک است (نه محاسبهٔ مجدد با قیمت جاری).
-        // دفترکل هم دقیقاً از همین snapshot استفاده می‌کند (SupplierLoadingLedger)، پس اگر
-        // قیمت بعد از قفل بدون بازقفل اصلاح شده باشد، پروفایل و دفترکل عدد یکسان نشان می‌دهند.
-        if (loading.RubRateStatus == RubSettlementRateStatus.Locked
-            && loading.AmountRubAtRubLock is > 0m)
-        {
-            return loading.AmountRubAtRubLock.Value;
-        }
-
-        var loadingValueUsd = GetLoadingValueUsd(loading.LoadedQuantityMt, loading.LoadingPriceUsd, contractFinalPriceUsd);
-        if (loading.RubRateStatus == RubSettlementRateStatus.Locked
-            && loadingValueUsd.HasValue
-            && loading.RubPerUsdRate.HasValue
-            && loading.RubPerUsdRate.Value > 0m)
-        {
-            return decimal.Round(loadingValueUsd.Value * loading.RubPerUsdRate.Value, 2, MidpointRounding.AwayFromZero);
-        }
-
-        if (loading.SettlementValueRub.HasValue)
-        {
-            return loading.SettlementValueRub.Value;
-        }
-
-        if (loading.SettlementUnitPriceRub.HasValue)
-        {
-            return decimal.Round(
-                loading.LoadedQuantityMt * loading.SettlementUnitPriceRub.Value,
-                2,
-                MidpointRounding.AwayFromZero);
-        }
-
-        return null;
-    }
-
-    private static decimal? GetLoadingValueUsd(decimal loadedQuantityMt, decimal? loadingPriceUsd, decimal? contractFinalPriceUsd)
-    {
-        var effectivePrice = IPurchaseAggregationService.HasValidLoadingPrice(loadingPriceUsd)
-            ? loadingPriceUsd
-            : contractFinalPriceUsd;
-
-        return IPurchaseAggregationService.HasValidLoadingPrice(effectivePrice)
-            ? decimal.Round(loadedQuantityMt * effectivePrice!.Value, 4, MidpointRounding.AwayFromZero)
-            : null;
-    }
+    // SettlementCurrencyCode شرط ورود نیست: بارگیری‌ای که رقم روبلیِ فایل یا نرخ قفل‌شده دارد
+    // روبلی شناخته می‌شود. ترتیب و محاسبه در LoadingRubValuation متمرکز است تا صفحهٔ قرارداد
+    // و صفحهٔ تأمین‌کننده یک عدد بدهند.
+    private static LoadingRubFacts ToLoadingRubFacts(SupplierLoadingRubProjection loading)
+        => new(
+            loading.LoadedQuantityMt,
+            loading.LoadingPriceUsd,
+            loading.RubRateStatus,
+            loading.RubPerUsdRate,
+            loading.AmountRubAtRubLock,
+            loading.SettlementUnitPriceRub,
+            loading.SettlementValueRub);
 
     private static decimal? GetRubEquivalent(decimal sourceAmount, string? sourceCurrency, decimal amountUsd, decimal? rubPerUsdRate)
     {

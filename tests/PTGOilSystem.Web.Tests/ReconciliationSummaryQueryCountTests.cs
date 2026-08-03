@@ -14,6 +14,8 @@ namespace PTGOilSystem.Web.Tests;
 /// روی دیتابیس موقتِ همان fixture اجرا می‌شود؛ هیچ دیتابیس توسعه یا تولیدی لمس نمی‌شود.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class ReconciliationSummaryQueryCountTests(
     AccountingPostgreSqlFixture fixture,
     ITestOutputHelper output)

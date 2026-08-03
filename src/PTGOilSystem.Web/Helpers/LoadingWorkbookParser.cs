@@ -8,6 +8,16 @@ using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Helpers;
 
+/// <summary>مشکل یک فیلد از یک ردیف اکسل. Field نام ویژگی مدل است (برای وصل‌کردن به کنترل فرم)
+/// و Column عنوان واقعی ستون در فایل است (برای نمایش به کاربر).</summary>
+public sealed record LoadingWorkbookRowIssue(string Field, string Column, string Message);
+
+/// <summary>اطلاعات مکانی هر ردیف در فایل: شمارهٔ واقعی سطر اکسل، نام شیت و مشکلات همان ردیف.</summary>
+public sealed record LoadingWorkbookRowContext(
+    int ExcelRowNumber,
+    string SheetName,
+    IReadOnlyList<LoadingWorkbookRowIssue> Issues);
+
 public sealed record LoadingWorkbookImportResult(
     LoadingTransportType TransportType,
     IReadOnlyList<LoadingCreateRowViewModel> Rows,
@@ -15,7 +25,8 @@ public sealed record LoadingWorkbookImportResult(
     string? OriginLocationName = null,
     DateTime? ReportDate = null,
     string? VesselName = null,
-    string? ProductName = null);
+    string? ProductName = null,
+    IReadOnlyList<LoadingWorkbookRowContext>? RowContexts = null);
 
 public static class LoadingWorkbookParser
 {
@@ -38,6 +49,11 @@ public static class LoadingWorkbookParser
     private static readonly string[] RubTotalAliases =
         ["totalrub", "rubtotal", "trub", "rubamount", "amountrub", "totalrubvalue", "rubvalue",
          NormalizeHeader("ارزش روبلی"), NormalizeHeader("مجموع روبل"), NormalizeHeader("مجموع روبلی")];
+
+    // ستون مجموع در فایل‌های واقعی فقط «Total» نوشته می‌شود؛ دلاری یا روبلی بودنش از جای
+    // ستون فهمیده می‌شود (مجموعِ بعد از قیمت روبلی، مجموع روبلی است).
+    private static readonly string[] GenericTotalAliases =
+        ["total", "totalamount", "amount", "sum", NormalizeHeader("مجموع"), NormalizeHeader("جمع")];
 
     private static readonly string[] ConsigneeAliases = ["consignee"];
     private static readonly string[] LogisticsAliases = ["transportationcompany", "transportcompany", "logisticscompany"];
@@ -103,7 +119,9 @@ public static class LoadingWorkbookParser
             return wagonResult;
         }
 
-        throw new InvalidDataException("ساختار فایل اکسل بارگیری شناسایی نشد.");
+        throw new InvalidDataException(
+            "فایل قابل امپورت نیست. در هیچ شیتی سطر سرستون بارگیری پیدا نشد. "
+            + "فایل موتر باید ستون‌های Date، CMR، Trucks و Loaded quantity (MT) و فایل واگن ستون‌های Date، RWB No، Wagon No و Loaded quantity (MT) داشته باشد.");
     }
 
     private static LoadingWorkbookImportResult? TryParseWagonWorkbook(
@@ -112,6 +130,7 @@ public static class LoadingWorkbookParser
     {
         var railwayLookup = TryParseWagonRailwayLookup(workbookPart, sheets);
         var importedRows = new List<LoadingCreateRowViewModel>();
+        var rowContexts = new List<LoadingWorkbookRowContext>();
         var sourceSheetNames = new List<string>();
 
         foreach (var sheet in sheets)
@@ -135,28 +154,38 @@ public static class LoadingWorkbookParser
             }
 
             var columns = BuildWagonColumnMap(headerRow, workbookPart);
-            if (!columns.ContainsKey(nameof(LoadingCreateRowViewModel.LoadingDate))
-                || !columns.ContainsKey(nameof(LoadingCreateRowViewModel.BillOfLadingNumber))
-                || !columns.ContainsKey(nameof(LoadingCreateRowViewModel.WagonNumber))
-                || !columns.ContainsKey(nameof(LoadingCreateRowViewModel.LoadedQuantityMt)))
-            {
-                throw new InvalidDataException("ستون‌های اصلی فایل واگن کامل نیستند. حداقل Date، RWB No، Wagon No و Loaded quantity (MT) لازم است.");
-            }
+            EnsureRequiredColumns(
+                columns,
+                sheet.Name,
+                (nameof(LoadingCreateRowViewModel.LoadingDate), "تاریخ (Date)"),
+                (nameof(LoadingCreateRowViewModel.BillOfLadingNumber), "شماره سند (RWB No)"),
+                (nameof(LoadingCreateRowViewModel.WagonNumber), "شماره واگن (Wagon No)"),
+                (nameof(LoadingCreateRowViewModel.LoadedQuantityMt), "مقدار بارگیری (Loaded quantity MT)"));
 
+            var titles = BuildColumnTitles(headerRow, workbookPart, columns);
             var sheetRows = new List<LoadingCreateRowViewModel>();
+            var sheetRowNumbers = new List<int>();
             foreach (var row in sheet.Rows.Where(r => (r.RowIndex?.Value ?? 0) > (headerRow.RowIndex?.Value ?? 0)))
             {
                 var cells = ToCellMap(row);
                 var mappedRow = MapWagonRow(cells, columns, workbookPart, railwayLookup);
-                if (IsMeaningfulWagonRow(mappedRow))
+                if (!IsWagonRowCandidate(mappedRow))
                 {
-                    sheetRows.Add(mappedRow);
+                    continue;
                 }
+
+                sheetRows.Add(mappedRow);
+                sheetRowNumbers.Add((int)(row.RowIndex?.Value ?? 0));
             }
 
             if (sheetRows.Count > 0)
             {
+                FillMissingRubRowUsdPriceFromConsistentSheetPrice(sheetRows);
                 importedRows.AddRange(sheetRows);
+                rowContexts.AddRange(sheetRows.Select((row, index) => new LoadingWorkbookRowContext(
+                    sheetRowNumbers[index],
+                    sheet.Name,
+                    CollectWagonRowIssues(row, titles))));
                 sourceSheetNames.Add(sheet.Name);
             }
         }
@@ -166,7 +195,8 @@ public static class LoadingWorkbookParser
             return new LoadingWorkbookImportResult(
                 LoadingTransportType.Wagon,
                 importedRows,
-                SourceSheetName: string.Join(", ", sourceSheetNames));
+                SourceSheetName: string.Join(", ", sourceSheetNames),
+                RowContexts: rowContexts);
         }
 
         return null;
@@ -178,6 +208,7 @@ public static class LoadingWorkbookParser
     {
         var truckFreightLookup = TryParseTruckFreightLookup(workbookPart, sheets);
         var importedRows = new List<LoadingCreateRowViewModel>();
+        var rowContexts = new List<LoadingWorkbookRowContext>();
         var sourceSheetNames = new List<string>();
         TruckWorkbookMetadata? firstMetadata = null;
 
@@ -203,31 +234,41 @@ public static class LoadingWorkbookParser
             }
 
             var columns = BuildTruckColumnMap(headerRow, workbookPart);
-            if (!columns.ContainsKey(nameof(LoadingCreateRowViewModel.LoadingDate))
-                || !columns.ContainsKey(nameof(LoadingCreateRowViewModel.BillOfLadingNumber))
-                || !columns.ContainsKey(nameof(LoadingCreateRowViewModel.ImportedTransportReference))
-                || !columns.ContainsKey(nameof(LoadingCreateRowViewModel.LoadedQuantityMt)))
-            {
-                throw new InvalidDataException("ستون‌های اصلی فایل بارگیری موتر کامل نیستند. حداقل Date، CMR، Trucks و Loaded quantity (MT) لازم است.");
-            }
+            EnsureRequiredColumns(
+                columns,
+                sheet.Name,
+                (nameof(LoadingCreateRowViewModel.LoadingDate), "تاریخ (Date)"),
+                (nameof(LoadingCreateRowViewModel.BillOfLadingNumber), "شماره سند (CMR)"),
+                (nameof(LoadingCreateRowViewModel.ImportedTransportReference), "نمبر موتر (Trucks)"),
+                (nameof(LoadingCreateRowViewModel.LoadedQuantityMt), "مقدار بارگیری (Loaded quantity MT)"));
 
             var metadata = ParseTruckMetadata(sheet.Rows, headerRow, workbookPart);
             firstMetadata ??= metadata;
+            var titles = BuildColumnTitles(headerRow, workbookPart, columns);
             var sheetRows = new List<LoadingCreateRowViewModel>();
+            var sheetRowNumbers = new List<int>();
 
             foreach (var row in sheet.Rows.Where(r => (r.RowIndex?.Value ?? 0) > (headerRow.RowIndex?.Value ?? 0)))
             {
                 var cells = ToCellMap(row);
                 var mappedRow = MapTruckRow(cells, columns, workbookPart, metadata, truckFreightLookup);
-                if (IsMeaningfulTruckRow(mappedRow))
+                if (!IsTruckRowCandidate(mappedRow))
                 {
-                    sheetRows.Add(mappedRow);
+                    continue;
                 }
+
+                sheetRows.Add(mappedRow);
+                sheetRowNumbers.Add((int)(row.RowIndex?.Value ?? 0));
             }
 
             if (sheetRows.Count > 0)
             {
+                FillMissingRubRowUsdPriceFromConsistentSheetPrice(sheetRows);
                 importedRows.AddRange(sheetRows);
+                rowContexts.AddRange(sheetRows.Select((row, index) => new LoadingWorkbookRowContext(
+                    sheetRowNumbers[index],
+                    sheet.Name,
+                    CollectTruckRowIssues(row, titles))));
                 sourceSheetNames.Add(sheet.Name);
             }
         }
@@ -241,7 +282,8 @@ public static class LoadingWorkbookParser
                 OriginLocationName: firstMetadata?.OriginLocationName,
                 ReportDate: firstMetadata?.ReportDate,
                 VesselName: firstMetadata?.VesselName,
-                ProductName: firstMetadata?.ProductName);
+                ProductName: firstMetadata?.ProductName,
+                RowContexts: rowContexts);
         }
 
         return null;
@@ -273,6 +315,7 @@ public static class LoadingWorkbookParser
     private static Dictionary<string, string> BuildWagonColumnMap(Row headerRow, WorkbookPart workbookPart)
     {
         var columns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var headers = new List<(string Column, string Header)>();
         foreach (var cell in headerRow.Elements<Cell>())
         {
             if (cell.CellReference is null)
@@ -287,6 +330,7 @@ public static class LoadingWorkbookParser
             }
 
             var column = GetColumnName(cell.CellReference?.Value ?? string.Empty);
+            headers.Add((column, normalizedHeader));
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.LoadingDate), column, normalizedHeader, DateAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.BillOfLadingNumber), column, normalizedHeader, WagonReferenceAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.WagonNumber), column, normalizedHeader, WagonTransportAliases);
@@ -298,18 +342,21 @@ public static class LoadingWorkbookParser
             AssignNumericPriceColumn(columns, column, normalizedHeader);
             AssignColumn(columns, "LoadingAmount", column, normalizedHeader, LoadingAmountAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.SettlementUnitPriceRub), column, normalizedHeader, RubUnitPriceAliases);
+            AssignRubUnitPriceColumn(columns, column, normalizedHeader);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.SettlementValueRub), column, normalizedHeader, RubTotalAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.ConsigneeName), column, normalizedHeader, ConsigneeAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.LogisticsCompanyName), column, normalizedHeader, LogisticsAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.DestinationName), column, normalizedHeader, DestinationAliases);
         }
 
+        AssignRubTotalColumnByLayout(columns, headers);
         return columns;
     }
 
     private static Dictionary<string, string> BuildTruckColumnMap(Row headerRow, WorkbookPart workbookPart)
     {
         var columns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var headers = new List<(string Column, string Header)>();
         foreach (var cell in headerRow.Elements<Cell>())
         {
             if (cell.CellReference is null)
@@ -324,11 +371,13 @@ public static class LoadingWorkbookParser
             }
 
             var column = GetColumnName(cell.CellReference?.Value ?? string.Empty);
+            headers.Add((column, normalizedHeader));
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.LoadingDate), column, normalizedHeader, DateAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.BillOfLadingNumber), column, normalizedHeader, TruckReferenceAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.ImportedTransportReference), column, normalizedHeader, TruckTransportAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.LoadedQuantityMt), column, normalizedHeader, QuantityAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.SettlementUnitPriceRub), column, normalizedHeader, RubUnitPriceAliases);
+            AssignRubUnitPriceColumn(columns, column, normalizedHeader);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.SettlementValueRub), column, normalizedHeader, RubTotalAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.LoadingPriceUsd), column, normalizedHeader, TruckLoadingPriceAliases);
             AssignColumn(columns, "LoadingAmount", column, normalizedHeader, TruckLoadingAmountAliases);
@@ -342,6 +391,7 @@ public static class LoadingWorkbookParser
             }
         }
 
+        AssignRubTotalColumnByLayout(columns, headers);
         return columns;
     }
 
@@ -633,6 +683,36 @@ public static class LoadingWorkbookParser
         }
     }
 
+    // فایل‌های واقعی گاهی یک فرمول خراب (#REF!) در نخستین سطر دارند، در حالی که قیمت
+    // واحد تمام سطرهای دیگر همان شیت ثابت است. فقط در حالت تک‌قیمتی و فقط برای سطری که
+    // رقم روبلی فایل دارد، قیمت USD گمشده را تکمیل می‌کنیم؛ با مشاهدهٔ دو قیمت متفاوت
+    // هیچ مقداری حدس زده نمی‌شود.
+    private static void FillMissingRubRowUsdPriceFromConsistentSheetPrice(
+        IReadOnlyList<LoadingCreateRowViewModel> rows)
+    {
+        var distinctPrices = rows
+            .Select(row => NormalizeNonNegative(row.LoadingPriceUsd))
+            .Where(price => price.HasValue)
+            .Select(price => price!.Value)
+            .Distinct()
+            .Take(2)
+            .ToList();
+
+        if (distinctPrices.Count != 1)
+        {
+            return;
+        }
+
+        var consistentPrice = distinctPrices[0];
+        foreach (var row in rows.Where(row =>
+                     !NormalizeNonNegative(row.LoadingPriceUsd).HasValue
+                     && (NormalizeNonNegative(row.SettlementUnitPriceRub).HasValue
+                         || NormalizeNonNegative(row.SettlementValueRub).HasValue)))
+        {
+            row.LoadingPriceUsd = consistentPrice;
+        }
+    }
+
     private static decimal? NormalizeNonNegative(decimal? value)
         => value.HasValue && value.Value > 0m ? value.Value : null;
 
@@ -745,6 +825,85 @@ public static class LoadingWorkbookParser
         if (!columns.ContainsKey(fieldName) && aliases.Contains(normalizedHeader, StringComparer.Ordinal))
         {
             columns[fieldName] = column;
+        }
+    }
+
+    // هدرِ قیمتِ روبلی در فایل‌های واقعی یکسان نیست («Fix price in rub»، «RUB price»،
+    // «قیمت روبلی فی تن»). هر هدری که هم‌زمان «روبل» و «قیمت» داشته باشد قیمت فی‌تنِ روبلی است.
+    private static bool IsRubUnitPriceHeader(string normalizedHeader)
+    {
+        var mentionsRub = normalizedHeader.Contains("rub", StringComparison.Ordinal)
+            || normalizedHeader.Contains("روبل", StringComparison.Ordinal);
+        if (!mentionsRub)
+        {
+            return false;
+        }
+
+        var mentionsPrice = normalizedHeader.Contains("price", StringComparison.Ordinal)
+            || normalizedHeader.Contains("rate", StringComparison.Ordinal)
+            || normalizedHeader.Contains("قیمت", StringComparison.Ordinal)
+            || normalizedHeader.Contains("نرخ", StringComparison.Ordinal);
+
+        // «Total in rub» مجموع است، نه قیمت فی‌تن.
+        var mentionsTotal = normalizedHeader.Contains("total", StringComparison.Ordinal)
+            || normalizedHeader.Contains("amount", StringComparison.Ordinal)
+            || normalizedHeader.Contains("مجموع", StringComparison.Ordinal)
+            || normalizedHeader.Contains("ارزش", StringComparison.Ordinal);
+
+        return mentionsPrice && !mentionsTotal;
+    }
+
+    private static void AssignRubUnitPriceColumn(
+        IDictionary<string, string> columns,
+        string column,
+        string normalizedHeader)
+    {
+        if (!columns.ContainsKey(nameof(LoadingCreateRowViewModel.SettlementUnitPriceRub))
+            && IsRubUnitPriceHeader(normalizedHeader))
+        {
+            columns[nameof(LoadingCreateRowViewModel.SettlementUnitPriceRub)] = column;
+        }
+    }
+
+    // مجموعِ روبلی معمولاً ستونِ «Total» بلافاصله بعد از قیمتِ روبلی است و هیچ نشانهٔ روبل
+    // در هدرش ندارد. اولین ستونِ مجموعِ استفاده‌نشده بعد از قیمت روبلی به آن نسبت داده می‌شود.
+    private static void AssignRubTotalColumnByLayout(
+        IDictionary<string, string> columns,
+        IReadOnlyList<(string Column, string Header)> headers)
+    {
+        if (columns.ContainsKey(nameof(LoadingCreateRowViewModel.SettlementValueRub))
+            || !columns.TryGetValue(nameof(LoadingCreateRowViewModel.SettlementUnitPriceRub), out var rubPriceColumn))
+        {
+            return;
+        }
+
+        var rubPriceIndex = -1;
+        for (var index = 0; index < headers.Count; index++)
+        {
+            if (string.Equals(headers[index].Column, rubPriceColumn, StringComparison.OrdinalIgnoreCase))
+            {
+                rubPriceIndex = index;
+                break;
+            }
+        }
+
+        if (rubPriceIndex < 0)
+        {
+            return;
+        }
+
+        var usedColumns = new HashSet<string>(columns.Values, StringComparer.OrdinalIgnoreCase);
+        for (var index = rubPriceIndex + 1; index < headers.Count; index++)
+        {
+            var (column, header) = headers[index];
+            if (usedColumns.Contains(column)
+                || !GenericTotalAliases.Contains(header, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            columns[nameof(LoadingCreateRowViewModel.SettlementValueRub)] = column;
+            return;
         }
     }
 
@@ -943,15 +1102,117 @@ public static class LoadingWorkbookParser
             || normalized.Contains(NormalizeHeader("خطاهن"), StringComparison.Ordinal);
     }
 
-    private static bool IsMeaningfulWagonRow(LoadingCreateRowViewModel row)
-        => row.LoadedQuantityMt > 0
-           && !string.IsNullOrWhiteSpace(row.BillOfLadingNumber)
-           && !string.IsNullOrWhiteSpace(row.WagonNumber);
+    // ردیفی که مرجع حمل دارد وارد فرم می‌شود حتی اگر مقدارش خالی باشد؛ مشکلش به‌جای حذف
+    // بی‌صدا، به‌صورت خطای همان فیلد به کاربر نشان داده می‌شود. سطرهای بدون هیچ مرجعی
+    // (مثل سطر جمع) مثل قبل نادیده گرفته می‌شوند.
+    private static bool IsWagonRowCandidate(LoadingCreateRowViewModel row)
+        => !string.IsNullOrWhiteSpace(row.BillOfLadingNumber)
+           || !string.IsNullOrWhiteSpace(row.WagonNumber);
 
-    private static bool IsMeaningfulTruckRow(LoadingCreateRowViewModel row)
-        => row.LoadedQuantityMt > 0
-           && (!string.IsNullOrWhiteSpace(row.BillOfLadingNumber)
-               || !string.IsNullOrWhiteSpace(row.ImportedTransportReference));
+    private static bool IsTruckRowCandidate(LoadingCreateRowViewModel row)
+        => !string.IsNullOrWhiteSpace(row.BillOfLadingNumber)
+           || !string.IsNullOrWhiteSpace(row.ImportedTransportReference);
+
+    private static IReadOnlyList<LoadingWorkbookRowIssue> CollectWagonRowIssues(
+        LoadingCreateRowViewModel row,
+        IReadOnlyDictionary<string, string> titles)
+    {
+        var issues = new List<LoadingWorkbookRowIssue>();
+        if (string.IsNullOrWhiteSpace(row.BillOfLadingNumber))
+        {
+            issues.Add(BuildIssue(titles, nameof(row.BillOfLadingNumber), "RWB No", "شماره سند خالی است."));
+        }
+
+        if (string.IsNullOrWhiteSpace(row.WagonNumber))
+        {
+            issues.Add(BuildIssue(titles, nameof(row.WagonNumber), "Wagon No", "شماره واگن خالی است."));
+        }
+
+        if (row.LoadedQuantityMt <= 0m)
+        {
+            issues.Add(BuildIssue(titles, nameof(row.LoadedQuantityMt), "Loaded quantity (MT)", "مقدار بارگیری خالی یا نامعتبر است."));
+        }
+
+        return issues;
+    }
+
+    private static IReadOnlyList<LoadingWorkbookRowIssue> CollectTruckRowIssues(
+        LoadingCreateRowViewModel row,
+        IReadOnlyDictionary<string, string> titles)
+    {
+        var issues = new List<LoadingWorkbookRowIssue>();
+        if (string.IsNullOrWhiteSpace(row.BillOfLadingNumber))
+        {
+            issues.Add(BuildIssue(titles, nameof(row.BillOfLadingNumber), "CMR", "شماره سند خالی است."));
+        }
+
+        if (string.IsNullOrWhiteSpace(row.ImportedTransportReference))
+        {
+            issues.Add(BuildIssue(titles, nameof(row.ImportedTransportReference), "Trucks", "نمبر موتر خالی است."));
+        }
+
+        if (row.LoadedQuantityMt <= 0m)
+        {
+            issues.Add(BuildIssue(titles, nameof(row.LoadedQuantityMt), "Loaded quantity (MT)", "مقدار بارگیری خالی یا نامعتبر است."));
+        }
+
+        return issues;
+    }
+
+    private static LoadingWorkbookRowIssue BuildIssue(
+        IReadOnlyDictionary<string, string> titles,
+        string field,
+        string fallbackColumn,
+        string message)
+        => new(field, titles.TryGetValue(field, out var title) ? title : fallbackColumn, message);
+
+    // عنوان واقعی ستون‌های فایل برای پیام‌های خطا؛ هرگز نام property داخلی نشان داده نمی‌شود.
+    private static Dictionary<string, string> BuildColumnTitles(
+        Row headerRow,
+        WorkbookPart workbookPart,
+        IReadOnlyDictionary<string, string> columns)
+    {
+        var textByColumn = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cell in headerRow.Elements<Cell>().Where(c => c.CellReference is not null))
+        {
+            var column = GetColumnName(cell.CellReference?.Value ?? string.Empty);
+            var text = ReadCellText(cell, workbookPart).Trim();
+            if (!string.IsNullOrWhiteSpace(column) && !string.IsNullOrWhiteSpace(text))
+            {
+                textByColumn[column] = text;
+            }
+        }
+
+        var titles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in columns)
+        {
+            if (textByColumn.TryGetValue(pair.Value, out var title))
+            {
+                titles[pair.Key] = title;
+            }
+        }
+
+        return titles;
+    }
+
+    private static void EnsureRequiredColumns(
+        IReadOnlyDictionary<string, string> columns,
+        string sheetName,
+        params (string Field, string Title)[] required)
+    {
+        var missing = required
+            .Where(item => !columns.ContainsKey(item.Field))
+            .Select(item => $"«{item.Title}»")
+            .ToList();
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        throw new InvalidDataException(
+            $"فایل قابل امپورت نیست. ستون {string.Join("، ", missing)} در شیت «{sheetName}» پیدا نشد.");
+    }
 
     private static string ComposeTransportKey(string billOfLadingNumber, string importedTransportReference)
         => $"{NormalizeLookupText(billOfLadingNumber)}|{NormalizeLookupText(importedTransportReference)}";

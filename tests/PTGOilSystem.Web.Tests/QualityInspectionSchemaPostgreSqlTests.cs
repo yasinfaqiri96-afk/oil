@@ -11,6 +11,8 @@ namespace PTGOilSystem.Web.Tests;
 /// و CRUD کامل را می‌آزماید. هیچ دیتابیس توسعه یا تولیدی لمس نمی‌شود.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class QualityInspectionSchemaPostgreSqlTests(AccountingPostgreSqlFixture fixture)
 {
     [Fact]

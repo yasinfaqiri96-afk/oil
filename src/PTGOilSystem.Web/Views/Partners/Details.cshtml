@@ -10,7 +10,8 @@
     var settlementUsd = officialSummary?.ClosingBalance ?? Model.PartnerGrossProfitUsd;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (settlementUsd > 0m ? "سهم سود شریک — قابل تسویه" : settlementUsd < 0m ? "سهم زیان شریک — قابل دریافت" : "بدون مانده قابل تسویه");
-    var balanceClass = settlementUsd > 0m ? "ak-num" : settlementUsd < 0m ? "ak-num" : "";
+    // tone فقط جهت مالی را نشان می‌دهد: بدهی شرکت به شریک سرخ، طلب شرکت سبز، بدون مانده خنثی.
+    var balanceTone = settlementUsd > 0m ? "danger" : settlementUsd < 0m ? "success" : null;
 
     var showAccount = Model.ActiveTab == "account";
     var showContracts = Model.ActiveTab == "contracts";
@@ -37,6 +38,35 @@
         $"account|حساب شریک|bi-journal-text|{(showAccount ? "active" : "")}",
         $"contracts|معاملات و سود/زیان|bi-diagram-3|{(showContracts ? "active" : "")}"
     };
+
+    // کارت وضعیت حساب تب خلاصه — فقط چیدمان نمایشی روی همان اعداد مدل.
+    var partnerAccountCard = new AkPartyAccountCard
+    {
+        BalanceLabel = "مانده قابل تسویه",
+        BalanceValue = NumberDisplay.Money(Math.Abs(settlementUsd), "USD"),
+        Meaning = balanceLabel,
+        MeaningTone = balanceTone,
+        Metrics = new List<AkPartyMetric>
+        {
+            new()
+            {
+                Label = "سهم درآمد فروش",
+                Value = NumberDisplay.Money(Model.PartnerSalesRevenueUsd, "USD"),
+                Tone = "success"
+            },
+            new()
+            {
+                Label = "سهم مصرف و خرید",
+                Value = NumberDisplay.Money(Model.PartnerTotalCostUsd, "USD")
+            }
+        },
+        Facts = new List<AkInfoItem>
+        {
+            new() { Label = "میانگین سهم", Value = Model.AverageSharePercent.ToString("N2"), Unit = "٪", IsNumeric = true },
+            new() { Label = "قرارداد شراکتی", Value = Model.ContractsCount.ToString("N0"), IsNumeric = true },
+            new() { Label = "آخرین حرکت مالی", Value = Model.LastFinancialDate?.ToDisplayDate() }
+        }
+    };
 }
 
 <div class="ak-form-page ak-party-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
@@ -47,33 +77,21 @@
 
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل شریک", partnerTabs)" />
 
-    <div class="ak-form-grid" hidden="@(!showOverview)">
-        <section class="ak-form-section ak-detail-section">
+    @* ===== تب خلاصه: اول وضعیت حساب (عدد تصمیم‌ساز)، بعد اطلاعات هویتی ===== *@
+    <div class="ak-form-grid ak-overview-grid" hidden="@(!showOverview)">
+        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@partnerAccountCard" />
+
+        <section class="ak-form-section ak-detail-section ak-party-identity">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات هویتی", (string?)null))" />
-            <dl class="ak-list">
+            <dl class="ak-list ak-list--flush ak-identity-list">
                 <div class="ak-list-row"><dt>نام فارسی</dt><dd>@(string.IsNullOrWhiteSpace(Model.NamePersian) ? notRecorded : Model.NamePersian)</dd></div>
                 <div class="ak-list-row"><dt>کد</dt><dd>@(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)</dd></div>
                 <div class="ak-list-row"><dt>کشور</dt><dd>@(string.IsNullOrWhiteSpace(Model.Country) ? notRecorded : Model.Country)</dd></div>
                 <div class="ak-list-row"><dt>شخص تماس</dt><dd>@(string.IsNullOrWhiteSpace(Model.ContactPerson) ? notRecorded : Model.ContactPerson)</dd></div>
                 <div class="ak-list-row"><dt>تلفن</dt><dd>@(string.IsNullOrWhiteSpace(Model.Phone) ? notRecorded : Model.Phone)</dd></div>
                 <div class="ak-list-row"><dt>ایمیل</dt><dd>@(string.IsNullOrWhiteSpace(Model.Email) ? notRecorded : Model.Email)</dd></div>
-                <div class="ak-list-row"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
-                <div class="ak-list-row"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
-            </dl>
-        </section>
-
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("وضعیت حساب", balanceLabel))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>مانده قابل تسویه</dt><dd class="ak-num @balanceClass">@Math.Abs(settlementUsd).ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>سهم درآمد فروش</dt><dd class="ak-num">@Model.PartnerSalesRevenueUsd.ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>سهم مصرف و خرید</dt><dd class="ak-num">@Model.PartnerTotalCostUsd.ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>میانگین سهم</dt><dd class="ak-num">@Model.AverageSharePercent.ToString("N2")٪</dd></div>
-                <div class="ak-list-row"><dt>قرارداد شراکتی</dt><dd class="ak-num">@Model.ContractsCount.ToString("N0")</dd></div>
-                @if (Model.LastFinancialDate.HasValue)
-                {
-                    <div class="ak-list-row"><dt>آخرین حرکت مالی</dt><dd>@Model.LastFinancialDate.Value.ToDisplayDate()</dd></div>
-                }
+                <div class="ak-list-row is-wide"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
+                <div class="ak-list-row is-wide"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
             </dl>
         </section>
     </div>

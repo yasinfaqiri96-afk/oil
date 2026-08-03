@@ -12,6 +12,8 @@ namespace PTGOilSystem.Web.Tests;
 /// shape must stay unresolved.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class PaymentCompanyResolverTests(AccountingPostgreSqlFixture fixture)
 {
     [Fact]

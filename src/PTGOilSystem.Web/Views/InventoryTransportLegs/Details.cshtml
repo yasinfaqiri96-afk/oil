@@ -172,19 +172,25 @@
     ViewData["LoadingExpenseEditorAssets"] = true;
     ViewData["LoadingCreateAssets"] = true;
 
-    // بخش مالی به‌صورت تب (فروشات / گمرکات / مصارف) با موتور تب مشترک سیستم.
+    // سوابق حمل به‌صورت تب با موتور تب مشترک سیستم.
     var activeTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
-    activeTab = activeTab is "customs" or "expenses" ? activeTab : "sales";
+    activeTab = activeTab is "customs" or "expenses" || (activeTab == "receipts" && Model.DestinationReceipts.Any())
+        ? activeTab
+        : "sales";
     string FinPane(string slug) => "tab-pane ak-detail-subsection" + (activeTab == slug ? " show active" : "");
-    var financialTabs = new[]
+    var financialTabs = new List<string>
     {
         $"#itl-sales|{T("فروشات", "Sales")}||{(activeTab == "sales" ? "active" : "")}",
         $"#itl-customs|{T("گمرکات و کسورات", "Customs & deductions")}||{(activeTab == "customs" ? "active" : "")}",
         $"#itl-expenses|{T("مصارف و کرایه", "Expenses & freight")}||{(activeTab == "expenses" ? "active" : "")}"
     };
+    if (Model.DestinationReceipts.Any())
+    {
+        financialTabs.Add($"#itl-receipts|{T("رسیدها", "Receipts")}||{(activeTab == "receipts" ? "active" : "")}");
+    }
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("حمل", "Transport")} {documentNumber}", false,
                        T("عملیات بعدی بار", "Next cargo operation"), "bi-arrow-right-circle", (string?)null, "nextOperationModal",
@@ -192,7 +198,7 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
         <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
                  model="@((T("مشخصات حمل", "Transport profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
     </div>
@@ -200,7 +206,7 @@
     <section class="ak-form-section ak-detail-section" aria-labelledby="transport-financial-title">
         <h2 class="ak-section-title" id="transport-financial-title">@T("خلاصه مالی حمل", "Transport financial summary")</h2>
         <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
-                 model="@((T("خلاصه مالی حمل", "Transport financial summary"), financialTabs))" />
+                 model="@((T("خلاصه مالی حمل", "Transport financial summary"), financialTabs.ToArray()))" />
 
         <div class="tab-content ak-detail-content ak-tab-content">
         <div class="@FinPane("sales")" id="itl-sales" role="tabpanel" aria-labelledby="transport-sales-title">
@@ -359,85 +365,87 @@
                 </div>
             </div>
         </div>
+
+        @if (Model.DestinationReceipts.Any())
+        {
+        <div class="@FinPane("receipts")" id="itl-receipts" role="tabpanel" aria-label="@T("رسیدهای تخلیه / مقصد", "Destination receipts")">
+            <div id="transport-receipts">
+                <header class="ak-section-head ak-detail-section-header">
+                    <h2 class="ak-section-title">@T("رسیدهای تخلیه / مقصد", "Destination receipts")</h2>
+                    <span class="ak-status">@Model.DestinationReceipts.Count</span>
+                </header>
+                <div class="ak-list">
+                    @foreach (var rcp in pagedDestinationReceipts)
+                    {
+                        var destLabel = rcp.ReceiptDestination switch
+                        {
+                            InventoryTransportReceiptDestination.ToInventory => T("تخلیه به موجودی", "Unload to inventory"),
+                            InventoryTransportReceiptDestination.DirectSale => T("فروش مستقیم", "Direct sale"),
+                            InventoryTransportReceiptDestination.DirectDispatch => T("ارسال مستقیم", "Direct dispatch"),
+                            InventoryTransportReceiptDestination.Mixed => T("ترکیبی", "Mixed"),
+                            _ => rcp.ReceiptDestination.ToString()
+                        };
+                        var destParty = rcp.DestinationTankCode
+                            ?? rcp.DestinationTerminalName
+                            ?? rcp.ServiceProviderName
+                            ?? rcp.OperationalAssetName
+                            ?? "-";
+                        <button type="button" class="ak-list-row" data-title="@destLabel · @rcp.ReceiptDate.ToDisplayDate()">
+                            <span class="ak-field">
+                                <strong>@destLabel</strong>
+                                <small>@rcp.ReceiptDate.ToDisplayDate() · @destParty</small>
+                            </span>
+                            <span class="ak-num">@Q(rcp.ReceivedQuantityMt) @T("تن", "MT")</span>
+                            <div class="ak-section-desc" hidden>
+                                <dl class="ak-list">
+                                    <div><dt>@T("کسری", "Shortage")</dt><dd>@Q(rcp.ShortageQuantityMt) @T("تن", "MT")</dd></div>
+                                    @if (rcp.FreightCostUsd.HasValue)
+                                    {
+                                        <div><dt>@T("کرایه حمل", "Freight")</dt><dd>@U(rcp.FreightCostUsd.Value) USD</dd></div>
+                                    }
+                                    @if (rcp.FreightPayableUsd.HasValue)
+                                    {
+                                        <div><dt>@T("کرایه پرداختی", "Payable freight")</dt><dd>@U(rcp.FreightPayableUsd.Value) USD</dd></div>
+                                    }
+                                    @if (rcp.SalesTransactionId.HasValue)
+                                    {
+                                        var saleLabel = string.IsNullOrWhiteSpace(rcp.SaleInvoiceNumber) ? $"#{rcp.SalesTransactionId}" : rcp.SaleInvoiceNumber;
+                                        <div><dt>@T("فاکتور فروش", "Sale invoice")</dt><dd><a asp-controller="Sales" asp-action="Details" asp-route-id="@rcp.SalesTransactionId" asp-route-returnUrl="@currentPageReturnUrl">@saleLabel</a></dd></div>
+                                    }
+                                    @if (rcp.DirectTruckDispatchCount > 0)
+                                    {
+                                        <div><dt>@T("تعداد موتر ارسالی", "Dispatched trucks")</dt><dd>@rcp.DirectTruckDispatchCount</dd></div>
+                                        <div><dt>@T("مقدار ارسالی", "Dispatched quantity")</dt><dd>@Q(rcp.DirectTruckDispatchedQuantityMt) @T("تن", "MT")</dd></div>
+                                        @if (rcp.FirstDirectTruckDispatchId.HasValue)
+                                        {
+                                            <div><dt>@T("سند ارسال", "Dispatch record")</dt><dd><a asp-controller="Dispatch" asp-action="Details" asp-route-id="@rcp.FirstDirectTruckDispatchId" asp-route-returnUrl="@currentPageReturnUrl">@T("مشاهده", "View")</a></dd></div>
+                                        }
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(rcp.Notes))
+                                    {
+                                        <div><dt>@T("یادداشت", "Notes")</dt><dd>@rcp.Notes</dd></div>
+                                    }
+                                </dl>
+                            </div>
+                        </button>
+                    }
+                    @if (Model.RemainingQuantityMt > 0.0001m)
+                    {
+                        <div class="ak-list-row is-remaining">
+                            <span class="ak-field">
+                                <strong>@T("باقیمانده در وسیله", "Remaining in vehicle")</strong>
+                                <small>@T("قابل تخلیه/ارسال مجدد", "Can be unloaded/dispatched again")</small>
+                            </span>
+                            <span class="ak-num">@Q(Model.RemainingQuantityMt) @T("تن", "MT")</span>
+                        </div>
+                    }
+                </div>
+                <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((receiptPage, receiptPageCount, "receiptPage", (string?)"itl-receipts"))" />
+            </div>
+        </div>
+        }
         </div>
     </section>
-
-    @if (Model.DestinationReceipts.Any())
-    {
-        <section class="ak-form-section ak-detail-section" id="transport-receipts">
-            <header class="ak-section-head ak-detail-section-header">
-                <h2 class="ak-section-title">@T("رسیدهای تخلیه / مقصد", "Destination receipts")</h2>
-                <span class="ak-status">@Model.DestinationReceipts.Count</span>
-            </header>
-            <div class="ak-list">
-                        @foreach (var rcp in pagedDestinationReceipts)
-                        {
-                            var destLabel = rcp.ReceiptDestination switch
-                            {
-                                InventoryTransportReceiptDestination.ToInventory => T("تخلیه به موجودی", "Unload to inventory"),
-                                InventoryTransportReceiptDestination.DirectSale => T("فروش مستقیم", "Direct sale"),
-                                InventoryTransportReceiptDestination.DirectDispatch => T("ارسال مستقیم", "Direct dispatch"),
-                                InventoryTransportReceiptDestination.Mixed => T("ترکیبی", "Mixed"),
-                                _ => rcp.ReceiptDestination.ToString()
-                            };
-                            var destParty = rcp.DestinationTankCode
-                                ?? rcp.DestinationTerminalName
-                                ?? rcp.ServiceProviderName
-                                ?? rcp.OperationalAssetName
-                                ?? "-";
-                            <button type="button" class="ak-list-row" data-title="@destLabel · @rcp.ReceiptDate.ToDisplayDate()">
-                                <span class="ak-field">
-                                    <strong>@destLabel</strong>
-                                    <small>@rcp.ReceiptDate.ToDisplayDate() · @destParty</small>
-                                </span>
-                                <span class="ak-num">@Q(rcp.ReceivedQuantityMt) @T("تن", "MT")</span>
-                                <div class="ak-section-desc" hidden>
-                                    <dl class="ak-list">
-                                        <div><dt>@T("کسری", "Shortage")</dt><dd>@Q(rcp.ShortageQuantityMt) @T("تن", "MT")</dd></div>
-                                        @if (rcp.FreightCostUsd.HasValue)
-                                        {
-                                            <div><dt>@T("کرایه حمل", "Freight")</dt><dd>@U(rcp.FreightCostUsd.Value) USD</dd></div>
-                                        }
-                                        @if (rcp.FreightPayableUsd.HasValue)
-                                        {
-                                            <div><dt>@T("کرایه پرداختی", "Payable freight")</dt><dd>@U(rcp.FreightPayableUsd.Value) USD</dd></div>
-                                        }
-                                        @if (rcp.SalesTransactionId.HasValue)
-                                        {
-                                            var saleLabel = string.IsNullOrWhiteSpace(rcp.SaleInvoiceNumber) ? $"#{rcp.SalesTransactionId}" : rcp.SaleInvoiceNumber;
-                                            <div><dt>@T("فاکتور فروش", "Sale invoice")</dt><dd><a asp-controller="Sales" asp-action="Details" asp-route-id="@rcp.SalesTransactionId" asp-route-returnUrl="@currentPageReturnUrl">@saleLabel</a></dd></div>
-                                        }
-                                        @if (rcp.DirectTruckDispatchCount > 0)
-                                        {
-                                            <div><dt>@T("تعداد موتر ارسالی", "Dispatched trucks")</dt><dd>@rcp.DirectTruckDispatchCount</dd></div>
-                                            <div><dt>@T("مقدار ارسالی", "Dispatched quantity")</dt><dd>@Q(rcp.DirectTruckDispatchedQuantityMt) @T("تن", "MT")</dd></div>
-                                            @if (rcp.FirstDirectTruckDispatchId.HasValue)
-                                            {
-                                                <div><dt>@T("سند ارسال", "Dispatch record")</dt><dd><a asp-controller="Dispatch" asp-action="Details" asp-route-id="@rcp.FirstDirectTruckDispatchId" asp-route-returnUrl="@currentPageReturnUrl">@T("مشاهده", "View")</a></dd></div>
-                                            }
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(rcp.Notes))
-                                        {
-                                            <div><dt>@T("یادداشت", "Notes")</dt><dd>@rcp.Notes</dd></div>
-                                        }
-                                    </dl>
-                                </div>
-                            </button>
-                        }
-                        @if (Model.RemainingQuantityMt > 0.0001m)
-                        {
-                            <div class="ak-list-row is-remaining">
-                                <span class="ak-field">
-                                    <strong>@T("باقیمانده در وسیله", "Remaining in vehicle")</strong>
-                                    <small>@T("قابل تخلیه/ارسال مجدد", "Can be unloaded/dispatched again")</small>
-                                </span>
-                                <span class="ak-num">@Q(Model.RemainingQuantityMt) @T("تن", "MT")</span>
-                            </div>
-                        }
-                </div>
-                <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((receiptPage, receiptPageCount, "receiptPage", (string?)"transport-receipts"))" />
-        </section>
-    }
 
     <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
              model="@(((IReadOnlyList<AkTimelineItem>)timelineItems,

@@ -56,6 +56,9 @@ public sealed class SupplierProfileViewModel
     public decimal LoadedPurchaseQuantityMt { get; init; }
     public decimal LoadedPurchaseValueUsd { get; init; }
     public decimal? LoadedPurchaseValueRub { get; init; }
+    // true یعنی دست‌کم یک قرارداد رقم روبلیِ واقعی نداشت و با ContractRubPerUsdRate تبدیل شده
+    // است. View باید این عدد را «تخمینی» علامت بزند و بدون علامت نشان ندهد.
+    public bool LoadedPurchaseValueRubIsEstimated { get; init; }
     public decimal RemainingPurchaseQuantityMt { get; init; }
     public decimal EstimatedRemainingContractValueUsd { get; init; }
     public decimal? EstimatedRemainingContractValueRub { get; init; }
@@ -76,6 +79,10 @@ public sealed class SupplierProfileViewModel
     public decimal? SupplierRemainingClaimRub => LoadedPurchaseValueRub.HasValue && TotalPaidRub.HasValue
         ? LoadedPurchaseValueRub.Value - TotalPaidRub.Value
         : null;
+    public bool SupplierRemainingClaimRubIsEstimated => LoadedPurchaseValueRubIsEstimated;
+    // ارز نمایش صفحه (USD پیش‌فرض). فقط نمایشی است؛ هیچ مبلغی بر اساس آن دوباره محاسبه نمی‌شود.
+    public string DisplayCurrency { get; init; } = "USD";
+    public bool IsRubDisplay => string.Equals(DisplayCurrency, "RUB", StringComparison.OrdinalIgnoreCase);
     public DateTime? LastPaymentDate { get; init; }
     public decimal SarrafAcceptedUsd { get; init; }
     public decimal SarrafSupplierShortfallUsd { get; init; }
@@ -201,6 +208,8 @@ public sealed class SupplierContractSummaryViewModel
     public decimal LoadedQuantityMt { get; init; }
     public decimal LoadedValueUsd { get; init; }
     public decimal? LoadedValueRub { get; init; }
+    // رقم روبلی از ContractRubPerUsdRate ساخته شده (نه از ارقام واقعی بارگیری) — تخمینی.
+    public bool LoadedValueRubIsEstimated { get; init; }
     public decimal RemainingQuantityMt => Math.Max(QuantityMt - LoadedQuantityMt, 0m);
     public decimal? EstimatedUnloadedValueUsd => EstimatedTotalUsd.HasValue
         ? Math.Max(EstimatedTotalUsd.Value - LoadedValueUsd, 0m)

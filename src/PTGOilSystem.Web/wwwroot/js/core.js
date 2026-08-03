@@ -265,7 +265,13 @@
         }
 
         if (redirectUrl) {
-            window.location.href = redirectUrl;
+            if (document.querySelector("[data-contract-journey-page]")
+                && window.PTG
+                && typeof window.PTG.reloadContractJourneyTab === "function") {
+                window.PTG.reloadContractJourneyTab(redirectUrl);
+            } else {
+                window.location.href = redirectUrl;
+            }
         }
     }
 
@@ -390,223 +396,176 @@
         summary.appendChild(list);
     }
 
+    var bulkReceiptDelegationReady = false;
+    var bulkReceiptDragState = null;
+    var bulkReceiptSuppressedClicks = new WeakSet();
+
+    function bulkReceiptRows(form) {
+        return Array.prototype.slice.call(form.querySelectorAll("[data-bulk-receipt-row]"));
+    }
+
+    function syncBulkReceiptSummary(form, updateInput) {
+        var checked = bulkReceiptRows(form).filter(function (row) { return row.checked; });
+        var total = checked.reduce(function (sum, row) {
+            return sum + (Number.parseFloat(row.getAttribute("data-bulk-receipt-qty") || "0") || 0);
+        }, 0);
+        var count = form.querySelector("[data-bulk-receipt-selected-count]");
+        var quantity = form.querySelector("[data-bulk-receipt-selected-qty]");
+        var input = form.querySelector("[data-bulk-receipt-total-input]");
+        if (count) count.textContent = String(checked.length);
+        if (quantity) quantity.textContent = new Intl.NumberFormat("en-US", {
+            minimumFractionDigits: 4,
+            maximumFractionDigits: 4
+        }).format(total);
+        if (updateInput && input) input.value = total.toFixed(4).replace(/\.?0+$/, "");
+    }
+
+    function syncStorageTankOptions() {
+        var form = arguments[0];
+        if (!form) return;
+        var terminal = form.querySelector("[data-bulk-receipt-terminal-select]");
+        var tank = form.querySelector("[data-bulk-receipt-tank-select]");
+        if (!terminal || !tank) return;
+        var terminalId = terminal.value || "";
+        var keepSelection = false;
+        Array.prototype.forEach.call(tank.options, function (option) {
+            var visible = !option.value || (terminalId && option.getAttribute("data-terminal-id") === terminalId);
+            option.hidden = !visible;
+            option.disabled = !visible;
+            if (visible && option.selected) keepSelection = true;
+        });
+        if (!keepSelection) tank.value = "";
+    }
+
+    function setBulkReceiptPanel(form, open) {
+        var panel = form.querySelector("[data-bulk-receipt-panel]");
+        var toggle = form.querySelector("[data-bulk-receipt-toggle]");
+        if (!panel || !toggle) return;
+        panel.hidden = !open;
+        form.classList.toggle("is-bulk-receipt-open", open);
+        toggle.setAttribute("aria-expanded", String(open));
+        var icon = toggle.querySelector("i");
+        if (icon) {
+            icon.classList.toggle("bi-chevron-down", !open);
+            icon.classList.toggle("bi-chevron-up", open);
+        }
+        var label = toggle.querySelector("[data-bulk-receipt-toggle-label]");
+        if (label) label.textContent = open
+            ? (label.getAttribute("data-close-label") || "Close form")
+            : (label.getAttribute("data-open-label") || "Open form");
+    }
+
+    function showBulkReceiptError(form, message) {
+        var alert = form.querySelector("[data-bulk-receipt-error]");
+        if (!alert) {
+            alert = document.createElement("div");
+            alert.className = "alert alert-danger mb-3";
+            alert.setAttribute("data-bulk-receipt-error", "true");
+            form.prepend(alert);
+        }
+        alert.textContent = message || (document.documentElement.lang === "en"
+            ? "Saving the receipt failed. Please try again."
+            : "ثبت رسید ناموفق بود. اطلاعات را بررسی و دوباره تلاش کنید.");
+        alert.hidden = false;
+    }
+
+    async function submitBulkReceipt(form, submitter) {
+        if (!lockSubmitGuard(form)) return;
+        var oldAlert = form.querySelector("[data-bulk-receipt-error]");
+        if (oldAlert) oldAlert.hidden = true;
+        try {
+            var data;
+            try { data = new FormData(form, submitter); }
+            catch (_) { data = new FormData(form); }
+            var response = await fetch(form.action, {
+                method: "POST",
+                body: data,
+                credentials: "same-origin",
+                headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
+            });
+            var result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.message || "Receipt save failed");
+            if (window.PTG && typeof window.PTG.reloadContractJourneyTab === "function") {
+                await window.PTG.reloadContractJourneyTab(result.redirectUrl || location.href);
+                return;
+            }
+            location.assign(result.redirectUrl || location.href);
+        } catch (error) {
+            resetSubmitGuard(form);
+            showBulkReceiptError(form, error && error.message);
+        }
+    }
+
     function initializeBulkReceiptForms() {
         document.querySelectorAll("[data-bulk-receipt-form]").forEach(function (form) {
-            if (form.dataset.bulkReceiptReady === "true") return;
-            form.dataset.bulkReceiptReady = "true";
+            syncStorageTankOptions(form);
+            syncBulkReceiptSummary(form, false);
+            setBulkReceiptPanel(form, form.getAttribute("data-bulk-receipt-collapsed") !== "true");
+        });
+        if (bulkReceiptDelegationReady) return;
+        bulkReceiptDelegationReady = true;
 
-            var rows = Array.prototype.slice.call(form.querySelectorAll("[data-bulk-receipt-row]"));
-            var selectedCount = form.querySelector("[data-bulk-receipt-selected-count]");
-            var selectedQty = form.querySelector("[data-bulk-receipt-selected-qty]");
-            var totalInput = form.querySelector("[data-bulk-receipt-total-input]");
-            var selectAll = form.querySelector("[data-bulk-receipt-select-all]");
-            var clearAll = form.querySelector("[data-bulk-receipt-clear]");
-            var toggle = form.querySelector("[data-bulk-receipt-toggle]");
-            var panel = form.querySelector("[data-bulk-receipt-panel]");
-            var toggleLabel = form.querySelector("[data-bulk-receipt-toggle-label]");
-            var terminalSelect = form.querySelector("[data-bulk-receipt-terminal-select]");
-            var tankSelect = form.querySelector("[data-bulk-receipt-tank-select]");
-
-            function formatQty(value) {
-                return new Intl.NumberFormat("en-US", {
-                    minimumFractionDigits: 4,
-                    maximumFractionDigits: 4
-                }).format(value);
+        document.addEventListener("change", function (event) {
+            var form = event.target.closest && event.target.closest("[data-bulk-receipt-form]");
+            if (!form) return;
+            if (event.target.matches("[data-bulk-receipt-row]")) syncBulkReceiptSummary(form, true);
+            if (event.target.matches("[data-bulk-receipt-terminal-select]")) syncStorageTankOptions(form);
+        });
+        document.addEventListener("click", function (event) {
+            var form = event.target.closest && event.target.closest("[data-bulk-receipt-form]");
+            if (!form) return;
+            var row = event.target.closest("[data-bulk-receipt-row]");
+            if (row && bulkReceiptSuppressedClicks.has(row)) {
+                bulkReceiptSuppressedClicks.delete(row);
+                event.preventDefault();
+                return;
             }
-
-            function readQty(row) {
-                return Number.parseFloat(row.getAttribute("data-bulk-receipt-qty") || "0") || 0;
+            var action = event.target.closest("[data-bulk-receipt-select-all], [data-bulk-receipt-clear], [data-bulk-receipt-toggle]");
+            if (!action) return;
+            if (action.hasAttribute("data-bulk-receipt-toggle")) {
+                var panel = form.querySelector("[data-bulk-receipt-panel]");
+                setBulkReceiptPanel(form, !panel || panel.hidden);
+                return;
             }
-
-            function syncStorageTankOptions() {
-                if (!terminalSelect || !tankSelect) return;
-
-                var selectedTerminalId = terminalSelect.value || "";
-                var selectedTankStillVisible = false;
-
-                Array.prototype.forEach.call(tankSelect.options, function (option) {
-                    if (!option.value) {
-                        option.hidden = false;
-                        option.disabled = false;
-                        return;
-                    }
-
-                    var optionTerminalId = option.getAttribute("data-terminal-id") || "";
-                    var matchesTerminal = selectedTerminalId !== "" && optionTerminalId === selectedTerminalId;
-
-                    option.hidden = !matchesTerminal;
-                    option.disabled = !matchesTerminal;
-
-                    if (matchesTerminal && option.selected) {
-                        selectedTankStillVisible = true;
-                    }
-                });
-
-                if (!selectedTankStillVisible) {
-                    tankSelect.value = "";
-                }
-            }
-
-            function syncSummary(updateInput) {
-                var checked = rows.filter(function (row) { return row.checked; });
-                var total = checked.reduce(function (sum, row) { return sum + readQty(row); }, 0);
-
-                if (selectedCount) selectedCount.textContent = String(checked.length);
-                if (selectedQty) selectedQty.textContent = formatQty(total);
-                if (updateInput && totalInput) totalInput.value = total.toFixed(4).replace(/\.?0+$/, "");
-            }
-
-            function setBulkReceiptPanelOpen(isOpen) {
-                if (!panel || !toggle) return;
-
-                panel.hidden = !isOpen;
-                form.classList.toggle("is-bulk-receipt-open", isOpen);
-                toggle.setAttribute("aria-expanded", String(isOpen));
-
-                var icon = toggle.querySelector("i");
-                if (icon) {
-                    icon.classList.toggle("bi-chevron-down", !isOpen);
-                    icon.classList.toggle("bi-chevron-up", isOpen);
-                }
-
-                if (toggleLabel) {
-                    toggleLabel.textContent = isOpen
-                        ? (toggleLabel.getAttribute("data-close-label") || "Close form")
-                        : (toggleLabel.getAttribute("data-open-label") || "Open form");
-                }
-            }
-
-            function findBulkReceiptRowFromPoint(clientX, clientY) {
-                var element = document.elementFromPoint(clientX, clientY);
-                if (!element || !form.contains(element)) return null;
-
-                var directRow = element.closest("[data-bulk-receipt-row]");
-                if (directRow) return directRow;
-
-                var tableRow = element.closest("tr");
-                return tableRow ? tableRow.querySelector("[data-bulk-receipt-row]") : null;
-            }
-
-            function applyDragSelection(dragState, row) {
-                if (!dragState || !row || dragState.visited.has(row)) return;
-
-                dragState.visited.add(row);
-                row.checked = dragState.targetChecked;
-                syncSummary(true);
-            }
-
-            var dragState = null;
-            var suppressClickRows = new WeakSet();
-
-            function finishDragSelection() {
-                if (!dragState) return;
-
-                if (dragState.sourceRow && dragState.sourceRow.releasePointerCapture && dragState.pointerId !== null) {
-                    try {
-                        dragState.sourceRow.releasePointerCapture(dragState.pointerId);
-                    } catch (_) {
-                        // Pointer capture can already be released by the browser.
-                    }
-                }
-
-                form.classList.remove("is-bulk-receipt-dragging");
-                dragState = null;
-            }
-
-            function handleDragMove(event) {
-                if (!dragState) return;
-
-                dragState.lastClientX = event.clientX;
-                dragState.lastClientY = event.clientY;
-                applyDragSelection(dragState, findBulkReceiptRowFromPoint(event.clientX, event.clientY));
-            }
-
-            rows.forEach(function (row) {
-                row.addEventListener("change", function () {
-                    syncSummary(true);
-                });
-
-                row.addEventListener("click", function (event) {
-                    if (!suppressClickRows.has(row)) return;
-
-                    suppressClickRows.delete(row);
-                    event.preventDefault();
-                    event.stopPropagation();
-                }, true);
-
-                row.addEventListener("pointerdown", function (event) {
-                    if (event.button !== undefined && event.button !== 0) return;
-
-                    event.preventDefault();
-                    suppressClickRows.add(row);
-                    var targetChecked = !row.checked;
-                    dragState = {
-                        targetChecked: targetChecked,
-                        sourceRow: row,
-                        pointerId: event.pointerId ?? null,
-                        visited: new Set(),
-                        lastClientX: event.clientX,
-                        lastClientY: event.clientY
-                    };
-
-                    if (row.setPointerCapture && event.pointerId !== undefined) {
-                        try {
-                            row.setPointerCapture(event.pointerId);
-                        } catch (_) {
-                            // Some browsers disallow capture on form controls.
-                        }
-                    }
-
-                    form.classList.add("is-bulk-receipt-dragging");
-                    applyDragSelection(dragState, row);
-                });
+            var checked = action.hasAttribute("data-bulk-receipt-select-all");
+            bulkReceiptRows(form).forEach(function (candidate) { candidate.checked = checked; });
+            syncBulkReceiptSummary(form, true);
+        });
+        document.addEventListener("submit", function (event) {
+            var form = event.target;
+            if (!form || !form.matches("[data-bulk-receipt-form]")) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            submitBulkReceipt(form, event.submitter);
+        }, true);
+        document.addEventListener("pointerdown", function (event) {
+            var row = event.target.closest && event.target.closest("[data-bulk-receipt-row]");
+            if (!row || (event.button !== undefined && event.button !== 0)) return;
+            var form = row.closest("[data-bulk-receipt-form]");
+            if (!form) return;
+            event.preventDefault();
+            bulkReceiptSuppressedClicks.add(row);
+            bulkReceiptDragState = { form: form, checked: !row.checked, visited: new Set() };
+            row.checked = bulkReceiptDragState.checked;
+            bulkReceiptDragState.visited.add(row);
+            form.classList.add("is-bulk-receipt-dragging");
+            syncBulkReceiptSummary(form, true);
+        });
+        document.addEventListener("pointermove", function (event) {
+            if (!bulkReceiptDragState) return;
+            var element = document.elementFromPoint(event.clientX, event.clientY);
+            var row = element && (element.closest("[data-bulk-receipt-row]") || (element.closest("tr") && element.closest("tr").querySelector("[data-bulk-receipt-row]")));
+            if (!row || !bulkReceiptDragState.form.contains(row) || bulkReceiptDragState.visited.has(row)) return;
+            bulkReceiptDragState.visited.add(row);
+            row.checked = bulkReceiptDragState.checked;
+            syncBulkReceiptSummary(bulkReceiptDragState.form, true);
+        });
+        ["pointerup", "pointercancel"].forEach(function (name) {
+            document.addEventListener(name, function () {
+                if (!bulkReceiptDragState) return;
+                bulkReceiptDragState.form.classList.remove("is-bulk-receipt-dragging");
+                bulkReceiptDragState = null;
             });
-
-            form.addEventListener("pointermove", handleDragMove);
-
-            document.addEventListener("pointermove", handleDragMove);
-            document.addEventListener("pointerup", finishDragSelection);
-            document.addEventListener("pointercancel", finishDragSelection);
-            document.addEventListener("wheel", function () {
-                if (!dragState) return;
-
-                window.setTimeout(function () {
-                    if (!dragState) return;
-                    applyDragSelection(
-                        dragState,
-                        findBulkReceiptRowFromPoint(dragState.lastClientX, dragState.lastClientY)
-                    );
-                }, 0);
-            }, { passive: true });
-
-            if (selectAll) {
-                selectAll.addEventListener("click", function () {
-                    rows.forEach(function (row) { row.checked = true; });
-                    syncSummary(true);
-                });
-            }
-
-            if (clearAll) {
-                clearAll.addEventListener("click", function () {
-                    rows.forEach(function (row) { row.checked = false; });
-                    syncSummary(true);
-                });
-            }
-
-            if (toggle && panel) {
-                toggle.addEventListener("click", function () {
-                    setBulkReceiptPanelOpen(panel.hidden);
-                });
-
-                setBulkReceiptPanelOpen(form.getAttribute("data-bulk-receipt-collapsed") !== "true" && !panel.hidden);
-            }
-
-            if (terminalSelect) {
-                terminalSelect.addEventListener("change", syncStorageTankOptions);
-            }
-
-            syncStorageTankOptions();
-            syncSummary(false);
         });
     }
 
@@ -664,13 +623,57 @@
     // تنها مالکِ «این فرم در حال ثبت است»: یک پرچم، یک بررسی اعتبار.
     // مسیرهای دیگر (مودال موجودیت، Quick Create) به‌جای پرچم و شرط خودشان همین را
     // صدا می‌زنند تا یک فرم دو منطق ضدتکرار نداشته باشد.
+    // قفلِ کهنه: اگر ارسال قبلی هرگز به ناوبری نرسید (خطای شبکه، لغو مرورگر، پاسخ
+    // ناقص) پرچم روی فرم می‌ماند و از آن به بعد هر ارسالِ بعدی بی‌صدا حذف می‌شد —
+    // یعنی هیچ POST ساخته نمی‌شد و کاربر هیچ دلیلی نمی‌دید. قفل بعد از این مدت کهنه
+    // شمرده و آزاد می‌شود تا صفحه هرگز به‌طور دائم مرده نماند.
+    var STALE_SUBMIT_LOCK_MS = 90000;
+
+    function isSubmitLockStale(form) {
+        var startedAt = Number(form.dataset.ptgSubmittingAt || 0);
+        return !startedAt || (Date.now() - startedAt) > STALE_SUBMIT_LOCK_MS;
+    }
+
+    function reportFirstInvalidField(form) {
+        var invalid = form.querySelector(":invalid");
+        if (typeof form.reportValidity === "function") form.reportValidity();
+        if (!invalid) return;
+        if (typeof invalid.scrollIntoView === "function") {
+            invalid.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+        try { invalid.focus({ preventScroll: true }); } catch (_) { /* hidden control */ }
+    }
+
+    // ارسالِ بلوک‌شده باید همیشه دلیل داشته باشد؛ صفحه‌ها می‌توانند به این رویداد
+    // گوش بدهند و پیام کاربرپسند نشان بدهند.
+    function announceSubmitBlocked(form, reason) {
+        try { console.warn("[PTG] form submit blocked:", reason, form); } catch (_) { }
+        form.dispatchEvent(new CustomEvent("ptg:submit-blocked", {
+            bubbles: true,
+            detail: { reason: reason }
+        }));
+    }
+
     function claimFormSubmit(form) {
-        if (!form || form.dataset.ptgSubmitting === "true") return false;
+        if (!form) return false;
+        if (form.dataset.ptgSubmitting === "true") {
+            if (!isSubmitLockStale(form)) {
+                announceSubmitBlocked(form, "in-progress");
+                return false;
+            }
+
+            // قفل کهنه است: آزاد کن و اجازهٔ ارسال دوباره بده.
+            resetSubmitGuard(form);
+        }
+
         if (!form.noValidate && typeof form.checkValidity === "function" && !form.checkValidity()) {
+            announceSubmitBlocked(form, "invalid");
+            reportFirstInvalidField(form);
             return false;
         }
 
         form.dataset.ptgSubmitting = "true";
+        form.dataset.ptgSubmittingAt = String(Date.now());
         return true;
     }
 
@@ -710,6 +713,7 @@
     function resetSubmitGuard(form) {
         if (!form) return;
         form.dataset.ptgSubmitting = "false";
+        delete form.dataset.ptgSubmittingAt;
         form.querySelectorAll("[data-ptg-guarded='true']").forEach(function (btn) {
             btn.disabled = false;
             btn.classList.remove("is-submitting");

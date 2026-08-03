@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,8 @@ namespace PTGOilSystem.Web.Tests;
 /// journal, and every skip path is asserted to leave the legacy row untouched.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class PaymentAccountingAdapterTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime PaymentDate = new(2026, 7, 15);
@@ -591,17 +594,24 @@ public sealed class PaymentAccountingAdapterTests(AccountingPostgreSqlFixture fi
         db.FiscalYears.Add(year);
         await db.SaveChangesAsync();
 
-        var period = new FiscalPeriod
-        {
-            CompanyId = company.Id,
-            FiscalYearId = year.Id,
-            PeriodNumber = 7,
-            Name = "July 2026",
-            StartDate = new DateTime(2026, 7, 1),
-            EndDate = new DateTime(2026, 7, 31),
-            Status = FiscalPeriodStatus.Open
-        };
-        db.FiscalPeriods.Add(period);
+        // سالِ مالی باید تمامِ دوازده ماه را بپوشاند: reversal با تاریخِ «امروز» ثبت می‌شود، نه با
+        // تاریخِ رویدادِ اصلی، و اگر فقط ماهِ رویداد باز باشد تست‌ها با رسیدنِ ماهِ بعد می‌شکنند.
+        var periods = Enumerable.Range(1, 12)
+            .Select(month => new FiscalPeriod
+            {
+                CompanyId = company.Id,
+                FiscalYearId = year.Id,
+                PeriodNumber = month,
+                Name = new DateTime(2026, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+                StartDate = new DateTime(2026, month, 1),
+                EndDate = new DateTime(2026, month, DateTime.DaysInMonth(2026, month)),
+                Status = FiscalPeriodStatus.Open
+            })
+            .ToList();
+        db.FiscalPeriods.AddRange(periods);
+
+        // دوره‌ای که تست‌های قفلِ دوره روی آن کار می‌کنند، همان ماهِ رویدادهای ثابتِ این مجموعه است.
+        var period = periods[6];
 
         var product = new Product
         {

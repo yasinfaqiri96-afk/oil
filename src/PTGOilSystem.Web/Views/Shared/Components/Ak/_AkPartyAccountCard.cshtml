@@ -1,0 +1,107 @@
+@*
+    Counterparty account status card — summary tab of every .ak-party-page profile
+    (supplier, customer, sarraf, partner, service provider, employee).
+
+    One headline balance with the plain-language direction sentence, the two figures
+    that produced it, an optional settled-share bar and the low-priority facts as
+    small chips. Display only: every number arrives already formatted from the page
+    and nothing here recalculates money.
+*@
+@model PTGOilSystem.Web.Models.Shared.AkPartyAccountCard
+@{
+    var visibleFacts = Model.Facts.Where(f => f.HasValue).ToList();
+    var meaningIcon = Model.MeaningTone switch
+    {
+        "danger" => "bi-arrow-up-left-circle",
+        "success" => "bi-arrow-down-right-circle",
+        _ => "bi-check-circle"
+    };
+}
+<section class="ak-form-section ak-detail-section ak-party-account">
+    <header class="ak-section-head ak-party-account-head">
+        <h2 class="ak-section-title">@Model.Title</h2>
+        @if (Model.ToggleOptions.Count > 0)
+        {
+            <div class="ak-party-switch" role="group" aria-label="@Model.ToggleLabel">
+                @foreach (var option in Model.ToggleOptions)
+                {
+                    <a class="ak-party-switch-option @(option.IsActive ? "is-active" : null)"
+                       href="@option.Href"
+                       aria-current="@(option.IsActive ? "true" : null)">@option.Label</a>
+                }
+            </div>
+        }
+    </header>
+
+    <div class="ak-party-account-body">
+        <div class="ak-party-balance @Model.MeaningToneClass">
+            <span class="ak-party-balance-label">@Model.BalanceLabel</span>
+            <bdi class="ak-party-balance-value">@Model.BalanceValue</bdi>
+            @if (!string.IsNullOrWhiteSpace(Model.BalanceSubValue))
+            {
+                <bdi class="ak-party-balance-sub">@Model.BalanceSubValue</bdi>
+            }
+            <p class="ak-party-balance-meaning">
+                <i class="bi @meaningIcon" aria-hidden="true"></i>
+                <span>@Model.Meaning</span>
+            </p>
+        </div>
+
+        @if (Model.Metrics.Count > 0 || Model.SettledPercent.HasValue)
+        {
+            <div class="ak-party-flow">
+                @if (Model.Metrics.Count > 0)
+                {
+                    <dl class="ak-party-metrics">
+                        @foreach (var metric in Model.Metrics)
+                        {
+                            <div class="ak-party-metric">
+                                <dt class="ak-party-metric-label">@metric.Label</dt>
+                                <dd class="ak-party-metric-value @metric.ToneClass">
+                                    <bdi>@metric.Value</bdi>
+                                    @if (!string.IsNullOrWhiteSpace(metric.SubValue))
+                                    {
+                                        <bdi class="ak-party-metric-sub">@metric.SubValue</bdi>
+                                    }
+                                </dd>
+                            </div>
+                        }
+                    </dl>
+                }
+
+                @if (Model.SettledPercent.HasValue)
+                {
+                    <div class="ak-party-settled">
+                        <progress class="ak-party-settled-bar"
+                                  value="@Model.SettledPercent.Value"
+                                  max="100"
+                                  aria-label="@Model.SettledCaption"></progress>
+                        @if (!string.IsNullOrWhiteSpace(Model.SettledCaption))
+                        {
+                            <p class="ak-party-settled-caption">@Model.SettledCaption</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @if (visibleFacts.Count > 0)
+    {
+        <dl class="ak-party-facts">
+            @foreach (var fact in visibleFacts)
+            {
+                <div class="ak-party-fact">
+                    <dt>@fact.Label</dt>
+                    <dd class="@(fact.IsNumeric ? "is-num" : null)">
+                        <bdi>@fact.Value</bdi>
+                        @if (!string.IsNullOrWhiteSpace(fact.Unit))
+                        {
+                            <span class="ak-party-fact-unit">@fact.Unit</span>
+                        }
+                    </dd>
+                </div>
+            }
+        </dl>
+    }
+</section>

@@ -22,7 +22,14 @@ public sealed class SalesDetailsRedesignStructureTests
         Assert.Contains("_DetailActionBar.cshtml", view);
         Assert.Contains("ak-list", view);
         Assert.Contains("ak-operations-overview", view);
+        Assert.Contains("ak-operations-overview ak-operations-clean-overview", view);
         Assert.Contains("data-ak-operations-detail=\"true\"", view);
+
+        var saleInformation = view.IndexOf("Sale information", StringComparison.Ordinal);
+        var saleStatement = view.IndexOf("Sale statement", StringComparison.Ordinal);
+        var sourceAndDelivery = view.IndexOf("Source and delivery", StringComparison.Ordinal);
+        Assert.True(saleInformation < saleStatement);
+        Assert.True(saleStatement < sourceAndDelivery);
 
         var more = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_OperationsDetailMore.cshtml");
         Assert.Contains("_DetailTimeline.cshtml", more);
@@ -40,6 +47,11 @@ public sealed class SalesDetailsRedesignStructureTests
         Assert.DoesNotContain("sales-payment", view);
         Assert.DoesNotContain("<table", view);
         Assert.DoesNotContain("<h1", view);
+
+        var detailCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
+        Assert.Contains(".ak-operations-clean-page .ak-operations-clean-overview", detailCss);
+        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", detailCss);
+        Assert.Contains(".ak-operations-clean-page .ak-operations-clean-overview > .ak-sale-money", detailCss);
     }
 
     [Fact]
@@ -73,6 +85,23 @@ public sealed class SalesDetailsRedesignStructureTests
         Assert.DoesNotContain("[data-sales-details]", css);
         Assert.DoesNotContain("/* Sales details:", css);
         Assert.DoesNotContain(".sales-kpi", css);
+    }
+
+    [Fact]
+    public void Details_Shows_Both_Invoices_And_Uses_Requested_Summary_Fields()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Sales/Details.cshtml");
+        var header = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Components/Ak/_AkPageHeader.cshtml");
+
+        Assert.DoesNotContain("Sale contract\"), Value = contractText", view);
+        Assert.DoesNotContain("Ledger amount", view);
+        Assert.DoesNotContain("Booked value", view);
+        Assert.Contains("T(\"مقدار\", \"Quantity\")", view);
+        Assert.Contains("T(\"فاکتور ۱\", \"Invoice 1\")", view);
+        Assert.Contains("T(\"فاکتور ۲\", \"Invoice 2\")", view);
+        Assert.Contains("template = \"faisal\"", view);
+        Assert.Contains("template = \"fawad\"", view);
+        Assert.Contains("AkHeaderCompanionAction", header);
     }
 
     private static int Count(string value, string token)

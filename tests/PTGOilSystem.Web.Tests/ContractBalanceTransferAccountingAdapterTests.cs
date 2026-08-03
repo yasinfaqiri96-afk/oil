@@ -11,6 +11,8 @@ using Xunit;
 namespace PTGOilSystem.Web.Tests;
 
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class ContractBalanceTransferAccountingAdapterTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime TransferDate = new(2026, 7, 15);

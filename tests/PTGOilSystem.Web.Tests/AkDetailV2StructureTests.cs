@@ -60,6 +60,36 @@ public sealed class AkDetailV2StructureTests
     }
 
     [Fact]
+    public void Operation_Record_Sections_Use_One_Shared_Local_Tab_Rail()
+    {
+        var loading = ReadView("Loading");
+        Assert.Contains("_DetailsTabs.cshtml", loading);
+        Assert.Contains("data-instant-tabs", loading);
+        Assert.Contains("#loading-receipts", loading);
+        Assert.Contains("#loading-customs", loading);
+        Assert.Contains("#loading-losses", loading);
+        Assert.Contains("ak-detail-list-actions", loading);
+
+        var dispatch = ReadView("Dispatch");
+        Assert.Contains("_DetailsTabs.cshtml", dispatch);
+        Assert.Contains("data-instant-tabs", dispatch);
+        Assert.Contains("#dispatch-{option.Slug}", dispatch);
+        Assert.Contains("id=\"dispatch-sales\"", dispatch);
+        Assert.Contains("id=\"dispatch-customs\"", dispatch);
+        Assert.Contains("id=\"dispatch-expenses\"", dispatch);
+        Assert.Contains("id=\"dispatch-receipts\"", dispatch);
+
+        var transport = ReadView("InventoryTransportLegs");
+        Assert.Contains("#itl-receipts", transport);
+        Assert.Contains("id=\"itl-receipts\"", transport);
+        Assert.Contains("(string?)\"itl-receipts\"", transport);
+
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
+        Assert.Contains("[data-loading-details] #loading-receipts .ak-list-row", css);
+        Assert.Contains("[data-loading-details] .ak-detail-kpi-strip", css);
+    }
+
+    [Fact]
     public void Operations_Details_Use_One_Compact_Shared_Composition()
     {
         var operationsDetails = new[]
@@ -79,6 +109,8 @@ public sealed class AkDetailV2StructureTests
         {
             var view = ReadView(controller);
             Assert.Contains("ak-operations-overview", view);
+            Assert.Contains("ak-operations-clean-page", view);
+            Assert.Contains("ak-operations-clean-overview", view);
             Assert.Contains("_OperationsDetailMore.cshtml", view);
         }
 
@@ -92,6 +124,7 @@ public sealed class AkDetailV2StructureTests
 
         var settlements = ReadRepoFile("src/PTGOilSystem.Web/Views/TruckSettlements/Index.cshtml");
         Assert.Contains("ak-operations-settlement", settlements);
+        Assert.Contains("ak-operations-clean-page", settlements);
         Assert.Contains("data-ak-operations-detail=\"true\"", settlements);
 
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
@@ -101,6 +134,8 @@ public sealed class AkDetailV2StructureTests
         Assert.Contains("@media (max-width: 991.98px)", css);
         Assert.Contains(".ak-operations-detail .ak-stat-grid", css);
         Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", css);
+        Assert.Contains(".ak-operations-clean-page .ak-operations-clean-overview", css);
+        Assert.Contains(".ak-summary-card:last-child:nth-child(odd)", css);
         Assert.Contains("--ak-operations-panel-radius: 16px", css);
         Assert.Contains("--ak-operations-panel-surface: var(--background-paper, #fff)", css);
         Assert.Contains("--ak-operations-panel-shadow: var(--ptg-panel-shadow)", css);

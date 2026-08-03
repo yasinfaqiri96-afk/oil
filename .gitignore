@@ -212,6 +212,9 @@ BenchmarkDotNet.Artifacts/
 
 graphify-out/
 
+# Project-local UI/UX skill runtime cache
+/.claude/skills/ui-ux-pro-max/**/__pycache__/
+
 # ---------------------------------------------------------
 # Local-only working material (kept on disk, never versioned).
 # Raw image-generator dumps and intermediate exports that no view,

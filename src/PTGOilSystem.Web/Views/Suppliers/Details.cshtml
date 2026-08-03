@@ -12,10 +12,41 @@
     // معادل روبلی مانده — همیشه از مدل (اگر داده روبل موجود باشد) تا کنار USD نمایش داده شود.
     var endingRub = Model.SupplierRemainingClaimRub;
     var hasRubBalance = endingRub.HasValue;
+    var isRubView = Model.IsRubDisplay;
+
+    // سوییچ ارز نمایش: بقیهٔ پارامترهای صفحه (tab، contractId، …) حفظ می‌شوند.
+    string CurrencyHref(string code)
+    {
+        var queryParts = new List<string>();
+        foreach (var pair in Context.Request.Query)
+        {
+            if (string.Equals(pair.Key, "currency", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (var value in pair.Value)
+            {
+                queryParts.Add($"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(value ?? string.Empty)}");
+            }
+        }
+
+        queryParts.Add($"currency={Uri.EscapeDataString(code)}");
+        return $"{Context.Request.Path}?{string.Join("&", queryParts)}";
+    }
+
+    // مبلغ روبلی: نبودِ منبع روبلی «ثبت نشده» است، نه صفر. رقمی که از نرخ قرارداد ساخته
+    // شده «تخمینی» علامت می‌خورد تا با رقم واقعیِ بارگیری اشتباه نشود.
+    string RubText(decimal? value, bool isEstimated)
+        => value.HasValue
+            ? NumberDisplay.Money(value.Value, "RUB") + (isEstimated ? " (تخمینی)" : string.Empty)
+            : notRecorded;
+
+    var endingRubAbs = endingRub.HasValue ? Math.Abs(endingRub.Value) : (decimal?)null;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (endingUsd > 0 ? "قابل پرداخت به تأمین‌کننده" : endingUsd < 0 ? "پیش‌پرداخت / طلب ما از تأمین‌کننده" : "حساب تسویه است");
     // رنگ عدد مانده به سبک سیستم: بدهکاری ما (قابل پرداخت) سرخ، طلب/پیش‌پرداخت سبز، تسویه خنثی.
-    var balanceValueClass = endingUsd > 0 ? "text-danger" : endingUsd < 0 ? "text-success" : "";
+    var balanceTone = endingUsd > 0 ? "danger" : endingUsd < 0 ? "success" : null;
 
     // سه تب: خلاصه (پیش‌فرض) · قراردادها (شامل پرداخت‌ها) · صورت‌حساب.
     var activeTab = Model.ActiveTab;
@@ -31,7 +62,7 @@
     ViewData["AkHeaderContext"] = $"کد: {(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)} · {balanceLabel}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
-        new() { Label = "صورت‌حساب رسمی", Href = Url.Action("Supplier", "PartyStatements", new { id = Model.SupplierId }), Icon = "bi-file-earmark-text" },
+        new() { Label = "صورت‌حساب رسمی", Href = Url.Action("Supplier", "PartyStatements", new { id = Model.SupplierId, CurrencyCode = Model.IsRubDisplay ? "RUB" : null }), Icon = "bi-file-earmark-text" },
         new() { Label = "ویرایش", Href = editUrl, Icon = "bi-pencil" }
     };
 
@@ -40,6 +71,65 @@
         $"overview|خلاصه|bi-clipboard-data|{(showOverview ? "active" : "")}",
         $"contracts|قراردادها|bi-file-earmark-text|{(showContracts ? "active" : "")}",
         $"statement|صورت‌حساب|bi-journal-text|{(showStatement ? "active" : "")}"
+    };
+
+    // کارت وضعیت حساب تب خلاصه. فقط چیدمان نمایشی روی همان اعداد مدل؛ درصد تسویه
+    // یک نسبت نمایشی از دو رقمِ همین کارت است و هیچ مبلغی دوباره محاسبه نمی‌شود.
+    int? supplierPaidShare = Model.LoadedPurchaseValueUsd > 0m
+        ? (int)Math.Clamp(Math.Round(Model.TotalPaidUsd / Model.LoadedPurchaseValueUsd * 100m, MidpointRounding.AwayFromZero), 0m, 100m)
+        : null;
+
+    var supplierAccountCard = new AkPartyAccountCard
+    {
+        BalanceLabel = "مانده حساب",
+        BalanceValue = isRubView
+            ? RubText(endingRubAbs, Model.SupplierRemainingClaimRubIsEstimated)
+            : NumberDisplay.Money(Math.Abs(endingUsd), "USD"),
+        BalanceSubValue = isRubView
+            ? $"≈ {NumberDisplay.Money(Math.Abs(endingUsd), "USD")}"
+            : hasRubBalance ? $"≈ {RubText(endingRubAbs, Model.SupplierRemainingClaimRubIsEstimated)}" : null,
+        Meaning = balanceLabel,
+        MeaningTone = balanceTone,
+        ToggleLabel = "ارز نمایش",
+        ToggleOptions = new List<AkPartyToggleOption>
+        {
+            new() { Label = "USD", Href = CurrencyHref("USD"), IsActive = !isRubView },
+            new() { Label = "RUB", Href = CurrencyHref("RUB"), IsActive = isRubView }
+        },
+        Metrics = new List<AkPartyMetric>
+        {
+            new()
+            {
+                Label = "خرید بارگیری‌شده",
+                Value = isRubView
+                    ? RubText(Model.LoadedPurchaseValueRub, Model.LoadedPurchaseValueRubIsEstimated)
+                    : NumberDisplay.Money(Model.LoadedPurchaseValueUsd, "USD"),
+                SubValue = isRubView
+                    ? $"≈ {NumberDisplay.Money(Model.LoadedPurchaseValueUsd, "USD")}"
+                    : Model.LoadedPurchaseValueRub.HasValue ? $"≈ {RubText(Model.LoadedPurchaseValueRub, Model.LoadedPurchaseValueRubIsEstimated)}" : null
+            },
+            new()
+            {
+                Label = "پرداخت‌شده",
+                Value = isRubView
+                    ? RubText(Model.TotalPaidRub, false)
+                    : NumberDisplay.Money(Model.TotalPaidUsd, "USD"),
+                SubValue = isRubView
+                    ? $"≈ {NumberDisplay.Money(Model.TotalPaidUsd, "USD")}"
+                    : Model.TotalPaidRub.HasValue ? $"≈ {NumberDisplay.Money(Model.TotalPaidRub.Value, "RUB")}" : null,
+                Tone = "success"
+            }
+        },
+        SettledPercent = supplierPaidShare,
+        SettledCaption = supplierPaidShare.HasValue
+            ? $"{supplierPaidShare.Value:N0}٪ پرداخت شده"
+            : null,
+        Facts = new List<AkInfoItem>
+        {
+            new() { Label = "پیش‌پرداخت آزاد", Value = NumberDisplay.Money(Model.AdvanceFreeUsd, "USD"), IsNumeric = true },
+            new() { Label = "قرارداد فعال", Value = Model.ActivePurchaseContractsCount.ToString("N0"), IsNumeric = true },
+            new() { Label = "آخرین پرداخت", Value = Model.LastPaymentDate.HasValue ? Model.LastPaymentDate.Value.ToDisplayDate() : null }
+        }
     };
 }
 
@@ -51,59 +141,19 @@
 
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل تأمین‌کننده", supplierTabs)" />
 
-    @* ===== اطلاعات هویتی + وضعیت حساب (تخت، بدون Hero/Avatar/KPI رنگی) ===== *@
+    @* ===== تب خلاصه: اول وضعیت حساب (عدد تصمیم‌ساز)، بعد اطلاعات هویتی ===== *@
     <div class="ak-form-grid ak-overview-grid" hidden="@(!showOverview)">
-        <section class="ak-form-section ak-detail-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@supplierAccountCard" />
+
+        <section class="ak-form-section ak-detail-section ak-party-identity">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات هویتی", (string?)null))" />
-            <dl class="ak-list">
+            <dl class="ak-list ak-list--flush ak-identity-list">
                 <div class="ak-list-row"><dt>کد</dt><dd>@(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)</dd></div>
                 <div class="ak-list-row"><dt>کشور</dt><dd>@(string.IsNullOrWhiteSpace(Model.Country) ? notRecorded : Model.Country)</dd></div>
                 <div class="ak-list-row"><dt>طرف تماس</dt><dd>@(string.IsNullOrWhiteSpace(Model.ContactPerson) ? notRecorded : Model.ContactPerson)</dd></div>
                 <div class="ak-list-row"><dt>تلفن</dt><dd>@(string.IsNullOrWhiteSpace(Model.Phone) ? notRecorded : Model.Phone)</dd></div>
-                <div class="ak-list-row"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
-                <div class="ak-list-row"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
-            </dl>
-        </section>
-
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("وضعیت حساب", balanceLabel))" />
-            <dl class="ak-list ak-account-list">
-                <div class="ak-list-row ak-account-lead">
-                    <dt>مانده حساب</dt>
-                    <dd class="ak-num @balanceValueClass">
-                        @NumberDisplay.Money(Math.Abs(endingUsd), "USD")
-                        @if (hasRubBalance)
-                        {
-                            <small class="ak-amount-sub">≈ @NumberDisplay.Money(Math.Abs(endingRub!.Value), "RUB")</small>
-                        }
-                    </dd>
-                </div>
-                <div class="ak-list-row">
-                    <dt>خرید بارگیری‌شده</dt>
-                    <dd class="ak-num">
-                        @NumberDisplay.Money(Model.LoadedPurchaseValueUsd, "USD")
-                        @if (Model.LoadedPurchaseValueRub.HasValue)
-                        {
-                            <small class="ak-amount-sub">≈ @NumberDisplay.Money(Model.LoadedPurchaseValueRub.Value, "RUB")</small>
-                        }
-                    </dd>
-                </div>
-                <div class="ak-list-row">
-                    <dt>پرداخت‌شده</dt>
-                    <dd class="ak-num">
-                        @NumberDisplay.Money(Model.TotalPaidUsd, "USD")
-                        @if (Model.TotalPaidRub.HasValue)
-                        {
-                            <small class="ak-amount-sub">≈ @NumberDisplay.Money(Model.TotalPaidRub.Value, "RUB")</small>
-                        }
-                    </dd>
-                </div>
-                <div class="ak-list-row">
-                    <dt>پیش‌پرداخت آزاد</dt>
-                    <dd class="ak-num @(Model.AdvanceFreeUsd > 0 ? "text-success" : "")">@NumberDisplay.Money(Model.AdvanceFreeUsd, "USD")</dd>
-                </div>
-                <div class="ak-list-row"><dt>قرارداد فعال</dt><dd class="ak-num">@Model.ActivePurchaseContractsCount.ToString("N0")</dd></div>
-                <div class="ak-list-row"><dt>آخرین پرداخت</dt><dd>@(Model.LastPaymentDate.HasValue ? Model.LastPaymentDate.Value.ToDisplayDate() : notRecorded)</dd></div>
+                <div class="ak-list-row is-wide"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
+                <div class="ak-list-row is-wide"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
             </dl>
         </section>
     </div>
@@ -129,9 +179,9 @@
                         <th>جنس</th>
                         <th class="ak-col-num">مقدار MT</th>
                         <th class="ak-col-num">بارگیری‌شده MT</th>
-                        <th class="ak-col-num">قابل پرداخت USD</th>
-                        <th class="ak-col-num">پرداخت‌شده USD</th>
-                        <th class="ak-col-num">مانده USD</th>
+                        <th class="ak-col-num">قابل پرداخت @(isRubView ? "RUB" : "USD")</th>
+                        <th class="ak-col-num">پرداخت‌شده @(isRubView ? "RUB" : "USD")</th>
+                        <th class="ak-col-num">مانده @(isRubView ? "RUB" : "USD")</th>
                         <th>وضعیت</th>
                         <th class="ak-col-actions"></th>
                     </tr>
@@ -158,9 +208,18 @@
                         <td>@c.Product</td>
                         <td class="ak-col-num ak-num">@AkUnit.Quantity(c.QuantityMt, "MT")</td>
                         <td class="ak-col-num ak-num">@AkUnit.Quantity(c.LoadedQuantityMt, "MT")</td>
-                        <td class="ak-col-num ak-num">@AkUnit.Money(c.LoadedValueUsd, "USD")</td>
-                        <td class="ak-col-num ak-num">@AkUnit.Money(c.PaidUsd, "USD")</td>
-                        <td class="ak-col-num ak-num @balClass">@AkUnit.Money(c.LoadedValueBalanceUsd, "USD")</td>
+                        @if (isRubView)
+                        {
+                            <td class="ak-col-num ak-num">@RubText(c.LoadedValueRub, c.LoadedValueRubIsEstimated)</td>
+                            <td class="ak-col-num ak-num">@RubText(c.PaidRub, false)</td>
+                            <td class="ak-col-num ak-num @balClass">@RubText(c.LoadedValueBalanceRub, c.LoadedValueRubIsEstimated)</td>
+                        }
+                        else
+                        {
+                            <td class="ak-col-num ak-num">@AkUnit.Money(c.LoadedValueUsd, "USD")</td>
+                            <td class="ak-col-num ak-num">@AkUnit.Money(c.PaidUsd, "USD")</td>
+                            <td class="ak-col-num ak-num @balClass">@AkUnit.Money(c.LoadedValueBalanceUsd, "USD")</td>
+                        }
                         <td><span class="ak-status">@c.StatusName</span></td>
                         <td class="ak-col-actions">
                             <div class="dropdown ak-row-menu">
@@ -327,7 +386,9 @@
     @* ===== تب ۳: صورت‌حساب ===== *@
     <section id="supplier-statement" class="ak-form-section ak-detail-section" hidden="@(!showStatement)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("صورت‌حساب رسمی تأمین‌کننده", "مانده، نرخ تاریخی و اطلاعات نفتی در موتور مشترک محاسبه می‌شود."))" />
-        <div class="ak-party-statement-embed" data-party-statement-embed="@(Url.Action("Supplier", "PartyStatements", new { id = Model.SupplierId }))">
+        @* ارز نمایش صفحه به صورت‌حساب رسمی هم پاس می‌شود (CurrencyCode = RUB یعنی نمایش روبلی
+           در PartyStatementReadService). در نمای USD چیزی پاس نمی‌شود تا فیلترِ ارز اعمال نشود. *@
+        <div class="ak-party-statement-embed" data-party-statement-embed="@(Url.Action("Supplier", "PartyStatements", new { id = Model.SupplierId, CurrencyCode = isRubView ? "RUB" : null }))">
             <div class="ak-empty ak-detail-empty-state">
                 <i class="bi bi-hourglass-split" aria-hidden="true"></i>
                 <p>در حال بارگذاری صورت‌حساب…</p>

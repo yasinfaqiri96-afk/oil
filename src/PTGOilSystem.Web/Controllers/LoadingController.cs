@@ -448,17 +448,31 @@ public partial class LoadingController : Controller
         var totalRub = NormalizePositiveDecimal(row.SettlementValueRub);
         if (totalRub.HasValue && loadingValueUsd.HasValue && loadingValueUsd.Value > 0m)
         {
-            return Math.Round(totalRub.Value / loadingValueUsd.Value, 6, MidpointRounding.AwayFromZero);
+            return AcceptPlausibleRubPerUsdRate(totalRub.Value / loadingValueUsd.Value);
         }
 
         var unitPriceRub = NormalizePositiveDecimal(row.SettlementUnitPriceRub);
         var loadingPriceUsd = NormalizePositiveDecimal(row.LoadingPriceUsd);
         if (unitPriceRub.HasValue && loadingPriceUsd.HasValue)
         {
-            return Math.Round(unitPriceRub.Value / loadingPriceUsd.Value, 6, MidpointRounding.AwayFromZero);
+            return AcceptPlausibleRubPerUsdRate(unitPriceRub.Value / loadingPriceUsd.Value);
         }
 
         return null;
+    }
+
+    // یک روبل همیشه از یک دالر کم‌ارزش‌تر است، پس نرخ مشتق‌شده باید به‌روشنی بزرگ‌تر از ۱ باشد.
+    // اگر ستون روبلیِ فایل در واقع چیز دیگری باشد (مثلاً خودِ نرخ یا یک هزینهٔ جانبی)، نتیجه
+    // بی‌معنا می‌شود؛ در آن حالت نرخ ثبت نمی‌شود تا کاربر آن را دستی وارد کند.
+    private const decimal MinimumDerivedRubPerUsdRate = 1m;
+    private const decimal MaximumDerivedRubPerUsdRate = 1000m;
+
+    private static decimal? AcceptPlausibleRubPerUsdRate(decimal rate)
+    {
+        var rounded = Math.Round(rate, 6, MidpointRounding.AwayFromZero);
+        return rounded >= MinimumDerivedRubPerUsdRate && rounded <= MaximumDerivedRubPerUsdRate
+            ? rounded
+            : null;
     }
 
     private async Task PostSupplierLoadingLedgerIfReadyAsync(LoadingRegister loading, Contract? contract)
@@ -528,10 +542,8 @@ public partial class LoadingController : Controller
     {
         if (_purchaseAccounting is not null)
         {
-            foreach (var row in createdRows)
-            {
-                await _purchaseAccounting.TryPostPurchaseAsync(row.Loading);
-            }
+            await _purchaseAccounting.TryPostPurchasesAsync(
+                createdRows.Select(row => row.Loading).ToList());
         }
 
         var legacyLedgers = createdRows
@@ -1125,10 +1137,12 @@ public partial class LoadingController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
     [RequestFormLimits(ValueCountLimit = 20000, ValueLengthLimit = 104_857_600, MultipartBodyLengthLimit = 104_857_600L)]
+    // فقط فایل را می‌خواند و سطرهای آمادهٔ فرم را برمی‌گرداند؛ هیچ بارگیری‌ای ثبت نمی‌شود.
+    // ثبت واقعی فقط با دکمهٔ ذخیرهٔ خود فرم (اکشن Create) انجام می‌شود.
     public async Task<IActionResult> ImportWorkbook(LoadingCreateViewModel model)
     {
         model.Notes = NormalizeNullable(model.Notes);
-        model.Rows = ExtractSubmittedRows(model);
+        model.Rows = [];
         ApplyContractLock(model);
         var selectedContractIds = ResolveSelectedContractIds(model);
         if (selectedContractIds.Count > 0)
@@ -1143,99 +1157,170 @@ public partial class LoadingController : Controller
             if (selectedProductIds.Count == 1)
             {
                 model.ProductId = selectedProductIds[0];
-                ModelState.Remove(nameof(model.ProductId));
             }
             else if (selectedProductIds.Count > 1)
             {
-                ModelState.AddModelError(nameof(model.ContractId), "قراردادهای انتخاب‌شده باید کالای یکسان داشته باشند.");
-                await PopulateLookupsAsync(model);
-                return View("Create", model);
+                return ImportFailed("قراردادهای انتخاب‌شده باید کالای یکسان داشته باشند.");
             }
         }
 
         if (model.ImportWorkbookFile is null || model.ImportWorkbookFile.Length == 0)
         {
-            ModelState.AddModelError(nameof(model.ImportWorkbookFile), "فایل اکسل بارگیری را انتخاب کنید.");
-            await PopulateLookupsAsync(model);
-            return View("Create", model);
+            return ImportFailed("فایل اکسل بارگیری را انتخاب کنید.");
         }
 
         if (!string.Equals(Path.GetExtension(model.ImportWorkbookFile.FileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
         {
-            ModelState.AddModelError(nameof(model.ImportWorkbookFile), "فعلاً فقط فایل‌های Excel با پسوند .xlsx پشتیبانی می‌شوند.");
-            await PopulateLookupsAsync(model);
-            return View("Create", model);
+            return ImportFailed("فعلاً فقط فایل‌های Excel با پسوند .xlsx پشتیبانی می‌شوند.");
         }
 
+        LoadingWorkbookImportResult importedWorkbook;
         try
         {
             await using var stream = model.ImportWorkbookFile.OpenReadStream();
-            var importedWorkbook = LoadingWorkbookParser.Parse(stream);
-            model.ImportedSheetName = importedWorkbook.SourceSheetName;
-
-            model.Rows = importedWorkbook.Rows
-                .Select((row, index) =>
-                {
-                    row.RowKey = CreateRowKey(index);
-                    if (selectedContractIds.Count == 1)
-                    {
-                        row.ContractId = selectedContractIds[0];
-                    }
-
-                    return row;
-                })
-                .ToList();
-
-            model.TransportType = importedWorkbook.TransportType;
-
-            if (model.TransportType == LoadingTransportType.Truck)
-            {
-                await ResolveImportedTruckReferencesAsync(model.Rows, createMissing: false);
-            }
-
-            if (!model.OriginLocationId.HasValue)
-            {
-                model.OriginLocationId = await ResolveLocationIdAsync(importedWorkbook.OriginLocationName);
-            }
-
-            if (model.Rows.Count > 0)
-            {
-                model.LoadingDate = importedWorkbook.ReportDate ?? model.Rows[0].LoadingDate;
-            }
-
-            if (selectedContractIds.Count == 1)
-            {
-                var contract = await _db.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == selectedContractIds[0]);
-                if (contract is not null
-                    && contract.ContractType == ContractType.Purchase
-                    && contract.ProductId == model.ProductId)
-                {
-                    var pricingResult = await _pricing.CalculateContractPriceAsync(contract.Id);
-                    ApplyContractPricingDefaults(contract, pricingResult, model.Rows, addValidationErrors: false);
-                    ApplyContractRubDefaults(contract, model.Rows);
-                }
-            }
-
-            // The workbook replaces posted row and transport values; clear stale attempted
-            // values so the returned form renders the imported model instead of pre-import input.
-            ModelState.Clear();
-
-            TempData["ok"] = $"{model.Rows.Count} سطر از فایل اکسل بارگیری وارد فرم شد.";
+            importedWorkbook = LoadingWorkbookParser.Parse(stream);
         }
         catch (InvalidDataException ex)
         {
-            ModelState.AddModelError(nameof(model.ImportWorkbookFile), ex.Message);
+            return ImportFailed(ex.Message);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to import loading workbook.");
-            ModelState.AddModelError(nameof(model.ImportWorkbookFile), "خواندن فایل اکسل بارگیری انجام نشد. ساختار فایل را بررسی کنید.");
+            return ImportFailed("فایل قابل خواندن نیست. لطفاً فایل اصلی اکسل (xlsx) را دوباره ذخیره و انتخاب کنید.");
         }
 
-        await PopulateLookupsAsync(model);
-        PrepareRowsForFastPreview(model);
-        return View("Create", model);
+        model.ImportedSheetName = importedWorkbook.SourceSheetName;
+        model.Rows = importedWorkbook.Rows
+            .Select((row, index) =>
+            {
+                row.RowKey = CreateRowKey(index);
+                if (selectedContractIds.Count == 1)
+                {
+                    row.ContractId = selectedContractIds[0];
+                }
+
+                return row;
+            })
+            .ToList();
+
+        model.TransportType = importedWorkbook.TransportType;
+
+        if (model.TransportType == LoadingTransportType.Truck)
+        {
+            await ResolveImportedTruckReferencesAsync(model.Rows, createMissing: false);
+        }
+
+        if (!model.OriginLocationId.HasValue)
+        {
+            model.OriginLocationId = await ResolveLocationIdAsync(importedWorkbook.OriginLocationName);
+        }
+
+        if (model.Rows.Count > 0)
+        {
+            model.LoadingDate = importedWorkbook.ReportDate ?? model.Rows[0].LoadingDate;
+        }
+
+        if (selectedContractIds.Count == 1)
+        {
+            var contract = await _db.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == selectedContractIds[0]);
+            if (contract is not null
+                && contract.ContractType == ContractType.Purchase
+                && contract.ProductId == model.ProductId)
+            {
+                var pricingResult = await _pricing.CalculateContractPriceAsync(contract.Id);
+                ApplyContractPricingDefaults(contract, pricingResult, model.Rows, addValidationErrors: false);
+                ApplyContractRubDefaults(contract, model.Rows);
+            }
+        }
+
+        var response = await BuildImportResponseAsync(model, importedWorkbook);
+        return new JsonResult(response, LoadingRowsJsonOptions);
     }
+
+    private JsonResult ImportFailed(string message)
+        => new(
+            new LoadingImportResponse { Success = false, Message = message, GlobalErrors = [message] },
+            LoadingRowsJsonOptions);
+
+    private async Task<LoadingImportResponse> BuildImportResponseAsync(
+        LoadingCreateViewModel model,
+        LoadingWorkbookImportResult importedWorkbook)
+    {
+        var contexts = importedWorkbook.RowContexts ?? [];
+        var issuesByRowIndex = new Dictionary<int, List<LoadingImportRowIssue>>();
+        for (var index = 0; index < model.Rows.Count; index++)
+        {
+            var context = index < contexts.Count ? contexts[index] : null;
+            issuesByRowIndex[index] = context is null
+                ? []
+                : context.Issues
+                    .Select(issue => new LoadingImportRowIssue
+                    {
+                        Field = ToCamelCase(issue.Field),
+                        Column = issue.Column,
+                        Message = issue.Message
+                    })
+                    .ToList();
+        }
+
+        // همان قاعدهٔ ضدتکراری سیستم: سطر تکراری وارد فرم می‌شود ولی «نیاز به اصلاح» علامت
+        // می‌خورد تا کاربر پیش از ثبت آن را حذف کند (ثبت نهایی هم دوباره کنترل می‌کند).
+        var screening = await LoadingExcelImportController.ScreenDuplicateRowsAsync(
+            _db,
+            model,
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+
+        foreach (var issue in screening.Issues)
+        {
+            var index = issue.Row - 2;
+            if (index < 0 || !issuesByRowIndex.TryGetValue(index, out var rowIssues))
+            {
+                continue;
+            }
+
+            rowIssues.Add(new LoadingImportRowIssue
+            {
+                Field = ToCamelCase(nameof(LoadingCreateRowViewModel.BillOfLadingNumber)),
+                Column = issue.Column,
+                Message = issue.Message
+            });
+        }
+
+        var rows = new List<LoadingImportRow>(model.Rows.Count);
+        for (var index = 0; index < model.Rows.Count; index++)
+        {
+            var context = index < contexts.Count ? contexts[index] : null;
+            rows.Add(new LoadingImportRow
+            {
+                Row = model.Rows[index],
+                ExcelRowNumber = context?.ExcelRowNumber ?? 0,
+                SheetName = context?.SheetName,
+                Issues = issuesByRowIndex[index]
+            });
+        }
+
+        var invalidRows = rows.Count(row => row.Issues.Count > 0);
+        return new LoadingImportResponse
+        {
+            Success = true,
+            Rows = rows,
+            TotalRows = rows.Count,
+            ImportedRows = rows.Count - invalidRows,
+            InvalidRows = invalidRows,
+            SheetName = importedWorkbook.SourceSheetName,
+            TransportType = (int)model.TransportType,
+            OriginLocationId = model.OriginLocationId,
+            ProductId = model.ProductId > 0 ? model.ProductId : null,
+            LoadingDate = model.LoadingDate == default ? null : model.LoadingDate.ToString("yyyy-MM-dd"),
+            Message = invalidRows > 0
+                ? $"{rows.Count - invalidRows} سطر وارد شد؛ {invalidRows} سطر نیاز به اصلاح دارد."
+                : $"{rows.Count} سطر از فایل اکسل به فورم اضافه شد."
+        };
+    }
+
+    private static string ToCamelCase(string value)
+        => string.IsNullOrEmpty(value) ? value : char.ToLowerInvariant(value[0]) + value[1..];
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
@@ -1247,6 +1332,17 @@ public partial class LoadingController : Controller
         model.Rows = ExtractSubmittedRows(model);
         if (submittedWithCompactRows)
         {
+            // در ثبت فشرده، سطرهای واقعی از ImportedRowsJson می‌آیند و مقادیرِ ویرایشگرِ
+            // روی صفحه دور انداخته می‌شوند؛ پس خطاهای Model Binding همان فیلدهای دورانداخته
+            // (مثل «The value '' is invalid.») نباید کل ثبت را رد کند. اعتبارسنجی واقعی
+            // بلافاصله پایین‌تر روی خودِ سطرهای فشرده انجام می‌شود.
+            foreach (var staleRowKey in ModelState.Keys
+                         .Where(key => key.StartsWith("Rows[", StringComparison.Ordinal))
+                         .ToList())
+            {
+                ModelState.Remove(staleRowKey);
+            }
+
             ValidateCompactSubmittedRows(model.Rows);
         }
         if (model.Rows.Count == 0)
@@ -1379,6 +1475,25 @@ public partial class LoadingController : Controller
                 .ToListAsync())
                 .ToHashSet();
         var ownershipSharesByAssetId = new Dictionary<int, List<AssetOwnershipShare>>();
+        // سهم‌های مالکیتِ همهٔ دارایی‌های انتخاب‌شده یک‌بار خوانده می‌شود؛ قبلاً برای هر سطر یک
+        // کوئری جدا اجرا می‌شد و ثبتِ فایل بزرگ را کند می‌کرد. فیلترِ تاریخ همان فیلتر قبلی است.
+        var allOwnershipShares = selectedOperationalAssetIds.Count == 0
+            ? []
+            : await _db.AssetOwnershipShares
+                .AsNoTracking()
+                .Where(s => selectedOperationalAssetIds.Contains(s.OperationalAssetId))
+                .OrderBy(s => s.Id)
+                .ToListAsync();
+
+        List<AssetOwnershipShare> ResolveActiveOwnershipShares(int assetId, DateTime date)
+        {
+            var utcDate = ToUtcDate(date);
+            return allOwnershipShares
+                .Where(s => s.OperationalAssetId == assetId
+                    && s.EffectiveFrom <= utcDate
+                    && (!s.EffectiveTo.HasValue || s.EffectiveTo.Value >= utcDate))
+                .ToList();
+        }
 
         foreach (var row in model.Rows)
         {
@@ -1411,7 +1526,7 @@ public partial class LoadingController : Controller
                 else
                 {
                     row.LogisticsCompanyName = operationalAsset.Name;
-                    var ownershipShares = await GetActiveAssetOwnershipSharesAsync(row.OperationalAssetId.Value, row.LoadingDate);
+                    var ownershipShares = ResolveActiveOwnershipShares(row.OperationalAssetId.Value, row.LoadingDate);
                     ownershipSharesByAssetId[row.OperationalAssetId.Value] = ownershipShares;
                     var ownershipTotal = ownershipShares.Sum(s => s.SharePercent);
                     if (ownershipShares.Count == 0 || decimal.Round(ownershipTotal, 4, MidpointRounding.AwayFromZero) != 100m)
@@ -1751,30 +1866,11 @@ public partial class LoadingController : Controller
                 await PostSupplierLoadingLedgersForCreateAsync(
                     createdRows.Select(row => (row.Loading, row.Contract)).ToList());
 
-                foreach (var createdRow in createdRows)
-                {
-                    var row = createdRow.Row;
-                    var loading = createdRow.Loading;
-
-                    if (loading.LogisticsServiceProviderId.HasValue
-                        && logisticsServiceProvidersById.TryGetValue(loading.LogisticsServiceProviderId.Value, out var logisticsServiceProvider))
-                    {
-                        var loadingExpenseModel = BuildLoadingExpenseEditModel(loading, returnUrl: null);
-                        await SyncLoadingServiceExpensesAsync(loading, loadingExpenseModel, logisticsServiceProvider);
-                    }
-
-                    if (row.OperationalAssetId.HasValue
-                        && operationalAssetsById.TryGetValue(row.OperationalAssetId.Value, out var operationalAsset))
-                    {
-                        var loadingExpenseModel = BuildLoadingExpenseEditModel(loading, returnUrl: null);
-                        loadingExpenseModel.OperationalAssetId = operationalAsset.Id;
-                        var ownershipShares = ownershipSharesByAssetId.TryGetValue(operationalAsset.Id, out var cachedShares)
-                            ? cachedShares
-                            : await GetActiveAssetOwnershipSharesAsync(operationalAsset.Id, loading.LoadingDate);
-                        var contractType = createdRow.Contract.ContractType;
-                        await SyncLoadingAssetRentAsync(loading, loadingExpenseModel, operationalAsset, ownershipShares, contractType);
-                    }
-                }
+                await CreateLoadingLogisticsSideEffectsBatchAsync(
+                    createdRows,
+                    logisticsServiceProvidersById,
+                    operationalAssetsById,
+                    ownershipSharesByAssetId);
 
                 var lossSubmissions = createdRows
                     .Where(createdRow => createdRow.Row.Loss.Enabled
@@ -3867,6 +3963,255 @@ public partial class LoadingController : Controller
             ? $"قرارداد #{loading.ContractId}"
             : $"قرارداد {loading.Contract.ContractNumber}";
         return $"کرایه داخلی دارایی عملیاتی بارگیری #{loading.Id} - {contractText} - {asset.Name}";
+    }
+
+    // ثبت گروهیِ مصارف خدماتی و کرایهٔ دارایی برای بارگیری‌های تازه‌ساخته‌شده.
+    // مسیر تک‌سطری (SyncLoadingServiceExpensesAsync / SyncLoadingAssetRentAsync) برای هر سطر چند
+    // SaveChanges جدا اجرا می‌کرد؛ چون هر SaveChanges روی کل ChangeTracker کار می‌کند، هزینهٔ ثبت
+    // درجه‌دو می‌شد و فایل بزرگ عملاً هرگز تمام نمی‌شد. اینجا همان رکوردها ساخته می‌شود، فقط تعداد
+    // SaveChanges ثابت است. چون همهٔ بارگیری‌ها تازه‌اند، شاخهٔ به‌روزرسانی/لغو اصلاً موضوعیت ندارد.
+    private async Task CreateLoadingLogisticsSideEffectsBatchAsync(
+        IReadOnlyList<(LoadingCreateRowViewModel Row, LoadingRegister Loading, Contract Contract)> createdRows,
+        IReadOnlyDictionary<int, ServiceProviderEntity> logisticsServiceProvidersById,
+        IReadOnlyDictionary<int, OperationalAsset> operationalAssetsById,
+        Dictionary<int, List<AssetOwnershipShare>> ownershipSharesByAssetId)
+    {
+        await CreateLoadingServiceExpensesBatchAsync(createdRows, logisticsServiceProvidersById);
+        await CreateLoadingAssetRentsBatchAsync(createdRows, operationalAssetsById, ownershipSharesByAssetId);
+    }
+
+    private async Task CreateLoadingServiceExpensesBatchAsync(
+        IReadOnlyList<(LoadingCreateRowViewModel Row, LoadingRegister Loading, Contract Contract)> createdRows,
+        IReadOnlyDictionary<int, ServiceProviderEntity> logisticsServiceProvidersById)
+    {
+        var pending = new List<(LoadingRegister Loading, LoadingServiceExpenseComponent Component, ServiceProviderEntity Provider)>();
+        foreach (var createdRow in createdRows)
+        {
+            var loading = createdRow.Loading;
+            if (!loading.LogisticsServiceProviderId.HasValue
+                || !logisticsServiceProvidersById.TryGetValue(loading.LogisticsServiceProviderId.Value, out var provider))
+            {
+                continue;
+            }
+
+            var expenseModel = BuildLoadingExpenseEditModel(loading, returnUrl: null);
+            foreach (var component in BuildLoadingServiceExpenseComponents(expenseModel).Where(c => c.AmountUsd > 0m))
+            {
+                pending.Add((loading, component, provider));
+            }
+        }
+
+        if (pending.Count == 0)
+        {
+            return;
+        }
+
+        var expenseTypesByCode = await EnsureLoadingServiceExpenseTypesAsync(
+            pending.Select(item => item.Component).ToList());
+
+        var expenses = new List<(ExpenseTransaction Expense, ExpenseType Type, LoadingRegister Loading)>(pending.Count);
+        foreach (var (loading, component, provider) in pending)
+        {
+            var expenseType = expenseTypesByCode[component.Code];
+            var expense = new ExpenseTransaction
+            {
+                ExpenseTypeId = expenseType.Id,
+                ContractId = loading.ContractId,
+                LoadingRegisterId = loading.Id,
+                ServiceProviderId = provider.Id,
+                ExpenseDate = ToUtcDate(loading.LoadingDate),
+                Amount = component.AmountUsd,
+                Currency = SystemCurrency.BaseCurrencyCode,
+                AppliedFxRateToUsd = 1m,
+                AmountUsd = component.AmountUsd,
+                Description = BuildLoadingServiceExpenseDescription(loading, component, provider.Name)
+            };
+
+            _db.ExpenseTransactions.Add(expense);
+            expenses.Add((expense, expenseType, loading));
+        }
+
+        await _db.SaveChangesAsync();
+
+        var ledgers = new List<LedgerEntry>(expenses.Count);
+        foreach (var (expense, expenseType, loading) in expenses)
+        {
+            var ledger = BuildLoadingServiceExpenseLedger(expenseType, expense, loading);
+            _db.LedgerEntries.Add(ledger);
+            ledgers.Add(ledger);
+        }
+
+        await _db.SaveChangesAsync();
+
+        // مرحله ۵ — Dual-write داخل همان Transaction قدیمی (بدون تغییر رفتار، فقط بعد از Batch).
+        if (_expenseAccounting is not null)
+        {
+            foreach (var (expense, _, _) in expenses)
+            {
+                await _expenseAccounting.TryPostExpenseAsync(expense);
+            }
+        }
+
+        for (var i = 0; i < expenses.Count; i++)
+        {
+            var expense = expenses[i].Expense;
+            await _audit.LogAsync(
+                nameof(ExpenseTransaction),
+                expense.Id,
+                AuditAction.Insert,
+                diff: AuditDiffFormatter.ForCreate(
+                    ("ExpenseTypeId", expense.ExpenseTypeId),
+                    ("ContractId", expense.ContractId),
+                    ("LoadingRegisterId", expense.LoadingRegisterId),
+                    ("ServiceProviderId", expense.ServiceProviderId),
+                    ("ExpenseDate", expense.ExpenseDate),
+                    ("Amount", expense.Amount),
+                    ("Currency", expense.Currency),
+                    ("AmountUsd", expense.AmountUsd),
+                    ("Description", expense.Description),
+                    ("LedgerReference", ledgers[i].Reference)));
+        }
+
+        await _db.SaveChangesAsync();
+    }
+
+    private async Task CreateLoadingAssetRentsBatchAsync(
+        IReadOnlyList<(LoadingCreateRowViewModel Row, LoadingRegister Loading, Contract Contract)> createdRows,
+        IReadOnlyDictionary<int, OperationalAsset> operationalAssetsById,
+        Dictionary<int, List<AssetOwnershipShare>> ownershipSharesByAssetId)
+    {
+        var pending = new List<(LoadingRegister Loading, OperationalAsset Asset, decimal AmountUsd, decimal Rate, ContractType ContractType)>();
+        foreach (var createdRow in createdRows)
+        {
+            var row = createdRow.Row;
+            if (!row.OperationalAssetId.HasValue
+                || !operationalAssetsById.TryGetValue(row.OperationalAssetId.Value, out var asset))
+            {
+                continue;
+            }
+
+            var loading = createdRow.Loading;
+            var expenseModel = BuildLoadingExpenseEditModel(loading, returnUrl: null);
+            expenseModel.OperationalAssetId = asset.Id;
+            var amountUsd = CalculateLoadingExpenseTotalUsd(expenseModel);
+            if (amountUsd <= 0m)
+            {
+                continue;
+            }
+
+            if (!ownershipSharesByAssetId.ContainsKey(asset.Id))
+            {
+                ownershipSharesByAssetId[asset.Id] =
+                    await GetActiveAssetOwnershipSharesAsync(asset.Id, loading.LoadingDate);
+            }
+
+            pending.Add((
+                loading,
+                asset,
+                amountUsd,
+                ResolveLoadingAssetRentRate(expenseModel, asset, amountUsd),
+                createdRow.Contract.ContractType));
+        }
+
+        if (pending.Count == 0)
+        {
+            return;
+        }
+
+        var rents = new List<(AssetRentTransaction Rent, decimal AmountUsd, int AssetId)>(pending.Count);
+        foreach (var (loading, asset, amountUsd, rate, contractType) in pending)
+        {
+            var chargedToType = ResolveLoadingAssetRentChargedToType(contractType);
+            var rent = new AssetRentTransaction
+            {
+                OperationalAssetId = asset.Id,
+                LoadingRegisterId = loading.Id,
+                RentDate = ToUtcDate(loading.LoadingDate),
+                UsageType = AssetRentUsageType.InternalCompanyUse,
+                ChargedToType = chargedToType,
+                ChargedToContractId = chargedToType is AssetRentChargedToType.PurchaseContract or AssetRentChargedToType.SalesContract
+                    ? loading.ContractId
+                    : null,
+                QuantityMt = loading.LoadedQuantityMt > 0m ? loading.LoadedQuantityMt : null,
+                Rate = rate,
+                Currency = SystemCurrency.BaseCurrencyCode,
+                FxRateToUsd = 1m,
+                AmountOriginal = amountUsd,
+                AmountUsd = amountUsd,
+                ReferenceDocument = BuildLoadingAssetRentReference(loading),
+                Description = BuildLoadingAssetRentDescription(loading, asset),
+                IsPostedToLedger = false
+            };
+
+            _db.AssetRentTransactions.Add(rent);
+            rents.Add((rent, amountUsd, asset.Id));
+        }
+
+        await _db.SaveChangesAsync();
+
+        foreach (var (rent, amountUsd, assetId) in rents)
+        {
+            _db.AssetRentShares.AddRange(BuildLoadingAssetRentShareSnapshots(
+                rent.Id,
+                amountUsd,
+                ownershipSharesByAssetId.TryGetValue(assetId, out var shares) ? shares : []));
+
+            await _audit.LogAsync(
+                nameof(AssetRentTransaction),
+                rent.Id,
+                AuditAction.Insert,
+                diff: AuditDiffFormatter.ForCreate(
+                    ("OperationalAssetId", rent.OperationalAssetId),
+                    ("LoadingRegisterId", rent.LoadingRegisterId),
+                    ("RentDate", rent.RentDate),
+                    ("UsageType", rent.UsageType),
+                    ("ChargedToType", rent.ChargedToType),
+                    ("ChargedToContractId", rent.ChargedToContractId),
+                    ("AmountUsd", rent.AmountUsd),
+                    ("IsPostedToLedger", rent.IsPostedToLedger)));
+        }
+
+        await _db.SaveChangesAsync();
+    }
+
+    // همان قرارداد EnsureLoadingServiceExpenseTypeAsync ولی برای همهٔ کدها با یک رفت‌وبرگشت.
+    private async Task<Dictionary<string, ExpenseType>> EnsureLoadingServiceExpenseTypesAsync(
+        IReadOnlyList<LoadingServiceExpenseComponent> components)
+    {
+        var componentsByCode = components
+            .GroupBy(component => component.Code, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        var codes = componentsByCode.Keys.ToList();
+        var expenseTypesByCode = (await _db.ExpenseTypes
+                .Where(type => codes.Contains(type.Code))
+                .ToListAsync())
+            .GroupBy(type => type.Code, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        var missing = componentsByCode
+            .Where(pair => !expenseTypesByCode.ContainsKey(pair.Key))
+            .Select(pair => new ExpenseType
+            {
+                Code = pair.Value.Code,
+                Name = pair.Value.Name,
+                NamePersian = pair.Value.NamePersian,
+                Category = pair.Value.Category,
+                IsActive = true
+            })
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            _db.ExpenseTypes.AddRange(missing);
+            await _db.SaveChangesAsync();
+            foreach (var expenseType in missing)
+            {
+                expenseTypesByCode[expenseType.Code] = expenseType;
+            }
+        }
+
+        return expenseTypesByCode;
     }
 
     private async Task<ExpenseType> EnsureLoadingServiceExpenseTypeAsync(LoadingServiceExpenseComponent component)

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -16,6 +17,8 @@ namespace PTGOilSystem.Web.Tests;
 /// journal: it reverses and reposts.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class PurchaseAccountingAdapterTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime LoadingDate = new(2026, 7, 5);
@@ -53,6 +56,54 @@ public sealed class PurchaseAccountingAdapterTests(AccountingPostgreSqlFixture f
         Assert.Equal(scope.Contract.Id, debitLine.ContractId);
         Assert.Equal(scope.Product.Id, debitLine.ProductId);
         Assert.Equal(JournalEntryStatus.Posted, journal.Status);
+    }
+
+    [Fact]
+    public async Task Purchase_Batch_Posts_Each_Loading_Exactly_Once()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var loadings = Enumerable.Range(1, 20)
+            .Select(index => new LoadingRegister
+            {
+                ContractId = scope.Contract.Id,
+                ProductId = scope.Product.Id,
+                TransportType = LoadingTransportType.Wagon,
+                LoadingDate = LoadingDate,
+                LoadedQuantityMt = 10m + index,
+                LoadingPriceUsd = 500m,
+                SettlementCurrencyCode = "USD",
+                WagonNumber = $"BATCH-{index:000}"
+            })
+            .ToList();
+        db.LoadingRegisters.AddRange(loadings);
+        await db.SaveChangesAsync();
+
+        var adapter = CreateAdapter(db, purchase: true);
+        var stopwatch = Stopwatch.StartNew();
+        var results = await adapter.TryPostPurchasesAsync(loadings);
+        stopwatch.Stop();
+        Console.WriteLine($"PURCHASE_BATCH_ELAPSED_MS={stopwatch.ElapsedMilliseconds}");
+
+        Assert.All(results, result => Assert.Equal(PaymentPostingStatus.Posted, result.Status));
+
+        // دیتابیسِ این مجموعه بین تست‌ها مشترک است، پس شمارش باید به همین بارگیری‌ها محدود بماند.
+        var loadingIds = loadings.Select(loading => loading.Id).ToList();
+        Assert.Equal(
+            loadings.Count,
+            await db.JournalEntries.CountAsync(journal =>
+                journal.SourceModule == PurchaseAccountingAdapter.SourceModule
+                && journal.SourceEntityType == PurchaseAccountingAdapter.PurchaseSourceEntityType
+                && journal.SourceEntityId.HasValue
+                && loadingIds.Contains(journal.SourceEntityId.Value)
+                && !journal.IsReversal));
+        Assert.Equal(
+            loadings.Count * 2,
+            await db.JournalEntryLines.CountAsync(line =>
+                line.JournalEntry!.SourceModule == PurchaseAccountingAdapter.SourceModule
+                && line.JournalEntry.SourceEntityType == PurchaseAccountingAdapter.PurchaseSourceEntityType
+                && line.JournalEntry.SourceEntityId.HasValue
+                && loadingIds.Contains(line.JournalEntry.SourceEntityId.Value)));
     }
 
     [Fact]

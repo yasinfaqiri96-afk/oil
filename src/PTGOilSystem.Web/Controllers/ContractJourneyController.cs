@@ -142,6 +142,10 @@ public partial class ContractJourneyController : Controller
     public async Task<IActionResult> Details(int contractId, string? tab = null, bool lockContract = false)
     {
         var activeTab = ContractJourneyTabs.Details.Normalize(tab);
+        var isTabFragmentRequest = string.Equals(
+            ControllerContext.HttpContext?.Request.Headers["X-PTG-Contract-Tab"].ToString(),
+            "1",
+            StringComparison.Ordinal);
 
         var contract = await _db.Contracts
             .Include(c => c.Product)
@@ -158,8 +162,13 @@ public partial class ContractJourneyController : Controller
             return NotFound();
         }
 
-        var (hasMixedLoadingPrices, loadingsValueUsd) = await LoadLoadingPriceSpreadAsync(_db, contract.Id);
-        var subContractItems = await LoadSubContractSummariesAsync(_db, contract.Id);
+        var needsSummaryContext = activeTab == ContractJourneyTabs.Details.Summary || !isTabFragmentRequest;
+        var (hasMixedLoadingPrices, loadingsValueUsd) = needsSummaryContext
+            ? await LoadLoadingPriceSpreadAsync(_db, contract.Id)
+            : (false, 0m);
+        var subContractItems = needsSummaryContext
+            ? await LoadSubContractSummariesAsync(_db, contract.Id)
+            : [];
 
         var pricingResult = await _pricing.CalculateContractPriceAsync(contract);
         var journeyReturnUrl = $"/ContractJourney/Details?contractId={contract.Id}&tab={activeTab}&lockContract={lockContract.ToString().ToLowerInvariant()}";
@@ -224,6 +233,16 @@ public partial class ContractJourneyController : Controller
             return View(await BuildPurchaseReceiptsDetailsAsync(contract, baseModel, pricingResult, lockContract));
         }
 
+        if (isTabFragmentRequest && activeTab == ContractJourneyTabs.Details.Inventory)
+        {
+            return View(await BuildPurchaseInventoryDetailsAsync(contract.Id, baseModel, lockContract));
+        }
+
+        if (isTabFragmentRequest && activeTab == ContractJourneyTabs.Details.Dispatch)
+        {
+            return View(await BuildPurchaseDispatchDetailsAsync(contract.Id, baseModel, lockContract));
+        }
+
         var notesForReview = new List<string>();
         var contractFinalPriceUsd = pricingResult.FinalUnitPrice;
         var needsInventoryTransportRowDetails = activeTab == ContractJourneyTabs.Details.InventoryTransport;
@@ -279,6 +298,16 @@ public partial class ContractJourneyController : Controller
             ResolveEffectiveLoadingPriceUsd);
         var loadingItemById = loadingItems.ToDictionary(item => item.Id);
         var totalLoadedQuantityMt = purchaseAgg.TotalLoadedQuantityMt;
+
+        if (isTabFragmentRequest && activeTab == ContractJourneyTabs.Details.Loadings)
+        {
+            return View(BuildPurchaseTabPayload(
+                baseModel,
+                activeTab,
+                lockContract,
+                rubSettlementSummary: rubSettlementSummary,
+                loadingItems: loadingItems));
+        }
 
         var inventoryTransportLegs = await _db.InventoryTransportLegs
             .Include(l => l.SourceTerminal)
@@ -476,6 +505,15 @@ public partial class ContractJourneyController : Controller
                 };
             })
             .ToList();
+
+        if (isTabFragmentRequest && activeTab == ContractJourneyTabs.Details.InventoryTransport)
+        {
+            return View(BuildPurchaseTabPayload(
+                baseModel,
+                activeTab,
+                lockContract,
+                inventoryTransportLegItems: inventoryTransportLegItems));
+        }
 
         var loadingReceipts = loadingIds.Count == 0
             ? new List<LoadingReceipt>()
@@ -988,6 +1026,17 @@ public partial class ContractJourneyController : Controller
             })
             .ToList();
 
+        if (isTabFragmentRequest && activeTab == ContractJourneyTabs.Details.Sales)
+        {
+            return View(BuildPurchaseTabPayload(
+                baseModel,
+                activeTab,
+                lockContract,
+                salesItems: saleItems,
+                preSaleItems: preSaleItems,
+                shipmentScenarios: shipmentScenarios));
+        }
+
         var directDispatches = await _db.TruckDispatches
             .Include(d => d.Truck)
             .Include(d => d.Driver)
@@ -1085,6 +1134,15 @@ public partial class ContractJourneyController : Controller
         var dispatchWithoutInventoryTraceCount = dispatchItems.Count(d =>
             d.DispatchMode != TruckDispatchMode.DirectFromReceipt
             && string.IsNullOrWhiteSpace(d.ReferenceDocument));
+
+        if (isTabFragmentRequest && activeTab == ContractJourneyTabs.Details.Dispatch)
+        {
+            return View(BuildPurchaseTabPayload(
+                baseModel,
+                activeTab,
+                lockContract,
+                dispatchItems: dispatchItems));
+        }
 
         IQueryable<ExpenseTransaction> ExpenseQuery() => _db.ExpenseTransactions
             .AsNoTracking()
@@ -1563,6 +1621,21 @@ public partial class ContractJourneyController : Controller
         var dispatchShortageLossMt = recordedDispatchLossMt + derivedDispatchLossItems.Sum(DisplayLossItemQuantityMt);
         var totalLossQuantityMt = lossItems.Sum(DisplayLossItemQuantityMt);
 
+        if (isTabFragmentRequest && activeTab == ContractJourneyTabs.Details.Costs)
+        {
+            return View(BuildPurchaseTabPayload(
+                baseModel,
+                activeTab,
+                lockContract,
+                expenseItems: expenseItems,
+                lossItems: lossItems,
+                inventoryTransportExpenseAllocations: inventoryTransportExpenseAllocations,
+                loadingDifferenceLossMt: loadingDifferenceLossMt,
+                receiptShortageLossMt: receiptShortageLossMt,
+                dispatchShortageLossMt: dispatchShortageLossMt,
+                inventoryTransportLossMt: inventoryTransportLossMt));
+        }
+
         var hasSaleIds = saleIdSet.Count > 0;
         var hasExpenseIds = expenseIdSet.Count > 0;
         var paymentEntities = await _db.PaymentTransactions
@@ -1947,6 +2020,236 @@ public partial class ContractJourneyController : Controller
             NextRecommendedActionUrl = nextAction.Url,
             NextRecommendedActionCssClass = nextAction.CssClass
         });
+    }
+
+    private static ContractJourneyDetailsViewModel BuildPurchaseTabPayload(
+        ContractJourneyDetailsViewModel source,
+        string activeTab,
+        bool lockContract,
+        ContractJourneyRubSettlementSummaryViewModel? rubSettlementSummary = null,
+        IReadOnlyList<ContractJourneyLoadingItemViewModel>? loadingItems = null,
+        IReadOnlyList<ContractJourneyInventoryMovementItemViewModel>? inventoryMovementItems = null,
+        IReadOnlyList<ContractJourneyTransportLegItemViewModel>? inventoryTransportLegItems = null,
+        IReadOnlyList<ContractJourneyDispatchItemViewModel>? dispatchItems = null,
+        IReadOnlyList<ContractJourneySaleItemViewModel>? salesItems = null,
+        IReadOnlyList<ContractJourneyPreSaleItemViewModel>? preSaleItems = null,
+        IReadOnlyList<ContractJourneyShipmentScenarioViewModel>? shipmentScenarios = null,
+        IReadOnlyList<ContractJourneyExpenseItemViewModel>? expenseItems = null,
+        IReadOnlyList<ContractJourneyLossItemViewModel>? lossItems = null,
+        IReadOnlyList<ContractJourneyTransportLegExpenseAllocationViewModel>? inventoryTransportExpenseAllocations = null,
+        decimal loadingDifferenceLossMt = 0m,
+        decimal receiptShortageLossMt = 0m,
+        decimal dispatchShortageLossMt = 0m,
+        decimal inventoryTransportLossMt = 0m)
+        => new()
+        {
+            ActiveTab = activeTab,
+            LockContract = lockContract,
+            ContractId = source.ContractId,
+            ContractName = source.ContractName,
+            ContractNumber = source.ContractNumber,
+            ContractTypeName = source.ContractTypeName,
+            ContractTypeBadgeClass = source.ContractTypeBadgeClass,
+            CompanyName = source.CompanyName,
+            ProductName = source.ProductName,
+            ContractUnitText = source.ContractUnitText,
+            SupplierName = source.SupplierName,
+            CustomerName = source.CustomerName,
+            ContractQuantityMt = source.ContractQuantityMt,
+            HasMixedLoadingPrices = source.HasMixedLoadingPrices,
+            LoadingsValueUsd = source.LoadingsValueUsd,
+            ParentContractId = source.ParentContractId,
+            ParentContractNumber = source.ParentContractNumber,
+            Currency = source.Currency,
+            PriceDisplay = source.PriceDisplay,
+            PricingMethodName = source.PricingMethodName,
+            PricingStatusName = source.PricingStatusName,
+            RubSettlementSummary = rubSettlementSummary ?? source.RubSettlementSummary,
+            EditPricingUrl = source.EditPricingUrl,
+            PricingFormulaText = source.PricingFormulaText,
+            PricingFinalUnitPriceUsd = source.PricingFinalUnitPriceUsd,
+            PricingNeedsReview = source.PricingNeedsReview,
+            PricingReason = source.PricingReason,
+            PricingFallbackApplied = source.PricingFallbackApplied,
+            PricingFormulaNote = source.PricingFormulaNote,
+            StatusName = source.StatusName,
+            StatusBadgeClass = source.StatusBadgeClass,
+            ContractDate = source.ContractDate,
+            StartDate = source.StartDate,
+            EndDate = source.EndDate,
+            Notes = source.Notes,
+            IsPurchaseContract = source.IsPurchaseContract,
+            LoadingItems = loadingItems ?? [],
+            InventoryMovementItems = inventoryMovementItems ?? [],
+            InventoryTransportLegItems = inventoryTransportLegItems ?? [],
+            DispatchItems = dispatchItems ?? [],
+            SalesItems = salesItems ?? [],
+            PreSaleItems = preSaleItems ?? [],
+            ShipmentScenarios = shipmentScenarios ?? [],
+            ExpenseItems = expenseItems ?? [],
+            LossItems = lossItems ?? [],
+            InventoryTransportExpenseAllocations = inventoryTransportExpenseAllocations ?? [],
+            LoadingDifferenceLossMt = loadingDifferenceLossMt,
+            ReceiptShortageLossMt = receiptShortageLossMt,
+            DispatchShortageLossMt = dispatchShortageLossMt,
+            InventoryTransportLossMt = inventoryTransportLossMt
+        };
+
+    private async Task<ContractJourneyDetailsViewModel> BuildPurchaseInventoryDetailsAsync(
+        int contractId,
+        ContractJourneyDetailsViewModel baseModel,
+        bool lockContract)
+    {
+        var movements = await _db.InventoryMovements
+            .Include(m => m.Terminal)
+            .Include(m => m.StorageTank)
+            .AsNoTracking()
+            .Where(m => m.ContractId == contractId)
+            .OrderBy(m => m.MovementDate)
+            .ThenBy(m => m.Id)
+            .ToListAsync();
+        var saleIds = movements
+            .Where(m => m.SalesTransactionId.HasValue)
+            .Select(m => m.SalesTransactionId!.Value)
+            .Distinct()
+            .ToList();
+        var invoiceBySaleId = saleIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await _db.SalesTransactions
+                .AsNoTracking()
+                .Where(s => saleIds.Contains(s.Id))
+                .Select(s => new { s.Id, s.InvoiceNumber })
+                .ToDictionaryAsync(s => s.Id, s => s.InvoiceNumber);
+
+        decimal runningBalanceMt = 0m;
+        var items = movements.Select(movement =>
+        {
+            var signedQuantityMt = ToSignedQuantity(movement.Direction, movement.QuantityMt);
+            runningBalanceMt += signedQuantityMt;
+            return new ContractJourneyInventoryMovementItemViewModel
+            {
+                Id = movement.Id,
+                MovementDate = movement.MovementDate,
+                DirectionName = ToMovementDirectionName(movement.Direction),
+                QuantityMt = movement.QuantityMt,
+                SignedQuantityMt = signedQuantityMt,
+                RunningBalanceMt = runningBalanceMt,
+                TerminalName = movement.Terminal?.Name ?? string.Empty,
+                StorageTankCode = StorageTankDisplay.BuildOptional(movement.StorageTank),
+                ReferenceDocument = movement.ReferenceDocument,
+                SourceLabel = movement.SalesTransactionId.HasValue
+                    && invoiceBySaleId.TryGetValue(movement.SalesTransactionId.Value, out var invoice)
+                        ? invoice
+                        : movement.ReferenceDocument,
+                SalesTransactionId = movement.SalesTransactionId
+            };
+        }).ToList();
+
+        return BuildPurchaseTabPayload(
+            baseModel,
+            ContractJourneyTabs.Details.Inventory,
+            lockContract,
+            inventoryMovementItems: items);
+    }
+
+    private async Task<ContractJourneyDetailsViewModel> BuildPurchaseDispatchDetailsAsync(
+        int contractId,
+        ContractJourneyDetailsViewModel baseModel,
+        bool lockContract)
+    {
+        var dispatches = await _db.TruckDispatches
+            .Include(d => d.Truck)
+            .Include(d => d.Driver)
+            .Include(d => d.DestinationLocation)
+            .Include(d => d.LoadingReceiptAllocation)
+                .ThenInclude(a => a!.LoadingReceipt)
+            .Include(d => d.LoadingReceiptAllocation)
+                .ThenInclude(a => a!.DestinationLocation)
+            .AsNoTracking()
+            .Where(d => d.ContractId == contractId)
+            .OrderBy(d => d.DispatchDate)
+            .ThenBy(d => d.Id)
+            .ToListAsync();
+        var allocationIds = dispatches
+            .Where(d => d.DispatchMode == TruckDispatchMode.DirectFromReceipt && d.LoadingReceiptAllocationId.HasValue)
+            .Select(d => d.LoadingReceiptAllocationId!.Value)
+            .Distinct()
+            .ToList();
+        var allocationQuantityRows = allocationIds.Count == 0
+            ? []
+            : await _db.TruckDispatches
+                .AsNoTracking()
+                .Where(d => d.DispatchMode == TruckDispatchMode.DirectFromReceipt
+                    && d.Status != DispatchStatus.Cancelled
+                    && d.LoadingReceiptAllocationId.HasValue
+                    && allocationIds.Contains(d.LoadingReceiptAllocationId.Value))
+                .Select(d => new { AllocationId = d.LoadingReceiptAllocationId!.Value, d.LoadedQuantityMt })
+                .ToListAsync();
+        var quantityByAllocationId = allocationQuantityRows
+            .GroupBy(d => d.AllocationId)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.LoadedQuantityMt));
+
+        var referenceMap = dispatches.ToDictionary(d => $"TRUCK-DISPATCH:{d.Id}", d => d.Id);
+        var references = referenceMap.Keys.ToList();
+        var movements = references.Count == 0
+            ? []
+            : await _db.InventoryMovements
+                .Include(m => m.Terminal)
+                .Include(m => m.StorageTank)
+                .AsNoTracking()
+                .Where(m => m.ContractId == contractId
+                    && m.ReferenceDocument != null
+                    && references.Contains(m.ReferenceDocument))
+                .ToListAsync();
+        var movementByDispatchId = movements
+            .Select(m => new { DispatchId = referenceMap.GetValueOrDefault(m.ReferenceDocument ?? string.Empty), Movement = m })
+            .Where(x => x.DispatchId > 0)
+            .GroupBy(x => x.DispatchId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Movement.Id).First().Movement);
+
+        var items = dispatches.Select(dispatch =>
+        {
+            movementByDispatchId.TryGetValue(dispatch.Id, out var movement);
+            var allocation = dispatch.LoadingReceiptAllocation;
+            decimal? dispatchedForAllocation = allocation is null
+                ? null
+                : quantityByAllocationId.GetValueOrDefault(allocation.Id);
+            return new ContractJourneyDispatchItemViewModel
+            {
+                Id = dispatch.Id,
+                DispatchMode = dispatch.DispatchMode,
+                LoadingReceiptAllocationId = dispatch.LoadingReceiptAllocationId,
+                LoadingReceiptId = allocation?.LoadingReceiptId,
+                DispatchDate = dispatch.DispatchDate,
+                TruckPlateNumber = dispatch.Truck?.PlateNumber ?? string.Empty,
+                DriverName = dispatch.Driver?.FullName,
+                DestinationName = dispatch.DestinationLocation?.Name
+                    ?? allocation?.DestinationName
+                    ?? allocation?.DestinationLocation?.Name
+                    ?? allocation?.DestinationReference,
+                StatusName = dispatch.Status.ToString(),
+                LoadedQuantityMt = dispatch.LoadedQuantityMt,
+                DischargedQuantityMt = dispatch.DischargedQuantityMt,
+                AllocationQuantityMt = allocation?.QuantityMt,
+                AllocationTotalDirectDispatchedQuantityMt = dispatchedForAllocation,
+                AllocationRemainingQuantityMt = allocation is null || !dispatchedForAllocation.HasValue
+                    ? null
+                    : allocation.QuantityMt - dispatchedForAllocation.Value,
+                SourceTerminalName = movement?.Terminal?.Name,
+                SourceStorageTankCode = StorageTankDisplay.BuildOptional(movement?.StorageTank),
+                FreightCostUsd = dispatch.FreightCostUsd,
+                ReferenceDocument = movement?.ReferenceDocument,
+                TraceKind = dispatch.DispatchMode == TruckDispatchMode.DirectFromReceipt
+                    ? "Direct Truck Dispatch from Receipt Allocation"
+                    : movement is null ? "مستقیم از قرارداد" : "مستقیم از قرارداد و سند موجودی"
+            };
+        }).OrderByDescending(d => d.DispatchDate).ThenByDescending(d => d.Id).ToList();
+
+        return BuildPurchaseTabPayload(
+            baseModel,
+            ContractJourneyTabs.Details.Dispatch,
+            lockContract,
+            dispatchItems: items);
     }
 
     // مجموع موجودی دفتری مخزن‌هایی که رسید «ضایعات بعداً از تسویه مخزن» این قرارداد
@@ -4828,16 +5131,33 @@ public partial class ContractJourneyController : Controller
         decimal? contractFinalPriceUsd)
     {
         var settlementCurrency = SystemCurrency.Normalize(contract.SettlementCurrencyCode);
+        var loadings = loadingRegisters.ToList();
+
+        // ارزش روبلی بارگیری‌ها از منبع مشترکِ LoadingRubValuation — همان منبعی که پروفایل
+        // تأمین‌کننده استفاده می‌کند. پیش از early return محاسبه می‌شود، چون رقم روبلیِ فایل
+        // بارگیری به SettlementCurrencyCode قرارداد وابسته نیست.
+        var loadingRubTotal = LoadingRubValuation.AggregateForContract(
+            loadings.Select(ToLoadingRubFacts),
+            contractFinalPriceUsd,
+            LoadingRubValuation.IsRubCurrency(contract.Currency) ? contract.UnitPriceInCurrency : null,
+            loadings.Sum(l => l.LoadedQuantityMt),
+            loadings.Sum(l => CurrentLoadingUsd(l) ?? 0m),
+            LoadingRubValuation.ContractRubPerUsdRate(
+                contract.Currency,
+                contract.ContractRubPerUsdRate,
+                contract.AppliedFxRateToUsd));
+
         if (!string.Equals(settlementCurrency, "RUB", StringComparison.OrdinalIgnoreCase))
         {
             return new ContractJourneyRubSettlementSummaryViewModel
             {
                 SettlementCurrencyCode = settlementCurrency,
-                RubRatePolicy = RubSettlementRatePolicy.NotApplicable
+                RubRatePolicy = RubSettlementRatePolicy.NotApplicable,
+                LoadingValueRub = loadingRubTotal.AmountRub,
+                LoadingValueRubIsEstimated = loadingRubTotal.IsEstimated
             };
         }
 
-        var loadings = loadingRegisters.ToList();
         var locked = loadings
             .Where(l => l.RubRateStatus == RubSettlementRateStatus.Locked
                 && l.AmountUsdAtRubLock.HasValue
@@ -4873,9 +5193,21 @@ public partial class ContractJourneyController : Controller
             PendingAmountUsd = pending.Sum(l => CurrentLoadingUsd(l) ?? 0m),
             PendingQuantityMt = pending.Sum(l => l.LoadedQuantityMt),
             LockedLoadingCount = locked.Count,
-            PendingRateLoadingCount = pending.Count
+            PendingRateLoadingCount = pending.Count,
+            LoadingValueRub = loadingRubTotal.AmountRub,
+            LoadingValueRubIsEstimated = loadingRubTotal.IsEstimated
         };
     }
+
+    private static LoadingRubFacts ToLoadingRubFacts(LoadingRegister loading)
+        => new(
+            loading.LoadedQuantityMt,
+            loading.LoadingPriceUsd,
+            loading.RubRateStatus,
+            loading.RubPerUsdRate,
+            loading.AmountRubAtRubLock,
+            loading.SettlementUnitPriceRub,
+            loading.SettlementValueRub);
 
     private static string ToMovementDirectionName(MovementDirection direction) => direction switch
     {

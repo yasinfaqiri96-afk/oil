@@ -2541,34 +2541,55 @@ public partial class LoadingReceiptsController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create bulk loading receipts for contract {ContractId}.", model.ContractId);
-            TempData["err"] = "ثبت رسید جمعی انجام نشد. داده‌ها را بررسی کنید و دوباره تلاش کنید.";
-            return RedirectAfterBulkReceipt(model);
+            ModelState.AddModelError(string.Empty, "ثبت رسید جمعی انجام نشد. داده‌ها را بررسی کنید و دوباره تلاش کنید.");
+            return RedirectAfterBulkReceiptError(model);
         }
     }
 
     private IActionResult RedirectAfterBulkReceiptError(LoadingReceiptBulkCreateViewModel model)
     {
-        TempData["err"] = string.Join(" ", ModelState.Values
+        var message = string.Join(" ", ModelState.Values
             .SelectMany(v => v.Errors)
             .Select(e => e.ErrorMessage)
             .Where(message => !string.IsNullOrWhiteSpace(message))
             .DefaultIfEmpty("ثبت رسید جمعی انجام نشد."));
+
+        if (IsAjaxRequest())
+        {
+            return BadRequest(new { success = false, message });
+        }
+
+        TempData["err"] = message;
 
         return RedirectAfterBulkReceipt(model);
     }
 
     private IActionResult RedirectAfterBulkReceipt(LoadingReceiptBulkCreateViewModel model)
     {
-        if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
+        var redirectUrl = TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl)
+            ? localReturnUrl
+            : Url.Action(
+                "Details",
+                "ContractJourney",
+                new { contractId = model.ContractId, tab = ContractJourneyTabs.Details.Receipts })
+                ?? $"/ContractJourney/Details?contractId={model.ContractId}&tab={ContractJourneyTabs.Details.Receipts}";
+
+        if (IsAjaxRequest())
         {
-            return Redirect(localReturnUrl);
+            return Ok(new
+            {
+                success = true,
+                redirectUrl,
+                message = TempData["ok"]?.ToString() ?? "رسید با موفقیت ثبت شد."
+            });
         }
 
-        return RedirectToAction(
-            "Details",
-            "ContractJourney",
-            new { contractId = model.ContractId, tab = ContractJourneyTabs.Details.Receipts });
+        return Redirect(redirectUrl);
     }
+
+    private bool IsAjaxRequest()
+        => ControllerContext.HttpContext is not null
+            && string.Equals(Request.Headers["X-Requested-With"].ToString(), "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     public async Task<IActionResult> Edit(int id, string? returnUrl = null)

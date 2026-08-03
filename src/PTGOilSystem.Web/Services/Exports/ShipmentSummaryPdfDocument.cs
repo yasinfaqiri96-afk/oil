@@ -63,7 +63,7 @@ internal sealed class ShipmentSummaryPdfDocument(
         column.Item().PaddingTop(2).Element(container => ComposeSectionTitle(
             container,
             Label("خلاصه عملیات محموله", "Shipment operations summary")));
-        column.Item().Element(ComposeStagesTable);
+        column.Item().Element(ComposeSummaryTable);
     }
 
     private void ComposeDocumentTitle(IContainer container)
@@ -108,16 +108,18 @@ internal sealed class ShipmentSummaryPdfDocument(
 
             MetaRow(table,
                 Label("نام کشتی", "Vessel"), model.VesselName, false,
-                Label("وضعیت", "Status"), model.StatusText, false);
-            MetaRow(table,
-                Label("کد محموله", "Shipment code"), model.ShipmentCode, true,
                 Label("محصول", "Product"), model.ProductName, false);
             MetaRow(table,
-                Label("قرارداد", "Contract"), model.ContractNumber, true,
-                Label("مسیر", "Route"), $"{model.Origin} - {model.Destination}", false);
+                Label("کد محموله", "Shipment code"), model.ShipmentCode, true,
+                Label("قرارداد", "Contract"), model.ContractNumber, true);
             MetaRow(table,
                 Label("تاریخ حرکت", "Departure"), model.DepartureDateText, true,
                 Label("تاریخ رسیدن", "Arrival"), model.ArrivalDateText, true);
+
+            // مسیر یک سطر کامل می‌گیرد تا نام‌های طولانی مبدأ/مقصد شکسته نشوند.
+            table.Cell().Element(MetaLabelCell).Text(Label("مسیر", "Route")).SemiBold().FontSize(LabelSize);
+            table.Cell().ColumnSpan(3).Element(cell => MetaValueCell(cell, false))
+                .Text($"{model.Origin} - {model.Destination}").FontSize(ValueSize);
         });
     }
 
@@ -154,51 +156,40 @@ internal sealed class ShipmentSummaryPdfDocument(
             .SemiBold().FontSize(SectionTitleSize).FontColor(PdfDesignSystem.Ink);
     }
 
-    private void ComposeStagesTable(IContainer container)
+    // ستون‌ها عیناً همان ستون‌های خروجی اکسل تب خلاصه‌اند.
+    private void ComposeSummaryTable(IContainer container)
     {
         container.Table(table =>
         {
             table.ColumnsDefinition(columns =>
             {
-                columns.RelativeColumn(1.2f);
+                columns.RelativeColumn(1.7f);
                 columns.RelativeColumn(1.05f);
-                columns.RelativeColumn();
-                columns.RelativeColumn();
-                columns.RelativeColumn();
+                columns.RelativeColumn(1.15f);
+                columns.RelativeColumn(1.4f);
             });
 
             table.Header(header =>
             {
-                HeaderCell(header.Cell(), Label("مرحله", "Stage"));
-                HeaderCell(header.Cell(), Label("وضعیت", "Status"));
-                HeaderCell(header.Cell().ColumnSpan(3), Label("جزئیات جریان", "Flow details"));
-                header.Cell().ColumnSpan(5).Element(cell => PdfDesignSystem.TableSeparator(cell, 1.5f));
+                HeaderCell(header.Cell(), Label("شرح", "Line"));
+                HeaderCell(header.Cell(), Label("مقدار MT", "Quantity MT"));
+                HeaderCell(header.Cell(), Label("مبلغ USD", "Amount USD"));
+                HeaderCell(header.Cell(), Label("جزئیات", "Details"));
+                header.Cell().ColumnSpan(4).Element(cell => PdfDesignSystem.TableSeparator(cell, 1.5f));
             });
 
-            for (var index = 0; index < model.Stages.Count; index++)
+            foreach (var row in model.Rows)
             {
-                var stage = model.Stages[index];
-                var isFinancialResult = index == model.Stages.Count - 1;
-                string background = isFinancialResult ? PdfDesignSystem.TotalsBackground : "#FFFFFF";
+                var background = row.IsTotal ? PdfDesignSystem.TotalsBackground : "#FFFFFF";
 
-                StageTextCell(table.Cell(), stage.Title, background, semiBold: true);
-                StageStatusCell(table.Cell(), stage, background);
+                SummaryTextCell(table.Cell(), row.Label, background, semiBold: row.IsTotal);
+                SummaryNumberCell(table.Cell(), row.QuantityText, background, row.IsTotal, PdfDesignSystem.Ink);
+                SummaryNumberCell(table.Cell(), row.AmountText, background, row.IsTotal, ToneColor(row.Tone));
+                SummaryTextCell(table.Cell(), row.DetailText, background);
 
-                for (var metricIndex = 0; metricIndex < 3; metricIndex++)
-                {
-                    if (metricIndex < stage.Metrics.Count)
-                    {
-                        StageMetricCell(table.Cell(), stage.Metrics[metricIndex], background, isFinancialResult);
-                    }
-                    else
-                    {
-                        StageTextCell(table.Cell(), "-", background);
-                    }
-                }
-
-                table.Cell().ColumnSpan(5).Element(cell => PdfDesignSystem.TableSeparator(
+                table.Cell().ColumnSpan(4).Element(cell => PdfDesignSystem.TableSeparator(
                     cell,
-                    isFinancialResult ? 1.5f : 0.75f));
+                    row.IsTotal ? 1.5f : 0.75f));
             }
         });
     }
@@ -207,7 +198,7 @@ internal sealed class ShipmentSummaryPdfDocument(
         => container.Element(cell => PdfDesignSystem.HeaderCell(cell)).AlignCenter()
             .Text(text).SemiBold().FontSize(PdfDesignSystem.TableSize).FontColor(PdfDesignSystem.Ink);
 
-    private static void StageTextCell(
+    private static void SummaryTextCell(
         IContainer container,
         string text,
         string background,
@@ -221,37 +212,24 @@ internal sealed class ShipmentSummaryPdfDocument(
         }
     }
 
-    private static void StageStatusCell(
+    // اعداد همیشه چپ‌به‌راست و با ارقام انگلیسی نوشته می‌شوند، مثل بقیهٔ خروجی‌های سیستم.
+    private static void SummaryNumberCell(
         IContainer container,
-        ShipmentSummaryPdfStage stage,
-        string background)
-        => container.Element(cell => PdfDesignSystem.BodyCell(cell, background)).AlignRight()
-            .Text(stage.StatusText).SemiBold().FontSize(PdfDesignSystem.TableSize)
-            .FontColor(ToneColor(stage.Tone));
-
-    private static void StageMetricCell(
-        IContainer container,
-        ShipmentSummaryPdfMetric metric,
+        string text,
         string background,
-        bool semiBold)
+        bool semiBold,
+        string color)
     {
-        container.Element(cell => PdfDesignSystem.BodyCell(cell, background)).AlignRight().Column(column =>
-        {
-            column.Item().Text(metric.Label).FontSize(LabelSize).FontColor(PdfDesignSystem.Muted);
-            column.Item().PaddingTop(1).Element(Ltr).AlignRight().Text(text =>
+        container.Element(cell => PdfDesignSystem.BodyCell(cell, background))
+            .Element(Ltr).AlignRight().Text(numeric =>
             {
-                var value = text.Span(PdfDesignSystem.ToEnglishDigits(metric.Value))
-                    .FontSize(ValueSize).FontColor(ToneColor(metric.Tone));
+                var value = numeric.Span(PdfDesignSystem.ToEnglishDigits(text))
+                    .FontSize(ValueSize).FontColor(color);
                 if (semiBold)
                 {
                     value.SemiBold();
                 }
-                if (!string.IsNullOrWhiteSpace(metric.Unit))
-                {
-                    text.Span(" " + metric.Unit).FontSize(LabelSize).FontColor(PdfDesignSystem.Muted);
-                }
             });
-        });
     }
 
     private string Label(string fa, string en) => isEnglish ? en : fa;

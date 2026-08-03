@@ -16,6 +16,8 @@ namespace PTGOilSystem.Web.Tests;
 /// هر بهینه‌سازی SQL دقیقاً همان خروجی را برگرداند.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fixture, ITestOutputHelper output)
 {
     private const decimal LowStockThresholdMt = 10m;

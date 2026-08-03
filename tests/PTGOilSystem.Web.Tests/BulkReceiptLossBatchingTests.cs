@@ -140,6 +140,45 @@ public class BulkReceiptLossBatchingTests
         Assert.Equal(0, await db.LoadingReceiptAllocations.CountAsync());
     }
 
+    [Fact]
+    public async Task BulkCreate_Ajax_Valid_Request_Returns_Json_Success_Without_Redirect()
+    {
+        await using var db = BuildContext(new SaveChangesCountingInterceptor());
+        SeedLoadings(db, loadingCount: 1, loadedQuantityMtEach: 100m);
+        await db.SaveChangesAsync();
+        var controller = BuildAjaxController(db);
+
+        var result = await controller.BulkCreate(BuildModel(
+            loadingIds: [1],
+            totalReceivedQuantityMt: 90m,
+            totalLossQuantityMt: 10m,
+            totalLossToleranceQuantityMt: 2m));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Contains("success = True", ok.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Single(await db.LoadingReceipts.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task BulkCreate_Ajax_Validation_Error_Returns_BadRequest_And_Writes_Nothing()
+    {
+        await using var db = BuildContext(new SaveChangesCountingInterceptor());
+        SeedLoadings(db, loadingCount: 1, loadedQuantityMtEach: 100m);
+        await db.SaveChangesAsync();
+        var controller = BuildAjaxController(db);
+
+        var result = await controller.BulkCreate(BuildModel(
+            loadingIds: [1],
+            totalReceivedQuantityMt: 100m,
+            totalLossQuantityMt: 10m,
+            totalLossToleranceQuantityMt: 2m));
+
+        var error = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("success = False", error.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, await db.LoadingReceipts.CountAsync());
+        Assert.Equal(0, await db.InventoryMovements.CountAsync());
+    }
+
     private static async Task<int> CountSaveChangesForImmediateLossAsync(int loadingCount)
     {
         var counter = new SaveChangesCountingInterceptor();
@@ -196,6 +235,16 @@ public class BulkReceiptLossBatchingTests
                 new RouteData(),
                 new ActionDescriptor()))
         };
+
+    private static LoadingReceiptsController BuildAjaxController(ApplicationDbContext db)
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
+        var controller = BuildController(db);
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+        controller.TempData = new TempDataDictionary(httpContext, new NullTempDataProvider());
+        return controller;
+    }
 
     private static void SeedLoadings(ApplicationDbContext db, int loadingCount, decimal loadedQuantityMtEach)
     {

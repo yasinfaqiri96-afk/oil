@@ -14,6 +14,8 @@ namespace PTGOilSystem.Web.Tests;
 /// migration itself runs.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class PaymentCompanyOwnershipTests(AccountingPostgreSqlFixture fixture)
 {
     [Fact]

@@ -17,6 +17,8 @@ namespace PTGOilSystem.Web.Tests;
 /// merely that a journal appeared.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class Stage8AccountingAdapterTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime EventDate = new(2026, 7, 5);

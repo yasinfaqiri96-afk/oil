@@ -14,6 +14,8 @@ namespace PTGOilSystem.Web.Tests;
 /// the supplier claim goes down and the sarraf becomes our creditor. Cash must never appear.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class ViaSarrafAccountingAdapterTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime PaymentDate = new(2026, 7, 15);

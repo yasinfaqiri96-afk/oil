@@ -206,9 +206,19 @@
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" });
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت کسری", "Register loss"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" });
     nextActions.RemoveAll(action => string.Equals(action.ModalTarget, headerPrimaryModal, StringComparison.Ordinal));
+
+    var loadingRecordsTab = (Context.Request.Query["recordsTab"].ToString() ?? string.Empty).Trim().ToLowerInvariant();
+    loadingRecordsTab = loadingRecordsTab is "customs" or "losses" ? loadingRecordsTab : "receipts";
+    string LoadingRecordsPane(string slug) => "tab-pane ak-form-section ak-detail-section ak-detail-subsection" + (loadingRecordsTab == slug ? " show active" : "");
+    var loadingRecordTabs = new[]
+    {
+        $"#loading-receipts|{T("رسیدها", "Receipts")}||{(loadingRecordsTab == "receipts" ? "active" : "")}",
+        $"#loading-customs|{T("گمرکات", "Customs")}||{(loadingRecordsTab == "customs" ? "active" : "")}",
+        $"#loading-losses|{T("کسری", "Losses")}||{(loadingRecordsTab == "losses" ? "active" : "")}"
+    };
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-loading-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("بارگیری", "Loading")} LD-{Model.Id:0000}", false,
                        receiptEditor is not null ? T("ثبت رسید", "Register receipt") : T("ثبت مصارف", "Register expenses"),
@@ -218,7 +228,7 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
         <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
                  model="@((T("ارزش و مصارف", "Value & costs"), (string?)null, (IReadOnlyList<AkInfoItem>)valueItems))" />
 
@@ -258,8 +268,11 @@
         }
     </div>
 
-    <div class="ak-form-grid">
-        <section id="loading-receipts" class="ak-form-section ak-detail-section">
+    <div class="ak-detail-tabbed-sections">
+        <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
+                 model="@((T("سوابق بارگیری", "Loading records"), loadingRecordTabs))" />
+        <div class="tab-content ak-detail-content ak-tab-content">
+        <section id="loading-receipts" class="@LoadingRecordsPane("receipts")">
             <header class="ak-section-head ak-detail-section-header">
                 <h2 class="ak-section-title">@T("رسیدها", "Receipts")</h2>
                 <span class="ak-status">@activeReceiptCount</span>
@@ -276,11 +289,13 @@
                 @foreach (var item in pagedReceiptItems)
                 {
                     <div class="ak-list-row">
-                        @if (!item.IsCancelled)
-                        {
-                            <input type="checkbox" class="form-check-input js-receipt-select" form="receiptCancelForm"
-                                   name="ids" value="@item.Id" aria-label="@T("انتخاب رسید", "Select receipt")" />
-                        }
+                        <span class="ak-receipt-select-slot">
+                            @if (!item.IsCancelled)
+                            {
+                                <input type="checkbox" class="form-check-input js-receipt-select" form="receiptCancelForm"
+                                       name="ids" value="@item.Id" aria-label="@T("انتخاب رسید", "Select receipt")" />
+                            }
+                        </span>
                         <div class="ak-col-grow">
                             <span>@item.ReceiptDate.ToDisplayDate()</span>
                             <strong>@item.TerminalName@(string.IsNullOrWhiteSpace(item.StorageTankCode) ? "" : " / " + item.StorageTankCode)</strong>
@@ -307,16 +322,18 @@
                                 <span>@item.ReferenceDocument</span>
                             }
                         </div>
-                        <a class="ak-row-menu-btn" href="@Url.Action("Details", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("مشاهده", "View")" aria-label="@T("مشاهده", "View")"><i class="bi bi-eye"></i></a>
-                        @if (!item.IsCancelled)
-                        {
-                            <a class="ak-row-menu-btn" href="@Url.Action("Edit", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("ویرایش", "Edit")" aria-label="@T("ویرایش", "Edit")"><i class="bi bi-pencil"></i></a>
-                            <a class="ak-row-menu-btn" href="@Url.Action("Correct", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("اصلاح مقدار", "Correct quantity")" aria-label="@T("اصلاح مقدار", "Correct quantity")"><i class="bi bi-arrow-repeat"></i></a>
-                            <button type="button" class="ak-row-menu-btn text-danger"
-                                    data-bs-toggle="modal" data-bs-target="#receiptCancelModal"
-                                    data-receipt-id="@item.Id" data-receipt-row-version="@item.RowVersion"
-                                    title="@T("لغو", "Cancel")" aria-label="@T("لغو", "Cancel")"><i class="bi bi-x-octagon"></i></button>
-                        }
+                        <div class="ak-detail-list-actions no-print">
+                            <a class="ak-row-menu-btn" href="@Url.Action("Details", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("مشاهده", "View")" aria-label="@T("مشاهده", "View")"><i class="bi bi-eye"></i></a>
+                            @if (!item.IsCancelled)
+                            {
+                                <a class="ak-row-menu-btn" href="@Url.Action("Edit", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("ویرایش", "Edit")" aria-label="@T("ویرایش", "Edit")"><i class="bi bi-pencil"></i></a>
+                                <a class="ak-row-menu-btn" href="@Url.Action("Correct", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("اصلاح مقدار", "Correct quantity")" aria-label="@T("اصلاح مقدار", "Correct quantity")"><i class="bi bi-arrow-repeat"></i></a>
+                                <button type="button" class="ak-row-menu-btn text-danger"
+                                        data-bs-toggle="modal" data-bs-target="#receiptCancelModal"
+                                        data-receipt-id="@item.Id" data-receipt-row-version="@item.RowVersion"
+                                        title="@T("لغو", "Cancel")" aria-label="@T("لغو", "Cancel")"><i class="bi bi-x-octagon"></i></button>
+                            }
+                        </div>
                     </div>
                 }
                 @if (Model.ReceiptItems.Count == 0)
@@ -327,7 +344,7 @@
             <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((receiptsPage, receiptsPageCount, "receiptsPage", (string?)"loading-receipts"))" />
         </section>
 
-        <section id="loading-customs" class="ak-form-section ak-detail-section">
+        <section id="loading-customs" class="@LoadingRecordsPane("customs")">
             <header class="ak-section-head ak-detail-section-header">
                 <h2 class="ak-section-title">@T("گمرکات", "Customs")</h2>
                 <span class="ak-status">@customsTotal.ToString("N2") USD</span>
@@ -354,7 +371,7 @@
             <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((customsPage, customsPageCount, "customsPage", (string?)"loading-customs"))" />
         </section>
 
-        <section id="loading-losses" class="ak-form-section ak-detail-section">
+        <section id="loading-losses" class="@LoadingRecordsPane("losses")">
             <header class="ak-section-head ak-detail-section-header">
                 <h2 class="ak-section-title">@T("کسری", "Losses")</h2>
                 <span class="ak-status">@NumberDisplay.Quantity(lossChargeableTotal) MT</span>
@@ -384,6 +401,7 @@
             </div>
             <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((lossesPage, lossesPageCount, "lossesPage", (string?)"loading-losses"))" />
         </section>
+        </div>
     </div>
 
     <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"

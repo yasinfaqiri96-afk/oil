@@ -15,6 +15,8 @@ namespace PTGOilSystem.Web.Tests;
 /// always land on the same account the accrual used.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime ExpenseDate = new(2026, 7, 15);

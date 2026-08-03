@@ -20,35 +20,77 @@ public sealed class ShipmentSummaryPdfTests
             generatedAt: new DateTime(2026, 8, 1, 6, 0, 0, DateTimeKind.Utc));
 
         Assert.Equal("MV SADIQI", model.VesselName);
-        Assert.Equal(ShipmentSummaryPdfTone.Warning, model.StatusTone);
-        Assert.Equal(6, model.Stages.Count);
-        Assert.All(model.Stages, stage => Assert.Equal(3, stage.Metrics.Count));
+        Assert.Equal("SHP-2026-041", model.ShipmentCode);
 
-        var voyage = model.Stages[0];
-        Assert.Contains(voyage.Metrics, metric => metric.Value == "100.000" && metric.Unit == "تن");
-        Assert.Contains(voyage.Metrics, metric => metric.Value == "2026/07/01");
-        Assert.Contains(voyage.Metrics, metric => metric.Value == "2026/07/12");
+        // یک سطر «منبع بار» به‌علاوهٔ هفت قلم خلاصه — دقیقاً همان چیزی که اکسل می‌دهد.
+        Assert.Equal(8, model.Rows.Count);
 
-        var unloading = model.Stages[1];
-        Assert.Contains(unloading.Metrics, metric => metric.Label == "تخلیه‌شده در بندر مبدأ" && metric.Value == "90.000");
-        Assert.Contains(unloading.Metrics, metric => metric.Label == "فروش مستقیم از داخل کشتی" && metric.Value == "20.000");
-        Assert.Contains(unloading.Metrics, metric => metric.Value == "1.000" && metric.Tone == ShipmentSummaryPdfTone.Negative);
+        Assert.Equal("منبع بار: PUR-41", model.Rows[0].Label);
+        Assert.Equal("100.000", model.Rows[0].QuantityText);
+        Assert.Equal("55,000.00", model.Rows[0].AmountText);
+        Assert.Equal("تأمین‌کننده نمونه", model.Rows[0].DetailText);
 
-        var transport = model.Stages[2];
-        Assert.Equal("انتقال بندر مبدأ به ترمینال مقصد", transport.Title);
-        Assert.Contains(transport.Metrics, metric => metric.Label == "ارسال‌شده از بندر مبدأ" && metric.Value == "70.000");
-        Assert.Contains(transport.Metrics, metric => metric.Label == "در راه به ترمینال مقصد" && metric.Value == "4.000");
-        Assert.Contains(transport.Metrics, metric => metric.Label == "تحویل‌شده در ترمینال مقصد" && metric.Value == "65.000");
+        AssertRow(model.Rows[1], "کل بار", "100.000", "-", "MV SADIQI");
+        AssertRow(model.Rows[2], "تخلیه‌شده", "89.000", "-", "-");
+        AssertRow(model.Rows[3], "ضایعات ثبت‌شده", "0.000", "-", "-");
+        AssertRow(model.Rows[4], "هزینه خرید", "-", "55,000.00", "-");
+        AssertRow(model.Rows[5], "مصارف عملیاتی", "-", "5,000.00", "-");
+        AssertRow(model.Rows[6], "درآمد فروش", "60.000", "62,000.00", "-");
+        AssertRow(model.Rows[7], "نتیجه خالص محموله", "-", "2,000.00", "-");
 
-        var sales = model.Stages[3];
-        Assert.Equal("38.000 تن فروش‌نشده", sales.StatusText);
-        Assert.Contains(sales.Metrics, metric => metric.Label == "فروش مستقیم از داخل کشتی" && metric.Value == "20.000");
-        Assert.Contains(sales.Metrics, metric => metric.Label == "فروش پس از تخلیه در بندر مبدأ" && metric.Value == "40.000");
-        Assert.Contains(sales.Metrics, metric => metric.Label == "کل مقدار فروخته‌شده" && metric.Value == "60.000");
+        // فقط سطر آخر جمع‌بندی است و رنگ می‌گیرد؛ بقیه خنثی می‌مانند.
+        Assert.True(model.Rows[7].IsTotal);
+        Assert.Equal(ShipmentSummaryPdfTone.Positive, model.Rows[7].Tone);
+        Assert.All(model.Rows.Take(7), row =>
+        {
+            Assert.False(row.IsTotal);
+            Assert.Equal(ShipmentSummaryPdfTone.Neutral, row.Tone);
+        });
 
-        var finalResult = model.Stages[5];
-        Assert.Contains(finalResult.Metrics, metric => metric.Value == "2,000.00" && metric.Unit == "USD");
-        Assert.Contains(model.Stages[4].Metrics, metric => metric.Value == "62,000.00" && metric.Unit == "USD");
+        static void AssertRow(ShipmentSummaryPdfRow row, string label, string quantity, string amount, string detail)
+        {
+            Assert.Equal(label, row.Label);
+            Assert.Equal(quantity, row.QuantityText);
+            Assert.Equal(amount, row.AmountText);
+            Assert.Equal(detail, row.DetailText);
+        }
+    }
+
+    /// <summary>
+    /// قفلِ اصلی این تغییر: PDF تب خلاصه باید همان سطرها و همان اعداد خروجی اکسل را
+    /// داشته باشد. اگر روزی یکی از دو مسیر عوض شود، این تست می‌شکند.
+    /// </summary>
+    [Fact]
+    public void Summary_Pdf_Shows_Exactly_The_Same_Figures_As_The_Excel_Export()
+    {
+        var details = BuildDetails();
+        var excel = ShipmentPnlController.BuildDetailsTabExportDocument(details, "summary", isEnglish: false);
+        var pdf = ShipmentPnlController.BuildShipmentSummaryPdfModel(
+            details,
+            isEnglish: false,
+            generatedAt: new DateTime(2026, 8, 1, 6, 0, 0, DateTimeKind.Utc));
+
+        var excelRows = excel.Rows.ToList();
+        Assert.Equal(excelRows.Count, pdf.Rows.Count);
+
+        for (var index = 0; index < excelRows.Count; index++)
+        {
+            var cells = excelRows[index].Cells;
+            var row = pdf.Rows[index];
+
+            Assert.Equal(Text(cells[0]), row.Label);
+            Assert.Equal(Text(cells[3]), row.DetailText);
+            Assert.Equal(Number(cells[1], 3), row.QuantityText);
+            Assert.Equal(Number(cells[2], 2), row.AmountText);
+        }
+
+        static string Text(TabularExportCell cell)
+            => cell.Value as string is { Length: > 0 } value ? value : "-";
+
+        static string Number(TabularExportCell cell, int decimals)
+            => cell.Value is decimal value
+                ? value.ToString("N" + decimals, System.Globalization.CultureInfo.InvariantCulture)
+                : "-";
     }
 
     [Fact]

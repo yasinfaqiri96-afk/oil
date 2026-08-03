@@ -22,6 +22,14 @@ public interface IPurchaseAccountingAdapter
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Posts newly-created loadings as separate journals while batching their shared validation
+    /// and database writes. Existing/repriced sources fall back to the single-item path.
+    /// </summary>
+    Task<IReadOnlyList<PurchaseAccountingResult>> TryPostPurchasesAsync(
+        IReadOnlyList<LoadingRegister> loadings,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Moves the received goods from in-transit into inventory at the loading's unit cost.
     /// </summary>
     Task<PurchaseAccountingResult> TryPostInventoryReceiptAsync(
@@ -180,6 +188,205 @@ public sealed class PurchaseAccountingAdapter(
             LogFailure(loading.Id, "Purchase", exception);
             throw;
         }
+    }
+
+    public async Task<IReadOnlyList<PurchaseAccountingResult>> TryPostPurchasesAsync(
+        IReadOnlyList<LoadingRegister> loadings,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(loadings);
+        if (loadings.Count == 0)
+            return [];
+        if (loadings.Count == 1)
+            return [await TryPostPurchaseAsync(loadings[0], cancellationToken)];
+        if (!_options.Enabled)
+            return loadings.Select(loading => Skipped(loading.Id, "ACCOUNTING_DISABLED")).ToList();
+        if (!_options.Pilots.Purchase)
+            return loadings.Select(loading => Skipped(loading.Id, "PILOT_DISABLED")).ToList();
+
+        var loadingIds = loadings.Select(loading => loading.Id).Distinct().ToList();
+        var hasExistingPurchase = await db.JournalEntries
+            .AsNoTracking()
+            .AnyAsync(journal =>
+                journal.SourceModule == SourceModule
+                && journal.SourceEntityType == PurchaseSourceEntityType
+                && journal.SourceEntityId.HasValue
+                && loadingIds.Contains(journal.SourceEntityId.Value),
+                cancellationToken);
+        if (hasExistingPurchase)
+        {
+            var serialResults = new List<PurchaseAccountingResult>(loadings.Count);
+            foreach (var loading in loadings)
+                serialResults.Add(await TryPostPurchaseAsync(loading, cancellationToken));
+            return serialResults;
+        }
+
+        var contractIds = loadings.Select(loading => loading.ContractId).Distinct().ToList();
+        var contractsById = await db.Contracts
+            .AsNoTracking()
+            .Where(contract => contractIds.Contains(contract.Id))
+            .ToDictionaryAsync(contract => contract.Id, cancellationToken);
+        var companyIds = contractsById.Values.Select(contract => contract.CompanyId).Distinct().ToList();
+        var settingsByCompany = await db.AccountingSettings
+            .AsNoTracking()
+            .Where(settings => companyIds.Contains(settings.CompanyId))
+            .ToDictionaryAsync(settings => settings.CompanyId, cancellationToken);
+        var accountIds = settingsByCompany.Values
+            .SelectMany(settings => new[]
+            {
+                settings.InventoryAccountId,
+                settings.InventoryInTransitAccountId,
+                settings.AccountsPayableAccountId
+            })
+            .Distinct()
+            .ToList();
+        var validAccounts = (await db.Accounts
+                .AsNoTracking()
+                .Where(account => accountIds.Contains(account.Id)
+                    && companyIds.Contains(account.CompanyId)
+                    && account.IsActive)
+                .Select(account => new { account.Id, account.CompanyId })
+                .ToListAsync(cancellationToken))
+            .Select(account => (account.Id, account.CompanyId))
+            .ToHashSet();
+
+        var missingPriceContractIds = loadings
+            .Where(loading => !IPurchaseAggregationService.HasValidLoadingPrice(loading.LoadingPriceUsd))
+            .Select(loading => loading.ContractId)
+            .Distinct()
+            .ToList();
+        var fallbackPrices = new Dictionary<int, decimal?>();
+        foreach (var contractId in missingPriceContractIds)
+        {
+            fallbackPrices[contractId] =
+                (await pricingService.CalculateContractPriceAsync(contractId, cancellationToken)).FinalUnitPrice;
+        }
+
+        var results = new PurchaseAccountingResult?[loadings.Count];
+        var postItems = new List<(int Index, LoadingRegister Loading, PurchaseContext Context, AccountingPostRequest Request)>();
+        for (var index = 0; index < loadings.Count; index++)
+        {
+            var loading = loadings[index];
+            PurchaseContext context;
+            if (loading.LoadedQuantityMt <= 0m)
+            {
+                context = BatchFail("INVALID_LOADED_QUANTITY");
+            }
+            else if (!contractsById.TryGetValue(loading.ContractId, out var contract))
+            {
+                context = BatchFail("CONTRACT_NOT_FOUND");
+            }
+            else if (contract.ContractType != ContractType.Purchase)
+            {
+                context = BatchFail("CONTRACT_NOT_PURCHASE");
+            }
+            else if (!contract.SupplierId.HasValue)
+            {
+                context = BatchFail("SUPPLIER_MISSING");
+            }
+            else
+            {
+                var effectivePrice = IPurchaseAggregationService.HasValidLoadingPrice(loading.LoadingPriceUsd)
+                    ? loading.LoadingPriceUsd
+                    : fallbackPrices.GetValueOrDefault(contract.Id);
+                if (!IPurchaseAggregationService.HasValidLoadingPrice(effectivePrice))
+                {
+                    context = BatchFail("PURCHASE_PRICE_PENDING");
+                }
+                else
+                {
+                    var amountUsd = Helpers.LoadingRubSettlement.RoundAmountUsd(
+                        loading.LoadedQuantityMt * effectivePrice!.Value);
+                    if (amountUsd <= 0m)
+                    {
+                        context = BatchFail("INVALID_PURCHASE_AMOUNT");
+                    }
+                    else if (!settingsByCompany.TryGetValue(contract.CompanyId, out var settings))
+                    {
+                        context = BatchFail("ACCOUNTING_SETTINGS_MISSING", contract.CompanyId);
+                    }
+                    else if (!string.Equals(
+                                 settings.FunctionalCurrencyCode?.Trim(),
+                                 SystemCurrency.BaseCurrencyCode,
+                                 StringComparison.OrdinalIgnoreCase))
+                    {
+                        context = BatchFail("UNSUPPORTED_FUNCTIONAL_CURRENCY", contract.CompanyId);
+                    }
+                    else if (!new[]
+                             {
+                                 settings.InventoryAccountId,
+                                 settings.InventoryInTransitAccountId,
+                                 settings.AccountsPayableAccountId
+                             }
+                             .Distinct()
+                             .All(accountId => validAccounts.Contains((accountId, contract.CompanyId))))
+                    {
+                        context = BatchFail("ACCOUNTING_SETTINGS_INVALID_ACCOUNTS", contract.CompanyId);
+                    }
+                    else
+                    {
+                        context = new PurchaseContext(
+                            contract.CompanyId,
+                            contract.SupplierId.Value,
+                            effectivePrice,
+                            amountUsd,
+                            null);
+                    }
+                }
+            }
+
+            if (context.SkipReason is not null)
+            {
+                results[index] = Skipped(loading.Id, context.SkipReason);
+                continue;
+            }
+
+            var companySettings = settingsByCompany[context.CompanyId!.Value];
+            var request = BuildPurchasePostRequest(
+                loading,
+                context,
+                companySettings,
+                revision: 0);
+            postItems.Add((index, loading, context, request));
+        }
+
+        if (postItems.Count > 0)
+        {
+            try
+            {
+                var journals = await postingService.PostBatchAsync(
+                    postItems.Select(item => item.Request).ToList(),
+                    cancellationToken);
+                for (var index = 0; index < postItems.Count; index++)
+                {
+                    var item = postItems[index];
+                    var journal = journals[index];
+                    LogOutcome(
+                        item.Loading.Id,
+                        "Purchase",
+                        item.Context.CompanyId!.Value,
+                        item.Context.AmountUsd!.Value,
+                        journal.Lines.Sum(line => line.Debit),
+                        PaymentPostingStatus.Posted,
+                        null);
+                    results[item.Index] = new PurchaseAccountingResult(
+                        PaymentPostingStatus.Posted,
+                        journal,
+                        null);
+                }
+            }
+            catch (Exception exception)
+            {
+                foreach (var item in postItems)
+                    LogFailure(item.Loading.Id, "PurchaseBatch", exception);
+                throw;
+            }
+        }
+
+        return results.Select(result => result!).ToList();
+
+        static PurchaseContext BatchFail(string reason, int? companyId = null)
+            => new(companyId, 0, null, null, reason);
     }
 
     public async Task<PurchaseAccountingResult> TryPostInventoryReceiptAsync(
@@ -464,6 +671,51 @@ public sealed class PurchaseAccountingAdapter(
         decimal? EffectivePrice,
         decimal? AmountUsd,
         string? SkipReason);
+
+    private AccountingPostRequest BuildPurchasePostRequest(
+        LoadingRegister loading,
+        PurchaseContext context,
+        AccountingSettings settings,
+        int revision)
+    {
+        var companyId = context.CompanyId!.Value;
+        var amountUsd = context.AmountUsd!.Value;
+        return new AccountingPostRequest(
+            companyId,
+            journalNumberGenerator.ForPurchase(companyId, loading.Id, revision),
+            loading.LoadingDate.Date,
+            loading.LoadingDate.Date,
+            loading.LoadingDate.Date,
+            SourceModule,
+            [
+                new AccountingPostLine(
+                    settings.InventoryInTransitAccountId,
+                    Debit: amountUsd,
+                    Credit: 0m,
+                    SystemCurrency.BaseCurrencyCode,
+                    amountUsd,
+                    1m,
+                    ContractId: loading.ContractId,
+                    ProductId: loading.ProductId,
+                    Description: "Purchased goods in transit"),
+                new AccountingPostLine(
+                    settings.AccountsPayableAccountId,
+                    Debit: 0m,
+                    Credit: amountUsd,
+                    SystemCurrency.BaseCurrencyCode,
+                    amountUsd,
+                    1m,
+                    AccountingPartyType.Supplier,
+                    context.SupplierId,
+                    ContractId: loading.ContractId,
+                    ProductId: loading.ProductId,
+                    Description: "Supplier payable for purchase")
+            ],
+            SourceEventId: BuildCreatedSourceEventId(loading.Id, revision),
+            SourceEntityType: PurchaseSourceEntityType,
+            SourceEntityId: loading.Id,
+            Description: $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}");
+    }
 
     private async Task<PurchaseContext> ResolvePurchaseContextAsync(
         LoadingRegister loading,

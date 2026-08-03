@@ -1,6 +1,5 @@
 @using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
-@using PTGOilSystem.Web.Models.ExcelImport
 @using PTGOilSystem.Web.Models.Loading
 @model PTGOilSystem.Web.Models.Loading.LoadingCreateViewModel
 @{
@@ -14,8 +13,12 @@
     var rowContractOptions = ViewBag.RowContractOptions as IReadOnlyList<SelectListItem> ?? Array.Empty<SelectListItem>();
     var showRowContractSelector = ViewBag.ShowRowContractSelector as bool? == true;
     var usesCompactRowPreview = !string.IsNullOrWhiteSpace(Model.ImportedRowsJson);
+    // در حالت فشرده، اسکریپت صفحه بلافاصله سطرهای دیدنی را از loadingImportedRowsData
+    // می‌سازد و tbody را با replaceChildren جایگزین می‌کند. رندر همان سطرها در سرور فقط
+    // چند صد کیلوبایت HTML دور‌ریختنی می‌ساخت و پارس صفحهٔ برگشتی را ده‌ها ثانیه طول می‌داد
+    // (دکمهٔ ذخیره در همان مدت روی حالت چرخان می‌ماند).
     var previewRows = usesCompactRowPreview
-        ? Model.Rows.Take(100)
+        ? Enumerable.Empty<LoadingCreateRowViewModel>()
         : Model.Rows;
     var rowEditors = previewRows
         .Select((row, index) => new LoadingCreateRowEditorViewModel
@@ -28,6 +31,15 @@
             ContractOptions = rowContractOptions,
             RecordFreight = Model.RecordFreight
         })
+        .ToList();
+    // یک فایل اکسل می‌تواند صدها سطر با یک علت خطای مشترک بسازد. پیام‌های یکسان در یک
+    // خط با تعداد سطر نشان داده می‌شوند تا خطا خوانا بماند (خودِ اعتبارسنجی تغییری نمی‌کند).
+    var groupedValidationErrors = ViewData.ModelState
+        .SelectMany(entry => entry.Value?.Errors ?? (IEnumerable<Microsoft.AspNetCore.Mvc.ModelBinding.ModelError>)Array.Empty<Microsoft.AspNetCore.Mvc.ModelBinding.ModelError>())
+        .Select(error => error.ErrorMessage)
+        .Where(message => !string.IsNullOrWhiteSpace(message))
+        .GroupBy(message => message, StringComparer.Ordinal)
+        .Select(group => new { Message = group.Key, Count = group.Count() })
         .ToList();
     var recordFreight = Model.RecordFreight;
     var freightColumnCss = recordFreight ? "" : "d-none";
@@ -62,28 +74,15 @@
     var hasFileRub = Model.Rows.Any(row => row.SettlementValueRub.HasValue || row.SettlementUnitPriceRub.HasValue);
     var frubColumnCss = hasFileRub ? "" : "d-none";
     var initialAverageRub = hasFileRub && initialTotalQuantityMt > 0m ? initialFileRubValue / initialTotalQuantityMt : 0m;
+    // کارت آماری واحد پول را در بخش unit خودش نشان می‌دهد، پس مقدار بدون نماد ارز ساخته می‌شود.
     var initialRubSummaryText = hasFileRub
-        ? $"₽ {NumberDisplay.Money(initialFileRubValue)}"
+        ? NumberDisplay.Money(initialFileRubValue)
         : initialLockedRubValue > 0m
-            ? $"₽ {NumberDisplay.Money(initialLockedRubValue)}"
+            ? NumberDisplay.Money(initialLockedRubValue)
             : initialPendingRubRows > 0 ? "در انتظار نرخ" : "-";
-    var initialRubAverageText = hasFileRub ? $"₽ {NumberDisplay.Money(initialAverageRub)}" : "-";
     var createPostUrl = Url.Action("Create", "Loading");
-    var excelImportOptions = new ExcelImportComponentOptions
-    {
-        InputId = "loadingExcelImportFile",
-        Compact = true,
-        Collapsible = true,
-        ToggleText = UiText.T(Context, "وارد کردن بارگیری‌ها از اکسل", "Import loadings from Excel"),
-        StartUrl = Url.Action("Start", "LoadingExcelImport") ?? "/Loading/ExcelImport/start",
-        StatusUrlTemplate = "/Loading/ExcelImport/{id}/status",
-        ConfirmUrlTemplate = "/Loading/ExcelImport/{id}/confirm",
-        CancelUrlTemplate = "/Loading/ExcelImport/{id}/cancel",
-        ErrorReportUrlTemplate = "/Loading/ExcelImport/{id}/errors.csv",
-        ImportReportUrlTemplate = "/Loading/ExcelImport/{id}/report.csv",
-        SampleUrl = Url.Action("DownloadSample", "LoadingExcelImport") ?? "/Loading/ExcelImport/sample",
-        ViewResultsUrl = Url.Action("Index", "Loading")
-    };
+    var importPostUrl = Url.Action("ImportWorkbook", "Loading");
+    var importSampleUrl = Url.Action("DownloadSample", "LoadingExcelImport") ?? "/Loading/ExcelImport/sample";
 }
 
 <div class="ak-form-page ak-form-page--wide loading-import-workbook" data-loading-create-page>
@@ -103,7 +102,23 @@
             <script type="application/json" id="loadingImportedRowsData">@Html.Raw(Model.ImportedRowsJson)</script>
         }
 
-        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
+        @if (groupedValidationErrors.Count > 0)
+        {
+            <div class="alert alert-danger ak-form-alert validation-summary-errors" data-loading-validation-summary>
+                <ul>
+                    @foreach (var validationError in groupedValidationErrors)
+                    {
+                        <li>
+                            @validationError.Message
+                            @if (validationError.Count > 1)
+                            {
+                                <strong>(@validationError.Count سطر)</strong>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
         <div class="loading-operation-status d-none" data-loading-operation-status role="status" aria-live="polite">
             <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
             <div>
@@ -111,22 +126,18 @@
                 <span data-loading-operation-detail>لطفاً صفحه را نبندید.</span>
             </div>
         </div>
-        <div aria-label="بارگذاری اکسل">
-            <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
+        <div id="platts-pricing-notice" class="alert alert-warning loading-pricing-notice d-none" role="alert">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <strong>نرخ پلتس ثبت نشده است</strong>
+            <span id="platts-pricing-notice-reason" class="small"></span>
         </div>
-        <div id="platts-pricing-notice" class="alert alert-warning d-flex align-items-start gap-2 d-none" role="alert">
-                <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
-                <div>
-                    <strong>قیمت پلتس ماهانه هنوز ثبت نشده است</strong>
-                    <div id="platts-pricing-notice-reason" class="small mt-1"></div>
-                </div>
-            </div>
 
         <section class="ak-form-section" aria-label="مشخصات بارگیری">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                      model="@((UiText.T(Context, "اطلاعات عمومی", "General Information"), (string?)UiText.T(Context, "قرارداد، محصول و نوع حمل را مشخص کنید.", "Select the contract, product and transport type.")))" />
-            <div class="ak-form-grid">
-                    <div class="ak-field ak-col-full">
+            @* پنج مشخصهٔ اصلی در نمایش دسکتاپ یک ردیف‌اند؛ مسئول کرایه در صورت فعال‌شدن به ردیف بعد می‌رود. *@
+            <div class="ak-form-grid ak-form-grid--5">
+                    <div class="ak-field">
                         <label asp-for="ContractId" class="ak-label"></label>
                         <div data-loading-contract-field>
                             <input asp-for="ContractId" type="hidden" data-loading-primary-contract />
@@ -174,9 +185,9 @@
                             <option value="@((int)LoadingTransportType.Truck)">موتر</option>
                         </select>
                     </div>
-                    <div class="ak-toggle-field">
+                    <div class="ak-toggle-field loading-freight-toggle-field">
                         <label class="ak-label" for="RecordFreight">کرایه و ترانسپورت</label>
-                        <label class="form-check">
+                        <label class="form-check loading-freight-toggle-control">
                             <input type="checkbox" asp-for="RecordFreight" class="form-check-input" data-loading-freight-toggle />
                             <span class="form-check-label" data-loading-freight-toggle-text>کرایه ثبت شود</span>
                         </label>
@@ -191,16 +202,19 @@
             </div>
         </section>
 
-        <section class="ak-form-section" aria-label="خلاصه بارگیری">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("خلاصه ثبت", (string?)null))" />
-            <div class="ak-form-grid lic-summary-strip">
-                <div class="ak-field"><span class="ak-label">مقدار بارگیری</span><strong class="ak-num" data-summary-quantity>@NumberDisplay.Quantity(initialTotalQuantityMt) TON</strong></div>
-                <div class="ak-field"><span class="ak-label">ارزش بارگیری</span><strong class="ak-num" data-summary-value>$ @NumberDisplay.Money(initialLoadingValueUsd)</strong></div>
-                <div class="ak-field"><span class="ak-label">اوسط بارگیری</span><strong class="ak-num" data-summary-average>$ @NumberDisplay.Money(initialAverageLoadingUsd)</strong></div>
-                <div class="ak-field"><span class="ak-label">ارزش روبلی</span><strong class="ak-num" data-summary-rub-value>@initialRubSummaryText</strong></div>
-                <div class="ak-field ak-col-full @(hasFileRub ?"d-none" : "")" data-summary-rub-note>قیمت روبلی در فایل نبود؛ برای معادل روبلی نرخ قرارداد لازم است.</div>
-                <div class="ak-field @freightColumnCss" data-loading-freight-summary><span class="ak-label">کرایه حمل</span><strong class="ak-num" data-summary-expense>$ @NumberDisplay.Money(initialTransportExpensesUsd)</strong></div>
-            </div>
+        @* کارت‌های آماری از همان کامپوننت مشترک سیستم (vc:stat-card / ak-stat-grid) — دقیقاً مثل بقیهٔ صفحه‌ها.
+           مقدارها زنده‌اند و اسکریپت پایین همین ویو داخل [data-ak-stat-value] هر کارت می‌نویسد. *@
+        <section class="ak-stat-grid" aria-label="خلاصه ثبت بارگیری">
+            <vc:stat-card title="مقدار بارگیری" value="@NumberDisplay.Quantity(initialTotalQuantityMt)" unit="MT"
+                          avatar="loading" css-class="lic-stat-quantity"></vc:stat-card>
+            <vc:stat-card title="ارزش بارگیری" value="@NumberDisplay.Money(initialLoadingValueUsd)" unit="USD"
+                          avatar="purchase-value" css-class="lic-stat-value"></vc:stat-card>
+            <vc:stat-card title="اوسط بارگیری" value="@NumberDisplay.Money(initialAverageLoadingUsd)" unit="USD / MT"
+                          avatar="analysis" css-class="lic-stat-average"></vc:stat-card>
+            <vc:stat-card title="ارزش روبلی" value="@initialRubSummaryText" unit="RUB"
+                          avatar="exchange-rate" css-class="lic-stat-rub"></vc:stat-card>
+            <vc:stat-card title="کرایه حمل" value="@NumberDisplay.Money(initialTransportExpensesUsd)" unit="USD"
+                          avatar="transported" css-class="@($"lic-stat-expense {freightColumnCss}")"></vc:stat-card>
         </section>
 
         <section class="ak-form-section" aria-label="سطرهای بارگیری">
@@ -211,6 +225,19 @@
                     <span>کل ردیف‌ها: <strong data-lic-count-total>0</strong></span>
                     <span class="lic-count-ok">معتبر: <strong data-lic-count-valid>0</strong></span>
                     <span class="lic-count-err">دارای خطا: <strong data-lic-count-error>0</strong></span>
+                </div>
+                @* دکمه‌های عملیات سطر: فقط کامپوننت مشترک دکمه سیستم (.ak-btn)، بدون استایل محلی. *@
+                <div class="lic-toolbar-actions">
+                    <button type="button" class="ak-btn" data-loading-row-add>
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i> افزودن سطر
+                    </button>
+                    <button type="button" class="ak-btn lic-excel-import-btn" data-loading-import-open
+                            data-busy-text="در حال خواندن فایل...">
+                        <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> امپورت از اکسل
+                    </button>
+                    @* بدون name تا هرگز همراه فرم ارسال نشود؛ فایل با fetch فرستاده می‌شود. *@
+                    <input type="file" class="d-none" accept=".xlsx" data-loading-import-file aria-label="فایل اکسل بارگیری" />
+                    <a href="@importSampleUrl" class="ak-btn ak-btn--ghost" data-loading-import-sample>فایل نمونه</a>
                 </div>
                 <div class="lic-toolbar-controls">
                     <input type="search" class="lic-search" data-lic-search placeholder="جستجو در RWB، واگن، گیرنده، مقصد" aria-label="جستجو در سطرها" />
@@ -226,17 +253,19 @@
                     </select>
                 </div>
             </div>
+            <div class="lic-import-note d-none" data-loading-import-summary role="status" aria-live="polite"></div>
             <div class="ak-table-wrap">
                 <table class="ak-table">
+                    @* عنوان‌ها کوتاه‌اند؛ عرض خوانای کنترل‌ها در wrapper مشترک جدول حفظ می‌شود. *@
                     <thead data-loading-table-head><tr>
                         <th>#</th>
                         <th class="@(showRowContractSelector ?"" : "d-none")" data-loading-contract-column>قرارداد</th>
-                        <th>تاریخ</th><th data-loading-column-reference>RWB / CMR / Bill of Lading</th><th data-loading-column-transport>وسیله حمل</th>
-                        <th class="ak-col-num">مقدار</th><th class="ak-col-num">قیمت فی تن</th><th class="ak-col-num">ارزش بارگیری</th>
-                        <th class="ak-col-num @frubColumnCss" data-loading-frub-column>قیمت روبلی فی تن</th><th class="ak-col-num @frubColumnCss" data-loading-frub-column>ارزش روبلی</th>
-                        <th class="ak-col-num @(hasFileRub ?"d-none" : "")" data-loading-rub-column>هر 1 دالر چند روبل است؟</th>
+                        <th>تاریخ</th><th data-loading-column-reference>مرجع</th><th data-loading-column-transport>وسیله حمل</th>
+                        <th class="ak-col-num">مقدار</th><th class="ak-col-num">فی تن</th><th class="ak-col-num">ارزش</th>
+                        <th class="ak-col-num @frubColumnCss" data-loading-frub-column>روبل فی تن</th><th class="ak-col-num @frubColumnCss" data-loading-frub-column>ارزش روبلی</th>
+                        <th class="ak-col-num @(hasFileRub ?"d-none" : "")" data-loading-rub-column>نرخ روبل</th>
                         <th class="ak-col-num @(hasFileRub ?"d-none" : "")" data-loading-rub-column>معادل روبلی</th>
-                        <th class="@freightColumnCss" data-loading-freight-column>شرکت خدماتی / لوجستیکی</th>
+                        <th class="@freightColumnCss" data-loading-freight-column>ترانسپورت</th>
                         <th class="ak-col-num @freightColumnCss" data-loading-freight-column>کرایه فی تن</th>
                         <th>گیرنده</th><th>مقصد</th><th class="ak-col-actions"></th>
                     </tr></thead>
@@ -246,18 +275,6 @@
                                     await Html.RenderPartialAsync("_LoadingRowEditor", rowEditor, ViewData);
                                 }
                     </tbody>
-                    <tfoot data-loading-table-total><tr>
-                        <td></td><td class="@(showRowContractSelector ?"" : "d-none")"></td><td></td><td></td><td></td>
-                        <td class="ak-num" data-summary-table-quantity>@NumberDisplay.Quantity(initialTotalQuantityMt) TON</td><td></td>
-                        <td class="ak-num" data-summary-table-value>$ @NumberDisplay.Money(initialLoadingValueUsd)</td>
-                        <td class="ak-num @frubColumnCss" data-loading-frub-column data-summary-table-frub-average>@initialRubAverageText</td>
-                        <td class="ak-num @frubColumnCss" data-loading-frub-column data-summary-table-frub-value>@initialRubSummaryText</td>
-                        <td class="@(hasFileRub ?"d-none" : "")" data-loading-rub-column></td>
-                        <td class="ak-num @(hasFileRub ?"d-none" : "")" data-loading-rub-column data-summary-table-rub-value>@initialRubSummaryText</td>
-                        <td class="@freightColumnCss" data-loading-freight-column></td>
-                        <td class="ak-num @freightColumnCss" data-loading-freight-column data-summary-table-expense>$ @NumberDisplay.Money(initialTransportExpensesUsd)</td>
-                        <td></td><td></td><td></td>
-                    </tr></tfoot>
                 </table>
             </div>
             <div class="lic-pagination" data-lic-pagination hidden>
@@ -265,7 +282,6 @@
                 <span class="lic-page-info" data-lic-page-info></span>
                 <button type="button" class="lic-page-btn" data-lic-next>بعدی ›</button>
             </div>
-            <button type="button" class="ak-form-secondary-action" data-loading-row-add><i class="bi bi-plus-lg"></i> افزودن سطر</button>
         </section>
 
         <div class="ak-footer-actions" data-loading-footer-actions>
@@ -398,19 +414,14 @@
             const plattsNotice = document.getElementById('platts-pricing-notice');
             const plattsNoticeReason = document.getElementById('platts-pricing-notice-reason');
 
-            const summaryQuantity = document.querySelector('[data-summary-quantity]');
-            const summaryValue = document.querySelector('[data-summary-value]');
-            const summaryAverage = document.querySelector('[data-summary-average]');
-            const summaryExpense = document.querySelector('[data-summary-expense]');
-            const summaryRubValue = document.querySelector('[data-summary-rub-value]');
-            const summaryRubAverage = document.querySelector('[data-summary-rub-average]');
-            const summaryRubNote = document.querySelector('[data-summary-rub-note]');
-            const summaryTableQuantity = document.querySelector('[data-summary-table-quantity]');
-            const summaryTableValue = document.querySelector('[data-summary-table-value]');
-            const summaryTableExpense = document.querySelector('[data-summary-table-expense]');
-            const summaryTableRubValue = document.querySelector('[data-summary-table-rub-value]');
-            const summaryTableFrubValue = document.querySelector('[data-summary-table-frub-value]');
-            const summaryTableFrubAverage = document.querySelector('[data-summary-table-frub-average]');
+            // مقدارها داخل کامپوننت مشترک کارت آماری نوشته می‌شوند ([data-ak-stat-value]).
+            window.licWriteStat = function (cardClass, text) {
+                document.querySelectorAll(`.${cardClass} [data-ak-stat-value]`).forEach(el => {
+                    const target = el.querySelector('bdi') || el;
+                    target.textContent = text;
+                    el.setAttribute('title', text);
+                });
+            };
 
             function rowHasFileRub(row) {
                 return parseDecimal(row.querySelector('[data-row-frub-amount-hidden]')) > 0
@@ -432,7 +443,7 @@
                     (readHiddenValue(row, '[data-row-settlement-currency]') || '').toUpperCase() === 'RUB');
 
                 document
-                    .querySelectorAll('[data-loading-table-head] [data-loading-rub-column], [data-loading-table-total] [data-loading-rub-column]')
+                    .querySelectorAll('[data-loading-table-head] [data-loading-rub-column]')
                     .forEach(column => column.classList.toggle('d-none', !hasRubRows));
             }
 
@@ -608,7 +619,7 @@
 
             function formatRubSummary(value, pendingRows) {
                 if (value > 0) {
-                    return `₽ ${formatMoneyNumber(value)}`;
+                    return formatMoneyNumber(value);
                 }
 
                 return pendingRows > 0 ? 'در انتظار نرخ' : '-';
@@ -619,7 +630,6 @@
                 const currency = (pricing?.settlementCurrencyCode || 'USD').toUpperCase();
                 const policy = pricing?.rubRatePolicy || 'NotApplicable';
                 const rateInput = row.querySelector('[data-row-rub-rate]');
-                const statusText = row.querySelector('[data-row-rub-status-text]');
 
                 setHiddenValue(row, '[data-row-settlement-currency]', currency);
                 setHiddenValue(row, '[data-row-rub-policy]', policy);
@@ -638,9 +648,6 @@
                     setHiddenValue(row, '[data-row-rub-status]', 'NotRequired');
                     setHiddenValue(row, '[data-row-rub-date]', '');
                     setHiddenValue(row, '[data-row-rub-source]', '');
-                    if (statusText) {
-                        statusText.textContent = '';
-                    }
                     refreshRubColumnsVisible();
                     return;
                 }
@@ -652,9 +659,6 @@
                     }
                     setHiddenValue(row, '[data-row-rub-date]', pricing?.rubRateDate || getRowIsoDate(row));
                     setHiddenValue(row, '[data-row-rub-source]', pricing?.rubRateSource || 'Contract');
-                    if (statusText) {
-                        statusText.textContent = 'نرخ قرارداد';
-                    }
                     refreshRubColumnsVisible();
                     return;
                 }
@@ -663,11 +667,6 @@
                 const hasRate = readOptionalDecimal(rateInput) !== null;
                 setHiddenValue(row, '[data-row-rub-date]', hasRate ? getRowIsoDate(row) : '');
                 setHiddenValue(row, '[data-row-rub-source]', hasRate ? 'Manual' : '');
-                if (statusText) {
-                    statusText.textContent = hasRate
-                        ? 'هنگام ذخیره قفل می‌شود'
-                        : (policy === 'PerLoadingRate' ? 'نرخ همین بارگیری' : 'در انتظار تعیین نرخ');
-                }
                 refreshRubColumnsVisible();
             }
 
@@ -1140,30 +1139,16 @@
                 });
 
                 const average = quantity > 0 ? value / quantity : 0;
-                const formattedQuantity = `${formatQuantityNumber(quantity)} TON`;
-                const formattedValue = `$ ${formatMoneyNumber(value)}`;
-                const formattedAverage = `$ ${formatMoneyNumber(average)}`;
-                const formattedExpenses = `$ ${formatMoneyNumber(expenses)}`;
-                // اگر روبل از فایل آمده باشد، آن را به‌جای «در انتظار نرخ» نشان بده.
+                // واحدها روی خود کارت آماری نوشته شده‌اند، پس مقدارها بدون نماد ارز می‌روند.
                 const formattedRub = hasFileRub
-                    ? `₽ ${formatMoneyNumber(fileRubValue)}`
+                    ? formatMoneyNumber(fileRubValue)
                     : formatRubSummary(rubValue, pendingRubRows);
-                const rubAverage = hasFileRub && quantity > 0 ? fileRubValue / quantity : 0;
-                const formattedRubAverage = hasFileRub ? `₽ ${formatMoneyNumber(rubAverage)}` : '-';
 
-                if (summaryQuantity) summaryQuantity.textContent = formattedQuantity;
-                if (summaryValue) summaryValue.textContent = formattedValue;
-                if (summaryAverage) summaryAverage.textContent = formattedAverage;
-                if (summaryExpense) summaryExpense.textContent = formattedExpenses;
-                if (summaryRubValue) summaryRubValue.textContent = formattedRub;
-                if (summaryRubAverage) summaryRubAverage.textContent = formattedRubAverage;
-                if (summaryRubNote) summaryRubNote.classList.toggle('d-none', hasFileRub);
-                if (summaryTableQuantity) summaryTableQuantity.textContent = formattedQuantity;
-                if (summaryTableValue) summaryTableValue.textContent = formattedValue;
-                if (summaryTableExpense) summaryTableExpense.textContent = formattedExpenses;
-                if (summaryTableRubValue) summaryTableRubValue.textContent = formattedRub;
-                if (summaryTableFrubValue) summaryTableFrubValue.textContent = formattedRub;
-                if (summaryTableFrubAverage) summaryTableFrubAverage.textContent = formattedRubAverage;
+                window.licWriteStat('lic-stat-quantity', formatQuantityNumber(quantity));
+                window.licWriteStat('lic-stat-value', formatMoneyNumber(value));
+                window.licWriteStat('lic-stat-average', formatMoneyNumber(average));
+                window.licWriteStat('lic-stat-rub', formattedRub);
+                window.licWriteStat('lic-stat-expense', formatMoneyNumber(expenses));
                 document.querySelectorAll('[data-loading-frub-column]').forEach(col => col.classList.toggle('d-none', !hasFileRub));
                 refreshRubColumnsVisible();
             }
@@ -1204,8 +1189,29 @@
                 setHiddenDecimal(chargeableQuantity, 0);
             }
 
+            // ستون‌های «روبل فی تن» و «ارزش روبلی» فقط در سرور از روی مدل نوشته می‌شدند.
+            // سطرهای مجازی از قالبِ خالی ساخته می‌شوند، پس متنشان باید از همان مقادیر
+            // پنهانِ سطر بازنویسی شود وگرنه با وجود دادهٔ درست، «-» می‌مانند.
+            function refreshRowFileRubText(row) {
+                const rateText = row.querySelector('[data-row-frub-rate-text]');
+                const amountText = row.querySelector('[data-row-frub-amount-text]');
+                if (!rateText && !amountText) {
+                    return;
+                }
+
+                const rate = readOptionalDecimal(row.querySelector('[data-row-frub-rate-hidden]'));
+                const amount = readOptionalDecimal(row.querySelector('[data-row-frub-amount-hidden]'));
+                if (rateText) {
+                    rateText.textContent = rate !== null && rate > 0 ? `₽ ${formatMoneyNumber(rate)}` : '-';
+                }
+                if (amountText) {
+                    amountText.textContent = amount !== null && amount > 0 ? `₽ ${formatMoneyNumber(amount)}` : '-';
+                }
+            }
+
             function updateRowTotals(row) {
                 updateRowFreightSnapshot(row);
+                refreshRowFileRubText(row);
                 applyRubSettlementToRow(row);
                 const quantity = parseDecimal(row.querySelector('[data-row-quantity]'));
                 const price = readOptionalDecimal(row.querySelector('[data-row-loading-price]'));
@@ -1248,7 +1254,6 @@
                 const pricing = getPricingForRow(row);
                 const plattsInput = row.querySelector('[data-row-platts]');
                 const priceInput = row.querySelector('[data-row-loading-price]');
-                const premiumDisplay = row.querySelector('[data-row-premium-display]');
 
                 if (pricing && pricing.isFormulaPlatts && plattsInput && canAutofill(plattsInput) && pricing.plattsReferencePrice !== null) {
                     plattsInput.value = formatInputNumber(pricing.plattsReferencePrice);
@@ -1259,21 +1264,6 @@
                 if (suggestedLoadingPrice !== null && priceInput && canAutofill(priceInput)) {
                     priceInput.value = formatInputNumber(suggestedLoadingPrice);
                     setAutofilled(priceInput, true);
-                }
-
-                if (premiumDisplay) {
-                    if (suggestedLoadingPrice !== null) {
-                        premiumDisplay.textContent = `پیشنهاد: ${formatInputNumber(suggestedLoadingPrice)} USD/MT`;
-                    } else if (pricing && pricing.isFormulaPlatts && pricing.plattsReferencePrice !== null) {
-                        premiumDisplay.textContent = `Platts: ${formatInputNumber(pricing.plattsReferencePrice)} USD/MT`;
-                    } else if (pricing && pricing.isFormulaPlatts && pricing.premiumDiscountUsd !== null) {
-                        const sign = pricing.premiumDiscountUsd >= 0 ? '+' : '';
-                        premiumDisplay.textContent = `پریمیوم: ${sign}${pricing.premiumDiscountUsd}`;
-                    } else if (pricing && pricing.isFormulaPlatts && (pricing.plattsReferenceReason || pricing.reason)) {
-                        premiumDisplay.textContent = pricing.plattsReferenceReason || pricing.reason;
-                    } else {
-                        premiumDisplay.textContent = '';
-                    }
                 }
 
                 updateRowTotals(row);
@@ -1571,7 +1561,7 @@
                     .forEach(cell => cell.classList.toggle('d-none', !on));
 
                 document
-                    .querySelectorAll('[data-loading-freight-summary], [data-loading-freight-responsibility]')
+                    .querySelectorAll('.lic-stat-expense, [data-loading-freight-responsibility]')
                     .forEach(el => el.classList.toggle('d-none', !on));
 
                 if (freightToggleText) {
@@ -1712,15 +1702,117 @@
 
                 if (operationTitle) operationTitle.textContent = title;
                 if (operationDetail) operationDetail.textContent = detail;
+                // تلاش تازه، حالت خطای تلاش قبلی را پاک می‌کند.
+                operationStatus.classList.remove('is-error');
+                operationStatus.querySelector('.spinner-border')?.classList.remove('d-none');
                 operationStatus.classList.remove('d-none');
                 operationStatus.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }
 
-            // بازگشت با دکمهٔ Back مرورگر نباید دکمه را قفل نگه دارد.
-            window.addEventListener('pageshow', function () {
+            // اگر پاسخ سرور هرگز نرسد (قطع شبکه، بسته‌شدن اتصال، خطای پروکسی) دکمه نباید
+            // تا ابد روی حالت «در حال ثبت» بماند؛ این نگهبان آن را آزاد و پیام روشن نشان می‌دهد.
+            const loadingSubmitTimeoutMs = 120000;
+            let loadingSubmitWatchdogId = null;
+
+            function clearLoadingSubmitWatchdog() {
+                if (loadingSubmitWatchdogId !== null) {
+                    window.clearTimeout(loadingSubmitWatchdogId);
+                    loadingSubmitWatchdogId = null;
+                }
+            }
+
+            function showOperationFailure(title, detail) {
                 loadingSubmitInProgress = false;
                 setLoadingSaveBusy(false);
-                operationStatus?.classList.add('d-none');
+                if (!operationStatus) {
+                    return;
+                }
+
+                operationStatus.classList.remove('d-none');
+                operationStatus.classList.add('is-error');
+                operationStatus.querySelector('.spinner-border')?.classList.add('d-none');
+                if (operationTitle) operationTitle.textContent = title;
+                if (operationDetail) operationDetail.textContent = detail;
+            }
+
+            // بخشِ سطرهای مجازی وقتی ثبت را متوقف می‌کند، علت را در همین جعبهٔ وضعیت
+            // (بالای جدول، کنار دکمه) نشان می‌دهد نه فقط در نوار کوچک ایمپورت.
+            window.loadingShowSubmitBlocked = function (title, detail) {
+                clearLoadingSubmitWatchdog();
+                showOperationFailure(title, detail);
+            };
+
+            // پیامِ خطا با آزادکردن دکمه پاک نمی‌شود؛ فقط حالتِ «در حال ثبت» برداشته می‌شود
+            // تا کاربر دلیلِ ثبت‌نشدن را جلوی چشم داشته باشد. clearError=true همه‌چیز را پاک می‌کند.
+            function resetLoadingSubmissionUi(clearError) {
+                clearLoadingSubmitWatchdog();
+                loadingSubmitInProgress = false;
+                setLoadingSaveBusy(false);
+                if (!operationStatus) {
+                    return;
+                }
+
+                if (clearError === true || !operationStatus.classList.contains('is-error')) {
+                    operationStatus.classList.add('d-none');
+                    operationStatus.classList.remove('is-error');
+                    operationStatus.querySelector('.spinner-border')?.classList.remove('d-none');
+                }
+            }
+
+            // اگر کنترلی اعتبارسنجی مرورگر را رد کند، خودِ مرورگر ارسال را متوقف می‌کند و
+            // هیچ رویداد submit و هیچ POST ساخته نمی‌شود. قبلاً این حالت کاملاً بی‌صدا بود.
+            // اینجا فیلد مقصر نام‌گذاری، اسکرول و focus می‌شود. مقدار بازگشتی: آیا مانعی هست.
+            function reportLoadingInvalidField() {
+                const invalid = loadingForm?.querySelector(':invalid');
+                if (!invalid) {
+                    return false;
+                }
+
+                const label = invalid.closest('[data-loading-row]')
+                    ? `${invalid.getAttribute('name') || invalid.id || invalid.tagName} (در سطرهای بارگیری)`
+                    : (invalid.getAttribute('name') || invalid.id || invalid.tagName);
+                const isHidden = !(invalid.offsetWidth || invalid.offsetHeight || invalid.getClientRects().length);
+                const reason = invalid.validationMessage || 'مقدار این فیلد معتبر نیست.';
+                showOperationFailure(
+                    'ثبت انجام نشد؛ فورم کامل نیست.',
+                    `فیلد نامعتبر: ${label} — ${reason}`
+                        + (isHidden ? ' این فیلد پنهان است؛ فیلترها را پاک کنید تا دیده شود.' : ''));
+
+                if (!isHidden) {
+                    invalid.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    try { invalid.focus({ preventScroll: true }); } catch (_) { /* unfocusable */ }
+                }
+
+                return true;
+            }
+
+            // بازگشت با دکمهٔ Back مرورگر نباید دکمه را قفل نگه دارد.
+            window.addEventListener('pageshow', function () {
+                resetLoadingSubmissionUi(true);
+            });
+
+            // اعتبارسنجی بومی مرورگر رویداد submit را شلیک نمی‌کند؛ رویداد invalid تنها
+            // نشانهٔ آن است. با آن هم همان پیام روشن نشان داده می‌شود.
+            loadingForm?.addEventListener('invalid', function () {
+                window.setTimeout(reportLoadingInvalidField, 0);
+            }, true);
+
+            // گاردِ ضدِ ارسالِ دوباره (core.js) قبلاً ارسال را بی‌صدا لغو می‌کرد و هیچ
+            // POST ساخته نمی‌شد. حالا دلیل را همین‌جا کنار دکمه نشان می‌دهیم.
+            loadingForm?.addEventListener('ptg:submit-blocked', function (event) {
+                const reason = event.detail?.reason;
+                if (reason === 'in-progress') {
+                    showOperationFailure(
+                        'ثبت قبلی هنوز در جریان است.',
+                        'تا پایان ثبت قبلی صبر کنید. اگر پاسخی نیامد، صفحه را تازه کرده و دوباره تلاش کنید.');
+                    return;
+                }
+
+                if (!reportLoadingInvalidField()) {
+                    showOperationFailure(
+                        'ثبت انجام نشد.',
+                        'ارسال فورم توسط مرورگر متوقف شد. صفحه را تازه کرده و دوباره تلاش کنید.');
+                }
             });
 
             loadingForm?.addEventListener('submit', function (event) {
@@ -1731,25 +1823,8 @@
                 if (typeof window.loadingVirtualRowsBeforeSubmit === 'function') {
                     window.loadingVirtualRowsBeforeSubmit();
                 }
-                loadingSubmitInProgress = true;
-                setLoadingSaveBusy(true);
-                const rowCount = document.querySelector('[data-lic-count-total]')?.textContent || '';
-                showOperationStatus(
-                    'در حال ثبت بارگیری‌ها...',
-                    rowCount ? `${rowCount} سطر در یک عملیات امن ذخیره می‌شود. لطفاً صفحه را نبندید.` : 'لطفاً صفحه را نبندید.');
-                // اگر اعتبارسنجی سمت کلاینت ارسال را لغو کند، دکمه دوباره فعال می‌شود.
-                setTimeout(function () {
-                    if (event.defaultPrevented) {
-                        loadingSubmitInProgress = false;
-                        setLoadingSaveBusy(false);
-                    }
-                }, 0);
                 loadingForm.action = loadingForm.dataset.createAction || '@createPostUrl';
                 syncPrimaryContractInput();
-                const excelFileInput = document.getElementById('excelFile');
-                if (excelFileInput) {
-                    excelFileInput.value = '';
-                }
                 rowsHost.querySelectorAll('[data-loading-row]').forEach(row => {
                     syncRowLogisticsName(row);
                     updateRowFreightSnapshot(row);
@@ -1757,9 +1832,68 @@
                 });
             });
 
+            // این listener در سطح document بعد از validation فرم اجرا می‌شود؛ بنابراین
+            // spinner فقط زمانی روشن می‌شود که POST واقعاً اجازهٔ ارسال گرفته باشد.
+            document.addEventListener('submit', function (event) {
+                if (event.target !== loadingForm) {
+                    return;
+                }
+                if (event.defaultPrevented) {
+                    resetLoadingSubmissionUi();
+                    return;
+                }
+
+                // حالت «در حال ثبت» فقط وقتی روشن می‌شود که فرم واقعاً معتبر باشد؛
+                // وگرنه گاردِ core.js ارسال را لغو می‌کند و دکمه بی‌دلیل قفل می‌ماند.
+                // از :invalid استفاده می‌شود نه checkValidity، چون checkValidity رویداد
+                // invalid را شلیک می‌کند و گاردها را بی‌جهت بازنشانی می‌کند.
+                if (!loadingForm.noValidate && reportLoadingInvalidField()) {
+                    resetLoadingSubmissionUi();
+                    return;
+                }
+
+                loadingSubmitInProgress = true;
+                setLoadingSaveBusy(true);
+                const rowCount = document.querySelector('[data-lic-count-total]')?.textContent || '';
+                showOperationStatus(
+                    'در حال ثبت بارگیری‌ها...',
+                    rowCount ? `${rowCount} سطر در یک عملیات امن ذخیره می‌شود. لطفاً صفحه را نبندید.` : 'لطفاً صفحه را نبندید.');
+
+                clearLoadingSubmitWatchdog();
+                loadingSubmitWatchdogId = window.setTimeout(function () {
+                    loadingSubmitWatchdogId = null;
+                    showOperationFailure(
+                        'پاسخی از سرور دریافت نشد.',
+                        'ثبت انجام نشد یا پاسخ آن نرسید. ابتدا فهرست بارگیری‌ها را بررسی کنید؛ اگر ثبت نشده بود دوباره ذخیره کنید.');
+                }, loadingSubmitTimeoutMs);
+
+                // شنونده‌های بعدیِ همین رویداد (از جمله گاردِ ضدِ ارسالِ دوبارهٔ core.js و
+                // اعتبارسنجی مرورگر) می‌توانند ارسال را لغو کنند و انتشار رویداد را هم
+                // متوقف کنند؛ آن‌وقت هیچ ناوبری‌ای رخ نمی‌دهد. وضعیت نهایی رویداد در تیک
+                // بعد سنجیده می‌شود تا دکمه هرگز روی حالت «در حال ثبت» قفل نماند.
+                window.setTimeout(function () {
+                    if (event.defaultPrevented) {
+                        resetLoadingSubmissionUi();
+                    }
+                }, 0);
+            });
+
+            // unobtrusive validation ارسال نامعتبر را در خود فرم متوقف می‌کند و رویداد
+            // به document نمی‌رسد؛ در آن حالت UI باید آزاد بماند و نخستین خطا دیده شود.
+            if (window.jQuery && loadingForm) {
+                window.jQuery(loadingForm).on('invalid-form.validate', function () {
+                    resetLoadingSubmissionUi();
+                    window.requestAnimationFrame(function () {
+                        const firstError = loadingForm.querySelector('.input-validation-error');
+                        firstError?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                        firstError?.focus({ preventScroll: true });
+                    });
+                });
+            }
+
 
             rowsHost.addEventListener('click', event => {
-                const dateTrigger = event.target.closest('[data-loading-date-open], [data-row-date-display]');
+                const dateTrigger = event.target.closest('[data-row-date-display]');
                 if (dateTrigger) {
                     const row = dateTrigger.closest('[data-loading-row]');
                     if (row) {
@@ -2053,7 +2187,66 @@
 
                 const sequence = row.querySelector('[data-loading-row-sequence]');
                 if (sequence) sequence.textContent = String(dataIndex + 1);
+                applyRowIssues(row, data);
                 return row;
+            }
+
+            // خطاهای امپورت روی همان سطر و همان فیلد نشان داده می‌شوند؛ هیچ جدول یا پنل جدایی وجود ندارد.
+            function importIssues(data) {
+                return (data && data.importMeta && Array.isArray(data.importMeta.issues))
+                    ? data.importMeta.issues
+                    : [];
+            }
+
+            function applyRowIssues(row, data) {
+                const issues = importIssues(data);
+                const excelRow = data.importMeta?.excelRow;
+                if (excelRow) {
+                    const sequence = row.querySelector('[data-loading-row-sequence]');
+                    if (sequence) sequence.title = `سطر ${excelRow} فایل اکسل`;
+                }
+
+                row.classList.toggle('lic-row-error', issues.length > 0);
+                if (!issues.length) {
+                    return;
+                }
+
+                issues.forEach(issue => {
+                    const control = issue.field ? activeControl(row, issue.field) : null;
+                    const cell = control ? control.closest('td') : row.querySelector('td');
+                    if (control) {
+                        control.classList.add('lic-input-error');
+                        control.dataset.importIssueField = issue.field || '';
+                    }
+                    if (!cell) {
+                        return;
+                    }
+                    const note = document.createElement('span');
+                    note.className = 'ak-field-error';
+                    note.dataset.importIssue = issue.field || '';
+                    note.textContent = excelRow
+                        ? `سطر ${excelRow} اکسل: ${issue.message}`
+                        : issue.message;
+                    cell.appendChild(note);
+                });
+            }
+
+            // با اصلاح مقدار همان فیلد، خطای همان فیلد پاک می‌شود.
+            function clearIssueForControl(control) {
+                const row = control.closest('[data-loading-row]');
+                if (!row || !control.classList.contains('lic-input-error')) {
+                    return;
+                }
+
+                const index = Number.parseInt(row.dataset.virtualIndex || '', 10);
+                const data = virtualRows && Number.isInteger(index) ? virtualRows[index] : null;
+                const field = control.dataset.importIssueField || '';
+                control.classList.remove('lic-input-error');
+                row.querySelectorAll(`[data-import-issue="${field}"]`).forEach(note => note.remove());
+                if (data && data.importMeta) {
+                    data.importMeta.issues = importIssues(data).filter(issue => (issue.field || '') !== field);
+                    row.classList.toggle('lic-row-error', data.importMeta.issues.length > 0);
+                }
             }
 
             function fieldValue(row, suffix) {
@@ -2081,6 +2274,9 @@
             }
 
             function dataStatus(row) {
+                if (importIssues(row).length > 0) {
+                    return 'error';
+                }
                 const qty = parseNumber(row.loadedQuantityMt);
                 const price = parseNumber(row.loadingPriceUsd);
                 if ((!qty || qty <= 0) && (!price || price <= 0)) {
@@ -2169,22 +2365,16 @@
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2
                 }).format(valueToFormat);
-                const quantityText = `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(quantity)} TON`;
-                const valueText = `$ ${money(value)}`;
-                const averageText = `$ ${money(quantity > 0 ? value / quantity : 0)}`;
-                const expenseText = `$ ${money(expenses)}`;
                 const rubText = hasFileRub
-                    ? `₽ ${money(fileRubValue)}`
-                    : rubValue > 0 ? `₽ ${money(rubValue)}` : pendingRub > 0 ? 'در انتظار نرخ' : '-';
-                const rubAverageText = hasFileRub && quantity > 0 ? `₽ ${money(fileRubValue / quantity)}` : '-';
+                    ? money(fileRubValue)
+                    : rubValue > 0 ? money(rubValue) : pendingRub > 0 ? 'در انتظار نرخ' : '-';
 
-                document.querySelectorAll('[data-summary-quantity], [data-summary-table-quantity]').forEach(el => { el.textContent = quantityText; });
-                document.querySelectorAll('[data-summary-value], [data-summary-table-value]').forEach(el => { el.textContent = valueText; });
-                document.querySelectorAll('[data-summary-average]').forEach(el => { el.textContent = averageText; });
-                document.querySelectorAll('[data-summary-expense], [data-summary-table-expense]').forEach(el => { el.textContent = expenseText; });
-                document.querySelectorAll('[data-summary-rub-value], [data-summary-table-rub-value], [data-summary-table-frub-value]').forEach(el => { el.textContent = rubText; });
-                document.querySelectorAll('[data-summary-rub-average], [data-summary-table-frub-average]').forEach(el => { el.textContent = rubAverageText; });
-                document.querySelectorAll('[data-summary-rub-note]').forEach(el => el.classList.toggle('d-none', hasFileRub));
+                // همان کارت‌های آماری مشترک؛ واحد ارز روی خود کارت است.
+                window.licWriteStat('lic-stat-quantity', new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(quantity));
+                window.licWriteStat('lic-stat-value', money(value));
+                window.licWriteStat('lic-stat-average', money(quantity > 0 ? value / quantity : 0));
+                window.licWriteStat('lic-stat-expense', money(expenses));
+                window.licWriteStat('lic-stat-rub', rubText);
             }
 
             function renderVirtual() {
@@ -2341,9 +2531,22 @@
                 }
             });
 
-            if (!virtualRows) {
+            host.addEventListener('input', event => {
+                if (event.target instanceof Element) {
+                    clearIssueForControl(event.target);
+                }
+            }, true);
+            host.addEventListener('change', event => {
+                if (event.target instanceof Element) {
+                    clearIssueForControl(event.target);
+                }
+            }, true);
+
+            let domObserver = null;
+
+            function bindDomObserver() {
                 let addObserverPending = false;
-                const observer = new MutationObserver(mutations => {
+                domObserver = new MutationObserver(mutations => {
                     if (mutations.some(m => m.addedNodes.length > 0)) addObserverPending = true;
                     scheduleRender(false);
                     if (addObserverPending) {
@@ -2352,10 +2555,10 @@
                         render();
                     }
                 });
-                observer.observe(host, { childList: true });
-            } else {
-                rows().forEach((row, index) => { row.dataset.virtualIndex = String(index); });
+                domObserver.observe(host, { childList: true });
+            }
 
+            function bindVirtualHooks() {
                 window.loadingVirtualRowsBeforeSubmit = function () {
                     syncDomRows();
                     if (compactInput) compactInput.value = JSON.stringify(virtualRows);
@@ -2436,6 +2639,214 @@
                         renderVirtual();
                     }, 0);
                 });
+            }
+
+            // ---- Excel import ------------------------------------------------
+            // فایل خوانده می‌شود و سطرهایش مستقیماً به همان مجموعهٔ سطرهای فرم اضافه می‌شود.
+            // هیچ پنل، مرحله، پیش‌نمایش یا ثبت جداگانه‌ای وجود ندارد.
+            const importButton = document.querySelector('[data-loading-import-open]');
+            const importFileInput = document.querySelector('[data-loading-import-file]');
+            const importSummary = document.querySelector('[data-loading-import-summary]');
+            const loadingFormEl = document.querySelector('[data-loading-create-form]');
+            const importUrl = '@importPostUrl';
+
+            // کلید Jobهای قدیمی امپورت دیگر معنایی ندارد؛ پاک می‌شود تا هیچ وضعیت کهنه‌ای برنگردد.
+            try {
+                Object.keys(localStorage)
+                    .filter(key => key.startsWith('ptg-excel-job:') && key.includes('/Loading'))
+                    .forEach(key => localStorage.removeItem(key));
+            } catch (error) {
+                /* دسترسی نبود، مهم نیست */
+            }
+
+            function isBlankData(data) {
+                return !data.billOfLadingNumber
+                    && !data.wagonNumber
+                    && !data.importedTransportReference
+                    && !data.consigneeName
+                    && !data.destinationName
+                    && !(parseNumber(data.loadedQuantityMt) > 0);
+            }
+
+            // سطرهای دستی موجود در DOM به همان ساختار داده‌ای سطرها تبدیل می‌شوند تا با
+            // سطرهای اکسل در یک مجموعه قرار بگیرند و ثبت نهایی هر دو را با هم بفرستد.
+            function captureDomRowsAsData() {
+                return rows().map((row, index) => {
+                    const data = { rowKey: row.dataset.rowKey || `row_${index}` };
+                    editableFields.forEach(property => {
+                        const control = activeControl(row, property);
+                        if (!control) return;
+                        data[property] = numericFields.has(property)
+                            ? parseNumber(control.value)
+                            : (control.value === '' ? null : control.value);
+                    });
+                    const lossStage = row.querySelector('input[name$=".Loss.Stage"]');
+                    data.loss = { enabled: false, stage: lossStage?.value || 'LoadingDifference' };
+                    return data;
+                }).filter(data => !isBlankData(data));
+            }
+
+            function ensureVirtualMode() {
+                if (virtualRows) {
+                    return;
+                }
+                virtualRows = captureDomRowsAsData();
+                initialVirtualRows = JSON.parse(JSON.stringify(virtualRows));
+                domObserver?.disconnect();
+                domObserver = null;
+                // سطرهای فعلی DOM دیگر نگاشت مستقیم به داده ندارند؛ رندر بعدی آن‌ها را از نو می‌سازد.
+                rows().forEach(row => { delete row.dataset.virtualIndex; });
+                bindVirtualHooks();
+            }
+
+            function showImportMessage(message, isError, onClick) {
+                if (!importSummary) return;
+                importSummary.textContent = message || '';
+                importSummary.classList.toggle('d-none', !message);
+                importSummary.classList.toggle('is-error', !!isError);
+                importSummary.classList.toggle('is-clickable', typeof onClick === 'function');
+                importSummary.onclick = typeof onClick === 'function' ? onClick : null;
+            }
+
+            function firstErrorIndex() {
+                return virtualRows ? virtualRows.findIndex(row => importIssues(row).length > 0) : -1;
+            }
+
+            function goToFirstErrorRow() {
+                const index = firstErrorIndex();
+                if (index < 0) return;
+                if (searchInput) searchInput.value = '';
+                if (filterSelect) filterSelect.value = 'all';
+                currentPage = Math.max(1, Math.ceil((index + 1) / pageSize()));
+                renderVirtual();
+                const target = host.querySelector('.lic-row-error');
+                target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                target?.querySelector('.lic-input-error')?.focus({ preventScroll: true });
+            }
+
+            function setImportBusy(busy) {
+                if (!importButton) return;
+                if (busy) {
+                    importButton.dataset.idleHtml = importButton.dataset.idleHtml || importButton.innerHTML;
+                    importButton.textContent = importButton.dataset.busyText || 'در حال خواندن فایل...';
+                    importButton.disabled = true;
+                } else {
+                    if (importButton.dataset.idleHtml) importButton.innerHTML = importButton.dataset.idleHtml;
+                    importButton.disabled = false;
+                }
+            }
+
+            function applyImportedRows(payload) {
+                ensureVirtualMode();
+                const incoming = payload.rows || [];
+                const stamp = Date.now();
+                incoming.forEach((item, index) => {
+                    const data = Object.assign({}, item.row);
+                    data.rowKey = `xls_${stamp}_${index}`;
+                    data.importMeta = {
+                        excelRow: item.excelRowNumber,
+                        sheet: item.sheetName,
+                        issues: item.issues || []
+                    };
+                    virtualRows.push(data);
+                });
+
+                if (searchInput) searchInput.value = '';
+                if (filterSelect) filterSelect.value = 'all';
+                currentPage = 1;
+                renderVirtual();
+            }
+
+            async function runImport(file) {
+                const body = new FormData();
+                body.append('ImportWorkbookFile', file);
+                const token = loadingFormEl?.querySelector('input[name="__RequestVerificationToken"]')?.value;
+                if (token) body.append('__RequestVerificationToken', token);
+                document.querySelectorAll('[data-loading-contract-checkbox]:checked')
+                    .forEach(checkbox => body.append('SelectedContractIds', checkbox.value));
+                const primaryContract = document.querySelector('[data-loading-primary-contract]')?.value;
+                if (primaryContract) body.append('ContractId', primaryContract);
+                const originSelect = document.querySelector('#OriginLocationId');
+                if (originSelect?.value) body.append('OriginLocationId', originSelect.value);
+                if (document.querySelector('[data-loading-freight-toggle]')?.checked) {
+                    body.append('RecordFreight', 'true');
+                }
+
+                const response = await fetch(importUrl, { method: 'POST', body, credentials: 'same-origin' });
+                if (!response.ok) {
+                    throw new Error('فایل ارسال نشد. اتصال یا حجم فایل را بررسی کنید.');
+                }
+                return response.json();
+            }
+
+            importButton?.addEventListener('click', () => importFileInput?.click());
+            importFileInput?.addEventListener('change', async () => {
+                const file = importFileInput.files && importFileInput.files[0];
+                if (!file) return;
+
+                setImportBusy(true);
+                showImportMessage('', false, null);
+                try {
+                    const payload = await runImport(file);
+                    if (!payload || payload.success !== true) {
+                        const problems = (payload && payload.globalErrors) || [];
+                        showImportMessage(problems.join(' ') || (payload && payload.message) || 'فایل قابل امپورت نیست.', true, null);
+                        return;
+                    }
+
+                    if (payload.transportType) {
+                        const transportSelect = document.querySelector('[data-loading-transport-type]');
+                        if (transportSelect && String(transportSelect.value) !== String(payload.transportType)) {
+                            transportSelect.value = String(payload.transportType);
+                            transportSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+                    if (payload.originLocationId) {
+                        const originSelect = document.querySelector('#OriginLocationId');
+                        if (originSelect && !originSelect.value) originSelect.value = String(payload.originLocationId);
+                    }
+
+                    applyImportedRows(payload);
+                    showImportMessage(
+                        payload.message,
+                        payload.invalidRows > 0,
+                        payload.invalidRows > 0 ? goToFirstErrorRow : null);
+                } catch (error) {
+                    showImportMessage(error.message || 'خواندن فایل انجام نشد.', true, null);
+                } finally {
+                    importFileInput.value = '';
+                    setImportBusy(false);
+                }
+            });
+
+            // جلوگیری از ثبت تا وقتی سطر دارای خطا در فرم هست.
+            loadingFormEl?.addEventListener('submit', event => {
+                if (!virtualRows) return;
+                syncDomRows();
+                const blocked = virtualRows.filter(row => importIssues(row).length > 0);
+                if (blocked.length === 0) return;
+                event.preventDefault();
+
+                // علتِ نخستین سطر همراه پیام می‌آید؛ وگرنه کاربر فقط می‌بیند «ثبت نشد»
+                // و دلیلش (مثلاً تکراری‌بودن) فقط داخل خودِ سطر پنهان می‌ماند.
+                const reason = (importIssues(blocked[0])[0] || {}).message || '';
+                const detail = `${blocked.length} سطر مشکل دارد و هیچ سطری ثبت نشد.`
+                    + (reason ? ` نمونه: ${reason}` : '')
+                    + ' سطرهای قرمز را اصلاح یا حذف کنید.';
+                showImportMessage(detail, true, goToFirstErrorRow);
+                if (typeof window.loadingShowSubmitBlocked === 'function') {
+                    window.loadingShowSubmitBlocked('ثبت انجام نشد.', detail);
+                } else {
+                    document.querySelector('[data-loading-operation-status]')?.classList.add('d-none');
+                }
+                goToFirstErrorRow();
+            });
+
+            if (!virtualRows) {
+                bindDomObserver();
+            } else {
+                rows().forEach((row, index) => { row.dataset.virtualIndex = String(index); });
+                bindVirtualHooks();
             }
 
             render();

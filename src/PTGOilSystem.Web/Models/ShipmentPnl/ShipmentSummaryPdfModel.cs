@@ -9,18 +9,17 @@ public enum ShipmentSummaryPdfTone
     Warning
 }
 
-public sealed record ShipmentSummaryPdfMetric(
+/// <summary>
+/// یک سطر جدول خلاصه. ستون‌ها دقیقاً همان ستون‌های خروجی اکسلِ همین تب هستند
+/// (شرح، مقدار MT، مبلغ USD، جزئیات) تا PDF و اکسل یک آمار را نشان دهند.
+/// </summary>
+public sealed record ShipmentSummaryPdfRow(
     string Label,
-    string Value,
-    string? Unit = null,
-    ShipmentSummaryPdfTone Tone = ShipmentSummaryPdfTone.Neutral);
-
-public sealed record ShipmentSummaryPdfStage(
-    int Number,
-    string Title,
-    string StatusText,
-    ShipmentSummaryPdfTone Tone,
-    IReadOnlyList<ShipmentSummaryPdfMetric> Metrics);
+    string QuantityText,
+    string AmountText,
+    string DetailText,
+    ShipmentSummaryPdfTone Tone = ShipmentSummaryPdfTone.Neutral,
+    bool IsTotal = false);
 
 /// <summary>
 /// Presentation-ready data for the shipment executive PDF. Every value comes from the
@@ -33,13 +32,13 @@ public sealed class ShipmentSummaryPdfModel
     public string ShipmentCode { get; init; } = string.Empty;
     public string ProductName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
-    public string StatusText { get; init; } = string.Empty;
-    public ShipmentSummaryPdfTone StatusTone { get; init; }
     public string CompanyName { get; init; } = string.Empty;
     public DateTime GeneratedAt { get; init; }
     public string Origin { get; init; } = string.Empty;
     public string Destination { get; init; } = string.Empty;
     public string DepartureDateText { get; init; } = string.Empty;
     public string ArrivalDateText { get; init; } = string.Empty;
-    public IReadOnlyList<ShipmentSummaryPdfStage> Stages { get; init; } = [];
+
+    /// <summary>سطرهای خلاصه، برگرفته از همان سند خروجی اکسلِ تب خلاصه.</summary>
+    public IReadOnlyList<ShipmentSummaryPdfRow> Rows { get; init; } = [];
 }

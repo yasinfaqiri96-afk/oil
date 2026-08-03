@@ -19,6 +19,8 @@ namespace PTGOilSystem.Web.Tests;
 ///   • برگشت COGS چندمنبعی دقیقاً به همان poolها با همان ارزش برمی‌گردد.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class PreSaleAdvanceApplicationTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime SaleDate = new(2026, 7, 5);

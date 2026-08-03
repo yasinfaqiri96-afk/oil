@@ -18,6 +18,8 @@ namespace PTGOilSystem.Web.Tests;
 /// sale that outruns the pool must leave the pool alone.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class SalesAccountingAdapterTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime SaleDate = new(2026, 7, 5);

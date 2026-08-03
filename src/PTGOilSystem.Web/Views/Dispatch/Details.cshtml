@@ -162,9 +162,24 @@
     ViewData["HideSectionTabs"] = true;
     ViewData["ContentBodyClass"] = "boltz-content-body-fluid";
     ViewData["LoadingExpenseEditorAssets"] = true;
+
+    var dispatchRecordOptions = new List<(string Slug, string Label)>();
+    if (Model.SalesTransactionId.HasValue) dispatchRecordOptions.Add(("sales", T("فروشات", "Sales")));
+    if (hasCustomsOrShortage) dispatchRecordOptions.Add(("customs", T("گمرکات و کسورات", "Customs and deductions")));
+    if (expenseCount > 0) dispatchRecordOptions.Add(("expenses", T("مصارف و کرایه", "Expenses and freight")));
+    if (receiptCount > 0) dispatchRecordOptions.Add(("receipts", T("رسیدها", "Receipts")));
+
+    var requestedDispatchTab = (Context.Request.Query["recordsTab"].ToString() ?? string.Empty).Trim().ToLowerInvariant();
+    var dispatchRecordsTab = dispatchRecordOptions.Any(option => option.Slug == requestedDispatchTab)
+        ? requestedDispatchTab
+        : dispatchRecordOptions.FirstOrDefault().Slug;
+    string DispatchRecordsPane(string slug) => "tab-pane ak-detail-subsection" + (dispatchRecordsTab == slug ? " show active" : "");
+    var dispatchRecordTabs = dispatchRecordOptions
+        .Select(option => $"#dispatch-{option.Slug}|{option.Label}||{(dispatchRecordsTab == option.Slug ? "active" : "")}")
+        .ToArray();
 }
 
-<div class="page-stack ak-form-page ak-detail-page ak-operations-detail" dir="rtl" data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="page-stack ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("ارسال", "Dispatch")} {documentNumber}", false,
                        headerIsUnload ? T("ثبت تخلیه / فروش", "Register unload or sale") : T("ثبت مصرف", "Register expense"),
@@ -175,7 +190,7 @@
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <div class="ak-operations-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
         <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
                  model="@((T("منبع، مسیر و موتر", "Source, route & truck"), (string?)null, (IReadOnlyList<AkInfoItem>)routeItems))" />
 
@@ -183,10 +198,16 @@
                  model="@((T("خلاصه مالی ارسال", "Dispatch financial summary"), (string?)null, (IReadOnlyList<AkInfoItem>)financeItems))" />
     </div>
 
-    <div class="ak-form-grid">
+    @if (dispatchRecordTabs.Length > 0)
+    {
+    <section class="ak-form-section ak-detail-section" aria-labelledby="dispatch-records-title">
+        <h2 class="ak-section-title" id="dispatch-records-title">@T("سوابق ارسال", "Dispatch records")</h2>
+        <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
+                 model="@((T("سوابق ارسال", "Dispatch records"), dispatchRecordTabs))" />
+        <div class="tab-content ak-detail-content ak-tab-content">
         @if (Model.SalesTransactionId.HasValue)
         {
-            <section class="ak-form-section ak-detail-section">
+            <div id="dispatch-sales" class="@DispatchRecordsPane("sales")" role="tabpanel" aria-label="@T("فروشات", "Sales")">
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">@T("فروشات", "Sales")</h2>
                     <span class="ak-status">@M(Model.SaleTotalUsd ?? 0m) USD</span>
@@ -211,12 +232,12 @@
                         </div>
                     </button>
                 </div>
-            </section>
+            </div>
         }
 
         @if (hasCustomsOrShortage)
         {
-            <section class="ak-form-section ak-detail-section">
+            <div id="dispatch-customs" class="@DispatchRecordsPane("customs")" role="tabpanel" aria-label="@T("گمرکات و کسورات", "Customs and deductions")">
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">@T("گمرکات و کسورات", "Customs and deductions")</h2>
                     <span class="ak-status">@M(customsTotalUsd) USD</span>
@@ -272,12 +293,12 @@
                         </button>
                     }
                 </div>
-            </section>
+            </div>
         }
 
         @if (expenseCount > 0)
         {
-            <section class="ak-form-section ak-detail-section">
+            <div id="dispatch-expenses" class="@DispatchRecordsPane("expenses")" role="tabpanel" aria-label="@T("مصارف و کرایه", "Expenses and freight")">
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">@T("مصارف و کرایه", "Expenses and freight")</h2>
                     <span class="ak-status">@M(expenseTotalUsd) USD</span>
@@ -307,12 +328,12 @@
                         </button>
                     }
                 </div>
-            </section>
+            </div>
         }
 
         @if (receiptCount > 0)
         {
-            <section class="ak-form-section ak-detail-section">
+            <div id="dispatch-receipts" class="@DispatchRecordsPane("receipts")" role="tabpanel" aria-label="@T("رسیدهای تحویل", "Delivery receipts")">
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">@T("رسیدهای تحویل / تخلیه", "Delivery receipts")</h2>
                     <span class="ak-status">@receiptCount</span>
@@ -342,9 +363,11 @@
                         </button>
                     }
                 </div>
-            </section>
+            </div>
         }
-    </div>
+        </div>
+    </section>
+    }
 
     <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
              model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),

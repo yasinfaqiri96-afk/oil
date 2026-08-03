@@ -106,16 +106,69 @@
         });
     }
 
+    // فقط خودِ شاخهٔ تازه‌اضافه‌شده نرمال می‌شود. نسخهٔ قبلی برای هر گره، جدولِ والد را
+    // با closest پیدا می‌کرد و کل جدول را دوباره می‌پیمود؛ روی جدول‌های بزرگ (مثل ثبت
+    // بارگیری با ۱۰۰ ردیف) این کار به ازای هر گره تکرار می‌شد و صفحه ده‌ها ثانیه قفل می‌ماند.
+    function normalizeAddedNode(node) {
+        if (node.matches && node.matches(SKIP_SELECTOR)) return;
+
+        if (node.closest && node.closest(LIST_SELECTOR)) {
+            normalizeElement(node);
+            return;
+        }
+
+        if (node.matches && node.matches(LIST_SELECTOR)) {
+            normalizeElement(node);
+        }
+
+        if (node.querySelectorAll) {
+            node.querySelectorAll(LIST_SELECTOR).forEach(normalizeElement);
+        }
+    }
+
     function observeListChanges() {
         if (!window.MutationObserver) return;
+
+        // گره‌ها در یک دسته پردازش می‌شوند تا رندرِ یکبارهٔ چند صد ردیف، چند صد پیمایش جدا نسازد.
+        var pending = [];
+        var scheduled = false;
+
+        function flush() {
+            scheduled = false;
+            var nodes = pending;
+            pending = [];
+
+            // مقایسهٔ جفتی فقط در دسته‌های کوچک؛ در دسته‌های بزرگ خودِ هزینهٔ مقایسه از پیمایش بیشتر می‌شود.
+            var dedupe = nodes.length <= 50;
+
+            nodes.forEach(function (node) {
+                if (!node.isConnected) return;
+                if (dedupe) {
+                    // اگر والدِ همین گره در همین دسته پردازش شده، دوباره پیمایش لازم نیست.
+                    var covered = nodes.some(function (other) {
+                        return other !== node && other.contains && other.contains(node);
+                    });
+                    if (covered) return;
+                }
+                normalizeAddedNode(node);
+            });
+        }
 
         var observer = new MutationObserver(function (mutations) {
             mutations.forEach(function (mutation) {
                 mutation.addedNodes.forEach(function (node) {
                     if (node.nodeType !== 1) return;
-                    normalizeSystemListDigits(node);
+                    pending.push(node);
                 });
             });
+
+            if (pending.length === 0 || scheduled) return;
+            scheduled = true;
+            if (window.requestAnimationFrame) {
+                window.requestAnimationFrame(flush);
+            } else {
+                window.setTimeout(flush, 0);
+            }
         });
 
         observer.observe(document.body, { childList: true, subtree: true });

@@ -131,6 +131,10 @@
 .ak-detail-page .ak-info-value.is-warning { color: var(--ptg-warning-text); }
 .ak-detail-page .ak-info-value.is-danger  { color: var(--ptg-danger-text); }
 .ak-detail-page .ak-info-value.is-success { color: var(--ptg-success-text); }
+/* Neutral accents: identity (party, product, tank) and classification (stage,
+   source type, destination). Colour only, never a second font weight. */
+.ak-detail-page .ak-info-value.is-primary { color: var(--ptg-primary); }
+.ak-detail-page .ak-info-value.is-info    { color: var(--ptg-info-text); }
 
 /* -------------------------------------------------------------------
    KPI strip — compact height, capped at five cards by the partial
@@ -656,4 +660,251 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 /* Tab totals are the closing figure of each tab. */
 [data-transport-details] .ak-detail-totals .ak-list-row > b {
     font-size: 17px;
+}
+
+/* -------------------------------------------------------------------
+   Operations details — shared readable hierarchy
+   Labels stay quiet, values stay dark, and decisive figures remain easy
+   to scan. This scope is shared by Sales and the related Operations pages;
+   page-specific content and workflows remain unchanged.
+   ------------------------------------------------------------------- */
+/* The invoice number is a label, not a headline — 30px made it shout over the
+   figures that actually matter. */
+body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.ak-operations-clean-page .ak-stat-card__title {
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ak-operations-clean-page .ak-stat-card__value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+/* Info cards use the statement rhythm too: one fact per row, quiet label on
+   the start edge, dark value on the end edge, hairline between rows. The old
+   multi-column grid put unrelated facts side by side, which is what made the
+   card read as scattered. */
+.ak-operations-clean-page .ak-summary-card .ak-info-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+}
+
+.ak-operations-clean-page .ak-summary-card .ak-info-cell,
+.ak-operations-clean-page .ak-summary-card .ak-info-cell.is-wide {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 12px;
+    padding-block: 9px;
+    border-block-end: 1px solid var(--ak-detail-divider, var(--ptg-border));
+}
+
+.ak-operations-clean-page .ak-summary-card .ak-info-cell:last-child {
+    padding-block-end: 0;
+    border-block-end: 0;
+}
+
+.ak-operations-clean-page .ak-summary-card .ak-info-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+.ak-operations-clean-page .ak-summary-card .ak-info-value {
+    justify-content: flex-end;
+    text-align: end;
+    font-size: 14.5px;
+    font-weight: 700;
+}
+
+.ak-operations-clean-page .ak-summary-card .ak-info-value.ak-num {
+    justify-content: flex-end;
+}
+
+/* The first identity fact is the quickest recognition cue. It is distinguished
+   by size rather than a decorative accent. */
+.ak-operations-clean-page .ak-operations-clean-overview > .ak-summary-card:first-child .ak-info-cell:first-child .ak-info-value {
+    font-size: 16px;
+}
+
+/* Soft chips for classified and state values, so the eye finds "what kind" and
+   "is it settled" without reading every row. Tinted background, no border, no
+   extra weight — the accent stays quiet next to the money figures. */
+.ak-operations-clean-page .ak-summary-card .ak-info-value:is(.is-info, .is-success, .is-warning, .is-danger) {
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.ak-operations-clean-page .ak-summary-card .ak-info-value.is-info    { background: var(--ptg-info-soft); }
+.ak-operations-clean-page .ak-summary-card .ak-info-value.is-success { background: var(--ptg-success-soft); }
+.ak-operations-clean-page .ak-summary-card .ak-info-value.is-warning { background: var(--ptg-warning-soft); }
+.ak-operations-clean-page .ak-summary-card .ak-info-value.is-danger  { background: var(--ptg-danger-soft); }
+
+/* Keep paired summaries together; with an odd card count, the final supporting
+   summary uses the full row. */
+.ak-operations-clean-page .ak-operations-clean-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ak-operations-clean-page .ak-operations-clean-overview > .ak-sale-money {
+    min-width: 0;
+    margin: 0;
+}
+
+.ak-operations-clean-page .ak-operations-clean-overview > .ak-summary-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+}
+
+/* Statement list: label right, figure left, one closing total. */
+.ak-operations-clean-page .ak-sale-money-currency {
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding-block: 10px;
+}
+
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-field > strong {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ak-detail-muted, var(--ptg-muted));
+}
+
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-field > small {
+    font-size: 11.5px;
+}
+
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-num {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ak-detail-text, var(--ptg-text));
+}
+
+.ak-operations-clean-page .ak-sale-money-unit {
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-num.is-success { color: var(--ptg-success-text); }
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-num.is-warning { color: var(--ptg-warning-text); }
+
+/* The closing balance is the one figure a reader must not miss. */
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row.is-total {
+    margin-block-start: 6px;
+    padding: 12px 14px;
+    border-block-end: 0;
+    border-radius: var(--ptg-radius-input, 8px);
+    background: var(--ptg-surface-soft, #f7f8fa);
+}
+
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row.is-total > span.ak-field > strong {
+    color: var(--ak-detail-text, var(--ptg-text));
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.ak-operations-clean-page .ak-sale-money-list > .ak-list-row.is-total > span.ak-num {
+    font-size: 20px;
+}
+
+/* Notes read as a quiet aside, never as another data card. */
+.ak-operations-clean-page .ak-note {
+    border-radius: var(--ptg-radius-input, 8px);
+}
+
+/* Detail-list actions are one grid child. Keeping the buttons in a compact
+   cluster prevents receipt metadata, quantity, and four actions from competing
+   for separate columns on narrow RTL layouts. */
+.ak-operations-clean-page .ak-detail-list-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+[data-loading-details] #loading-receipts .ak-list-row {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+[data-loading-details] .ak-receipt-select-slot {
+    display: inline-flex;
+    align-items: center;
+    min-width: 18px;
+}
+
+/* Semantic operational KPI colors: source/primary, completed/received,
+   remaining/attention, then cost. These selectors only affect the loading
+   detail surface; transport details retain their own established mapping. */
+[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(1) .ak-stat-card__value {
+    color: var(--ptg-primary);
+}
+
+[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(2) .ak-stat-card__value {
+    color: var(--ptg-success-text);
+}
+
+[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(3) .ak-stat-card__value {
+    color: var(--ptg-warning-text);
+}
+
+[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(4) .ak-stat-card__value {
+    color: var(--ptg-danger-text);
+}
+
+@media (max-width: 720px) {
+    [data-loading-details] #loading-receipts .ak-list-row {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    [data-loading-details] #loading-receipts .ak-num {
+        grid-column: 2;
+    }
+
+    .ak-operations-clean-page .ak-detail-list-actions {
+        grid-column: 1 / -1;
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .ak-operations-clean-page .ak-operations-clean-overview {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ak-operations-clean-page .ak-operations-clean-overview > .ak-summary-card:last-child:nth-child(odd) {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .ak-operations-clean-page .ak-sale-money-list > .ak-list-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-num {
+        justify-self: start;
+    }
 }

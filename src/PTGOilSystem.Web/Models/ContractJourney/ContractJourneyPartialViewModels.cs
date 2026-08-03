@@ -187,6 +187,7 @@ public sealed class ContractJourneyReceiptsTabViewModel
     public decimal BulkReceiptDefaultQuantityMt { get; init; }
     public string NoRecordsText { get; init; } = string.Empty;
     public IHtmlContent PagerHtml { get; init; } = HtmlString.Empty;
+    public IHtmlContent PendingPagerHtml { get; init; } = HtmlString.Empty;
     public ContractJourneyPagerViewModel Pager { get; init; } = new();
     public IReadOnlyList<SelectListItem> BulkReceiptTerminals { get; init; } = [];
     public IReadOnlyList<ContractJourneyBulkReceiptStorageTankOptionViewModel> BulkReceiptStorageTanks { get; init; } = [];

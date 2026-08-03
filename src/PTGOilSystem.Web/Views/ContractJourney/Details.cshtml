@@ -242,7 +242,10 @@
     }
 
     var loadingValueUsd = useSummaryMetrics ? summaryMetrics.LoadingValueUsd : Model.LoadingItems.Sum(l => l.LoadingValueUsd ?? 0m);
-    var loadingValueRub = Model.LoadingItems.Sum(l => l.AmountRubLive ?? l.FileRubAmount ?? 0m);
+    // ارزش روبلی از منبع مشترک (LoadingRubValuation) می‌آید تا با پروفایل تأمین‌کننده یکسان باشد.
+    // null یعنی هیچ منبع روبلی موجود نیست و به‌جای صفر «ثبت نشده» نشان داده می‌شود.
+    var loadingValueRub = Model.RubSettlementSummary.LoadingValueRub;
+    var loadingValueRubIsEstimated = Model.RubSettlementSummary.LoadingValueRubIsEstimated;
     var loadingWastageMt = Model.LoadingDifferenceLossMt;
     var receiptShortageWastageMt = Model.ReceiptShortageLossMt;
     var dispatchShortageWastageMt = Model.DispatchShortageLossMt;
@@ -403,6 +406,12 @@
     var filteredBulkReceiptCandidates = bulkReceiptCandidates
         .Where(item => MatchesListSearch(pendingReceiptsSearch, item.LoadingRegisterId, item.VehicleNumber, item.LoadingDate.ToDisplayDate(), item.ProductName, item.TransportTypeLabel, item.LoadedQuantityMt, item.LoadingPriceUsd, item.LoadingValueUsd, item.BillOfLadingNumber, item.RwbNo, item.WagonNumber))
         .ToList();
+    var pendingReceiptPageCount = PageCountFor(filteredBulkReceiptCandidates.Count, receiptListPageSize);
+    var pendingReceiptPage = Math.Min(ReadPositivePage("pendingReceiptsPage"), pendingReceiptPageCount);
+    var pagedBulkReceiptCandidates = filteredBulkReceiptCandidates
+        .Skip((pendingReceiptPage - 1) * receiptListPageSize)
+        .Take(receiptListPageSize)
+        .ToList();
     var receiptsSearch = ReadListSearch("receiptsQ");
     var filteredReceiptItems = Model.ReceiptItems
         .Where(item => MatchesListSearch(receiptsSearch, item.Id, item.LoadingRegisterId, item.ReceiptDate.ToDisplayDate(), item.TerminalName, item.StorageTankCode, item.ReferenceDocument))
@@ -472,6 +481,12 @@
     var filteredExpenseAllocations = Model.InventoryTransportExpenseAllocations
         .Where(item => MatchesListSearch(allocationsSearch, item.TransportLegId, item.LoadedDate.ToDisplayDate(), item.TransportTypeName, item.TransportReference, item.RwbNo, item.SourceLocation, item.DestinationLocation))
         .ToList();
+    var allocationsPageCount = PageCountFor(filteredExpenseAllocations.Count);
+    var allocationsPage = Math.Min(ReadPositivePage("allocationsPage"), allocationsPageCount);
+    var pagedExpenseAllocations = filteredExpenseAllocations
+        .Skip((allocationsPage - 1) * journeyListPageSize)
+        .Take(journeyListPageSize)
+        .ToList();
     var lossesSearch = ReadListSearch("lossesQ");
     var filteredLossItems = Model.LossItems
         .Where(item => MatchesListSearch(lossesSearch, item.LossEventId, item.EventDate.ToDisplayDate(), item.StageName, item.VehicleNumber, item.TraceKind, item.RelatedMovementId))
@@ -521,9 +536,10 @@
         LockContract = Model.LockContract,
         PageDirection = pageDirection,
         FirstLoadingId = firstLoading?.Id,
-        BulkReceiptDefaultQuantityMt = filteredBulkReceiptCandidates.Sum(item => item.RemainingQuantityMt),
+        BulkReceiptDefaultQuantityMt = pagedBulkReceiptCandidates.Sum(item => item.RemainingQuantityMt),
         NoRecordsText = T("داده‌ای ثبت نشده است.", "No records yet."),
         PagerHtml = await DetailPager("receiptsPage", receiptPage, receiptPageCount),
+        PendingPagerHtml = await DetailPager("pendingReceiptsPage", pendingReceiptPage, pendingReceiptPageCount),
         Pager = new ContractJourneyPagerViewModel
         {
             PageKey = "receiptsPage",
@@ -533,7 +549,7 @@
         },
         BulkReceiptTerminals = bulkReceiptTerminals.ToList(),
         BulkReceiptStorageTanks = bulkReceiptStorageTanks.ToList(),
-        BulkReceiptCandidates = filteredBulkReceiptCandidates,
+        BulkReceiptCandidates = pagedBulkReceiptCandidates,
         Items = pagedReceiptItems
     };
 
@@ -893,7 +909,10 @@
                 <vc:stat-card title="@T("تعداد بارگیری‌ها", "Loadings")" value="@loadingCount.ToString("N0")" unit="@T("بارگیری", "loadings")" avatar="loading-terminal"></vc:stat-card>
                 <vc:stat-card title="@T("مقدار کل بارگیری‌شده", "Total loaded")" value="@NumberDisplay.Quantity(loadingQuantityMt)" unit="@UnitMt()" avatar="loading"></vc:stat-card>
                 <vc:stat-card title="@T("مبلغ کل بارگیری", "Loading value")" value="@loadingValueUsd.ToString("N0")" unit="@UnitUsd()" avatar="purchase-value"></vc:stat-card>
-                <vc:stat-card title="@T("ارزش روبلی بارگیری‌ها", "Loading value (RUB)")" value="@loadingValueRub.ToString("N0")" unit="@T("روبل", "RUB")" avatar="purchase-value"></vc:stat-card>
+                <vc:stat-card title="@T("ارزش روبلی بارگیری‌ها", "Loading value (RUB)")"
+                              value="@(loadingValueRub.HasValue ? loadingValueRub.Value.ToString("N0") : "—")"
+                              unit="@(loadingValueRub.HasValue ? (loadingValueRubIsEstimated ? T("روبل (تخمینی)", "RUB (estimated)") : T("روبل", "RUB")) : T("ثبت نشده", "not recorded"))"
+                              avatar="purchase-value"></vc:stat-card>
             </section>
             <partial name="_ContractJourneyLoadingsTab" model="loadingsTabModel" />
             break;
@@ -1127,7 +1146,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                            @foreach (var allocation in filteredExpenseAllocations)
+                            @foreach (var allocation in pagedExpenseAllocations)
                             {
                                 <tr>
                                     <td class="ak-col-grow">
@@ -1141,7 +1160,7 @@
                                     <td class="ak-num">@allocation.ExpenseCount.ToString("N0")</td>
                                 </tr>
                             }
-                            @if (!filteredExpenseAllocations.Any())
+                            @if (!pagedExpenseAllocations.Any())
                             {
                                 <tr>
                                     <td colspan="7">
@@ -1155,6 +1174,7 @@
                             </tbody>
                         </table>
                     </div>
+                    @(await DetailPager("allocationsPage", allocationsPage, allocationsPageCount))
                 </section>
 
                 @* ─── بخش کسری و ضایعات (ادغام‌شده با تب خزینه) ─── *@

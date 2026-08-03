@@ -252,6 +252,14 @@ public sealed class ContractJourneyRubSettlementSummaryViewModel
     public decimal? WeightedRubPerUsdRate => LockedAmountUsd > 0m
         ? Math.Round(LockedAmountRub / LockedAmountUsd, 6, MidpointRounding.AwayFromZero)
         : null;
+
+    // ارزش روبلی بارگیری‌های قرارداد از منبع مشترک (LoadingRubValuation) — همان عددی که
+    // صفحهٔ تأمین‌کننده نشان می‌دهد. null یعنی هیچ منبع روبلی‌ای موجود نیست (نه صفر).
+    // برای قراردادهایی که ارز تسویه‌شان RUB نیست هم پر می‌شود، چون رقم روبلی فایل بارگیری
+    // مستقل از SettlementCurrencyCode ثبت می‌شود.
+    public decimal? LoadingValueRub { get; init; }
+    // true یعنی رقم روبلیِ واقعی نبود و با ContractRubPerUsdRate تبدیل شده است.
+    public bool LoadingValueRubIsEstimated { get; init; }
 }
 
 public sealed class ContractJourneyStorageOverviewItemViewModel

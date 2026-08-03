@@ -9,8 +9,9 @@ public sealed class ExcelImportComponentMigrationTests
         "..", "..", "..", "..", "..",
         "src", "PTGOilSystem.Web"));
 
+    // فرم ثبت بارگیری عمداً از این کامپوننت استفاده نمی‌کند: امپورتش پنل و مرحلهٔ جدا ندارد و
+    // سطرها مستقیم داخل جدول خود فرم می‌نشینند.
     [Theory]
-    [InlineData("Views/Loading/Create.cshtml")]
     [InlineData("Views/Expenses/Import.cshtml")]
     [InlineData("Views/CustomsDeclarations/ImportExcel.cshtml")]
     [InlineData("Views/InventoryTransportLegs/CreateFromInventory.cshtml")]
@@ -21,6 +22,17 @@ public sealed class ExcelImportComponentMigrationTests
         var content = File.ReadAllText(Path.Combine(WebRoot, relativePath));
 
         Assert.Contains("~/Views/Shared/ExcelImport/_ExcelImport.cshtml", content);
+    }
+
+    // امپورت فرم ثبت بارگیری باید فقط یک دکمه در نوار جدول باشد، بدون پنل/مرحله/پیش‌نمایش جدا.
+    [Fact]
+    public void LoadingCreate_ImportsWithASingleToolbarButton()
+    {
+        var content = File.ReadAllText(Path.Combine(WebRoot, "Views/Loading/Create.cshtml"));
+
+        Assert.DoesNotContain("~/Views/Shared/ExcelImport/_ExcelImport.cshtml", content);
+        Assert.Contains("data-loading-import-open", content);
+        Assert.Contains("data-loading-import-file", content);
     }
 
     [Fact]

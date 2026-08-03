@@ -17,6 +17,8 @@ namespace PTGOilSystem.Web.Tests;
 ///     مصرف کند و فقط باقیمانده را مطالبات کند.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class PreSaleAccountingTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime SaleDate = new(2026, 7, 5);

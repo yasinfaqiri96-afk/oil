@@ -962,7 +962,11 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("[data-bulk-receipt-terminal-select]", coreJs);
         Assert.Contains("[data-bulk-receipt-tank-select]", coreJs);
         Assert.Contains("option.getAttribute(\"data-terminal-id\")", coreJs);
-        Assert.Contains("terminalSelect.addEventListener(\"change\", syncStorageTankOptions);", coreJs);
+        Assert.Contains("document.addEventListener(\"change\"", coreJs);
+        Assert.Contains("event.target.matches(\"[data-bulk-receipt-terminal-select]\")", coreJs);
+        Assert.DoesNotContain("rows.forEach(function (row)", coreJs);
+        Assert.Contains("document.addEventListener(\"submit\"", coreJs);
+        Assert.Contains("reloadContractJourneyTab", coreJs);
     }
 
     [Fact]
@@ -1098,7 +1102,7 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("id=\"loadingReceiptModal\"", view);
         Assert.Contains("_ReceiptCreateForm.cshtml", view);
         Assert.Contains("var loadingExpenseTotal = Model.LoadingExpenseTotalUsd;", view);
-        Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail\"", view);
+        Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page\"", view);
         Assert.Contains("_AkPageHeader", view);
         Assert.Contains("_AkSectionHead", view);
         Assert.Contains("class=\"ak-form-section", view);
@@ -1147,7 +1151,7 @@ public class ContractJourneyViewStructureTests
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Details.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
 
-        Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail\"", view);
+        Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page\"", view);
         Assert.Contains("_AkPageHeader", view);
         Assert.Contains("_AkSectionHead", view);
         Assert.Contains("class=\"ak-form-grid", view);
@@ -1288,10 +1292,11 @@ public class ContractJourneyViewStructureTests
         var detailActionBar = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_DetailActionBar.cshtml");
 
         Assert.Contains("ak-form-page--wide loading-import-workbook", create);
-        // Excel import moved from inline buttons (excelFilePickBtn/excelImportBtn) into the shared
-        // _ExcelImport component wired to the LoadingExcelImport controller; assert that contract.
-        Assert.Contains("Views/Shared/ExcelImport/_ExcelImport.cshtml", create);
-        Assert.Contains("LoadingExcelImport", create);
+        // Excel import is a single toolbar button next to «افزودن سطر»: the file is read by
+        // LoadingController.ImportWorkbook and its rows land straight in the form's own table.
+        Assert.DoesNotContain("Views/Shared/ExcelImport/_ExcelImport.cshtml", create);
+        Assert.Contains("data-loading-import-open", create);
+        Assert.Contains("ImportWorkbook", create);
         Assert.Contains("RWB / CMR / Bill of Lading", create);
         Assert.Contains("RWB / CMR / Bill of Lading", rowEditor);
         Assert.Contains("TransportExpenseUsd", rowEditor);

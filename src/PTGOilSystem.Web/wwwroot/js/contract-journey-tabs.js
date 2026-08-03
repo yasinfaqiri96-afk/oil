@@ -25,6 +25,11 @@
         window.PTG.refreshContractJourneyTabs = function () {
             cacheCurrentTab();
         };
+        window.PTG.reloadContractJourneyTab = function (url) {
+            var targetUrl = url || location.href;
+            invalidateContractTab(targetUrl);
+            return loadTab(targetUrl, false, true);
+        };
 
         document.addEventListener("click", onTabClick, true);
         // Warm the cache before the click so tabs open instantly, but only for
@@ -83,18 +88,18 @@
         loadTab(url.href, true);
     }
 
-    function loadTab(url, pushState) {
+    function loadTab(url, pushState, forceReload) {
         var key = cacheKey(url);
         if (!key) return;
 
-        var cached = tabCache.get(key);
+        var cached = forceReload ? null : tabCache.get(key);
         if (cached) {
             applyTab(cached, url, pushState);
             return;
         }
 
         setLoading(true);
-        prefetchTab(url)
+        prefetchTab(url, forceReload)
             .then(function (parsed) {
                 setLoading(false);
                 applyTab(parsed, url, pushState);
@@ -105,9 +110,13 @@
             });
     }
 
-    function prefetchTab(url) {
+    function prefetchTab(url, forceReload) {
         var key = cacheKey(url);
         if (!key) return Promise.reject(new Error("Invalid tab URL"));
+
+        if (forceReload) {
+            tabCache.delete(key);
+        }
 
         var cached = tabCache.get(key);
         if (cached) return Promise.resolve(cached);
@@ -119,7 +128,9 @@
             method: "GET",
             credentials: "same-origin",
             headers: {
-                "X-Requested-With": "XMLHttpRequest"
+                "X-Requested-With": "XMLHttpRequest",
+                "X-PTG-SPA": "1",
+                "X-PTG-Contract-Tab": "1"
             }
         })
             .then(function (response) {
@@ -256,6 +267,11 @@
         } catch (_) {
             return "";
         }
+    }
+
+    function invalidateContractTab(url) {
+        var key = cacheKey(url);
+        if (key) tabCache.delete(key);
     }
 
     function readAttributes(element) {

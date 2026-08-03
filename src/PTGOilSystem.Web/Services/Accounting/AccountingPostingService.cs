@@ -13,6 +13,10 @@ public interface IAccountingPostingService
         AccountingPostRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<JournalEntry>> PostBatchAsync(
+        IReadOnlyList<AccountingPostRequest> requests,
+        CancellationToken cancellationToken = default);
+
     Task<JournalEntry> ReverseAsync(
         AccountingReversalRequest request,
         CancellationToken cancellationToken = default);
@@ -30,6 +34,197 @@ public sealed class AccountingPostingService(
         AccountingPostRequest request,
         CancellationToken cancellationToken = default)
         => PostInternalAsync(request, reversalOfJournalEntryId: null, cancellationToken);
+
+    public async Task<IReadOnlyList<JournalEntry>> PostBatchAsync(
+        IReadOnlyList<AccountingPostRequest> requests,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+        if (requests.Count == 0)
+            return [];
+
+        EnsureEnabled();
+        foreach (var request in requests)
+            ValidateRequestShape(request);
+
+        var ownerCompanyId = await systemCompany.GetOwnerCompanyIdAsync(cancellationToken);
+        if (requests.Any(request => request.CompanyId != ownerCompanyId))
+        {
+            throw new AccountingValidationException(
+                "COMPANY_NOT_OWNER",
+                "The journal company is not the system owner company.");
+        }
+
+        var duplicateJournalNumber = requests
+            .GroupBy(
+                request => (request.CompanyId, JournalNumber: request.JournalNumber.Trim()),
+                EqualityComparer<(int CompanyId, string JournalNumber)>.Default)
+            .Any(group => group.Count() > 1);
+        if (duplicateJournalNumber)
+        {
+            throw new AccountingValidationException(
+                "DUPLICATE_JOURNAL_NUMBER",
+                "A batch cannot contain duplicate journal numbers.");
+        }
+
+        var sourceRequests = requests
+            .Where(request => !string.IsNullOrWhiteSpace(request.SourceEventId))
+            .Select(request => new
+            {
+                request.CompanyId,
+                SourceModule = request.SourceModule.Trim(),
+                SourceEventId = request.SourceEventId!.Trim()
+            })
+            .ToList();
+        if (sourceRequests
+            .GroupBy(request => (request.CompanyId, request.SourceModule, request.SourceEventId))
+            .Any(group => group.Count() > 1))
+        {
+            throw new AccountingValidationException(
+                "DUPLICATE_SOURCE_EVENT",
+                "A batch cannot contain the same source event more than once.");
+        }
+
+        var companyIds = requests.Select(request => request.CompanyId).Distinct().ToList();
+        var settingsByCompany = await db.AccountingSettings
+            .AsNoTracking()
+            .Where(settings => companyIds.Contains(settings.CompanyId))
+            .ToDictionaryAsync(settings => settings.CompanyId, cancellationToken);
+        foreach (var companyId in companyIds)
+        {
+            if (!settingsByCompany.ContainsKey(companyId))
+            {
+                throw new AccountingValidationException(
+                    "ACCOUNTING_NOT_CONFIGURED",
+                    "Accounting settings have not been created for this company.");
+            }
+        }
+
+        if (sourceRequests.Count > 0)
+        {
+            var sourceEventIds = sourceRequests.Select(request => request.SourceEventId).Distinct().ToList();
+            var existingSources = await db.JournalEntries
+                .AsNoTracking()
+                .Where(journal => companyIds.Contains(journal.CompanyId)
+                    && journal.SourceEventId != null
+                    && sourceEventIds.Contains(journal.SourceEventId))
+                .Select(journal => new
+                {
+                    journal.CompanyId,
+                    journal.SourceModule,
+                    journal.SourceEventId
+                })
+                .ToListAsync(cancellationToken);
+            var existingSourceSet = existingSources
+                .Select(source => (source.CompanyId, source.SourceModule, source.SourceEventId!))
+                .ToHashSet();
+            if (sourceRequests.Any(request =>
+                    existingSourceSet.Contains((request.CompanyId, request.SourceModule, request.SourceEventId))))
+            {
+                throw new AccountingValidationException(
+                    "DUPLICATE_SOURCE_EVENT",
+                    "This source event has already been posted.");
+            }
+        }
+
+        var requestedAccountIds = requests
+            .SelectMany(request => request.Lines.Select(line => line.AccountId))
+            .Distinct()
+            .ToList();
+        var validAccounts = await db.Accounts
+            .AsNoTracking()
+            .Where(account => requestedAccountIds.Contains(account.Id) && account.IsActive)
+            .Select(account => new { account.Id, account.CompanyId })
+            .ToListAsync(cancellationToken);
+        var validAccountSet = validAccounts
+            .Select(account => (account.Id, account.CompanyId))
+            .ToHashSet();
+        if (requests.Any(request => request.Lines.Any(line =>
+                !validAccountSet.Contains((line.AccountId, request.CompanyId)))))
+        {
+            throw new AccountingValidationException(
+                "INVALID_ACCOUNT_OWNERSHIP",
+                "All accounts must be active and belong to the journal company.");
+        }
+
+        var configuredCurrencyCount = await db.Currencies.AsNoTracking().CountAsync(cancellationToken);
+        var requestedCurrencyCodes = requests
+            .SelectMany(request => request.Lines)
+            .Select(line => line.TransactionCurrencyCode.Trim().ToUpperInvariant())
+            .Distinct()
+            .ToList();
+        HashSet<string>? activeCurrencyCodes = null;
+        if (configuredCurrencyCount > 0)
+        {
+            activeCurrencyCodes = (await db.Currencies
+                    .AsNoTracking()
+                    .Where(currency => currency.IsActive
+                        && requestedCurrencyCodes.Contains(currency.Code.ToUpper()))
+                    .Select(currency => currency.Code.ToUpper())
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        foreach (var request in requests)
+        {
+            ValidateCurrencyValues(
+                request,
+                settingsByCompany[request.CompanyId].FunctionalCurrencyCode,
+                activeCurrencyCodes);
+        }
+
+        var selections = new Dictionary<(int CompanyId, DateTime Date), FiscalCalendarSelection>();
+        foreach (var key in requests
+                     .Select(request => (request.CompanyId, Date: request.AccountingDate.Date))
+                     .Distinct())
+        {
+            selections[key] = await periodGuard.EnsurePostingAllowedAsync(
+                key.CompanyId,
+                key.Date,
+                cancellationToken);
+        }
+
+        var journals = requests.Select(request =>
+        {
+            var selection = selections[(request.CompanyId, request.AccountingDate.Date)];
+            return BuildJournal(request, selection, reversalOfJournalEntryId: null);
+        }).ToList();
+
+        IDbContextTransaction? transaction = null;
+        if (db.Database.IsRelational() && db.Database.CurrentTransaction is null)
+            transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            db.JournalEntries.AddRange(journals);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var postedAt = DateTime.UtcNow;
+            foreach (var journal in journals)
+            {
+                journal.Status = JournalEntryStatus.Posted;
+                journal.PostedAt = postedAt;
+            }
+            await db.SaveChangesAsync(cancellationToken);
+
+            if (transaction is not null)
+                await transaction.CommitAsync(cancellationToken);
+
+            return journals;
+        }
+        catch
+        {
+            if (transaction is not null)
+                await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+                await transaction.DisposeAsync();
+        }
+    }
 
     public async Task<JournalEntry> ReverseAsync(
         AccountingReversalRequest request,
@@ -134,46 +329,7 @@ public sealed class AccountingPostingService(
 
         try
         {
-            var journal = new JournalEntry
-            {
-                CompanyId = request.CompanyId,
-                FiscalYearId = selection.FiscalYear.Id,
-                FiscalPeriodId = selection.FiscalPeriod.Id,
-                JournalNumber = request.JournalNumber.Trim(),
-                Status = JournalEntryStatus.Draft,
-                AccountingDate = request.AccountingDate.Date,
-                DocumentDate = request.DocumentDate.Date,
-                OperationDate = request.OperationDate.Date,
-                Description = NormalizeOptional(request.Description),
-                SourceModule = request.SourceModule.Trim(),
-                SourceEntityType = NormalizeOptional(request.SourceEntityType),
-                SourceEntityId = request.SourceEntityId,
-                SourceEventId = NormalizeOptional(request.SourceEventId),
-                IsOpening = request.IsOpening,
-                IsClosing = request.IsClosing,
-                IsAdjustment = request.IsAdjustment,
-                IsReversal = reversalOfJournalEntryId.HasValue,
-                ReversalOfJournalEntryId = reversalOfJournalEntryId,
-                PostedByUserId = request.PostedByUserId,
-                Lines = request.Lines.Select((line, index) => new JournalEntryLine
-                {
-                    LineNumber = index + 1,
-                    AccountId = line.AccountId,
-                    PartyType = line.PartyType,
-                    PartyId = line.PartyId,
-                    ContractId = line.ContractId,
-                    ShipmentId = line.ShipmentId,
-                    TankId = line.TankId,
-                    ProductId = line.ProductId,
-                    CashAccountId = line.CashAccountId,
-                    Debit = line.Debit,
-                    Credit = line.Credit,
-                    TransactionCurrencyCode = line.TransactionCurrencyCode.Trim().ToUpperInvariant(),
-                    TransactionAmount = line.TransactionAmount,
-                    ExchangeRate = line.ExchangeRate,
-                    Description = NormalizeOptional(line.Description)
-                }).ToList()
-            };
+            var journal = BuildJournal(request, selection, reversalOfJournalEntryId);
 
             db.JournalEntries.Add(journal);
             await db.SaveChangesAsync(cancellationToken);
@@ -286,6 +442,33 @@ public sealed class AccountingPostingService(
         string functionalCurrencyCode,
         CancellationToken cancellationToken)
     {
+        var requestedCodes = request.Lines
+            .Select(x => x.TransactionCurrencyCode.Trim().ToUpperInvariant())
+            .Distinct()
+            .ToArray();
+        var configuredCurrencyCount = await db.Currencies.AsNoTracking().CountAsync(cancellationToken);
+        HashSet<string>? activeCurrencyCodes = null;
+        if (configuredCurrencyCount > 0)
+        {
+            activeCurrencyCodes = (await db.Currencies.AsNoTracking()
+                    .Where(x => x.IsActive && requestedCodes.Contains(x.Code.ToUpper()))
+                    .Select(x => x.Code.ToUpper())
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        ValidateCurrencyValues(
+            request,
+            functionalCurrencyCode,
+            activeCurrencyCodes);
+    }
+
+    private static void ValidateCurrencyValues(
+        AccountingPostRequest request,
+        string functionalCurrencyCode,
+        IReadOnlySet<string>? activeCurrencyCodes)
+    {
         var functionalCode = functionalCurrencyCode.Trim().ToUpperInvariant();
         if (!IsValidCurrencyCode(functionalCode))
         {
@@ -295,24 +478,17 @@ public sealed class AccountingPostingService(
         }
 
         var requestedCodes = request.Lines
-            .Select(x => x.TransactionCurrencyCode.Trim().ToUpperInvariant())
+            .Select(line => line.TransactionCurrencyCode.Trim().ToUpperInvariant())
             .Distinct()
             .ToArray();
-
         if (requestedCodes.Any(code => !IsValidCurrencyCode(code)))
             throw new AccountingValidationException("INVALID_CURRENCY", "A transaction currency code is invalid.");
-
-        var configuredCurrencyCount = await db.Currencies.AsNoTracking().CountAsync(cancellationToken);
-        if (configuredCurrencyCount > 0)
+        if (activeCurrencyCodes is not null
+            && requestedCodes.Any(code => !activeCurrencyCodes.Contains(code)))
         {
-            var activeCodes = await db.Currencies.AsNoTracking()
-                .Where(x => x.IsActive && requestedCodes.Contains(x.Code.ToUpper()))
-                .Select(x => x.Code.ToUpper())
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            if (activeCodes.Count != requestedCodes.Length)
-                throw new AccountingValidationException("INVALID_CURRENCY", "A transaction currency is missing or inactive.");
+            throw new AccountingValidationException(
+                "INVALID_CURRENCY",
+                "A transaction currency is missing or inactive.");
         }
 
         foreach (var line in request.Lines)
@@ -342,6 +518,51 @@ public sealed class AccountingPostingService(
             }
         }
     }
+
+    private static JournalEntry BuildJournal(
+        AccountingPostRequest request,
+        FiscalCalendarSelection selection,
+        int? reversalOfJournalEntryId)
+        => new()
+        {
+            CompanyId = request.CompanyId,
+            FiscalYearId = selection.FiscalYear.Id,
+            FiscalPeriodId = selection.FiscalPeriod.Id,
+            JournalNumber = request.JournalNumber.Trim(),
+            Status = JournalEntryStatus.Draft,
+            AccountingDate = request.AccountingDate.Date,
+            DocumentDate = request.DocumentDate.Date,
+            OperationDate = request.OperationDate.Date,
+            Description = NormalizeOptional(request.Description),
+            SourceModule = request.SourceModule.Trim(),
+            SourceEntityType = NormalizeOptional(request.SourceEntityType),
+            SourceEntityId = request.SourceEntityId,
+            SourceEventId = NormalizeOptional(request.SourceEventId),
+            IsOpening = request.IsOpening,
+            IsClosing = request.IsClosing,
+            IsAdjustment = request.IsAdjustment,
+            IsReversal = reversalOfJournalEntryId.HasValue,
+            ReversalOfJournalEntryId = reversalOfJournalEntryId,
+            PostedByUserId = request.PostedByUserId,
+            Lines = request.Lines.Select((line, index) => new JournalEntryLine
+            {
+                LineNumber = index + 1,
+                AccountId = line.AccountId,
+                PartyType = line.PartyType,
+                PartyId = line.PartyId,
+                ContractId = line.ContractId,
+                ShipmentId = line.ShipmentId,
+                TankId = line.TankId,
+                ProductId = line.ProductId,
+                CashAccountId = line.CashAccountId,
+                Debit = line.Debit,
+                Credit = line.Credit,
+                TransactionCurrencyCode = line.TransactionCurrencyCode.Trim().ToUpperInvariant(),
+                TransactionAmount = line.TransactionAmount,
+                ExchangeRate = line.ExchangeRate,
+                Description = NormalizeOptional(line.Description)
+            }).ToList()
+        };
 
     private static bool IsValidCurrencyCode(string code)
         => code.Length is >= 2 and <= 10 && code.All(char.IsLetterOrDigit);

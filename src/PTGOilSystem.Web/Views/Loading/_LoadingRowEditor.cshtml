@@ -111,10 +111,8 @@
         </td>
 
         <td>
+            @* یک کنترل تاریخ به‌جای دکمهٔ آیکون + دکمهٔ متن؛ کلیک روی خودش تقویم را باز می‌کند. *@
             <div data-loading-date-picker>
-                <button type="button" class="loading-octane-date-icon" data-loading-date-open aria-label="انتخاب تاریخ">
-                    <i class="bi bi-calendar3" aria-hidden="true"></i>
-                </button>
                 <input type="hidden"
                        name="@($"{prefix}.LoadingDate")"
                        value="@effectiveLoadingDate.ToHtmlDateInput()"
@@ -166,16 +164,15 @@
                    />
         </td>
 
-        <td class="ak-col-num loading-price-cell">
+        <td class="ak-col-num">
             <input name="@($"{prefix}.LoadingPriceUsd")"
                    value="@(Model.Row.LoadingPriceUsd > 0 ? Model.Row.LoadingPriceUsd.Value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture) : null)"
                    class="ak-input ak-num"
                    data-row-loading-price
                    />
-            <span class="ak-section-desc" data-row-premium-display></span>
         </td>
 
-        <td class="ak-col-num fw-bold loading-value-cell">
+        <td class="ak-col-num fw-bold">
             <span data-row-loading-value>@(Model.Row.LoadingPriceUsd.HasValue ? $"$ {NumberDisplay.Money(loadingValue)}" : "در انتظار نرخ")</span>
         </td>
 
@@ -187,16 +184,16 @@
             <span data-row-frub-amount-text>@(Model.Row.SettlementValueRub.HasValue ? $"₽ {NumberDisplay.Money(Model.Row.SettlementValueRub.Value)}" : "-")</span>
         </td>
 
-        <td class="ak-col-num loading-rub-rate-cell @fxRubCellCss" data-loading-rub-column>
+        <td class="ak-col-num @fxRubCellCss" data-loading-rub-column>
             <input name="@($"{prefix}.RubPerUsdRate")"
                    value="@(Model.Row.RubPerUsdRate > 0 ? Model.Row.RubPerUsdRate.Value.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture) : null)"
                    class="ak-input ak-num"
+                   title="@rubRateNote"
                    data-row-rub-rate
                    />
-            <span class="ak-section-desc" data-row-rub-status-text>@rubRateNote</span>
         </td>
 
-        <td class="ak-col-num fw-bold loading-rub-value-cell @fxRubCellCss" data-loading-rub-column>
+        <td class="ak-col-num fw-bold @fxRubCellCss" data-loading-rub-column>
             <span data-row-rub-value>@rubStatusText</span>
         </td>
 

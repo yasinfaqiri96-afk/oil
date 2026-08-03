@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Globalization;
+using System.Text.Json;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Authorization;
@@ -24,6 +25,29 @@ namespace PTGOilSystem.Web.Tests;
 
 public class LoadingControllerTests
 {
+    // امپورت دیگر View برنمی‌گرداند؛ سطرهای آمادهٔ فرم را به‌صورت JSON می‌دهد.
+    private static LoadingCreateViewModel ImportedModel(IActionResult result)
+    {
+        var json = Assert.IsType<JsonResult>(result);
+        var payload = Assert.IsType<LoadingImportResponse>(json.Value);
+        Assert.True(payload.Success, string.Join(" | ", payload.GlobalErrors));
+
+        return new LoadingCreateViewModel
+        {
+            TransportType = (LoadingTransportType)payload.TransportType,
+            OriginLocationId = payload.OriginLocationId,
+            ProductId = payload.ProductId ?? 0,
+            LoadingDate = DateTime.TryParse(
+                payload.LoadingDate,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var loadingDate)
+                ? loadingDate
+                : default,
+            Rows = payload.Rows.Select(row => row.Row).ToList()
+        };
+    }
+
     [Fact]
     public void Loading_Create_View_Renders_Shared_Ak_Table_Header()
     {
@@ -38,6 +62,30 @@ public class LoadingControllerTests
         Assert.Contains("data-loading-table-head", viewContent);
         Assert.Contains("data-loading-column-reference", viewContent);
         Assert.Contains("data-loading-column-transport", viewContent);
+    }
+
+    [Fact]
+    public void Loading_Create_View_Shows_Save_Progress_Only_After_Client_Validation()
+    {
+        var viewPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "PTGOilSystem.Web", "Views", "Loading", "Create.cshtml"));
+
+        var viewContent = File.ReadAllText(viewPath);
+        var formSubmitStart = viewContent.IndexOf(
+            "loadingForm?.addEventListener('submit'",
+            StringComparison.Ordinal);
+        var documentSubmitStart = viewContent.IndexOf(
+            "document.addEventListener('submit'",
+            formSubmitStart,
+            StringComparison.Ordinal);
+        var formSubmitScript = viewContent[formSubmitStart..documentSubmitStart];
+
+        Assert.DoesNotContain("showOperationStatus(", formSubmitScript);
+        Assert.Contains("if (event.defaultPrevented)", viewContent[documentSubmitStart..]);
+        Assert.Contains("invalid-form.validate", viewContent);
+        Assert.Contains("resetLoadingSubmissionUi();", viewContent);
     }
 
     [Fact]
@@ -60,7 +108,7 @@ public class LoadingControllerTests
         Assert.Contains("canAutofill(priceInput)", viewContent);
         Assert.Contains("priceInput.value = formatInputNumber(suggestedLoadingPrice)", viewContent);
         Assert.Contains("setAutofilled(priceInput, true)", viewContent);
-        Assert.Contains("data-row-premium-display", rowViewContent);
+        Assert.DoesNotContain("data-row-premium-display", rowViewContent);
     }
 
     [Fact]
@@ -157,7 +205,6 @@ public class LoadingControllerTests
         Assert.Contains("data-loading-product-summary", viewContent);
         Assert.Contains("data-contract-product-id", viewContent);
         Assert.DoesNotContain("<select asp-for=\"ProductId\"", viewContent);
-        Assert.Contains("data-loading-table-total", viewContent);
         Assert.Contains("id=\"loadingImportedRowsJson\"", viewContent);
         Assert.Contains("id=\"loadingImportedRowsData\"", viewContent);
         Assert.Contains("data-loading-operation-status", viewContent);
@@ -208,9 +255,12 @@ public class LoadingControllerTests
 
         var viewContent = File.ReadAllText(viewPath);
 
-        Assert.Contains("data-summary-quantity", viewContent);
-        Assert.Contains("data-summary-value", viewContent);
-        Assert.Contains("data-summary-expense", viewContent);
+        // خلاصه از کامپوننت مشترک کارت آماری ساخته می‌شود و مقدارهایش زنده به‌روز می‌شود.
+        Assert.Contains("ak-stat-grid", viewContent);
+        Assert.Contains("<vc:stat-card", viewContent);
+        Assert.Contains("lic-stat-quantity", viewContent);
+        Assert.Contains("lic-stat-value", viewContent);
+        Assert.Contains("lic-stat-expense", viewContent);
         Assert.Contains("updateSummaryTotals", viewContent);
         Assert.DoesNotContain("loading-actions-copy", viewContent);
     }
@@ -230,7 +280,7 @@ public class LoadingControllerTests
         var createView = File.ReadAllText(createViewPath);
         var rowView = File.ReadAllText(rowViewPath);
 
-        Assert.Contains("بارگذاری اکسل", createView);
+        Assert.Contains("امپورت از اکسل", createView);
         Assert.Contains("افزودن سطر", createView);
         Assert.Contains("حذف سطر", rowView);
         Assert.DoesNotContain("Ø§Ù¾Ù„ÙˆØ¯", createView);
@@ -1238,8 +1288,7 @@ public class LoadingControllerTests
             ImportWorkbookFile = BuildWorkbookFile(BuildLoadingWorkbookBytes())
         });
 
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<LoadingCreateViewModel>(view.Model);
+        var model = ImportedModel(result);
 
         Assert.Equal(LoadingTransportType.Wagon, model.TransportType);
         Assert.Equal(2, model.Rows.Count);
@@ -1259,6 +1308,93 @@ public class LoadingControllerTests
         Assert.Null(model.Rows[0].SettlementValueRub);
         Assert.Null(model.Rows[1].SettlementUnitPriceRub);
         Assert.Null(model.Rows[1].SettlementValueRub);
+    }
+
+    // سطر ناقص حذف نمی‌شود؛ وارد فرم می‌شود و خطایش با شمارهٔ واقعی سطر اکسل، نام شیت و
+    // نام ستون واقعی برمی‌گردد تا زیر همان فیلد نشان داده شود.
+    [Fact]
+    public async Task ImportWorkbook_ReportsFieldIssue_WithRealExcelRowAndColumn()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        db.Products.Add(new Product { Id = 1, Code = "LPG", Name = "LPG" });
+        db.Companies.Add(new Company { Id = 1, Code = "PTG", Name = "Petro Trade Group" });
+        db.Contracts.Add(new Contract
+        {
+            Id = 1,
+            ContractNumber = "PUR-LPG-ISSUE",
+            ContractType = ContractType.Purchase,
+            ProductId = 1,
+            CompanyId = 1,
+            ContractDate = new DateTime(2026, 4, 23),
+            QuantityMt = 1000m
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new LoadingController(
+            db,
+            new AuditService(db),
+            NullLogger<LoadingController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        var result = await controller.ImportWorkbook(new LoadingCreateViewModel
+        {
+            ContractId = 1,
+            ProductId = 1,
+            ImportWorkbookFile = BuildWorkbookFile(BuildWagonWorkbookWithMissingQuantityBytes())
+        });
+
+        var payload = Assert.IsType<LoadingImportResponse>(Assert.IsType<JsonResult>(result).Value);
+
+        Assert.True(payload.Success);
+        Assert.Equal(2, payload.TotalRows);
+        Assert.Equal(1, payload.ImportedRows);
+        Assert.Equal(1, payload.InvalidRows);
+        Assert.Empty(payload.Rows[0].Issues);
+        Assert.Equal(5, payload.Rows[0].ExcelRowNumber);
+
+        var invalid = payload.Rows[1];
+        Assert.Equal(6, invalid.ExcelRowNumber);
+        Assert.Equal("January", invalid.SheetName);
+        var issue = Assert.Single(invalid.Issues);
+        Assert.Equal("loadedQuantityMt", issue.Field);
+        Assert.Equal("Loaded quantity (MT)", issue.Column);
+        Assert.Contains("مقدار بارگیری", issue.Message);
+    }
+
+    // فایل بدون ستون‌های ضروری هیچ سطری وارد نمی‌کند و پیام باید ستون و شیت را نام ببرد.
+    [Fact]
+    public async Task ImportWorkbook_Rejects_Workbook_With_A_Clear_Message()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        var controller = new LoadingController(
+            db,
+            new AuditService(db),
+            NullLogger<LoadingController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        var result = await controller.ImportWorkbook(new LoadingCreateViewModel
+        {
+            ImportWorkbookFile = BuildWorkbookFile(BuildUnknownStructureWorkbookBytes())
+        });
+
+        var payload = Assert.IsType<LoadingImportResponse>(Assert.IsType<JsonResult>(result).Value);
+
+        Assert.False(payload.Success);
+        Assert.Empty(payload.Rows);
+        Assert.NotEmpty(payload.GlobalErrors);
+        Assert.Contains("قابل امپورت نیست", payload.GlobalErrors[0]);
     }
 
     [Fact]
@@ -1298,8 +1434,7 @@ public class LoadingControllerTests
             ImportWorkbookFile = BuildWorkbookFile(BuildSolvexRubWorkbookBytes())
         });
 
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<LoadingCreateViewModel>(view.Model);
+        var model = ImportedModel(result);
 
         Assert.Equal(LoadingTransportType.Wagon, model.TransportType);
         Assert.Single(model.Rows);
@@ -1307,6 +1442,58 @@ public class LoadingControllerTests
         Assert.Equal(931.39m, model.Rows[0].LoadingPriceUsd);
         Assert.Equal(41464.11m, model.Rows[0].SettlementUnitPriceRub);
         Assert.Equal(405618509.664m, model.Rows[0].SettlementValueRub);
+    }
+
+    [Fact]
+    public async Task ImportWorkbook_UsesConsistentSheetUsdPrice_WhenFirstRubRowFormulaIsBroken()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        db.Products.Add(new Product { Id = 1, Code = "GAS", Name = "Gasoline" });
+        db.Companies.Add(new Company { Id = 1, Code = "PTG", Name = "Petro Trade Group" });
+        db.Contracts.Add(new Contract
+        {
+            Id = 1,
+            ContractNumber = "PUR-SOLVEX-RUB",
+            ContractType = ContractType.Purchase,
+            ProductId = 1,
+            CompanyId = 1,
+            ContractDate = new DateTime(2026, 3, 1),
+            QuantityMt = 10000m,
+            SettlementCurrencyCode = "RUB",
+            RubRatePolicy = RubSettlementRatePolicy.PerLoadingRate
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new LoadingController(
+            db,
+            new AuditService(db),
+            NullLogger<LoadingController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        var result = await controller.ImportWorkbook(new LoadingCreateViewModel
+        {
+            ContractId = 1,
+            ProductId = 1,
+            ImportWorkbookFile = BuildWorkbookFile(BuildSolvexRubWorkbookBytes(includeBrokenLeadingUsdPrice: true))
+        });
+
+        var payload = Assert.IsType<LoadingImportResponse>(Assert.IsType<JsonResult>(result).Value);
+        var firstRow = payload.Rows[0].Row;
+
+        Assert.True(payload.Success);
+        Assert.Equal(2, payload.TotalRows);
+        Assert.Empty(payload.Rows[0].Issues);
+        Assert.Equal(931.39m, firstRow.LoadingPriceUsd);
+        Assert.Equal(41464.11m, firstRow.SettlementUnitPriceRub);
+        Assert.Equal(44.518526m, firstRow.RubPerUsdRate);
+        Assert.Equal(RubSettlementRateStatus.Locked, firstRow.RubRateStatus);
+        Assert.Equal("Loading file", firstRow.RubRateSource);
     }
 
     [Fact]
@@ -1346,8 +1533,7 @@ public class LoadingControllerTests
             ImportWorkbookFile = BuildWorkbookFile(BuildSolvexRubRateOnlyWorkbookBytes())
         });
 
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<LoadingCreateViewModel>(view.Model);
+        var model = ImportedModel(result);
 
         Assert.Single(model.Rows);
         Assert.Equal(41464.11m, model.Rows[0].SettlementUnitPriceRub);
@@ -1393,8 +1579,7 @@ public class LoadingControllerTests
             ImportWorkbookFile = BuildWorkbookFile(BuildGeroyRossiStyleWorkbookBytes())
         });
 
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<LoadingCreateViewModel>(view.Model);
+        var model = ImportedModel(result);
 
         Assert.True(controller.ModelState.IsValid);
         Assert.Equal(LoadingTransportType.Wagon, model.TransportType);
@@ -1452,8 +1637,7 @@ public class LoadingControllerTests
             ImportWorkbookFile = BuildWorkbookFile(BuildTruckLoadingWorkbookBytes())
         });
 
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<LoadingCreateViewModel>(view.Model);
+        var model = ImportedModel(result);
 
         Assert.Equal(LoadingTransportType.Truck, model.TransportType);
         Assert.Equal(1, model.OriginLocationId);
@@ -1518,9 +1702,10 @@ public class LoadingControllerTests
             ImportWorkbookFile = BuildWorkbookFile(BuildTruckLoadingWorkbookBytes())
         });
 
-        var importView = Assert.IsType<ViewResult>(importResult);
-        var importedModel = Assert.IsType<LoadingCreateViewModel>(importView.Model);
-        importedModel.ImportWorkbookFile = null;
+        // مرورگر مقادیر خود فرم را نگه می‌دارد و فقط سطرها از فایل می‌آیند.
+        var importedModel = ImportedModel(importResult);
+        importedModel.ContractId = 1;
+        importedModel.ProductId = 1;
         importedModel.RecordFreight = true;
 
         var saveResult = await controller.Create(importedModel);
@@ -1992,6 +2177,70 @@ public class LoadingControllerTests
         Assert.Equal("April batch", loadings[0].Notes);
 
         Assert.Equal(2, await db.AuditLogs.CountAsync());
+    }
+
+    [Fact]
+    public async Task Create_Post_Compact_Import_Persists_All_234_Loadings()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        db.Products.Add(new Product { Id = 1, Code = "GO", Name = "Gas Oil", IsActive = true });
+        db.Companies.Add(new Company { Id = 1, Code = "PTG", Name = "Petro Trade Group", IsActive = true });
+        db.Contracts.Add(new Contract
+        {
+            Id = 1,
+            ContractNumber = "PUR-234",
+            ContractType = ContractType.Purchase,
+            ProductId = 1,
+            CompanyId = 1,
+            ContractDate = new DateTime(2026, 4, 23),
+            QuantityMt = 1_000m
+        });
+        db.Locations.Add(new PTGOilSystem.Web.Models.Entities.Location
+        {
+            Id = 1,
+            Name = "BNK",
+            Kind = "Origin"
+        });
+        await db.SaveChangesAsync();
+
+        var rows = Enumerable.Range(1, 234)
+            .Select(index => new LoadingCreateRowViewModel
+            {
+                RowKey = $"xls_{index}",
+                LoadingDate = new DateTime(2026, 4, 23),
+                WagonNumber = $"WGN-{index:000}",
+                BillOfLadingNumber = $"RWB-{index:000}",
+                LoadedQuantityMt = 1m,
+                LoadingPriceUsd = 500m
+            })
+            .ToList();
+        var controller = new LoadingController(
+            db,
+            new AuditService(db),
+            NullLogger<LoadingController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        var result = await controller.Create(new LoadingCreateViewModel
+        {
+            ContractId = 1,
+            ProductId = 1,
+            OriginLocationId = 1,
+            TransportType = LoadingTransportType.Wagon,
+            ImportedRowsJson = JsonSerializer.Serialize(
+                rows,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web))
+        });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal(234, await db.LoadingRegisters.CountAsync());
+        Assert.Equal(234, await db.AuditLogs.CountAsync());
     }
 
     [Fact]
@@ -2475,7 +2724,7 @@ public class LoadingControllerTests
             AppContext.BaseDirectory,
             "..", "..", "..", "..", "..",
             "src", "PTGOilSystem.Web", "Views", "Loading", "Create.cshtml")));
-        Assert.Contains("data-summary-rub-value", createView);
+        Assert.Contains("lic-stat-rub", createView);
         Assert.Contains("در انتظار نرخ", createView);
         Assert.DoesNotContain("₽ 0.00", createView);
     }
@@ -3103,7 +3352,84 @@ public class LoadingControllerTests
         return stream.ToArray();
     }
 
-    private static byte[] BuildSolvexRubWorkbookBytes()
+    private static byte[] BuildUnknownStructureWorkbookBytes()
+    {
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, DocumentFormat.OpenXml.SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData(
+                BuildTextRow(1, ("A", "Something"), ("B", "Else")),
+                BuildTextRow(2, ("A", "value"), ("B", "other")));
+
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "January"
+            });
+
+            workbookPart.Workbook.Save();
+        }
+
+        return stream.ToArray();
+    }
+
+    // شیت واگن با یک ردیف بدون «مقدار بارگیری» تا مسیر خطای سطری آزمایش شود.
+    private static byte[] BuildWagonWorkbookWithMissingQuantityBytes()
+    {
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, DocumentFormat.OpenXml.SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData(
+                BuildTextRow(4,
+                    ("A", "No"),
+                    ("B", "date"),
+                    ("C", "RWB NO"),
+                    ("D", "Wagon No"),
+                    ("E", "Loaded quantity (MT)"),
+                    ("G", "Loading price")),
+                BuildMixedRow(5,
+                    ("A", 1m),
+                    ("B", "11/25/2022"),
+                    ("C", "74207656"),
+                    ("D", "67-50825769"),
+                    ("E", 35.88m),
+                    ("G", 468.06m)),
+                BuildMixedRow(6,
+                    ("A", 2m),
+                    ("B", "11/25/2022"),
+                    ("C", "74207657"),
+                    ("D", "67-57877854"),
+                    ("G", 468.06m)));
+
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "January"
+            });
+
+            workbookPart.Workbook.Save();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static byte[] BuildSolvexRubWorkbookBytes(bool includeBrokenLeadingUsdPrice = false)
     {
         using var stream = new MemoryStream();
         using (var document = SpreadsheetDocument.Create(stream, DocumentFormat.OpenXml.SpreadsheetDocumentType.Workbook, true))
@@ -3122,8 +3448,23 @@ public class LoadingControllerTests
                     ("E", "Loaded quantity (MT)"),
                     ("F", "Loading price"),
                     ("G", "Rub Price"),
-                    ("H", "Total RUB")),
-                BuildMixedRow(5,
+                    ("H", "Total RUB")));
+
+            if (includeBrokenLeadingUsdPrice)
+            {
+                sheetData.Append(BuildMixedRow(5,
+                    ("A", 1m),
+                    ("B", "3/15/2026"),
+                    ("C", "74300000"),
+                    ("D", "67-50000000"),
+                    ("E", 53.35m),
+                    ("F", "#REF!"),
+                    ("G", 41464.11m),
+                    ("H", 2212110.2685m)));
+            }
+
+            var validRowIndex = includeBrokenLeadingUsdPrice ? 6U : 5U;
+            sheetData.Append(BuildMixedRow(validRowIndex,
                     ("A", 1m),
                     ("B", "3/15/2026"),
                     ("C", "74300001"),

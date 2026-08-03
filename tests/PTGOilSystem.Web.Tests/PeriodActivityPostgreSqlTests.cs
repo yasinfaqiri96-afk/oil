@@ -11,6 +11,8 @@ namespace PTGOilSystem.Web.Tests;
 /// هم پارامتر تاریخ به دیتابیس فرستاده می‌شود، پس همین seedِ کمینه برای پوششِ همهٔ کوئری‌ها کافی است.
 /// </summary>
 [Collection(AccountingPostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class PeriodActivityPostgreSqlTests(AccountingPostgreSqlFixture fixture)
 {
     [Fact]

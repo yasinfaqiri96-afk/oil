@@ -16,6 +16,8 @@
                                                      (max 3 facts joined with "·").
       - ViewData["AkHeaderKebab"]       : IReadOnlyList<AkHeaderMenuItem>
                                           -> kebab menu for secondary/destructive actions.
+      - ViewData["AkHeaderCompanionAction"] : AkHeaderMenuItem
+                                          -> optional visible link beside the primary action.
 *@
 @model (string Title, bool Star, string? ActionLabel, string? ActionIcon, string? ActionHref, string? ActionModalTarget, string? SecondaryLabel, string? SecondaryIcon, string? SecondaryHref)
 @{
@@ -49,6 +51,9 @@
     var kebabItems = (ViewData["AkHeaderKebab"] as IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>)
         ?.Where(item => item.IsRenderable)
         .ToList() ?? new List<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>();
+    var companionAction = ViewData["AkHeaderCompanionAction"] as PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem;
+    var hasCompanionAction = companionAction is { IsRenderable: true }
+        && string.IsNullOrWhiteSpace(companionAction.PostUrl);
     if (primaryIsEdit)
     {
         kebabItems.Add(new PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem
@@ -87,7 +92,7 @@
             <p class="ak-detail-subtitle" id="@contextId">@contextLine</p>
         }
     </div>
-    @if (hasPrimary || hasSecondary || hasKebab)
+    @if (hasPrimary || hasSecondary || hasCompanionAction || hasKebab)
     {
         <div class="ak-page-actions@(isDetailPage ? " ak-detail-actions" : string.Empty)" role="group"
              aria-label="@UiText.T(Context, "عملیات صفحه", "Page actions")">
@@ -96,6 +101,16 @@
                 <a href="@Model.SecondaryHref" class="btn btn-light ak-secondary-action">
                     <i class="bi @secIcon" aria-hidden="true"></i>
                     <span>@Model.SecondaryLabel</span>
+                </a>
+            }
+            @if (hasCompanionAction)
+            {
+                <a href="@companionAction!.Href" class="btn btn-light ak-secondary-action">
+                    @if (!string.IsNullOrWhiteSpace(companionAction.Icon))
+                    {
+                        <i class="bi @companionAction.Icon" aria-hidden="true"></i>
+                    }
+                    <span>@companionAction.Label</span>
                 </a>
             }
             @if (hasPrimary)

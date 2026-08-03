@@ -19,7 +19,8 @@
         : bal < 0
             ? UiText.T(Context, "پیش‌پرداخت / طلب ما", "Prepaid / they owe us")
             : UiText.T(Context, "حساب تسویه است", "Settled"));
-    var balanceClass = bal > 0 ? "ak-num" : bal < 0 ? "ak-num" : "";
+    // tone فقط جهت مالی را نشان می‌دهد: بدهی شرکت سرخ، طلب شرکت سبز، تسویه خنثی.
+    var balanceTone = bal > 0 ? "danger" : bal < 0 ? "success" : null;
 
 
     var spPaymentUrl = Url.Action("Create", "Payments", new { serviceProviderId = Model.Id, returnUrl = spReturnUrl }) ?? "#";
@@ -51,6 +52,45 @@
         $"statement|{UiText.T(Context, "صورت‌حساب", "Statement")}|bi-journal-text|{(showStatement ? "active" : "")}",
         $"documents|{UiText.T(Context, "مصارف و پرداخت‌ها", "Expenses & Payments")}|bi-folder2-open|{(showDocuments ? "active" : "")}"
     };
+
+    // کارت وضعیت حساب تب خلاصه. چیدمان نمایشی روی همان اعداد مدل؛ درصد تسویه یک
+    // نسبت نمایشی از دو رقمِ همین کارت است و هیچ مبلغی دوباره محاسبه نمی‌شود.
+    int? providerPaidShare = Model.TotalExpensesUsd > 0m
+        ? (int)Math.Clamp(Math.Round(Model.TotalPaymentsUsd / Model.TotalExpensesUsd * 100m, MidpointRounding.AwayFromZero), 0m, 100m)
+        : null;
+
+    var providerAccountCard = new AkPartyAccountCard
+    {
+        Title = UiText.T(Context, "وضعیت حساب", "Account status"),
+        BalanceLabel = UiText.T(Context, "مانده حساب", "Balance"),
+        BalanceValue = NumberDisplay.Money(Math.Abs(bal), "USD"),
+        Meaning = balanceLabel,
+        MeaningTone = balanceTone,
+        Metrics = new List<AkPartyMetric>
+        {
+            new()
+            {
+                Label = UiText.T(Context, "کل مصارف", "Total expenses"),
+                Value = NumberDisplay.Money(Model.TotalExpensesUsd, "USD")
+            },
+            new()
+            {
+                Label = UiText.T(Context, "پرداخت‌شده", "Total paid"),
+                Value = NumberDisplay.Money(Model.TotalPaymentsUsd, "USD"),
+                Tone = "success"
+            }
+        },
+        SettledPercent = providerPaidShare,
+        SettledCaption = providerPaidShare.HasValue
+            ? UiText.T(Context, $"{providerPaidShare.Value:N0}٪ پرداخت شده", $"{providerPaidShare.Value:N0}% paid")
+            : null,
+        Facts = new List<AkInfoItem>
+        {
+            new() { Label = UiText.T(Context, "قرارداد مرتبط", "Related contracts"), Value = Model.RelatedContracts.Count.ToString("N0"), IsNumeric = true },
+            new() { Label = UiText.T(Context, "سند مصرف", "Expense records"), Value = Model.Expenses.Count.ToString("N0"), IsNumeric = true },
+            new() { Label = UiText.T(Context, "سند پرداخت", "Payment records"), Value = Model.Payments.Count.ToString("N0"), IsNumeric = true }
+        }
+    };
 }
 
 <div class="ak-form-page ak-party-page service-provider-details-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
@@ -61,28 +101,21 @@
 
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@(UiText.T(Context, "بخش‌های پروفایل", "Profile sections"), providerTabs)" />
 
-    <div class="ak-form-grid" hidden="@(!showOverview)">
-        <section class="ak-form-section ak-detail-section">
+    @* ===== تب خلاصه: اول وضعیت حساب (عدد تصمیم‌ساز)، بعد اطلاعات هویتی ===== *@
+    <div class="ak-form-grid ak-overview-grid" hidden="@(!showOverview)">
+        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@providerAccountCard" />
+
+        <section class="ak-form-section ak-detail-section ak-party-identity">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "اطلاعات هویتی", "Identity"), (string?)null))" />
-            <dl class="ak-list">
+            <dl class="ak-list ak-list--flush ak-identity-list">
                 <div class="ak-list-row"><dt>@UiText.T(Context, "کد", "Code")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)</dd></div>
                 <div class="ak-list-row"><dt>@UiText.T(Context, "نوع خدمت", "Type")</dt><dd>@providerTypeName</dd></div>
                 <div class="ak-list-row"><dt>@UiText.T(Context, "کشور / شهر", "Country / City")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Country) && string.IsNullOrWhiteSpace(Model.City) ? notRecorded : $"{Model.Country} {Model.City}".Trim())</dd></div>
                 <div class="ak-list-row"><dt>@UiText.T(Context, "تلفن", "Phone")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Phone) ? notRecorded : Model.Phone)</dd></div>
                 <div class="ak-list-row"><dt>@UiText.T(Context, "ایمیل", "Email")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Email) ? notRecorded : Model.Email)</dd></div>
-                <div class="ak-list-row"><dt>@UiText.T(Context, "آدرس", "Address")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
+                <div class="ak-list-row is-wide"><dt>@UiText.T(Context, "آدرس", "Address")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
                 <div class="ak-list-row"><dt>@UiText.T(Context, "نمبر مالیاتی", "Tax No.")</dt><dd>@(string.IsNullOrWhiteSpace(Model.TaxNumber) ? notRecorded : Model.TaxNumber)</dd></div>
-                <div class="ak-list-row"><dt>@UiText.T(Context, "یادداشت", "Notes")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
-            </dl>
-        </section>
-
-        <section class="ak-form-section ak-detail-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "وضعیت حساب", "Account status"), balanceLabel))" />
-            <dl class="ak-list">
-                <div class="ak-list-row"><dt>@UiText.T(Context, "مانده فعلی", "Current balance")</dt><dd class="ak-num @balanceClass">@Math.Abs(bal).ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>@UiText.T(Context, "کل مصارف / کرایه‌ها", "Total expenses")</dt><dd class="ak-num">@Model.TotalExpensesUsd.ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>@UiText.T(Context, "کل پرداخت‌شده", "Total paid")</dt><dd class="ak-num">@Model.TotalPaymentsUsd.ToString("N2") USD</dd></div>
-                <div class="ak-list-row"><dt>@UiText.T(Context, "قرارداد مرتبط", "Related contracts")</dt><dd class="ak-num">@Model.RelatedContracts.Count.ToString("N0")</dd></div>
+                <div class="ak-list-row is-wide"><dt>@UiText.T(Context, "یادداشت", "Notes")</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
             </dl>
         </section>
     </div>
