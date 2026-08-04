@@ -54,7 +54,8 @@
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><a href="@Model.SarrafSettlementCreateUrl" class="dropdown-item"><i class="bi bi-currency-exchange"></i> @T("تسویه صراف", "Sarraf settlement")</a></li>
-                        <li><a asp-controller="ContractBalanceTransfers" asp-action="Create" asp-route-fromContractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Finance)" class="dropdown-item"><i class="bi bi-arrow-left-right"></i> @T("انتقال مانده", "Transfer balance")</a></li>
+                        @* انتقال مانده تأمین‌کننده اکنون از «مانده قابل انتقال» در جزئیات تأمین‌کننده انجام
+                           می‌شود. مسیر قدیمی قرارداد‌به‌قرارداد فقط‌خواندنی شده و سوابق آن باقی است. *@
                         <li><hr class="dropdown-divider" /></li>
                         <li><a href="@Model.AccountStatementUrl" class="dropdown-item"><i class="bi bi-journal-text"></i> @T("دفتر حساب قرارداد", "Contract statement")</a></li>
                         <li><a asp-controller="ContractBalanceTransfers" asp-action="Index" asp-route-contractId="@Model.ContractId" class="dropdown-item"><i class="bi bi-list-check"></i> @T("انتقالات مانده این قرارداد", "This contract balance transfers")</a></li>

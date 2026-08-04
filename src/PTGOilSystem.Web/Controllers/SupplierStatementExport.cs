@@ -21,7 +21,8 @@ internal static class SupplierStatementExport
         Controller controller,
         string? format,
         PartyStatementResult statement,
-        SupplierContractStatementViewModel grouping)
+        SupplierContractStatementViewModel grouping,
+        bool includeDetails = true)
     {
         var request = controller.Request;
         var currencyLabel = statement.Summary.BaseCurrencyCode;
@@ -45,8 +46,37 @@ internal static class SupplierStatementExport
             return TabularExportSupport.File(controller, format, summary);
         }
 
+        if (!includeDetails)
+        {
+            return TabularExportSupport.File(controller, format, summary);
+        }
+
         var details = BuildDetailsDocument(statement, stem, currencyLabel, filters, isEnglish);
         return TabularExportSupport.File(controller, format, new[] { summary, details });
+    }
+
+    public static IActionResult BuildDetailsOnly(
+        Controller controller,
+        string? format,
+        PartyStatementResult statement)
+    {
+        var currency = statement.Summary.BaseCurrencyCode;
+        var filters = new List<TabularExportFilter>
+        {
+            new("طرف‌حساب", "Party", statement.PartyInfo.Name),
+            new("از تاریخ", "From date", controller.Request.Query["FromDate"].ToString()),
+            new("تا تاریخ", "To date", controller.Request.Query["ToDate"].ToString()),
+            new("ارز", "Currency", currency),
+            new("نوع سند", "Document type", controller.Request.Query["SourceType"].ToString()),
+            new("جستجو", "Search", controller.Request.Query["Search"].ToString())
+        };
+        var document = BuildDetailsDocument(
+            statement,
+            $"Statement_{statement.PartyInfo.Name}",
+            currency,
+            filters,
+            UiText.IsEn(controller.HttpContext));
+        return TabularExportSupport.File(controller, format, document);
     }
 
     internal static TabularExportDocument BuildSummaryDocument(
@@ -75,10 +105,13 @@ internal static class SupplierStatementExport
                 new("محصول", "Product", Width: 16),
                 new("مقدار قرارداد", "Contract MT", TabularExportValueType.Number, 14),
                 new("بارگیری‌شده", "Loaded MT", TabularExportValueType.Number, 14),
-                new("ارزش قرارداد", "Contract value", TabularExportValueType.Number, 16),
-                new(FlowTitle(CompanyFlowTextKey.Receipt, currency, false), FlowTitle(CompanyFlowTextKey.Receipt, currency, true), TabularExportValueType.Number, 15),
-                new(FlowTitle(CompanyFlowTextKey.Outflow, currency, false), FlowTitle(CompanyFlowTextKey.Outflow, currency, true), TabularExportValueType.Number, 15),
-                new(FlowTitle(CompanyFlowTextKey.Balance, currency, false), FlowTitle(CompanyFlowTextKey.Balance, currency, true), TabularExportValueType.Number, 15)
+                new("ارزش قرارداد (USD)", "Contract value (USD)", TabularExportValueType.Number, 16),
+                new("ارزش قطعی", "Confirmed value", TabularExportValueType.Number, 16),
+                new("پرداخت / دریافت", "Payment / receipt", TabularExportValueType.Number, 16),
+                new("تعداد بارگیری", "Loading count", TabularExportValueType.Integer, 13),
+                // مانده بدون علامت + عنوانِ معنا در ستون کنارش — همان چیزی که صفحه و PDF نشان می‌دهند.
+                new("مانده قرارداد", "Contract balance", TabularExportValueType.Number, 15),
+                new("وضعیت مانده", "Balance status", Width: 22)
             ],
             Rows = grouping.Rows.Select(row => new TabularExportRow(
             [
@@ -88,9 +121,11 @@ internal static class SupplierStatementExport
                 TabularExportCell.Number(row.ContractQuantityMt),
                 TabularExportCell.Number(row.LoadedQuantityMt),
                 TabularExportCell.Number(row.ContractValueUsd),
-                TabularExportCell.Number(Money(row.Receipt, row.ReceiptRub)),
-                TabularExportCell.Number(Money(row.Outflow, row.OutflowRub)),
-                TabularExportCell.Number(Money(row.Balance, row.BalanceRub))
+                TabularExportCell.Number(Money(row.ConfirmedValue, row.ConfirmedValueRub)),
+                TabularExportCell.Number(Money(row.SettlementTotal, row.SettlementTotalRub)),
+                TabularExportCell.Integer(row.LoadingCount),
+                TabularExportCell.Number(row.BalanceAbsoluteFor(isRub)),
+                TabularExportCell.Text(row.BalanceTitleFor(isRub, isEnglish))
             ])).ToList(),
             Totals = new TabularExportRow(
             [
@@ -100,9 +135,14 @@ internal static class SupplierStatementExport
                 TabularExportCell.Text(null),
                 TabularExportCell.Text(null),
                 TabularExportCell.Text(null),
-                TabularExportCell.Number(Money(grouping.TotalReceipt, grouping.TotalReceiptRub)),
-                TabularExportCell.Number(Money(grouping.TotalOutflow, grouping.TotalOutflowRub)),
-                TabularExportCell.Number(Money(grouping.ClosingBalance, grouping.ClosingBalanceRub))
+                TabularExportCell.Number(Money(grouping.TotalConfirmedValue, grouping.TotalConfirmedValueRub)),
+                TabularExportCell.Number(Money(grouping.TotalSettlement, grouping.TotalSettlementRub)),
+                TabularExportCell.Integer(grouping.TotalLoadingCount),
+                // جمع دوره ماندهٔ حسابِ طرف است؛ بدون علامت، با معنای مرکزیِ خودش.
+                TabularExportCell.Number(isRub
+                    ? statement.Summary.ClosingBalanceRubAbsolute
+                    : statement.Summary.ClosingBalanceAbsolute),
+                TabularExportCell.Text(statement.Summary.ClosingBalanceMeaningFor(isEnglish))
             ])
         };
     }

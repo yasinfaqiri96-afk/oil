@@ -157,6 +157,7 @@ artifacts/
 /docs/*.zip
 /exel/
 /uploads/
+/db/uploads/
 /manifest.json
 /settings.json
 

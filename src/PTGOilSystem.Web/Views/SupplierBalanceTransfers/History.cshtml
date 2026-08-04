@@ -1,0 +1,106 @@
+@model PTGOilSystem.Web.Models.Suppliers.SupplierBalanceTransferHistoryViewModel
+@using PTGOilSystem.Web.Helpers
+@using PTGOilSystem.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
+@{
+    ViewData["Title"] = "سوابق انتقال";
+    var backUrl = Url.Action("Details", "Suppliers", new { id = Model.SupplierId }) ?? "/Suppliers";
+    var selfUrl = Url.Action("History", new { supplierId = Model.SupplierId });
+    var canManage = (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.ManageData)).Succeeded;
+}
+
+<div class="ak-detail-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"سوابق انتقال — {Model.SupplierName}", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+
+    @if (Model.Rows.Count == 0)
+    {
+        <p class="ak-note">تا حال هیچ انتقالی ثبت نشده است.</p>
+    }
+    else
+    {
+        <p class="ak-note">مجموع انتقال‌های فعال: <strong>@Model.ActiveTotalUsd.ToString("N2") USD</strong></p>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <thead>
+                    <tr>
+                        <th>تاریخ انتقال</th>
+                        <th class="ak-col-grow">قرارداد مقصد</th>
+                        <th class="ak-col-num">مبلغ انتقال</th>
+                        <th class="ak-col-num">نرخ روز</th>
+                        <th class="ak-col-num">ارزش دالری</th>
+                        <th class="ak-col-num">سود / زیان نرخ ارز</th>
+                        <th class="ak-col-num">معادل ارز قرارداد</th>
+                        <th>مرجع</th>
+                        <th>وضعیت</th>
+                        <th class="ak-col-actions"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr class="@(r.IsActive ? "" : "ak-row-muted")">
+                        <td>@r.TransferDate.ToDisplayDate()</td>
+                        <td class="ak-col-grow">
+                            <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@r.ContractId" asp-route-returnUrl="@selfUrl">@r.ContractDisplayLabel</a>
+                            @if (r.Sources.Count > 0)
+                            {
+                                <div class="ak-note">
+                                    منبع:
+                                    @string.Join("، ", r.Sources.Select(s =>
+                                        $"{UiText.LedgerSource(Context, s.SourceType)} ({s.RemainingOriginalAmount:N2} {s.CurrencyCode})"))
+                                </div>
+                            }
+                        </td>
+                        <td class="ak-col-num ak-num">
+                            @r.TransferOriginalAmount.ToString("N2") @r.OriginalCurrencyCode
+                            <div class="ak-note">ارزش تاریخی: @r.HistoricalAmountUsd.ToString("N2") USD</div>
+                        </td>
+                        <td class="ak-col-num ak-num">۱ USD = @NumberDisplay.Number(r.TransferPerUsdRate, 4) @r.OriginalCurrencyCode</td>
+                        <td class="ak-col-num ak-num">@r.TransferValueUsd.ToString("N2")</td>
+                        <td class="ak-col-num ak-num">
+                            @if (r.HasExchangeDifference)
+                            {
+                                <span class="@(r.ExchangeDifferenceUsd < 0 ? "ak-number--negative" : "ak-number--positive")">
+                                    @Math.Abs(r.ExchangeDifferenceUsd).ToString("N2") USD
+                                </span>
+                                <div class="ak-note">@r.ExchangeDifferenceName</div>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td class="ak-col-num ak-num">@r.TransferContractCurrencyAmount.ToString("N2") @r.ContractCurrencyCode</td>
+                        <td>@(string.IsNullOrWhiteSpace(r.ReferenceNumber) ? "—" : r.ReferenceNumber)</td>
+                        <td>
+                            <span class="ak-status @(r.IsActive ? "is-active" : "is-inactive")">@r.StatusName</span>
+                            @if (!r.IsActive && !string.IsNullOrWhiteSpace(r.ReversalReason))
+                            {
+                                <div class="ak-note">@r.ReversalReason</div>
+                            }
+                        </td>
+                        <td class="ak-col-actions">
+                            @if (r.IsActive && canManage)
+                            {
+                                <form asp-action="Reverse" method="post" class="d-inline"
+                                      onsubmit="var v=prompt('دلیل برگشت انتقال را بنویسید:'); if(!v){return false;} this.reason.value=v; return confirm('انتقال برگشت داده شود؟');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@r.Id" />
+                                    <input type="hidden" name="reason" value="" />
+                                    <input type="hidden" name="returnUrl" value="@selfUrl" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">برگشت انتقال</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

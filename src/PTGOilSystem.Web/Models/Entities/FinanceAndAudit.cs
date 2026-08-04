@@ -255,6 +255,14 @@ public class LedgerEntry : BaseEntity
     public decimal? SourceAmount { get; set; }
     [MaxLength(10)] public string? SourceCurrencyCode { get; set; }
     public decimal? AppliedFxRateToUsd { get; set; }
+
+    // نرخِ همان‌طور که کاربر وارد کرده: «۱ دالر = چند واحد ارز منبع» (مثلاً ۷۰).
+    // AppliedFxRateToUsd جهت معکوس همین نرخ است و برای محاسبه به‌کار می‌رود، ولی چون
+    // 1/70 عددِ متناهی نیست، بازسازیِ ۷۰ از روی آن همیشه ۶۹.۹۹۸۶ می‌دهد. این ستون نرخِ
+    // واردشده را بدون معکوس‌سازی نگه می‌دارد تا نمایش و نرخ پیش‌فرض دقیق بماند.
+    // Nullable است: سطرهای Legacy آن را ندارند و نرخشان «تخمینی» علامت می‌خورد.
+    public decimal? AppliedCurrencyPerUsdRate { get; set; }
+
     public DateTime? AppliedFxRateDate { get; set; }
     [MaxLength(500)] public string? AppliedFxRateSource { get; set; }
     [MaxLength(500)] public string Description { get; set; } = "";
@@ -382,6 +390,126 @@ public class SupplierPaymentAllocation : BaseEntity
     [MaxLength(500)] public string? ReversalReason { get; set; }
 
     [MaxLength(150)] public string? CreatedByUserName { get; set; }
+}
+
+public enum SupplierBalanceTransferStatus
+{
+    Active = 1,
+    Reversed = 2
+}
+
+/// <summary>
+/// انتقال «مانده قابل انتقال» تأمین‌کننده به یک قرارداد خرید همان تأمین‌کننده.
+///
+/// این پرداخت جدید نیست و صندوق/بانک را تکان نمی‌دهد؛ فقط طلبِ آزادِ شرکت از تأمین‌کننده را
+/// به یک قرارداد وصل می‌کند. برخلاف SupplierPaymentAllocation به یک PaymentTransaction
+/// وابسته نیست: منبع آن مانده واقعی حساب تأمین‌کننده است، از هر مسیری که ساخته شده باشد
+/// (پرداخت مستقیم، صراف، مانده اول دوره، اصلاح حساب، تسویه سه‌طرفه، اضافه‌پرداخت قرارداد).
+///
+/// مقدار اصلی ارز و نرخ تاریخی گم نمی‌شود: هر انتقال از یک یا چند سطر دفتر تغذیه می‌شود که
+/// در <see cref="Sources"/> ثبت می‌شوند. مانند تخصیص پیش‌پرداخت، سه سطر متوازن می‌سازد:
+///   Credit با ContractId = null  → کاهش مانده قابل انتقال به ارزش تاریخی
+///   Debit  با ContractId = قرارداد → ثبت ارزش روز انتقال روی قرارداد مقصد
+///   سطر سوم فقط هنگام اختلاف دو ارزش: سود/زیان نرخ ارز
+/// بنابراین اثر خالص روی مانده کلی تأمین‌کننده صفر است.
+///
+/// نرخ‌ها و مبالغ هنگام ثبت قفل می‌شوند؛ اصلاح فقط با «برگشت انتقال» انجام می‌شود.
+/// </summary>
+public class SupplierBalanceTransfer : BaseEntity
+{
+    // انتقال یک‌بارهٔ چند قرارداد در یک فورم؛ همهٔ سطرهای یک ثبت این شناسه را مشترک دارند.
+    public Guid BatchId { get; set; }
+
+    public int SupplierId { get; set; }
+    public Supplier? Supplier { get; set; }
+
+    // مالکیت شرکت از قرارداد مقصد گرفته می‌شود (LedgerEntry ستون CompanyId ندارد).
+    public int CompanyId { get; set; }
+    public Company? Company { get; set; }
+
+    public int ContractId { get; set; }
+    public Contract? Contract { get; set; }
+
+    public DateTime TransferDate { get; set; }
+
+    // مقدار اصلی ارز که منتقل می‌شود (مثلاً 2,000,000 RUB).
+    public decimal TransferOriginalAmount { get; set; }
+    [Required, MaxLength(10)] public string OriginalCurrencyCode { get; set; } = "USD";
+
+    // نرخ تاریخیِ وزنیِ سطرهای مصرف‌شده. کنوانسیون سیستم: AmountUsd = AmountOriginal × FxRateToUsd.
+    public decimal HistoricalFxRateToUsd { get; set; } = 1m;
+
+    // همان نرخ تاریخی در جهت مستقیم: «۱ دالر = چند واحد ارز». از snapshot خودِ منابع می‌آید،
+    // نه از معکوس‌کردن HistoricalFxRateToUsd. Nullable است چون منابع Legacy نرخ مستقیم ندارند.
+    public decimal? HistoricalCurrencyPerUsdRate { get; set; }
+
+    // true یعنی نرخ تاریخی از روی مبالغ بازسازی شده (منبع Legacy) و قطعی نیست.
+    public bool HistoricalRateIsEstimated { get; set; }
+
+    // ارزش دفتری تاریخی مصرف‌شده — مبنای کاهش مانده قابل انتقال. هرگز بازارزیابی نمی‌شود.
+    public decimal HistoricalAmountUsd { get; set; }
+
+    // نرخ روز انتقال: «۱ دالر = چند واحد ارز مانده؟» (مثلاً ۱۰۰ برای روبل). برای دالر همیشه ۱.
+    public decimal TransferPerUsdRate { get; set; } = 1m;
+    public decimal TransferFxRateToUsd { get; set; } = 1m;
+
+    // ارزش همان مقدار ارز به دالر با نرخ روز انتقال — مبنای ثبت روی قرارداد مقصد.
+    public decimal TransferValueUsd { get; set; }
+
+    // اختلاف نرخ = ارزش روز انتقال − ارزش تاریخی. مثبت = سود، منفی = زیان.
+    public decimal ExchangeDifferenceUsd { get; set; }
+
+    // همان enum تسویهٔ صراف تا منطق موازی ساخته نشود.
+    public SarrafSettlementDifferenceType ExchangeDifferenceType { get; set; } = SarrafSettlementDifferenceType.None;
+
+    public int? ExchangeDifferenceLedgerEntryId { get; set; }
+    public LedgerEntry? ExchangeDifferenceLedgerEntry { get; set; }
+
+    // ارز قرارداد مقصد و نرخ‌های قفل‌شده.
+    [Required, MaxLength(10)] public string ContractCurrencyCode { get; set; } = "USD";
+    public decimal ContractCurrencyPerUsdRate { get; set; } = 1m;
+    public decimal ContractCurrencyFxRateToUsd { get; set; } = 1m;
+    public decimal TransferContractCurrencyAmount { get; set; }
+
+    [MaxLength(200)] public string? ReferenceNumber { get; set; }
+    [MaxLength(1000)] public string? Notes { get; set; }
+
+    public SupplierBalanceTransferStatus Status { get; set; } = SupplierBalanceTransferStatus.Active;
+
+    public DateTime? ReversedAtUtc { get; set; }
+    [MaxLength(150)] public string? ReversedByUserName { get; set; }
+    [MaxLength(500)] public string? ReversalReason { get; set; }
+
+    [MaxLength(150)] public string? CreatedByUserName { get; set; }
+
+    public ICollection<SupplierBalanceTransferSource> Sources { get; set; }
+        = new List<SupplierBalanceTransferSource>();
+}
+
+/// <summary>
+/// ردیابی منبع: هر انتقال از کدام سطرهای دفتر تأمین‌کننده و با کدام نرخ تاریخی تغذیه شده است.
+/// ترتیب مصرف FIFO است (قدیمی‌ترین پول اول مصرف می‌شود)، بنابراین آنچه باقی می‌ماند تازه‌ترین
+/// پولِ مصرف‌نشده است. این سطرها فقط سند ردیابی‌اند و هیچ اثر مالی مستقلی ندارند.
+/// </summary>
+public class SupplierBalanceTransferSource : BaseEntity
+{
+    public int SupplierBalanceTransferId { get; set; }
+    public SupplierBalanceTransfer? SupplierBalanceTransfer { get; set; }
+
+    [Required, MaxLength(50)] public string SourceType { get; set; } = "";
+    public int SourceId { get; set; }
+    public int? LedgerEntryId { get; set; }
+    public DateTime SourceDate { get; set; }
+
+    public decimal ConsumedOriginalAmount { get; set; }
+    [Required, MaxLength(10)] public string OriginalCurrencyCode { get; set; } = "USD";
+    public decimal HistoricalFxRateToUsd { get; set; } = 1m;
+
+    // snapshot نرخ مستقیم همین منبع. هنگام ثبت انتقال، ارزش تاریخی هر منبع با نرخ خودش
+    // مصرف می‌شود؛ این ستون همان نرخ را برای ردیابی و برگشت قفل می‌کند.
+    public decimal? HistoricalCurrencyPerUsdRate { get; set; }
+
+    public decimal ConsumedBookAmountUsd { get; set; }
 }
 
 public enum CustomerPaymentAllocationStatus

@@ -54,4 +54,31 @@
             });
         });
     });
+
+    // صفحه‌بندی داخل محتوای lazy نیز بدون بستن گروه، همان slot را تازه می‌کند.
+    document.addEventListener("click", function (event) {
+        var button = event.target.closest("[data-statement-details-page]");
+        if (!button) {
+            return;
+        }
+        var slot = button.closest("[data-details-slot]");
+        var url = button.getAttribute("data-statement-details-page");
+        if (!slot || !url) {
+            return;
+        }
+        slot.innerHTML = "<div class='statement-details-loading'>در حال بارگذاری…</div>";
+        fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("HTTP " + response.status);
+                }
+                return response.text();
+            })
+            .then(function (html) {
+                slot.innerHTML = html;
+            })
+            .catch(function () {
+                slot.innerHTML = "<div class='statement-details-loading'>بارگذاری جزئیات ناموفق بود.</div>";
+            });
+    });
 })();

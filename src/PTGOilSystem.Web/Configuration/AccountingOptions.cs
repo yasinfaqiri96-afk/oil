@@ -15,6 +15,10 @@ public sealed class AccountingPilotOptions
     public bool ContractBalanceTransfer { get; set; }
     public bool SupplierPaymentAllocation { get; set; }
 
+    // انتقال «مانده قابل انتقال» تأمین‌کننده. هنوز Adapter ژورنال ندارد؛ روشن‌کردن این فلگ
+    // عمداً ثبت انتقال را متوقف می‌کند تا سطر Legacy بدون سند ژورنال ثبت نشود.
+    public bool SupplierBalanceTransfer { get; set; }
+
     // Stage 4 — receipts and payments. Each cash sub-module owns an independent flag so a
     // single mapping can be piloted without exposing the others.
     public bool CustomerReceipt { get; set; }

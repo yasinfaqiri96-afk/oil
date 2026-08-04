@@ -158,19 +158,25 @@
         </section>
     </div>
 
-    @* ===== تب ۱: قراردادها + پرداخت‌ها ===== *@
-    <section id="supplier-contracts" class="ak-form-section ak-detail-section" hidden="@(!showContracts)">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("قراردادهای خرید", $"{Model.Contracts.Count:N0} قرارداد")) " />
-        @{
-            // گروه‌بندی پرداخت‌ها فقط نمایشی است؛ هیچ مبلغی دوباره محاسبه نمی‌شود.
-            var payByContract = Model.PaymentLines
-                .Where(p => !string.IsNullOrWhiteSpace(p.ContractNumber))
-                .GroupBy(p => p.ContractNumber!)
-                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
-            var unallocatedPayments = Model.PaymentLines
-                .Where(p => string.IsNullOrWhiteSpace(p.ContractNumber))
-                .ToList();
-        }
+    @* ===== تب ۱: قراردادها + پرداخت‌ها =====
+       هر موضوع پنل مستقل خودش را دارد تا سکشن‌ها روی هم نریزند؛ گرید تک‌ستونی
+       همان ریتم تب خلاصه است. فقط چیدمان است: داده و رفتار تغییر نمی‌کند. *@
+    @{
+        var transferable = ViewData["SupplierTransferableBalance"]
+            as PTGOilSystem.Web.Models.Suppliers.SupplierTransferableBalanceCardViewModel;
+
+        // گروه‌بندی پرداخت‌ها فقط نمایشی است؛ هیچ مبلغی دوباره محاسبه نمی‌شود.
+        var payByContract = Model.PaymentLines
+            .Where(p => !string.IsNullOrWhiteSpace(p.ContractNumber))
+            .GroupBy(p => p.ContractNumber!)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+        var unallocatedPayments = Model.PaymentLines
+            .Where(p => string.IsNullOrWhiteSpace(p.ContractNumber))
+            .ToList();
+    }
+    <div class="ak-form-grid ak-party-tab-grid" hidden="@(!showContracts)">
+    <section id="supplier-contracts" class="ak-form-section ak-detail-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("قراردادهای خرید", $"{Model.Contracts.Count:N0} قرارداد"))" />
         <div class="ak-table-wrap">
             <table class="ak-table ak-detail-table">
                 <thead>
@@ -190,7 +196,6 @@
                 @foreach (var c in Model.Contracts)
                 {
                     var cps = payByContract.TryGetValue(c.ContractNumber, out var _cl) ? _cl : new();
-                    var balClass = c.LoadedValueBalanceUsd > 0 ? "ak-num" : c.LoadedValueBalanceUsd < 0 ? "ak-num" : "";
                     <tr>
                         <td class="ak-col-grow">
                             @if (cps.Any())
@@ -206,19 +211,30 @@
                             }
                         </td>
                         <td>@c.Product</td>
-                        <td class="ak-col-num ak-num">@AkUnit.Quantity(c.QuantityMt, "MT")</td>
-                        <td class="ak-col-num ak-num">@AkUnit.Quantity(c.LoadedQuantityMt, "MT")</td>
+                        @* واحد MT در هدر ستون آمده؛ تکرار آن روی هر رقم فقط ردیف را شلوغ می‌کند. *@
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(c.QuantityMt)</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(c.LoadedQuantityMt)</td>
                         @if (isRubView)
                         {
                             <td class="ak-col-num ak-num">@RubText(c.LoadedValueRub, c.LoadedValueRubIsEstimated)</td>
                             <td class="ak-col-num ak-num">@RubText(c.PaidRub, false)</td>
-                            <td class="ak-col-num ak-num @balClass">@RubText(c.LoadedValueBalanceRub, c.LoadedValueRubIsEstimated)</td>
+                            @* مانده بدون علامت؛ جهت در عنوان می‌آید — همان متنِ صورت‌حساب، PDF و Excel. *@
+                            <td class="ak-col-num ak-num">
+                                @RubText(c.BalanceAbsoluteFor(true), c.LoadedValueRubIsEstimated)
+                                @if (c.BalanceTitleFor(true) is { } rubBalanceTitle)
+                                {
+                                    <span class="ak-cell-note">@rubBalanceTitle</span>
+                                }
+                            </td>
                         }
                         else
                         {
                             <td class="ak-col-num ak-num">@AkUnit.Money(c.LoadedValueUsd, "USD")</td>
                             <td class="ak-col-num ak-num">@AkUnit.Money(c.PaidUsd, "USD")</td>
-                            <td class="ak-col-num ak-num @balClass">@AkUnit.Money(c.LoadedValueBalanceUsd, "USD")</td>
+                            <td class="ak-col-num ak-num">
+                                @AkUnit.Money(c.BalanceAbsoluteFor(false) ?? 0m, "USD")
+                                <span class="ak-cell-note">@c.BalanceTitleFor(false)</span>
+                            </td>
                         }
                         <td><span class="ak-status">@c.StatusName</span></td>
                         <td class="ak-col-actions">
@@ -237,12 +253,21 @@
                     {
                         foreach (var p in cps)
                         {
+                            @* ردیف پرداخت زیرمجموعهٔ همان قرارداد است: سلول‌ها با ستون‌های هدر
+                               هم‌تراز می‌مانند و رقم USD دقیقاً زیر ستون «پرداخت‌شده» می‌نشیند.
+                               مبلغ سند در همان سلول به‌عنوان خط دوم حفظ می‌شود. *@
                             <tr class="ak-subrow" data-pay-group="@c.ContractId" hidden>
                                 <td class="ak-col-grow">↳ پرداخت @(p.Method)</td>
                                 <td>@p.Date.ToDisplayDate()</td>
-                                <td class="ak-col-num ak-num" colspan="2">@AkUnit.Money(p.Amount, p.Currency)</td>
-                                <td class="ak-col-num ak-num" colspan="2">@AkUnit.Money(p.AmountUsd, "USD")</td>
-                                <td colspan="2">
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td class="ak-col-num ak-num">
+                                    @AkUnit.Money(p.AmountUsd, "USD")
+                                    <span class="ak-subrow-sub">@AkUnit.Money(p.Amount, p.Currency)</span>
+                                </td>
+                                <td></td>
+                                <td>
                                     @if (p.IsLedgerOnlyViaSarraf)
                                     {
                                         <span>@p.Reference</span>
@@ -268,9 +293,21 @@
                 </tbody>
             </table>
         </div>
+    </section>
 
-        @if (unallocatedPayments.Any())
-        {
+    @* کارت به‌محض وجود هر سطل مانده (شرکت اثبات‌شده یا سطح گروه) رندر می‌شود. شرطِ قبلی
+       مانده‌های سطح گروه را کامل از UI حذف می‌کرد و کاربر پولش را نمی‌دید. *@
+    @if (transferable is not null
+        && (transferable.HasTransferable || transferable.HasAnyPool || transferable.HasUnknownCompany || transferable.ActiveTransferCount > 0))
+    {
+        <section class="ak-form-section ak-detail-section">
+            <partial name="~/Views/Suppliers/_SupplierTransferableBalanceCard.cshtml" model="transferable" />
+        </section>
+    }
+
+    @if (unallocatedPayments.Any())
+    {
+        <section class="ak-form-section ak-detail-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("پیش‌پرداخت آزاد / بدون قرارداد", $"جمع {NumberDisplay.Money(Model.UnallocatedPaymentTotalUsd, "USD")}"))" />
             <div class="ak-table-wrap">
                 <table class="ak-table ak-detail-table">
@@ -306,10 +343,12 @@
                     </tbody>
                 </table>
             </div>
-        }
+        </section>
+    }
 
-        @if (Model.HasAdvances)
-        {
+    @if (Model.HasAdvances)
+    {
+        <section class="ak-form-section ak-detail-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("پیش‌پرداخت تفصیلی", (string?)null))" />
             <dl class="ak-list">
                 <div class="ak-list-row"><dt>مجموع پیش‌پرداخت</dt><dd class="ak-num">@Model.AdvanceTotalUsd.ToString("N2") USD</dd></div>
@@ -344,10 +383,12 @@
                     </table>
                 </div>
             }
-        }
+        </section>
+    }
 
-        @if (Model.SarrafSettlements.Any())
-        {
+    @if (Model.SarrafSettlements.Any())
+    {
+        <section class="ak-form-section ak-detail-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تسویه‌های صراف", (string?)null))" />
             <div class="ak-table-wrap">
                 <table class="ak-table ak-detail-table">
@@ -380,8 +421,9 @@
                     </tbody>
                 </table>
             </div>
-        }
-    </section>
+        </section>
+    }
+    </div>
 
     @* ===== تب ۳: صورت‌حساب ===== *@
     <section id="supplier-statement" class="ak-form-section ak-detail-section" hidden="@(!showStatement)">
@@ -398,23 +440,7 @@
 </div>
 
 @section Scripts {
-    <style>
-        .ak-pay-toggle {
-            border: 0;
-            background: transparent;
-            padding: 0 .35rem;
-            cursor: pointer;
-            color: var(--ak-muted, #6c757d);
-            line-height: 1;
-        }
-        .ak-pay-toggle .bi { transition: transform .15s ease; }
-        .ak-pay-toggle.is-open .bi { transform: rotate(-90deg); }
-        .ak-pay-count {
-            margin-inline-start: .4rem;
-            font-size: .75rem;
-            color: var(--ak-muted, #6c757d);
-        }
-    </style>
+    @* ظاهر ak-pay-toggle / ak-pay-count در 63-party-details.css است. *@
     <script>
         (function () {
             var root = document.getElementById('supplier-contracts');

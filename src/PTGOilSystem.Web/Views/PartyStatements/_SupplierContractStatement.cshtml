@@ -1,17 +1,17 @@
 @model PTGOilSystem.Web.Models.PartyStatements.PartyStatementViewModel
+@using PTGOilSystem.Web.Helpers
 @using PTGOilSystem.Web.Models.PartyStatements
 @{
     var s = Model.Statement;
     var g = Model.ContractGrouping!;
     var isRub = g.IsRub;
-    var isEn = UiText.IsEn(Context);
-
     string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "–";
     string Qty(decimal? value) => value.HasValue ? value.Value.ToString("N3") : "–";
     string BaseAmount(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
 
-    string DetailsUrl(int contractId) => Url.Action("SupplierContractDetails", "PartyStatements", new
+    string DetailsUrl(int contractId) => Url.Action("ContractDetails", "PartyStatements", new
     {
+        partyType = s.Party.PartyType,
         id = s.Party.PartyId,
         contractId,
         FromDate = Context.Request.Query["FromDate"],
@@ -27,20 +27,22 @@
             <tr>
                 <th class="statement-col-no">شماره</th>
                 <th class="statement-col-contract">قرارداد</th>
-                <th title="@s.Policy.ReceiptMeaning(isEn)">@CompanyFlowText.Receipt(Context)</th>
-                <th title="@s.Policy.OutflowMeaning(isEn)">@CompanyFlowText.Outflow(Context)</th>
-                <th>@CompanyFlowText.Balance(Context)</th>
+                <th>مبلغ کل قرارداد (USD)</th>
+                <th>ارزش قطعی</th>
+                <th>پرداخت / دریافت</th>
+                <th>تعداد بارگیری</th>
+                <th>مانده قرارداد</th>
                 <th class="statement-col-actions no-print">جزئیات</th>
             </tr>
         </thead>
         <tbody>
             @if (g.Rows.Count == 0)
             {
-                <tr><td colspan="6" class="statement-empty">در این دوره قراردادی با گردش مالی ثبت نشده است.</td></tr>
+                <tr><td colspan="9" class="statement-empty">در این دوره قراردادی با گردش مالی ثبت نشده است.</td></tr>
             }
             else
             {
-                @foreach (var row in g.Rows)
+                @foreach (var row in g.PagedRows)
                 {
                     <tr class="statement-contract-row">
                         <td class="statement-num">@row.Sequence</td>
@@ -51,9 +53,18 @@
                                 <small class="statement-contract-sub">قرارداد @Qty(row.ContractQuantityMt) MT / بارگیری @Qty(row.LoadedQuantityMt) MT</small>
                             }
                         </td>
-                        <td class="statement-money statement-debit">@BaseAmount(row.Receipt, row.ReceiptRub)</td>
-                        <td class="statement-money statement-credit">@BaseAmount(row.Outflow, row.OutflowRub)</td>
-                        <td class="statement-money statement-balance">@BaseAmount(row.Balance, row.BalanceRub)</td>
+                        <td class="statement-money">@Amount(row.ContractValueUsd)</td>
+                        <td class="statement-money statement-debit">@BaseAmount(row.ConfirmedValue, row.ConfirmedValueRub)</td>
+                        <td class="statement-money statement-credit">@BaseAmount(row.SettlementTotal, row.SettlementTotalRub)</td>
+                        <td class="statement-money">@row.LoadingCount.ToString("N0")</td>
+                        @* مانده بدون علامت؛ جهت در عنوان می‌آید — همان متنِ خلاصهٔ قراردادها، PDF و Excel. *@
+                        <td class="statement-money statement-balance">
+                            @Amount(row.BalanceAbsoluteFor(isRub))
+                            @if (row.BalanceTitleFor(isRub) is { } balanceTitle)
+                            {
+                                <small class="statement-contract-sub">@balanceTitle</small>
+                            }
+                        </td>
                         <td class="statement-col-actions no-print">
                             @if (row.ContractId.HasValue)
                             {
@@ -69,7 +80,7 @@
                     @if (row.ContractId.HasValue)
                     {
                         <tr class="statement-details-row" hidden>
-                            <td colspan="6">
+                            <td colspan="9">
                                 <div class="statement-details-slot" data-details-slot></div>
                             </td>
                         </tr>
@@ -80,11 +91,43 @@
         <tfoot>
             <tr>
                 <th colspan="2">@CompanyFlowText.PeriodTotal(Context)</th>
-                <th class="statement-money statement-debit">@BaseAmount(g.TotalReceipt, g.TotalReceiptRub)</th>
-                <th class="statement-money statement-credit">@BaseAmount(g.TotalOutflow, g.TotalOutflowRub)</th>
-                <th class="statement-money statement-balance">@BaseAmount(g.ClosingBalance, g.ClosingBalanceRub)</th>
+                <th class="statement-money">–</th>
+                <th class="statement-money statement-debit">@BaseAmount(g.TotalConfirmedValue, g.TotalConfirmedValueRub)</th>
+                <th class="statement-money statement-credit">@BaseAmount(g.TotalSettlement, g.TotalSettlementRub)</th>
+                <th class="statement-money">@g.TotalLoadingCount.ToString("N0")</th>
+                @* جمع دوره ماندهٔ حسابِ طرف است، نه ماندهٔ یک قرارداد؛ ولی آن هم بدون علامت
+                   و با معنای خودش نمایش داده می‌شود تا ستون نیمه‌علامت‌دار نماند. *@
+                <th class="statement-money statement-balance">
+                    @Amount(isRub ? s.Summary.ClosingBalanceRubAbsolute : s.Summary.ClosingBalanceAbsolute)
+                    <small class="statement-contract-sub">@s.Summary.ClosingBalanceMeaningFor(UiText.IsEn(Context))</small>
+                </th>
                 <th class="no-print"></th>
             </tr>
         </tfoot>
     </table>
 </div>
+
+@if (g.TotalPages > 1)
+{
+    <nav class="statement-pagination no-print" aria-label="صفحه‌بندی قراردادها">
+        @for (var pageNumber = 1; pageNumber <= g.TotalPages; pageNumber++)
+        {
+            var href = Url.Action("Document", "PartyStatements", new
+            {
+                partyType = s.Party.PartyType,
+                id = s.Party.PartyId,
+                view = Model.SupplierView,
+                FromDate = Context.Request.Query["FromDate"],
+                ToDate = Context.Request.Query["ToDate"],
+                ContractId = Context.Request.Query["ContractId"],
+                CompanyId = Context.Request.Query["CompanyId"],
+                CurrencyCode = Context.Request.Query["CurrencyCode"],
+                SourceType = Context.Request.Query["SourceType"],
+                Search = Context.Request.Query["Search"],
+                PageSize = g.PageSize,
+                Page = pageNumber
+            });
+            <a href="@href" class="@(pageNumber == g.CurrentPage ? "is-active" : null)" aria-current="@(pageNumber == g.CurrentPage ? "page" : null)">@pageNumber</a>
+        }
+    </nav>
+}

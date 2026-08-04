@@ -45,7 +45,9 @@ internal sealed class PartyStatementPdfDocument(
         container.Page(page =>
         {
             // ستون‌های عملیاتی در عرض Letter عمودی جا نمی‌شوند؛ همان قاعدهٔ صفحهٔ وب.
-            page.Size(statement.ColumnOptions.UseLandscape ? PageSizes.Letter.Landscape() : PageSizes.Letter);
+            page.Size(statement.ColumnOptions.UseLandscape || contractGrouping is not null
+                ? PageSizes.Letter.Landscape()
+                : PageSizes.Letter);
             page.MarginHorizontal(PdfDesignSystem.HorizontalMargin);
             page.MarginTop(PdfDesignSystem.TopMargin);
             page.MarginBottom(PdfDesignSystem.BottomMargin);
@@ -309,25 +311,30 @@ internal sealed class PartyStatementPdfDocument(
             {
                 columns.ConstantColumn(34);
                 columns.RelativeColumn(2.4f);
-                columns.ConstantColumn(74);
-                columns.ConstantColumn(74);
-                columns.ConstantColumn(78);
+                columns.ConstantColumn(76);
+                columns.ConstantColumn(76);
+                columns.ConstantColumn(76);
+                columns.ConstantColumn(54);
+                // جا برای عنوانِ معنای مانده («قابل پرداخت به تأمین‌کننده») در یک خط.
+                columns.ConstantColumn(100);
             });
             table.Header(header =>
             {
                 HeaderCell(header.Cell(), "شماره");
                 HeaderCell(header.Cell(), "قرارداد");
-                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Receipt), Red, true);
-                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Outflow), Green, true);
-                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Balance), Purple, true);
-                header.Cell().ColumnSpan(5)
+                HeaderCell(header.Cell(), "مبلغ کل قرارداد (USD)", Ink, true);
+                HeaderCell(header.Cell(), "ارزش قطعی", Red, true);
+                HeaderCell(header.Cell(), "پرداخت / دریافت", Green, true);
+                HeaderCell(header.Cell(), "تعداد", Ink, true);
+                HeaderCell(header.Cell(), "مانده قرارداد", Purple, true);
+                header.Cell().ColumnSpan(7)
                     .Element(container => PdfDesignSystem.TableSeparator(container, 1.5f));
             });
             if (grouping.Rows.Count == 0)
             {
-                table.Cell().ColumnSpan(5).Element(EmptyCellStyle)
+                table.Cell().ColumnSpan(7).Element(EmptyCellStyle)
                     .Text("در این دوره قراردادی با گردش مالی ثبت نشده است.").FontColor(Muted);
-                table.Cell().ColumnSpan(5)
+                table.Cell().ColumnSpan(7)
                     .Element(container => PdfDesignSystem.TableSeparator(container));
             }
             else
@@ -337,19 +344,39 @@ internal sealed class PartyStatementPdfDocument(
                     var shade = Colors.White;
                     BodyCell(table.Cell(), row.Sequence.ToString(CultureInfo.InvariantCulture), shade, true);
                     ContractTitleCell(table.Cell(), row, shade);
-                    MoneyCell(table.Cell(), Money(row.Receipt, row.ReceiptRub), shade, Red);
-                    MoneyCell(table.Cell(), Money(row.Outflow, row.OutflowRub), shade, Green);
-                    MoneyCell(table.Cell(), Money(row.Balance, row.BalanceRub), shade, Purple);
-                    table.Cell().ColumnSpan(5)
+                    MoneyCell(table.Cell(), row.ContractValueUsd, shade, Ink);
+                    MoneyCell(table.Cell(), Money(row.ConfirmedValue, row.ConfirmedValueRub), shade, Red);
+                    MoneyCell(table.Cell(), Money(row.SettlementTotal, row.SettlementTotalRub), shade, Green);
+                    NumberCell(table.Cell(), row.LoadingCount, shade, 0);
+                    ContractBalanceCell(
+                        table.Cell(),
+                        row.BalanceAbsoluteFor(grouping.IsRub),
+                        row.BalanceTitleFor(grouping.IsRub, isEnglish),
+                        shade,
+                        Purple);
+                    table.Cell().ColumnSpan(7)
                         .Element(container => PdfDesignSystem.TableSeparator(container));
                 }
             }
             table.Cell().ColumnSpan(2).Element(TotalCellStyle)
                 .AlignRight().Text(Flow(CompanyFlowTextKey.PeriodTotal)).Bold().FontSize(7.5f);
-            TotalMoneyCell(table.Cell(), Money(grouping.TotalReceipt, grouping.TotalReceiptRub), Red);
-            TotalMoneyCell(table.Cell(), Money(grouping.TotalOutflow, grouping.TotalOutflowRub), Green);
-            TotalMoneyCell(table.Cell(), Money(grouping.ClosingBalance, grouping.ClosingBalanceRub), Purple);
-            table.Cell().ColumnSpan(5)
+            TotalMoneyCell(table.Cell(), null, Ink);
+            TotalMoneyCell(table.Cell(), Money(grouping.TotalConfirmedValue, grouping.TotalConfirmedValueRub), Red);
+            TotalMoneyCell(table.Cell(), Money(grouping.TotalSettlement, grouping.TotalSettlementRub), Green);
+            TotalMoneyCell(table.Cell(), grouping.TotalLoadingCount, Ink);
+            // جمع دوره ماندهٔ حسابِ طرف است؛ بدون علامت، با معنای مرکزیِ خودش.
+            TotalCellStyle(table.Cell()).Column(column =>
+            {
+                column.Item().AlignRight().ContentFromLeftToRight()
+                    .Text(FormatMoney(grouping.IsRub
+                        ? statement.Summary.ClosingBalanceRubAbsolute
+                        : statement.Summary.ClosingBalanceAbsolute))
+                    .Bold().FontSize(PdfDesignSystem.NumericTableSize).FontColor(Purple);
+                column.Item().AlignRight()
+                    .Text(statement.Summary.ClosingBalanceMeaningFor(isEnglish))
+                    .FontSize(6.5f).FontColor(Muted);
+            });
+            table.Cell().ColumnSpan(7)
                 .Element(container => PdfDesignSystem.TableSeparator(container));
         });
     }
@@ -391,6 +418,28 @@ internal sealed class PartyStatementPdfDocument(
         container.ShowEntire().Element(target => PdfDesignSystem.BodyCell(target, background))
             .AlignRight().ContentFromLeftToRight().Text(FormatMoney(value))
             .FontSize(PdfDesignSystem.NumericTableSize).FontColor(color);
+    }
+
+    /// <summary>
+    /// مانده قرارداد: عدد بدون علامت + عنوانِ معنا — همان چیزی که خلاصهٔ قراردادها،
+    /// صورت‌حساب و Excel نشان می‌دهند.
+    /// </summary>
+    private void ContractBalanceCell(
+        IContainer container,
+        decimal? absoluteValue,
+        string? title,
+        string background,
+        string color)
+    {
+        container.ShowEntire().Element(target => PdfDesignSystem.BodyCell(target, background)).Column(column =>
+        {
+            column.Item().AlignRight().ContentFromLeftToRight().Text(FormatMoney(absoluteValue))
+                .FontSize(PdfDesignSystem.NumericTableSize).FontColor(color);
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                column.Item().AlignRight().Text(title).FontSize(6.5f).FontColor(Muted);
+            }
+        });
     }
 
     private void NumberCell(IContainer container, decimal? value, string background, int decimals)

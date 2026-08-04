@@ -573,8 +573,9 @@ public class ShellViewStructureTests
         Assert.True(
             view.IndexOf("data-ops-select-all", StringComparison.Ordinal)
             < view.IndexOf("@T(\"قرارداد\", \"Contract\")", StringComparison.Ordinal));
-        Assert.Contains("@item.ContractName", view);
-        Assert.Contains("@item.ContractNumber", view);
+        Assert.Contains("class=\"ak-col-grow\"", view);
+        Assert.Contains(">@item.DisplayLabel</a>", view);
+        Assert.DoesNotContain("<div class=\"ak-muted\" dir=\"ltr\">@item.ContractNumber</div>", view);
     }
 
     [Fact]

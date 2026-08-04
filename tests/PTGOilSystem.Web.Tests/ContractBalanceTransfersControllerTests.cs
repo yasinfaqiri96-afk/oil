@@ -24,22 +24,24 @@ public class ContractBalanceTransfersControllerTests
         await using var db = new ApplicationDbContext(options);
         var (fromContract, toContract) = await SeedContractsAsync(db);
         await SeedContractCreditAsync(db, fromContract.Id, 50m);
-        var controller = BuildController(db);
+        // ثبت جدید از کنترلر غیرفعال شده است؛ رفتار مالی سرویس دست‌نخورده مانده و
+        // مستقیم آزمایش می‌شود تا سوابق قبلی همچنان محافظت شوند.
+        var service = new ContractBalanceTransferService(db);
 
-        var result = await controller.Create(new ContractBalanceTransferCreateViewModel
-        {
-            TransferDate = new DateTime(2026, 3, 5),
-            FromContractId = fromContract.Id,
-            ToContractId = toContract.Id,
-            AmountOriginal = 500m,
-            CurrencyCode = "RUB",
-            FxRateToUsd = 0.0125m,
-            FxRateDate = new DateTime(2026, 3, 5),
-            FxRateSource = "Manual test",
-            Reference = "TR-M15-M16"
-        });
+        await service.CreateAsync(new ContractBalanceTransferCreateRequest(
+            new DateTime(2026, 3, 5),
+            fromContract.Id,
+            toContract.Id,
+            500m,
+            "RUB",
+            0.0125m,
+            new DateTime(2026, 3, 5),
+            "Manual test",
+            null,
+            null,
+            "TR-M15-M16",
+            null));
 
-        Assert.IsType<RedirectToActionResult>(result);
         var transfer = await db.ContractBalanceTransfers.SingleAsync();
         var entries = await db.LedgerEntries
             .Where(l => l.SourceType == ContractBalanceTransferService.LedgerSourceType && l.SourceId == transfer.Id)
@@ -127,21 +129,26 @@ public class ContractBalanceTransfersControllerTests
         await using var db = new ApplicationDbContext(options);
         var (fromContract, toContract) = await SeedContractsAsync(db);
         await SeedContractCreditAsync(db, fromContract.Id, 50m);
-        var controller = BuildController(db);
+        var service = new ContractBalanceTransferService(db);
 
-        var result = await controller.Create(new ContractBalanceTransferCreateViewModel
-        {
-            TransferDate = new DateTime(2026, 3, 5),
-            FromContractId = fromContract.Id,
-            ToContractId = toContract.Id,
-            AmountOriginal = 500m,
-            CurrencyCode = "RUB",
-            FxRateToUsd = 1m,
-            DocumentCurrencyPerUsdRate = 78.4001m,
-            Reference = "BNK-RUB-USD"
-        });
+        // نرخ خوانا «۱ دالر = ۷۸.۴۰۰۱ روبل» به کنوانسیون داخلی (۱/perUsd) تبدیل می‌شود.
+        var fxRateToUsd = decimal.Round(1m / 78.4001m, 6, MidpointRounding.AwayFromZero);
+        Assert.Equal(0.012755m, fxRateToUsd);
 
-        Assert.IsType<RedirectToActionResult>(result);
+        await service.CreateAsync(new ContractBalanceTransferCreateRequest(
+            new DateTime(2026, 3, 5),
+            fromContract.Id,
+            toContract.Id,
+            500m,
+            "RUB",
+            fxRateToUsd,
+            null,
+            null,
+            null,
+            null,
+            "BNK-RUB-USD",
+            null));
+
         var transfer = await db.ContractBalanceTransfers.SingleAsync();
         var entries = await db.LedgerEntries.ToListAsync();
 
@@ -163,21 +170,23 @@ public class ContractBalanceTransfersControllerTests
         await using var db = new ApplicationDbContext(options);
         var (fromContract, toContract) = await SeedContractsAsync(db);
         await SeedContractCreditAsync(db, fromContract.Id, 600m);
-        var controller = BuildController(db);
+        var service = new ContractBalanceTransferService(db);
 
-        var result = await controller.Create(new ContractBalanceTransferCreateViewModel
-        {
-            TransferDate = new DateTime(2026, 3, 5),
-            FromContractId = fromContract.Id,
-            ToContractId = toContract.Id,
-            AmountOriginal = 500m,
-            CurrencyCode = "USD",
-            FxRateToUsd = 78.4001m,
-            DocumentCurrencyPerUsdRate = 78.4001m,
-            Reference = "USD-TRANSFER"
-        });
+        // ارز دالری: سرویس نرخ را به‌زور ۱ می‌کند حتی اگر نرخ اشتباه فرستاده شود.
+        await service.CreateAsync(new ContractBalanceTransferCreateRequest(
+            new DateTime(2026, 3, 5),
+            fromContract.Id,
+            toContract.Id,
+            500m,
+            "USD",
+            78.4001m,
+            null,
+            null,
+            null,
+            null,
+            "USD-TRANSFER",
+            null));
 
-        Assert.IsType<RedirectToActionResult>(result);
         var transfer = await db.ContractBalanceTransfers.SingleAsync();
 
         Assert.Equal(1m, transfer.FxRateToUsd);
@@ -275,37 +284,77 @@ public class ContractBalanceTransfersControllerTests
         Assert.Empty(db.LedgerEntries);
     }
 
+    // ثبت جدید از این مسیر غیرفعال شده است: GET دیگر فورم نمی‌دهد و هیچ رکوردی نمی‌سازد.
     [Fact]
-    public async Task Create_Get_Does_Not_Create_Ledger_Payment_Or_Inventory_Records()
+    public async Task Create_Get_Is_Disabled_And_Creates_No_Records()
     {
         var options = NewOptions();
         await using var db = new ApplicationDbContext(options);
         var (fromContract, _) = await SeedContractsAsync(db);
         var controller = BuildController(db);
 
-        var result = await controller.Create(fromContractId: fromContract.Id, returnUrl: "/ContractJourney/Details?contractId=1");
+        var result = controller.Create(fromContractId: fromContract.Id, returnUrl: null);
 
-        Assert.IsType<ViewResult>(result);
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(ContractBalanceTransfersController.Index), ((RedirectToActionResult)result).ActionName);
         Assert.Empty(db.ContractBalanceTransfers);
         Assert.Empty(db.LedgerEntries);
         Assert.Empty(db.PaymentTransactions);
         Assert.Empty(db.ExpenseTransactions);
         Assert.Empty(db.InventoryMovements);
+        await Task.CompletedTask;
     }
 
+    // POST هم هیچ سندی نمی‌سازد؛ مسیر انتقال اکنون «مانده قابل انتقال» تأمین‌کننده است.
     [Fact]
-    public void ContractJourney_Details_Contains_Transfer_Links()
+    public async Task Create_Post_Is_Disabled_And_Writes_Nothing()
+    {
+        var options = NewOptions();
+        await using var db = new ApplicationDbContext(options);
+        var (fromContract, toContract) = await SeedContractsAsync(db);
+        await SeedContractCreditAsync(db, fromContract.Id, 50m);
+        var controller = BuildController(db);
+
+        var result = controller.Create(new ContractBalanceTransferCreateViewModel
+        {
+            TransferDate = new DateTime(2026, 3, 5),
+            FromContractId = fromContract.Id,
+            ToContractId = toContract.Id,
+            AmountOriginal = 500m,
+            CurrencyCode = "RUB",
+            FxRateToUsd = 0.0125m
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Empty(db.ContractBalanceTransfers);
+        Assert.False(await db.LedgerEntries.AnyAsync(
+            l => l.SourceType == ContractBalanceTransferService.LedgerSourceType));
+    }
+
+    // مسیر قدیمی فقط‌خواندنی است: لینک «ثبت انتقال» برداشته شده ولی سوابق قابل دیدن مانده‌اند.
+    [Fact]
+    public void ContractJourney_Details_Keeps_Transfer_History_Link_Without_Create()
     {
         var financePartial = ReadRepoFile("src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyFinanceTab.cshtml");
         var contents = ReadRepoFile("src/PTGOilSystem.Web/Views/ContractJourney/Details.cshtml") + financePartial;
 
-        Assert.Contains("BalanceTransferCreateUrl = Url.Action(\"Create\", \"ContractBalanceTransfers\"", contents);
-        Assert.Contains("BalanceTransferIndexUrl = Url.Action(\"Index\", \"ContractBalanceTransfers\"", contents);
         Assert.Contains("asp-controller=\"ContractBalanceTransfers\"", financePartial);
-        Assert.Contains("asp-action=\"Create\"", financePartial);
-        Assert.Contains("asp-route-fromContractId=\"@Model.ContractId\"", financePartial);
-        Assert.Contains("انتقال مانده", contents);
         Assert.Contains("انتقالات مانده این قرارداد", contents);
+        Assert.DoesNotContain("asp-route-fromContractId=\"@Model.ContractId\"", financePartial);
+    }
+
+    // کارت «مانده قابل انتقال» و مسیر جدید در جزئیات تأمین‌کننده حاضر است.
+    [Fact]
+    public void Supplier_Details_Exposes_Transferable_Balance_Card()
+    {
+        var details = ReadRepoFile("src/PTGOilSystem.Web/Views/Suppliers/Details.cshtml");
+        var card = ReadRepoFile("src/PTGOilSystem.Web/Views/Suppliers/_SupplierTransferableBalanceCard.cshtml");
+
+        Assert.Contains("_SupplierTransferableBalanceCard.cshtml", details);
+        Assert.Contains("پیش‌پرداخت آزاد تأمین‌کننده", card);
+        Assert.Contains("انتقال به قرارداد", card);
+        Assert.Contains("سوابق انتقال", card);
+        Assert.Contains("asp-controller=\"SupplierBalanceTransfers\"", card);
     }
 
     [Fact]

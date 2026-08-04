@@ -1,0 +1,189 @@
+@model PTGOilSystem.Web.Models.Suppliers.SupplierTransferableBalanceCardViewModel
+@using PTGOilSystem.Web.Helpers
+@using PTGOilSystem.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
+@{
+    var canManage = (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.ManageData)).Succeeded;
+    var selfUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var pools = Model.Companies.Where(c => c.HasTransferable).ToList();
+
+    // نام شرکت فقط وقتی معنا دارد که بیش از یک سطل مانده وجود داشته باشد و همان سطل شرکتِ
+    // اثبات‌شده داشته باشد. سطلی که شرکتش از سند اثبات نشده اصلاً برچسب نمی‌گیرد؛ کاربر
+    // نباید اصطلاح داخلی موتور مانده را ببیند — شرکت هنگام تخصیص از قرارداد مقصد می‌آید.
+    var showCompanyName = pools.Count > 1;
+    var subtitle = pools.Count > 1
+        ? $"جمع {NumberDisplay.Money(Model.TransferableTotalUsd, "USD")}"
+        : null;
+    var consumedTotalUsd = Model.Companies.Sum(c => c.ConsumedUsd);
+}
+
+<partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+         model="@(("پیش‌پرداخت آزاد تأمین‌کننده", subtitle))" />
+
+<div class="ak-detail-section-body">
+    @if (pools.Count == 0)
+    {
+        <div class="ak-empty ak-detail-empty-state">
+            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+            <p>پیش‌پرداخت آزادی برای تخصیص وجود ندارد.</p>
+        </div>
+    }
+    else
+    {
+        @* هر سطل مانده جدا می‌ماند؛ پول یک شرکت هرگز به قرارداد شرکت دیگر نمی‌رود. *@
+        @foreach (var company in pools)
+        {
+            var showName = showCompanyName && !company.IsGroupLevel;
+            <div class="ak-transfer-group">
+                @if (showName)
+                {
+                    <div class="ak-transfer-group-head">
+                        <div class="ak-transfer-group-id">
+                            <span class="ak-transfer-group-name">@company.CompanyName</span>
+                        </div>
+                    </div>
+                }
+
+                @* اول «چقدر دارم»، بعد «چه کنم»: مبلغ اصلی بزرگ، معادل دالری زیر آن. *@
+                <dl class="ak-summary-list">
+                    @foreach (var b in company.Buckets)
+                    {
+                        <div>
+                            <dt>مانده @b.CurrencyCode</dt>
+                            <dd>
+                                <bdi class="ak-num">@AkUnit.Money(b.RemainingOriginalAmount, b.CurrencyCode)</bdi>
+                                @if (!b.IsUsd)
+                                {
+                                    <span class="ak-info-unit d-block">≈ @NumberDisplay.Money(b.RemainingBookAmountUsd, "USD")</span>
+                                }
+                            </dd>
+                        </div>
+                    }
+                    @if (company.Buckets.Count > 1)
+                    {
+                        <div>
+                            <dt>جمع دالری</dt>
+                            <dd><bdi class="ak-num">@AkUnit.Money(company.TransferableTotalUsd, "USD")</bdi></dd>
+                        </div>
+                    }
+                </dl>
+
+                @if (canManage)
+                {
+                    @* تنها اقدام این بخش. «ثبت پرداخت» primary صفحه در هدر می‌ماند. *@
+                    <div class="mt-3">
+                        <a asp-controller="SupplierBalanceTransfers" asp-action="Create"
+                           asp-route-supplierId="@Model.SupplierId" asp-route-companyId="@company.CompanyId"
+                           asp-route-returnUrl="@selfUrl"
+                           class="btn ak-secondary-action is-primary">
+                            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                            <span>انتقال به قرارداد</span>
+                        </a>
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    @* جزئیات سند، نرخ تاریخی و مبلغ تخصیص‌یافته حذف نمی‌شوند؛ فقط جمع می‌شوند. *@
+    <details class="ak-advanced">
+        <summary class="ak-advanced-summary">نمایش جزئیات</summary>
+        <div class="ak-advanced-body">
+            @if (pools.Count > 0)
+            {
+                <div class="ak-table-wrap">
+                    <table class="ak-table ak-detail-table">
+                        <thead>
+                            <tr>
+                                @if (showCompanyName)
+                                {
+                                    <th class="ak-col-grow">شرکت</th>
+                                }
+                                <th>ارز</th>
+                                <th class="ak-col-num">باقی‌مانده</th>
+                                <th class="ak-col-num">معادل دالر</th>
+                                <th class="ak-col-num">نرخ تاریخی</th>
+                                <th>منبع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var company in pools)
+                        {
+                            foreach (var b in company.Buckets)
+                            {
+                                <tr>
+                                    @if (showCompanyName)
+                                    {
+                                        <td class="ak-col-grow">@(company.IsGroupLevel ? "—" : company.CompanyName)</td>
+                                    }
+                                    <td><strong>@b.CurrencyCode</strong></td>
+                                    <td class="ak-col-num ak-num">@AkUnit.Money(b.RemainingOriginalAmount, b.CurrencyCode)</td>
+                                    <td class="ak-col-num ak-num">@AkUnit.Money(b.RemainingBookAmountUsd, "USD")</td>
+                                    <td class="ak-col-num ak-num">
+                                        @if (b.IsUsd)
+                                        {
+                                            <span class="ak-transfer-rate">—</span>
+                                        }
+                                        else
+                                        {
+                                            <bdi>@NumberDisplay.FxRate(b.HistoricalPerUsdRate)</bdi>
+                                            @if (b.HistoricalRateIsEstimated)
+                                            {
+                                                <span class="ak-transfer-rate"> (تخمینی)</span>
+                                            }
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (b.Sources.Count == 0)
+                                        {
+                                            <span class="ak-transfer-rate">—</span>
+                                        }
+                                        else
+                                        {
+                                            <ul class="ak-transfer-sources">
+                                                @foreach (var g in b.Sources.GroupBy(s => s.SourceType))
+                                                {
+                                                    <li class="ak-transfer-source">
+                                                        <span>@UiText.LedgerSource(Context, g.Key)</span>
+                                                        <bdi class="ak-num">@NumberDisplay.Money(g.Sum(x => x.RemainingOriginalAmount), b.CurrencyCode)</bdi>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <div class="ak-section-foot">
+                @if (consumedTotalUsd > 0m)
+                {
+                    <span class="ak-note">
+                        تخصیص‌شده تا کنون
+                        <bdi class="ak-num">@NumberDisplay.Money(consumedTotalUsd, "USD")</bdi>
+                    </span>
+                }
+                @if (Model.HasUnknownCompany)
+                {
+                    @* داده پنهان نمی‌شود، ولی عبارت داخلی موتور مانده هم به کاربر نشان داده نمی‌شود:
+                       مانده قابل تخصیص است و شرکت هنگام تخصیص از قرارداد مقصد گرفته می‌شود. *@
+                    <span class="ak-note">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        برای
+                        <bdi class="ak-num">@Model.UnknownCompanyRowCount.ToString("N0")</bdi>
+                        سند به ارزش
+                        <bdi class="ak-num">@NumberDisplay.Money(Model.UnknownCompanyOutflowUsd, "USD")</bdi>
+                        شرکت در سند ثبت نشده؛ هنگام تخصیص از قرارداد مقصد گرفته می‌شود.
+                    </span>
+                }
+                <a asp-controller="SupplierBalanceTransfers" asp-action="History"
+                   asp-route-supplierId="@Model.SupplierId" class="ak-link">سوابق انتقال</a>
+            </div>
+        </div>
+    </details>
+</div>

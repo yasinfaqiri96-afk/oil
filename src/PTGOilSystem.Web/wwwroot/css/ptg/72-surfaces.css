@@ -36,7 +36,6 @@ body.boltz-shell.app-shell-authenticated .ak-stat-card,
 body.boltz-shell.app-shell-authenticated .ak-hub-tile,
 body.boltz-shell.app-shell-authenticated .ak-group-wizard-summary,
 body.boltz-shell.app-shell-authenticated .ptg-form-section,
-body.boltz-shell.app-shell-authenticated .statement-filter-bar,
 body.boltz-shell.app-shell-authenticated .excel-import__panel,
 body.boltz-shell.app-shell-authenticated .loss-create-form {
     border-color: transparent;
@@ -80,8 +79,7 @@ body.boltz-shell.app-shell-authenticated .modal .ptg-form-section {
     body.boltz-shell.app-shell-authenticated .boltz-content .empty-state,
     body.boltz-shell.app-shell-authenticated .ak-stat-card,
     body.boltz-shell.app-shell-authenticated .ak-group-wizard-summary,
-    body.boltz-shell.app-shell-authenticated .ptg-form-section,
-    body.boltz-shell.app-shell-authenticated .statement-filter-bar {
+    body.boltz-shell.app-shell-authenticated .ptg-form-section {
         border-color: var(--ptg-border);
         box-shadow: none;
     }

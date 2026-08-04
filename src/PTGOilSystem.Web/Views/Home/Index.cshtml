@@ -91,17 +91,6 @@
             <header class="dash-card-head dash-trend-head">
                 <div class="dash-trend-title">
                     <h2>@T("روند درآمد و مصارف", "Revenue and expense trend")</h2>
-                    <p>@T("نسبت به دوره قبل", "vs previous period") (<span>@StatCardFormatter.Trend(Model.TotalSalesWeekChangePercent)</span>)</p>
-                </div>
-                <div class="dash-trend-totals">
-                    <div class="dash-total">
-                        <span class="dash-total-value dash-total-value--green"><bdi>@CompactUsd(Model.TotalExpensesUsd)</bdi></span>
-                        <span class="dash-total-label"><i class="dash-dot dash-dot--amber" aria-hidden="true"></i>@T("مصارف کل", "Total expenses")</span>
-                    </div>
-                    <div class="dash-total">
-                        <span class="dash-total-value dash-total-value--green"><bdi>@CompactUsd(Model.TotalSalesUsd)</bdi></span>
-                        <span class="dash-total-label"><i class="dash-dot dash-dot--green" aria-hidden="true"></i>@T("درآمد کل", "Total revenue")</span>
-                    </div>
                 </div>
             </header>
             <div class="dash-trend-chart"

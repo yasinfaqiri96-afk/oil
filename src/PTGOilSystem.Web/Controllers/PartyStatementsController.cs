@@ -29,8 +29,13 @@ public sealed class PartyStatementsController : Controller
     }
 
     [HttpGet("Customers/{id:int}/Statement")]
-    public Task<IActionResult> Customer(int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
-        => RenderAsync(PartyStatementPartyType.Customer, id, filter, print, ct);
+    public Task<IActionResult> Customer(
+        int id,
+        [FromQuery] PartyStatementFilter filter,
+        bool print = false,
+        SupplierStatementView view = SupplierStatementView.Contracts,
+        CancellationToken ct = default)
+        => RenderAsync(PartyStatementPartyType.Customer, id, filter, print, ct, view);
 
     [HttpGet("Suppliers/{id:int}/Statement")]
     public Task<IActionResult> Supplier(
@@ -48,23 +53,65 @@ public sealed class PartyStatementsController : Controller
         int id,
         int contractId,
         [FromQuery] PartyStatementFilter filter,
+        int detailPage = 1,
         CancellationToken ct = default)
+        => await ContractDetailsCore(
+            PartyStatementPartyType.Supplier,
+            id,
+            contractId,
+            filter,
+            detailPage,
+            ct);
+
+    [HttpGet("PartyStatements/{partyType}/{id:int}/Contract/{contractId:int}")]
+    public Task<IActionResult> ContractDetails(
+        PartyStatementPartyType partyType,
+        int id,
+        int contractId,
+        [FromQuery] PartyStatementFilter filter,
+        int detailPage = 1,
+        CancellationToken ct = default)
+        => ContractDetailsCore(partyType, id, contractId, filter, detailPage, ct);
+
+    private async Task<IActionResult> ContractDetailsCore(
+        PartyStatementPartyType partyType,
+        int id,
+        int contractId,
+        PartyStatementFilter filter,
+        int detailPage,
+        CancellationToken ct)
     {
         var effective = WithContract(WithOperationalColumns(filter), contractId);
         try
         {
             var statement = await _statementService.GetStatementAsync(
-                new PartyRef(PartyStatementPartyType.Supplier, id, filter.CompanyId), effective, ct);
+                new PartyRef(partyType, id, filter.CompanyId), effective, ct);
             var facts = await LoadContractFactsAsync([contractId], ct);
             facts.TryGetValue(contractId, out var f);
+            var detailRows = statement.Rows.Where(r => !r.IsOpeningBalance).ToList();
+            const int detailPageSize = 25;
+            var detailTotalPages = Math.Max(1, (int)Math.Ceiling(detailRows.Count / (decimal)detailPageSize));
+            var safePage = Math.Clamp(detailPage, 1, detailTotalPages);
             return PartialView("_SupplierContractDetails", new SupplierContractDetailsViewModel
             {
                 Statement = statement,
+                PartyType = partyType,
+                PartyId = id,
+                ContractId = contractId,
                 ProductName = f?.ProductName,
                 ContractQuantityMt = f?.ContractQuantityMt,
                 UnitPriceUsd = f?.UnitPriceUsd,
                 ContractValueUsd = f?.ContractValueUsd,
-                LoadedQuantityMt = f?.LoadedQuantityMt
+                LoadedQuantityMt = f?.LoadedQuantityMt,
+                DetailRows = detailRows.Skip((safePage - 1) * detailPageSize).Take(detailPageSize).ToList(),
+                LoadingRows = detailRows
+                    .Where(IsConfirmedOperation)
+                    .Skip((safePage - 1) * detailPageSize)
+                    .Take(detailPageSize)
+                    .ToList(),
+                DetailPage = safePage,
+                DetailPageSize = detailPageSize,
+                DetailTotalRows = detailRows.Count
             });
         }
         catch (KeyNotFoundException)
@@ -91,10 +138,9 @@ public sealed class PartyStatementsController : Controller
         PartyStatementResult statement;
         try
         {
-            // ستون‌های عملیاتی برای شیتِ جزئیات لازم است.
             statement = await _statementService.GetStatementAsync(
                 new PartyRef(PartyStatementPartyType.Supplier, id, filter.CompanyId),
-                WithOperationalColumns(filter),
+                filter,
                 ct);
         }
         catch (KeyNotFoundException)
@@ -102,7 +148,7 @@ public sealed class PartyStatementsController : Controller
             return NotFound();
         }
 
-        var grouping = await BuildContractGroupingAsync(statement, ct);
+        var grouping = await BuildContractGroupingAsync(statement, filter, ct);
 
         // PDF تب «قراردادها» باید همان سند رسمی صورت‌حساب باشد (لوگو، سربرگ شرکت، خلاصهٔ
         // مالی، امضا) و فقط جدولش خلاصهٔ قراردادی باشد؛ نه قالب جدول عمومیِ خروجی‌ها.
@@ -115,7 +161,7 @@ public sealed class PartyStatementsController : Controller
             return File(output.ToArray(), "application/pdf", fileName);
         }
 
-        return SupplierStatementExport.Build(this, format, statement, grouping);
+        return SupplierStatementExport.Build(this, format, statement, grouping, includeDetails: false);
     }
 
     [HttpGet("ServiceProviders/{id:int}/Statement")]
@@ -139,12 +185,23 @@ public sealed class PartyStatementsController : Controller
         => RenderAsync(PartyStatementPartyType.Driver, id, filter, print, ct);
 
     [HttpGet("Companies/{id:int}/Statement")]
-    public Task<IActionResult> Company(int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
-        => RenderAsync(PartyStatementPartyType.Company, id, filter, print, ct);
+    public Task<IActionResult> Company(
+        int id,
+        [FromQuery] PartyStatementFilter filter,
+        bool print = false,
+        SupplierStatementView view = SupplierStatementView.Contracts,
+        CancellationToken ct = default)
+        => RenderAsync(PartyStatementPartyType.Company, id, filter, print, ct, view);
 
     [HttpGet("PartyStatements/{partyType}/{id:int}")]
-    public Task<IActionResult> Document(PartyStatementPartyType partyType, int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
-        => RenderAsync(partyType, id, filter, print, ct);
+    public Task<IActionResult> Document(
+        PartyStatementPartyType partyType,
+        int id,
+        [FromQuery] PartyStatementFilter filter,
+        bool print = false,
+        SupplierStatementView? view = null,
+        CancellationToken ct = default)
+        => RenderAsync(partyType, id, filter, print, ct, view);
 
     [EnableRateLimiting(RateLimitPolicies.CsvExport)]
     [HttpGet("PartyStatements/{partyType}/{id:int}/Csv")]
@@ -152,20 +209,46 @@ public sealed class PartyStatementsController : Controller
         PartyStatementPartyType partyType,
         int id,
         [FromQuery] PartyStatementFilter filter,
+        SupplierStatementView? view = null,
         CancellationToken ct = default)
     {
+        var effectiveView = UsesContractSummary(partyType)
+            ? view ?? SupplierStatementView.Contracts
+            : SupplierStatementView.Ledger;
+        var effectiveFilter = effectiveView == SupplierStatementView.Loadings
+            ? WithOperationalColumns(filter)
+            : filter;
         PartyStatementResult statement;
         try
         {
-            statement = await _statementService.GetStatementAsync(new PartyRef(partyType, id, filter.CompanyId), filter, ct);
+            statement = await _statementService.GetStatementAsync(
+                new PartyRef(partyType, id, filter.CompanyId),
+                effectiveFilter,
+                ct);
         }
         catch (KeyNotFoundException)
         {
             return NotFound();
         }
 
-        var headers = BuildCsvHeaders(statement.ColumnOptions);
-        var rows = statement.Rows.Select(row => BuildCsvRow(row, statement.ColumnOptions));
+        string[] headers;
+        IEnumerable<string?[]> rows;
+        if (UsesContractSummary(partyType)
+            && effectiveView is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
+        {
+            var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
+            headers = BuildContractCsvHeaders(statement.Summary.BaseCurrencyCode);
+            rows = grouping.Rows.Select(row => BuildContractCsvRow(row, grouping.IsRub));
+        }
+        else
+        {
+            if (ShouldCompactLedger(partyType) && effectiveView == SupplierStatementView.Ledger)
+            {
+                statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
+            }
+            headers = BuildCsvHeaders(statement.ColumnOptions);
+            rows = statement.Rows.Select(row => BuildCsvRow(row, statement.ColumnOptions));
+        }
         var fileName = $"statement-{partyType.ToString().ToLowerInvariant()}-{id}-{DateTime.UtcNow:yyyyMMdd}.csv";
         return CsvExportSupport.File(this, fileName, headers, rows);
     }
@@ -176,16 +259,23 @@ public sealed class PartyStatementsController : Controller
         PartyStatementPartyType partyType,
         int id,
         [FromQuery] PartyStatementFilter filter,
+        SupplierStatementView? view = null,
         CancellationToken ct = default)
     {
         if (_exportService is null)
             return NotFound();
 
+        var effectiveView = UsesContractSummary(partyType)
+            ? view ?? SupplierStatementView.Contracts
+            : SupplierStatementView.Ledger;
+        var effectiveFilter = effectiveView == SupplierStatementView.Loadings
+            ? WithOperationalColumns(filter)
+            : filter;
         PartyStatementResult statement;
         try
         {
             statement = await _statementService.GetStatementAsync(
-                new PartyRef(partyType, id, filter.CompanyId), filter, ct);
+                new PartyRef(partyType, id, filter.CompanyId), effectiveFilter, ct);
         }
         catch (KeyNotFoundException)
         {
@@ -193,9 +283,89 @@ public sealed class PartyStatementsController : Controller
         }
 
         await using var output = new MemoryStream();
-        await _exportService.WritePartyStatementPdfAsync(statement, UiText.IsEn(HttpContext), output, ct);
+        if (UsesContractSummary(partyType)
+            && effectiveView is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
+        {
+            var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
+            await _exportService.WriteSupplierContractStatementPdfAsync(
+                statement,
+                grouping,
+                UiText.IsEn(HttpContext),
+                output,
+                ct);
+        }
+        else
+        {
+            if (ShouldCompactLedger(partyType) && effectiveView == SupplierStatementView.Ledger)
+            {
+                statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
+            }
+            await _exportService.WritePartyStatementPdfAsync(statement, UiText.IsEn(HttpContext), output, ct);
+        }
         var fileName = $"statement-{partyType.ToString().ToLowerInvariant()}-{id}-{DateTime.UtcNow:yyyyMMdd}.pdf";
         return File(output.ToArray(), "application/pdf", fileName);
+    }
+
+    [EnableRateLimiting(RateLimitPolicies.CsvExport)]
+    [HttpGet("PartyStatements/{partyType}/{id:int}/Export")]
+    public async Task<IActionResult> Export(
+        PartyStatementPartyType partyType,
+        int id,
+        string? format,
+        [FromQuery] PartyStatementFilter filter,
+        SupplierStatementView? view = null,
+        CancellationToken ct = default)
+    {
+        if (_exportService is null)
+        {
+            return NotFound();
+        }
+
+        var effectiveView = UsesContractSummary(partyType)
+            ? view ?? SupplierStatementView.Contracts
+            : SupplierStatementView.Ledger;
+        var effectiveFilter = effectiveView == SupplierStatementView.Loadings
+            ? WithOperationalColumns(filter)
+            : filter;
+        PartyStatementResult statement;
+        try
+        {
+            statement = await _statementService.GetStatementAsync(
+                new PartyRef(partyType, id, filter.CompanyId),
+                effectiveFilter,
+                ct);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+
+        if (UsesContractSummary(partyType)
+            && effectiveView is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
+        {
+            var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
+            if (Services.Exports.TabularExportSupport.ParseFormat(format) == Services.Exports.TabularExportFormat.Pdf)
+            {
+                await using var output = new MemoryStream();
+                await _exportService.WriteSupplierContractStatementPdfAsync(
+                    statement,
+                    grouping,
+                    UiText.IsEn(HttpContext),
+                    output,
+                    ct);
+                return File(
+                    output.ToArray(),
+                    "application/pdf",
+                    $"statement-{partyType.ToString().ToLowerInvariant()}-{id}-summary-{DateTime.UtcNow:yyyyMMdd}.pdf");
+            }
+            return SupplierStatementExport.Build(this, format, statement, grouping, includeDetails: false);
+        }
+
+        if (ShouldCompactLedger(partyType) && effectiveView == SupplierStatementView.Ledger)
+        {
+            statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
+        }
+        return SupplierStatementExport.BuildDetailsOnly(this, format, statement);
     }
 
     private async Task<IActionResult> RenderAsync(
@@ -206,8 +376,7 @@ public sealed class PartyStatementsController : Controller
         CancellationToken ct,
         SupplierStatementView? supplierView = null)
     {
-        // فقط تأمین‌کننده تب سه‌گانه دارد؛ سایر طرف‌حساب‌ها همیشه نمای خطی (Ledger).
-        var view = partyType == PartyStatementPartyType.Supplier
+        var view = UsesContractSummary(partyType)
             ? supplierView ?? SupplierStatementView.Contracts
             : SupplierStatementView.Ledger;
 
@@ -234,6 +403,10 @@ public sealed class PartyStatementsController : Controller
                 ContractId = effectiveFilter.ContractId,
                 CompanyId = effectiveFilter.CompanyId,
                 CurrencyCode = effectiveFilter.CurrencyCode,
+                SourceType = effectiveFilter.SourceType,
+                Search = effectiveFilter.Search,
+                Page = 1,
+                PageSize = effectiveFilter.PageSize,
                 IncludeOperationalColumns = effectiveFilter.IncludeOperationalColumns
             };
             return await BuildDocumentAsync(partyType, id, fallback, print, view, ct);
@@ -252,9 +425,14 @@ public sealed class PartyStatementsController : Controller
         var options = await LoadFilterOptionsAsync(partyType, id, ct);
 
         SupplierContractStatementViewModel? grouping = null;
-        if (partyType == PartyStatementPartyType.Supplier && view == SupplierStatementView.Contracts)
+        if (UsesContractSummary(partyType)
+            && view is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
         {
-            grouping = await BuildContractGroupingAsync(statement, ct);
+            grouping = await BuildContractGroupingAsync(statement, filter, ct);
+        }
+        else if (ShouldCompactLedger(partyType) && view == SupplierStatementView.Ledger)
+        {
+            statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
         }
 
         return View("Document", new PartyStatementViewModel
@@ -274,6 +452,7 @@ public sealed class PartyStatementsController : Controller
     // بارگذاری می‌کند. صرفاً metadata است؛ اعداد رسید/برد/بیلانس از خودِ سطرهای مالی می‌آیند.
     private async Task<SupplierContractStatementViewModel> BuildContractGroupingAsync(
         PartyStatementResult statement,
+        PartyStatementFilter filter,
         CancellationToken ct)
     {
         var contractIds = statement.Rows
@@ -283,7 +462,11 @@ public sealed class PartyStatementsController : Controller
             .ToList();
 
         var facts = await LoadContractFactsAsync(contractIds, ct);
-        return SupplierContractStatementBuilder.Build(statement, facts);
+        return SupplierContractStatementBuilder.Build(
+            statement,
+            facts,
+            page: Math.Max(1, filter.Page),
+            pageSize: Math.Clamp(filter.PageSize, 10, 100));
     }
 
     // metadataِ نمایشیِ قرارداد (محصول/مقدار/نرخ/ارزش/بارگیری‌شده). فقط اطلاعاتی است؛ روی
@@ -316,6 +499,11 @@ public sealed class PartyStatementsController : Controller
             .GroupBy(l => l.ContractId)
             .Select(g => new { ContractId = g.Key, Qty = g.Sum(x => x.LoadedQuantityMt) })
             .ToDictionaryAsync(x => x.ContractId, x => x.Qty, ct);
+        var soldByContract = await _db.SalesTransactions.AsNoTracking()
+            .Where(s => s.ContractId.HasValue && contractIds.Contains(s.ContractId.Value))
+            .GroupBy(s => s.ContractId!.Value)
+            .Select(g => new { ContractId = g.Key, Qty = g.Sum(x => x.QuantityMt) })
+            .ToDictionaryAsync(x => x.ContractId, x => x.Qty, ct);
 
         foreach (var c in contracts)
         {
@@ -328,13 +516,15 @@ public sealed class PartyStatementsController : Controller
             });
             var contractValue = price.HasValue ? c.QuantityMt * price.Value : (decimal?)null;
             loadedByContract.TryGetValue(c.Id, out var loaded);
+            soldByContract.TryGetValue(c.Id, out var sold);
+            var hasConfirmedQuantity = loadedByContract.ContainsKey(c.Id) || soldByContract.ContainsKey(c.Id);
 
             facts[c.Id] = new SupplierContractStatementBuilder.ContractFacts(
                 c.ProductName,
                 c.QuantityMt,
                 price,
                 contractValue,
-                loadedByContract.ContainsKey(c.Id) ? loaded : null);
+                hasConfirmedQuantity ? loaded + sold : null);
         }
 
         return facts;
@@ -348,6 +538,10 @@ public sealed class PartyStatementsController : Controller
             ContractId = filter.ContractId,
             CompanyId = filter.CompanyId,
             CurrencyCode = filter.CurrencyCode,
+            SourceType = filter.SourceType,
+            Search = filter.Search,
+            Page = filter.Page,
+            PageSize = filter.PageSize,
             IncludeOperationalColumns = true
         };
 
@@ -359,6 +553,10 @@ public sealed class PartyStatementsController : Controller
             ContractId = contractId,
             CompanyId = filter.CompanyId,
             CurrencyCode = filter.CurrencyCode,
+            SourceType = filter.SourceType,
+            Search = filter.Search,
+            Page = filter.Page,
+            PageSize = filter.PageSize,
             IncludeOperationalColumns = filter.IncludeOperationalColumns
         };
 
@@ -442,6 +640,65 @@ public sealed class PartyStatementsController : Controller
         return values.ToArray();
     }
 
+    private static string[] BuildContractCsvHeaders(string currency)
+        =>
+        [
+            "No",
+            "Contract",
+            "Product",
+            "ContractQuantityMt",
+            "ConfirmedQuantityMt",
+            "ContractValueUsd",
+            $"ConfirmedValue{currency}",
+            $"PaymentOrReceipt{currency}",
+            "LoadingCount",
+            $"Balance{currency}"
+        ];
+
+    private static string?[] BuildContractCsvRow(SupplierContractStatementRow row, bool isRub)
+        =>
+        [
+            row.Sequence.ToString(),
+            row.ContractNumber ?? row.Title,
+            row.ProductName,
+            CsvExportSupport.Decimal(row.ContractQuantityMt),
+            CsvExportSupport.Decimal(row.LoadedQuantityMt),
+            CsvExportSupport.Decimal(row.ContractValueUsd),
+            CsvExportSupport.Decimal(isRub ? row.ConfirmedValueRub : row.ConfirmedValue),
+            CsvExportSupport.Decimal(isRub ? row.SettlementTotalRub : row.SettlementTotal),
+            row.LoadingCount.ToString(),
+            CsvExportSupport.Decimal(isRub ? row.BalanceRub : row.Balance)
+        ];
+
     private static bool IsCurrency(PartyStatementRow row, string currency)
         => string.Equals(row.OriginalCurrency, currency, StringComparison.OrdinalIgnoreCase);
+
+    private static bool UsesContractSummary(PartyStatementPartyType partyType)
+        => partyType is PartyStatementPartyType.Supplier
+            or PartyStatementPartyType.Customer
+            or PartyStatementPartyType.Company;
+
+    private static bool ShouldCompactLedger(PartyStatementPartyType partyType)
+        => UsesContractSummary(partyType) || partyType == PartyStatementPartyType.Partner;
+
+    private static bool IsConfirmedOperation(PartyStatementRow row)
+        => row.SourceType is "Loading" or "Sale";
+
+    private static PartyStatementResult WithRows(
+        PartyStatementResult statement,
+        IReadOnlyList<PartyStatementRow> rows)
+        => new()
+        {
+            Party = statement.Party,
+            Policy = statement.Policy,
+            CompanyInfo = statement.CompanyInfo,
+            PartyInfo = statement.PartyInfo,
+            DocumentInfo = statement.DocumentInfo,
+            Summary = statement.Summary,
+            ColumnOptions = statement.ColumnOptions,
+            Rows = rows,
+            Note = statement.Note,
+            Authorization = statement.Authorization,
+            CourtesyText = statement.CourtesyText
+        };
 }

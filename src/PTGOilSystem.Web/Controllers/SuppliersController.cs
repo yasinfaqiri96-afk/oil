@@ -24,19 +24,23 @@ public partial class SuppliersController : Controller
     private readonly MasterDataDeleteSafetyService _deleteSafety;
     private readonly IPurchaseAggregationService _purchaseAggregation;
     private readonly IPartyStatementReadService? _partyStatements;
+    // موتور واحد «مانده قابل انتقال». nullable است تا سازنده‌های موجود و تست‌ها دست‌نخورده بمانند.
+    private readonly ISupplierTransferableBalanceService? _transferableBalances;
 
     public SuppliersController(
         ApplicationDbContext db,
         IAuditService audit,
         MasterDataDeleteSafetyService deleteSafety,
         IPurchaseAggregationService? purchaseAggregation = null,
-        IPartyStatementReadService? partyStatements = null)
+        IPartyStatementReadService? partyStatements = null,
+        ISupplierTransferableBalanceService? transferableBalances = null)
     {
         _db = db;
         _audit = audit;
         _deleteSafety = deleteSafety;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
         _partyStatements = partyStatements;
+        _transferableBalances = transferableBalances;
     }
 
     public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -109,7 +113,57 @@ public partial class SuppliersController : Controller
             ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
         }
 
+        // کارت «مانده قابل انتقال» — از موتور واحد خوانده می‌شود، نه از پرداخت‌های تکی.
+        // از ViewData می‌آید تا SupplierProfileViewModel و مسیر ساخت آن دست‌نخورده بماند.
+        var transferable = await BuildTransferableCardAsync(id, HttpContext?.RequestAborted ?? CancellationToken.None);
+        if (transferable is not null)
+        {
+            ViewData["SupplierTransferableBalance"] = transferable;
+        }
+
         return View(item);
+    }
+
+    /// <summary>
+    /// کارت مانده قابل انتقال. اگر سرویس تزریق نشده باشد (تست‌های قدیمی) null برمی‌گرداند و
+    /// صفحه دقیقاً مثل قبل رندر می‌شود.
+    /// </summary>
+    private async Task<SupplierTransferableBalanceCardViewModel?> BuildTransferableCardAsync(
+        int supplierId,
+        CancellationToken ct)
+    {
+        if (_transferableBalances is null)
+        {
+            return null;
+        }
+
+        var balance = await _transferableBalances.GetAsync(supplierId, ct);
+        var activeTransferCount = await _db.SupplierBalanceTransfers
+            .AsNoTracking()
+            .CountAsync(t => t.SupplierId == supplierId && t.Status == SupplierBalanceTransferStatus.Active, ct);
+
+        return new SupplierTransferableBalanceCardViewModel
+        {
+            SupplierId = supplierId,
+            ActiveTransferCount = activeTransferCount,
+            UnknownCompanyOutflowUsd = balance.UnknownCompany.OutflowUsd,
+            UnknownCompanyRowCount = balance.UnknownCompany.RowCount,
+            // AllPools = شرکت‌های اثبات‌شده + سطل سطح گروه. سطل سطح گروه هم مثل بقیه رندر و
+            // قابل انتقال است؛ نبودِ شرکتِ منبع دیگر مانده را از UI حذف نمی‌کند.
+            Companies = balance.AllPools
+                .Select(c => new SupplierCompanyBalanceViewModel
+                {
+                    CompanyId = c.CompanyId,
+                    CompanyName = c.CompanyName,
+                    NetAccountBalanceUsd = c.NetAccountBalanceUsd,
+                    ClaimUsd = c.ClaimUsd,
+                    TransferableTotalUsd = c.TransferableTotalUsd,
+                    ConsumedUsd = c.ConsumedByLegacyAllocationsUsd + c.ConsumedByTransfersUsd,
+                    IsGroupLevel = c.CompanyId == SupplierTransferableBalance.GroupLevelCompanyId,
+                    Buckets = SupplierBalanceTransfersController.MapBuckets(c)
+                })
+                .ToList()
+        };
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -446,6 +500,36 @@ public partial class SuppliersController : Controller
             .Where(p => p.PaymentKind == PaymentKind.SupplierPayment)
             .Select(p => p.Id)
             .ToList();
+
+        // انتقال مانده (پیش‌پرداخت آزاد → قرارداد) پرداخت جدید نیست، ولی برای قراردادِ مقصد
+        // یک تخصیصِ واقعی است. مبلغ اصلی و ارز از خودِ سند خوانده می‌شود، نه از سطر دفتر:
+        // پای مقصد با ارز قرارداد ثبت شده و مبلغ روبلی از آن بازیابی نمی‌شود.
+        // این مبلغ فقط به PaidUsd/PaidRub همان قرارداد اضافه می‌شود؛ جمع کل پرداختِ
+        // تأمین‌کننده از مسیر مستقل خودش می‌آید و انتقال داخلی آن را تغییر نمی‌دهد.
+        var balanceTransfers = await _db.SupplierBalanceTransfers
+            .AsNoTracking()
+            .Where(t => t.SupplierId == supplier.Id
+                && t.Status == SupplierBalanceTransferStatus.Active)
+            .Select(t => new SupplierBalanceTransferContractProjection
+            {
+                Id = t.Id,
+                ContractId = t.ContractId,
+                ContractNumber = t.Contract != null ? t.Contract.ContractNumber : null,
+                TransferDate = t.TransferDate,
+                TransferOriginalAmount = t.TransferOriginalAmount,
+                OriginalCurrencyCode = t.OriginalCurrencyCode,
+                TransferValueUsd = t.TransferValueUsd,
+                ReferenceNumber = t.ReferenceNumber
+            })
+            .ToListAsync();
+
+        var transferPaidByContract = balanceTransfers
+            .GroupBy(t => t.ContractId)
+            .ToDictionary(g => g.Key, g => g.Sum(t => t.TransferValueUsd));
+        var transferPaidRubByContract = balanceTransfers
+            .Where(t => IsRubCurrency(t.OriginalCurrencyCode))
+            .GroupBy(t => t.ContractId)
+            .ToDictionary(g => g.Key, g => (decimal?)g.Sum(t => t.TransferOriginalAmount));
         // Projected to a slim DTO (only the fields the advance UI/totals read) instead
         // of loading full SupplierPaymentAllocation + full Contract per row. Numbers
         // identical: same filter, same order, same scalar values.
@@ -724,6 +808,8 @@ public partial class SuppliersController : Controller
                 directPaidRubByContract.TryGetValue(c.Id, out var directPaidRub);
                 sarrafPaidRubByContract.TryGetValue(c.Id, out var sarrafPaidRub);
                 viaSarrafPaidRubByContract.TryGetValue(c.Id, out var viaSarrafPaidRub);
+                transferPaidByContract.TryGetValue(c.Id, out var transferPaidUsd);
+                transferPaidRubByContract.TryGetValue(c.Id, out var transferPaidRub);
                 // نرخ روبلِ نمایش فقط از منبع روبلیِ واقعی می‌آید: نرخ ثابت قرارداد، یا نرخ مؤثرِ
                 // بارگیری‌های روبلیِ همین قرارداد. نرخ از نسبت پرداخت‌ها ساخته نمی‌شود؛ پرداخت روبلی
                 // «قیمتِ خرید» را روبلی نمی‌کند و در پرداخت ترکیبی USD/RUB آن نسبت رقیق و نادرست است.
@@ -757,8 +843,8 @@ public partial class SuppliersController : Controller
                     LoadedValueRubIsEstimated = loadingRub.IsEstimated,
                     LedgerOutflowUsd = ledger?.OutflowUsd ?? 0m,
                     LedgerReceiptUsd = ledger?.ReceiptUsd ?? 0m,
-                    PaidUsd = directPaidUsd + sarrafPaidUsd + viaSarrafPaidUsd,
-                    PaidRub = SumKnown([directPaidRub, sarrafPaidRub, viaSarrafPaidRub]),
+                    PaidUsd = directPaidUsd + sarrafPaidUsd + viaSarrafPaidUsd + transferPaidUsd,
+                    PaidRub = SumKnown([directPaidRub, sarrafPaidRub, viaSarrafPaidRub, transferPaidRub]),
                     Status = c.Status,
                     StatusName = GetContractStatusName(c.Status),
                     StatusBadgeClass = GetContractStatusBadgeClass(c.Status)
@@ -884,6 +970,25 @@ public partial class SuppliersController : Controller
                 IsSarraf = true,
                 IsLedgerOnlyViaSarraf = true,
                 LedgerEntryId = ledger.Id
+            });
+        }
+        foreach (var transfer in balanceTransfers)
+        {
+            // پول تازه‌ای جابه‌جا نشده؛ همان پیش‌پرداختِ آزادِ قبلی حالا به این قرارداد نشسته است.
+            paymentLines.Add(new SupplierPaymentLineViewModel
+            {
+                Date = transfer.TransferDate,
+                Method = "انتقال مانده",
+                Amount = transfer.TransferOriginalAmount,
+                Currency = transfer.OriginalCurrencyCode,
+                AmountUsd = transfer.TransferValueUsd,
+                ContractNumber = transfer.ContractNumber,
+                Reference = string.IsNullOrWhiteSpace(transfer.ReferenceNumber)
+                    ? $"#{transfer.Id}"
+                    : transfer.ReferenceNumber!,
+                Description = "تخصیص پیش‌پرداخت آزاد به قرارداد",
+                IsBalanceTransfer = true,
+                BalanceTransferId = transfer.Id
             });
         }
         var paymentLineRows = paymentLines
@@ -1711,6 +1816,21 @@ public partial class SuppliersController : Controller
         public string? ContractNumber { get; init; }
         public string ContractCurrencyCode { get; init; } = "USD";
         public decimal AllocatedContractCurrencyAmount { get; init; }
+    }
+
+    // Slim read-model for active balance transfers. Original amount + currency come from
+    // the transfer document itself: the destination ledger leg is posted in the contract's
+    // currency, so a RUB transfer into a USD contract has no RUB amount on that row.
+    private sealed class SupplierBalanceTransferContractProjection
+    {
+        public int Id { get; init; }
+        public int ContractId { get; init; }
+        public string? ContractNumber { get; init; }
+        public DateTime TransferDate { get; init; }
+        public decimal TransferOriginalAmount { get; init; }
+        public string OriginalCurrencyCode { get; init; } = "USD";
+        public decimal TransferValueUsd { get; init; }
+        public string? ReferenceNumber { get; init; }
     }
 
     private sealed class SupplierLoadingRubProjection

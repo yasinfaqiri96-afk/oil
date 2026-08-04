@@ -192,17 +192,21 @@ public sealed class CompanyFlowTextTests
         var details = SupplierStatementExport.BuildDetailsDocument(
             statement, "stem", "USD", [], isEnglish: false);
 
-        foreach (var document in new[] { summary, details })
-        {
-            var flow = document.Columns.TakeLast(3).ToArray();
+        var flow = details.Columns.TakeLast(3).ToArray();
+        Assert.Equal("رسید (USD)", flow[0].TitleFa);
+        Assert.Equal("Debit (USD)", flow[0].TitleEn);
+        Assert.Equal("برد (USD)", flow[1].TitleFa);
+        Assert.Equal("Credit (USD)", flow[1].TitleEn);
+        Assert.Equal("بیلانس (USD)", flow[2].TitleFa);
+        Assert.Equal("Balance (USD)", flow[2].TitleEn);
 
-            Assert.Equal("رسید (USD)", flow[0].TitleFa);
-            Assert.Equal("Debit (USD)", flow[0].TitleEn);
-            Assert.Equal("برد (USD)", flow[1].TitleFa);
-            Assert.Equal("Credit (USD)", flow[1].TitleEn);
-            Assert.Equal("بیلانس (USD)", flow[2].TitleFa);
-            Assert.Equal("Balance (USD)", flow[2].TitleEn);
-        }
+        Assert.Contains(summary.Columns, c => c.TitleFa == "ارزش قطعی" && c.TitleEn == "Confirmed value");
+        Assert.Contains(summary.Columns, c => c.TitleFa == "پرداخت / دریافت" && c.TitleEn == "Payment / receipt");
+        // مانده قرارداد بدون علامت است و جهتش در ستون «وضعیت مانده» کنارش می‌آید.
+        Assert.Equal("مانده قرارداد", summary.Columns[^2].TitleFa);
+        Assert.Equal("Contract balance", summary.Columns[^2].TitleEn);
+        Assert.Equal("وضعیت مانده", summary.Columns[^1].TitleFa);
+        Assert.Equal("Balance status", summary.Columns[^1].TitleEn);
     }
 
     [Fact]
@@ -214,10 +218,16 @@ public sealed class CompanyFlowTextTests
         var persian = SupplierStatementExport.BuildSummaryDocument(statement, grouping, "stem", "USD", [], isEnglish: false);
         var english = SupplierStatementExport.BuildSummaryDocument(statement, grouping, "stem", "USD", [], isEnglish: true);
 
-        var persianNumbers = persian.Rows.SelectMany(row => row.Cells).Select(cell => cell.Value).ToArray();
-        var englishNumbers = english.Rows.SelectMany(row => row.Cells).Select(cell => cell.Value).ToArray();
+        // فقط ارقام مقایسه می‌شوند: سلول‌های متنی (مثل «وضعیت مانده») عمداً ترجمه می‌شوند.
+        static object?[] Numbers(TabularExportDocument document) => document.Rows
+            .SelectMany(row => row.Cells)
+            .Where(cell => cell.ValueType is TabularExportValueType.Number
+                or TabularExportValueType.Integer
+                or TabularExportValueType.Percentage)
+            .Select(cell => cell.Value)
+            .ToArray();
 
-        Assert.Equal(persianNumbers, englishNumbers);
+        Assert.Equal(Numbers(persian), Numbers(english));
         Assert.Equal(persian.Columns.Count, english.Columns.Count);
     }
 

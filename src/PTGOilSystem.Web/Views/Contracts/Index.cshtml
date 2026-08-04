@@ -103,7 +103,7 @@
                 <thead>
                     <tr>
                         <th class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-select-all aria-label="@T("انتخاب همه", "Select all")" /></th>
-                        <th>@T("قرارداد", "Contract")</th>
+                        <th class="ak-col-grow">@T("قرارداد", "Contract")</th>
                         <th>@T("طرف قرارداد", "Party")</th>
                         <th>@T("مقدار", "Quantity")</th>
                         <th>@T("محصول", "Product")</th>
@@ -119,9 +119,8 @@
                         var journeyUrl = Url.Action("Details", "ContractJourney", new { contractId = item.Id, tab = "summary", lockContract = true, returnUrl = currentReturnUrl });
                         <tr data-href="@journeyUrl">
                             <td class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@T("انتخاب ردیف", "Select row")" /></td>
-                            <td>
-                                <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@item.DisplayLabel">@item.ContractName</a>
-                                <div class="ak-muted" dir="ltr">@item.ContractNumber</div>
+                            <td class="ak-col-grow">
+                                <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name" title="@item.DisplayLabel">@item.DisplayLabel</a>
                             </td>
                             <td>
                                 <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((partyText, (string?)"muted"))" />

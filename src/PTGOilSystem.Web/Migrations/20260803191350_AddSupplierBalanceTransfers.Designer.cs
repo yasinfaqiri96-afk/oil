@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PTGOilSystem.Web.Data;
@@ -11,9 +12,11 @@ using PTGOilSystem.Web.Data;
 namespace PTGOilSystem.Web.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260803191350_AddSupplierBalanceTransfers")]
+    partial class AddSupplierBalanceTransfers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1882,7 +1885,7 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(10)");
 
                     b.Property<decimal>("Rate")
-                        .HasColumnType("numeric(24,12)");
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<DateTime>("RateDate")
                         .HasColumnType("timestamp with time zone");
@@ -4003,9 +4006,6 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal>("AmountUsd")
                         .HasColumnType("numeric(18,4)");
 
-                    b.Property<decimal?>("AppliedCurrencyPerUsdRate")
-                        .HasColumnType("numeric(24,12)");
-
                     b.Property<DateTime?>("AppliedFxRateDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -4014,7 +4014,7 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<decimal?>("AppliedFxRateToUsd")
-                        .HasColumnType("numeric(24,12)");
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<int?>("ContractId")
                         .HasColumnType("integer");
@@ -6493,10 +6493,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(10)");
 
                     b.Property<decimal>("ContractCurrencyFxRateToUsd")
-                        .HasColumnType("numeric(24,12)");
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<decimal>("ContractCurrencyPerUsdRate")
-                        .HasColumnType("numeric(24,12)");
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<int>("ContractId")
                         .HasColumnType("integer");
@@ -6523,16 +6523,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal>("HistoricalAmountUsd")
                         .HasColumnType("numeric(18,4)");
 
-                    b.Property<decimal?>("HistoricalCurrencyPerUsdRate")
-                        .HasColumnType("numeric(24,12)");
-
                     b.Property<decimal>("HistoricalFxRateToUsd")
-                        .HasColumnType("numeric(24,12)");
-
-                    b.Property<bool>("HistoricalRateIsEstimated")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
@@ -6571,13 +6563,13 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("TransferFxRateToUsd")
-                        .HasColumnType("numeric(24,12)");
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<decimal>("TransferOriginalAmount")
                         .HasColumnType("numeric(18,4)");
 
                     b.Property<decimal>("TransferPerUsdRate")
-                        .HasColumnType("numeric(24,12)");
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<decimal>("TransferValueUsd")
                         .HasColumnType("numeric(18,4)");
@@ -6625,11 +6617,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
-                    b.Property<decimal?>("HistoricalCurrencyPerUsdRate")
-                        .HasColumnType("numeric(24,12)");
-
                     b.Property<decimal>("HistoricalFxRateToUsd")
-                        .HasColumnType("numeric(24,12)");
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<int?>("LedgerEntryId")
                         .HasColumnType("integer");

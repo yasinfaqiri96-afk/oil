@@ -2,10 +2,8 @@
 @{
     var statement = Model.Statement;
     var isRub = statement.Summary.IsRubPresentation;
-    var rows = statement.Rows.Where(r => !r.IsOpeningBalance).ToList();
-    var loadings = rows.Where(r => r.SourceType == "Loading").ToList();
-    const int LoadingCap = 500;
-    var loadingShown = loadings.Take(LoadingCap).ToList();
+    var rows = Model.DetailRows;
+    var loadingShown = Model.LoadingRows;
 
     string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "–";
     string Qty(decimal? value) => value.HasValue ? value.Value.ToString("N3") : "–";
@@ -81,7 +79,7 @@
     </section>
 
     <section class="statement-details-block">
-        <h3>بارگیری‌ها</h3>
+        <h3>بارگیری‌ها / تحویل‌های قطعی</h3>
         <table class="statement-table statement-table-compact">
             <thead>
                 <tr>
@@ -108,15 +106,36 @@
                             <td class="statement-money">@Qty(row.Quantity)</td>
                             <td class="statement-money">@Amount(row.PlattsPrice)</td>
                             <td class="statement-money">@Amount(row.UnitPrice)</td>
-                            <td class="statement-money">@Base(row.ReceiptBase, row.ReceiptRub)</td>
+                            <td class="statement-money">@Base(row.ReceiptBase ?? row.OutflowBase, row.ReceiptRub ?? row.OutflowRub)</td>
                         </tr>
                     }
                 }
             </tbody>
         </table>
-        @if (loadings.Count > LoadingCap)
+        @if (Model.DetailTotalPages > 1)
         {
-            <p class="statement-details-note">نمایش @LoadingCap مورد از @loadings.Count بارگیری. برای فهرست کامل از خروجی استفاده کنید.</p>
+            <nav class="statement-pagination no-print" aria-label="صفحه‌بندی جزئیات قرارداد">
+                @for (var pageNumber = 1; pageNumber <= Model.DetailTotalPages; pageNumber++)
+                {
+                    var pageUrl = Url.Action("ContractDetails", "PartyStatements", new
+                    {
+                        partyType = Model.PartyType,
+                        id = Model.PartyId,
+                        contractId = Model.ContractId,
+                        detailPage = pageNumber,
+                        FromDate = Context.Request.Query["FromDate"],
+                        ToDate = Context.Request.Query["ToDate"],
+                        CompanyId = Context.Request.Query["CompanyId"],
+                        CurrencyCode = Context.Request.Query["CurrencyCode"],
+                        SourceType = Context.Request.Query["SourceType"],
+                        Search = Context.Request.Query["Search"]
+                    });
+                    <button type="button"
+                            class="@(pageNumber == Model.DetailPage ? "is-active" : null)"
+                            data-statement-details-page="@pageUrl"
+                            aria-current="@(pageNumber == Model.DetailPage ? "page" : null)">@pageNumber</button>
+                }
+            </nav>
         }
     </section>
 </div>

@@ -226,6 +226,16 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             })
             .ToListAsync(ct);
 
+        // نمای روبلی: پای مقصدِ «انتقال مانده» با ارز قرارداد ثبت شده (اغلب USD)، پس مبلغ
+        // روبلی از خودِ سطر دفتر بازیابی نمی‌شود و ستون روبل خالی می‌ماند. مبلغ اصلی هر دو
+        // پای انتقال مستقیماً از سند SupplierBalanceTransfer خوانده می‌شود تا همان مقداری که
+        // از پیش‌پرداخت آزاد کم شده، روی قرارداد مقصد هم دیده شود. AmountUsd و جهت سند
+        // دست‌نخورده می‌ماند؛ فقط «مبلغ اصلی» سطر کامل می‌شود.
+        if (IsRubPresentation(filter))
+        {
+            await ApplyBalanceTransferOriginalAmountsAsync(entries, ct);
+        }
+
         var allRows = entries.Select(e => MapLedgerRow(e, policy)).ToList();
 
         // یک خدمتِ ثبت‌شده روی یک محموله، هنگام ثبت به‌تناسبِ هر قرارداد تقسیم می‌شود و
@@ -240,6 +250,73 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
     }
 
     private const string ExpenseSourceType = "Expense";
+
+    // دو پای «انتقال مانده» و برگشت آن. سطر تفاوت نرخ عمداً اینجا نیست: آن یک اثر
+    // دالریِ سود/زیان است و مبلغ اصلی روبلی ندارد.
+    private static readonly string[] BalanceTransferSourceTypes =
+    [
+        SupplierBalanceTransferService.LedgerSourceType,
+        SupplierBalanceTransferService.ReversalLedgerSourceType
+    ];
+
+    /// <summary>
+    /// مبلغ اصلی سطرهای «انتقال مانده» را از خودِ سند می‌خواند (نه از ستون SourceAmount دفتر).
+    /// مقدار مرجع <see cref="SupplierBalanceTransfer.TransferOriginalAmount"/> است — همان
+    /// مقداری که از مانده قابل انتقال کم شده؛ جمعِ <see cref="SupplierBalanceTransferSource"/>
+    /// فقط وقتی به‌کار می‌رود که سند مقدار مستقیم نداشته باشد (داده ناقص قدیمی).
+    /// هیچ مبلغ دالری، جهت یا سطر دفتری تغییر نمی‌کند.
+    /// </summary>
+    private async Task ApplyBalanceTransferOriginalAmountsAsync(
+        List<LedgerStatementProjection> entries,
+        CancellationToken ct)
+    {
+        var transferIds = entries
+            .Where(e => Array.IndexOf(BalanceTransferSourceTypes, e.SourceType) >= 0 && e.SourceId > 0)
+            .Select(e => e.SourceId)
+            .Distinct()
+            .ToList();
+        if (transferIds.Count == 0)
+        {
+            return;
+        }
+
+        var transfers = await _db.SupplierBalanceTransfers
+            .AsNoTracking()
+            .Where(t => transferIds.Contains(t.Id))
+            .Select(t => new
+            {
+                t.Id,
+                t.OriginalCurrencyCode,
+                t.TransferOriginalAmount,
+                ConsumedOriginalAmount = t.Sources
+                    .Where(s => s.OriginalCurrencyCode == t.OriginalCurrencyCode)
+                    .Sum(s => (decimal?)s.ConsumedOriginalAmount)
+            })
+            .ToDictionaryAsync(t => t.Id, ct);
+
+        foreach (var entry in entries)
+        {
+            if (Array.IndexOf(BalanceTransferSourceTypes, entry.SourceType) < 0
+                || !transfers.TryGetValue(entry.SourceId, out var transfer))
+            {
+                continue;
+            }
+
+            var original = transfer.TransferOriginalAmount > 0m
+                ? transfer.TransferOriginalAmount
+                : transfer.ConsumedOriginalAmount ?? 0m;
+            if (original <= 0m)
+            {
+                continue;
+            }
+
+            entry.OriginalAmount = original;
+            entry.OriginalCurrency = NormalizeCurrency(transfer.OriginalCurrencyCode);
+            // نرخ نمایشی از خودِ همین سطر ساخته می‌شود تا «مبلغ اصلی × نرخ = مبلغ دالری»
+            // برای هر دو پا صادق بماند: پای منبع نرخ تاریخی و پای مقصد نرخ روز انتقال.
+            entry.FxRateToUsd = FxRateMath.RoundRate(entry.AmountUsd / original);
+        }
+    }
 
     /// <summary>
     /// ادغامِ صرفاً نمایشیِ سهم‌های یک خدمت روی یک محموله. کلید ادغام = (محموله، نوع مصرف،
@@ -431,6 +508,19 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             var exclusiveEnd = filter.ToDate.Value.Date.AddDays(1);
             query = query.Where(l => l.EntryDate < exclusiveEnd);
         }
+        if (!string.IsNullOrWhiteSpace(filter.SourceType))
+        {
+            var sourceType = filter.SourceType.Trim();
+            query = query.Where(l => l.SourceType == sourceType);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim();
+            query = query.Where(l =>
+                l.Description.Contains(search)
+                || (l.Reference != null && l.Reference.Contains(search))
+                || (l.Contract != null && l.Contract.ContractNumber.Contains(search)));
+        }
 
         return query;
     }
@@ -522,6 +612,19 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             var exclusiveEnd = filter.ToDate.Value.Date.AddDays(1);
             query = query.Where(l => l.EntryDate < exclusiveEnd);
         }
+        if (!string.IsNullOrWhiteSpace(filter.SourceType))
+        {
+            var sourceType = filter.SourceType.Trim();
+            query = query.Where(l => l.SourceType == sourceType);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim();
+            query = query.Where(l =>
+                l.Description.Contains(search)
+                || (l.Reference != null && l.Reference.Contains(search))
+                || (l.Contract != null && l.Contract.ContractNumber.Contains(search)));
+        }
 
         var entries = await query
             .OrderBy(l => l.EntryDate)
@@ -594,6 +697,18 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             var exclusiveEnd = filter.ToDate.Value.Date.AddDays(1);
             query = query.Where(t => t.TransactionDate < exclusiveEnd);
         }
+        if (!string.IsNullOrWhiteSpace(filter.SourceType)
+            && Enum.TryParse<EmployeeSalaryTransactionType>(filter.SourceType, true, out var transactionType))
+        {
+            query = query.Where(t => t.TransactionType == transactionType);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim();
+            query = query.Where(t =>
+                (t.Description != null && t.Description.Contains(search))
+                || (t.Reference != null && t.Reference.Contains(search)));
+        }
 
         var transactions = await query
             .OrderBy(t => t.TransactionDate)
@@ -601,6 +716,19 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             .ThenBy(t => t.Id)
             .ToListAsync(ct);
         var allRows = transactions.Select(MapEmployeeRow).ToList();
+        if (!string.IsNullOrWhiteSpace(filter.SourceType))
+        {
+            var sourceType = filter.SourceType.Trim();
+            allRows = allRows.Where(r => string.Equals(r.SourceType, sourceType, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim();
+            allRows = allRows.Where(r =>
+                r.Description.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || (r.Reference?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+        }
+
         return SplitAtPeriodStart(allRows, filter.FromDate);
     }
 
@@ -784,6 +912,19 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                     paymentDirection: payment.Direction),
                 payment.AmountUsd);
             allRows.Add(row);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.SourceType))
+        {
+            var sourceType = filter.SourceType.Trim();
+            allRows = allRows.Where(r => string.Equals(r.SourceType, sourceType, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim();
+            allRows = allRows.Where(r =>
+                r.Description.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || (r.Reference?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
         }
 
         return SplitAtPeriodStart(allRows, filter.FromDate);
@@ -987,6 +1128,14 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         {
             throw new ArgumentException("تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.", nameof(filter));
         }
+        if (filter.Page < 1)
+        {
+            throw new ArgumentException("شماره صفحه باید حداقل یک باشد.", nameof(filter));
+        }
+        if (filter.PageSize is < 10 or > 100)
+        {
+            throw new ArgumentException("تعداد ردیف صفحه باید بین ۱۰ و ۱۰۰ باشد.", nameof(filter));
+        }
     }
 
     private static decimal? ResolveHistoricalRate(decimal? fxRateToUsd, string? currency)
@@ -1048,8 +1197,8 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         public LedgerSide Side { get; init; }
         public decimal AmountUsd { get; set; }
         public decimal? OriginalAmount { get; set; }
-        public string OriginalCurrency { get; init; } = BaseCurrency;
-        public decimal? FxRateToUsd { get; init; }
+        public string OriginalCurrency { get; set; } = BaseCurrency;
+        public decimal? FxRateToUsd { get; set; }
         public string? Reference { get; init; }
         public string Description { get; init; } = string.Empty;
         public string SourceType { get; init; } = string.Empty;

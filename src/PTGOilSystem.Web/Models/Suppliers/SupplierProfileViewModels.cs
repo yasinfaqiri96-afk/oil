@@ -1,3 +1,4 @@
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Models.Suppliers;
@@ -183,6 +184,10 @@ public sealed class SupplierPaymentLineViewModel
     public int? LedgerEntryId { get; init; }
     public int? PaymentId { get; init; }
     public int? SarrafSettlementId { get; init; }
+
+    // انتقال پیش‌پرداخت آزاد به قرارداد — پرداخت جدید نیست، تخصیص پول قبلی است.
+    public bool IsBalanceTransfer { get; init; }
+    public int? BalanceTransferId { get; init; }
 }
 
 public sealed class SupplierStatementContractFilterOptionViewModel
@@ -248,6 +253,21 @@ public sealed class SupplierContractSummaryViewModel
     public decimal? EstimatedRemainingRub => EstimatedTotalRub.HasValue && PaidRub.HasValue
         ? EstimatedTotalRub.Value - PaidRub.Value
         : null;
+
+    // نمایش یکسانِ مانده با صورت‌حساب/PDF/Excel: عدد بدون علامت + عنوانِ معنا.
+    // ورودی مشترک همه‌جا «پرداخت − ارزش قرارداد» است؛ ستون‌های بالا علامت معکوس دارند.
+    public decimal PaidMinusLoadedValueUsd => PaidUsd - LoadedValueUsd;
+    public decimal? PaidMinusLoadedValueRub => LoadedValueRub.HasValue && PaidRub.HasValue
+        ? PaidRub.Value - LoadedValueRub.Value
+        : null;
+
+    public decimal? BalanceFor(bool isRub) => isRub ? PaidMinusLoadedValueRub : PaidMinusLoadedValueUsd;
+
+    public decimal? BalanceAbsoluteFor(bool isRub) => ContractBalanceText.Absolute(BalanceFor(isRub));
+
+    public string? BalanceTitleFor(bool isRub, bool isEnglish = false)
+        => ContractBalanceText.Title(BalanceFor(isRub), isEnglish);
+
     public ContractStatus Status { get; init; }
     public string StatusName { get; init; } = string.Empty;
     public string StatusBadgeClass { get; init; } = "status-badge-neutral";

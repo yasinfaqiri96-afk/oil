@@ -97,6 +97,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
     public DbSet<ContractBalanceTransfer> ContractBalanceTransfers => Set<ContractBalanceTransfer>();
     public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
+    public DbSet<SupplierBalanceTransfer> SupplierBalanceTransfers => Set<SupplierBalanceTransfer>();
+    public DbSet<SupplierBalanceTransferSource> SupplierBalanceTransferSources => Set<SupplierBalanceTransferSource>();
     public DbSet<CustomerPaymentAllocation> CustomerPaymentAllocations => Set<CustomerPaymentAllocation>();
     public DbSet<CustomerPaymentAllocationApplication> CustomerPaymentAllocationApplications => Set<CustomerPaymentAllocationApplication>();
     public DbSet<SalesCostConsumption> SalesCostConsumptions => Set<SalesCostConsumption>();
@@ -177,7 +179,10 @@ public class ApplicationDbContext : DbContext
         ConfigureMoney<ContractPricingRule>(modelBuilder, c => c.PremiumUsd!);
 
         ConfigureMoney<DailyPlattsPrice>(modelBuilder, p => p.PriceUsdPerMt);
-        modelBuilder.Entity<DailyFxRate>().Property(r => r.Rate).HasColumnType("numeric(18,6)");
+        // نرخ روز در جهت «ارز → دالر» ذخیره می‌شود. فورم‌ها جهت معکوس («۱ دالر = چند واحد»)
+        // را می‌خواهند، و با ۶ رقم اعشار این تبدیل خطای دیدنی می‌ساخت: 1/85 = 0.011765 و
+        // برگشتش ۸۵.۰۰۲۱۲۵. با ۱۲ رقم خطا به ~1e-11 می‌رسد و زیر گردکردنِ نمایش گم می‌شود.
+        modelBuilder.Entity<DailyFxRate>().Property(r => r.Rate).HasColumnType("numeric(24,12)");
         ConfigureMoney<PlattsMonthlyManual>(modelBuilder, p => p.PriceUsdPerMt);
 
         ConfigureWeight<StorageTank>(modelBuilder, t => t.CapacityMt);
@@ -342,7 +347,11 @@ public class ApplicationDbContext : DbContext
 
         ConfigureMoney<LedgerEntry>(modelBuilder, l => l.AmountUsd);
         ConfigureMoney<LedgerEntry>(modelBuilder, l => l.SourceAmount!);
-        modelBuilder.Entity<LedgerEntry>().Property(l => l.AppliedFxRateToUsd).HasColumnType("numeric(18,6)");
+        // نرخ‌های ارز با ۱۲ رقم اعشار نگهداری می‌شوند. با ۶ رقم، 1/70 به 0.014286 گرد می‌شد و
+        // معکوسش دیگر ۷۰ نبود (۶۹.۹۹۸۶). numeric(24,12) همان ۱۲ رقم صحیحِ قبلی را نگه می‌دارد،
+        // پس هیچ مقدار موجودی سرریز نمی‌کند.
+        modelBuilder.Entity<LedgerEntry>().Property(l => l.AppliedFxRateToUsd).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<LedgerEntry>().Property(l => l.AppliedCurrencyPerUsdRate).HasColumnType("numeric(24,12)");
 
         ConfigureMoney<Employee>(modelBuilder, e => e.BaseSalaryAmount);
         modelBuilder.Entity<Employee>().Property(e => e.IsActive).HasDefaultValue(true);
@@ -367,6 +376,23 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.ContractCurrencyFxRateToUsd).HasColumnType("numeric(18,6)");
         modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentCurrencyPerUsdRateAtAllocation).HasColumnType("numeric(18,6)");
         modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentCurrencyFxRateToUsdAtAllocation).HasColumnType("numeric(18,6)");
+
+        ConfigureMoney<SupplierBalanceTransfer>(modelBuilder, t => t.TransferOriginalAmount);
+        ConfigureMoney<SupplierBalanceTransfer>(modelBuilder, t => t.HistoricalAmountUsd);
+        ConfigureMoney<SupplierBalanceTransfer>(modelBuilder, t => t.TransferValueUsd);
+        ConfigureMoney<SupplierBalanceTransfer>(modelBuilder, t => t.ExchangeDifferenceUsd);
+        ConfigureMoney<SupplierBalanceTransfer>(modelBuilder, t => t.TransferContractCurrencyAmount);
+        modelBuilder.Entity<SupplierBalanceTransfer>().Property(t => t.HistoricalFxRateToUsd).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierBalanceTransfer>().Property(t => t.HistoricalCurrencyPerUsdRate).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierBalanceTransfer>().Property(t => t.HistoricalRateIsEstimated).HasDefaultValue(false);
+        modelBuilder.Entity<SupplierBalanceTransfer>().Property(t => t.TransferPerUsdRate).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierBalanceTransfer>().Property(t => t.TransferFxRateToUsd).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierBalanceTransfer>().Property(t => t.ContractCurrencyPerUsdRate).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierBalanceTransfer>().Property(t => t.ContractCurrencyFxRateToUsd).HasColumnType("numeric(24,12)");
+        ConfigureMoney<SupplierBalanceTransferSource>(modelBuilder, s => s.ConsumedOriginalAmount);
+        ConfigureMoney<SupplierBalanceTransferSource>(modelBuilder, s => s.ConsumedBookAmountUsd);
+        modelBuilder.Entity<SupplierBalanceTransferSource>().Property(s => s.HistoricalFxRateToUsd).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierBalanceTransferSource>().Property(s => s.HistoricalCurrencyPerUsdRate).HasColumnType("numeric(24,12)");
 
         ConfigureWeight<OperationalAsset>(modelBuilder, a => a.CapacityMt!);
         ConfigureMoney<OperationalAsset>(modelBuilder, a => a.MonthlyDepreciationUsd);
@@ -620,6 +646,18 @@ public class ApplicationDbContext : DbContext
             .HasIndex(a => new { a.ContractId, a.Status });
         modelBuilder.Entity<SupplierPaymentAllocation>()
             .HasIndex(a => a.AllocationDate);
+        modelBuilder.Entity<SupplierBalanceTransfer>()
+            .HasIndex(t => new { t.SupplierId, t.Status });
+        modelBuilder.Entity<SupplierBalanceTransfer>()
+            .HasIndex(t => new { t.ContractId, t.Status });
+        modelBuilder.Entity<SupplierBalanceTransfer>()
+            .HasIndex(t => t.TransferDate);
+        modelBuilder.Entity<SupplierBalanceTransfer>()
+            .HasIndex(t => t.BatchId);
+        modelBuilder.Entity<SupplierBalanceTransferSource>()
+            .HasIndex(s => s.SupplierBalanceTransferId);
+        modelBuilder.Entity<SupplierBalanceTransferSource>()
+            .HasIndex(s => new { s.SourceType, s.SourceId });
         modelBuilder.Entity<EmployeeSalaryTransaction>()
             .HasIndex(t => new { t.EmployeeId, t.TransactionDate });
         modelBuilder.Entity<EmployeeSalaryTransaction>()
@@ -1609,6 +1647,38 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(a => a.ContractId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SupplierBalanceTransfer>()
+            .HasOne(t => t.Supplier)
+            .WithMany()
+            .HasForeignKey(t => t.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SupplierBalanceTransfer>()
+            .HasOne(t => t.Company)
+            .WithMany()
+            .HasForeignKey(t => t.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SupplierBalanceTransfer>()
+            .HasOne(t => t.Contract)
+            .WithMany()
+            .HasForeignKey(t => t.ContractId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // همان الگوی تسویهٔ صراف و تخصیص پیش‌پرداخت: سطر سود/زیان نرخ ارز با FK قابل ردیابی است.
+        modelBuilder.Entity<SupplierBalanceTransfer>()
+            .HasOne(t => t.ExchangeDifferenceLedgerEntry)
+            .WithMany()
+            .HasForeignKey(t => t.ExchangeDifferenceLedgerEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // سطرهای ردیابی منبع با خودِ انتقال حذف می‌شوند؛ اثر مالی مستقلی ندارند.
+        modelBuilder.Entity<SupplierBalanceTransferSource>()
+            .HasOne(s => s.SupplierBalanceTransfer)
+            .WithMany(t => t.Sources)
+            .HasForeignKey(s => s.SupplierBalanceTransferId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<LossEvent>()
             .HasOne(e => e.InventoryMovement)

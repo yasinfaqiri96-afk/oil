@@ -469,7 +469,8 @@ public sealed class PartyStatementReadServiceTests
         var action = await controller.Csv(
             PartyStatementPartyType.Customer,
             1,
-            new PartyStatementFilter { IncludeOperationalColumns = false });
+            new PartyStatementFilter { IncludeOperationalColumns = false },
+            view: SupplierStatementView.Ledger);
 
         await action.ExecuteResultAsync(new ActionContext(httpContext, new(), new()));
         httpContext.Response.Body.Position = 0;
@@ -479,11 +480,113 @@ public sealed class PartyStatementReadServiceTests
     }
 
     [Fact]
+    public async Task SourceTypeAndSearchFilters_AreAppliedBeforeContractGrouping()
+    {
+        await using var db = CreateDb();
+        var company = new Company { Code = "C1", Name = "Company 1" };
+        var supplier = new Supplier { Name = "Filtered supplier" };
+        db.AddRange(company, supplier);
+        await db.SaveChangesAsync();
+        var contract = new Contract
+        {
+            ContractNumber = "P-FILTER",
+            ContractType = ContractType.Purchase,
+            CompanyId = company.Id,
+            SupplierId = supplier.Id
+        };
+        db.Contracts.Add(contract);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.AddRange(
+            SupplierEntry(contract.Id, supplier.Id, 100m, "USD", 100m, 1m, 1),
+            new LedgerEntry
+            {
+                EntryDate = new DateTime(2026, 1, 2),
+                Side = LedgerSide.Debit,
+                AmountUsd = 40m,
+                Currency = "USD",
+                SupplierId = supplier.Id,
+                ContractId = contract.Id,
+                SourceType = "SupplierPayment",
+                SourceId = 2,
+                Description = "unrelated payment"
+            });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, supplier.Id),
+            new PartyStatementFilter
+            {
+                SourceType = "Loading",
+                Search = "Loading",
+                IncludeOperationalColumns = false
+            });
+        var grouping = SupplierContractStatementBuilder.Build(
+            statement,
+            new Dictionary<int, SupplierContractStatementBuilder.ContractFacts>());
+
+        var row = Assert.Single(grouping.Rows);
+        Assert.Equal(100m, row.ConfirmedValue);
+        Assert.Equal(0m, row.SettlementTotal);
+        Assert.Equal(1, row.LoadingCount);
+        Assert.Single(statement.Rows);
+    }
+
+    [Fact]
+    public async Task CustomerStatement_DefaultsToOneSummaryRowPerContract()
+    {
+        var rows = new List<PartyStatementRow>
+        {
+            new()
+            {
+                Date = new DateTime(2026, 1, 1),
+                Description = "sale 1",
+                OutflowBase = 40m,
+                RunningBalance = 40m,
+                SourceType = "Sale",
+                SourceId = 1,
+                ContractId = 7,
+                ContractNumber = "S-7"
+            },
+            new()
+            {
+                Date = new DateTime(2026, 1, 2),
+                Description = "sale 2",
+                OutflowBase = 60m,
+                RunningBalance = 100m,
+                SourceType = "Sale",
+                SourceId = 2,
+                ContractId = 7,
+                ContractNumber = "S-7"
+            }
+        };
+        await using var db = CreateDb();
+        var controller = new PartyStatementsController(new StubStatementService(BuildResult(rows)), db)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
+
+        var result = await controller.Customer(
+            1,
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<PartyStatementViewModel>(view.Model);
+        Assert.Equal(SupplierStatementView.Contracts, model.SupplierView);
+        var summaryRow = Assert.Single(model.ContractGrouping!.Rows);
+        Assert.Equal(2, summaryRow.LoadingCount);
+        Assert.Equal(100m, summaryRow.ConfirmedValue);
+    }
+
+    [Fact]
     public void OfficialView_HasRequiredDocumentSections_AndNoFinancialArithmetic()
     {
         var root = FindRepositoryRoot();
         var view = File.ReadAllText(Path.Combine(root, "src", "PTGOilSystem.Web", "Views", "PartyStatements", "Document.cshtml"));
         var css = File.ReadAllText(Path.Combine(root, "src", "PTGOilSystem.Web", "wwwroot", "css", "ptg", "62-party-statement.css"));
+        var contractView = File.ReadAllText(Path.Combine(
+            root, "src", "PTGOilSystem.Web", "Views", "PartyStatements", "_SupplierContractStatement.cshtml"));
+        var detailsView = File.ReadAllText(Path.Combine(
+            root, "src", "PTGOilSystem.Web", "Views", "PartyStatements", "_SupplierContractDetails.cshtml"));
 
         Assert.Contains("statement-brand-header", view);
         Assert.Contains("statement-info-grid", view);
@@ -492,6 +595,12 @@ public sealed class PartyStatementReadServiceTests
         Assert.Contains("statement-note", view);
         Assert.Contains("statement-authorization", view);
         Assert.Contains("statement-footer", view);
+        Assert.Contains("خلاصه قراردادها", view);
+        Assert.Contains("گردش حساب فشرده", view);
+        Assert.Contains("مبلغ کل قرارداد", contractView);
+        Assert.Contains("ارزش قطعی", contractView);
+        Assert.Contains("data-statement-details", contractView);
+        Assert.Contains("data-statement-details-page", detailsView);
         Assert.DoesNotContain("RunningBalance +=", view, StringComparison.Ordinal);
         Assert.DoesNotContain("TotalOutflow -", view, StringComparison.Ordinal);
         Assert.Contains("@media print", css);
@@ -672,7 +781,9 @@ public sealed class PartyStatementReadServiceTests
         Assert.Equal(statement.Summary.TotalReceipt, grouping.Rows.Sum(r => r.Receipt));
         Assert.Equal(statement.Summary.TotalOutflow, grouping.Rows.Sum(r => r.Outflow));
         Assert.Equal(statement.Summary.ClosingBalance, grouping.ClosingBalance);
-        Assert.Equal(statement.Summary.ClosingBalance, grouping.Rows[^1].Balance);
+        Assert.Equal(
+            statement.Summary.ClosingBalance,
+            grouping.OpeningBalance + grouping.Rows.Sum(r => r.Balance));
     }
 
     [Fact]
@@ -696,8 +807,9 @@ public sealed class PartyStatementReadServiceTests
         db.Add(contract);
         await db.SaveChangesAsync();
         db.LedgerEntries.AddRange(
-            // بارگیریِ قطعیِ 10,000MT × 600 = 6,000,000 → دفتر Credit → ستون بدهکار.
-            new LedgerEntry { EntryDate = new DateTime(2026, 3, 1), Side = LedgerSide.Credit, AmountUsd = 6_000_000m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "Loading", SourceId = 1, Description = "loading" },
+            // دو بارگیریِ قطعی که جمعشان 6,000,000 است؛ خلاصه باید آن‌ها را یک قرارداد ببیند.
+            new LedgerEntry { EntryDate = new DateTime(2026, 3, 1), Side = LedgerSide.Credit, AmountUsd = 3_000_000m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "Loading", SourceId = 1, Description = "loading 1" },
+            new LedgerEntry { EntryDate = new DateTime(2026, 3, 1), Side = LedgerSide.Credit, AmountUsd = 3_000_000m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "Loading", SourceId = 3, Description = "loading 2" },
             // پرداخت 4,000,000 → دفتر Debit → ستون بستانکار.
             new LedgerEntry { EntryDate = new DateTime(2026, 3, 2), Side = LedgerSide.Debit, AmountUsd = 4_000_000m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "SupplierPayment", SourceId = 2, Description = "payment" });
         await db.SaveChangesAsync();
@@ -725,7 +837,19 @@ public sealed class PartyStatementReadServiceTests
         Assert.Equal(12_000_000m, row.ContractValueUsd);  // ارزش کل قرارداد فقط اطلاعاتی
         Assert.NotEqual(row.ContractValueUsd, row.Receipt);  // ارزش کل قرارداد وارد بدهکار نشده
         Assert.Equal(10_000m, row.RemainingQuantityMt);   // تعهد باقی‌مانده (نه بدهی)
+        Assert.Equal(6_000_000m, row.ConfirmedValue);
+        Assert.Equal(4_000_000m, row.SettlementTotal);
+        Assert.Equal(2, row.LoadingCount);
         Assert.Contains("بدهکار", statement.Summary.ClosingBalanceMeaning);
+
+        var compact = SupplierContractStatementBuilder.BuildCompactLedgerRows(statement);
+        var operation = Assert.Single(compact.Where(r => r.SourceType == "ContractOperations"));
+        Assert.Equal(6_000_000m, operation.ReceiptBase);
+        Assert.Equal(-2_000_000m, compact[^1].RunningBalance);
+        Assert.Equal(statement.Summary.ClosingBalance, compact[^1].RunningBalance);
+        Assert.Equal(statement.Summary.TotalReceipt, compact.Sum(r => r.ReceiptBase ?? 0m));
+        Assert.Equal(statement.Summary.TotalOutflow, compact.Sum(r => r.OutflowBase ?? 0m));
+        Assert.Single(compact.Where(r => r.SourceType == "SupplierPayment"));
     }
 
     [Fact]

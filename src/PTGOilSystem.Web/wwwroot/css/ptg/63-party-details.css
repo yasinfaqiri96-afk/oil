@@ -76,8 +76,10 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-form-
     row-gap: 14px;
 }
 
-/* تب خلاصه تک‌ستونی است: اول کارت وضعیت حساب، بعد کارت هویتی. */
-.ak-form-grid.ak-overview-grid {
+/* تب‌های پروفایل تک‌ستونی‌اند: هر پنل تمام‌عرض و با همان فاصلهٔ گرید.
+   ak-overview-grid تب خلاصه است و ak-party-tab-grid تب‌های چندسکشنی. */
+.ak-form-grid.ak-overview-grid,
+.ak-form-grid.ak-party-tab-grid {
     grid-template-columns: minmax(0, 1fr);
 }
 
@@ -457,6 +459,149 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-ident
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list dd {
     font-size: 13px;
     font-weight: 500;
+}
+
+/* =====================================================================
+   Contracts tab — «مانده قابل انتقال» و «قراردادهای خرید».
+   The tab carries several independent subjects. Each one is its own panel
+   with a single internal rhythm, so nothing runs into the next block.
+   Presentation only: no figure, direction or permission is decided here.
+   ===================================================================== */
+
+/* One company's transferable balance. Companies never merge, so they are
+   separated by a rule rather than by another card. */
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-group + .ak-transfer-group {
+    margin-block-start: 18px;
+    padding-block-start: 16px;
+    border-block-start: 1px solid var(--divider);
+}
+
+/* Company name, its claim, and the transfer action share one aligned row. */
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-block-end: 10px;
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-group-id {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    min-width: 0;
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-group-name {
+    font-size: 13.5px;
+    font-weight: 650;
+    color: var(--ptg-text);
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-group-meta {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    font-size: 12.5px;
+    color: var(--ptg-muted);
+}
+
+/* The sources behind a currency bucket: one short line each, so the cell
+   stays scannable instead of wrapping into a comma-joined blob. */
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-sources {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-source {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--ptg-muted);
+}
+
+/* A quiet rate reads as reference data, never as one of the money columns. */
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-rate {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ptg-muted);
+}
+
+/* Section footer: links and notes that belong to the whole panel. */
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-section-foot {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-block-start: 12px;
+    padding-block-start: 10px;
+    border-block-start: 1px solid var(--divider);
+    font-size: 12.5px;
+}
+
+/* Contract row → payment lines disclosure. Matches .ak-row-menu-btn, the
+   other in-row control in the same table. */
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-inline-end: 2px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ptg-muted);
+    cursor: pointer;
+    transition: background-color var(--ptg-motion-fast, 150ms) ease-out;
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle:hover,
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle[aria-expanded="true"] {
+    background: var(--divider);
+    color: var(--ptg-text);
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle .bi {
+    font-size: 12px;
+    transition: transform var(--ptg-motion-fast, 150ms) ease-out;
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle.is-open .bi {
+    transform: rotate(-90deg);
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-count {
+    margin-inline-start: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ptg-muted);
+}
+
+/* A payment line is a detail of the row above it: the document currency
+   sits under its own USD figure instead of stealing a second column. */
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-subrow-sub {
+    display: block;
+    margin-block-start: 1px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ptg-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle,
+    body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle .bi {
+        transition: none;
+    }
 }
 
 @media (max-width: 991.98px) {

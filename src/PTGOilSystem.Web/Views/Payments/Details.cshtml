@@ -154,9 +154,16 @@
         <section class="ak-form-section ak-detail-section">
             <header class="ak-section-head ak-detail-section-header">
                 <h2 class="ak-section-title">تخصیص پیش‌پرداخت به قرارداد</h2>
-                <a asp-action="AllocateToContract" asp-route-paymentId="@Model.Id" asp-route-returnUrl="@selfUrl" class="btn btn-primary ak-primary-action" data-page-modal="true" data-page-modal-close-on-redirect="true" data-page-modal-title="مصرف پیش‌پرداخت برای قرارداد">
-                    <i class="bi bi-cash-coin"></i> مصرف پیش‌پرداخت برای قرارداد
-                </a>
+                @* ثبت تخصیص جدید از این‌جا برداشته شد: انتقال طلب اکنون از «مانده قابل انتقال»
+                   در جزئیات تأمین‌کننده انجام می‌شود که مانده واقعی حساب را مبنا می‌گیرد.
+                   سوابق و «برگشت تخصیص» این‌جا دست‌نخورده باقی مانده‌اند. *@
+                @if (Model.SupplierId.HasValue)
+                {
+                    <a asp-controller="Suppliers" asp-action="Details" asp-route-id="@Model.SupplierId"
+                       class="btn btn-outline-primary ak-primary-action">
+                        <i class="bi bi-arrow-left-right"></i> مانده قابل انتقال تأمین‌کننده
+                    </a>
+                }
             </header>
 
             @if (Model.Allocations.Any())

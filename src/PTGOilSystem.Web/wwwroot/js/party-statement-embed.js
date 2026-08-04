@@ -50,7 +50,7 @@
     function bindTools(host, url) {
         // The filter bar belongs to the full statement page; applying a filter
         // opens the official document rather than trying to re-embed.
-        var form = host.querySelector(".statement-filter-bar");
+        var form = host.querySelector("[data-ak-filter]");
         if (form) {
             form.setAttribute("action", url);
             form.setAttribute("method", "get");
@@ -83,6 +83,7 @@
         }
         host.appendChild(document.importNode(article, true));
         bindTools(host, url);
+        window.dispatchEvent(new CustomEvent("ptg:page-ready"));
     }
 
     function load(host) {

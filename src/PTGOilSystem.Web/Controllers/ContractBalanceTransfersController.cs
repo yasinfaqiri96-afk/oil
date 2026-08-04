@@ -160,65 +160,36 @@ public class ContractBalanceTransfersController : Controller
         });
     }
 
-    [Authorize(Policy = AuthPolicies.ManageData)]
-    public async Task<IActionResult> Create(int? fromContractId = null, int? toContractId = null, string? returnUrl = null)
-    {
-        var model = new ContractBalanceTransferCreateViewModel
-        {
-            TransferDate = AfghanistanBusinessClock.SystemToday,
-            FromContractId = fromContractId ?? 0,
-            ToContractId = toContractId ?? 0,
-            CurrencyCode = SystemCurrency.BaseCurrencyCode,
-            FxRateToUsd = 1m,
-            ReturnUrl = returnUrl
-        };
+    // ===== ثبت جدید غیرفعال شده است =====
+    //
+    // انتقال مانده تأمین‌کننده اکنون فقط از «مانده قابل انتقال» در جزئیات تأمین‌کننده انجام
+    // می‌شود (SupplierBalanceTransfersController)، چون آن مسیر مانده واقعی حساب را مبنا
+    // می‌گیرد، نرخ روز و سود/زیان نرخ ارز را ثبت می‌کند و برگشت‌پذیر است.
+    //
+    // این کنترلر عمداً فقط‌خواندنی شده و حذف نشده: سوابق و سطرهای دفترکلِ انتقال‌های قبلی
+    // باید دست‌نخورده و قابل مشاهده بمانند. سرویس و منطق آن هم تغییری نکرده است.
+    private const string CreateDisabledMessage =
+        "ثبت انتقال جدید از این مسیر غیرفعال شده است. از «مانده قابل انتقال» در جزئیات تأمین‌کننده استفاده کنید.";
 
-        await PopulateLookupsAsync(model);
-        return View(model);
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    public IActionResult Create(int? fromContractId = null, int? toContractId = null, string? returnUrl = null)
+    {
+        TempData["error"] = CreateDisabledMessage;
+
+        if (TryGetLocalReturnUrl(returnUrl, out var localReturnUrl))
+        {
+            return Redirect(localReturnUrl);
+        }
+
+        return RedirectToAction(nameof(Index), new { contractId = fromContractId });
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(ContractBalanceTransferCreateViewModel model)
+    public IActionResult Create(ContractBalanceTransferCreateViewModel model)
     {
-        NormalizeCreateModel(model);
-
-        if (!ModelState.IsValid)
-        {
-            await PopulateLookupsAsync(model);
-            return View(model);
-        }
-
-        try
-        {
-            var transfer = await _transfers.CreateAsync(new ContractBalanceTransferCreateRequest(
-                model.TransferDate,
-                model.FromContractId,
-                model.ToContractId,
-                model.AmountOriginal,
-                model.CurrencyCode,
-                model.FxRateToUsd,
-                model.FxRateDate,
-                model.FxRateSource,
-                model.OriginalPaymentTransactionId,
-                model.OriginalPaymentFxRateToUsd,
-                model.Reference,
-                model.Notes));
-
-            TempData["ok"] = "انتقال مانده قرارداد با موفقیت ثبت شد.";
-            if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
-            {
-                return Redirect(localReturnUrl);
-            }
-
-            return RedirectToAction(nameof(Details), new { id = transfer.Id });
-        }
-        catch (BusinessRuleException ex)
-        {
-            ModelState.AddModelError(string.Empty, ex.Message);
-            await PopulateLookupsAsync(model);
-            return View(model);
-        }
+        TempData["error"] = CreateDisabledMessage;
+        return RedirectToAction(nameof(Index));
     }
 
     private async Task PopulateLookupsAsync(ContractBalanceTransferCreateViewModel model)

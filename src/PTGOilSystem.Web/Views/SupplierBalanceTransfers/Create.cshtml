@@ -1,0 +1,389 @@
+@model PTGOilSystem.Web.Models.Suppliers.SupplierBalanceTransferCreateViewModel
+@using PTGOilSystem.Web.Helpers
+@{
+    ViewData["Title"] = "تخصیص پیش‌پرداخت به قراردادها";
+    ViewData["HideSectionTabs"] = true;
+    // فقط نام تأمین‌کننده در خط context؛ شرکت مبدأ تصمیم کاربر نیست و از قرارداد مقصد می‌آید.
+    ViewData["AkHeaderContext"] = $"تأمین‌کننده: {Model.SupplierName}";
+    var backUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl)
+        ? Model.ReturnUrl
+        : Url.Action("Details", "Suppliers", new { id = Model.SupplierId }) ?? "/Suppliers";
+    var contractCurrencies = ViewBag.TransferContractCurrencies as Dictionary<int, string> ?? new Dictionary<int, string>();
+    var contractCurrenciesJson = System.Text.Json.JsonSerializer.Serialize(contractCurrencies);
+    var bucketsJson = System.Text.Json.JsonSerializer.Serialize(Model.Buckets.Select(b => new
+    {
+        currency = b.CurrencyCode,
+        remaining = b.RemainingOriginalAmount,
+        bookUsd = b.RemainingBookAmountUsd,
+        historicalPerUsd = b.HistoricalPerUsdRate,
+        historicalRateIsEstimated = b.HistoricalRateIsEstimated
+    }));
+}
+
+<div class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("تخصیص پیش‌پرداخت به قراردادها", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+
+    @* عنوان h1 در صفحات فرم به‌صورت سیستمی پنهان است؛ این یک خط جای آن را می‌گیرد و
+       تنها چیزی است که کاربر برای فهمیدن کار لازم دارد. *@
+    <p class="ak-note">
+        تخصیص پیش‌پرداخت آزاد <strong>@Model.SupplierName</strong> به قراردادها.
+        این مبلغ قبلاً پرداخت شده و فقط بین قراردادها تقسیم می‌شود.
+    </p>
+
+    <form asp-action="Create" method="post" class="ak-form" id="sbtForm">
+        @Html.AntiForgeryToken()
+        <input asp-for="SupplierId" type="hidden" />
+        <input asp-for="CompanyId" type="hidden" />
+        <input asp-for="ReturnUrl" type="hidden" />
+
+        <div asp-validation-summary="All" class="ak-form-alert @(ViewData.ModelState.IsValid ? "d-none" : null)"></div>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("مبلغ قابل تخصیص", (string?)"این مبلغ قبلاً پرداخت شده است و فقط بین قراردادها تقسیم می‌شود."))" />
+
+            @* سه عدد تصمیم‌ساز، زنده. کاربر باید بدون خواندن متن بفهمد چقدر مانده است. *@
+            <dl class="ak-summary-list">
+                <div>
+                    <dt>قابل تخصیص</dt>
+                    <dd><bdi class="ak-num" id="sbtAvailable">—</bdi></dd>
+                </div>
+                <div>
+                    <dt>تخصیص‌شده</dt>
+                    <dd><bdi class="ak-num" id="sbtTotalAmount">—</bdi></dd>
+                </div>
+                <div>
+                    <dt>باقی‌مانده</dt>
+                    <dd><bdi class="ak-num" id="sbtRemaining">—</bdi></dd>
+                </div>
+            </dl>
+            <p class="ak-note" id="sbtSummary" role="status" aria-live="polite"></p>
+
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label asp-for="CurrencyCode" class="ak-label">ارز</label>
+                    <select asp-for="CurrencyCode" id="sbtCurrency" class="ak-input">
+                        @foreach (var b in Model.Buckets)
+                        {
+                            <option value="@b.CurrencyCode" selected="@(b.CurrencyCode == Model.CurrencyCode)">
+                                @b.CurrencyCode — مانده @b.RemainingOriginalAmount.ToString("N2")
+                            </option>
+                        }
+                    </select>
+                    <span class="ak-note" id="sbtBalanceNote"></span>
+                    <span asp-validation-for="CurrencyCode" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="TransferDate" class="ak-label">تاریخ</label>
+                    <input asp-for="TransferDate" class="ak-input" type="date" />
+                    <span asp-validation-for="TransferDate" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field" id="sbtRateField">
+                    <label asp-for="TransferPerUsdRate" class="ak-label">نرخ روز</label>
+                    <div class="ak-input-unit">
+                        <input asp-for="TransferPerUsdRate" id="sbtRate" class="ak-input" type="number" min="0.0001" step="0.0001" />
+                        <span id="sbtRateUnit">@Model.CurrencyCode/USD</span>
+                    </div>
+                    <span class="ak-note">۱ دالر برابر چند واحد این ارز است؟</span>
+                    @* نرخ روز از DailyFxRate همان تاریخ می‌آید — نه از نرخ تاریخی مانده. *@
+                    @if (Model.DayRateMissing)
+                    {
+                        <span class="ak-note ak-number--negative">
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            برای این تاریخ نرخی ثبت نشده؛ نرخ را وارد کنید.
+                        </span>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(Model.DayRateSource))
+                    {
+                        <span class="ak-note">@Model.DayRateSource</span>
+                    }
+                    <span asp-validation-for="TransferPerUsdRate" class="ak-field-error"></span>
+                </div>
+            </div>
+        </section>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("قراردادها", (string?)"برای هر قرارداد مبلغ آن را بنویسید."))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table ak-detail-table" id="sbtLines">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow" scope="col">قرارداد</th>
+                            <th class="ak-col-num" scope="col">مبلغ تخصیص</th>
+                            <th class="ak-col-num" scope="col">معادل دالری</th>
+                            <th class="ak-col-actions" scope="col"><span class="visually-hidden">حذف</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < Model.Lines.Count; i++)
+                        {
+                            <tr class="sbt-line">
+                                <td class="ak-col-grow">
+                                    <select name="Lines[@i].ContractId" class="ak-input sbt-contract" asp-items="ViewBag.TransferContracts">
+                                        <option value="">— انتخاب قرارداد —</option>
+                                    </select>
+                                    @* نرخ ارز قرارداد فقط برای قرارداد غیر دالری معنا دارد؛ فیلد حذف نمی‌شود،
+                                       فقط وقتی بی‌اثر است نمایش داده نمی‌شود. *@
+                                    <div class="mt-2 sbt-crate-field" hidden>
+                                        <label>
+                                            <span class="ak-label sbt-ccur">نرخ ارز قرارداد</span>
+                                            <input name="Lines[@i].ContractCurrencyPerUsdRate" class="ak-input ak-num sbt-crate"
+                                                   type="number" min="0.0001" step="0.0001" value="@Model.Lines[i].ContractCurrencyPerUsdRate.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                                        </label>
+                                    </div>
+                                </td>
+                                <td class="ak-col-num">
+                                    <input name="Lines[@i].TransferOriginalAmount" class="ak-input ak-num sbt-amount"
+                                           type="number" min="0" step="0.0001" aria-label="مبلغ تخصیص"
+                                           value="@(Model.Lines[i].TransferOriginalAmount > 0 ? Model.Lines[i].TransferOriginalAmount.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")" />
+                                </td>
+                                <td class="ak-col-num ak-num sbt-usd">—</td>
+                                <td class="ak-col-actions">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary sbt-remove"
+                                            aria-label="حذف این قرارداد" title="حذف">
+                                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th scope="row">مجموع</th>
+                            <th class="ak-col-num ak-num" id="sbtTotalAmountFoot">—</th>
+                            <th class="ak-col-num ak-num" id="sbtTotalUsd">—</th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="mt-2">
+                <button type="button" class="btn ak-secondary-action" id="sbtAddLine">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    <span>افزودن قرارداد</span>
+                </button>
+            </div>
+        </section>
+
+        <details class="ak-advanced">
+            <summary class="ak-advanced-summary fw-bold">گزینه‌های بیشتر (اختیاری)</summary>
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label asp-for="ReferenceNumber" class="ak-label">مرجع</label>
+                    <input asp-for="ReferenceNumber" class="ak-input" placeholder="شماره مرجع سند" />
+                    <span asp-validation-for="ReferenceNumber" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full">
+                    <label asp-for="Notes" class="ak-label">یادداشت</label>
+                    <textarea asp-for="Notes" class="ak-input" rows="2"></textarea>
+                    <span asp-validation-for="Notes" class="ak-field-error"></span>
+                </div>
+            </div>
+        </details>
+
+        <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@(("ثبت انتقال", backUrl, "انصراف"))" />
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            var contractCurrencies = @Html.Raw(contractCurrenciesJson);
+            var buckets = @Html.Raw(bucketsJson);
+
+            var form = document.getElementById('sbtForm');
+            var currencySelect = document.getElementById('sbtCurrency');
+            var rateInput = document.getElementById('sbtRate');
+            var rateUnit = document.getElementById('sbtRateUnit');
+            var rateField = document.getElementById('sbtRateField');
+            var balanceNote = document.getElementById('sbtBalanceNote');
+            var tbody = document.querySelector('#sbtLines tbody');
+            var addBtn = document.getElementById('sbtAddLine');
+            var availableCell = document.getElementById('sbtAvailable');
+            var remainingCell = document.getElementById('sbtRemaining');
+            var totalAmountCell = document.getElementById('sbtTotalAmount');
+            var totalAmountFoot = document.getElementById('sbtTotalAmountFoot');
+            var totalUsdCell = document.getElementById('sbtTotalUsd');
+            var summary = document.getElementById('sbtSummary');
+
+            function currentBucket() {
+                var cur = currencySelect ? currencySelect.value : 'USD';
+                for (var i = 0; i < buckets.length; i++) {
+                    if (buckets[i].currency === cur) { return buckets[i]; }
+                }
+                return null;
+            }
+
+            function isUsd() {
+                return (currencySelect ? currencySelect.value : 'USD') === 'USD';
+            }
+
+            function money(value, unit) {
+                var n = Number(value);
+                if (!isFinite(n)) { return '—'; }
+                return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (unit ? ' ' + unit : '');
+            }
+
+            // شماره‌گذاری دوبارهٔ ردیف‌ها تا model binding به‌هم نریزد.
+            function reindex() {
+                var rows = tbody.querySelectorAll('tr.sbt-line');
+                for (var i = 0; i < rows.length; i++) {
+                    var c = rows[i].querySelector('.sbt-contract');
+                    var a = rows[i].querySelector('.sbt-amount');
+                    var r = rows[i].querySelector('.sbt-crate');
+                    if (c) { c.name = 'Lines[' + i + '].ContractId'; }
+                    if (a) { a.name = 'Lines[' + i + '].TransferOriginalAmount'; }
+                    if (r) { r.name = 'Lines[' + i + '].ContractCurrencyPerUsdRate'; }
+                }
+            }
+
+            // صفرهای انتهایی حذف می‌شوند تا نرخ ۷۰ به‌شکل «۷۰» دیده شود، نه «۷۰.۰۰۰۰».
+            function trimRate(value, maxDecimals) {
+                var n = Number(value);
+                if (!isFinite(n)) { return '—'; }
+                return n.toFixed(maxDecimals).replace(/\.?0+$/, '');
+            }
+
+            function recalc() {
+                var bucket = currentBucket();
+                var usdMode = isUsd();
+                var cur = currencySelect ? currencySelect.value : 'USD';
+
+                if (rateField) { rateField.style.display = usdMode ? 'none' : ''; }
+                if (rateUnit) { rateUnit.textContent = cur + '/USD'; }
+                if (usdMode && rateInput) { rateInput.value = 1; }
+
+                if (balanceNote) {
+                    // نرخ تاریخی بدون گردکردن اضافی نشان داده می‌شود: اگر نرخ ثبت‌شده ۷۰ باشد،
+                    // «۷۰» دیده می‌شود نه «۶۹.۹۹۸۶». نرخ بازسازی‌شدهٔ داده قدیمی «تخمینی» می‌خورد.
+                    balanceNote.textContent = (bucket && !usdMode)
+                        ? 'ارزش تاریخی ' + money(bucket.bookUsd, 'USD')
+                            + ' · ۱ USD = ' + trimRate(bucket.historicalPerUsd, 6)
+                            + (bucket.historicalRateIsEstimated ? ' (تخمینی)' : '')
+                        : '';
+                }
+
+                var perUsd = usdMode ? 1 : (parseFloat(rateInput && rateInput.value) || 0);
+                var totalAmount = 0;
+                var totalUsd = 0;
+
+                var rows = tbody.querySelectorAll('tr.sbt-line');
+                for (var i = 0; i < rows.length; i++) {
+                    var contractSel = rows[i].querySelector('.sbt-contract');
+                    var amountInput = rows[i].querySelector('.sbt-amount');
+                    var crateInput = rows[i].querySelector('.sbt-crate');
+                    var crateField = rows[i].querySelector('.sbt-crate-field');
+                    var ccurNote = rows[i].querySelector('.sbt-ccur');
+                    var usdCell = rows[i].querySelector('.sbt-usd');
+
+                    var cid = contractSel ? contractSel.value : '';
+                    var ccur = (cid && contractCurrencies[cid]) ? contractCurrencies[cid] : 'USD';
+                    // قرارداد دالری نرخ نمی‌خواهد؛ فیلد در DOM می‌ماند و مقدارش ۱ است.
+                    if (crateInput && ccur === 'USD') { crateInput.value = 1; }
+                    if (crateField) { crateField.hidden = (ccur === 'USD'); }
+                    if (ccurNote) { ccurNote.textContent = 'نرخ ارز قرارداد — ۱ USD = ? ' + ccur; }
+
+                    var amount = parseFloat(amountInput && amountInput.value) || 0;
+                    var valueUsd = usdMode ? amount : (perUsd > 0 ? amount / perUsd : 0);
+                    totalAmount += amount;
+                    totalUsd += valueUsd;
+                    if (usdCell) { usdCell.textContent = valueUsd ? money(valueUsd, 'USD') : '—'; }
+                }
+
+                var totalText = totalAmount ? money(totalAmount, cur) : '—';
+                if (totalAmountCell) { totalAmountCell.textContent = totalText; }
+                if (totalAmountFoot) { totalAmountFoot.textContent = totalText; }
+                if (totalUsdCell) { totalUsdCell.textContent = totalUsd ? money(totalUsd, 'USD') : '—'; }
+                if (availableCell) { availableCell.textContent = bucket ? money(bucket.remaining, cur) : '—'; }
+
+                if (!bucket) { return; }
+
+                var over = totalAmount - Number(bucket.remaining);
+                if (remainingCell) {
+                    remainingCell.textContent = money(Number(bucket.remaining) - totalAmount, cur);
+                    remainingCell.className = over > 0.00005 ? 'ak-num ak-number--negative' : 'ak-num';
+                }
+
+                if (!summary) { return; }
+
+                // نرخ روز هنوز وارد نشده: ارزش دالری قابل محاسبه نیست. بدون این شرط،
+                // diff برابر کلِ ارزش تاریخی می‌شد و یک «زیان» ساختگی به اندازهٔ تمام
+                // مبلغ نشان داده می‌شد.
+                if (over > 0.00005) {
+                    summary.textContent = 'مبلغ تخصیص ' + money(over, cur) + ' بیشتر از مانده است.';
+                    summary.className = 'ak-note ak-number--negative';
+                } else if (!usdMode && perUsd <= 0) {
+                    summary.textContent = 'نرخ روز را وارد کنید تا معادل دالری محاسبه شود.';
+                    summary.className = 'ak-note';
+                } else {
+                    // تفاوت نرخ تخمینی: ارزش روز در برابر ارزش تاریخی همان مقدار.
+                    var bookUsd = Number(bucket.remaining) > 0
+                        ? totalAmount * (Number(bucket.bookUsd) / Number(bucket.remaining))
+                        : 0;
+                    var diff = totalUsd - bookUsd;
+                    if (!totalAmount || Math.abs(diff) < 0.005) {
+                        summary.textContent = '';
+                    } else {
+                        summary.textContent = (diff > 0 ? 'سود نرخ ارز تخمینی: ' : 'زیان نرخ ارز تخمینی: ')
+                            + money(Math.abs(diff), 'USD');
+                    }
+                    summary.className = 'ak-note';
+                }
+            }
+
+            if (addBtn) {
+                addBtn.addEventListener('click', function () {
+                    var rows = tbody.querySelectorAll('tr.sbt-line');
+                    if (rows.length === 0) { return; }
+                    var clone = rows[rows.length - 1].cloneNode(true);
+                    clone.querySelector('.sbt-contract').value = '';
+                    clone.querySelector('.sbt-amount').value = '';
+                    clone.querySelector('.sbt-crate').value = 1;
+                    clone.querySelector('.sbt-usd').textContent = '—';
+                    tbody.appendChild(clone);
+                    reindex();
+                    recalc();
+                    var added = clone.querySelector('.sbt-contract');
+                    if (added) { added.focus(); }
+                });
+            }
+
+            tbody.addEventListener('click', function (e) {
+                var btn = e.target.closest('.sbt-remove');
+                if (!btn) { return; }
+                var rows = tbody.querySelectorAll('tr.sbt-line');
+                if (rows.length <= 1) { return; }
+                btn.closest('tr.sbt-line').remove();
+                reindex();
+                recalc();
+            });
+
+            form.addEventListener('input', recalc);
+            form.addEventListener('change', recalc);
+
+            // جلوگیری از ثبت دوباره با کلیک دوم: دکمه بعد از اولین submit قفل می‌شود.
+            var submitted = false;
+            form.addEventListener('submit', function (e) {
+                if (submitted) {
+                    e.preventDefault();
+                    return false;
+                }
+                submitted = true;
+                var buttons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+                for (var i = 0; i < buttons.length; i++) {
+                    buttons[i].disabled = true;
+                    buttons[i].setAttribute('aria-disabled', 'true');
+                }
+                return true;
+            });
+
+            reindex();
+            recalc();
+        })();
+    </script>
+}

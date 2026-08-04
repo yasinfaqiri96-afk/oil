@@ -1,4 +1,5 @@
 using System.Globalization;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Services.CompanyFlow;
 
 namespace PTGOilSystem.Web.Models.PartyStatements;
@@ -27,6 +28,10 @@ public sealed class PartyStatementFilter
     public int? ContractId { get; init; }
     public int? CompanyId { get; init; }
     public string? CurrencyCode { get; init; }
+    public string? SourceType { get; init; }
+    public string? Search { get; init; }
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
     // پیش‌فرض: ستون‌های نفتی مخفی باشند و کاربر در صورت نیاز نمایششان دهد.
     public bool IncludeOperationalColumns { get; init; }
 }
@@ -243,11 +248,15 @@ public sealed class PartyStatementViewModel
     public IReadOnlyList<PartyStatementFilterOption> CompanyOptions { get; init; } = [];
     public IReadOnlyList<string> CurrencyOptions { get; init; } = [];
 
-    // فقط تأمین‌کننده تب‌های سه‌گانه را می‌بیند؛ پیش‌فرض Ledger تا رفتار بقیهٔ طرف‌حساب‌ها عوض نشود.
+    // حالت نمایش برای طرف‌حساب‌های قراردادی؛ نام قدیمی برای سازگاری routeها حفظ شده است.
     public SupplierStatementView SupplierView { get; init; } = SupplierStatementView.Ledger;
     public bool ShowSupplierViewTabs => PartyType == PartyStatementPartyType.Supplier;
+    public bool ShowContractViewTabs =>
+        PartyType is PartyStatementPartyType.Supplier
+            or PartyStatementPartyType.Customer
+            or PartyStatementPartyType.Company;
 
-    // نمای «قراردادها»: گروه‌بندی نمایشیِ همان سطرهای مالی؛ بدون محاسبهٔ مالی جدید.
+    // نمای خلاصه: گروه‌بندی نمایشیِ همان سطرهای مالی؛ بدون محاسبهٔ مالی جدید.
     public SupplierContractStatementViewModel? ContractGrouping { get; init; }
 }
 
@@ -265,12 +274,29 @@ public sealed class SupplierContractStatementViewModel
     public decimal? TotalReceiptRub { get; init; }
     public decimal? TotalOutflowRub { get; init; }
     public decimal? ClosingBalanceRub { get; init; }
+    public decimal TotalConfirmedValue { get; init; }
+    public decimal TotalSettlement { get; init; }
+    public decimal? TotalConfirmedValueRub { get; init; }
+    public decimal? TotalSettlementRub { get; init; }
+    public int TotalLoadingCount { get; init; }
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+    public int TotalRows => Rows.Count;
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalRows / (decimal)Math.Max(1, PageSize)));
+    public int CurrentPage => Math.Clamp(Page, 1, TotalPages);
+    public IReadOnlyList<SupplierContractStatementRow> PagedRows =>
+        Rows.Skip((CurrentPage - 1) * Math.Max(1, PageSize))
+            .Take(Math.Max(1, PageSize))
+            .ToList();
 }
 
 // مدلِ ردیف جزئیات (lazy): همان صورت‌حساب قرارداد + اطلاعات نمایشیِ قرارداد برای هدرِ جزئیات.
 public sealed class SupplierContractDetailsViewModel
 {
     public required PartyStatementResult Statement { get; init; }
+    public PartyStatementPartyType PartyType { get; init; } = PartyStatementPartyType.Supplier;
+    public int PartyId { get; init; }
+    public int ContractId { get; init; }
     public string? ProductName { get; init; }
     public decimal? ContractQuantityMt { get; init; }
     public decimal? UnitPriceUsd { get; init; }
@@ -280,6 +306,13 @@ public sealed class SupplierContractDetailsViewModel
         ContractQuantityMt.HasValue && LoadedQuantityMt.HasValue
             ? ContractQuantityMt.Value - LoadedQuantityMt.Value
             : null;
+    public IReadOnlyList<PartyStatementRow> DetailRows { get; init; } = [];
+    public IReadOnlyList<PartyStatementRow> LoadingRows { get; init; } = [];
+    public int DetailPage { get; init; } = 1;
+    public int DetailPageSize { get; init; } = 25;
+    public int DetailTotalRows { get; init; }
+    public int DetailTotalPages =>
+        Math.Max(1, (int)Math.Ceiling(DetailTotalRows / (decimal)Math.Max(1, DetailPageSize)));
 }
 
 // یک سطر = یک قرارداد (یا گروهِ «بدون قرارداد»). Debit/Credit/Balance جمعِ سطرهای مالیِ همان قرارداد است.
@@ -300,12 +333,27 @@ public sealed class SupplierContractStatementRow
         ContractQuantityMt.HasValue && LoadedQuantityMt.HasValue
             ? ContractQuantityMt.Value - LoadedQuantityMt.Value
             : null;
+    public decimal ConfirmedValue { get; init; }
+    public decimal SettlementTotal { get; init; }
+    public decimal? ConfirmedValueRub { get; init; }
+    public decimal? SettlementTotalRub { get; init; }
+    public int LoadingCount { get; init; }
     public decimal Receipt { get; init; }
     public decimal Outflow { get; init; }
     public decimal Balance { get; init; }
     public decimal? ReceiptRub { get; init; }
     public decimal? OutflowRub { get; init; }
     public decimal? BalanceRub { get; init; }
+
+    // نمایش یکسانِ مانده در همهٔ صفحات: عدد بدون علامت + عنوانِ معنا.
+    // Balance اینجا «برد − رسید» است، یعنی پرداخت منهای ارزش قرارداد؛ مثبت = اضافه‌پرداخت.
+    public decimal? BalanceFor(bool isRub) => isRub ? BalanceRub : Balance;
+
+    public decimal? BalanceAbsoluteFor(bool isRub)
+        => ContractBalanceText.Absolute(BalanceFor(isRub));
+
+    public string? BalanceTitleFor(bool isRub, bool isEnglish = false)
+        => ContractBalanceText.Title(BalanceFor(isRub), isEnglish, hasContract: ContractId.HasValue);
 }
 
 public sealed record PartyStatementFilterOption(int Id, string Text);

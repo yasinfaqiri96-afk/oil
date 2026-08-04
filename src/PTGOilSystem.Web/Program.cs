@@ -145,6 +145,9 @@ builder.Services.AddScoped<IExpenseRuleEngine, ExpenseRuleEngine>();
 builder.Services.AddScoped<IContractAmendmentService, ContractAmendmentService>();
 builder.Services.AddScoped<IContractBalanceTransferService, ContractBalanceTransferService>();
 builder.Services.AddScoped<ISupplierPaymentAllocationService, SupplierPaymentAllocationService>();
+// موتور واحد «مانده قابل انتقال تأمین‌کننده» — منبع اصلی انتقال طلب به قرارداد.
+builder.Services.AddScoped<ISupplierTransferableBalanceService, SupplierTransferableBalanceService>();
+builder.Services.AddScoped<ISupplierBalanceTransferService, SupplierBalanceTransferService>();
 builder.Services.AddScoped<ICustomerPaymentAllocationService, CustomerPaymentAllocationService>();
 builder.Services.AddScoped<IViaSarrafContractAssignmentService, ViaSarrafContractAssignmentService>();
 builder.Services.AddScoped<IViaSarrafLegacyGroupingService, ViaSarrafLegacyGroupingService>();
