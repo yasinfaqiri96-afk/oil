@@ -56,12 +56,14 @@ public static class CompanyFlowText
             [CompanyFlowTextKey.Reversal] = ("سند برگشت", "Reversal Entry"),
             [CompanyFlowTextKey.ReversedRow] = ("لغو شده", "Cancelled"),
             [CompanyFlowTextKey.PeriodTotal] = ("مجموع دوره", "Period Total"),
+            // «شرکت» در این دو جمله همیشه طرفِ ماست؛ نامش نوشته می‌شود تا کاربر جهت
+            // بدهکاری/طلبکاری را با طرف‌حساب اشتباه نگیرد.
             [CompanyFlowTextKey.PositiveBalance] =
-                ("شرکت بیشتر داده است و از طرف مقابل طلب یا پیش‌پرداخت دارد",
-                 "The company has given more and holds a receivable or prepayment"),
+                ("شرکت فواد صدیقی بیشتر داده است و از طرف مقابل طلب یا پیش‌پرداخت دارد",
+                 "Fawad Saddiqi has given more and holds a receivable or prepayment"),
             [CompanyFlowTextKey.NegativeBalance] =
-                ("شرکت بیشتر دریافت کرده و به طرف مقابل بدهکار است",
-                 "The company has received more and owes the counterparty"),
+                ("شرکت فواد صدیقی بیشتر دریافت کرده و به طرف مقابل بدهکار است",
+                 "Fawad Saddiqi has received more and owes the counterparty"),
             [CompanyFlowTextKey.SettledBalance] = ("حساب تسویه است", "Account is settled"),
             [CompanyFlowTextKey.CashPositiveBalance] = ("موجودی مثبت حساب", "Positive account balance"),
             [CompanyFlowTextKey.CashNegativeBalance] = ("کسری حساب نقدی", "Cash account shortfall"),

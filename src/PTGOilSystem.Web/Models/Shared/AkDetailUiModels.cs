@@ -140,35 +140,6 @@ public sealed class AkKpiItem
     public string? State { get; init; }
 }
 
-/// <summary>
-/// One supporting figure of the counterparty account card (<c>_AkPartyAccountCard</c>):
-/// the amount that created the balance and the amount already settled. Values are
-/// already formatted by the page — the card never computes money.
-/// </summary>
-public sealed class AkPartyMetric
-{
-    public required string Label { get; init; }
-
-    /// <summary>Already-formatted display value produced by the page.</summary>
-    public required string Value { get; init; }
-
-    /// <summary>Optional second line, e.g. the RUB equivalent of a USD figure.</summary>
-    public string? SubValue { get; init; }
-
-    /// <summary>
-    /// Tone of the figure itself: "success" for money already settled, "danger" for
-    /// an outstanding obligation. Null keeps the neutral text colour.
-    /// </summary>
-    public string? Tone { get; init; }
-
-    public string? ToneClass => Tone switch
-    {
-        "danger" => "is-danger",
-        "success" => "is-success",
-        _ => null
-    };
-}
-
 /// <summary>One option of the small display switch in the account card header (USD/RUB).</summary>
 public sealed class AkPartyToggleOption
 {
@@ -179,22 +150,15 @@ public sealed class AkPartyToggleOption
 
 /// <summary>
 /// Account status of a counterparty profile summary tab (<c>_AkPartyAccountCard</c>):
-/// one headline balance with its plain-language meaning, the two figures that produced
-/// it, an optional settled-share bar and the low-priority facts. Presentation only —
-/// every number arrives pre-formatted from the page.
+/// the plain-language meaning of the balance, an optional settled-share bar, the
+/// low-priority facts and the identity reference block — one panel instead of two,
+/// so the summary tab carries a single card. The money itself lives in the shared
+/// stat cards of <c>_DetailKpiStrip</c> above the card, so no figure is rendered
+/// twice. Presentation only — every value arrives pre-formatted from the page.
 /// </summary>
 public sealed class AkPartyAccountCard
 {
     public string Title { get; init; } = "وضعیت حساب";
-
-    /// <summary>Label of the headline figure, e.g. "مانده حساب".</summary>
-    public required string BalanceLabel { get; init; }
-
-    /// <summary>Already-formatted headline balance (absolute value plus currency).</summary>
-    public required string BalanceValue { get; init; }
-
-    /// <summary>Optional second currency line under the headline balance.</summary>
-    public string? BalanceSubValue { get; init; }
 
     /// <summary>
     /// Direction sentence coming from the statement engine or the page fallback —
@@ -205,9 +169,6 @@ public sealed class AkPartyAccountCard
     /// <summary>"danger" (we owe), "success" (they owe us) or null for a settled account.</summary>
     public string? MeaningTone { get; init; }
 
-    /// <summary>The two figures behind the balance: what was charged and what was settled.</summary>
-    public IReadOnlyList<AkPartyMetric> Metrics { get; init; } = [];
-
     /// <summary>Settled share, 0–100. Null hides the bar (no meaningful base amount).</summary>
     public int? SettledPercent { get; init; }
 
@@ -216,6 +177,15 @@ public sealed class AkPartyAccountCard
 
     /// <summary>Low-priority facts (counts, last movement date) shown as small chips.</summary>
     public IReadOnlyList<AkInfoItem> Facts { get; init; } = [];
+
+    /// <summary>
+    /// Identity reference rows (code, country, contact, address, notes) folded into
+    /// the same panel. Empty list hides the block and its sub-heading.
+    /// </summary>
+    public IReadOnlyList<AkInfoItem> Identity { get; init; } = [];
+
+    /// <summary>Sub-heading of the identity block.</summary>
+    public string IdentityTitle { get; init; } = "اطلاعات هویتی";
 
     /// <summary>Optional display-currency switch rendered in the card header.</summary>
     public IReadOnlyList<AkPartyToggleOption> ToggleOptions { get; init; } = [];

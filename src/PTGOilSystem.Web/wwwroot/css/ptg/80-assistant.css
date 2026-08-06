@@ -1,0 +1,319 @@
+/* ==========================================================================
+   80-assistant.css — «راهنمای هوشمند»
+   همهٔ قواعد زیر .ptg-assistant قفل‌اند تا هیچ صفحه یا کامپوننت موجودی
+   تحت تأثیر قرار نگیرد. فقط از توکن‌های موجود 01-tokens.css استفاده می‌شود.
+   ========================================================================== */
+
+.ptg-assistant {
+    position: fixed;
+    inset-block-end: 20px;
+    inset-inline-end: 20px;
+    z-index: 1045;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    font-family: inherit;
+}
+
+/* ---- دکمهٔ باز کردن: گرد، فقط آیکون، بدون شلوغی ---- */
+.ptg-assistant-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: 1px solid var(--ptg-btn-primary);
+    border-radius: 50%;
+    background: var(--ptg-btn-primary);
+    color: var(--primary-contrast);
+    box-shadow: var(--ptg-panel-shadow);
+    transition:
+        background var(--ptg-motion-fast),
+        border-color var(--ptg-motion-fast),
+        transform var(--ptg-motion-fast);
+}
+
+.ptg-assistant-trigger:hover,
+.ptg-assistant-trigger:focus-visible {
+    background: var(--ptg-btn-primary-dark);
+    border-color: var(--ptg-btn-primary-dark);
+    color: var(--primary-contrast);
+    transform: translateY(-1px);
+}
+
+.ptg-assistant-trigger:active {
+    transform: none;
+}
+
+.ptg-assistant-trigger i {
+    font-size: 19px;
+    line-height: 1;
+}
+
+/* باز که شد، همان دکمه به «بستن» تبدیل می‌شود تا دکمهٔ دوم اضافه نشود. */
+.ptg-assistant-trigger-close,
+.ptg-assistant.is-open .ptg-assistant-trigger-ico {
+    display: none;
+}
+
+.ptg-assistant.is-open .ptg-assistant-trigger-close {
+    display: inline-flex;
+}
+
+.ptg-assistant.is-open .ptg-assistant-trigger {
+    background: var(--background-paper);
+    border-color: var(--divider);
+    color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ptg-assistant-trigger {
+        transition: none;
+    }
+
+    .ptg-assistant-trigger:hover,
+    .ptg-assistant-trigger:focus-visible {
+        transform: none;
+    }
+}
+
+/* ---- پنل گفتگو ---- */
+/* ارتفاع ثابت (نه فقط max-height) تا ناحیهٔ گفتگو فضای واقعی بگیرد؛
+   با max-height هر بار به اندازهٔ محتوا جمع می‌شد و متن راهنما بریده می‌ماند. */
+.ptg-assistant-panel {
+    display: flex;
+    flex-direction: column;
+    width: min(420px, calc(100vw - 40px));
+    height: min(660px, calc(100vh - 116px));
+    background: var(--background-paper);
+    border: 1px solid var(--divider);
+    border-radius: var(--ptg-radius-card);
+    box-shadow: var(--ptg-panel-shadow);
+    overflow: hidden;
+}
+
+.ptg-assistant-panel[hidden] {
+    display: none;
+}
+
+.ptg-assistant-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 9px 14px;
+    border-block-end: 1px solid var(--divider);
+    background: var(--background-neutral);
+}
+
+.ptg-assistant-head-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ptg-assistant-title {
+    font: var(--font-card-title);
+    color: var(--text-primary);
+}
+
+.ptg-assistant-subtitle {
+    font: var(--font-caption);
+    line-height: var(--lh-caption);
+    color: var(--text-secondary);
+}
+
+.ptg-assistant-close {
+    margin-inline-start: auto;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: var(--ptg-radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.ptg-assistant-close:hover,
+.ptg-assistant-close:focus-visible {
+    background: var(--ptg-btn-quiet-hover);
+    color: var(--text-primary);
+}
+
+/* ---- گفتگو ---- */
+/* min-height: 0 لازم است؛ بدون آن این فرزندِ flex کوچک‌تر از محتوایش نمی‌شود
+   و به‌جای گرفتن فضای باقی‌مانده، ناحیهٔ گفتگو له می‌شد. */
+.ptg-assistant-log {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ptg-assistant-msg {
+    max-width: 100%;
+    padding: 10px 12px;
+    border-radius: var(--ptg-radius-md);
+    font: var(--font-body2);
+    line-height: 1.85;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.ptg-assistant-msg p {
+    margin: 0;
+}
+
+.ptg-assistant-msg.is-bot {
+    align-self: stretch;
+    background: var(--background-neutral);
+    border: 1px solid var(--divider);
+}
+
+/* پیام کاربر کوتاه است؛ فقط همان کنار جمع شود تا پاسخ‌ها کل عرض را بگیرند. */
+.ptg-assistant-msg.is-user {
+    max-width: 88%;
+}
+
+.ptg-assistant-msg.is-user {
+    align-self: flex-end;
+    background: var(--ptg-btn-primary-tint);
+    border: 1px solid var(--ptg-accent-blue-soft);
+}
+
+.ptg-assistant-msg.is-error {
+    align-self: flex-start;
+    background: var(--ptg-danger-soft);
+    border: 1px solid var(--ptg-danger-soft);
+    color: var(--ptg-danger-text);
+}
+
+/* پانویس منبع: نشان می‌دهد پاسخ از داده ثبت‌شده خوانده شده، نه از راهنمای عمومی.
+   با همان توکن زیرنویس هدر ساخته شده تا سبک تازه‌ای وارد سیستم نشود. */
+.ptg-assistant-source {
+    align-self: stretch;
+    margin-block-start: -4px;
+    padding-inline: 12px;
+    font: var(--font-caption);
+    line-height: var(--lh-caption);
+    color: var(--text-secondary);
+}
+
+/* ---- سؤال‌های آماده ---- */
+/* فقط تا وقتی گفتگو شروع نشده دیده می‌شوند؛ بعد از آن جای‌شان را به متن راهنما می‌دهند. */
+.ptg-assistant-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 0 14px 10px;
+}
+
+.ptg-assistant.has-conversation .ptg-assistant-suggestions {
+    display: none;
+}
+
+.ptg-assistant-chip {
+    padding: 5px 10px;
+    border: 1px solid var(--divider);
+    border-radius: var(--ptg-radius-badge);
+    background: var(--background-default);
+    color: var(--text-secondary);
+    font: var(--font-caption);
+    line-height: var(--lh-caption);
+}
+
+.ptg-assistant-chip:hover,
+.ptg-assistant-chip:focus-visible {
+    background: var(--background-neutral);
+    color: var(--text-primary);
+}
+
+/* ---- فرم ارسال ---- */
+.ptg-assistant-form {
+    display: flex;
+    align-items: flex-end;
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 10px 14px 12px;
+    border-block-start: 1px solid var(--divider);
+    background: var(--background-default);
+}
+
+.ptg-assistant-input {
+    flex: 1 1 auto;
+    resize: none;
+    padding: 8px 10px;
+    border: 1px solid var(--ptg-field-border);
+    border-radius: var(--ptg-radius-input);
+    background: var(--ptg-field-bg);
+    color: var(--ptg-control-text, var(--text-primary));
+    font: var(--font-body2);
+}
+
+.ptg-assistant-input:focus {
+    outline: none;
+    border-color: var(--ak-control-border-focus);
+    box-shadow: var(--ptg-field-focus-ring);
+}
+
+.ptg-assistant-send {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 38px;
+    padding-inline: 14px;
+    border: 1px solid var(--ptg-btn-primary);
+    border-radius: var(--ptg-radius-button);
+    background: var(--ptg-btn-primary);
+    color: var(--primary-contrast);
+    font: var(--font-button);
+    line-height: var(--lh-button);
+}
+
+.ptg-assistant-send:hover:not(:disabled),
+.ptg-assistant-send:focus-visible:not(:disabled) {
+    background: var(--ptg-btn-primary-dark);
+    border-color: var(--ptg-btn-primary-dark);
+}
+
+.ptg-assistant-send:disabled {
+    opacity: 0.65;
+}
+
+/* ---- موبایل ---- */
+@media (max-width: 575.98px) {
+    .ptg-assistant {
+        inset-block-end: 12px;
+        inset-inline-end: 12px;
+        inset-inline-start: 12px;
+        align-items: stretch;
+    }
+
+    .ptg-assistant-trigger {
+        align-self: flex-end;
+        width: 44px;
+        height: 44px;
+    }
+
+    .ptg-assistant-panel {
+        width: 100%;
+        height: calc(100vh - 100px);
+    }
+}
+
+@media print {
+    .ptg-assistant {
+        display: none;
+    }
+}

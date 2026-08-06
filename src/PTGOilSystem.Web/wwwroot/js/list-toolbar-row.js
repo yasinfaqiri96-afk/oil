@@ -45,7 +45,9 @@
         // Tab-scoped export menus ([data-ak-tab]) must stay inside their own strip:
         // moving one out detaches it from the tab that owns it, so it stays on screen
         // next to the active tab's own menu and exports the wrong tab.
-        if (exportMenu && exportMenu.closest("[data-ak-tab]")) {
+        // A menu the detail header renders is part of that header's action group
+        // (back / export / kebab) — same reason .ak-detail-header actions are skipped above.
+        if (exportMenu && (exportMenu.closest("[data-ak-tab]") || exportMenu.closest(".ak-detail-header"))) {
             exportMenu = null;
         }
         var hasToolbarContent = pageActions

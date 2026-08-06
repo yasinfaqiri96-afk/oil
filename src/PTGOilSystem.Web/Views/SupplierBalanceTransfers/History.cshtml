@@ -6,101 +6,183 @@
 @{
     ViewData["Title"] = "سوابق انتقال";
     var backUrl = Url.Action("Details", "Suppliers", new { id = Model.SupplierId }) ?? "/Suppliers";
-    var selfUrl = Url.Action("History", new { supplierId = Model.SupplierId });
+    // returnUrl کل آدرس جاری است تا فیلتر نمایشی پس از برگشت انتقال از دست نرود.
+    var selfUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     var canManage = (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.ManageData)).Succeeded;
+    var reversibleRows = canManage ? Model.Rows.Where(r => r.IsActive).ToList() : new List<PTGOilSystem.Web.Models.Suppliers.SupplierBalanceTransferHistoryRowViewModel>();
+
+    var historyFilter = new AkSearchFilterModel(
+        "q", Model.Query,
+        "جست‌وجو در قرارداد یا مرجع…",
+        new List<AkFilterDefinition>
+        {
+            new("status", "وضعیت", "select",
+                new List<AkFilterOption>
+                {
+                    new("active", "فعال"),
+                    new("reversed", "برگشت‌شده")
+                },
+                Model.Status)
+        },
+        new Dictionary<string, string> { ["supplierId"] = Model.SupplierId.ToString() });
 }
 
-<div class="ak-detail-page" dir="rtl">
+<div class="ak-form-page ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"سوابق انتقال — {Model.SupplierName}", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
 
-    @if (Model.Rows.Count == 0)
-    {
-        <p class="ak-note">تا حال هیچ انتقالی ثبت نشده است.</p>
-    }
-    else
-    {
-        <p class="ak-note">مجموع انتقال‌های فعال: <strong>@Model.ActiveTotalUsd.ToString("N2") USD</strong></p>
+    @* ۴ عدد تصمیم‌ساز: چقدر منتقل شده، چند مورد فعال است، چند مورد برگشت خورده و اثر نرخ ارز. *@
+    <section class="ak-stat-grid mb-3" aria-label="آمار انتقال‌ها">
+        <vc:stat-card title="مجموع انتقال فعال" value="@Model.ActiveTotalUsd.ToString("N2")" unit="USD" avatar="cash-flow"></vc:stat-card>
+        <vc:stat-card title="انتقال فعال" value="@Model.ActiveCount.ToString("N0")" unit="انتقال" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="برگشت‌شده" value="@Model.ReversedCount.ToString("N0")" unit="انتقال" avatar="recon-documents"></vc:stat-card>
+        <vc:stat-card title="سود / زیان نرخ ارز" value="@Model.ActiveExchangeDifferenceUsd.ToString("N2")" unit="USD" avatar="exchange-rate"></vc:stat-card>
+    </section>
+
+    <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="historyFilter" />
+        </div>
 
         <div class="ak-table-wrap">
-            <table class="ak-table ak-detail-table">
+            <table class="ak-table">
                 <thead>
                     <tr>
-                        <th>تاریخ انتقال</th>
+                        <th>تاریخ</th>
                         <th class="ak-col-grow">قرارداد مقصد</th>
                         <th class="ak-col-num">مبلغ انتقال</th>
-                        <th class="ak-col-num">نرخ روز</th>
                         <th class="ak-col-num">ارزش دالری</th>
-                        <th class="ak-col-num">سود / زیان نرخ ارز</th>
                         <th class="ak-col-num">معادل ارز قرارداد</th>
+                        <th class="ak-col-num">سود / زیان نرخ ارز</th>
                         <th>مرجع</th>
                         <th>وضعیت</th>
-                        <th class="ak-col-actions"></th>
+                        <th class="ak-col-actions"><span class="visually-hidden">عملیات</span></th>
                     </tr>
                 </thead>
                 <tbody>
                 @foreach (var r in Model.Rows)
                 {
-                    <tr class="@(r.IsActive ? "" : "ak-row-muted")">
+                    <tr class="@(r.IsActive ? null : "ak-row-muted")">
                         <td>@r.TransferDate.ToDisplayDate()</td>
                         <td class="ak-col-grow">
-                            <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@r.ContractId" asp-route-returnUrl="@selfUrl">@r.ContractDisplayLabel</a>
+                            <a class="ak-name" asp-controller="ContractJourney" asp-action="Details"
+                               asp-route-contractId="@r.ContractId" asp-route-returnUrl="@selfUrl">@r.ContractDisplayLabel</a>
                             @if (r.Sources.Count > 0)
                             {
-                                <div class="ak-note">
+                                <div class="ak-cell-note">
                                     منبع:
                                     @string.Join("، ", r.Sources.Select(s =>
-                                        $"{UiText.LedgerSource(Context, s.SourceType)} ({s.RemainingOriginalAmount:N2} {s.CurrencyCode})"))
+                                        $"{UiText.LedgerSource(Context, s.SourceType)} ({NumberDisplay.Money(s.RemainingOriginalAmount, s.CurrencyCode)})"))
                                 </div>
                             }
                         </td>
                         <td class="ak-col-num ak-num">
-                            @r.TransferOriginalAmount.ToString("N2") @r.OriginalCurrencyCode
-                            <div class="ak-note">ارزش تاریخی: @r.HistoricalAmountUsd.ToString("N2") USD</div>
+                            @AkUnit.Money(r.TransferOriginalAmount, r.OriginalCurrencyCode)
+                            @* سلول عددی LTR است؛ متن کمکی فارسی جهت خودش را لازم دارد. *@
+                            <div class="ak-cell-note" dir="rtl">ارزش تاریخی @NumberDisplay.Money(r.HistoricalAmountUsd, "USD")</div>
                         </td>
-                        <td class="ak-col-num ak-num">۱ USD = @NumberDisplay.Number(r.TransferPerUsdRate, 4) @r.OriginalCurrencyCode</td>
-                        <td class="ak-col-num ak-num">@r.TransferValueUsd.ToString("N2")</td>
+                        <td class="ak-col-num ak-num">
+                            @AkUnit.Money(r.TransferValueUsd, "USD")
+                            <div class="ak-cell-note" dir="rtl">نرخ روز <bdi>۱ USD = @NumberDisplay.FxRate(r.TransferPerUsdRate) @r.OriginalCurrencyCode</bdi></div>
+                        </td>
+                        <td class="ak-col-num ak-num">@AkUnit.Money(r.TransferContractCurrencyAmount, r.ContractCurrencyCode)</td>
                         <td class="ak-col-num ak-num">
                             @if (r.HasExchangeDifference)
                             {
                                 <span class="@(r.ExchangeDifferenceUsd < 0 ? "ak-number--negative" : "ak-number--positive")">
-                                    @Math.Abs(r.ExchangeDifferenceUsd).ToString("N2") USD
+                                    @AkUnit.Money(Math.Abs(r.ExchangeDifferenceUsd), "USD")
                                 </span>
-                                <div class="ak-note">@r.ExchangeDifferenceName</div>
+                                <div class="ak-cell-note" dir="rtl">@r.ExchangeDifferenceName</div>
                             }
                             else
                             {
                                 <span>—</span>
                             }
                         </td>
-                        <td class="ak-col-num ak-num">@r.TransferContractCurrencyAmount.ToString("N2") @r.ContractCurrencyCode</td>
                         <td>@(string.IsNullOrWhiteSpace(r.ReferenceNumber) ? "—" : r.ReferenceNumber)</td>
                         <td>
                             <span class="ak-status @(r.IsActive ? "is-active" : "is-inactive")">@r.StatusName</span>
                             @if (!r.IsActive && !string.IsNullOrWhiteSpace(r.ReversalReason))
                             {
-                                <div class="ak-note">@r.ReversalReason</div>
+                                <div class="ak-cell-note">@r.ReversalReason</div>
                             }
                         </td>
                         <td class="ak-col-actions">
                             @if (r.IsActive && canManage)
                             {
-                                <form asp-action="Reverse" method="post" class="d-inline"
-                                      onsubmit="var v=prompt('دلیل برگشت انتقال را بنویسید:'); if(!v){return false;} this.reason.value=v; return confirm('انتقال برگشت داده شود؟');">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@r.Id" />
-                                    <input type="hidden" name="reason" value="" />
-                                    <input type="hidden" name="returnUrl" value="@selfUrl" />
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">برگشت انتقال</button>
-                                </form>
+                                <div class="ak-row-menu">
+                                    <button type="button" class="btn btn-light ak-secondary-action"
+                                            data-bs-toggle="modal" data-bs-target="#reverseTransferModal-@r.Id"
+                                            title="برگشت انتقال"
+                                            aria-label="برگشت انتقال @r.ContractDisplayLabel">
+                                        <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                    </button>
+                                </div>
                             }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="9">
+                            <div class="ak-empty">
+                                <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                                @if (Model.HasAnyRecord)
+                                {
+                                    <text>برای این فیلتر انتقالی یافت نشد.</text>
+                                }
+                                else
+                                {
+                                    <text>تا حال هیچ انتقالی ثبت نشده است.</text>
+                                }
+                            </div>
                         </td>
                     </tr>
                 }
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    @* دلیل برگشت اجباری است؛ به‌جای prompt مرورگر همان modal استانداردی که تخصیص پیش‌پرداخت دارد. *@
+    @foreach (var r in reversibleRows)
+    {
+        <div class="modal fade" id="reverseTransferModal-@r.Id" tabindex="-1"
+             aria-labelledby="reverseTransferModalTitle-@r.Id" aria-hidden="true">
+            <div class="modal-dialog">
+                <form asp-action="Reverse" method="post" class="modal-content ak-modal-content">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@r.Id" />
+                    <input type="hidden" name="returnUrl" value="@selfUrl" />
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="reverseTransferModalTitle-@r.Id">برگشت انتقال</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="ak-note">
+                            انتقال @NumberDisplay.Money(r.TransferOriginalAmount, r.OriginalCurrencyCode)
+                            به قرارداد @r.ContractDisplayLabel برگشت داده می‌شود.
+                            @if (r.HasExchangeDifference)
+                            {
+                                <text>@r.ExchangeDifferenceName به مبلغ @NumberDisplay.Money(Math.Abs(r.ExchangeDifferenceUsd), "USD") نیز معکوس می‌شود.</text>
+                            }
+                            رکورد اصلی حفظ می‌شود و فقط ثبت معکوس ساخته می‌شود.
+                        </p>
+                        <div class="ak-field">
+                            <label class="ak-label" for="reverseTransferReason-@r.Id">دلیل برگشت</label>
+                            <textarea class="ak-input" id="reverseTransferReason-@r.Id" name="reason"
+                                      rows="2" maxlength="500" required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button>
+                        <button type="submit" class="btn btn-danger">برگشت انتقال</button>
+                    </div>
+                </form>
+            </div>
         </div>
     }
 </div>

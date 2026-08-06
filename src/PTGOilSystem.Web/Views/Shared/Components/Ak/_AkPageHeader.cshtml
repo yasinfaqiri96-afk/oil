@@ -20,6 +20,14 @@
                                           -> page-level secondary actions merged into the kebab.
       - ViewData["AkHeaderCompanionAction"] : AkHeaderMenuItem
                                           -> optional visible link beside the primary action.
+      - ViewData["AkHeaderExport"]      : ExportMenuModel
+                                          -> shared export (Excel/PDF) dropdown in the action group,
+                                             for pages that showed it in a separate row.
+      - ViewData["AkHeaderToggle"]      : IReadOnlyList<AkPartyToggleOption>
+                                          -> segmented switch (e.g. display currency) shown
+                                             first in the action group. Same .ak-party-switch
+                                             component used inside the party account card.
+      - ViewData["AkHeaderToggleLabel"] : string  -> accessible name of that switch.
 *@
 @model (string Title, bool Star, string? ActionLabel, string? ActionIcon, string? ActionHref, string? ActionModalTarget, string? SecondaryLabel, string? SecondaryIcon, string? SecondaryHref)
 @{
@@ -79,6 +87,12 @@
             StringComparer.OrdinalIgnoreCase)
         .Select(group => group.First())
         .ToList();
+    var toggleOptions = (ViewData["AkHeaderToggle"] as IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkPartyToggleOption>)
+        ?? new List<PTGOilSystem.Web.Models.Shared.AkPartyToggleOption>();
+    var toggleLabel = ViewData["AkHeaderToggleLabel"] as string;
+    var hasToggle = toggleOptions.Count > 0;
+    var exportMenu = ViewData["AkHeaderExport"] as PTGOilSystem.Web.Services.Exports.ExportMenuModel;
+    var hasExport = exportMenu is not null;
     var hasStatus = !string.IsNullOrWhiteSpace(statusText);
     var hasKebab = kebabItems.Count > 0;
     var statusAriaLabel = hasStatus
@@ -107,10 +121,21 @@
             <p class="ak-detail-subtitle" id="@contextId">@contextLine</p>
         }
     </div>
-    @if (hasPrimary || hasSecondary || hasCompanionAction || hasKebab)
+    @if (hasPrimary || hasSecondary || hasCompanionAction || hasKebab || hasToggle || hasExport)
     {
         <div class="ak-page-actions@(isDetailPage ? " ak-detail-actions" : string.Empty)" role="group"
              aria-label="@UiText.T(Context, "عملیات صفحه", "Page actions")">
+            @if (hasToggle)
+            {
+                <div class="ak-party-switch" role="group" aria-label="@toggleLabel">
+                    @foreach (var option in toggleOptions)
+                    {
+                        <a class="ak-party-switch-option @(option.IsActive ? "is-active" : null)"
+                           href="@option.Href"
+                           aria-current="@(option.IsActive ? "true" : null)">@option.Label</a>
+                    }
+                </div>
+            }
             @if (hasSecondary)
             {
                 <a href="@Model.SecondaryHref" class="btn btn-light ak-secondary-action">
@@ -127,6 +152,10 @@
                     }
                     <span>@companionAction.Label</span>
                 </a>
+            }
+            @if (hasExport)
+            {
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="exportMenu" />
             }
             @if (hasPrimary)
             {

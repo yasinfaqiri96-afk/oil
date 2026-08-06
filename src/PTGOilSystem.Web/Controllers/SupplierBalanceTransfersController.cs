@@ -182,7 +182,11 @@ public sealed class SupplierBalanceTransfersController : Controller
         }
     }
 
-    public async Task<IActionResult> History(int supplierId)
+    /// <summary>
+    /// سوابق انتقال یک تأمین‌کننده. <paramref name="q"/> و <paramref name="status"/> فقط فیلتر
+    /// نمایشی‌اند؛ هیچ محاسبهٔ مالی به آن‌ها وابسته نیست و KPIها همیشه از کل سوابق ساخته می‌شوند.
+    /// </summary>
+    public async Task<IActionResult> History(int supplierId, string? q = null, string? status = null)
     {
         var supplier = await _db.Suppliers.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == supplierId);
@@ -233,12 +237,40 @@ public sealed class SupplierBalanceTransfersController : Controller
             })
             .ToListAsync();
 
+        var normalizedStatus = status?.Trim().ToLowerInvariant() switch
+        {
+            "active" => "active",
+            "reversed" => "reversed",
+            _ => null
+        };
+        var term = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
+
+        var visibleRows = rows
+            .Where(r => normalizedStatus switch
+            {
+                "active" => r.IsActive,
+                "reversed" => !r.IsActive,
+                _ => true
+            })
+            .Where(r => term is null
+                || r.ContractDisplayLabel.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || (r.ReferenceNumber ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var activeRows = rows.Where(r => r.IsActive).ToList();
+
         return View(new SupplierBalanceTransferHistoryViewModel
         {
             SupplierId = supplierId,
             SupplierName = supplier.Name,
-            Rows = rows,
-            ActiveTotalUsd = rows.Where(r => r.IsActive).Sum(r => r.TransferValueUsd)
+            Rows = visibleRows,
+            ActiveTotalUsd = activeRows.Sum(r => r.TransferValueUsd),
+            ActiveExchangeDifferenceUsd = activeRows.Sum(r => r.ExchangeDifferenceUsd),
+            TotalCount = rows.Count,
+            ActiveCount = activeRows.Count,
+            ReversedCount = rows.Count - activeRows.Count,
+            Query = term,
+            Status = normalizedStatus
         });
     }
 

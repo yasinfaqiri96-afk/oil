@@ -43,32 +43,24 @@
         $"activity|فروش‌ها و دریافت‌ها|bi-receipt-cutoff|{(showActivity ? "active" : "")}"
     };
 
-    // کارت وضعیت حساب تب خلاصه. چیدمان نمایشی روی همان اعداد مدل؛ درصد دریافت یک
-    // نسبت نمایشی از دو رقمِ همین کارت است و هیچ مبلغی دوباره محاسبه نمی‌شود.
+    // کارت‌های آماری تب خلاصه — همان اعداد کارت قبلی، بدون هیچ محاسبهٔ تازه.
+    var customerKpis = new List<AkKpiItem>
+    {
+        new() { Title = "مانده حساب", Value = NumberDisplay.Money(Math.Abs(bal)), Unit = "USD", Avatar = "receivables" },
+        new() { Title = "کل فروش", Value = NumberDisplay.Money(Model.SoldValueUsd), Unit = "USD", Avatar = "sales-value" },
+        new() { Title = "دریافت‌شده", Value = NumberDisplay.Money(Model.TotalReceivedUsd), Unit = "USD", Avatar = "receipts" }
+    };
+
+    // کارت وضعیت حساب تب خلاصه. درصد دریافت یک نسبت نمایشی از دو رقمِ بالاست
+    // و هیچ مبلغی دوباره محاسبه نمی‌شود.
     int? customerReceivedShare = Model.SoldValueUsd > 0m
         ? (int)Math.Clamp(Math.Round(Model.TotalReceivedUsd / Model.SoldValueUsd * 100m, MidpointRounding.AwayFromZero), 0m, 100m)
         : null;
 
     var customerAccountCard = new AkPartyAccountCard
     {
-        BalanceLabel = "مانده حساب",
-        BalanceValue = NumberDisplay.Money(Math.Abs(bal), "USD"),
         Meaning = balanceLabel,
         MeaningTone = balanceTone,
-        Metrics = new List<AkPartyMetric>
-        {
-            new()
-            {
-                Label = "کل فروش",
-                Value = NumberDisplay.Money(Model.SoldValueUsd, "USD")
-            },
-            new()
-            {
-                Label = "دریافت‌شده",
-                Value = NumberDisplay.Money(Model.TotalReceivedUsd, "USD"),
-                Tone = "success"
-            }
-        },
         SettledPercent = customerReceivedShare,
         SettledCaption = customerReceivedShare.HasValue
             ? $"{customerReceivedShare.Value:N0}٪ دریافت شده"
@@ -78,6 +70,16 @@
             new() { Label = "فاکتور فعال", Value = activeSales.Count.ToString("N0"), IsNumeric = true },
             new() { Label = "کل فاکتورها", Value = Model.Sales.Count.ToString("N0"), IsNumeric = true },
             new() { Label = "قرارداد فروش", Value = Model.Contracts.Count.ToString("N0"), IsNumeric = true }
+        },
+        Identity = new List<AkInfoItem>
+        {
+            new() { Label = "کد", Value = string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code },
+            new() { Label = "نام فارسی", Value = string.IsNullOrWhiteSpace(Model.NamePersian) ? notRecorded : Model.NamePersian },
+            new() { Label = "کشور", Value = string.IsNullOrWhiteSpace(Model.Country) ? notRecorded : Model.Country },
+            new() { Label = "طرف تماس", Value = string.IsNullOrWhiteSpace(Model.ContactPerson) ? notRecorded : Model.ContactPerson },
+            new() { Label = "تلفن", Value = string.IsNullOrWhiteSpace(Model.Phone) ? notRecorded : Model.Phone },
+            new() { Label = "آدرس", Value = string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address, IsWide = true },
+            new() { Label = "یادداشت", Value = string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes, IsWide = true }
         }
     };
 }
@@ -90,22 +92,11 @@
 
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل مشتری", customerTabs)" />
 
-    @* ===== تب خلاصه: اول وضعیت حساب (عدد تصمیم‌ساز)، بعد اطلاعات هویتی ===== *@
+    @* ===== تب خلاصه: کارت‌های آماری، بعد یک کارت واحدِ وضعیت حساب + هویت ===== *@
     <div class="ak-form-grid ak-overview-grid" hidden="@(!showOverview)">
-        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@customerAccountCard" />
+        <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)customerKpis)" />
 
-        <section class="ak-form-section ak-detail-section ak-party-identity">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات هویتی", (string?)null))" />
-            <dl class="ak-list ak-list--flush ak-identity-list">
-                <div class="ak-list-row"><dt>کد</dt><dd>@(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)</dd></div>
-                <div class="ak-list-row"><dt>نام فارسی</dt><dd>@(string.IsNullOrWhiteSpace(Model.NamePersian) ? notRecorded : Model.NamePersian)</dd></div>
-                <div class="ak-list-row"><dt>کشور</dt><dd>@(string.IsNullOrWhiteSpace(Model.Country) ? notRecorded : Model.Country)</dd></div>
-                <div class="ak-list-row"><dt>طرف تماس</dt><dd>@(string.IsNullOrWhiteSpace(Model.ContactPerson) ? notRecorded : Model.ContactPerson)</dd></div>
-                <div class="ak-list-row"><dt>تلفن</dt><dd>@(string.IsNullOrWhiteSpace(Model.Phone) ? notRecorded : Model.Phone)</dd></div>
-                <div class="ak-list-row is-wide"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
-                <div class="ak-list-row is-wide"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
-            </dl>
-        </section>
+        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@customerAccountCard" />
     </div>
 
     @* ===== تب ۱: صورت‌حساب ===== *@

@@ -337,6 +337,12 @@ public sealed class PaymentListItemViewModel
     public string CashAccountCurrency { get; init; } = "USD";
     public string CounterpartyTypeName { get; init; } = string.Empty;
     public string CounterpartyName { get; init; } = string.Empty;
+
+    // فقط نمایشی — رزنامچه برای ستون «طرف حساب» آیکون متناسب با نوع طرف حساب نشان می‌دهد.
+    public PaymentCounterpartyType CounterpartyType { get; init; }
+
+    // فقط نمایشی — PaymentDate تاریخ بدون ساعت است، پس ستون «ساعت» از زمان ثبت رکورد پر می‌شود.
+    public DateTime CreatedAtUtc { get; init; }
     public string? CustomerName { get; init; }
     public string? SupplierName { get; init; }
     public string? ServiceProviderName { get; init; }

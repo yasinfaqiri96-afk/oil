@@ -232,6 +232,22 @@ public class InvoicesController : Controller
         var sourceLabel = BuildPaymentSourceLabel(payment);
         var documentNumber = string.IsNullOrWhiteSpace(payment.Reference) ? $"PAY-{payment.Id}" : payment.Reference!;
 
+        // مشخصات سند در یک بلوک خوانا، به‌جای فشرده‌شدن داخل ستون «شرح» جدول اقلام.
+        var infoItems = new List<DocumentInvoiceInfoItemViewModel>
+        {
+            InfoItem("نوع سند", "Document Type", PaymentKindFa(payment.PaymentKind)),
+            InfoItem("جهت", "Direction", PaymentDirectionFa(payment.Direction)),
+            InfoItem("طرف حساب", "Counterparty", counterparty.Name),
+            InfoItem("حساب نقدی / بانکی", "Cash Account", payment.CashAccount?.Name),
+            InfoItem("واحد پول", "Currency", payment.Currency),
+            InfoItem("شماره مرجع", "Reference", documentNumber),
+            InfoItem("قرارداد", "Contract", payment.Contract?.ContractNumber),
+            InfoItem("فاکتور فروش", "Sales Invoice", payment.SalesTransaction?.InvoiceNumber),
+            InfoItem("مصرف", "Expense", payment.ExpenseTransaction?.ExpenseType?.NamePersian
+                ?? payment.ExpenseTransaction?.ExpenseType?.Name),
+            InfoItem("ثبت دفتر کل", "Ledger Entry", payment.LedgerEntryId.HasValue ? $"#{payment.LedgerEntryId}" : null)
+        };
+
         return new DocumentInvoiceViewModel
         {
             TitleFa = isReceipt ? "رسید دریافت" : "سند پرداخت",
@@ -257,6 +273,7 @@ public class InvoicesController : Controller
                 NoteFa = payment.AppliedFxRateToUsd.HasValue ? $"نرخ تبدیل به USD: {payment.AppliedFxRateToUsd.Value:0.######}" : null,
                 NoteEn = payment.AppliedFxRateToUsd.HasValue ? $"FX to USD: {payment.AppliedFxRateToUsd.Value:0.######}" : null
             },
+            InfoItems = infoItems.Where(item => !string.IsNullOrWhiteSpace(item.Value)).ToList(),
             Lines =
             [
                 new DocumentInvoiceLineViewModel
@@ -414,6 +431,15 @@ public class InvoicesController : Controller
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value!.Trim())
             .ToList();
+
+    // مقدار خالی همان‌جا ساخته می‌شود و بعد فیلتر می‌گردد؛ ردیف «-» در سند چاپی ساخته نمی‌شود.
+    private static DocumentInvoiceInfoItemViewModel InfoItem(string fa, string en, string? value)
+        => new()
+        {
+            LabelFa = fa,
+            LabelEn = en,
+            Value = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim()
+        };
 
     private static DocumentInvoiceTotalRowViewModel TotalRow(string fa, string en, string value, bool isGrandTotal = false)
         => new()

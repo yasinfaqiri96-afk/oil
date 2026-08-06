@@ -105,6 +105,30 @@ body.ptg-modal-document :where(.btn-white, .btn-light, .btn-outline-primary, .bt
 body.boltz-shell.app-shell-authenticated :where(.btn-outline-danger),
 body.ptg-modal-document :where(.btn-outline-danger) { --_fg: var(--error-main); }
 
+/* ---- Export menu ----
+   The Excel/PDF export control is the same component on every list and report
+   page (Views/Shared/_ExportMenu.cshtml), so it carries one identity system
+   wide. Brand navy, not a semantic colour: exporting is neither destructive
+   nor the page's primary action, and navy is the tone the nav, tabs and
+   section headings already use, so the button reads as part of the chrome.
+   It keeps .ak-secondary-action for its geometry, and that class hands out the
+   quiet grey tokens further up, so the colour is re-declared here through the
+   same button tokens rather than a local background override. */
+body.boltz-shell.app-shell-authenticated [data-export-menu] > .btn,
+body.ptg-modal-document [data-export-menu] > .btn {
+    --_bg: var(--ptg-primary); --_fg: #FFFFFF; --_bg-h: var(--ptg-primary-dark);
+    --_bd: transparent; --_sh: rgba(var(--ptg-primary-rgb), .40);
+}
+
+/* Hover darkens by swapping the token, so the base rule's filled background
+   still wins without needing another !important. */
+body.boltz-shell.app-shell-authenticated [data-export-menu] > .btn:hover,
+body.boltz-shell.app-shell-authenticated [data-export-menu] > .btn:focus-visible,
+body.ptg-modal-document [data-export-menu] > .btn:hover,
+body.ptg-modal-document [data-export-menu] > .btn:focus-visible {
+    --_bg: var(--ptg-primary-dark);
+}
+
 /* Header primary CTA (not a .btn element) */
 body.boltz-shell.app-shell-authenticated .boltz-topbar-primary {
     border: 1px solid transparent;

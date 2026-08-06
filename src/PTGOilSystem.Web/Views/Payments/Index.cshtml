@@ -1,5 +1,7 @@
 @model PTGOilSystem.Web.Models.Payments.PaymentIndexViewModel
+@using System.Globalization
 @using Microsoft.AspNetCore.Mvc.Rendering
+@using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Payments
 @{
     ViewData["Title"] = "رزنامچه";
@@ -16,7 +18,7 @@
     var hasAdvancedFilter = f.FromDate.HasValue || f.ToDate.HasValue || HasQ("Direction") || HasQ("PaymentKind") || HasQ("CashAccountId");
 }
 
-<div class="ak-list-page finance-workspace-page">
+<div class="ak-list-page finance-workspace-page ak-journal-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("روزنامه و اسناد", false,
                        "ثبت دریافت/پرداخت", "bi-plus-lg", Url.Action("Create"), (string?)null,
@@ -60,114 +62,134 @@
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
         </div>
 
-        <div class="ak-table-wrap">
-            <table class="ak-table payments-table">
-                <thead>
-                    <tr>
-                        <th>تاریخ</th>
-                        <th>نوع</th>
-                        <th>طرف حساب</th>
-                        <th>حساب نقدی/بانکی</th>
-                        <th class="ak-col-num">مبلغ</th>
-                        <th class="ak-col-num">USD</th>
-                        <th>مربوط به</th>
-                        <th>وضعیت</th>
-                        <th class="ak-col-actions">عملیات</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var item in items)
-                {
-                    var directionBadgeClass = item.Direction == PTGOilSystem.Web.Models.Entities.PaymentDirection.In ? "is-active" : "is-inactive";
-                    var normalRow = !item.IsSarrafHawala && !item.IsLedgerOnlyViaSarraf;
-                    <tr data-href="@(normalRow ? Url.Action("Details", new { id = item.Id }) : null)">
-                        <td>@item.PaymentDate.ToDisplayDate()</td>
-                        @* یک کپسول کافی است: عنوان کامل نوع سند داخل کپسول، بدون برچسب کوتاه بالای آن. *@
-                        <td>
-                            <span class="ak-status @directionBadgeClass">@item.PaymentKindName</span>
-                        </td>
-                        <td>@item.CounterpartyName</td>
-                        @* حساب نقدی/بانکی فقط وقتی معنا دارد که همان تراکنش از حساب پرداخت/دریافت شده باشد؛
-                           تراکنش‌های صرافی یا بدون حساب، این ستون را خالی نگه می‌دارند. *@
-                        @if (normalRow && !string.IsNullOrWhiteSpace(item.CashAccountName) && item.CashAccountName != "—")
-                        {
-                            <td>
-                                @item.CashAccountName
-                                <div class="ak-note">@item.CashAccountCurrency</div>
+        @* جدول رزنامچه عمداً کلاس مشترک .ak-table را ندارد: رفتارهای سراسری لیست‌ها
+           (آواتار ردیف، برچسب ستون موبایل، تبدیل ارقام فارسی به لاتین) نباید این
+           چیدمان را تغییر دهند. استایل کامل در 67-journal-table.css و زیر
+           .ak-journal-page قفل است. *@
+        <div class="ak-journal-card">
+            <div class="ak-journal-scroll">
+                <table class="ak-journal-table">
+                    @* نسبت ستون‌ها از روی تصویر مرجع اندازه‌گیری شده؛ سهم ستون حذف‌شدهٔ
+                       «ساعت» بین شرح، تاریخ و عملیات پخش شده است. *@
+                    <colgroup>
+                        <col style="width: 11.5%" />
+                        <col style="width: 9.5%" />
+                        <col style="width: 8%" />
+                        <col style="width: 14%" />
+                        <col style="width: 10%" />
+                        <col style="width: 6%" />
+                        <col style="width: 8%" />
+                        <col style="width: 17%" />
+                        <col style="width: 9%" />
+                        <col style="width: 7%" />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">شماره رسید</th>
+                            <th scope="col" class="jr-center">نوع</th>
+                            <th scope="col" class="jr-center">طرف حساب</th>
+                            <th scope="col">نام</th>
+                            <th scope="col" class="jr-center">مبلغ</th>
+                            <th scope="col" class="jr-center">واحد</th>
+                            <th scope="col" class="jr-center">روش</th>
+                            <th scope="col">شرح</th>
+                            <th scope="col" class="jr-center">تاریخ</th>
+                            <th scope="col" class="jr-center">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in items)
+                    {
+                        var normalRow = !item.IsSarrafHawala && !item.IsLedgerOnlyViaSarraf;
+                        var isIn = item.Direction == PaymentDirection.In;
+                        var receiptNumber = string.IsNullOrWhiteSpace(item.Reference) ? $"#{item.Id}" : item.Reference!;
+                        // شرح فقط متن دست‌نویس کاربر است. ردیف‌های «فقط دفتر کل از طریق صراف»
+                        // شرحشان را BuildLedgerDescription ساخته، پس متن سیستمی نمایش داده نمی‌شود.
+                        var description = item.IsLedgerOnlyViaSarraf || string.IsNullOrWhiteSpace(item.Description)
+                            ? null
+                            : item.Description!.Trim();
+                        // روش فقط دو حالت دارد: پول از طریق صراف رفته/آمده، یا از حساب خودِ شرکت.
+                        var viaSarraf = item.IsSarrafHawala
+                            || item.IsLedgerOnlyViaSarraf
+                            || !string.IsNullOrWhiteSpace(item.SarrafName);
+                        var methodName = viaSarraf ? "از طریق صراف" : "حساب";
+                        <tr data-href="@(normalRow ? Url.Action("Details", new { id = item.Id }) : null)">
+                            <td class="jr-receipt" title="@item.RelatedTo">@receiptNumber</td>
+                            <td class="jr-center">
+                                @* در RTL اولین فرزند سمت راست می‌نشیند؛ ترتیب متن→آیکون یعنی
+                                   آیکون سمت چپ کپسول، مطابق مرجع. *@
+                                <span class="jr-pill @(isIn ? "jr-pill-in" : "jr-pill-out")" title="@item.PaymentKindName">
+                                    <span>@item.DirectionName</span>
+                                    <i class="bi @(isIn ? "bi-arrow-down-circle-fill" : "bi-arrow-up-circle-fill")" aria-hidden="true"></i>
+                                </span>
                             </td>
-                        }
-                        else
-                        {
-                            <td></td>
-                        }
-                        <td class="ak-col-num ak-num">
-                            @item.Amount.ToString("N2") @item.Currency
-                            @if (item.CommissionAmount.HasValue)
-                            {
-                                <div class="ak-note">کمیسیون: @item.CommissionAmount.Value.ToString("N2") @item.CommissionCurrency</div>
-                            }
-                        </td>
-                        <td class="ak-col-num ak-num">@item.AmountUsd.ToString("N2")</td>
-                        <td>@item.RelatedTo</td>
-                        <td>
-                            @if (item.LedgerEntryId.HasValue)
-                            {
-                                <span class="ak-status is-active">ثبت مالی کامل</span>
-                            }
-                            else if (item.IsSarrafHawala)
-                            {
-                                <span class="ak-status">حواله صراف</span>
-                            }
-                            else if (item.IsLedgerOnlyViaSarraf)
-                            {
-                                <span class="ak-status">ثبت از طریق صراف</span>
-                            }
-                            else
-                            {
-                                <span class="ak-status is-inactive">Ledger ندارد</span>
-                            }
-                        </td>
-                        <td class="ak-col-actions">
-                            <div class="dropdown ak-row-menu">
-                                <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="عملیات">
-                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                            <td class="jr-center">
+                                <span class="jr-party">
+                                    <span>@item.CounterpartyTypeName</span>
+                                    <i class="bi @CounterpartyIcon(item.CounterpartyType)" aria-hidden="true"></i>
+                                </span>
+                            </td>
+                            <td class="jr-name" title="@item.CounterpartyName">@item.CounterpartyName</td>
+                            <td class="jr-center">
+                                <bdi class="jr-amount @(isIn ? "is-in" : "is-out")" dir="ltr">@FormatAmount(item.Amount)@(isIn ? "+" : "-")</bdi>
+                            </td>
+                            <td class="jr-center">@item.Currency</td>
+                            <td class="jr-center">
+                                <span class="jr-pill jr-pill-neutral">@methodName</span>
+                            </td>
+                            <td class="jr-desc" title="@description">@description</td>
+                            @* ساعت ستون جدا ندارد؛ کلیک روی تاریخ، تاریخ را با ساعت در همان
+                               جای سلول عوض می‌کند. دکمه است تا با صفحه‌کلید کار کند و
+                               ناوبری ردیف را نبرد. *@
+                            <td class="jr-date jr-center">
+                                <button type="button" class="jr-date-btn" aria-expanded="false" title="نمایش ساعت ثبت">
+                                    <span class="jr-date-text">@item.PaymentDate.ToDisplayDate()</span>
+                                    <span class="jr-time-text" hidden>
+                                        <i class="bi bi-clock" aria-hidden="true"></i>
+                                        <span>@item.CreatedAtUtc.ToAfghanistanDisplayTime()</span>
+                                    </span>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    @if (item.IsSarrafHawala)
+                            </td>
+                            <td class="jr-center">
+                                <span class="jr-actions">
+                                    @if (normalRow)
                                     {
-                                        <li><a asp-controller="SarrafSettlements" asp-action="Details" asp-route-id="@item.SarrafSettlementId" class="dropdown-item"><i class="bi bi-eye"></i> مشاهده</a></li>
+                                        @* مرجع: چاپ در چپ و ویرایش در راست؛ در RTL یعنی ویرایش اول. *@
+                                        <a class="jr-action" asp-action="Edit" asp-route-id="@item.Id" title="ویرایش" aria-label="ویرایش">
+                                            <i class="bi bi-pencil" aria-hidden="true"></i>
+                                        </a>
+                                        <a class="jr-action" asp-controller="Invoices" asp-action="Payment" asp-route-id="@item.Id" title="چاپ" aria-label="چاپ">
+                                            <i class="bi bi-printer" aria-hidden="true"></i>
+                                        </a>
                                     }
-                                    else if (item.IsLedgerOnlyViaSarraf)
+                                    else if (item.IsSarrafHawala)
                                     {
-                                        <li><span class="dropdown-item-text">فقط دفتر کل</span></li>
+                                        <a class="jr-action" asp-controller="SarrafSettlements" asp-action="Details" asp-route-id="@item.SarrafSettlementId" title="مشاهدهٔ تسویهٔ صراف" aria-label="مشاهدهٔ تسویهٔ صراف">
+                                            <i class="bi bi-eye" aria-hidden="true"></i>
+                                        </a>
                                     }
-                                    else
+                                    else if (item.LedgerEntryId.HasValue)
                                     {
-                                        <li><a asp-action="Details" asp-route-id="@item.Id" class="dropdown-item"><i class="bi bi-eye"></i> مشاهده</a></li>
-                                        <li><a asp-action="Edit" asp-route-id="@item.Id" class="dropdown-item"><i class="bi bi-pencil"></i> ویرایش</a></li>
+                                        <a class="jr-action" asp-controller="Ledger" asp-action="Details" asp-route-id="@item.LedgerEntryId.Value" title="دفتر کل" aria-label="دفتر کل">
+                                            <i class="bi bi-journal-text" aria-hidden="true"></i>
+                                        </a>
                                     }
-                                    @if (item.LedgerEntryId.HasValue)
-                                    {
-                                        <li><a asp-controller="Ledger" asp-action="Details" asp-route-id="@item.LedgerEntryId.Value" class="dropdown-item"><i class="bi bi-journal-text"></i> دفتر کل</a></li>
-                                    }
-                                </ul>
-                            </div>
-                        </td>
-                    </tr>
-                }
-                @if (!items.Any())
-                {
-                    <tr>
-                        <td colspan="9">
-                            <div class="ak-empty">
-                                <i class="bi bi-journal-text"></i>
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                    @if (!items.Any())
+                    {
+                        <tr>
+                            <td colspan="10" class="jr-empty">
+                                <i class="bi bi-journal-text" aria-hidden="true"></i>
                                 برای این فیلتر، سندی پیدا نشد.
-                            </div>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <div class="ak-pager">
@@ -176,14 +198,56 @@
     </div>
 </div>
 
+@functions {
+    // قالب‌بندی نمایشی مبلغ با ارقام لاتین و جداکنندهٔ هزارگان. اعشار فقط وقتی
+    // نشان داده می‌شود که واقعاً وجود داشته باشد؛ مقدار و گرد کردن تغییر نمی‌کند.
+    // علامت +/- در Razor به انتهای عدد چسبانده می‌شود.
+    private static string FormatAmount(decimal value)
+    {
+        var absolute = Math.Abs(value);
+        return absolute == decimal.Truncate(absolute)
+            ? absolute.ToString("#,##0", CultureInfo.InvariantCulture)
+            : absolute.ToString("#,##0.00", CultureInfo.InvariantCulture);
+    }
+
+    private static string CounterpartyIcon(PaymentCounterpartyType type) => type switch
+    {
+        PaymentCounterpartyType.Customer => "bi-people",
+        PaymentCounterpartyType.Supplier => "bi-briefcase",
+        PaymentCounterpartyType.Employee => "bi-person",
+        PaymentCounterpartyType.Driver => "bi-person-vcard",
+        PaymentCounterpartyType.OfficeExpense => "bi-building",
+        PaymentCounterpartyType.ServiceProvider => "bi-buildings",
+        PaymentCounterpartyType.Sarraf => "bi-currency-exchange",
+        PaymentCounterpartyType.Contract => "bi-file-earmark-text",
+        PaymentCounterpartyType.Sales => "bi-receipt",
+        PaymentCounterpartyType.Shipment => "bi-box-seam",
+        _ => "bi-dot"
+    };
+}
+
 @section Scripts {
     <script>
         (function () {
-            document.querySelectorAll('.ak-table tbody tr[data-href]').forEach(function (row) {
+            document.querySelectorAll('.ak-journal-table tbody tr[data-href]').forEach(function (row) {
                 row.style.cursor = 'pointer';
                 row.addEventListener('click', function (e) {
                     if (e.target.closest('a, button, input, label, select, form')) return;
                     window.location.href = row.getAttribute('data-href');
+                });
+            });
+
+            // کلیک روی تاریخ، تاریخ را پنهان و ساعت را در همان جای همان سلول نشان می‌دهد.
+            document.querySelectorAll('.ak-journal-table .jr-date-btn').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var date = button.querySelector('.jr-date-text');
+                    var time = button.querySelector('.jr-time-text');
+                    if (!date || !time) return;
+                    var showTime = time.hidden;
+                    time.hidden = !showTime;
+                    date.hidden = showTime;
+                    button.setAttribute('aria-expanded', showTime ? 'true' : 'false');
+                    button.title = showTime ? 'نمایش تاریخ' : 'نمایش ساعت ثبت';
                 });
             });
         })();

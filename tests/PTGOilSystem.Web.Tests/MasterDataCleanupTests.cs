@@ -104,10 +104,11 @@ public class MasterDataCleanupTests
         Assert.Contains("NavNode(\"Reports\", \"Index\"", layout);
         Assert.DoesNotContain("children: reportMenuItems", layout);
 
-        // Expandable submenus wired from the existing child sources.
-        Assert.Contains("children: businessPartyItems", layout);
-        Assert.Contains("children: transportItems", layout);
-        Assert.Contains("children: baseDefinitionChildren", layout);
+        // «طرف حساب‌ها»، «حمل و نقل» و «تعاریف پایه» زیرمنو ندارند و مستقیم به
+        // صفحهٔ فهرست خودشان می‌روند؛ منابع آیتم‌ها فقط برای هایلایت فعال می‌مانند.
+        Assert.DoesNotContain("children: businessPartyItems", layout);
+        Assert.DoesNotContain("children: transportItems", layout);
+        Assert.DoesNotContain("children: baseDefinitionChildren", layout);
         Assert.Contains("(\"ServiceProviders\", \"Index\"", layout);
         Assert.Contains("(\"ServiceProviders\", \"Index\"", sectionTabs);
 

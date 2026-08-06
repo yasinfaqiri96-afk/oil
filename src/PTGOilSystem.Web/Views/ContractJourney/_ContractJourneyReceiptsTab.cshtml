@@ -11,27 +11,50 @@
     // یک بار تولید می‌شود: در جدول‌های زیر برای هر ردیف سه بار استفاده می‌شد و هر بار
     // Url.Action دوباره مسیر را می‌ساخت.
     var receiptsReturnUrl = ReturnUrl(ContractJourneyTabs.Details.Receipts);
+    // جستجوی «منتظر رسید» خودش فهرست را فیلتر می‌کند، پس وقتی نتیجه خالی است هم باید
+    // نوار جستجو بماند تا کاربر بتواند عبارت را پاک کند.
+    var pendingReceiptsQuery = Context.Request.Query["pendingReceiptsQ"].ToString();
+    var hasPendingCandidates = Model.BulkReceiptCandidates.Any();
+    var showPendingSection = hasPendingCandidates || !string.IsNullOrWhiteSpace(pendingReceiptsQuery);
 }
 
 <div id="journey-tab-lists" class="ak-tab-panel" dir="@Model.PageDirection">
 
     @* ─── بارگیری‌های در انتظار رسید + فرم رسید گروهی ─── *@
-    <partial name="_ContractJourneyListFilter"
-             model="@(("pendingReceiptsQ", (string?)Context.Request.Query["pendingReceiptsQ"].ToString(), T("جستجو در بارگیری‌های منتظر رسید...", "Search pending receipt loadings..."), "pendingReceiptsPage"))" />
-    @if (Model.BulkReceiptCandidates.Any())
+    @if (showPendingSection)
     {
-        <form asp-controller="LoadingReceipts" asp-action="BulkCreate" method="post" class="ak-form" data-bulk-receipt-form data-bulk-receipt-collapsed="true" data-no-spa="true">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="ContractId" value="@Model.ContractId" />
-            <input type="hidden" name="ReturnUrl" value="@receiptsReturnUrl" />
+        @* عنوان و توضیح بیرون از فرم می‌مانند تا نوار جستجو بتواند هم‌ردیف دکمه‌های
+           گروهی بنشیند: پارشیال جستجو خودش یک <form method="get"> است و اگر داخل
+           فرم POST برود، HTML نامعتبر می‌شود و مرورگر آن را حذف می‌کند. *@
+        <section class="ak-form-section">
+            <div class="ak-section-head">
+                <div>
+                    <h2 class="ak-section-title">@T("بارگیری‌های در انتظار رسید", "Loadings awaiting receipt")</h2>
+                    <p class="ak-section-desc">@T("بارگیری‌ها را انتخاب کنید و رسید گروهی ثبت کنید.", "Select loadings and record a bulk receipt.")</p>
+                </div>
+            </div>
 
-            <section class="ak-form-section">
-                <div class="ak-section-head">
-                    <div>
-                        <h2 class="ak-section-title">@T("بارگیری‌های در انتظار رسید", "Loadings awaiting receipt")</h2>
-                        <p class="ak-section-desc">@T("بارگیری‌ها را انتخاب کنید و رسید گروهی ثبت کنید.", "Select loadings and record a bulk receipt.")</p>
+            <div class="ak-list-toolbar ak-bulk-receipt-toolbar">
+                <partial name="_ContractJourneyListFilter"
+                         model="@(("pendingReceiptsQ", (string?)pendingReceiptsQuery, T("جستجو در بارگیری‌های منتظر رسید...", "Search pending receipt loadings..."), "pendingReceiptsPage"))" />
+
+                @if (!hasPendingCandidates)
+                {
+                    <div class="ak-bulk-receipt-workspace">
+                        <div class="ak-empty">
+                            <i class="bi bi-inbox"></i>
+                            @T("نتیجه‌ای پیدا نشد.", "No results found.")
+                        </div>
                     </div>
-                    <div class="ak-page-actions">
+                }
+                else
+                {
+                <form asp-controller="LoadingReceipts" asp-action="BulkCreate" method="post" class="ak-form" data-bulk-receipt-form data-bulk-receipt-collapsed="true" data-no-spa="true">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="ContractId" value="@Model.ContractId" />
+                    <input type="hidden" name="ReturnUrl" value="@receiptsReturnUrl" />
+
+                    <div class="ak-list-toolbar-actions no-print">
                         <button type="button" class="btn btn-light ak-secondary-action" data-bulk-receipt-select-all>
                             <i class="bi bi-check2-square" aria-hidden="true"></i>
                             <span>@T("انتخاب همه", "Select all")</span>
@@ -45,7 +68,6 @@
                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                         </button>
                     </div>
-                </div>
 
                 <div class="ak-bulk-receipt-workspace">
                     <div class="ak-table-wrap">
@@ -188,9 +210,14 @@
                     </div>
                     </div>
                 </div>
-            </section>
-        </form>
-        @Model.PendingPagerHtml
+                </form>
+                }
+            </div>
+            @if (hasPendingCandidates)
+            {
+                @Model.PendingPagerHtml
+            }
+        </section>
     }
 
     @* ─── رسیدهای ثبت‌شده ─── *@
@@ -200,17 +227,21 @@
                 <h2 class="ak-section-title">@T("رسیدهای ثبت‌شده", "Registered receipts")</h2>
                 <p class="ak-section-desc">@T("رسید جنس در مخزن", "Goods received into storage")</p>
             </div>
-            @if (!Model.BulkReceiptCandidates.Any() && Model.FirstLoadingId.HasValue)
-            {
-                <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@Model.FirstLoadingId.Value" asp-route-returnUrl="@receiptsReturnUrl" class="btn btn-primary ak-primary-action" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@Model.FirstLoadingId.Value">
-                    <i class="bi bi-box-arrow-in-down"></i>
-                    <span>@T("ثبت رسید جدید", "New receipt")</span>
-                </a>
-            }
         </div>
 
-        <partial name="_ContractJourneyListFilter"
-                 model="@(("receiptsQ", (string?)Context.Request.Query["receiptsQ"].ToString(), T("جستجو در رسیدهای ثبت‌شده...", "Search registered receipts..."), "receiptsPage"))" />
+        <div class="ak-list-toolbar">
+            <partial name="_ContractJourneyListFilter"
+                     model="@(("receiptsQ", (string?)Context.Request.Query["receiptsQ"].ToString(), T("جستجو در رسیدهای ثبت‌شده...", "Search registered receipts..."), "receiptsPage"))" />
+            @if (!Model.BulkReceiptCandidates.Any() && Model.FirstLoadingId.HasValue)
+            {
+                <div class="ak-list-toolbar-actions no-print">
+                    <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@Model.FirstLoadingId.Value" asp-route-returnUrl="@receiptsReturnUrl" class="btn btn-primary ak-primary-action" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@Model.FirstLoadingId.Value">
+                        <i class="bi bi-box-arrow-in-down"></i>
+                        <span>@T("ثبت رسید جدید", "New receipt")</span>
+                    </a>
+                </div>
+            }
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">

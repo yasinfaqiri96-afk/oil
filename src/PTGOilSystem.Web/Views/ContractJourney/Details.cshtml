@@ -255,14 +255,17 @@
     var returnOnInvestmentPercent = Model.MiniPnl.CostOfGoodsSoldUsd > 0m
         ? Math.Round((pnlOperationalMarginUsd / Model.MiniPnl.CostOfGoodsSoldUsd) * 100m, 2, MidpointRounding.AwayFromZero)
         : 0m;
+    // اعداد این تب از NumberDisplay می‌آیند تا صفرهای بی‌معنی آخر عدد نمایش داده
+    // نشوند (۱۲٬۳۴۵ نه ۱۲٬۳۴۵٫۰۰۰)؛ فقط قالب پرانتز برای مقدار منفی و واحد
+    // اینجا اضافه می‌شود. هیچ گرد کردن تازه‌ای انجام نمی‌شود.
     string FormatLifecycleQuantity(decimal value, int decimals = 3)
     {
-        var absolute = Math.Abs(value).ToString($"N{decimals}");
+        var absolute = NumberDisplay.Raw(Math.Abs(value), decimals);
         return value < 0m ? $"({absolute}) {UnitMt()}" : $"{absolute} {UnitMt()}";
     }
     string FormatLifecycleUsd(decimal value)
     {
-        var absolute = Math.Abs(value).ToString("N2");
+        var absolute = NumberDisplay.Raw(Math.Abs(value), 2);
         return value < 0m ? $"($ {absolute})" : $"$ {absolute}";
     }
     string FormatRubRate(decimal? value)
@@ -310,6 +313,7 @@
     ViewData["AkHeaderContext"] = $"{partnerLabel}: {partnerName} · {T("جنس", "Product")}: {TextOrDash(Model.ProductName)} · {T("قیمت هر تن", "Unit price")}: {headerUnitPriceText}";
     var headerKebabItems = new List<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>
     {
+        new() { Label = T("دفتر حساب قرارداد", "Contract statement"), Href = contractStatementUrl, Icon = "bi-journal-text" },
         new() { Label = T("انتقال از موجودی", "Inventory transfer"), Href = inventoryTransferUrl, Icon = "bi-truck-front" },
         new() { Label = T("قیمت‌گذاری قرارداد", "Contract pricing"), Href = contractPricingUrl, Icon = "bi-tag" },
         new() { Label = T("ویرایش قرارداد", "Edit contract"), Href = contractEditUrl, Icon = "bi-pencil-square" }
@@ -331,6 +335,17 @@
     }
 
     ViewData["AkHeaderKebab"] = headerKebabItems;
+
+    // خروجی Excel/PDF جای دکمهٔ «دفتر حساب قرارداد» در نوار عملیات هدر می‌نشیند؛
+    // دفتر حساب به منوی سه‌نقطه منتقل شده است.
+    ViewData["AkHeaderExport"] = new PTGOilSystem.Web.Services.Exports.ExportMenuModel(
+        "DetailsExport",
+        RouteValues: new Dictionary<string, string?>
+        {
+            ["contractId"] = Model.ContractId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["tab"] = activeTab,
+            ["lockContract"] = Model.LockContract.ToString().ToLowerInvariant()
+        });
 
     var detailTabsRailModel = new ContractJourneyDetailTabsRailViewModel
     {
@@ -666,21 +681,8 @@
 <div class="ak-form-page ak-detail-page" data-contract-journey-page data-ak-detail-v2="true" dir="@pageDirection">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("قرارداد", "Contract")} {Model.ContractName}", false,
-                       T("دفتر حساب قرارداد", "Contract statement"), "bi-journal-text", contractStatementUrl, (string?)null,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)contractsListBackUrl))" />
-    <div class="ak-muted" dir="ltr">@Model.ContractNumber</div>
-
-    <div class="ak-page-actions">
-        <partial name="~/Views/Shared/_ExportMenu.cshtml"
-                 model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel(
-                     "DetailsExport",
-                     RouteValues: new Dictionary<string, string?>
-                     {
-                         ["contractId"] = Model.ContractId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                         ["tab"] = activeTab,
-                         ["lockContract"] = Model.LockContract.ToString().ToLowerInvariant()
-                     }))" />
-    </div>
 
     <div data-contract-journey-facts-host></div>
 
@@ -833,7 +835,7 @@
                                         <td class="ak-num">@NumberDisplay.Quantity(subContract.QuantityMt)</td>
                                         <td class="ak-num">@NumberDisplay.Quantity(subContract.LoadedQuantityMt)</td>
                                         <td class="ak-num">@NumberDisplay.Quantity(subContract.RemainingQuantityMt)</td>
-                                        <td class="ak-num">@subContract.LoadingsValueUsd.ToString("N2")</td>
+                                        <td class="ak-num">@NumberDisplay.Money(subContract.LoadingsValueUsd)</td>
                                     </tr>
                                 }
                                 @if (!filteredSubContractItems.Any())
@@ -847,7 +849,7 @@
                                     <th class="ak-num">@NumberDisplay.Quantity(filteredSubContractItems.Sum(s => s.QuantityMt))</th>
                                     <th class="ak-num">@NumberDisplay.Quantity(filteredSubContractItems.Sum(s => s.LoadedQuantityMt))</th>
                                     <th class="ak-num">@NumberDisplay.Quantity(filteredSubContractItems.Sum(s => s.RemainingQuantityMt))</th>
-                                    <th class="ak-num">@filteredSubContractItems.Sum(s => s.LoadingsValueUsd).ToString("N2")</th>
+                                    <th class="ak-num">@NumberDisplay.Money(filteredSubContractItems.Sum(s => s.LoadingsValueUsd))</th>
                                 </tr>
                             </tfoot>
                         </table>
@@ -928,25 +930,29 @@
             break;
 
         case ContractJourneyTabs.Details.InventoryTransport:
+            <section class="ak-stat-grid" aria-label="@T("آمار جریان حمل بار", "Cargo flow statistics")">
+                <vc:stat-card title="@T("مقدار کل حمل", "Total transported")" value="@NumberDisplay.Quantity(transportLegQuantityMt)" unit="@UnitMt()" avatar="transported"></vc:stat-card>
+                <vc:stat-card title="@T("مقدار در مسیر", "In transit")" value="@NumberDisplay.Quantity(transportLegInTransitMt)" unit="@UnitMt()" avatar="in-transit"></vc:stat-card>
+                <vc:stat-card title="@T("مقدار رسیده", "Received")" value="@NumberDisplay.Quantity(transportLegReceivedMt)" unit="@UnitMt()" avatar="dispatch-station"></vc:stat-card>
+                <vc:stat-card title="@T("کسری حمل", "Transport shortage")" value="@NumberDisplay.Quantity(transportLegShortageMt)" unit="@UnitMt()" avatar="losses" state="@(transportLegShortageMt > 0m ? "warning" : null)"></vc:stat-card>
+            </section>
             <div id="journey-tab-lists" class="ak-tab-panel">
-                <section class="ak-stat-grid" aria-label="@T("آمار جریان حمل بار", "Cargo flow statistics")">
-                    <vc:stat-card title="@T("مقدار کل حمل", "Total transported")" value="@NumberDisplay.Quantity(transportLegQuantityMt)" unit="@UnitMt()" avatar="transported"></vc:stat-card>
-                    <vc:stat-card title="@T("مقدار در مسیر", "In transit")" value="@NumberDisplay.Quantity(transportLegInTransitMt)" unit="@UnitMt()" avatar="in-transit"></vc:stat-card>
-                    <vc:stat-card title="@T("مقدار رسیده", "Received")" value="@NumberDisplay.Quantity(transportLegReceivedMt)" unit="@UnitMt()" avatar="dispatch-station"></vc:stat-card>
-                    <vc:stat-card title="@T("کسری حمل", "Transport shortage")" value="@NumberDisplay.Quantity(transportLegShortageMt)" unit="@UnitMt()" avatar="losses" state="@(transportLegShortageMt > 0m ? "warning" : null)"></vc:stat-card>
-                </section>
-                <section class="ak-form-section ak-detail-section">
-                    <div class="ak-section-head ak-detail-section-header">
+                <section class="ak-form-section">
+                    <div class="ak-section-head">
                         <div>
                             <h2 class="ak-section-title">@T("زنجیره حمل موجودی", "Inventory Journey")</h2>
                         </div>
-                        <a asp-controller="InventoryTransportLegs" asp-action="Create" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.InventoryTransport)" class="btn btn-primary ak-primary-action">
-                            <i class="bi bi-train-front"></i>
-                            <span>@T("انتقال تکی از موجودی", "Single inventory transfer")</span>
-                        </a>
                     </div>
-                    <partial name="_ContractJourneyListFilter"
-                             model="@(("transportLegsQ", (string?)transportLegsSearch, T("جستجو در جریان حمل بار...", "Search cargo flow..."), "transportLegPage"))" />
+                    <div class="ak-list-toolbar">
+                        <partial name="_ContractJourneyListFilter"
+                                 model="@(("transportLegsQ", (string?)transportLegsSearch, T("جستجو در جریان حمل بار...", "Search cargo flow..."), "transportLegPage"))" />
+                        <div class="ak-list-toolbar-actions no-print">
+                            <a asp-controller="InventoryTransportLegs" asp-action="Create" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.InventoryTransport)" class="btn btn-primary ak-primary-action">
+                                <i class="bi bi-train-front"></i>
+                                <span>@T("انتقال تکی از موجودی", "Single inventory transfer")</span>
+                            </a>
+                        </div>
+                    </div>
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>
@@ -1019,7 +1025,6 @@
                 <vc:stat-card title="@T("مقدار خارج‌شده", "Dispatched out")" value="@NumberDisplay.Quantity(Model.Kpis.DispatchedQuantityMt)" unit="@UnitMt()" avatar="loading-terminal"></vc:stat-card>
                 <vc:stat-card title="@T("تعداد حرکات موجودی", "Movements")" value="@inventoryMovementCount.ToString("N0")" unit="@T("حرکت", "moves")" avatar="ledger"></vc:stat-card>
             </section>
-            <p class="ak-stat-note">@T("تفکیک موجودی ترمینال و مخزن و کسری موجودی از داده این تب قابل محاسبهٔ دقیق نیست و برای جلوگیری از عدد نادرست نمایش داده نشده است.", "Terminal/tank and inventory-shortage breakdowns cannot be computed accurately from this tab's data and are intentionally omitted.")</p>
             <partial name="_ContractJourneyInventoryTab" model="inventoryTabModel" />
             break;
 
@@ -1054,9 +1059,13 @@
                 <section class="ak-form-section ak-detail-section">
                     <div class="ak-section-head ak-detail-section-header">
                         <div>
-                            <h2 class="ak-section-title">@T("خزینه", "Expenses")</h2>
+                            <h2 class="ak-section-title">@T("هزینه ها", "Expenses")</h2>
                         </div>
-                        <div class="ak-page-actions">
+                    </div>
+                    <div class="ak-list-toolbar">
+                        <partial name="_ContractJourneyListFilter"
+                                 model="@(("expensesQ", (string?)expensesSearch, T("جستجو در مصارف...", "Search expenses..."), "expensesPage"))" />
+                        <div class="ak-list-toolbar-actions no-print">
                             <a asp-controller="Expenses" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="btn btn-primary ak-primary-action">
                                 <i class="bi bi-wallet2"></i>
                                 <span>@T("ثبت مصرف", "New expense")</span>
@@ -1072,8 +1081,6 @@
                             </div>
                         </div>
                     </div>
-                    <partial name="_ContractJourneyListFilter"
-                             model="@(("expensesQ", (string?)expensesSearch, T("جستجو در مصارف...", "Search expenses..."), "expensesPage"))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>
@@ -1177,24 +1184,28 @@
                     @(await DetailPager("allocationsPage", allocationsPage, allocationsPageCount))
                 </section>
 
-                @* ─── بخش کسری و ضایعات (ادغام‌شده با تب خزینه) ─── *@
+                @* ─── بخش کسری و ضایعات (ادغام‌شده با تب هزینه) ─── *@
                 <section class="ak-form-section ak-detail-section">
                     <div class="ak-section-head ak-detail-section-header">
                         <div>
                             <h2 class="ak-section-title">@T("کسری و ضایعات", "Losses and wastage")</h2>
                             <p class="ak-section-desc">@T("تلفات، کسری اندازه‌گیری و ضایعات", "Measured shortages and wastage")</p>
                         </div>
-                        <a asp-controller="LossEvents"
-                           asp-action="Create"
-                           asp-route-contractId="@Model.ContractId"
-                           asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"
-                           class="btn btn-primary ak-primary-action">
-                            <i class="bi bi-dash-circle"></i>
-                            <span>@T("ثبت کسری جدید", "New loss")</span>
-                        </a>
                     </div>
-                    <partial name="_ContractJourneyListFilter"
-                             model="@(("lossesQ", (string?)lossesSearch, T("جستجو در کسری و ضایعات...", "Search losses and wastage..."), "lossesPage"))" />
+                    <div class="ak-list-toolbar">
+                        <partial name="_ContractJourneyListFilter"
+                                 model="@(("lossesQ", (string?)lossesSearch, T("جستجو در کسری و ضایعات...", "Search losses and wastage..."), "lossesPage"))" />
+                        <div class="ak-list-toolbar-actions no-print">
+                            <a asp-controller="LossEvents"
+                               asp-action="Create"
+                               asp-route-contractId="@Model.ContractId"
+                               asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"
+                               class="btn btn-primary ak-primary-action">
+                                <i class="bi bi-dash-circle"></i>
+                                <span>@T("ثبت کسری جدید", "New loss")</span>
+                            </a>
+                        </div>
+                    </div>
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
                             <thead>

@@ -1,0 +1,283 @@
+/* ============================================================================
+   رزنامچه — جدول دریافت‌ها و پرداخت‌ها (Payments/Index)
+   همهٔ قواعد زیر .ak-journal-page قفل‌اند و هیچ جدول دیگری از سیستم را لمس نمی‌کنند.
+   جدول عمداً کلاس .ak-table را ندارد تا رفتارهای مشترک لیست‌ها (آواتار ردیف،
+   برچسب ستون موبایل، نرمال‌سازی ارقام) روی این صفحه اعمال نشود.
+   ========================================================================= */
+
+/* رزنامچه یک فهرست ۱۱ ستونی است؛ سقف مشترک صفحه برایش تنگ است. مثل
+   .ak-group-operation-page--wide فقط سقف عرض همین صفحه بالا می‌رود و زیر آن
+   سقف، عرض ۱۰۰٪ و کاملاً responsive می‌ماند. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-journal-page) {
+    max-inline-size: max(1520px, var(--layout-content-max));
+}
+
+.ak-journal-page .ak-journal-card {
+    margin-block-start: 12px;
+    border: 1px solid #EEF1F5;
+    border-radius: 14px;
+    background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+    overflow: hidden;
+}
+
+.ak-journal-page .ak-journal-scroll {
+    inline-size: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #CBD5E1 transparent;
+}
+
+.ak-journal-page .ak-journal-table {
+    inline-size: 100%;
+    min-inline-size: 1180px;
+    table-layout: fixed;
+    border-collapse: collapse;
+    background: #FFFFFF;
+    font-family: "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- هدر: کوچک، خاکستری روشن، فقط یک خط جداکنندهٔ افقی ---- */
+.ak-journal-page .ak-journal-table > thead > tr > th {
+    padding: 13px 18px;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 16px;
+    color: #98A2B3;
+    text-align: start;
+    white-space: nowrap;
+    background: #FBFCFD;
+    border-block-end: 1px solid #EEF1F5;
+}
+
+/* ---- بدنه: سطر فشرده، بدون zebra، بدون خط عمودی ---- */
+.ak-journal-page .ak-journal-table > tbody > tr {
+    background: #FFFFFF;
+    transition: background-color .12s ease;
+}
+
+.ak-journal-page .ak-journal-table > tbody > tr:hover {
+    background: #FAFBFC;
+}
+
+.ak-journal-page .ak-journal-table > tbody > tr[data-href] {
+    cursor: pointer;
+}
+
+.ak-journal-page .ak-journal-table > tbody > tr > td {
+    padding: 15px 18px;
+    font-size: 12.5px;
+    line-height: 20px;
+    color: #475467;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-block-end: 1px solid #F3F5F8;
+}
+
+.ak-journal-page .ak-journal-table > tbody > tr:last-child > td {
+    border-block-end: 0;
+}
+
+/* ---- ستون‌ها ----
+   قواعد سلولی با همان زنجیرهٔ td نوشته می‌شوند تا از قاعدهٔ پایهٔ بالا وزن بیشتری بگیرند. */
+
+/* مرجع: فقط شماره رسید، نام و شرح از لبهٔ راست شروع می‌شوند؛ بقیه وسط‌چین‌اند. */
+.ak-journal-page .ak-journal-table > thead > tr > th.jr-center,
+.ak-journal-page .ak-journal-table > tbody > tr > td.jr-center {
+    text-align: center;
+}
+.ak-journal-page .ak-journal-table > tbody > tr > td.jr-receipt {
+    font-size: 12px;
+    color: #667085;
+    letter-spacing: .01em;
+    direction: ltr;
+    text-align: end;
+    unicode-bidi: isolate;
+}
+
+.ak-journal-page .ak-journal-table > tbody > tr > td.jr-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #101828;
+}
+
+.ak-journal-page .ak-journal-table > tbody > tr > td.jr-desc {
+    color: #475467;
+}
+
+.ak-journal-page .ak-journal-table > tbody > tr > td.jr-date {
+    font-size: 12px;
+    color: #667085;
+}
+
+/* تاریخ یک دکمهٔ بی‌صدا است: ظاهرش دقیقاً متن سلول می‌ماند، ولی جای تاریخ را
+   با ساعت عوض می‌کند. min-width ثابت نگه می‌دارد تا هنگام تعویض، ستون نلرزد. */
+.ak-journal-page .jr-date-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 92px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.ak-journal-page .jr-date-btn:hover {
+    color: #344054;
+}
+
+.ak-journal-page .jr-date-btn:focus-visible {
+    outline: 2px solid #B4BDC9;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.ak-journal-page .jr-time-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #667085;
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
+.ak-journal-page .jr-time-text > i {
+    font-size: 12px;
+    color: #B4BDC9;
+}
+
+.ak-journal-page .jr-date-text[hidden],
+.ak-journal-page .jr-time-text[hidden] {
+    display: none;
+}
+
+/* ---- مبلغ: هم‌اندازهٔ بقیهٔ سلول‌ها و با وزن عادی، مثل .ak-num بقیهٔ سیستم.
+   جهت مثبت/منفی فقط با رنگ خوانده می‌شود، نه با بولد. ---- */
+.ak-journal-page .jr-amount {
+    display: inline-block;
+    font-size: inherit;
+    font-weight: 500;
+    line-height: inherit;
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums lining-nums;
+    white-space: nowrap;
+}
+
+.ak-journal-page .jr-amount.is-in {
+    color: #12854A;
+}
+
+.ak-journal-page .jr-amount.is-out {
+    color: #D3302F;
+}
+
+/* ---- کپسول‌ها ---- */
+.ak-journal-page .jr-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-inline-size: 100%;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+}
+
+.ak-journal-page .jr-pill > i {
+    font-size: 12px;
+    line-height: 1;
+}
+
+.ak-journal-page .jr-pill-in {
+    color: #12854A;
+    background: #ECFDF3;
+}
+
+.ak-journal-page .jr-pill-out {
+    color: #D3302F;
+    background: #FEF3F2;
+}
+
+.ak-journal-page .jr-pill-neutral {
+    color: #475467;
+    background: #F2F4F7;
+    font-weight: 500;
+}
+
+/* ---- طرف حساب: متن + آیکون outline ظریف ---- */
+.ak-journal-page .jr-party {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-inline-size: 100%;
+    font-size: 12.5px;
+    color: #667085;
+}
+
+.ak-journal-page .jr-party > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ak-journal-page .jr-party > i {
+    flex: 0 0 auto;
+    font-size: 13px;
+    color: #B4BDC9;
+}
+
+/* ---- عملیات: فقط دو آیکون، بدون پس‌زمینه ---- */
+.ak-journal-page .jr-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.ak-journal-page .jr-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 22px;
+    block-size: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #98A2B3;
+    font-size: 14px;
+    line-height: 1;
+    text-decoration: none;
+    transition: color .12s ease;
+}
+
+.ak-journal-page .jr-action:hover,
+.ak-journal-page .jr-action:focus-visible {
+    color: #344054;
+    background: transparent;
+    text-decoration: none;
+}
+
+/* ---- حالت خالی ---- */
+.ak-journal-page .ak-journal-table > tbody > tr > td.jr-empty {
+    padding: 40px 16px;
+    text-align: center;
+    color: #98A2B3;
+    white-space: normal;
+}
+
+.ak-journal-page .jr-empty > i {
+    display: block;
+    margin-block-end: 8px;
+    font-size: 22px;
+    color: #CBD5E1;
+}

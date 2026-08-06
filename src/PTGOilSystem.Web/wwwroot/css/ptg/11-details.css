@@ -1365,6 +1365,63 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     flex-wrap: wrap;
 }
 
+/* Tab lists: the search bar and that list's own actions share a single row,
+   the same .ak-list-toolbar the list pages use. The filter drops its standalone
+   vertical margin because the row now owns the spacing. */
+[data-contract-journey-page] .ak-list-toolbar {
+    margin: 0 0 12px;
+}
+
+/* One rhythm for every list on the page: the search bar carries no vertical
+   margin of its own, whether it shares the row with actions or stands alone. */
+[data-contract-journey-page] .ak-filter-host {
+    margin-block: 0 12px;
+}
+
+[data-contract-journey-page] .ak-list-toolbar > .ak-filter-host {
+    margin-block: 0;
+}
+
+/* Receipts tab — awaiting-receipt toolbar.
+   The search is its own <form method="get">, so it can never be nested inside
+   the bulk-receipt POST form. It stays a sibling and the POST form gives up its
+   own box, letting its children join this grid: search and the bulk actions
+   share row one, the table/panel workspace spans the full width below. */
+[data-contract-journey-page] .ak-bulk-receipt-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px 16px;
+}
+
+[data-contract-journey-page] .ak-bulk-receipt-toolbar > [data-bulk-receipt-form] {
+    display: contents;
+}
+
+[data-contract-journey-page] .ak-bulk-receipt-toolbar .ak-list-toolbar-actions {
+    grid-column: 2;
+}
+
+[data-contract-journey-page] .ak-bulk-receipt-toolbar .ak-bulk-receipt-workspace {
+    grid-column: 1 / -1;
+}
+
+/* The submit error banner is prepended to the form at runtime; pin it full
+   width so it cannot land in the search cell and push the row apart. */
+[data-contract-journey-page] .ak-bulk-receipt-toolbar [data-bulk-receipt-error] {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+    [data-contract-journey-page] .ak-bulk-receipt-toolbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    [data-contract-journey-page] .ak-bulk-receipt-toolbar .ak-list-toolbar-actions {
+        grid-column: 1;
+    }
+}
+
 /* Summary tab — larger, brand-coloured figures in the key/value stat lists.
    Values that already carry a success/danger tone keep their colour. */
 [data-contract-journey-page] .ak-summary-page .ak-list-row dd.ak-num {
@@ -1454,8 +1511,8 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    min-height: 165px;
-    max-height: 165px;
+    min-height: 164px;
+    max-height: 164px;
     padding: 14px;
     border: 1px solid var(--ak-detail-divider, #E5E7EB);
     border-radius: 16px;
@@ -1478,10 +1535,12 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     font-weight: 700;
 }
 
+/* Kept deliberately smaller than the art's natural size: every pixel here is
+   width the label/figure row cannot use. */
 .ak-journey-step .ak-cycle-avatar {
-    flex: 0 0 84px;
-    width: 84px;
-    height: 84px;
+    flex: 0 0 68px;
+    width: 68px;
+    height: 68px;
     object-fit: contain;
 }
 
@@ -1522,13 +1581,14 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 }
 
 /* Stat rows sit at the bottom of every card, so figures line up across the
-   whole path regardless of how long a title wraps. */
+   whole path regardless of how long a title wraps. Label and figure share one
+   line: the label starts the row, the figure ends it. */
 .ak-journey-step .ak-cycle-row {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 10px;
-    padding: 4px 0;
+    padding: 5px 0;
     border-top: 1px dashed rgba(var(--ptg-primary-rgb, 23, 63, 115), .12);
 }
 
@@ -1536,22 +1596,32 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     margin-top: auto;
 }
 
-.ak-journey-step .ak-cycle-label {
-    flex: 1 1 auto;
-    min-width: 0;
-    color: var(--ak-detail-muted, #7B7B7B);
-    font-size: 12px;
-    font-weight: 600;
+/* Label and figure are set at one size; the figure separates itself by weight
+   and by the darker brand tone, not by being bigger. */
+.ak-journey-step .ak-cycle-label,
+.ak-journey-step .ak-cycle-value {
+    font-size: 14px;
     line-height: 1.35;
 }
 
-/* The figure never shrinks — a truncated amount is worse than a truncated
-   label, so the label takes the ellipsis when a card runs narrow. */
+/* The label is what gives when the row runs out of room — a clipped caption
+   still reads, a clipped amount does not. */
+.ak-journey-step .ak-cycle-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ak-detail-muted, #7B7B7B);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The figure never shrinks and never wraps, so it always shows in full. */
 .ak-journey-step .ak-cycle-value {
     flex: 0 0 auto;
     color: var(--ptg-primary-dark, #123258);
-    font-size: 15.5px;
     font-weight: 700;
+    font-variant-numeric: tabular-nums lining-nums;
     text-align: end;
     white-space: nowrap;
 }
@@ -1755,6 +1825,26 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     border-inline: 5px solid transparent;
     border-top: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
     transform: translateX(-50%);
+}
+
+/* ---- laptop / tablet: still three columns, but each card is much narrower ----
+   The avatar gives back width and the figure steps down one notch so a full
+   amount like "$ 1,234,567.89" still fits on its line without clipping. */
+@media (min-width: 768px) and (max-width: 1439.98px) {
+    .ak-journey-flow {
+        --ak-journey-gap: 44px;
+    }
+
+    .ak-journey-step .ak-cycle-avatar {
+        flex: 0 0 52px;
+        width: 52px;
+        height: 52px;
+    }
+
+    .ak-journey-step .ak-cycle-label,
+    .ak-journey-step .ak-cycle-value {
+        font-size: 12.5px;
+    }
 }
 
 /* ---- one connected vertical path on small screens ---- */

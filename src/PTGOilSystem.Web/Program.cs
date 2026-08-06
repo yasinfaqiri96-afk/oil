@@ -181,6 +181,48 @@ builder.Services.AddScoped<RoleNavigationAuthorizationFilter>();
 builder.Services.AddScoped<AuthBootstrapper>();
 builder.Services.AddHttpContextAccessor();
 
+// ---- راهنمای هوشمند --------------------------------------------------------
+// کلید API فقط از متغیر محیطی (GROQ_API_KEY / ANTHROPIC_API_KEY) خوانده می‌شود و
+// هرگز به Frontend نمی‌رود. دستیار می‌تواند داده را فقط بخواند: هیچ ابزار نوشتنی
+// ثبت نشده و هر ابزار پیش از اجرا با دسترسی ناوبری همان کاربر سنجیده می‌شود.
+builder.Services.Configure<PTGOilSystem.Web.Configuration.AssistantOptions>(
+    builder.Configuration.GetSection(PTGOilSystem.Web.Configuration.AssistantOptions.SectionName));
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.Assistant.AssistantPageCatalog>();
+// هر سه Provider ثبت می‌شوند؛ انتخاب واقعی با Assistant:Provider و
+// Assistant:FallbackProvider انجام می‌شود.
+builder.Services.AddHttpClient(PTGOilSystem.Web.Services.Assistant.GroqAssistantProvider.HttpClientName);
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.Assistant.IAssistantProvider,
+    PTGOilSystem.Web.Services.Assistant.GeminiAssistantProvider>();
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.Assistant.IAssistantProvider,
+    PTGOilSystem.Web.Services.Assistant.AnthropicAssistantProvider>();
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.Assistant.IAssistantProvider,
+    PTGOilSystem.Web.Services.Assistant.GroqAssistantProvider>();
+
+// ابزارهای فقط‌خواندنی. Scoped چون به DbContext و سرویس‌های خواندنیِ Scoped تکیه دارند.
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantTool,
+    PTGOilSystem.Web.Services.Assistant.Tools.SearchPartyTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantTool,
+    PTGOilSystem.Web.Services.Assistant.Tools.PartyBalanceTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantTool,
+    PTGOilSystem.Web.Services.Assistant.Tools.StockBalanceTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantTool,
+    PTGOilSystem.Web.Services.Assistant.Tools.ContractLookupTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantTool,
+    PTGOilSystem.Web.Services.Assistant.Tools.LoadingDetailsTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantTool,
+    PTGOilSystem.Web.Services.Assistant.Tools.ContractProgressTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantTool,
+    PTGOilSystem.Web.Services.Assistant.Tools.OpenContractsTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantTool,
+    PTGOilSystem.Web.Services.Assistant.Tools.PartyLedgerTool>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.Tools.IAssistantToolRegistry,
+    PTGOilSystem.Web.Services.Assistant.Tools.AssistantToolRegistry>();
+
+// Scoped است چون ابزارهایش به DbContext وابسته‌اند؛ Singleton بودن آن باعث
+// نگه‌داشتن یک DbContext در طول عمر برنامه می‌شد.
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.IAssistantService,
+    PTGOilSystem.Web.Services.Assistant.AssistantService>();
+
 // ---- Backups (پشتیبان‌گیری کامل؛ خارج از منطق مالی/عملیاتی) -----------------
 // اجرای واقعی فقط در BackupSchedulerHostedService رخ می‌دهد و BackupExecutionLock
 // تک‌نمونه‌ای است تا دو بکاپ هرگز هم‌زمان نشوند.
@@ -399,6 +441,13 @@ builder.Services.AddControllersWithViews(options =>
 
 var app = builder.Build();
 
+// ---- بررسی پیکربندی دستیار ---------------------------------------------------
+// فقط گزارش می‌کند و هرگز برنامه را متوقف نمی‌کند: نبودن کلید دستیار نباید جلوی
+// بالا آمدن سامانه را بگیرد. هیچ مقدار کلیدی Log نمی‌شود، فقط نام متغیر محیطی.
+PTGOilSystem.Web.Services.Assistant.AssistantStartupValidator.Validate(
+    app.Services,
+    app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Assistant"));
+
 // ---- Auto-migrate database --------------------------------------------------
 // Migrations run on startup by default to preserve existing server behaviour.
 // Set PTG_AUTO_MIGRATE=false (or ConnectionStrings/Database:AutoMigrate=false)
@@ -446,7 +495,6 @@ app.UseStaticFiles(new StaticFileOptions
             || path.StartsWithSegments("/images")
             || path.StartsWithSegments("/img")
             || path.StartsWithSegments("/assets")
-            || path.StartsWithSegments("/favicon.svg")
             || path.StartsWithSegments("/favicon.ico"))
         {
             context.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";

@@ -1609,6 +1609,7 @@ public class PaymentsController : Controller
                 PaymentKind = p.PaymentKind,
                 CashAccountName = p.CashAccount != null ? p.CashAccount.Name : "",
                 CashAccountCurrency = p.CashAccount != null ? p.CashAccount.Currency : p.Currency,
+                CreatedAtUtc = p.CreatedAtUtc,
                 CustomerId = p.CustomerId,
                 CustomerName = p.Customer != null ? p.Customer.Name : null,
                 SupplierId = p.SupplierId,
@@ -1782,7 +1783,8 @@ public class PaymentsController : Controller
                 Reference = s.ReferenceNumber,
                 Description = s.Description,
                 LedgerEntryId = s.LedgerEntryId,
-                CreatedByUserId = s.CreatedByUserId
+                CreatedByUserId = s.CreatedByUserId,
+                CreatedAtUtc = s.CreatedAtUtc
             })
             .ToListAsync();
     }
@@ -1814,6 +1816,8 @@ public class PaymentsController : Controller
             CashAccountCurrency = row.Currency,
             CounterpartyTypeName = PaymentCounterpartyTypeLabels.ToPersian(PaymentCounterpartyType.Sarraf),
             CounterpartyName = sarrafName,
+            CounterpartyType = PaymentCounterpartyType.Sarraf,
+            CreatedAtUtc = row.CreatedAtUtc,
             SupplierName = row.SupplierName,
             SarrafName = row.SarrafName,
             ContractNumber = row.ContractNumber,
@@ -1835,6 +1839,7 @@ public class PaymentsController : Controller
     private sealed class SarrafHawalaRowProjection
     {
         public int Id { get; init; }
+        public DateTime CreatedAtUtc { get; init; }
         public DateTime SettlementDate { get; init; }
         public string? SarrafName { get; init; }
         public string? SupplierName { get; init; }
@@ -1937,7 +1942,8 @@ public class PaymentsController : Controller
                 Reference = l.Reference,
                 Description = l.Description,
                 LedgerEntryId = l.Id,
-                CreatedByUserId = l.CreatedByUserId
+                CreatedByUserId = l.CreatedByUserId,
+                CreatedAtUtc = l.CreatedAtUtc
             })
             .ToListAsync();
     }
@@ -1968,6 +1974,8 @@ public class PaymentsController : Controller
             CashAccountCurrency = row.Currency,
             CounterpartyTypeName = PaymentCounterpartyTypeLabels.ToPersian(PaymentCounterpartyType.Supplier),
             CounterpartyName = string.IsNullOrWhiteSpace(row.SupplierName) ? "تأمین‌کننده" : row.SupplierName,
+            CounterpartyType = PaymentCounterpartyType.Supplier,
+            CreatedAtUtc = row.CreatedAtUtc,
             SupplierName = row.SupplierName,
             SarrafName = row.SarrafName,
             ContractNumber = row.ContractNumber,
@@ -1988,6 +1996,7 @@ public class PaymentsController : Controller
     private sealed class ViaSarrafLedgerRowProjection
     {
         public int Id { get; init; }
+        public DateTime CreatedAtUtc { get; init; }
         public DateTime EntryDate { get; init; }
         public string? SupplierName { get; init; }
         public string? SarrafName { get; init; }
@@ -2126,6 +2135,7 @@ public class PaymentsController : Controller
         var projected = new PaymentTransaction
         {
             Id = payment.Id,
+            CreatedAtUtc = payment.CreatedAtUtc,
             PaymentDate = payment.PaymentDate,
             Direction = payment.Direction,
             PaymentKind = payment.PaymentKind,
@@ -2200,6 +2210,8 @@ public class PaymentsController : Controller
             CashAccountCurrency = payment.CashAccount?.Currency ?? payment.Currency,
             CounterpartyTypeName = PaymentCounterpartyTypeLabels.ToPersian(counterpartyType),
             CounterpartyName = BuildCounterpartyName(payment, counterpartyType),
+            CounterpartyType = counterpartyType,
+            CreatedAtUtc = payment.CreatedAtUtc,
             CustomerName = payment.Customer?.Name,
             SupplierName = payment.Supplier?.Name,
             ServiceProviderName = payment.ServiceProvider?.Name,
@@ -4587,6 +4599,7 @@ public class PaymentsController : Controller
         public PaymentKind PaymentKind { get; init; }
         public string CashAccountName { get; init; } = "";
         public string CashAccountCurrency { get; init; } = "USD";
+        public DateTime CreatedAtUtc { get; init; }
         public int? CustomerId { get; init; }
         public string? CustomerName { get; init; }
         public int? SupplierId { get; init; }

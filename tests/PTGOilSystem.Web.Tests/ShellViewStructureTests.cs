@@ -139,22 +139,19 @@ public class ShellViewStructureTests
     }
 
     [Fact]
-    public void Header_Renders_The_Active_Fiscal_Year_Switcher()
+    public void Header_Drops_The_Fiscal_Year_Switcher_And_Keeps_The_Component_Contract()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
         var component = ReadRepoFile(
             "src/PTGOilSystem.Web/Views/Shared/Components/FiscalYearSwitcher/Default.cshtml");
-        var shellCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/boltz-shell.css");
 
-        // The switcher lives inside the authenticated topbar cluster, before the language menu.
-        Assert.Contains("<vc:fiscal-year-switcher>", layout);
-        Assert.True(
-            layout.IndexOf("<vc:fiscal-year-switcher>", StringComparison.Ordinal)
-            < layout.IndexOf("boltz-language-menu", StringComparison.Ordinal),
-            "The fiscal-year switcher must render before the language selector.");
+        // The topbar cluster no longer carries the fiscal-year switcher.
+        Assert.DoesNotContain("<vc:fiscal-year-switcher>", layout);
+        Assert.DoesNotContain("ptg-hfyear", layout);
 
-        // Selection posts to the dedicated context controller with an antiforgery token, and
-        // the year id is the only thing submitted — the company is resolved server-side.
+        // The component itself stays intact: selection posts to the dedicated context
+        // controller with an antiforgery token, and the year id is the only thing
+        // submitted — the company is resolved server-side.
         Assert.Contains("asp-controller=\"FiscalYearContext\"", component);
         Assert.Contains("asp-action=\"Select\"", component);
         Assert.Contains("Html.AntiForgeryToken()", component);
@@ -163,8 +160,28 @@ public class ShellViewStructureTests
 
         // Status badges reuse the canonical ak-status skin, not a bespoke one.
         Assert.Contains("ak-status ptg-hfyear-status", component);
-        Assert.Contains(".ptg-hfyear", shellCss);
-        Assert.Contains("@media (max-width: 575.98px)", shellCss);
+    }
+
+    [Fact]
+    public void Header_Search_Language_And_Account_Share_One_Icon_Chip_Style()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var headerCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/74-header-controls.css");
+
+        // All three triggers are line icons — no flag artwork, no avatar photo.
+        Assert.Contains("bi bi-search ptg-hsearch-ico", layout);
+        Assert.Contains("bi bi-translate ptg-hflag-ico", layout);
+        Assert.Contains("bi bi-person ptg-havatar-ico", layout);
+        Assert.DoesNotContain("ptgUkFlag", layout);
+
+        // The header trigger itself carries no image — the drawer keeps its own avatar.
+        var triggerStart = layout.IndexOf("ptg-havatar-ring ptg-havatar-trigger", StringComparison.Ordinal);
+        var triggerEnd = layout.IndexOf("</button>", triggerStart, StringComparison.Ordinal);
+        Assert.DoesNotContain("<img", layout[triggerStart..triggerEnd]);
+
+        // One icon size for the whole cluster, and the avatar loses its bespoke ring.
+        Assert.Contains(".ptg-havatar-ring\n) .bi", headerCss.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.Contains("box-shadow: none;", headerCss);
     }
 
     [Fact]

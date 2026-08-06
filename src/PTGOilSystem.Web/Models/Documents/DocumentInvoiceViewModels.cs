@@ -17,6 +17,12 @@ public sealed class DocumentInvoiceViewModel
     public DocumentInvoicePartyViewModel FromParty { get; init; } = new();
     public DocumentInvoicePartyViewModel ToParty { get; init; } = new();
     public DocumentInvoicePaymentBoxViewModel PaymentBox { get; init; } = new();
+
+    // ردیف‌های «مشخصات سند» — اختیاری. اسناد پرداخت/دریافت اطلاعاتی دارند (حساب نقدی،
+    // نوع سند، مرجع دفتر کل) که در جدول اقلام جا نمی‌شوند. اگر خالی باشد چیزی رندر نمی‌شود،
+    // پس فاکتور فروش و سند قرارداد بدون تغییر می‌مانند.
+    public IReadOnlyList<DocumentInvoiceInfoItemViewModel> InfoItems { get; init; } = [];
+
     public IReadOnlyList<DocumentInvoiceLineViewModel> Lines { get; init; } = [];
     public IReadOnlyList<DocumentInvoiceTotalRowViewModel> Totals { get; init; } = [];
     public string? NotesFa { get; init; }
@@ -43,6 +49,13 @@ public sealed class DocumentInvoicePaymentBoxViewModel
     public string ReferenceText { get; init; } = "";
     public string? NoteFa { get; init; }
     public string? NoteEn { get; init; }
+}
+
+public sealed class DocumentInvoiceInfoItemViewModel
+{
+    public string LabelFa { get; init; } = "";
+    public string LabelEn { get; init; } = "";
+    public string Value { get; init; } = "";
 }
 
 public sealed class DocumentInvoiceLineViewModel

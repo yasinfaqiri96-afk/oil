@@ -35,14 +35,18 @@
             <div>
                 <h2 class="ak-section-title">@T("وضعیت موجودی", "Inventory status")</h2>
             </div>
-            <a href="@Model.StockCardUrl" class="btn btn-primary ak-primary-action">
-                <i class="bi bi-card-list" aria-hidden="true"></i>
-                <span>@T("کارت موجودی", "Stock card")</span>
-            </a>
         </div>
 
-        <partial name="_ContractJourneyListFilter"
-                 model="@(("inventoryQ", (string?)Context.Request.Query["inventoryQ"].ToString(), T("جستجو در وضعیت موجودی...", "Search inventory status..."), "inventoryPage"))" />
+        <div class="ak-list-toolbar">
+            <partial name="_ContractJourneyListFilter"
+                     model="@(("inventoryQ", (string?)Context.Request.Query["inventoryQ"].ToString(), T("جستجو در وضعیت موجودی...", "Search inventory status..."), "inventoryPage"))" />
+            <div class="ak-list-toolbar-actions no-print">
+                <a href="@Model.StockCardUrl" class="btn btn-primary ak-primary-action">
+                    <i class="bi bi-card-list" aria-hidden="true"></i>
+                    <span>@T("کارت موجودی", "Stock card")</span>
+                </a>
+            </div>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">

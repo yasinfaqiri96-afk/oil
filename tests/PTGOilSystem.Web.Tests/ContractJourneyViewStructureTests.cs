@@ -9,12 +9,15 @@ public class ContractJourneyViewStructureTests
     public void Contract_Details_Uses_Shared_Export_Menu_For_The_Active_Tab()
     {
         var details = ReadContractJourneyDetailsMarkup();
+        var header = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Components/Ak/_AkPageHeader.cshtml");
 
-        Assert.Contains("_ExportMenu.cshtml", details);
+        // The menu moved into the page header action group; the page only supplies the model.
+        Assert.Contains("ViewData[\"AkHeaderExport\"]", details);
         Assert.Contains("\"DetailsExport\"", details);
         Assert.Contains("[\"contractId\"] = Model.ContractId", details);
         Assert.Contains("[\"tab\"] = activeTab", details);
         Assert.Contains("[\"lockContract\"] = Model.LockContract", details);
+        Assert.Contains("_ExportMenu.cshtml", header);
     }
 
     [Fact]
@@ -990,8 +993,9 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("ak-col-actions", view);
         Assert.Contains("ak-col-num", view);
         Assert.Contains("ak-empty", view);
-        Assert.Contains("T(\"دفتر حساب قرارداد\", \"Contract statement\"), \"bi-journal-text\", contractStatementUrl", view);
-        Assert.DoesNotContain("Label = T(\"دفتر حساب قرارداد\", \"Contract statement\")", view);
+        // Contract statement lives in the header kebab; the export menu holds the visible slot.
+        Assert.Contains("Label = T(\"دفتر حساب قرارداد\", \"Contract statement\"), Href = contractStatementUrl", view);
+        Assert.DoesNotContain("T(\"دفتر حساب قرارداد\", \"Contract statement\"), \"bi-journal-text\", contractStatementUrl", view);
         Assert.DoesNotContain("Model.NextRecommendedAction", view);
 
         foreach (var legacy in new[]

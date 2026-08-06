@@ -48,32 +48,24 @@
         $"documents|اسناد و حواله‌ها|bi-folder2-open|{(showDocuments ? "active" : "")}"
     };
 
-    // کارت وضعیت حساب تب خلاصه. چیدمان نمایشی روی همان اعداد مدل؛ درصد تسویه یک
-    // نسبت نمایشی از دو رقمِ همین کارت است و هیچ مبلغی دوباره محاسبه نمی‌شود.
+    // کارت‌های آماری تب خلاصه — همان اعداد کارت قبلی، بدون هیچ محاسبهٔ تازه.
+    var sarrafKpis = new List<AkKpiItem>
+    {
+        new() { Title = "مانده حساب", Value = NumberDisplay.Money(Math.Abs(payableUsd)), Unit = "USD", Avatar = "receivables" },
+        new() { Title = "پرداخت صراف برای تأمین‌کننده", Value = NumberDisplay.Money(Model.ChargedUsd), Unit = "USD", Avatar = "exchange-rate" },
+        new() { Title = "پرداخت ما به صراف", Value = NumberDisplay.Money(Model.PaidUsd), Unit = "USD", Avatar = "payments-out" }
+    };
+
+    // کارت وضعیت حساب تب خلاصه. درصد تسویه یک نسبت نمایشی از دو رقمِ بالاست
+    // و هیچ مبلغی دوباره محاسبه نمی‌شود.
     int? sarrafSettledShare = Model.ChargedUsd > 0m
         ? (int)Math.Clamp(Math.Round(Model.PaidUsd / Model.ChargedUsd * 100m, MidpointRounding.AwayFromZero), 0m, 100m)
         : null;
 
     var sarrafAccountCard = new AkPartyAccountCard
     {
-        BalanceLabel = "مانده حساب",
-        BalanceValue = NumberDisplay.Money(Math.Abs(payableUsd), "USD"),
         Meaning = payableLabel,
         MeaningTone = payableTone,
-        Metrics = new List<AkPartyMetric>
-        {
-            new()
-            {
-                Label = "پرداخت صراف برای تأمین‌کننده",
-                Value = NumberDisplay.Money(Model.ChargedUsd, "USD")
-            },
-            new()
-            {
-                Label = "پرداخت ما به صراف",
-                Value = NumberDisplay.Money(Model.PaidUsd, "USD"),
-                Tone = "success"
-            }
-        },
         SettledPercent = sarrafSettledShare,
         SettledCaption = sarrafSettledShare.HasValue
             ? $"{sarrafSettledShare.Value:N0}٪ حساب شده"
@@ -83,6 +75,13 @@
             new() { Label = "حوالهٔ صراف", Value = Model.Settlements.Count.ToString("N0"), IsNumeric = true },
             new() { Label = "پرداخت ما", Value = Model.Payments.Count.ToString("N0"), IsNumeric = true },
             new() { Label = "آخرین حرکت حساب", Value = lastRow?.Date.ToDisplayDate() }
+        },
+        Identity = new List<AkInfoItem>
+        {
+            new() { Label = "شماره تماس", Value = string.IsNullOrWhiteSpace(Model.PhoneNumber) ? notRecorded : Model.PhoneNumber },
+            new() { Label = "تاریخ ثبت", Value = Model.CreatedAtUtc.ToLocalTime().ToDisplayDate() },
+            new() { Label = "آدرس", Value = string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address, IsWide = true },
+            new() { Label = "یادداشت", Value = string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes, IsWide = true }
         }
     };
 }
@@ -95,19 +94,11 @@
 
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل صراف", sarrafTabs)" />
 
-    @* ===== تب خلاصه: اول وضعیت حساب (عدد تصمیم‌ساز)، بعد اطلاعات هویتی ===== *@
+    @* ===== تب خلاصه: کارت‌های آماری، بعد یک کارت واحدِ وضعیت حساب + هویت ===== *@
     <div class="ak-form-grid ak-overview-grid" hidden="@(!showOverview)">
-        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@sarrafAccountCard" />
+        <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)sarrafKpis)" />
 
-        <section class="ak-form-section ak-detail-section ak-party-identity">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات هویتی", (string?)null))" />
-            <dl class="ak-list ak-list--flush ak-identity-list">
-                <div class="ak-list-row"><dt>شماره تماس</dt><dd>@(string.IsNullOrWhiteSpace(Model.PhoneNumber) ? notRecorded : Model.PhoneNumber)</dd></div>
-                <div class="ak-list-row"><dt>تاریخ ثبت</dt><dd>@Model.CreatedAtUtc.ToLocalTime().ToDisplayDate()</dd></div>
-                <div class="ak-list-row is-wide"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
-                <div class="ak-list-row is-wide"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
-            </dl>
-        </section>
+        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@sarrafAccountCard" />
     </div>
 
     @* ===== تب ۱: صورت‌حساب ===== *@

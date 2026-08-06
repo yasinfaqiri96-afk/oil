@@ -37,14 +37,18 @@
             <div>
                 <h2 class="ak-section-title">@T("نقل و انتقالات", "Transfers")</h2>
             </div>
-            <a asp-controller="Dispatch" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Dispatch)" class="btn btn-primary ak-primary-action">
-                <i class="bi bi-truck"></i>
-                <span>@T("ثبت نقل و انتقال", "New Transfer")</span>
-            </a>
         </div>
 
-        <partial name="_ContractJourneyListFilter"
-                 model="@(("dispatchQ", (string?)Context.Request.Query["dispatchQ"].ToString(), T("جستجو در نقل و انتقالات...", "Search transfers..."), "dispatchPage"))" />
+        <div class="ak-list-toolbar">
+            <partial name="_ContractJourneyListFilter"
+                     model="@(("dispatchQ", (string?)Context.Request.Query["dispatchQ"].ToString(), T("جستجو در نقل و انتقالات...", "Search transfers..."), "dispatchPage"))" />
+            <div class="ak-list-toolbar-actions no-print">
+                <a asp-controller="Dispatch" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Dispatch)" class="btn btn-primary ak-primary-action">
+                    <i class="bi bi-truck"></i>
+                    <span>@T("ثبت نقل و انتقال", "New Transfer")</span>
+                </a>
+            </div>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">

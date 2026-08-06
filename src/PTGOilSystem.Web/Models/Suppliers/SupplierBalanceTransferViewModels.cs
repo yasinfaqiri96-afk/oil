@@ -172,6 +172,21 @@ public sealed class SupplierBalanceTransferHistoryViewModel
 {
     public int SupplierId { get; init; }
     public string SupplierName { get; init; } = string.Empty;
+    /// <summary>ردیف‌های نمایش‌داده‌شده — می‌تواند فیلترشده باشد.</summary>
     public IReadOnlyList<SupplierBalanceTransferHistoryRowViewModel> Rows { get; init; } = [];
+
+    // آمار همیشه از کل سوابق ساخته می‌شود، نه از ردیف‌های فیلترشده، تا فیلتر نمایشی عدد مالی
+    // را جابه‌جا نکند.
     public decimal ActiveTotalUsd { get; init; }
+    public decimal ActiveExchangeDifferenceUsd { get; init; }
+    public int TotalCount { get; init; }
+    public int ActiveCount { get; init; }
+    public int ReversedCount { get; init; }
+
+    /// <summary>فیلترهای نمایشی جاری (query string منبع حقیقت است).</summary>
+    public string? Query { get; init; }
+    public string? Status { get; init; }
+
+    public bool HasAnyRecord => TotalCount > 0;
+    public bool HasFilter => !string.IsNullOrWhiteSpace(Query) || !string.IsNullOrWhiteSpace(Status);
 }

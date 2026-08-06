@@ -401,18 +401,22 @@ body.ptg-modal-document .ak-list-card > .ak-list-toolbar:has(.ak-filter-popover:
     z-index: var(--ptg-z-dropdown, 1000);
 }
 
+/* Same underline bar the detail-page tabs use (contract journey → loadings),
+   so every search in the system reads as one component. Only the compact
+   height/offsets below stay list-card specific. */
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter,
 body.ptg-modal-document .ak-list-card .ak-filter {
     min-height: 42px;
-    border: 1px solid #DFE5EE;
-    border-radius: 999px;
-    background: #FFFFFF;
+    border: 0;
+    border-bottom: 1px solid var(--divider);
+    border-radius: 0;
+    background: transparent;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter.is-focused,
 body.ptg-modal-document .ak-list-card .ak-filter.is-focused {
-    border-color: rgba(24, 119, 242, .45);
-    box-shadow: 0 0 0 3px rgba(24, 119, 242, .08);
+    border-bottom-color: var(--primary-main);
+    box-shadow: none;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-input,
@@ -424,7 +428,6 @@ body.ptg-modal-document .ak-list-card .ak-filter-input {
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-enter,
 body.ptg-modal-document .ak-list-card .ak-filter-enter {
     inset-block-start: 6px;
-    color: #1877F2;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-clear,

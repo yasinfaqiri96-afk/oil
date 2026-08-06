@@ -272,6 +272,18 @@
     // در صورت‌حساب سایر طرف‌ها (مشتری/صراف) دست‌نخورده می‌ماند.
     var hideRef = Model.ShowContractViewTabs
         && Model.SupplierView is SupplierStatementView.Ledger or SupplierStatementView.Loadings;
+    // ستون‌های پیش از سه ستون مالیِ پایانی (رسید/برد/بیلانس). ردیف «خالی» باید دقیقاً
+    // به اندازهٔ کل ستون‌ها باشد، وگرنه جدول ستون توهمی می‌سازد و عرضش بهم می‌ریزد.
+    var leadColumns = (hideRef ? 3 : 4)
+        + ((c.ShowRub && !isRub) ? 1 : 0)
+        + (c.ShowAed ? 1 : 0)
+        + (c.ShowOriginalAmount ? 2 : 0)
+        + (c.ShowFxRate ? 1 : 0)
+        + (c.ShowQuantity ? 1 : 0)
+        + (c.ShowPlatts ? 1 : 0)
+        + (c.ShowPremiumOrDiscount ? 1 : 0)
+        + (c.ShowUnitPrice ? 1 : 0);
+    var totalColumns = leadColumns + 3;
     <div class="statement-table-wrap">
         <table class="statement-table">
             <thead>
@@ -296,7 +308,7 @@
             <tbody>
                 @if (s.Rows.Count == 0)
                 {
-                    <tr><td colspan="30" class="statement-empty">در این دوره تراکنشی ثبت نشده است.</td></tr>
+                    <tr><td colspan="@totalColumns" class="statement-empty">در این دوره تراکنشی ثبت نشده است.</td></tr>
                 }
                 else
                 {
@@ -324,7 +336,7 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <th colspan="@((hideRef ? 3 : 4) + ((c.ShowRub && !isRub) ? 1 : 0) + (c.ShowAed ? 1 : 0) + (c.ShowOriginalAmount ? 2 : 0) + (c.ShowFxRate ? 1 : 0) + (c.ShowQuantity ? 1 : 0) + (c.ShowPlatts ? 1 : 0) + (c.ShowPremiumOrDiscount ? 1 : 0) + (c.ShowUnitPrice ? 1 : 0))">@CompanyFlowText.PeriodTotal(Context)</th>
+                    <th colspan="@leadColumns">@CompanyFlowText.PeriodTotal(Context)</th>
                     <th class="statement-money">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</th>
                     <th class="statement-money">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</th>
                     <th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th>

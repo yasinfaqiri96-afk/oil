@@ -1,5 +1,5 @@
 .boltz-invoice-page {
-    color: #969ba0;
+    color: #475467;
     font-family: var(--app-font, "Vazirmatn", "Poppins", sans-serif);
 }
 
@@ -73,30 +73,34 @@
 
 .boltz-invoice-parties {
     display: grid;
-    gap: 1rem;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(320px, 2fr);
-    margin-bottom: 3rem;
+    gap: 1.5rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(300px, 1.15fr);
+    align-items: stretch;
+    margin-bottom: 2rem;
 }
 
 .boltz-invoice-party {
     display: flex;
     flex-direction: column;
-    min-height: 150px;
-    padding-block-start: 1.5rem;
+    gap: .2rem;
+    min-height: 0;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #eef1f5;
+    border-radius: 16px;
 }
 
 .boltz-invoice-party h2 {
-    color: #000;
-    font-size: .938rem;
+    color: #98a2b3;
+    font-size: .75rem;
     font-weight: 500;
-    margin: 0 0 .7rem;
+    margin: 0 0 .5rem;
 }
 
-.boltz-invoice-party strong,
-.boltz-invoice-payment-box strong {
-    color: #8d9399;
-    font-size: .875rem;
-    font-weight: 700;
+.boltz-invoice-party strong {
+    color: #101828;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: .25rem;
 }
 
 .boltz-invoice-party span,
@@ -104,23 +108,28 @@
     display: block;
     font-size: .875rem;
     line-height: 1.55;
+    color: #667085;
 }
 
 .boltz-invoice-payment-box {
+    display: flex;
+    flex-direction: column;
     align-items: flex-start;
-    display: grid;
-    grid-template-columns: 1fr 86px;
-    grid-template-rows: auto auto auto auto;
-    justify-content: end;
-    padding-block-start: 1.5rem;
+    gap: .35rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #eef1f5;
+    border-radius: 16px;
+    background: #fbfcfd;
 }
 
 .boltz-invoice-brand-row {
     align-items: center;
     display: flex;
     gap: .75rem;
-    grid-column: 1 / -1;
-    margin-bottom: 1rem;
+    align-self: stretch;
+    margin-bottom: .85rem;
+    padding-bottom: .85rem;
+    border-bottom: 1px solid #eef1f5;
 }
 
 .boltz-invoice-brand-row img {
@@ -146,69 +155,117 @@
     line-height: 1.4;
 }
 
-.boltz-invoice-pay-amount,
-.boltz-invoice-reference {
+.boltz-invoice-pay-label {
+    color: #98a2b3;
+    font-size: .8125rem;
+}
+
+.boltz-invoice-payment-box strong.boltz-invoice-pay-amount {
     display: block;
     max-width: 100%;
     overflow-wrap: anywhere;
+    color: #101828;
+    font-size: 1.5rem;
+    line-height: 1.3;
 }
 
-.boltz-invoice-qr {
-    align-self: start;
-    aspect-ratio: 1;
+.boltz-invoice-payment-box strong.boltz-invoice-reference {
+    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    color: #667085;
+    font-size: .875rem;
+    font-weight: 500;
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
+/* ---- مشخصات سند ---- */
+.boltz-invoice-info {
+    margin-bottom: 2rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #eef1f5;
+    border-radius: 16px;
+    background: #fbfcfd;
+}
+
+.boltz-invoice-info h2 {
+    margin: 0 0 1rem;
+    color: #101828;
+    font-size: .938rem;
+    font-weight: 600;
+}
+
+.boltz-invoice-info dl {
     display: grid;
-    gap: 2px;
-    grid-column: 2;
-    grid-row: 2 / span 4;
-    grid-template-columns: repeat(9, 1fr);
-    height: 86px;
-    margin-inline-start: 1rem;
-    padding: 4px;
-    background: #fff;
-    border: 2px solid #111;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: .85rem 2rem;
+    margin: 0;
 }
 
-.boltz-invoice-qr span {
-    background: transparent;
+.boltz-invoice-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
     min-width: 0;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid #eef1f5;
 }
 
-.boltz-invoice-qr span.is-dark {
-    background: #111;
+.boltz-invoice-info dt {
+    color: #98a2b3;
+    font-size: .75rem;
+    font-weight: 500;
+}
+
+.boltz-invoice-info dd {
+    margin: 0;
+    color: #344054;
+    font-size: .875rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
 }
 
 .boltz-invoice-table-wrap {
     margin-inline: 0;
+    border: 1px solid #eef1f5;
+    border-radius: 16px;
+    overflow: hidden;
 }
 
 .boltz-invoice-table {
-    color: #969ba0;
+    color: #475467;
     margin: 0;
+    inline-size: 100%;
+    min-inline-size: 680px;
+    table-layout: fixed;
 }
 
+/* سرستون‌ها کوچک و آرام‌اند تا خودِ داده خوانده شود، نه تیتر. */
 .boltz-invoice-table thead th {
-    background: transparent;
+    background: #fbfcfd;
     border: 0;
-    color: #969ba0;
-    font-size: 1.125rem;
+    color: #98a2b3;
+    font-size: .8125rem;
     font-weight: 500;
-    height: 58px;
-    padding: 1rem .625rem;
+    height: auto;
+    padding: .85rem 1rem;
     vertical-align: middle;
     white-space: nowrap;
 }
 
 .boltz-invoice-table tbody td {
     border: 0;
+    border-top: 1px solid #eef1f5;
     font-size: .875rem;
-    height: 52px;
-    padding: .95rem .625rem;
+    height: auto;
+    padding: 1rem;
     vertical-align: middle;
+    overflow-wrap: anywhere;
 }
 
-.boltz-invoice-table tbody tr:nth-child(odd) td {
-    background: #f2f4fa;
-    box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, .05);
+.boltz-invoice-table tbody td.fw-semibold {
+    color: #101828;
 }
 
 .boltz-invoice-bottom {
@@ -240,26 +297,33 @@
 }
 
 .boltz-invoice-totals {
-    color: #969ba0;
+    color: #475467;
     margin: 0;
     width: 100%;
 }
 
 .boltz-invoice-totals td {
-    border-top: 1px solid #eee;
+    border-top: 1px solid #eef1f5;
     font-size: .875rem;
-    height: 52px;
-    padding: .8rem .625rem;
+    height: auto;
+    padding: .8rem 0;
     vertical-align: middle;
 }
 
-.boltz-invoice-totals strong,
-.boltz-invoice-totals .is-grand-total td {
-    font-weight: 700;
+.boltz-invoice-totals strong {
+    color: #667085;
+    font-weight: 500;
 }
 
 .boltz-invoice-totals .is-grand-total td {
-    color: #85898d;
+    color: #101828;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.boltz-invoice-totals .is-grand-total strong {
+    color: #101828;
+    font-weight: 700;
 }
 
 .boltz-invoice-purchase .boltz-invoice-breadcrumb strong,
@@ -301,8 +365,8 @@
         text-align: start;
     }
 
-    .boltz-invoice-payment-box {
-        grid-template-columns: 1fr auto;
+    .boltz-invoice-info dl {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     }
 }
 
@@ -319,14 +383,14 @@
         flex: 1;
     }
 
+    .boltz-invoice-info,
+    .boltz-invoice-party,
     .boltz-invoice-payment-box {
-        grid-template-columns: 1fr;
+        padding: 1rem;
     }
 
-    .boltz-invoice-qr {
-        grid-column: auto;
-        grid-row: auto;
-        margin: 1rem 0 0;
+    .boltz-invoice-info dl {
+        grid-template-columns: 1fr;
     }
 }
 

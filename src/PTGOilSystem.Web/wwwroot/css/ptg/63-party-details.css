@@ -198,9 +198,9 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detai
 
 /* =====================================================================
    Account status card (وضعیت حساب) — _AkPartyAccountCard.
-   One headline balance plus the plain sentence that explains its direction,
-   then the two figures behind it and the settled share. Everything else on
-   the summary tab is deliberately quieter. Presentation only.
+   The money figures live in the shared stat cards above the card; what is
+   styled here is the sentence that explains the direction of the balance,
+   the settled share and the quiet facts. Presentation only.
    ===================================================================== */
 .ak-party-account-head {
     display: flex;
@@ -218,6 +218,14 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detai
     border: 1px solid var(--divider);
     border-radius: 8px;
     background: var(--ptg-surface-soft);
+}
+
+/* Same switch used in the page header (ViewData["AkHeaderToggle"]): it shares the
+   row with the header buttons, so it takes their height and stays quiet. */
+.ak-page-actions > .ak-party-switch {
+    align-items: center;
+    align-self: center;
+    min-height: 34px;
 }
 
 .ak-party-switch-option {
@@ -243,123 +251,27 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detai
 
 .ak-party-account-body {
     display: grid;
-    grid-template-columns: minmax(230px, 0.8fr) minmax(0, 1.2fr);
-    gap: 20px;
+    gap: 12px;
     align-items: start;
 }
 
-/* Headline balance: the one number the page exists for. */
-.ak-party-balance {
-    display: grid;
-    gap: 3px;
-    padding-inline-end: 20px;
-    border-inline-end: 1px solid var(--divider);
-}
-
-.ak-party-balance-label {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--ptg-muted);
-}
-
-/* Headline and metric figures follow the stat-card idiom: they carry their own
-   LTR isolation and tabular digits instead of the shared .ak-num size, which is
-   sized for repeated inline figures and would flatten this hierarchy. */
-.ak-party-balance-value {
-    direction: ltr;
-    unicode-bidi: isolate;
-    text-align: left;
-    font-size: clamp(26px, 2.4vw, 33px);
-    font-weight: 700;
-    line-height: 1.2;
-    color: var(--ptg-text);
-    font-variant-numeric: tabular-nums lining-nums;
-}
-
-.ak-party-balance.is-danger .ak-party-balance-value { color: var(--ptg-danger-text); }
-.ak-party-balance.is-success .ak-party-balance-value { color: var(--ptg-success-text); }
-
-.ak-party-balance-sub {
-    direction: ltr;
-    unicode-bidi: isolate;
-    text-align: left;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--ptg-muted);
-    font-variant-numeric: tabular-nums lining-nums;
-}
-
-/* The sentence that answers «این عدد یعنی چه؟». */
-.ak-party-balance-meaning {
+/* The sentence that answers «آن عدد یعنی چه؟» — the only tone-bearing line left
+   in the card now that the figures themselves are stat cards. */
+.ak-party-meaning {
     display: flex;
     align-items: baseline;
     gap: 6px;
-    margin: 7px 0 0;
+    margin: 0;
     font-size: 13.5px;
     font-weight: 600;
     line-height: 1.55;
     color: var(--ptg-text);
 }
 
-.ak-party-balance-meaning .bi { font-size: 14px; }
-.ak-party-balance.is-danger .ak-party-balance-meaning { color: var(--ptg-danger-text); }
-.ak-party-balance.is-success .ak-party-balance-meaning { color: var(--ptg-success-text); }
-.ak-party-balance.is-neutral .ak-party-balance-meaning { color: var(--ptg-muted); }
-
-/* The two figures that produced the balance. */
-.ak-party-flow {
-    display: grid;
-    gap: 14px;
-}
-
-.ak-party-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: 12px;
-    margin: 0;
-}
-
-/* Borderless soft tiles: the fill is the neutral surface lightened toward the
-   paper colour, so it stays correct in both themes without a new token. */
-.ak-party-metric {
-    display: grid;
-    gap: 3px;
-    padding: 12px 14px;
-    border: 0;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--ptg-surface-soft) 70%, var(--background-paper));
-}
-
-.ak-party-metric-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--ptg-muted);
-}
-
-.ak-party-metric-value {
-    margin: 0;
-    direction: ltr;
-    unicode-bidi: isolate;
-    text-align: left;
-    font-size: 20px;
-    font-weight: 600;
-    line-height: 1.35;
-    color: var(--ptg-text);
-    font-variant-numeric: tabular-nums lining-nums;
-}
-
-/* Figures carry meaning, not decoration: settled money reads success, an
-   outstanding obligation reads danger, everything else stays neutral. */
-.ak-party-metric-value.is-success { color: var(--ptg-success-text); }
-.ak-party-metric-value.is-danger { color: var(--ptg-danger-text); }
-
-.ak-party-metric-sub {
-    display: block;
-    margin-top: 2px;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--ptg-muted);
-}
+.ak-party-meaning .bi { font-size: 14px; }
+.ak-party-meaning.is-danger { color: var(--ptg-danger-text); }
+.ak-party-meaning.is-success { color: var(--ptg-success-text); }
+.ak-party-meaning.is-neutral { color: var(--ptg-muted); }
 
 .ak-party-settled {
     display: grid;
@@ -440,25 +352,69 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detai
     color: var(--ptg-muted);
 }
 
-/* Identity card is reference data: two quiet columns, no rules between rows. */
+/* Identity is folded into the account panel: one rule separates account state
+   from reference data, so the summary tab stays a single card. */
+.ak-party-identity-block {
+    margin-block-start: 14px;
+    padding-block-start: 12px;
+    border-block-start: 1px solid var(--divider);
+}
+
+.ak-party-subhead {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ptg-muted);
+}
+
+/* Identity card is reference data: one quiet strip. Every field sits in the
+   same row as a label-over-value cell, separated by a hairline, so the block
+   reads as a single band instead of three or four stacked rows. */
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 28px;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    column-gap: 0;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list .ak-list-row {
-    grid-template-columns: minmax(6.5rem, .62fr) minmax(0, 1.38fr);
-    gap: 10px;
-    padding: 5px 0;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    gap: 2px;
+    min-width: 0;
+    padding: 2px 14px;
+    border-inline-start: 1px solid var(--divider);
 }
 
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list .ak-list-row:first-child {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+}
+
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list .ak-list-row:last-child {
+    padding-inline-end: 0;
+}
+
+/* Free text (address, notes) keeps the same row but gets a wider share of it. */
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list .ak-list-row.is-wide {
-    grid-column: 1 / -1;
+    flex-grow: 2;
 }
 
+body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list dt {
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* One line per value; the full text stays available in the native tooltip. */
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list dd {
     font-size: 13px;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* =====================================================================
@@ -604,21 +560,22 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-subro
     }
 }
 
+/* Narrow screens cannot hold the whole strip in one line: the cells wrap and
+   each one keeps a readable minimum width instead of being squeezed. */
 @media (max-width: 991.98px) {
-    .ak-party-account-body {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 16px;
-    }
-
-    .ak-party-balance {
-        padding-inline-end: 0;
-        padding-block-end: 14px;
-        border-inline-end: 0;
-        border-block-end: 1px solid var(--divider);
-    }
-
     body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list {
-        grid-template-columns: minmax(0, 1fr);
-        column-gap: 0;
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list .ak-list-row {
+        flex: 1 1 9rem;
+        padding-inline: 0;
+        padding-inline-end: 14px;
+        border-inline-start: 0;
+    }
+
+    body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-identity-list .ak-list-row.is-wide {
+        flex-basis: 100%;
     }
 }

@@ -6,38 +6,6 @@
     ViewData["Title"] = isEnglish ? Model.TitleEn : Model.TitleFa;
     ViewData["HideSectionTabs"] = true;
     string T(string fa, string en) => UiText.T(Context, fa, en);
-
-    var qrSeed = string.IsNullOrWhiteSpace(Model.SourceReference)
-        ? Model.DocumentNumber
-        : Model.SourceReference;
-
-    int StableHash(string value)
-    {
-        unchecked
-        {
-            var hash = 17;
-            foreach (var ch in value)
-            {
-                hash = (hash * 31) + ch;
-            }
-
-            return hash == int.MinValue ? int.MaxValue : Math.Abs(hash);
-        }
-    }
-
-    var hash = StableHash(qrSeed ?? "PTG");
-    bool QrCell(int index)
-    {
-        var row = index / 9;
-        var col = index % 9;
-        var inFinder = (row < 3 && col < 3) || (row < 3 && col > 5) || (row > 5 && col < 3);
-        if (inFinder)
-        {
-            return row == 0 || row == 2 || col == 0 || col == 2;
-        }
-
-        return (((hash >> (index % 16)) + (index * 13) + row + col) % 5) < 2;
-    }
 }
 
 @section Styles {
@@ -102,24 +70,43 @@
                             }
                         </div>
                     </div>
-                    <span>@T(Model.PaymentBox.HeadingFa, Model.PaymentBox.HeadingEn):</span>
+                    <span class="boltz-invoice-pay-label">@T(Model.PaymentBox.HeadingFa, Model.PaymentBox.HeadingEn)</span>
                     <strong class="boltz-invoice-pay-amount">@Model.PaymentBox.AmountText</strong>
                     <strong class="boltz-invoice-reference">@Model.PaymentBox.ReferenceText</strong>
                     @if (!string.IsNullOrWhiteSpace(isEnglish ? Model.PaymentBox.NoteEn : Model.PaymentBox.NoteFa))
                     {
                         <small>@T(Model.PaymentBox.NoteFa ?? "", Model.PaymentBox.NoteEn ?? "")</small>
                     }
-                    <div class="boltz-invoice-qr" aria-label="@T("کد پیگیری سند", "Document trace code")">
-                        @for (var i = 0; i < 81; i++)
-                        {
-                            <span class="@(QrCell(i) ?"is-dark" : null)"></span>
-                        }
-                    </div>
                 </div>
             </section>
 
+            @* مشخصات سند — فقط اسنادی که InfoItems پر کرده‌اند این بخش را دارند. *@
+            @if (Model.InfoItems.Count > 0)
+            {
+                <section class="boltz-invoice-info">
+                    <h2>@T("مشخصات سند", "Document Details")</h2>
+                    <dl>
+                        @foreach (var info in Model.InfoItems)
+                        {
+                            <div class="boltz-invoice-info-item">
+                                <dt>@T(info.LabelFa, info.LabelEn)</dt>
+                                <dd>@info.Value</dd>
+                            </div>
+                        }
+                    </dl>
+                </section>
+            }
+
             <div class="table-responsive boltz-invoice-table-wrap">
                 <table class="boltz-invoice-table">
+                    <colgroup>
+                        <col style="width: 5%" />
+                        <col style="width: 23%" />
+                        <col style="width: 32%" />
+                        <col style="width: 15%" />
+                        <col style="width: 10%" />
+                        <col style="width: 15%" />
+                    </colgroup>
                     <thead>
                         <tr>
                             <th class="text-center">#</th>

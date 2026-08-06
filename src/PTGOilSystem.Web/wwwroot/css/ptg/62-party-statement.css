@@ -58,9 +58,11 @@
 .statement-info-block dd { margin: 0; color: #45494e; overflow-wrap: anywhere; }
 .statement-ltr { direction: ltr; text-align: right; font-variant-numeric: tabular-nums; }
 
-.statement-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 1rem; border: 1px solid var(--statement-line); border-radius: .5rem; }
-.statement-summary-item { display: flex; align-items: center; gap: .6rem; min-height: 4.25rem; padding: .6rem .85rem; border-inline-start: 1px solid var(--statement-line); }
-.statement-summary-item:first-child { border-inline-start: 0; }
+/* روی صفحه، چهار کارت خلاصه بدون قاب و بدون خط جداکننده‌اند؛ آیکن و تایپوگرافی
+   خودشان کارت‌ها را از هم جدا می‌کنند. قاب فقط در نسخهٔ چاپی/PDF برمی‌گردد تا سند
+   رسمی دست‌نخورده بماند. */
+.statement-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; margin-bottom: 1rem; }
+.statement-summary-item { display: flex; align-items: center; gap: .6rem; min-height: 4.25rem; padding: .6rem .85rem; }
 .statement-summary-icon { display: grid; place-items: center; width: 2.15rem; height: 2.15rem; flex: 0 0 auto; border-radius: 50%; background: #eef0f1; color: var(--statement-dark); font-size: 1rem; }
 .statement-summary-item.is-opening .statement-summary-icon,
 .statement-summary-item.is-credit .statement-summary-icon { background: #e6f3ec; color: var(--statement-credit); }
@@ -116,15 +118,11 @@
     .statement-info-grid { grid-template-columns: 1fr; gap: .5rem; }
     .statement-info-block + .statement-info-block { padding-inline-start: 0; padding-top: .5rem; border-inline-start: 0; border-top: 1px solid var(--statement-line); }
     .statement-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .statement-summary-item:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--statement-line); }
-    .statement-summary-item:nth-child(4) { border-top: 1px solid var(--statement-line); }
 }
 
 @media (max-width: 575.98px) {
     .statement-closing-grid { display: grid; grid-template-columns: 1fr; }
     .statement-summary { grid-template-columns: 1fr; }
-    .statement-summary-item { border-inline-start: 0; border-top: 1px solid var(--statement-line); }
-    .statement-summary-item:first-child { border-top: 0; }
     .statement-info-block dl > div { grid-template-columns: 6rem minmax(0, 1fr); }
     .statement-logo { max-width: 45vw; max-height: 44px; }
     .statement-brand-title { padding-inline-start: .6rem; }
@@ -181,6 +179,68 @@
 }
 .statement-pagination .is-active { border-color: var(--statement-dark); background: var(--statement-dark); color: #fff; }
 
+/* =====================================================================
+   صورت‌حساب داخل تب طرف حساب (ak-party-statement-embed)
+   کارتِ سکشنِ Details خودش سطح کاغذ است؛ پس صورت‌حسابِ جاسازی‌شده قابِ
+   خودش را کنار می‌گذارد (بوردر، سایه، پس‌زمینهٔ سفید و عرضِ وسط‌چین) و نوار
+   فیلتر هم chrome کارت لیست را رها می‌کند. یک سطح، بدون قابِ تودرتو.
+   نسخهٔ مستقلِ /PartyStatements برگهٔ رسمی خودش را نگه می‌دارد.
+   ===================================================================== */
+.ak-party-statement-embed { min-width: 0; }
+
+.ak-party-statement-embed .statement-screen-tools,
+.ak-party-statement-embed .statement-document {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+}
+
+.ak-party-statement-embed .statement-document {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-party-statement-embed .statement-screen-tools.ak-list-card {
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-party-statement-embed .statement-screen-tools.ak-list-card > .ak-list-toolbar {
+    min-height: 0;
+    margin: 0 0 12px;
+    padding: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+/* =====================================================================
+   پایداری واکنش‌گرا (هم جاسازی‌شده، هم مستقل)
+   هر بلوکِ پهن داخل جعبهٔ خودش اسکرول می‌شود تا صورت‌حساب هیچ‌وقت
+   ظرفش را پهن‌تر از نمایشگر نکند و محتوا بهم نریزد.
+   ===================================================================== */
+.statement-table-wrap { max-width: 100%; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.statement-brand-header { flex-wrap: wrap; }
+.statement-contract-title,
+.statement-contract-sub,
+.statement-description { overflow-wrap: anywhere; }
+.statement-col-contract { min-width: 11rem; }
+.statement-summary-copy strong { font-size: clamp(.82rem, 2.6vw, 1rem); }
+.statement-view-tabs { overflow-x: auto; scrollbar-width: thin; }
+.statement-view-tab { flex: 0 0 auto; white-space: nowrap; }
+.statement-screen-tools .ak-list-toolbar-actions { flex-wrap: wrap; }
+
+@media (max-width: 767.98px) {
+    .statement-table { min-width: 620px; font-size: .68rem; }
+    .statement-table th, .statement-table td { padding: .45rem .4rem; }
+    .statement-details-slot { padding: .6rem .5rem; }
+    .statement-screen-tools .ak-list-toolbar-actions .btn { flex: 1 1 8rem; }
+}
+
 @page { size: A4 portrait; margin: 9mm; }
 @page statement-wide { size: A4 landscape; margin: 8mm; }
 
@@ -213,8 +273,10 @@
     .statement-info-block dl > div { grid-template-columns: 8.5rem minmax(0, 1fr); }
     .statement-document .statement-info-grid .statement-info-block dl dt,
     .statement-document .statement-info-grid .statement-info-block dl dd { font-size: 8pt; line-height: 1.5; }
-    .statement-summary { margin-bottom: 5mm; }
-    .statement-summary-item { min-height: 18mm; padding: 2.5mm; }
+    /* سند رسمی چاپی همان قاب و خطوط جداکنندهٔ قبلی را نگه می‌دارد. */
+    .statement-summary { gap: 0; margin-bottom: 5mm; border: 1px solid var(--statement-line); border-radius: .5rem; }
+    .statement-summary-item { min-height: 18mm; padding: 2.5mm; border-inline-start: 1px solid var(--statement-line); }
+    .statement-summary-item:first-child { border-inline-start: 0; }
     .statement-summary-icon { width: 8mm; height: 8mm; }
     .statement-closing-grid { break-inside: avoid; page-break-inside: avoid; }
     .statement-footer { break-inside: avoid; page-break-inside: avoid; }

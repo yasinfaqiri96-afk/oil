@@ -1,0 +1,77 @@
+@using Microsoft.Extensions.Options
+@using PTGOilSystem.Web.Configuration
+@inject IOptions<AssistantOptions> AssistantOptionsAccessor
+@{
+    var assistantOptions = AssistantOptionsAccessor.Value;
+}
+@if (assistantOptions.Enabled)
+{
+    var assistantIsEnglish = string.Equals(Context.Request.Cookies["ptg-ui-lang"], "en", StringComparison.OrdinalIgnoreCase);
+    string AT(string fa, string en) => assistantIsEnglish ? en : fa;
+
+    <div class="ptg-assistant"
+         data-assistant-root
+         data-assistant-url="@Url.Action("Ask", "Assistant")"
+         data-assistant-max-question="@assistantOptions.MaxQuestionLength">
+        @Html.AntiForgeryToken()
+
+        @* دکمهٔ گرد و بدون متن: در ERP پرتراکم، یک آیکون آرام کمتر از یک دکمهٔ متنی
+           جای بصری می‌گیرد. عنوان با title/aria-label به کاربر و screen reader می‌رسد. *@
+        <button type="button"
+                class="ptg-assistant-trigger"
+                data-assistant-open
+                aria-haspopup="dialog"
+                aria-controls="ptgAssistantPanel"
+                aria-expanded="false"
+                title="@AT("راهنمای هوشمند", "Smart Guide")"
+                aria-label="@AT("راهنمای هوشمند", "Smart Guide")">
+            <i class="bi bi-headset ptg-assistant-trigger-ico" aria-hidden="true"></i>
+            <i class="bi bi-x-lg ptg-assistant-trigger-close" aria-hidden="true"></i>
+        </button>
+
+        <div class="ptg-assistant-panel"
+             id="ptgAssistantPanel"
+             role="dialog"
+             aria-modal="false"
+             aria-labelledby="ptgAssistantTitle"
+             hidden>
+            <div class="ptg-assistant-head">
+                <div class="ptg-assistant-head-text">
+                    <strong class="ptg-assistant-title" id="ptgAssistantTitle">@AT("راهنمای هوشمند", "Smart Guide")</strong>
+                    <span class="ptg-assistant-subtitle">@AT("پاسخ از اطلاعات ثبت‌شده؛ فقط خواندن، بدون هیچ تغییری.", "Answers from recorded data; read-only, nothing is changed.")</span>
+                </div>
+                <button type="button" class="ptg-assistant-close" data-assistant-close aria-label="@AT("بستن", "Close")">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <div class="ptg-assistant-log" data-assistant-log role="log" aria-live="polite">
+                <div class="ptg-assistant-msg is-bot">
+                    <p>@AT("سلام. درباره همین صفحه بپرسید.", "Hello. Ask about this page.")</p>
+                </div>
+            </div>
+
+            <div class="ptg-assistant-suggestions" data-assistant-suggestions>
+                <button type="button" class="ptg-assistant-chip" data-assistant-suggestion>@AT("این صفحه چه کاری انجام می‌دهد؟", "What does this page do?")</button>
+                <button type="button" class="ptg-assistant-chip" data-assistant-suggestion>@AT("برای ثبت این فرم چه معلوماتی لازم است؟", "What information does this form need?")</button>
+                <button type="button" class="ptg-assistant-chip" data-assistant-suggestion>@AT("این خطا چه معنی دارد؟", "What does this error mean?")</button>
+                <button type="button" class="ptg-assistant-chip" data-assistant-suggestion>@AT("موجودی فعلی انبار چقدر است؟", "What is the current stock?")</button>
+            </div>
+
+            <form class="ptg-assistant-form" data-assistant-form data-no-spa="true" data-no-submit-guard>
+                <label class="visually-hidden" for="ptgAssistantInput">@AT("سؤال شما", "Your question")</label>
+                <textarea id="ptgAssistantInput"
+                          class="ptg-assistant-input"
+                          data-assistant-input
+                          rows="2"
+                          maxlength="@assistantOptions.MaxQuestionLength"
+                          autocomplete="off"
+                          placeholder="@AT("سؤال خود را بنویسید...", "Type your question...")"></textarea>
+                <button type="submit" class="ptg-assistant-send" data-assistant-send>
+                    <span class="ptg-assistant-send-label">@AT("پرسیدن", "Ask")</span>
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" data-assistant-spinner hidden></span>
+                </button>
+            </form>
+        </div>
+    </div>
+}

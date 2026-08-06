@@ -6,6 +6,7 @@ public static class DateDisplay
 {
     public const string DisplayDatePattern = "yyyy/MM/dd";
     public const string DisplayDateTimePattern = "yyyy/MM/dd HH:mm";
+    public const string DisplayTimePattern = "HH:mm:ss";
     public const string DisplayMonthPattern = "yyyy/MM";
     public const string HtmlDateInputPattern = "yyyy-MM-dd";
     public const string HtmlMonthInputPattern = "yyyy-MM";
@@ -32,6 +33,13 @@ public static class DateDisplay
 
     public static string AfghanistanDateTime(DateTime? value, string empty = EmptyValue)
         => value.HasValue ? AfghanistanDateTime(value.Value) : empty;
+
+    // ساعت محلی کابل — برای ستون «ساعت» فهرست‌هایی که تاریخشان بدون ساعت ذخیره می‌شود.
+    public static string AfghanistanTime(DateTime value)
+        => Isolate(ToAfghanistanLocalTime(value).ToString(DisplayTimePattern, InvariantCulture));
+
+    public static string AfghanistanTime(DateTime? value, string empty = EmptyValue)
+        => value.HasValue ? AfghanistanTime(value.Value) : empty;
 
     public static string Month(DateTime value)
         => Isolate(value.ToString(DisplayMonthPattern, InvariantCulture));
@@ -107,6 +115,12 @@ public static class DateDisplayExtensions
 
     public static string ToAfghanistanDisplayDateTime(this DateTime? value)
         => DateDisplay.AfghanistanDateTime(value);
+
+    public static string ToAfghanistanDisplayTime(this DateTime value)
+        => DateDisplay.AfghanistanTime(value);
+
+    public static string ToAfghanistanDisplayTime(this DateTime? value)
+        => DateDisplay.AfghanistanTime(value);
 
     public static string ToDisplayMonth(this DateTime value)
         => DateDisplay.Month(value);

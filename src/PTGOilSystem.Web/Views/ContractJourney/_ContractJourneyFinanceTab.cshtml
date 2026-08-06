@@ -43,7 +43,12 @@
             <div>
                 <h2 class="ak-section-title">@T("پرداخت‌ها", "Payments")</h2>
             </div>
-            <div class="ak-page-actions">
+        </div>
+
+        <div class="ak-list-toolbar">
+            <partial name="_ContractJourneyListFilter"
+                     model="@(("paymentsQ", (string?)Context.Request.Query["paymentsQ"].ToString(), T("جستجو در پرداخت‌ها...", "Search payments..."), "paymentsPage"))" />
+            <div class="ak-list-toolbar-actions no-print">
                 <a asp-controller="Payments" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Finance)" class="btn btn-primary ak-primary-action">
                     <i class="bi bi-cash-stack"></i>
                     <span>@T("ثبت پرداخت جدید", "Create payment")</span>
@@ -64,9 +69,6 @@
                 </div>
             </div>
         </div>
-
-        <partial name="_ContractJourneyListFilter"
-                 model="@(("paymentsQ", (string?)Context.Request.Query["paymentsQ"].ToString(), T("جستجو در پرداخت‌ها...", "Search payments..."), "paymentsPage"))" />
 
         <div class="ak-table-wrap">
             <table class="ak-table">

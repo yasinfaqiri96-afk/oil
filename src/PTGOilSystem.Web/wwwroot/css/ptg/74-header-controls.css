@@ -1,7 +1,7 @@
 /* ============================================================
    74-header-controls.css — سیستم واحد دکمه‌های نوار هدر
    ------------------------------------------------------------
-   همهٔ کنترل‌های هدر (همبرگر، جستجو، سال مالی، زبان، آواتار) از
+   همهٔ کنترل‌های هدر (همبرگر، جستجو، زبان، حساب کاربری) از
    یک زبان بصری واحد پیروی می‌کنند: بدون کادر، پس‌زمینهٔ شفاف،
    گوشهٔ کامل گرد، هاور و فوکوس یکسان، اندازهٔ هیت‌اریای برابر.
    هر قاعده زیر .ptg-topbar قفل است و بیرون هدر اثری ندارد.
@@ -105,7 +105,8 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
 /* آیکون‌های خطی: یک اندازه برای همه. */
 body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
     .ptg-hsearch-trigger,
-    .ptg-h3d
+    .ptg-h3d,
+    .ptg-havatar-ring
 ) .bi {
     font-size: var(--hdr-ctl-ico);
     line-height: 1;
@@ -201,27 +202,27 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-status {
     display: none;
 }
 
-/* ---------- ۴) پرچم زبان ---------- */
-body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hflag svg {
-    width: 1.4rem;
-    height: 1rem;
-    display: block;
-    border-radius: 4px;
+/* ---------- ۴) زبان ---------- */
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hflag-ico,
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-havatar-ico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    color: inherit;
 }
 
-/* ---------- ۵) آواتار ---------- */
+/* ---------- ۵) حساب کاربری ---------- */
+/* آواتار تصویری جای خود را به همان چیپ نمادی داد؛ حلقه و پدینگ قدیمی خنثی می‌شود
+   تا هاور و فوکوسش دقیقاً مثل جستجو و زبان باشد. */
 body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-havatar-ring {
-    padding: 2px;
-    overflow: hidden;
+    padding: 0;
+    overflow: visible;
 }
 
-body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-havatar-ring img {
-    width: 100%;
-    height: 100%;
-    border: 0;
-    border-radius: 999px;
-    object-fit: cover;
-    background: transparent;
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-havatar-ring:hover,
+body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-havatar-ring:focus-visible {
+    box-shadow: none;
 }
 
 /* ---------- ریسپانسیو ---------- */

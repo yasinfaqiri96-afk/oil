@@ -255,10 +255,10 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link {
     align-items: center;
     justify-content: flex-start;
     inline-size: 100%;
-    min-block-size: 44px;
-    gap: 6px;
-    padding-block: 6px;
-    padding-inline: 6px;
+    min-block-size: 40px;
+    gap: 5px;
+    padding-block: 5px;
+    padding-inline: 5px;
     border: 0 !important;
     border-radius: 8px;
     background: transparent !important;
@@ -276,9 +276,9 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link {
 body.boltz-shell.app-shell-authenticated .ptg-nav-ic {
     display: grid;
     place-items: center;
-    flex: 0 0 28px;
-    inline-size: 28px;
-    block-size: 28px;
+    flex: 0 0 26px;
+    inline-size: 26px;
+    block-size: 26px;
     margin: 0;
     background: transparent !important;
 }
@@ -289,8 +289,8 @@ body.boltz-shell.app-shell-authenticated .ptg-nav-ic {
 
 body.boltz-shell.app-shell-authenticated .ptg-nav-ic > svg {
     display: block;
-    inline-size: 24px;
-    block-size: 24px;
+    inline-size: 22px;
+    block-size: 22px;
     color: var(--ptg-sidebar-icon);
 }
 
@@ -303,7 +303,7 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link span {
     white-space: normal;
     overflow-wrap: break-word;
     color: var(--ptg-sidebar-ink) !important;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.35;
     letter-spacing: 0;
@@ -426,15 +426,15 @@ body.boltz-shell.app-shell-authenticated .boltz-nav-sublink {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-block-size: 34px;
+    gap: 5px;
+    min-block-size: 32px;
     margin-block-start: 2px;
-    padding-block: 5px;
-    padding-inline-start: 28px;
+    padding-block: 4px;
+    padding-inline-start: 26px;
     padding-inline-end: 4px;
     border-radius: 8px;
     color: var(--ptg-sidebar-sub-ink) !important;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     text-decoration: none;
     white-space: normal;

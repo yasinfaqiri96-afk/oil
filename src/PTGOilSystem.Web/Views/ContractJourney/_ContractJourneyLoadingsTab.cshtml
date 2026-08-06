@@ -56,14 +56,18 @@
             <div>
                 <h2 class="ak-section-title">@T("سوابق بارگیری", "Loading records")</h2>
             </div>
-            <a asp-controller="Loading" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-lockContract="true" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="btn btn-primary ak-primary-action">
-                <i class="bi bi-train-freight-front"></i>
-                <span>@T("ثبت بارگیری جدید", "New loading")</span>
-            </a>
         </div>
 
-        <partial name="_ContractJourneyListFilter"
-                 model="@(("loadingsQ", (string?)Context.Request.Query["loadingsQ"].ToString(), T("جستجو در سوابق بارگیری...", "Search loading records..."), "loadingsPage"))" />
+        <div class="ak-list-toolbar">
+            <partial name="_ContractJourneyListFilter"
+                     model="@(("loadingsQ", (string?)Context.Request.Query["loadingsQ"].ToString(), T("جستجو در سوابق بارگیری...", "Search loading records..."), "loadingsPage"))" />
+            <div class="ak-list-toolbar-actions no-print">
+                <a asp-controller="Loading" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-lockContract="true" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="btn btn-primary ak-primary-action">
+                    <i class="bi bi-train-freight-front"></i>
+                    <span>@T("ثبت بارگیری جدید", "New loading")</span>
+                </a>
+            </div>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">

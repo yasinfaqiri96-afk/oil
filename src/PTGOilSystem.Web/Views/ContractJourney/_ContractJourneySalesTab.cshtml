@@ -15,24 +15,28 @@
             <div>
                 <h2 class="ak-section-title">@T("فاکتورهای فروش", "Sales invoices")</h2>
             </div>
-            @if (Model.IsPurchaseContract)
-            {
-                <a asp-controller="Sales" asp-action="Create" asp-route-sourcePurchaseContractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="btn btn-primary ak-primary-action">
-                    <i class="bi bi-receipt"></i>
-                    <span>@T("صدور فاکتور جدید", "Issue invoice")</span>
-                </a>
-            }
-            else
-            {
-                <a asp-controller="Sales" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="btn btn-primary ak-primary-action">
-                    <i class="bi bi-receipt"></i>
-                    <span>@T("صدور فاکتور جدید", "Issue invoice")</span>
-                </a>
-            }
         </div>
 
-        <partial name="_ContractJourneyListFilter"
-                 model="@(("salesQ", (string?)Context.Request.Query["salesQ"].ToString(), T("جستجو در فاکتورهای فروش...", "Search sales invoices..."), "salesPage"))" />
+        <div class="ak-list-toolbar">
+            <partial name="_ContractJourneyListFilter"
+                     model="@(("salesQ", (string?)Context.Request.Query["salesQ"].ToString(), T("جستجو در فاکتورهای فروش...", "Search sales invoices..."), "salesPage"))" />
+            <div class="ak-list-toolbar-actions no-print">
+                @if (Model.IsPurchaseContract)
+                {
+                    <a asp-controller="Sales" asp-action="Create" asp-route-sourcePurchaseContractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="btn btn-primary ak-primary-action">
+                        <i class="bi bi-receipt"></i>
+                        <span>@T("صدور فاکتور جدید", "Issue invoice")</span>
+                    </a>
+                }
+                else
+                {
+                    <a asp-controller="Sales" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="btn btn-primary ak-primary-action">
+                        <i class="bi bi-receipt"></i>
+                        <span>@T("صدور فاکتور جدید", "Issue invoice")</span>
+                    </a>
+                }
+            </div>
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">

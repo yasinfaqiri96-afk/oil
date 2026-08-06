@@ -51,10 +51,20 @@ body.ptg-modal-document a:not(.ptg-tab-item):focus {
     color: var(--ptg-primary-dark);
 }
 
-body.boltz-shell.app-shell-authenticated :focus-visible,
-body.ptg-modal-document :focus-visible {
+/* Search fields are excluded: they sit on an underline bar (.ak-filter) or a
+   framed panel (.ptg-search-field) that already shows the focused state, so the
+   ring only drew a second rectangle around the text. Their own container keeps
+   the visible focus affordance. */
+body.boltz-shell.app-shell-authenticated :focus-visible:not(input[type="search"], [data-flow-filter="search"]),
+body.ptg-modal-document :focus-visible:not(input[type="search"], [data-flow-filter="search"]) {
     outline: 0;
     box-shadow: var(--ptg-ring) !important;
+}
+
+body.boltz-shell.app-shell-authenticated :where(input[type="search"], [data-flow-filter="search"]):focus-visible,
+body.ptg-modal-document :where(input[type="search"], [data-flow-filter="search"]):focus-visible {
+    outline: 0;
+    box-shadow: none;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.text-muted, .form-text, .field-note),

@@ -11,7 +11,6 @@
     var endingUsd = officialSummary?.ClosingBalance ?? Model.SupplierRemainingClaimUsd;
     // معادل روبلی مانده — همیشه از مدل (اگر داده روبل موجود باشد) تا کنار USD نمایش داده شود.
     var endingRub = Model.SupplierRemainingClaimRub;
-    var hasRubBalance = endingRub.HasValue;
     var isRubView = Model.IsRubDisplay;
 
     // سوییچ ارز نمایش: بقیهٔ پارامترهای صفحه (tab، contractId، …) حفظ می‌شوند.
@@ -60,11 +59,24 @@
     ViewData["AkHeaderStatus"] = Model.IsActive ? "فعال" : "غیرفعال";
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
     ViewData["AkHeaderContext"] = $"کد: {(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)} · {balanceLabel}";
+    // «ثبت پرداخت» از دکمهٔ اصلی هدر برداشته شد تا جای سوییچ ارز باز شود؛ خود اقدام
+    // حذف نشده و در منوی سه‌نقطه می‌ماند.
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
+        new() { Label = "ثبت پرداخت", Href = newPaymentUrl, Icon = "bi-cash-coin" },
         new() { Label = "صورت‌حساب رسمی", Href = Url.Action("Supplier", "PartyStatements", new { id = Model.SupplierId, CurrencyCode = Model.IsRubDisplay ? "RUB" : null }), Icon = "bi-file-earmark-text" },
         new() { Label = "ویرایش", Href = editUrl, Icon = "bi-pencil" }
     };
+
+    // سوییچ ارز نمایش (USD/RUB) در هدر، کنار «فهرست تأمین‌کننده‌ها» — همان لینک‌های قبلیِ
+    // کارت وضعیت حساب؛ فقط جایش عوض شده و هیچ مبلغی دوباره محاسبه نمی‌شود.
+    var displayCurrencyOptions = new List<AkPartyToggleOption>
+    {
+        new() { Label = "USD", Href = CurrencyHref("USD"), IsActive = !isRubView },
+        new() { Label = "RUB", Href = CurrencyHref("RUB"), IsActive = isRubView }
+    };
+    ViewData["AkHeaderToggle"] = displayCurrencyOptions;
+    ViewData["AkHeaderToggleLabel"] = "ارز نمایش";
 
     var supplierTabs = new[]
     {
@@ -73,62 +85,70 @@
         $"statement|صورت‌حساب|bi-journal-text|{(showStatement ? "active" : "")}"
     };
 
-    // کارت وضعیت حساب تب خلاصه. فقط چیدمان نمایشی روی همان اعداد مدل؛ درصد تسویه
-    // یک نسبت نمایشی از دو رقمِ همین کارت است و هیچ مبلغی دوباره محاسبه نمی‌شود.
+    // کارت‌های آماری تب خلاصه — فقط ارزِ انتخاب‌شده در سوییچ بالای کارت حساب:
+    // USD یعنی فقط دالر، RUB یعنی فقط روبل. هیچ مبلغی دوباره محاسبه نمی‌شود.
+    (string Value, string? Unit) SupplierKpi(decimal? rub, bool rubIsEstimated, decimal usd)
+    {
+        if (!isRubView)
+        {
+            return (NumberDisplay.Money(usd), "USD");
+        }
+
+        if (!rub.HasValue)
+        {
+            return (notRecorded, "RUB");
+        }
+
+        return (NumberDisplay.Money(rub.Value), rubIsEstimated ? "RUB (تخمینی)" : "RUB");
+    }
+
+    var supplierBalanceKpi = SupplierKpi(endingRubAbs, Model.SupplierRemainingClaimRubIsEstimated, Math.Abs(endingUsd));
+    var supplierPurchaseKpi = SupplierKpi(Model.LoadedPurchaseValueRub, Model.LoadedPurchaseValueRubIsEstimated, Model.LoadedPurchaseValueUsd);
+    var supplierPaidKpi = SupplierKpi(Model.TotalPaidRub, false, Model.TotalPaidUsd);
+
+    // «پیش‌پرداخت آزاد» در تب خلاصه باید همان عددی باشد که کارت تب قراردادها نشان می‌دهد:
+    // مانده قابل انتقالِ زندهٔ SupplierTransferableBalanceService. مدل AdvanceFreeUsd فقط
+    // پرداخت‌هایی را می‌شمرد که «پیش‌پرداخت» علامت خورده‌اند یا تخصیص Legacy دارند، پس برای
+    // اضافه‌پرداختِ عادی صفر می‌ماند. وقتی سرویس در دسترس نیست، همان عدد قبلی می‌ماند.
+    var transferableBalance = ViewData["SupplierTransferableBalance"]
+        as PTGOilSystem.Web.Models.Suppliers.SupplierTransferableBalanceCardViewModel;
+    var freePrepaymentUsd = transferableBalance?.TransferableTotalUsd ?? Model.AdvanceFreeUsd;
+
+    var supplierKpis = new List<AkKpiItem>
+    {
+        new() { Title = "مانده حساب", Value = supplierBalanceKpi.Value, Unit = supplierBalanceKpi.Unit, Avatar = "receivables" },
+        new() { Title = "خرید بارگیری‌شده", Value = supplierPurchaseKpi.Value, Unit = supplierPurchaseKpi.Unit, Avatar = "purchase-value" },
+        new() { Title = "پرداخت‌شده", Value = supplierPaidKpi.Value, Unit = supplierPaidKpi.Unit, Avatar = "payments-out" }
+    };
+
+    // کارت وضعیت حساب تب خلاصه. درصد تسویه یک نسبت نمایشی از دو رقمِ بالاست
+    // و هیچ مبلغی دوباره محاسبه نمی‌شود.
     int? supplierPaidShare = Model.LoadedPurchaseValueUsd > 0m
         ? (int)Math.Clamp(Math.Round(Model.TotalPaidUsd / Model.LoadedPurchaseValueUsd * 100m, MidpointRounding.AwayFromZero), 0m, 100m)
         : null;
 
     var supplierAccountCard = new AkPartyAccountCard
     {
-        BalanceLabel = "مانده حساب",
-        BalanceValue = isRubView
-            ? RubText(endingRubAbs, Model.SupplierRemainingClaimRubIsEstimated)
-            : NumberDisplay.Money(Math.Abs(endingUsd), "USD"),
-        BalanceSubValue = isRubView
-            ? $"≈ {NumberDisplay.Money(Math.Abs(endingUsd), "USD")}"
-            : hasRubBalance ? $"≈ {RubText(endingRubAbs, Model.SupplierRemainingClaimRubIsEstimated)}" : null,
         Meaning = balanceLabel,
         MeaningTone = balanceTone,
-        ToggleLabel = "ارز نمایش",
-        ToggleOptions = new List<AkPartyToggleOption>
-        {
-            new() { Label = "USD", Href = CurrencyHref("USD"), IsActive = !isRubView },
-            new() { Label = "RUB", Href = CurrencyHref("RUB"), IsActive = isRubView }
-        },
-        Metrics = new List<AkPartyMetric>
-        {
-            new()
-            {
-                Label = "خرید بارگیری‌شده",
-                Value = isRubView
-                    ? RubText(Model.LoadedPurchaseValueRub, Model.LoadedPurchaseValueRubIsEstimated)
-                    : NumberDisplay.Money(Model.LoadedPurchaseValueUsd, "USD"),
-                SubValue = isRubView
-                    ? $"≈ {NumberDisplay.Money(Model.LoadedPurchaseValueUsd, "USD")}"
-                    : Model.LoadedPurchaseValueRub.HasValue ? $"≈ {RubText(Model.LoadedPurchaseValueRub, Model.LoadedPurchaseValueRubIsEstimated)}" : null
-            },
-            new()
-            {
-                Label = "پرداخت‌شده",
-                Value = isRubView
-                    ? RubText(Model.TotalPaidRub, false)
-                    : NumberDisplay.Money(Model.TotalPaidUsd, "USD"),
-                SubValue = isRubView
-                    ? $"≈ {NumberDisplay.Money(Model.TotalPaidUsd, "USD")}"
-                    : Model.TotalPaidRub.HasValue ? $"≈ {NumberDisplay.Money(Model.TotalPaidRub.Value, "RUB")}" : null,
-                Tone = "success"
-            }
-        },
         SettledPercent = supplierPaidShare,
         SettledCaption = supplierPaidShare.HasValue
             ? $"{supplierPaidShare.Value:N0}٪ پرداخت شده"
             : null,
         Facts = new List<AkInfoItem>
         {
-            new() { Label = "پیش‌پرداخت آزاد", Value = NumberDisplay.Money(Model.AdvanceFreeUsd, "USD"), IsNumeric = true },
+            new() { Label = "پیش‌پرداخت آزاد", Value = NumberDisplay.Money(freePrepaymentUsd, "USD"), IsNumeric = true },
             new() { Label = "قرارداد فعال", Value = Model.ActivePurchaseContractsCount.ToString("N0"), IsNumeric = true },
             new() { Label = "آخرین پرداخت", Value = Model.LastPaymentDate.HasValue ? Model.LastPaymentDate.Value.ToDisplayDate() : null }
+        },
+        Identity = new List<AkInfoItem>
+        {
+            new() { Label = "کد", Value = string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code },
+            new() { Label = "کشور", Value = string.IsNullOrWhiteSpace(Model.Country) ? notRecorded : Model.Country },
+            new() { Label = "طرف تماس", Value = string.IsNullOrWhiteSpace(Model.ContactPerson) ? notRecorded : Model.ContactPerson },
+            new() { Label = "تلفن", Value = string.IsNullOrWhiteSpace(Model.Phone) ? notRecorded : Model.Phone },
+            new() { Label = "آدرس", Value = string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address, IsWide = true },
+            new() { Label = "یادداشت", Value = string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes, IsWide = true }
         }
     };
 }
@@ -136,34 +156,23 @@
 <div class="ak-form-page ak-party-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((Model.Name, false,
-                       "ثبت پرداخت", "bi-cash-coin", newPaymentUrl, (string?)null,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
                        "فهرست تأمین‌کننده‌ها", "bi-arrow-right", (string?)indexUrl))" />
 
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل تأمین‌کننده", supplierTabs)" />
 
-    @* ===== تب خلاصه: اول وضعیت حساب (عدد تصمیم‌ساز)، بعد اطلاعات هویتی ===== *@
+    @* ===== تب خلاصه: کارت‌های آماری، بعد یک کارت واحدِ وضعیت حساب + هویت ===== *@
     <div class="ak-form-grid ak-overview-grid" hidden="@(!showOverview)">
-        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@supplierAccountCard" />
+        <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)supplierKpis)" />
 
-        <section class="ak-form-section ak-detail-section ak-party-identity">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات هویتی", (string?)null))" />
-            <dl class="ak-list ak-list--flush ak-identity-list">
-                <div class="ak-list-row"><dt>کد</dt><dd>@(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)</dd></div>
-                <div class="ak-list-row"><dt>کشور</dt><dd>@(string.IsNullOrWhiteSpace(Model.Country) ? notRecorded : Model.Country)</dd></div>
-                <div class="ak-list-row"><dt>طرف تماس</dt><dd>@(string.IsNullOrWhiteSpace(Model.ContactPerson) ? notRecorded : Model.ContactPerson)</dd></div>
-                <div class="ak-list-row"><dt>تلفن</dt><dd>@(string.IsNullOrWhiteSpace(Model.Phone) ? notRecorded : Model.Phone)</dd></div>
-                <div class="ak-list-row is-wide"><dt>آدرس</dt><dd>@(string.IsNullOrWhiteSpace(Model.Address) ? notRecorded : Model.Address)</dd></div>
-                <div class="ak-list-row is-wide"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? notRecorded : Model.Notes)</dd></div>
-            </dl>
-        </section>
+        <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@supplierAccountCard" />
     </div>
 
     @* ===== تب ۱: قراردادها + پرداخت‌ها =====
        هر موضوع پنل مستقل خودش را دارد تا سکشن‌ها روی هم نریزند؛ گرید تک‌ستونی
        همان ریتم تب خلاصه است. فقط چیدمان است: داده و رفتار تغییر نمی‌کند. *@
     @{
-        var transferable = ViewData["SupplierTransferableBalance"]
-            as PTGOilSystem.Web.Models.Suppliers.SupplierTransferableBalanceCardViewModel;
+        var transferable = transferableBalance;
 
         // گروه‌بندی پرداخت‌ها فقط نمایشی است؛ هیچ مبلغی دوباره محاسبه نمی‌شود.
         var payByContract = Model.PaymentLines

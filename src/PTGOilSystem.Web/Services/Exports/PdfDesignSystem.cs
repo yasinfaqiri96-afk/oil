@@ -52,6 +52,60 @@ internal static class PdfDesignSystem
     public const float BrandRowHeight = 42f;
     public const float BrandContactSize = 5.75f;
 
+    /* ------------------------------------------------------------------
+       Sheet tokens — همان قرارداد طراحی Excel (ExcelDesignSystem) برای PDF.
+       صورت‌حساب رسمی از این‌ها استفاده می‌کند تا XLSX و PDF یک سند دیده شوند:
+       شبکهٔ نازک، سربرگ آبی روشن با متن سرمه‌ای، و پس‌زمینهٔ ستون بر اساس
+       معنای ستون. گزارش‌های دیگر توکن‌های قبلی خود را نگه می‌دارند.
+       ------------------------------------------------------------------ */
+    public const string SheetHeaderFill = "#DCE2F9";
+    public const string SheetLabelFill = "#F4F6FB";
+    public const string SheetHeaderInk = "#173F73";
+    public const string SheetGrid = "#E5E7EB";
+    public const string SheetTotalFill = "#E7ECFA";
+    public const string SheetQuantityFill = "#EFF5BC";
+    public const string SheetAmountFill = "#C1F1F7";
+    public const string SheetPositiveFill = "#BFFFC2";
+    public const string SheetBalanceFill = "#FCD7D7";
+    public const string SheetBodyFill = "#FFFFFF";
+
+    public const float SheetTitleSize = 12f;
+    public const float SheetHeaderSize = 8.5f;
+    public const float SheetBodySize = 8.5f;
+    public const float SheetCaptionSize = 7f;
+    public const float SheetGridThickness = 0.55f;
+
+    /// <summary>
+    /// متن پایهٔ سندهای «شبکه‌ای»: Vazirmatn برای فارسی و Poppins برای انگلیسی،
+    /// با Tahoma به‌عنوان پشتیبان، در اندازه‌ای که روی کاغذ خوانا بماند.
+    /// </summary>
+    public static TextStyle SheetTextStyle(TextStyle style, bool isEnglish)
+        => style
+            .FontFamily(
+                isEnglish ? EnglishFallbackFont : PersianFallbackFont,
+                PrimaryFont)
+            .FontSize(SheetBodySize)
+            .FontColor(Ink)
+            .LineHeight(1.25f);
+
+    public static IContainer HeaderCell(IContainer container, string background, float verticalPadding)
+        => container
+            .Background(background)
+            .Border(SheetGridThickness)
+            .BorderColor(SheetGrid)
+            .PaddingVertical(verticalPadding)
+            .PaddingHorizontal(4)
+            .AlignMiddle();
+
+    public static IContainer SheetCell(IContainer container, string background)
+        => container
+            .Background(background)
+            .Border(SheetGridThickness)
+            .BorderColor(SheetGrid)
+            .PaddingVertical(4.5f)
+            .PaddingHorizontal(4)
+            .AlignMiddle();
+
     public static TextStyle DefaultTextStyle(TextStyle style, bool isEnglish)
         => style
             .FontFamily(
