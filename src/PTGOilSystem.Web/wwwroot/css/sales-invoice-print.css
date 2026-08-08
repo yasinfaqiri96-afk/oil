@@ -1,9 +1,64 @@
+/* ============================================================================
+   Sales invoice — one A4 letterhead sheet (Views/Sales/Invoice.cshtml)
+
+   Layout contract
+   ---------------
+   The page is a single layer: the company letterhead (`--invoice-page-bg`) is the
+   paper, and every dynamic value is plain text printed on that paper. Nothing that
+   carries data may own a background, border, shadow or radius, otherwise it reads
+   as a patch pasted on top of the sheet. The only absolutely positioned element is
+   `.invoice-body`, the safe print zone between the pre-printed header and footer of
+   each template; everything inside it flows, so short/long names, Persian or Latin
+   text and missing fields can never push a block onto the letterhead artwork.
+
+   Typography contract
+   -------------------
+   One family for the whole sheet (`--invoice-font`). Poppins draws the Latin text
+   and every figure; Persian/Dari falls through to Vazirmatn automatically because
+   Poppins carries no Arabic-script glyphs. Both are self-hosted, so the browser
+   embeds the same outlines in the PDF that the preview shows. Hierarchy is made of
+   size and weight only — never of a different family, colour or random bolding.
+   One ink colour (`--ink`, the template theme colour) for all text and figures; the
+   only other tone is `--rule`, used exclusively for the table grid.
+
+   Wrapping uses `overflow-wrap: break-word` everywhere, never `anywhere`: a token is
+   split only when it genuinely cannot fit, so a product code like "Diesel L-0.2-62"
+   stays whole instead of breaking mid-code.
+   ============================================================================ */
+
 @page {
     size: A4;
     margin: 0;
 }
 
-* {
+:root {
+    --invoice-font: "Poppins", "Vazirmatn", "Segoe UI", Tahoma, Arial, sans-serif;
+
+    --invoice-page-width: 210mm;
+    --invoice-page-height: 297mm;
+
+    /* Type scale: size + weight only. */
+    --fs-title: 25px;
+    --fs-heading: 13px;
+    --fs-label: 12.5px;
+    --fs-value: 13px;
+    --fs-table-head: 11.5px;
+    --fs-table-body: 13.5px;
+    --fs-total: 16px;
+    --fs-note: 11.5px;
+    --fs-signature: 12.5px;
+
+    --fw-regular: 400;
+    --fw-medium: 500;
+    --fw-semibold: 600;
+    --fw-bold: 700;
+
+    --screen-canvas: #eceff3;
+}
+
+*,
+*::before,
+*::after {
     box-sizing: border-box;
 }
 
@@ -11,10 +66,18 @@ html,
 body {
     margin: 0;
     min-height: 100%;
-    background: #eceff3;
-    color: #0f1f3e;
-    font-family: Georgia, "Times New Roman", serif;
+    background: var(--screen-canvas);
+    font-family: var(--invoice-font);
+    font-size: var(--fs-value);
+    font-weight: var(--fw-regular);
+    /* Keep the letterhead, the stamp and the ink identical in preview, print and PDF. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
 }
+
+/* --------------------------------------------------------------------------
+   Screen-only toolbar
+   -------------------------------------------------------------------------- */
 
 .invoice-actions {
     position: sticky;
@@ -26,328 +89,374 @@ body {
     padding: 12px;
     background: rgba(247, 249, 252, .94);
     border-bottom: 1px solid #d9dee8;
-    backdrop-filter: blur(10px);
 }
 
-.invoice-actions button,
-.invoice-actions a {
+.invoice-actions a,
+.invoice-actions button {
     border: 1px solid #c8d0dd;
     border-radius: 6px;
-    background: white;
+    background: #fff;
     color: #16264b;
     padding: 8px 14px;
-    font: 600 14px Vazirmatn, Tahoma, sans-serif;
+    font: var(--fw-semibold) 13px var(--invoice-font);
     text-decoration: none;
     cursor: pointer;
 }
 
 .invoice-actions button {
-    background: #16264b;
-    color: white;
     border-color: #16264b;
+    background: #16264b;
+    color: #fff;
 }
 
 .invoice-shell {
     padding: 18px 0 32px;
 }
 
+/* --------------------------------------------------------------------------
+   Sheet
+   -------------------------------------------------------------------------- */
+
 .invoice-page {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 0 auto;
+    --ink: var(--theme-color, #142d57);
+    --rule: #8b97b0;
+
     position: relative;
+    width: var(--invoice-page-width);
+    height: var(--invoice-page-height);
+    margin: 0 auto;
     overflow: hidden;
-    background: white var(--invoice-page-bg) center / cover no-repeat;
+    color: var(--ink);
+    /* `100% 100%` (not `cover`) so no edge of the letterhead is ever cropped. */
+    background-color: #fff;
+    background-image: var(--invoice-page-bg);
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
     box-shadow: 0 18px 48px rgba(15, 28, 54, .18);
 }
 
-.invoice-page::after {
-    content: "";
+/* Print zone between the pre-printed header and footer of each letterhead. */
+.invoice-body {
     position: absolute;
-    inset: 0;
-    border: 1px solid rgba(20, 45, 87, .08);
-    pointer-events: none;
+    inset: var(--zone-top) var(--zone-end) var(--zone-bottom) var(--zone-start);
+    display: flex;
+    flex-direction: column;
+    gap: var(--block-gap);
 }
+
+/* Offsets below were measured off each letterhead's own page-bg.jpg by scanning
+   ink density in 5mm bands, not estimated:
+     faisal — header artwork ends at 55mm, footer artwork starts 32mm from the bottom
+     fawad  — header artwork ends at 35mm, printed contact strip starts 40mm from the bottom
+   Each zone keeps ~2mm (faisal) / ~5mm (fawad) of clear paper against that artwork. */
+.template-faisal {
+    --zone-top: 57mm;
+    --zone-end: 18mm;
+    --zone-bottom: 38mm;
+    --zone-start: 20mm;
+    --block-gap: 6mm;
+}
+
+.template-fawad {
+    --zone-top: 40mm;
+    --zone-end: 16mm;
+    --zone-bottom: 50mm;
+    --zone-start: 18mm;
+    --block-gap: 6mm;
+}
+
+/* The sheet is the only surface: no data block may paint one of its own. */
+.invoice-body,
+.invoice-body *:not(.sales-table):not(thead):not(tbody):not(tr):not(th):not(td) {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+}
+
+/* --------------------------------------------------------------------------
+   Title, meta line
+   -------------------------------------------------------------------------- */
 
 .invoice-title {
-    position: absolute;
-    left: 0;
-    right: 0;
+    margin: 0;
     text-align: center;
-    color: #7a7a7a;
-    font-size: 28px;
-    line-height: 1;
-    font-weight: 400;
-    letter-spacing: 0;
+    font-size: var(--fs-title);
+    font-weight: var(--fw-semibold);
+    letter-spacing: .06em;
+    line-height: 1.15;
 }
 
-.template-fawad .invoice-title { top: 30mm; }
-.template-faisal .invoice-title { top: 50mm; }
+.invoice-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8mm;
+    font-size: var(--fs-value);
+}
 
 .meta-line {
-    position: absolute;
-    height: 12mm;
     display: flex;
-    align-items: center;
-    color: var(--theme-color);
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.1;
-    border-bottom: 1px solid rgba(20, 45, 87, .28);
+    align-items: baseline;
+    gap: .4em;
+    min-width: 0;
+}
+
+.meta-label {
+    font-weight: var(--fw-medium);
     white-space: nowrap;
 }
 
-.invoice-number {
-    left: 20mm;
-    width: 78mm;
-    justify-content: flex-start;
+.meta-value {
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: break-word;
 }
 
-.invoice-date {
-    right: 18mm;
-    width: 60mm;
-    justify-content: center;
+/* --------------------------------------------------------------------------
+   Buyer / seller
+   -------------------------------------------------------------------------- */
+
+.invoice-parties {
+    display: flex;
+    align-items: flex-start;
+    gap: 10mm;
 }
 
-.template-fawad .invoice-number,
-.template-fawad .invoice-date { top: 58mm; }
-.template-faisal .invoice-number,
-.template-faisal .invoice-date { top: 70mm; }
-
-.party-block {
-    position: absolute;
-    width: 82mm;
-    color: var(--theme-color);
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.25;
+.buyer-block {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
-.buyer-block { left: 20mm; }
-.seller-block { right: 17mm; width: 80mm; }
-.template-fawad .party-block { top: 83mm; }
-.template-faisal .party-block { top: 91mm; }
+/* The seller side carries one name; the buyer side carries four wrapping rows, so the
+   spare width belongs to the buyer (a 62mm seller column orphaned the address tail). */
+.seller-block {
+    flex: 0 1 54mm;
+    min-width: 0;
+    text-align: center;
+}
 
 .party-heading {
-    height: 10mm;
-    display: flex;
-    align-items: center;
-    padding: 0 2mm;
-    background: rgba(245, 246, 249, .88);
-    border-bottom: 1px solid rgba(20, 45, 87, .22);
-    overflow: hidden;
-}
-
-.seller-block .party-heading {
-    justify-content: center;
-    background: transparent;
+    margin-bottom: 2mm;
+    font-size: var(--fs-heading);
+    font-weight: var(--fw-bold);
+    line-height: 1.3;
 }
 
 .party-row {
-    min-height: 9.4mm;
     display: flex;
-    align-items: center;
-    padding: 1mm 1mm;
-    overflow: hidden;
+    align-items: baseline;
+    gap: .45em;
+    padding: .7mm 0;
+    line-height: 1.35;
 }
 
-.party-row.highlight {
-    min-height: 14mm;
-    margin: 1.2mm 0;
-    background: rgba(246, 247, 249, .88);
+.seller-block .party-row {
+    justify-content: center;
 }
 
 .party-label {
     flex: 0 0 auto;
-    padding-inline-end: 1mm;
+    font-size: var(--fs-label);
+    font-weight: var(--fw-medium);
     white-space: nowrap;
 }
 
 .party-value {
+    flex: 0 1 auto;
     min-width: 0;
-    flex: 1 1 auto;
-    max-height: 10mm;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    word-break: normal;
-    line-height: 1.25;
+    font-size: var(--fs-value);
+    font-weight: var(--fw-semibold);
+    overflow-wrap: break-word;
 }
 
-.seller-name-row {
-    min-height: 10mm;
-    align-items: center;
-    background: rgba(246, 247, 249, .88);
+.party-value.is-numeric {
+    font-variant-numeric: tabular-nums;
 }
 
-.fit-compact {
-    font-size: 14px;
+.seller-block .party-value {
+    font-weight: var(--fw-bold);
 }
 
-.fit-tight {
-    font-size: 12px;
-    line-height: 1.18;
-}
-
-.sales-table-wrap {
-    position: absolute;
-    left: 15mm;
-    right: 12mm;
-}
-
-.template-fawad .sales-table-wrap { top: 145mm; }
-.template-faisal .sales-table-wrap { top: 146mm; }
+/* --------------------------------------------------------------------------
+   Line items
+   -------------------------------------------------------------------------- */
 
 .sales-table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    color: #020817;
-    font-family: Arial, Helvetica, sans-serif;
+    color: var(--ink);
+    font-size: var(--fs-table-body);
+    font-variant-numeric: tabular-nums;
 }
 
 .sales-table th,
 .sales-table td {
-    border: 1px solid #606060;
-    padding: 2mm 1.5mm;
+    border: 1px solid var(--rule);
+    padding: 2.6mm 2mm;
+    height: 13mm;
     text-align: center;
     vertical-align: middle;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    word-break: normal;
-    line-height: 1.25;
+    line-height: 1.35;
+    overflow-wrap: break-word;
 }
 
-.sales-table th {
-    height: 14mm;
-    font-size: 13px;
-    font-weight: 700;
+.sales-table thead th {
+    font-size: var(--fs-table-head);
+    font-weight: var(--fw-semibold);
+    letter-spacing: .015em;
 }
 
 .sales-table tbody td {
-    height: 15.5mm;
-    font-size: 15px;
-    font-weight: 700;
+    font-weight: var(--fw-medium);
 }
 
-.sales-table .col-n { width: 7%; }
-.sales-table .col-type { width: 17%; }
+/* Widths measured against real content: at 18% the Type column was too narrow for a
+   product code such as "Diesel L-0.2-62" and split it mid-code, while Total Price at
+   24% had far more room than any figure needs. */
+.sales-table .col-index { width: 6%; }
+.sales-table .col-type { width: 24%; }
 .sales-table .col-border { width: 14%; }
-.sales-table .col-qty { width: 17%; }
-.sales-table .col-unit { width: 21%; }
-.sales-table .col-total { width: 24%; }
+.sales-table .col-quantity { width: 14%; }
+.sales-table .col-unit-price { width: 20%; }
+.sales-table .col-amount { width: 22%; }
+
+/* Only the closing total carries emphasis; every other cell stays medium. */
+.sales-table .total-row td {
+    font-size: var(--fs-total);
+    font-weight: var(--fw-bold);
+}
 
 .sales-table .total-label {
-    height: 13.5mm;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 25px;
-    font-weight: 800;
+    text-align: right;
+    letter-spacing: .02em;
 }
 
-.sales-table .total-value {
-    height: 13.5mm;
-    font-size: 24px;
-    font-weight: 800;
+/* One money shape everywhere: the gap between symbol and figure cannot drift. */
+.money {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: .34em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
+
+.money-symbol {
+    font-weight: inherit;
+}
+
+/* --------------------------------------------------------------------------
+   Note
+   -------------------------------------------------------------------------- */
 
 .invoice-note {
-    position: absolute;
-    left: 20mm;
-    right: 20mm;
-    min-height: 23mm;
-    color: #05070d;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 13px;
-    line-height: 1.3;
+    font-size: var(--fs-note);
+    line-height: 1.5;
 }
-
-.template-fawad .invoice-note { top: 191mm; }
-.template-faisal .invoice-note { top: 203mm; }
 
 .note-label {
-    font-weight: 700;
-    margin-bottom: 4mm;
+    margin-bottom: 1.6mm;
+    font-size: var(--fs-label);
+    font-weight: var(--fw-bold);
 }
 
-.note-persian {
-    direction: rtl;
+.note-text {
+    font-weight: var(--fw-medium);
+    line-height: 1.7;
+    overflow-wrap: break-word;
+}
+
+.note-text[dir="rtl"] {
     text-align: center;
-    font-family: Vazirmatn, Tahoma, sans-serif;
-    font-size: 10.8px;
-    font-weight: 600;
-    line-height: 1.55;
-    max-height: 12mm;
-    padding: 0 8mm;
-    overflow: hidden;
-    overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   Signatures, stamp
+   -------------------------------------------------------------------------- */
+
+.invoice-signatures {
+    margin-top: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10mm;
+}
+
+.signature-column {
+    flex: 0 1 64mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2mm;
 }
 
 .signature-label {
-    position: absolute;
-    width: 62mm;
-    color: #05070d;
+    font-size: var(--fs-signature);
+    font-weight: var(--fw-bold);
     text-align: center;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 13px;
-    font-weight: 700;
+    line-height: 1.3;
 }
 
-.seller-signature-label { left: 39mm; }
-.buyer-signature-label { right: 32mm; }
-.template-fawad .signature-label { top: 208mm; }
-.template-faisal .signature-label { top: 226mm; }
-
-.seller-mark {
-    position: absolute;
-    left: 37mm;
-    width: 58mm;
-    height: 37mm;
+/* Physical footprint of the wet signature/stamp area on the paper. Narrow enough
+   that a layered signature + stamp read as one cluster under the label instead of
+   two marks drifting to opposite corners of a wide box. */
+.signature-mark {
+    position: relative;
+    width: 46mm;
+    height: 30mm;
 }
 
-.template-fawad .seller-mark { top: 215mm; }
-.template-faisal .seller-mark { top: 231mm; }
-
-.seller-mark img {
+.signature-mark img {
     position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
-    max-width: 100%;
-    max-height: 100%;
+    object-position: center;
 }
 
-.seller-signature {
-    left: 0;
-    top: 0;
-    width: 38mm;
-    height: 19mm;
+/* Layered only when the template ships a separate signature and stamp; templates
+   whose stamp artwork already contains the signature render a single centred mark. */
+.signature-mark.is-single img {
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-position: center;
 }
 
-.seller-stamp {
-    left: 20mm;
-    top: 9mm;
-    width: 33mm;
-    height: 29mm;
+/* ~34% overlap on both axes: the signature sits across the top-left of the stamp
+   the way a hand-signed, hand-stamped sheet actually looks. */
+.signature-mark.is-layered .seller-signature {
+    inset: 0 auto auto 0;
+    width: 68%;
+    height: 60%;
+    object-position: center;
 }
 
-.template-faisal .seller-stamp {
-    left: 0;
-    top: 0;
-    width: 48mm;
-    height: 36mm;
+.signature-mark.is-layered .seller-stamp {
+    inset: auto 0 0 auto;
+    width: 66%;
+    height: 74%;
+    object-position: center;
 }
 
-.template-faisal .seller-signature {
-    display: none;
-}
+/* --------------------------------------------------------------------------
+   Print / PDF
+   -------------------------------------------------------------------------- */
 
 @media print {
     html,
     body {
-        width: 210mm;
-        min-height: 297mm;
-        background: white;
+        width: var(--invoice-page-width);
+        background: #fff;
     }
 
     .invoice-actions {
-        display: none;
+        display: none !important;
     }
 
     .invoice-shell {
@@ -355,9 +464,39 @@ body {
     }
 
     .invoice-page {
+        /* A hair under 297mm so the sheet never spills onto a second page. */
+        height: 296.8mm;
         margin: 0;
         box-shadow: none;
-        page-break-after: avoid;
+        break-inside: avoid;
         break-after: avoid;
+        page-break-inside: avoid;
+        page-break-after: avoid;
+    }
+
+    /* Today a sales invoice is exactly one line plus its total, so the sheet always
+       fits one page. These rules are the safety net for the day a template grows more
+       lines: the column headers repeat, no row is cut in half, and the closing total
+       and the signatures never separate from the figures they belong to. */
+    .sales-table thead {
+        display: table-header-group;
+    }
+
+    .sales-table tfoot {
+        display: table-footer-group;
+    }
+
+    .sales-table tr,
+    .sales-table .total-row,
+    .invoice-note,
+    .invoice-signatures,
+    .signature-column {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .sales-table .total-row {
+        break-before: avoid;
+        page-break-before: avoid;
     }
 }

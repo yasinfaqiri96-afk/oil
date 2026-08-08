@@ -127,6 +127,13 @@ public sealed class SalesInvoicePrintViewModel
     public string FormattedUnitPriceUsd => FormatMoney(UnitPriceUsd);
     public string FormattedTotalPriceUsd => FormatMoney(TotalPriceUsd);
 
+    // فقط نمایشی: همان اعداد بالا، ولی علامت پول و رقم جدا هستند تا قالب چاپی بتواند
+    // فاصلهٔ بین «$» و عدد را با یک قاعدهٔ واحد (.money) کنترل کند و در چاپ/PDF نشکند.
+    // هیچ محاسبه، گرد کردن یا واحد پولی تغییر نمی‌کند؛ همان FormatDecimal قبلی است.
+    public string MoneySymbol => "$";
+    public string UnitPriceFigure => FormatDecimal(UnitPriceUsd);
+    public string TotalPriceFigure => FormatDecimal(TotalPriceUsd);
+
     private static string FormatMoney(decimal amount)
         => "$ " + FormatDecimal(amount);
 

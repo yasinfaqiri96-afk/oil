@@ -1,5 +1,10 @@
+/*
+ * سند چاپی (فاکتور فروش / سند قرارداد / رسید دریافت و پرداخت).
+ * چیدمان، تایپوگرافی و رنگ‌بندی عیناً از قالب مرجع Boltz Invoice گرفته شده است.
+ */
+
 .boltz-invoice-page {
-    color: #475467;
+    color: #969ba0;
     font-family: var(--app-font, "Vazirmatn", "Poppins", sans-serif);
 }
 
@@ -40,6 +45,7 @@
     overflow: hidden;
 }
 
+/* ---- سربرگ کارت: عنوان | تاریخ | وضعیت ---- */
 .boltz-invoice-card-header {
     align-items: center;
     border-bottom: 1px solid #eee;
@@ -67,40 +73,44 @@
     text-align: end;
 }
 
+.boltz-invoice-status strong {
+    color: #85898d;
+    font-weight: 700;
+}
+
 .boltz-invoice-card-body {
     padding: 1.875rem;
 }
 
+/* ---- ردیف طرفین: از | به | کادر پرداخت ----
+   مرجع هیچ کادر، بوردر یا پس‌زمینه‌ای اینجا ندارد؛ فقط فضای سفید و سلسله‌مراتب متن. */
 .boltz-invoice-parties {
     display: grid;
-    gap: 1.5rem;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(300px, 1.15fr);
-    align-items: stretch;
-    margin-bottom: 2rem;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(320px, 2fr);
+    margin-bottom: 1.75rem;
 }
 
+/* ارتفاع این ردیف از محتوای واقعی می‌آید؛ min-height ثابت فقط فضای خالی
+   می‌ساخت و سربرگ سند را بلند نگه می‌داشت. */
 .boltz-invoice-party {
     display: flex;
     flex-direction: column;
-    gap: .2rem;
-    min-height: 0;
-    padding: 1.25rem 1.5rem;
-    border: 1px solid #eef1f5;
-    border-radius: 16px;
+    padding-block-start: 1rem;
 }
 
 .boltz-invoice-party h2 {
-    color: #98a2b3;
-    font-size: .75rem;
+    color: #000;
+    font-size: .938rem;
     font-weight: 500;
-    margin: 0 0 .5rem;
+    margin: 0 0 .7rem;
 }
 
-.boltz-invoice-party strong {
-    color: #101828;
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: .25rem;
+.boltz-invoice-party strong,
+.boltz-invoice-payment-box strong {
+    color: #8d9399;
+    font-size: .875rem;
+    font-weight: 700;
 }
 
 .boltz-invoice-party span,
@@ -108,46 +118,33 @@
     display: block;
     font-size: .875rem;
     line-height: 1.55;
-    color: #667085;
 }
 
 .boltz-invoice-payment-box {
-    display: flex;
-    flex-direction: column;
     align-items: flex-start;
-    gap: .35rem;
-    padding: 1.25rem 1.5rem;
-    border: 1px solid #eef1f5;
-    border-radius: 16px;
-    background: #fbfcfd;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto;
+    justify-content: end;
+    padding-block-start: 1rem;
 }
 
 .boltz-invoice-brand-row {
     align-items: center;
     display: flex;
     gap: .75rem;
-    align-self: stretch;
-    margin-bottom: .85rem;
-    padding-bottom: .85rem;
-    border-bottom: 1px solid #eef1f5;
+    grid-column: 1 / -1;
+    margin-bottom: .65rem;
 }
 
 .boltz-invoice-brand-row img {
-    height: 50px;
+    height: 40px;
     max-width: 170px;
     object-fit: contain;
     object-position: center;
     width: auto;
 }
 
-.boltz-invoice-brand-row strong {
-    color: #2258bf;
-    display: block;
-    font-size: 1.7rem;
-    line-height: 1;
-}
-
-.boltz-invoice-brand-row small,
 .boltz-invoice-payment-box small {
     color: #89879f;
     display: block;
@@ -155,119 +152,57 @@
     line-height: 1.4;
 }
 
-.boltz-invoice-pay-label {
-    color: #98a2b3;
-    font-size: .8125rem;
-}
-
-.boltz-invoice-payment-box strong.boltz-invoice-pay-amount {
+.boltz-invoice-pay-amount,
+.boltz-invoice-reference {
     display: block;
     max-width: 100%;
     overflow-wrap: anywhere;
-    color: #101828;
-    font-size: 1.5rem;
-    line-height: 1.3;
 }
 
-.boltz-invoice-payment-box strong.boltz-invoice-reference {
-    display: block;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    color: #667085;
-    font-size: .875rem;
-    font-weight: 500;
-    direction: ltr;
-    unicode-bidi: isolate;
-}
-
-/* ---- مشخصات سند ---- */
-.boltz-invoice-info {
-    margin-bottom: 2rem;
-    padding: 1.25rem 1.5rem;
-    border: 1px solid #eef1f5;
-    border-radius: 16px;
-    background: #fbfcfd;
-}
-
-.boltz-invoice-info h2 {
-    margin: 0 0 1rem;
-    color: #101828;
-    font-size: .938rem;
-    font-weight: 600;
-}
-
-.boltz-invoice-info dl {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: .85rem 2rem;
-    margin: 0;
-}
-
-.boltz-invoice-info-item {
-    display: flex;
-    flex-direction: column;
-    gap: .2rem;
-    min-width: 0;
-    padding-bottom: .6rem;
-    border-bottom: 1px solid #eef1f5;
-}
-
-.boltz-invoice-info dt {
-    color: #98a2b3;
-    font-size: .75rem;
-    font-weight: 500;
-}
-
-.boltz-invoice-info dd {
-    margin: 0;
-    color: #344054;
-    font-size: .875rem;
-    font-weight: 600;
-    overflow-wrap: anywhere;
-}
-
+/* ---- جدول اقلام ----
+   سرستون‌ها بزرگ و بدون پس‌زمینه؛ ردیف‌های فرد سایهٔ خاکستری روشن می‌گیرند و
+   هیچ خط جداکننده‌ای بین ردیف‌ها نیست. */
 .boltz-invoice-table-wrap {
     margin-inline: 0;
-    border: 1px solid #eef1f5;
-    border-radius: 16px;
-    overflow: hidden;
 }
 
 .boltz-invoice-table {
-    color: #475467;
+    color: #969ba0;
     margin: 0;
-    inline-size: 100%;
-    min-inline-size: 680px;
     table-layout: fixed;
+    width: 100%;
+    min-width: 860px;
 }
 
-/* سرستون‌ها کوچک و آرام‌اند تا خودِ داده خوانده شود، نه تیتر. */
 .boltz-invoice-table thead th {
-    background: #fbfcfd;
+    background: transparent;
     border: 0;
-    color: #98a2b3;
-    font-size: .8125rem;
+    color: #969ba0;
+    font-size: 1.125rem;
     font-weight: 500;
-    height: auto;
-    padding: .85rem 1rem;
+    height: 58px;
+    padding: 1rem .625rem;
+    text-align: start;
     vertical-align: middle;
     white-space: nowrap;
 }
 
 .boltz-invoice-table tbody td {
     border: 0;
-    border-top: 1px solid #eef1f5;
     font-size: .875rem;
-    height: auto;
-    padding: 1rem;
+    height: 52px;
+    padding: .95rem .625rem;
+    text-align: start;
     vertical-align: middle;
     overflow-wrap: anywhere;
 }
 
-.boltz-invoice-table tbody td.fw-semibold {
-    color: #101828;
+.boltz-invoice-table tbody tr:nth-child(odd) td {
+    background: #f2f4fa;
+    box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, .05);
 }
 
+/* ---- پایین سند: یادداشت | جمع‌ها ---- */
 .boltz-invoice-bottom {
     border-top: 1px solid #eee;
     display: grid;
@@ -297,35 +232,30 @@
 }
 
 .boltz-invoice-totals {
-    color: #475467;
+    color: #969ba0;
     margin: 0;
     width: 100%;
 }
 
 .boltz-invoice-totals td {
-    border-top: 1px solid #eef1f5;
+    border-top: 1px solid #eee;
     font-size: .875rem;
-    height: auto;
-    padding: .8rem 0;
+    height: 52px;
+    padding: .8rem .625rem;
+    text-align: start;
     vertical-align: middle;
 }
 
-.boltz-invoice-totals strong {
-    color: #667085;
-    font-weight: 500;
+.boltz-invoice-totals strong,
+.boltz-invoice-totals .is-grand-total td {
+    font-weight: 700;
 }
 
 .boltz-invoice-totals .is-grand-total td {
-    color: #101828;
-    font-size: 1rem;
-    font-weight: 700;
+    color: #85898d;
 }
 
-.boltz-invoice-totals .is-grand-total strong {
-    color: #101828;
-    font-weight: 700;
-}
-
+/* ---- لحن رنگی هر نوع سند ---- */
 .boltz-invoice-purchase .boltz-invoice-breadcrumb strong,
 .boltz-invoice-purchase .boltz-invoice-breadcrumb-separator {
     color: #4885ed;
@@ -364,10 +294,6 @@
     .boltz-invoice-status {
         text-align: start;
     }
-
-    .boltz-invoice-info dl {
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    }
 }
 
 @media (max-width: 576px) {
@@ -381,16 +307,6 @@
 
     .boltz-invoice-actions .btn {
         flex: 1;
-    }
-
-    .boltz-invoice-info,
-    .boltz-invoice-party,
-    .boltz-invoice-payment-box {
-        padding: 1rem;
-    }
-
-    .boltz-invoice-info dl {
-        grid-template-columns: 1fr;
     }
 }
 
@@ -429,5 +345,10 @@
 
     .boltz-invoice-card-body {
         padding: 1.25rem;
+    }
+
+    .boltz-invoice-table tbody tr:nth-child(odd) td {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 }

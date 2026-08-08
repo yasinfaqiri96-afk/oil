@@ -1,115 +1,175 @@
-﻿@model PTGOilSystem.Web.Models.Sales.SalesInvoicePrintViewModel
+@model PTGOilSystem.Web.Models.Sales.SalesInvoicePrintViewModel
 @using PTGOilSystem.Web.Models.Sales
 @{
     Layout = null;
+
+    // فقط نمایش: هیچ محاسبه‌ای اینجا نیست. کلاس‌های چیدمانی هم از داده می‌آیند تا
+    // قالب‌های آینده بدون شرط اختصاصی روی نام شرکت کار کنند.
     var pageBackground = Url.Content(Model.PageBackgroundPath);
-    var signature = Url.Content(Model.SignaturePath);
-    var stamp = Url.Content(Model.StampPath);
-    string FitClass(string value, int compactAt = 28, int tightAt = 44)
-        => value.Length > tightAt ? "fit-tight" : value.Length > compactAt ? "fit-compact" : string.Empty;
+    var hasSellerSignature = !string.IsNullOrWhiteSpace(Model.SignaturePath);
+    var hasSellerStamp = !string.IsNullOrWhiteSpace(Model.StampPath);
+    var signature = hasSellerSignature ? Url.Content(Model.SignaturePath) : null;
+    var stamp = hasSellerStamp ? Url.Content(Model.StampPath) : null;
+
+    // امضا و مهر فقط وقتی روی هم می‌نشینند که قالب هر دو را جدا داشته باشد؛ اگر
+    // یکی از آن‌ها نباشد، همان یکی وسط ناحیهٔ امضا می‌نشیند.
+    var markLayout = hasSellerSignature && hasSellerStamp ? "is-layered" : "is-single";
 }
 <!doctype html>
-<html lang="en">
+@* سند صادراتی است: بدنه لاتین/LTR می‌ماند و مقادیر دری با dir="auto" خودشان
+   راست‌به‌چپ رندر می‌شوند. نوت فارسی صریحاً rtl علامت خورده است. *@
+<html lang="en" dir="ltr">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Sales Invoice @Model.InvoiceNumber</title>
+    @* Poppins برای متن لاتین و اعداد، Vazirmatn برای فارسی/دری؛ هر دو self-host
+       هستند تا Preview، Print و PDF دقیقاً یک فونت را embed کنند. *@
+    <link rel="stylesheet" href="~/vendor/fonts/poppins/poppins.css" />
     <link rel="stylesheet" href="~/vendor/fonts/vazirmatn/vazirmatn.css" />
     <link rel="stylesheet" href="~/css/sales-invoice-print.css" asp-append-version="true" />
 </head>
 <body>
+    @* نوار ابزار بیرون از .invoice-page است و در @@media print کاملاً پنهان می‌شود.
+       رفتار چاپ در sales-invoice-print.js با addEventListener بسته می‌شود؛ هیچ
+       inline handler در markup نیست. «Save as PDF» همان دیالوگ چاپ مرورگر است. *@
     <div class="invoice-actions">
         <a asp-action="Details" asp-route-id="@Model.SalesTransactionId">Back to Sale</a>
+        <button type="button" data-invoice-print>Print / PDF</button>
     </div>
 
     <main class="invoice-shell">
         <section class="invoice-page @Model.TemplateCssClass" style="--theme-color:@Model.ThemeColor; --invoice-page-bg:url('@pageBackground')">
-            <h1 class="invoice-title">Sales Invoice</h1>
+            @* ناحیهٔ امن چاپ بین سربرگ و پابرگِ ازپیش‌چاپ‌شدهٔ سربرگ شرکت. هرچه داخل
+               آن است flow می‌شود، پس نام کوتاه یا بلند هیچ‌وقت روی گرافیک سربرگ نمی‌افتد. *@
+            <div class="invoice-body">
+                <h1 class="invoice-title">Sales Invoice</h1>
 
-            <div class="meta-line invoice-number">Invoice Number: @Model.InvoiceNumber</div>
-            <div class="meta-line invoice-date">Date : @Model.InvoiceDateDisplay</div>
+                <div class="invoice-meta">
+                    <div class="meta-line">
+                        <span class="meta-label">Invoice Number:</span>
+                        <span class="meta-value">@Model.InvoiceNumber</span>
+                    </div>
+                    <div class="meta-line">
+                        <span class="meta-label">Date:</span>
+                        <span class="meta-value">@Model.InvoiceDateDisplay</span>
+                    </div>
+                </div>
 
-            <section class="party-block buyer-block">
-                <div class="party-heading">Buyer details:</div>
-                <div class="party-row">
-                    <span class="party-label">Name of Company:</span>
-                    <span class="party-value @FitClass(Model.BuyerCompanyName)">@Model.BuyerCompanyName</span>
-                </div>
-                <div class="party-row highlight">
-                    <span class="party-label">Representative Name:</span>
-                    <span class="party-value @FitClass(Model.BuyerRepresentativeName, 22, 34)">@Model.BuyerRepresentativeName</span>
-                </div>
-                <div class="party-row">
-                    <span class="party-label">Phone Number:</span>
-                    <span class="party-value @FitClass(Model.BuyerPhoneNumber, 18, 30)">@Model.BuyerPhoneNumber</span>
-                </div>
-                <div class="party-row">
-                    <span class="party-label">Address:</span>
-                    <span class="party-value @FitClass(Model.BuyerAddress, 26, 42)">@Model.BuyerAddress</span>
-                </div>
-            </section>
+                <div class="invoice-parties">
+                    <section class="buyer-block">
+                        <div class="party-heading">Buyer details:</div>
+                        <div class="party-row">
+                            <span class="party-label">Name of Company:</span>
+                            <span class="party-value" dir="auto">@Model.BuyerCompanyName</span>
+                        </div>
+                        <div class="party-row">
+                            <span class="party-label">Representative Name:</span>
+                            <span class="party-value" dir="auto">@Model.BuyerRepresentativeName</span>
+                        </div>
+                        <div class="party-row">
+                            <span class="party-label">Phone Number:</span>
+                            <span class="party-value is-numeric" dir="ltr">@Model.BuyerPhoneNumber</span>
+                        </div>
+                        <div class="party-row">
+                            <span class="party-label">Address:</span>
+                            <span class="party-value" dir="auto">@Model.BuyerAddress</span>
+                        </div>
+                    </section>
 
-            <section class="party-block seller-block">
-                <div class="party-heading">Seller Details</div>
-                <div class="party-row seller-name-row">
-                    <span class="party-value @FitClass(Model.SellerName, 28, 42)">@Model.SellerName</span>
+                    <section class="seller-block">
+                        <div class="party-heading">Seller Details</div>
+                        <div class="party-row">
+                            <span class="party-value" dir="auto">@Model.SellerName</span>
+                        </div>
+                    </section>
                 </div>
-            </section>
 
-            <div class="sales-table-wrap">
                 <table class="sales-table" aria-label="Sales invoice lines">
                     <colgroup>
-                        <col class="col-n" />
+                        <col class="col-index" />
                         <col class="col-type" />
                         <col class="col-border" />
-                        <col class="col-qty" />
-                        <col class="col-unit" />
-                        <col class="col-total" />
+                        <col class="col-quantity" />
+                        <col class="col-unit-price" />
+                        <col class="col-amount" />
                     </colgroup>
                     <thead>
                         <tr>
-                            <th>N</th>
-                            <th>Type</th>
-                            <th>Border</th>
-                            <th>Quantity in Tons</th>
-                            <th>Amount per Ton in Dollars</th>
-                            <th>Total Price</th>
+                            <th scope="col">N</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Border</th>
+                            <th scope="col">Quantity in Tons</th>
+                            <th scope="col">Amount per Ton in Dollars</th>
+                            <th scope="col">Total Price</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td>1</td>
-                            <td class="@FitClass(Model.ProductType, 14, 24)">@Model.ProductType</td>
-                            <td class="@FitClass(Model.BorderOrLocation, 12, 20)">@Model.BorderOrLocation</td>
+                            <td dir="auto">@Model.ProductType</td>
+                            <td dir="auto">@Model.BorderOrLocation</td>
                             <td>@Model.FormattedQuantityMt</td>
-                            <td>@Model.FormattedUnitPriceUsd</td>
-                            <td>@Model.FormattedTotalPriceUsd</td>
+                            <td>
+                                <span class="money">
+                                    <span class="money-symbol">@Model.MoneySymbol</span>
+                                    <span>@Model.UnitPriceFigure</span>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="money">
+                                    <span class="money-symbol">@Model.MoneySymbol</span>
+                                    <span>@Model.TotalPriceFigure</span>
+                                </span>
+                            </td>
                         </tr>
-                        <tr>
+                        <tr class="total-row">
                             <td></td>
                             <td colspan="4" class="total-label">Total</td>
-                            <td class="total-value">@Model.FormattedTotalPriceUsd</td>
+                            <td>
+                                <span class="money">
+                                    <span class="money-symbol">@Model.MoneySymbol</span>
+                                    <span>@Model.TotalPriceFigure</span>
+                                </span>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
-            </div>
 
-            <section class="invoice-note">
-                <div class="note-label">Note:</div>
-                <div class="note-persian">@Model.PersianNote</div>
-                @if (!string.IsNullOrWhiteSpace(Model.EnglishNote))
-                {
-                    <div>@Model.EnglishNote</div>
-                }
-            </section>
+                <section class="invoice-note">
+                    <div class="note-label">Note:</div>
+                    <div class="note-text" dir="rtl" lang="fa">@Model.PersianNote</div>
+                    @if (!string.IsNullOrWhiteSpace(Model.EnglishNote))
+                    {
+                        <div class="note-text" dir="ltr">@Model.EnglishNote</div>
+                    }
+                </section>
 
-            <div class="signature-label seller-signature-label">@Model.SignatureOfSellerLabel</div>
-            <div class="signature-label buyer-signature-label">@Model.SignatureOfBuyerLabel</div>
-            <div class="seller-mark">
-                <img class="seller-signature" src="@signature" alt="" />
-                <img class="seller-stamp" src="@stamp" alt="" />
+                <section class="invoice-signatures">
+                    <div class="signature-column">
+                        <div class="signature-label">@Model.SignatureOfSellerLabel</div>
+                        <div class="signature-mark @markLayout">
+                            @if (hasSellerSignature)
+                            {
+                                <img class="seller-signature" src="@signature" alt="" />
+                            }
+                            @if (hasSellerStamp)
+                            {
+                                <img class="seller-stamp" src="@stamp" alt="" />
+                            }
+                        </div>
+                    </div>
+
+                    @* ستون خریدار عمداً خالی است: جای فیزیکی امضای دستی روی کاغذ چاپ‌شده. *@
+                    <div class="signature-column">
+                        <div class="signature-label">@Model.SignatureOfBuyerLabel</div>
+                        <div class="signature-mark"></div>
+                    </div>
+                </section>
             </div>
         </section>
     </main>
+
+    <script src="~/js/sales-invoice-print.js" asp-append-version="true"></script>
 </body>
 </html>

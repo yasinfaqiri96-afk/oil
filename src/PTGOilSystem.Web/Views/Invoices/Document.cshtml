@@ -60,17 +60,13 @@
                 </div>
 
                 <div class="boltz-invoice-payment-box">
+                    @* نام شرکت همین بالا در بلوک طرف حساب («از/به») آمده و عنوان سند
+                       در سربرگ کارت است؛ تکرارشان کنار لوگو فقط ارتفاع سربرگ را
+                       زیاد می‌کرد. لوگو تنها می‌ماند و نام شرکت روی alt آن است. *@
                     <div class="boltz-invoice-brand-row">
                         <img src="~/images/logo1-sidebar.png" asp-append-version="true" alt="@Model.BrandName" />
-                        <div>
-                            <strong>@Model.BrandName</strong>
-                            @if (!string.IsNullOrWhiteSpace(isEnglish ? Model.BrandSubtitleEn : Model.BrandSubtitleFa))
-                            {
-                                <small>@T(Model.BrandSubtitleFa ?? "", Model.BrandSubtitleEn ?? "")</small>
-                            }
-                        </div>
                     </div>
-                    <span class="boltz-invoice-pay-label">@T(Model.PaymentBox.HeadingFa, Model.PaymentBox.HeadingEn)</span>
+                    <span>@T(Model.PaymentBox.HeadingFa, Model.PaymentBox.HeadingEn):</span>
                     <strong class="boltz-invoice-pay-amount">@Model.PaymentBox.AmountText</strong>
                     <strong class="boltz-invoice-reference">@Model.PaymentBox.ReferenceText</strong>
                     @if (!string.IsNullOrWhiteSpace(isEnglish ? Model.PaymentBox.NoteEn : Model.PaymentBox.NoteFa))
@@ -80,53 +76,38 @@
                 </div>
             </section>
 
-            @* مشخصات سند — فقط اسنادی که InfoItems پر کرده‌اند این بخش را دارند. *@
-            @if (Model.InfoItems.Count > 0)
-            {
-                <section class="boltz-invoice-info">
-                    <h2>@T("مشخصات سند", "Document Details")</h2>
-                    <dl>
-                        @foreach (var info in Model.InfoItems)
-                        {
-                            <div class="boltz-invoice-info-item">
-                                <dt>@T(info.LabelFa, info.LabelEn)</dt>
-                                <dd>@info.Value</dd>
-                            </div>
-                        }
-                    </dl>
-                </section>
-            }
-
             <div class="table-responsive boltz-invoice-table-wrap">
                 <table class="boltz-invoice-table">
+                    @* نسبت ستون‌ها از قالب مرجع اندازه‌گیری شده؛ همهٔ ستون‌ها از لبهٔ
+                       شروع تراز می‌شوند، دقیقاً مثل مرجع. *@
                     <colgroup>
                         <col style="width: 5%" />
-                        <col style="width: 23%" />
-                        <col style="width: 32%" />
-                        <col style="width: 15%" />
-                        <col style="width: 10%" />
-                        <col style="width: 15%" />
+                        <col style="width: 18%" />
+                        <col style="width: 45%" />
+                        <col style="width: 14%" />
+                        <col style="width: 7%" />
+                        <col style="width: 11%" />
                     </colgroup>
                     <thead>
                         <tr>
-                            <th class="text-center">#</th>
+                            <th>#</th>
                             <th>@T("آیتم", "Item")</th>
                             <th>@T("شرح", "Description")</th>
-                            <th class="text-end">@T("قیمت واحد", "Unit Cost")</th>
-                            <th class="text-center">@T("مقدار", "Qty")</th>
-                            <th class="text-end">@T("جمع", "Total")</th>
+                            <th>@T("قیمت واحد", "Unit Cost")</th>
+                            <th>@T("مقدار", "Qty")</th>
+                            <th>@T("جمع", "Total")</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var line in Model.Lines)
                         {
                             <tr>
-                                <td class="text-center">@line.Number</td>
-                                <td class="fw-semibold">@line.Item</td>
+                                <td>@line.Number</td>
+                                <td>@line.Item</td>
                                 <td>@line.Description</td>
-                                <td class="text-end">@line.UnitCost</td>
-                                <td class="text-center">@line.Quantity</td>
-                                <td class="text-end">@line.Total</td>
+                                <td>@line.UnitCost</td>
+                                <td>@line.Quantity</td>
+                                <td>@line.Total</td>
                             </tr>
                         }
                     </tbody>
@@ -148,7 +129,7 @@
                         {
                             <tr class="@(total.IsGrandTotal ?"is-grand-total" : null)">
                                 <td><strong>@T(total.LabelFa, total.LabelEn)</strong></td>
-                                <td class="text-end">@total.Value</td>
+                                <td>@total.Value</td>
                             </tr>
                         }
                     </tbody>
