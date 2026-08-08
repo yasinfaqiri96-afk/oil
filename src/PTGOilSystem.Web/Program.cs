@@ -106,6 +106,8 @@ builder.Services.AddScoped<IViaSarrafAccountingAdapter, ViaSarrafAccountingAdapt
 builder.Services.AddScoped<IInventoryValuationService, InventoryValuationService>();
 builder.Services.AddScoped<IPurchaseAccountingAdapter, PurchaseAccountingAdapter>();
 builder.Services.AddScoped<ISalesAccountingAdapter, SalesAccountingAdapter>();
+builder.Services.AddScoped<IAssetRentAccountingAdapter, AssetRentAccountingAdapter>();
+builder.Services.AddScoped<IAssetRentPostingService, AssetRentPostingService>();
 builder.Services.AddScoped<IInventoryLossAccountingAdapter, InventoryLossAccountingAdapter>();
 builder.Services.AddScoped<IShortageChargeAccountingAdapter, ShortageChargeAccountingAdapter>();
 builder.Services.AddScoped<ISarrafSettlementAccountingAdapter, SarrafSettlementAccountingAdapter>();

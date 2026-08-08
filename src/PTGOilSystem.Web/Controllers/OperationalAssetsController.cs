@@ -24,13 +24,23 @@ public class OperationalAssetsController : Controller
     private readonly ApplicationDbContext _db;
     private readonly ICurrencyConversionService _currencyConversion;
 
+    // ثبت/برگشتِ مالیِ کرایه در سرویس مشترک است تا مسیر لغوِ بارگیری هم دقیقاً همان کار را بکند.
+    // اگر Adapter حسابداری تزریق نشده باشد فقط ژورنال ساخته نمی‌شود و لجر legacy کامل ثبت می‌شود.
+    private readonly IAssetRentPostingService _rentPosting;
+    private readonly IAfghanistanBusinessClock _businessClock;
+
     [ActivatorUtilitiesConstructor]
     public OperationalAssetsController(
         ApplicationDbContext db,
-        ICurrencyConversionService currencyConversion)
+        ICurrencyConversionService currencyConversion,
+        IAssetRentPostingService? rentPosting = null,
+        Services.Accounting.IAssetRentAccountingAdapter? rentAccounting = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
         _db = db;
         _currencyConversion = currencyConversion;
+        _rentPosting = rentPosting ?? new AssetRentPostingService(db, rentAccounting);
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
     }
 
     public OperationalAssetsController(ApplicationDbContext db)
@@ -283,7 +293,7 @@ public class OperationalAssetsController : Controller
         if (issue is not null)
         {
             TempData["err"] = issue;
-            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId });
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "ownership" });
         }
 
         _db.AssetOwnershipShares.Add(new AssetOwnershipShare
@@ -301,7 +311,7 @@ public class OperationalAssetsController : Controller
         await _db.SaveChangesAsync();
 
         TempData["ok"] = Ui("سهم مالکیت ذخیره شد.", "Ownership share saved.");
-        return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId });
+        return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "ownership" });
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -424,6 +434,12 @@ public class OperationalAssetsController : Controller
             IsPostedToLedger = false
         };
 
+        // Rent → Share snapshots → Ledger → Link → Journal، همه در یک واحد. اگر هر مرحله شکست
+        // بخورد هیچ‌کدام نمی‌ماند، پس هرگز کرایه‌ای بدون سهم یا لجری بدون لینک باقی نمی‌ماند.
+        using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
+
         _db.AssetRentTransactions.Add(rent);
         await _db.SaveChangesAsync();
 
@@ -431,8 +447,82 @@ public class OperationalAssetsController : Controller
         _db.AssetRentShares.AddRange(rentShares);
         await _db.SaveChangesAsync();
 
-        TempData["ok"] = Ui("تراکنش کرایه/استفاده دارایی ذخیره شد. در این مرحله ثبت Ledger ساخته نشد.", "Asset rent/use transaction saved. Ledger posting was not created in this phase.");
-        return RedirectToAction(nameof(Details), new { id = rent.OperationalAssetId });
+        var posting = await _rentPosting.PostAsync(rent, conversion, asset?.AssetCode);
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync();
+        }
+
+        TempData["ok"] = posting.Posted
+            ? Ui("تراکنش کرایه ذخیره و در حساب طرف مقابل ثبت شد.", "Asset rent transaction saved and posted to the counterparty account.")
+            : Ui("تراکنش کرایه/استفاده دارایی ذخیره شد. برای این نوع کرایه ثبت مالی انجام نمی‌شود.", "Asset rent/use transaction saved. This rent kind does not create a financial posting.");
+        // بازگشت به همان تبی که کاربر در آن ثبت کرد، با بازه‌ای که ردیف تازه حتماً داخل آن باشد.
+        var (rentFromDate, rentToDate) = ResolveProfilePeriodFor(rent.RentDate);
+        return RedirectToAction(nameof(Details), new
+        {
+            id = rent.OperationalAssetId,
+            tab = "rents",
+            fromDate = rentFromDate.ToString("yyyy-MM-dd"),
+            toDate = rentToDate.ToString("yyyy-MM-dd")
+        });
+    }
+
+    /// <summary>
+    /// لغو یک کرایه. رکورد اصلی و ردیف لجر اصلی حذف نمی‌شوند؛ یک ردیف جبرانی با جهت معکوس اضافه
+    /// می‌شود و ژورنال (اگر وجود داشته باشد) با ژورنال قرینه برمی‌گردد — همان قراردادی که لغو فروش
+    /// و لغو مصرف دارند. فراخوانی دوباره هیچ ردیف سومی نمی‌سازد.
+    /// </summary>
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelRent(int id, string? reason = null, string? returnUrl = null)
+    {
+        var rent = await _db.AssetRentTransactions.FirstOrDefaultAsync(r => r.Id == id);
+        if (rent is null)
+        {
+            return NotFound();
+        }
+
+        var (fromDate, toDate) = ResolveProfilePeriodFor(rent.RentDate);
+        var backUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
+            ? returnUrl
+            : Url.Action(nameof(Details), new
+            {
+                id = rent.OperationalAssetId,
+                tab = "rents",
+                fromDate = fromDate.ToString("yyyy-MM-dd"),
+                toDate = toDate.ToString("yyyy-MM-dd")
+            });
+
+        if (rent.IsCancelled)
+        {
+            // Idempotent: کرایهٔ لغوشده دوباره لغو نمی‌شود و ردیف جبرانی دوم ساخته نمی‌شود.
+            TempData["ok"] = Ui("این کرایه قبلاً لغو شده است.", "This rent is already cancelled.");
+            return Redirect(backUrl!);
+        }
+
+        var reversalDate = _businessClock.Today;
+
+        using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
+
+        rent.IsCancelled = true;
+        rent.CancelledAtUtc = DateTime.UtcNow;
+        rent.CancelReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        await _db.SaveChangesAsync();
+
+        var reversal = await _rentPosting.ReverseAsync(rent, reversalDate);
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync();
+        }
+
+        TempData["ok"] = reversal.Reversed
+            ? Ui("کرایه لغو و اثر مالی آن برگردانده شد.", "Rent cancelled and its financial effect reversed.")
+            : Ui("کرایه لغو شد. این کرایه اثر مالی نداشت، پس ردیف برگشتی ساخته نشد.", "Rent cancelled. It had no financial posting, so no reversal row was created.");
+        return Redirect(backUrl!);
     }
 
     public async Task<IActionResult> Profitability([FromQuery] OperationalAssetProfitabilityFilterViewModel? filter = null)
@@ -539,7 +629,10 @@ public class OperationalAssetsController : Controller
 
     private async Task<OperationalAssetProfileViewModel?> BuildProfileAsync(int id, DateTime? fromDate, DateTime? toDate)
     {
-        var today = ToUtcDate(DateTime.UtcNow);
+        // روز کاری کابل، نه روز UTC: تاریخ‌های کرایه و مصرف با همین تقویم ثبت می‌شوند
+        // (AfghanistanBusinessClock.SystemToday) و بازهٔ UTC بین ۱۹:۳۰ تا ۲۴:۰۰ یک روز عقب می‌ماند
+        // و ردیف‌های همان روز را از لیست حذف می‌کرد.
+        var today = AfghanistanBusinessClock.SystemToday;
         var defaultPeriodFrom = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var periodFrom = fromDate.HasValue ? ToUtcDate(fromDate.Value) : defaultPeriodFrom;
         var periodTo = toDate.HasValue ? ToUtcDate(toDate.Value) : today;
@@ -1127,7 +1220,7 @@ public class OperationalAssetsController : Controller
 
     private static void NormalizeProfitabilityFilter(OperationalAssetProfitabilityFilterViewModel filter)
     {
-        var today = ToUtcDate(DateTime.UtcNow);
+        var today = AfghanistanBusinessClock.SystemToday;
         var defaultFromDate = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         filter.FromDate = filter.FromDate.HasValue ? ToUtcDate(filter.FromDate.Value) : defaultFromDate;
         filter.ToDate = filter.ToDate.HasValue ? ToUtcDate(filter.ToDate.Value) : today;
@@ -1210,6 +1303,29 @@ public class OperationalAssetsController : Controller
         return decimal.Round(monthlyDepreciationUsd * days / 30m, 4, MidpointRounding.AwayFromZero);
     }
 
+    /// <summary>
+    /// بازهٔ پیش‌فرض پروندهٔ دارایی (ماه جاری کاری) که برای پوشش دادن یک تاریخ مشخص گسترده شده است،
+    /// تا ردیف تازه‌ذخیره‌شده بعد از redirect حتماً در لیست دیده شود.
+    /// </summary>
+    private static (DateTime FromDate, DateTime ToDate) ResolveProfilePeriodFor(DateTime businessDate)
+    {
+        var today = AfghanistanBusinessClock.SystemToday;
+        var from = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = today;
+        var target = ToUtcDate(businessDate);
+        if (target < from)
+        {
+            from = target;
+        }
+
+        if (target > to)
+        {
+            to = target;
+        }
+
+        return (from, to);
+    }
+
     private static DateTime ToUtcDate(DateTime value)
         => DateTime.SpecifyKind(value.Date, DateTimeKind.Utc);
 
@@ -1241,9 +1357,15 @@ public class OperationalAssetsController : Controller
             QuantityMt = rent.QuantityMt,
             DistanceKm = rent.DistanceKm,
             Days = rent.Days,
+            AmountOriginal = rent.AmountOriginal,
+            Currency = rent.Currency,
+            FxRateToUsd = rent.FxRateToUsd,
             AmountUsd = rent.AmountUsd,
             Description = rent.Description,
-            IsPostedToLedger = rent.IsPostedToLedger
+            IsPostedToLedger = rent.IsPostedToLedger,
+            // وضعیت دفتر از همان سیاستی خوانده می‌شود که ثبت را انجام می‌دهد، نه از قضاوت View.
+            IsSystemGenerated = AssetRentPostingPolicy.IsSystemGenerated(rent),
+            PostingSkipReason = AssetRentPostingPolicy.ResolveSkipReason(rent)
         };
 
     // کرایهٔ حمل/رسید که با دارایی عملیاتی خودِ شرکت انجام شده، برای آن دارایی درآمد است نه هزینه.

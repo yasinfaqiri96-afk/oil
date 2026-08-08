@@ -117,7 +117,18 @@ public class OperationalAssetsControllerTests
         var rent = await db.AssetRentTransactions.SingleAsync(r => r.ReferenceDocument == "EXT-RENT-NEW");
         Assert.Equal(customer.Id, rent.ChargedToCustomerId);
         Assert.Equal(250m, rent.AmountUsd);
-        Assert.Empty(await db.LedgerEntries.ToListAsync());
+
+        // کرایهٔ دستیِ خارجی از فاز یک به بعد حساب مشتری را بدهکار می‌کند: یک ردیف Credit روی همان
+        // مشتریِ تازه‌ساخته‌شده، با ردیابی دوطرفه به خودِ تراکنش. جزئیات این رفتار در
+        // AssetRentPostingTests پوشش داده شده و اینجا فقط اتصالِ مشتریِ جدید بررسی می‌شود.
+        var ledger = Assert.Single(await db.LedgerEntries.ToListAsync());
+        Assert.Equal(LedgerSide.Credit, ledger.Side);
+        Assert.Equal(250m, ledger.AmountUsd);
+        Assert.Equal(customer.Id, ledger.CustomerId);
+        Assert.Equal(rent.Id, ledger.SourceId);
+        Assert.True(rent.IsPostedToLedger);
+        Assert.Equal(ledger.Id, rent.LedgerEntryId);
+
         Assert.Empty(await db.InventoryMovements.ToListAsync());
     }
 

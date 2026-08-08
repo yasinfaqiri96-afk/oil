@@ -281,9 +281,29 @@ public sealed class AssetRentRowViewModel
     public decimal? QuantityMt { get; init; }
     public decimal? DistanceKm { get; init; }
     public decimal? Days { get; init; }
+
+    // مبلغِ ثبت‌شده به ارز خودش و مبلغِ ارز پایه جدا نگه داشته می‌شوند تا در جدول جای هم را نگیرند.
+    public decimal AmountOriginal { get; init; }
+    public string Currency { get; init; } = "";
+    public decimal FxRateToUsd { get; init; }
     public decimal AmountUsd { get; init; }
     public string? Description { get; init; }
     public bool IsPostedToLedger { get; init; }
+
+    /// <summary>کرایه‌ای که یکی از جریان‌های عملیاتی (بارگیری) ساخته، نه کاربر.</summary>
+    public bool IsSystemGenerated { get; init; }
+
+    /// <summary>
+    /// دلیلِ نداشتنِ اثر مالی طبق <c>AssetRentPostingPolicy</c>، یا <c>null</c> اگر این کرایه باید
+    /// ردیف لجر داشته باشد. با همین مقدار «ثبت‌نشدهٔ عادی» از «ثبت‌نشدهٔ مشکل‌دار» تفکیک می‌شود.
+    /// </summary>
+    public string? PostingSkipReason { get; init; }
+
+    /// <summary>این کرایه اصلاً قرار نیست اثر مالی بگیرد؛ «ثبت‌نشده» برایش وضعیت درست است نه خطا.</summary>
+    public bool IsNonFinancial => PostingSkipReason is not null;
+
+    /// <summary>باید ثبت می‌شد ولی نشده — تنها حالتی که در جدول هشدار می‌گیرد.</summary>
+    public bool IsPostingMissing => PostingSkipReason is null && !IsPostedToLedger;
 }
 
 public sealed class AssetExpenseRowViewModel

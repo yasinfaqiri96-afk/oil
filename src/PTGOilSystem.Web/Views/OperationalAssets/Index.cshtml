@@ -48,10 +48,7 @@
                         <th class="ak-col-grow">@UiText.T(Context, "دارایی", "Asset")</th>
                         <th>@UiText.T(Context, "کد", "Code")</th>
                         <th>@UiText.T(Context, "نوع", "Type")</th>
-                        <th>@UiText.T(Context, "کرایه‌ها (داخلی/خارجی)", "Rents (int/ext)")</th>
-                        <th>@UiText.T(Context, "درآمد کرایه حمل", "Freight income")</th>
-                        <th>@UiText.T(Context, "مصرف / نتیجه", "Expense / Net")</th>
-                        <th class="ak-col-spacer"></th>
+                        <th class="ak-col-num">@UiText.T(Context, "مصرف / نتیجه", "Expense / Net")</th>
                         <th>@UiText.T(Context, "وضعیت", "Status")</th>
                         <th class="ak-col-actions"></th>
                     </tr>
@@ -64,16 +61,10 @@
                             <td class="ak-col-grow"><a asp-action="Details" asp-route-id="@row.Id" class="ak-name">@row.Name</a></td>
                             <td>@(string.IsNullOrWhiteSpace(row.AssetCode) ? "-" : row.AssetCode)</td>
                             <td>@OperationalAssetLabels.AssetType(row.AssetType, Context)</td>
-                            <td class="ak-num">
-                                <span>@row.InternalRentUsd.ToString("N0")</span>
-                                / <span>@row.ExternalRentUsd.ToString("N0")</span> USD
-                            </td>
-                            <td class="ak-num"><span>@row.FreightIncomeUsd.ToString("N0")</span> USD</td>
-                            <td class="ak-num">
+                            <td class="ak-col-num ak-num">
                                 <span>@row.DirectExpensesUsd.ToString("N0")</span>
                                 / <span>@row.NetBeforeDepreciationUsd.ToString("N0")</span> USD
                             </td>
-                            <td class="ak-col-spacer"></td>
                             <td>
                                 <span class="ak-status @(row.IsActive ? "is-active" : "is-inactive")">
                                     @(row.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))
@@ -99,7 +90,7 @@
                     @if (!Model.Items.Any())
                     {
                         <tr>
-                            <td colspan="10">
+                            <td colspan="7">
                                 <div class="ak-empty"><i class="bi bi-truck-front" aria-hidden="true"></i>@UiText.T(Context, "هیچ دارایی عملیاتی یافت نشد", "No operational assets found")</div>
                             </td>
                         </tr>

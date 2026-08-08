@@ -3,31 +3,31 @@
 @{
     ViewData["Title"] = Model.Name;
     ViewData["FinanceFormAssets"] = true;
+
     var activeShareTotal = Model.OwnershipShares.Where(row => row.IsActiveNow).Sum(row => row.SharePercent);
     var allocationReady = Math.Abs(activeShareTotal - 100m) <= 0.0001m;
     var activeOwnerCount = Model.OwnershipShares.Count(row => row.IsActiveNow);
-    var externalRentRows = Model.RentTransactions.Where(row => row.UsageType == AssetRentUsageType.ExternalCustomerRental).ToList();
-    var internalRentRows = Model.RentTransactions.Where(row => row.UsageType == AssetRentUsageType.InternalCompanyUse).ToList();
     var rentRowCount = Model.RentTransactions.Count;
-    var rentAverageUsd = rentRowCount == 0 ? 0m : Model.RentTransactions.Sum(row => row.AmountUsd) / rentRowCount;
-    var latestRentDate = Model.RentTransactions.OrderByDescending(row => row.RentDate).FirstOrDefault()?.RentDate;
     var expenseRowCount = Model.Expenses.Count;
     var expenseCategoryCount = Model.Expenses.Select(row => row.ExpenseTypeName).Where(name => !string.IsNullOrWhiteSpace(name)).Distinct().Count();
-    var latestExpenseDate = Model.Expenses.OrderByDescending(row => row.ExpenseDate).FirstOrDefault()?.ExpenseDate;
-    var rentShareRowCount = Model.RentShares.Count;
-    var rentShareOwnerCount = Model.RentShares.Select(row => row.OwnerName).Where(name => !string.IsNullOrWhiteSpace(name)).Distinct().Count();
-    var rentShareRentCount = Model.RentShares.Select(row => row.RentTransactionId).Distinct().Count();
     var totalOwnerShareUsd = Model.RentShares.Sum(row => row.ShareAmountUsd);
     var totalCostUsd = Model.DirectExpensesUsd + Model.DepreciationUsd;
     var isNetPositive = Model.NetResultUsd >= 0;
-    // تب «خلاصه وضعیت» حذف شد: مشخصات پایه حالا کارت خلاصهٔ همیشه‌دیدنیِ بالای تب‌هاست
-    // و اعداد فنی به آکاردئون «اطلاعات فنی» منتقل شدند.
+
+    // چهار تب عملیاتی: مالکیت / کرایه / مصارف / سود.
+    // «توزیع سود مالکین» تب مستقل نیست چون خروجی همان کرایه‌هاست و داخل تب سود می‌آید.
     var activeAssetTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
-    activeAssetTab = activeAssetTab is "rents" or "expenses" or "shares" or "profit"
-        ? activeAssetTab
-        : "ownership";
+    activeAssetTab = activeAssetTab switch
+    {
+        "rents" or "expenses" or "profit" => activeAssetTab,
+        "shares" => "profit",
+        _ => "ownership"
+    };
+
+    var periodFilterOpen = Context.Request.Query.ContainsKey("fromDate") || Context.Request.Query.ContainsKey("toDate");
     var editUrl = Url.Action("Edit", new { id = Model.Id }) ?? "#";
     var rentUrl = Url.Action("CreateRent", new { assetId = Model.Id }) ?? "#";
+
     ViewData["AkHeaderStatus"] = Model.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive");
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
     ViewData["AkHeaderContext"] = $"{Model.AssetCode} · {OperationalAssetLabels.AssetType(Model.AssetType, Context)}";
@@ -36,21 +36,32 @@
         new() { Label = UiText.T(Context, "ثبت مصرف", "Record expense"), Href = Url.Action("Create", "Expenses", new { operationalAssetId = Model.Id, returnUrl = Context.Request.Path }), Icon = "bi-receipt-cutoff" },
         new() { Label = UiText.T(Context, "ویرایش", "Edit"), Href = editUrl, Icon = "bi-pencil" }
     };
+
     var assetTabs = new[]
     {
-        $"ownership|{UiText.T(Context, "مالکیت و سهم‌ها", "Ownership and Shares")}||{(activeAssetTab == "ownership" ? "active" : "")}",
-        $"rents|{UiText.T(Context, "استفاده / کرایه", "Use / Rent")}||{(activeAssetTab == "rents" ? "active" : "")}",
+        $"ownership|{UiText.T(Context, "مالکیت", "Ownership")}||{(activeAssetTab == "ownership" ? "active" : "")}",
+        $"rents|{UiText.T(Context, "کرایه و استفاده", "Rent and Use")}||{(activeAssetTab == "rents" ? "active" : "")}",
         $"expenses|{UiText.T(Context, "مصارف", "Expenses")}||{(activeAssetTab == "expenses" ? "active" : "")}",
-        $"shares|{UiText.T(Context, "توزیع سود مالکین", "Owner Profit Distribution")}||{(activeAssetTab == "shares" ? "active" : "")}",
-        $"profit|{UiText.T(Context, "سود", "Profit")}||{(activeAssetTab == "profit" ? "active" : "")}"
+        $"profit|{UiText.T(Context, "سود و توزیع", "Profit and Distribution")}||{(activeAssetTab == "profit" ? "active" : "")}"
+    };
+
+    // نوع و کد دارایی در AkHeaderContext هدر صفحه نمایش داده می‌شوند و اینجا تکرار نمی‌شوند.
+    var assetIdentityItems = new List<AkInfoItem>
+    {
+        new() { Label = UiText.T(Context, "منبع مرتبط", "Linked resource"), Value = Model.LinkedResourceText },
+        new() { Label = UiText.T(Context, "نوع مالکیت", "Ownership mode"), Value = OperationalAssetLabels.OwnershipMode(Model.OwnershipMode, Context) },
+        new() { Label = UiText.T(Context, "ظرفیت", "Capacity"), Value = Model.CapacityMt?.ToString("N0"), Unit = "MT", IsNumeric = true },
+        new() { Label = UiText.T(Context, "موقعیت", "Location"), Value = Model.LocationName },
+        new() { Label = UiText.T(Context, "ترمینال", "Terminal"), Value = Model.TerminalName },
+        new() { Label = UiText.T(Context, "استهلاک ماهانه", "Monthly depreciation"), Value = Model.MonthlyDepreciationUsd.ToString("N0"), Unit = "USD", IsNumeric = true },
+        new() { Label = UiText.T(Context, "نرخ داخلی پیش‌فرض", "Default internal rate"), Value = Model.DefaultInternalRateUsd?.ToString("N0"), Unit = "USD", IsNumeric = true },
+        new() { Label = UiText.T(Context, "نرخ بیرونی پیش‌فرض", "Default external rate"), Value = Model.DefaultExternalRateUsd?.ToString("N0"), Unit = "USD", IsNumeric = true }
     };
 
     var assetAdvancedItems = new List<AkInfoItem>
     {
         new() { Label = UiText.T(Context, "شناسه دارایی", "Asset id"), Value = $"#{Model.Id}", IsNumeric = true },
-        new() { Label = UiText.T(Context, "استهلاک ماهانه", "Monthly depreciation"), Value = Model.MonthlyDepreciationUsd.ToString("N2"), Unit = "USD", IsNumeric = true },
-        new() { Label = UiText.T(Context, "نرخ داخلی پیش‌فرض", "Default internal rate"), Value = Model.DefaultInternalRateUsd?.ToString("N2"), Unit = "USD", IsNumeric = true },
-        new() { Label = UiText.T(Context, "نرخ بیرونی پیش‌فرض", "Default external rate"), Value = Model.DefaultExternalRateUsd?.ToString("N2"), Unit = "USD", IsNumeric = true }
+        new() { Label = UiText.T(Context, "یادداشت", "Notes"), Value = Model.Notes }
     };
 }
 
@@ -59,571 +70,337 @@
              model="@((Model.Name, false,
                        UiText.T(Context, "ثبت کرایه", "Record rent"), "bi-calendar-plus", rentUrl, (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Index")))" />
+
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@((UiText.T(Context, "مشخصات دارایی", "Asset profile"), (string?)null, (IReadOnlyList<AkInfoItem>)assetIdentityItems))" />
+
+    @* یک فیلتر دوره برای کل صفحه: قبلاً فقط داخل تب سود بود در حالی که همهٔ تب‌ها بر همین بازه فیلتر می‌شوند.
+       پیش‌فرض بسته است و فقط با دکمه باز می‌شود؛ اگر کاربر بازه‌ای اعمال کرده باشد باز می‌ماند. *@
+    <div class="oa-period-zone">
+        <button class="btn btn-light ak-secondary-action oa-period-toggle" type="button"
+                data-bs-toggle="collapse" data-bs-target="#assetPeriodFilter"
+                aria-expanded="@(periodFilterOpen ? "true" : "false")" aria-controls="assetPeriodFilter">
+            <i class="bi bi-calendar-range" aria-hidden="true"></i>
+            <span>@UiText.T(Context, "بازه گزارش", "Report period")</span>
+            <b dir="ltr">@Model.FromDate.ToDisplayDate() — @Model.ToDate.ToDisplayDate()</b>
+            <i class="bi bi-chevron-down oa-period-caret" aria-hidden="true"></i>
+        </button>
+        <div class="collapse @(periodFilterOpen ? "show" : "")" id="assetPeriodFilter">
+            <form method="get" class="ak-detail-toolbar oa-period-bar" aria-label="@UiText.T(Context, "بازه گزارش دارایی", "Asset report period")">
+                <input name="tab" value="@activeAssetTab" type="hidden" />
+                <label class="oa-period-label" for="assetPeriodFrom">@UiText.T(Context, "از تاریخ", "From date")</label>
+                <input id="assetPeriodFrom" name="fromDate" value="@Model.FromDate.ToString("yyyy-MM-dd")" type="date" />
+                <label class="oa-period-label" for="assetPeriodTo">@UiText.T(Context, "تا تاریخ", "To date")</label>
+                <input id="assetPeriodTo" name="toDate" value="@Model.ToDate.ToString("yyyy-MM-dd")" type="date" />
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-sliders2" aria-hidden="true"></i>
+                    <span>@UiText.T(Context, "اعمال", "Apply")</span>
+                </button>
+                <a class="btn btn-light ak-secondary-action" href="@(Url.Action("Details", new { id = Model.Id, tab = activeAssetTab }))">
+                    @UiText.T(Context, "پیش‌فرض", "Reset")
+                </a>
+            </form>
+        </div>
+    </div>
+
     <section class="ak-form-section ak-detail-section" aria-label="@UiText.T(Context, "پرونده دارایی عملیاتی", "Operational asset profile")">
         <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
                  model="@(UiText.T(Context, "بخش‌های دارایی", "Asset sections"), assetTabs)" />
 
         <div class="tab-content ak-detail-content">
-            <div class="tab-pane fade @(activeAssetTab == "profit" ? "show active" : "")" id="asset-profit" role="tabpanel" hidden="@(activeAssetTab != "profit")">
-                <div class="ak-form-section ak-detail-section" aria-label="@UiText.T(Context, "گزارش عملکرد مالی دارایی", "Asset financial performance report")">
-                    <div class="ak-section-head ak-detail-section-header">
-                        <form method="get" class="ak-detail-toolbar" aria-label="@UiText.T(Context, "فیلتر دوره", "Period filter")">
-                            <input name="tab" value="profit" type="hidden" />
-                            <button class="btn btn-light ak-secondary-action" type="submit" title="@UiText.T(Context, "اعمال فیلتر", "Apply Filter")">
-                                <i class="bi bi-sliders2"></i>
-                            </button>
-                            <input name="fromDate" value="@Model.FromDate.ToString("yyyy-MM-dd")" type="date" aria-label="@UiText.T(Context, "از تاریخ", "From date")" />
-                            <span>@UiText.T(Context, "تا", "to")</span>
-                            <input name="toDate" value="@Model.ToDate.ToString("yyyy-MM-dd")" type="date" aria-label="@UiText.T(Context, "تا تاریخ", "To date")" />
-                        </form>
-                        <div>
-                            <h2>@UiText.T(Context, "گزارش عملکرد مالی", "Financial Performance Report")</h2>
-                            <p>@UiText.T(Context, "شفاف‌سازی درآمدها و مصارف دارایی", "Transparent asset revenue and expense summary")</p>
-                        </div>
-                    </div>
-
-                    <div></div>
-
-                    <div class="ak-list-row">
-                        <span>@UiText.T(Context, "سود خالص", "Net Profit") <b>(NET PROFIT)</b></span>
-                        <strong class="@(isNetPositive ?"is-positive" : "is-negative")">
-                            <small>USD</small>
-                            @Model.NetResultUsd.ToString("N0")
-                        </strong>
-                        <em class="@(isNetPositive ?"is-positive" : "is-negative")">
-                            <i class="bi @(isNetPositive ?"bi-graph-up-arrow" : "bi-graph-down-arrow")"></i>
-                            @(isNetPositive ? UiText.T(Context, "عملکرد مثبت در این دوره", "Positive performance in this period") : UiText.T(Context, "عملکرد منفی در این دوره", "Negative performance in this period"))
-                        </em>
-                    </div>
-
-                    <div class="ak-list">
-                        <article class="ak-list-row">
-                            <div>
-                                <span><i class="bi bi-graph-down"></i></span>
-                                <div>
-                                    <p>@UiText.T(Context, "مجموع مصارف", "Total Costs")</p>
-                                    <strong><small>USD</small> @totalCostUsd.ToString("N0")</strong>
-                                </div>
-                            </div>
-                            <dl>
-                                <div>
-                                    <dt>@UiText.T(Context, "مصارف و نگهداری", "Maintenance and expenses")</dt>
-                                    <dd>$ @Model.DirectExpensesUsd.ToString("N0")</dd>
-                                </div>
-                                <div>
-                                    <dt>@UiText.T(Context, "استهلاک دوره‌ای", "Periodic depreciation")</dt>
-                                    <dd>$ @Model.DepreciationUsd.ToString("N0")</dd>
-                                </div>
-                            </dl>
-                        </article>
-
-                        <article class="ak-list-row">
-                            <div>
-                                <span><i class="bi bi-graph-up-arrow"></i></span>
-                                <div>
-                                    <p>@UiText.T(Context, "مجموع درآمدها", "Total Revenue")</p>
-                                    <strong><small>USD</small> @Model.TotalRentUsd.ToString("N0")</strong>
-                                </div>
-                            </div>
-                            <dl>
-                                <div>
-                                    <dt>@UiText.T(Context, "کرایه خارجی (مشتریان)", "External rent from customers")</dt>
-                                    <dd>$ @Model.ExternalRentUsd.ToString("N0")</dd>
-                                </div>
-                                <div>
-                                    <dt>@UiText.T(Context, "کرایه داخلی (ون و شرکت)", "Internal rent by company")</dt>
-                                    <dd>$ @Model.InternalRentUsd.ToString("N0")</dd>
-                                </div>
-                            </dl>
-                        </article>
-                    </div>
-
-                    <div class="ak-table-wrap">
-                        <table class="ak-table ak-detail-table">
-                            <thead>
-                                <tr>
-                                    <th>@UiText.T(Context, "شرح", "Description")</th>
-                                    <th class="text-end">@UiText.T(Context, "مبلغ USD", "Amount USD")</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>@UiText.T(Context, "جمع درآمد کرایه و استفاده", "Total rent and use revenue")</td>
-                                    <td class="text-end"><span>@Model.TotalRentUsd.ToString("N2")</span></td>
-                                </tr>
-                                <tr>
-                                    <td>@UiText.T(Context, "درآمد کرایهٔ حمل/رسید (دارایی شرکت)", "Transport/receipt freight income")</td>
-                                    <td class="text-end"><span>@Model.FreightIncomeUsd.ToString("N2")</span></td>
-                                </tr>
-                                <tr>
-                                    <td>@UiText.T(Context, "مصارف مستقیم دارایی", "Direct asset expenses")</td>
-                                    <td class="text-end"><span>@Model.DirectExpensesUsd.ToString("N2")</span></td>
-                                </tr>
-                                <tr>
-                                    <td>@UiText.T(Context, "استهلاک محاسباتی دوره", "Calculated period depreciation")</td>
-                                    <td class="text-end"><span>@Model.DepreciationUsd.ToString("N2")</span></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>@UiText.T(Context, "نتیجه خالص", "Net result")</strong></td>
-                                    <td class="text-end"><strong class="@(isNetPositive ?"" : "")">@Model.NetResultUsd.ToString("N2")</strong></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
             <div class="tab-pane fade @(activeAssetTab == "ownership" ? "show active" : "")" id="asset-ownership" role="tabpanel" hidden="@(activeAssetTab != "ownership")">
-                <div class="ak-list" aria-label="@UiText.T(Context, "آمار مالکیت", "Ownership statistics")">
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-percent"></i> @UiText.T(Context, "مجموع سهم فعال", "Active Share Total")</span>
-                        <strong class="@(allocationReady ?"" : "")">@activeShareTotal.ToString("N0")%</strong>
-                        <small>@UiText.T(Context, "برای ثبت کرایه باید 100٪ باشد", "Must be 100% for rent recording")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-people"></i> @UiText.T(Context, "مالکین فعال", "Active Owners")</span>
-                        <strong>@activeOwnerCount.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "مالک یا شریک فعال در تاریخ امروز", "Active owners or partners today")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-list-check"></i> @UiText.T(Context, "ردیف‌های سهم", "Share Rows")</span>
-                        <strong>@Model.OwnershipShares.Count.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "کل تاریخچه سهم‌های ثبت‌شده", "Total recorded share history")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-check-circle"></i> @UiText.T(Context, "آماده ثبت کرایه", "Ready for Rent")</span>
-                        <strong class="@(allocationReady ?"" : "")">@(allocationReady ? UiText.T(Context, "بلی", "Yes") : UiText.T(Context, "نخیر", "No"))</strong>
-                        <small>@UiText.T(Context, "کنترل تخصیص مالکیت", "Ownership allocation control")</small>
-                    </article>
-                </div>
+                <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار مالکیت", "Ownership statistics")">
+                    <vc:stat-card title="@UiText.T(Context, "مجموع سهم فعال", "Active share total")"
+                                  value="@activeShareTotal.ToString("N0")" unit="%"
+                                  avatar="rules-checklist" state="@(allocationReady ? null : "warning")"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "مالکین فعال", "Active owners")"
+                                  value="@activeOwnerCount.ToString("N0")" unit="@UiText.T(Context, "مالک", "owners")"
+                                  avatar="partners"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "ردیف‌های سهم", "Share rows")"
+                                  value="@Model.OwnershipShares.Count.ToString("N0")" unit="@UiText.T(Context, "ردیف", "rows")"
+                                  avatar="documents"></vc:stat-card>
+                </section>
 
-                <div class="ak-form-grid" data-oa-split>
-                    <div class="modal fade oa-action-modal" id="oaOwnershipModal" tabindex="-1" aria-labelledby="oaOwnershipModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h2 class="modal-title" id="oaOwnershipModalLabel">@UiText.T(Context, "افزودن سهم", "Add share")</h2>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
-                                </div>
-                                <div class="modal-body">
-                    <form asp-action="AddOwnershipShare" method="post" class="ak-form-section ak-detail-section ak-form" data-oa-owner-form>
-                        @Html.AntiForgeryToken()
-                        <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
-                        <div class="ak-form-grid">
-                            <div class="ak-field">
-                                <label asp-for="NewOwnershipShare.OwnerType" class="ak-label">@UiText.T(Context, "نوع مالک", "Owner Type")</label>
-                                <select asp-for="NewOwnershipShare.OwnerType" name="OwnerType" asp-items="ViewBag.OwnerTypes" class="ak-input" data-oa-owner-type></select>
-                            </div>
-                            <div>
-                                <div class="ak-field" data-oa-owner-field="company">
-                                    <label asp-for="NewOwnershipShare.CompanyId" class="ak-label">@UiText.T(Context, "شرکت", "Company")</label>
-                                    <select asp-for="NewOwnershipShare.CompanyId" name="CompanyId" asp-items="ViewBag.Companies" class="ak-input">
-                                        <option value="">@UiText.T(Context, "انتخاب کنید...", "Select...")</option>
-                                    </select>
-                                </div>
-                                <div class="ak-field" data-oa-owner-field="partner">
-                                    <label asp-for="NewOwnershipShare.PartnerId" class="ak-label">@UiText.T(Context, "شریک", "Partner")</label>
-                                    <select asp-for="NewOwnershipShare.PartnerId" name="PartnerId" asp-items="ViewBag.Partners" class="ak-input">
-                                        <option value="">@UiText.T(Context, "انتخاب کنید...", "Select...")</option>
-                                    </select>
-                                </div>
-                                <div class="ak-field" data-oa-owner-field="other">
-                                    <label asp-for="NewOwnershipShare.OwnerName" class="ak-label">@UiText.T(Context, "نام مالک دیگر", "Other Owner Name")</label>
-                                    <input asp-for="NewOwnershipShare.OwnerName" name="OwnerName" class="ak-input" placeholder="@UiText.T(Context, "برای مالک بیرونی یا حساب دیگر", "For external owner or other account")" />
-                                </div>
-                            </div>
-                        </div>
-                        <div class="ak-form-grid">
-                            <div class="ak-field">
-                                <label asp-for="NewOwnershipShare.SharePercent" class="ak-label">@UiText.T(Context, "درصد سهم (%)", "Share Percent (%)")</label>
-                                <input asp-for="NewOwnershipShare.SharePercent" name="SharePercent" class="ak-input" placeholder="@UiText.T(Context, "مثلاً 20", "For example 20")" />
-                            </div>
-                            <div class="ak-field">
-                                <label asp-for="NewOwnershipShare.EffectiveFrom" class="ak-label">@UiText.T(Context, "تاریخ اجرا", "Effective Date")</label>
-                                <input asp-for="NewOwnershipShare.EffectiveFrom" name="EffectiveFrom" type="date" class="ak-input" />
-                            </div>
-                        </div>
-                        <div class="ak-field">
-                            <label asp-for="NewOwnershipShare.Notes" class="ak-label">@UiText.T(Context, "یادداشت", "Notes")</label>
-                            <textarea asp-for="NewOwnershipShare.Notes" name="Notes" rows="2" class="ak-input"></textarea>
-                        </div>
-                        <button type="submit" class="ak-save">@UiText.T(Context, "ثبت سهم", "Save Share")</button>
-                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="ak-section-head ak-detail-section-header oa-block-head">
                     <button type="button" class="btn btn-primary oa-modal-trigger" data-bs-toggle="modal" data-bs-target="#oaOwnershipModal">
-                        <i class="bi bi-plus-lg"></i>
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
                         <span>@UiText.T(Context, "افزودن سهم", "Add share")</span>
                     </button>
+                </div>
 
-                    <div>
-                        <div class="ak-table-wrap">
-                            <table class="ak-table ak-detail-table">
-                                <thead>
-                                    <tr>
-                                        <th>@UiText.T(Context, "نام مالک / شرکت", "Owner / Company")</th>
-                                        <th>@UiText.T(Context, "نوعیت", "Type")</th>
-                                        <th class="text-end">@UiText.T(Context, "درصد سهم", "Share Percent")</th>
-                                        <th>@UiText.T(Context, "تاریخ اجرا", "Effective Date")</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                @foreach (var row in Model.OwnershipShares)
-                                {
-                                    <tr>
-                                        <td><strong>@row.OwnerName</strong></td>
-                                        <td><span class="ak-status">@OperationalAssetLabels.OwnerType(row.OwnerType, Context)</span></td>
-                                        <td class="text-end"><span>@row.SharePercent.ToString("N0")%</span></td>
-                                        <td>@row.EffectiveFrom.ToDisplayDate()</td>
-                                    </tr>
-                                }
-                                @if (!Model.OwnershipShares.Any())
-                                {
-                                    <tr>
-                                        <td colspan="4">
-                                            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "سهم مالکیت ثبت نشده است؛ قبل از ثبت کرایه، سهم مالکین را اضافه کنید.", "No ownership share recorded; add owner shares before recording rent.")" />
-                                        </td>
-                                    </tr>
-                                }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <div class="ak-table-wrap">
+                    <table class="ak-table ak-detail-table">
+                        <thead>
+                            <tr>
+                                <th>@UiText.T(Context, "نام مالک / شرکت", "Owner / Company")</th>
+                                <th>@UiText.T(Context, "نوعیت", "Type")</th>
+                                <th class="text-end">@UiText.T(Context, "درصد سهم", "Share Percent")</th>
+                                <th>@UiText.T(Context, "از تاریخ", "From")</th>
+                                <th>@UiText.T(Context, "تا تاریخ", "To")</th>
+                                <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.OwnershipShares)
+                        {
+                            <tr>
+                                <td><strong>@row.OwnerName</strong></td>
+                                <td><span class="ak-status">@OperationalAssetLabels.OwnerType(row.OwnerType, Context)</span></td>
+                                <td class="text-end"><span>@row.SharePercent.ToString("N0")%</span></td>
+                                <td>@row.EffectiveFrom.ToDisplayDate()</td>
+                                <td>@(row.EffectiveTo?.ToDisplayDate() ?? "-")</td>
+                                <td>
+                                    <span class="ak-status @(row.IsActiveNow ? "is-active" : "is-inactive")">
+                                        @(row.IsActiveNow ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "منقضی", "Expired"))
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.OwnershipShares.Any())
+                        {
+                            <tr>
+                                <td colspan="6">
+                                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "سهم مالکیت ثبت نشده است؛ قبل از ثبت کرایه، سهم مالکین را اضافه کنید.", "No ownership share recorded; add owner shares before recording rent.")" />
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
             <div class="tab-pane fade @(activeAssetTab == "rents" ? "show active" : "")" id="asset-rents" role="tabpanel" hidden="@(activeAssetTab != "rents")">
-                <div class="ak-list" aria-label="@UiText.T(Context, "آمار کرایه و استفاده", "Rent and use statistics")">
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-box-arrow-up-right"></i> @UiText.T(Context, "عواید کرایه بیرونی", "External Rent Revenue")</span>
-                        <strong>@Model.ExternalRentUsd.ToString("N0")</strong>
-                        <small>@externalRentRows.Count.ToString("N0") @UiText.T(Context, "ثبت کرایه بیرونی", "external rent rows")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-building-check"></i> @UiText.T(Context, "استفاده داخلی شرکت", "Company Internal Use")</span>
-                        <strong>@Model.InternalRentUsd.ToString("N0")</strong>
-                        <small>@internalRentRows.Count.ToString("N0") @UiText.T(Context, "ثبت استفاده داخلی", "internal use rows")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-receipt"></i> @UiText.T(Context, "تعداد ثبت‌ها", "Recorded Rows")</span>
-                        <strong>@rentRowCount.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "کرایه بیرونی و استفاده داخلی", "External rent and internal use")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-calendar-check"></i> @UiText.T(Context, "آخرین کرایه", "Latest Rent")</span>
-                        <strong>@(latestRentDate?.ToDisplayDate() ?? "-")</strong>
-                        <small>@UiText.T(Context, "میانگین مبلغ", "Average Amount") @rentAverageUsd.ToString("N0")</small>
-                    </article>
-                </div>
+                <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار کرایه و استفاده", "Rent and use statistics")">
+                    <vc:stat-card title="@UiText.T(Context, "عواید کرایه بیرونی", "External rent revenue")"
+                                  value="@Model.ExternalRentUsd.ToString("N0")" unit="USD"
+                                  avatar="sales-value"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "استفاده داخلی شرکت", "Company internal use")"
+                                  value="@Model.InternalRentUsd.ToString("N0")" unit="USD"
+                                  avatar="cash-flow"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "تعداد ثبت‌ها", "Recorded rows")"
+                                  value="@rentRowCount.ToString("N0")" unit="@UiText.T(Context, "ثبت", "rows")"
+                                  avatar="receipts"></vc:stat-card>
+                </section>
 
-                <div class="ak-form-grid" data-oa-split>
-                    <div class="modal fade oa-action-modal" id="oaRentModal" tabindex="-1" aria-labelledby="oaRentModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h2 class="modal-title" id="oaRentModalLabel">@UiText.T(Context, "ثبت کرایه", "Record rent")</h2>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
-                                </div>
-                                <div class="modal-body">
-                    <form asp-action="CreateRent" method="post" class="ak-form-section ak-detail-section ak-form" data-oa-rent-form="true">
-                        @Html.AntiForgeryToken()
-                        <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
-                        <input name="ChargedToType" value="@((int)Model.NewRent.ChargedToType)" type="hidden" data-oa-charged-to-type />
-                        <input name="Rate" value="@Model.NewRent.Rate" type="hidden" />
-                        <input name="Currency" value="@Model.NewRent.Currency" type="hidden" />
-                        <input name="FxRateToUsd" value="@Model.NewRent.FxRateToUsd" type="hidden" />
-                        <div class="ak-field">
-                            <label class="ak-label">@UiText.T(Context, "نوع کرایه", "Rent Type")</label>
-                            <div class="ptg-tabs-rail ak-detail-tabs">
-                                <label>
-                                    <input type="radio" name="UsageType" value="@((int)AssetRentUsageType.ExternalCustomerRental)" checked data-oa-rent-usage />
-                                    <span>@UiText.T(Context, "مشتری بیرونی", "External Customer")</span>
-                                </label>
-                                <label>
-                                    <input type="radio" name="UsageType" value="@((int)AssetRentUsageType.InternalCompanyUse)" data-oa-rent-usage />
-                                    <span>@UiText.T(Context, "استفاده داخلی", "Internal Use")</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div>
-                            <div data-oa-rent-external-party>
-                                <div class="ak-form-grid">
-                                    <div class="ak-field" data-oa-rent-party-field="customer">
-                                        <label asp-for="NewRent.ChargedToCustomerId" class="ak-label">@UiText.T(Context, "مشتری موجود", "Existing Customer")</label>
-                                        <select asp-for="NewRent.ChargedToCustomerId" name="ChargedToCustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                                            <option value="">@UiText.T(Context, "از لیست انتخاب کنید...", "Select from list...")</option>
-                                        </select>
-                                    </div>
-                                    <div class="ak-field">
-                                        <label asp-for="NewRent.NewCustomerName" class="ak-label">@UiText.T(Context, "نام مشتری جدید", "New Customer Name")</label>
-                                        <input asp-for="NewRent.NewCustomerName" name="NewCustomerName" class="ak-input" placeholder="@UiText.T(Context, "اگر در لیست نیست، نام را وارد کنید", "Enter name if not in the list")" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div data-oa-rent-internal-party hidden>
-                                <div class="ak-field">
-                                    <label class="ak-label">@UiText.T(Context, "نوع طرف حساب داخلی", "Internal Counterparty Type")</label>
-                                    <select class="ak-input" data-oa-internal-party-type>
-                                        <option value="@((int)AssetRentChargedToType.CompanyInternal)">@UiText.T(Context, "شرکت", "Company")</option>
-                                        <option value="@((int)AssetRentChargedToType.Partner)">@UiText.T(Context, "شریک", "Partner")</option>
-                                        <option value="@((int)AssetRentChargedToType.Customer)">@UiText.T(Context, "مشتری", "Customer")</option>
-                                        <option value="@((int)AssetRentChargedToType.Other)">@UiText.T(Context, "شرکت خدماتی", "Service Company")</option>
-                                    </select>
-                                </div>
-                                <div class="ak-field" data-oa-rent-party-field="company">
-                                    <label asp-for="NewRent.ChargedToCompanyId" class="ak-label">@UiText.T(Context, "شرکت", "Company")</label>
-                                    <select asp-for="NewRent.ChargedToCompanyId" name="ChargedToCompanyId" asp-items="ViewBag.Companies" class="ak-input">
-                                        <option value="">@UiText.T(Context, "شرکت را انتخاب کنید...", "Select company...")</option>
-                                    </select>
-                                </div>
-                                <div class="ak-field" data-oa-rent-party-field="partner">
-                                    <label asp-for="NewRent.ChargedToPartnerId" class="ak-label">@UiText.T(Context, "شریک", "Partner")</label>
-                                    <select asp-for="NewRent.ChargedToPartnerId" name="ChargedToPartnerId" asp-items="ViewBag.Partners" class="ak-input">
-                                        <option value="">@UiText.T(Context, "شریک را انتخاب کنید...", "Select partner...")</option>
-                                    </select>
-                                </div>
-                                <div class="ak-field" data-oa-rent-party-field="internal-customer">
-                                    <label asp-for="NewRent.ChargedToCustomerId" class="ak-label">@UiText.T(Context, "مشتری", "Customer")</label>
-                                    <select name="ChargedToCustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                                        <option value="">@UiText.T(Context, "مشتری را انتخاب کنید...", "Select customer...")</option>
-                                    </select>
-                                </div>
-                                <div class="ak-field" data-oa-rent-party-field="service-provider">
-                                    <label asp-for="NewRent.ChargedToServiceProviderId" class="ak-label">@UiText.T(Context, "شرکت خدماتی", "Service Company")</label>
-                                    <select asp-for="NewRent.ChargedToServiceProviderId" name="ChargedToServiceProviderId" asp-items="ViewBag.ServiceProviders" class="ak-input">
-                                        <option value="">@UiText.T(Context, "شرکت خدماتی را انتخاب کنید...", "Select service company...")</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="ak-field">
-                            <label asp-for="NewRent.AmountOriginal" class="ak-label">@UiText.T(Context, "مبلغ کرایه (دالر)", "Rent Amount (USD)")</label>
-                            <input asp-for="NewRent.AmountOriginal" name="AmountOriginal" class="ak-input" placeholder="@UiText.T(Context, "مثلاً 5000", "For example 5000")" />
-                        </div>
-                        <div class="ak-form-grid">
-                            <div class="ak-field">
-                                <label asp-for="NewRent.RentDate" class="ak-label">@UiText.T(Context, "از تاریخ", "From Date")</label>
-                                <input asp-for="NewRent.RentDate" name="RentDate" type="date" class="ak-input" />
-                            </div>
-                            <div class="ak-field">
-                                <label asp-for="NewRent.ReferenceDocument" class="ak-label">@UiText.T(Context, "شماره سند", "Document No.")</label>
-                                <input asp-for="NewRent.ReferenceDocument" name="ReferenceDocument" class="ak-input" />
-                            </div>
-                        </div>
-                        <div class="ak-field">
-                            <label asp-for="NewRent.Description" class="ak-label">@UiText.T(Context, "شرح مختصر", "Short Note")</label>
-                            <textarea asp-for="NewRent.Description" name="Description" rows="2" class="ak-input"></textarea>
-                        </div>
-                        <button type="submit" class="ak-save">
-                            @UiText.T(Context, "ثبت و تأیید نهایی کرایه", "Save and Confirm Rent") <i class="bi bi-check-circle"></i>
-                        </button>
-                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="ak-section-head ak-detail-section-header oa-block-head">
                     <button type="button" class="btn btn-primary oa-modal-trigger" data-bs-toggle="modal" data-bs-target="#oaRentModal">
-                        <i class="bi bi-plus-lg"></i>
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
                         <span>@UiText.T(Context, "ثبت کرایه", "Record rent")</span>
                     </button>
+                </div>
 
-                    <div>
-                        <div class="ak-section-head ak-detail-section-header">
-                            <h3><i class="bi bi-activity"></i> @UiText.T(Context, "تاریخچه کرایه‌ها", "Rent History")</h3>
-                            <button class="btn btn-light ak-secondary-action" type="button" data-bs-toggle="collapse" data-bs-target="#operationalAssetDetailFilters" aria-expanded="false" aria-controls="operationalAssetDetailFilters">
-                                @UiText.T(Context, "فیلتر پیشرفته", "Advanced Filter")
-                            </button>
-                        </div>
-                        <div class="ak-table-wrap">
-                            <table class="ak-table ak-detail-table">
-                                <thead>
-                                    <tr>
-                                        <th>@UiText.T(Context, "شماره سند", "Document No.")</th>
-                                        <th>@UiText.T(Context, "تاریخ ثبت", "Date")</th>
-                                        <th>@UiText.T(Context, "نوع کرایه", "Rent Type")</th>
-                                        <th>@UiText.T(Context, "مشتری / ذینفع", "Customer / Beneficiary")</th>
-                                        <th class="text-end">@UiText.T(Context, "مبلغ (دالر)", "Amount (USD)")</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                @foreach (var row in Model.RentTransactions)
-                                {
-                                    <tr>
-                                        <td><strong>@(row.ReferenceDocument ?? ("#" + row.Id.ToString()))</strong></td>
-                                        <td>@row.RentDate.ToDisplayDate()</td>
-                                        <td><span class="ak-status is-blue">@OperationalAssetLabels.UsageType(row.UsageType, Context)</span></td>
-                                        <td>@(string.IsNullOrWhiteSpace(row.ChargedToName) ? OperationalAssetLabels.ChargedToType(row.ChargedToType, Context) : row.ChargedToName)</td>
-                                        <td class="text-end"><span>@row.AmountUsd.ToString("N0")</span></td>
-                                    </tr>
-                                }
-                                @if (!Model.RentTransactions.Any())
-                                {
-                                    <tr>
-                                        <td colspan="5">
-                                            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "برای دوره انتخاب‌شده کرایه یا استفاده ثبت نشده است.", "No rent or use recorded for the selected period.")" />
-                                        </td>
-                                    </tr>
-                                }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <div class="ak-table-wrap">
+                    <table class="ak-table ak-detail-table">
+                        <thead>
+                            <tr>
+                                <th>@UiText.T(Context, "شماره سند", "Document No.")</th>
+                                <th>@UiText.T(Context, "تاریخ ثبت", "Date")</th>
+                                <th>@UiText.T(Context, "نوع کرایه", "Rent Type")</th>
+                                <th>@UiText.T(Context, "مشتری / ذینفع", "Customer / Beneficiary")</th>
+                                <th>@UiText.T(Context, "وضعیت دفتر", "Ledger")</th>
+                                <th class="text-end">@UiText.T(Context, "مبلغ اصلی", "Original amount")</th>
+                                <th class="text-end">@UiText.T(Context, "مبلغ (دالر)", "Amount (USD)")</th>
+                                <th class="text-end">@UiText.T(Context, "عملیات", "Actions")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.RentTransactions)
+                        {
+                            <tr>
+                                <td><strong>@(row.ReferenceDocument ?? ("#" + row.Id.ToString()))</strong></td>
+                                <td>@row.RentDate.ToDisplayDate()</td>
+                                <td>
+                                    <span class="ak-status is-blue">@OperationalAssetLabels.UsageType(row.UsageType, Context)</span>
+                                    @if (row.IsSystemGenerated)
+                                    {
+                                        <span class="ak-status">@UiText.T(Context, "خودکار بارگیری", "Loading-generated")</span>
+                                    }
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(row.ChargedToName) ? OperationalAssetLabels.ChargedToType(row.ChargedToType, Context) : row.ChargedToName)</td>
+                                <td>
+                                    @* سه وضعیت جدا: ثبت‌شده، «اصلاً ثبت مالی ندارد» و «باید ثبت می‌شد ولی نشده».
+                                       حالت دوم وضعیت عادی است و نباید مثل خطا دیده شود. *@
+                                    @if (row.IsPostedToLedger)
+                                    {
+                                        <span class="ak-status is-active">@UiText.T(Context, "ثبت‌شده", "Posted")</span>
+                                    }
+                                    else if (row.IsNonFinancial)
+                                    {
+                                        <span class="ak-status" title="@row.PostingSkipReason">@UiText.T(Context, "بدون اثر مالی", "No financial posting")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ak-status is-inactive">@UiText.T(Context, "ثبت‌نشده", "Not posted")</span>
+                                    }
+                                </td>
+                                <td class="text-end"><span dir="ltr">@row.AmountOriginal.ToString("N2") @row.Currency</span></td>
+                                <td class="text-end"><span>@row.AmountUsd.ToString("N0")</span></td>
+                                <td class="text-end">
+                                    @if (row.IsSystemGenerated)
+                                    {
+                                        @* کرایهٔ بارگیری از سند بارگیری خودش لغو می‌شود تا ردیف مصرف و کرایه از هم جدا نیفتند. *@
+                                        <span>—</span>
+                                    }
+                                    else
+                                    {
+                                        <form asp-action="CancelRent" method="post" class="oa-row-action"
+                                              onsubmit="return confirm('@UiText.T(Context, "این کرایه لغو و اثر مالی آن برگردانده شود؟", "Cancel this rent and reverse its financial effect?")');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@row.Id" />
+                                            <input type="hidden" name="returnUrl" value="@($"{Context.Request.Path}{Context.Request.QueryString}")" />
+                                            <button type="submit" class="btn btn-light ak-secondary-action">
+                                                <i class="bi bi-x-circle" aria-hidden="true"></i>
+                                                <span>@UiText.T(Context, "لغو", "Cancel")</span>
+                                            </button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.RentTransactions.Any())
+                        {
+                            <tr>
+                                <td colspan="8">
+                                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "برای دوره انتخاب‌شده کرایه یا استفاده ثبت نشده است.", "No rent or use recorded for the selected period.")" />
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
             <div class="tab-pane fade @(activeAssetTab == "expenses" ? "show active" : "")" id="asset-expenses" role="tabpanel" hidden="@(activeAssetTab != "expenses")">
-                <div class="ak-section-head ak-detail-section-header">
-                    <h3>@UiText.T(Context, "تاریخچه مصارف و مصارف", "Expense History")</h3>
-                </div>
-                <div class="ak-list" aria-label="@UiText.T(Context, "آمار مصارف", "Expense statistics")">
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-wallet2"></i> @UiText.T(Context, "جمع مصارف", "Total Expenses")</span>
-                        <strong>@Model.DirectExpensesUsd.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "مصارف مستقیم همین دارایی", "Direct expenses for this asset")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-receipt-cutoff"></i> @UiText.T(Context, "تعداد سندها", "Document Count")</span>
-                        <strong>@expenseRowCount.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "سندهای مصرف در همین دوره", "Expense documents in this period")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-tags"></i> @UiText.T(Context, "دسته‌بندی‌ها", "Categories")</span>
-                        <strong>@expenseCategoryCount.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "نوع مصارف استفاده‌شده", "Used expense categories")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-calendar-check"></i> @UiText.T(Context, "آخرین مصرف", "Latest Expense")</span>
-                        <strong>@(latestExpenseDate?.ToDisplayDate() ?? "-")</strong>
-                        <small>@UiText.T(Context, "آخرین تاریخ ثبت مصرف", "Last expense record date")</small>
-                    </article>
-                </div>
-                <div class="ak-form-grid" data-oa-split>
-                    <div class="modal fade oa-action-modal" id="oaExpenseModal" tabindex="-1" aria-labelledby="oaExpenseModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h2 class="modal-title" id="oaExpenseModalLabel">@UiText.T(Context, "ثبت مصرف", "Record expense")</h2>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
-                                </div>
-                                <div class="modal-body">
-                    <form asp-controller="Expenses" asp-action="Create" method="post" class="ak-form-section ak-detail-section ak-form">
-                        @Html.AntiForgeryToken()
-                        <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
-                        <input name="Currency" value="USD" type="hidden" />
-                        <input name="AppliedFxRateToUsd" value="1" type="hidden" />
-                        <input name="ReturnUrl" value="@Context.Request.Path@Context.Request.QueryString" type="hidden" />
-                        <div class="ak-form-grid">
-                            <div class="ak-field">
-                                <label class="ak-label">@UiText.T(Context, "نوع مصرف", "Expense Type")</label>
-                                <input name="ManualExpenseTypeName" class="ak-input" placeholder="@UiText.T(Context, "مثلاً تعمیر و نگهداری", "For example maintenance")" />
-                            </div>
-                            <div class="ak-field">
-                                <label class="ak-label">@UiText.T(Context, "مبلغ (دالر)", "Amount (USD)")</label>
-                                <input name="Amount" class="ak-input" placeholder="@UiText.T(Context, "مثلاً 2500", "For example 2500")" />
-                            </div>
-                        </div>
-                        <div class="ak-field">
-                            <label class="ak-label">@UiText.T(Context, "تاریخ مصرف", "Expense Date")</label>
-                            <input name="ExpenseDate" type="date" class="ak-input" value="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
-                        </div>
-                        <div class="ak-field">
-                            <label class="ak-label">@UiText.T(Context, "شرح / مرجع", "Description / Reference")</label>
-                            <textarea name="Description" rows="2" class="ak-input"></textarea>
-                        </div>
-                        <button type="submit" class="ak-save">
-                            @UiText.T(Context, "ثبت مصرف", "Save Expense") <i class="bi bi-check-circle"></i>
-                        </button>
-                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار مصارف", "Expense statistics")">
+                    <vc:stat-card title="@UiText.T(Context, "جمع مصارف", "Total expenses")"
+                                  value="@Model.DirectExpensesUsd.ToString("N0")" unit="USD"
+                                  avatar="expenses"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "تعداد سندها", "Document count")"
+                                  value="@expenseRowCount.ToString("N0")" unit="@UiText.T(Context, "سند", "documents")"
+                                  avatar="documents"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "دسته‌بندی‌ها", "Categories")"
+                                  value="@expenseCategoryCount.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")"
+                                  avatar="expense-types"></vc:stat-card>
+                </section>
+
+                <div class="ak-section-head ak-detail-section-header oa-block-head">
                     <button type="button" class="btn btn-primary oa-modal-trigger" data-bs-toggle="modal" data-bs-target="#oaExpenseModal">
-                        <i class="bi bi-plus-lg"></i>
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
                         <span>@UiText.T(Context, "ثبت مصرف", "Record expense")</span>
                     </button>
+                </div>
 
-                    <div>
-                        <div class="ak-table-wrap">
-                            <table class="ak-table ak-detail-table">
-                                <thead>
-                                    <tr>
-                                        <th>@UiText.T(Context, "شماره سند", "Document No.")</th>
-                                        <th>@UiText.T(Context, "تاریخ", "Date")</th>
-                                        <th>@UiText.T(Context, "دسته‌بندی مصرف", "Expense Category")</th>
-                                        <th>@UiText.T(Context, "شرح مختصر", "Short Description")</th>
-                                        <th class="text-end">@UiText.T(Context, "مبلغ (دالر)", "Amount (USD)")</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                @foreach (var row in Model.Expenses)
-                                {
-                                    <tr>
-                                        <td><strong>#@row.Id</strong></td>
-                                        <td>@row.ExpenseDate.ToDisplayDate()</td>
-                                        <td>
-                                            <span class="ak-status">@row.ExpenseTypeName</span>
-                                            @if (row.IsFreightIncome)
-                                            {
-                                                <span class="ak-status">@UiText.T(Context, "درآمد کرایه", "Freight income")</span>
-                                            }
-                                        </td>
-                                        <td>@(row.Description ?? row.ContractNumber ?? row.ShipmentCode ?? row.TransportLegLabel ?? row.TruckDispatchLabel ?? "-")</td>
-                                        <td class="text-end">
-                                            @if (row.IsFreightIncome)
-                                            {
-                                                <span>+@row.AmountUsd.ToString("N0")</span>
-                                            }
-                                            else
-                                            {
-                                                <span>@row.AmountUsd.ToString("N0")</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                                @if (!Model.Expenses.Any())
-                                {
-                                    <tr>
-                                        <td colspan="5">
-                                            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "در دوره انتخاب‌شده مصرفی به این دارایی وصل نیست.", "No expense is linked to this asset in the selected period.")" />
-                                        </td>
-                                    </tr>
-                                }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <div class="ak-table-wrap">
+                    <table class="ak-table ak-detail-table">
+                        <thead>
+                            <tr>
+                                <th>@UiText.T(Context, "شماره سند", "Document No.")</th>
+                                <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                                <th>@UiText.T(Context, "دسته‌بندی مصرف", "Expense Category")</th>
+                                <th>@UiText.T(Context, "شرح مختصر", "Short Description")</th>
+                                <th class="text-end">@UiText.T(Context, "مبلغ (دالر)", "Amount (USD)")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.Expenses)
+                        {
+                            <tr>
+                                <td><strong>#@row.Id</strong></td>
+                                <td>@row.ExpenseDate.ToDisplayDate()</td>
+                                <td>
+                                    <span class="ak-status">@row.ExpenseTypeName</span>
+                                    @if (row.IsFreightIncome)
+                                    {
+                                        <span class="ak-status is-blue">@UiText.T(Context, "درآمد کرایه", "Freight income")</span>
+                                    }
+                                </td>
+                                <td>@(row.Description ?? row.ContractNumber ?? row.ShipmentCode ?? row.TransportLegLabel ?? row.TruckDispatchLabel ?? "-")</td>
+                                <td class="text-end">
+                                    @if (row.IsFreightIncome)
+                                    {
+                                        <span class="is-positive">+@row.AmountUsd.ToString("N0")</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@row.AmountUsd.ToString("N0")</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.Expenses.Any())
+                        {
+                            <tr>
+                                <td colspan="5">
+                                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "در دوره انتخاب‌شده مصرفی به این دارایی وصل نیست.", "No expense is linked to this asset in the selected period.")" />
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <div class="tab-pane fade @(activeAssetTab == "shares" ? "show active" : "")" id="asset-shares" role="tabpanel" hidden="@(activeAssetTab != "shares")">
-                <div class="ak-section-head ak-detail-section-header">
-                    <h3><i class="bi bi-pie-chart"></i> @UiText.T(Context, "توزیع سود مالکین", "Owner Profit Distribution")</h3>
+            <div class="tab-pane fade @(activeAssetTab == "profit" ? "show active" : "")" id="asset-profit" role="tabpanel" hidden="@(activeAssetTab != "profit")">
+                @* تفکیک درآمد/مصرف عمداً تکرار نمی‌شود؛ جدول «صورت عملکرد مالی» پایین همان ارقام را سطربه‌سطر دارد. *@
+                <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار سود و توزیع", "Profit and distribution statistics")">
+                    <vc:stat-card title="@UiText.T(Context, "مجموع درآمد کرایه", "Total rent revenue")"
+                                  value="@Model.TotalRentUsd.ToString("N0")" unit="USD"
+                                  avatar="sales-value"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "درآمد کرایه حمل", "Freight income")"
+                                  value="@Model.FreightIncomeUsd.ToString("N0")" unit="USD"
+                                  avatar="transported"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "مصارف و استهلاک", "Costs and depreciation")"
+                                  value="@totalCostUsd.ToString("N0")" unit="USD"
+                                  avatar="expenses"></vc:stat-card>
+                    <vc:stat-card title="@UiText.T(Context, "نتیجه خالص مدیریتی", "Management net result")"
+                                  value="@Model.NetResultUsd.ToString("N0")" unit="USD"
+                                  avatar="profit-loss" state="@(isNetPositive ? null : "warning")"></vc:stat-card>
+                </section>
+
+                @* استهلاک در این سیستم هیچ ژورنالی نمی‌سازد (نه حساب استهلاک انباشته وجود دارد نه
+                   حساب هزینهٔ استهلاک)، پس این نتیجه با P&L حسابداری یکی نیست و باید صریحاً
+                   «مدیریتی» خوانده شود تا کاربر آن را جای سود حسابداری نگیرد. *@
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "صورت عملکرد مالی مدیریتی", "Management performance statement"),
+                                   (string?)UiText.T(Context,
+                                       "استهلاک فقط محاسبهٔ مدیریتی است و در دفتر حسابداری ثبت نمی‌شود؛ این نتیجه معادل سود حسابداری نیست.",
+                                       "Depreciation is a management-only calculation and is not posted to the accounting ledger; this result is not the accounting profit.")))" />
+                <div class="ak-table-wrap">
+                    <table class="ak-table ak-detail-table">
+                        <thead>
+                            <tr>
+                                <th>@UiText.T(Context, "شرح", "Description")</th>
+                                <th class="text-end">@UiText.T(Context, "مبلغ USD", "Amount USD")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>@UiText.T(Context, "جمع درآمد کرایه و استفاده", "Total rent and use revenue")</td>
+                                <td class="text-end"><span>@Model.TotalRentUsd.ToString("N2")</span></td>
+                            </tr>
+                            <tr>
+                                <td>@UiText.T(Context, "درآمد کرایهٔ حمل/رسید (دارایی شرکت)", "Transport/receipt freight income")</td>
+                                <td class="text-end"><span>@Model.FreightIncomeUsd.ToString("N2")</span></td>
+                            </tr>
+                            <tr>
+                                <td>@UiText.T(Context, "مصارف مستقیم دارایی", "Direct asset expenses")</td>
+                                <td class="text-end"><span>@Model.DirectExpensesUsd.ToString("N2")</span></td>
+                            </tr>
+                            <tr>
+                                <td>@UiText.T(Context, "استهلاک محاسباتی دوره (فقط مدیریتی)", "Calculated period depreciation (management only)")</td>
+                                <td class="text-end"><span>@Model.DepreciationUsd.ToString("N2")</span></td>
+                            </tr>
+                            <tr class="oa-total-row">
+                                <td><strong>@UiText.T(Context, "نتیجه خالص مدیریتی", "Management net result")</strong></td>
+                                <td class="text-end"><strong class="@(isNetPositive ? "is-positive" : "is-negative")">@Model.NetResultUsd.ToString("N2")</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="ak-list" aria-label="@UiText.T(Context, "آمار توزیع سود مالکین", "Owner share distribution statistics")">
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-cash-stack"></i> @UiText.T(Context, "جمع سهم مالکین", "Total Owner Share")</span>
-                        <strong>@totalOwnerShareUsd.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "مجموع سهم snapshot شده", "Total snapshotted owner share")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-people"></i> @UiText.T(Context, "مالکین درگیر", "Owners Involved")</span>
-                        <strong>@rentShareOwnerCount.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "مالکینی که سهم گرفته‌اند", "Owners with allocated shares")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-receipt"></i> @UiText.T(Context, "کرایه‌های توزیع‌شده", "Distributed Rents")</span>
-                        <strong>@rentShareRentCount.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "تراکنش‌های کرایه دارای سهم", "Rent transactions with share rows")</small>
-                    </article>
-                    <article class="ak-list-row">
-                        <span><i class="bi bi-list-ul"></i> @UiText.T(Context, "ردیف‌های سهم", "Share Lines")</span>
-                        <strong>@rentShareRowCount.ToString("N0")</strong>
-                        <small>@UiText.T(Context, "کل ردیف‌های توزیع سهم", "Total owner share lines")</small>
-                    </article>
-                </div>
+
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "توزیع سود مالکین", "Owner profit distribution"),
+                                   (string?)$"{UiText.T(Context, "جمع سهم", "Total share")} {totalOwnerShareUsd.ToString("N0")} USD"))" />
                 <div class="ak-table-wrap">
                     <table class="ak-table ak-detail-table">
                         <thead>
@@ -665,6 +442,215 @@
 
     <partial name="~/Views/Shared/Partials/_DetailAdvancedSection.cshtml"
              model="@(((string?)null, (IReadOnlyList<AkInfoItem>)assetAdvancedItems))" />
+
+    @* مودال‌ها بیرون از tab-pane نگه داشته می‌شوند تا با hidden شدن تب از دسترس خارج نشوند. *@
+    <div class="modal fade oa-action-modal" id="oaOwnershipModal" tabindex="-1" aria-labelledby="oaOwnershipModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="oaOwnershipModalLabel">@UiText.T(Context, "افزودن سهم مالکیت", "Add ownership share")</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
+                </div>
+                <div class="modal-body">
+                    <form asp-action="AddOwnershipShare" method="post" class="ak-form-section ak-detail-section ak-form" data-oa-owner-form>
+                        @Html.AntiForgeryToken()
+                        <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
+                        <div class="ak-form-grid">
+                            <div class="ak-field">
+                                <label asp-for="NewOwnershipShare.OwnerType" class="ak-label">@UiText.T(Context, "نوع مالک", "Owner Type")</label>
+                                <select asp-for="NewOwnershipShare.OwnerType" name="OwnerType" asp-items="ViewBag.OwnerTypes" class="ak-input" data-oa-owner-type></select>
+                            </div>
+                            <div class="ak-field" data-oa-owner-field="company">
+                                <label asp-for="NewOwnershipShare.CompanyId" class="ak-label">@UiText.T(Context, "شرکت", "Company")</label>
+                                <select asp-for="NewOwnershipShare.CompanyId" name="CompanyId" asp-items="ViewBag.Companies" class="ak-input">
+                                    <option value="">@UiText.T(Context, "انتخاب کنید...", "Select...")</option>
+                                </select>
+                            </div>
+                            <div class="ak-field" data-oa-owner-field="partner">
+                                <label asp-for="NewOwnershipShare.PartnerId" class="ak-label">@UiText.T(Context, "شریک", "Partner")</label>
+                                <select asp-for="NewOwnershipShare.PartnerId" name="PartnerId" asp-items="ViewBag.Partners" class="ak-input">
+                                    <option value="">@UiText.T(Context, "انتخاب کنید...", "Select...")</option>
+                                </select>
+                            </div>
+                            <div class="ak-field" data-oa-owner-field="other">
+                                <label asp-for="NewOwnershipShare.OwnerName" class="ak-label">@UiText.T(Context, "نام مالک دیگر", "Other Owner Name")</label>
+                                <input asp-for="NewOwnershipShare.OwnerName" name="OwnerName" class="ak-input" placeholder="@UiText.T(Context, "برای مالک بیرونی یا حساب دیگر", "For external owner or other account")" />
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="NewOwnershipShare.SharePercent" class="ak-label">@UiText.T(Context, "درصد سهم (%)", "Share Percent (%)")</label>
+                                <input asp-for="NewOwnershipShare.SharePercent" name="SharePercent" class="ak-input" placeholder="@UiText.T(Context, "مثلاً 20", "For example 20")" />
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="NewOwnershipShare.EffectiveFrom" class="ak-label">@UiText.T(Context, "تاریخ اجرا", "Effective Date")</label>
+                                <input asp-for="NewOwnershipShare.EffectiveFrom" name="EffectiveFrom" type="date" class="ak-input" />
+                            </div>
+                        </div>
+                        <div class="ak-field">
+                            <label asp-for="NewOwnershipShare.Notes" class="ak-label">@UiText.T(Context, "یادداشت", "Notes")</label>
+                            <textarea asp-for="NewOwnershipShare.Notes" name="Notes" rows="2" class="ak-input"></textarea>
+                        </div>
+                        <div class="oa-modal-actions">
+                            <button type="button" class="btn btn-light ak-secondary-action" data-bs-dismiss="modal">@UiText.T(Context, "انصراف", "Cancel")</button>
+                            <button type="submit" class="ak-save">@UiText.T(Context, "ثبت سهم", "Save Share")</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade oa-action-modal" id="oaRentModal" tabindex="-1" aria-labelledby="oaRentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="oaRentModalLabel">@UiText.T(Context, "ثبت کرایه", "Record rent")</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
+                </div>
+                <div class="modal-body">
+                    <form asp-action="CreateRent" method="post" class="ak-form-section ak-detail-section ak-form" data-oa-rent-form="true">
+                        @Html.AntiForgeryToken()
+                        <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
+                        <input name="ChargedToType" value="@((int)Model.NewRent.ChargedToType)" type="hidden" data-oa-charged-to-type />
+                        <input name="Rate" value="@Model.NewRent.Rate" type="hidden" />
+                        <input name="Currency" value="@Model.NewRent.Currency" type="hidden" />
+                        <input name="FxRateToUsd" value="@Model.NewRent.FxRateToUsd" type="hidden" />
+                        <div class="ak-field">
+                            <label class="ak-label">@UiText.T(Context, "نوع کرایه", "Rent Type")</label>
+                            <div class="ptg-tabs-rail ak-detail-tabs oa-choice-rail">
+                                <label>
+                                    <input type="radio" name="UsageType" value="@((int)AssetRentUsageType.ExternalCustomerRental)" checked data-oa-rent-usage />
+                                    <span>@UiText.T(Context, "مشتری بیرونی", "External Customer")</span>
+                                </label>
+                                <label>
+                                    <input type="radio" name="UsageType" value="@((int)AssetRentUsageType.InternalCompanyUse)" data-oa-rent-usage />
+                                    <span>@UiText.T(Context, "استفاده داخلی", "Internal Use")</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div data-oa-rent-external-party>
+                            <div class="ak-form-grid">
+                                <div class="ak-field" data-oa-rent-party-field="customer">
+                                    <label asp-for="NewRent.ChargedToCustomerId" class="ak-label">@UiText.T(Context, "مشتری موجود", "Existing Customer")</label>
+                                    <select asp-for="NewRent.ChargedToCustomerId" name="ChargedToCustomerId" asp-items="ViewBag.Customers" class="ak-input">
+                                        <option value="">@UiText.T(Context, "از لیست انتخاب کنید...", "Select from list...")</option>
+                                    </select>
+                                </div>
+                                <div class="ak-field">
+                                    <label asp-for="NewRent.NewCustomerName" class="ak-label">@UiText.T(Context, "نام مشتری جدید", "New Customer Name")</label>
+                                    <input asp-for="NewRent.NewCustomerName" name="NewCustomerName" class="ak-input" placeholder="@UiText.T(Context, "اگر در لیست نیست، نام را وارد کنید", "Enter name if not in the list")" />
+                                </div>
+                            </div>
+                        </div>
+                        <div data-oa-rent-internal-party hidden>
+                            <div class="ak-form-grid">
+                                <div class="ak-field">
+                                    <label class="ak-label">@UiText.T(Context, "نوع طرف حساب داخلی", "Internal Counterparty Type")</label>
+                                    <select class="ak-input" data-oa-internal-party-type>
+                                        <option value="@((int)AssetRentChargedToType.CompanyInternal)">@UiText.T(Context, "شرکت", "Company")</option>
+                                        <option value="@((int)AssetRentChargedToType.Partner)">@UiText.T(Context, "شریک", "Partner")</option>
+                                        <option value="@((int)AssetRentChargedToType.Customer)">@UiText.T(Context, "مشتری", "Customer")</option>
+                                        <option value="@((int)AssetRentChargedToType.Other)">@UiText.T(Context, "شرکت خدماتی", "Service Company")</option>
+                                    </select>
+                                </div>
+                                <div class="ak-field" data-oa-rent-party-field="company">
+                                    <label asp-for="NewRent.ChargedToCompanyId" class="ak-label">@UiText.T(Context, "شرکت", "Company")</label>
+                                    <select asp-for="NewRent.ChargedToCompanyId" name="ChargedToCompanyId" asp-items="ViewBag.Companies" class="ak-input">
+                                        <option value="">@UiText.T(Context, "شرکت را انتخاب کنید...", "Select company...")</option>
+                                    </select>
+                                </div>
+                                <div class="ak-field" data-oa-rent-party-field="partner">
+                                    <label asp-for="NewRent.ChargedToPartnerId" class="ak-label">@UiText.T(Context, "شریک", "Partner")</label>
+                                    <select asp-for="NewRent.ChargedToPartnerId" name="ChargedToPartnerId" asp-items="ViewBag.Partners" class="ak-input">
+                                        <option value="">@UiText.T(Context, "شریک را انتخاب کنید...", "Select partner...")</option>
+                                    </select>
+                                </div>
+                                <div class="ak-field" data-oa-rent-party-field="internal-customer">
+                                    <label asp-for="NewRent.ChargedToCustomerId" class="ak-label">@UiText.T(Context, "مشتری", "Customer")</label>
+                                    <select name="ChargedToCustomerId" asp-items="ViewBag.Customers" class="ak-input">
+                                        <option value="">@UiText.T(Context, "مشتری را انتخاب کنید...", "Select customer...")</option>
+                                    </select>
+                                </div>
+                                <div class="ak-field" data-oa-rent-party-field="service-provider">
+                                    <label asp-for="NewRent.ChargedToServiceProviderId" class="ak-label">@UiText.T(Context, "شرکت خدماتی", "Service Company")</label>
+                                    <select asp-for="NewRent.ChargedToServiceProviderId" name="ChargedToServiceProviderId" asp-items="ViewBag.ServiceProviders" class="ak-input">
+                                        <option value="">@UiText.T(Context, "شرکت خدماتی را انتخاب کنید...", "Select service company...")</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ak-form-grid">
+                            <div class="ak-field">
+                                <label asp-for="NewRent.AmountOriginal" class="ak-label">@UiText.T(Context, "مبلغ کرایه (دالر)", "Rent Amount (USD)")</label>
+                                <input asp-for="NewRent.AmountOriginal" name="AmountOriginal" class="ak-input" placeholder="@UiText.T(Context, "مثلاً 5000", "For example 5000")" />
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="NewRent.RentDate" class="ak-label">@UiText.T(Context, "از تاریخ", "From Date")</label>
+                                <input asp-for="NewRent.RentDate" name="RentDate" type="date" class="ak-input" />
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="NewRent.ReferenceDocument" class="ak-label">@UiText.T(Context, "شماره سند", "Document No.")</label>
+                                <input asp-for="NewRent.ReferenceDocument" name="ReferenceDocument" class="ak-input" />
+                            </div>
+                        </div>
+                        <div class="ak-field">
+                            <label asp-for="NewRent.Description" class="ak-label">@UiText.T(Context, "شرح مختصر", "Short Note")</label>
+                            <textarea asp-for="NewRent.Description" name="Description" rows="2" class="ak-input"></textarea>
+                        </div>
+                        <div class="oa-modal-actions">
+                            <a class="btn btn-light ak-secondary-action" href="@rentUrl">@UiText.T(Context, "فورم کامل", "Full form")</a>
+                            <button type="submit" class="ak-save">
+                                @UiText.T(Context, "ثبت و تأیید نهایی کرایه", "Save and Confirm Rent") <i class="bi bi-check-circle" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade oa-action-modal" id="oaExpenseModal" tabindex="-1" aria-labelledby="oaExpenseModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="oaExpenseModalLabel">@UiText.T(Context, "ثبت مصرف", "Record expense")</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@UiText.T(Context, "بستن", "Close")"></button>
+                </div>
+                <div class="modal-body">
+                    <form asp-controller="Expenses" asp-action="Create" method="post" class="ak-form-section ak-detail-section ak-form">
+                        @Html.AntiForgeryToken()
+                        <input name="OperationalAssetId" value="@Model.Id" type="hidden" />
+                        <input name="Currency" value="USD" type="hidden" />
+                        <input name="AppliedFxRateToUsd" value="1" type="hidden" />
+                        <input name="ReturnUrl" value="@Context.Request.Path@Context.Request.QueryString" type="hidden" />
+                        <div class="ak-form-grid">
+                            <div class="ak-field">
+                                <label class="ak-label">@UiText.T(Context, "نوع مصرف", "Expense Type")</label>
+                                <input name="ManualExpenseTypeName" class="ak-input" placeholder="@UiText.T(Context, "مثلاً تعمیر و نگهداری", "For example maintenance")" />
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label">@UiText.T(Context, "مبلغ (دالر)", "Amount (USD)")</label>
+                                <input name="Amount" class="ak-input" placeholder="@UiText.T(Context, "مثلاً 2500", "For example 2500")" />
+                            </div>
+                            <div class="ak-field">
+                                <label class="ak-label">@UiText.T(Context, "تاریخ مصرف", "Expense Date")</label>
+                                <input name="ExpenseDate" type="date" class="ak-input" value="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                        </div>
+                        <div class="ak-field">
+                            <label class="ak-label">@UiText.T(Context, "شرح / مرجع", "Description / Reference")</label>
+                            <textarea name="Description" rows="2" class="ak-input"></textarea>
+                        </div>
+                        <div class="oa-modal-actions">
+                            <button type="button" class="btn btn-light ak-secondary-action" data-bs-dismiss="modal">@UiText.T(Context, "انصراف", "Cancel")</button>
+                            <button type="submit" class="ak-save">
+                                @UiText.T(Context, "ثبت مصرف", "Save Expense") <i class="bi bi-check-circle" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {

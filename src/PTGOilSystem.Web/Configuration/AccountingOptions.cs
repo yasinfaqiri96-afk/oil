@@ -59,4 +59,11 @@ public sealed class AccountingPilotOptions
     // stock. Without this flag a transfer moves tonnes and no money, and Cogs at the destination
     // is unsafe; that is why enabling Cogs depends on enabling this.
     public bool InventoryTransfer { get; set; }
+
+    // Stage 9 — operational asset rent. Only the rent a user records by hand in
+    // OperationalAssetsController.CreateRent reaches this flag. The rents LoadingController
+    // generates automatically are deliberately outside it: their freight/expense counterpart is
+    // already posted from the loading side, so posting them here as well would double-count the
+    // same money. Enabling this flag must not change that.
+    public bool AssetRent { get; set; }
 }
