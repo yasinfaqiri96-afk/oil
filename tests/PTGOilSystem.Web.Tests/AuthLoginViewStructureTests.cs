@@ -6,47 +6,46 @@ namespace PTGOilSystem.Web.Tests;
 public class AuthLoginViewStructureTests
 {
     [Fact]
-    public void Login_View_Uses_The_Restored_Saddiqi_Visual_Contract()
+    public void Login_View_Uses_The_Two_Column_Card_Visual_Contract()
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Auth/Login.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/90-auth-login.css");
-        // The carousel serves scene 1 and 3 as PNG and scene 2 as WebP; every slide is
+        // A single artwork panel replaced the old three-scene carousel. The image is
         // cache-busted with asp-append-version, so the file must exist on disk.
-        var artwork = new[]
-        {
-            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-1.png"),
-            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-2.webp"),
-            RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/scene-3.png")
-        };
+        var artwork = RepoFile("src/PTGOilSystem.Web/wwwroot/images/auth/login-art.jpeg");
 
         Assert.Contains("~/css/ptg/90-auth-login.css", view);
-        Assert.Contains("~/images/auth/scene-1.png", view);
-        Assert.Contains("~/images/auth/scene-2.webp", view);
-        Assert.Contains("~/images/auth/scene-3.png", view);
+        Assert.Contains("~/images/auth/login-art.jpeg", view);
         Assert.Contains("asp-append-version=\"true\"", view);
+        // Retired artwork contracts must not creep back in.
+        Assert.DoesNotContain("~/images/auth/scene-1", view);
+        Assert.DoesNotContain("~/images/auth/scene-2", view);
+        Assert.DoesNotContain("~/images/auth/scene-3", view);
         Assert.DoesNotContain("~/images/auth/login.webp", view);
         Assert.DoesNotContain("~/images/auth/saddiqi-login.png", view);
-        Assert.Contains("class=\"sadd-login-page\"", view);
-        Assert.Contains("class=\"sadd-login-panel\"", view);
-        Assert.Contains("class=\"sadd-login-form\"", view);
-        Assert.Contains("class=\"sadd-login-submit\"", view);
+        Assert.Contains("class=\"ptg-login-page\"", view);
+        Assert.Contains("class=\"ptg-login-card\"", view);
+        Assert.Contains("class=\"ptg-login-art\"", view);
+        Assert.Contains("class=\"ptg-login-panel\"", view);
+        Assert.Contains("class=\"ptg-login-form\"", view);
+        Assert.Contains("class=\"ptg-login-submit\"", view);
         Assert.DoesNotContain("<figcaption", view);
-        Assert.DoesNotContain("class=\"sadd-login-help\"", view);
-        Assert.DoesNotContain("class=\"sadd-login-divider\"", view);
-        Assert.Contains(".sadd-login-art", css);
-        Assert.Contains(".sadd-login-panel", css);
-        Assert.Contains("--login-accent: #1877f2;", css);
-        Assert.Contains("width: 0.95rem;", css);
-        Assert.Contains("width: min(100%, 18rem);", css);
-        Assert.Contains("height: 2.5rem;", css);
+        // Heading block: title on its own line with the subtitle under it.
+        Assert.Contains("class=\"ptg-login-heading\"", view);
+        Assert.Contains("class=\"ptg-login-title\"", view);
+        Assert.Contains("class=\"ptg-login-subtitle\"", view);
         Assert.True(
-            view.IndexOf("class=\"sadd-login-actions\"", StringComparison.Ordinal)
-            < view.IndexOf("class=\"sadd-login-row\"", StringComparison.Ordinal));
-        Assert.All(artwork, image =>
-        {
-            Assert.True(image.Exists);
-            Assert.True(image.Length > 20_000);
-        });
+            view.IndexOf("class=\"ptg-login-title\"", StringComparison.Ordinal)
+            < view.IndexOf("class=\"ptg-login-subtitle\"", StringComparison.Ordinal));
+        Assert.True(
+            view.IndexOf("class=\"ptg-login-heading\"", StringComparison.Ordinal)
+            < view.IndexOf("class=\"ptg-login-fields\"", StringComparison.Ordinal));
+        Assert.Contains(".ptg-login-art", css);
+        Assert.Contains(".ptg-login-panel", css);
+        Assert.Contains(".ptg-login-heading", css);
+        Assert.Contains("--lg-accent: #d9605c;", css);
+        Assert.True(artwork.Exists);
+        Assert.True(artwork.Length > 20_000);
     }
 
     [Fact]
