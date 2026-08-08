@@ -13,149 +13,61 @@
     <link rel="stylesheet" href="~/css/ptg/90-auth-login.css" asp-append-version="true" />
 }
 
-<div class="sadd-login-page">
-    <section class="sadd-login-art" aria-label="@T("معرفی سامانه", "System highlights")">
-        <div class="sadd-login-slides" data-login-carousel>
-            <figure class="sadd-login-slide is-active">
-                <img src="~/images/auth/scene-1.png" asp-append-version="true" alt="" loading="eager" />
-            </figure>
-            <figure class="sadd-login-slide">
-                <img src="~/images/auth/scene-2.webp" asp-append-version="true" alt="" loading="lazy" />
-            </figure>
-            <figure class="sadd-login-slide">
-                <img src="~/images/auth/scene-3.png" asp-append-version="true" alt="" loading="lazy" />
-            </figure>
-        </div>
+<div class="ptg-login-page">
+    <div class="ptg-login-card">
+        <section class="ptg-login-art">
+            <span class="ptg-login-brand"><b>P</b>TG OIL</span>
+            <img class="ptg-login-ribbon" src="~/images/auth/login-art.jpeg" asp-append-version="true" alt="" aria-hidden="true" width="1920" height="1920" />
+        </section>
 
-        <div class="sadd-login-dots" data-login-dots>
-            <button type="button" class="is-active" data-login-dot="0" aria-label="@T("اسلاید اول", "Slide one")"></button>
-            <button type="button" data-login-dot="1" aria-label="@T("اسلاید دوم", "Slide two")"></button>
-            <button type="button" data-login-dot="2" aria-label="@T("اسلاید سوم", "Slide three")"></button>
-        </div>
-    </section>
+        <main class="ptg-login-panel">
+            <form asp-action="Login" method="post" class="ptg-login-form" novalidate>
+                @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
 
-    <main class="sadd-login-panel">
-        <form asp-action="Login" method="post" class="sadd-login-form" dir="@(isEn ? "ltr" : "rtl")" novalidate>
-            @Html.AntiForgeryToken()
-            <input asp-for="ReturnUrl" type="hidden" />
+                <header class="ptg-login-heading">
+                    <h1 class="ptg-login-title">Welcome!</h1>
+                    <p class="ptg-login-subtitle">Sign in to your Account</p>
+                </header>
 
-            <header class="sadd-login-header" dir="ltr">
-                <h1>Welcome!</h1>
-                <p class="sadd-login-subtitle">Sign in to your Account</p>
-            </header>
+                <div asp-validation-summary="ModelOnly" class="ptg-login-alert" role="alert"></div>
 
-            <div asp-validation-summary="ModelOnly" class="sadd-login-alert" role="alert"></div>
+                <div class="ptg-login-fields">
+                    <div class="ptg-login-field">
+                        <input asp-for="Username"
+                               class="ptg-login-input"
+                               autocomplete="username"
+                               autocapitalize="none"
+                               spellcheck="false"
+                               placeholder=" " />
+                        <label asp-for="Username" class="ptg-login-label">Username</label>
+                        <span asp-validation-for="Username" class="ptg-login-error"></span>
+                    </div>
 
-            <div class="sadd-login-field">
-                <label asp-for="Username" class="visually-hidden">@T("نام کاربری", "Username")</label>
-                <div class="sadd-login-control">
-                    <span class="sadd-login-ico" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                            <circle cx="12" cy="12" r="4" />
-                            <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
-                        </svg>
-                    </span>
-                    <input asp-for="Username"
-                           class="sadd-login-input"
-                           autocomplete="username"
-                           autocapitalize="none"
-                           spellcheck="false"
-                           placeholder="@T("نام کاربری", "Username")" />
+                    <div class="ptg-login-field">
+                        <input asp-for="Password"
+                               class="ptg-login-input"
+                               autocomplete="current-password"
+                               placeholder=" " />
+                        <label asp-for="Password" class="ptg-login-label">Password</label>
+                        <span asp-validation-for="Password" class="ptg-login-error"></span>
+                    </div>
                 </div>
-                <span asp-validation-for="Username" class="sadd-login-error"></span>
-            </div>
 
-            <div class="sadd-login-field">
-                <label asp-for="Password" class="visually-hidden">@T("رمز عبور", "Password")</label>
-                <div class="sadd-login-control">
-                    <span class="sadd-login-ico" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                        </svg>
-                    </span>
-                    <input asp-for="Password"
-                           class="sadd-login-input"
-                           autocomplete="current-password"
-                           placeholder="@T("رمز عبور", "Password")" />
-                </div>
-                <span asp-validation-for="Password" class="sadd-login-error"></span>
-            </div>
-
-            <div class="sadd-login-actions" dir="ltr">
-                <button type="submit" class="sadd-login-submit">@T("ورود", "SIGN IN")</button>
-                <span class="sadd-login-signup" aria-disabled="true"
-                      title="@T("ثبت‌نام عمومی در این سیستم فعال نیست.", "Public sign-up is not enabled for this system.")">@T("ثبت‌نام", "SIGN UP")</span>
-            </div>
-
-            <div class="sadd-login-row">
-                <label class="sadd-login-remember">
+                <label class="ptg-login-remember">
                     <input type="checkbox" name="RememberMe" value="true" />
-                    <span>@T("مرا به خاطر بسپار", "Remember Me")</span>
+                    <span>Remember this computer</span>
                 </label>
-            </div>
 
-            <div class="sadd-login-social" aria-label="@T("روش‌های ورود غیرفعال", "Unavailable social sign-ins")">
-                <button type="button" class="sadd-social-button" disabled
-                        title="@T("ورود با گوگل در این سیستم فعال نیست.", "Google sign-in is not enabled for this system.")">
-                    <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-                        <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z" />
-                        <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z" />
-                        <path fill="#FBBC05" d="M10.4 28.7A14.5 14.5 0 0 1 9.6 24c0-1.6.3-3.2.8-4.7l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.8-6.1z" />
-                        <path fill="#34A853" d="M24 48c6.1 0 11.2-2 15-5.5l-7.5-5.8c-2.1 1.4-4.7 2.2-7.5 2.2-6.3 0-11.7-3.7-13.6-9.2l-7.8 6.1C6.5 42.6 14.6 48 24 48z" />
-                    </svg>
-                    <span>@T("با گوگل", "with Google")</span>
-                </button>
+                <button type="submit" class="ptg-login-submit">Log In</button>
 
-                <button type="button" class="sadd-social-button" disabled
-                        title="@T("ورود با مایکروسافت در این سیستم فعال نیست.", "Microsoft sign-in is not enabled for this system.")">
-                    <svg viewBox="0 0 23 23" aria-hidden="true" focusable="false">
-                        <rect x="1" y="1" width="10" height="10" fill="#F25022" />
-                        <rect x="12" y="1" width="10" height="10" fill="#7FBA00" />
-                        <rect x="1" y="12" width="10" height="10" fill="#00A4EF" />
-                        <rect x="12" y="12" width="10" height="10" fill="#FFB900" />
-                    </svg>
-                    <span>@T("با مایکروسافت", "with Microsoft")</span>
-                </button>
-            </div>
-        </form>
-    </main>
+                <span class="ptg-login-help"
+                      title="Contact your system administrator to restore access.">Unable to login?</span>
+            </form>
+        </main>
+    </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script>
-        (() => {
-            const carousel = document.querySelector('[data-login-carousel]');
-            const dotsWrap = document.querySelector('[data-login-dots]');
-            if (!carousel || !dotsWrap) return;
-
-            const slides = [...carousel.querySelectorAll('.sadd-login-slide')];
-            const dots = [...dotsWrap.querySelectorAll('[data-login-dot]')];
-            if (slides.length < 2) return;
-
-            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            let activeIndex = 0;
-            let timer;
-
-            const show = (index) => {
-                activeIndex = (index + slides.length) % slides.length;
-                slides.forEach((slide, itemIndex) => slide.classList.toggle('is-active', itemIndex === activeIndex));
-                dots.forEach((dot, itemIndex) => dot.classList.toggle('is-active', itemIndex === activeIndex));
-            };
-
-            const start = () => {
-                if (reduceMotion) return;
-                window.clearInterval(timer);
-                timer = window.setInterval(() => show(activeIndex + 1), 5000);
-            };
-
-            dots.forEach((dot, index) => dot.addEventListener('click', () => {
-                show(index);
-                start();
-            }));
-
-            start();
-        })();
-    </script>
 }

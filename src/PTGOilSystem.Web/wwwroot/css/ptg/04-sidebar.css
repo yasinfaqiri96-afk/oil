@@ -208,7 +208,7 @@ body.boltz-shell.app-shell-authenticated .boltz-brand-mark {
     justify-content: center;
     box-sizing: border-box;
     inline-size: 100%;
-    padding: 13px 16px;
+    padding: 10px 8px;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -216,8 +216,8 @@ body.boltz-shell.app-shell-authenticated .boltz-brand-mark {
 
 body.boltz-shell.app-shell-authenticated .boltz-brand-logo {
     display: block;
-    block-size: 44px;
-    inline-size: auto;
+    inline-size: 88%;
+    block-size: auto;
     max-inline-size: 100%;
     object-fit: contain;
 }
