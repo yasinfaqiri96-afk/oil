@@ -14,6 +14,8 @@
         .Concat(Model.OperationalAssetLinkIssues.Select(row => ("Invalid asset link", row)))
         .Concat(Model.AssetExpenseInactiveAssetIssues.Select(row => ("Asset expense issue", row)))
         .Concat(Model.AssetRentPostedWithoutLedger.Select(row => ("Posted without ledger", row)))
+        .Concat(Model.AssetRentPostableWithoutLedger.Select(row => ("Rent not posted", row)))
+        .Concat(Model.AssetRentLedgerIntegrityIssues.Select(row => ("Rent ledger integrity", row)))
         .Concat(Model.AssetRentContractRequirementIssues.Select(row => ("Missing contract", row)))
         .Concat(Model.AssetRentDuplicateCandidates.Select(row => ("Duplicate candidate", row)))
         .ToList();

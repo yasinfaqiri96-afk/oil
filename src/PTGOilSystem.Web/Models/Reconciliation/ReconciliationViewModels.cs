@@ -358,6 +358,8 @@ public sealed class MissingLedgerViewModel
     public IReadOnlyList<OperationalAssetReconciliationItemViewModel> OperationalAssetLinkIssues { get; init; } = [];
     public IReadOnlyList<OperationalAssetReconciliationItemViewModel> AssetExpenseInactiveAssetIssues { get; init; } = [];
     public IReadOnlyList<OperationalAssetReconciliationItemViewModel> AssetRentPostedWithoutLedger { get; init; } = [];
+    public IReadOnlyList<OperationalAssetReconciliationItemViewModel> AssetRentPostableWithoutLedger { get; init; } = [];
+    public IReadOnlyList<OperationalAssetReconciliationItemViewModel> AssetRentLedgerIntegrityIssues { get; init; } = [];
     public IReadOnlyList<OperationalAssetReconciliationItemViewModel> AssetRentContractRequirementIssues { get; init; } = [];
     public IReadOnlyList<OperationalAssetReconciliationItemViewModel> AssetRentDuplicateCandidates { get; init; } = [];
     public IReadOnlyList<DirectSaleReconciliationItemViewModel> DirectSaleAllocationsWithoutSale { get; init; } = [];
@@ -429,6 +431,8 @@ public sealed class MissingLedgerViewModel
         + OperationalAssetLinkIssues.Count
         + AssetExpenseInactiveAssetIssues.Count
         + AssetRentPostedWithoutLedger.Count
+        + AssetRentPostableWithoutLedger.Count
+        + AssetRentLedgerIntegrityIssues.Count
         + AssetRentContractRequirementIssues.Count
         + AssetRentDuplicateCandidates.Count;
 }

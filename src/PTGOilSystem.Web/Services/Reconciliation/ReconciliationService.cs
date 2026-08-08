@@ -1070,6 +1070,128 @@ public partial class ReconciliationService : IReconciliationService
             .Select(r => ToAssetRentIssue(r, "Asset rent is marked posted but has no ledger entry."))
             .ToList();
 
+        // همهٔ ردیف‌های دفتر که منبعشان کرایهٔ دارایی است یک‌بار خوانده می‌شوند و تمام کنترل‌های
+        // مالیِ کرایه روی همین مجموعه انجام می‌گیرد، تا هر کنترل یک رفت‌وبرگشت جدا به دیتابیس نزند.
+        var assetRentLedgerRows = await _db.LedgerEntries
+            .AsNoTracking()
+            .Where(l => l.SourceType == AssetRentLedgerFactory.LedgerSourceType)
+            .Select(l => new AssetRentLedgerProbe(
+                l.Id,
+                l.SourceId,
+                l.Side,
+                l.AmountUsd,
+                l.CustomerId,
+                l.ContractId,
+                l.ServiceProviderId))
+            .ToListAsync();
+        var assetRentLedgersByRentId = assetRentLedgerRows
+            .GroupBy(l => l.RentId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<AssetRentLedgerProbe>)g.ToList());
+
+        static IReadOnlyList<AssetRentLedgerProbe> LedgersFor(
+            IReadOnlyDictionary<int, IReadOnlyList<AssetRentLedgerProbe>> map,
+            int rentId)
+            => map.TryGetValue(rentId, out var rows) ? rows : [];
+
+        // قرینهٔ قاعدهٔ بالا: کرایه‌ای که طبق سیاست فاز جاری باید اثر مالی داشته باشد ولی ندارد.
+        // دامنه از AssetRentPostingPolicy می‌آید — همان مرجعی که Controller هنگام ثبت می‌پرسد — پس
+        // استفادهٔ داخلی، کرایهٔ شریک و کرایه‌های خودکارِ بارگیری اینجا هرگز issue نمی‌سازند.
+        var assetRentPostableWithoutLedger = assetRentRows
+            .Where(r => AssetRentPostingPolicy.ShouldPostToLedger(r)
+                && !LedgersFor(assetRentLedgersByRentId, r.Id).Any(l => l.Side == LedgerSide.Credit))
+            .Select(r => ToAssetRentIssue(r, "Manual external asset rent has no ledger entry."))
+            .ToList();
+
+        // کرایهٔ لغوشده‌ای که ردیف اصلی مالی دارد ولی ردیف برگشت ندارد: بدهیِ طرف‌حساب پس از لغو
+        // باقی مانده است. کرایه‌های بدون اثر مالی اصلاً وارد این حلقه نمی‌شوند چون هیچ ردیفی ندارند.
+        var cancelledRentIdsWithLedger = assetRentLedgerRows
+            .Select(l => l.RentId)
+            .Distinct()
+            .ToArray();
+        var cancelledRentRows = cancelledRentIdsWithLedger.Length == 0
+            ? new List<AssetRentTransaction>()
+            : await _db.AssetRentTransactions
+                .AsNoTracking()
+                .Include(r => r.OperationalAsset)
+                .Where(r => r.IsCancelled && cancelledRentIdsWithLedger.Contains(r.Id))
+                .OrderByDescending(r => r.RentDate)
+                .ThenByDescending(r => r.Id)
+                .ToListAsync();
+
+        var assetRentLedgerIntegrityIssues = new List<OperationalAssetReconciliationItemViewModel>();
+        foreach (var rent in cancelledRentRows)
+        {
+            var ledgers = LedgersFor(assetRentLedgersByRentId, rent.Id);
+            if (ledgers.Any(l => l.Side == LedgerSide.Credit) && !ledgers.Any(l => l.Side == LedgerSide.Debit))
+            {
+                assetRentLedgerIntegrityIssues.Add(ToAssetRentIssue(
+                    rent,
+                    "Cancelled asset rent still has a posted ledger entry with no reversal."));
+            }
+        }
+
+        // ثبت یا برگشتِ تکراری. هر کرایه حداکثر یک ردیف اصلی و یک ردیف برگشت دارد؛ بیشتر از آن یعنی
+        // همان مبلغ دوبار روی حساب طرف‌حساب نشسته است.
+        foreach (var rent in assetRentRows.Concat(cancelledRentRows))
+        {
+            var ledgers = LedgersFor(assetRentLedgersByRentId, rent.Id);
+            var originals = ledgers.Where(l => l.Side == LedgerSide.Credit).ToList();
+            var reversals = ledgers.Where(l => l.Side == LedgerSide.Debit).ToList();
+
+            if (originals.Count > 1)
+            {
+                assetRentLedgerIntegrityIssues.Add(ToAssetRentIssue(
+                    rent,
+                    "Asset rent has more than one original ledger entry.",
+                    originals.Sum(l => l.AmountUsd)));
+            }
+
+            if (reversals.Count > 1)
+            {
+                assetRentLedgerIntegrityIssues.Add(ToAssetRentIssue(
+                    rent,
+                    "Asset rent has more than one reversal ledger entry.",
+                    reversals.Sum(l => l.AmountUsd)));
+            }
+
+            var original = originals.FirstOrDefault();
+            if (original is null)
+            {
+                continue;
+            }
+
+            if (decimal.Round(original.AmountUsd, 4, MidpointRounding.AwayFromZero)
+                != decimal.Round(rent.AmountUsd, 4, MidpointRounding.AwayFromZero))
+            {
+                assetRentLedgerIntegrityIssues.Add(ToAssetRentIssue(
+                    rent,
+                    "Asset rent ledger amount does not match the rent amount.",
+                    original.AmountUsd));
+            }
+
+            // طرف‌حسابِ ردیف باید همانی باشد که کرایه به آن بار شده. مشتریِ قراردادِ فروش استثناست:
+            // ردیف عمداً مشتریِ همان قرارداد را می‌گیرد در حالی که خودِ کرایه فقط ContractId دارد.
+            var partyMismatch = original.ContractId != rent.ChargedToContractId
+                || original.ServiceProviderId != rent.ChargedToServiceProviderId
+                || (rent.ChargedToCustomerId.HasValue && original.CustomerId != rent.ChargedToCustomerId)
+                || (!rent.ChargedToCustomerId.HasValue
+                    && !rent.ChargedToContractId.HasValue
+                    && original.CustomerId.HasValue);
+            if (partyMismatch)
+            {
+                assetRentLedgerIntegrityIssues.Add(ToAssetRentIssue(
+                    rent,
+                    "Asset rent ledger counterparty does not match the rent counterparty."));
+            }
+
+            if (rent.LedgerEntryId.HasValue && ledgers.All(l => l.LedgerEntryId != rent.LedgerEntryId.Value))
+            {
+                assetRentLedgerIntegrityIssues.Add(ToAssetRentIssue(
+                    rent,
+                    "Asset rent points to a ledger entry that does not belong to this rent."));
+            }
+        }
+
         var assetRentContractRequirementIssues = assetRentRows
             .Where(r => (r.ChargedToType == AssetRentChargedToType.PurchaseContract
                     || r.ChargedToType == AssetRentChargedToType.SalesContract)
@@ -1438,6 +1560,8 @@ public partial class ReconciliationService : IReconciliationService
             OperationalAssetLinkIssues = operationalAssetLinkIssues,
             AssetExpenseInactiveAssetIssues = assetExpenseInactiveAssetIssues,
             AssetRentPostedWithoutLedger = assetRentPostedWithoutLedger,
+            AssetRentPostableWithoutLedger = assetRentPostableWithoutLedger,
+            AssetRentLedgerIntegrityIssues = assetRentLedgerIntegrityIssues,
             AssetRentContractRequirementIssues = assetRentContractRequirementIssues,
             AssetRentDuplicateCandidates = assetRentDuplicateCandidates,
             DirectSaleAllocationsWithoutSale = directSaleAllocationsWithoutSale,
@@ -2217,6 +2341,16 @@ public partial class ReconciliationService : IReconciliationService
                 l => l.SupplierName ?? ("Supplier #" + l.SupplierId))
         };
     }
+
+    /// <summary>فقط ستون‌هایی از ردیف دفتر که کنترل‌های کرایهٔ دارایی به آن‌ها نیاز دارند.</summary>
+    private sealed record AssetRentLedgerProbe(
+        int LedgerEntryId,
+        int RentId,
+        LedgerSide Side,
+        decimal AmountUsd,
+        int? CustomerId,
+        int? ContractId,
+        int? ServiceProviderId);
 
     /// <summary>فقط ستون‌های لازم برای مانده‌گیری دفتر کل.</summary>
     private sealed record BalanceSourceRow(
