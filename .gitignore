@@ -228,3 +228,8 @@ graphify-out/
 /src/PTGOilSystem.Web/wwwroot/img/ChatGPT Image *
 /src/PTGOilSystem.Web/wwwroot/images/auth/scene-1.jpg
 /src/PTGOilSystem.Web/wwwroot/images/auth/scene-3.jpg
+
+# Saved stock-photo web pages (third-party HTML/JS/CSS dumps from image sites).
+# Reference material only; no view, CSS, JS or C# references them.
+/*_ Free Photo.html
+/*_ Free Photo_files/
