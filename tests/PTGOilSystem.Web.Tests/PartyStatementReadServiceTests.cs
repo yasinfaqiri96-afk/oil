@@ -571,10 +571,12 @@ public sealed class PartyStatementReadServiceTests
 
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<PartyStatementViewModel>(view.Model);
-        Assert.Equal(SupplierStatementView.Contracts, model.SupplierView);
-        var summaryRow = Assert.Single(model.ContractGrouping!.Rows);
-        Assert.Equal(2, summaryRow.LoadingCount);
-        Assert.Equal(100m, summaryRow.ConfirmedValue);
+        // تب‌های قرارداد/بارگیری فقط برای تأمین‌کننده است؛ مشتری همیشه گردش حساب فشرده می‌بیند.
+        Assert.Equal(SupplierStatementView.Ledger, model.SupplierView);
+        Assert.False(model.ShowContractViewTabs);
+        Assert.Null(model.ContractGrouping);
+        var summaryRow = Assert.Single(model.Statement.Rows.Where(r => !r.IsOpeningBalance));
+        Assert.Equal(100m, summaryRow.OutflowBase);
     }
 
     [Fact]

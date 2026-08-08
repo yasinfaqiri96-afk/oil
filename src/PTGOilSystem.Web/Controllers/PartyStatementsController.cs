@@ -673,13 +673,16 @@ public sealed class PartyStatementsController : Controller
     private static bool IsCurrency(PartyStatementRow row, string currency)
         => string.Equals(row.OriginalCurrency, currency, StringComparison.OrdinalIgnoreCase);
 
+    // نمای خلاصهٔ قراردادها/بارگیری‌ها فقط برای تأمین‌کننده؛ بقیه همیشه گردش حساب.
     private static bool UsesContractSummary(PartyStatementPartyType partyType)
+        => partyType == PartyStatementPartyType.Supplier;
+
+    // فشرده‌سازی گردش حساب مثل قبل برای همان طرف‌حساب‌ها باقی می‌ماند.
+    private static bool ShouldCompactLedger(PartyStatementPartyType partyType)
         => partyType is PartyStatementPartyType.Supplier
             or PartyStatementPartyType.Customer
-            or PartyStatementPartyType.Company;
-
-    private static bool ShouldCompactLedger(PartyStatementPartyType partyType)
-        => UsesContractSummary(partyType) || partyType == PartyStatementPartyType.Partner;
+            or PartyStatementPartyType.Company
+            or PartyStatementPartyType.Partner;
 
     private static bool IsConfirmedOperation(PartyStatementRow row)
         => row.SourceType is "Loading" or "Sale";

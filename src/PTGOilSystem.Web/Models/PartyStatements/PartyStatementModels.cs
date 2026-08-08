@@ -85,6 +85,15 @@ public sealed class PartyStatementSummary
     /// <summary>معنی بیلانس نهایی در زبان انتخاب‌شده — عدد و علامت تغییر نمی‌کند.</summary>
     public string ClosingBalanceMeaningFor(bool isEnglish)
         => isEnglish ? ClosingBalanceMeaningEn : ClosingBalanceMeaning;
+
+    /// <summary>
+    /// رنگ همان معنیِ بالا. چون متن از علامت <see cref="ClosingBalance"/> ساخته می‌شود،
+    /// رنگ هم باید از همان علامت بیاید: مثبت = طلبکاریم (سبز)، منفی = بدهکاریم (سرخ).
+    /// صفحه‌های طرف‌حساب قبلاً رنگ را از قرارداد علامتِ مدل خودشان می‌ساختند و رنگ با
+    /// متن وارونه می‌شد.
+    /// </summary>
+    public string? ClosingBalanceTone
+        => ClosingBalance > 0m ? "success" : ClosingBalance < 0m ? "danger" : null;
     public string BaseCurrencyCode { get; init; } = "USD";
 
     // نمایش روبلی: وقتی ارز روبل انتخاب شود، جمع‌ها با ارزش روبلی واقعیِ هر سند
@@ -251,10 +260,8 @@ public sealed class PartyStatementViewModel
     // حالت نمایش برای طرف‌حساب‌های قراردادی؛ نام قدیمی برای سازگاری routeها حفظ شده است.
     public SupplierStatementView SupplierView { get; init; } = SupplierStatementView.Ledger;
     public bool ShowSupplierViewTabs => PartyType == PartyStatementPartyType.Supplier;
-    public bool ShowContractViewTabs =>
-        PartyType is PartyStatementPartyType.Supplier
-            or PartyStatementPartyType.Customer
-            or PartyStatementPartyType.Company;
+    // تب‌های قرارداد/بارگیری فقط برای تأمین‌کننده معنا دارد؛ سایر طرف‌حساب‌ها فقط گردش حساب می‌بینند.
+    public bool ShowContractViewTabs => PartyType == PartyStatementPartyType.Supplier;
 
     // نمای خلاصه: گروه‌بندی نمایشیِ همان سطرهای مالی؛ بدون محاسبهٔ مالی جدید.
     public SupplierContractStatementViewModel? ContractGrouping { get; init; }
