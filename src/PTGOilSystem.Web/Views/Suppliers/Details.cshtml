@@ -44,8 +44,12 @@
     var endingRubAbs = endingRub.HasValue ? Math.Abs(endingRub.Value) : (decimal?)null;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (endingUsd > 0 ? "قابل پرداخت به تأمین‌کننده" : endingUsd < 0 ? "پیش‌پرداخت / طلب ما از تأمین‌کننده" : "حساب تسویه است");
-    // رنگ عدد مانده به سبک سیستم: بدهکاری ما (قابل پرداخت) سرخ، طلب/پیش‌پرداخت سبز، تسویه خنثی.
-    var balanceTone = endingUsd > 0 ? "danger" : endingUsd < 0 ? "success" : null;
+    // رنگ باید از همان علامتی بیاید که متن معنی از آن ساخته شده: صورت‌حساب رسمی مثبت را
+    // «طلبکار» می‌داند (سبز). فقط وقتی صورت‌حساب نیست، علامتِ مدل خودِ صفحه (مثبت = قابل
+    // پرداخت به تأمین‌کننده = سرخ) به کار می‌رود.
+    var balanceTone = officialSummary is not null
+        ? officialSummary.ClosingBalanceTone
+        : endingUsd > 0 ? "danger" : endingUsd < 0 ? "success" : null;
 
     // سه تب: خلاصه (پیش‌فرض) · قراردادها (شامل پرداخت‌ها) · صورت‌حساب.
     var activeTab = Model.ActiveTab;

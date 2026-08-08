@@ -1096,11 +1096,20 @@ public partial class SuppliersController : Controller
             .Where(s => !sarrafLedgerExactRubSourceIds.Contains(s.Id))
             .Select(GetSettlementRubForDisplay));
 
+        // «هیچ پرداختی ثبت نشده» با «پرداخت هست ولی منبع روبلی ندارد» یکی نیست. وقتی اصلاً
+        // پرداختی وجود ندارد، پرداخت روبلی واقعاً صفر است و مانده روبلی باید محاسبه شود؛
+        // در غیر این صورت null می‌ماند تا با فرضِ «صفر روبل پرداخت شده» مانده جعلی نسازیم.
+        var hasAnyPaymentSource = paymentSummaries.Any(p => p.PaymentKind == PaymentKind.SupplierPayment)
+            || sarrafSettlements.Any(s => s.Status == SarrafSettlementStatus.Posted)
+            || viaSarrafSupplierLedgers.Count > 0
+            || sarrafLedgerRubRowsForTotals.Count > 0;
+
         var totalPaidRub = SumKnown(
             paymentSummaries
                 .Where(p => p.PaymentKind == PaymentKind.SupplierPayment)
                 .Select(p => p.AmountRubEquivalent)
-                .Concat([sarrafPaidRubFromLedgers, sarrafPaidRubFromLegacySettlements, viaSarrafReductionRub]));
+                .Concat([sarrafPaidRubFromLedgers, sarrafPaidRubFromLegacySettlements, viaSarrafReductionRub]))
+            ?? (hasAnyPaymentSource ? null : 0m);
 
         var paymentDates = paymentSummaries.Select(p => p.PaymentDate)
             .Concat(sarrafSettlements
@@ -1147,7 +1156,8 @@ public partial class SuppliersController : Controller
             TotalPaidUsd = directSupplierPaidUsd + sarrafReductionUsd + viaSarrafReductionUsd,
             TotalPaidRub = totalPaidRub,
             TotalPaidActualUsd = directSupplierPaidUsd + sarrafPaidActualUsd + viaSarrafReductionUsd,
-            TotalPaidActualRub = SumKnown([directSupplierPaidRub, sarrafPaidActualRub, viaSarrafReductionRub]),
+            TotalPaidActualRub = SumKnown([directSupplierPaidRub, sarrafPaidActualRub, viaSarrafReductionRub])
+                ?? (hasAnyPaymentSource ? null : 0m),
             LastPaymentDate = paymentDates.Count == 0 ? null : paymentDates.Max(),
             SarrafAcceptedUsd = sarrafReductionUsd,
             SarrafSupplierShortfallUsd = sarrafSupplierShortfallUsd,

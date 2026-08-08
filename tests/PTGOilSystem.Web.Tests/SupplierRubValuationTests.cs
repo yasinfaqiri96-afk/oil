@@ -47,6 +47,29 @@ public class SupplierRubValuationTests
         Assert.Equal(5_000m, model.LoadedPurchaseValueUsd);
     }
 
+    // هیچ پرداختی ثبت نشده: پرداخت روبلی واقعاً صفر است، پس مانده روبلی باید کل خرید
+    // روبلی باشد و کارت «مانده حساب» در حالت RUB نباید «ثبت نشده» نشان دهد.
+    [Fact]
+    public async Task Details_NoPaymentsAtAll_RemainingClaimRub_EqualsLoadedPurchaseRub()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedContractWithFileRubLoading(db);
+        await db.SaveChangesAsync();
+
+        var controller = BuildSuppliersController(db);
+
+        var result = await controller.Details(1);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SupplierProfileViewModel>(view.Model);
+
+        Assert.Equal(0m, model.TotalPaidRub);
+        Assert.Equal(4_000_000m, model.SupplierRemainingClaimRub);
+        Assert.Equal(0m, model.TotalPaidUsd);
+    }
+
     // پرداخت روبلی واقعی → پرداخت‌شده و مانده طلب هر دو روبلی محاسبه می‌شوند.
     [Fact]
     public async Task Details_RubPayment_ProducesPaidAndRemainingClaimInRub()
