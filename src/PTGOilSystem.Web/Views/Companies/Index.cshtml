@@ -33,7 +33,9 @@
                     <tr>
                         <th class="ak-col-check"><input type="checkbox" class="ak-check" aria-label="@UiText.T(Context, "انتخاب همه", "Select all")" /></th>
                         <th class="ak-col-grow">@UiText.T(Context, "نام", "Name")</th>
-                        <th>@UiText.T(Context, "نام فارسی", "Persian name")</th>
+                        @* نام فارسی هم یک نام کامل است، نه یک فیلد کوتاه؛ با ستون نام هم‌عرض
+                           می‌شود تا در عرض‌های کوچک به چند سطر باریک شکسته نشود. *@
+                        <th class="ak-col-grow">@UiText.T(Context, "نام فارسی", "Persian name")</th>
                         <th>@UiText.T(Context, "کد", "Code")</th>
                         <th>@UiText.T(Context, "کشور", "Country")</th>
                         <th class="ak-col-spacer"></th>
@@ -47,7 +49,7 @@
                         <tr data-href="@Url.Action("Details", new { id = p.Id })">
                             <td class="ak-col-check"><input type="checkbox" class="ak-check" aria-label="@UiText.T(Context, "انتخاب", "Select")" /></td>
                             <td class="ak-col-grow"><a asp-action="Details" asp-route-id="@p.Id" class="ak-name">@p.Name</a></td>
-                            <td>@(string.IsNullOrWhiteSpace(p.NamePersian) ? "-" : p.NamePersian)</td>
+                            <td class="ak-col-grow">@(string.IsNullOrWhiteSpace(p.NamePersian) ? "-" : p.NamePersian)</td>
                             <td class="ak-num">@(string.IsNullOrWhiteSpace(p.Code) ? "-" : p.Code)</td>
                             <td>@(string.IsNullOrWhiteSpace(p.Country) ? "-" : p.Country)</td>
                             <td class="ak-col-spacer"></td>

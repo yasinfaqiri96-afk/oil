@@ -113,6 +113,8 @@ public sealed class PartyStatementRow
     public DateTime Date { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public string? Reference { get; set; }
+    /// <summary>شناسهٔ سند Ledger برای پیوند نمایشی به جزئیات؛ در محاسبه شرکت نمی‌کند.</summary>
+    public int? LedgerEntryId { get; set; }
     public string Description { get; set; } = string.Empty;
 
     /// <summary>
@@ -236,7 +238,7 @@ public sealed class PartyStatementResult
     public string CourtesyText { get; init; } = "از همکاری دوامدار شما سپاس‌گزاریم.";
 }
 
-// نمای صورت‌حساب تأمین‌کننده. پیش‌فرض «قراردادها»؛ سایر طرف‌حساب‌ها همیشه Ledger می‌مانند.
+// نمای صورت‌حساب تأمین‌کننده. پیش‌فرض Ledger؛ خلاصهٔ قراردادها و بارگیری‌ها نماهای جانبی‌اند.
 public enum SupplierStatementView
 {
     Contracts = 0,

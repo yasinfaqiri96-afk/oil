@@ -79,6 +79,7 @@ public partial class LossEventsController : Controller
             query = query.Where(e => e.ResponsiblePartyName != null && e.ResponsiblePartyName.Contains(responsibleParty));
         }
         if (filter.AffectsInventory.HasValue) query = query.Where(e => e.AffectsInventory == filter.AffectsInventory.Value);
+        if (filter.ChargeableOnly) query = query.Where(e => e.ChargeableLossMt > 0m);
 
         // تفاوت مثبت = کسری، تفاوت منفی = اضافه‌بار (تخلیهٔ بیشتر از بارگیری).
         if (filter.Variance == LossEventVarianceFilter.ShortageOnly)

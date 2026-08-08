@@ -278,6 +278,8 @@ public sealed class LoadingIndexViewModel
     public int TotalCount { get; init; }
     public int? ContractId { get; init; }
     public string? ContractNumber { get; init; }
+    public int? ProductId { get; init; }
+    public bool WithoutReceipt { get; init; }
     public string? Query { get; init; }
     public DateTime? FromDate { get; init; }
     public DateTime? ToDate { get; init; }
@@ -315,6 +317,7 @@ public sealed class LoadingDetailsViewModel
     public string? Notes { get; init; }
     public decimal TotalReceivedQuantityMt { get; init; }
     public decimal RemainingToReceiveMt { get; init; }
+    public bool CanRegisterReceipt { get; init; }
     public decimal? ChargeableQuantityMt { get; init; }
     public decimal? RailwayRateUsd { get; init; }
     public decimal? RailwayExpenseUsd { get; init; }

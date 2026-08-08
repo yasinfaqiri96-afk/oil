@@ -2038,6 +2038,7 @@ public partial class SalesController : Controller
         return View(new SalesDetailsViewModel
         {
             Id = sale.Id,
+            CustomerId = sale.CustomerId,
             ContractId = sale.ContractId,
             ShipmentId = sale.ShipmentId,
             PreSaleOrderId = sale.PreSaleOrderId,

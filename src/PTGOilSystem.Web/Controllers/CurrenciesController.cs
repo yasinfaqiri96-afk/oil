@@ -228,6 +228,10 @@ public class CurrenciesController : Controller
     private static void Normalize(Currency model)
     {
         model.Code = SystemCurrency.Normalize(model.Code);
+        if (string.Equals(model.Code, "RBL", StringComparison.OrdinalIgnoreCase))
+        {
+            model.Code = "RUB";
+        }
         model.Name = (model.Name ?? string.Empty).Trim();
         model.NamePersian = string.IsNullOrWhiteSpace(model.NamePersian) ? null : model.NamePersian.Trim();
         model.Symbol = string.IsNullOrWhiteSpace(model.Symbol) ? null : model.Symbol.Trim();

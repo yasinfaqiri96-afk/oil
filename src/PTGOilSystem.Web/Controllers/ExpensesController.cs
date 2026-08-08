@@ -2072,7 +2072,9 @@ public partial class ExpensesController : Controller
             Id = expense.Id,
             ExpenseDate = expense.ExpenseDate,
             ExpenseTypeName = expense.ExpenseType?.NamePersian ?? expense.ExpenseType?.Name ?? string.Empty,
+            ContractId = expense.ContractId,
             ContractNumber = expense.Contract?.ContractNumber,
+            ShipmentId = expense.ShipmentId,
             ShipmentCode = expense.Shipment?.ShipmentCode,
             TruckDispatchLabel = expense.TruckDispatch is null
                 ? null

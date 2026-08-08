@@ -3,378 +3,243 @@
 @{
     var s = Model.Statement;
     var c = s.ColumnOptions;
-    var baseCurrency = s.Summary.BaseCurrencyCode;
+    var isEn = UiText.IsEn(Context);
+    var isRub = s.Summary.IsRubPresentation;
+    var currency = isRub ? "RUB" : s.Summary.BaseCurrencyCode;
     ViewData["Title"] = s.Policy.StatementTitleFa;
     ViewData["HideSectionTabs"] = true;
-    var routeValues = new Dictionary<string, string?>
-    {
-        ["FromDate"] = s.DocumentInfo.PeriodFrom?.ToString("yyyy-MM-dd"),
-        ["ToDate"] = s.DocumentInfo.PeriodTo?.ToString("yyyy-MM-dd"),
-        ["ContractId"] = Context.Request.Query["ContractId"],
-        ["CompanyId"] = Context.Request.Query["CompanyId"],
-        ["CurrencyCode"] = Context.Request.Query["CurrencyCode"],
-        ["SourceType"] = Context.Request.Query["SourceType"],
-        ["Search"] = Context.Request.Query["Search"],
-        ["PageSize"] = Model.Filter.PageSize.ToString(),
-        ["IncludeOperationalColumns"] = Context.Request.Query["IncludeOperationalColumns"]
-    };
-    var csvUrl = Url.Action("Csv", "PartyStatements", new
-    {
-        partyType = s.Party.PartyType,
-        id = s.Party.PartyId,
-        FromDate = routeValues["FromDate"],
-        ToDate = routeValues["ToDate"],
-        ContractId = routeValues["ContractId"],
-        CompanyId = routeValues["CompanyId"],
-        CurrencyCode = routeValues["CurrencyCode"],
-        SourceType = routeValues["SourceType"],
-        Search = routeValues["Search"],
-        PageSize = routeValues["PageSize"],
-        view = Model.SupplierView,
-        IncludeOperationalColumns = routeValues["IncludeOperationalColumns"]
-    });
 
-    // خروجی هر تب باید همان محتوای همان تب باشد. تب «بارگیری‌ها» ستون‌های عملیاتی را
-    // نشان می‌دهد، پس PDF آن هم باید همان ستون‌ها را داشته باشد؛ «گردش حساب» بدون آن‌ها.
-    var isLoadingsView = Model.ShowContractViewTabs && Model.SupplierView == SupplierStatementView.Loadings;
-    var pdfUrl = Url.Action("Pdf", "PartyStatements", new
-    {
-        partyType = s.Party.PartyType,
-        id = s.Party.PartyId,
-        FromDate = routeValues["FromDate"],
-        ToDate = routeValues["ToDate"],
-        ContractId = routeValues["ContractId"],
-        CompanyId = routeValues["CompanyId"],
-        CurrencyCode = routeValues["CurrencyCode"],
-        SourceType = routeValues["SourceType"],
-        Search = routeValues["Search"],
-        PageSize = routeValues["PageSize"],
-        view = Model.SupplierView,
-        IncludeOperationalColumns = isLoadingsView ? "true" : null
-    });
-    var isContractParty = Model.ShowContractViewTabs;
-    string? ExportUrl(string exportFormat) => Url.Action("Export", "PartyStatements", new
-    {
-        partyType = s.Party.PartyType,
-        id = s.Party.PartyId,
-        format = exportFormat,
-        FromDate = routeValues["FromDate"],
-        ToDate = routeValues["ToDate"],
-        ContractId = routeValues["ContractId"],
-        CompanyId = routeValues["CompanyId"],
-        CurrencyCode = routeValues["CurrencyCode"],
-        SourceType = routeValues["SourceType"],
-        Search = routeValues["Search"],
-        PageSize = routeValues["PageSize"],
-        view = Model.SupplierView
-    });
-
-    string? StatementViewUrl(SupplierStatementView view, int page = 1) => Url.Action("Document", "PartyStatements", new
-    {
-        partyType = s.Party.PartyType,
-        id = s.Party.PartyId,
-        view,
-        FromDate = routeValues["FromDate"],
-        ToDate = routeValues["ToDate"],
-        ContractId = routeValues["ContractId"],
-        CompanyId = routeValues["CompanyId"],
-        CurrencyCode = routeValues["CurrencyCode"],
-        SourceType = routeValues["SourceType"],
-        Search = routeValues["Search"],
-        PageSize = routeValues["PageSize"],
-        Page = page
-    });
-
-    string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "–";
-    string OptionalAmount(decimal? value, int decimals = 2) => value.HasValue ? value.Value.ToString($"N{decimals}") : "–";
-    string Contact(string? value) => string.IsNullOrWhiteSpace(value) ? "–" : value;
-
-    // نمایش روبلی: ستون‌های رسید/برد/بیلانس و جمع‌ها به روبل (ارزش واقعیِ هر
-    // سند به نرخ تاریخی خودش). اسناد غیرروبلی ارزش روبلی ندارند و «–» می‌مانند.
-    var isRub = s.Summary.IsRubPresentation;
-    string BaseAmount(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
-
-    // زبان نمایش فقط عنوان‌ها را عوض می‌کند؛ جهت، مبلغ، فرمول و ترتیب ستون‌ها ثابت است.
-    var isEn = UiText.IsEn(Context);
-
-    string? StatementQuery(string key)
+    string? Query(string key)
     {
         var value = Context.Request.Query[key].ToString();
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    var routeValues = new Dictionary<string, string?>
+    {
+        ["FromDate"] = s.DocumentInfo.PeriodFrom?.ToString("yyyy-MM-dd"),
+        ["ToDate"] = s.DocumentInfo.PeriodTo?.ToString("yyyy-MM-dd"),
+        ["ContractId"] = Query("ContractId"),
+        ["CompanyId"] = Query("CompanyId"),
+        ["CurrencyCode"] = Query("CurrencyCode"),
+        ["SourceType"] = Query("SourceType"),
+        ["Search"] = Query("Search"),
+        ["PageSize"] = Math.Clamp(Model.Filter.PageSize, 10, 100).ToString(),
+        ["IncludeOperationalColumns"] = Query("IncludeOperationalColumns")
+    };
+
+    object CommonRouteValues(SupplierStatementView? view = null, int? page = null, bool? print = null) => new
+    {
+        partyType = s.Party.PartyType,
+        id = s.Party.PartyId,
+        FromDate = routeValues["FromDate"],
+        ToDate = routeValues["ToDate"],
+        ContractId = routeValues["ContractId"],
+        CompanyId = routeValues["CompanyId"],
+        CurrencyCode = routeValues["CurrencyCode"],
+        SourceType = routeValues["SourceType"],
+        Search = routeValues["Search"],
+        PageSize = routeValues["PageSize"],
+        IncludeOperationalColumns = routeValues["IncludeOperationalColumns"],
+        view = view ?? Model.SupplierView,
+        Page = page,
+        print
+    };
+
+    var csvUrl = Url.Action("Csv", "PartyStatements", CommonRouteValues());
+    var pdfUrl = Url.Action("Pdf", "PartyStatements", CommonRouteValues());
+    var printUrl = Url.Action("Document", "PartyStatements", CommonRouteValues(print: true));
+    string? ExportUrl(string format) => Url.Action("Export", "PartyStatements", new
+    {
+        partyType = s.Party.PartyType,
+        id = s.Party.PartyId,
+        format,
+        FromDate = routeValues["FromDate"], ToDate = routeValues["ToDate"],
+        ContractId = routeValues["ContractId"], CompanyId = routeValues["CompanyId"],
+        CurrencyCode = routeValues["CurrencyCode"], SourceType = routeValues["SourceType"],
+        Search = routeValues["Search"], PageSize = routeValues["PageSize"],
+        view = Model.SupplierView
+    });
+    string? StatementViewUrl(SupplierStatementView view, int page = 1)
+        => Url.Action("Document", "PartyStatements", CommonRouteValues(view, page));
+    string? PageUrl(int page) => Url.Action("Document", "PartyStatements", CommonRouteValues(page: page));
+
+    string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "—";
+    string OptionalAmount(decimal? value, int decimals = 2) => value.HasValue ? value.Value.ToString($"N{decimals}") : "—";
+    string BaseAmount(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
+    string PartyTypeLabel() => s.Party.PartyType switch
+    {
+        PartyStatementPartyType.Customer => "مشتری",
+        PartyStatementPartyType.Supplier => "تأمین‌کننده",
+        PartyStatementPartyType.ServiceProvider => "شرکت خدماتی",
+        PartyStatementPartyType.Sarraf => "صراف",
+        PartyStatementPartyType.Employee => "کارمند",
+        PartyStatementPartyType.Partner => "شریک",
+        PartyStatementPartyType.Driver => "راننده",
+        PartyStatementPartyType.Company => "شرکت",
+        _ => "طرف‌حساب"
+    };
+
     var sourceTypeOptions = new List<AkFilterOption>
     {
-        new("Loading", "بارگیری"),
-        new("Sale", "فروش / تحویل"),
-        new("Expense", "مصرف"),
-        new("SupplierPayment", "پرداخت تأمین‌کننده"),
-        new("CustomerReceipt", "دریافت مشتری"),
-        new("SarrafSettlement", "تسویه صراف"),
-        new("PaymentTransaction", "تراکنش پرداخت")
+        new("Loading", "بارگیری"), new("Sale", "فروش / تحویل"), new("Expense", "مصرف"),
+        new("SupplierPayment", "پرداخت تأمین‌کننده"), new("CustomerReceipt", "دریافت مشتری"),
+        new("SarrafSettlement", "سند صراف"), new("PaymentTransaction", "تراکنش پرداخت")
     };
-    var selectedSourceType = StatementQuery("SourceType");
-    if (!string.IsNullOrEmpty(selectedSourceType)
-        && sourceTypeOptions.All(option => option.Value != selectedSourceType))
+    var selectedSourceType = Query("SourceType");
+    if (!string.IsNullOrEmpty(selectedSourceType) && sourceTypeOptions.All(x => x.Value != selectedSourceType))
     {
         sourceTypeOptions.Add(new AkFilterOption(selectedSourceType, selectedSourceType));
     }
-
     var statementFilter = new AkSearchFilterModel(
         "Search",
         Model.Filter.Search,
         UiText.T(Context, "جستجو در قرارداد، مرجع یا شرح...", "Search contract, reference, or description..."),
         new List<AkFilterDefinition>
         {
-            new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
-                StatementQuery("FromDate"), "ToDate", StatementQuery("ToDate")),
-            new("ContractId", UiText.T(Context, "قرارداد", "Contract"), "select",
-                Model.ContractOptions.Select(option => new AkFilterOption(option.Id.ToString(), option.Text)).ToList(),
-                StatementQuery("ContractId")),
-            new("CompanyId", UiText.T(Context, "شرکت", "Company"), "select",
-                Model.CompanyOptions.Select(option => new AkFilterOption(option.Id.ToString(), option.Text)).ToList(),
-                StatementQuery("CompanyId")),
-            new("CurrencyCode", UiText.T(Context, "ارز", "Currency"), "select",
-                Model.CurrencyOptions.Select(currency => new AkFilterOption(currency, currency)).ToList(),
-                StatementQuery("CurrencyCode")),
-            new("IncludeOperationalColumns", UiText.T(Context, "ستون‌های نفتی", "Oil columns"), "bool",
-                new List<AkFilterOption>
-                {
-                    new("true", UiText.T(Context, "نمایش", "Show")),
-                    new("false", UiText.T(Context, "مخفی", "Hide"))
-                },
-                StatementQuery("IncludeOperationalColumns")),
-            new("SourceType", UiText.T(Context, "نوع سند", "Document type"), "select",
-                sourceTypeOptions, selectedSourceType)
+            new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null, Query("FromDate"), "ToDate", Query("ToDate")),
+            new("ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", Model.ContractOptions.Select(x => new AkFilterOption(x.Id.ToString(), x.Text)).ToList(), Query("ContractId")),
+            new("CompanyId", UiText.T(Context, "شرکت", "Company"), "select", Model.CompanyOptions.Select(x => new AkFilterOption(x.Id.ToString(), x.Text)).ToList(), Query("CompanyId")),
+            new("CurrencyCode", UiText.T(Context, "ارز", "Currency"), "select", Model.CurrencyOptions.Select(x => new AkFilterOption(x, x)).ToList(), Query("CurrencyCode")),
+            new("IncludeOperationalColumns", UiText.T(Context, "ستون‌های نفتی", "Oil columns"), "bool", new List<AkFilterOption> { new("true", "نمایش"), new("false", "مخفی") }, Query("IncludeOperationalColumns")),
+            new("SourceType", UiText.T(Context, "نوع سند", "Document type"), "select", sourceTypeOptions, selectedSourceType)
         },
-        isContractParty
-            ? new Dictionary<string, string> { ["view"] = Model.SupplierView.ToString() }
-            : null);
+        Model.ShowContractViewTabs ? new Dictionary<string, string> { ["view"] = Model.SupplierView.ToString() } : null);
+
+    var pageSize = Math.Clamp(Model.Filter.PageSize, 10, 100);
+    var totalPages = Math.Max(1, (int)Math.Ceiling(s.Rows.Count / (decimal)pageSize));
+    var currentPage = Math.Clamp(Model.Filter.Page, 1, totalPages);
+    IReadOnlyList<PartyStatementRow> ledgerRows = Model.IsPrintMode
+        ? s.Rows
+        : s.Rows.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/ptg/62-party-statement.css" asp-append-version="true" data-ptg-page-asset="party-statement" />
 }
 
-<div class="statement-screen-tools ak-list-card no-print" dir="rtl">
-    <div class="ak-list-toolbar">
-        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="statementFilter" />
-        <div class="ak-list-toolbar-actions">
-            <a class="btn btn-success" href="@ExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
-            <a class="btn btn-danger" href="@pdfUrl"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
-            <a class="btn btn-outline-secondary" href="@csvUrl"><i class="bi bi-filetype-csv"></i> CSV</a>
-        </div>
-    </div>
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="alert alert-danger mt-2 mb-0" role="alert">
-            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
-            {
-                <div>@error.ErrorMessage</div>
-            }
-        </div>
-    }
-</div>
-
-<article class="statement-document @(c.UseLandscape ? "is-landscape" : "is-portrait")" dir="rtl">
-    @* عنوان صورت‌حساب کنار لوگو می‌نشیند تا هدر نمایش کم‌ارتفاع بماند؛ در چاپ همان ابعاد رسمی بازمی‌گردد. *@
-    <header class="statement-brand-header">
-        <div class="statement-brand-identity">
-            <img src="@s.CompanyInfo.LogoPath" alt="@s.CompanyInfo.Name" class="statement-logo" />
-            <div class="statement-brand-title">
-                <h1>@s.Policy.StatementTitleFa</h1>
-                <p>@s.Policy.StatementTitleEn</p>
+<article class="statement-document @(c.UseLandscape ? "is-landscape" : "is-portrait")"
+         dir="rtl" data-statement-auto-print="@(Model.IsPrintMode ? "true" : null)">
+    <header class="statement-screen-header">
+        <div class="statement-heading">
+            <p class="statement-eyebrow">صورت‌حساب رسمی / Statement</p>
+            <h1>@s.PartyInfo.Name</h1>
+            <div class="statement-identity-line">
+                <span>@PartyTypeLabel()</span>
+                @if (!string.IsNullOrWhiteSpace(s.PartyInfo.Code)) { <span>کد @s.PartyInfo.Code</span> }
+                <span>@(s.DocumentInfo.PeriodFrom?.ToString("yyyy/MM/dd") ?? "ابتدای حساب") تا @(s.DocumentInfo.PeriodTo?.ToString("yyyy/MM/dd") ?? "امروز")</span>
+                <span class="statement-ltr">@s.DocumentInfo.StatementNumber</span>
             </div>
         </div>
-        <address class="statement-company-contact">
-            <strong>@s.CompanyInfo.Name</strong>
-            @if (!string.IsNullOrWhiteSpace(s.CompanyInfo.Address)) { <span><i class="bi bi-geo-alt"></i>@s.CompanyInfo.Address</span> }
-            @if (!string.IsNullOrWhiteSpace(s.CompanyInfo.Phone)) { <span><i class="bi bi-telephone"></i>@s.CompanyInfo.Phone</span> }
-            @if (!string.IsNullOrWhiteSpace(s.CompanyInfo.Email)) { <span><i class="bi bi-envelope"></i>@s.CompanyInfo.Email</span> }
-            @if (!string.IsNullOrWhiteSpace(s.CompanyInfo.Website)) { <span><i class="bi bi-globe2"></i>@s.CompanyInfo.Website</span> }
-        </address>
+        <div class="statement-actions no-print" aria-label="عملیات صورت‌حساب">
+            <a class="btn btn-sm btn-outline-success" href="@ExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+            <a class="btn btn-sm btn-outline-danger" href="@pdfUrl"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-statement-print data-print-url="@printUrl"><i class="bi bi-printer"></i> چاپ</button>
+            <a class="statement-csv-link" href="@csvUrl">CSV</a>
+        </div>
     </header>
 
-    <div class="statement-brand-rule" aria-hidden="true"><span></span><span></span><span></span></div>
-
-    @* متن تعارف فقط در نسخه چاپی/رسمی دیده می‌شود. *@
-    <section class="statement-title-row">
-        <p class="statement-courtesy">@s.CourtesyText</p>
-    </section>
-
-    <section class="statement-info-grid">
-        <div class="statement-info-block">
-            <h2><i class="bi bi-person"></i>@s.Policy.PartyInformationTitleFa</h2>
-            <dl>
-                <div><dt>نام</dt><dd>@s.PartyInfo.Name</dd></div>
-                <div><dt>شماره حساب / کد</dt><dd>@Contact(s.PartyInfo.Code)</dd></div>
-                <div><dt>تلفن</dt><dd>@Contact(s.PartyInfo.Phone)</dd></div>
-                @if (!string.IsNullOrWhiteSpace(s.PartyInfo.Email)) { <div><dt>ایمیل</dt><dd>@s.PartyInfo.Email</dd></div> }
-                <div><dt>آدرس</dt><dd>@Contact(s.PartyInfo.Address)</dd></div>
-            </dl>
-        </div>
-        <div class="statement-info-block is-document-info">
-            <h2><i class="bi bi-file-earmark-text"></i>اطلاعات صورت‌حساب</h2>
-            <dl>
-                <div><dt>شماره</dt><dd class="statement-ltr">@s.DocumentInfo.StatementNumber</dd></div>
-                <div><dt>تاریخ</dt><dd>@s.DocumentInfo.StatementDate.ToString("yyyy/MM/dd")</dd></div>
-                <div><dt>دوره</dt><dd>@(s.DocumentInfo.PeriodFrom?.ToString("yyyy/MM/dd") ?? "ابتدای حساب") تا @(s.DocumentInfo.PeriodTo?.ToString("yyyy/MM/dd") ?? "امروز")</dd></div>
-                <div><dt>ارز مبنا</dt><dd>@s.DocumentInfo.BaseCurrencyCode</dd></div>
-                <div><dt>نوع حساب</dt><dd>@s.Policy.AccountType(isEn)</dd></div>
-            </dl>
-        </div>
+    <section class="statement-screen-tools no-print" aria-label="فیلتر صورت‌حساب">
+        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="statementFilter" />
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert alert-danger mt-2 mb-0" role="alert">
+                @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@error.ErrorMessage</div> }
+            </div>
+        }
     </section>
 
     <section class="statement-summary" aria-label="خلاصه مالی">
-        <div class="statement-summary-item is-opening">
-            <span class="statement-summary-icon"><i class="bi bi-wallet2"></i></span>
-            <span class="statement-summary-copy"><small>@CompanyFlowText.OpeningBalance(Context)</small><strong>@BaseAmount(s.Summary.OpeningBalance, s.Summary.OpeningBalanceRub) <em>@baseCurrency</em></strong></span>
-        </div>
-        <div class="statement-summary-item is-debit">
-            <span class="statement-summary-icon"><i class="bi bi-arrow-down"></i></span>
-            <span class="statement-summary-copy"><small>@CompanyFlowText.TotalReceipt(Context)</small><strong>@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub) <em>@baseCurrency</em></strong></span>
-        </div>
-        <div class="statement-summary-item is-credit">
-            <span class="statement-summary-icon"><i class="bi bi-arrow-up"></i></span>
-            <span class="statement-summary-copy"><small>@CompanyFlowText.TotalOutflow(Context)</small><strong>@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub) <em>@baseCurrency</em></strong></span>
-        </div>
-        <div class="statement-summary-item is-closing">
-            <span class="statement-summary-icon"><i class="bi bi-balance-scale"></i></span>
-            <span class="statement-summary-copy">
-                <small>@CompanyFlowText.ClosingBalance(Context)</small>
-                <strong>@BaseAmount(s.Summary.ClosingBalanceAbsolute, s.Summary.ClosingBalanceRubAbsolute) <em>@baseCurrency</em></strong>
-                <span>@s.Summary.ClosingBalanceMeaningFor(isEn)</span>
-            </span>
-        </div>
+        <div class="statement-summary-item"><small>بیلانس اول دوره</small><strong>@BaseAmount(s.Summary.OpeningBalance, s.Summary.OpeningBalanceRub)</strong><span>@currency</span></div>
+        <div class="statement-summary-item"><small>مجموع رسیدگی</small><strong>@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</strong><span>@currency</span></div>
+        <div class="statement-summary-item"><small>مجموع بردگی</small><strong>@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</strong><span>@currency</span></div>
+        <div class="statement-summary-item is-current"><small>بیلانس فعلی</small><strong>@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</strong><span>@currency</span></div>
     </section>
 
     @if (Model.ShowContractViewTabs)
     {
-        <nav class="statement-view-tabs no-print" dir="rtl" aria-label="نوع نمایش">
-            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Contracts ? "is-active" : null)"
-               href="@StatementViewUrl(SupplierStatementView.Contracts)">خلاصه قراردادها</a>
-            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Ledger ? "is-active" : null)"
-               href="@StatementViewUrl(SupplierStatementView.Ledger)">گردش حساب فشرده</a>
-            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Loadings ? "is-active" : null)"
-               href="@StatementViewUrl(SupplierStatementView.Loadings)">بارگیری‌ها</a>
+        <nav class="statement-view-tabs no-print" aria-label="نوع نمایش">
+            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Ledger ? "is-active" : null)" href="@StatementViewUrl(SupplierStatementView.Ledger)">گردش حساب</a>
+            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Contracts ? "is-active" : null)" href="@StatementViewUrl(SupplierStatementView.Contracts)">خلاصه قراردادها</a>
         </nav>
     }
 
-    @if (Model.ShowContractViewTabs
-        && Model.SupplierView is SupplierStatementView.Contracts or SupplierStatementView.Loadings
-        && Model.ContractGrouping != null)
+    @if (Model.ShowContractViewTabs && Model.SupplierView is SupplierStatementView.Contracts or SupplierStatementView.Loadings && Model.ContractGrouping != null)
     {
         <partial name="_SupplierContractStatement" model="Model" />
     }
     else
     {
-    // ستون «مرجع» فقط در تب‌های گردش حساب و بارگیری‌های تأمین‌کننده حذف می‌شود؛
-    // در صورت‌حساب سایر طرف‌ها (مشتری/صراف) دست‌نخورده می‌ماند.
-    var hideRef = Model.ShowContractViewTabs
-        && Model.SupplierView is SupplierStatementView.Ledger or SupplierStatementView.Loadings;
-    // ستون‌های پیش از سه ستون مالیِ پایانی (رسید/برد/بیلانس). ردیف «خالی» باید دقیقاً
-    // به اندازهٔ کل ستون‌ها باشد، وگرنه جدول ستون توهمی می‌سازد و عرضش بهم می‌ریزد.
-    var leadColumns = (hideRef ? 3 : 4)
-        + ((c.ShowRub && !isRub) ? 1 : 0)
-        + (c.ShowAed ? 1 : 0)
-        + (c.ShowOriginalAmount ? 2 : 0)
-        + (c.ShowFxRate ? 1 : 0)
-        + (c.ShowQuantity ? 1 : 0)
-        + (c.ShowPlatts ? 1 : 0)
-        + (c.ShowPremiumOrDiscount ? 1 : 0)
-        + (c.ShowUnitPrice ? 1 : 0);
-    var totalColumns = leadColumns + 3;
-    <div class="statement-table-wrap">
-        <table class="statement-table">
-            <thead>
-                <tr>
-                    <th class="statement-col-no">شماره</th>
-                    <th class="statement-col-date">تاریخ</th>
-                    @if (!hideRef) { <th class="statement-col-ref">مرجع</th> }
-                    <th class="statement-col-description">شرح</th>
-                    @if (c.ShowRub && !isRub) { <th>روبل</th> }
-                    @if (c.ShowAed) { <th>AED</th> }
-                    @if (c.ShowOriginalAmount) { <th>مبلغ اصلی</th><th>ارز</th> }
-                    @if (c.ShowFxRate) { <th>نرخ تبدیل</th> }
-                    @if (c.ShowQuantity) { <th>M‑Tone</th> }
-                    @if (c.ShowPlatts) { <th>Platts</th> }
-                    @if (c.ShowPremiumOrDiscount) { <th>Premium / Discount</th> }
-                    @if (c.ShowUnitPrice) { <th>نرخ واحد</th> }
-                    <th title="@s.Policy.ReceiptMeaning(isEn)">@CompanyFlowText.Receipt(Context)</th>
-                    <th title="@s.Policy.OutflowMeaning(isEn)">@CompanyFlowText.Outflow(Context)</th>
-                    <th>@CompanyFlowText.Balance(Context)</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (s.Rows.Count == 0)
-                {
-                    <tr><td colspan="@totalColumns" class="statement-empty">در این دوره تراکنشی ثبت نشده است.</td></tr>
-                }
-                else
-                {
-                    @foreach (var row in s.Rows)
+        var leadColumns = 4 + ((c.ShowRub && !isRub) ? 1 : 0) + (c.ShowAed ? 1 : 0)
+            + (c.ShowOriginalAmount ? 2 : 0) + (c.ShowFxRate ? 1 : 0) + (c.ShowQuantity ? 1 : 0)
+            + (c.ShowPlatts ? 1 : 0) + (c.ShowPremiumOrDiscount ? 1 : 0) + (c.ShowUnitPrice ? 1 : 0);
+        var totalColumns = leadColumns + 3;
+        <section class="statement-ledger" aria-label="دفتر تراکنش‌ها">
+            <div class="statement-table-wrap">
+                <table class="statement-table">
+                    <thead><tr>
+                        <th class="statement-col-no">#</th><th class="statement-col-date">تاریخ</th><th class="statement-col-ref">مرجع</th><th class="statement-col-description">شرح</th>
+                        @if (c.ShowRub && !isRub) { <th>روبل</th> }
+                        @if (c.ShowAed) { <th>AED</th> }
+                        @if (c.ShowOriginalAmount) { <th>مبلغ اصلی</th><th>ارز</th> }
+                        @if (c.ShowFxRate) { <th>نرخ تبدیل</th> }
+                        @if (c.ShowQuantity) { <th>M‑Tone</th> }
+                        @if (c.ShowPlatts) { <th>Platts</th> }
+                        @if (c.ShowPremiumOrDiscount) { <th>Premium / Discount</th> }
+                        @if (c.ShowUnitPrice) { <th>نرخ واحد</th> }
+                        <th title="@s.Policy.ReceiptMeaning(isEn)">رسیدگی</th><th title="@s.Policy.OutflowMeaning(isEn)">بردگی</th><th>بیلانس</th>
+                    </tr></thead>
+                    <tbody>
+                    @if (ledgerRows.Count == 0)
                     {
-                        <tr class="@(row.IsOpeningBalance ? "is-opening-row" : null)">
-                            <td class="statement-num">@(row.IsOpeningBalance ? "–" : row.Sequence)</td>
-                            <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
-                            @if (!hideRef) { <td class="statement-ref">@(row.Reference ?? "–")</td> }
-                            <td class="statement-description">@row.DescriptionFor(isEn)</td>
-                            @if (c.ShowRub && !isRub) { <td class="statement-money">@(row.OriginalCurrency == "RUB" ? OptionalAmount(row.OriginalAmount, 2) : "–")</td> }
-                            @if (c.ShowAed) { <td class="statement-money">@(row.OriginalCurrency == "AED" ? OptionalAmount(row.OriginalAmount, 2) : "–")</td> }
-                            @if (c.ShowOriginalAmount) { <td class="statement-money">@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? OptionalAmount(row.OriginalAmount, 2) : "–")</td><td>@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? row.OriginalCurrency : "–")</td> }
-                            @if (c.ShowFxRate) { <td class="statement-fx">@(row.OriginalCurrency == "USD" ? "–" : row.FxRateDisplay ?? "نرخ ثبت نشده")</td> }
-                            @if (c.ShowQuantity) { <td class="statement-money">@OptionalAmount(row.Quantity, 3)</td> }
-                            @if (c.ShowPlatts) { <td class="statement-money">@OptionalAmount(row.PlattsPrice)</td> }
-                            @if (c.ShowPremiumOrDiscount) { <td class="statement-money">@OptionalAmount(row.PremiumOrDiscount)</td> }
-                            @if (c.ShowUnitPrice) { <td class="statement-money">@OptionalAmount(row.UnitPrice)</td> }
-                            <td class="statement-money statement-debit">@(isRub ? Amount(row.ReceiptRub) : Amount(row.ReceiptBase))</td>
-                            <td class="statement-money statement-credit">@(isRub ? Amount(row.OutflowRub) : Amount(row.OutflowBase))</td>
-                            <td class="statement-money statement-balance">@(isRub ? Amount(row.RunningBalanceRub) : Amount(row.RunningBalance))</td>
-                        </tr>
+                        <tr><td colspan="@totalColumns" class="statement-empty">در این دوره تراکنشی ثبت نشده است.</td></tr>
                     }
-                }
-            </tbody>
-            <tfoot>
-                <tr>
-                    <th colspan="@leadColumns">@CompanyFlowText.PeriodTotal(Context)</th>
-                    <th class="statement-money">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</th>
-                    <th class="statement-money">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</th>
-                    <th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
+                    else
+                    {
+                        @foreach (var row in ledgerRows)
+                        {
+                            <tr class="@(row.IsOpeningBalance ? "is-opening-row" : null)">
+                                <td class="statement-num">@(row.IsOpeningBalance ? "—" : row.Sequence)</td>
+                                <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
+                                <td class="statement-ref">
+                                    @if (row.LedgerEntryId.HasValue) { <a asp-controller="Ledger" asp-action="Details" asp-route-id="@row.LedgerEntryId">@(row.Reference ?? $"#{row.LedgerEntryId}")</a> }
+                                    else { @(row.Reference ?? "—") }
+                                </td>
+                                <td class="statement-description">@row.DescriptionFor(isEn)</td>
+                                @if (c.ShowRub && !isRub) { <td class="statement-money">@(row.OriginalCurrency == "RUB" ? OptionalAmount(row.OriginalAmount) : "—")</td> }
+                                @if (c.ShowAed) { <td class="statement-money">@(row.OriginalCurrency == "AED" ? OptionalAmount(row.OriginalAmount) : "—")</td> }
+                                @if (c.ShowOriginalAmount) { <td class="statement-money">@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? OptionalAmount(row.OriginalAmount) : "—")</td><td>@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? row.OriginalCurrency : "—")</td> }
+                                @if (c.ShowFxRate) { <td class="statement-fx">@(row.OriginalCurrency == "USD" ? "—" : row.FxRateDisplay ?? "ثبت نشده")</td> }
+                                @if (c.ShowQuantity) { <td class="statement-money">@OptionalAmount(row.Quantity, 3)</td> }
+                                @if (c.ShowPlatts) { <td class="statement-money">@OptionalAmount(row.PlattsPrice)</td> }
+                                @if (c.ShowPremiumOrDiscount) { <td class="statement-money">@OptionalAmount(row.PremiumOrDiscount)</td> }
+                                @if (c.ShowUnitPrice) { <td class="statement-money">@OptionalAmount(row.UnitPrice)</td> }
+                                <td class="statement-money statement-receipt">@(isRub ? Amount(row.ReceiptRub) : Amount(row.ReceiptBase))</td>
+                                <td class="statement-money statement-outflow">@(isRub ? Amount(row.OutflowRub) : Amount(row.OutflowBase))</td>
+                                <td class="statement-money statement-balance">@(isRub ? Amount(row.RunningBalanceRub) : Amount(row.RunningBalance))</td>
+                            </tr>
+                        }
+                    }
+                    </tbody>
+                    <tfoot><tr><th colspan="@leadColumns">جمع دوره</th><th class="statement-money statement-receipt">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</th><th class="statement-money statement-outflow">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</th><th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th></tr></tfoot>
+                </table>
+            </div>
+            @if (!Model.IsPrintMode && totalPages > 1)
+            {
+                <nav class="statement-pagination no-print" aria-label="صفحه‌بندی تراکنش‌ها">
+                    <span>صفحه @currentPage از @totalPages · @s.Rows.Count سطر</span>
+                    <div>
+                        <a class="btn btn-sm btn-outline-secondary @(currentPage == 1 ? "disabled" : null)" href="@(currentPage == 1 ? null : PageUrl(currentPage - 1))">قبلی</a>
+                        <a class="btn btn-sm btn-outline-secondary @(currentPage == totalPages ? "disabled" : null)" href="@(currentPage == totalPages ? null : PageUrl(currentPage + 1))">بعدی</a>
+                    </div>
+                </nav>
+            }
+        </section>
     }
 
-    <section class="statement-closing-grid">
-        <div class="statement-note">
-            <h2>یادداشت</h2>
-            <p>@s.Note</p>
-        </div>
-        <div class="statement-authorization">
-            <h2>تأیید بخش مالی</h2>
-            @if (!string.IsNullOrWhiteSpace(s.Authorization.SignatureImagePath))
-            {
-                <img src="@s.Authorization.SignatureImagePath" alt="امضای رسمی" />
-            }
-            <span class="statement-signature-line"></span>
-            <strong>@(string.IsNullOrWhiteSpace(s.Authorization.AuthorizedByName) ? "نام و امضای مسئول" : s.Authorization.AuthorizedByName)</strong>
-            @if (!string.IsNullOrWhiteSpace(s.Authorization.AuthorizedByTitle)) { <small>@s.Authorization.AuthorizedByTitle</small> }
-        </div>
-    </section>
-
-    <footer class="statement-footer">
-        <strong>@s.CompanyInfo.Name</strong>
-        <p>
-            @if (!string.IsNullOrWhiteSpace(s.CompanyInfo.Address)) { <span>@s.CompanyInfo.Address</span> }
-            @if (!string.IsNullOrWhiteSpace(s.CompanyInfo.Phone)) { <span>@s.CompanyInfo.Phone</span> }
-            @if (!string.IsNullOrWhiteSpace(s.CompanyInfo.Email)) { <span>@s.CompanyInfo.Email</span> }
-            @if (!string.IsNullOrWhiteSpace(s.CompanyInfo.Website)) { <span>@s.CompanyInfo.Website</span> }
-        </p>
-        <small>تولید: @s.DocumentInfo.GeneratedAtUtc.ToString("yyyy/MM/dd HH:mm") UTC</small>
+    <footer class="statement-print-footer">
+        <span>@s.CompanyInfo.Name</span><span>تولید: @s.DocumentInfo.GeneratedAtUtc.ToString("yyyy/MM/dd HH:mm") UTC</span>
     </footer>
 </article>
 
-@section Scripts {
-    <script src="~/js/party-statement.js" asp-append-version="true"></script>
-}
+@section Scripts { <script src="~/js/party-statement.js" asp-append-version="true"></script> }

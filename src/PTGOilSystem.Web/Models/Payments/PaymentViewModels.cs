@@ -384,6 +384,8 @@ public sealed class PaymentIndexViewModel
     public int TotalCount { get; init; }
     public decimal TodayReceiptUsd { get; init; }
     public decimal TodayPaymentUsd { get; init; }
+    public int TodayReceiptMissingUsdEquivalentCount { get; init; }
+    public int TodayPaymentMissingUsdEquivalentCount { get; init; }
     public decimal TodayNetUsd => TodayReceiptUsd - TodayPaymentUsd;
     public decimal CashAccountsBalanceUsd { get; init; }
     public string? LastDocumentReference { get; init; }

@@ -1409,7 +1409,7 @@ public partial class LoadingReceiptsController : Controller
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
-    public async Task<IActionResult> Create(int? loadingId, string? returnUrl = null)
+    public async Task<IActionResult> Create(int? loadingId, string? returnUrl = null, bool modal = false)
     {
         if (!loadingId.HasValue || loadingId.Value <= 0)
         {
@@ -1440,12 +1440,22 @@ public partial class LoadingReceiptsController : Controller
         ApplyLoadingContext(model, loadingContext.Value.Loading, loadingContext.Value.Quantities);
         if (model.RemainingToReceiveMt <= 0m)
         {
+            if (modal)
+            {
+                return Conflict("برای این بارگیری تمام رسیدها قبلاً ثبت شده‌اند.");
+            }
             TempData["err"] = "برای این loading تمام receiptها قبلاً ثبت شده‌اند.";
             return RedirectToAction("Details", "Loading", new { id = loadingId.Value });
         }
 
         EnsureAllocationLineEditorRows(model);
         await PopulateLookupsAsync(model);
+        if (modal)
+        {
+            ViewData["IsReceiptModal"] = true;
+            ViewData["CancelUrl"] = returnUrl;
+            return PartialView("_ReceiptCreateForm", model);
+        }
         return View(model);
     }
 

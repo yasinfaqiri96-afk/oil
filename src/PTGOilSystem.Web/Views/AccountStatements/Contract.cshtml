@@ -1,6 +1,6 @@
 @model PTGOilSystem.Web.Models.AccountStatements.ContractAccountStatementViewModel
 @{
-    ViewData["Title"] = $"دفتر حساب قرارداد {Model.ContractNumber}";
+    ViewData["Title"] = $"دفتر حساب قرارداد {Model.ContractDisplayLabel}";
     ViewData["HideSectionTabs"] = true;
     ViewData["AkHeaderStatus"] = Model.ContractCurrency;
     ViewData["AkHeaderStatusState"] = "is-active";
@@ -19,18 +19,18 @@
 
 <div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@(($"دفتر حساب قرارداد {Model.ContractNumber}", false,
+             model="@(($"دفتر حساب قرارداد {Model.ContractDisplayLabel}", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        "بازگشت به قرارداد", "bi-arrow-right", Url.Action("Details", "ContractJourney", new { contractId = Model.ContractId })))" />
 
     <div class="ak-stat-grid" aria-label="خلاصه دفتر حساب">
-        <vc:stat-card title="@CompanyFlowText.TotalReceipt(Context)" value="@Model.Totals.TotalReceiptUsd.ToString("N2")" unit="USD" avatar="receipts"></vc:stat-card>
-        <vc:stat-card title="@CompanyFlowText.TotalOutflow(Context)" value="@Model.Totals.TotalOutflowUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
-        <vc:stat-card title="@CompanyFlowText.Balance(Context)" value="@Model.Totals.BalanceUsd.ToString("N2")" unit="USD" avatar="ledger"></vc:stat-card>
+        <vc:stat-card title="مجموع رسیدگی" value="@Model.Totals.TotalReceiptUsd.ToString("N2")" unit="USD" avatar="receipts"></vc:stat-card>
+        <vc:stat-card title="مجموع بردگی" value="@Model.Totals.TotalOutflowUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
+        <vc:stat-card title="بیلانس فعلی" value="@Model.Totals.BalanceUsd.ToString("N2")" unit="USD" avatar="ledger"></vc:stat-card>
     </div>
 
     <section class="ak-form-section ak-detail-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, $"{CompanyFlowText.Balance(Context)} به تفکیک ارز اصلی", $"{CompanyFlowText.Balance(Context)} by source currency"), (string?)null))" />
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "بیلانس به تفکیک ارز اصلی", "Balance by source currency"), (string?)null))" />
         @if (Model.Totals.BalancesByCurrency.Any())
         {
             <dl class="ak-list ak-list--flush">
@@ -55,9 +55,9 @@
                         <th>تاریخ</th>
                         <th class="ak-col-grow">جزئیات</th>
                         <th class="ak-col-num">مبلغ ارز اصلی</th>
-                        <th class="ak-col-num">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "USD", Context)</th>
-                        <th class="ak-col-num">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "USD", Context)</th>
-                        <th class="ak-col-num">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Balance, "USD", Context)</th>
+                        <th class="ak-col-num">رسیدگی USD</th>
+                        <th class="ak-col-num">بردگی USD</th>
+                        <th class="ak-col-num">بیلانس USD</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -109,12 +109,12 @@
                             @if (row.ReceiptOriginal.HasValue)
                             {
                                 <div>@Money(row.ReceiptOriginal, row.SourceCurrency)</div>
-                                <div class="ak-cell-note">@CompanyFlowText.Receipt(Context)</div>
+                                <div class="ak-cell-note">رسیدگی</div>
                             }
                             else if (row.OutflowOriginal.HasValue)
                             {
                                 <div>@Money(row.OutflowOriginal, row.SourceCurrency)</div>
-                                <div class="ak-cell-note">@CompanyFlowText.Outflow(Context)</div>
+                                <div class="ak-cell-note">بردگی</div>
                             }
                             else
                             {

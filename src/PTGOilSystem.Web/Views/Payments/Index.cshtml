@@ -16,6 +16,12 @@
     var query = Context.Request.Query;
     bool HasQ(string key) => !string.IsNullOrWhiteSpace(query[key]);
     var hasAdvancedFilter = f.FromDate.HasValue || f.ToDate.HasValue || HasQ("Direction") || HasQ("PaymentKind") || HasQ("CashAccountId");
+    var receiptUsdUnit = Model.TodayReceiptMissingUsdEquivalentCount > 0
+        ? $"USD · {Model.TodayReceiptMissingUsdEquivalentCount:N0} سند بدون معادل USD"
+        : "USD";
+    var paymentUsdUnit = Model.TodayPaymentMissingUsdEquivalentCount > 0
+        ? $"USD · {Model.TodayPaymentMissingUsdEquivalentCount:N0} سند بدون معادل USD"
+        : "USD";
 }
 
 <div class="ak-list-page finance-workspace-page ak-journal-page">
@@ -25,8 +31,8 @@
                        "راهنمای دریافت و پرداخت", "bi-grid-1x2", Url.Action("Hub")))" />
 
     <section class="ak-stat-grid" aria-label="خلاصهٔ مالی">
-        <vc:stat-card title="جمع دریافتی" value="@Model.TodayReceiptUsd.ToString("N2")" unit="USD" avatar="receipts"></vc:stat-card>
-        <vc:stat-card title="جمع پرداختی" value="@Model.TodayPaymentUsd.ToString("N2")" unit="USD" avatar="payments-out"></vc:stat-card>
+        <vc:stat-card title="دریافتی امروز — معادل USD" value="@Model.TodayReceiptUsd.ToString("N2")" unit="@receiptUsdUnit" avatar="receipts"></vc:stat-card>
+        <vc:stat-card title="پرداختی امروز — معادل USD" value="@Model.TodayPaymentUsd.ToString("N2")" unit="@paymentUsdUnit" avatar="payments-out"></vc:stat-card>
         <vc:stat-card title="مانده نقدی" value="@Model.CashAccountsBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
         <vc:stat-card title="تعداد تراکنش‌ها" value="@Model.TotalCount.ToString("N0")" unit="مورد" avatar="cash-flow"></vc:stat-card>
     </section>

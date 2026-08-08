@@ -440,10 +440,12 @@
             loadRemoteEditor(modal, url);
         });
 
-        // Prefetch هنگام لود صفحه تا اولین باز شدن مودال بدون لودینگ و سریع باشد.
-        const prefetchUrl = resolveModalTriggerUrl(modal);
-        if (prefetchUrl) {
-            loadRemoteEditor(modal, prefetchUrl);
+        // Details can explicitly defer the heavy editor until the modal is opened.
+        if (modal.dataset.loadingExpensePrefetch !== "false") {
+            const prefetchUrl = resolveModalTriggerUrl(modal);
+            if (prefetchUrl) {
+                loadRemoteEditor(modal, prefetchUrl);
+            }
         }
     }
 

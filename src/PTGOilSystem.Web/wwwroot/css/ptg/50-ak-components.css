@@ -10,23 +10,35 @@
  */
 
 /* ============================================================= *
- * Page header — list/form titles stay quiet; detail titles remain visible
+ * Page header — compact list/form title; detail titles keep their richer treatment
  * ============================================================= */
 .ak-page-header {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
     gap: 16px;
     padding: 8px 0 16px;
 }
 
-/* List/create/edit pages keep the compact title-less header. Detail pages
-   opt into the shared ak-detail header contract in 11-details.css. */
-.ak-page-header:not(.ak-detail-header) :is(.ak-page-heading, .ak-page-title, .ak-star) {
-    display: none !important;
+/* List and hub pages retain a real H1 without creating a second hero area. */
+.ak-page-header:not(.ak-detail-header) {
+    min-height: 0;
+    padding: 2px 0 10px;
 }
 
-.ak-page-header:not(.ak-detail-header):not(:has(.ak-page-actions)) {
+.ak-page-header:not(.ak-detail-header) .ak-page-heading {
+    min-width: 0;
+}
+
+.ak-page-header:not(.ak-detail-header) .ak-page-title {
+    display: block;
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
+.ak-page-header:not(.ak-detail-header) .ak-star {
     display: none;
 }
 
@@ -49,6 +61,10 @@
 
 :is(.ak-list-page, .ak-form-page) > .ak-stat-grid {
     order: -1;
+}
+
+:is(.ak-list-page, .ak-form-page) > .ak-page-header:not(.ak-detail-header) {
+    order: -3;
 }
 
 /* page lead/intro text keeps its place above the cards */
@@ -152,6 +168,10 @@
     white-space: nowrap;
 }
 
+/* Free text wraps. This used to be `nowrap`, which meant every cell handed the
+   column its full single-line width as a minimum, so a long party name could
+   only be paid for by a horizontal scrollbar on the whole list. The columns
+   that must stay on one line re-assert it right below, at the same weight. */
 .ak-table > tbody > tr > td {
     font-size: 14px;
     line-height: 20px;
@@ -159,6 +179,22 @@
     padding: 15px 16px;
     border-bottom: 1px solid var(--divider);
     vertical-align: middle;
+    white-space: normal;
+}
+
+/* Amounts, codes and phones (.ak-num), and the three fixed-width structural
+   columns. Breaking a number across two lines misreads as two numbers. */
+.ak-table > tbody > tr > td.ak-num,
+.ak-table > tbody > tr > td.ak-col-num,
+.ak-table > tbody > tr > td.ak-col-check,
+.ak-table > tbody > tr > td.ak-col-actions,
+.ak-table > tbody > tr > td.ak-col-spacer {
+    white-space: nowrap;
+}
+
+/* Badges are single-line shapes; wrapping one breaks the pill. */
+.ak-table .ak-status,
+.ak-table .ptg-capsule-badge {
     white-space: nowrap;
 }
 
@@ -175,16 +211,28 @@
     background: #F7F8FA;
 }
 
-/* Invisible spacer column absorbs the row slack: identity/meta pack at the
-   start, the value + status + actions sit at the far end — the Akaunting
-   "packed start, value at end" rhythm. */
+/* Invisible gutter between the identity/meta group and the value + status +
+   actions group at the row end — the Akaunting "packed start, value at end"
+   rhythm. It used to ask for `width: 100%`; a percentage column wins every
+   distribution pass, so no slack could ever reach the columns that needed it
+   and the row could only grow. It is a plain gutter now, and the real columns
+   share the slack between them. */
 .ak-col-spacer {
-    width: 100%;
+    width: auto;
     padding: 0;
 }
 
+/* Identity column. 22rem is the column's target width, not a floor — the cell
+   has to be able to wrap and shrink, or one long party name turns into a
+   horizontal scrollbar across the whole list. */
 .ak-col-grow {
+    width: 22rem;
     max-width: 22rem;
+}
+
+/* The header keeps its own nowrap, except over the identity column, where the
+   label has to sit above a column that is allowed to get narrow. */
+.ak-table > thead > tr > th.ak-col-grow {
     white-space: normal;
 }
 
@@ -216,6 +264,31 @@
 
 .ak-col-num {
     text-align: end;
+}
+
+/* Keep every value directly under its header. Numeric cells opt into LTR for
+   stable digit ordering, so logical `start`/`end` resolves differently on the
+   th and td unless the physical column edge is pinned by the page direction. */
+body.boltz-rtl .ak-table > thead > tr > th.ak-col-num,
+body.boltz-rtl .ak-table > tbody > tr > td.ak-col-num,
+body.boltz-rtl .ak-table > tfoot > tr > :is(th, td).ak-col-num {
+    text-align: left;
+}
+
+body.boltz-ltr .ak-table > thead > tr > th.ak-col-num,
+body.boltz-ltr .ak-table > tbody > tr > td.ak-col-num,
+body.boltz-ltr .ak-table > tfoot > tr > :is(th, td).ak-col-num {
+    text-align: right;
+}
+
+/* LTR references (dates, codes and phone numbers) that live in an ordinary
+   text column stay on that column's start edge, matching its unmarked header. */
+body.boltz-rtl .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
+    text-align: right;
+}
+
+body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
+    text-align: left;
 }
 
 .ak-col-check {
@@ -805,7 +878,7 @@ a.ak-list-row:focus-visible {
     }
 
     .ak-page-title {
-        font-size: 26px;
+        font-size: 1.125rem;
     }
 
     .ak-list-row {

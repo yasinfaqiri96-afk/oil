@@ -163,13 +163,14 @@ public class ShellViewStructureTests
     }
 
     [Fact]
-    public void Header_Search_Language_And_Account_Share_One_Icon_Chip_Style()
+    public void Header_Uses_Real_Language_And_Account_Controls_Without_A_Duplicate_Search()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
         var headerCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/74-header-controls.css");
 
-        // All three triggers are line icons — no flag artwork, no avatar photo.
-        Assert.Contains("bi bi-search ptg-hsearch-ico", layout);
+        // The page-level fake search was removed; the two real controls remain line icons.
+        Assert.DoesNotContain("ptg-hsearch-trigger", layout);
+        Assert.DoesNotContain("data-global-search", layout);
         Assert.Contains("bi bi-translate ptg-hflag-ico", layout);
         Assert.Contains("bi bi-person ptg-havatar-ico", layout);
         Assert.DoesNotContain("ptgUkFlag", layout);
@@ -179,7 +180,7 @@ public class ShellViewStructureTests
         var triggerEnd = layout.IndexOf("</button>", triggerStart, StringComparison.Ordinal);
         Assert.DoesNotContain("<img", layout[triggerStart..triggerEnd]);
 
-        // One icon size for the whole cluster, and the avatar loses its bespoke ring.
+        // The remaining icon controls share the same size, and the avatar has no bespoke ring.
         Assert.Contains(".ptg-havatar-ring\n) .bi", headerCss.Replace("\r\n", "\n", StringComparison.Ordinal));
         Assert.Contains("box-shadow: none;", headerCss);
     }
@@ -508,6 +509,19 @@ public class ShellViewStructureTests
         Assert.Contains(".ak-table tbody tr:focus-within .ak-row-actions", components);
     }
 
+    [Fact]
+    public void Shared_Ak_Tables_Keep_Headers_And_Values_On_The_Same_Column_Edge()
+    {
+        var components = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+
+        Assert.Contains("body.boltz-rtl .ak-table > thead > tr > th.ak-col-num", components);
+        Assert.Contains("body.boltz-rtl .ak-table > tbody > tr > td.ak-col-num", components);
+        Assert.Contains("body.boltz-ltr .ak-table > thead > tr > th.ak-col-num", components);
+        Assert.Contains("body.boltz-ltr .ak-table > tbody > tr > td.ak-col-num", components);
+        Assert.Contains(".ak-table > tfoot > tr > :is(th, td).ak-col-num", components);
+        Assert.Contains("td.ak-num:not(.ak-col-num)", components);
+    }
+
     [Theory]
     [InlineData("src/PTGOilSystem.Web/Views/Home/Index.cshtml", "ak-form-page")]
     [InlineData("src/PTGOilSystem.Web/Views/Products/Index.cshtml", "ak-list-page")]
@@ -620,6 +634,46 @@ public class ShellViewStructureTests
         Assert.Contains("value.clientWidth / value.scrollWidth", script);
         Assert.Contains("window.addEventListener(\"ptg:page-ready\"", script);
         Assert.Contains("text-overflow: clip", css);
+    }
+
+    [Fact]
+    public void Confirmed_Ux_Workflows_Stay_Real_Compact_And_Lazy()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var pageHeaderCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+        var loadingDetails = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Details.cshtml");
+        var loadingIndex = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Index.cshtml");
+        var salesDetails = ReadRepoFile("src/PTGOilSystem.Web/Views/Sales/Details.cshtml");
+        var expenseDetails = ReadRepoFile("src/PTGOilSystem.Web/Views/Expenses/Details.cshtml");
+        var inventoryOperations = ReadRepoFile("src/PTGOilSystem.Web/Views/Reports/InventoryOperations.cshtml");
+        var reports = ReadRepoFile("src/PTGOilSystem.Web/Views/Reports/Index.cshtml");
+        var migration = ReadRepoFile("src/PTGOilSystem.Web/Migrations/20260808120000_NormalizeRblCurrencyReferenceToRub.cs");
+
+        Assert.DoesNotContain("data-search-open", layout);
+        Assert.DoesNotContain("data-global-search", layout);
+        Assert.DoesNotContain("~/js/global-search.js", layout);
+        Assert.DoesNotContain("onclick=\"return false;\"", layout);
+        Assert.DoesNotContain("ptg-account-link-badge", layout);
+        Assert.DoesNotContain("ptg-account-switch-avatar", layout);
+        Assert.Contains(".ak-page-header:not(.ak-detail-header) .ak-page-title", pageHeaderCss);
+        Assert.DoesNotContain("display: none !important", pageHeaderCss);
+
+        Assert.Contains("data-loading-expense-prefetch=\"false\"", loadingDetails);
+        Assert.Contains("data-receipt-remote-modal", loadingDetails);
+        Assert.DoesNotContain("<partial name=\"_LoadingExpenseEditor\"", loadingDetails);
+        Assert.DoesNotContain("<partial name=\"~/Views/LoadingReceipts/_ReceiptCreateForm.cshtml\"", loadingDetails);
+        Assert.Contains("Model.TotalCount, 20", loadingIndex);
+        Assert.Contains("salesTransactionId = Model.Id", salesDetails);
+        Assert.Contains("customerId = Model.CustomerId", salesDetails);
+        Assert.Contains("\"Details\", \"Ledger\"", expenseDetails);
+        Assert.Contains("Url.Action(warning.Action, warning.Controller, warning.RouteValues)", inventoryOperations);
+        Assert.Contains("مدیریت و قراردادها", reports);
+        Assert.Contains("کنترل و انطباق", reports);
+
+        Assert.Contains("UPDATE \"Currencies\"", migration);
+        Assert.Contains("SET \"Code\" = 'RUB'", migration);
+        Assert.DoesNotContain("PaymentTransactions", migration);
+        Assert.DoesNotContain("LedgerEntries", migration);
     }
 
     private static string ReadPtgCss()

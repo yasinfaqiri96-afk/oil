@@ -14,6 +14,7 @@
         ? T("مشتری نامشخص", "Unknown customer")
         : Model.CustomerName;
     var ledgerRecorded = Model.LedgerEntryId.HasValue;
+    var canRegisterReceipt = !Model.IsCancelled && Model.CustomerId > 0 && Model.ReceivableBalanceUsd > 0m;
     var isSameCurrency = string.Equals(Model.Currency, "USD", StringComparison.OrdinalIgnoreCase);
     var stockSourceText = Model.StockSourceType?.ToString() switch
     {
@@ -50,13 +51,22 @@
             ConfirmMessage = T("این فروش ابطال شود؟", "Cancel this sale?")
         });
     }
-    ViewData["AkHeaderKebab"] = salesKebab;
-    ViewData["AkHeaderCompanionAction"] = new AkHeaderMenuItem
+    salesKebab.Add(new AkHeaderMenuItem
     {
         Label = T("فاکتور ۲", "Invoice 2"),
         Href = Url.Action("Invoice", new { id = Model.Id, template = "fawad" }),
         Icon = "bi-receipt-cutoff"
-    };
+    });
+    ViewData["AkHeaderKebab"] = salesKebab;
+    if (canRegisterReceipt)
+    {
+        ViewData["AkHeaderCompanionAction"] = new AkHeaderMenuItem
+        {
+            Label = T("فاکتور ۱", "Invoice 1"),
+            Href = Url.Action("Invoice", new { id = Model.Id, template = "faisal" }),
+            Icon = "bi-receipt"
+        };
+    }
 
     var kpis = new List<AkKpiItem>
     {
@@ -234,8 +244,11 @@
 <div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("فروش", "Sale") + " " + Model.InvoiceNumber, false,
-                       T("فاکتور ۱", "Invoice 1"), "bi-receipt",
-                       Url.Action("Invoice", new { id = Model.Id, template = "faisal" }), (string?)null,
+                       canRegisterReceipt ? T("ثبت دریافت", "Record receipt") : T("فاکتور ۱", "Invoice 1"),
+                       canRegisterReceipt ? "bi-cash-coin" : "bi-receipt",
+                       canRegisterReceipt
+                           ? Url.Action("Create", "Payments", new { customerId = Model.CustomerId, salesTransactionId = Model.Id, returnUrl = currentReturnUrl })
+                           : Url.Action("Invoice", new { id = Model.Id, template = "faisal" }), (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />

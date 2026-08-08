@@ -32,6 +32,48 @@ namespace PTGOilSystem.Web.Tests;
 public class PaymentsControllerTests
 {
     [Fact]
+    public async Task Index_Separates_Missing_Usd_Equivalents_From_Today_Totals()
+    {
+        var options = NewDbOptions();
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        var today = DateTime.UtcNow.AddHours(4.5).Date;
+        db.PaymentTransactions.AddRange(
+            new PaymentTransaction
+            {
+                Id = 1,
+                PaymentDate = today,
+                Direction = PaymentDirection.In,
+                PaymentKind = PaymentKind.ManualReceipt,
+                CashAccountId = 2,
+                Amount = 100m,
+                Currency = "EUR",
+                AmountUsd = 0m
+            },
+            new PaymentTransaction
+            {
+                Id = 2,
+                PaymentDate = today,
+                Direction = PaymentDirection.Out,
+                PaymentKind = PaymentKind.ManualPayment,
+                CashAccountId = 1,
+                Amount = 30m,
+                Currency = "USD",
+                AppliedFxRateToUsd = 1m,
+                AmountUsd = 30m
+            });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(await BuildPaymentsController(db).Index());
+        var model = Assert.IsType<PaymentIndexViewModel>(result.Model);
+
+        Assert.Equal(0m, model.TodayReceiptUsd);
+        Assert.Equal(30m, model.TodayPaymentUsd);
+        Assert.Equal(1, model.TodayReceiptMissingUsdEquivalentCount);
+        Assert.Equal(0, model.TodayPaymentMissingUsdEquivalentCount);
+    }
+
+    [Fact]
     public async Task Create_Get_Preselects_Contract_And_Preserves_ReturnUrl()
     {
         var options = NewDbOptions();

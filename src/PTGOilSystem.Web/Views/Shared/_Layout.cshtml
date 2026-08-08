@@ -586,11 +586,6 @@
                     </div>
 
                     <div class="boltz-topbar-end ptg-header-cluster">
-                        @* Search trigger — opens the search dialog (Minimal small trigger + shortcut) *@
-                        <button type="button" class="ptg-hsearch ptg-hsearch-trigger" data-search-open aria-haspopup="dialog" aria-controls="ptgSearchDialog" aria-label="@T("جستجو", "Search")">
-                            <i class="bi bi-search ptg-hsearch-ico" aria-hidden="true"></i>
-                        </button>
-
                         @* Language selector — same ghost line-icon chip as search and account. *@
                         <div class="dropdown boltz-language-menu ptg-hflag-wrap">
                             <button class="ptg-h3d ptg-hflag" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Language">
@@ -694,24 +689,6 @@
         var accountEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
         var accountName = User.Identity?.Name ?? T("کاربر", "User");
 
-        @* ===== Search dialog (opened by the header search trigger) ===== *@
-        <div class="ptg-search-dialog" id="ptgSearchDialog" role="dialog" aria-modal="true" aria-label="@T("جستجو", "Search")" hidden>
-            <button type="button" class="ptg-search-backdrop" data-search-close aria-label="@T("بستن", "Close")"></button>
-            <div class="ptg-search-panel" role="document">
-                <label class="ptg-search-field">
-                    <i class="bi bi-search" aria-hidden="true"></i>
-                    <input type="search"
-                           class="ptg-search-input"
-                           data-global-search
-                           autocomplete="off"
-                           placeholder="@T("جستجو در این صفحه...", "Search this page...")"
-                           aria-label="@T("جستجو", "Search")" />
-                    <kbd class="ptg-search-esc">Esc</kbd>
-                </label>
-                <p class="ptg-search-hint">@T("نتایج فهرست همین صفحه فیلتر می‌شود.", "Filters the list on this page.")</p>
-            </div>
-        </div>
-
         @* ===== Account drawer (opens from the content edge, full height) ===== *@
         <div class="ptg-account-root" data-account-root hidden>
             <button type="button" class="ptg-account-backdrop" data-account-close aria-label="@T("بستن", "Close")"></button>
@@ -731,40 +708,10 @@
                         }
                     </div>
 
-                    <div class="ptg-account-switch" role="group" aria-label="@T("حساب فعال", "Active account")">
-                        <button type="button" class="ptg-account-switch-avatar is-active" aria-current="true" aria-label="@accountName">
-                            <img src="~/images/user.webp" alt="" aria-hidden="true" />
-                        </button>
-                        <button type="button" class="ptg-account-switch-avatar" tabindex="-1" aria-hidden="true">
-                            <img src="~/images/user.webp" alt="" aria-hidden="true" />
-                        </button>
-                        <button type="button" class="ptg-account-switch-avatar" tabindex="-1" aria-hidden="true">
-                            <img src="~/images/user.webp" alt="" aria-hidden="true" />
-                        </button>
-                        <button type="button" class="ptg-account-switch-add" aria-label="@T("افزودن حساب", "Add account")">
-                            <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                        </button>
-                    </div>
-
-                    <hr class="ptg-account-divider" aria-hidden="true" />
-
                     <nav class="ptg-account-links" aria-label="@T("میان‌بر حساب", "Account shortcuts")">
                         <a class="ptg-account-link" asp-controller="Home" asp-action="Index">
                             <span class="ptg-account-link-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-dashboard"></use></svg></span>
                             <span class="ptg-account-link-label">@T("صفحه اصلی", "Home")</span>
-                        </a>
-                        <a class="ptg-account-link" href="#" onclick="return false;">
-                            <span class="ptg-account-link-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-users"></use></svg></span>
-                            <span class="ptg-account-link-label">@T("پروفایل", "Profile")</span>
-                        </a>
-                        <a class="ptg-account-link" href="#" onclick="return false;">
-                            <span class="ptg-account-link-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-contracts"></use></svg></span>
-                            <span class="ptg-account-link-label">@T("پروژه‌ها", "Projects")</span>
-                            <span class="ptg-account-link-badge">3</span>
-                        </a>
-                        <a class="ptg-account-link" href="#" onclick="return false;">
-                            <span class="ptg-account-link-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-finance"></use></svg></span>
-                            <span class="ptg-account-link-label">@T("اشتراک", "Subscription")</span>
                         </a>
                         <a class="ptg-account-link" asp-controller="Auth" asp-action="ChangePassword">
                             <span class="ptg-account-link-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-key"></use></svg></span>
@@ -799,7 +746,6 @@
         <script src="~/js/auto-code-fields.js" asp-append-version="true" defer></script>
         <script src="~/js/clone-entity.js" asp-append-version="true" defer></script>
         <script src="~/js/navigation.js" asp-append-version="true" defer></script>
-        <script src="~/js/global-search.js" asp-append-version="true" defer></script>
         <script src="~/js/header-ui.js" asp-append-version="true" defer></script>
         <script src="~/js/tables.js" asp-append-version="true" defer></script>
         <script src="~/js/ak-search-filter.js" asp-append-version="true" defer></script>

@@ -271,6 +271,7 @@ public sealed class SalesIndexViewModel
 public sealed class SalesDetailsViewModel
 {
     public int Id { get; init; }
+    public int CustomerId { get; init; }
     public int? ContractId { get; init; }
     public int? ShipmentId { get; init; }
     public int? PreSaleOrderId { get; init; }

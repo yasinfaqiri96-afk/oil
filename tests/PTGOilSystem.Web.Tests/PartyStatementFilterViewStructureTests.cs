@@ -29,6 +29,17 @@ public sealed class PartyStatementFilterViewStructureTests
         Assert.Contains("line-height: 1", sharedFilterCss);
         Assert.Contains("host.querySelector(\"[data-ak-filter]\")", embedScript);
         Assert.Contains("window.dispatchEvent(new CustomEvent(\"ptg:page-ready\"))", embedScript);
+        Assert.Contains("رسیدگی", view);
+        Assert.Contains("بردگی", view);
+        Assert.Contains("بیلانس فعلی", view);
+        Assert.Contains("statement-money statement-receipt", view);
+        Assert.Contains("statement-money statement-outflow", view);
+        Assert.Contains(".statement-receipt { color: var(--ptg-success-text", statementCss);
+        Assert.Contains(".statement-outflow { color: var(--ptg-danger-text", statementCss);
+        Assert.Contains("data-statement-auto-print", view);
+        Assert.DoesNotContain("ClosingBalanceMeaningFor", view);
+        Assert.DoesNotContain("statement-summary-icon", view);
+        Assert.DoesNotContain(">بارگیری‌ها</a>", view);
     }
 
     private static string ReadRepoFile(params string[] segments)

@@ -242,14 +242,13 @@ public sealed class SupplierBalanceTransferReportingTests
         Assert.Equal(overpaidTitle, statementRow.BalanceTitleFor(grouping.IsRub));
         Assert.Equal(ExpectedContractBalanceRub, statementRow.BalanceAbsoluteFor(grouping.IsRub));
 
-        // ۳) Excel — ستون «مانده قرارداد» و ستون «وضعیت مانده».
+        // ۳) Excel — بیلانس signed همان قرارداد.
         var excel = SupplierStatementExport.BuildSummaryDocument(
             await BuildStatementAsync(db, "RUB"), grouping, "Statement", "RUB", [], isEnglish: false);
-        var balanceIndex = excel.Columns.ToList().FindIndex(c => c.TitleFa == "مانده قرارداد");
+        var balanceIndex = excel.Columns.ToList().FindIndex(c => c.TitleFa == "بیلانس قرارداد");
         var excelRow = Assert.Single(excel.Rows.Where(r =>
             (string?)r.Cells[1].Value == "P-009"));
         Assert.Equal(ExpectedContractBalanceRub, excelRow.Cells[balanceIndex].Value);
-        Assert.Equal(overpaidTitle, excelRow.Cells[balanceIndex + 1].Value);
 
         // هر سه منبع دقیقاً یک عدد و یک عنوان می‌دهند.
         Assert.Equal(summaryRow.BalanceAbsoluteFor(true), statementRow.BalanceAbsoluteFor(grouping.IsRub));

@@ -383,11 +383,9 @@ public class AccountStatementsControllerTests
             "<th>تاریخ</th>",
             "<th class=\"ak-col-grow\">جزئیات</th>",
             "<th class=\"ak-col-num\">مبلغ ارز اصلی</th>",
-            // ستون‌های «رسید/برد/بیلانس» از منبع مرکزی می‌آیند تا در انگلیسی
-            // Debit/Credit/Balance شوند؛ ترتیبشان همان است.
-            "<th class=\"ak-col-num\">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, \"USD\", Context)</th>",
-            "<th class=\"ak-col-num\">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, \"USD\", Context)</th>",
-            "<th class=\"ak-col-num\">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Balance, \"USD\", Context)</th>"
+            "<th class=\"ak-col-num\">رسیدگی USD</th>",
+            "<th class=\"ak-col-num\">بردگی USD</th>",
+            "<th class=\"ak-col-num\">بیلانس USD</th>"
         })
         {
             Assert.Contains(heading, contents);

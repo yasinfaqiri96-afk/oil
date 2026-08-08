@@ -231,13 +231,15 @@ public sealed class TabularExportServiceTests
     }
 
     [Fact]
-    public void Views_Do_Not_Contain_Print_Buttons_Or_Print_Handlers()
+    public void Views_Only_Allow_Print_Control_In_The_Official_Party_Statement()
     {
         var viewsRoot = Path.Combine(Directory.GetParent(FindWebRoot())!.FullName, "Views");
         var forbidden = new[] { "window.print(", "bi-printer", "data-print-list", "data-receipt-print", "Print / Save PDF" };
 
         foreach (var view in Directory.EnumerateFiles(viewsRoot, "*.cshtml", SearchOption.AllDirectories))
         {
+            if (view.EndsWith(Path.Combine("PartyStatements", "Document.cshtml"), StringComparison.OrdinalIgnoreCase))
+                continue;
             var content = File.ReadAllText(view);
             foreach (var token in forbidden)
                 Assert.DoesNotContain(token, content, StringComparison.OrdinalIgnoreCase);
@@ -329,8 +331,9 @@ public sealed class TabularExportServiceTests
 
         Assert.Contains("Url.Action(\"Pdf\", \"PartyStatements\"", view);
         Assert.Contains("PartyStatements/{partyType}/{id:int}/Pdf", controller);
-        Assert.DoesNotContain("data-statement-print", view);
-        Assert.DoesNotContain("window.print", script);
+        Assert.Contains("data-statement-print", view);
+        Assert.Contains("data-statement-auto-print", view);
+        Assert.Contains("window.print", script);
     }
 
     [Fact]

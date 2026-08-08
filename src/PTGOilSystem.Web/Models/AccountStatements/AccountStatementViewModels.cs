@@ -122,6 +122,7 @@ public sealed class AccountStatementDetailsViewModel
 {
     public int Id { get; init; }
     public DateTime EntryDate { get; init; }
+    public LedgerSide Side { get; init; }
     public string SideName { get; init; } = string.Empty;
     public decimal SourceAmount { get; init; }
     public string SourceCurrencyCode { get; init; } = string.Empty;
@@ -142,7 +143,9 @@ public sealed class AccountStatementDetailsViewModel
 public sealed class ContractAccountStatementViewModel
 {
     public int ContractId { get; init; }
+    public string ContractName { get; init; } = string.Empty;
     public string ContractNumber { get; init; } = string.Empty;
+    public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string ProductName { get; init; } = string.Empty;
     public string ContractType { get; init; } = string.Empty;
     public string CounterpartyName { get; init; } = string.Empty;

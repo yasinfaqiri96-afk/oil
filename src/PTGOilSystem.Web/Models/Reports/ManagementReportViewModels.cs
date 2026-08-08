@@ -133,6 +133,7 @@ public sealed class InventoryOperationsWarningViewModel
     public int Count { get; init; }
     public string? Controller { get; init; }
     public string? Action { get; init; }
+    public object? RouteValues { get; init; }
 }
 
 public sealed class InventoryOperationsReportViewModel

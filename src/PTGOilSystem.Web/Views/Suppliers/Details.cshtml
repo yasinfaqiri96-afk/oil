@@ -43,7 +43,7 @@
 
     var endingRubAbs = endingRub.HasValue ? Math.Abs(endingRub.Value) : (decimal?)null;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
-        ?? (endingUsd > 0 ? "قابل پرداخت به تأمین‌کننده" : endingUsd < 0 ? "پیش‌پرداخت / طلب ما از تأمین‌کننده" : "حساب تسویه است");
+        ?? (endingUsd > 0 ? "شرکت به تأمین‌کننده بدهکار است" : endingUsd < 0 ? "شرکت از تأمین‌کننده طلبکار است" : "حساب تسویه است");
     // رنگ باید از همان علامتی بیاید که متن معنی از آن ساخته شده: صورت‌حساب رسمی مثبت را
     // «طلبکار» می‌داند (سبز). فقط وقتی صورت‌حساب نیست، علامتِ مدل خودِ صفحه (مثبت = قابل
     // پرداخت به تأمین‌کننده = سرخ) به کار می‌رود.

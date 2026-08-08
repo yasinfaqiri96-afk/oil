@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.PartyStatements;
-using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.Exports;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -12,10 +11,8 @@ namespace PTGOilSystem.Web.Controllers;
 // اعداد از grouping/rowsِ موجود می‌آیند؛ هیچ محاسبهٔ مالی جدیدی اینجا انجام نمی‌شود.
 internal static class SupplierStatementExport
 {
-    // عنوان ستون‌های «رسید/برد/بیلانس» فقط از منبع مرکزی می‌آید؛ TabularExport خودش
-    // بر اساس زبانِ درخواست بین عنوان فارسی و انگلیسی انتخاب می‌کند.
-    private static string FlowTitle(CompanyFlowTextKey key, string currency, bool isEnglish)
-        => CompanyFlowText.WithCurrencyParenthesized(key, currency, isEnglish);
+    private static string FlowTitle(string fa, string en, string currency, bool isEnglish)
+        => $"{(isEnglish ? en : fa)} ({currency})";
 
     public static IActionResult Build(
         Controller controller,
@@ -109,9 +106,7 @@ internal static class SupplierStatementExport
                 new("ارزش قطعی", "Confirmed value", TabularExportValueType.Number, 16),
                 new("پرداخت / دریافت", "Payment / receipt", TabularExportValueType.Number, 16),
                 new("تعداد بارگیری", "Loading count", TabularExportValueType.Integer, 13),
-                // مانده بدون علامت + عنوانِ معنا در ستون کنارش — همان چیزی که صفحه و PDF نشان می‌دهند.
-                new("مانده قرارداد", "Contract balance", TabularExportValueType.Number, 15),
-                new("وضعیت مانده", "Balance status", Width: 22)
+                new("بیلانس قرارداد", "Contract balance", TabularExportValueType.Number, 15)
             ],
             Rows = grouping.Rows.Select(row => new TabularExportRow(
             [
@@ -124,13 +119,12 @@ internal static class SupplierStatementExport
                 TabularExportCell.Number(Money(row.ConfirmedValue, row.ConfirmedValueRub)),
                 TabularExportCell.Number(Money(row.SettlementTotal, row.SettlementTotalRub)),
                 TabularExportCell.Integer(row.LoadingCount),
-                TabularExportCell.Number(row.BalanceAbsoluteFor(isRub)),
-                TabularExportCell.Text(row.BalanceTitleFor(isRub, isEnglish))
+                TabularExportCell.Number(isRub ? row.BalanceRub : row.Balance)
             ])).ToList(),
             Totals = new TabularExportRow(
             [
                 TabularExportCell.Text(null),
-                TabularExportCell.Text(CompanyFlowText.Get(CompanyFlowTextKey.PeriodTotal, isEnglish)),
+                TabularExportCell.Text(isEnglish ? "Period total" : "جمع دوره"),
                 TabularExportCell.Text(null),
                 TabularExportCell.Text(null),
                 TabularExportCell.Text(null),
@@ -138,11 +132,9 @@ internal static class SupplierStatementExport
                 TabularExportCell.Number(Money(grouping.TotalConfirmedValue, grouping.TotalConfirmedValueRub)),
                 TabularExportCell.Number(Money(grouping.TotalSettlement, grouping.TotalSettlementRub)),
                 TabularExportCell.Integer(grouping.TotalLoadingCount),
-                // جمع دوره ماندهٔ حسابِ طرف است؛ بدون علامت، با معنای مرکزیِ خودش.
                 TabularExportCell.Number(isRub
-                    ? statement.Summary.ClosingBalanceRubAbsolute
-                    : statement.Summary.ClosingBalanceAbsolute),
-                TabularExportCell.Text(statement.Summary.ClosingBalanceMeaningFor(isEnglish))
+                    ? statement.Summary.ClosingBalanceRub
+                    : statement.Summary.ClosingBalance)
             ])
         };
     }
@@ -156,13 +148,13 @@ internal static class SupplierStatementExport
     {
         var isRub = statement.Summary.IsRubPresentation;
         decimal? Money(decimal? usd, decimal? rub) => isRub ? rub : usd;
-        var rows = statement.Rows.Where(r => !r.IsOpeningBalance).ToList();
+        var rows = statement.Rows.ToList();
 
         return new TabularExportDocument
         {
             FileNameStem = stem,
-            TitleFa = "جزئیات قراردادها",
-            TitleEn = "Contract Details",
+            TitleFa = "گردش حساب رسمی",
+            TitleEn = "Official Statement",
             KnownRowCount = rows.Count,
             ForceLandscape = true,
             Filters = filters,
@@ -170,17 +162,19 @@ internal static class SupplierStatementExport
             [
                 new("قرارداد", "Contract", Width: 14),
                 new("تاریخ", "Date", TabularExportValueType.Date, 13),
+                new("مرجع", "Reference", Width: 16),
                 new("شرح", "Description", Width: 28, Wrap: true),
                 new("مقدار", "Quantity", TabularExportValueType.Number, 12),
                 new("نرخ واحد", "Unit price", TabularExportValueType.Number, 12),
-                new(FlowTitle(CompanyFlowTextKey.Receipt, currency, false), FlowTitle(CompanyFlowTextKey.Receipt, currency, true), TabularExportValueType.Number, 15),
-                new(FlowTitle(CompanyFlowTextKey.Outflow, currency, false), FlowTitle(CompanyFlowTextKey.Outflow, currency, true), TabularExportValueType.Number, 15),
-                new(FlowTitle(CompanyFlowTextKey.Balance, currency, false), FlowTitle(CompanyFlowTextKey.Balance, currency, true), TabularExportValueType.Number, 15)
+                new(FlowTitle("رسیدگی", "Debit", currency, false), FlowTitle("رسیدگی", "Debit", currency, true), TabularExportValueType.Number, 15),
+                new(FlowTitle("بردگی", "Credit", currency, false), FlowTitle("بردگی", "Credit", currency, true), TabularExportValueType.Number, 15),
+                new(FlowTitle("بیلانس", "Balance", currency, false), FlowTitle("بیلانس", "Balance", currency, true), TabularExportValueType.Number, 15)
             ],
             Rows = rows.Select(row => new TabularExportRow(
             [
                 TabularExportCell.Text(row.ContractNumber),
                 TabularExportCell.Date(row.Date),
+                TabularExportCell.Text(row.Reference),
                 TabularExportCell.Text(row.DescriptionFor(isEnglish)),
                 TabularExportCell.Number(row.Quantity),
                 TabularExportCell.Number(row.UnitPrice),

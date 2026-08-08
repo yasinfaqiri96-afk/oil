@@ -4,7 +4,7 @@
     ViewData["LoadingExpenseEditorAssets"] = true;
     var currentUrl = Context.Request.Path + Context.Request.QueryString;
     var hasAdvancedFilter = Model.FromDate.HasValue || Model.ToDate.HasValue;
-    var hasAnyFilter = Model.ContractId.HasValue || !string.IsNullOrWhiteSpace(Model.Query) || Model.FromDate.HasValue || Model.ToDate.HasValue;
+    var hasAnyFilter = Model.ContractId.HasValue || Model.ProductId.HasValue || Model.WithoutReceipt || !string.IsNullOrWhiteSpace(Model.Query) || Model.FromDate.HasValue || Model.ToDate.HasValue;
 }
 
 <div class="ak-list-page" data-operations-list>
@@ -30,6 +30,8 @@
         @{
             var loadingHidden = new Dictionary<string, string>();
             if (Model.ContractId.HasValue) loadingHidden["contractId"] = Model.ContractId.Value.ToString();
+            if (Model.ProductId.HasValue) loadingHidden["productId"] = Model.ProductId.Value.ToString();
+            if (Model.WithoutReceipt) loadingHidden["withoutReceipt"] = "true";
             var loadingFilter = new AkSearchFilterModel(
                 "q", Model.Query,
                 UiText.T(Context, "قرارداد، جنس، وسیله حمل، مرجع یا مقصد...", "Contract, product, vehicle, reference or destination..."),
@@ -41,6 +43,10 @@
                 loadingHidden.Count > 0 ? loadingHidden : null);
         }
         <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="loadingFilter" />
+        @if (Model.WithoutReceipt)
+        {
+            <p class="ak-note mb-2"><i class="bi bi-funnel" aria-hidden="true"></i> @UiText.T(Context, "فقط بارگیری‌های بدون رسید نمایش داده می‌شود.", "Showing only loadings without a receipt.")</p>
+        }
         <div class="d-flex justify-content-end mt-2 mb-2 no-print">
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
         </div>
@@ -124,7 +130,7 @@
         </div>
 
         <div class="ak-pager">
-            @await Html.PartialAsync("_OperationsListFooter", (Model.CurrentPage, Model.PageCount, Model.TotalCount, 5))
+            @await Html.PartialAsync("_OperationsListFooter", (Model.CurrentPage, Model.PageCount, Model.TotalCount, 20))
         </div>
     </div>
 

@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "جزئیات استیتمنت";
     ViewData["HideSectionTabs"] = true;
-    ViewData["AkHeaderStatus"] = Model.SideName;
+    ViewData["AkHeaderStatus"] = Model.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ? "Debit" : "Credit";
     ViewData["AkHeaderStatusState"] = "is-active";
     ViewData["AkHeaderContext"] = $"{Model.SourceCurrencyCode} · {Model.EntryDate.ToDisplayDate()}";
 }
@@ -16,7 +16,7 @@
     <div class="ak-stat-grid" aria-label="آمار استیتمنت">
         <vc:stat-card title="مبلغ منبع" value="@Model.SourceAmount.ToString("N2")" unit="@Model.SourceCurrencyCode" avatar="cash-flow"></vc:stat-card>
         <vc:stat-card title="مبلغ USD" value="@Model.AmountUsd.ToString("N2")" unit="USD" avatar="exchange-rate"></vc:stat-card>
-        <vc:stat-card title="@CompanyFlowText.RunningBalance(Context)" value="@Model.RunningBalanceUsd.ToString("N2")" unit="USD" avatar="statement"></vc:stat-card>
+        <vc:stat-card title="بیلانس جاری" value="@Model.RunningBalanceUsd.ToString("N2")" unit="USD" avatar="statement"></vc:stat-card>
     </div>
 
     <div class="ak-form-grid">
@@ -24,12 +24,12 @@
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اطلاعات مالی", (string?)null))" />
             <dl class="ak-list">
                 <div class="ak-list-row"><dt>تاریخ</dt><dd>@Model.EntryDate.ToDisplayDate()</dd></div>
-                <div class="ak-list-row"><dt>سمت</dt><dd>@Model.SideName</dd></div>
+                <div class="ak-list-row"><dt>سمت</dt><dd>@(Model.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ? "Debit" : "Credit")</dd></div>
                 <div class="ak-list-row"><dt>مبلغ منبع</dt><dd class="ak-num">@Model.SourceAmount.ToString("N2") @Model.SourceCurrencyCode</dd></div>
                 <div class="ak-list-row"><dt>نرخ ارز به دالر</dt><dd class="ak-num">@Model.AppliedFxRateToUsd.ToString("N6")</dd></div>
                 <div class="ak-list-row"><dt>تاریخ نرخ</dt><dd>@(Model.AppliedFxRateDate?.ToDisplayDate() ?? "-")</dd></div>
                 <div class="ak-list-row"><dt>مبلغ USD</dt><dd class="ak-num">@Model.AmountUsd.ToString("N2")</dd></div>
-                <div class="ak-list-row"><dt>@CompanyFlowText.RunningBalance(Context)</dt><dd class="ak-num">@Model.RunningBalanceUsd.ToString("N2") USD</dd></div>
+                <div class="ak-list-row"><dt>بیلانس جاری</dt><dd class="ak-num">@Model.RunningBalanceUsd.ToString("N2") USD</dd></div>
             </dl>
         </section>
 

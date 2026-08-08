@@ -155,6 +155,10 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .a
     order: -2;
 }
 
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content))) > .ak-page-header {
+    order: -4;
+}
+
 body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content))) > :is(.finance-page-lead, .ak-note, .ak-page-lead) {
     order: -3;
 }

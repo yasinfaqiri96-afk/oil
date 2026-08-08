@@ -25,6 +25,29 @@ namespace PTGOilSystem.Web.Tests;
 
 public class LoadingControllerTests
 {
+    [Fact]
+    public async Task Index_Defaults_To_Twenty_And_Uses_Saved_Page_Size()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+
+        var defaultController = NewLoadingController(db);
+        defaultController.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+        var defaultResult = Assert.IsType<ViewResult>(await defaultController.Index());
+        Assert.Equal(20, defaultController.ViewData["PageSize"]);
+        Assert.Equal(20, defaultController.ViewData["DefaultPageSize"]);
+        Assert.IsType<LoadingIndexViewModel>(defaultResult.Model);
+
+        var savedController = NewLoadingController(db);
+        var savedContext = new DefaultHttpContext();
+        savedContext.Request.Headers.Cookie = "ptg-loading-page-size=50";
+        savedController.ControllerContext = new ControllerContext { HttpContext = savedContext };
+        await savedController.Index();
+        Assert.Equal(50, savedController.ViewData["PageSize"]);
+    }
+
     // امپورت دیگر View برنمی‌گرداند؛ سطرهای آمادهٔ فرم را به‌صورت JSON می‌دهد.
     private static LoadingCreateViewModel ImportedModel(IActionResult result)
     {

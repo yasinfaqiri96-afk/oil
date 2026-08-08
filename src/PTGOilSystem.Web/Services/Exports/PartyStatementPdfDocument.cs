@@ -1,6 +1,5 @@
 using System.Globalization;
 using PTGOilSystem.Web.Models.PartyStatements;
-using PTGOilSystem.Web.Services.CompanyFlow;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -21,9 +20,7 @@ internal sealed class PartyStatementPdfDocument(
     bool isEnglish = false,
     SupplierContractStatementViewModel? contractGrouping = null) : IDocument
 {
-    // عنوان‌های «رسید/برد/بیلانس» فقط از منبع مرکزی می‌آیند؛ اعداد، جهت، ترتیب ستون‌ها
-    // و فرمول بیلانس با تغییر زبان دست‌نخورده می‌مانند.
-    private string Flow(CompanyFlowTextKey key) => CompanyFlowText.Get(key, isEnglish);
+    private string Flow(string fa, string en) => isEnglish ? en : fa;
 
     private const string Ink = PdfDesignSystem.Ink;
     private const string Muted = PdfDesignSystem.Muted;
@@ -104,17 +101,22 @@ internal sealed class PartyStatementPdfDocument(
     private void ComposeContent(ColumnDescriptor column)
     {
         column.Spacing(9);
+        column.Item().Element(ComposeIdentityLine);
         column.Item().Element(ComposeSummaryBand);
-        column.Item().Row(row =>
-        {
-            row.RelativeItem().Element(ComposeStatementInfo);
-            row.ConstantItem(9);
-            row.RelativeItem().Element(ComposePartyInfo);
-        });
         // تب «قراردادها» جدول خلاصهٔ قراردادی دارد، بقیهٔ تب‌ها جدول گردش حساب. بقیهٔ سند
         // (سربرگ، اطلاعات طرف‌حساب، خلاصهٔ مالی، امضا، فوتر) در هر دو حالت یکی است.
         column.Item().Element(contractGrouping is null ? ComposeLedgerTable : ComposeContractTable);
-        column.Item().ShowEntire().Element(ComposeClosingSection);
+    }
+
+    private void ComposeIdentityLine(IContainer container)
+    {
+        container.BorderBottom(1).BorderColor(Grid).PaddingBottom(7).Row(row =>
+        {
+            row.RelativeItem().Text(statement.PartyInfo.Name).Bold().FontSize(14).FontColor(Ink);
+            row.AutoItem().ContentFromLeftToRight().Text(
+                $"{statement.Policy.AccountType(isEnglish)}  ·  {ValueOrDash(statement.PartyInfo.Code)}  ·  {FormatPeriod(statement.DocumentInfo.PeriodFrom, statement.DocumentInfo.PeriodTo)}  ·  {statement.DocumentInfo.StatementNumber}")
+                .FontSize(CaptionSize).FontColor(Muted);
+        });
     }
 
     /* ------------------------------------------------------------------
@@ -158,14 +160,10 @@ internal sealed class PartyStatementPdfDocument(
         var currency = statement.DocumentInfo.BaseCurrencyCode;
         return
         [
-            new(Flow(CompanyFlowTextKey.OpeningBalance), FormatMoney(OpeningBalance()) + " " + currency, BalanceFill),
-            new(Flow(CompanyFlowTextKey.TotalReceipt), FormatMoney(TotalReceipt()) + " " + currency, PositiveFill),
-            new(Flow(CompanyFlowTextKey.TotalOutflow), FormatMoney(TotalOutflow()) + " " + currency, AmountFill),
-            new(
-                Flow(CompanyFlowTextKey.ClosingBalance),
-                FormatMoney(ClosingBalanceAbsolute()) + " " + currency,
-                BalanceFill,
-                statement.Summary.ClosingBalanceMeaningFor(isEnglish))
+            new(Flow("بیلانس اول دوره", "Opening balance"), FormatMoney(OpeningBalance()) + " " + currency, PlainFill),
+            new(Flow("مجموع رسیدگی", "Total debit"), FormatMoney(TotalReceipt()) + " " + currency, PlainFill),
+            new(Flow("مجموع بردگی", "Total credit"), FormatMoney(TotalOutflow()) + " " + currency, PlainFill),
+            new(Flow("بیلانس فعلی", "Current balance"), FormatMoney(ClosingBalance()) + " " + currency, TotalFill)
         ];
     }
 
@@ -277,9 +275,9 @@ internal sealed class PartyStatementPdfDocument(
                 HeaderCell(header.Cell(), "شرح");
                 foreach (var column in operational)
                     HeaderCell(header.Cell(), column.Title);
-                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Receipt));
-                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Outflow));
-                HeaderCell(header.Cell(), Flow(CompanyFlowTextKey.Balance));
+                HeaderCell(header.Cell(), Flow("رسیدگی", "Debit"));
+                HeaderCell(header.Cell(), Flow("بردگی", "Credit"));
+                HeaderCell(header.Cell(), Flow("بیلانس", "Balance"));
             });
             if (statement.Rows.Count == 0)
             {
@@ -304,7 +302,7 @@ internal sealed class PartyStatementPdfDocument(
                 }
             }
             table.Cell().ColumnSpan((uint)(3 + operational.Count)).Element(TotalCellStyle)
-                .AlignCenter().Text(Flow(CompanyFlowTextKey.PeriodTotal))
+                .AlignCenter().Text(Flow("جمع دوره", "Period total"))
                 .Bold().FontSize(BodySize).FontColor(HeaderInk);
             TotalMoneyCell(table.Cell(), TotalReceipt());
             TotalMoneyCell(table.Cell(), TotalOutflow());
@@ -328,8 +326,7 @@ internal sealed class PartyStatementPdfDocument(
                 columns.ConstantColumn(78);
                 columns.ConstantColumn(78);
                 columns.ConstantColumn(52);
-                // جا برای عنوانِ معنای مانده («قابل پرداخت به تأمین‌کننده») در یک خط.
-                columns.ConstantColumn(102);
+                columns.ConstantColumn(82);
             });
             table.Header(header =>
             {
@@ -339,7 +336,7 @@ internal sealed class PartyStatementPdfDocument(
                 HeaderCell(header.Cell(), "ارزش قطعی");
                 HeaderCell(header.Cell(), "پرداخت / دریافت");
                 HeaderCell(header.Cell(), "تعداد");
-                HeaderCell(header.Cell(), "مانده قرارداد");
+                HeaderCell(header.Cell(), "بیلانس قرارداد");
             });
             if (grouping.Rows.Count == 0)
             {
@@ -364,31 +361,19 @@ internal sealed class PartyStatementPdfDocument(
                     NumberCell(table.Cell(), Money(row.ConfirmedValue, row.ConfirmedValueRub), AmountFill);
                     NumberCell(table.Cell(), Money(row.SettlementTotal, row.SettlementTotalRub), PositiveFill);
                     NumberCell(table.Cell(), row.LoadingCount, PlainFill, 0);
-                    ContractBalanceCell(
-                        table.Cell(),
-                        row.BalanceAbsoluteFor(grouping.IsRub),
-                        row.BalanceTitleFor(grouping.IsRub, isEnglish));
+                    NumberCell(table.Cell(), Money(row.Balance, row.BalanceRub), BalanceFill);
                 }
             }
             table.Cell().ColumnSpan(2).Element(TotalCellStyle)
-                .AlignCenter().Text(Flow(CompanyFlowTextKey.PeriodTotal))
+                .AlignCenter().Text(Flow("جمع دوره", "Period total"))
                 .Bold().FontSize(BodySize).FontColor(HeaderInk);
             TotalMoneyCell(table.Cell(), null);
             TotalMoneyCell(table.Cell(), Money(grouping.TotalConfirmedValue, grouping.TotalConfirmedValueRub));
             TotalMoneyCell(table.Cell(), Money(grouping.TotalSettlement, grouping.TotalSettlementRub));
             TotalMoneyCell(table.Cell(), grouping.TotalLoadingCount, 0);
-            // جمع دوره ماندهٔ حسابِ طرف است؛ بدون علامت، با معنای مرکزیِ خودش.
-            TotalCellStyle(table.Cell()).Column(column =>
-            {
-                column.Item().AlignCenter().ContentFromLeftToRight()
-                    .Text(FormatMoney(grouping.IsRub
-                        ? statement.Summary.ClosingBalanceRubAbsolute
-                        : statement.Summary.ClosingBalanceAbsolute))
-                    .Bold().FontSize(BodySize).FontColor(HeaderInk);
-                column.Item().AlignCenter()
-                    .Text(statement.Summary.ClosingBalanceMeaningFor(isEnglish))
-                    .FontSize(CaptionSize).FontColor(Muted);
-            });
+            TotalMoneyCell(table.Cell(), grouping.IsRub
+                ? statement.Summary.ClosingBalanceRub
+                : statement.Summary.ClosingBalance);
         });
     }
 
@@ -436,23 +421,6 @@ internal sealed class PartyStatementPdfDocument(
             .AlignCenter().ContentFromLeftToRight()
             .Text(decimals.HasValue ? FormatNumber(value, decimals.Value) : FormatMoney(value))
             .FontSize(BodySize);
-    }
-
-    /// <summary>
-    /// مانده قرارداد: عدد بدون علامت + عنوانِ معنا — همان چیزی که خلاصهٔ قراردادها،
-    /// صورت‌حساب و Excel نشان می‌دهند.
-    /// </summary>
-    private void ContractBalanceCell(IContainer container, decimal? absoluteValue, string? title)
-    {
-        container.ShowEntire().Element(target => PdfDesignSystem.SheetCell(target, BalanceFill)).Column(column =>
-        {
-            column.Item().AlignCenter().ContentFromLeftToRight().Text(FormatMoney(absoluteValue))
-                .FontSize(BodySize);
-            if (!string.IsNullOrWhiteSpace(title))
-            {
-                column.Item().AlignCenter().Text(title).FontSize(CaptionSize).FontColor(Muted);
-            }
-        });
     }
 
     private static IContainer TotalCellStyle(IContainer container)
@@ -517,10 +485,6 @@ internal sealed class PartyStatementPdfDocument(
     private decimal? ClosingBalance() => statement.Summary.IsRubPresentation
         ? statement.Summary.ClosingBalanceRub
         : statement.Summary.ClosingBalance;
-
-    private decimal? ClosingBalanceAbsolute() => statement.Summary.IsRubPresentation
-        ? statement.Summary.ClosingBalanceRubAbsolute
-        : statement.Summary.ClosingBalanceAbsolute;
 
     private decimal? RowDebit(PartyStatementRow row)
         => statement.Summary.IsRubPresentation ? row.ReceiptRub : row.ReceiptBase;

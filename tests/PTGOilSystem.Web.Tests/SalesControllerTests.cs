@@ -1112,6 +1112,7 @@ public class SalesControllerTests
 
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<SalesDetailsViewModel>(view.Model);
+        Assert.Equal(1, model.CustomerId);
         Assert.Equal(2, model.Payments.Count);
         Assert.Equal(500m, model.ReceivedUsd);
         Assert.Equal(500m, model.ReceivableBalanceUsd);

@@ -17,7 +17,7 @@
     <section class="ak-stat-grid" aria-label="آمار استیتمنت‌های ارزی">
         <vc:stat-card title="تعداد استیتمنت" value="@Model.Items.Count().ToString("N0")" unit="استیتمنت" avatar="statement"></vc:stat-card>
         <vc:stat-card title="@CompanyFlowText.OpeningBalance(Context)" value="@Model.OpeningBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
-        <vc:stat-card title="@CompanyFlowText.ClosingBalance(Context)" value="@Model.ClosingBalanceUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
+        <vc:stat-card title="بیلانس فعلی" value="@Model.ClosingBalanceUsd.ToString("N2")" unit="USD" avatar="receivables"></vc:stat-card>
         <vc:stat-card title="خالص تغییرات" value="@netChangeUsd.ToString("N2")" unit="USD" avatar="analysis"></vc:stat-card>
     </section>
 
@@ -70,12 +70,12 @@
                     {
                         <tr>
                             <td>@item.EntryDate.ToDisplayDate()</td>
-                            <td><span class="ak-status @(item.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ? "ak-flow-debit" : "ak-flow-credit")">@item.SideName</span></td>
+                            <td><span class="ak-status @(item.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ? "ak-flow-debit" : "ak-flow-credit")">@(item.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ? "Debit" : "Credit")</span></td>
                             <td class="ak-col-num ak-num">@item.SourceAmount.ToString("N2")</td>
                             <td>@item.SourceCurrencyCode</td>
                             <td class="ak-col-num ak-num">@item.AppliedFxRateToUsd.ToString("N6")</td>
                             <td class="ak-col-num ak-num">@item.AmountUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num @(item.RunningBalanceUsd >= 0 ?"ak-num" : "ak-num")">@item.RunningBalanceUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num">@item.RunningBalanceUsd.ToString("N2")</td>
                             <td class="ak-col-grow">@(item.Reference ?? "-")</td>
                             <td>@item.SourceType / @("#" + item.SourceId)</td>
                             <td>@(item.ContractNumber ?? "-")</td>

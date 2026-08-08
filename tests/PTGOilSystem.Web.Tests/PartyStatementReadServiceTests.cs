@@ -532,7 +532,7 @@ public sealed class PartyStatementReadServiceTests
     }
 
     [Fact]
-    public async Task CustomerStatement_DefaultsToOneSummaryRowPerContract()
+    public async Task CustomerStatement_DefaultsToTransactionByTransactionLedger()
     {
         var rows = new List<PartyStatementRow>
         {
@@ -571,12 +571,12 @@ public sealed class PartyStatementReadServiceTests
 
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<PartyStatementViewModel>(view.Model);
-        // تب‌های قرارداد/بارگیری فقط برای تأمین‌کننده است؛ مشتری همیشه گردش حساب فشرده می‌بیند.
+        // تب‌های قرارداد/بارگیری فقط برای تأمین‌کننده است؛ مشتری همیشه دفتر تراکنش کامل می‌بیند.
         Assert.Equal(SupplierStatementView.Ledger, model.SupplierView);
         Assert.False(model.ShowContractViewTabs);
         Assert.Null(model.ContractGrouping);
-        var summaryRow = Assert.Single(model.Statement.Rows.Where(r => !r.IsOpeningBalance));
-        Assert.Equal(100m, summaryRow.OutflowBase);
+        Assert.Equal(2, model.Statement.Rows.Count(r => !r.IsOpeningBalance));
+        Assert.Equal(new[] { 40m, 60m }, model.Statement.Rows.Select(r => r.OutflowBase!.Value));
     }
 
     [Fact]
@@ -590,15 +590,20 @@ public sealed class PartyStatementReadServiceTests
         var detailsView = File.ReadAllText(Path.Combine(
             root, "src", "PTGOilSystem.Web", "Views", "PartyStatements", "_SupplierContractDetails.cshtml"));
 
-        Assert.Contains("statement-brand-header", view);
-        Assert.Contains("statement-info-grid", view);
+        Assert.Contains("statement-screen-header", view);
+        Assert.Contains("statement-screen-tools", view);
         Assert.Contains("statement-summary", view);
+        Assert.Contains("statement-ledger", view);
         Assert.Contains("statement-table", view);
-        Assert.Contains("statement-note", view);
-        Assert.Contains("statement-authorization", view);
-        Assert.Contains("statement-footer", view);
+        Assert.Contains("data-statement-print", view);
+        Assert.Contains("asp-controller=\"Ledger\"", view);
+        Assert.Contains("رسیدگی", view);
+        Assert.Contains("بردگی", view);
+        Assert.Contains("بیلانس", view);
+        Assert.DoesNotContain("ClosingBalanceMeaningFor", view);
+        Assert.DoesNotContain("ClosingBalanceAbsolute", view);
         Assert.Contains("خلاصه قراردادها", view);
-        Assert.Contains("گردش حساب فشرده", view);
+        Assert.Contains("گردش حساب", view);
         Assert.Contains("مبلغ کل قرارداد", contractView);
         Assert.Contains("ارزش قطعی", contractView);
         Assert.Contains("data-statement-details", contractView);
@@ -607,6 +612,8 @@ public sealed class PartyStatementReadServiceTests
         Assert.DoesNotContain("TotalOutflow -", view, StringComparison.Ordinal);
         Assert.Contains("@media print", css);
         Assert.Contains("@page statement-wide", css);
+        Assert.DoesNotContain("box-shadow", css);
+        Assert.DoesNotContain("linear-gradient", css);
     }
 
     [Fact]

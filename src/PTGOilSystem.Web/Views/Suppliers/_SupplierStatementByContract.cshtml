@@ -19,7 +19,7 @@
         .ThenBy(g => g.ContractNumber)
         .ToList();
 
-    string Amt(decimal value) => Math.Abs(value).ToString("N2");
+    string Amt(decimal value) => value.ToString("N2");
 }
 
 <div class="ak-table-wrap">
@@ -28,9 +28,9 @@
             <tr>
                 <th>قرارداد</th>
                 <th class="text-end">تعداد اسناد</th>
-                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "USD", Context)</th>
-                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "USD", Context)</th>
-                <th>@CompanyFlowText.Balance(Context)</th>
+                <th class="text-end">رسیدگی USD</th>
+                <th class="text-end">بردگی USD</th>
+                <th>بیلانس</th>
                 <th></th>
             </tr>
         </thead>

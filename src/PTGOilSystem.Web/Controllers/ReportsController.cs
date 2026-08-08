@@ -685,7 +685,15 @@ public partial class ReportsController : Controller
                 Description = "بارگیری‌هایی که هنوز رسید نهایی ندارند.",
                 Count = unreceiptedLoadingCount,
                 Controller = "Loading",
-                Action = "Index"
+                Action = "Index",
+                RouteValues = new
+                {
+                    contractId = filter.ContractId,
+                    productId = filter.ProductId,
+                    fromDate = filter.FromDate?.ToString("yyyy-MM-dd"),
+                    toDate = filter.ToDate?.ToString("yyyy-MM-dd"),
+                    withoutReceipt = true
+                }
             });
         }
 
@@ -694,10 +702,18 @@ public partial class ReportsController : Controller
             warnings.Add(new()
             {
                 Title = "ضایعات قابل شارژ",
-                Description = "LossEventهای فعال که مقدار قابل شارژ دارند.",
+                Description = "رویدادهای فعال که مقدار قابل شارژ دارند.",
                 Count = activeChargeableLossCount,
                 Controller = "LossEvents",
-                Action = "Index"
+                Action = "Index",
+                RouteValues = new Dictionary<string, string?>
+                {
+                    ["Filter.ProductId"] = filter.ProductId?.ToString(),
+                    ["Filter.ContractId"] = filter.ContractId?.ToString(),
+                    ["Filter.FromDate"] = filter.FromDate?.ToString("yyyy-MM-dd"),
+                    ["Filter.ToDate"] = filter.ToDate?.ToString("yyyy-MM-dd"),
+                    ["Filter.ChargeableOnly"] = "true"
+                }
             });
         }
 
@@ -709,7 +725,16 @@ public partial class ReportsController : Controller
                 Description = "ترکیب محصول/ترمینال/مخزن با موجودی منفی.",
                 Count = negativeStockCount,
                 Controller = "Inventory",
-                Action = "StockCard"
+                Action = "StockCard",
+                RouteValues = new Dictionary<string, string?>
+                {
+                    ["Filter.ProductId"] = filter.ProductId?.ToString(),
+                    ["Filter.ContractId"] = filter.ContractId?.ToString(),
+                    ["Filter.TerminalId"] = filter.TerminalId?.ToString(),
+                    ["Filter.StorageTankId"] = filter.StorageTankId?.ToString(),
+                    ["Filter.FromDate"] = filter.FromDate?.ToString("yyyy-MM-dd"),
+                    ["Filter.ToDate"] = filter.ToDate?.ToString("yyyy-MM-dd")
+                }
             });
         }
 
@@ -721,12 +746,12 @@ public partial class ReportsController : Controller
             Warnings = warnings,
             Metrics =
             [
-                new() { Label = "موجودی کل", Value = $"{totalQuantityMt:N4} MT", Detail = "Stock balance", Icon = "bi-box-seam", ToneClass = "" },
-                new() { Label = "تعهد پیش‌فروش", Value = reservedPreSaleMt.HasValue ? $"{reservedPreSaleMt:N4} MT" : "—", Detail = reservedPreSaleMt.HasValue ? "Active undelivered commitment" : "Reservation cannot be attributed to contract/terminal/tank", Icon = "bi-bookmark-check", ToneClass = "" },
-                new() { Label = "موجودی قابل فروش", Value = reservedPreSaleMt.HasValue ? $"{totalQuantityMt - reservedPreSaleMt.Value:N4} MT" : "—", Detail = "Physical stock - active pre-sale commitment", Icon = "bi-box-arrow-up-right", ToneClass = reservedPreSaleMt.HasValue && totalQuantityMt - reservedPreSaleMt.Value < 0m ? "finance-negative" : "" },
-                new() { Label = "محصولات", Value = productRows.Count.ToString("N0"), Detail = "Products with stock", Icon = "bi-droplet", ToneClass = "" },
-                new() { Label = "مخزن/ترمینال", Value = terminalRows.Count.ToString("N0"), Detail = "Storage groups", Icon = "bi-database", ToneClass = "" },
-                new() { Label = "هشدار عملیاتی", Value = warnings.Sum(w => w.Count).ToString("N0"), Detail = "Needs review", Icon = "bi-exclamation-triangle", ToneClass = warnings.Any() ? "finance-negative" : "finance-positive" }
+                new() { Label = "موجودی کل", Value = $"{totalQuantityMt:N4} MT", Detail = UiText.T(HttpContext, "مانده فیزیکی موجودی", "Stock balance"), Icon = "bi-box-seam", ToneClass = "" },
+                new() { Label = "تعهد پیش‌فروش", Value = reservedPreSaleMt.HasValue ? $"{reservedPreSaleMt:N4} MT" : "—", Detail = reservedPreSaleMt.HasValue ? UiText.T(HttpContext, "تعهد فعال تحویل‌نشده", "Active undelivered commitment") : UiText.T(HttpContext, "تعهد به قرارداد/ترمینال/مخزن قابل انتساب نیست", "Reservation cannot be attributed to contract/terminal/tank"), Icon = "bi-bookmark-check", ToneClass = "" },
+                new() { Label = "موجودی قابل فروش", Value = reservedPreSaleMt.HasValue ? $"{totalQuantityMt - reservedPreSaleMt.Value:N4} MT" : "—", Detail = UiText.T(HttpContext, "موجودی فیزیکی منهای تعهد فعال پیش‌فروش", "Physical stock - active pre-sale commitment"), Icon = "bi-box-arrow-up-right", ToneClass = reservedPreSaleMt.HasValue && totalQuantityMt - reservedPreSaleMt.Value < 0m ? "finance-negative" : "" },
+                new() { Label = "محصولات", Value = productRows.Count.ToString("N0"), Detail = UiText.T(HttpContext, "محصولات دارای موجودی", "Products with stock"), Icon = "bi-droplet", ToneClass = "" },
+                new() { Label = "مخزن/ترمینال", Value = terminalRows.Count.ToString("N0"), Detail = UiText.T(HttpContext, "گروه‌های ذخیره‌سازی", "Storage groups"), Icon = "bi-database", ToneClass = "" },
+                new() { Label = "هشدار عملیاتی", Value = warnings.Sum(w => w.Count).ToString("N0"), Detail = UiText.T(HttpContext, "نیازمند بررسی", "Needs review"), Icon = "bi-exclamation-triangle", ToneClass = warnings.Any() ? "finance-negative" : "finance-positive" }
             ]
         };
     }

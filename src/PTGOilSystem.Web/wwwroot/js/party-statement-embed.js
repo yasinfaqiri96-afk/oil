@@ -76,7 +76,7 @@
             return;
         }
 
-        var tools = doc.querySelector(".statement-screen-tools");
+        var tools = doc.querySelector("body > .statement-screen-tools");
         host.innerHTML = "";
         if (tools) {
             host.appendChild(document.importNode(tools, true));

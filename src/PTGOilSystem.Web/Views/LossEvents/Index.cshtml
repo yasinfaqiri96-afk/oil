@@ -4,7 +4,7 @@
     ViewData["Title"] = "Loss Events";
     var hasAdvancedFilter = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
         || Model.Filter.ProductId.HasValue || Model.Filter.ContractId.HasValue || Model.Filter.Stage.HasValue;
-    var hasAnyFilter = hasAdvancedFilter || !string.IsNullOrWhiteSpace(Model.Filter.ResponsiblePartyName);
+    var hasAnyFilter = hasAdvancedFilter || Model.Filter.ChargeableOnly || !string.IsNullOrWhiteSpace(Model.Filter.ResponsiblePartyName);
 }
 
 <div class="ak-form-page ak-list-page" data-operations-list>
@@ -29,6 +29,9 @@
                 ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
                 .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
             string? LossQ(string k) { var v = Context.Request.Query[k].ToString(); return string.IsNullOrEmpty(v) ? null : v; }
+            var lossHidden = Model.Filter.ChargeableOnly
+                ? new Dictionary<string, string> { ["Filter.ChargeableOnly"] = "true" }
+                : null;
             var lossFilter = new AkSearchFilterModel("Filter.ResponsiblePartyName", Model.Filter.ResponsiblePartyName,
                 UiText.T(Context, "جست‌وجوی مسئول...", "Search responsible..."),
                 new List<AkFilterDefinition>
@@ -40,12 +43,16 @@
                     new("Filter.Stage", UiText.T(Context, "مرحله", "Stage"), "select", LossOpts(ViewBag.Stages), LossQ("Filter.Stage")),
                     new("Filter.Variance", UiText.T(Context, "نوع تفاوت", "Variance type"), "select", LossOpts(ViewBag.VarianceOptions), LossQ("Filter.Variance")),
                     new("Filter.AffectsInventory", UiText.T(Context, "اثر بر موجودی", "Affects inventory"), "select", LossOpts(ViewBag.AffectsInventoryOptions), LossQ("Filter.AffectsInventory"))
-                });
+                }, lossHidden);
         }
         <div class="ak-list-toolbar">
             <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="lossFilter" />
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
         </div>
+        @if (Model.Filter.ChargeableOnly)
+        {
+            <p class="ak-note mb-2"><i class="bi bi-funnel" aria-hidden="true"></i> @UiText.T(Context, "فقط ضایعات قابل شارژ نمایش داده می‌شود.", "Showing only chargeable losses.")</p>
+        }
 
         <div class="ak-table-wrap">
             <table class="ak-table">

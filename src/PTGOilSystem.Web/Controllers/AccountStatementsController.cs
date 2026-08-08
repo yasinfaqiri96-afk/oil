@@ -129,6 +129,7 @@ public partial class AccountStatementsController : Controller
         {
             Id = entry.Id,
             EntryDate = entry.EntryDate,
+            Side = entry.Side,
             SideName = GetSideName(entry.Side),
             SourceAmount = entry.SourceAmount ?? entry.AmountUsd,
             SourceCurrencyCode = entry.SourceCurrencyCode ?? entry.Currency,
@@ -500,6 +501,7 @@ public partial class AccountStatementsController : Controller
         return new ContractAccountStatementViewModel
         {
             ContractId = contract.Id,
+            ContractName = contract.ContractName,
             ContractNumber = contract.ContractNumber,
             ProductName = contract.ProductName ?? "-",
             ContractType = contract.ContractType.ToString(),

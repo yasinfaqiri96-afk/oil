@@ -52,11 +52,11 @@
     };
 
     var relatedRecords = new List<AkRelatedRecord>();
-    if (!string.IsNullOrWhiteSpace(Model.ContractNumber)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("قرارداد", "Contract"), Label = Model.ContractNumber, Icon = "bi-file-earmark-text" });
-    if (!string.IsNullOrWhiteSpace(Model.ShipmentCode)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("محموله", "Shipment"), Label = Model.ShipmentCode, Icon = "bi-box-seam" });
+    if (Model.ContractId.HasValue && !string.IsNullOrWhiteSpace(Model.ContractNumber)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("قرارداد", "Contract"), Label = Model.ContractNumber, Href = Url.Action("Details", "ContractJourney", new { contractId = Model.ContractId.Value, returnUrl = currentReturnUrl }), Icon = "bi-file-earmark-text" });
+    if (Model.ShipmentId.HasValue && !string.IsNullOrWhiteSpace(Model.ShipmentCode)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("محموله", "Shipment"), Label = Model.ShipmentCode, Href = Url.Action("Details", "Shipments", new { id = Model.ShipmentId.Value, returnUrl = currentReturnUrl }), Icon = "bi-box-seam" });
     if (Model.ServiceProviderId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("شرکت خدماتی", "Service provider"), Label = Model.ServiceProviderName ?? $"#{Model.ServiceProviderId.Value}", Href = Url.Action("Details", "ServiceProviders", new { id = Model.ServiceProviderId.Value, returnUrl = currentReturnUrl }), Icon = "bi-building" });
     if (Model.OperationalAssetId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("دارایی عملیاتی", "Operational asset"), Label = Model.OperationalAssetName ?? $"#{Model.OperationalAssetId.Value}", Href = Url.Action("Details", "OperationalAssets", new { id = Model.OperationalAssetId.Value, returnUrl = currentReturnUrl }), Icon = "bi-truck" });
-    if (Model.LedgerEntryId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("سند دفتر کل", "Ledger entry"), Label = $"#{Model.LedgerEntryId.Value}", KeyValue = $"{Model.AmountUsd:N2} USD", Icon = "bi-journal-text" });
+    if (Model.LedgerEntryId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("سند دفتر کل", "Ledger entry"), Label = $"#{Model.LedgerEntryId.Value}", KeyValue = $"{Model.AmountUsd:N2} USD", Href = Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value, returnUrl = currentReturnUrl }), Icon = "bi-journal-text" });
 
     var nextActions = new List<AkHeaderMenuItem>
     {

@@ -1,284 +1,200 @@
-.statement-screen-tools,
 .statement-document {
-    --statement-ink: #202124;
-    --statement-muted: #686d73;
-    --statement-line: #dde1e5;
-    --statement-soft: #f4f5f6;
-    --statement-green: #08783f;
-    --statement-red: #db2b2b;
-    --statement-dark: #26282b;
-    --statement-credit: #08783f;
-    --statement-debit: #c9252d;
-    font-family: Vazirmatn, Tahoma, sans-serif;
-}
-
-.statement-screen-tools { max-width: 1440px; margin: 0 auto 1rem; }
-
-.statement-document {
-    width: min(100%, 1440px); margin: 0 auto; padding: 1rem 1.5rem 1.25rem;
-    border: 1px solid var(--statement-line); background: #fff; color: var(--statement-ink);
-    box-shadow: 0 10px 28px rgba(32, 33, 36, .07);
-}
-
-/* هدر نمایش: لوگو + عنوان در یک ردیف کم‌ارتفاع. تماس شرکت و متن تعارف در پاورقی/چاپ
-   موجودند، پس روی صفحه تکرار نمی‌شوند تا جدول اصلی زودتر دیده شود. */
-.statement-brand-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-width: 0; }
-.statement-brand-identity { display: flex; align-items: center; gap: .85rem; min-width: 0; }
-.statement-logo { width: auto; max-width: min(18rem, 45vw); max-height: 56px; object-fit: contain; object-position: right center; }
-.statement-brand-title { min-width: 0; padding-inline-start: .85rem; border-inline-start: 1px solid var(--statement-line); }
-/* لایه تایپوگرافی مشترک برای h1/h2/p اندازه صفحه‌ای می‌گذارد؛ این سه انتخابگر
-   فقط داخل هدر صورت‌حساب همان مقیاس را فشرده می‌کنند (بدون important). */
-.statement-document .statement-brand-identity .statement-brand-title h1 { margin: 0; font-size: 1.05rem; font-weight: 800; line-height: 1.25; letter-spacing: -.01em; }
-.statement-document .statement-brand-identity .statement-brand-title p { margin: .08rem 0 0; color: var(--statement-muted); font: 600 .62rem/1.25 Poppins, sans-serif; letter-spacing: .07em; text-transform: uppercase; }
-.statement-company-contact { display: none; gap: .28rem; margin: 0; font-style: normal; color: var(--statement-muted); font-size: .77rem; line-height: 1.55; }
-.statement-company-contact strong { color: var(--statement-ink); font-size: 1rem; }
-.statement-company-contact span { display: flex; align-items: start; gap: .45rem; }
-.statement-company-contact i { margin-top: .15rem; color: var(--statement-dark); }
-.statement-brand-rule { display: grid; grid-template-columns: 1fr 1.3fr 1fr; height: 2px; margin: .55rem 0 .5rem; }
-.statement-brand-rule span:nth-child(1) { background: var(--statement-green); }
-.statement-brand-rule span:nth-child(2) { background: var(--statement-dark); }
-.statement-brand-rule span:nth-child(3) { background: var(--statement-red); }
-
-.statement-title-row { display: none; }
-.statement-courtesy { margin: 0 0 .25rem; color: var(--statement-muted); font-size: .86rem; }
-
-.statement-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem 2rem; margin: .5rem 0 .8rem; }
-.statement-info-block { min-width: 0; }
-.statement-info-block + .statement-info-block { padding-inline-start: 1.25rem; border-inline-start: 1px solid var(--statement-line); }
-.statement-info-block h2 { display: flex; align-items: center; gap: .4rem; margin: 0 0 .3rem; color: var(--statement-green); font-weight: 800; text-transform: uppercase; }
-.statement-document .statement-info-grid .statement-info-block h2 { font-size: .7rem; line-height: 1.4; }
-.statement-info-block.is-document-info h2 { color: var(--statement-red); }
-.statement-info-block h2::after { content: ""; flex: 1; height: 1px; background: var(--statement-line); }
-.statement-info-block h2 i { font-size: .85rem; }
-.statement-info-block dl { display: grid; gap: .16rem; margin: 0; }
-.statement-info-block dl > div { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: .5rem; font-size: .73rem; line-height: 1.35; }
-.statement-document .statement-info-grid .statement-info-block dl dt,
-.statement-document .statement-info-grid .statement-info-block dl dd { font-size: .73rem; line-height: 1.35; }
-.statement-info-block dt { color: var(--statement-ink); font-weight: 800; }
-.statement-info-block dd { margin: 0; color: #45494e; overflow-wrap: anywhere; }
-.statement-ltr { direction: ltr; text-align: right; font-variant-numeric: tabular-nums; }
-
-/* روی صفحه، چهار کارت خلاصه بدون قاب و بدون خط جداکننده‌اند؛ آیکن و تایپوگرافی
-   خودشان کارت‌ها را از هم جدا می‌کنند. قاب فقط در نسخهٔ چاپی/PDF برمی‌گردد تا سند
-   رسمی دست‌نخورده بماند. */
-.statement-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; margin-bottom: 1rem; }
-.statement-summary-item { display: flex; align-items: center; gap: .6rem; min-height: 4.25rem; padding: .6rem .85rem; }
-.statement-summary-icon { display: grid; place-items: center; width: 2.15rem; height: 2.15rem; flex: 0 0 auto; border-radius: 50%; background: #eef0f1; color: var(--statement-dark); font-size: 1rem; }
-.statement-summary-item.is-opening .statement-summary-icon,
-.statement-summary-item.is-credit .statement-summary-icon { background: #e6f3ec; color: var(--statement-credit); }
-.statement-summary-item.is-debit .statement-summary-icon { background: #fbe9e8; color: var(--statement-debit); }
-.statement-summary-copy { display: grid; min-width: 0; gap: .14rem; }
-.statement-summary-copy small { color: var(--statement-muted); font-size: .67rem; font-weight: 750; }
-.statement-summary-copy strong { direction: ltr; text-align: right; color: var(--statement-ink); font-size: 1rem; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.statement-summary-copy strong em { color: var(--statement-muted); font-size: .6rem; font-style: normal; font-weight: 700; }
-.statement-summary-copy > span { color: var(--statement-muted); font-size: .6rem; line-height: 1.35; }
-.statement-summary-item.is-debit strong { color: var(--statement-debit); }
-.statement-summary-item.is-credit strong { color: var(--statement-credit); }
-
-.statement-table-wrap { width: 100%; overflow-x: auto; }
-.statement-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: auto; font-size: .7rem; }
-.statement-table th, .statement-table td { padding: .54rem .48rem; border: 1px solid var(--statement-line); vertical-align: middle; }
-.statement-table thead th { background: var(--ptg-table-head-bg); color: #303337; font-weight: 850; text-align: center; white-space: nowrap; }
-.statement-table tbody tr { break-inside: avoid; page-break-inside: avoid; }
-.statement-table tbody tr:nth-child(even) { background: #fcfcfc; }
-.statement-table .is-opening-row { background: #f3f7f4; font-weight: 750; }
-.statement-col-no { width: 3.5rem; }
-.statement-col-date { width: 6.8rem; }
-.statement-col-ref { min-width: 7.2rem; }
-.statement-col-description { min-width: 15rem; text-align: right !important; }
-.statement-num, .statement-date, .statement-ref { direction: ltr; text-align: center; font-variant-numeric: tabular-nums; }
-.statement-description { min-width: 15rem; line-height: 1.55; }
-.statement-money { direction: ltr; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.statement-debit { color: var(--statement-debit); }
-.statement-credit { color: var(--statement-credit); }
-.statement-balance { color: #50308a; font-weight: 850; }
-.statement-fx { direction: ltr; text-align: center; white-space: nowrap; font-size: .64rem; }
-.statement-table tfoot th { background: #eceeef; font-weight: 900; }
-.statement-table tfoot th:first-child { text-align: left; }
-.statement-empty { padding: 2rem !important; color: var(--statement-muted); text-align: center; }
-
-.statement-closing-grid { display: grid; grid-template-columns: 1.4fr .8fr; gap: 1.5rem; margin-top: 1.35rem; }
-.statement-note { padding: .9rem 1rem; border: 1px solid var(--statement-line); border-radius: .4rem; }
-.statement-note h2, .statement-authorization h2 { margin: 0 0 .55rem; color: var(--statement-green); font-size: .72rem; font-weight: 900; text-transform: uppercase; }
-.statement-note p { margin: 0; color: var(--statement-muted); font-size: .68rem; line-height: 1.7; }
-.statement-authorization { display: grid; align-content: start; min-height: 6.5rem; padding-inline-start: 1.25rem; border-inline-start: 1px solid var(--statement-line); }
-.statement-authorization h2 { color: var(--statement-red); }
-.statement-authorization img { max-width: 9rem; max-height: 2.5rem; object-fit: contain; object-position: right center; }
-.statement-signature-line { width: min(100%, 12rem); height: 1.75rem; border-bottom: 1px solid #b8bcc0; }
-.statement-authorization strong { margin-top: .35rem; font-size: .72rem; }
-.statement-authorization small { color: var(--statement-muted); font-size: .62rem; }
-.statement-footer { margin-top: 1.5rem; padding-top: .85rem; border-top: 3px solid transparent; border-image: linear-gradient(to left, var(--statement-green), var(--statement-dark), var(--statement-red)) 1; text-align: center; }
-.statement-footer strong { font-size: .72rem; }
-.statement-footer p { display: flex; flex-wrap: wrap; justify-content: center; gap: .25rem 1rem; margin: .35rem 0; color: var(--statement-muted); font-size: .6rem; }
-.statement-footer p span + span::before { content: "|"; margin-inline-end: 1rem; color: #a5a9ad; }
-.statement-footer small { color: #8a8e92; font-size: .55rem; }
-
-@media (max-width: 991.98px) {
-    .statement-document { padding: .9rem 1rem 1.2rem; }
-    .statement-info-grid { grid-template-columns: 1fr; gap: .5rem; }
-    .statement-info-block + .statement-info-block { padding-inline-start: 0; padding-top: .5rem; border-inline-start: 0; border-top: 1px solid var(--statement-line); }
-    .statement-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (max-width: 575.98px) {
-    .statement-closing-grid { display: grid; grid-template-columns: 1fr; }
-    .statement-summary { grid-template-columns: 1fr; }
-    .statement-info-block dl > div { grid-template-columns: 6rem minmax(0, 1fr); }
-    .statement-logo { max-width: 45vw; max-height: 44px; }
-    .statement-brand-title { padding-inline-start: .6rem; }
-    .statement-document .statement-brand-identity .statement-brand-title h1 { font-size: 1rem; }
-}
-
-/* نمای قراردادی مشترک: تب‌ها، سلولِ شرحِ قرارداد و ردیف جزئیات (lazy). */
-.statement-view-tabs { display: flex; gap: .25rem; margin: 0 0 1rem; border-bottom: 1px solid var(--statement-line); }
-.statement-view-tab { padding: .45rem .95rem; font-size: .85rem; font-weight: 600; color: #6b7075; text-decoration: none; border: 1px solid transparent; border-bottom: 0; border-radius: .4rem .4rem 0 0; }
-.statement-view-tab:hover { color: #2f3438; background: rgba(0, 0, 0, .03); }
-.statement-view-tab.is-active { color: #1f2428; background: #fff; border-color: var(--statement-line); }
-
-.statement-contract-cell { display: flex; flex-direction: column; gap: .25rem; }
-.statement-contract-title { font-weight: 700; }
-.statement-contract-facts { display: flex; flex-direction: column; gap: .1rem; font-size: .78rem; color: #6b7075; }
-.statement-contract-facts span { direction: rtl; unicode-bidi: plaintext; }
-
-.statement-details-toggle { align-self: flex-start; margin-top: .2rem; padding: .2rem .55rem; font-size: .76rem; color: #2f3438; background: #f3f4f6; border: 1px solid var(--statement-line); border-radius: .35rem; cursor: pointer; }
-.statement-details-toggle:hover { background: #e9ebee; }
-.statement-details-toggle.is-open i { transform: rotate(180deg); }
-.statement-details-toggle i { display: inline-block; transition: transform .15s ease; }
-
-.statement-details-row > td { padding: 0; background: #fafbfc; }
-.statement-details-slot { padding: .75rem 1rem; }
-.statement-details-loading { padding: .6rem; color: #6b7075; font-size: .8rem; }
-.statement-details { display: grid; gap: 1rem; }
-.statement-details-block > h3 { margin: 0 0 .4rem; font-size: .82rem; font-weight: 700; color: #4a4f54; }
-.statement-table-compact { font-size: .78rem; }
-.statement-table-compact th, .statement-table-compact td { padding: .3rem .5rem; }
-.statement-ref-inline { display: block; font-size: .72rem; color: #8a8e92; }
-.statement-details-note { margin: .4rem 0 0; font-size: .74rem; color: #8a8e92; }
-
-/* نمای «قراردادها» خلاصه: سلولِ قرارداد، ستون جزئیات و هدرِ حقایقِ قرارداد در جزئیات. */
-.statement-col-actions { width: 1%; white-space: nowrap; text-align: center; }
-.statement-contract-sub { display: block; margin-top: .15rem; font-size: .74rem; color: #6b7075; direction: rtl; unicode-bidi: plaintext; }
-.statement-details-facts { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; padding: .5rem .25rem .75rem; margin-bottom: .5rem; border-bottom: 1px solid var(--statement-line); }
-.statement-details-facts > div { display: flex; flex-direction: column; gap: .1rem; }
-.statement-details-facts span { font-size: .72rem; color: #8a8e92; }
-.statement-details-facts strong { font-size: .82rem; }
-.statement-pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem; margin-top: .8rem; }
-.statement-pagination a,
-.statement-pagination button {
-    min-width: 2rem;
-    min-height: 2rem;
-    padding: .25rem .5rem;
+    --statement-line: var(--ptg-border, #e2e8f0);
+    --statement-muted: var(--ptg-muted, #64748b);
+    color: var(--ptg-text, #172033);
+    background: var(--ptg-surface, #fff);
     border: 1px solid var(--statement-line);
-    border-radius: .35rem;
-    background: #fff;
-    color: var(--statement-ink);
-    font: inherit;
-    text-align: center;
-    text-decoration: none;
-    cursor: pointer;
+    border-radius: var(--ptg-radius-lg, 12px);
+    overflow: hidden;
+    font-family: Vazirmatn, sans-serif;
 }
-.statement-pagination .is-active { border-color: var(--statement-dark); background: var(--statement-dark); color: #fff; }
 
-/* =====================================================================
-   صورت‌حساب داخل تب طرف حساب (ak-party-statement-embed)
-   کارتِ سکشنِ Details خودش سطح کاغذ است؛ پس صورت‌حسابِ جاسازی‌شده قابِ
-   خودش را کنار می‌گذارد (بوردر، سایه، پس‌زمینهٔ سفید و عرضِ وسط‌چین) و نوار
-   فیلتر هم chrome کارت لیست را رها می‌کند. یک سطح، بدون قابِ تودرتو.
-   نسخهٔ مستقلِ /PartyStatements برگهٔ رسمی خودش را نگه می‌دارد.
-   ===================================================================== */
-.ak-party-statement-embed { min-width: 0; }
+.statement-screen-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid var(--statement-line);
+}
 
-.ak-party-statement-embed .statement-screen-tools,
-.ak-party-statement-embed .statement-document {
-    width: 100%;
-    min-width: 0;
-    max-width: none;
+.statement-eyebrow {
+    margin: 0 0 4px;
+    color: var(--statement-muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.statement-heading h1 {
     margin: 0;
+    font-size: clamp(20px, 2vw, 26px);
+    font-weight: 800;
+    line-height: 1.35;
 }
 
-.ak-party-statement-embed .statement-document {
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
+.statement-identity-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 16px;
+    margin-top: 8px;
+    color: var(--statement-muted);
+    font-size: 12px;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-content .ak-party-statement-embed .statement-screen-tools.ak-list-card {
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+.statement-identity-line span + span::before {
+    content: "·";
+    margin-inline-end: 16px;
+    color: #cbd5e1;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-content .ak-party-statement-embed .statement-screen-tools.ak-list-card > .ak-list-toolbar {
-    min-height: 0;
-    margin: 0 0 12px;
-    padding: 0;
-    border-bottom: 0;
-    border-radius: 0;
-    background: transparent;
+.statement-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
 }
 
-/* =====================================================================
-   پایداری واکنش‌گرا (هم جاسازی‌شده، هم مستقل)
-   هر بلوکِ پهن داخل جعبهٔ خودش اسکرول می‌شود تا صورت‌حساب هیچ‌وقت
-   ظرفش را پهن‌تر از نمایشگر نکند و محتوا بهم نریزد.
-   ===================================================================== */
-.statement-table-wrap { max-width: 100%; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
-.statement-brand-header { flex-wrap: wrap; }
-.statement-contract-title,
+.statement-csv-link {
+    color: var(--statement-muted);
+    font-size: 12px;
+    text-decoration: none;
+}
+
+.statement-screen-tools {
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--statement-line);
+    background: var(--ptg-bg, #f8fafc);
+}
+
+.statement-screen-tools [data-ak-filter] { margin: 0; }
+
+.statement-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-bottom: 1px solid var(--statement-line);
+}
+
+.statement-summary-item {
+    min-width: 0;
+    padding: 15px 18px;
+    border-inline-start: 1px solid var(--statement-line);
+}
+
+.statement-summary-item:first-child { border-inline-start: 0; }
+.statement-summary-item small { display: block; color: var(--statement-muted); font-size: 11px; font-weight: 700; }
+.statement-summary-item strong { display: inline-block; margin-top: 5px; font-size: 18px; font-variant-numeric: tabular-nums; direction: ltr; }
+.statement-summary-item span { margin-inline-start: 5px; color: var(--statement-muted); font-size: 10px; font-weight: 700; }
+.statement-summary-item.is-current { background: color-mix(in srgb, var(--ptg-primary, #2563eb) 5%, transparent); }
+
+.statement-view-tabs {
+    display: flex;
+    gap: 22px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--statement-line);
+}
+
+.statement-view-tab {
+    padding: 12px 0 10px;
+    border-bottom: 2px solid transparent;
+    color: var(--statement-muted);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.statement-view-tab:hover,
+.statement-view-tab.is-active { color: var(--ptg-primary, #2563eb); border-bottom-color: currentColor; }
+
+.statement-table-wrap { overflow-x: auto; }
+.statement-table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 13px; }
+.statement-table th,
+.statement-table td { padding: 12px 10px; border-bottom: 1px solid var(--statement-line); vertical-align: middle; }
+.statement-table thead th { position: sticky; top: 0; z-index: 1; background: var(--ptg-bg, #f8fafc); color: var(--statement-muted); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.statement-table tbody tr:hover { background: color-mix(in srgb, var(--ptg-primary, #2563eb) 3%, transparent); }
+.statement-table tbody tr.is-opening-row { background: var(--ptg-bg, #f8fafc); font-weight: 700; }
+.statement-table tfoot th { background: var(--ptg-bg, #f8fafc); border-top: 1px solid var(--statement-line); border-bottom: 0; }
+.statement-col-no { width: 44px; text-align: center; }
+.statement-col-date { width: 104px; }
+.statement-col-ref { width: 140px; }
+.statement-col-description { min-width: 230px; }
+.statement-num { text-align: center; color: var(--statement-muted); }
+.statement-date,
+.statement-ref,
+.statement-money,
+.statement-ltr { direction: ltr; unicode-bidi: isolate; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.statement-ref a { color: var(--ptg-primary, #2563eb); text-decoration: none; }
+.statement-ref a:hover { text-decoration: underline; }
+.statement-description { line-height: 1.65; }
+.statement-money { text-align: end; }
+.statement-receipt { color: var(--ptg-success-text, #166534); }
+.statement-outflow { color: var(--ptg-danger-text, #b42318); }
+.statement-balance { font-weight: 800; }
+.statement-empty { padding: 36px !important; text-align: center; color: var(--statement-muted); }
+
+.statement-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 22px;
+    color: var(--statement-muted);
+    font-size: 12px;
+}
+
+.statement-pagination div { display: flex; gap: 6px; }
+.statement-pagination > a,
+.statement-pagination > button { min-width: 32px; padding: 5px 8px; border: 1px solid var(--statement-line); border-radius: 6px; background: transparent; color: inherit; text-align: center; text-decoration: none; }
+.statement-pagination .is-active { color: var(--ptg-primary, #2563eb); border-color: currentColor; font-weight: 800; }
+
+.statement-table-contracts .statement-contract-title { display: block; }
 .statement-contract-sub,
-.statement-description { overflow-wrap: anywhere; }
-.statement-col-contract { min-width: 11rem; }
-.statement-summary-copy strong { font-size: clamp(.82rem, 2.6vw, 1rem); }
-.statement-view-tabs { overflow-x: auto; scrollbar-width: thin; }
-.statement-view-tab { flex: 0 0 auto; white-space: nowrap; }
-.statement-screen-tools .ak-list-toolbar-actions { flex-wrap: wrap; }
+.statement-ref-inline { display: block; margin-top: 3px; color: var(--statement-muted); font-size: 10px; }
+.statement-details-toggle { border: 0; background: transparent; color: var(--ptg-primary, #2563eb); font-size: 12px; font-weight: 700; }
+.statement-details-row > td { padding: 0; background: var(--ptg-bg, #f8fafc); }
+.statement-details-slot { padding: 14px 18px; }
+.statement-details-loading { padding: 20px; text-align: center; color: var(--statement-muted); }
+.statement-details-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border: 1px solid var(--statement-line); border-radius: 8px; }
+.statement-details-facts div { padding: 10px 12px; border-inline-start: 1px solid var(--statement-line); }
+.statement-details-facts span { display: block; color: var(--statement-muted); font-size: 10px; }
+.statement-details-facts strong { font-size: 12px; }
+.statement-details-block { margin-top: 14px; }
+.statement-details-block h3 { margin: 0 0 8px; font-size: 13px; }
+.statement-table-compact { min-width: 640px; background: var(--ptg-surface, #fff); }
+
+.statement-print-footer { display: none; }
 
 @media (max-width: 767.98px) {
-    .statement-table { min-width: 620px; font-size: .68rem; }
-    .statement-table th, .statement-table td { padding: .45rem .4rem; }
-    .statement-details-slot { padding: .6rem .5rem; }
-    .statement-screen-tools .ak-list-toolbar-actions .btn { flex: 1 1 8rem; }
+    .statement-screen-header { flex-direction: column; padding: 16px; }
+    .statement-actions { width: 100%; }
+    .statement-screen-tools { padding: 10px 16px; }
+    .statement-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .statement-summary-item:nth-child(3) { border-top: 1px solid var(--statement-line); }
+    .statement-summary-item:nth-child(4) { border-top: 1px solid var(--statement-line); }
+    .statement-summary-item strong { font-size: 15px; }
 }
 
-@page { size: A4 portrait; margin: 9mm; }
-@page statement-wide { size: A4 landscape; margin: 8mm; }
+@page statement-normal { size: A4 portrait; margin: 11mm; }
+@page statement-wide { size: A4 landscape; margin: 9mm; }
 
 @media print {
     body { background: #fff !important; }
-    body * { visibility: hidden; }
-    .statement-document, .statement-document * { visibility: visible; }
-    .statement-document { position: absolute; inset: 0; width: 100%; max-width: none; margin: 0; padding: 0; border: 0; box-shadow: none; }
+    .no-print,
+    .sidebar,
+    .topbar,
+    .app-footer,
+    .section-tabs { display: none !important; }
+    .statement-document { page: statement-normal; border: 0; border-radius: 0; overflow: visible; }
     .statement-document.is-landscape { page: statement-wide; }
-    .no-print, .boltz-sidebar, .boltz-topbar, .boltz-footer, .ptg-section-tabs { display: none !important; }
-    .statement-table-wrap { overflow: visible; }
-    .statement-table { min-width: 0; font-size: 7.1pt; }
+    .statement-screen-header { padding: 0 0 8mm; border-bottom: 1px solid #b8c0cc; }
+    .statement-heading h1 { font-size: 18pt; }
+    .statement-summary { border: 1px solid #cbd5e1; break-inside: avoid; }
+    .statement-summary-item { padding: 8px 10px; }
+    .statement-summary-item strong { font-size: 12pt; }
+    .statement-table { min-width: 0; font-size: 8.5pt; }
     .statement-table thead { display: table-header-group; }
     .statement-table tfoot { display: table-footer-group; }
-    /* نسخه رسمی چاپی ابعاد بزرگ‌تر و متن تعارف/تماس شرکت را نگه می‌دارد؛
-       فشرده‌سازی فقط برای نمایش مرورگر است. */
-    .statement-brand-header { align-items: flex-start; gap: 8mm; }
-    .statement-logo { width: min(24rem, 52vw); max-width: none; max-height: 22mm; }
-    .statement-brand-title { padding-inline-start: 4mm; }
-    .statement-document .statement-brand-identity .statement-brand-title h1 { font-size: 15pt; font-weight: 900; line-height: 1.25; }
-    .statement-document .statement-brand-identity .statement-brand-title p { font-size: 7pt; }
-    .statement-company-contact { display: grid; }
-    .statement-title-row { display: flex; justify-content: flex-end; margin-bottom: 4mm; }
-    .statement-brand-rule { height: 3px; margin: 3mm 0 5mm; }
-    .statement-info-grid { gap: 2.5rem; margin: 0 0 5mm; }
-    .statement-info-block { margin-bottom: 0; }
-    .statement-document .statement-info-grid .statement-info-block h2 { margin-bottom: 2mm; font-size: 8pt; line-height: 1.4; }
-    .statement-info-block + .statement-info-block { padding-top: 0; padding-inline-start: 1.5rem; border-top: 0; border-inline-start: 1px solid var(--statement-line); }
-    .statement-info-block dl { gap: 1mm; }
-    .statement-info-block dl > div { grid-template-columns: 8.5rem minmax(0, 1fr); }
-    .statement-document .statement-info-grid .statement-info-block dl dt,
-    .statement-document .statement-info-grid .statement-info-block dl dd { font-size: 8pt; line-height: 1.5; }
-    /* سند رسمی چاپی همان قاب و خطوط جداکنندهٔ قبلی را نگه می‌دارد. */
-    .statement-summary { gap: 0; margin-bottom: 5mm; border: 1px solid var(--statement-line); border-radius: .5rem; }
-    .statement-summary-item { min-height: 18mm; padding: 2.5mm; border-inline-start: 1px solid var(--statement-line); }
-    .statement-summary-item:first-child { border-inline-start: 0; }
-    .statement-summary-icon { width: 8mm; height: 8mm; }
-    .statement-closing-grid { break-inside: avoid; page-break-inside: avoid; }
-    .statement-footer { break-inside: avoid; page-break-inside: avoid; }
-    .statement-footer::after { display: block; margin-top: 1.5mm; color: #8a8e92; font-size: 7pt; content: "صفحه " counter(page); }
+    .statement-table tr { break-inside: avoid; }
+    .statement-table th,
+    .statement-table td { padding: 5px 6px; }
+    .statement-print-footer { display: flex; justify-content: space-between; margin-top: 5mm; padding-top: 3mm; border-top: 1px solid #cbd5e1; color: #64748b; font-size: 7.5pt; }
 }

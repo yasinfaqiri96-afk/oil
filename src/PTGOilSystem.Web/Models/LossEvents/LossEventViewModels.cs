@@ -123,6 +123,8 @@ public sealed class LossEventIndexFilterViewModel
     [Display(Name = "اثر بر موجودی")]
     public bool? AffectsInventory { get; set; }
 
+    public bool ChargeableOnly { get; set; }
+
     // فیلتر نوع تفاوت: کسری (تفاوت مثبت) و اضافه‌بار (تفاوت منفی) هرگز با هم جمع نمی‌شوند.
     [Display(Name = "نوع تفاوت")]
     public LossEventVarianceFilter Variance { get; set; } = LossEventVarianceFilter.All;

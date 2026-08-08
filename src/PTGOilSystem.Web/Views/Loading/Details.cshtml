@@ -8,19 +8,10 @@
     var loadingListReturnUrl = Url.Action("Index", "Loading", new { contractId = Model.ContractId }) ?? "/Loading";
     var effectiveReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : loadingListReturnUrl;
     var currentPageReturnUrl = Context.Request.Path + Context.Request.QueryString;
-    var expenseEditor = Model.ExpenseEditor;
-    expenseEditor.ReturnUrl = currentPageReturnUrl;
-    var receiptEditor = Model.ReceiptEditor;
-    var expenseModalViewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData)
-    {
-        ["IsExpenseModal"] = true,
-        ["CancelUrl"] = currentPageReturnUrl
-    };
-    var receiptModalViewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData)
-    {
-        ["IsReceiptModal"] = true,
-        ["CancelUrl"] = currentPageReturnUrl
-    };
+    var expenseEditorUrl = Url.Action("EditExpenses", "Loading", new { id = Model.Id, returnUrl = currentPageReturnUrl, modal = true });
+    var receiptEditorUrl = Model.CanRegisterReceipt
+        ? Url.Action("Create", "LoadingReceipts", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl, modal = true })
+        : null;
 
     var loadingExpenseTotal = Model.LoadingExpenseTotalUsd;
     var customsTotal = Model.CustomsTotalUsd;
@@ -195,9 +186,9 @@
     }
 
     // عملیات بعدی: اکشن اصلی سربرگ اینجا تکرار نمی‌شود.
-    var headerPrimaryModal = receiptEditor is not null ? "loadingReceiptModal" : "loadingExpensesModal";
+    var headerPrimaryModal = Model.CanRegisterReceipt ? "loadingReceiptModal" : "loadingExpensesModal";
     var nextActions = new List<AkHeaderMenuItem>();
-    if (Model.RemainingToReceiveMt > 0 && receiptEditor is not null)
+    if (Model.CanRegisterReceipt)
     {
         nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت رسید", "Register receipt"), ModalTarget = "loadingReceiptModal", Icon = "bi-box-arrow-in-down" });
     }
@@ -221,8 +212,8 @@
 <div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-loading-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("بارگیری", "Loading")} LD-{Model.Id:0000}", false,
-                       receiptEditor is not null ? T("ثبت رسید", "Register receipt") : T("ثبت مصارف", "Register expenses"),
-                       receiptEditor is not null ? "bi-box-arrow-in-down" : "bi-receipt-cutoff",
+                       Model.CanRegisterReceipt ? T("ثبت رسید", "Register receipt") : T("ثبت مصارف", "Register expenses"),
+                       Model.CanRegisterReceipt ? "bi-box-arrow-in-down" : "bi-receipt-cutoff",
                        (string?)null, headerPrimaryModal,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)effectiveReturnUrl))" />
 
@@ -409,15 +400,16 @@
                         (IReadOnlyList<AkRelatedRecord>)relatedRecords,
                         (IReadOnlyList<AkInfoItem>)advancedItems))" />
 
-    <div class="modal fade" id="loadingExpensesModal" tabindex="-1" aria-labelledby="loadingExpensesModalLabel" aria-hidden="true">
+    <div class="modal fade" id="loadingExpensesModal" tabindex="-1" aria-labelledby="loadingExpensesModalLabel" aria-hidden="true"
+         data-loading-expense-remote-modal="true" data-loading-expense-url="@expenseEditorUrl" data-loading-expense-prefetch="false">
         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 class="modal-title" id="loadingExpensesModalLabel">مصارف بارگیری #@Model.Id</h2>
                     <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="بستن"></button>
                 </div>
-                <div class="modal-body">
-                    <partial name="_LoadingExpenseEditor" model="expenseEditor" view-data="expenseModalViewData" />
+                <div class="modal-body" data-loading-expense-remote-body>
+                    <div class="ak-empty"><span>@T("فرم هنگام باز کردن بارگذاری می‌شود.", "The form loads when opened.")</span></div>
                 </div>
             </div>
         </div>
@@ -460,9 +452,9 @@
         </div>
     </form>
 
-    @if (receiptEditor is not null)
+    @if (Model.CanRegisterReceipt)
     {
-        <div class="modal fade" id="loadingReceiptModal" tabindex="-1" aria-labelledby="loadingReceiptModalLabel" aria-hidden="true">
+        <div class="modal fade" id="loadingReceiptModal" tabindex="-1" aria-labelledby="loadingReceiptModalLabel" aria-hidden="true" data-receipt-remote-modal data-receipt-url="@receiptEditorUrl">
             <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -472,8 +464,8 @@
                         </div>
                         <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="بستن"></button>
                     </div>
-                    <div class="modal-body">
-                        <partial name="~/Views/LoadingReceipts/_ReceiptCreateForm.cshtml" model="receiptEditor" view-data="receiptModalViewData" />
+                    <div class="modal-body" data-receipt-remote-body>
+                        <div class="ak-empty"><span>@T("فرم هنگام باز کردن بارگذاری می‌شود.", "The form loads when opened.")</span></div>
                     </div>
                 </div>
             </div>
@@ -484,6 +476,34 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
+        (function () {
+            var receiptModal = document.querySelector('[data-receipt-remote-modal]');
+            if (!receiptModal) { return; }
+            receiptModal.addEventListener('show.bs.modal', async function () {
+                var body = receiptModal.querySelector('[data-receipt-remote-body]');
+                var url = receiptModal.getAttribute('data-receipt-url');
+                if (!body || !url || receiptModal.dataset.loaded === 'true' || receiptModal.dataset.loading === 'true') { return; }
+                receiptModal.dataset.loading = 'true';
+                body.innerHTML = '<div class="ak-empty"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>@T("در حال بارگذاری فرم رسید...", "Loading receipt form...")</span></div>';
+                try {
+                    var response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    if (!response.ok) { throw new Error('receipt-form'); }
+                    body.innerHTML = await response.text();
+                    if (window.PTG && typeof window.PTG.initializeModalDesignSystem === 'function') {
+                        window.PTG.initializeModalDesignSystem(body);
+                    }
+                    if (window.jQuery && window.jQuery.validator && window.jQuery.validator.unobtrusive) {
+                        window.jQuery.validator.unobtrusive.parse(body);
+                    }
+                    receiptModal.dataset.loaded = 'true';
+                } catch (_) {
+                    body.innerHTML = '<div class="alert alert-danger mb-0">@T("بارگذاری فرم رسید انجام نشد.", "Could not load the receipt form.") <a class="alert-link" href="' + url + '">@T("باز کردن صفحه", "Open page")</a></div>';
+                } finally {
+                    delete receiptModal.dataset.loading;
+                }
+            });
+        })();
+
         // لغو تکی: id و نسخهٔ سطر ارسال می‌شود. لغو گروهی: چک‌باکس‌های انتخاب‌شده.
         (function () {
             var modal = document.getElementById('receiptCancelModal');

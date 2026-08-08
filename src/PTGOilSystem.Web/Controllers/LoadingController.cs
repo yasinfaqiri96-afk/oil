@@ -785,14 +785,35 @@ public partial class LoadingController : Controller
     public async Task<IActionResult> Index(
         string? q = null,
         int? contractId = null,
+        int? productId = null,
+        bool withoutReceipt = false,
         DateTime? fromDate = null,
         DateTime? toDate = null,
         int page = 1,
         [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        var pageSize = ListPageSize.Resolve(perPage, 5);
+        const int defaultPageSize = 20;
+        var requestedPageSize = perPage;
+        if (!requestedPageSize.HasValue
+            && Request.Cookies.TryGetValue("ptg-loading-page-size", out var savedPageSize)
+            && int.TryParse(savedPageSize, out var parsedPageSize))
+        {
+            requestedPageSize = parsedPageSize;
+        }
+        var pageSize = ListPageSize.Resolve(requestedPageSize, defaultPageSize);
+        if (perPage.HasValue)
+        {
+            Response.Cookies.Append("ptg-loading-page-size", pageSize.ToString(), new CookieOptions
+            {
+                IsEssential = true,
+                HttpOnly = true,
+                SameSite = SameSiteMode.Lax,
+                Secure = Request.IsHttps,
+                Expires = DateTimeOffset.UtcNow.AddYears(1)
+            });
+        }
         ViewData["PageSize"] = pageSize;
-        ViewData["DefaultPageSize"] = 5;
+        ViewData["DefaultPageSize"] = defaultPageSize;
         var exportAll = page <= 0;
         var normalizedQuery = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
         ViewData["q"] = normalizedQuery;
@@ -809,6 +830,16 @@ public partial class LoadingController : Controller
                 .Where(c => c.Id == contractId.Value)
                 .Select(c => c.ContractNumber)
                 .FirstOrDefaultAsync();
+        }
+
+        if (productId.HasValue)
+        {
+            query = query.Where(l => l.ProductId == productId.Value);
+        }
+
+        if (withoutReceipt)
+        {
+            query = query.Where(l => !l.Receipts.Any(r => !r.IsCancelled));
         }
 
         if (fromDate.HasValue)
@@ -970,6 +1001,8 @@ public partial class LoadingController : Controller
             TotalCount = totalCount,
             ContractId = contractId,
             ContractNumber = contractNumber,
+            ProductId = productId,
+            WithoutReceipt = withoutReceipt,
             Query = normalizedQuery,
             FromDate = fromDate,
             ToDate = toDate
@@ -2068,15 +2101,6 @@ public partial class LoadingController : Controller
         var currentPageReturnUrl = HttpContext?.Request is { } request
             ? $"{request.Path}{request.QueryString}"
             : Url?.Action(nameof(Details), new { id = loading.Id }) ?? $"/Loading/Details/{loading.Id}";
-        var receiptEditor = remainingToReceiveMt > 0m
-            ? BuildLoadingReceiptCreateModel(loading, totalReceivedQuantityMt, remainingToReceiveMt, currentPageReturnUrl)
-            : null;
-
-        if (receiptEditor is not null)
-        {
-            await PopulateReceiptLookupsAsync(receiptEditor);
-        }
-
         ViewBag.ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var localReturnUrl) ? localReturnUrl : null;
 
         var model = new LoadingDetailsViewModel
@@ -2125,15 +2149,14 @@ public partial class LoadingController : Controller
             Notes = loading.Notes,
             TotalReceivedQuantityMt = totalReceivedQuantityMt,
             RemainingToReceiveMt = remainingToReceiveMt,
+            CanRegisterReceipt = remainingToReceiveMt > 0m,
             ExpenseEditor = BuildLoadingExpenseEditModel(loading, returnUrl),
-            ReceiptEditor = receiptEditor,
             ReceiptItems = receiptItems,
             LossItems = lossItems,
             CustomsItems = customsItems
         };
 
         await PopulateLoadingExpenseLinesAsync(model.ExpenseEditor, loading);
-        await PopulateLoadingExpenseLookupsAsync(model.ExpenseEditor);
         model.LoadingExpenseTotalUsd = model.ExpenseEditor.Lines.Count > 0
             ? model.ExpenseEditor.Lines.Sum(line => line.AmountUsd)
             : (model.TransportExpenseUsd ?? 0m)

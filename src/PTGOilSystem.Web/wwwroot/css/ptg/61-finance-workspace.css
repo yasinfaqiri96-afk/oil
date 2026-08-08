@@ -1280,14 +1280,6 @@ body.is-finance-workspace .rephub-card-art {
     inline-size: 100%;
     aspect-ratio: 1;
     border-radius: 50%;
-    /* بدون بوردر و بدون سایه — دایره فقط با یک تُنِ بسیار ملایم دیده می‌شود. */
-    background: #F4F7FC;
-    transition: background-color .2s ease;
-}
-
-body.is-finance-workspace .rephub-card:hover .rephub-card-art,
-body.is-finance-workspace .rephub-card:focus-visible .rephub-card-art {
-    background: #E8EFFA;
 }
 
 body.is-finance-workspace .rephub-card:focus-visible {

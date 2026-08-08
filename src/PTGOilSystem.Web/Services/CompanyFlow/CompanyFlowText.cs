@@ -59,11 +59,11 @@ public static class CompanyFlowText
             // این دو جمله همیشه از دید شرکت خوانده می‌شوند: فاعلِ «بدهکار/طلبکار» ماییم
             // و طرف‌حساب طرف مقابل است. علامت بیلانس و منطقش تغییری نکرده.
             [CompanyFlowTextKey.PositiveBalance] =
-                ("طلبکار از طرف‌حساب",
-                 "Receivable from counterparty"),
+                ("شرکت از طرف‌حساب طلبکار است",
+                 "The company is owed by the counterparty"),
             [CompanyFlowTextKey.NegativeBalance] =
-                ("بدهکار به طرف‌حساب",
-                 "Payable to counterparty"),
+                ("شرکت به طرف‌حساب بدهکار است",
+                 "The company owes the counterparty"),
             [CompanyFlowTextKey.SettledBalance] = ("حساب تسویه است", "Account is settled"),
             [CompanyFlowTextKey.CashPositiveBalance] = ("موجودی مثبت حساب", "Positive account balance"),
             [CompanyFlowTextKey.CashNegativeBalance] = ("کسری حساب نقدی", "Cash account shortfall"),

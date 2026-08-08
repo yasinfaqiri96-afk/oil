@@ -2,14 +2,14 @@
 @{
     var rows = Model.ToList();
     string Amount(decimal? value) => value.HasValue && value.Value != 0m
-        ? Math.Abs(value.Value).ToString("N2")
+        ? value.Value.ToString("N2")
         : "—";
     string Balance(PTGOilSystem.Web.Models.Suppliers.SupplierStatementRowViewModel row)
     {
         var rub = row.RunningBalanceRubEquivalent.HasValue
-            ? $"<span>RUB {Math.Abs(row.RunningBalanceRubEquivalent.Value):N2}</span>"
+            ? $"<span>RUB {row.RunningBalanceRubEquivalent.Value:N2}</span>"
             : "<span class=\"supplier-muted\">RUB ثبت نشده</span>";
-        return $"<span>USD {Math.Abs(row.RunningBalanceUsd):N2}</span>{rub}";
+        return $"<span>USD {row.RunningBalanceUsd:N2}</span>{rub}";
     }
 }
 
@@ -19,11 +19,11 @@
             <tr>
                 <th>تاریخ</th>
                 <th>شرح</th>
-                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "USD", Context)</th>
-                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "USD", Context)</th>
-                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "RUB", Context)</th>
-                <th class="text-end">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "RUB", Context)</th>
-                <th>@CompanyFlowText.Balance(Context)</th>
+                <th class="text-end">رسیدگی USD</th>
+                <th class="text-end">بردگی USD</th>
+                <th class="text-end">رسیدگی RUB</th>
+                <th class="text-end">بردگی RUB</th>
+                <th>بیلانس</th>
             </tr>
         </thead>
         <tbody>

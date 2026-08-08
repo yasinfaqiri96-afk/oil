@@ -534,6 +534,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             Date = entry.Date,
             CreatedAtUtc = entry.CreatedAtUtc,
             Reference = entry.Reference,
+            LedgerEntryId = entry.Id,
             Description = entry.Description,
             OriginalAmount = entry.OriginalAmount,
             OriginalCurrency = currency,

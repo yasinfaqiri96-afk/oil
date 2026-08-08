@@ -54,8 +54,22 @@
                     <tbody>
                         @foreach (var warning in Model.Warnings)
                         {
+                            var warningUrl = !string.IsNullOrWhiteSpace(warning.Controller) && !string.IsNullOrWhiteSpace(warning.Action)
+                                ? Url.Action(warning.Action, warning.Controller, warning.RouteValues)
+                                : null;
                             <tr>
-                                <td class="ak-col-grow">@warning.Title</td>
+                                <td class="ak-col-grow">
+                                    @if (!string.IsNullOrWhiteSpace(warningUrl))
+                                    {
+                                        <a class="ak-link" href="@warningUrl" aria-label="@UiText.T(Context, $"نمایش {warning.Title}", $"View {warning.Title}")">
+                                            @warning.Title <i class="bi bi-arrow-left-short" aria-hidden="true"></i>
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        @warning.Title
+                                    }
+                                </td>
                                 <td>@warning.Description</td>
                                 <td class="ak-col-num ak-num">@warning.Count.ToString("N0")</td>
                             </tr>

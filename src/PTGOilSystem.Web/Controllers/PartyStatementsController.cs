@@ -33,7 +33,7 @@ public sealed class PartyStatementsController : Controller
         int id,
         [FromQuery] PartyStatementFilter filter,
         bool print = false,
-        SupplierStatementView view = SupplierStatementView.Contracts,
+        SupplierStatementView view = SupplierStatementView.Ledger,
         CancellationToken ct = default)
         => RenderAsync(PartyStatementPartyType.Customer, id, filter, print, ct, view);
 
@@ -41,7 +41,7 @@ public sealed class PartyStatementsController : Controller
     public Task<IActionResult> Supplier(
         int id,
         [FromQuery] PartyStatementFilter filter,
-        SupplierStatementView view = SupplierStatementView.Contracts,
+        SupplierStatementView view = SupplierStatementView.Ledger,
         bool print = false,
         CancellationToken ct = default)
         => RenderAsync(PartyStatementPartyType.Supplier, id, filter, print, ct, view);
@@ -189,7 +189,7 @@ public sealed class PartyStatementsController : Controller
         int id,
         [FromQuery] PartyStatementFilter filter,
         bool print = false,
-        SupplierStatementView view = SupplierStatementView.Contracts,
+        SupplierStatementView view = SupplierStatementView.Ledger,
         CancellationToken ct = default)
         => RenderAsync(PartyStatementPartyType.Company, id, filter, print, ct, view);
 
@@ -213,7 +213,7 @@ public sealed class PartyStatementsController : Controller
         CancellationToken ct = default)
     {
         var effectiveView = UsesContractSummary(partyType)
-            ? view ?? SupplierStatementView.Contracts
+            ? view ?? SupplierStatementView.Ledger
             : SupplierStatementView.Ledger;
         var effectiveFilter = effectiveView == SupplierStatementView.Loadings
             ? WithOperationalColumns(filter)
@@ -242,12 +242,9 @@ public sealed class PartyStatementsController : Controller
         }
         else
         {
-            if (ShouldCompactLedger(partyType) && effectiveView == SupplierStatementView.Ledger)
-            {
-                statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
-            }
-            headers = BuildCsvHeaders(statement.ColumnOptions);
-            rows = statement.Rows.Select(row => BuildCsvRow(row, statement.ColumnOptions));
+            var isRub = statement.Summary.IsRubPresentation;
+            headers = BuildCsvHeaders(statement.ColumnOptions, isRub ? "RUB" : statement.Summary.BaseCurrencyCode);
+            rows = statement.Rows.Select(row => BuildCsvRow(row, statement.ColumnOptions, isRub));
         }
         var fileName = $"statement-{partyType.ToString().ToLowerInvariant()}-{id}-{DateTime.UtcNow:yyyyMMdd}.csv";
         return CsvExportSupport.File(this, fileName, headers, rows);
@@ -266,7 +263,7 @@ public sealed class PartyStatementsController : Controller
             return NotFound();
 
         var effectiveView = UsesContractSummary(partyType)
-            ? view ?? SupplierStatementView.Contracts
+            ? view ?? SupplierStatementView.Ledger
             : SupplierStatementView.Ledger;
         var effectiveFilter = effectiveView == SupplierStatementView.Loadings
             ? WithOperationalColumns(filter)
@@ -296,10 +293,6 @@ public sealed class PartyStatementsController : Controller
         }
         else
         {
-            if (ShouldCompactLedger(partyType) && effectiveView == SupplierStatementView.Ledger)
-            {
-                statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
-            }
             await _exportService.WritePartyStatementPdfAsync(statement, UiText.IsEn(HttpContext), output, ct);
         }
         var fileName = $"statement-{partyType.ToString().ToLowerInvariant()}-{id}-{DateTime.UtcNow:yyyyMMdd}.pdf";
@@ -322,7 +315,7 @@ public sealed class PartyStatementsController : Controller
         }
 
         var effectiveView = UsesContractSummary(partyType)
-            ? view ?? SupplierStatementView.Contracts
+            ? view ?? SupplierStatementView.Ledger
             : SupplierStatementView.Ledger;
         var effectiveFilter = effectiveView == SupplierStatementView.Loadings
             ? WithOperationalColumns(filter)
@@ -361,10 +354,6 @@ public sealed class PartyStatementsController : Controller
             return SupplierStatementExport.Build(this, format, statement, grouping, includeDetails: false);
         }
 
-        if (ShouldCompactLedger(partyType) && effectiveView == SupplierStatementView.Ledger)
-        {
-            statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
-        }
         return SupplierStatementExport.BuildDetailsOnly(this, format, statement);
     }
 
@@ -377,7 +366,7 @@ public sealed class PartyStatementsController : Controller
         SupplierStatementView? supplierView = null)
     {
         var view = UsesContractSummary(partyType)
-            ? supplierView ?? SupplierStatementView.Contracts
+            ? supplierView ?? SupplierStatementView.Ledger
             : SupplierStatementView.Ledger;
 
         // نمای «بارگیری‌ها» به ستون‌های عملیاتی نیاز دارد؛ فیلتر مؤثر را می‌سازیم.
@@ -429,10 +418,6 @@ public sealed class PartyStatementsController : Controller
             && view is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
         {
             grouping = await BuildContractGroupingAsync(statement, filter, ct);
-        }
-        else if (ShouldCompactLedger(partyType) && view == SupplierStatementView.Ledger)
-        {
-            statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
         }
 
         return View("Document", new PartyStatementViewModel
@@ -598,7 +583,7 @@ public sealed class PartyStatementsController : Controller
         return (contracts, companies, currencies);
     }
 
-    private static string[] BuildCsvHeaders(PartyStatementColumnOptions columns)
+    private static string[] BuildCsvHeaders(PartyStatementColumnOptions columns, string currency)
     {
         var headers = new List<string> { "No", "Date", "Reference", "Description" };
         if (columns.ShowRub) headers.Add("RUB");
@@ -609,11 +594,11 @@ public sealed class PartyStatementsController : Controller
         if (columns.ShowPlatts) headers.Add("Platts");
         if (columns.ShowPremiumOrDiscount) headers.Add("PremiumDiscount");
         if (columns.ShowUnitPrice) headers.Add("UnitPrice");
-        headers.AddRange(["ReceiptUsd", "OutflowUsd", "BalanceUsd"]);
+        headers.AddRange([$"رسیدگی {currency}", $"بردگی {currency}", $"بیلانس {currency}"]);
         return headers.ToArray();
     }
 
-    private static string?[] BuildCsvRow(PartyStatementRow row, PartyStatementColumnOptions columns)
+    private static string?[] BuildCsvRow(PartyStatementRow row, PartyStatementColumnOptions columns, bool isRub)
     {
         var values = new List<string?>
         {
@@ -634,9 +619,9 @@ public sealed class PartyStatementsController : Controller
         if (columns.ShowPlatts) values.Add(CsvExportSupport.Decimal(row.PlattsPrice));
         if (columns.ShowPremiumOrDiscount) values.Add(CsvExportSupport.Decimal(row.PremiumOrDiscount));
         if (columns.ShowUnitPrice) values.Add(CsvExportSupport.Decimal(row.UnitPrice));
-        values.Add(CsvExportSupport.Decimal(row.ReceiptBase));
-        values.Add(CsvExportSupport.Decimal(row.OutflowBase));
-        values.Add(CsvExportSupport.Decimal(row.RunningBalance));
+        values.Add(CsvExportSupport.Decimal(isRub ? row.ReceiptRub : row.ReceiptBase));
+        values.Add(CsvExportSupport.Decimal(isRub ? row.OutflowRub : row.OutflowBase));
+        values.Add(CsvExportSupport.Decimal(isRub ? row.RunningBalanceRub : row.RunningBalance));
         return values.ToArray();
     }
 
@@ -676,13 +661,6 @@ public sealed class PartyStatementsController : Controller
     // نمای خلاصهٔ قراردادها/بارگیری‌ها فقط برای تأمین‌کننده؛ بقیه همیشه گردش حساب.
     private static bool UsesContractSummary(PartyStatementPartyType partyType)
         => partyType == PartyStatementPartyType.Supplier;
-
-    // فشرده‌سازی گردش حساب مثل قبل برای همان طرف‌حساب‌ها باقی می‌ماند.
-    private static bool ShouldCompactLedger(PartyStatementPartyType partyType)
-        => partyType is PartyStatementPartyType.Supplier
-            or PartyStatementPartyType.Customer
-            or PartyStatementPartyType.Company
-            or PartyStatementPartyType.Partner;
 
     private static bool IsConfirmedOperation(PartyStatementRow row)
         => row.SourceType is "Loading" or "Sale";

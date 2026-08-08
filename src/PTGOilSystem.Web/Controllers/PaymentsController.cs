@@ -142,6 +142,8 @@ public class PaymentsController : Controller
             TotalCount = totalCount,
             TodayReceiptUsd = summary.TodayReceiptUsd,
             TodayPaymentUsd = summary.TodayPaymentUsd,
+            TodayReceiptMissingUsdEquivalentCount = summary.TodayReceiptMissingUsdEquivalentCount,
+            TodayPaymentMissingUsdEquivalentCount = summary.TodayPaymentMissingUsdEquivalentCount,
             CashAccountsBalanceUsd = summary.CashAccountsBalanceUsd,
             LastDocumentReference = summary.LastDocumentReference,
             LastDocumentDate = summary.LastDocumentDate,
@@ -2041,7 +2043,17 @@ public class PaymentsController : Controller
                     .Sum(p => (decimal?)p.AmountUsd) ?? 0m,
                 PaymentUsd = g
                     .Where(p => p.Direction == PaymentDirection.Out)
-                    .Sum(p => (decimal?)p.AmountUsd) ?? 0m
+                    .Sum(p => (decimal?)p.AmountUsd) ?? 0m,
+                ReceiptMissingUsdEquivalentCount = g.Count(p =>
+                    p.Direction == PaymentDirection.In
+                    && p.Amount > 0m
+                    && p.Currency != "USD"
+                    && p.AmountUsd == 0m),
+                PaymentMissingUsdEquivalentCount = g.Count(p =>
+                    p.Direction == PaymentDirection.Out
+                    && p.Amount > 0m
+                    && p.Currency != "USD"
+                    && p.AmountUsd == 0m)
             })
             .FirstOrDefaultAsync();
 
@@ -2090,6 +2102,8 @@ public class PaymentsController : Controller
         return new PaymentIndexSummary(
             TodayReceiptUsd: todayTotals?.ReceiptUsd ?? 0m,
             TodayPaymentUsd: todayTotals?.PaymentUsd ?? 0m,
+            TodayReceiptMissingUsdEquivalentCount: todayTotals?.ReceiptMissingUsdEquivalentCount ?? 0,
+            TodayPaymentMissingUsdEquivalentCount: todayTotals?.PaymentMissingUsdEquivalentCount ?? 0,
             CashAccountsBalanceUsd: cashTotals.Sum(p => p.TotalInUsd - p.TotalOutUsd),
             LastDocumentReference: lastDocument is null
                 ? null
@@ -4586,6 +4600,8 @@ public class PaymentsController : Controller
     private sealed record PaymentIndexSummary(
         decimal TodayReceiptUsd,
         decimal TodayPaymentUsd,
+        int TodayReceiptMissingUsdEquivalentCount,
+        int TodayPaymentMissingUsdEquivalentCount,
         decimal CashAccountsBalanceUsd,
         string? LastDocumentReference,
         DateTime? LastDocumentDate,

@@ -40,21 +40,36 @@
     };
     const string fallbackAvatar = "/images/stat-cards/ref-reports/rep-analysis.webp";
 
-    // دو تب مرکز گزارشات. کلید = "Controller|Action" همان مسیری که کنترلر می‌دهد؛
-    // هر گزارشی که اینجا نامش نیامده باشد در تب «عملیاتی» می‌ماند.
-    var financeReportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    var managementReportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
+        "Home|Index",
         "Reports|CompanyOverview",
+        "PeriodActivity|Index",
+        "ContractJourney|Index",
+        "Reports|ContractPnl",
+        "ShipmentPnl|Index",
+        "Reports|VesselVoyages"
+    };
+    var inventorySalesReportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Reports|InventoryOperations",
+        "Inventory|StockCard",
+        "InventoryTransportLegs|Index",
+        "Reports|NegativeStock",
+        "Sales|Index",
+        "Sales|PreSales",
+        "Reports|SellableStock",
+        "Reports|PreSaleDiscrepancies"
+    };
+    var financePartyReportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
         "Reports|ReceivablesPayables",
         "Reports|CashFlow",
         "AccountStatements|Index",
         "Balance|Contracts",
         "Expenses|Index",
         "LossEvents|Index",
-        "Reports|FxDifference",
-        "Ledger|Index",
-        "Reconciliation|Index",
-        "AuditLogs|Index"
+        "Reports|FxDifference"
     };
 
     var allCards = Model.Groups
@@ -70,20 +85,38 @@
     {
         new
         {
-            Id = "rep-operational",
-            Label = UiText.T(Context, "گزارش‌های عملیاتی", "Operational reports"),
-            Cards = allCards.Where(x => !financeReportKeys.Contains(x.Key)).ToList()
+            Id = "rep-management",
+            Label = UiText.T(Context, "مدیریت و قراردادها", "Management & contracts"),
+            Cards = allCards.Where(x => managementReportKeys.Contains(x.Key)).ToList()
         },
         new
         {
-            Id = "rep-financial",
-            Label = UiText.T(Context, "گزارش‌های مالی", "Financial reports"),
-            Cards = allCards.Where(x => financeReportKeys.Contains(x.Key)).ToList()
+            Id = "rep-inventory-sales",
+            Label = UiText.T(Context, "موجودی و فروش", "Inventory & sales"),
+            Cards = allCards.Where(x => inventorySalesReportKeys.Contains(x.Key)).ToList()
+        },
+        new
+        {
+            Id = "rep-finance-party",
+            Label = UiText.T(Context, "مالی و طرف‌حساب", "Finance & counterparties"),
+            Cards = allCards.Where(x => financePartyReportKeys.Contains(x.Key)).ToList()
+        },
+        new
+        {
+            Id = "rep-control",
+            Label = UiText.T(Context, "کنترل و انطباق", "Control & compliance"),
+            Cards = allCards.Where(x => !managementReportKeys.Contains(x.Key)
+                && !inventorySalesReportKeys.Contains(x.Key)
+                && !financePartyReportKeys.Contains(x.Key)).ToList()
         }
     };
 }
 
 <div class="rephub-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "گزارش‌ها", "Reports"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
     @* دو تب درون‌صفحه‌ای. موتور تب همان ptg-tabs.js مشترک سیستم است: هر تب با
        href="#id" پنل خودش را باز می‌کند، ARIA و کیبورد و hash را خودش می‌بندد. *@
     <div class="rephub-tabs" data-section-tabs="true">
@@ -112,13 +145,14 @@
                     var item = entry.Card;
                     var controller = string.IsNullOrEmpty(item.Controller) ? "Reports" : item.Controller;
                     var avatar = avatarMap.TryGetValue(entry.Key, out var mapped) ? mapped : fallbackAvatar;
+                    var optimizedAvatar = avatar.Replace("/images/stat-cards/", "/images/stat-cards/report-hub/", StringComparison.Ordinal);
                     var title = UiText.T(Context, item.TitleFa, item.TitleEn);
                     <a class="rephub-card"
                        asp-controller="@controller"
                        asp-action="@item.Action"
                        title="@title">
                         <span class="rephub-card-art">
-                            <img src="@avatar" alt="" aria-hidden="true" width="128" height="128" loading="lazy" decoding="async" />
+                            <img src="@optimizedAvatar" alt="" aria-hidden="true" width="128" height="128" loading="eager" decoding="async" />
                         </span>
                         <span class="rephub-card-title">@title</span>
                     </a>

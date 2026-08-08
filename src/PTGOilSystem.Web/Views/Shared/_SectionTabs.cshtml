@@ -45,23 +45,16 @@
     var operationTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
     {
         ("Loading",                "Index", T("بارگیری",       "Loading"),             "nav-operations", null),
-        ("InventoryTransportLegs", "Index", T("حمل موجودی", "Inventory Transfer"), "nav-assets",       null),
-        ("ShipmentPnl",            "Index", T("محموله‌ها", "Shipment files"), "nav-contracts", null),
-        ("Dispatch",               "Index", T("موترها", "Truck Sends"),            "nav-truck",             null),
-        ("TruckSettlements",       "Index", T("تسویه", "Truck Settlement"), "nav-finance",   null),
-        ("Expenses",               "Index", T("مصارف",      "Expenses"),            "nav-bill",    null),
-        ("LossEvents",             "Index", T("کسری",       "Loss Events"),         "nav-warning", null)
+        ("LoadingReceipts",        "Index", T("رسید",          "Loading Receipts"),    "nav-parties", null),
+        ("CustomsDeclarations",    "Index", T("کمرک",          "Customs"),             "nav-shield", null),
+        ("InventoryTransportLegs", "Index", T("حمل موجودی",    "Inventory Transfer"),  "nav-assets", null),
+        ("ShipmentPnl",            "Index", T("محموله‌ها",     "Shipment files"),      "nav-contracts", null),
+        ("Dispatch",               "Index", T("موترها",         "Truck Sends"),         "nav-truck", null),
+        ("Sales",                  "Index", T("فروش",           "Sales"),               "nav-sales", null),
+        ("TruckSettlements",       "Index", T("تسویه",          "Truck Settlement"),    "nav-finance", null),
+        ("Expenses",               "Index", T("مصارف",          "Expenses"),            "nav-bill", null),
+        ("LossEvents",             "Index", T("کسری",           "Loss Events"),         "nav-warning", null)
     };
-
-    operationTabs = operationTabs
-        .Concat(new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
-        {
-            ("LoadingReceipts", "Index", T("رسید", "Loading Receipts"), "nav-parties", null),
-            ("CustomsDeclarations", "Index", T("کمرک", "Customs"), "nav-shield", null),
-            ("Sales", "Index", T("فروش", "Sales"), "nav-sales", null)
-        })
-        .ToArray();
-
     var inventoryProfitTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
     {
         ("Inventory",  "Index",        T("حرکت‌های موجودی", "Inventory Movements"), "bi-box-seam-fill",             null)

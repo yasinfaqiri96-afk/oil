@@ -242,7 +242,9 @@ public sealed class ExpenseDetailsViewModel
     public int Id { get; init; }
     public DateTime ExpenseDate { get; init; }
     public string ExpenseTypeName { get; init; } = string.Empty;
+    public int? ContractId { get; init; }
     public string? ContractNumber { get; init; }
+    public int? ShipmentId { get; init; }
     public string? ShipmentCode { get; init; }
     public string? TruckDispatchLabel { get; init; }
     public string? TransportLegLabel { get; init; }

@@ -1091,6 +1091,7 @@ public class ContractJourneyViewStructureTests
     public void Loading_Details_Preserves_ReturnUrl_And_Falls_Back_To_Contract_Loading_List()
     {
         var controller = ReadRepoFile("src/PTGOilSystem.Web/Controllers/LoadingController.cs");
+        var receiptController = ReadRepoFile("src/PTGOilSystem.Web/Controllers/LoadingReceiptsController.cs");
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Details.cshtml");
 
         Assert.Contains("public async Task<IActionResult> Index(", controller);
@@ -1098,9 +1099,11 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("DateTime? toDate = null", controller);
         Assert.Contains("query = query.Where(l => l.ContractId == contractId.Value);", controller);
         Assert.Contains("public async Task<IActionResult> Details(int id, string? returnUrl = null)", controller);
-        Assert.Contains("BuildLoadingReceiptCreateModel", controller);
-        Assert.Contains("PopulateReceiptLookupsAsync(receiptEditor)", controller);
-        Assert.Contains("ReceiptEditor = receiptEditor", controller);
+        Assert.Contains("CanRegisterReceipt = remainingToReceiveMt > 0m", controller);
+        Assert.DoesNotContain("PopulateReceiptLookupsAsync(receiptEditor)", controller);
+        Assert.DoesNotContain("ReceiptEditor = receiptEditor", controller);
+        Assert.Contains("bool modal = false", receiptController);
+        Assert.Contains("return PartialView(\"_ReceiptCreateForm\", model);", receiptController);
         Assert.Contains("ViewBag.ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var localReturnUrl) ? localReturnUrl : null;", controller);
         Assert.Contains("ViewData[\"HideSectionTabs\"] = true;", view);
         Assert.Contains("var loadingListReturnUrl = Url.Action(\"Index\", \"Loading\", new { contractId = Model.ContractId }) ?? \"/Loading\";", view);
@@ -1109,7 +1112,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("(string?)effectiveReturnUrl", view);
         Assert.Contains("ModalTarget = \"loadingReceiptModal\"", view);
         Assert.Contains("id=\"loadingReceiptModal\"", view);
-        Assert.Contains("_ReceiptCreateForm.cshtml", view);
+        // فرم رسید به‌صورت remote داخل مودال بارگذاری می‌شود (partial درون‌خطی حذف شده است).
+        Assert.Contains("data-receipt-remote-modal", view);
+        Assert.Contains("data-receipt-url=\"@receiptEditorUrl\"", view);
+        Assert.Contains("Url.Action(\"Create\", \"LoadingReceipts\", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl, modal = true })", view);
         Assert.Contains("var loadingExpenseTotal = Model.LoadingExpenseTotalUsd;", view);
         Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page\"", view);
         Assert.Contains("_AkPageHeader", view);

@@ -27,13 +27,13 @@
                 <th>شرح</th>
                 <th class="text-end">مقدار MT</th>
                 <th class="text-end">نرخ/قیمت</th>
-                <th class="text-end sl-rub" title="@receiptMeaning">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "RUB", Context)</th>
-                <th class="text-end sl-rub" title="@outflowMeaning">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "RUB", Context)</th>
-                <th class="text-end sl-rub">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Balance, "RUB", Context)</th>
+                <th class="text-end sl-rub" title="@receiptMeaning">رسیدگی RUB</th>
+                <th class="text-end sl-rub" title="@outflowMeaning">بردگی RUB</th>
+                <th class="text-end sl-rub">بیلانس RUB</th>
                 <th class="text-end">نرخ دالر</th>
-                <th class="text-end sl-usd" title="@receiptMeaning">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Receipt, "USD", Context)</th>
-                <th class="text-end sl-usd" title="@outflowMeaning">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Outflow, "USD", Context)</th>
-                <th class="text-end sl-usd">@CompanyFlowText.WithCurrency(CompanyFlowTextKey.Balance, "USD", Context)</th>
+                <th class="text-end sl-usd" title="@receiptMeaning">رسیدگی USD</th>
+                <th class="text-end sl-usd" title="@outflowMeaning">بردگی USD</th>
+                <th class="text-end sl-usd">بیلانس USD</th>
             </tr>
         </thead>
         <tbody>
@@ -83,7 +83,7 @@
                 <td class="text-end sl-rub">
                     @if (row.RunningBalanceOriginal.HasValue)
                     {
-                        <span class="ak-num sl-balance">@NumberDisplay.Money(Math.Abs(row.RunningBalanceOriginal.Value))</span>
+                        <span class="ak-num sl-balance">@NumberDisplay.Money(row.RunningBalanceOriginal.Value)</span>
                     }
                     else
                     {
@@ -103,10 +103,7 @@
                 <td class="text-end ak-num sl-usd sl-credit">@Money2(row.ReceiptUsd)</td>
                 <td class="text-end ak-num sl-usd sl-debit">@Money2(row.OutflowUsd)</td>
                 <td class="text-end sl-usd">
-                    <span class="statement-balance-stack">
-                        <strong class="ak-num @(row.RunningBalanceUsd < 0 ?"ak-num" : row.RunningBalanceUsd > 0 ? "ak-num" : "")">@NumberDisplay.Money(Math.Abs(row.RunningBalanceUsd))</strong>
-                        <small>@(row.RunningBalanceUsd < 0 ? "قابل پرداخت" : row.RunningBalanceUsd > 0 ? "طلب شرکت" : "تسویه")</small>
-                    </span>
+                    <strong class="ak-num">@NumberDisplay.Money(row.RunningBalanceUsd)</strong>
                 </td>
             </tr>
         }

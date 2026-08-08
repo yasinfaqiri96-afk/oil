@@ -31,7 +31,7 @@
                 <th>ارزش قطعی</th>
                 <th>پرداخت / دریافت</th>
                 <th>تعداد بارگیری</th>
-                <th>مانده قرارداد</th>
+                <th>بیلانس قرارداد</th>
                 <th class="statement-col-actions no-print">جزئیات</th>
             </tr>
         </thead>
@@ -57,13 +57,8 @@
                         <td class="statement-money statement-debit">@BaseAmount(row.ConfirmedValue, row.ConfirmedValueRub)</td>
                         <td class="statement-money statement-credit">@BaseAmount(row.SettlementTotal, row.SettlementTotalRub)</td>
                         <td class="statement-money">@row.LoadingCount.ToString("N0")</td>
-                        @* مانده بدون علامت؛ جهت در عنوان می‌آید — همان متنِ خلاصهٔ قراردادها، PDF و Excel. *@
                         <td class="statement-money statement-balance">
-                            @Amount(row.BalanceAbsoluteFor(isRub))
-                            @if (row.BalanceTitleFor(isRub) is { } balanceTitle)
-                            {
-                                <small class="statement-contract-sub">@balanceTitle</small>
-                            }
+                            @Amount(isRub ? row.BalanceRub : row.Balance)
                         </td>
                         <td class="statement-col-actions no-print">
                             @if (row.ContractId.HasValue)
@@ -90,16 +85,13 @@
         </tbody>
         <tfoot>
             <tr>
-                <th colspan="2">@CompanyFlowText.PeriodTotal(Context)</th>
+                <th colspan="2">جمع دوره</th>
                 <th class="statement-money">–</th>
                 <th class="statement-money statement-debit">@BaseAmount(g.TotalConfirmedValue, g.TotalConfirmedValueRub)</th>
                 <th class="statement-money statement-credit">@BaseAmount(g.TotalSettlement, g.TotalSettlementRub)</th>
                 <th class="statement-money">@g.TotalLoadingCount.ToString("N0")</th>
-                @* جمع دوره ماندهٔ حسابِ طرف است، نه ماندهٔ یک قرارداد؛ ولی آن هم بدون علامت
-                   و با معنای خودش نمایش داده می‌شود تا ستون نیمه‌علامت‌دار نماند. *@
                 <th class="statement-money statement-balance">
-                    @Amount(isRub ? s.Summary.ClosingBalanceRubAbsolute : s.Summary.ClosingBalanceAbsolute)
-                    <small class="statement-contract-sub">@s.Summary.ClosingBalanceMeaningFor(UiText.IsEn(Context))</small>
+                    @Amount(isRub ? s.Summary.ClosingBalanceRub : s.Summary.ClosingBalance)
                 </th>
                 <th class="no-print"></th>
             </tr>

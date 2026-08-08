@@ -155,6 +155,20 @@ public sealed class CompanyFlowTextTests
     }
 
     [Fact]
+    public void PartyBalanceMeaning_StatesTheCompanyDirectionExplicitly()
+    {
+        Assert.Equal(
+            "شرکت از طرف‌حساب طلبکار است",
+            CompanyFlowText.BalanceMeaning(1m, CompanyFlowAccountKind.PartyAccount, isEnglish: false));
+        Assert.Equal(
+            "شرکت به طرف‌حساب بدهکار است",
+            CompanyFlowText.BalanceMeaning(-1m, CompanyFlowAccountKind.PartyAccount, isEnglish: false));
+        Assert.Equal(
+            "حساب تسویه است",
+            CompanyFlowText.BalanceMeaning(0m, CompanyFlowAccountKind.PartyAccount, isEnglish: false));
+    }
+
+    [Fact]
     public void EveryPartyPolicy_TranslatesItsColumnMeaningsWithoutFlippingTheSign()
     {
         var resolver = new PartyStatementPolicyResolver();
@@ -193,20 +207,17 @@ public sealed class CompanyFlowTextTests
             statement, "stem", "USD", [], isEnglish: false);
 
         var flow = details.Columns.TakeLast(3).ToArray();
-        Assert.Equal("رسید (USD)", flow[0].TitleFa);
+        Assert.Equal("رسیدگی (USD)", flow[0].TitleFa);
         Assert.Equal("Debit (USD)", flow[0].TitleEn);
-        Assert.Equal("برد (USD)", flow[1].TitleFa);
+        Assert.Equal("بردگی (USD)", flow[1].TitleFa);
         Assert.Equal("Credit (USD)", flow[1].TitleEn);
         Assert.Equal("بیلانس (USD)", flow[2].TitleFa);
         Assert.Equal("Balance (USD)", flow[2].TitleEn);
 
         Assert.Contains(summary.Columns, c => c.TitleFa == "ارزش قطعی" && c.TitleEn == "Confirmed value");
         Assert.Contains(summary.Columns, c => c.TitleFa == "پرداخت / دریافت" && c.TitleEn == "Payment / receipt");
-        // مانده قرارداد بدون علامت است و جهتش در ستون «وضعیت مانده» کنارش می‌آید.
-        Assert.Equal("مانده قرارداد", summary.Columns[^2].TitleFa);
-        Assert.Equal("Contract balance", summary.Columns[^2].TitleEn);
-        Assert.Equal("وضعیت مانده", summary.Columns[^1].TitleFa);
-        Assert.Equal("Balance status", summary.Columns[^1].TitleEn);
+        Assert.Equal("بیلانس قرارداد", summary.Columns[^1].TitleFa);
+        Assert.Equal("Contract balance", summary.Columns[^1].TitleEn);
     }
 
     [Fact]
@@ -218,7 +229,7 @@ public sealed class CompanyFlowTextTests
         var persian = SupplierStatementExport.BuildSummaryDocument(statement, grouping, "stem", "USD", [], isEnglish: false);
         var english = SupplierStatementExport.BuildSummaryDocument(statement, grouping, "stem", "USD", [], isEnglish: true);
 
-        // فقط ارقام مقایسه می‌شوند: سلول‌های متنی (مثل «وضعیت مانده») عمداً ترجمه می‌شوند.
+        // فقط ارقام مقایسه می‌شوند؛ زبان عنوان‌ها روی مقدارهای مالی اثر ندارد.
         static object?[] Numbers(TabularExportDocument document) => document.Rows
             .SelectMany(row => row.Cells)
             .Where(cell => cell.ValueType is TabularExportValueType.Number
@@ -254,7 +265,7 @@ public sealed class CompanyFlowTextTests
     }
 
     // ------------------------------------------------------------------
-    // ۱۰ — هیچ عنوان hardcode در View، Controller، PDF یا Excel نمانده است
+    // ۱۰ — تمام سطح‌های Statement از قرارداد نمایشی واحد استفاده می‌کنند
     // ------------------------------------------------------------------
 
     [Theory]
@@ -268,23 +279,25 @@ public sealed class CompanyFlowTextTests
     [InlineData("src/PTGOilSystem.Web/Views/Shared/Partials/_SupplierStatementLedger.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Controllers/SupplierStatementExport.cs")]
     [InlineData("src/PTGOilSystem.Web/Services/Exports/PartyStatementPdfDocument.cs")]
-    public void StatementSurfaces_NeverHardcodeAFlowColumnTitle(string relativePath)
+    public void StatementSurfaces_UseTheOfficialFlowLabels_WithoutBalanceNarratives(string relativePath)
     {
         var text = File.ReadAllText(GetRepoPath(relativePath));
 
         foreach (var forbidden in new[]
         {
-            ">رسید<", ">برد<", ">بیلانس<",
-            "\"رسید\"", "\"برد\"", "\"بیلانس\"",
-            ">DEBIT<", ">CREDIT<", ">BALANCE<",
-            "\"Balance\"", "\"Debit\"", "\"Credit\"",
-            "مجموع رسید", "مجموع برد"
+            "ClosingBalanceMeaningFor", "BalanceMeaning(",
+            "مانده بدهکار", "مانده بستانکار", "وضعیت مانده"
         })
         {
             Assert.DoesNotContain(forbidden, text, StringComparison.Ordinal);
         }
 
-        Assert.Contains("CompanyFlowText", text, StringComparison.Ordinal);
+        Assert.Contains("بیلانس", text, StringComparison.Ordinal);
+        if (!relativePath.EndsWith("_SupplierContractStatement.cshtml", StringComparison.Ordinal))
+        {
+            Assert.Contains("رسیدگی", text, StringComparison.Ordinal);
+            Assert.Contains("بردگی", text, StringComparison.Ordinal);
+        }
     }
 
     // ------------------------------------------------------------------

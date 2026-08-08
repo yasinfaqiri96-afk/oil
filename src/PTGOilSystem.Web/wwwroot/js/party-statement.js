@@ -53,6 +53,21 @@
                 toggleContractDetails(button);
             });
         });
+
+        document.querySelectorAll("[data-statement-print]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                var printUrl = button.getAttribute("data-print-url");
+                if (printUrl) {
+                    window.open(printUrl, "_blank", "noopener");
+                    return;
+                }
+                window.print();
+            });
+        });
+
+        if (document.querySelector('[data-statement-auto-print="true"]')) {
+            window.setTimeout(function () { window.print(); }, 150);
+        }
     });
 
     // صفحه‌بندی داخل محتوای lazy نیز بدون بستن گروه، همان slot را تازه می‌کند.

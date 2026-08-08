@@ -10,7 +10,7 @@
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
     var bal = officialSummary?.ClosingBalance ?? Model.LedgerBalanceUsd;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
-        ?? (bal > 0 ? "مشتری به شرکت بدهکار است" : bal < 0 ? "اعتبار / طلب مشتری از شرکت" : "حساب تسویه است");
+        ?? CompanyFlowText.BalanceMeaning(bal, CompanyFlowAccountKind.PartyAccount, Context);
     // tone فقط جهت مالی را نشان می‌دهد: طلب شرکت سبز، بدهی شرکت سرخ، تسویه خنثی.
     var balanceTone = bal > 0 ? "success" : bal < 0 ? "danger" : null;
 
