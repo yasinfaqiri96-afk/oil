@@ -20,9 +20,9 @@
     // ترکیب فروش — سه حلقه هم‌مرکز.
     var mixSegments = new[]
     {
-        new { label = T("فروش", "Sales"),                  value = Model.SalesCount,             color = "#22c55e" },
-        new { label = T("در انتظار پرداخت", "Pending"),     value = Model.SalesWithoutPaymentCount, color = "#f5a524" },
-        new { label = T("کسری", "Shortage"),               value = Model.ShortageCount,          color = "#f4511e" }
+        new { label = T("فروش", "Sales"),                  value = Model.SalesCount,             color = "var(--ptg-chart-positive)" },
+        new { label = T("در انتظار پرداخت", "Pending"),     value = Model.SalesWithoutPaymentCount, color = "var(--ptg-chart-warning)" },
+        new { label = T("کسری", "Shortage"),               value = Model.ShortageCount,          color = "var(--ptg-chart-negative)" }
     };
     var mixTotal = mixSegments.Sum(s => s.value);
     var mixJson = JsonSerializer.Serialize(mixSegments);

@@ -368,6 +368,19 @@ a.ptg-person-name:focus-visible {
     color: var(--ptg-draft-text, #6b7280);
 }
 
+/* Phase 3: Neutral accounting flow states for Debit / Credit */
+.ak-status.ak-flow-debit {
+    background: var(--ptg-flow-debit-bg, #EFF6FF);
+    color: var(--ptg-flow-debit-color, #1D4ED8);
+    border: 1px solid var(--ptg-flow-debit-border, #BFDBFE);
+}
+
+.ak-status.ak-flow-credit {
+    background: var(--ptg-flow-credit-bg, #ECFDF5);
+    color: var(--ptg-flow-credit-color, #047857);
+    border: 1px solid var(--ptg-flow-credit-border, #A7F3D0);
+}
+
 /* عدد + کپسول واحد: در سطرهای پرعدد، واحدِ پول/محصول را از رقم جدا و رنگی می‌کند. */
 .ak-amount {
     display: inline-flex;
@@ -3169,9 +3182,14 @@ select.ak-input {
     scrollbar-width: thin;
 }
 
+/* Fixed layout: each column is sized from its own content (a date, a price, a
+   wagon number), not from the intrinsic width of the input/select inside it.
+   With `auto` a bare <input> claims its ~20-character default size and every
+   <select> claims its longest option, which pushed the row past 2100px and
+   forced horizontal scroll on every screen. */
 .loading-import-workbook .ak-table {
-    table-layout: auto;
-    min-width: 2100px;
+    table-layout: fixed;
+    min-width: 1180px;
 }
 
 .loading-import-workbook .ak-table > thead > tr > th,
@@ -3179,68 +3197,103 @@ select.ak-input {
     padding: 6px 8px;
 }
 
+/* Transport labels are dynamic and long («Bill of Lading / بارنامه کشتی»); the
+   header wraps instead of dictating the column width. */
+.loading-import-workbook .ak-table > thead > tr > th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 .loading-import-workbook .ak-table > tbody > tr > td {
     vertical-align: middle;
 }
 
-/* Controls fill a readable cell; they no longer collapse until their content
-   is clipped. */
 .loading-import-workbook .ak-table td .ak-input {
     width: 100%;
-    min-width: 112px;
+    min-width: 0;
     height: 36px;
-    padding: 0 10px;
+    padding: 0 8px;
     border-radius: var(--ptg-radius-sm, 6px);
     font-size: 13px;
 }
 
-.loading-import-workbook .ak-table td [data-loading-date-picker] {
-    min-width: 132px;
-}
-
 .loading-import-workbook .ak-table td [data-loading-logistics-pair] {
     display: flex;
-    gap: 8px;
-    min-width: 300px;
+    gap: 6px;
 }
 
 .loading-import-workbook .ak-table td [data-loading-logistics-pair] > * {
     flex: 1 1 0;
-    min-width: 140px;
+    min-width: 0;
 }
 
-.loading-import-workbook .ak-table td[data-loading-contract-cell] {
-    min-width: 180px;
-}
+/* Per-column widths, ordered as the header row: #, قرارداد, تاریخ, مرجع,
+   وسیله حمل, مقدار, فی تن, ارزش, روبل فی تن, ارزش روبلی, نرخ روبل,
+   معادل روبلی, ترانسپورت, کرایه فی تن, گیرنده, مقصد, actions. */
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(2),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(2) { width: 132px; }
 
-.loading-import-workbook .ak-table > thead > tr > :is(th:nth-child(4), th:nth-child(5), th:nth-last-child(3), th:nth-last-child(2)),
-.loading-import-workbook .ak-table > tbody > tr > :is(td:nth-child(4), td:nth-child(5), td:nth-last-child(3), td:nth-last-child(2)) {
-    min-width: 150px;
-}
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(3),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(3) { width: 104px; }
 
-.loading-import-workbook .ak-table > thead > tr > th.ak-col-num,
-.loading-import-workbook .ak-table > tbody > tr > td.ak-col-num {
-    min-width: 112px;
-}
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(4),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(4) { width: 116px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(5),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(5) { width: 116px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(6),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(6) { width: 84px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(7),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(7) { width: 84px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(8),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(8) { width: 106px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(9),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(9) { width: 100px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(10),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(10) { width: 110px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(11),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(11) { width: 92px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(12),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(12) { width: 110px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(13),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(13) { width: 248px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(14),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(14) { width: 92px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(15),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(15) { width: 128px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(16),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(16) { width: 116px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:first-child,
 .loading-import-workbook .ak-table > tbody > tr > td:first-child {
     width: 34px;
-    max-width: 34px;
     padding-inline: 4px;
 }
 
 .loading-import-workbook .ak-table > thead > tr > th.ak-col-actions,
 .loading-import-workbook .ak-table > tbody > tr > td.ak-col-actions {
     width: 40px;
-    max-width: 40px;
     padding-inline: 2px;
 }
 
-/* Computed money/quantity cells stay complete; the table wrapper owns overflow. */
+/* Computed money/quantity cells: full value on hover/title, ellipsis instead of
+   a column wide enough for the longest number ever produced. */
 .loading-import-workbook .ak-table td.ak-col-num > span {
     display: block;
-    min-width: 112px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     direction: ltr;
     unicode-bidi: isolate;

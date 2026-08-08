@@ -42,6 +42,22 @@
     --info-main: #006EA6;
     --info-rgb: 0, 110, 166;
 
+    /* ---- Dashboard & Data Visualization Tokens ---- */
+    --ptg-chart-positive: #22C55E;
+    --ptg-chart-warning: #F5A524;
+    --ptg-chart-negative: #F4511E;
+    --ptg-chart-neutral: #7779A2;
+    --ptg-chart-incoming: #8BB475;
+    --ptg-chart-outgoing: #FB7185;
+
+    /* ---- Accounting Flow Tokens (Phase 3: Neutral Accounting Semantics) ---- */
+    --ptg-flow-debit-color: #1D4ED8;
+    --ptg-flow-debit-bg: #EFF6FF;
+    --ptg-flow-debit-border: #BFDBFE;
+    --ptg-flow-credit-color: #047857;
+    --ptg-flow-credit-bg: #ECFDF5;
+    --ptg-flow-credit-border: #A7F3D0;
+
     /* ---- Sidebar / shell — Deep Navy (the same hue --primary-main now carries).
        Dark navigation + light content: the premium financial-ERP hierarchy.
        Every sidebar colour is centralised here; 04-sidebar.css only references
@@ -68,10 +84,15 @@
     --ptg-sidebar-rail-width: var(--layout-sidebar-mini);
     --ptg-sidebar-menu-width: var(--layout-sidebar);
 
-    /* ---- Radius (Akaunting: controls only, no card radius) ---- */
-    --radius-base: 8px;      /* input / modal / rounded-lg */
-    --radius-card-16: 8px;   /* flat: former big card radius collapses to 8 */
-    --radius-chip: 12px;     /* badge / button / rounded-xl */
+    /* ---- Radius (Phase 2: Standardized Enterprise Radii) ---- */
+    --radius-base: 8px;        /* input / select / textarea / control */
+    --radius-input: 8px;       /* form controls */
+    --radius-card: 8px;        /* panels, stat cards, containers */
+    --radius-card-16: 8px;     /* flat: former big card radius collapses to 8 */
+    --radius-table: 8px;       /* table wrapper / table card frame */
+    --radius-btn: 12px;        /* primary / secondary action buttons */
+    --radius-chip: 12px;       /* filter chips, status badges */
+    --radius-pill: 999px;      /* round status badges */
 
     /* ---- Shadows — flat content; depth only for overlay components ---- */
     --shadow-card: none;

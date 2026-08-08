@@ -23,8 +23,11 @@
         : payableUsd < 0
             ? "طلب ما از صراف"
             : "حساب تسویه است");
-    // tone فقط جهت مالی را نشان می‌دهد: بدهی شرکت سرخ، طلب شرکت سبز، تسویه خنثی.
-    var payableTone = payableUsd > 0 ? "danger" : payableUsd < 0 ? "success" : null;
+    // tone باید از همان علامتی بیاید که متن معنی از آن ساخته شده؛ وگرنه رنگ و متن وارونه
+    // می‌شوند. صورت‌حساب رسمی: مثبت = طلب شرکت (سبز). نبودِ صورت‌حساب: علامتِ مدل صفحه.
+    var payableTone = officialSummary is not null
+        ? officialSummary.ClosingBalanceTone
+        : payableUsd > 0 ? "danger" : payableUsd < 0 ? "success" : null;
 
     var officialRecentRows = ViewData["PartyStatementRecentRows"] as IReadOnlyList<PTGOilSystem.Web.Models.PartyStatements.PartyStatementRow> ?? [];
     var lastRow = officialRecentRows.FirstOrDefault();

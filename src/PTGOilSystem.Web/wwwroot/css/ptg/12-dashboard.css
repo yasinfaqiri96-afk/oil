@@ -14,11 +14,11 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     margin-inline: 0;
     color: var(--text-primary);
 
-    --dash-green: #22c55e;
-    --dash-amber: #f5a524;
-    --dash-red: #f4511e;
-    --dash-blue: var(--primary-main, #2f6bff);
-    --dash-card-radius: 16px;
+    --dash-green: var(--ptg-chart-positive, #22C55E);
+    --dash-amber: var(--ptg-chart-warning, #F5A524);
+    --dash-red: var(--ptg-chart-negative, #F4511E);
+    --dash-blue: var(--primary-main, #173F73);
+    --dash-card-radius: var(--radius-card, 8px);
     --dash-card-border: 0;
     /* The dashboard card is the reference for the system-wide panel treatment;
        both now read the same token (01-tokens.css / 72-surfaces.css). */

@@ -5,12 +5,9 @@
    برچسب ستون موبایل، نرمال‌سازی ارقام) روی این صفحه اعمال نشود.
    ========================================================================= */
 
-/* رزنامچه یک فهرست ۱۱ ستونی است؛ سقف مشترک صفحه برایش تنگ است. مثل
-   .ak-group-operation-page--wide فقط سقف عرض همین صفحه بالا می‌رود و زیر آن
-   سقف، عرض ۱۰۰٪ و کاملاً responsive می‌ماند. */
-body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-journal-page) {
-    max-inline-size: max(1520px, var(--layout-content-max));
-}
+/* پس از حذف ستون «شرح»، جدول ۹ ستونی است و دیگر به سقف عرض اختصاصی نیاز ندارد؛
+   همان سقف مشترک .finance-workspace-page استفاده می‌شود تا صفحه با بقیهٔ
+   صفحه‌های مالی هم‌عرض بماند. */
 
 .ak-journal-page .ak-journal-card {
     margin-block-start: 12px;
@@ -31,8 +28,12 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-journal-page)
 
 .ak-journal-page .ak-journal-table {
     inline-size: 100%;
-    min-inline-size: 1180px;
-    table-layout: fixed;
+    /* حداقل عرضی که در آن هیچ‌کدام از ۹ ستون محتوای خودش را نمی‌بُرد؛
+       زیر این مقدار کارت افقی اسکرول می‌شود، نه اینکه متن ناقص شود. */
+    min-inline-size: 960px;
+    /* auto مثل .ak-table سیستم: عرض هر ستون از محتوای واقعی همان ستون می‌آید،
+       نه از درصدِ حدسی؛ فضای آزاد را ستون «نام» (col با width:100%) می‌گیرد. */
+    table-layout: auto;
     border-collapse: collapse;
     background: #FFFFFF;
     font-family: "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
@@ -41,7 +42,7 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-journal-page)
 
 /* ---- هدر: کوچک، خاکستری روشن، فقط یک خط جداکنندهٔ افقی ---- */
 .ak-journal-page .ak-journal-table > thead > tr > th {
-    padding: 13px 18px;
+    padding: 13px 16px;
     font-size: 11.5px;
     font-weight: 500;
     line-height: 16px;
@@ -67,14 +68,12 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-journal-page)
 }
 
 .ak-journal-page .ak-journal-table > tbody > tr > td {
-    padding: 15px 18px;
+    padding: 15px 16px;
     font-size: 12.5px;
     line-height: 20px;
     color: #475467;
     vertical-align: middle;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     border-block-end: 1px solid #F3F5F8;
 }
 
@@ -105,8 +104,15 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-journal-page)
     color: #101828;
 }
 
-.ak-journal-page .ak-journal-table > tbody > tr > td.jr-desc {
-    color: #475467;
+/* نام تنها ستون کشسان جدول است؛ سقف عرض دارد تا یک نام بلند کل جدول را
+   پهن نکند و بقیهٔ ستون‌ها را از فضای خودشان نیندازد. */
+.ak-journal-page .jr-name-text {
+    display: inline-block;
+    max-inline-size: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
 }
 
 .ak-journal-page .ak-journal-table > tbody > tr > td.jr-date {

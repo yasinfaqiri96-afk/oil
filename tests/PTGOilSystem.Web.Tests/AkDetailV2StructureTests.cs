@@ -249,20 +249,39 @@ public sealed class AkDetailV2StructureTests
 
         Assert.Contains("data-operational-asset-details", view);
         Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
-        Assert.DoesNotContain("_DetailSummaryCard.cshtml", view);
+
+        // The page identity facts live in the one shared summary card above the tabs — the same
+        // partial every other master-data Details view uses — not in a KPI strip and not in a
+        // "status" tab. Exactly one card, and it must precede the tab strip, otherwise the page
+        // is no longer summary-then-tabs.
+        Assert.Equal(1, Count(view, "_DetailSummaryCard.cshtml"));
+        Assert.True(
+            view.IndexOf("_DetailSummaryCard.cshtml", StringComparison.Ordinal)
+                < view.IndexOf("_DetailsTabs.cshtml", StringComparison.Ordinal));
+        Assert.Contains("_DetailAdvancedSection.cshtml", view);
         Assert.Equal(3, Count(view, "class=\"modal fade oa-action-modal\""));
         Assert.Contains("id=\"oaOwnershipModal\"", view);
         Assert.Contains("id=\"oaRentModal\"", view);
         Assert.Contains("id=\"oaExpenseModal\"", view);
         Assert.Equal(3, Count(view, "data-bs-toggle=\"modal\""));
-        Assert.Equal(3, Count(view, "@Html.AntiForgeryToken()"));
         Assert.DoesNotContain("data-oa-reopen", view);
 
+        // Every POST on the page carries a token — the three modal forms plus the per-row rent
+        // cancel form. Counting against the forms rather than a fixed number means adding another
+        // action cannot silently ship an unprotected POST.
+        Assert.Equal(Count(view, "method=\"post\""), Count(view, "@Html.AntiForgeryToken()"));
+        Assert.Contains("asp-action=\"CancelRent\"", view);
+        Assert.Contains(".operational-asset-details-page .oa-row-action", css);
+
+        // Every structural hook the view emits is styled in the page's own scoped block — no
+        // inline styles and no orphan selectors for markup the page no longer renders.
         Assert.Contains(".ak-detail-page.operational-asset-details-page", css);
-        Assert.Contains(".operational-asset-details-page .tab-pane > .ak-list", css);
-        Assert.Contains(".operational-asset-details-page [data-oa-split]", css);
+        Assert.Contains(".operational-asset-details-page > .ak-summary-card", css);
+        Assert.Contains(".operational-asset-details-page .oa-period-zone", css);
+        Assert.Contains(".operational-asset-details-page .oa-block-head", css);
         Assert.Contains(".operational-asset-details-page .oa-modal-trigger", css);
         Assert.Contains(".operational-asset-details-page .oa-action-modal .modal-dialog", css);
+        Assert.DoesNotContain("style=\"", view);
     }
 
     [Fact]

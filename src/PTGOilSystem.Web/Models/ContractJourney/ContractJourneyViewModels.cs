@@ -444,6 +444,9 @@ public sealed class ContractJourneyReceiptItemViewModel
 {
     public int Id { get; init; }
     public int LoadingRegisterId { get; init; }
+    // شمارهٔ واقعی همان بارگیری (پلاک/واگن/RWB/بارنامه) — همان چیزی که در تب بارگیری
+    // به‌عنوان «نمبر وسیله» نمایش داده می‌شود؛ فقط برای نمایش.
+    public string? LoadingVehicleNumber { get; init; }
     public DateTime ReceiptDate { get; init; }
     public decimal ReceivedQuantityMt { get; init; }
     public string TerminalName { get; init; } = string.Empty;

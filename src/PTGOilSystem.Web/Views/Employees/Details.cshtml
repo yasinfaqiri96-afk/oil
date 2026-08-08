@@ -16,8 +16,11 @@
     var bal = officialSummary?.ClosingBalance ?? summary.BalanceUsd;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (bal > 0 ? "قابل پرداخت به کارمند" : bal < 0 ? "بدهی کارمند به شرکت" : "حساب تسویه است");
-    // tone فقط جهت مالی را نشان می‌دهد: بدهی شرکت سرخ، طلب شرکت سبز، تسویه خنثی.
-    var balanceTone = bal > 0 ? "danger" : bal < 0 ? "success" : null;
+    // tone باید از همان علامتی بیاید که متن معنی از آن ساخته شده؛ وگرنه رنگ و متن وارونه
+    // می‌شوند. صورت‌حساب رسمی: مثبت = طلب شرکت (سبز). نبودِ صورت‌حساب: علامتِ مدل صفحه.
+    var balanceTone = officialSummary is not null
+        ? officialSummary.ClosingBalanceTone
+        : bal > 0 ? "danger" : bal < 0 ? "success" : null;
 
     var dates = new List<DateTime>();
     dates.AddRange(Model.Transactions.Select(t => t.TransactionDate));

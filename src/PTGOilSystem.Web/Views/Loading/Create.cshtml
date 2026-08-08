@@ -204,7 +204,9 @@
 
         @* کارت‌های آماری از همان کامپوننت مشترک سیستم (vc:stat-card / ak-stat-grid) — دقیقاً مثل بقیهٔ صفحه‌ها.
            مقدارها زنده‌اند و اسکریپت پایین همین ویو داخل [data-ak-stat-value] هر کارت می‌نویسد. *@
-        <section class="ak-stat-grid" aria-label="خلاصه ثبت بارگیری">
+        @* تا وقتی هیچ سطری داده ندارد (نه دستی، نه از اکسل) کارت‌ها پنهان‌اند؛
+           اسکریپت پایین با شمارش سطرهای دارای مقدار آن‌ها را نشان می‌دهد. *@
+        <section class="ak-stat-grid d-none" data-loading-stats aria-label="خلاصه ثبت بارگیری">
             <vc:stat-card title="مقدار بارگیری" value="@NumberDisplay.Quantity(initialTotalQuantityMt)" unit="MT"
                           avatar="loading" css-class="lic-stat-quantity"></vc:stat-card>
             <vc:stat-card title="ارزش بارگیری" value="@NumberDisplay.Money(initialLoadingValueUsd)" unit="USD"
@@ -237,7 +239,12 @@
                     </button>
                     @* بدون name تا هرگز همراه فرم ارسال نشود؛ فایل با fetch فرستاده می‌شود. *@
                     <input type="file" class="d-none" accept=".xlsx" data-loading-import-file aria-label="فایل اکسل بارگیری" />
-                    <a href="@importSampleUrl" class="ak-btn ak-btn--ghost" data-loading-import-sample>فایل نمونه</a>
+                    @* «فایل نمونه» به‌جای دانلود مستقیم، راهنمای ستون‌های موردنیاز فایل را باز می‌کند؛
+                       خودِ فایل نمونه از داخل همان مودال قابل دانلود است. *@
+                    <button type="button" class="ak-btn ak-btn--ghost"
+                            data-bs-toggle="modal" data-bs-target="#loadingImportGuideModal" data-loading-import-guide>
+                        <i class="bi bi-info-circle" aria-hidden="true"></i> راهنمای فایل نمونه
+                    </button>
                 </div>
                 <div class="lic-toolbar-controls">
                     <input type="search" class="lic-search" data-lic-search placeholder="جستجو در RWB، واگن، گیرنده، مقصد" aria-label="جستجو در سطرها" />
@@ -364,6 +371,122 @@
                     <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
                 </div>
                 <div class="loading-date-days" data-loading-date-days></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* راهنمای فایل اکسل — بیرون از .loading-import-workbook می‌ماند تا عرض‌های ستونیِ
+   جدول سطرهای بارگیری روی جدول راهنما اثر نگذارد. عنوان‌های ستون دقیقاً همان‌هایی
+   است که LoadingWorkbookParser می‌شناسد. *@
+<div class="modal fade" id="loadingImportGuideModal" tabindex="-1" aria-labelledby="loadingImportGuideModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" dir="rtl">
+            <div class="modal-header">
+                <h2 class="modal-title" id="loadingImportGuideModalLabel">راهنمای فایل اکسل بارگیری</h2>
+                <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="بستن"></button>
+            </div>
+            <div class="modal-body">
+                <p class="ak-section-desc">
+                    فایل باید یکی از دو ساختار «موتر» یا «واگن» را داشته باشد. ترتیب ستون‌ها آزاد است و
+                    بزرگی/کوچکی حروف، فاصله و علائم در عنوان ستون‌ها نادیده گرفته می‌شود.
+                </p>
+                <div class="ak-table-wrap">
+                    <table class="ak-table">
+                        <thead>
+                            <tr>
+                                <th>فیلد سیستم</th>
+                                <th>عنوان ستون در اکسل (هر کدام)</th>
+                                <th>وضعیت</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>تاریخ بارگیری</td>
+                                <td>Date · Loading date · تاریخ</td>
+                                <td>الزامی — هر دو فایل</td>
+                            </tr>
+                            <tr>
+                                <td>شماره سند</td>
+                                <td>CMR · CMR No · Reference No</td>
+                                <td>الزامی — فایل موتر</td>
+                            </tr>
+                            <tr>
+                                <td>نمبر موتر</td>
+                                <td>Trucks · Truck · Truck number · Plate number · نمبر موتر</td>
+                                <td>الزامی — فایل موتر</td>
+                            </tr>
+                            <tr>
+                                <td>شماره سند</td>
+                                <td>RWB No · RWB · Bill of lading · CMR</td>
+                                <td>الزامی — فایل واگن</td>
+                            </tr>
+                            <tr>
+                                <td>نمبر واگن</td>
+                                <td>Wagon No · Wagon number · Wagons</td>
+                                <td>الزامی — فایل واگن</td>
+                            </tr>
+                            <tr>
+                                <td>مقدار بارگیری (MT)</td>
+                                <td>Loaded quantity (MT) · Loaded quantity · Quantity MT · Weight · Net weight · وزن</td>
+                                <td>الزامی — هر دو فایل</td>
+                            </tr>
+                            <tr>
+                                <td>قیمت فی تن (USD)</td>
+                                <td>Loading price · Price · Unit price · Price USD · Price per MT · قیمت · قیمت فی تن</td>
+                                <td>اختیاری</td>
+                            </tr>
+                            <tr>
+                                <td>مبلغ کل (USD)</td>
+                                <td>Loading amount · Amount · Total amount · مبلغ · مبلغ کل</td>
+                                <td>اختیاری — اگر قیمت فی تن نبود، مبلغ ÷ مقدار حساب می‌شود</td>
+                            </tr>
+                            <tr>
+                                <td>قیمت روبلی فی تن</td>
+                                <td>RUB price · Price RUB · RUB/MT · قیمت روبلی · روبل فی تن</td>
+                                <td>اختیاری</td>
+                            </tr>
+                            <tr>
+                                <td>ارزش روبلی</td>
+                                <td>Total RUB · RUB amount · ارزش روبلی · مجموع روبل — یا ستون Total بلافاصله بعد از قیمت روبلی</td>
+                                <td>اختیاری</td>
+                            </tr>
+                            <tr>
+                                <td>گیرنده</td>
+                                <td>Consignee</td>
+                                <td>اختیاری</td>
+                            </tr>
+                            <tr>
+                                <td>مقصد</td>
+                                <td>Destination · Belong to · مقصد</td>
+                                <td>اختیاری</td>
+                            </tr>
+                            <tr>
+                                <td>شرکت ترانسپورتی</td>
+                                <td>Transportation company · Transport company · Logistics company</td>
+                                <td>اختیاری — فایل واگن</td>
+                            </tr>
+                            <tr>
+                                <td>Platts</td>
+                                <td>Platts · Platts USD</td>
+                                <td>اختیاری — فایل واگن</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <ul class="ak-section-desc mt-3 mb-0 ps-3">
+                    <li>سطر سرستون لازم نیست سطر اول باشد؛ سیستم آن را در هر جای شیت پیدا می‌کند.</li>
+                    <li>تاریخ به شکل <span dir="ltr">yyyy-MM-dd</span> یا <span dir="ltr">dd.MM.yyyy</span> یا تاریخ خودِ اکسل پذیرفته می‌شود.</li>
+                    <li>کرایه از شیت جداگانه خوانده می‌شود: موتر با ستون‌های CMR + Truck + Payable rent (کرایه پرداختی)، واگن با RWB No + Wagon No + کرایه خط‌آهن.</li>
+                    <li>شیت‌هایی که در نامشان Sale، Balance، Account، فروش، بیلانس، مصارف، کرایه یا خط‌آهن باشد به‌عنوان سطر بارگیری خوانده نمی‌شوند.</li>
+                    <li>قرارداد، جنس و نوع حمل از خودِ همین فرم گرفته می‌شود و لازم نیست در فایل باشد.</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <a href="@importSampleUrl" class="btn btn-outline-secondary" data-loading-import-sample>
+                    <i class="bi bi-download" aria-hidden="true"></i> دانلود فایل نمونه
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
             </div>
         </div>
     </div>
@@ -2060,6 +2183,7 @@
             const pageInfo = document.querySelector('[data-lic-page-info]');
             const prevBtn = document.querySelector('[data-lic-prev]');
             const nextBtn = document.querySelector('[data-lic-next]');
+            const statsSection = document.querySelector('[data-loading-stats]');
             const countTotalEls = document.querySelectorAll('[data-lic-count-total]');
             const countValidEls = document.querySelectorAll('[data-lic-count-valid]');
             const countErrorEls = document.querySelectorAll('[data-lic-count-error]');
@@ -2358,6 +2482,9 @@
                 countTotalEls.forEach(el => { el.textContent = total; });
                 countValidEls.forEach(el => { el.textContent = valid; });
                 countErrorEls.forEach(el => { el.textContent = errors; });
+                // سطر خالیِ پیش‌فرض نه معتبر است نه خطادار؛ پس کارت‌های آماری تا ورود
+                // نخستین مقدار (دستی یا از اکسل) پنهان می‌مانند.
+                statsSection?.classList.toggle('d-none', valid + errors === 0);
             }
 
             function updateVirtualTotals() {

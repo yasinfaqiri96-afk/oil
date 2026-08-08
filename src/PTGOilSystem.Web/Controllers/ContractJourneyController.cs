@@ -562,6 +562,7 @@ public partial class ContractJourneyController : Controller
                 {
                     Id = receipt.Id,
                     LoadingRegisterId = receipt.LoadingRegisterId,
+                    LoadingVehicleNumber = BuildVehicleNumber(loading),
                     ReceiptDate = receipt.ReceiptDate,
                     ReceivedQuantityMt = receipt.ReceivedQuantityMt,
                     TerminalName = receipt.Terminal?.Name ?? string.Empty,
@@ -2519,6 +2520,7 @@ public partial class ContractJourneyController : Controller
                 {
                     Id = receipt.Id,
                     LoadingRegisterId = receipt.LoadingRegisterId,
+                    LoadingVehicleNumber = BuildVehicleNumber(loading),
                     ReceiptDate = receipt.ReceiptDate,
                     ReceivedQuantityMt = receipt.ReceivedQuantityMt,
                     TerminalName = receipt.Terminal?.Name ?? string.Empty,

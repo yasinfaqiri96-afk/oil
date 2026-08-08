@@ -161,7 +161,7 @@
                             <span class="ak-label">@T("نحوه ثبت ضایعات", "Loss handling")</span>
                             <div class="ak-toggle-field">
                                 <label class="form-check">
-                                    <input class="form-check-input" type="radio" name="LossMode" value="@((int)BulkReceiptLossMode.None)" checked />
+                                    <input class="form-check-input" type="radio" name="LossMode" value="@((int)BulkReceiptLossMode.None)" />
                                     <span class="form-check-label">@T("بدون ضایعات", "No loss")</span>
                                 </label>
                                 <label class="form-check">
@@ -169,7 +169,7 @@
                                     <span class="form-check-label">@T("ضایعات فوری", "Immediate loss")</span>
                                 </label>
                                 <label class="form-check">
-                                    <input class="form-check-input" type="radio" name="LossMode" value="@((int)BulkReceiptLossMode.DeferredTankSettlement)" />
+                                    <input class="form-check-input" type="radio" name="LossMode" value="@((int)BulkReceiptLossMode.DeferredTankSettlement)" checked />
                                     <span class="form-check-label">@T("تسویه مخزن", "Tank settlement")</span>
                                 </label>
                             </div>
@@ -262,7 +262,9 @@
                         <td class="ak-col-grow">
                             <a asp-controller="LoadingReceipts" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@receiptsReturnUrl" class="ak-name">#@item.Id</a>
                         </td>
-                        <td>#@item.LoadingRegisterId</td>
+                        <td>
+                            <a asp-controller="Loading" asp-action="Details" asp-route-id="@item.LoadingRegisterId" asp-route-returnUrl="@receiptsReturnUrl" class="ak-name">@(string.IsNullOrWhiteSpace(item.LoadingVehicleNumber) ? $"#{item.LoadingRegisterId}" : item.LoadingVehicleNumber.Trim())</a>
+                        </td>
                         <td>@item.ReceiptDate.ToDisplayDate()</td>
                         <td>@item.TerminalName / @(item.StorageTankCode ?? "—")</td>
                         <td class="ak-num">@NumberDisplay.Quantity(item.ReceivedQuantityMt)</td>

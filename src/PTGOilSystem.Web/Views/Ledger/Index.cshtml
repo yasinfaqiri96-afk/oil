@@ -84,7 +84,7 @@
                                 : item.Reference;
                         <tr data-href="@Url.Action("Details", new { id = item.Id })">
                             <td>@item.EntryDate.ToDisplayDate()</td>
-                            <td><span class="ak-status @(item.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ?"is-inactive" : "is-active")">@item.FlowDirectionName</span></td>
+                            <td><span class="ak-status @(item.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ? "ak-flow-debit" : "ak-flow-credit")">@item.FlowDirectionName</span></td>
                             <td class="ak-col-num ak-num">@item.AmountUsd.ToString("N2")</td>
                             <td>
                                 <div>@item.SourceTypeLabel</div>

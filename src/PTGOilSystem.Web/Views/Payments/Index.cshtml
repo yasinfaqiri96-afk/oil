@@ -69,20 +69,10 @@
         <div class="ak-journal-card">
             <div class="ak-journal-scroll">
                 <table class="ak-journal-table">
-                    @* نسبت ستون‌ها از روی تصویر مرجع اندازه‌گیری شده؛ سهم ستون حذف‌شدهٔ
-                       «ساعت» بین شرح، تاریخ و عملیات پخش شده است. *@
-                    <colgroup>
-                        <col style="width: 11.5%" />
-                        <col style="width: 9.5%" />
-                        <col style="width: 8%" />
-                        <col style="width: 14%" />
-                        <col style="width: 10%" />
-                        <col style="width: 6%" />
-                        <col style="width: 8%" />
-                        <col style="width: 17%" />
-                        <col style="width: 9%" />
-                        <col style="width: 7%" />
-                    </colgroup>
+                    @* عرض ستون‌ها دستی تعیین نمی‌شود: مثل بقیهٔ جدول‌های سیستم
+                       (.ak-table) چیدمان auto است، هر ستون به‌اندازهٔ محتوای خودش
+                       عرض می‌گیرد و فضای آزاد به‌طور یکنواخت بین همهٔ ستون‌ها پخش
+                       می‌شود، نه اینکه یک ستون همه‌اش را بگیرد. *@
                     <thead>
                         <tr>
                             <th scope="col">شماره رسید</th>
@@ -92,7 +82,6 @@
                             <th scope="col" class="jr-center">مبلغ</th>
                             <th scope="col" class="jr-center">واحد</th>
                             <th scope="col" class="jr-center">روش</th>
-                            <th scope="col">شرح</th>
                             <th scope="col" class="jr-center">تاریخ</th>
                             <th scope="col" class="jr-center">عملیات</th>
                         </tr>
@@ -103,17 +92,14 @@
                         var normalRow = !item.IsSarrafHawala && !item.IsLedgerOnlyViaSarraf;
                         var isIn = item.Direction == PaymentDirection.In;
                         var receiptNumber = string.IsNullOrWhiteSpace(item.Reference) ? $"#{item.Id}" : item.Reference!;
-                        // شرح فقط متن دست‌نویس کاربر است. ردیف‌های «فقط دفتر کل از طریق صراف»
-                        // شرحشان را BuildLedgerDescription ساخته، پس متن سیستمی نمایش داده نمی‌شود.
-                        var description = item.IsLedgerOnlyViaSarraf || string.IsNullOrWhiteSpace(item.Description)
-                            ? null
-                            : item.Description!.Trim();
                         // روش فقط دو حالت دارد: پول از طریق صراف رفته/آمده، یا از حساب خودِ شرکت.
                         var viaSarraf = item.IsSarrafHawala
                             || item.IsLedgerOnlyViaSarraf
                             || !string.IsNullOrWhiteSpace(item.SarrafName);
                         var methodName = viaSarraf ? "از طریق صراف" : "حساب";
-                        <tr data-href="@(normalRow ? Url.Action("Details", new { id = item.Id }) : null)">
+                        @* کلیک روی ردیف مستقیم به رسید چاپی همان تراکنش می‌رود
+                           (همان مقصد آیکون «سند چاپی» ستون عملیات). *@
+                        <tr data-href="@(normalRow ? Url.Action("Payment", "Invoices", new { id = item.Id }) : null)">
                             <td class="jr-receipt" title="@item.RelatedTo">@receiptNumber</td>
                             <td class="jr-center">
                                 @* در RTL اولین فرزند سمت راست می‌نشیند؛ ترتیب متن→آیکون یعنی
@@ -129,15 +115,18 @@
                                     <i class="bi @CounterpartyIcon(item.CounterpartyType)" aria-hidden="true"></i>
                                 </span>
                             </td>
-                            <td class="jr-name" title="@item.CounterpartyName">@item.CounterpartyName</td>
+                            @* در چیدمان auto، ellipsis روی خود td کار نمی‌کند؛ سقف عرض
+                               و بریدن نام روی span داخلی اعمال می‌شود. *@
+                            <td class="jr-name" title="@item.CounterpartyName"><span class="jr-name-text">@item.CounterpartyName</span></td>
                             <td class="jr-center">
-                                <bdi class="jr-amount @(isIn ? "is-in" : "is-out")" dir="ltr">@FormatAmount(item.Amount)@(isIn ? "+" : "-")</bdi>
+                                @* جهت دریافت/پرداخت از رنگ عدد و کپسول ستون «نوع» خوانده
+                                   می‌شود؛ علامت +/- کنار عدد تکرار نمی‌شود. *@
+                                <bdi class="jr-amount @(isIn ? "is-in" : "is-out")" dir="ltr">@FormatAmount(item.Amount)</bdi>
                             </td>
                             <td class="jr-center">@item.Currency</td>
                             <td class="jr-center">
                                 <span class="jr-pill jr-pill-neutral">@methodName</span>
                             </td>
-                            <td class="jr-desc" title="@description">@description</td>
                             @* ساعت ستون جدا ندارد؛ کلیک روی تاریخ، تاریخ را با ساعت در همان
                                جای سلول عوض می‌کند. دکمه است تا با صفحه‌کلید کار کند و
                                ناوبری ردیف را نبرد. *@
@@ -158,8 +147,10 @@
                                         <a class="jr-action" asp-action="Edit" asp-route-id="@item.Id" title="ویرایش" aria-label="ویرایش">
                                             <i class="bi bi-pencil" aria-hidden="true"></i>
                                         </a>
-                                        <a class="jr-action" asp-controller="Invoices" asp-action="Payment" asp-route-id="@item.Id" title="چاپ" aria-label="چاپ">
-                                            <i class="bi bi-printer" aria-hidden="true"></i>
+                                        @* همان آیکونی که صفحهٔ جزئیات پرداخت برای «سند چاپی» به کار می‌برد.
+                                           آیکون چاپگر در viewها ممنوع است؛ چاپ از مسیر خود سند انجام می‌شود. *@
+                                        <a class="jr-action jr-action-receipt" asp-controller="Invoices" asp-action="Payment" asp-route-id="@item.Id" title="سند چاپی" aria-label="سند چاپی">
+                                            <i class="bi bi-receipt-cutoff" aria-hidden="true"></i>
                                         </a>
                                     }
                                     else if (item.IsSarrafHawala)
@@ -181,7 +172,7 @@
                     @if (!items.Any())
                     {
                         <tr>
-                            <td colspan="10" class="jr-empty">
+                            <td colspan="9" class="jr-empty">
                                 <i class="bi bi-journal-text" aria-hidden="true"></i>
                                 برای این فیلتر، سندی پیدا نشد.
                             </td>
@@ -201,7 +192,6 @@
 @functions {
     // قالب‌بندی نمایشی مبلغ با ارقام لاتین و جداکنندهٔ هزارگان. اعشار فقط وقتی
     // نشان داده می‌شود که واقعاً وجود داشته باشد؛ مقدار و گرد کردن تغییر نمی‌کند.
-    // علامت +/- در Razor به انتهای عدد چسبانده می‌شود.
     private static string FormatAmount(decimal value)
     {
         var absolute = Math.Abs(value);
@@ -229,11 +219,16 @@
 @section Scripts {
     <script>
         (function () {
+            // کلیک روی ردیف همان لینک «سند چاپی» خودِ ردیف را می‌زند؛ اینطور ناوبری
+            // از مسیر SPA سیستم رد می‌شود و اگر ردیفی سند چاپی نداشت، هیچ اتفاقی
+            // نمی‌افتد به‌جای اینکه صفحه دوباره بار شود.
             document.querySelectorAll('.ak-journal-table tbody tr[data-href]').forEach(function (row) {
+                var receiptLink = row.querySelector('.jr-action-receipt[href]');
+                if (!receiptLink) return;
                 row.style.cursor = 'pointer';
                 row.addEventListener('click', function (e) {
                     if (e.target.closest('a, button, input, label, select, form')) return;
-                    window.location.href = row.getAttribute('data-href');
+                    receiptLink.click();
                 });
             });
 

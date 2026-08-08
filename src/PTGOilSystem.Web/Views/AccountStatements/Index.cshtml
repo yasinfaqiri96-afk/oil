@@ -70,7 +70,7 @@
                     {
                         <tr>
                             <td>@item.EntryDate.ToDisplayDate()</td>
-                            <td><span class="ak-status @(item.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ?"is-inactive" : "is-active")">@item.SideName</span></td>
+                            <td><span class="ak-status @(item.Side == PTGOilSystem.Web.Models.Entities.LedgerSide.Debit ? "ak-flow-debit" : "ak-flow-credit")">@item.SideName</span></td>
                             <td class="ak-col-num ak-num">@item.SourceAmount.ToString("N2")</td>
                             <td>@item.SourceCurrencyCode</td>
                             <td class="ak-col-num ak-num">@item.AppliedFxRateToUsd.ToString("N6")</td>

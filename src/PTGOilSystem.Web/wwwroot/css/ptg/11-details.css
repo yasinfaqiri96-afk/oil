@@ -1433,9 +1433,13 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 }
 
 /* Contract-lifecycle (and other detail) tables: pin each numeric value to the
-   same side as its numeric header so figures sit directly under their titles. */
-[data-contract-journey-page] .ak-detail-table > thead > tr > th.ak-col-num,
-[data-contract-journey-page] .ak-detail-table > tbody > tr > td.ak-num {
+   same side as its numeric header so figures sit directly under their titles.
+   .ak-table needs the same pair because `.ak-table > thead > tr > th` sets
+   `text-align: start` at a higher specificity than the shared `.ak-col-num`,
+   so the header drifts to the RTL start edge while `td.ak-num` (direction:ltr)
+   stays on the left. */
+[data-contract-journey-page] :is(.ak-detail-table, .ak-table) > thead > tr > th.ak-col-num,
+[data-contract-journey-page] :is(.ak-detail-table, .ak-table) > tbody > tr > td.ak-num {
     text-align: left;
 }
 
@@ -2024,10 +2028,11 @@ body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-ta
     color: #C70036 !important;
 }
 
-/* Operational asset details — a quiet, task-first composition.
-   The global KPI strip is intentionally omitted in the view because every
-   amount already belongs to its relevant tab. Keep the remaining identity
-   facts compact, and reveal data-entry forms only when the user asks for one. */
+
+/* Operational asset details - task-first composition.
+   Rhythm: identity card > one period bar > tabs > (stat strip, block head + action, table).
+   Data-entry forms live in modals appended at page level, so a hidden tab pane
+   can never trap an open dialog. Nothing is rendered only to be hidden by CSS. */
 .ak-detail-page.operational-asset-details-page {
     --ak-detail-section-gap: 14px;
 }
@@ -2036,6 +2041,7 @@ body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-ta
     padding-block: 4px 14px;
 }
 
+/* identity card */
 .ak-detail-page.operational-asset-details-page > .ak-summary-card {
     padding: 12px 16px;
 }
@@ -2067,6 +2073,74 @@ body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-ta
     font-weight: 700;
 }
 
+/* period zone - collapsed by default, one filter for every tab */
+.operational-asset-details-page .oa-period-zone {
+    display: grid;
+    gap: 8px;
+}
+
+.operational-asset-details-page .oa-period-toggle {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    justify-self: start;
+    min-height: 34px;
+}
+
+.operational-asset-details-page .oa-period-toggle b {
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+.operational-asset-details-page .oa-period-caret {
+    font-size: 11px;
+    transition: transform 180ms ease;
+}
+
+.operational-asset-details-page .oa-period-toggle[aria-expanded="true"] .oa-period-caret {
+    transform: rotate(180deg);
+}
+
+.operational-asset-details-page .oa-period-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid var(--ak-detail-divider);
+    border-radius: var(--ak-detail-radius);
+    background: var(--ak-detail-surface);
+}
+
+.operational-asset-details-page .oa-period-label {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    margin: 0;
+    color: var(--ak-detail-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.operational-asset-details-page .oa-period-bar input[type="date"] {
+    min-height: 34px;
+    padding-inline: 8px;
+    border: 1px solid var(--ak-detail-divider);
+    border-radius: 8px;
+    background: var(--ak-detail-surface);
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+.operational-asset-details-page .oa-period-bar > .btn {
+    min-height: 34px;
+}
+
+.operational-asset-details-page .oa-period-bar > .btn[type="submit"] {
+    margin-inline-start: auto;
+}
+
+/* tabs shell */
 body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .ak-detail-page.operational-asset-details-page > .ak-detail-section {
     padding: 0;
     border-color: transparent;
@@ -2088,65 +2162,69 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     padding: 0;
 }
 
-.operational-asset-details-page .tab-pane > .ak-section-head {
-    margin-block-end: 10px;
+/* آمار هر تب از کامپوننت مشترک .ak-stat-grid/vc:stat-card می‌آید؛
+   strip و banner اختصاصی این صفحه حذف شده‌اند. رنگ سود/زیان اینجا می‌ماند
+   چون ردیف total جدول و ستون مبلغ مصارف هنوز از آن استفاده می‌کنند. */
+.operational-asset-details-page .is-positive {
+    color: var(--ptg-success-text, #007A55);
+}
+
+.operational-asset-details-page .is-negative {
+    color: var(--ptg-danger-text, #C70036);
+}
+
+/* block head: title on one side, single action on the other */
+.operational-asset-details-page .oa-block-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    justify-content: space-between;
+    align-items: center;
+    margin-block: 0 10px;
     padding-block-end: 8px;
 }
 
-.operational-asset-details-page .tab-pane > .ak-list,
-.operational-asset-details-page #asset-profit > .ak-form-section > .ak-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    margin-block-end: 14px;
-}
-
-.operational-asset-details-page .tab-pane > .ak-list > .ak-list-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 3px 10px;
+.operational-asset-details-page .oa-block-head h3 {
+    display: inline-flex;
+    gap: 6px;
     align-items: center;
-    padding: 8px 10px;
-    border: 1px solid var(--ak-detail-divider);
-    border-radius: var(--ak-detail-radius);
-    background: var(--ak-detail-surface);
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
 }
 
-.operational-asset-details-page .tab-pane > .ak-list > .ak-list-row > span {
+.operational-asset-details-page .oa-block-head .ak-section-desc {
+    flex: 1 1 100%;
+    margin: 0;
     color: var(--ak-detail-muted);
     font-size: 12px;
-    font-weight: 600;
 }
 
-.operational-asset-details-page .tab-pane > .ak-list > .ak-list-row > strong {
-    justify-self: end;
-    font-size: 15px;
-    font-weight: 760;
-    font-variant-numeric: tabular-nums lining-nums;
-}
-
-.operational-asset-details-page .tab-pane > .ak-list > .ak-list-row > small {
-    display: none;
-}
-
-.operational-asset-details-page #asset-ownership > .ak-list > .ak-list-row:nth-child(4),
-.operational-asset-details-page #asset-rents > .ak-list > .ak-list-row:nth-child(4),
-.operational-asset-details-page #asset-expenses > .ak-list > .ak-list-row:nth-child(3),
-.operational-asset-details-page #asset-shares > .ak-list > .ak-list-row:nth-child(4) {
-    display: none;
-}
-
-.operational-asset-details-page [data-oa-split] {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
+.operational-asset-details-page .oa-block-head + .ak-table-wrap {
+    margin-block-end: 16px;
 }
 
 .operational-asset-details-page .oa-modal-trigger {
-    justify-self: end;
-    min-height: 36px;
-    margin-block-end: 2px;
+    min-height: 34px;
 }
 
+.operational-asset-details-page .oa-total-row td {
+    border-block-start: 1px solid var(--ak-detail-divider);
+}
+
+/* فرم تک‌دکمه‌ای داخل سلول جدول: نباید ارتفاع سطر را باز کند یا دکمه را کشیده نشان دهد. */
+.operational-asset-details-page .oa-row-action {
+    display: inline-flex;
+    margin: 0;
+}
+
+.operational-asset-details-page .oa-row-action .btn {
+    min-height: 30px;
+    padding-inline: 10px;
+    white-space: nowrap;
+}
+
+/* modals */
 .operational-asset-details-page .oa-action-modal .modal-dialog {
     width: min(760px, calc(100dvi - 32px));
     max-width: min(760px, calc(100dvi - 32px));
@@ -2195,39 +2273,23 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     display: none;
 }
 
-.operational-asset-details-page #asset-profit > .ak-form-section {
-    display: grid;
-    gap: 12px;
+.operational-asset-details-page .oa-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    align-items: center;
+    padding-block-start: 12px;
+    border-block-start: 1px solid var(--ak-detail-divider);
 }
 
-.operational-asset-details-page #asset-profit > .ak-form-section > .ak-list-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px 16px;
-    padding: 10px 12px;
-    border: 1px solid var(--ak-detail-divider);
-    border-radius: var(--ak-detail-radius);
-    background: var(--ak-detail-surface);
-}
-
-.operational-asset-details-page #asset-profit > .ak-form-section > .ak-list-row > em {
-    display: none;
-}
-
-.operational-asset-details-page #asset-profit > .ak-form-section > .ak-list > .ak-list-row {
-    padding: 10px 12px;
-    border: 1px solid var(--ak-detail-divider);
-    border-radius: var(--ak-detail-radius);
-    background: var(--ak-detail-surface);
-}
-
-.operational-asset-details-page #asset-profit > .ak-form-section > .ak-list > .ak-list-row > dl {
-    display: none;
+.operational-asset-details-page .oa-modal-actions .btn,
+.operational-asset-details-page .oa-modal-actions .ak-save {
+    min-height: 38px;
 }
 
 @media (max-width: 767.98px) {
-    .operational-asset-details-page > .ak-summary-card .ak-info-grid,
-    .operational-asset-details-page .tab-pane > .ak-list,
-    .operational-asset-details-page #asset-profit > .ak-form-section > .ak-list {
+    .operational-asset-details-page > .ak-summary-card .ak-info-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -2239,6 +2301,25 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
 
     .operational-asset-details-page > .ak-summary-card .ak-info-cell:last-child {
         border-block-end: 0;
+    }
+
+    .operational-asset-details-page .oa-period-bar > .btn,
+    .operational-asset-details-page .oa-period-bar > .btn[type="submit"] {
+        margin-inline-start: 0;
+        width: 100%;
+    }
+
+    .operational-asset-details-page .oa-period-toggle {
+        justify-self: stretch;
+        justify-content: space-between;
+    }
+
+    .operational-asset-details-page .oa-block-head .oa-modal-trigger {
+        width: 100%;
+    }
+
+    .operational-asset-details-page .oa-modal-actions > * {
+        flex: 1 1 100%;
     }
 
     .operational-asset-details-page .oa-action-modal .modal-dialog {

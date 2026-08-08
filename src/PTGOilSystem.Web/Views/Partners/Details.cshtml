@@ -10,8 +10,11 @@
     var settlementUsd = officialSummary?.ClosingBalance ?? Model.PartnerGrossProfitUsd;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? (settlementUsd > 0m ? "سهم سود شریک — قابل تسویه" : settlementUsd < 0m ? "سهم زیان شریک — قابل دریافت" : "بدون مانده قابل تسویه");
-    // tone فقط جهت مالی را نشان می‌دهد: بدهی شرکت به شریک سرخ، طلب شرکت سبز، بدون مانده خنثی.
-    var balanceTone = settlementUsd > 0m ? "danger" : settlementUsd < 0m ? "success" : null;
+    // tone باید از همان علامتی بیاید که متن معنی از آن ساخته شده؛ وگرنه رنگ و متن وارونه
+    // می‌شوند. صورت‌حساب رسمی: مثبت = طلب شرکت (سبز). نبودِ صورت‌حساب: علامتِ مدل صفحه.
+    var balanceTone = officialSummary is not null
+        ? officialSummary.ClosingBalanceTone
+        : settlementUsd > 0m ? "danger" : settlementUsd < 0m ? "success" : null;
 
     var showAccount = Model.ActiveTab == "account";
     var showContracts = Model.ActiveTab == "contracts";
