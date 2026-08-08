@@ -716,6 +716,7 @@ public partial class CustomersController : Controller
         => sourceType switch
         {
             "Sale" => "فروش",
+            AssetRentLedgerFactory.LedgerSourceType => "کرایه دارایی",
             nameof(PaymentKind.CustomerReceipt) => "دریافت از مشتری",
             nameof(PaymentKind.CustomerPayment) => "پرداخت به مشتری",
             ThreeWaySettlementController.LedgerSourceType => "تسویه سه‌طرفه / حواله",

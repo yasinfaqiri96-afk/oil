@@ -33,6 +33,9 @@ public partial class LoadingController : Controller
     // مرحله ۶ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IPurchaseAccountingAdapter? _purchaseAccounting;
     private readonly Services.Accounting.IExpenseAccountingAdapter? _expenseAccounting;
+    // همان سرویسی که OperationalAssetsController برای کرایهٔ دستی استفاده می‌کند. اینجا فقط مسیر
+    // برگشت لازم است: کرایهٔ بارگیری ثبت مالی نمی‌گیرد ولی لغو و ویرایشش نباید به فرض تکیه کند.
+    private readonly IAssetRentPostingService _rentPosting;
     private const int DefaultListLimit = 100;
     private const int LookupLimit = 200;
     private const int ReceiptAllocationEditorRows = 4;
@@ -67,12 +70,14 @@ public partial class LoadingController : Controller
         IMemoryCache? cache = null,
         Services.Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        IAssetRentPostingService? rentPosting = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _purchaseAccounting = purchaseAccounting;
         _expenseAccounting = expenseAccounting;
+        _rentPosting = rentPosting ?? new AssetRentPostingService(db);
         _db = db;
         _audit = audit;
         _logger = logger;
@@ -3512,6 +3517,10 @@ public partial class LoadingController : Controller
 
         if (rent is null)
         {
+            // NON-POSTING: کرایهٔ خودکارِ بارگیری. LoadingRegisterId پرشدن یعنی
+            // AssetRentPostingPolicy.IsSystemGenerated صادق است و هیچ LedgerEntry/JournalEntry
+            // ساخته نمی‌شود. معادلِ Expense/Freight همین مبلغ از سمت بارگیری ثبت می‌شود، پس ثبت
+            // مالی اینجا دوباره‌شماری بود.
             rent = new AssetRentTransaction
             {
                 OperationalAssetId = asset.Id,
@@ -3556,6 +3565,11 @@ public partial class LoadingController : Controller
         var previousAmountUsd = rent.AmountUsd;
         var previousRate = rent.Rate;
         var previousOperationalAssetId = rent.OperationalAssetId;
+
+        // ویرایش، لینک لجر را پایین‌تر پاک می‌کند. اگر ردیف مالی وجود داشته باشد و اینجا برنگردد،
+        // یک ردیف یتیم در حساب طرف‌حساب می‌ماند که هیچ کرایه‌ای دیگر به آن اشاره نمی‌کند. برای
+        // کرایهٔ بارگیری چنین ردیفی وجود ندارد و فراخوان بی‌اثر است.
+        await _rentPosting.ReverseAsync(rent, ToUtcDate(_businessClock.Today));
 
         rent.OperationalAssetId = asset.Id;
         rent.LoadingRegisterId = loading.Id;
@@ -3768,6 +3782,7 @@ public partial class LoadingController : Controller
 
         if (primaryRent is null)
         {
+            // NON-POSTING: کرایهٔ خودکارِ بارگیری — بند بالا در CreateOrUpdateLoadingAssetRentAsync.
             primaryRent = new AssetRentTransaction
             {
                 OperationalAssetId = operationalAsset.Id,
@@ -3814,6 +3829,10 @@ public partial class LoadingController : Controller
         var previousChargedToType = primaryRent.ChargedToType;
         var previousChargedToContractId = primaryRent.ChargedToContractId;
         var previousDescription = primaryRent.Description;
+
+        // مثل بند ویرایش در SyncLoadingExpenseLineAssetRentAsync: قبل از پاک‌کردن لینک لجر، اثر
+        // مالیِ احتمالی برگردانده می‌شود تا ردیف یتیم نماند.
+        await _rentPosting.ReverseAsync(primaryRent, ToUtcDate(_businessClock.Today));
 
         primaryRent.OperationalAssetId = operationalAsset.Id;
         primaryRent.LoadingRegisterId = loading.Id;
@@ -3879,6 +3898,13 @@ public partial class LoadingController : Controller
                 ("IsCancelled", false, true),
                 ("CancelReason", null, rent.CancelReason)));
         await _db.SaveChangesAsync();
+
+        // کرایهٔ بارگیری طبق AssetRentPostingPolicy اثر مالی نمی‌گیرد، پس این فراخوان معمولاً
+        // بی‌اثر است و فقط یک پرس‌وجوی دفتر هزینه دارد. عمداً بدون شرط صدا زده می‌شود: تنها
+        // چیزی که تضمین می‌کند هیچ کرایهٔ لغوشده‌ای بدهیِ برگشت‌نخورده جا نمی‌گذارد، پرسیدنِ خودِ
+        // دفتر است نه فرضِ ما دربارهٔ سیاست. اگر روزی این کرایه‌ها ثبت مالی بگیرند، لغو بدون هیچ
+        // تغییری در این مسیر درست کار می‌کند.
+        await _rentPosting.ReverseAsync(rent, ToUtcDate(_businessClock.Today));
     }
 
     private async Task<List<AssetOwnershipShare>> GetActiveAssetOwnershipSharesAsync(int assetId, DateTime date)
@@ -4122,6 +4148,7 @@ public partial class LoadingController : Controller
         foreach (var (loading, asset, amountUsd, rate, contractType) in pending)
         {
             var chargedToType = ResolveLoadingAssetRentChargedToType(contractType);
+            // NON-POSTING: کرایهٔ خودکارِ بارگیری — بند بالا در CreateOrUpdateLoadingAssetRentAsync.
             var rent = new AssetRentTransaction
             {
                 OperationalAssetId = asset.Id,
