@@ -20,7 +20,7 @@ namespace PTGOilSystem.Web.Controllers;
 ///   • مصرف یا کرایهٔ دارایی که لغو نشده (چون لِجر/پرداخت به آن‌ها وصل است)
 /// چیزی که «مالِ خودِ بارگیری» است و جای دیگری اثر ندارد، همراهش پاک می‌شود:
 ///   • سطرهای مصرف بارگیری (LoadingExpenseLine)
-///   • سطر لِجر تأمین‌کننده (SourceType = "Loading")
+///   • سطر لِجر تأمین‌کننده (SourceType = "Loading") با سند معکوس خنثی می‌شود و حذف نمی‌شود
 ///   • سند دفتر کل جدید، که پیش از حذف با TryPostPurchaseReversalAsync برگردانده می‌شود
 ///
 /// گاردها در POST دوباره از دیتابیس خوانده می‌شوند؛ به هیچ چیزی که از فرم می‌آید اعتماد نمی‌شود.
@@ -160,23 +160,34 @@ public partial class LoadingController
                 }
             }
 
-            // سطر لِجر قدیمیِ تأمین‌کننده مالِ همین بارگیری است و با آن پاک می‌شود.
+            // Ledger قدیمی هم سند قطعی و قابل تفتیش است: اصل دست‌نخورده می‌ماند و
+            // سطر جبرانی ثبت می‌شود. حذف خودِ بارگیری فقط به‌دلیل نبود پایین‌دست مجاز است.
             var ledgerEntries = await _db.LedgerEntries
                 .Where(l => l.SourceType == SupplierLoadingLedgerSourceType && deletableIds.Contains(l.SourceId))
                 .ToListAsync(cancellationToken);
             foreach (var ledger in ledgerEntries)
             {
-                await _audit.LogAsync(
-                    nameof(LedgerEntry),
-                    ledger.Id,
-                    AuditAction.Delete,
-                    diff: AuditDiffFormatter.ForDelete(
-                        ("SourceType", ledger.SourceType),
-                        ("SourceId", ledger.SourceId),
-                        ("AmountUsd", ledger.AmountUsd)),
-                    ct: cancellationToken);
+                var reversal = await LedgerReversalWriter.ReverseAsync(
+                    _db,
+                    ledger,
+                    _businessClock.Today,
+                    $"Reversal for deleted erroneous loading #{ledger.SourceId}",
+                    $"LOADING:{ledger.SourceId}",
+                    cancellationToken);
+                if (reversal is not null)
+                {
+                    await _audit.LogAsync(
+                        nameof(LedgerEntry),
+                        reversal.Id,
+                        AuditAction.Reverse,
+                        diff: AuditDiffFormatter.ForCreate(
+                            ("ReversalOfLedgerEntryId", ledger.Id),
+                            ("SourceType", reversal.SourceType),
+                            ("SourceId", reversal.SourceId),
+                            ("AmountUsd", reversal.AmountUsd)),
+                        ct: cancellationToken);
+                }
             }
-            _db.LedgerEntries.RemoveRange(ledgerEntries);
 
             var expenseLines = await _db.LoadingExpenseLines
                 .Where(x => deletableIds.Contains(x.LoadingRegisterId))

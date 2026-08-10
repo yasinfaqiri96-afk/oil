@@ -1,4 +1,5 @@
 @using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.LossEvents
 @model PTGOilSystem.Web.Models.Loading.LoadingReceiptDetailsViewModel
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
@@ -15,86 +16,38 @@
         _ => "نامشخص"
     };
 
-    string ToAllocationDestinationText(LoadingReceiptAllocationDestination destination) => destination switch
+    string? CompactText(string? value, int maxLength)
     {
-        LoadingReceiptAllocationDestination.ToInventory => "ورود به موجودی",
-        LoadingReceiptAllocationDestination.DirectSale => "فروش مستقیم",
-        LoadingReceiptAllocationDestination.DirectDispatchToTruck => "ارسال با موتر",
-        LoadingReceiptAllocationDestination.TransferToOtherTerminal => "انتقال به ترمینال دیگر",
-        _ => "نامشخص"
-    };
+        if (string.IsNullOrWhiteSpace(value)) return null;
 
-    string ToAllocationStatusText(LoadingReceiptAllocationStatus status) => status switch
-    {
-        LoadingReceiptAllocationStatus.TraceOnly => "فقط ردیابی",
-        LoadingReceiptAllocationStatus.Completed => "تکمیل شده",
-        LoadingReceiptAllocationStatus.InTransit => "در مسیر",
-        LoadingReceiptAllocationStatus.Cancelled => "لغو شده",
-        _ => status.ToString()
-    };
-
-    string? FormatTraceDestination(PTGOilSystem.Web.Models.Loading.LoadingReceiptAllocationSummaryViewModel allocation)
-    {
-        var parts = new[]
-        {
-            allocation.DestinationTerminalName,
-            allocation.DestinationStorageTankCode,
-            allocation.DestinationLocationName,
-            allocation.DestinationName
-        }.Where(part => !string.IsNullOrWhiteSpace(part));
-
-        return parts.Any() ? string.Join(" / ", parts) : null;
+        var normalized = string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= maxLength
+            ? normalized
+            : normalized[..maxLength].TrimEnd() + "…";
     }
 
-    decimal QtyByDestination(LoadingReceiptAllocationDestination destination)
-        => Model.Allocations
-            .Where(a => a.Destination == destination && a.Status != LoadingReceiptAllocationStatus.Cancelled)
-            .Sum(a => a.QuantityMt);
+    string? ToReceiptReferenceText(string? value)
+    {
+        var normalized = CompactText(value, 28);
+        if (string.IsNullOrWhiteSpace(normalized)) return null;
 
-    decimal TruckQtyForTank()
-        => Model.Allocations
-            .Where(a => a.Destination == LoadingReceiptAllocationDestination.DirectDispatchToTruck
-                && a.Status != LoadingReceiptAllocationStatus.Cancelled
-                && !a.SalesTransactionId.HasValue)
-            .Sum(a => a.QuantityMt);
-
-    decimal TruckQtyForCustomer()
-        => Model.Allocations
-            .Where(a => a.Destination == LoadingReceiptAllocationDestination.DirectDispatchToTruck
-                && a.Status != LoadingReceiptAllocationStatus.Cancelled
-                && a.SalesTransactionId.HasValue)
-            .Sum(a => a.QuantityMt);
-
-    decimal CompletedQty()
-        => Model.Allocations
-            .Where(a => a.Status == LoadingReceiptAllocationStatus.Completed)
-            .Sum(a => a.QuantityMt);
-
-    decimal InTransitQty()
-        => Model.Allocations
-            .Where(a => a.Status == LoadingReceiptAllocationStatus.InTransit
-                || a.Status == LoadingReceiptAllocationStatus.TraceOnly)
-            .Sum(a => a.QuantityMt);
-
-    // مقدارهای صفر در کارت خلاصه نمایش داده نمی‌شوند؛ فقط مسیرهای واقعاً استفاده‌شده می‌مانند.
-    string? NonZeroQty(decimal value) => value == 0m ? null : NumberDisplay.Quantity(value);
+        return normalized.StartsWith("BULK-RCPT-", StringComparison.OrdinalIgnoreCase)
+            ? T("رسید گروهی", "Bulk receipt")
+            : normalized;
+    }
 
     var receiptDestinationText = ToDestinationText(Model.ReceiptDestination);
     var isDirectDispatchReceipt = Model.ReceiptDestination == LoadingReceiptDestination.DirectDispatch;
     var isMixedReceipt = Model.ReceiptDestination == LoadingReceiptDestination.Mixed;
-    var pendingDispatchTrace = Model.Allocations.Any(a => a.Destination == LoadingReceiptAllocationDestination.DirectDispatchToTruck && a.DirectTruckDispatchRemainingQuantityMt > 0);
     var pageTitle = isMixedReceipt
         ? "جزئیات رسید ترکیبی"
         : isDirectDispatchReceipt ? "جزئیات رسید تخلیه مستقیم" : "جزئیات رسید ورود به موجودی";
 
-    var qtyToInventory = QtyByDestination(LoadingReceiptAllocationDestination.ToInventory);
-    var qtyDirectSale = QtyByDestination(LoadingReceiptAllocationDestination.DirectSale);
-    var qtyTruckForTank = TruckQtyForTank();
-    var qtyTruckForCustomer = TruckQtyForCustomer();
-    var qtyTransfer = QtyByDestination(LoadingReceiptAllocationDestination.TransferToOtherTerminal);
-    var qtyInTransit = InTransitQty();
-    var qtyCompleted = CompletedQty();
     var lossDifferenceTotal = Model.LossItems.Sum(l => l.DifferenceQuantityMt);
+    var completedInventoryQuantityMt = Model.Allocations
+        .Where(allocation => allocation.Destination == LoadingReceiptAllocationDestination.ToInventory
+            && allocation.Status == LoadingReceiptAllocationStatus.Completed)
+        .Sum(allocation => allocation.QuantityMt);
     var actualDiffMt = Model.ActualArrivedQuantityMt.HasValue
         ? Model.ActualArrivedQuantityMt.Value - Model.ReceivedQuantityMt
         : (decimal?)null;
@@ -107,7 +60,7 @@
         ? T("لغوشده", "Cancelled")
         : allocBalanced ? T("تخصیص متوازن", "Allocation balanced") : T("اختلاف تخصیص", "Allocation mismatch");
     ViewData["AkHeaderStatusState"] = Model.IsCancelled ? "is-danger" : allocBalanced ? "is-active" : "is-warning";
-    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
+    var headerKebab = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش", "Edit"), Href = Model.IsCancelled ? null : receiptEditUrl, Icon = "bi-pencil" },
         new()
@@ -118,6 +71,16 @@
         },
         new() { Label = T("نمای قرارداد", "Contract journey"), Href = Model.ContractId > 0 ? receiptJourneyUrl : null, Icon = "bi-diagram-3" }
     };
+    if (!Model.IsCancelled)
+    {
+        headerKebab.Add(new AkHeaderMenuItem
+        {
+            Label = T("لغو رسید", "Cancel receipt"),
+            ModalTarget = "loadingReceiptCancelModal",
+            Icon = "bi-x-octagon"
+        });
+    }
+    ViewData["AkHeaderKebab"] = headerKebab;
 
     var kpis = new List<AkKpiItem>
     {
@@ -149,8 +112,14 @@
             Tone = actualDiffMt is < 0 ? "danger" : null
         },
         new() { Label = T("نشت / خرابی", "Leak date"), Value = Model.LeakDate?.ToDisplayDate(), Tone = Model.LeakDate.HasValue ? "warning" : null },
-        new() { Label = T("مرجع رسید", "Receipt reference"), Value = Model.ReferenceDocument },
-        new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
+        new() { Label = T("شماره مرجع", "Reference number"), Value = ToReceiptReferenceText(Model.ReferenceDocument) },
+        new()
+        {
+            Label = T("ورود تکمیل‌شده به موجودی", "Completed to inventory"),
+            Value = NumberDisplay.Quantity(completedInventoryQuantityMt),
+            Unit = "MT",
+            IsNumeric = true
+        }
     };
 
     var loadingItems = new List<AkInfoItem>
@@ -161,25 +130,6 @@
         new() { Label = T("واگن", "Wagon"), Value = Model.WagonNumber },
         new() { Label = T("گیرنده", "Consignee"), Value = Model.ConsigneeName },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
-    };
-
-    // فقط مسیرهای تخصیصِ دارای مقدار می‌مانند؛ ردیف‌های صفر حذف می‌شوند.
-    var allocationItems = new List<AkInfoItem>
-    {
-        new() { Label = T("جمع تخصیص", "Total allocated"), Value = NumberDisplay.Quantity(Model.TotalAllocatedQuantityMt), Unit = "MT", IsNumeric = true },
-        new() { Label = T("ورود به موجودی", "To inventory"), Value = NonZeroQty(qtyToInventory), Unit = "MT", IsNumeric = true },
-        new() { Label = T("موتر برای مخزن", "Truck to tank"), Value = NonZeroQty(qtyTruckForTank), Unit = "MT", IsNumeric = true },
-        new() { Label = T("موتر برای فروش", "Truck to sale"), Value = NonZeroQty(qtyTruckForCustomer), Unit = "MT", IsNumeric = true },
-        new() { Label = T("فروش مستقیم", "Direct sale"), Value = NonZeroQty(qtyDirectSale), Unit = "MT", IsNumeric = true },
-        new() { Label = T("انتقال ترمینال", "Terminal transfer"), Value = NonZeroQty(qtyTransfer), Unit = "MT", IsNumeric = true },
-        new() { Label = T("در مسیر / ردیابی", "In transit"), Value = NonZeroQty(qtyInTransit), Unit = "MT", IsNumeric = true },
-        new() { Label = T("تکمیل شده", "Completed"), Value = NonZeroQty(qtyCompleted), Unit = "MT", IsNumeric = true },
-        new()
-        {
-            Label = T("ردیابی ارسال موتر", "Truck dispatch trace"),
-            Value = pendingDispatchTrace ? T("در انتظار ارسال با موتر", "Awaiting truck dispatch") : null,
-            Tone = "warning"
-        }
     };
 
     var advancedItems = new List<AkInfoItem>
@@ -225,7 +175,7 @@
     ViewData["ModalDesignSystemAssets"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-loading-receipt-details data-ak-detail-v2="true" data-ak-operations-detail="true">
 
     @if (Model.IsCancelled)
     {
@@ -248,25 +198,6 @@
             </div>
         </div>
     }
-    else
-    {
-        <form method="post" asp-action="Cancel" asp-route-id="@Model.Id" class="ak-form">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
-            <input type="hidden" name="returnUrl" value="@currentReturnUrl" />
-            <div class="ak-field ak-span-2">
-                <label class="ak-label" for="receiptCancelReason">@T("دلیل لغو رسید", "Receipt cancellation reason")</label>
-                <div class="d-flex gap-2 align-items-start flex-wrap">
-                    <input class="ak-input" id="receiptCancelReason" name="reason" maxlength="500" required
-                           placeholder="@T("مثلاً مقدار اشتباه ثبت شده بود", "e.g. wrong quantity registered")" />
-                    <button type="submit" class="btn btn-outline-danger">
-                        <i class="bi bi-x-octagon"></i> @T("لغو رسید", "Cancel receipt")
-                    </button>
-                </div>
-            </div>
-        </form>
-    }
-
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
          model="@(($"{T("رسید", "Receipt")} #{Model.Id}", false,
                     Model.RemainingToReceiveMt > 0 ? T("رسید جدید", "New receipt") : (string?)null, "bi-box-arrow-in-down",
@@ -281,66 +212,15 @@
 
         <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
                  model="@((T("خلاصه بارگیری", "Loading summary"), (string?)null, (IReadOnlyList<AkInfoItem>)loadingItems))" />
-
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("تخصیص و وضعیت", "Allocation & status"), (string?)null, (IReadOnlyList<AkInfoItem>)allocationItems))" />
     </div>
 
-    <div class="ak-form-grid">
-        <section class="ak-form-section ak-detail-section">
-            <header class="ak-section-head ak-detail-section-header">
-                <h2 class="ak-section-title">@T("ردیف‌های رسید", "Receipt lines")</h2>
-                <span class="ak-status">@Model.Allocations.Count</span>
-            </header>
-            <div class="ak-list">
-                @foreach (var allocation in Model.Allocations)
-                {
-                    var traceDestination = FormatTraceDestination(allocation);
-                    <div class="ak-list-row">
-                        <div class="ak-col-grow">
-                            <span>@ToAllocationStatusText(allocation.Status)</span>
-                            <strong>@ToAllocationDestinationText(allocation.Destination)</strong>
-                            @if (!string.IsNullOrWhiteSpace(traceDestination))
-                            {
-                                <span>@traceDestination</span>
-                            }
-                        </div>
-                        <div class="ak-num">
-                            <strong class="fw-semibold">@NumberDisplay.Quantity(allocation.QuantityMt) MT</strong>
-                            @if (allocation.InventoryMovementId.HasValue)
-                            {
-                                <span>Movement #@allocation.InventoryMovementId.Value</span>
-                            }
-                            else if (!string.IsNullOrWhiteSpace(allocation.ReferenceDocument))
-                            {
-                                <span>@allocation.ReferenceDocument</span>
-                            }
-                        </div>
-                        @if (allocation.Destination == LoadingReceiptAllocationDestination.DirectDispatchToTruck
-                            && allocation.DirectTruckDispatchRemainingQuantityMt > 0
-                            && allocation.Status != LoadingReceiptAllocationStatus.Cancelled)
-                        {
-                            <a class="btn btn-light"
-                               asp-controller="Dispatch"
-                               asp-action="CreateDirectFromReceipt"
-                               asp-route-allocationId="@allocation.Id"
-                               asp-route-returnUrl="@currentReturnUrl">@T("ارسال با موتر", "Dispatch by truck")</a>
-                        }
-                    </div>
-                }
-                @if (Model.Allocations.Count == 0)
-                {
-                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هیچ تخصیصی برای این رسید ثبت نشده است.", "No allocation recorded for this receipt.")" />
-                }
-            </div>
-        </section>
-
-        @if (Model.LossItems.Count > 0)
-        {
-            <section class="ak-form-section ak-detail-section">
+    @if (Model.LossItems.Count > 0)
+    {
+        <div class="ak-form-grid">
+            <section class="ak-form-section ak-detail-section ak-col-full" data-loading-receipt-losses>
                 <header class="ak-section-head ak-detail-section-header">
-                    <h2 class="ak-section-title">@T("ضایعات / اختلاف", "Losses / difference")</h2>
-                    <span class="ak-status">@NumberDisplay.Quantity(lossDifferenceTotal) MT</span>
+                    <h2 class="ak-section-title">@T("کسری رسید", "Receipt shortage")</h2>
+                    <span class="ak-status">@NumberDisplay.Quantity(lossDifferenceTotal) @T("تن", "MT")</span>
                 </header>
                 <div class="ak-list">
                     @foreach (var loss in Model.LossItems)
@@ -348,27 +228,57 @@
                         <div class="ak-list-row">
                             <div class="ak-col-grow">
                                 <span>@loss.EventDate.ToDisplayDate()</span>
-                                <strong>@loss.Stage</strong>
-                                @{ var lossNote = loss.Reference ?? loss.Notes; }
-                                @if (!string.IsNullOrWhiteSpace(lossNote))
+                                <strong>@LossEventStageLabels.ToPersian(loss.Stage)</strong>
+                                @{ var lossReference = ToReceiptReferenceText(loss.Reference); }
+                                @if (!string.IsNullOrWhiteSpace(lossReference))
                                 {
-                                    <span>@lossNote</span>
+                                    <span>@T("مرجع", "Reference"): @lossReference</span>
                                 }
                             </div>
                             <div class="ak-num">
-                                <strong class="text-danger">@NumberDisplay.Quantity(loss.DifferenceQuantityMt) MT</strong>
-                                <span>@T("قابل محاسبه", "Chargeable") @NumberDisplay.Quantity(loss.ChargeableLossMt) MT</span>
+                                <strong class="text-danger">@T("اختلاف", "Difference"): @NumberDisplay.Quantity(loss.DifferenceQuantityMt) @T("تن", "MT")</strong>
+                                <span>@T("قابل‌حساب", "Chargeable"): @NumberDisplay.Quantity(loss.ChargeableLossMt) @T("تن", "MT")</span>
                             </div>
                         </div>
                     }
                 </div>
             </section>
-        }
-    </div>
+        </div>
+    }
 
     <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
              model="@(((IReadOnlyList<AkTimelineItem>)timelineItems,
                         (IReadOnlyList<AkRelatedRecord>)relatedRecords,
                         (IReadOnlyList<AkInfoItem>)advancedItems))" />
+
+    @if (!Model.IsCancelled)
+    {
+        <div class="modal fade" id="loadingReceiptCancelModal" tabindex="-1" aria-labelledby="loadingReceiptCancelModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <form method="post" asp-action="Cancel" asp-route-id="@Model.Id" class="modal-content" data-loading-receipt-cancel-form>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
+                    <input type="hidden" name="returnUrl" value="@currentReturnUrl" />
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="loadingReceiptCancelModalLabel">@T("لغو رسید", "Cancel receipt")</h2>
+                        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="ak-field">
+                            <label class="ak-label" for="receiptCancelReason">@T("دلیل لغو رسید", "Receipt cancellation reason")</label>
+                            <input class="ak-input" id="receiptCancelReason" name="reason" maxlength="500" required
+                                   placeholder="@T("مثلاً مقدار اشتباه ثبت شده بود", "e.g. wrong quantity registered")" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">@T("انصراف", "Cancel")</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-x-octagon" aria-hidden="true"></i> @T("لغو رسید", "Cancel receipt")
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
 
 </div>

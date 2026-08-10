@@ -32,6 +32,7 @@ public sealed class StageLossCaptureContext
     public int? ShipmentId { get; init; }
     public int? LoadingRegisterId { get; init; }
     public int? LoadingReceiptId { get; init; }
+    public int? TransportLegId { get; init; }
     public int? TruckDispatchId { get; init; }
     public int? SalesTransactionId { get; init; }
     public int? TerminalId { get; init; }
@@ -48,6 +49,7 @@ public sealed class LossEventSubmission
     public int? ShipmentId { get; set; }
     public int? LoadingRegisterId { get; set; }
     public int? LoadingReceiptId { get; set; }
+    public int? TransportLegId { get; set; }
     public int? TruckDispatchId { get; set; }
     public int? SalesTransactionId { get; set; }
     public int? TerminalId { get; set; }
@@ -120,6 +122,7 @@ public static class StageLossCaptureMapper
             ShipmentId = context.ShipmentId,
             LoadingRegisterId = context.LoadingRegisterId,
             LoadingReceiptId = context.LoadingReceiptId,
+            TransportLegId = context.TransportLegId,
             TruckDispatchId = context.TruckDispatchId,
             SalesTransactionId = context.SalesTransactionId,
             TerminalId = context.TerminalId,

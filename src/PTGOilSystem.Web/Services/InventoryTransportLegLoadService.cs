@@ -23,6 +23,7 @@ public sealed class InventoryTransportLegLoadService
     private readonly ApplicationDbContext _db;
     private readonly IStockService _stock;
     private readonly IInventoryLineageWriter _lineage;
+    private readonly IInventoryMovementWriter _movements;
 
     // Dual-write اختیاری به دفتر کل جدید — انتقال بهای موجودی به حساب «کالای در راه». پشت Feature Flag و null-safe.
     private readonly Accounting.IInventoryTransferAccountingAdapter? _transferAccounting;
@@ -33,12 +34,14 @@ public sealed class InventoryTransportLegLoadService
         ApplicationDbContext db,
         IStockService stock,
         IInventoryLineageWriter? lineage = null,
-        Accounting.IInventoryTransferAccountingAdapter? transferAccounting = null)
+        Accounting.IInventoryTransferAccountingAdapter? transferAccounting = null,
+        IInventoryMovementWriter? movements = null)
     {
         _db = db;
         _stock = stock;
         _lineage = lineage ?? InventoryLineageWriterFactory.Disabled(db);
         _transferAccounting = transferAccounting;
+        _movements = movements ?? new InventoryMovementWriter(db, stock);
     }
 
     /// <summary>
@@ -49,16 +52,16 @@ public sealed class InventoryTransportLegLoadService
     {
         await ValidateForLoadAsync(leg);
 
-        var movement = BuildOutboundMovement(leg);
-
         // قفل هم‌زمانی روی مخزن مبدأ پیش از چک موجودی (داخل تراکنشِ caller)، تا دو بارگیریِ
         // هم‌زمان روی یک مخزن نتوانند هر دو از چک عبور کرده و موجودی را منفی کنند.
-        await _stock.AcquireStockMutationLockAsync(movement);
+        // چک موجودی اینجا نسخهٔ مخصوص همین مسیر است (EnsureTankScopedStockAsync، عمداً بدون
+        // asOfUtc)، پس نگهبان Available استاندارد Writer فراخوانی نمی‌شود.
+        await _stock.AcquireStockMutationLockAsync(BuildOutboundMovement(leg));
         await EnsureTankScopedStockAsync(leg);
-        await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(movement);
 
-        _db.InventoryMovements.Add(movement);
-        await _db.SaveChangesAsync();
+        var movement = await _movements.PostOutboundAsync(
+            BuildOutboundRequest(leg),
+            StockGuard.FutureTimeline);
 
         leg.OutboundInventoryMovementId = movement.Id;
         leg.Status = InventoryTransportLegStatus.Loaded;
@@ -75,6 +78,20 @@ public sealed class InventoryTransportLegLoadService
         await _lineage.OnLegLoadedAsync(leg, movement);
     }
 
+    public static InventoryMovementRequest BuildOutboundRequest(InventoryTransportLeg leg)
+        => new()
+        {
+            ProductId = leg.ProductId,
+            ContractId = leg.SourcePurchaseContractId,
+            TerminalId = leg.SourceTerminalId,
+            StorageTankId = leg.SourceStorageTankId,
+            MovementDate = leg.LoadedDate,
+            QuantityMt = leg.QuantityMt,
+            ReferenceDocument = $"{ReferencePrefix}:{leg.Id}",
+            Notes = "Inventory transport leg outbound movement"
+        };
+
+    // فقط برای قفل هم‌زمانی و تست‌های موجود؛ سند واقعی را Writer می‌سازد.
     public static InventoryMovement BuildOutboundMovement(InventoryTransportLeg leg)
         => new()
         {

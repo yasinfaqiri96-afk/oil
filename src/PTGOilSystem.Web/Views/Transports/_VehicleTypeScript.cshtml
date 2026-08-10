@@ -1,0 +1,22 @@
+<script>
+    (function () {
+        var root = document.querySelector('[data-transport-vehicle-form]');
+        if (!root) return;
+        var type = root.querySelector('[data-transport-type]');
+        function syncVehicle() {
+            var value = type ? type.value : '3';
+            root.querySelectorAll('[data-vehicle-field]').forEach(function (field) {
+                var active = field.getAttribute('data-vehicle-field') === value;
+                field.hidden = !active;
+                field.querySelectorAll('select, input').forEach(function (control) { control.disabled = !active; });
+            });
+            root.querySelectorAll('[data-truck-only]').forEach(function (field) {
+                var active = value === '3';
+                field.hidden = !active;
+                field.querySelectorAll('select, input').forEach(function (control) { control.disabled = !active; });
+            });
+        }
+        if (type) type.addEventListener('change', syncVehicle);
+        syncVehicle();
+    })();
+</script>

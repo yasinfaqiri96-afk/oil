@@ -43,7 +43,10 @@ public sealed class GroupUnloadViewStructureTests
         Assert.Contains("var isSubmitting = false", view);
         Assert.Contains("if (isSubmitting)", view);
         Assert.Contains("IsolationLevel.Serializable", controller);
-        Assert.Contains("InventoryTransportReceiptService", controller);
+        // تخلیهٔ گروهی باید از همان سرویس رسیدِ مشترک عبور کند و آن سرویس از DI بیاید، وگرنه
+        // آداپترهای حسابداری/نسب‌نامه در این مسیر null می‌مانند و رفتار با بقیهٔ مسیرها فرق می‌کند.
+        Assert.Contains("var receiptService = _receiptService;", controller);
+        Assert.DoesNotContain("new InventoryTransportReceiptService(", controller);
         Assert.Contains("ReferenceDocument = $\"TRUCK-UNLOAD:{dispatch.Id}\"", controller);
     }
 

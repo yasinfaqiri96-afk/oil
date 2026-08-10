@@ -22,6 +22,7 @@ public partial class InventoryController : Controller
     private readonly IStockService _stock;
     private readonly IAuditService _audit;
     private readonly ILogger<InventoryController> _logger;
+    private readonly IInventoryMovementWriter _movements;
     private const int LookupLimit = 200;
     private const int IndexPageSize = 20;
 
@@ -29,12 +30,14 @@ public partial class InventoryController : Controller
         ApplicationDbContext db,
         IStockService stock,
         IAuditService audit,
-        ILogger<InventoryController> logger)
+        ILogger<InventoryController> logger,
+        IInventoryMovementWriter? movements = null)
     {
         _db = db;
         _stock = stock;
         _audit = audit;
         _logger = logger;
+        _movements = movements ?? new InventoryMovementWriter(db, stock);
     }
 
     private async Task PopulateLookupsAsync(
@@ -240,16 +243,18 @@ public partial class InventoryController : Controller
             return View(model);
         }
 
-        var movement = new InventoryMovement
+        var referenceDocument = string.IsNullOrWhiteSpace(model.ReferenceDocument)
+            ? $"MANUAL-INVENTORY:{Guid.NewGuid():N}"
+            : model.ReferenceDocument.Trim();
+        var request = new InventoryMovementRequest
         {
             ProductId = model.ProductId,
             ContractId = model.ContractId,
             TerminalId = model.TerminalId,
             StorageTankId = model.StorageTankId,
-            Direction = model.Direction,
             QuantityMt = model.QuantityMt,
             MovementDate = model.MovementDate,
-            ReferenceDocument = string.IsNullOrWhiteSpace(model.ReferenceDocument) ? null : model.ReferenceDocument.Trim(),
+            ReferenceDocument = referenceDocument,
             Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
         };
 
@@ -263,11 +268,14 @@ public partial class InventoryController : Controller
                 transaction = await _db.Database.BeginTransactionAsync();
             }
 
-            await _stock.AcquireStockMutationLockAsync(movement);
-            await _stock.EnsureSufficientStockForMovementAsync(movement);
-
-            _db.InventoryMovements.Add(movement);
-            await _db.SaveChangesAsync();
+            var movement = model.Direction switch
+            {
+                MovementDirection.In => await _movements.PostInboundAsync(request),
+                MovementDirection.Out => await _movements.PostOutboundAsync(request),
+                MovementDirection.Transfer => await _movements.PostTransferAsync(request),
+                MovementDirection.Adjustment => await _movements.PostAdjustmentAsync(request),
+                _ => throw new BusinessRuleException("STOCK_DIRECTION_INVALID", "نوع حرکت موجودی معتبر نیست.")
+            };
 
             await _audit.LogAndSaveAsync(
                 nameof(InventoryMovement),

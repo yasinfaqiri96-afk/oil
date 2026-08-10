@@ -81,7 +81,7 @@
             @T("با ثبت این فرم، رسید قبلی لغو و رسید اصلاح‌شده ثبت می‌شود.",
                "Submitting this form cancels the previous receipt and registers the corrected one.")
         </div>
-        <div class="ak-field ak-span-2">
+        <div class="ak-field ak-col-full">
             <label class="ak-label" asp-for="CorrectionReason"></label>
             <input class="ak-input" asp-for="CorrectionReason" maxlength="500" required />
             <span asp-validation-for="CorrectionReason"></span>
@@ -107,30 +107,25 @@
     <main>
         <section class="ak-form-section" aria-labelledby="receiptSourceTitle">
             <div class="ak-section-head">
-                <i class="bi bi-truck"></i>
-                <h2 id="receiptSourceTitle" class="ak-section-title">@T("اطلاعات منبع", "Source Information")</h2>
-            </div>
-
-            <div class="ak-field">
-                <label for="SourceLoadingDisplay">@T("بارگیری منبع / بارنامه", "Source Loading / Bill of Loading")</label>
-                <select id="SourceLoadingDisplay" class="ak-input" disabled>
-                    <option selected>@sourceLabel</option>
-                </select>
-            </div>
-
-            <div class="ak-field">
-                <label for="ReceiptDate">@T("تاریخ رسید", "Received Date")</label>
-                <input id="ReceiptDate"
-                       name="ReceiptDate"
-                       type="datetime-local"
-                       class="ak-input"
-                       value="@receiptDateValue.ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture)" />
-                <span asp-validation-for="ReceiptDate" class="ak-field-error"></span>
+                <h2 id="receiptSourceTitle" class="ak-section-title">@T("رسید", "Receipt")</h2>
             </div>
 
             <div class="ak-form-grid">
                 <div class="ak-field">
-                    <label for="ManifestQtyMt">@T("مقدار بارنامه (MT)", "Manifest Qty (MT)")</label>
+                    <label for="SourceLoadingDisplay">@T("بارگیری منبع", "Source loading")</label>
+                    <input id="SourceLoadingDisplay" type="text" class="ak-input" value="@sourceLabel" disabled />
+                </div>
+                <div class="ak-field">
+                    <label for="ReceiptDate">@T("تاریخ رسید", "Receipt date")</label>
+                    <input id="ReceiptDate"
+                           name="ReceiptDate"
+                           type="datetime-local"
+                           class="ak-input"
+                           value="@receiptDateValue.ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture)" />
+                    <span asp-validation-for="ReceiptDate" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label for="ManifestQtyMt">@T("مقدار بارنامه (MT)", "Manifest qty (MT)")</label>
                     <input id="ManifestQtyMt"
                            type="text"
                            class="ak-input"
@@ -138,7 +133,7 @@
                            disabled />
                 </div>
                 <div class="ak-field">
-                    <label for="ReceivedQuantityMt">@T("مقدار رسید (MT)", "Received Qty (MT)")</label>
+                    <label for="ReceivedQuantityMt">@T("مقدار رسید (MT)", "Received qty (MT)")</label>
                     <input id="ReceivedQuantityMt"
                            name="ReceivedQuantityMt"
                            type="number"
@@ -149,11 +144,8 @@
                            data-preview-source="receivedQuantity" />
                     <span asp-validation-for="ReceivedQuantityMt" class="ak-field-error"></span>
                 </div>
-            </div>
-
-            <div class="ak-form-grid">
                 <div class="ak-field">
-                    <label for="ActualArrivedQuantityMt">@T("مقدار واقعی رسیده (MT)", "Actual Arrived Qty (MT)")</label>
+                    <label for="ActualArrivedQuantityMt">@T("مقدار واقعی (MT)", "Actual qty (MT)")</label>
                     <input id="ActualArrivedQuantityMt"
                            name="ActualArrivedQuantityMt"
                            type="number"
@@ -164,7 +156,7 @@
                     <span asp-validation-for="ActualArrivedQuantityMt" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
-                    <label for="ReferenceDocument">@T("شماره رسید / مرجع", "Receipt Reference")</label>
+                    <label for="ReferenceDocument">@T("شماره / مرجع", "Reference")</label>
                     <input id="ReferenceDocument"
                            name="ReferenceDocument"
                            class="ak-input"
@@ -174,215 +166,184 @@
                 </div>
             </div>
 
-            @* پیگیری ورود به مقصد — فیلدهای واقعی مدل (ArrivalDate/LeakDate) که Controller ثبت می‌کند *@
-            <div class="ak-form-grid">
-                <div class="ak-field">
-                    <label asp-for="ArrivalDate">@T("تاریخ ورود به مقصد", "Arrival Date")</label>
-                    <input asp-for="ArrivalDate" type="date" class="ak-input" />
-                    <span asp-validation-for="ArrivalDate" class="ak-field-error"></span>
+            @* فیلدهای کم‌کاربرد پنهان می‌مانند تا فرم شلوغ نشود؛ مقادیر همچنان ارسال می‌شوند. *@
+            <details class="ak-advanced">
+                <summary class="ak-advanced-summary">@T("اطلاعات تکمیلی", "More details")</summary>
+                <div class="ak-advanced-body ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="ArrivalDate">@T("تاریخ ورود به مقصد", "Arrival date")</label>
+                        <input asp-for="ArrivalDate" type="date" class="ak-input" />
+                        <span asp-validation-for="ArrivalDate" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="LeakDate">@T("تاریخ نشت / خرابی", "Leak date")</label>
+                        <input asp-for="LeakDate" type="date" class="ak-input" />
+                        <span asp-validation-for="LeakDate" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Notes">@T("یادداشت", "Notes")</label>
+                        <textarea asp-for="Notes" rows="2" class="ak-input"></textarea>
+                        <span asp-validation-for="Notes" class="ak-field-error"></span>
+                    </div>
                 </div>
-                <div class="ak-field">
-                    <label asp-for="LeakDate">@T("تاریخ نشت / خرابی", "Leak / Damage Date")</label>
-                    <input asp-for="LeakDate" type="date" class="ak-input" />
-                    <span asp-validation-for="LeakDate" class="ak-field-error"></span>
-                </div>
-            </div>
-
-            <div class="ak-field">
-                <label asp-for="Notes">@T("یادداشت رسید", "Receipt Notes")</label>
-                <textarea asp-for="Notes" rows="2" class="ak-input"></textarea>
-                <span asp-validation-for="Notes" class="ak-field-error"></span>
-            </div>
+            </details>
         </section>
 
         <section class="ak-form-section" aria-labelledby="receiptRoutingTitle">
             <div class="ak-section-head">
-                <h2 id="receiptRoutingTitle" class="ak-section-title">@T("مسیر مقصد", "Destination Routing")</h2>
-                <p>@T("این محصول رسیده به کدام مقصد تخصیص شود؟", "Where should this received product be allocated?")</p>
+                <h2 id="receiptRoutingTitle" class="ak-section-title">@T("مقصد", "Destination")</h2>
             </div>
 
-            <div class="ak-form-grid" aria-label="@T("مسیر مقصد", "Destination routing")">
-                <button type="button" class="btn btn-light @(currentScenario =="inventory" ? "is-selected" : "")" data-scenario-pick="inventory" aria-pressed="@(currentScenario == "inventory" ? "true" : "false")">
-                    <i class="bi bi-database"></i>
-                    <strong>@T("به موجودی", "To Inventory")</strong>
-                    <span>@T("ذخیره در مخزن تعیین‌شده...", "Store in designated storage...")</span>
+            <div class="ak-choice-grid" role="group" aria-label="@T("مقصد", "Destination")">
+                <button type="button" class="ak-choice @(currentScenario =="inventory" ? "is-selected" : "")" data-scenario-pick="inventory" aria-pressed="@(currentScenario == "inventory" ? "true" : "false")">
+                    <i class="bi bi-database" aria-hidden="true"></i>
+                    <span>@T("به موجودی", "Inventory")</span>
                 </button>
-                <button type="button" class="btn btn-light @(currentScenario =="sale" ? "is-selected" : "")" data-scenario-pick="sale" aria-pressed="@(currentScenario == "sale" ? "true" : "false")">
-                    <i class="bi bi-currency-dollar"></i>
-                    <strong>@T("فروش مستقیم", "Direct Sale")</strong>
-                    <span>@T("فروش فوری به مشتری", "Sell immediately to customer")</span>
+                <button type="button" class="ak-choice @(currentScenario =="sale" ? "is-selected" : "")" data-scenario-pick="sale" aria-pressed="@(currentScenario == "sale" ? "true" : "false")">
+                    <i class="bi bi-currency-dollar" aria-hidden="true"></i>
+                    <span>@T("فروش مستقیم", "Direct sale")</span>
                 </button>
-                <button type="button" class="btn btn-light @(currentScenario =="truck" ? "is-selected" : "")" data-scenario-pick="truck" aria-pressed="@(currentScenario == "truck" ? "true" : "false")">
-                    <i class="bi bi-send"></i>
-                    <strong>@T("ارسال با موتر", "Truck Send")</strong>
-                    <span>@T("بار مستقیم روی موتر...", "Load directly onto outbound...")</span>
+                <button type="button" class="ak-choice @(currentScenario =="truck" ? "is-selected" : "")" data-scenario-pick="truck" aria-pressed="@(currentScenario == "truck" ? "true" : "false")">
+                    <i class="bi bi-send" aria-hidden="true"></i>
+                    <span>@T("ارسال با موتر", "Truck send")</span>
                 </button>
-                <button type="button" class="btn btn-light @(currentScenario =="transfer" ? "is-selected" : "")" data-scenario-pick="transfer" aria-pressed="@(currentScenario == "transfer" ? "true" : "false")">
-                    <i class="bi bi-arrow-repeat"></i>
-                    <strong>@T("انتقال", "Transfer")</strong>
-                    <span>@T("انتقال به ترمینال دیگر", "Transfer to another terminal")</span>
+                <button type="button" class="ak-choice @(currentScenario =="transfer" ? "is-selected" : "")" data-scenario-pick="transfer" aria-pressed="@(currentScenario == "transfer" ? "true" : "false")">
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                    <span>@T("انتقال", "Transfer")</span>
                 </button>
-                <button type="button" class="btn btn-light @(currentScenario =="mixed" ? "is-selected" : "")" data-scenario-pick="mixed" aria-pressed="@(currentScenario == "mixed" ? "true" : "false")">
-                    <i class="bi bi-diagram-3"></i>
-                    <strong>@T("تقسیم ترکیبی", "Mixed Allocation")</strong>
-                    <span>@T("تقسیم مقدار به چند مقصد", "Split quantity across destinations")</span>
+                <button type="button" class="ak-choice @(currentScenario =="mixed" ? "is-selected" : "")" data-scenario-pick="mixed" aria-pressed="@(currentScenario == "mixed" ? "true" : "false")">
+                    <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                    <span>@T("ترکیبی", "Mixed")</span>
                 </button>
             </div>
 
-            <div class="ak-note mt-2">
-                <i class="bi bi-info-circle"></i>
-                <div>
-                    @T("«به موجودی» و «انتقال» موجودی در مخزن می‌سازند. «فروش مستقیم» و «ارسال با موتر» موجودی نمی‌سازند و بار مستقیم خارج می‌شود. «ترکیبی» بسته به سطرها فرق می‌کند.",
-                       "Inventory and transfer create stock. Direct sale and truck send do not create stock.")
-                </div>
-            </div>
-
-            <div class="ak-section-divider"></div>
-
-            <div class="ak-field">
-                <label for="TerminalId">@T("ترمینال رسید", "Receipt Terminal")</label>
-                <select asp-for="TerminalId" asp-items="ViewBag.Terminals" class="ak-input" data-preview-source="terminal">
-                    <option value=""></option>
-                </select>
-                <span asp-validation-for="TerminalId" class="ak-field-error"></span>
-            </div>
-
-            <div class="ak-form-grid @(currentScenario =="inventory" ? "" : "d-none")" data-scenario-panel="inventory">
+            <div class="ak-form-grid">
                 <div class="ak-field">
-                    <label asp-for="StorageTankId">@T("مخزن", "Storage Tank")</label>
+                    <label for="TerminalId">@T("ترمینال رسید", "Receipt terminal")</label>
+                    <select asp-for="TerminalId" asp-items="ViewBag.Terminals" class="ak-input" data-preview-source="terminal">
+                        <option value=""></option>
+                    </select>
+                    <span asp-validation-for="TerminalId" class="ak-field-error"></span>
+                </div>
+
+                <div class="ak-field @(currentScenario =="inventory" ? "" : "d-none")" data-scenario-panel="inventory">
+                    <label asp-for="StorageTankId">@T("مخزن", "Tank")</label>
                     <select asp-for="StorageTankId" asp-items="ViewBag.StorageTanks" class="ak-input" data-preview-source="storageTank">
                         <option value=""></option>
                     </select>
-                    <span class="ak-field-note">@T("برای ورود به موجودی، مخزن همان ترمینال را انتخاب کنید.", "Select the tank that receives inventory at this terminal.")</span>
                     <span asp-validation-for="StorageTankId" class="ak-field-error"></span>
                 </div>
             </div>
 
             <div class="ak-form-grid @(currentScenario =="truck" ? "" : "d-none")" data-scenario-panel="truck">
-                <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label asp-for="DirectTruckId">@T("موتر", "Truck")</label>
-                        <select asp-for="DirectTruckId" asp-items="ViewBag.DirectTrucks" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="DirectTruckId" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="DirectTruckPlateNumber">@T("نمبر پلیت", "Plate Number")</label>
-                        <input asp-for="DirectTruckPlateNumber" class="ak-input" />
-                        <span asp-validation-for="DirectTruckPlateNumber" class="ak-field-error"></span>
-                    </div>
+                <div class="ak-field">
+                    <label asp-for="DirectTruckId">@T("موتر", "Truck")</label>
+                    <select asp-for="DirectTruckId" asp-items="ViewBag.DirectTrucks" class="ak-input">
+                        <option value=""></option>
+                    </select>
+                    <span asp-validation-for="DirectTruckId" class="ak-field-error"></span>
                 </div>
-                <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label asp-for="DirectDriverId">@T("راننده", "Driver")</label>
-                        <select asp-for="DirectDriverId" asp-items="ViewBag.DirectDrivers" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="DirectDriverId" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="DirectDriverName">@T("نام راننده جدید", "New Driver Name")</label>
-                        <input asp-for="DirectDriverName" class="ak-input" />
-                        <span asp-validation-for="DirectDriverName" class="ak-field-error"></span>
-                    </div>
+                <div class="ak-field">
+                    <label asp-for="DirectTruckPlateNumber">@T("نمبر پلیت", "Plate")</label>
+                    <input asp-for="DirectTruckPlateNumber" class="ak-input" />
+                    <span asp-validation-for="DirectTruckPlateNumber" class="ak-field-error"></span>
                 </div>
-                <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label asp-for="DirectDispatchDate">@T("تاریخ حرکت موتر", "Truck Send Date")</label>
-                        <input asp-for="DirectDispatchDate" type="date" class="ak-input" />
-                        <span asp-validation-for="DirectDispatchDate" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="DirectTruckTicketSerialNumber">@T("سریال تکت موتر", "Truck Ticket Serial")</label>
-                        <input asp-for="DirectTruckTicketSerialNumber" class="ak-input" />
-                        <span asp-validation-for="DirectTruckTicketSerialNumber" class="ak-field-error"></span>
-                    </div>
+                <div class="ak-field">
+                    <label asp-for="DirectDriverId">@T("راننده", "Driver")</label>
+                    <select asp-for="DirectDriverId" asp-items="ViewBag.DirectDrivers" class="ak-input">
+                        <option value=""></option>
+                    </select>
+                    <span asp-validation-for="DirectDriverId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="DirectDriverName">@T("نام راننده جدید", "New driver")</label>
+                    <input asp-for="DirectDriverName" class="ak-input" />
+                    <span asp-validation-for="DirectDriverName" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="DirectDispatchDate">@T("تاریخ حرکت", "Dispatch date")</label>
+                    <input asp-for="DirectDispatchDate" type="date" class="ak-input" />
+                    <span asp-validation-for="DirectDispatchDate" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="DirectTruckTicketSerialNumber">@T("سریال تکت", "Ticket serial")</label>
+                    <input asp-for="DirectTruckTicketSerialNumber" class="ak-input" />
+                    <span asp-validation-for="DirectTruckTicketSerialNumber" class="ak-field-error"></span>
                 </div>
             </div>
 
             <div class="ak-form-grid @(currentScenario =="sale" ? "" : "d-none")" data-scenario-panel="sale">
-                <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label asp-for="SaleCustomerId">@T("مشتری", "Customer")</label>
-                        <select asp-for="SaleCustomerId" asp-items="ViewBag.SaleCustomers" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="SaleCustomerId" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="SaleDate">@T("تاریخ فروش", "Sale Date")</label>
-                        <input asp-for="SaleDate" type="date" class="ak-input" />
-                        <span asp-validation-for="SaleDate" class="ak-field-error"></span>
-                    </div>
-                </div>
-                <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label asp-for="SaleInvoiceNumber">@T("شماره فاکتور", "Invoice Number")</label>
-                        <input asp-for="SaleInvoiceNumber" class="ak-input" />
-                        <span asp-validation-for="SaleInvoiceNumber" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="SaleUnitPriceInCurrency">@T("قیمت واحد", "Unit Price")</label>
-                        <input asp-for="SaleUnitPriceInCurrency" class="ak-input" />
-                        <span asp-validation-for="SaleUnitPriceInCurrency" class="ak-field-error"></span>
-                    </div>
-                </div>
-                <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label asp-for="SaleCurrency">@T("واحد پول", "Currency")</label>
-                        <input asp-for="SaleCurrency" class="ak-input" />
-                        <span asp-validation-for="SaleCurrency" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="SaleAppliedFxRateToUsd">@T("نرخ تبدیل به USD", "FX Rate to USD")</label>
-                        <input asp-for="SaleAppliedFxRateToUsd" class="ak-input" />
-                        <span asp-validation-for="SaleAppliedFxRateToUsd" class="ak-field-error"></span>
-                    </div>
+                <div class="ak-field">
+                    <label asp-for="SaleCustomerId">@T("مشتری", "Customer")</label>
+                    <select asp-for="SaleCustomerId" asp-items="ViewBag.SaleCustomers" class="ak-input">
+                        <option value=""></option>
+                    </select>
+                    <span asp-validation-for="SaleCustomerId" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
-                    <label asp-for="SaleNotes">@T("یادداشت فروش", "Sale Notes")</label>
+                    <label asp-for="SaleDate">@T("تاریخ فروش", "Sale date")</label>
+                    <input asp-for="SaleDate" type="date" class="ak-input" />
+                    <span asp-validation-for="SaleDate" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="SaleInvoiceNumber">@T("شماره فاکتور", "Invoice")</label>
+                    <input asp-for="SaleInvoiceNumber" class="ak-input" />
+                    <span asp-validation-for="SaleInvoiceNumber" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="SaleUnitPriceInCurrency">@T("قیمت واحد", "Unit price")</label>
+                    <input asp-for="SaleUnitPriceInCurrency" class="ak-input" />
+                    <span asp-validation-for="SaleUnitPriceInCurrency" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="SaleCurrency">@T("واحد پول", "Currency")</label>
+                    <input asp-for="SaleCurrency" class="ak-input" />
+                    <span asp-validation-for="SaleCurrency" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="SaleAppliedFxRateToUsd">@T("نرخ به USD", "FX to USD")</label>
+                    <input asp-for="SaleAppliedFxRateToUsd" class="ak-input" />
+                    <span asp-validation-for="SaleAppliedFxRateToUsd" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full">
+                    <label asp-for="SaleNotes">@T("یادداشت فروش", "Sale notes")</label>
                     <textarea asp-for="SaleNotes" rows="2" class="ak-input"></textarea>
                     <span asp-validation-for="SaleNotes" class="ak-field-error"></span>
                 </div>
             </div>
 
             <div class="ak-form-grid @(currentScenario =="transfer" ? "" : "d-none")" data-scenario-panel="transfer">
-                <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label asp-for="DestinationTerminalId">@T("ترمینال مقصد", "Destination Terminal")</label>
-                        <select asp-for="DestinationTerminalId" asp-items="ViewBag.DestinationTerminals" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="DestinationTerminalId" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="DestinationStorageTankId">@T("مخزن مقصد", "Destination Tank")</label>
-                        <select asp-for="DestinationStorageTankId" asp-items="ViewBag.DestinationStorageTanks" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="DestinationStorageTankId" class="ak-field-error"></span>
-                    </div>
+                <div class="ak-field">
+                    <label asp-for="DestinationTerminalId">@T("ترمینال مقصد", "Dest. terminal")</label>
+                    <select asp-for="DestinationTerminalId" asp-items="ViewBag.DestinationTerminals" class="ak-input">
+                        <option value=""></option>
+                    </select>
+                    <span asp-validation-for="DestinationTerminalId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="DestinationStorageTankId">@T("مخزن مقصد", "Dest. tank")</label>
+                    <select asp-for="DestinationStorageTankId" asp-items="ViewBag.DestinationStorageTanks" class="ak-input">
+                        <option value=""></option>
+                    </select>
+                    <span asp-validation-for="DestinationStorageTankId" class="ak-field-error"></span>
                 </div>
             </div>
 
             <div class="ak-form-grid @(currentScenario =="truck" || currentScenario == "transfer" ? "" : "d-none")" data-scenario-panel="truck transfer">
-                <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label asp-for="DestinationLocationId">@T("شهر / موقعیت مقصد", "Destination Location")</label>
-                        <select asp-for="DestinationLocationId" asp-items="ViewBag.DestinationLocations" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="DestinationLocationId" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="AllocationDestinationName">@T("نام مقصد", "Destination")</label>
-                        <input asp-for="AllocationDestinationName" class="ak-input" />
-                        <span asp-validation-for="AllocationDestinationName" class="ak-field-error"></span>
-                    </div>
+                <div class="ak-field">
+                    <label asp-for="DestinationLocationId">@T("موقعیت مقصد", "Dest. location")</label>
+                    <select asp-for="DestinationLocationId" asp-items="ViewBag.DestinationLocations" class="ak-input">
+                        <option value=""></option>
+                    </select>
+                    <span asp-validation-for="DestinationLocationId" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
-                    <label asp-for="DestinationReference">@T("مرجع مقصد", "Reference")</label>
+                    <label asp-for="AllocationDestinationName">@T("نام مقصد", "Destination")</label>
+                    <input asp-for="AllocationDestinationName" class="ak-input" />
+                    <span asp-validation-for="AllocationDestinationName" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full">
+                    <label asp-for="DestinationReference">@T("مرجع مقصد", "Dest. reference")</label>
                     <input asp-for="DestinationReference" class="ak-input" />
                     <span asp-validation-for="DestinationReference" class="ak-field-error"></span>
                 </div>
@@ -391,10 +352,8 @@
 
         <section class="ak-form-section @(currentScenario =="mixed" ? "" : "d-none")" data-scenario-panel="mixed" aria-labelledby="receiptMixedTitle">
             <div class="ak-section-head">
-                <i class="bi bi-diagram-3"></i>
                 <h2 id="receiptMixedTitle" class="ak-section-title">@T("تقسیم رسید", "Receipt split")</h2>
             </div>
-            <p class="ak-section-desc">@T("هر ردیف می‌تواند مقصد جداگانه داشته باشد. جمع مقدار ردیف‌ها باید با مقدار کل رسید برابر باشد.", "Each row can have a separate destination. Row totals must match the receipt quantity.")</p>
             <div class="ak-table-wrap">
                 <table class="ak-table">
                     <thead>
@@ -488,84 +447,66 @@
         </section>
 
         <section class="ak-form-section" aria-labelledby="receiptLossTitle" data-receipt-loss-card>
-            <div >
-                <div class="ak-section-head">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <h2 id="receiptLossTitle" class="ak-section-title">@T("کسری / ضایعات همین رسید", "Receipt Shortage / Loss")</h2>
-                </div>
+            <div class="ak-section-head">
+                <h2 id="receiptLossTitle" class="ak-section-title">@T("کسری / ضایعات", "Shortage / loss")</h2>
             </div>
 
             <input type="hidden" name="LossMode" value="@((int)Model.LossMode)" data-loss-mode-value />
-            <div class="ak-form-grid" role="group" aria-label="@T("نحوهٔ ثبت ضایعات", "Loss capture mode")">
+            <div class="ak-choice-grid ak-choice-grid--2" role="group" aria-label="@T("نحوهٔ ثبت ضایعات", "Loss capture mode")">
                 <button type="button"
-                        class="btn btn-light @(Model.LossMode == ReceiptLossMode.ImmediateKnownLoss ?"is-selected" : "")"
+                        class="ak-choice @(Model.LossMode == ReceiptLossMode.ImmediateKnownLoss ?"is-selected" : "")"
                         data-loss-mode-pick data-loss-mode-set="@((int)ReceiptLossMode.ImmediateKnownLoss)"
                         aria-pressed="@(Model.LossMode == ReceiptLossMode.ImmediateKnownLoss ? "true" : "false")">
-                    <strong>@T("ضایعات حالا معلوم است", "Loss known now")</strong>
-                    <span>@T("مقدار دریافت و ضایعات را همین حالا ثبت کنید", "Enter received quantity and loss now")</span>
+                    <span>@T("اکنون معلوم است", "Known now")</span>
                 </button>
                 <button type="button"
-                        class="btn btn-light @(Model.LossMode == ReceiptLossMode.DeferredTankSettlement ?"is-selected" : "")"
+                        class="ak-choice @(Model.LossMode == ReceiptLossMode.DeferredTankSettlement ?"is-selected" : "")"
                         data-loss-mode-pick data-loss-mode-set="@((int)ReceiptLossMode.DeferredTankSettlement)"
                         aria-pressed="@(Model.LossMode == ReceiptLossMode.DeferredTankSettlement ? "true" : "false")">
-                    <strong>@T("ضایعات بعداً از تسویه مخزن", "Loss from tank settlement")</strong>
-                    <span>@T("رسید در انتظار تسویهٔ نهایی مخزن می‌ماند", "Receipt waits for final tank settlement")</span>
+                    <span>@T("بعداً از تسویه مخزن", "From tank settlement")</span>
                 </button>
             </div>
 
             <div data-loss-immediate-block>
-            <div class="ak-field">
-                <input asp-for="Loss.Enabled" id="lossEnabledToggle" class="form-check-input" />
-                <label asp-for="Loss.Enabled">@T("هم‌زمان با رسید ثبت شود", "Register with this receipt")</label>
+                <div class="ak-toggle-field">
+                    <input asp-for="Loss.Enabled" id="lossEnabledToggle" class="form-check-input" />
+                    <label asp-for="Loss.Enabled">@T("هم‌زمان با رسید ثبت شود", "Register with this receipt")</label>
+                </div>
+
+                <div id="lossPanelFields" class="ak-form-grid" data-loss-open-default="true">
+                    <div class="ak-field">
+                        <label asp-for="Loss.QuantityMt">@T("مقدار ضایعات (MT)", "Loss qty (MT)")</label>
+                        <input asp-for="Loss.QuantityMt" class="ak-input" />
+                        <span asp-validation-for="Loss.QuantityMt" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Loss.ToleranceQuantityMt">@T("تلورانس (MT)", "Tolerance (MT)")</label>
+                        <input asp-for="Loss.ToleranceQuantityMt" class="ak-input" />
+                        <span asp-validation-for="Loss.ToleranceQuantityMt" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Loss.ResponsiblePartyName">@T("مسئول", "Responsible")</label>
+                        <input asp-for="Loss.ResponsiblePartyName" class="ak-input" />
+                        <span asp-validation-for="Loss.ResponsiblePartyName" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Loss.Reference">@T("مرجع", "Reference")</label>
+                        <input asp-for="Loss.Reference" class="ak-input" />
+                        <span asp-validation-for="Loss.Reference" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Loss.Notes">@T("یادداشت ضایعات", "Loss notes")</label>
+                        <textarea asp-for="Loss.Notes" rows="2" class="ak-input"></textarea>
+                        <span asp-validation-for="Loss.Notes" class="ak-field-error"></span>
+                    </div>
+                </div>
             </div>
 
-            <div id="lossPanelFields" class="ak-form-grid" data-loss-open-default="true">
-                <div class="ak-field">
-                    <label asp-for="Loss.QuantityMt">@T("مقدار ضایعات (MT)", "Loss Qty (MT)")</label>
-                    <input asp-for="Loss.QuantityMt" class="ak-input" />
-                    <span asp-validation-for="Loss.QuantityMt" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="Loss.ToleranceQuantityMt">@T("تلورانس ضایعات (MT)", "Loss Tolerance (MT)")</label>
-                    <input asp-for="Loss.ToleranceQuantityMt" class="ak-input" />
-                    <span asp-validation-for="Loss.ToleranceQuantityMt" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="Loss.ResponsiblePartyName">@T("مسئول / طرف پاسخ‌گو", "Responsible Party")</label>
-                    <input asp-for="Loss.ResponsiblePartyName" class="ak-input" />
-                    <span asp-validation-for="Loss.ResponsiblePartyName" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="Loss.Reference">@T("مرجع ضایعات", "Loss Reference")</label>
-                    <input asp-for="Loss.Reference" class="ak-input" />
-                    <span asp-validation-for="Loss.Reference" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field ak-span-2">
-                    <label asp-for="Loss.Notes">@T("یادداشت ضایعات", "Loss Notes")</label>
-                    <textarea asp-for="Loss.Notes" rows="2" class="ak-input"></textarea>
-                    <span asp-validation-for="Loss.Notes" class="ak-field-error"></span>
-                </div>
-            </div>
-            <div id="lossPanelHint" class="text-muted small">@T("برای ثبت کسری یا ضایعات این رسید، سوییچ را فعال کنید یا یکی از فیلدها را تکمیل کنید.", "Enable the switch or fill a loss field to register receipt shortage/loss.")</div>
-            </div>
-
-            <div class="text-muted small d-none" data-loss-deferred-note>
-                <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>
-                @T("این رسید به‌صورت «در انتظار تسویه نهایی مخزن» ثبت می‌شود. ضایعات واقعی بعداً هنگام تسویهٔ کامل مخزن از روی موجودی محاسبه و به قرارداد خرید منبع وصل می‌شود.", "This receipt is recorded as pending final tank settlement. The real loss is computed later from inventory when the tank is settled and attributed to the source purchase contract.")
+            <div class="ak-section-desc d-none" data-loss-deferred-note>
+                @T("رسید در انتظار تسویهٔ نهایی مخزن ثبت می‌شود.", "Receipt is recorded as pending final tank settlement.")
             </div>
         </section>
     </main>
-
-    <div class="alert alert-warning">
-        <i class="bi bi-clipboard-check"></i>
-        <div>
-            <strong>@T("پیش از ثبت بررسی کنید:", "Before saving, check:")</strong>
-            @T("رسید از کدام بارگیری؟ مقدار رسیده چقدر؟ مقصد کجاست؟ آیا موجودی ساخته می‌شود؟ آیا فروش/ارسال با موتر ساخته می‌شود؟",
-               "From which loading? Received quantity? Destination? Is stock created? Is a sale/truck send created?")
-            <div class="text-muted small mt-1">@T("قدم بعدی: بعد از ثبت رسید، اگر بار به موجودی رفت می‌توانید ارسال با موتر یا فروش ثبت کنید؛ اگر فروش/ارسال با موتر مستقیم بود، همان‌جا تکمیل می‌شود.",
-               "Next step: after the receipt, if goods went to stock you can record a truck send or sale; for direct sale/truck send it completes here.")</div>
-        </div>
-    </div>
 
     <div class="ak-footer-actions">
         @if (isReceiptModal)

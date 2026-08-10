@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Dispatch;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
 using Xunit;
@@ -97,7 +98,7 @@ public class DispatchControllerTests
     }
 
     [Fact]
-    public async Task Create_Get_Preselects_Contract_And_ReturnUrl()
+    public async Task Create_Get_Redirects_To_The_Unified_Transport_Entry()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -123,10 +124,10 @@ public class DispatchControllerTests
 
         var result = await controller.Create(contractId: 1, returnUrl: "/Contracts/Details/1?tab=dispatch");
 
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DispatchCreateViewModel>(view.Model);
-        Assert.Equal(1, model.ContractId);
-        Assert.Equal("/Contracts/Details/1?tab=dispatch", model.ReturnUrl);
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Create", redirect.ActionName);
+        Assert.Equal("Transports", redirect.ControllerName);
+        Assert.Equal((int)TransportStartSourceKind.Inventory, redirect.RouteValues!["sourceKind"]);
     }
 
     [Fact]
@@ -834,7 +835,7 @@ public class DispatchControllerTests
     }
 
     [Fact]
-    public async Task Unload_Post_Replaces_The_Same_Variance_Record_When_Re_Submitted()
+    public async Task Unload_Post_Blocks_Editing_A_Posted_Inventory_Document()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -888,24 +889,26 @@ public class DispatchControllerTests
             TempData = BuildTempData()
         };
 
-        // اول کسری، بعد اصلاح به اضافه‌بار: یک رکورد به‌روزرسانی می‌شود، نه رکورد تکراری.
+        // سند قطعی موجودی immutable است: اصلاح باید از مسیر برگشت/ثبت مجدد انجام شود، نه mutation خاموش.
         Assert.IsType<RedirectToActionResult>(await BuildController().Unload(1, BuildModel(9.8m, 0.2m)));
         var afterShortage = await db.LossEvents.SingleAsync();
         Assert.Equal(0.2m, afterShortage.DifferenceQuantityMt);
+        var postedMovement = await db.InventoryMovements.SingleAsync();
+        Assert.Equal(9.8m, postedMovement.QuantityMt);
+        Assert.Equal("TRUCK-UNLOAD:1", postedMovement.ReferenceDocument);
 
-        Assert.IsType<RedirectToActionResult>(await BuildController().Unload(1, BuildModel(10.2m, -0.2m)));
-        var afterSurplus = await db.LossEvents.SingleAsync();
-        Assert.Equal(afterShortage.Id, afterSurplus.Id);
-        Assert.Equal(-0.2m, afterSurplus.DifferenceQuantityMt);
-        Assert.Equal(0m, afterSurplus.ChargeableLossMt);
-        Assert.False(afterSurplus.IsCancelled);
-        Assert.Equal(-0.2m, (await db.TruckDispatches.SingleAsync()).ShortageMt);
-
-        // تخلیهٔ برابر با بارگیری: تفاوتی نمانده، پس رکورد قبلی لغو می‌شود.
-        Assert.IsType<RedirectToActionResult>(await BuildController().Unload(1, BuildModel(10m, 0m)));
-        var afterBalanced = await db.LossEvents.SingleAsync();
-        Assert.Equal(afterShortage.Id, afterBalanced.Id);
-        Assert.True(afterBalanced.IsCancelled);
+        var editController = BuildController();
+        Assert.IsType<ViewResult>(await editController.Unload(1, BuildModel(10.2m, -0.2m)));
+        Assert.False(editController.ModelState.IsValid);
+        var unchangedLoss = await db.LossEvents.SingleAsync();
+        Assert.Equal(afterShortage.Id, unchangedLoss.Id);
+        Assert.Equal(0.2m, unchangedLoss.DifferenceQuantityMt);
+        Assert.Equal(0.2m, unchangedLoss.ChargeableLossMt);
+        Assert.False(unchangedLoss.IsCancelled);
+        Assert.Equal(0.2m, (await db.TruckDispatches.SingleAsync()).ShortageMt);
+        var unchangedMovement = await db.InventoryMovements.SingleAsync();
+        Assert.Equal(postedMovement.Id, unchangedMovement.Id);
+        Assert.Equal(9.8m, unchangedMovement.QuantityMt);
     }
 
     [Fact]

@@ -1,0 +1,80 @@
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.InventoryTransport
+@model TransportContinueViewModel
+@{
+    ViewData["Title"] = "انتقال به وسیله دیگر";
+    ViewData["HideSectionTabs"] = true;
+}
+
+<main class="ak-form-page" dir="rtl" data-transport-vehicle-form>
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("انتقال به وسیله دیگر", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))" />
+    <form asp-action="Continue" method="post" class="ak-form" data-submit-lock>
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("بارهای مبدأ", (string?)"برای Split بخشی از یک ردیف و برای Merge چند ردیف را انتخاب کنید."))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead><tr><th>انتخاب</th><th>حمل</th><th>محصول</th><th class="text-end">باقیمانده</th><th class="text-end">مقدار انتقال</th></tr></thead>
+                    <tbody>
+                    @for (var i = 0; i < Model.Sources.Count; i++)
+                    {
+                        var source = Model.Sources[i];
+                        <tr data-source-row>
+                            <td><input asp-for="Sources[i].Selected" class="ak-check" data-source-check /><input asp-for="Sources[i].LegId" type="hidden" /></td>
+                            <td><strong>@source.Label</strong></td>
+                            <td>@source.ProductName</td>
+                            <td class="ak-num text-end">@source.RemainingQuantityMt.ToString("N4") MT<input asp-for="Sources[i].RemainingQuantityMt" type="hidden" /></td>
+                            <td class="text-end"><input asp-for="Sources[i].QuantityMt" class="ak-input ak-num" type="number" min="0" max="@source.RemainingQuantityMt" step="0.0001" data-source-quantity /></td>
+                        </tr>
+                    }
+                    @if (Model.Sources.Count == 0)
+                    {
+                        <tr><td colspan="5"><div class="ak-empty">حمل در جریانِ دارای باقیمانده وجود ندارد.</div></td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("وسیله مقصد", (string?)"این انتقال از مرز مخزن عبور نمی‌کند و حرکت موجودی ندارد."))" />
+            <div class="ak-form-grid">
+                <div class="ak-field"><label asp-for="TargetTransportType">نوع وسیله <b>*</b></label><select asp-for="TargetTransportType" class="ak-input" data-transport-type><option value="3">موتر</option><option value="2">واگن</option><option value="1">کشتی</option></select></div>
+                <div class="ak-field" data-vehicle-field="3"><label asp-for="TargetTruckId">موتر <b>*</b></label><select asp-for="TargetTruckId" asp-items="ViewBag.Trucks" class="ak-input"><option value="">انتخاب کنید</option></select></div>
+                <div class="ak-field" data-vehicle-field="2"><label asp-for="TargetWagonId">واگن <b>*</b></label><select asp-for="TargetWagonId" asp-items="ViewBag.Wagons" class="ak-input"><option value="">انتخاب کنید</option></select></div>
+                <div class="ak-field" data-vehicle-field="1"><label asp-for="TargetVesselId">کشتی <b>*</b></label><select asp-for="TargetVesselId" asp-items="ViewBag.Vessels" class="ak-input"><option value="">انتخاب کنید</option></select></div>
+                <div class="ak-field" data-truck-only><label asp-for="DriverId">راننده</label><select asp-for="DriverId" asp-items="ViewBag.Drivers" class="ak-input"><option value="">بدون انتخاب</option></select></div>
+                <div class="ak-field"><label asp-for="TransferDate">تاریخ <b>*</b></label><input asp-for="TransferDate" type="date" class="ak-input" /></div>
+                <div class="ak-field"><label asp-for="TicketSerialNumber">شماره تکت</label><input asp-for="TicketSerialNumber" class="ak-input" /></div>
+                <div class="ak-field is-full"><label asp-for="Notes">یادداشت</label><textarea asp-for="Notes" class="ak-input" rows="2"></textarea></div>
+            </div>
+        </section>
+
+        <div class="ak-footer-actions">
+            <a asp-controller="InventoryTransportLegs" asp-action="Index" class="btn btn-light ak-secondary-action">انصراف</a>
+            <button type="submit" class="btn btn-primary ak-primary-action" data-submit-button>ثبت انتقال</button>
+        </div>
+    </form>
+</main>
+
+<partial name="_VehicleTypeScript" />
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            document.querySelectorAll('[data-source-row]').forEach(function (row) {
+                var check = row.querySelector('[data-source-check]');
+                var quantity = row.querySelector('[data-source-quantity]');
+                if (!check || !quantity) return;
+                check.addEventListener('change', function () {
+                    quantity.disabled = !check.checked;
+                    if (!check.checked) quantity.value = '0';
+                });
+                quantity.disabled = !check.checked;
+            });
+        })();
+    </script>
+}

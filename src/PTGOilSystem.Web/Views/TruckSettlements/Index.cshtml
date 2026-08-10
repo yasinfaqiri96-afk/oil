@@ -3,7 +3,7 @@
 @using PTGOilSystem.Web.Models.ExcelImport
 @model PTGOilSystem.Web.Models.TruckSettlements.TruckSettlementIndexViewModel
 @{
-    ViewData["Title"] = UiText.T(Context, "تسویهٔ کرایه موترها", "Truck Freight Settlement");
+    ViewData["Title"] = UiText.T(Context, "تسویه موترها", "Truck Settlements");
     var serviceProviders = (IEnumerable<TruckSettlementPartyOption>)ViewBag.ServiceProviders;
     var operationalAssets = (IEnumerable<TruckSettlementPartyOption>)ViewBag.OperationalAssets;
     var drivers = (IEnumerable<TruckSettlementPartyOption>)ViewBag.Drivers;
@@ -25,13 +25,18 @@
     };
 }
 
-<div class="ak-form-page ak-list-page ak-operations-detail ak-operations-clean-page ak-operations-settlement" data-ak-operations-detail="true">
+<div class="ak-form-page ak-list-page ak-operations-detail ak-operations-clean-page ak-operations-settlement" data-ak-operations-detail="true" data-operations-list dir="rtl">
     @* هدر مثل بقیهٔ تب‌های عملیات؛ دکمهٔ ثبت با form="tsForm" بیرون از فرم می‌ماند اما همان فرم را submit می‌کند. *@
     <header class="ak-page-header">
         <div class="ak-page-heading">
-            <h1 class="ak-page-title">@UiText.T(Context, "تسویهٔ کرایه موترها", "Truck Freight Settlement")</h1>
+            <h1 class="ak-page-title">@UiText.T(Context, "تسویه موترها", "Truck Settlements")</h1>
+            <p class="ak-section-desc mb-0">@UiText.T(Context, "اکسل ← بررسی و انتخاب ← ثبت تسویه ← تخلیه گروهی", "Excel → review and select → settle → group unload")</p>
         </div>
         <div class="ak-page-actions">
+            <a asp-controller="InventoryTransportLegs" asp-action="Index" class="btn btn-light ak-secondary-action">
+                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                <span>@UiText.T(Context, "حمل‌ها", "Transports")</span>
+            </a>
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
             <a asp-action="GroupUnload"
                asp-route-returnUrl="@Url.Action("Index")"
@@ -40,8 +45,8 @@
                 <span>@UiText.T(Context, "تخلیه گروهی", "Group unload")</span>
             </a>
             <button type="button" class="btn btn-light ak-secondary-action" id="tsToolsToggle" aria-expanded="false" aria-controls="tsToolsPanel">
-                <i class="bi bi-sliders" aria-hidden="true"></i>
-                <span>@UiText.T(Context, "ابزارها", "Tools")</span>
+                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                <span>@UiText.T(Context, "اکسل و نرخ‌های گروهی", "Excel & bulk rates")</span>
             </button>
             <button type="submit" form="tsForm" class="btn btn-primary ak-primary-action" id="tsSubmitBtn" disabled>
                 <i class="bi bi-check2-circle" aria-hidden="true"></i>
@@ -101,7 +106,16 @@
         @* نوار جست‌وجو/فیلتر مشترک — بیرون از فرمِ تسویه (فرم GET است و فرم‌ها تودرتو نمی‌شوند). *@
         <div class="ak-list-toolbar">
             <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="tsFilter" />
+            <span class="ak-section-desc" id="tsSelectionSummary" aria-live="polite"></span>
         </div>
+
+        @if (Model.FocusedSourceId.HasValue)
+        {
+            <div class="alert alert-info ak-form-alert d-flex align-items-center justify-content-between gap-3" role="status">
+                <span>@UiText.T(Context, "همان حمل انتخاب‌شده از صفحهٔ جزئیات برای تسویهٔ کامل باز شده است.", "The transport selected on the details page is open for full settlement.")</span>
+                <a asp-action="Index" class="btn btn-sm btn-light">@UiText.T(Context, "نمایش همه", "Show all")</a>
+            </div>
+        }
 
         @* data-no-spa: این فرم batch مالی است؛ spa-nav فرم را با fetch می‌فرستد و هر خطای POST را با
            fallback به GET روی endpoint فقط-POST تبدیل به 405 گمراه‌کننده می‌کند. *@
@@ -227,16 +241,23 @@
             function mainRowFor(key) { return form.querySelector('[data-ts-row="' + key + '"]'); }
 
             function updateSubmitState() {
-                var any = form.querySelectorAll('[data-ts-select]:checked').length > 0;
+                var selectedCount = form.querySelectorAll('[data-ts-select]:checked').length;
+                var any = selectedCount > 0;
                 if (submitBtn) submitBtn.disabled = !any;
+                var summary = document.getElementById('tsSelectionSummary');
+                if (summary) {
+                    summary.textContent = selectedCount > 0
+                        ? (selectedCount + ' ردیف برای تسویه انتخاب شده است.')
+                        : 'برای شروع، یک یا چند ردیف را انتخاب کنید.';
+                }
             }
 
-            // کسری خودکار = باقیماندهٔ بار منهای وزن تخلیه (فقط تسویه؛ همیشه محاسبه‌شده و فقط‌خواندنی).
+            // قرارداد سرور: کسری = باقیماندهٔ بار منهای وزن تخلیه؛ مقدار منفی یعنی اضافه‌وزن.
             function syncAutoShortage(panel) {
                 var remaining = parseFloat(panel.getAttribute('data-ts-remaining')) || 0;
                 var qty = parseFloat(panel.querySelector('[data-ts-qty]')?.value) || 0;
                 var shortageInput = panel.querySelector('[data-ts-shortage]');
-                if (shortageInput) shortageInput.value = Math.max(remaining - qty, 0).toFixed(4);
+                if (shortageInput) shortageInput.value = (remaining - qty).toFixed(4);
             }
 
             function recalc(panel) {
@@ -257,10 +278,10 @@
                 var chargeableBox = panel.querySelector('[data-ts-chargeable]');
                 if (chargeableBox) chargeableBox.textContent = chargeable.toFixed(4);
 
-                // کرایه نهایی = کرایه کلی − کسورات − (کسری قابل مجرا × نرخ کسری)
+                // قرارداد سرور: ابتدا کسورات دیگر تا حد صفر، سپس جریمهٔ کسری کم می‌شود.
                 var shortageRate = parseFloat(panel.querySelector('[data-ts-shortage-rate-input]')?.value) || 0;
                 var deductions = parseFloat(panel.querySelector('[data-ts-deductions-input]')?.value) || 0;
-                var payable = Math.max(freight - deductions - (chargeable * shortageRate), 0);
+                var payable = Math.max(freight - deductions, 0) - (chargeable * shortageRate);
                 var target = panel.querySelector('[data-ts-payable]');
                 if (target) target.textContent = payable.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
@@ -330,7 +351,7 @@
                             </div>
                             <div class="ak-field">
                                 <label>کسری (تن)</label>
-                                <input name="${shortageName}" value="${escapeHtml(rowData(mainRow, 'shortage'))}" type="number" step="0.0001" min="0" class="ak-input" data-ts-shortage readonly />
+                                <input name="${shortageName}" value="${escapeHtml(rowData(mainRow, 'shortage'))}" type="number" step="0.0001" class="ak-input" data-ts-shortage readonly />
                                 <span class="ak-note">خودکار: باقی‌مانده منهای وزن تخلیه</span>
                             </div>
                             <div class="ak-field">

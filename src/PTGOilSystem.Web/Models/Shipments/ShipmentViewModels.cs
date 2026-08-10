@@ -102,9 +102,53 @@ public sealed class ShipmentContractAllocationInput
     [StringLength(500)]
     public string? Notes { get; set; }
 
+    // سهم دقیق بارگیری‌های همین قرارداد در این محموله (اختیاری).
+    // اگر پر شود، جمع آن باید با QuantityMt همین ردیف برابر باشد و بهای خرید از نرخ قطعی
+    // همان بارگیری‌ها ساخته می‌شود. اگر خالی بماند، مسیر قدیمی (نرخ سطح قرارداد) اجرا می‌شود.
+    public List<ShipmentLoadingAllocationInput> LoadingAllocations { get; set; } = [];
+
+    public IEnumerable<ShipmentLoadingAllocationInput> EffectiveLoadingAllocations
+        => LoadingAllocations.Where(l => l.HasQuantity);
+
     public bool HasAnyValue =>
         ContractId.GetValueOrDefault() > 0
         || StorageTankId.GetValueOrDefault() > 0
         || QuantityMt.HasValue
-        || !string.IsNullOrWhiteSpace(Notes);
+        || !string.IsNullOrWhiteSpace(Notes)
+        || LoadingAllocations.Any(l => l.HasQuantity);
+}
+
+// یک سهم از یک بارگیریِ مشخص برای این محموله.
+public sealed class ShipmentLoadingAllocationInput
+{
+    public int LoadingRegisterId { get; set; }
+
+    [Display(Name = "مقدار از بارگیری")]
+    public decimal? QuantityMt { get; set; }
+
+    public bool HasQuantity => QuantityMt.GetValueOrDefault() > 0m;
+}
+
+// خروجی endpoint «بارگیری‌های قابل تخصیص یک قرارداد» — کاربر فقط مقدار را وارد می‌کند؛
+// نرخ خرید هرگز دستی گرفته نمی‌شود و همیشه از همین ردیف‌ها می‌آید.
+public sealed class ShipmentLoadingAvailabilityViewModel
+{
+    public int ContractId { get; set; }
+    public string ContractNumber { get; set; } = "";
+    public decimal TotalRemainingQuantityMt { get; set; }
+    public IReadOnlyList<ShipmentLoadingAvailabilityRow> Loadings { get; set; } = [];
+}
+
+public sealed class ShipmentLoadingAvailabilityRow
+{
+    public int LoadingRegisterId { get; set; }
+    public string Label { get; set; } = "";
+    public DateTime LoadingDate { get; set; }
+    public decimal LoadedQuantityMt { get; set; }
+    public decimal AllocatedQuantityMt { get; set; }
+    public decimal RemainingQuantityMt { get; set; }
+    // نرخ قطعی همین بارگیری؛ null یعنی هنوز ثبت نشده و بهای خرید به هدر قرارداد fallback می‌کند.
+    public decimal? LoadingPriceUsd { get; set; }
+    // مقدار تخصیص‌یافتهٔ همین محموله (در حالت ویرایش) تا فرم بتواند مقدار قبلی را نشان دهد.
+    public decimal CurrentShipmentQuantityMt { get; set; }
 }

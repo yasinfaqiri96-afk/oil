@@ -44,16 +44,15 @@
 
     var operationTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
     {
-        ("Loading",                "Index", T("بارگیری",       "Loading"),             "nav-operations", null),
-        ("LoadingReceipts",        "Index", T("رسید",          "Loading Receipts"),    "nav-parties", null),
-        ("CustomsDeclarations",    "Index", T("کمرک",          "Customs"),             "nav-shield", null),
-        ("InventoryTransportLegs", "Index", T("حمل موجودی",    "Inventory Transfer"),  "nav-assets", null),
-        ("ShipmentPnl",            "Index", T("محموله‌ها",     "Shipment files"),      "nav-contracts", null),
-        ("Dispatch",               "Index", T("موترها",         "Truck Sends"),         "nav-truck", null),
-        ("Sales",                  "Index", T("فروش",           "Sales"),               "nav-sales", null),
-        ("TruckSettlements",       "Index", T("تسویه",          "Truck Settlement"),    "nav-finance", null),
-        ("Expenses",               "Index", T("مصارف",          "Expenses"),            "nav-bill", null),
-        ("LossEvents",             "Index", T("کسری",           "Loss Events"),         "nav-warning", null)
+        ("Loading",                "Index", T("بارگیری‌ها",        "Loadings"),            "nav-operations", null),
+        ("LoadingReceipts",        "Index", T("رسید بارگیری",      "Loading Receipts"),    "nav-parties", null),
+        ("InventoryTransportLegs", "Index", T("حمل‌ها",             "Transports"),          "nav-truck", null),
+        ("TruckSettlements",       "Index", T("تسویه موترها",       "Truck Settlements"),   "nav-finance", null),
+        ("ShipmentPnl",            "Index", T("محموله‌ها",          "Shipment files"),      "nav-contracts", null),
+        ("Sales",                  "Index", T("فروش",                "Sales"),               "nav-sales", null),
+        ("CustomsDeclarations",    "Index", T("گمرک",               "Customs"),             "nav-shield", null),
+        ("Expenses",               "Index", T("مصارف",               "Expenses"),            "nav-bill", null),
+        ("LossEvents",             "Index", T("کسری",                "Loss Events"),         "nav-warning", null)
     };
     var inventoryProfitTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
     {

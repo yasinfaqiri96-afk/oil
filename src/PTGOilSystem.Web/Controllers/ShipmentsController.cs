@@ -23,6 +23,7 @@ public class ShipmentsController : Controller
     private readonly ApplicationDbContext _db;
     private readonly IStockService _stock;
     private readonly InventoryTransportLegLoadService _legLoad;
+    private readonly IInventoryMovementWriter _movements;
 
     // Dual-write اختیاری به دفتر کل جدید — برگشتِ بارگیری «کالای در راه» را برمی‌گرداند. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IInventoryTransferAccountingAdapter? _transferAccounting;
@@ -37,12 +38,14 @@ public class ShipmentsController : Controller
         ApplicationDbContext db,
         IStockService stock,
         InventoryTransportLegLoadService legLoad,
-        Services.Accounting.IInventoryTransferAccountingAdapter? transferAccounting = null)
+        Services.Accounting.IInventoryTransferAccountingAdapter? transferAccounting = null,
+        IInventoryMovementWriter? movements = null)
     {
         _db = db;
         _stock = stock;
         _legLoad = legLoad;
         _transferAccounting = transferAccounting;
+        _movements = movements ?? new InventoryMovementWriter(db, stock);
     }
 
     public IActionResult Index()
@@ -79,6 +82,7 @@ public class ShipmentsController : Controller
         ModelState.Remove(nameof(model.QuantityMt));
 
         await ValidateCreateAsync(model, allocations);
+        await ValidateLoadingAllocationsAsync(allocations, currentShipmentId: null);
 
         // تخصیص اختیاری از موجودی مخزن — اعتبارسنجی سمت سرور قبل از باز کردن تراکنش
         // (به مقادیر ارسالی اعتماد نمی‌کنیم؛ موجودی مخزن و باقی‌مانده قرارداد بازخوانده می‌شود).
@@ -198,14 +202,31 @@ public class ShipmentsController : Controller
 
         var canEditAllocations = await CanReeditAllocationsAsync(shipment);
 
+        var existingLoadingAllocations = await _db.ShipmentLoadingAllocations
+            .AsNoTracking()
+            .Where(a => a.ShipmentId == shipment.Id)
+            .OrderBy(a => a.LoadingRegisterId)
+            .Select(a => new { a.ContractId, a.LoadingRegisterId, a.QuantityMt })
+            .ToListAsync();
+
         var allocationRows = shipment.ShipmentContracts
             .OrderBy(c => c.Id)
             .Select(c => new ShipmentContractAllocationInput
             {
                 ContractId = c.ContractId,
+                LoadingAllocations = existingLoadingAllocations
+                    .Where(a => a.ContractId == c.ContractId)
+                    .Select(a => new ShipmentLoadingAllocationInput
+                    {
+                        LoadingRegisterId = a.LoadingRegisterId,
+                        QuantityMt = a.QuantityMt
+                    })
+                    .ToList(),
                 // مخزنِ ردیف از leg بارگیری‌شدهٔ همان قرارداد (در صورت وجود) بازسازی می‌شود.
                 StorageTankId = shipment.InventoryTransportLegs
-                    .Where(l => l.SourcePurchaseContractId == c.ContractId && l.SourceStorageTankId.HasValue)
+                    .Where(l => l.Status != InventoryTransportLegStatus.Cancelled
+                        && l.SourcePurchaseContractId == c.ContractId
+                        && l.SourceStorageTankId.HasValue)
                     .Select(l => l.SourceStorageTankId)
                     .FirstOrDefault(),
                 QuantityMt = c.QuantityMt,
@@ -229,7 +250,7 @@ public class ShipmentsController : Controller
             ReturnUrl = returnUrl,
             ContractAllocations = PadAllocationRows(allocationRows),
             TankPicks = shipment.InventoryTransportLegs
-                .Where(l => l.SourceStorageTankId.HasValue)
+                .Where(l => l.Status != InventoryTransportLegStatus.Cancelled && l.SourceStorageTankId.HasValue)
                 .Select(l => new ShipmentTankPickInput
                 {
                     ContractId = l.SourcePurchaseContractId,
@@ -250,6 +271,7 @@ public class ShipmentsController : Controller
     {
         var shipment = await _db.Shipments
             .Include(s => s.ShipmentContracts)
+            .Include(s => s.LoadingAllocations)
             .Include(s => s.InventoryTransportLegs)
             .FirstOrDefaultAsync(s => s.Id == model.Id);
 
@@ -274,6 +296,7 @@ public class ShipmentsController : Controller
             ModelState.Remove(nameof(model.QuantityMt));
 
             await ValidateCreateAsync(model, allocations, excludeShipmentId: shipment.Id);
+            await ValidateLoadingAllocationsAsync(allocations, currentShipmentId: shipment.Id);
         }
         else
         {
@@ -424,6 +447,19 @@ public class ShipmentsController : Controller
                 QuantityMt = allocation.QuantityMt,
                 Notes = allocation.Notes
             });
+
+            // سهم دقیق بارگیری‌ها (اختیاری). با وجود این ردیف‌ها بهای خرید محموله دیگر از
+            // میانگین قرارداد ساخته نمی‌شود و مستقیم از نرخ قطعی همان بارگیری‌ها می‌آید.
+            foreach (var loadingPick in allocation.EffectiveLoadingAllocations)
+            {
+                _db.ShipmentLoadingAllocations.Add(new ShipmentLoadingAllocation
+                {
+                    Shipment = shipment,
+                    ContractId = allocation.ContractId!.Value,
+                    LoadingRegisterId = loadingPick.LoadingRegisterId,
+                    QuantityMt = decimal.Round(loadingPick.QuantityMt!.Value, 4, MidpointRounding.AwayFromZero)
+                });
+            }
         }
 
         await _db.SaveChangesAsync();
@@ -456,12 +492,13 @@ public class ShipmentsController : Controller
         }
     }
 
-    // legهای فعلیِ محموله و خروجی موجودی آن‌ها را حذف می‌کند (موجودی مخزن برمی‌گردد)
-    // و تخصیص‌های قرارداد قبلی را پاک می‌کند. فقط زمانی امن است که گاردِ CanReeditAllocationsAsync
-    // اجازه داده باشد (هیچ مصرف پایین‌دستی روی این legها وجود ندارد).
+    // اثر legهای فعلی را برمی‌گرداند، ولی اسناد قطعی را حذف نمی‌کند: خروجی موجودی با یک
+    // حرکت معکوس جبران و leg لغو می‌شود. فقط Draft واقعیِ بدون حرکت فیزیکی قابل حذف است.
     private async Task ReverseShipmentDerivedAsync(Shipment shipment)
     {
-        var legs = shipment.InventoryTransportLegs.ToList();
+        var legs = shipment.InventoryTransportLegs
+            .Where(l => l.Status != InventoryTransportLegStatus.Cancelled)
+            .ToList();
         var movementIds = legs
             .Where(l => l.OutboundInventoryMovementId.HasValue)
             .Select(l => l.OutboundInventoryMovementId!.Value)
@@ -477,20 +514,50 @@ public class ShipmentsController : Controller
             }
         }
 
-        _db.InventoryTransportLegs.RemoveRange(legs);
-        shipment.InventoryTransportLegs.Clear();
-
-        if (movementIds.Count > 0)
-        {
-            var movements = await _db.InventoryMovements
+        var movementsById = movementIds.Count == 0
+            ? new Dictionary<int, InventoryMovement>()
+            : await _db.InventoryMovements
+                .AsNoTracking()
                 .Where(m => movementIds.Contains(m.Id))
-                .ToListAsync();
-            _db.InventoryMovements.RemoveRange(movements);
+                .ToDictionaryAsync(m => m.Id);
+
+        foreach (var leg in legs)
+        {
+            if (leg.OutboundInventoryMovementId.HasValue
+                && movementsById.TryGetValue(leg.OutboundInventoryMovementId.Value, out var movement))
+            {
+                await _movements.PostReversalAsync(
+                    movement,
+                    AfghanistanBusinessClock.SystemToday,
+                    $"Reversal for reconfigured ShipmentId={shipment.Id}, TransportLegId={leg.Id}");
+                leg.Status = InventoryTransportLegStatus.Cancelled;
+                leg.UpdatedAtUtc = DateTime.UtcNow;
+            }
+            else if (leg.Status == InventoryTransportLegStatus.Draft)
+            {
+                _db.InventoryTransportLegs.Remove(leg);
+            }
+            else
+            {
+                // Loaded بدون سند خروجی اثر موجودی ندارد، اما از نظر عملیات قطعی است و برای
+                // تاریخچه حذف نمی‌شود؛ فقط از workflow فعال کنار گذاشته می‌شود.
+                leg.Status = InventoryTransportLegStatus.Cancelled;
+                leg.UpdatedAtUtc = DateTime.UtcNow;
+            }
         }
 
         var contracts = shipment.ShipmentContracts.ToList();
         _db.ShipmentContracts.RemoveRange(contracts);
         shipment.ShipmentContracts.Clear();
+
+        // سهم بارگیری‌ها همراه تخصیص قرارداد بازسازی می‌شود. این مسیر فقط وقتی اجرا می‌شود که
+        // CanReeditAllocationsAsync ثابت کرده باشد هیچ سند پایین‌دستی (رسید/فروش/مصرف/گمرک/
+        // ضایعات/نسب‌نامه) به این محموله وصل نیست؛ پس اینجا هیچ تاریخچهٔ مالی از بین نمی‌رود.
+        var loadingAllocations = await _db.ShipmentLoadingAllocations
+            .Where(a => a.ShipmentId == shipment.Id)
+            .ToListAsync();
+        _db.ShipmentLoadingAllocations.RemoveRange(loadingAllocations);
+        shipment.LoadingAllocations.Clear();
 
         await _db.SaveChangesAsync();
     }
@@ -520,22 +587,34 @@ public class ShipmentsController : Controller
             .Select(a => (a.ContractId!.Value, a.QuantityMt ?? 0m)));
 
         var currentTanks = TankSignature(shipment.InventoryTransportLegs
-            .Where(l => l.SourceStorageTankId.HasValue)
+            .Where(l => l.Status != InventoryTransportLegStatus.Cancelled && l.SourceStorageTankId.HasValue)
             .Select(l => (l.SourcePurchaseContractId, l.SourceStorageTankId!.Value, l.QuantityMt)));
         var newTanks = TankSignature(tankPicks
             .Select(p => (p.ContractId, p.StorageTankId, p.QuantityMt ?? 0m)));
 
-        return currentAlloc != newAlloc || currentTanks != newTanks;
+        // تغییر سهم بارگیری‌ها هم باید بازسازی را فعال کند، وگرنه ویرایشِ فقط-قیمتی
+        // بی‌اثر می‌ماند و بهای خرید با فرم نمایش‌داده‌شده یکی نمی‌شود.
+        var currentLoadings = TankSignature(shipment.LoadingAllocations
+            .Select(a => (a.ContractId, a.LoadingRegisterId, a.QuantityMt)));
+        var newLoadings = TankSignature(allocations
+            .Where(a => a.ContractId.GetValueOrDefault() > 0)
+            .SelectMany(a => a.EffectiveLoadingAllocations
+                .Select(l => (a.ContractId!.Value, l.LoadingRegisterId, l.QuantityMt ?? 0m))));
+
+        return currentAlloc != newAlloc || currentTanks != newTanks || currentLoadings != newLoadings;
     }
 
     // گاردِ ایمنی: ویرایش مقدار/تخصیص/مخزن فقط وقتی مجاز است که هیچ فعالیت پایین‌دستی
     // روی legهای محموله ثبت نشده باشد؛ در غیر این صورت حذف/بازسازیِ legها موجودی و اسناد را خراب می‌کند.
     private async Task<bool> CanReeditAllocationsAsync(Shipment shipment)
     {
-        var legIds = shipment.InventoryTransportLegs.Select(l => l.Id).ToList();
+        var activeLegs = shipment.InventoryTransportLegs
+            .Where(l => l.Status != InventoryTransportLegStatus.Cancelled)
+            .ToList();
+        var legIds = activeLegs.Select(l => l.Id).ToList();
 
         // هر leg باید هنوز Draft یا Loaded و غیرِ batch باشد.
-        if (shipment.InventoryTransportLegs.Any(l =>
+        if (activeLegs.Any(l =>
                 l.InventoryTransportBatchId.HasValue
                 || (l.Status != InventoryTransportLegStatus.Draft
                     && l.Status != InventoryTransportLegStatus.Loaded)))
@@ -746,6 +825,106 @@ public class ShipmentsController : Controller
         }
     }
 
+    // اعتبارسنجی سهم دقیق بارگیری‌ها. ظرفیت هر بارگیری سرور-محاسبه خوانده می‌شود؛ به مقدار
+    // ارسالی کلاینت اعتماد نمی‌شود. ردیف‌های بدون سهم بارگیری کاملاً مجازند (مسیر قدیمی).
+    private async Task ValidateLoadingAllocationsAsync(
+        IReadOnlyList<ShipmentContractAllocationInput> allocations,
+        int? currentShipmentId)
+    {
+        var rowsWithPicks = allocations
+            .Select((allocation, index) => (allocation, index))
+            .Where(x => x.allocation.ContractId.GetValueOrDefault() > 0
+                && x.allocation.EffectiveLoadingAllocations.Any())
+            .ToList();
+        if (rowsWithPicks.Count == 0)
+        {
+            return;
+        }
+
+        var contractIds = rowsWithPicks.Select(x => x.allocation.ContractId!.Value).Distinct().ToList();
+        var capacityByLoadingId = (await new ShipmentLoadingAllocationService(_db)
+                .GetCapacityAsync(contractIds, currentShipmentId))
+            .ToDictionary(c => c.LoadingRegisterId);
+
+        // یک بارگیری نباید در دو ردیف قرارداد مختلفِ همین فرم تکرار شود.
+        var seenLoadingIds = new Dictionary<int, int>();
+
+        foreach (var (allocation, index) in rowsWithPicks)
+        {
+            var picks = allocation.EffectiveLoadingAllocations
+                .Select(l => (l.LoadingRegisterId, QuantityMt: l.QuantityMt!.Value))
+                .ToList();
+            var fieldPrefix = $"{nameof(ShipmentCreateViewModel.ContractAllocations)}[{index}].{nameof(ShipmentContractAllocationInput.LoadingAllocations)}";
+
+            foreach (var pick in picks)
+            {
+                if (seenLoadingIds.TryGetValue(pick.LoadingRegisterId, out var firstRow) && firstRow != index)
+                {
+                    ModelState.AddModelError(
+                        fieldPrefix,
+                        T($"بارگیری #{pick.LoadingRegisterId} در بیش از یک ردیف قرارداد تخصیص داده شده است.",
+                            $"Loading #{pick.LoadingRegisterId} is allocated in more than one contract row."));
+                }
+                else
+                {
+                    seenLoadingIds.TryAdd(pick.LoadingRegisterId, index);
+                }
+            }
+
+            var errors = ShipmentLoadingAllocationService.Validate(
+                allocation.ContractId!.Value,
+                allocation.QuantityMt ?? 0m,
+                picks,
+                capacityByLoadingId,
+                fieldPrefix);
+
+            foreach (var error in errors)
+            {
+                ModelState.AddModelError(error.FieldKey, error.Message);
+            }
+        }
+    }
+
+    // endpoint کمکی: بارگیری‌های قابل تخصیصِ یک قرارداد خرید، با نرخ قطعی و باقی‌ماندهٔ هرکدام.
+    // کاربر فقط مقدار را وارد می‌کند؛ قیمت خرید هرگز دستی گرفته نمی‌شود.
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    public async Task<IActionResult> LoadingAvailability(int contractId, int? shipmentId = null)
+    {
+        var contract = await _db.Contracts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == contractId && c.ContractType == ContractType.Purchase);
+        if (contract is null)
+        {
+            return NotFound();
+        }
+
+        var capacity = await new ShipmentLoadingAllocationService(_db)
+            .GetCapacityForContractAsync(contractId, shipmentId);
+
+        var rows = capacity
+            .Select(c => new ShipmentLoadingAvailabilityRow
+            {
+                LoadingRegisterId = c.LoadingRegisterId,
+                Label = c.Label,
+                LoadingDate = c.LoadingDate,
+                LoadedQuantityMt = c.LoadedQuantityMt,
+                AllocatedQuantityMt = c.AllocatedToOtherShipmentsMt,
+                RemainingQuantityMt = c.RemainingForShipmentMt,
+                LoadingPriceUsd = c.LoadingPriceUsd,
+                CurrentShipmentQuantityMt = c.AllocatedToThisShipmentMt
+            })
+            .Where(r => r.RemainingQuantityMt > 0m || r.CurrentShipmentQuantityMt > 0m)
+            .ToList();
+
+        return Json(new ShipmentLoadingAvailabilityViewModel
+        {
+            ContractId = contract.Id,
+            ContractNumber = contract.DisplayLabel,
+            TotalRemainingQuantityMt = rows.Sum(r => r.RemainingQuantityMt),
+            Loadings = rows
+        });
+    }
+
     // endpoint کمکی: مخازنِ دارای موجودیِ یک قرارداد خرید (همان قرارداد + محصول آن).
     // UI با انتخاب هر قرارداد، کارت مخازن آن را lazy می‌سازد.
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -953,6 +1132,9 @@ public class ShipmentsController : Controller
         foreach (var allocation in model.ContractAllocations)
         {
             allocation.Notes = NormalizeOptionalString(allocation.Notes);
+            allocation.LoadingAllocations ??= [];
+            // ردیف‌های خالی/غیرمعتبرِ فرم نباید به اعتبارسنجی و ذخیره برسند.
+            allocation.LoadingAllocations.RemoveAll(l => l.LoadingRegisterId <= 0 || !l.HasQuantity);
         }
     }
 

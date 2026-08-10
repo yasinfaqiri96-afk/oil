@@ -63,8 +63,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<TruckDispatch> TruckDispatches => Set<TruckDispatch>();
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShipmentContract> ShipmentContracts => Set<ShipmentContract>();
+    public DbSet<ShipmentLoadingAllocation> ShipmentLoadingAllocations => Set<ShipmentLoadingAllocation>();
     public DbSet<DeliveryReceipt> DeliveryReceipts => Set<DeliveryReceipt>();
     public DbSet<LossEvent> LossEvents => Set<LossEvent>();
+    public DbSet<SalesTransactionSourceAllocation> SalesTransactionSourceAllocations => Set<SalesTransactionSourceAllocation>();
+    public DbSet<LossEventSourceAllocation> LossEventSourceAllocations => Set<LossEventSourceAllocation>();
 
     // --- Inventory Lineage (Phase 2 — parallel reference layer, augments InventoryMovement) ---
     public DbSet<InventoryLot> InventoryLots => Set<InventoryLot>();
@@ -270,6 +273,7 @@ public class ApplicationDbContext : DbContext
 
         // ShipmentContract (Gap #7)
         ConfigureWeight<ShipmentContract>(modelBuilder, sc => sc.QuantityMt!);
+        ConfigureWeight<ShipmentLoadingAllocation>(modelBuilder, a => a.QuantityMt);
 
         // CustomsDeclaration (Gap #1)
         ConfigureMoney<CustomsDeclaration>(modelBuilder, c => c.TotalAfn);
@@ -478,6 +482,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Shipment>().HasIndex(s => s.ShipmentCode).IsUnique();
         modelBuilder.Entity<InventoryMovement>().HasIndex(m => m.LoadingReceiptId).IsUnique();
         modelBuilder.Entity<InventoryMovement>().HasIndex(m => m.SalesTransactionId);
+        modelBuilder.Entity<InventoryMovement>().HasIndex(m => m.ReversalOfInventoryMovementId).IsUnique();
         modelBuilder.Entity<LoadingReceiptAllocation>().HasIndex(a => a.LoadingReceiptId);
         modelBuilder.Entity<LoadingReceiptAllocation>().HasIndex(a => a.SourcePurchaseContractId);
         modelBuilder.Entity<LoadingReceiptAllocation>().HasIndex(a => a.InventoryMovementId).IsUnique();
@@ -514,6 +519,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourcePurchaseContractId);
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourceLoadingReceiptId);
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourceInventoryMovementId);
+        modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourceTransportLegId);
+        modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourceTransportReceiptId);
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.OutboundInventoryMovementId).IsUnique();
         modelBuilder.Entity<InventoryTransportReceipt>().HasIndex(r => r.InventoryTransportLegId);
         modelBuilder.Entity<InventoryTransportReceipt>().HasIndex(r => r.ReceiptDate);
@@ -530,6 +537,20 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<LossEvent>().HasIndex(e => new { e.EventDate, e.Stage });
         modelBuilder.Entity<LossEvent>().HasIndex(e => e.InventoryMovementId).IsUnique();
         modelBuilder.Entity<LossEvent>().HasIndex(e => e.TransportLegId);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>().HasIndex(a => a.SalesTransactionId);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>().HasIndex(a => a.TransportLegId);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>().HasIndex(a => a.SourcePurchaseContractId);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>().HasIndex(a => a.SourceLoadingReceiptId);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>().HasIndex(a => a.SourceInventoryMovementId);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>().HasIndex(a => a.SourceTransportLegId);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>().HasIndex(a => a.SourceTransportReceiptId);
+        modelBuilder.Entity<LossEventSourceAllocation>().HasIndex(a => a.LossEventId);
+        modelBuilder.Entity<LossEventSourceAllocation>().HasIndex(a => a.TransportLegId);
+        modelBuilder.Entity<LossEventSourceAllocation>().HasIndex(a => a.SourcePurchaseContractId);
+        modelBuilder.Entity<LossEventSourceAllocation>().HasIndex(a => a.SourceLoadingReceiptId);
+        modelBuilder.Entity<LossEventSourceAllocation>().HasIndex(a => a.SourceInventoryMovementId);
+        modelBuilder.Entity<LossEventSourceAllocation>().HasIndex(a => a.SourceTransportLegId);
+        modelBuilder.Entity<LossEventSourceAllocation>().HasIndex(a => a.SourceTransportReceiptId);
         modelBuilder.Entity<PaymentTransaction>().HasIndex(p => p.PaymentDate);
         modelBuilder.Entity<PaymentTransaction>().HasIndex(p => p.Reference);
         modelBuilder.Entity<PaymentTransaction>().HasIndex(p => p.LedgerEntryId).IsUnique();
@@ -898,6 +919,11 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(l => l.WagonId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<InventoryTransportLeg>()
+            .HasOne(l => l.Vessel)
+            .WithMany()
+            .HasForeignKey(l => l.VesselId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<InventoryTransportLeg>()
             .HasOne(l => l.FreightCurrency)
             .WithMany()
             .HasForeignKey(l => l.FreightCurrencyId)
@@ -926,6 +952,18 @@ public class ApplicationDbContext : DbContext
             .HasOne(a => a.OutboundInventoryMovement)
             .WithMany()
             .HasForeignKey(a => a.OutboundInventoryMovementId)
+            .OnDelete(DeleteBehavior.Restrict);
+        // زنجیرهٔ حمل: مرحلهٔ والد و رسیدِ مبدأ. Restrict عمدی است — تاریخچهٔ حمل هرگز
+        // نباید با حذف یک مرحله به‌صورت آبشاری پاک شود.
+        modelBuilder.Entity<InventoryTransportLegAllocation>()
+            .HasOne(a => a.SourceTransportLeg)
+            .WithMany()
+            .HasForeignKey(a => a.SourceTransportLegId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<InventoryTransportLegAllocation>()
+            .HasOne(a => a.SourceTransportReceipt)
+            .WithMany()
+            .HasForeignKey(a => a.SourceTransportReceiptId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<InventoryTransportReceipt>()
@@ -1011,6 +1049,14 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(m => m.SalesTransactionId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<InventoryMovement>()
+            .HasOne(m => m.ReversalOfInventoryMovement)
+            .WithMany(m => m.Reversals)
+            .HasForeignKey(m => m.ReversalOfInventoryMovementId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        ConfigureTransportOutcomeAllocations(modelBuilder);
 
         modelBuilder.Entity<PaymentTransaction>()
             .HasOne(p => p.CashAccount)
@@ -1707,6 +1753,32 @@ public class ApplicationDbContext : DbContext
             .HasIndex(sc => new { sc.ShipmentId, sc.ContractId })
             .IsUnique();
 
+        // سهم دقیق بارگیری در محموله — additive و کاملاً اختیاری.
+        // حذف محموله ردیف‌های سهم را می‌برد (child واقعیِ محموله، مثل ShipmentContract)، ولی
+        // قرارداد و بارگیری هرگز به‌خاطر محموله حذف نمی‌شوند (Restrict).
+        modelBuilder.Entity<ShipmentLoadingAllocation>()
+            .HasOne(a => a.Shipment)
+            .WithMany(s => s.LoadingAllocations)
+            .HasForeignKey(a => a.ShipmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ShipmentLoadingAllocation>()
+            .HasOne(a => a.Contract)
+            .WithMany()
+            .HasForeignKey(a => a.ContractId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ShipmentLoadingAllocation>()
+            .HasOne(a => a.LoadingRegister)
+            .WithMany()
+            .HasForeignKey(a => a.LoadingRegisterId)
+            .OnDelete(DeleteBehavior.Restrict);
+        // یک بارگیری در یک محموله فقط یک ردیف دارد؛ همین، double-allocation درون‌محموله‌ای را
+        // در سطح دیتابیس غیرممکن می‌کند. سقفِ بین‌محموله‌ای در سرویس اعتبارسنجی می‌شود.
+        modelBuilder.Entity<ShipmentLoadingAllocation>()
+            .HasIndex(a => new { a.ShipmentId, a.LoadingRegisterId })
+            .IsUnique();
+        modelBuilder.Entity<ShipmentLoadingAllocation>().HasIndex(a => a.LoadingRegisterId);
+        modelBuilder.Entity<ShipmentLoadingAllocation>().HasIndex(a => a.ContractId);
+
         // Gap #1 — CustomsDeclaration relationships
         modelBuilder.Entity<CustomsDeclaration>()
             .ToTable(t => t.HasCheckConstraint(
@@ -1751,6 +1823,94 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.ConfigureAccountingCore();
         ConfigureInventoryLineage(modelBuilder);
+    }
+
+    private static void ConfigureTransportOutcomeAllocations(ModelBuilder modelBuilder)
+    {
+        ConfigureWeight<SalesTransactionSourceAllocation>(modelBuilder, a => a.QuantityMt);
+        ConfigureMoney<SalesTransactionSourceAllocation>(modelBuilder, a => a.AmountUsd);
+        ConfigureWeight<LossEventSourceAllocation>(modelBuilder, a => a.QuantityMt);
+        ConfigureMoney<LossEventSourceAllocation>(modelBuilder, a => a.ValueUsd!);
+
+        modelBuilder.Entity<SalesTransactionSourceAllocation>()
+            .HasOne(a => a.SalesTransaction)
+            .WithMany(s => s.SourceAllocations)
+            .HasForeignKey(a => a.SalesTransactionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>()
+            .HasOne(a => a.TransportLeg)
+            .WithMany()
+            .HasForeignKey(a => a.TransportLegId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>()
+            .HasOne(a => a.SourcePurchaseContract)
+            .WithMany()
+            .HasForeignKey(a => a.SourcePurchaseContractId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>()
+            .HasOne(a => a.SourceLoadingReceipt)
+            .WithMany()
+            .HasForeignKey(a => a.SourceLoadingReceiptId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>()
+            .HasOne(a => a.SourceInventoryMovement)
+            .WithMany()
+            .HasForeignKey(a => a.SourceInventoryMovementId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>()
+            .HasOne(a => a.SourceTransportLeg)
+            .WithMany()
+            .HasForeignKey(a => a.SourceTransportLegId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>()
+            .HasOne(a => a.SourceTransportReceipt)
+            .WithMany()
+            .HasForeignKey(a => a.SourceTransportReceiptId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesTransactionSourceAllocation>()
+            .ToTable(t => t.HasCheckConstraint(
+                "CK_SalesTransactionSourceAllocations_QuantityPositive",
+                "\"QuantityMt\" > 0"));
+
+        modelBuilder.Entity<LossEventSourceAllocation>()
+            .HasOne(a => a.LossEvent)
+            .WithMany(e => e.SourceAllocations)
+            .HasForeignKey(a => a.LossEventId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<LossEventSourceAllocation>()
+            .HasOne(a => a.TransportLeg)
+            .WithMany()
+            .HasForeignKey(a => a.TransportLegId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LossEventSourceAllocation>()
+            .HasOne(a => a.SourcePurchaseContract)
+            .WithMany()
+            .HasForeignKey(a => a.SourcePurchaseContractId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LossEventSourceAllocation>()
+            .HasOne(a => a.SourceLoadingReceipt)
+            .WithMany()
+            .HasForeignKey(a => a.SourceLoadingReceiptId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LossEventSourceAllocation>()
+            .HasOne(a => a.SourceInventoryMovement)
+            .WithMany()
+            .HasForeignKey(a => a.SourceInventoryMovementId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LossEventSourceAllocation>()
+            .HasOne(a => a.SourceTransportLeg)
+            .WithMany()
+            .HasForeignKey(a => a.SourceTransportLegId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LossEventSourceAllocation>()
+            .HasOne(a => a.SourceTransportReceipt)
+            .WithMany()
+            .HasForeignKey(a => a.SourceTransportReceiptId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LossEventSourceAllocation>()
+            .ToTable(t => t.HasCheckConstraint(
+                "CK_LossEventSourceAllocations_QuantityPositive",
+                "\"QuantityMt\" > 0"));
     }
 
     // بخش کیفیت و لابراتوار. همهٔ روابط Restrict هستند تا حذف یک قرارداد/محموله هرگز

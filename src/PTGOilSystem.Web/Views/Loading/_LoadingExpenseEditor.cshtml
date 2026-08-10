@@ -40,11 +40,11 @@
                      model="@(("مصارف بارگیری", (string?)"هر مصرف را در یک ردیف ثبت کنید."))" />
 
             <div class="ak-table-wrap">
-                <table class="ak-table">
+                <table class="ak-table loading-expense-table">
                     <thead><tr>
                         <th>نوع مصرف</th><th>روش محاسبه</th><th class="ak-col-num">مقدار</th>
                         <th class="ak-col-num">نرخ فی تن</th><th class="ak-col-num">مبلغ کل</th>
-                        <th>طرف حساب</th><th>انتخاب طرف</th><th>توضیح</th><th class="ak-col-actions"></th>
+                        <th>طرف حساب</th><th>انتخاب طرف</th><th class="ak-col-actions"></th>
                     </tr></thead>
                     <tbody data-expense-rows>
                     @foreach (var line in Model.Lines)

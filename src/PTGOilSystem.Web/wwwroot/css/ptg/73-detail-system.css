@@ -566,12 +566,11 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     box-shadow: var(--ptg-panel-shadow);
 }
 
-/* Modals already own top-level elevation. Shipment record lists keep their own
-   card treatment only when they are the primary surface, not inside a lifted
-   detail panel. These resets deliberately follow the dark surface rule. */
+/* Modals already own top-level elevation. A nested detail section never repeats
+   the card treatment of the panel that already lifts it. These resets
+   deliberately follow the dark surface rule. */
 .ak-operations-detail .ak-detail-section .ak-detail-section,
-.ak-operations-detail .modal .ak-detail-section,
-.ak-operations-detail .ak-detail-section .shipment-record-list {
+.ak-operations-detail .modal .ak-detail-section {
     border-color: transparent;
     border-radius: 0;
     background: transparent;
@@ -590,8 +589,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     }
 
     .ak-operations-detail .ak-detail-section .ak-detail-section,
-    .ak-operations-detail .modal .ak-detail-section,
-    .ak-operations-detail .ak-detail-section .shipment-record-list {
+    .ak-operations-detail .modal .ak-detail-section {
         border: 0;
         background: transparent;
         box-shadow: none;
@@ -624,11 +622,160 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 [data-transport-details] .ak-stat-card__value--dense { font-size: clamp(16px, 1.3vw, 20px); }
 [data-transport-details] .ak-stat-card__value--ultra { font-size: clamp(13px, 1.05vw, 16px); }
 
-/* KPI order is fixed by the view: loaded, unloaded, shortage, total expenses. */
-[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(1) .ak-stat-card__value { color: var(--ptg-primary); }
-[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(2) .ak-stat-card__value { color: var(--ptg-success-text); }
-[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(3) .ak-stat-card__value { color: var(--ptg-danger-text); }
-[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(4) .ak-stat-card__value { color: var(--ptg-warning-text); }
+/* Use the shared stat-card number colour; the transport page has no custom
+   per-card palette. Its state remains clear through labels and record status. */
+
+/* Start directly with the profile card; the visible "Quick scan" eyebrow is
+   redundant with the card title on this page. */
+[data-transport-details] > .ak-operations-clean-overview::before {
+    content: none;
+    display: none;
+}
+
+/* Transport chain: compact directional timeline with explicit split/merge parents. */
+.transport-chain-timeline {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 2px 2px 8px;
+    scrollbar-width: thin;
+}
+
+.transport-chain-step {
+    position: relative;
+    flex: 0 0 min(300px, 82vw);
+}
+
+.transport-chain-step:not(:last-child)::after {
+    content: "←";
+    position: absolute;
+    inset-inline-end: -9px;
+    top: 50%;
+    z-index: 2;
+    color: var(--ptg-text-muted, #64748B);
+    transform: translate(50%, -50%);
+}
+
+.transport-chain-node {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 76px;
+    padding: 12px;
+    border: 1px solid var(--ptg-border, #E2E8F0);
+    border-radius: 8px;
+    background: var(--ptg-surface, #FFFFFF);
+}
+
+.transport-chain-step.is-current .transport-chain-node {
+    border-color: var(--ptg-primary, #C2410C);
+    box-shadow: inset 3px 0 0 var(--ptg-primary, #C2410C);
+}
+
+.transport-chain-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: var(--ptg-primary, #C2410C);
+    background: var(--ptg-primary-soft, #FFF7ED);
+}
+
+.transport-chain-node div:nth-child(2) {
+    min-width: 0;
+}
+
+.transport-chain-node strong,
+.transport-chain-node span {
+    display: block;
+}
+
+.transport-chain-node span,
+.transport-chain-quantity small,
+.transport-chain-parent {
+    color: var(--ptg-text-muted, #64748B);
+    font-size: 12px;
+}
+
+.transport-chain-quantity {
+    text-align: end;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.transport-chain-parent {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding-inline: 8px;
+}
+
+.transport-chain-parent a {
+    font-weight: 600;
+    text-decoration: none;
+}
+
+@media (max-width: 575.98px) {
+    .transport-chain-node {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .transport-chain-quantity {
+        grid-column: 2;
+        text-align: start;
+    }
+}
+
+/* Transport history is table-first. Each tab exposes only primary facts and
+   keeps secondary fields in the existing detail modal. */
+[data-transport-details] .transport-details-records > .ak-detail-tabs {
+    margin-block-end: 0;
+}
+
+[data-transport-details] .transport-details-records .ak-tab-content {
+    padding-block-start: 12px;
+}
+
+[data-transport-details] .transport-records-table th,
+[data-transport-details] .transport-records-table td {
+    vertical-align: middle;
+}
+
+[data-transport-details] .transport-records-table .ak-col-actions {
+    width: 64px;
+    text-align: center;
+}
+
+[data-transport-details] .transport-tab-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin-block-start: 10px;
+    padding-block-start: 10px;
+    border-block-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
+    color: var(--ak-detail-muted, var(--ptg-muted));
+    font-size: 12px;
+}
+
+[data-transport-details] .transport-tab-summary > span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+[data-transport-details] .transport-tab-summary strong {
+    color: var(--ak-detail-text, var(--ptg-text));
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+
+[data-transport-details] .transport-tab-summary.is-warning strong {
+    color: var(--ptg-warning-text);
+}
 
 /* Toned summary facts (remaining in vehicle) — colour already comes from the
    tone class, only the size step is added here. */
@@ -704,6 +851,48 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     font-size: 13px;
 }
 
+/* Loading keeps secondary actions in one clearly visible blue overflow menu. */
+[data-loading-details] > .ak-detail-header .ak-kebab-toggle {
+    border-color: #1877f2 !important;
+    background: #1877f2 !important;
+    color: var(--ptg-primary-contrast) !important;
+}
+
+[data-loading-details] > .ak-detail-header .ak-kebab-toggle:hover,
+[data-loading-details] > .ak-detail-header .ak-kebab-toggle:focus-visible,
+[data-loading-details] > .ak-detail-header .ak-kebab-toggle.show {
+    border-color: #1877f2 !important;
+    background: #1877f2 !important;
+    color: var(--ptg-primary-contrast) !important;
+}
+
+/* The loading overview starts directly with its cards; it has no visual label. */
+[data-loading-details] > .ak-operations-clean-overview::before {
+    content: none;
+    display: none;
+}
+
+/* Loading receipt details also begin directly with their compact summaries. */
+[data-loading-receipt-details] > .ak-operations-clean-overview::before {
+    content: none;
+    display: none;
+}
+
+/* Keep each technical value directly below its label on this RTL page.
+   Numeric values retain LTR digit isolation inside the RTL-aligned container. */
+[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby="operations-more-technical-title"] .ak-info-cell {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+}
+
+[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby="operations-more-technical-title"] .ak-info-value,
+[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby="operations-more-technical-title"] .ak-info-value.ak-num {
+    width: 100%;
+    direction: rtl;
+    justify-content: flex-start;
+    text-align: start;
+}
+
 .ak-operations-clean-page .ak-stat-card__title {
     color: var(--ak-detail-muted, var(--ptg-muted));
     font-size: 12px;
@@ -754,6 +943,45 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ak-operations-clean-page .ak-summary-card .ak-info-value.ak-num {
     justify-content: flex-end;
+}
+
+/* Loading RUB pricing is a compact comparison strip, not a statement list.
+   Keep its facts in one horizontal row without changing other operation cards. */
+.ak-operations-clean-page .ak-operations-overview > .loading-ruble-pricing {
+    grid-column: 1 / -1;
+}
+
+.ak-operations-clean-page .loading-ruble-pricing .ak-info-grid {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.ak-operations-clean-page .loading-ruble-pricing .ak-info-cell,
+.ak-operations-clean-page .loading-ruble-pricing .ak-info-cell.is-wide {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    flex: 1 0 150px;
+    padding: 4px 12px;
+    border-block-end: 0;
+    border-inline-end: 1px solid var(--ak-detail-divider, var(--ptg-border));
+}
+
+.ak-operations-clean-page .loading-ruble-pricing .ak-info-cell:first-child {
+    padding-inline-start: 0;
+}
+
+.ak-operations-clean-page .loading-ruble-pricing .ak-info-cell:last-child {
+    padding-inline-end: 0;
+    border-inline-end: 0;
+}
+
+.ak-operations-clean-page .loading-ruble-pricing .ak-info-value,
+.ak-operations-clean-page .loading-ruble-pricing .ak-info-value.ak-num {
+    justify-content: flex-start;
+    text-align: start;
 }
 
 /* The first identity fact is the quickest recognition cue. It is distinguished
@@ -881,21 +1109,8 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     min-width: 18px;
 }
 
-/* Semantic operational KPI colors: source/primary, completed/received,
-   remaining/attention, then cost. These selectors only affect the loading
-   detail surface; transport details retain their own established mapping. */
-[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(1) .ak-stat-card__value {
-    color: var(--ptg-primary);
-}
-
-[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(2) .ak-stat-card__value {
-    color: var(--ptg-success-text);
-}
-
-[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(3) .ak-stat-card__value {
-    color: var(--ptg-warning-text);
-}
-
+/* Loading KPI values use the shared stat-card number colour. Only the final
+   total-cost card remains red to retain its financial warning emphasis. */
 [data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(4) .ak-stat-card__value {
     color: var(--ptg-danger-text);
 }

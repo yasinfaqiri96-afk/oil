@@ -400,7 +400,6 @@ public class ShellViewStructureTests
         var modules = new[]
         {
             "Loading",
-            "InventoryTransportLegs",
             "ShipmentPnl",
             "Dispatch",
             "TruckSettlements",
@@ -419,6 +418,13 @@ public class ShellViewStructureTests
             Assert.Equal(4, view.Split("<vc:stat-card", StringSplitOptions.None).Length - 1);
             Assert.Equal(4, view.Split(" avatar=\"", StringSplitOptions.None).Length - 1);
         }
+
+        var transports = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportLegs/Index.cshtml");
+        Assert.Contains("transport-workflow-table", transports);
+        Assert.Contains("NumberDisplay.Quantity(item.QuantityMt)", transports);
+        Assert.Contains("ak-stat-grid mb-3", transports);
+        Assert.Equal(4, transports.Split("<vc:stat-card", StringSplitOptions.None).Length - 1);
+        Assert.Equal(4, transports.Split(" avatar=\"", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]

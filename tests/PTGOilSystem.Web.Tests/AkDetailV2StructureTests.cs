@@ -144,7 +144,6 @@ public sealed class AkDetailV2StructureTests
         Assert.Contains(".ak-operations-detail.ak-operations-settlement > .ak-list", css);
         Assert.Contains(".ak-operations-detail .ak-detail-section .ak-detail-section", css);
         Assert.Contains(".ak-operations-detail .modal .ak-detail-section", css);
-        Assert.Contains(".ak-operations-detail .ak-detail-section .shipment-record-list", css);
         Assert.Contains("border-color: transparent", css);
         Assert.Contains("@media print", css);
 

@@ -463,7 +463,7 @@ public class InventoryTransportReceiptsControllerTests
     }
 
     [Fact]
-    public async Task Create_DirectDispatch_Creates_TruckDispatch_Without_Inventory_Sale_Or_Ledger()
+    public async Task Create_DirectDispatch_Redirects_To_Unified_Continue_Without_Writes()
     {
         await using var db = CreateDb();
         await SeedReferenceDataAsync(db);
@@ -487,38 +487,19 @@ public class InventoryTransportReceiptsControllerTests
         });
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Details", redirect.ActionName);
+        Assert.Equal("Continue", redirect.ActionName);
+        Assert.Equal("Transports", redirect.ControllerName);
+        Assert.Equal(leg.Id, redirect.RouteValues!["transportLegId"]);
         Assert.Equal(beforeMovements, await db.InventoryMovements.CountAsync());
         Assert.Empty(await db.SalesTransactions.ToListAsync());
         Assert.Empty(await db.LedgerEntries.ToListAsync());
-
-        var receipt = await db.InventoryTransportReceipts.SingleAsync();
-        Assert.Equal(InventoryTransportReceiptDestination.DirectDispatch, receipt.ReceiptDestination);
-        Assert.Null(receipt.InventoryMovementId);
-        Assert.Null(receipt.SalesTransactionId);
-
-        var dispatch = await db.TruckDispatches.SingleAsync();
-        Assert.Equal(TruckDispatchMode.DirectFromReceipt, dispatch.DispatchMode);
-        Assert.Equal(receipt.Id, dispatch.InventoryTransportReceiptId);
-        Assert.Null(dispatch.LoadingReceiptAllocationId);
-        Assert.Equal(1, dispatch.ContractId);
-        Assert.Equal(1, dispatch.ProductId);
-        Assert.Equal(1, dispatch.TruckId);
-        Assert.Equal(1, dispatch.DriverId);
-        Assert.Equal(1, dispatch.DestinationLocationId);
-        Assert.Equal(28m, dispatch.LoadedQuantityMt);
-        Assert.Equal("TD-001", dispatch.TicketSerialNumber);
-
-        var loss = await db.LossEvents.SingleAsync();
-        Assert.Equal(leg.Id, loss.TransportLegId);
-        Assert.Equal(2m, loss.ChargeableLossMt);
-
-        var reloadedLeg = await db.InventoryTransportLegs.SingleAsync(l => l.Id == leg.Id);
-        Assert.Equal(InventoryTransportLegStatus.Received, reloadedLeg.Status);
+        Assert.Empty(await db.InventoryTransportReceipts.ToListAsync());
+        Assert.Empty(await db.TruckDispatches.ToListAsync());
+        Assert.Empty(await db.LossEvents.ToListAsync());
     }
 
     [Fact]
-    public async Task Create_DirectDispatch_Allows_LoadedQuantity_Less_Than_ReceivedQuantity()
+    public async Task Create_DirectDispatch_Legacy_Post_Does_Not_Bypass_Unified_Quantity_Engine()
     {
         await using var db = CreateDb();
         await SeedReferenceDataAsync(db);
@@ -542,26 +523,15 @@ public class InventoryTransportReceiptsControllerTests
         });
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Details", redirect.ActionName);
+        Assert.Equal("Continue", redirect.ActionName);
+        Assert.Equal("Transports", redirect.ControllerName);
+        Assert.Equal(leg.Id, redirect.RouteValues!["transportLegId"]);
         Assert.Equal(beforeMovements, await db.InventoryMovements.CountAsync());
         Assert.Empty(await db.SalesTransactions.ToListAsync());
         Assert.Empty(await db.LedgerEntries.ToListAsync());
-
-        var receipt = await db.InventoryTransportReceipts.SingleAsync();
-        Assert.Equal(InventoryTransportReceiptDestination.DirectDispatch, receipt.ReceiptDestination);
-        Assert.Null(receipt.InventoryMovementId);
-        Assert.Null(receipt.SalesTransactionId);
-
-        var dispatch = await db.TruckDispatches.SingleAsync();
-        Assert.Equal(20m, dispatch.LoadedQuantityMt);
-        Assert.Equal("TD-002", dispatch.TicketSerialNumber);
-
-        var loss = await db.LossEvents.SingleAsync();
-        Assert.Equal(leg.Id, loss.TransportLegId);
-        Assert.Equal(2m, loss.ChargeableLossMt);
-
-        var reloadedLeg = await db.InventoryTransportLegs.SingleAsync(l => l.Id == leg.Id);
-        Assert.Equal(InventoryTransportLegStatus.Received, reloadedLeg.Status);
+        Assert.Empty(await db.InventoryTransportReceipts.ToListAsync());
+        Assert.Empty(await db.TruckDispatches.ToListAsync());
+        Assert.Empty(await db.LossEvents.ToListAsync());
     }
 
     [Fact]

@@ -60,7 +60,7 @@ public static class RoleAccessRules
         new(RoleNavigationKeys.Contracts, "قراردادها", "bi-file-earmark-text-fill",
             ["Contracts", "ContractAmendments", "ContractJourney", "ContractBalanceTransfers"]),
         new(RoleNavigationKeys.Operations, "عملیات", "bi-truck-front-fill",
-            ["Loading", "LoadingExcelImport", "InventoryTransportLegs", "InventoryTransportReceipts", "InventoryLineage",
+            ["Loading", "LoadingExcelImport", "InventoryTransportLegs", "InventoryTransportReceipts", "InventoryLineage", "Transports",
                 "Shipments", "ShipmentContracts", "ShipmentPnl", "Dispatch", "TruckSettlements", "Expenses",
                 "LossEvents", "LoadingReceipts", "CustomsDeclarations", "QualityInspections"]),
         new(RoleNavigationKeys.Inventory, "موجودی", "bi-box-seam-fill",

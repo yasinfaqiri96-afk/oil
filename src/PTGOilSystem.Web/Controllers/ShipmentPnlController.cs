@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
@@ -22,26 +21,23 @@ public partial class ShipmentPnlController : Controller
     private static readonly SalesPnlSnapshot EmptySalesPnl =
         new(0m, 0m, 0, 0, 0, PnlConfidence.Verified);
     private const int IndexPageSize = 5;
-    private const string FooterTotalsCacheKey = "ShipmentPnl.Index.FooterTotals";
-    private static readonly TimeSpan FooterTotalsCacheTtl = TimeSpan.FromSeconds(60);
     private readonly ApplicationDbContext _db;
     private readonly InventoryLineagePnlService _lineagePnl;
     private readonly IProfitAndLossService _profitAndLoss;
     private readonly LineageOptions _lineageOptions;
-    private readonly IMemoryCache? _cache;
 
+    // کش کارت‌های آمار لازم نیست: این اعداد اکنون از query سبک می‌آیند و باید همیشه
+    // با همان چیزی که لیست نشان می‌دهد یکی باشند.
     public ShipmentPnlController(
         ApplicationDbContext db,
         InventoryLineagePnlService? lineagePnl = null,
         IOptions<LineageOptions>? lineageOptions = null,
-        IMemoryCache? cache = null,
         IProfitAndLossService? profitAndLoss = null)
     {
         _db = db;
         _lineagePnl = lineagePnl ?? new InventoryLineagePnlService(db);
         _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db);
         _lineageOptions = lineageOptions?.Value ?? new LineageOptions();
-        _cache = cache;
     }
 
     public async Task<IActionResult> Index(int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -63,40 +59,315 @@ public partial class ShipmentPnlController : Controller
             .Select(s => s.Id)
             .ToListAsync();
 
-        var items = await BuildIndexItemsAsync(shipmentIds);
-
-        // مجموع کلِ مقدار و نتیجهٔ مالی روی همهٔ محموله‌ها (نه فقط این صفحه) برای ردیف جمع در انتهای لیست.
-        // محاسبهٔ این جمع، P&L همهٔ محموله‌ها را می‌سازد و سنگین است؛ برای همین با کش کوتاه‌مدت
-        // نگه داشته می‌شود تا جابه‌جایی بین صفحات لیست فوری باشد. منطق مالی تغییری نمی‌کند.
-        var totals = await GetFooterTotalsAsync();
-        ViewBag.SumQuantity = totals.SumQuantity;
-        ViewBag.SumGrossMargin = totals.SumGrossMargin;
-        ViewBag.SumRelatedSales = totals.SumRelatedSales;
+        var items = await BuildIndexRowsAsync(shipmentIds);
+        var totals = await BuildIndexTotalsAsync(totalCount);
 
         return View(new ShipmentPnlIndexViewModel
         {
             Items = items,
             CurrentPage = page,
             PageCount = pageCount,
-            TotalCount = totalCount
+            TotalCount = totalCount,
+            Totals = totals
         });
     }
 
-    private async Task<(decimal SumQuantity, decimal SumGrossMargin, int SumRelatedSales)> GetFooterTotalsAsync()
+    /// <summary>
+    /// ردیف‌های لیست محموله‌ها. لیست فقط شناسه، مسیر، مقدار و تعداد رکوردهای مرتبط را نشان
+    /// می‌دهد، پس رول‌آپ کامل مالی (که برای پروندهٔ هر محموله و خروجی لازم است) اینجا ساخته
+    /// نمی‌شود؛ همان مجموعه‌ها با query سبک شمرده می‌شوند. درآمد و سود محقق‌شده مثل بقیهٔ
+    /// صفحات فقط از ProfitAndLossService می‌آید.
+    /// شمارش‌ها باید همیشه با BuildFinancialRollupsAsync یکی بمانند؛ تست تطبیقی
+    /// ShipmentPnlIndexRowTests این را نگه می‌دارد.
+    /// </summary>
+    private async Task<IReadOnlyList<ShipmentPnlIndexRowViewModel>> BuildIndexRowsAsync(IReadOnlyList<int> shipmentIds)
     {
-        if (_cache != null && _cache.TryGetValue(FooterTotalsCacheKey, out (decimal SumQuantity, decimal SumGrossMargin, int SumRelatedSales) cached))
+        if (shipmentIds.Count == 0)
         {
-            return cached;
+            return [];
         }
 
-        var allItems = await BuildAllIndexItemsAsync();
-        var totals = (
-            allItems.Sum(i => i.QuantityMt),
-            allItems.Sum(i => i.GrossMarginUsd),
-            allItems.Sum(i => i.RelatedSalesCount));
+        var shipments = await _db.Shipments
+            .AsNoTracking()
+            .Where(s => shipmentIds.Contains(s.Id))
+            .Select(s => new
+            {
+                s.Id,
+                s.ShipmentCode,
+                VesselName = s.Vessel != null ? s.Vessel.Name : null,
+                s.DepartureDate,
+                s.ArrivalDate,
+                s.QuantityMt,
+                ContractQuantityMt = s.ShipmentContracts.Sum(sc => sc.QuantityMt ?? 0m),
+                ContractProductName = s.Contract != null && s.Contract.Product != null ? s.Contract.Product.Name : null,
+                OriginName = s.OriginLocation != null ? s.OriginLocation.Name : null,
+                DestinationName = s.DestinationLocation != null ? s.DestinationLocation.Name : null
+            })
+            .ToListAsync();
 
-        _cache?.Set(FooterTotalsCacheKey, totals, FooterTotalsCacheTtl);
-        return totals;
+        // همان مجموعهٔ legهایی که رول‌آپ استفاده می‌کند: وصل به محموله و غیرلغو.
+        var legRows = await _db.InventoryTransportLegs
+            .AsNoTracking()
+            .Where(l => l.ShipmentId.HasValue
+                && shipmentIds.Contains(l.ShipmentId.Value)
+                && l.Status != InventoryTransportLegStatus.Cancelled)
+            .Select(l => new
+            {
+                l.Id,
+                ShipmentId = l.ShipmentId!.Value,
+                ProductName = l.SourcePurchaseContract != null && l.SourcePurchaseContract.Product != null
+                    ? l.SourcePurchaseContract.Product.Name
+                    : (l.Product != null ? l.Product.Name : null)
+            })
+            .ToListAsync();
+
+        var legToShipment = legRows.ToDictionary(l => l.Id, l => l.ShipmentId);
+        var legIds = legToShipment.Keys.ToList();
+
+        var transportLegCount = legRows
+            .GroupBy(l => l.ShipmentId)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var productNames = legRows
+            .GroupBy(l => l.ShipmentId)
+            .ToDictionary(g => g.Key, g => ResolveSingleOrMixed(g.Select(l => l.ProductName), "Mixed products"));
+
+        // فروش‌های وصل به محموله: مستقیم (ShipmentId) یا از راه رسیدهای حمل همان محموله.
+        var saleToShipmentFromLeg = await BuildSaleShipmentMapFromTransportReceiptsAsync(legIds, legToShipment);
+        var saleIdsFromLeg = saleToShipmentFromLeg.Keys.ToList();
+
+        var saleRows = await _db.SalesTransactions
+            .AsNoTracking()
+            .Where(s => !s.IsCancelled
+                && s.SaleStage != SaleStage.PreSale
+                && ((s.ShipmentId.HasValue && shipmentIds.Contains(s.ShipmentId.Value))
+                    || saleIdsFromLeg.Contains(s.Id)))
+            .Select(s => new { s.Id, s.ShipmentId })
+            .ToListAsync();
+
+        var shipmentIdSet = shipmentIds.ToHashSet();
+        var saleToShipment = new Dictionary<int, int>();
+        foreach (var sale in saleRows)
+        {
+            if (sale.ShipmentId.HasValue && shipmentIdSet.Contains(sale.ShipmentId.Value))
+            {
+                saleToShipment[sale.Id] = sale.ShipmentId.Value;
+            }
+            else if (saleToShipmentFromLeg.TryGetValue(sale.Id, out var lineageShipmentId))
+            {
+                saleToShipment[sale.Id] = lineageShipmentId;
+            }
+        }
+
+        var salesCount = saleToShipment
+            .GroupBy(pair => pair.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var realisedByShipment = await _profitAndLoss.BuildForSaleGroupsAsync(saleToShipment);
+
+        var expenseCount = await BuildIndexExpenseCountsAsync(shipmentIds, legIds, legToShipment);
+
+        // ترتیب لیست همان ترتیب صفحه‌بندی است، نه ترتیب برگشتی دیتابیس.
+        var order = shipmentIds
+            .Select((id, index) => (id, index))
+            .ToDictionary(x => x.id, x => x.index);
+
+        return shipments
+            .OrderBy(s => order[s.Id])
+            .Select(shipment =>
+            {
+                var realised = realisedByShipment.TryGetValue(shipment.Id, out var value) ? value : EmptySalesPnl;
+                return new ShipmentPnlIndexRowViewModel
+                {
+                    Id = shipment.Id,
+                    ShipmentCode = shipment.ShipmentCode,
+                    VesselName = shipment.VesselName,
+                    DepartureDate = shipment.DepartureDate,
+                    ArrivalDate = shipment.ArrivalDate,
+                    QuantityMt = RoundQuantity(shipment.QuantityMt > 0m
+                        ? shipment.QuantityMt
+                        : shipment.ContractQuantityMt),
+                    ProductName = productNames.GetValueOrDefault(shipment.Id) ?? shipment.ContractProductName,
+                    OriginName = shipment.OriginName,
+                    DestinationName = shipment.DestinationName,
+                    RelatedTransportLegCount = transportLegCount.GetValueOrDefault(shipment.Id),
+                    RelatedSalesCount = salesCount.GetValueOrDefault(shipment.Id),
+                    RelatedExpensesCount = expenseCount.GetValueOrDefault(shipment.Id),
+                    TotalSalesUsd = realised.RevenueUsd,
+                    RealisedPnl = realised.ToViewModel()
+                };
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// تعداد رکوردهای مصرف هر محموله، با همان چهار منبعی که رول‌آپ می‌شمارد:
+    /// کرایهٔ رسید حمل، مصرف‌های عملیاتی، گمرک روی حمل و گمرک ثبت‌شده از مسیر موتر.
+    /// فقط شمارش است؛ هیچ مبلغی اینجا محاسبه یا نمایش داده نمی‌شود.
+    /// </summary>
+    private async Task<Dictionary<int, int>> BuildIndexExpenseCountsAsync(
+        IReadOnlyList<int> shipmentIds,
+        IReadOnlyList<int> legIds,
+        IReadOnlyDictionary<int, int> legToShipment)
+    {
+        var counts = new Dictionary<int, int>();
+
+        void Add(int shipmentId, int value = 1)
+            => counts[shipmentId] = counts.GetValueOrDefault(shipmentId) + value;
+
+        if (legIds.Count > 0)
+        {
+            // کرایهٔ رسید حمل: به‌ازای هر legی که مبلغ کرایهٔ خالص مثبت دارد یک ردیف مصرف ساخته می‌شود.
+            var freightByLeg = await _db.InventoryTransportReceipts
+                .AsNoTracking()
+                .Where(r => !r.IsCancelled && legIds.Contains(r.InventoryTransportLegId))
+                .GroupBy(r => r.InventoryTransportLegId)
+                .Select(g => new
+                {
+                    LegId = g.Key,
+                    AmountUsd = g.Sum(r => (r.FreightCostUsd ?? 0m) - (r.ShortageChargeUsd ?? 0m))
+                })
+                .ToListAsync();
+
+            foreach (var leg in freightByLeg.Where(l => RoundMoney(l.AmountUsd) > 0m))
+            {
+                if (legToShipment.TryGetValue(leg.LegId, out var shipmentId))
+                {
+                    Add(shipmentId);
+                }
+            }
+        }
+
+        var expenseRows = await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => !e.IsCancelled
+                && (e.ExpenseType == null || e.ExpenseType.Code != InventoryTransportReceiptService.ReceiptFreightExpenseCode)
+                && ((e.ShipmentId.HasValue && shipmentIds.Contains(e.ShipmentId.Value))
+                    || (e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value))
+                    || (!e.TransportLegId.HasValue
+                        && e.TruckDispatchId.HasValue
+                        && e.TruckDispatch!.InventoryTransportReceipt != null
+                        && legIds.Contains(e.TruckDispatch.InventoryTransportReceipt.InventoryTransportLegId))))
+            .Select(e => new
+            {
+                e.ShipmentId,
+                e.TransportLegId,
+                DispatchLegId = e.TruckDispatch != null && e.TruckDispatch.InventoryTransportReceipt != null
+                    ? (int?)e.TruckDispatch.InventoryTransportReceipt.InventoryTransportLegId
+                    : null
+            })
+            .ToListAsync();
+
+        var shipmentIdSet = shipmentIds.ToHashSet();
+        foreach (var expense in expenseRows)
+        {
+            if (expense.ShipmentId.HasValue && shipmentIdSet.Contains(expense.ShipmentId.Value))
+            {
+                Add(expense.ShipmentId.Value);
+            }
+            else if (expense.TransportLegId.HasValue
+                && legToShipment.TryGetValue(expense.TransportLegId.Value, out var legShipmentId))
+            {
+                Add(legShipmentId);
+            }
+            else if (expense.DispatchLegId.HasValue
+                && legToShipment.TryGetValue(expense.DispatchLegId.Value, out var dispatchShipmentId))
+            {
+                Add(dispatchShipmentId);
+            }
+        }
+
+        if (legIds.Count == 0)
+        {
+            return counts;
+        }
+
+        var customsLegIds = await _db.CustomsDeclarations
+            .AsNoTracking()
+            .Where(c => c.TransportLegId.HasValue && legIds.Contains(c.TransportLegId.Value))
+            .Select(c => c.TransportLegId!.Value)
+            .ToListAsync();
+
+        foreach (var legId in customsLegIds)
+        {
+            if (legToShipment.TryGetValue(legId, out var shipmentId))
+            {
+                Add(shipmentId);
+            }
+        }
+
+        var dispatchCustomsLegIds = await _db.CustomsDeclarations
+            .AsNoTracking()
+            .Where(c => !c.TransportLegId.HasValue
+                && c.TruckDispatchId.HasValue
+                && c.TruckDispatch!.InventoryTransportReceipt != null
+                && legIds.Contains(c.TruckDispatch.InventoryTransportReceipt.InventoryTransportLegId))
+            .Select(c => c.TruckDispatch!.InventoryTransportReceipt!.InventoryTransportLegId)
+            .ToListAsync();
+
+        foreach (var legId in dispatchCustomsLegIds)
+        {
+            if (legToShipment.TryGetValue(legId, out var shipmentId))
+            {
+                Add(shipmentId);
+            }
+        }
+
+        return counts;
+    }
+
+    /// <summary>
+    /// کارت‌های آمار بالای لیست محموله‌ها. این اعداد روی همهٔ محموله‌ها هستند، پس فقط با
+    /// query سبک و جمع‌بندی سمت دیتابیس ساخته می‌شوند؛ هیچ رول‌آپ کامل P&L برای همهٔ
+    /// محموله‌ها اینجا اجرا نمی‌شود. سود همچنان فقط از ProfitAndLossService می‌آید.
+    /// </summary>
+    private async Task<ShipmentPnlIndexTotalsViewModel> BuildIndexTotalsAsync(int totalCount)
+    {
+        // مقدار هر محموله با همان قاعدهٔ ResolveOriginalShipmentQuantity:
+        // مقدار خود محموله، و اگر صفر بود جمع مقدار قراردادهای تخصیص‌یافتهٔ همان محموله.
+        var quantityRows = await _db.Shipments
+            .AsNoTracking()
+            .Select(s => new
+            {
+                s.QuantityMt,
+                ContractQuantityMt = s.ShipmentContracts.Sum(sc => sc.QuantityMt ?? 0m)
+            })
+            .ToListAsync();
+
+        var sumQuantity = quantityRows.Sum(row => RoundQuantity(
+            row.QuantityMt > 0m ? row.QuantityMt : row.ContractQuantityMt));
+
+        // نگاشت فروش → محموله: همان دو مسیر لیست (ShipmentId مستقیم، و رسیدهای حملِ
+        // legهای همان محموله)، فقط بدون ساختن رول‌آپ مالی.
+        var legToShipment = await _db.InventoryTransportLegs
+            .AsNoTracking()
+            .Where(l => l.ShipmentId.HasValue && l.Status != InventoryTransportLegStatus.Cancelled)
+            .Select(l => new { l.Id, ShipmentId = l.ShipmentId!.Value })
+            .ToDictionaryAsync(l => l.Id, l => l.ShipmentId);
+
+        var saleToShipmentFromLeg = await BuildSaleShipmentMapFromTransportReceiptsAsync(
+            legToShipment.Keys.ToList(),
+            legToShipment);
+        var saleIdsFromLeg = saleToShipmentFromLeg.Keys.ToList();
+
+        var relatedSaleIds = await _db.SalesTransactions
+            .AsNoTracking()
+            .Where(s => !s.IsCancelled
+                && s.SaleStage != SaleStage.PreSale
+                && (s.ShipmentId.HasValue || saleIdsFromLeg.Contains(s.Id)))
+            .Select(s => s.Id)
+            .ToListAsync();
+
+        // درآمد و سود محقق‌شده تنها از منبع مجاز خوانده می‌شود.
+        var realised = await _profitAndLoss.BuildForSalesAsync(relatedSaleIds);
+
+        return new ShipmentPnlIndexTotalsViewModel
+        {
+            TotalCount = totalCount,
+            SumQuantityMt = sumQuantity,
+            SumRelatedSalesCount = relatedSaleIds.Count,
+            RealisedGrossProfitUsd = realised.GrossProfitUsd
+        };
     }
 
     internal async Task<IReadOnlyList<ShipmentPnlListItemViewModel>> BuildAllIndexItemsAsync()
@@ -407,6 +678,7 @@ public partial class ShipmentPnlController : Controller
         return View(new ShipmentPnlDetailsViewModel
         {
             ContractLines = contractLines,
+            PurchaseSourceLines = rollup.PurchaseCost.Lines,
             Losses = losses,
             Warnings = warnings,
             HasLineageData = lineageRollup?.HasLineageData == true,
@@ -721,6 +993,7 @@ public partial class ShipmentPnlController : Controller
 
         var contractIds = shipmentTransportLegs
             .Select(l => l.SourcePurchaseContractId)
+            .Concat(shipmentContracts.Select(sc => sc.ContractId))
             .Distinct()
             .ToList();
 
@@ -730,6 +1003,13 @@ public partial class ShipmentPnlController : Controller
 
         var purchaseSnapshots = await new PurchaseAggregationService(_db)
             .AggregateForContractsAsync(contractIds, finalPriceByContract);
+
+        // همان منبع واحدی که TotalPurchaseCostUsd با آن ساخته می‌شود؛ ردیف‌های این تب هرگز
+        // نباید نرخی متفاوت از جمع کل نشان بدهند.
+        var purchaseCost = await new ShipmentPurchaseCostService(_db).BuildAsync(shipmentId);
+        var purchaseUnitCostByContract = purchaseCost.UnitCostByContract;
+        var purchaseValueByContract = purchaseCost.CostByContract;
+        var purchaseSourceByContract = purchaseCost.CostSourceByContract;
 
         var actualPurchaseUnitCostByContract = shipmentTransportLegs
             .Select(l =>
@@ -800,15 +1080,28 @@ public partial class ShipmentPnlController : Controller
             .Select(sc =>
             {
                 var allocated = sc.QuantityMt ?? 0m;
-                var contractUnitPrice = sc.Contract is not null
-                    ? ContractPricingAdapter.GetCanonicalFinalPrice(sc.Contract)
-                    : null;
-                var unitPrice = actualPurchaseUnitCostByContract.TryGetValue(sc.ContractId, out var actualUnitCost)
-                    ? actualUnitCost
-                    : contractUnitPrice;
-                var totalValue = unitPrice.HasValue && unitPrice.Value > 0m && allocated > 0m
-                    ? RoundMoney(allocated * unitPrice.Value)
-                    : (decimal?)null;
+                // نرخ و ارزش دقیقاً از ShipmentPurchaseCostService؛ اگر محموله برای این قرارداد
+                // سهم بارگیری دارد این عدد Source-exact است، وگرنه همان fallback قرارداد.
+                var hasCentralCost = purchaseUnitCostByContract.TryGetValue(sc.ContractId, out var centralUnitPrice)
+                    && centralUnitPrice is > 0m;
+                var unitPrice = hasCentralCost
+                    ? centralUnitPrice
+                    : actualPurchaseUnitCostByContract.TryGetValue(sc.ContractId, out var actualUnitCost)
+                        ? actualUnitCost
+                        : null;
+                var unitPriceSource = hasCentralCost
+                    ? purchaseSourceByContract.GetValueOrDefault(sc.ContractId, ShipmentPurchaseCostResolver.SourceMissing)
+                    : actualPurchaseUnitCostByContract.ContainsKey(sc.ContractId)
+                        && shipmentTransportLegs.Any(l => l.SourcePurchaseContractId == sc.ContractId
+                            && l.PurchaseUnitCostUsd is > 0m)
+                        ? ShipmentPurchaseCostResolver.SourceLegActualCost
+                        : purchaseSourceByContract.GetValueOrDefault(sc.ContractId, ShipmentPurchaseCostResolver.SourceMissing);
+                // ارزش خرید برای قراردادِ دارای سهم دقیق، جمعِ همان سطرهاست (نه مقدار تخصیص × میانگین).
+                var totalValue = hasCentralCost && purchaseValueByContract.TryGetValue(sc.ContractId, out var centralValue) && centralValue > 0m
+                    ? centralValue
+                    : unitPrice is > 0m && allocated > 0m
+                        ? RoundMoney(allocated * unitPrice.Value)
+                        : (decimal?)null;
                 return new ShipmentContractLineViewModel
                 {
                     ContractId = sc.ContractId,
@@ -818,9 +1111,10 @@ public partial class ShipmentPnlController : Controller
                     ProductName = sc.Contract?.Product?.Name,
                     ContractUnitText = sc.Contract != null ? ContractUiText.ResolveUnitText(sc.Contract.Unit) : "-",
                     AllocatedQuantityMt = allocated,
-                    // نرخ نهاییِ خرید = همان معیاری که TotalPurchaseCostUsd با آن جمع می‌زند (canonical final price).
-                    HasFinalPrice = sc.Contract != null
-                        && ContractPricingAdapter.GetCanonicalFinalPrice(sc.Contract) is { } fp && fp > 0m,
+                    // «نرخ دارد» = همان معیاری که TotalPurchaseCostUsd با آن جمع می‌زند:
+                    // میانگین وزنی بارگیری‌های قرارداد یا نرخ نهایی هدر (ShipmentPurchaseCostResolver).
+                    HasFinalPrice = unitPrice is > 0m,
+                    UnitPriceSource = unitPriceSource,
                     UsedQuantityMt = loadedByContract.TryGetValue(sc.ContractId, out var loaded) ? loaded : 0m,
                     TransportedFromInventoryQuantityMt = transportedFromInventoryByContract.TryGetValue(sc.ContractId, out var transported) ? transported : 0m,
                     TransportShortageQuantityMt = transportShortageByContract.TryGetValue(sc.ContractId, out var shortage) ? shortage : 0m,
@@ -1144,22 +1438,6 @@ public partial class ShipmentPnlController : Controller
                 && sc.QuantityMt.Value > 0m)
             .ToListAsync();
 
-        foreach (var allocation in shipmentContractRows)
-        {
-            if (allocation.Contract is null || !allocation.QuantityMt.HasValue)
-            {
-                continue;
-            }
-
-            var unitCost = ContractPricingAdapter.GetCanonicalFinalPrice(allocation.Contract);
-            if (!unitCost.HasValue || unitCost.Value <= 0m)
-            {
-                continue;
-            }
-
-            rollups[allocation.ShipmentId].TotalPurchaseCostUsd += RoundMoney(allocation.QuantityMt.Value * unitCost.Value);
-        }
-
         var transportLegs = await _db.InventoryTransportLegs
             .Include(l => l.SourcePurchaseContract)
                 .ThenInclude(c => c!.Product)
@@ -1183,6 +1461,7 @@ public partial class ShipmentPnlController : Controller
 
         var contractIds = transportLegs
             .Select(l => l.SourcePurchaseContractId)
+            .Concat(shipmentContractRows.Select(sc => sc.ContractId))
             .Distinct()
             .ToList();
 
@@ -1192,9 +1471,30 @@ public partial class ShipmentPnlController : Controller
             .ToDictionary(
                 g => g.Key,
                 g => ContractPricingAdapter.GetCanonicalFinalPrice(g.First().SourcePurchaseContract!));
+        foreach (var allocation in shipmentContractRows)
+        {
+            if (allocation.Contract is not null && !finalPriceByContract.ContainsKey(allocation.ContractId))
+            {
+                finalPriceByContract[allocation.ContractId] = ContractPricingAdapter.GetCanonicalFinalPrice(allocation.Contract);
+            }
+        }
 
         var purchaseSnapshots = await new PurchaseAggregationService(_db)
             .AggregateForContractsAsync(contractIds, finalPriceByContract);
+
+        // بهای خرید محموله فقط از یک جا می‌آید: ShipmentPurchaseCostService.
+        // ترتیب آن: سهم دقیق بارگیری × نرخ قطعی همان بارگیری، و برای قراردادهای بدون سهم
+        // بارگیری (دادهٔ قدیمی) همان fallback سطح قرارداد.
+        var purchaseCostByShipment = await new ShipmentPurchaseCostService(_db)
+            .BuildForShipmentsAsync(shipmentIdList);
+        foreach (var shipmentId in shipmentIdList)
+        {
+            var purchaseCost = purchaseCostByShipment.TryGetValue(shipmentId, out var snapshot)
+                ? snapshot
+                : ShipmentPurchaseCostSnapshot.Empty(shipmentId);
+            rollups[shipmentId].PurchaseCost = purchaseCost;
+            rollups[shipmentId].TotalPurchaseCostUsd = purchaseCost.TotalPurchaseCostUsd;
+        }
 
         var transportPnlByLegId = await new InventoryTransportPnlService(_db)
             .BuildForLegsAsync(transportLegs.Select(l => l.Id).ToList());
@@ -1298,6 +1598,13 @@ public partial class ShipmentPnlController : Controller
         {
             var rollup = rollups[shipmentId];
             if (rollup.TransportLegs.Count == 0)
+            {
+                continue;
+            }
+
+            // سهم دقیق بارگیری، حقیقتِ خریدِ همین محموله است و هیچ برآورد leg-محوری
+            // نباید جای آن را بگیرد. فقط محموله‌های بدون سهم دقیق به مسیر قدیمی می‌روند.
+            if (rollup.PurchaseCost.HasLoadingExactSources)
             {
                 continue;
             }
@@ -1658,27 +1965,7 @@ public partial class ShipmentPnlController : Controller
     private static (decimal? UnitCost, string Source) ResolvePurchaseUnitCost(
         InventoryTransportLeg leg,
         IReadOnlyDictionary<int, PurchaseAggregationSnapshot> purchaseSnapshots)
-    {
-        if (leg.PurchaseUnitCostUsd.HasValue && leg.PurchaseUnitCostUsd.Value > 0m)
-        {
-            return (leg.PurchaseUnitCostUsd.Value, "Transport leg actual cost");
-        }
-
-        if (purchaseSnapshots.TryGetValue(leg.SourcePurchaseContractId, out var snapshot)
-            && snapshot.WeightedAveragePurchasePriceUsd.HasValue
-            && snapshot.WeightedAveragePurchasePriceUsd.Value > 0m)
-        {
-            return (snapshot.WeightedAveragePurchasePriceUsd.Value, "Contract weighted average");
-        }
-
-        var contractFinalPrice = leg.SourcePurchaseContract is null
-            ? null
-            : ContractPricingAdapter.GetCanonicalFinalPrice(leg.SourcePurchaseContract);
-
-        return contractFinalPrice.HasValue && contractFinalPrice.Value > 0m
-            ? (contractFinalPrice.Value, "Contract final price")
-            : (null, "Missing purchase cost");
-    }
+        => ShipmentPurchaseCostResolver.ResolveLegUnitCost(leg, purchaseSnapshots);
 
     private static string ResolveTransportReference(InventoryTransportLeg leg)
         => leg.WagonNumber
@@ -2116,6 +2403,8 @@ public partial class ShipmentPnlController : Controller
         public decimal TotalSalesUsd { get; set; }
         public decimal SoldQuantityMt { get; set; }
         public decimal TotalPurchaseCostUsd { get; set; }
+        // ریز منابع بهای خرید (قرارداد/بارگیری/مقدار/نرخ) از منبع واحد محاسبه.
+        public ShipmentPurchaseCostSnapshot PurchaseCost { get; set; } = ShipmentPurchaseCostSnapshot.Empty(0);
         public decimal TotalOperationalExpensesUsd { get; set; }
         public List<ShipmentPnlTransportLegItemViewModel> TransportLegs { get; } = [];
         public List<ShipmentPnlSalesItemViewModel> Sales { get; } = [];

@@ -154,31 +154,48 @@
         }
 
         function updateVehicleRow(row) {
-            var isTruck = row.querySelector("[data-vehicle-type]").value === "3";
+            var transportType = row.querySelector("[data-vehicle-type]").value;
+            var isTruck = transportType === "3";
+            var isWagon = transportType === "2";
+            var isVessel = transportType === "1";
             var driver = row.querySelector("[data-driver]");
             var carrier = row.querySelector("[data-carrier-type]").value;
+            if (isVessel && carrier !== "1") {
+                row.querySelector("[data-carrier-type]").value = "1";
+                carrier = "1";
+            }
             var provider = row.querySelector("[data-provider]");
             var asset = row.querySelector("[data-asset]");
             var assetVehicleNote = row.querySelector("[data-asset-vehicle-note]");
             // یک کمبوباکس در هر حالت: نمبر پلیت (موتر) یا نمبر واگن — هم انتخاب از لیست، هم تایپ جدید.
             var truckPlate = row.querySelector("[data-truck-plate]");
             var wagonNumber = row.querySelector("[data-wagon-number]");
+            var vessel = row.querySelector("[data-vessel-id]");
             var usesProvider = carrier === "1";
 
             truckPlate.hidden = !usesProvider || !isTruck;
             truckPlate.disabled = !usesProvider || !isTruck;
-            wagonNumber.hidden = !usesProvider || isTruck;
-            wagonNumber.disabled = !usesProvider || isTruck;
+            wagonNumber.hidden = !usesProvider || !isWagon;
+            wagonNumber.disabled = !usesProvider || !isWagon;
+            vessel.hidden = !usesProvider || !isVessel;
+            vessel.disabled = !usesProvider || !isVessel;
             assetVehicleNote.hidden = usesProvider;
             driver.hidden = !isTruck;
             driver.disabled = !isTruck;
             if (!usesProvider) {
                 truckPlate.value = "";
                 wagonNumber.value = "";
+                vessel.value = "";
             } else if (isTruck) {
                 wagonNumber.value = "";
+                vessel.value = "";
+            } else if (isWagon) {
+                truckPlate.value = "";
+                vessel.value = "";
+                driver.value = "";
             } else {
                 truckPlate.value = "";
+                wagonNumber.value = "";
                 driver.value = "";
             }
 
@@ -192,7 +209,7 @@
             Array.from(asset.options).forEach(function (option) {
                 if (!option.value) return;
                 var type = Number(option.dataset.assetType);
-                option.hidden = isTruck ? type !== 1 && type !== 3 : type !== 7;
+                option.hidden = isTruck ? type !== 1 && type !== 3 : isWagon ? type !== 7 : true;
             });
             if (asset.selectedOptions[0] && asset.selectedOptions[0].hidden) asset.value = "";
 
@@ -549,7 +566,7 @@
                 updateFreightUsd(event.target.closest("[data-vehicle-row]"));
                 autoAllocate();
             }
-            else if (event.target.matches("[data-truck-plate],[data-wagon-number]")) {
+            else if (event.target.matches("[data-truck-plate],[data-wagon-number],[data-vessel-id]")) {
                 updateVehicleRow(event.target.closest("[data-vehicle-row]"));
                 recalculate();
             } else if (event.target.matches("[data-freight-rate],[data-freight-weight]")) {

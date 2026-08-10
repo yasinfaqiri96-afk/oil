@@ -237,18 +237,12 @@ public partial class SalesController
 
         // مقدار مصرف‌شده (کسری تسویه) هر حمل تا وزن مؤثر فروش = باقیمانده = مقدار حمل − مصرف = وزن تخلیه.
         var legIds = legs.Select(l => l.Id).ToList();
-        var consumedByLeg = await _db.InventoryTransportReceipts
-            .AsNoTracking()
-            .Where(r => legIds.Contains(r.InventoryTransportLegId) && !r.IsCancelled)
-            .GroupBy(r => r.InventoryTransportLegId)
-            .Select(g => new { LegId = g.Key, Mt = g.Sum(r => r.ReceivedQuantityMt + r.ShortageQuantityMt) })
-            .ToDictionaryAsync(g => g.LegId, g => g.Mt);
+        var remainingByLeg = await _quantities.GetRemainingMtAsync(legIds);
 
         var result = new List<GroupSaleSourceItem>();
         foreach (var l in legs)
         {
-            consumedByLeg.TryGetValue(l.Id, out var consumedMt);
-            var availableMt = decimal.Round(l.QuantityMt - consumedMt, 4, MidpointRounding.AwayFromZero);
+            remainingByLeg.TryGetValue(l.Id, out var availableMt);
             if (availableMt <= QtyEpsilon)
             {
                 continue;
@@ -446,7 +440,7 @@ public partial class SalesController
             return View(model);
         }
 
-        var receiptService = new InventoryTransportReceiptService(_db, _currencyConversion, _lineage);
+        var receiptService = _receiptService;
 
         IDbContextTransaction? transaction = null;
         if (_db.Database.IsRelational())
@@ -604,28 +598,23 @@ public partial class SalesController
         _db.SalesTransactions.Add(sale);
         await _db.SaveChangesAsync();
 
-        foreach (var allocation in allocations)
+        var movements = allocations.Select(allocation => new InventoryMovement
         {
-            var movement = new InventoryMovement
-            {
-                ProductId = input.ProductId,
-                ContractId = allocation.ContractId,
-                TerminalId = input.TerminalId,
-                StorageTankId = input.StorageTankId,
-                SalesTransactionId = sale.Id,
-                Direction = MovementDirection.Out,
-                MovementDate = sale.SaleDate,
-                QuantityMt = allocation.QuantityMt,
-                ReferenceDocument = sale.InvoiceNumber,
-                Notes = BuildSaleInventoryNotes(sale.SaleStage, sale.InvoiceNumber, $"SaleId={sale.Id} | {owner.Reference}")
-            };
-            // قفل هم‌زمانی + چک نقطه‌ای در تاریخ خودِ فروش، داخل تراکنش گروهی.
-            await _stock.AcquireStockMutationLockAsync(movement);
-            await _stock.EnsureSufficientStockForMovementAsync(movement);
-            await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(movement);
-            _db.InventoryMovements.Add(movement);
-        }
-        await _db.SaveChangesAsync();
+            ProductId = input.ProductId,
+            ContractId = allocation.ContractId,
+            TerminalId = input.TerminalId,
+            StorageTankId = input.StorageTankId,
+            SalesTransactionId = sale.Id,
+            MovementDate = sale.SaleDate,
+            QuantityMt = allocation.QuantityMt,
+            ReferenceDocument = sale.InvoiceNumber,
+            Notes = BuildSaleInventoryNotes(sale.SaleStage, sale.InvoiceNumber, $"SaleId={sale.Id} | {owner.Reference}")
+        }).ToList();
+        await _movements.PostOutboundRangeAsync(movements, StockGuard.Full);
+
+        var sourcePlan = await _sourceAllocations.BuildFromInventoryMovementsAsync(movements, sale.QuantityMt);
+        _sourceAllocations.ApplyLegacyHeader(sale, sourcePlan);
+        await _sourceAllocations.PersistSaleAsync(sale, sourcePlan);
 
         await _lineage.AllocateSaleAsync(sale, input.SourcePurchaseContractId, input.TerminalId, input.StorageTankId);
 
@@ -665,6 +654,10 @@ public partial class SalesController
 
         // وزن فروش = وزن تخلیه‌شده (اگر کرایه تسویه شده)، وگرنه وزن بارگیری.
         var qty = dispatch.DischargedQuantityMt ?? dispatch.LoadedQuantityMt;
+        var currentLegId = await _sourceAllocations.ResolveCurrentLegIdAsync(dispatch);
+        var sourcePlan = currentLegId.HasValue
+            ? await _sourceAllocations.BuildFromLegAsync(currentLegId.Value, qty)
+            : TransportSourcePlan.Empty;
         var totalInCurrency = decimal.Round(qty * model.UnitPriceInCurrency, 4, MidpointRounding.AwayFromZero);
         var sale = new SalesTransaction
         {
@@ -673,9 +666,12 @@ public partial class SalesController
             CustomerId = model.CustomerId,
             ProductId = dispatch.ProductId,
             DestinationLocationId = dispatch.DestinationLocationId,
-            ShipmentId = await ResolveShipmentIdForContractAsync(dispatch.ContractId),
-            // قرارداد خرید و موترِ منبع از خودِ دیسپچ می‌آیند (Lineage واقعی) تا عاید این فروش در
-            // سود و زیان همان قرارداد شمرده شود؛ همان فیلدهایی که فروش مستقیم از موتر پر می‌کند.
+            ShipmentId = currentLegId.HasValue
+                ? await _db.InventoryTransportLegs.AsNoTracking()
+                    .Where(l => l.Id == currentLegId.Value)
+                    .Select(l => l.ShipmentId)
+                    .FirstOrDefaultAsync()
+                : await ResolveShipmentIdForContractAsync(dispatch.ContractId),
             SourcePurchaseContractId = sourceContract.Id,
             TruckDispatchId = dispatch.Id,
             SaleStage = SaleStage.InTransit,
@@ -693,12 +689,20 @@ public partial class SalesController
             Notes = model.Notes,
             TicketSerialNumber = dispatch.TicketSerialNumber
         };
+        if (sourcePlan.Shares.Count > 0)
+        {
+            _sourceAllocations.ApplyLegacyHeader(sale, sourcePlan);
+        }
         _db.SalesTransactions.Add(sale);
         await _db.SaveChangesAsync();
+        await _sourceAllocations.PersistSaleAsync(sale, sourcePlan, currentLegId);
 
         dispatch.SalesTransactionId = sale.Id;
 
-        var ledger = SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: sourceContract.Id);
+        var ledger = SaleLedgerFactory.BuildSaleLedgerEntry(
+            sale,
+            conversion,
+            contractId: sourcePlan.Shares.Count > 0 ? sourcePlan.SingleContractId : sourceContract.Id);
         _db.LedgerEntries.Add(ledger);
         await _db.SaveChangesAsync();
 
@@ -738,10 +742,7 @@ public partial class SalesController
         }
 
         // وزن فروش = باقیماندهٔ حمل (مقدار حمل − کسری تسویه) = وزن تخلیه‌شده، نه وزن بارگیری اولیه.
-        var consumedMt = await _db.InventoryTransportReceipts.AsNoTracking()
-            .Where(r => r.InventoryTransportLegId == leg.Id && !r.IsCancelled)
-            .SumAsync(r => r.ReceivedQuantityMt + r.ShortageQuantityMt);
-        var sellableMt = decimal.Round(leg.QuantityMt - consumedMt, 4, MidpointRounding.AwayFromZero);
+        var sellableMt = await _quantities.GetRemainingMtAsync(leg.Id);
         if (sellableMt <= 0.0001m)
         {
             throw new BusinessRuleException("GROUP_SALE_LEG_NOTHING_TO_SELL", $"حمل #{leg.Id} باری برای فروش ندارد.");
@@ -992,25 +993,12 @@ public partial class SalesController
 
         if (originalLedger is not null)
         {
-            _db.LedgerEntries.Add(new LedgerEntry
-            {
-                EntryDate = _businessClock.Today,
-                Side = LedgerSide.Debit,
-                AmountUsd = originalLedger.AmountUsd,
-                Currency = originalLedger.Currency,
-                SourceAmount = originalLedger.SourceAmount,
-                SourceCurrencyCode = originalLedger.SourceCurrencyCode,
-                AppliedFxRateToUsd = originalLedger.AppliedFxRateToUsd,
-                AppliedFxRateDate = originalLedger.AppliedFxRateDate,
-                AppliedFxRateSource = originalLedger.AppliedFxRateSource,
-                Description = $"لغو فروش گروهی #{sale.Id} | {originalLedger.Description}",
-                SourceType = "Sale",
-                SourceId = sale.Id,
-                Reference = (originalLedger.Reference ?? sale.InvoiceNumber) + "-CANCEL",
-                ContractId = originalLedger.ContractId,
-                CustomerId = originalLedger.CustomerId,
-                ShipmentId = originalLedger.ShipmentId
-            });
+            await LedgerReversalWriter.ReverseAsync(
+                _db,
+                originalLedger,
+                _businessClock.Today,
+                $"لغو فروش گروهی #{sale.Id} | {originalLedger.Description}",
+                sale.InvoiceNumber);
         }
 
         // بازگشت موجودی برای فروش از مخزن (خروج → ورود معکوس).
@@ -1020,19 +1008,10 @@ public partial class SalesController
             .ToListAsync();
         foreach (var m in stockOutMovements)
         {
-            _db.InventoryMovements.Add(new InventoryMovement
-            {
-                ProductId = m.ProductId,
-                ContractId = m.ContractId,
-                TerminalId = m.TerminalId,
-                StorageTankId = m.StorageTankId,
-                SalesTransactionId = sale.Id,
-                Direction = MovementDirection.In,
-                MovementDate = _businessClock.Today,
-                QuantityMt = m.QuantityMt,
-                ReferenceDocument = (m.ReferenceDocument ?? sale.InvoiceNumber) + "-CANCEL",
-                Notes = $"Reversal for cancelled group SaleId={sale.Id}"
-            });
+            await _movements.PostReversalAsync(
+                m,
+                _businessClock.Today,
+                $"Reversal for cancelled group SaleId={sale.Id}");
         }
 
         // آزادسازی موترِ لینک‌شده تا دوباره «در جریان» شود.

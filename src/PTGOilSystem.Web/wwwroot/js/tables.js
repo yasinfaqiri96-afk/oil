@@ -602,9 +602,7 @@
     }
 
     function initializeClientTablePagination() {
-        // `.shipment-record-table` is the shipment-file record list; it uses the
-        // same shell (`.ak-table-wrap`) and therefore the same shared pager.
-        document.querySelectorAll("table.ak-table, table.shipment-record-table").forEach(function (table) {
+        document.querySelectorAll("table.ak-table").forEach(function (table) {
             setupClientTablePagination(table);
         });
     }

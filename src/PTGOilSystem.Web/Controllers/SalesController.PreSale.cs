@@ -666,7 +666,7 @@ public partial class SalesController
             var deliveryNo = await _db.SalesTransactions.CountAsync(s => s.PreSaleOrderId == locked.Id) + 1;
             var invoice = $"{locked.OrderNumber}-D{deliveryNo}";
             var owner = new SaleLineOwner(null, locked.Id, locked.OrderNumber);
-            var receiptService = new InventoryTransportReceiptService(_db, _currencyConversion, _lineage);
+            var receiptService = _receiptService;
 
             var sale = model.Kind switch
             {

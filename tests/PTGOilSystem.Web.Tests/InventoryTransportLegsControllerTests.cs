@@ -18,6 +18,45 @@ namespace PTGOilSystem.Web.Tests;
 public class InventoryTransportLegsControllerTests
 {
     [Fact]
+    public async Task Index_Uses_Real_Vessel_Name_For_Shipment_Backed_Unspecified_Transport()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        db.Vessels.Add(new Vessel { Id = 1, Code = "VS-1", Name = "Volga Star", IsActive = true });
+        db.Shipments.Add(new Shipment
+        {
+            Id = 1,
+            ShipmentCode = "SHIP-VOLGA-01",
+            VesselId = 1,
+            QuantityMt = 75m
+        });
+        db.InventoryTransportLegs.Add(new InventoryTransportLeg
+        {
+            Id = 1,
+            ShipmentId = 1,
+            SourcePurchaseContractId = 1,
+            ProductId = 1,
+            SourceTerminalId = 1,
+            TransportType = LoadingTransportType.Unspecified,
+            LoadedDate = new DateTime(2026, 5, 3),
+            QuantityMt = 75m,
+            Status = InventoryTransportLegStatus.InTransit
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+        var result = await controller.Index(new InventoryTransportLegIndexFilterViewModel());
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<InventoryTransportLegIndexViewModel>(view.Model);
+        var item = Assert.Single(model.Items);
+        Assert.Equal(1, item.ShipmentId);
+        Assert.Equal("SHIP-VOLGA-01", item.ShipmentCode);
+        Assert.Equal("Volga Star", item.VesselName);
+        Assert.Equal(LoadingTransportType.Unspecified, item.TransportType);
+    }
+
+    [Fact]
     public async Task Active_Groups_InProgress_Legs_By_Shared_Transport_Reference_And_Contract()
     {
         await using var db = CreateDb();
@@ -1465,7 +1504,7 @@ public class InventoryTransportLegsControllerTests
     }
 
     [Fact]
-    public async Task Legacy_Create_Routes_Redirect_To_CreateFromInventory()
+    public async Task Legacy_Create_Routes_Redirect_To_Unified_Transport_Entry()
     {
         await using var db = CreateDb();
         var controller = BuildController(db);
@@ -1474,10 +1513,11 @@ public class InventoryTransportLegsControllerTests
         var shipment = Assert.IsType<RedirectToActionResult>(controller.CreateForShipment(shipmentId: 7));
         var batch = Assert.IsType<RedirectToActionResult>(controller.CreateBatch(shipmentId: 7));
 
-        Assert.Equal("CreateFromInventory", create.ActionName);
+        Assert.Equal("Create", create.ActionName);
+        Assert.Equal("Transports", create.ControllerName);
         Assert.Equal("CreateFromInventory", shipment.ActionName);
         Assert.Equal("CreateFromInventory", batch.ActionName);
-        Assert.Equal(7, create.RouteValues!["shipmentId"]);
+        Assert.Equal((int)TransportStartSourceKind.Inventory, create.RouteValues!["sourceKind"]);
         Assert.Equal(7, shipment.RouteValues!["shipmentId"]);
         Assert.Equal(7, batch.RouteValues!["shipmentId"]);
     }

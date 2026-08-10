@@ -5,7 +5,7 @@
 @using PTGOilSystem.Web.Models.InventoryTransport
 @model InventoryTransportFromInventoryViewModel
 @{
-    ViewData["Title"] = "حمل گروهی از موجودی";
+    ViewData["Title"] = "ثبت حمل از موجودی مخزن";
     ViewData["ContentBodyClass"] = "boltz-content-body-fluid";
     ViewData["HideSectionTabs"] = true;
 
@@ -14,6 +14,7 @@
     var tanks = ViewBag.InventoryTransportTanks as IReadOnlyList<InventoryTransportLookupOption> ?? Array.Empty<InventoryTransportLookupOption>();
     var trucks = ViewBag.InventoryTransportTrucks as IReadOnlyList<InventoryTransportLookupOption> ?? Array.Empty<InventoryTransportLookupOption>();
     var wagons = ViewBag.InventoryTransportWagons as IReadOnlyList<InventoryTransportLookupOption> ?? Array.Empty<InventoryTransportLookupOption>();
+    var vessels = ViewBag.InventoryTransportVessels as IReadOnlyList<InventoryTransportLookupOption> ?? Array.Empty<InventoryTransportLookupOption>();
     var drivers = ViewBag.InventoryTransportDrivers as IReadOnlyList<InventoryTransportLookupOption> ?? Array.Empty<InventoryTransportLookupOption>();
     var providers = ViewBag.InventoryTransportProviders as IReadOnlyList<InventoryTransportLookupOption> ?? Array.Empty<InventoryTransportLookupOption>();
     var assets = ViewBag.InventoryTransportAssets as IReadOnlyList<InventoryTransportLookupOption> ?? Array.Empty<InventoryTransportLookupOption>();
@@ -49,7 +50,7 @@
 
 <main class="page-stack ak-form-page" data-inv-transport-form-page data-sources-url="@Url.Action("InventorySources")" data-import-url="@Url.Action("ImportVehiclesExcel")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@(("حمل گروهی از موجودی", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به حمل‌ها", "bi-arrow-right", Url.Action("Active")))" />
+             model="@(("ثبت حمل از موجودی مخزن", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", Url.Action("Create", "Transports")))" />
 
     <form asp-action="CreateFromInventory" method="post" class="ak-form" data-inv-transport-form novalidate>
         @Html.AntiForgeryToken()
@@ -165,7 +166,7 @@
         </section>
 
         <section class="ak-form-section">
-            <h2 class="ak-section-title"><i class="bi bi-truck"></i> تقسیم بین موتر و واگن</h2>
+            <h2 class="ak-section-title"><i class="bi bi-truck"></i> تقسیم بین وسایط</h2>
             <div asp-validation-for="Vehicles" class="ak-field-error"></div>
             <div class="ak-summary" data-alloc-bar>
                 <div class="ak-field" data-alloc-item><span>مقدار انتخاب‌شده</span><strong data-alloc-selected>0.0000</strong> MT</div>
@@ -186,8 +187,8 @@
                     {
                         var vehicle = Model.Vehicles[i];
                         <tr data-vehicle-row data-index="@i">
-                            <td><select class="ak-input" name="Vehicles[@i].TransportType" data-vehicle-type><option value="3" selected="@(vehicle.TransportType == LoadingTransportType.Truck ? "selected" : null)">موتر</option><option value="2" selected="@(vehicle.TransportType == LoadingTransportType.Wagon ? "selected" : null)">واگن</option></select></td>
-                            <td><input class="ak-input" type="text" maxlength="50" list="itf-truck-list" name="Vehicles[@i].TruckPlateNumberInput" value="@vehicle.TruckPlateNumberInput" placeholder="انتخاب یا تایپ نمبر پلیت" autocomplete="off" data-truck-plate /><input class="ak-input" type="text" maxlength="50" list="itf-wagon-list" name="Vehicles[@i].WagonNumberInput" value="@vehicle.WagonNumberInput" placeholder="انتخاب یا تایپ نمبر واگن" autocomplete="off" data-wagon-number /><span class="ak-section-desc" hidden data-asset-vehicle-note>وسیله از دارایی عملیاتی تعیین می‌شود</span></td>
+                            <td><select class="ak-input" name="Vehicles[@i].TransportType" data-vehicle-type><option value="3" selected="@(vehicle.TransportType == LoadingTransportType.Truck ? "selected" : null)">موتر</option><option value="2" selected="@(vehicle.TransportType == LoadingTransportType.Wagon ? "selected" : null)">واگن</option><option value="1" selected="@(vehicle.TransportType == LoadingTransportType.Vessel ? "selected" : null)">کشتی</option></select></td>
+                            <td><input class="ak-input" type="text" maxlength="50" list="itf-truck-list" name="Vehicles[@i].TruckPlateNumberInput" value="@vehicle.TruckPlateNumberInput" placeholder="انتخاب یا تایپ نمبر پلیت" autocomplete="off" data-truck-plate /><input class="ak-input" type="text" maxlength="50" list="itf-wagon-list" name="Vehicles[@i].WagonNumberInput" value="@vehicle.WagonNumberInput" placeholder="انتخاب یا تایپ نمبر واگن" autocomplete="off" data-wagon-number /><select class="ak-input" name="Vehicles[@i].VesselId" data-vessel-id><option value="">انتخاب کشتی</option>@foreach (var item in vessels) { <option value="@item.Id" selected="@(vehicle.VesselId == item.Id ? "selected" : null)">@item.Name</option> }</select><span class="ak-section-desc" hidden data-asset-vehicle-note>وسیله از دارایی عملیاتی تعیین می‌شود</span></td>
                             <td><input class="ak-input" type="text" maxlength="100" name="Vehicles[@i].RwbNo" value="@vehicle.RwbNo" placeholder="سیمیر" data-rwb /></td>
                             <td><select class="ak-input" name="Vehicles[@i].DriverId" data-driver><option value="">انتخاب راننده</option>@foreach (var item in drivers) { <option value="@item.Id" selected="@(vehicle.DriverId == item.Id ? "selected" : null)">@item.Name</option> }</select></td>
                             <td><input class="ak-input" type="number" min="0" step="0.0001" name="Vehicles[@i].QuantityMt" value="@(vehicle.QuantityMt > 0 ? vehicle.QuantityMt.ToString(CultureInfo.InvariantCulture) : null)" data-vehicle-quantity /></td>
@@ -205,9 +206,9 @@
             <div class="ak-subform-toolbar" data-vehicle-import>
                 <button type="button" class="btn btn-light ak-secondary-action" data-add-vehicle><i class="bi bi-plus-lg"></i> افزودن وسیله</button>
                 <button type="button" class="btn btn-light ak-secondary-action" data-apply-carrier-all title="حمل‌کنندهٔ سطر اول (شرکت خدماتی / دارایی عملیاتی) در تمام سطرها تطبیق می‌شود"><i class="bi bi-arrow-down-square"></i> تطبیق حمل‌کننده به همه سطرها</button>
-            </div>
-            <div data-vehicle-excel-import>
-                <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
+                <div class="excel-import-inline" data-vehicle-excel-import>
+                    <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
+                </div>
             </div>
         </section>
 
@@ -229,7 +230,7 @@
         </section>
 
         <div class="ak-footer-actions">
-            <a asp-action="Active" class="btn btn-light ak-secondary-action">انصراف</a>
+            <a asp-action="Index" class="btn btn-light ak-secondary-action">انصراف</a>
             <button type="submit" class="btn btn-light ak-secondary-action" name="SubmissionMode" value="0" data-submit-button>ثبت پیش‌نویس</button>
             <button type="submit" class="btn btn-primary ak-primary-action" name="SubmissionMode" value="1" data-submit-button>ثبت و بارگیری</button>
         </div>
@@ -238,8 +239,8 @@
 
 <template data-vehicle-template>
     <tr data-vehicle-row data-index="__index__">
-        <td><select class="ak-input" name="Vehicles[__index__].TransportType" data-vehicle-type><option value="3">موتر</option><option value="2">واگن</option></select></td>
-        <td><input class="ak-input" type="text" maxlength="50" list="itf-truck-list" name="Vehicles[__index__].TruckPlateNumberInput" placeholder="انتخاب یا تایپ نمبر پلیت" autocomplete="off" data-truck-plate /><input class="ak-input" type="text" maxlength="50" list="itf-wagon-list" name="Vehicles[__index__].WagonNumberInput" placeholder="انتخاب یا تایپ نمبر واگن" autocomplete="off" data-wagon-number /><span class="ak-section-desc" hidden data-asset-vehicle-note>وسیله از دارایی عملیاتی تعیین می‌شود</span></td>
+        <td><select class="ak-input" name="Vehicles[__index__].TransportType" data-vehicle-type><option value="3">موتر</option><option value="2">واگن</option><option value="1">کشتی</option></select></td>
+        <td><input class="ak-input" type="text" maxlength="50" list="itf-truck-list" name="Vehicles[__index__].TruckPlateNumberInput" placeholder="انتخاب یا تایپ نمبر پلیت" autocomplete="off" data-truck-plate /><input class="ak-input" type="text" maxlength="50" list="itf-wagon-list" name="Vehicles[__index__].WagonNumberInput" placeholder="انتخاب یا تایپ نمبر واگن" autocomplete="off" data-wagon-number /><select class="ak-input" name="Vehicles[__index__].VesselId" data-vessel-id><option value="">انتخاب کشتی</option>@foreach (var item in vessels) { <option value="@item.Id">@item.Name</option> }</select><span class="ak-section-desc" hidden data-asset-vehicle-note>وسیله از دارایی عملیاتی تعیین می‌شود</span></td>
         <td><input class="ak-input" type="text" maxlength="100" name="Vehicles[__index__].RwbNo" placeholder="سیمیر" data-rwb /></td>
         <td><select class="ak-input" name="Vehicles[__index__].DriverId" data-driver><option value="">انتخاب راننده</option>@foreach (var item in drivers) { <option value="@item.Id">@item.Name</option> }</select></td>
         <td><input class="ak-input" type="number" min="0" step="0.0001" name="Vehicles[__index__].QuantityMt" data-vehicle-quantity /></td>

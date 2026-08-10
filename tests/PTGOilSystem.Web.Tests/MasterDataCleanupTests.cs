@@ -134,7 +134,8 @@ public class MasterDataCleanupTests
         Assert.Contains("var foundationTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]", sectionTabs);
         Assert.Contains("var transportTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]", sectionTabs);
         Assert.Contains("tabs = foundationTabs;", sectionTabs);
-        Assert.Contains("(\"InventoryTransportLegs\", \"Index\", T(\"حمل موجودی\"", sectionTabs);
+        Assert.Contains("(\"InventoryTransportLegs\", \"Index\", T(\"حمل‌ها\"", sectionTabs);
+        Assert.Contains("(\"Transports\",             \"Create\", T(\"ثبت حمل\"", sectionTabs);
         Assert.Contains("(\"Locations\",    \"Index\", T(\"بنادر\",           \"Ports\")", sectionTabs);
         Assert.DoesNotContain("(\"Locations\",    \"Index\", T(\"مکان‌ها\",       \"Locations\")", sectionTabs);
     }

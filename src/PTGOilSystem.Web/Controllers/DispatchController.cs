@@ -47,7 +47,10 @@ public partial class DispatchController : Controller
         ICurrencyConversionService? currencyConversion = null,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
         Services.Accounting.ISalesAccountingAdapter? salesAccounting = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        IInventoryMovementWriter? movements = null,
+        ITransportChainService? transportChain = null,
+        ITransportSourceAllocationService? sourceAllocations = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
@@ -59,7 +62,23 @@ public partial class DispatchController : Controller
         _lossWorkflow = lossWorkflow ?? new LossEventWorkflowService(db, stock, audit);
         _logger = logger;
         _expenseAccounting = expenseAccounting;
+        _movements = movements ?? new InventoryMovementWriter(db, stock);
+        _sourceAllocations = sourceAllocations ?? new TransportSourceAllocationService(db);
+        _transportChain = transportChain ?? new TransportChainService(
+            db,
+            new InventoryTransportReceiptService(
+                db,
+                _currencyConversion,
+                movements: _movements,
+                quantities: new TransportQuantityService(db),
+                sourceAllocations: _sourceAllocations),
+            new TransportQuantityService(db));
     }
+
+    // تنها مسیر ثبت حرکت موجودی این کنترلر. تراکنش را همین اکشن‌ها مالک‌اند.
+    private readonly IInventoryMovementWriter _movements;
+    private readonly ITransportChainService _transportChain;
+    private readonly ITransportSourceAllocationService _sourceAllocations;
 
     // مراحل ۵ و ۷ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IExpenseAccountingAdapter? _expenseAccounting;
@@ -519,6 +538,40 @@ public partial class DispatchController : Controller
         return await (asTracking ? query : query.AsNoTracking()).FirstOrDefaultAsync();
     }
 
+    // اثرهای پایین‌دستِ یک دیسپچ که با لغو یا ویرایشِ خاموشِ سند بالادست ناسازگارند.
+    // تا وقتی یکی از این‌ها فعال است، برگرداندن خروجی موجودی یا تغییر مقدار/کالا/قرارداد
+    // موجودی مصنوعی می‌سازد (خروجی برمی‌گردد ولی ورودی مقصد سر جایش می‌ماند).
+    private async Task<List<string>> FindDispatchDownstreamBlockersAsync(TruckDispatch dispatch)
+    {
+        var blockers = new List<string>();
+
+        if (dispatch.SalesTransactionId.HasValue)
+        {
+            blockers.Add("فروش ثبت‌شده");
+        }
+
+        var unloadReference = $"TRUCK-UNLOAD:{dispatch.Id}";
+        var arrivalReferencePrefix = $"TRUCK-ARRIVAL:{dispatch.Id}:";
+        var hasInboundMovement = await _db.InventoryMovements
+            .AsNoTracking()
+            .AnyAsync(m => m.ReferenceDocument == unloadReference
+                || (m.ReferenceDocument != null && m.ReferenceDocument.StartsWith(arrivalReferencePrefix)));
+        if (hasInboundMovement)
+        {
+            blockers.Add("تخلیه در مخزن");
+        }
+
+        var hasDeliveryReceipt = await _db.DeliveryReceipts
+            .AsNoTracking()
+            .AnyAsync(r => r.TruckDispatchId == dispatch.Id);
+        if (hasDeliveryReceipt)
+        {
+            blockers.Add("رسید تحویل");
+        }
+
+        return blockers;
+    }
+
     private async Task ApplyUnloadContextAsync(DispatchUnloadViewModel model, TruckDispatch dispatch)
     {
         var sourceMovement = await FindDispatchStockOutMovementAsync(dispatch.Id);
@@ -951,6 +1004,52 @@ public partial class DispatchController : Controller
             ModelState.AddModelError(string.Empty, "این دیسپچ لغو شده است و قابل ویرایش نیست.");
         }
 
+        // ویرایش هرگز سند خروجی موجودی یا اثرهای پایین‌دست را دوباره نمی‌نویسد. پس هر فیلدی که
+        // آن اسناد را ناسازگار کند، بعد از ثبت آن‌ها قفل می‌شود. برای اصلاح واقعی باید دیسپچ لغو
+        // (Reverse) و دوباره ثبت (Repost) شود؛ mutation خاموشِ سند قطعی مجاز نیست.
+        var postedStockOutMovement = await FindDispatchStockOutMovementAsync(id);
+        var downstreamBlockers = await FindDispatchDownstreamBlockersAsync(dispatch);
+        var hasSettledEffects = postedStockOutMovement is not null || downstreamBlockers.Count > 0;
+
+        if (hasSettledEffects)
+        {
+            var lockReason = downstreamBlockers.Count > 0
+                ? "عملیات بعدی روی این دیسپچ ثبت شده است (" + string.Join("، ", downstreamBlockers) + ")"
+                : "خروجی موجودی برای این دیسپچ ثبت شده است";
+
+            if (model.ContractId != dispatch.ContractId)
+            {
+                ModelState.AddModelError(
+                    nameof(model.ContractId),
+                    $"{lockReason}؛ تغییر قرارداد مجاز نیست. برای اصلاح، دیسپچ را لغو و دوباره ثبت کنید.");
+            }
+
+            if (model.ProductId != dispatch.ProductId)
+            {
+                ModelState.AddModelError(
+                    nameof(model.ProductId),
+                    $"{lockReason}؛ تغییر کالا مجاز نیست. برای اصلاح، دیسپچ را لغو و دوباره ثبت کنید.");
+            }
+
+            if (!QuantitiesMatch(model.LoadedQuantityMt, dispatch.LoadedQuantityMt))
+            {
+                ModelState.AddModelError(
+                    nameof(model.LoadedQuantityMt),
+                    $"{lockReason}؛ تغییر مقدار بارگیری مجاز نیست. برای اصلاح، دیسپچ را لغو و دوباره ثبت کنید.");
+            }
+
+            // مبدأ فقط روی همان سند خروجی معنا دارد و ویرایش آن را نمی‌نویسد؛ پس به‌جای نادیده‌گرفتنِ
+            // خاموشِ ورودی کاربر، تغییرش رد می‌شود.
+            if (postedStockOutMovement is not null
+                && (model.SourceTerminalId != postedStockOutMovement.TerminalId
+                    || model.SourceStorageTankId != postedStockOutMovement.StorageTankId))
+            {
+                ModelState.AddModelError(
+                    nameof(model.SourceTerminalId),
+                    $"{lockReason}؛ تغییر ترمینال/مخزن مبدأ مجاز نیست. برای اصلاح، دیسپچ را لغو و دوباره ثبت کنید.");
+            }
+        }
+
         if (model.ContractId > 0)
         {
             var contract = await _db.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == model.ContractId);
@@ -1030,51 +1129,128 @@ public partial class DispatchController : Controller
             return NotFound();
         }
 
-        dispatch.Status = DispatchStatus.Cancelled;
-        await CancelDispatchFreightExpenseAsync(dispatch.Id);
-
-        var stockOutMovement = await _db.InventoryMovements
-            .AsNoTracking()
-            .Where(m => m.ReferenceDocument == $"TRUCK-DISPATCH:{dispatch.Id}" && m.Direction == MovementDirection.Out)
-            .OrderByDescending(m => m.Id)
-            .FirstOrDefaultAsync();
-
-        if (stockOutMovement is not null)
+        // لغو دوباره هیچ سند جدیدی نمی‌سازد؛ بدون این نگهبان هر کلیک/ارسال مجدد یک ورودیِ
+        // برگشتیِ تازه می‌ساخت و موجودی مبدأ را بی‌دلیل بالا می‌برد.
+        if (dispatch.Status == DispatchStatus.Cancelled)
         {
-            var reversal = new InventoryMovement
+            TempData["ok"] = "این دیسپچ قبلاً لغو شده است.";
+
+            if (TryGetLocalReturnUrl(returnUrl, out var cancelledReturnUrl))
             {
-                ProductId = stockOutMovement.ProductId,
-                ContractId = stockOutMovement.ContractId,
-                TerminalId = stockOutMovement.TerminalId,
-                StorageTankId = stockOutMovement.StorageTankId,
-                Direction = MovementDirection.In,
-                MovementDate = _businessClock.Today,
-                QuantityMt = stockOutMovement.QuantityMt,
-                ReferenceDocument = stockOutMovement.ReferenceDocument + "-CANCEL",
-                Notes = $"Reversal for cancelled DispatchId={dispatch.Id}"
-            };
-            _db.InventoryMovements.Add(reversal);
+                return Redirect(cancelledReturnUrl);
+            }
+
+            return RedirectToAction(nameof(Details), new { id });
         }
 
-        if (dispatch.DispatchMode == TruckDispatchMode.DirectFromReceipt
-            && dispatch.LoadingReceiptAllocationId.HasValue)
+        // لغو باید downstream-aware باشد: اگر بار قبلاً تخلیه یا فروخته شده، برگرداندنِ فقط
+        // خروجی مبدأ موجودی مصنوعی می‌سازد. اول باید عملیات بعدی لغو شود.
+        var downstreamBlockers = await FindDispatchDownstreamBlockersAsync(dispatch);
+        if (downstreamBlockers.Count > 0)
         {
-            var allocation = await _db.LoadingReceiptAllocations
-                .Include(a => a.DirectTruckDispatches)
-                .FirstOrDefaultAsync(a => a.Id == dispatch.LoadingReceiptAllocationId.Value);
+            TempData["err"] = "لغو این دیسپچ ممکن نیست چون عملیات بعدی روی آن ثبت شده است ("
+                + string.Join("، ", downstreamBlockers)
+                + "). ابتدا عملیات بعدی را لغو کنید.";
 
-            if (allocation is not null && allocation.Status != LoadingReceiptAllocationStatus.Cancelled)
+            if (TryGetLocalReturnUrl(returnUrl, out var blockedReturnUrl))
             {
-                var activeDirectDispatchQuantityMt = GetActiveDirectFromReceiptDispatchQuantity(allocation);
-                allocation.Status = activeDirectDispatchQuantityMt <= 0m
-                    ? LoadingReceiptAllocationStatus.TraceOnly
-                    : activeDirectDispatchQuantityMt >= allocation.QuantityMt
-                        ? LoadingReceiptAllocationStatus.Completed
-                        : LoadingReceiptAllocationStatus.InTransit;
+                return Redirect(blockedReturnUrl);
+            }
+
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
+        try
+        {
+            // Dispatchهای ساخته‌شده از انتقال وسیله→وسیله فقط Projection سازگاری‌اند. لغوشان
+            // باید دقیقاً همان نگهبان زنجیره را اجرا کند و همهٔ رسیدهای همراهِ همان child را برگرداند.
+            if (dispatch.InventoryTransportReceiptId.HasValue)
+            {
+                var primaryReceiptId = dispatch.InventoryTransportReceiptId.Value;
+                var companionMarker = $"{TransportChainService.CompanionReceiptNotePrefix}{primaryReceiptId}]";
+                var chainReceipts = await _db.InventoryTransportReceipts
+                    .Include(r => r.InventoryTransportLeg)
+                    .Where(r => r.Id == primaryReceiptId
+                        || (r.Notes != null && r.Notes.StartsWith(companionMarker)))
+                    .ToListAsync();
+                var activeReceiptIds = chainReceipts
+                    .Where(r => !r.IsCancelled)
+                    .Select(r => r.Id)
+                    .ToList();
+
+                await _transportChain.CancelVehicleTransferAsync(activeReceiptIds);
+
+                foreach (var chainReceipt in chainReceipts.Where(r => !r.IsCancelled))
+                {
+                    chainReceipt.IsCancelled = true;
+                    if (chainReceipt.InventoryTransportLeg?.Status == InventoryTransportLegStatus.Received)
+                    {
+                        chainReceipt.InventoryTransportLeg.Status = InventoryTransportLegStatus.InTransit;
+                    }
+                }
+            }
+
+            dispatch.Status = DispatchStatus.Cancelled;
+            await CancelDispatchFreightExpenseAsync(dispatch.Id);
+
+            var stockOutMovement = await _db.InventoryMovements
+                .AsNoTracking()
+                .Where(m => m.ReferenceDocument == $"TRUCK-DISPATCH:{dispatch.Id}" && m.Direction == MovementDirection.Out)
+                .OrderByDescending(m => m.Id)
+                .FirstOrDefaultAsync();
+
+            if (stockOutMovement is not null)
+            {
+                // Writer خودش idempotent است: اگر معکوسِ همین سند از قبل باشد، سند دوم نمی‌سازد.
+                await _movements.PostReversalAsync(
+                    stockOutMovement,
+                    _businessClock.Today,
+                    $"Reversal for cancelled DispatchId={dispatch.Id}");
+            }
+
+            if (dispatch.DispatchMode == TruckDispatchMode.DirectFromReceipt
+                && dispatch.LoadingReceiptAllocationId.HasValue)
+            {
+                var allocation = await _db.LoadingReceiptAllocations
+                    .Include(a => a.DirectTruckDispatches)
+                    .FirstOrDefaultAsync(a => a.Id == dispatch.LoadingReceiptAllocationId.Value);
+
+                if (allocation is not null && allocation.Status != LoadingReceiptAllocationStatus.Cancelled)
+                {
+                    var activeDirectDispatchQuantityMt = GetActiveDirectFromReceiptDispatchQuantity(allocation);
+                    allocation.Status = activeDirectDispatchQuantityMt <= 0m
+                        ? LoadingReceiptAllocationStatus.TraceOnly
+                        : activeDirectDispatchQuantityMt >= allocation.QuantityMt
+                            ? LoadingReceiptAllocationStatus.Completed
+                            : LoadingReceiptAllocationStatus.InTransit;
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
             }
         }
+        catch (BusinessRuleException ex)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
 
-        await _db.SaveChangesAsync();
+            TempData["err"] = ex.Message;
+            if (TryGetLocalReturnUrl(returnUrl, out var chainBlockedReturnUrl))
+            {
+                return Redirect(chainBlockedReturnUrl);
+            }
+
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
         TempData["ok"] = "دیسپچ لغو شد.";
 
         if (TryGetLocalReturnUrl(returnUrl, out var localReturnUrl))
@@ -1086,30 +1262,11 @@ public partial class DispatchController : Controller
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
-    public async Task<IActionResult> Create(int? contractId = null, string? returnUrl = null)
-    {
-        var model = new DispatchCreateViewModel
-        {
-            DispatchDate = _businessClock.Today
-        };
-
-        if (contractId.HasValue)
-        {
-            var contract = await _db.Contracts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == contractId.Value);
-            if (contract is not null)
-            {
-                model.ContractId = contract.Id;
-                model.ProductId = contract.ProductId;
-            }
-        }
-
-        model.ReturnUrl = returnUrl;
-
-        await PopulateLookupsAsync(createModel: model);
-        return View(model);
-    }
+    public Task<IActionResult> Create(int? contractId = null, string? returnUrl = null)
+        => Task.FromResult<IActionResult>(RedirectToAction(
+            "Create",
+            "Transports",
+            new { sourceKind = (int)TransportStartSourceKind.Inventory }));
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     public async Task<IActionResult> CreateDirectFromReceipt(int allocationId, string? returnUrl = null)
@@ -1127,19 +1284,7 @@ public partial class DispatchController : Controller
             return BadRequest();
         }
 
-        var totalDirectDispatchedQuantityMt = GetActiveDirectFromReceiptDispatchQuantity(allocation);
-        var remainingQuantityMt = Math.Max(allocation.QuantityMt - totalDirectDispatchedQuantityMt, 0m);
-        var model = new DispatchDirectFromReceiptCreateViewModel
-        {
-            LoadingReceiptAllocationId = allocation.Id,
-            DestinationLocationId = allocation.DestinationLocationId,
-            DispatchDate = _businessClock.Today,
-            LoadedQuantityMt = remainingQuantityMt
-        };
-
-        ApplyDirectFromReceiptContext(model, allocation, totalDirectDispatchedQuantityMt, returnUrl);
-        await PopulateDirectFromReceiptLookupsAsync(model);
-        return View(model);
+        return RedirectToAction("FromReceipt", "Transports", new { loadingReceiptId = allocation.LoadingReceiptId });
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -1480,6 +1625,16 @@ public partial class DispatchController : Controller
         model.DriverShortageChargeUsd = driverShortageChargeUsd;
         model.FreightPayableUsd = freightPayableUsd;
 
+        var postedUnloadMovement = await FindTruckUnloadInventoryMovementAsync(dispatch.Id);
+        if (postedUnloadMovement is not null)
+        {
+            // سند قطعی موجودی قابل ویرایش درجا نیست. مسیر قدیمی فقط Create است؛ اصلاح باید
+            // با workflow لغو/برگشت و ثبت دوباره انجام شود تا تاریخچهٔ موجودی حفظ بماند.
+            ModelState.AddModelError(
+                string.Empty,
+                "تخلیهٔ این موتر قبلاً قطعی ثبت شده است و قابل ویرایش نیست؛ برای اصلاح ابتدا عملیات بعدی را برگشت دهید و تخلیه را دوباره ثبت کنید.");
+        }
+
         if (!ModelState.IsValid)
         {
             await ApplyUnloadContextAsync(model, dispatch);
@@ -1499,19 +1654,18 @@ public partial class DispatchController : Controller
             TruckDispatchId = dispatch.Id
         };
 
-        var unloadMovement = await FindTruckUnloadInventoryMovementAsync(dispatch.Id, asTracking: true);
-        var unloadMovementIsNew = unloadMovement is null;
-        unloadMovement ??= new InventoryMovement
-        {
-            ReferenceDocument = $"TRUCK-UNLOAD:{dispatch.Id}",
-            Direction = MovementDirection.In
-        };
-
         var lossEvent = await _db.LossEvents
             .Where(l => l.TruckDispatchId == dispatch.Id && l.Stage == LossEventStage.DispatchShortage)
             .OrderByDescending(l => l.Id)
             .FirstOrDefaultAsync();
         var lossEventIsNew = lossEvent is null;
+        var unloadTransportLegId = await _sourceAllocations.ResolveCurrentLegIdAsync(dispatch);
+        var unloadLossSourcePlan = TransportVarianceMath.HasVariance(normalizedShortageMt)
+            && unloadTransportLegId.HasValue
+                ? await _sourceAllocations.BuildFromLegAsync(
+                    unloadTransportLegId.Value,
+                    Math.Abs(normalizedShortageMt))
+                : TransportSourcePlan.Empty;
 
         var beforeDischarged = dispatch.DischargedQuantityMt;
         var beforeShortage = dispatch.ShortageMt;
@@ -1549,19 +1703,17 @@ public partial class DispatchController : Controller
                 _db.DeliveryReceipts.Add(deliveryReceipt);
             }
 
-            unloadMovement.ProductId = dispatch.ProductId;
-            unloadMovement.ContractId = dispatch.ContractId;
-            unloadMovement.TerminalId = model.DestinationTerminalId;
-            unloadMovement.StorageTankId = model.DestinationStorageTankId;
-            unloadMovement.Direction = MovementDirection.In;
-            unloadMovement.MovementDate = model.ReceiptDate;
-            unloadMovement.QuantityMt = model.DischargedQuantityMt;
-            unloadMovement.ReferenceDocument = $"TRUCK-UNLOAD:{dispatch.Id}";
-            unloadMovement.Notes = BuildTruckUnloadInventoryNotes(dispatch.Id, model.DocumentReference, model.Notes);
-            if (unloadMovementIsNew)
+            var unloadMovement = await _movements.PostInboundAsync(new InventoryMovementRequest
             {
-                _db.InventoryMovements.Add(unloadMovement);
-            }
+                ProductId = dispatch.ProductId,
+                ContractId = dispatch.ContractId,
+                TerminalId = model.DestinationTerminalId,
+                StorageTankId = model.DestinationStorageTankId,
+                MovementDate = model.ReceiptDate,
+                QuantityMt = model.DischargedQuantityMt,
+                ReferenceDocument = $"TRUCK-UNLOAD:{dispatch.Id}",
+                Notes = BuildTruckUnloadInventoryNotes(dispatch.Id, model.DocumentReference, model.Notes)
+            });
 
             // هر تفاوت غیر صفر — کسری یا اضافه‌بار — یک رکورد قابل ردیابی می‌سازد و رکورد موجودِ
             // همین دیسپچ به‌روزرسانی می‌شود (نه رکورد تکراری). تفاوت صفر رکورد قبلی را لغو می‌کند.
@@ -1583,6 +1735,7 @@ public partial class DispatchController : Controller
                 lossEvent.ProductId = dispatch.ProductId;
                 lossEvent.ContractId = dispatch.ContractId;
                 lossEvent.TruckDispatchId = dispatch.Id;
+                lossEvent.TransportLegId = unloadTransportLegId;
                 lossEvent.TerminalId = model.DestinationTerminalId;
                 lossEvent.StorageTankId = model.DestinationStorageTankId;
                 lossEvent.EventDate = model.ReceiptDate;
@@ -1602,6 +1755,10 @@ public partial class DispatchController : Controller
                 lossEvent.Reference = model.DocumentReference;
                 lossEvent.Notes = model.Notes;
                 lossEvent.IsCancelled = false;
+                if (unloadLossSourcePlan.Shares.Count > 0)
+                {
+                    _sourceAllocations.ApplyLegacyHeader(lossEvent, unloadLossSourcePlan);
+                }
 
                 if (lossEventIsNew)
                 {
@@ -1614,6 +1771,13 @@ public partial class DispatchController : Controller
             }
 
             await _db.SaveChangesAsync();
+            if (lossEvent is not null && !lossEvent.IsCancelled)
+            {
+                await _sourceAllocations.PersistLossAsync(
+                    lossEvent,
+                    unloadLossSourcePlan,
+                    unloadTransportLegId);
+            }
             await SyncDispatchFreightExpenseAsync(dispatch);
 
             await _audit.LogAsync(
@@ -1645,21 +1809,15 @@ public partial class DispatchController : Controller
             await _audit.LogAsync(
                 nameof(InventoryMovement),
                 unloadMovement.Id,
-                unloadMovementIsNew ? AuditAction.Insert : AuditAction.Update,
-                diff: unloadMovementIsNew
-                    ? AuditDiffFormatter.ForCreate(
-                        ("ProductId", unloadMovement.ProductId),
-                        ("ContractId", unloadMovement.ContractId),
-                        ("TerminalId", unloadMovement.TerminalId),
-                        ("StorageTankId", unloadMovement.StorageTankId),
-                        ("Direction", unloadMovement.Direction),
-                        ("QuantityMt", unloadMovement.QuantityMt),
-                        ("ReferenceDocument", unloadMovement.ReferenceDocument))
-                    : AuditDiffFormatter.ForUpdate(
-                        ("TerminalId", null, unloadMovement.TerminalId),
-                        ("StorageTankId", null, unloadMovement.StorageTankId),
-                        ("QuantityMt", null, unloadMovement.QuantityMt),
-                        ("ReferenceDocument", null, unloadMovement.ReferenceDocument)));
+                AuditAction.Insert,
+                diff: AuditDiffFormatter.ForCreate(
+                    ("ProductId", unloadMovement.ProductId),
+                    ("ContractId", unloadMovement.ContractId),
+                    ("TerminalId", unloadMovement.TerminalId),
+                    ("StorageTankId", unloadMovement.StorageTankId),
+                    ("Direction", unloadMovement.Direction),
+                    ("QuantityMt", unloadMovement.QuantityMt),
+                    ("ReferenceDocument", unloadMovement.ReferenceDocument)));
 
             if (lossEvent is not null)
             {
@@ -1911,6 +2069,10 @@ public partial class DispatchController : Controller
         }
 
         var totalInCurrency = decimal.Round(model.QuantityMt * model.UnitPriceInCurrency, 4, MidpointRounding.AwayFromZero);
+        var currentTransportLegId = await _sourceAllocations.ResolveCurrentLegIdAsync(dispatch);
+        var saleSourcePlan = currentTransportLegId.HasValue
+            ? await _sourceAllocations.BuildFromLegAsync(currentTransportLegId.Value, model.QuantityMt)
+            : TransportSourcePlan.Empty;
         // ContractId قراردادِ *فروش* است و این فروش قرارداد فروش ندارد ⇒ null می‌ماند.
         // قرارداد خرید و محموله فقط از Lineage واقعیِ همین موتر می‌آیند (نه حدس) تا عاید در
         // سود و زیان قرارداد و محموله دیده شود.
@@ -1937,6 +2099,10 @@ public partial class DispatchController : Controller
             Notes = normalizedNotes,
             TicketSerialNumber = dispatch.TicketSerialNumber
         };
+        if (saleSourcePlan.Shares.Count > 0)
+        {
+            _sourceAllocations.ApplyLegacyHeader(sale, saleSourcePlan);
+        }
 
         IDbContextTransaction? transaction = null;
         if (_db.Database.IsRelational())
@@ -1948,6 +2114,10 @@ public partial class DispatchController : Controller
         {
             _db.SalesTransactions.Add(sale);
             await _db.SaveChangesAsync();
+            await _sourceAllocations.PersistSaleAsync(
+                sale,
+                saleSourcePlan,
+                currentTransportLegId);
 
             // TruckDispatch.SalesTransactionId یکتاست و فقط «اولین فروشِ فعالِ موتر» را نگه می‌دارد
             // (سازگاری عقب‌رو با گزارش‌ها و ویوهای موجود). فروش‌های قسمتیِ بعدی از راه
@@ -1957,7 +2127,9 @@ public partial class DispatchController : Controller
             var ledgerEntry = SaleLedgerFactory.BuildSaleLedgerEntry(
                 sale,
                 conversion,
-                contractId: sourcePurchaseContract.Id);
+                contractId: saleSourcePlan.Shares.Count > 0
+                    ? saleSourcePlan.SingleContractId
+                    : sourcePurchaseContract.Id);
 
             _db.LedgerEntries.Add(ledgerEntry);
             await _db.SaveChangesAsync();
@@ -2229,23 +2401,23 @@ public partial class DispatchController : Controller
                 _db.TruckDispatches.Add(dispatch);
                 await _db.SaveChangesAsync();
 
-                var stockOutMovement = new InventoryMovement
-                {
-                    ProductId = model.ProductId,
-                    ContractId = model.ContractId,
-                    TerminalId = model.SourceTerminalId,
-                    StorageTankId = model.SourceStorageTankId,
-                    Direction = MovementDirection.Out,
-                    MovementDate = model.DispatchDate,
-                    QuantityMt = model.LoadedQuantityMt,
-                    ReferenceDocument = $"TRUCK-DISPATCH:{dispatch.Id}",
-                    Notes = string.IsNullOrWhiteSpace(model.ReferenceDocument)
-                        ? dispatch.Notes
-                        : $"Ref={model.ReferenceDocument.Trim()} | {dispatch.Notes}".TrimEnd(' ', '|')
-                };
-
-                _db.InventoryMovements.Add(stockOutMovement);
-                await _db.SaveChangesAsync();
+                // موجودی از قبل روی provisionalMovement چک و قرارداد مبدأ قفل شده است؛ پس
+                // Writer اینجا فقط سند را می‌سازد و چک را دوباره اجرا نمی‌کند.
+                var stockOutMovement = await _movements.PostOutboundAsync(
+                    new InventoryMovementRequest
+                    {
+                        ProductId = model.ProductId,
+                        ContractId = model.ContractId,
+                        TerminalId = model.SourceTerminalId,
+                        StorageTankId = model.SourceStorageTankId,
+                        MovementDate = model.DispatchDate,
+                        QuantityMt = model.LoadedQuantityMt,
+                        ReferenceDocument = $"TRUCK-DISPATCH:{dispatch.Id}",
+                        Notes = string.IsNullOrWhiteSpace(model.ReferenceDocument)
+                            ? dispatch.Notes
+                            : $"Ref={model.ReferenceDocument.Trim()} | {dispatch.Notes}".TrimEnd(' ', '|')
+                    },
+                    StockGuard.None);
 
                 await SyncDispatchFreightExpenseAsync(dispatch);
 

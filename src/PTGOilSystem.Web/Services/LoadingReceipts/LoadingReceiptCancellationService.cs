@@ -63,6 +63,7 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
     private readonly ISalesAccountingAdapter? _salesAccounting;
     private readonly IInventoryLossAccountingAdapter? _lossAccounting;
     private readonly IExpenseAccountingAdapter? _expenseAccounting;
+    private readonly IInventoryMovementWriter _movements;
 
     public LoadingReceiptCancellationService(
         ApplicationDbContext db,
@@ -72,7 +73,8 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
         IPurchaseAccountingAdapter? purchaseAccounting = null,
         ISalesAccountingAdapter? salesAccounting = null,
         IInventoryLossAccountingAdapter? lossAccounting = null,
-        IExpenseAccountingAdapter? expenseAccounting = null)
+        IExpenseAccountingAdapter? expenseAccounting = null,
+        IInventoryMovementWriter? movements = null)
     {
         _db = db;
         _audit = audit;
@@ -82,6 +84,7 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
         _salesAccounting = salesAccounting;
         _lossAccounting = lossAccounting;
         _expenseAccounting = expenseAccounting;
+        _movements = movements ?? new InventoryMovementWriter(db, _stock);
     }
 
     public async Task<IReadOnlyList<LoadingReceiptCancellationBlocker>> InspectAsync(
@@ -278,25 +281,12 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
         var inboundMovements = await LoadInboundMovementsAsync(receipt.Id, ct);
         foreach (var movement in inboundMovements)
         {
-            var reversal = new InventoryMovement
-            {
-                ProductId = movement.ProductId,
-                ContractId = movement.ContractId,
-                TerminalId = movement.TerminalId,
-                StorageTankId = movement.StorageTankId,
-                InventoryBatchId = movement.InventoryBatchId,
-                // LoadingReceiptId عمداً خالی می‌ماند: روی InventoryMovement ایندکس یکتا دارد و
-                // رکورد اصلی همچنان مالک آن است. ردیابی از Reference و Notes انجام می‌شود.
-                Direction = MovementDirection.Out,
-                MovementDate = reversalDate,
-                QuantityMt = movement.QuantityMt,
-                ReferenceDocument = BuildCancelReference(movement.ReferenceDocument, receipt),
-                Notes = $"Reversal for cancelled LoadingReceiptId={receipt.Id}"
-            };
-
-            // همان گاردهای موجودی که مسیرهای عادی خروج از آن‌ها عبور می‌کنند.
-            await _stock.EnsureSufficientStockForMovementAsync(reversal, ct);
-            _db.InventoryMovements.Add(reversal);
+            await _movements.PostReversalAsync(
+                movement,
+                reversalDate,
+                $"Reversal for cancelled LoadingReceiptId={receipt.Id}",
+                ct,
+                StockGuard.Standard);
         }
 
         // ۶) allocationها: وضعیت لغو (الگوی LoadingReceiptAllocationStatus.Cancelled).
@@ -357,25 +347,13 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
 
         if (originalLedger is not null)
         {
-            _db.LedgerEntries.Add(new LedgerEntry
-            {
-                EntryDate = reversalDate,
-                Side = LedgerSide.Debit,
-                AmountUsd = originalLedger.AmountUsd,
-                Currency = originalLedger.Currency,
-                SourceAmount = originalLedger.SourceAmount,
-                SourceCurrencyCode = originalLedger.SourceCurrencyCode,
-                AppliedFxRateToUsd = originalLedger.AppliedFxRateToUsd,
-                AppliedFxRateDate = originalLedger.AppliedFxRateDate,
-                AppliedFxRateSource = originalLedger.AppliedFxRateSource,
-                Description = $"لغو رسید #{receipt.Id} | لغو فروش #{sale.Id} | {originalLedger.Description}",
-                SourceType = "Sale",
-                SourceId = sale.Id,
-                Reference = (originalLedger.Reference ?? sale.InvoiceNumber) + "-CANCEL",
-                ContractId = originalLedger.ContractId,
-                CustomerId = originalLedger.CustomerId,
-                ShipmentId = originalLedger.ShipmentId
-            });
+            await LedgerReversalWriter.ReverseAsync(
+                _db,
+                originalLedger,
+                reversalDate,
+                $"لغو رسید #{receipt.Id} | لغو فروش #{sale.Id} | {originalLedger.Description}",
+                sale.InvoiceNumber,
+                ct);
         }
 
         if (_salesAccounting is not null)
@@ -412,19 +390,11 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
 
             if (linkedMovement is not null)
             {
-                // حرکتِ ضایعات خروجی بوده؛ معکوسِ آن ورودی است (الگوی LossEventsController.Cancel).
-                _db.InventoryMovements.Add(new InventoryMovement
-                {
-                    ProductId = linkedMovement.ProductId,
-                    ContractId = linkedMovement.ContractId,
-                    TerminalId = linkedMovement.TerminalId,
-                    StorageTankId = linkedMovement.StorageTankId,
-                    Direction = MovementDirection.In,
-                    MovementDate = reversalDate,
-                    QuantityMt = linkedMovement.QuantityMt,
-                    ReferenceDocument = (linkedMovement.ReferenceDocument ?? $"LOSS-{loss.Id}") + "-CANCEL",
-                    Notes = $"Reversal for cancelled LossEventId={loss.Id} (LoadingReceiptId={receipt.Id})"
-                });
+                await _movements.PostReversalAsync(
+                    linkedMovement,
+                    reversalDate,
+                    $"Reversal for cancelled LossEventId={loss.Id} (LoadingReceiptId={receipt.Id})",
+                    ct);
             }
         }
 
@@ -475,7 +445,8 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
             .AsNoTracking()
             .CountAsync(
                 a => a.SourceLoadingReceiptId == receipt.Id
-                    || movementIds.Contains(a.SourceInventoryMovementId),
+                    || (a.SourceInventoryMovementId != null
+                        && movementIds.Contains(a.SourceInventoryMovementId.Value)),
                 ct);
         if (transportLegCount > 0)
         {

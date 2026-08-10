@@ -411,25 +411,8 @@ body.boltz-shell.app-shell-authenticated .tooltip .tooltip-inner {
     box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
 }
 
-body.boltz-shell.app-shell-authenticated .modal-content,
-body.ptg-modal-document .modal-content {
-    border: 0;
-    border-radius: var(--ptg-radius-input);
-    background: var(--background-paper);
-    box-shadow: var(--shadow-dialog);
-}
-
-body.boltz-shell.app-shell-authenticated .modal-header {
-    border-bottom: 1px solid var(--divider);
-}
-
-body.boltz-shell.app-shell-authenticated .modal-footer {
-    border-top: 1px solid var(--divider);
-}
-
-body.boltz-shell.app-shell-authenticated .modal-backdrop.show {
-    opacity: .30;
-}
+/* Modal chrome (content, header, footer, backdrop) is owned by
+   08-modals.css — the duplicates that lived here were dead. */
 
 /* ============================================================= *
  * N. Search / filter bars — bottom-border only

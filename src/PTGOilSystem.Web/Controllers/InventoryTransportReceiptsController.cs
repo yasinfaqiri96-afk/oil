@@ -29,14 +29,16 @@ public class InventoryTransportReceiptsController : Controller
         ICurrencyConversionService currencyConversion,
         ILogger<InventoryTransportReceiptsController> logger,
         IInventoryLineageWriter? lineage = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        InventoryTransportReceiptService? receiptService = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
         _currencyConversion = currencyConversion;
         _logger = logger;
-        _receiptService = new InventoryTransportReceiptService(db, currencyConversion, lineage);
+        // از DI می‌آید تا آداپترهای حسابداری وصل باشند؛ ساخت دستی آن‌ها را null می‌گذارد.
+        _receiptService = receiptService ?? new InventoryTransportReceiptService(db, currencyConversion, lineage);
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -44,6 +46,11 @@ public class InventoryTransportReceiptsController : Controller
         int transportLegId,
         InventoryTransportReceiptDestination? destination = null)
     {
+        if (destination == InventoryTransportReceiptDestination.DirectDispatch)
+        {
+            return RedirectToAction("Continue", "Transports", new { transportLegId });
+        }
+
         var leg = await LoadLegAsync(transportLegId, tracking: false);
         if (leg is null) return NotFound();
 
@@ -92,6 +99,12 @@ public class InventoryTransportReceiptsController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(InventoryTransportReceiptCreateViewModel model)
     {
+        if (model.ReceiptDestination == InventoryTransportReceiptDestination.DirectDispatch)
+        {
+            TempData["ok"] = "انتقال به وسیلهٔ دیگر اکنون از Workflow مشترک حمل ثبت می‌شود.";
+            return RedirectToAction("Continue", "Transports", new { transportLegId = model.InventoryTransportLegId });
+        }
+
         // فرم متمرکز فروش پس از خطای اعتبارسنجی هم باید ساده بماند.
         ViewData["FocusedSale"] = model.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale;
         var leg = await _receiptService.LoadLegAsync(model.InventoryTransportLegId, tracking: true);

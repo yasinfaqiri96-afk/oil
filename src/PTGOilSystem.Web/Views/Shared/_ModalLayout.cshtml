@@ -7,7 +7,31 @@
     var isEnglishUi = string.Equals(requestedLanguage, "en", StringComparison.OrdinalIgnoreCase);
     var htmlLanguage = isEnglishUi ? "en" : "fa";
     var htmlDirection = isEnglishUi ? "ltr" : "rtl";
-    var routeBodyClass = $"controller-{currentController.ToLowerInvariant()} action-{currentAction.ToLowerInvariant()}";
+    // همان کلاس‌های عمومی action که _Layout می‌سازد؛ بدون آن‌ها قواعد
+    // action-create/action-edit فقط در صفحهٔ کامل کار می‌کردند نه در مودال.
+    var genericActionClass = string.Empty;
+    if (!string.IsNullOrEmpty(currentAction))
+    {
+        if (currentAction.IndexOf("create", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            genericActionClass = " action-create";
+        }
+        else if (currentAction.IndexOf("edit", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            genericActionClass = " action-edit";
+        }
+    }
+    var routeBodyClass = $"controller-{currentController.ToLowerInvariant()} action-{currentAction.ToLowerInvariant()}{genericActionClass}";
+    // پوستهٔ مالی هم باید در سند مودال شناخته شود، وگرنه فرم‌های مالی داخل
+    // مودال با اسکین متفاوتی نسبت به صفحهٔ کامل رندر می‌شوند.
+    var financeWorkspaceControllers = new[]
+    {
+        "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation",
+        "ChartOfAccounts", "CashAccounts", "AccountStatements", "Ledger", "Sarrafs",
+        "FiscalYears", "AccountingReadiness", "ClosingChecklist", "TrialClose", "FinalClose", "ReopenFiscalYear",
+        "Finance", "Reports"
+    };
+    var isFinanceWorkspace = financeWorkspaceControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
     var financeFormControllers = new[] { "AccountStatements", "Contracts", "Inventory", "LoadingReceipts", "Expenses", "LossEvents", "Sales", "Dispatch", "Payments" };
     var financeFormActions = new[] { "Create", "Edit" };
     var hasEmbeddedReceiptWizard = string.Equals(currentController, "Loading", StringComparison.OrdinalIgnoreCase)
@@ -54,17 +78,31 @@
     <link rel="stylesheet" href="~/css/ptg/14-master-details.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/15-system-lists.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/17-system-forms.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ptg/18-toasts.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
+    @* ترتیب و فهرست این لایه‌ها باید با _Layout یکی بماند؛ هر فایل جاافتاده
+       یعنی همان صفحه داخل مودال بدون CSS خودش رندر می‌شود. همه زیر کلاس
+       صفحهٔ خودشان قفل‌اند، پس برای صفحاتی که از آن‌ها استفاده نمی‌کنند بی‌اثرند. *@
+    <link rel="stylesheet" href="~/css/ptg/63-party-details.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/16-system-tabs.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/41-compact.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/45-akaunting.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/50-ak-components.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ptg/65-excel-import.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ptg/52-stat-card.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ptg/61-finance-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ptg/67-journal-table.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/71-typography.css" asp-append-version="true" />
     @* در سند مودال فقط قواعد ptg-modal-document این لایه فعال می‌شود:
        پنل‌های داخل مودال تخت می‌مانند چون خود دیالوگ ارتفاع را حمل می‌کند. *@
     <link rel="stylesheet" href="~/css/ptg/72-surfaces.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ptg/73-detail-system.css" asp-append-version="true" />
 </head>
-<body class="app-body boltz-shell @(isEnglishUi ?"boltz-ltr" : "boltz-rtl") ptg-modal-document @routeBodyClass"
+@* app-shell-authenticated دروازهٔ اصلی دیزاین‌سیستم است. بدون آن نیمی از
+   قواعد مشترک (فرم، جدول، کارت، تایپوگرافی، سطح) داخل مودال اجرا نمی‌شد و
+   محتوا نامنظم می‌شد؛ چرومِ پوسته (سایدبار/تاپ‌بار/PageFrame) در این سند
+   وجود ندارد، پس آن قواعد بی‌اثر می‌مانند. *@
+<body class="app-body boltz-shell app-shell-authenticated @(isEnglishUi ?"boltz-ltr" : "boltz-rtl") @(isFinanceWorkspace ? "is-finance-workspace" : null) ptg-modal-document @routeBodyClass"
       data-ui-language="@htmlLanguage">
     @await Html.PartialAsync("_FlashAlerts")
     <main class="ak-form-page ptg-modal-body-shell">

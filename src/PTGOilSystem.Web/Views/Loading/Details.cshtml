@@ -185,8 +185,8 @@
         });
     }
 
-    // عملیات بعدی: اکشن اصلی سربرگ اینجا تکرار نمی‌شود.
-    var headerPrimaryModal = Model.CanRegisterReceipt ? "loadingReceiptModal" : "loadingExpensesModal";
+    // ثبت رسید می‌تواند اکشن اصلی باشد؛ ثبت مصارف همیشه داخل منوی سه‌نقطه می‌ماند.
+    var headerPrimaryModal = Model.CanRegisterReceipt ? "loadingReceiptModal" : null;
     var nextActions = new List<AkHeaderMenuItem>();
     if (Model.CanRegisterReceipt)
     {
@@ -195,7 +195,10 @@
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "loadingExpensesModal", Icon = "bi-receipt-cutoff" });
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" });
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت کسری", "Register loss"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" });
-    nextActions.RemoveAll(action => string.Equals(action.ModalTarget, headerPrimaryModal, StringComparison.Ordinal));
+    if (headerPrimaryModal is not null)
+    {
+        nextActions.RemoveAll(action => string.Equals(action.ModalTarget, headerPrimaryModal, StringComparison.Ordinal));
+    }
     ViewData["AkHeaderOverflowActions"] = nextActions;
 
     var loadingRecordsTab = (Context.Request.Query["recordsTab"].ToString() ?? string.Empty).Trim().ToLowerInvariant();
@@ -212,14 +215,14 @@
 <div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-loading-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("بارگیری", "Loading")} LD-{Model.Id:0000}", false,
-                       Model.CanRegisterReceipt ? T("ثبت رسید", "Register receipt") : T("ثبت مصارف", "Register expenses"),
-                       Model.CanRegisterReceipt ? "bi-box-arrow-in-down" : "bi-receipt-cutoff",
+                       Model.CanRegisterReceipt ? T("ثبت رسید", "Register receipt") : (string?)null,
+                       Model.CanRegisterReceipt ? "bi-box-arrow-in-down" : (string?)null,
                        (string?)null, headerPrimaryModal,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)effectiveReturnUrl))" />
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
-    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
+    <div class="ak-operations-overview ak-operations-clean-overview">
         <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
                  model="@((T("ارزش و مصارف", "Value & costs"), (string?)null, (IReadOnlyList<AkInfoItem>)valueItems))" />
 
@@ -228,7 +231,7 @@
 
         @if (hasFileRub || isRubSettlement)
         {
-            <section class="ak-form-section ak-detail-section ak-summary-card">
+            <section class="ak-form-section ak-detail-section ak-summary-card loading-ruble-pricing">
                 <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("قیمت روبلی بارگیری", "Ruble pricing"), (string?)null))" />
                 <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml" model="@((IReadOnlyList<AkInfoItem>)rubItems)" />
 
@@ -238,7 +241,7 @@
                         @Html.AntiForgeryToken()
                         <input name="Id" value="@rubRateEditor.Id" type="hidden" />
                         <input name="ReturnUrl" value="@currentPageReturnUrl" type="hidden" />
-                        <div class="ak-form-grid">
+                        <div class="ak-form-grid ak-form-grid--3">
                             <div class="ak-field">
                                 <label class="ak-label" for="RubPerUsdRate">هر ۱ دالر چند روبل؟</label>
                                 <input class="ak-input" id="RubPerUsdRate" name="RubPerUsdRate" value="@(rubRateEditor.RubPerUsdRate?.ToString("0.######"))" type="number" min="0.000001" step="0.000001" placeholder="مثلاً 80" />

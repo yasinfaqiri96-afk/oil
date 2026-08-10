@@ -67,6 +67,16 @@ builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =
 // ---- Domain services (business rules, system rules #3-#9, #11, #13) --------
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IStockService, StockService>();
+// تنها نقطهٔ اجرای قواعد مشترک ثبت حرکت موجودی (مقدار، قفل، نگهبان موجودی، سند).
+// تراکنش را caller مالک است؛ Writer تراکنش مستقل باز نمی‌کند.
+builder.Services.AddScoped<IInventoryMovementWriter, InventoryMovementWriter>();
+// تک‌منبع «باقیماندهٔ حمل» و تفکیک سرنوشت مقدار (نگهداشت مقدار).
+builder.Services.AddScoped<ITransportQuantityService, TransportQuantityService>();
+// موتور عمومی وسیله → وسیله (هر نُه ترکیب موتر/واگن/کشتی، بدون حرکت موجودی).
+builder.Services.AddScoped<ITransportChainService, TransportChainService>();
+builder.Services.AddScoped<ITransportWorkflowService, TransportWorkflowService>();
+// نسب‌نامهٔ چندقراردادی نتیجه‌های حمل (فروش/کسری) بدون شکستن سند واحد و دفترکل قدیمی.
+builder.Services.AddScoped<ITransportSourceAllocationService, TransportSourceAllocationService>();
 // صفحهٔ فقط‌خواندنیِ «مشاهده فعالیت‌های دوره». هیچ منطق مالی/نوشتنی ندارد.
 builder.Services.AddScoped<IPeriodActivityService, PeriodActivityService>();
 // ---- Independent accounting core (Stage 2; feature flag defaults to off). ----
@@ -121,6 +131,10 @@ builder.Services.AddScoped<InventoryLineageBackfillService>();
 builder.Services.AddScoped<InventoryLineagePnlService>();
 builder.Services.AddScoped<InventoryTransportLegLoadService>();
 builder.Services.AddScoped<InventoryTransportBatchService>();
+// از کانتینر گرفته می‌شود تا آداپترهای حسابداری/نسب‌نامه در همهٔ مسیرهای رسید حمل
+// (تخلیه، فروش مستقیم، انتقال به موتر، تسویه گروهی) یکسان وصل باشند. ساختِ دستی این سرویس
+// آداپترها را null می‌گذاشت و مسیرها رفتار حسابداری متفاوت پیدا می‌کردند.
+builder.Services.AddScoped<InventoryTransportReceiptService>();
 builder.Services.AddScoped<IPurchaseAggregationService, PurchaseAggregationService>();
 builder.Services.AddScoped<
     PTGOilSystem.Web.Services.Reporting.IProfitAndLossService,

@@ -300,6 +300,30 @@ public partial class BalanceController : Controller
             })
             .ToDictionaryAsync(x => x.ContractId, x => x.TotalUsd);
 
+        var allocatedSalesQuery = _db.SalesTransactionSourceAllocations
+            .AsNoTracking()
+            .Where(a => contractIds.Contains(a.SourcePurchaseContractId)
+                && a.SalesTransaction != null
+                && !a.SalesTransaction.IsCancelled);
+        if (filter.FromDate.HasValue)
+        {
+            allocatedSalesQuery = allocatedSalesQuery.Where(a => a.SalesTransaction!.SaleDate >= filter.FromDate.Value);
+        }
+        if (filter.ToDate.HasValue)
+        {
+            allocatedSalesQuery = allocatedSalesQuery.Where(a => a.SalesTransaction!.SaleDate <= filter.ToDate.Value);
+        }
+        var allocatedSalesSummary = contractIds.Count == 0
+            ? new Dictionary<int, decimal>()
+            : await allocatedSalesQuery
+                .GroupBy(a => a.SourcePurchaseContractId)
+                .Select(g => new { ContractId = g.Key, TotalUsd = g.Sum(a => a.AmountUsd) })
+                .ToDictionaryAsync(x => x.ContractId, x => x.TotalUsd);
+        foreach (var allocatedSale in allocatedSalesSummary)
+        {
+            salesSummary[allocatedSale.Key] = salesSummary.GetValueOrDefault(allocatedSale.Key) + allocatedSale.Value;
+        }
+
         var expensesQuery = _db.ExpenseTransactions
             .AsNoTracking()
             .Where(e => e.ContractId.HasValue && contractIds.Contains(e.ContractId.Value));

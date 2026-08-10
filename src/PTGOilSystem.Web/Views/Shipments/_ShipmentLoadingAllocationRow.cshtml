@@ -1,0 +1,51 @@
+@model (string IndexToken, IReadOnlyList<PTGOilSystem.Web.Models.Shipments.ShipmentLoadingAllocationInput> Seed)
+@{
+    var idx = Model.IndexToken;
+    var seedJson = System.Text.Json.JsonSerializer.Serialize(
+        Model.Seed.Select(s => new { loadingRegisterId = s.LoadingRegisterId, quantityMt = s.QuantityMt ?? 0m }));
+}
+@* سهم دقیق بارگیری‌های همین قرارداد. اختیاری است: خالی گذاشتن یعنی محاسبهٔ قیمت از میانگین
+   تاریخی قرارداد (رفتار قدیمی). پرکردن یعنی قیمت خرید از نرخ قطعی همان بارگیری‌ها می‌آید. *@
+<tr data-allocation-loadings data-index="@idx" data-seed="@seedJson">
+    <td colspan="6" class="p-0">
+        <details class="ak-advanced m-0" data-loading-panel @(Model.Seed.Count > 0 ? "open" : null)>
+            <summary class="ak-advanced-summary">
+                <span>
+                    <i class="bi bi-list-check" aria-hidden="true"></i>
+                    @UiText.T(Context, "سهم بارگیری‌ها (قیمت خرید از همین‌جا خوانده می‌شود)", "Loading allocations (purchase price is read from here)")
+                    <span class="badge text-bg-secondary ms-1" data-loading-summary-badge hidden></span>
+                </span>
+            </summary>
+            <div class="ak-advanced-body">
+                <div class="alert alert-info py-1 px-2 mb-2 small" data-loading-status hidden></div>
+                <div class="ak-table-wrap" data-loading-table-wrap hidden>
+                    <table class="ak-table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>@UiText.T(Context,"بارگیری","Loading")</th>
+                                <th>@UiText.T(Context,"تاریخ","Date")</th>
+                                <th class="text-end">@UiText.T(Context,"مقدار بارگیری","Loaded")</th>
+                                <th class="text-end">@UiText.T(Context,"تخصیص‌یافته","Already allocated")</th>
+                                <th class="text-end">@UiText.T(Context,"باقی‌مانده","Remaining")</th>
+                                <th class="text-end">@UiText.T(Context,"نرخ قطعی خرید","Locked purchase rate")</th>
+                                <th class="text-end">@UiText.T(Context,"سهم این محموله","This shipment")</th>
+                            </tr>
+                        </thead>
+                        <tbody data-loading-body></tbody>
+                        <tfoot>
+                            <tr>
+                                <th scope="row" colspan="6" class="text-end">@UiText.T(Context,"جمع سهم بارگیری‌ها","Allocated from loadings")</th>
+                                <td class="text-end"><strong data-loading-total>0.0000</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="small text-muted mt-2" data-loading-hint>
+                    @UiText.T(Context,
+                        "اختیاری است. اگر پر شود، جمع آن باید دقیقاً برابر مقدار تخصیص همین قرارداد باشد و قیمت خرید از نرخ قطعی همین بارگیری‌ها محاسبه می‌شود.",
+                        "Optional. If used, the total must exactly equal this contract's allocated quantity, and the purchase price is computed from these locked loading rates.")
+                </div>
+            </div>
+        </details>
+    </td>
+</tr>

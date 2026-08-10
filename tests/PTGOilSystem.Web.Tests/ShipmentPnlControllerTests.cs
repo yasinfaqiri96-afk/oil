@@ -123,11 +123,11 @@ public class ShipmentPnlControllerTests
         // نوار ابزار فقط جستجو دارد؛ نوار عملیات گروهی disabled و چک‌باکس‌ها حذف شدند.
         Assert.Contains("data-shipment-trip-search", view);
         Assert.DoesNotContain("data-shipment-batch-bar", view);
-        // جدول سفرها هم مثل بقیهٔ تب‌ها از کامپوننت مشترک لیست رکوردی استفاده می‌کند.
-        Assert.Contains("class=\"shipment-record-table has-wide-actions\"", view);
-        Assert.Contains("class=\"is-actions no-print\"", view);
-        Assert.Contains("Partials/_ShipmentRecordStatus", view);
-        Assert.Contains("shipment-record-kebab", view);
+        // جدول سفرها هم مثل بقیهٔ لیست‌های سیستم از جدول مشترک استفاده می‌کند.
+        Assert.Contains("class=\"ak-table ak-detail-table\"", view);
+        Assert.Contains("class=\"ak-col-actions no-print\"", view);
+        Assert.Contains("~/Views/Shared/Partials/_Capsule.cshtml", view);
+        Assert.Contains("class=\"ak-row-menu-btn\"", view);
         Assert.DoesNotContain("class=\"form-check-input\"", view);
         Assert.Contains("class=\"dropdown ak-row-menu\" data-ak-static-row-menu", view);
         Assert.DoesNotContain("class=\"ak-row-actions\"", view);
@@ -140,17 +140,27 @@ public class ShipmentPnlControllerTests
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/ShipmentPnl/Details.cshtml");
 
-        // ریشهٔ Scope صفحه باید وجود داشته باشد تا CSS کامپوننت فعال شود.
-        Assert.Contains("data-shipment-details-page", view);
+        // هیچ اثری از کامپوننت موازیِ قدیمی این صفحه نمانده است.
+        Assert.DoesNotContain("shipment-record", view);
 
-        // پنج لیست رکوردی تب‌ها از همان یک shell می‌آید (رسیدها، مصارف،
-        // فروش‌ها، کسری‌ها و سفرها). تب سود و زیان اکنون خلاصهٔ مدیریتی است، نه جدول رکوردی.
-        var shellCount = Regex.Matches(view, "<shipment-record-list ").Count;
-        Assert.Equal(5, shellCount);
+        // هر لیست تب داخل shell مشترک سیستم است: بخش + سرِ بخش + قاب جدول.
+        Assert.Contains("class=\"ak-section-head ak-detail-section-header\"", view);
+        Assert.True(
+            Regex.Matches(view, "class=\"ak-table-wrap\"").Count >= 5,
+            "Every tab record list must sit inside the shared .ak-table-wrap shell.");
+        Assert.True(
+            Regex.Matches(view, "class=\"ak-table ak-detail-table\"").Count >= 5,
+            "Every tab record list must render the shared .ak-table.");
 
-        // تنها جدول باقی‌ماندهٔ ak-table در این صفحه، جدول ورودیِ فرم تقسیم کسری
-        // داخل مودال است؛ هیچ لیست رکوردیِ تب دیگری مارک‌آپ مستقل ندارد.
-        Assert.Equal(1, Regex.Matches(view, "class=\"ak-table ").Count);
+        // ستون‌ها و سلول‌ها از واژگان مشترک سیستم می‌آیند، نه از کلاس‌های اختصاصی.
+        Assert.Contains("class=\"ak-col-grow\"", view);
+        Assert.Contains("class=\"ak-num ak-col-num\"", view);
+        Assert.Contains("class=\"ak-cell-note\"", view);
+        Assert.Contains("<div class=\"ak-empty\">", view);
+
+        // کارت «منابع بار» با نوار سهم نمایش داده می‌شود، نه جدول عددیِ شلوغ.
+        Assert.Contains("sf-source-list", view);
+        Assert.Contains("class=\"sf-bar\"", view);
     }
 
     [Fact]
@@ -164,30 +174,27 @@ public class ShipmentPnlControllerTests
         Assert.DoesNotContain("ak-pager", view);
 
         // و کامپوننت مشترک سیستم جدول‌های این صفحه را هم پوشش می‌دهد.
-        Assert.Contains("table.ak-table, table.shipment-record-table", tablesJs);
+        Assert.Contains("table.ak-table", tablesJs);
         Assert.Contains("ptg-client-pager", tablesJs);
     }
 
     [Fact]
-    public void Shipment_Record_List_Styles_Are_Scoped_To_The_Shipment_Details_Page()
+    public void Shipment_File_Has_No_Parallel_Record_List_Design_System()
     {
-        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/64-shipment-record-list.css");
+        // فایل، TagHelper، مدل‌های سلول و partialهای کامپوننت موازی حذف شده‌اند.
+        Assert.False(RepoFileExists("src/PTGOilSystem.Web/wwwroot/css/ptg/64-shipment-record-list.css"));
+        Assert.False(RepoFileExists("src/PTGOilSystem.Web/TagHelpers/ShipmentRecordListTagHelper.cs"));
+        Assert.False(RepoFileExists("src/PTGOilSystem.Web/Models/ShipmentPnl/ShipmentRecordCellModels.cs"));
+        Assert.False(RepoFileExists("src/PTGOilSystem.Web/Views/ShipmentPnl/Partials/_ShipmentRecordEntity.cshtml"));
+        Assert.False(RepoFileExists("src/PTGOilSystem.Web/Views/ShipmentPnl/Partials/_ShipmentRecordStatus.cshtml"));
+        Assert.False(RepoFileExists("src/PTGOilSystem.Web/Views/ShipmentPnl/Partials/_ShipmentRecordEmpty.cshtml"));
 
-        Assert.DoesNotContain("!important", css);
-
-        // هر بلوک انتخابگر باید زیر ریشهٔ صفحهٔ پرونده محموله باشد تا لیست‌های
-        // صفحات دیگر سیستم حتی یک قاعده هم دریافت نکنند.
-        var withoutComments = Regex.Replace(css, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
-        var selectors = Regex.Matches(withoutComments, @"([^{}]+)\{")
-            .Select(match => match.Groups[1].Value.Trim())
-            .Where(group => !group.StartsWith("@"))
-            .SelectMany(group => group.Split(','))
-            .Select(selector => selector.Trim())
-            .Where(selector => selector.Length > 0)
-            .ToList();
-
-        Assert.NotEmpty(selectors);
-        Assert.All(selectors, selector => Assert.StartsWith("[data-shipment-details-page]", selector));
+        // و هیچ ارجاعی به آن در پوسته، CSS مشترک یا JS مشترک باقی نمانده است.
+        Assert.DoesNotContain("64-shipment-record-list.css", ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml"));
+        Assert.DoesNotContain("shipment-record", ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css"));
+        Assert.DoesNotContain("shipment-record", ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/71-typography.css"));
+        Assert.DoesNotContain("shipment-record", ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css"));
+        Assert.DoesNotContain("shipment-record", ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/tables.js"));
     }
 
     [Fact]
@@ -691,9 +698,16 @@ public class ShipmentPnlControllerTests
         var item = Assert.Single(model.Items);
         Assert.Equal("SHIP-01", item.ShipmentCode);
         Assert.Equal(5000m, item.TotalSalesUsd);
-        Assert.Equal(700m, item.TotalExpensesUsd);
-        Assert.Equal(4300m, item.GrossMarginUsd);
-        Assert.Equal(1, item.RelatedLedgerCount);
+        Assert.Equal(1, item.RelatedSalesCount);
+        Assert.Equal(1, item.RelatedExpensesCount);
+
+        // ارقام بهای تمام‌شده و نتیجهٔ مالی از لیست برداشته شده‌اند (لیست باید سبک بماند)
+        // اما در همان رول‌آپی که پروندهٔ محموله و خروجی از آن می‌خوانند دست‌نخورده‌اند.
+        var rollupItem = Assert.Single(await controller.BuildAllIndexItemsAsync());
+        Assert.Equal(5000m, rollupItem.TotalSalesUsd);
+        Assert.Equal(700m, rollupItem.TotalExpensesUsd);
+        Assert.Equal(4300m, rollupItem.GrossMarginUsd);
+        Assert.Equal(1, rollupItem.RelatedLedgerCount);
     }
 
     [Fact]
@@ -2170,10 +2184,16 @@ public class ShipmentPnlControllerTests
     }
 
     private static string ReadRepoFile(string relativePath)
+        => File.ReadAllText(RepoPath(relativePath));
+
+    private static bool RepoFileExists(string relativePath)
+        => File.Exists(RepoPath(relativePath));
+
+    private static string RepoPath(string relativePath)
     {
         var baseDir = AppContext.BaseDirectory;
         var root = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", ".."));
-        return File.ReadAllText(Path.Combine(root, relativePath));
+        return Path.Combine(root, relativePath);
     }
 
     private sealed class InMemoryTempDataProvider : ITempDataProvider

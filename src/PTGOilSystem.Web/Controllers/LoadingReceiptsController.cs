@@ -50,6 +50,7 @@ public partial class LoadingReceiptsController : Controller
     // لغو امن رسید (لغو تکی، لغو گروهی، و مسیر «اصلاح مقدار» = لغو + ثبت دوباره).
     private readonly Services.LoadingReceipts.ILoadingReceiptCancellationService? _cancellation;
     private readonly Security.ICurrentUserContext? _currentUser;
+    private readonly IInventoryMovementWriter _movements;
 
     public LoadingReceiptsController(
         ApplicationDbContext db,
@@ -60,7 +61,8 @@ public partial class LoadingReceiptsController : Controller
         Services.Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null,
         Services.Accounting.ISalesAccountingAdapter? salesAccounting = null,
         Services.LoadingReceipts.ILoadingReceiptCancellationService? cancellation = null,
-        Security.ICurrentUserContext? currentUser = null)
+        Security.ICurrentUserContext? currentUser = null,
+        IInventoryMovementWriter? movements = null)
     {
         _purchaseAccounting = purchaseAccounting;
         _salesAccounting = salesAccounting;
@@ -71,6 +73,7 @@ public partial class LoadingReceiptsController : Controller
         _lossWorkflow = lossWorkflow ?? new LossEventWorkflowService(db, new StockService(db), audit);
         _currencyConversion = currencyConversion ?? new CurrencyConversionService(new PricingService(db));
         _logger = logger;
+        _movements = movements ?? new InventoryMovementWriter(db, new StockService(db));
     }
 
     private bool TryGetLocalReturnUrl(string? returnUrl, out string localReturnUrl)
@@ -1862,12 +1865,23 @@ public partial class LoadingReceiptsController : Controller
                 var directSaleDrafts = graph.DirectSaleDrafts;
                 var directTruckDispatches = graph.Dispatches;
 
+                foreach (var movement in inventoryMovements.Where(m => string.IsNullOrWhiteSpace(m.ReferenceDocument)))
+                {
+                    movement.ReferenceDocument = $"LOADING-RECEIPT:{loading.Id}:{Guid.NewGuid():N}";
+                }
+
                 _db.LoadingReceipts.Add(receipt);
-                _db.InventoryMovements.AddRange(inventoryMovements);
                 _db.SalesTransactions.AddRange(directSaleDrafts.Select(d => d.Draft.Sale));
                 _db.LoadingReceiptAllocations.AddRange(allocations);
                 _db.TruckDispatches.AddRange(directTruckDispatches);
-                await _db.SaveChangesAsync();
+                if (inventoryMovements.Count > 0)
+                {
+                    await _movements.PostInboundRangeAsync(inventoryMovements);
+                }
+                else
+                {
+                    await _db.SaveChangesAsync();
+                }
 
                 var directSaleLedgerEntries = directSaleDrafts
                     .Select(d => BuildDirectSaleLedgerEntry(
@@ -2393,9 +2407,8 @@ public partial class LoadingReceiptsController : Controller
                 }
 
                 _db.LoadingReceipts.AddRange(createdRows.Select(r => r.Receipt));
-                _db.InventoryMovements.AddRange(createdRows.Select(r => r.Movement));
                 _db.LoadingReceiptAllocations.AddRange(createdRows.Select(r => r.Allocation));
-                await _db.SaveChangesAsync();
+                await _movements.PostInboundRangeAsync(createdRows.Select(r => r.Movement).ToList());
 
                 foreach (var row in createdRows)
                 {

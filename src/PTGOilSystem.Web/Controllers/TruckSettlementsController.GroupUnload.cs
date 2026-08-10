@@ -102,7 +102,7 @@ public partial class TruckSettlementsController
                 selectedSources.Add(source);
             }
 
-            var receiptService = new InventoryTransportReceiptService(_db, _currencyConversion, _lineage);
+            var receiptService = _receiptService;
             var legOperations = new List<(InventoryTransportLeg Leg, InventoryTransportReceiptCreateViewModel Receipt)>();
             foreach (var source in selectedSources.Where(item => item.Kind == TruckSettlementSourceKind.Leg))
             {
@@ -191,13 +191,12 @@ public partial class TruckSettlementsController
                     ReceivedQuantityMt = dischargedQuantityMt,
                     DocumentReference = model.DocumentReference
                 });
-                _db.InventoryMovements.Add(new InventoryMovement
+                await _movements.PostInboundAsync(new InventoryMovementRequest
                 {
                     ProductId = dispatch.ProductId,
                     ContractId = dispatch.ContractId,
                     TerminalId = tank!.TerminalId,
                     StorageTankId = tank.Id,
-                    Direction = MovementDirection.In,
                     MovementDate = model.ReceiptDate,
                     QuantityMt = dischargedQuantityMt,
                     ReferenceDocument = $"TRUCK-UNLOAD:{dispatch.Id}",

@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -249,6 +252,170 @@ public class TruckSettlementsControllerTests
         var after = Assert.IsType<TruckSettlementIndexViewModel>(
             Assert.IsType<ViewResult>(await BuildController(db).Index(null, null)).Model);
         Assert.DoesNotContain(after.Rows, r => r.Kind == TruckSettlementSourceKind.Leg && r.SourceId == leg.Id);
+    }
+
+    [Fact]
+    public async Task Index_DeepLink_Filters_And_Preselects_The_Requested_TransportLeg()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var first = await SeedLoadedTruckLegAsync(db, quantityMt: 30m);
+        db.Trucks.Add(new Truck { Id = 2, PlateNumber = "TRK-2" });
+        var focused = new InventoryTransportLeg
+        {
+            Id = 2,
+            SourcePurchaseContractId = 1,
+            ProductId = 1,
+            SourceTerminalId = 1,
+            DestinationTerminalId = 2,
+            TransportType = LoadingTransportType.Truck,
+            TruckId = 2,
+            DriverId = 1,
+            LoadedDate = new DateTime(2026, 5, 3),
+            QuantityMt = 24m,
+            Status = InventoryTransportLegStatus.Loaded
+        };
+        db.InventoryTransportLegs.Add(focused);
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(
+            await BuildController(db).Index(null, TruckSettlementSourceKind.Leg, focused.Id));
+        var model = Assert.IsType<TruckSettlementIndexViewModel>(result.Model);
+
+        var row = Assert.Single(model.Rows);
+        var input = Assert.Single(model.Inputs);
+        Assert.Equal(focused.Id, model.FocusedSourceId);
+        Assert.Equal(focused.Id, row.SourceId);
+        Assert.Equal("TRK-2", row.VehicleNumber);
+        Assert.Equal(24m, row.RemainingQuantityMt);
+        Assert.True(input.Selected);
+        Assert.DoesNotContain(model.Rows, item => item.SourceId == first.Id);
+    }
+
+    [Fact]
+    public async Task ImportExcel_Matches_And_Prefills_Without_Posting_Anything()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedTruckLegAsync(db, quantityMt: 30m);
+        await using var stream = new MemoryStream(BuildSettlementWorkbook());
+        var file = new FormFile(stream, 0, stream.Length, "file", "truck-settlements.xlsx")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        };
+
+        var result = Assert.IsType<ViewResult>(await BuildController(db).ImportExcel(file));
+        var model = Assert.IsType<TruckSettlementIndexViewModel>(result.Model);
+
+        Assert.Equal("Index", result.ViewName);
+        var row = Assert.Single(model.Inputs);
+        Assert.True(row.Selected);
+        Assert.Equal(leg.Id, row.SourceId);
+        Assert.Equal(28m, row.QuantityMt);
+        Assert.Equal(1m, row.AllowanceMt);
+        Assert.Empty(await db.InventoryTransportReceipts.ToListAsync());
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+        Assert.Empty(await db.ExpenseTransactions.ToListAsync());
+        Assert.Empty(await db.LedgerEntries.ToListAsync());
+        Assert.False((await db.InventoryTransportLegs.FindAsync(leg.Id))!.IsFreightSettled);
+    }
+
+    [Fact]
+    public async Task Settle_Leg_Applies_Allowance_OtherDeductions_And_ShortagePenalty_Once()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedTruckLegAsync(db, quantityMt: 30m);
+        var input = new TruckSettlementRowInputViewModel
+        {
+            Selected = true,
+            Kind = TruckSettlementSourceKind.Leg,
+            SourceId = leg.Id,
+            OperationDate = new DateTime(2026, 5, 5),
+            QuantityMt = 27m,
+            AllowanceMt = 1m,
+            FreightRateUsdPerMt = 5m,
+            OtherDeductionsUsd = 10m,
+            ShortageRateUsd = 10m,
+            FreightParty = "driver:1"
+        };
+
+        var result = await BuildController(db).Settle(new TruckSettlementIndexViewModel { Inputs = [input] });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var receipt = await db.InventoryTransportReceipts.SingleAsync();
+        Assert.Equal(3m, receipt.ShortageQuantityMt);
+        Assert.Equal(1m, receipt.AllowanceMt);
+        Assert.Equal(2m, receipt.ChargeableShortageMt);
+        Assert.Equal(140m, receipt.FreightCostUsd);       // 5 * 30 - 10
+        Assert.Equal(120m, receipt.FreightPayableUsd);    // 140 - (2 * 10)
+        Assert.Equal(120m, (await db.ExpenseTransactions.SingleAsync()).AmountUsd);
+        Assert.Equal(120m, (await db.LedgerEntries.SingleAsync()).AmountUsd);
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+
+        var retryController = BuildController(db);
+        var retry = await retryController.Settle(new TruckSettlementIndexViewModel { Inputs = [input] });
+        Assert.IsType<ViewResult>(retry);
+        Assert.False(retryController.ModelState.IsValid);
+        Assert.Equal(1, await db.InventoryTransportReceipts.CountAsync());
+        Assert.Equal(1, await db.ExpenseTransactions.CountAsync());
+        Assert.Equal(1, await db.LedgerEntries.CountAsync());
+    }
+
+    [Fact]
+    public async Task Settle_Leg_ServiceProvider_Credits_Provider_Not_Driver()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        db.ServiceProviders.Add(new ServiceProvider { Id = 1, Name = "Carrier A", IsActive = true });
+        await db.SaveChangesAsync();
+        var leg = await SeedLoadedTruckLegAsync(db, quantityMt: 20m);
+
+        var result = await BuildController(db).Settle(new TruckSettlementIndexViewModel
+        {
+            Inputs = [BuildSettlementInput(leg.Id, "sp:1")]
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var expense = await db.ExpenseTransactions.SingleAsync();
+        var ledger = await db.LedgerEntries.SingleAsync();
+        Assert.Equal(1, expense.ServiceProviderId);
+        Assert.Null(expense.DriverId);
+        Assert.Equal(1, ledger.ServiceProviderId);
+        Assert.Null(ledger.DriverId);
+        Assert.Equal(LedgerSide.Credit, ledger.Side);
+    }
+
+    [Fact]
+    public async Task Settle_Leg_CompanyAsset_Has_Income_Record_But_No_External_Payable()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        db.OperationalAssets.Add(new OperationalAsset
+        {
+            Id = 1,
+            AssetCode = "TRUCK-ASSET-1",
+            Name = "Company Truck",
+            AssetType = OperationalAssetType.Truck,
+            OwnershipMode = OperationalAssetOwnershipMode.FullyCompanyOwned,
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var leg = await SeedLoadedTruckLegAsync(db, quantityMt: 20m);
+
+        var result = await BuildController(db).Settle(new TruckSettlementIndexViewModel
+        {
+            Inputs = [BuildSettlementInput(leg.Id, "asset:1")]
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var income = await db.ExpenseTransactions.SingleAsync();
+        Assert.Equal(1, income.OperationalAssetId);
+        Assert.Null(income.DriverId);
+        Assert.Null(income.ServiceProviderId);
+        Assert.Empty(await db.LedgerEntries.ToListAsync());
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
     }
 
     [Fact]
@@ -596,6 +763,59 @@ public class TruckSettlementsControllerTests
         db.InventoryTransportLegs.Add(leg);
         await db.SaveChangesAsync();
         return leg;
+    }
+
+    private static TruckSettlementRowInputViewModel BuildSettlementInput(int sourceId, string freightParty)
+        => new()
+        {
+            Selected = true,
+            Kind = TruckSettlementSourceKind.Leg,
+            SourceId = sourceId,
+            OperationDate = new DateTime(2026, 5, 5),
+            QuantityMt = 20m,
+            FreightRateUsdPerMt = 5m,
+            FreightParty = freightParty
+        };
+
+    private static byte[] BuildSettlementWorkbook()
+    {
+        using var stream = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            worksheetPart.Worksheet = new Worksheet(new SheetData(
+                BuildWorkbookRow(1, ("A", "نمبر موتر"), ("B", "وزن تخلیه"), ("C", "حواکت")),
+                BuildWorkbookRow(2, ("A", "TRK-1"), ("B", "28"), ("C", "1"))));
+
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "settlements"
+            });
+            workbookPart.Workbook.Save();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static Row BuildWorkbookRow(uint rowIndex, params (string Column, string Value)[] values)
+    {
+        var row = new Row { RowIndex = rowIndex };
+        foreach (var (column, value) in values)
+        {
+            row.Append(new Cell
+            {
+                CellReference = column + rowIndex,
+                DataType = CellValues.String,
+                CellValue = new CellValue(value)
+            });
+        }
+
+        return row;
     }
 
     // تسویهٔ کرایهٔ یک دیسپچ با وزن تخلیهٔ داده‌شده (مبنای مشترک تست‌های تخلیهٔ گروهی).

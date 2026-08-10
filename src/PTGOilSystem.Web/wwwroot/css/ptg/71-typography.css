@@ -55,7 +55,6 @@
         .card-title,
         .modal-title,
         .ak-stat-section__title,
-        .shipment-record-list__title,
         .dash-card h2,
         .finance-action-group h2
     ),
@@ -88,8 +87,6 @@
         .ak-field-error,
         .ak-entity-meta,
         .ak-entity-empty,
-        .shipment-record-subtext,
-        .shipment-record-entity__secondary,
         .ak-cycle-label,
         .loading-date-week,
         .ak-input-unit > span,
@@ -255,7 +252,6 @@
         .statement-money,
         .statement-fx,
         .ak-cycle-num,
-        .shipment-record-figure,
         .ssf-num,
         [data-ts-payable]
     ),
@@ -270,7 +266,6 @@
         .statement-money,
         .statement-fx,
         .ak-cycle-num,
-        .shipment-record-figure,
         .ssf-num,
         [data-ts-payable]
     ) {
@@ -296,7 +291,6 @@
         .statement-money,
         .statement-fx,
         .ak-cycle-num,
-        .shipment-record-figure,
         .ssf-num
     ),
     body.ptg-modal-document .ptg-modal-body-shell table :where(
@@ -310,7 +304,6 @@
         .statement-money,
         .statement-fx,
         .ak-cycle-num,
-        .shipment-record-figure,
         .ssf-num
     ) {
         font-size: var(--font-number) !important;
@@ -408,7 +401,6 @@
         .ptg-capsule-badge,
         .ak-status,
         .boltz-status-pill,
-        .shipment-record-badge
     ),
     body.ptg-modal-document .ptg-modal-body-shell :where(
         .badge,
@@ -418,7 +410,6 @@
         .ptg-capsule-badge,
         .ak-status,
         .boltz-status-pill,
-        .shipment-record-badge
     ) {
         display: inline-flex;
         align-items: center;
@@ -439,11 +430,11 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-success, .is-active, .bg-success, .text-bg-success, .badge-success),
     body.ptg-modal-document .ptg-modal-body-shell :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-success, .is-active, .bg-success, .text-bg-success, .badge-success) {
         background: var(--ptg-success-soft) !important;
         color: var(--ptg-success-text) !important;
@@ -451,11 +442,11 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-danger, .is-error, .bg-danger, .text-bg-danger, .badge-danger),
     body.ptg-modal-document .ptg-modal-body-shell :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-danger, .is-error, .bg-danger, .text-bg-danger, .badge-danger) {
         background: var(--ptg-danger-soft) !important;
         color: var(--ptg-danger-text) !important;
@@ -463,11 +454,11 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-warning, .bg-warning, .text-bg-warning, .badge-warning),
     body.ptg-modal-document .ptg-modal-body-shell :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-warning, .bg-warning, .text-bg-warning, .badge-warning) {
         background: var(--ptg-warning-soft) !important;
         color: var(--ptg-warning-text) !important;
@@ -475,11 +466,11 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-info, .bg-info, .text-bg-info, .badge-info),
     body.ptg-modal-document .ptg-modal-body-shell :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-info, .bg-info, .text-bg-info, .badge-info) {
         background: var(--ptg-info-soft) !important;
         color: var(--ptg-info-text) !important;
@@ -487,11 +478,11 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-neutral, .is-muted, .is-inactive, .bg-secondary, .text-bg-secondary, .bg-light, .text-bg-light),
     body.ptg-modal-document .ptg-modal-body-shell :where(
         .badge, .status-badge, .reconciliation-badge, .ptg-status-badge,
-        .ptg-capsule-badge, .ak-status, .boltz-status-pill, .shipment-record-badge
+        .ptg-capsule-badge, .ak-status, .boltz-status-pill
     ):is(.is-neutral, .is-muted, .is-inactive, .bg-secondary, .text-bg-secondary, .bg-light, .text-bg-light) {
         background: var(--ptg-draft-soft) !important;
         color: var(--ptg-draft-text) !important;

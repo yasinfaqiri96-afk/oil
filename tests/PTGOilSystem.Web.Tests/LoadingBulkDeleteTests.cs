@@ -91,7 +91,7 @@ public class LoadingBulkDeleteTests
     }
 
     [Fact]
-    public async Task BulkDelete_Post_Removes_Clean_Loading_With_Its_Ledger_ExpenseLines_And_Audit()
+    public async Task BulkDelete_Post_Removes_Clean_Loading_But_Reverses_Its_Ledger_And_Audits()
     {
         await using var db = CreateDb();
         await SeedAsync(db);
@@ -122,7 +122,15 @@ public class LoadingBulkDeleteTests
         Assert.IsType<RedirectToActionResult>(result);
         Assert.Empty(await db.LoadingRegisters.ToListAsync());
         Assert.Empty(await db.LoadingExpenseLines.ToListAsync());
-        Assert.Empty(await db.LedgerEntries.Where(l => l.SourceType == "Loading").ToListAsync());
+        var ledgers = await db.LedgerEntries
+            .Where(l => l.SourceType == "Loading")
+            .OrderBy(l => l.Id)
+            .ToListAsync();
+        Assert.Equal(2, ledgers.Count);
+        Assert.Equal(LedgerSide.Credit, ledgers[0].Side);
+        Assert.Equal(LedgerSide.Debit, ledgers[1].Side);
+        Assert.Equal(ledgers[0].AmountUsd, ledgers[1].AmountUsd);
+        Assert.EndsWith(LedgerReversalWriter.CancelReferenceSuffix, ledgers[1].Reference);
 
         var audit = await db.AuditLogs
             .Where(a => a.EntityName == nameof(LoadingRegister) && a.EntityId == 10)

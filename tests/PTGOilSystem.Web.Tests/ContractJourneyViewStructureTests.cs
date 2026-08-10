@@ -600,6 +600,7 @@ public class ContractJourneyViewStructureTests
     public void InventoryTransportLeg_Details_Uses_Transport_Detail_Reference_Layout()
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportLegs/Details.cshtml");
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
 
         Assert.Contains("ak-form-page", view);
         Assert.Contains("data-transport-details", view);
@@ -617,6 +618,21 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("ak-form-section ak-detail-section is-receipt", view);
         Assert.Contains("عملیات بعدی بار", view);
         Assert.Contains("ثبت گمرک", view);
+        Assert.DoesNotContain("نگاه سریع", view);
+        Assert.DoesNotContain("خلاصه مالی حمل", view);
+        Assert.Contains("transport-details-records", view);
+        Assert.Contains("transport-records-table", view);
+        Assert.Contains("data-transport-detail-trigger", view);
+        Assert.Contains("template data-row-detail", view);
+        Assert.Contains("trigger.parentElement.querySelector('template[data-row-detail]')", view);
+        Assert.DoesNotContain("root.querySelectorAll('.ak-list-row')", view);
+        Assert.DoesNotContain("<dl class=\"ak-list\">", view);
+        Assert.DoesNotContain("ak-detail-totals", view);
+        Assert.Contains("[data-transport-details] > .ak-operations-clean-overview::before", css);
+        Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(1)", css);
+        Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(2)", css);
+        Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(3)", css);
+        Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(4)", css);
         Assert.DoesNotContain("ptg-transport-clean-details", view);
         Assert.DoesNotContain("ptcd-summary-card", view);
     }
@@ -688,8 +704,14 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("<vc:stat-card", activeDetails);
         Assert.Contains("class=\"ak-table", activeDetails);
         Assert.Contains("data-href=\"@Url.Action(\"Details\"", index);
-        Assert.Contains("Url.Action(\"GroupTransfer\")", index);
-        Assert.Contains("Url.Action(\"CreateFromInventory\")", index);
+        Assert.Contains("LoadingTransportType.Truck => UiText.T(Context, \"موتر\", \"Truck\")", index);
+        Assert.Contains("LoadingTransportType.Wagon => UiText.T(Context, \"واگن\", \"Wagon\")", index);
+        Assert.Contains("LoadingTransportType.Vessel => UiText.T(Context, \"کشتی\", \"Vessel\")", index);
+        Assert.Contains("Url.Action(\"Create\", \"Transports\")", index);
+        Assert.Contains("Filter.WorkflowState", index);
+        Assert.Contains("NumberDisplay.Quantity(item.QuantityMt)", index);
+        Assert.DoesNotContain("Url.Action(\"GroupTransfer\")", index);
+        Assert.DoesNotContain("Url.Action(\"CreateFromInventory\")", index);
         Assert.DoesNotContain("asp-action=\"CreateBatch\"", index);
         Assert.DoesNotContain("inventory-transport-active.css", active);
         Assert.DoesNotContain("class=\"inventory-flow-", active);
@@ -1165,6 +1187,7 @@ public class ContractJourneyViewStructureTests
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Details.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+        var detailCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
 
         Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page\"", view);
         Assert.Contains("_AkPageHeader", view);
@@ -1177,19 +1200,107 @@ public class ContractJourneyViewStructureTests
         Assert.Contains(".ak-form-grid", css);
         Assert.Contains(".ak-list", css);
         Assert.Contains(".ak-status", css);
+        Assert.Contains("ak-summary-card loading-ruble-pricing", view);
+        Assert.Contains("ak-form-grid ak-form-grid--3", view);
+        Assert.Contains(".ak-operations-overview > .loading-ruble-pricing", detailCss);
+        Assert.Contains(".loading-ruble-pricing .ak-info-grid", detailCss);
+        Assert.Contains("flex-wrap: nowrap;", detailCss);
+        Assert.Contains("var headerPrimaryModal = Model.CanRegisterReceipt ? \"loadingReceiptModal\" : null;", view);
+        Assert.Contains("Label = T(\"ثبت مصارف\", \"Register expenses\"), ModalTarget = \"loadingExpensesModal\"", view);
+        Assert.Contains("Model.CanRegisterReceipt ? T(\"ثبت رسید\", \"Register receipt\") : (string?)null", view);
+        Assert.DoesNotContain("نگاه سریع", view);
+        Assert.Contains("[data-loading-details] > .ak-detail-header .ak-kebab-toggle", detailCss);
+        Assert.Contains("background: #1877f2 !important;", detailCss);
+        Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(1) .ak-stat-card__value", detailCss);
+        Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(2) .ak-stat-card__value", detailCss);
+        Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(3) .ak-stat-card__value", detailCss);
+        Assert.Contains("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(4) .ak-stat-card__value", detailCss);
+        Assert.Contains("[data-loading-details] > .ak-operations-clean-overview::before", detailCss);
         Assert.DoesNotContain("loading-details-simple-page", view);
         Assert.DoesNotContain("loading-detail-simple-card", view);
+    }
+
+    [Fact]
+    public void Loading_Expense_Editor_Reveals_The_Selected_Party_Lookup()
+    {
+        var editor = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/_LoadingExpenseEditor.cshtml");
+        var row = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/_LoadingExpenseLineRow.cshtml");
+        var script = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/loading-expense-editor.js");
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+
+        Assert.Contains("ak-table loading-expense-table", editor);
+        Assert.DoesNotContain("<th>توضیح</th>", editor);
+        Assert.Contains("data-row-provider", row);
+        Assert.Contains("data-row-asset", row);
+        Assert.Contains("type=\"hidden\" name=\"@Name(\"Notes\")\"", row);
+        Assert.DoesNotContain("type=\"text\" maxlength=\"1000\"", row);
+        Assert.Contains("provider.hidden = !isProvider;", script);
+        Assert.Contains("asset.hidden = !isAsset;", script);
+        Assert.Contains("noParty.hidden = isProvider || isAsset;", script);
+        Assert.DoesNotContain("provider.style.display", script);
+        Assert.DoesNotContain("asset.style.display", script);
+        Assert.Contains("[data-loading-expense-editor] .loading-expense-table", css);
+        Assert.Contains("min-width: 1000px;", css);
+    }
+
+    [Fact]
+    public void Loss_Create_Uses_The_Shared_Responsive_Form_Composition()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/LossEvents/Create.cshtml");
+
+        Assert.Contains("class=\"ak-form-grid ak-form-grid--3\"", view);
+        Assert.Contains("<div class=\"ak-advanced-body\">", view);
+        Assert.Contains("<div class=\"ak-form-grid\">", view);
+        Assert.Contains("method=\"post\" class=\"ak-form\"", view);
+        Assert.DoesNotContain("loss-create-form", view);
+        Assert.DoesNotContain("loss-create-page", view);
+        Assert.DoesNotContain("<div class=\"ak-form-grid\">\n                <div class=\"ak-form-grid\">", view);
+        Assert.Contains("@Html.AntiForgeryToken()", view);
+        Assert.Contains("<input asp-for=\"ReturnUrl\" type=\"hidden\" />", view);
     }
 
     [Fact]
     public void LoadingReceipt_Details_Uses_Shared_Ak_Detail_Contract()
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/LoadingReceipts/Details.cshtml");
+        var detailCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
 
         Assert.Contains("ak-form-page", view);
+        Assert.Contains("data-loading-receipt-details", view);
         Assert.Contains("_AkPageHeader.cshtml", view);
         Assert.Contains("ak-form-section", view);
         Assert.Contains("ViewData[\"HideSectionTabs\"] = true;", view);
+        Assert.Contains("ModalTarget = \"loadingReceiptCancelModal\"", view);
+        Assert.Contains("id=\"loadingReceiptCancelModal\"", view);
+        Assert.Contains("data-loading-receipt-cancel-form", view);
+        Assert.Contains("@Html.AntiForgeryToken()", view);
+        Assert.Contains("name=\"rowVersion\" value=\"@Model.RowVersion\"", view);
+        Assert.Contains("name=\"reason\" maxlength=\"500\" required", view);
+        Assert.DoesNotContain("T(\"ردیف‌های رسید، تخصیص و وضعیت\", \"Receipt lines, allocation & status\")", view);
+        Assert.DoesNotContain("FormatTraceDestination", view);
+        Assert.DoesNotContain("ToAllocationStatusText", view);
+        Assert.DoesNotContain("ToAllocationDestinationText", view);
+        Assert.Contains("T(\"شماره مرجع\", \"Reference number\")", view);
+        Assert.Contains("ToReceiptReferenceText(Model.ReferenceDocument)", view);
+        Assert.Contains("normalized.StartsWith(\"BULK-RCPT-\", StringComparison.OrdinalIgnoreCase)", view);
+        Assert.Contains("T(\"رسید گروهی\", \"Bulk receipt\")", view);
+        Assert.Contains("class=\"ak-form-section ak-detail-section ak-col-full\" data-loading-receipt-losses", view);
+        Assert.Contains("T(\"کسری رسید\", \"Receipt shortage\")", view);
+        Assert.Contains("LossEventStageLabels.ToPersian(loss.Stage)", view);
+        Assert.Contains("ToReceiptReferenceText(loss.Reference)", view);
+        Assert.Contains("T(\"قابل‌حساب\", \"Chargeable\")", view);
+        Assert.DoesNotContain("CompactText(loss.Reference ?? loss.Notes", view);
+        Assert.DoesNotContain("CompactText(Model.Notes", view);
+        Assert.DoesNotContain("T(\"یادداشت\", \"Notes\")", view);
+        Assert.Contains("T(\"ورود تکمیل‌شده به موجودی\", \"Completed to inventory\")", view);
+        Assert.Contains("allocation.Destination == LoadingReceiptAllocationDestination.ToInventory", view);
+        Assert.Contains("allocation.Status == LoadingReceiptAllocationStatus.Completed", view);
+        Assert.Contains("[data-loading-receipt-details] > .ak-operations-clean-overview::before", detailCss);
+        Assert.Contains("[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby=\"operations-more-technical-title\"] .ak-info-cell", detailCss);
+        Assert.Contains("[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby=\"operations-more-technical-title\"] .ak-info-value.ak-num", detailCss);
+        Assert.Contains("direction: rtl;", detailCss);
+        Assert.DoesNotContain("var allocationItems", view);
+        Assert.DoesNotContain("T(\"ردیف‌های رسید\", \"Receipt lines\")", view);
         Assert.DoesNotContain("loading-details-simple-page", view);
         Assert.DoesNotContain("loading-journal-page", view);
         Assert.DoesNotContain("loading-receipt-details-page", view);

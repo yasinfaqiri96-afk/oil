@@ -80,8 +80,10 @@
     </div>
 
     <div class="ak-field">
+        @* پنهان‌سازی با صفت hidden است، نه inline style: اسکریپت مشترک ویرایشگر مصارف
+           فقط `select.hidden` را برمی‌دارد و inline style بر آن غالب می‌ماند. *@
         <select name="@Name("ServiceProviderId")" class="ak-input" data-row-provider aria-label="انتخاب شرکت خدماتی"
-                @(isProvider ? null : "disabled") style="@(isProvider ? null : "display:none")">
+                @(isProvider ? null : "disabled") hidden="@(isProvider ? null : "hidden")">
             <option value="">انتخاب شرکت</option>
             @if (providerOptions != null)
             {
@@ -92,7 +94,7 @@
             }
         </select>
         <select name="@Name("OperationalAssetId")" class="ak-input" data-row-asset aria-label="انتخاب دارایی ملکی"
-                @(isAsset ? null : "disabled") style="@(isAsset ? null : "display:none")">
+                @(isAsset ? null : "disabled") hidden="@(isAsset ? null : "hidden")">
             <option value="">انتخاب دارایی</option>
             @if (assetOptions != null)
             {
@@ -102,7 +104,7 @@
                 }
             }
         </select>
-        <span class="ak-note" data-row-noparty style="@(isNone ? null : "display:none")">—</span>
+        <span class="ak-note" data-row-noparty hidden="@(isNone ? null : "hidden")">—</span>
     </div>
 
     <div class="ak-field">

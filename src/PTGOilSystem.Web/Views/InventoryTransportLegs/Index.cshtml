@@ -1,153 +1,139 @@
 @model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportLegIndexViewModel
 @using PTGOilSystem.Web.Models.Entities
 @{
-    ViewData["Title"] = UiText.T(Context,"انتقال از موجودی","Inventory Transfer");
-    var currentUrl = Context.Request.Path + Context.Request.QueryString;
-    var hasAdvancedFilter = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || Model.Filter.ContractId.HasValue || Model.Filter.ProductId.HasValue || Model.Filter.Status.HasValue;
-    var hasAnyFilter = hasAdvancedFilter || !string.IsNullOrWhiteSpace(Model.Filter.Query);
+    ViewData["Title"] = UiText.T(Context, "حمل‌ها", "Transports");
 }
 
-<div class="ak-form-page ak-list-page" data-operations-list>
+<main class="ak-form-page ak-list-page" data-operations-list dir="rtl">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "انتقال از موجودی", "Inventory Transfer"), true, UiText.T(Context, "حمل جدید", "New transport"), "bi-plus-lg", Url.Action("CreateFromInventory"), (string?)null, UiText.T(Context, "انتقال گروهی", "Group transfer"), "bi-diagram-3", Url.Action("GroupTransfer")))" />
+             model="@((UiText.T(Context, "حمل‌ها", "Transports"), true,
+                       UiText.T(Context, "+ ثبت حمل", "+ New transport"), "bi-plus-lg", Url.Action("Create", "Transports"),
+                       (string?)null,
+                       UiText.T(Context, "تسویه موترها", "Truck settlements"), "bi-cash-coin", Url.Action("Index", "TruckSettlements")))" />
+
     @{
         var sumQuantity = (decimal)(ViewBag.SumQuantity ?? 0m);
         var activeCount = (int)(ViewBag.ActiveCount ?? 0);
         var postedCount = (int)(ViewBag.PostedCount ?? 0);
     }
-    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار حمل موجودی", "Inventory transport statistics")">
+    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار حمل‌ها", "Transport statistics")">
         <vc:stat-card title="@UiText.T(Context, "کل حمل‌ها", "Total transports")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "حمل", "transports")" avatar="transported"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "کل مقدار", "Total quantity")" value="@NumberDisplay.Quantity(sumQuantity)" unit="MT" avatar="total-inventory"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "حمل‌های فعال", "Active transports")" value="@activeCount.ToString("N0")" unit="@UiText.T(Context, "حمل", "transports")" avatar="in-transit"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "ثبت‌شده در موجودی", "Posted to inventory")" value="@postedCount.ToString("N0")" unit="@UiText.T(Context, "حرکت", "movements")" avatar="warehouse"></vc:stat-card>
     </section>
+
+    @* وضعیت حمل از همان فیلتر «وضعیت» در نوار جست‌وجو انتخاب می‌شود؛ نوار حالت تکراری حذف شد. *@
     <div class="ak-list">
         @{
-            List<AkFilterOption> ItlOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+            List<AkFilterOption> Options(object? source) => (source as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
                 ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
                 .Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
-            string? ItlQ(string k) { var v = Context.Request.Query[k].ToString(); return string.IsNullOrEmpty(v) ? null : v; }
-            var itlFilter = new AkSearchFilterModel("Filter.Query", Model.Filter.Query,
-                UiText.T(Context, "جست‌وجو...", "Search..."),
+            string? QueryValue(string key)
+            {
+                var value = Context.Request.Query[key].ToString();
+                return string.IsNullOrEmpty(value) ? null : value;
+            }
+            var filter = new AkSearchFilterModel("Filter.Query", Model.Filter.Query,
+                UiText.T(Context, "شماره حمل، وسیله، محصول یا قرارداد", "Transport, vehicle, product or contract"),
                 new List<AkFilterDefinition>
                 {
+                    new("Filter.WorkflowState", UiText.T(Context, "وضعیت", "Status"), "select", Options(ViewBag.WorkflowStateOptions), QueryValue("Filter.WorkflowState")),
+                    new("Filter.TransportType", UiText.T(Context, "نوع وسیله", "Vehicle type"), "select", Options(ViewBag.TransportTypeOptions), QueryValue("Filter.TransportType")),
+                    new("Filter.ProductId", UiText.T(Context, "محصول", "Product"), "select", Options(ViewBag.Products), QueryValue("Filter.ProductId")),
+                    new("Filter.ContractId", UiText.T(Context, "قرارداد/منبع", "Contract/source"), "select", Options(ViewBag.Contracts), QueryValue("Filter.ContractId")),
+                    new("Filter.StorageTankId", UiText.T(Context, "مخزن", "Tank"), "select", Options(ViewBag.StorageTanks), QueryValue("Filter.StorageTankId")),
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
-                        Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
-                    new("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", ItlOpts(ViewBag.Contracts), ItlQ("Filter.ContractId")),
-                    new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", ItlOpts(ViewBag.Products), ItlQ("Filter.ProductId")),
-                    new("Filter.Status", UiText.T(Context, "وضعیت", "Status"), "select", ItlOpts(ViewBag.StatusOptions), ItlQ("Filter.Status"))
+                        Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd"))
                 });
         }
         <div class="ak-list-toolbar">
-            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="itlFilter" />
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="filter" />
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
         </div>
 
         <div class="ak-table-wrap">
-            <table class="ak-table">
+            <table class="ak-table transport-workflow-table">
                 <thead>
                     <tr>
-                        <th><input type="checkbox" class="ak-check" data-ops-select-all aria-label="@UiText.T(Context,"انتخاب همه","Select all")" /></th>
-                        <th class="col-name">@UiText.T(Context,"قرارداد","Contract")</th>
-                        <th>@UiText.T(Context,"جنس","Product")</th>
-                        <th>@UiText.T(Context,"وسیله حمل","Transport")</th>
-                        <th>@UiText.T(Context,"مقدار","Quantity")</th>
-                        <th class="col-status">@UiText.T(Context,"وضعیت","Status")</th>
-                        <th class="col-actions">@UiText.T(Context,"عملیات","Action")</th>
+                        <th>@UiText.T(Context, "شماره حمل / تاریخ", "Transport / date")</th>
+                        <th>@UiText.T(Context, "محصول / منبع", "Product / source")</th>
+                        <th class="text-end">@UiText.T(Context, "مقدار", "Quantity")</th>
+                        <th>@UiText.T(Context, "وسیله", "Vehicle")</th>
+                        <th>@UiText.T(Context, "مبدأ", "Origin")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        <th class="ak-col-actions"></th>
                     </tr>
                 </thead>
                 <tbody>
-                @for (var index = 0; index < Model.Items.Count; index++)
+                @foreach (var item in Model.Items)
                 {
-                    var item = Model.Items[index];
-                    var statusClass = item.Status switch
+                    var typeText = item.TransportType switch
                     {
-                        InventoryTransportLegStatus.Draft => "is-info",
-                        InventoryTransportLegStatus.Loaded => "is-pending",
-                        InventoryTransportLegStatus.InTransit => "is-info",
-                        InventoryTransportLegStatus.Received => "is-active",
-                        InventoryTransportLegStatus.Cancelled => "is-inactive",
-                        _ => "is-info"
+                        LoadingTransportType.Truck => UiText.T(Context, "موتر", "Truck"),
+                        LoadingTransportType.Wagon => UiText.T(Context, "واگن", "Wagon"),
+                        LoadingTransportType.Vessel => UiText.T(Context, "کشتی", "Vessel"),
+                        _ => UiText.T(Context, "وسیله", "Vehicle")
                     };
-                    var statusText = item.Status switch
-                    {
-                        InventoryTransportLegStatus.Draft => UiText.T(Context, "پیش‌نویس", "Draft"),
-                        InventoryTransportLegStatus.Loaded => UiText.T(Context, "بارگیری شده", "Loaded"),
-                        InventoryTransportLegStatus.InTransit => UiText.T(Context, "در جریان حمل", "In transit"),
-                        InventoryTransportLegStatus.Received => UiText.T(Context, "تکمیل‌شده", "Completed"),
-                        InventoryTransportLegStatus.Cancelled => UiText.T(Context, "لغو شده", "Cancelled"),
-                        _ => item.Status.ToString()
-                    };
-                    var transportText = item.TransportType switch
-                    {
-                        LoadingTransportType.Vessel => UiText.T(Context,"کشتی","Vessel"),
-                        LoadingTransportType.Wagon => UiText.T(Context,"واگون","Wagon"),
-                        LoadingTransportType.Truck => UiText.T(Context,"موتر","Truck"),
-                        _ => UiText.T(Context,"نامشخص","Unspecified")
-                    };
-                    var vehicleNo = item.TransportType switch
+                    // ستون وسیله فقط نام/نمبر خود وسیله را نشان می‌دهد؛ اگر ثبت نشده باشد نوع وسیله جای آن می‌نشیند.
+                    var vehicleName = item.TransportType switch
                     {
                         LoadingTransportType.Truck or LoadingTransportType.Wagon => item.WagonNumber,
-                        _ => item.WagonNumber ?? item.RwbNo
+                        LoadingTransportType.Vessel => item.VesselName,
+                        _ => item.WagonNumber ?? item.VesselName
+                    };
+                    if (string.IsNullOrWhiteSpace(vehicleName))
+                    {
+                        vehicleName = typeText;
+                    }
+                    var statusClass = item.PhysicalStatusText switch
+                    {
+                        "تکمیل‌شده" => "is-active",
+                        "لغوشده" => "is-inactive",
+                        "بخشی تکمیل‌شده" => "is-warning",
+                        "پیش‌نویس" => "is-info",
+                        _ => "is-pending"
                     };
                     <tr data-href="@Url.Action("Details", new { id = item.Id })">
-                        <td><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
-                        <td class="col-name">
-                            @await Html.PartialAsync("_OperationsListIdentity", ("bi-truck-front", item.ContractNumber, item.LoadedDate.ToDisplayDate(), true))
+                        <td>
+                            <strong class="ak-num">TR-@item.Id.ToString("0000")</strong>
+                            <span class="ak-section-desc">@item.LoadedDate.ToDisplayDate()</span>
                         </td>
                         <td>
-                            <span class="ak-label">@item.ProductName</span>
-                            <span class="ak-section-desc col-ltr">@item.ContractNumber</span>
+                            <strong>@item.ProductName</strong>
+                            <span class="ak-section-desc">@item.SourceContractsLabel</span>
+                        </td>
+                        <td class="text-end">
+                            <strong class="ak-num">@NumberDisplay.Quantity(item.QuantityMt) MT</strong>
                         </td>
                         <td>
-                            <span class="ak-label">@transportText</span>
-                            <span class="ak-section-desc col-ltr">@(string.IsNullOrWhiteSpace(vehicleNo) ? "-" : vehicleNo)</span>
+                            <strong>@vehicleName</strong>
                         </td>
-                        <td class="col-ltr">@NumberDisplay.Quantity(item.QuantityMt) MT</td>
-                        <td class="col-status"><span class="ak-status @statusClass">@statusText</span></td>
-                        <td class="col-actions">
-                            <div class="ak-row-menu">
-                                @if (item.Status == InventoryTransportLegStatus.Draft && !item.OutboundInventoryMovementId.HasValue)
-                                {
-                                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-light ak-secondary-action" title="@UiText.T(Context,"ویرایش","Edit")" aria-label="@UiText.T(Context,"ویرایش","Edit")"><i class="bi bi-pencil" aria-hidden="true"></i></a>
-                                }
-                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-light ak-secondary-action" title="@UiText.T(Context,"جزئیات","Details")" aria-label="@UiText.T(Context,"جزئیات","Details")"><i class="bi bi-eye" aria-hidden="true"></i></a>
+                        <td><span class="ak-label">@item.SourceLabel</span></td>
+                        <td>
+                            <span class="ak-status @statusClass">@item.PhysicalStatusText</span>
+                        </td>
+                        <td class="ak-col-actions no-print">
+                            @* منوی سه‌نقطه در CSS پنهان است؛ tables.js از همین آیتم‌ها جعبهٔ عملیات هاور را می‌سازد. *@
+                            <div class="ak-row-menu dropdown">
+                                <button class="ak-row-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@UiText.T(Context, "عملیات", "Actions")"><i class="bi bi-three-dots"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a asp-action="Details" asp-route-id="@item.Id" class="dropdown-item"><i class="bi bi-eye"></i> @(string.IsNullOrWhiteSpace(item.NextActionText) ? UiText.T(Context, "جزئیات", "Details") : item.NextActionText)</a></li>
+                                </ul>
                             </div>
                         </td>
                     </tr>
                 }
                 @if (!Model.Items.Any())
                 {
-                    <tr>
-                        <td colspan="7">
-                            <div class="ak-empty">
-                                <i class="bi bi-truck-front"></i>
-                                @UiText.T(Context,"فعلاً انتقالی ثبت نشده است","No inventory transfers found.")
-                            </div>
-                        </td>
-                    </tr>
+                    <tr><td colspan="7"><div class="ak-empty"><i class="bi bi-truck-front" aria-hidden="true"></i> @UiText.T(Context, "حمل مطابق فیلتر پیدا نشد.", "No matching transport found.")</div></td></tr>
                 }
                 </tbody>
             </table>
         </div>
 
         <div class="ak-pager">
-            @await Html.PartialAsync("_OperationsListFooter", (Model.CurrentPage, Model.PageCount, Model.TotalCount, 5))
+            @await Html.PartialAsync("_OperationsListFooter", (Model.CurrentPage, Model.PageCount, Model.TotalCount, 15))
         </div>
     </div>
-</div>
-
-@section Scripts {
-    <script>
-        (function () {
-            document.querySelectorAll('.ak-list-page .ak-table tbody tr[data-href]').forEach(function (row) {
-                row.style.cursor = 'pointer';
-                row.addEventListener('click', function (e) {
-                    if (e.target.closest('a, button, input, label, select, form')) return;
-                    window.location.href = row.getAttribute('data-href');
-                });
-            });
-        })();
-    </script>
-}
+</main>

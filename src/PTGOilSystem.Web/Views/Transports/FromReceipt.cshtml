@@ -1,0 +1,50 @@
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.InventoryTransport
+@model TransportStartFromReceiptViewModel
+@{
+    ViewData["Title"] = "ثبت حمل از رسید مستقیم";
+    ViewData["HideSectionTabs"] = true;
+}
+
+<main class="ak-form-page" dir="rtl" data-transport-vehicle-form>
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("ثبت حمل از رسید مستقیم", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", Url.Action("Create")))" />
+    <form asp-action="FromReceipt" method="post" class="ak-form" data-submit-lock>
+        @Html.AntiForgeryToken()
+        <input asp-for="LoadingReceiptId" type="hidden" />
+        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("منبع بار", (string?)"این بار وارد مخزن نشده است؛ بنابراین خروج موجودی ساخته نمی‌شود."))" />
+            <div class="ak-form-grid">
+                <div class="ak-field"><span class="ak-label">رسید</span><strong>@Model.ReceiptLabel</strong></div>
+                <div class="ak-field"><span class="ak-label">محصول</span><strong>@Model.ProductName</strong></div>
+                <div class="ak-field"><span class="ak-label">باقیمانده قابل حمل</span><strong class="ak-num">@Model.AvailableQuantityMt.ToString("N4") MT</strong></div>
+                <div class="ak-field"><label asp-for="QuantityMt">مقدار <b>*</b></label><input asp-for="QuantityMt" class="ak-input" type="number" min="0.0001" max="@Model.AvailableQuantityMt" step="0.0001" /><span asp-validation-for="QuantityMt" class="ak-field-error"></span></div>
+            </div>
+        </section>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("وسیله و تاریخ", (string?)null))" />
+            <div class="ak-form-grid">
+                <div class="ak-field"><label asp-for="TransportType">نوع وسیله <b>*</b></label><select asp-for="TransportType" class="ak-input" data-transport-type><option value="3">موتر</option><option value="2">واگن</option><option value="1">کشتی</option></select></div>
+                <div class="ak-field" data-vehicle-field="3"><label asp-for="TruckId">موتر <b>*</b></label><select asp-for="TruckId" asp-items="ViewBag.Trucks" class="ak-input"><option value="">انتخاب کنید</option></select></div>
+                <div class="ak-field" data-vehicle-field="2"><label asp-for="WagonId">واگن <b>*</b></label><select asp-for="WagonId" asp-items="ViewBag.Wagons" class="ak-input"><option value="">انتخاب کنید</option></select></div>
+                <div class="ak-field" data-vehicle-field="1"><label asp-for="VesselId">کشتی <b>*</b></label><select asp-for="VesselId" asp-items="ViewBag.Vessels" class="ak-input"><option value="">انتخاب کنید</option></select></div>
+                <div class="ak-field" data-truck-only><label asp-for="DriverId">راننده</label><select asp-for="DriverId" asp-items="ViewBag.Drivers" class="ak-input"><option value="">بدون انتخاب</option></select></div>
+                <div class="ak-field"><label asp-for="ServiceProviderId">شرکت خدماتی</label><select asp-for="ServiceProviderId" asp-items="ViewBag.ServiceProviders" class="ak-input"><option value="">بدون انتخاب</option></select></div>
+                <div class="ak-field"><label asp-for="TransportDate">تاریخ <b>*</b></label><input asp-for="TransportDate" type="date" class="ak-input" /></div>
+                <div class="ak-field"><label asp-for="Reference">مرجع</label><input asp-for="Reference" class="ak-input" /></div>
+                <div class="ak-field is-full"><label asp-for="Notes">یادداشت</label><textarea asp-for="Notes" class="ak-input" rows="2"></textarea></div>
+            </div>
+        </section>
+
+        <div class="ak-footer-actions">
+            <a asp-action="Create" class="btn btn-light ak-secondary-action">انصراف</a>
+            <button type="submit" class="btn btn-primary ak-primary-action" data-submit-button>ثبت حمل</button>
+        </div>
+    </form>
+</main>
+
+<partial name="_VehicleTypeScript" />
+<partial name="_ValidationScriptsPartial" />

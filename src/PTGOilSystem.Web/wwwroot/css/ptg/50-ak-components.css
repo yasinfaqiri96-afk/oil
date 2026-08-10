@@ -122,6 +122,7 @@
  * ============================================================= */
 .ak-subform-toolbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: stretch;
     gap: 8px;
     margin: 0 0 4px;
@@ -1096,6 +1097,55 @@ a.ak-list-row:focus-visible {
     line-height: 1.65;
 }
 
+/* Single-choice tiles (destination routing, loss capture mode). Same field
+   metrics as .ak-input so a choice row lines up with the surrounding grid. */
+.ak-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 10px;
+    margin-block-end: 24px;
+}
+
+.ak-choice-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ak-choice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 8px 12px;
+    border: 1px solid var(--ptg-field-border);
+    border-radius: var(--ptg-radius-md);
+    background: var(--ptg-field-bg);
+    color: var(--ptg-text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.ak-choice i {
+    font-size: 15px;
+    color: var(--ptg-muted);
+}
+
+.ak-choice:hover:not(.is-selected) {
+    border-color: var(--ptg-field-border-hover);
+}
+
+.ak-choice.is-selected {
+    border-color: var(--primary-main);
+    background: var(--ptg-surface-subtle, #f7f8fa);
+    color: var(--primary-main);
+}
+
+.ak-choice.is-selected i {
+    color: var(--primary-main);
+}
+
 .ak-toggle-field {
     display: flex;
     align-items: center;
@@ -1201,12 +1251,13 @@ select.ak-input {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--sf-source-accent, var(--primary-main));
+    background: var(--primary-main);
 }
 
 /* ============================================================= *
- * پرونده محموله › تب خلاصه — کارت‌های «خلاصه حساب» و «منابع بار»
- * ریتم ردیف، چیپ آیکن و رنگ‌بندی اعداد طبق دیزاین مرجع صفحه.
+ * پرونده محموله › تب خلاصه — کارت‌های «خلاصه حساب» و «منابع بار».
+ * ردیف پایه از `.ak-list` مشترک می‌آید؛ اینجا فقط ریتم ردیف، چیپ آیکن
+ * و رنگ عدد این دو کارت تنظیم می‌شود (چیدمان تأییدشدهٔ همین صفحه).
  * ============================================================= */
 /* دو ستون تب خلاصه: «منابع بار» پهن (سمت راست)، «خلاصه حساب» باریک (سمت چپ). */
 .sf-detail .sf-summary-grid {
@@ -1226,13 +1277,15 @@ select.ak-input {
     }
 }
 
+/* پالت تأییدشدهٔ همین دو کارت: قرمز/سبز روشن‌تر از توکن متن وضعیت
+   (--ptg-danger-text/--ptg-success-text برای عدد بزرگ خیلی تیره‌اند)
+   و آبیِ روشنِ نوار سهم. جای دیگری استفاده نمی‌شوند. */
 .sf-detail .sf-summary-card {
     --sf-row-icon-size: 34px;
     --sf-row-icon-bg: var(--ptg-surface-soft, #F5F7FA);
     --sf-row-icon-fg: var(--ptg-muted, #7B7B7B);
     --sf-amount-negative: #E5484D;
     --sf-amount-positive: #2FA84F;
-    --sf-source-accent: #1D6FD8;
 }
 
 .sf-detail .sf-summary-card .ak-list-row {
@@ -1300,14 +1353,16 @@ select.ak-input {
     background: var(--ptg-surface-soft, #F5F7FA);
 }
 
+/* ردیف منبع بار یک بلوک تمام‌عرض است (سر ردیف + نوار سهم)، نه یک جفت
+   کلید/مقدار؛ فقط همین قاعدهٔ چیدمان از ردیف مشترک منحرف می‌شود. */
 .sf-detail .sf-source-list .ak-list-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
     padding: 14px 0;
 }
 
-/* سرِ ردیف: نام و شمارهٔ قرارداد سمت راست، مقدار و درصد سمت چپ — همه در یک خط. */
-.sf-detail .sf-source-list .ak-section-head {
+/* سرِ ردیف: نام و شمارهٔ قرارداد سمت راست، مقدار و درصد سمت چپ — یک خط. */
+.sf-detail .sf-source-list .ak-list-row .ak-section-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -1318,58 +1373,19 @@ select.ak-input {
     background: transparent;
 }
 
-.sf-detail .sf-source-list .ak-label {
+.sf-detail .sf-source-list .ak-label,
+.sf-detail .sf-source-list .ak-num {
     display: flex;
-    flex-direction: row;
     align-items: baseline;
     gap: 8px;
     min-width: 0;
 }
 
-.sf-detail .sf-source-list .ak-label > strong {
-    color: var(--ptg-text);
-    font-size: 14px;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.sf-detail .sf-source-list .ak-label > small {
-    color: var(--ptg-muted);
-    font-size: 12.5px;
-    font-weight: 500;
-    white-space: nowrap;
-}
-
-.sf-detail .sf-source-list .ak-num {
-    display: flex;
-    flex-direction: row;
-    align-items: baseline;
-    gap: 8px;
-    flex: none;
-}
-
-.sf-detail .sf-source-list .ak-num > strong {
-    color: var(--sf-source-accent);
-    font-size: 14px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums lining-nums;
-    white-space: nowrap;
-}
-
-.sf-detail .sf-source-list .ak-num > small {
-    color: var(--ptg-muted);
-    font-size: 12.5px;
-    font-weight: 500;
-    direction: ltr;
-    unicode-bidi: isolate;
-    white-space: nowrap;
-}
-
-/* نوار سهم: ریل روشن تمام‌عرض، پرشدگی آبی با گرادیان روشن→تیره. */
+/* نوار سهم: ریل روشن تمام‌عرض، پرشدگی آبی روشن با گرادیان روشن→تیره. */
 .sf-detail .sf-source-list .sf-bar {
     height: 8px;
     margin-top: 10px;
-    background: var(--sf-source-track, #EDF1F6);
+    background: #EDF1F6;
 }
 
 .sf-detail .sf-source-list .sf-bar > span {
@@ -1725,14 +1741,42 @@ select.ak-input {
     color: var(--ptg-text);
 }
 
+/* The body shares the inline rhythm of .ak-modal-head / .ak-modal-foot (24px).
+ * It used to be padding:0, which left every consumer that renders content
+ * directly (detail modals, remote-loaded editors, confirm bodies) glued to the
+ * dialog edges and out of line with the header above it. */
 .ak-modal-body {
+    padding: 20px 24px;
+}
+
+/* Exception: when the body only wraps the shared scroll region, that region
+ * owns the padding so its scrollbar can still hug the dialog edge. */
+.ak-modal-body:has(> .ptg-modal-form-scroll),
+.ak-modal-body:has(> form > .ptg-modal-form-scroll) {
     padding: 0;
+}
+
+@media (max-width: 575.98px) {
+    .ak-modal-body {
+        padding: 16px;
+    }
 }
 
 /* The scroll region is the shared JS swap anchor (.ptg-modal-form-scroll,
  * styled in 08-modals). Inside the ak modal it needs a flat form context. */
 .ak-modal-content .ak-form {
     max-width: none;
+}
+
+/* A modal is already the constrained column. Whole form pages are rendered
+ * inside these dialogs (remote editors return a .ak-form-page partial), and the
+ * page-level column cap then left the form at 860px inside an xl dialog, pinned
+ * to the content start with a dead band beside it. Release both canvases for
+ * any form page that ends up inside a modal. */
+.modal .ak-form-page,
+.modal .ak-form-page-content {
+    --ak-form-content-max: 100%;
+    --ak-form-content-wide-max: 100%;
 }
 
 /* Same JS anchor is reused on the full create page for validation-swap
@@ -3148,6 +3192,32 @@ select.ak-input {
     gap: 12px;
 }
 
+/* Loading expenses stay readable inside the shared XL modal. The table owns
+   its minimum canvas, while the existing .ak-table-wrap provides horizontal
+   scroll on narrower screens. Notes remain preserved as hidden form data. */
+[data-loading-expense-editor] .loading-expense-table {
+    table-layout: fixed;
+    min-width: 1000px;
+}
+
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td) {
+    padding-inline: 8px;
+}
+
+[data-loading-expense-editor] .loading-expense-table .ak-input {
+    width: 100%;
+    min-width: 0;
+}
+
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(1) { width: 17%; }
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(2) { width: 14%; }
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(3),
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(4),
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(5) { width: 10%; }
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(6) { width: 15%; }
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(7) { width: 20%; }
+[data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(8) { width: 40px; }
+
 .ak-form .ak-form-section + .ak-form-section {
     padding-top: 28px;
     border-top: 1px solid var(--divider);
@@ -3710,4 +3780,96 @@ select.ak-input {
    correctly; end-align keeps it flush with the RTL numeric fields beside it. */
 #premiumDiscountAmount {
     text-align: end;
+}
+
+/* Unified transport workflow: flat state switcher and source selector. */
+.ak-list-state-nav {
+    display: flex;
+    gap: 4px;
+    margin: 0 0 12px;
+    padding: 4px;
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--ptg-border, #E2E8F0);
+    border-radius: 8px;
+    background: var(--ptg-surface-subtle, #F8FAFC);
+}
+
+.ak-list-state-nav a {
+    padding: 7px 12px;
+    border-radius: 6px;
+    color: var(--ptg-text-muted, #64748B);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.ak-list-state-nav a:is(:hover, :focus-visible),
+.ak-list-state-nav a.is-active {
+    color: var(--ptg-primary, #C2410C);
+    background: var(--ptg-surface, #FFFFFF);
+    box-shadow: 0 0 0 1px var(--ptg-border, #E2E8F0);
+}
+
+.ak-segmented-control {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.ak-segmented-option {
+    position: relative;
+    margin: 0;
+}
+
+.ak-segmented-option input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+}
+
+.ak-segmented-option span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--ptg-border, #E2E8F0);
+    border-radius: 8px;
+    background: var(--ptg-surface, #FFFFFF);
+    color: var(--ptg-text, #1E293B);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ak-segmented-option input:checked + span {
+    border-color: var(--ptg-primary, #C2410C);
+    color: var(--ptg-primary, #C2410C);
+    background: var(--ptg-primary-soft, #FFF7ED);
+}
+
+.ak-segmented-option input:focus-visible + span {
+    outline: 2px solid var(--ptg-primary, #C2410C);
+    outline-offset: 2px;
+}
+
+.transport-workflow-table {
+    min-width: 1120px;
+}
+
+.transport-workflow-table td {
+    vertical-align: middle;
+}
+
+@media (max-width: 767.98px) {
+    .ak-segmented-control {
+        grid-template-columns: 1fr;
+    }
+
+    .ak-segmented-option span {
+        justify-content: flex-start;
+    }
 }

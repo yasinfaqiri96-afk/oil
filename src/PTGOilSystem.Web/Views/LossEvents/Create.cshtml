@@ -13,8 +13,10 @@
         ? nameof(Model.LoadingRegisterId)
         : Model.LoadingReceiptId.HasValue
             ? nameof(Model.LoadingReceiptId)
-            : Model.TruckDispatchId.HasValue
-                ? nameof(Model.TruckDispatchId)
+            : Model.TransportLegId.HasValue
+                ? nameof(Model.TransportLegId)
+                : Model.TruckDispatchId.HasValue
+                    ? nameof(Model.TruckDispatchId)
                 : Model.SalesTransactionId.HasValue
                     ? nameof(Model.SalesTransactionId)
                     : Model.ShipmentId.HasValue
@@ -32,6 +34,7 @@
         || Model.LoadingRegisterId.HasValue
         || Model.LoadingReceiptId.HasValue
         || Model.TruckDispatchId.HasValue
+        || Model.TransportLegId.HasValue
         || Model.SalesTransactionId.HasValue
         || Model.TerminalId.HasValue
         || Model.StorageTankId.HasValue
@@ -44,14 +47,14 @@
         || !string.IsNullOrWhiteSpace(Model.Notes);
 }
 
-<div class="page-stack ak-form-page loss-create-page">
+<div class="page-stack ak-form-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "ثبت رویداد کسری", "Record Loss Event"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right",
                        (string?)cancelUrl))" />
 
-    <form asp-action="Create" method="post" class="ak-form loss-create-form">
+    <form asp-action="Create" method="post" class="ak-form">
         @Html.AntiForgeryToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
@@ -59,7 +62,7 @@
         <section class="ak-form-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                      model="@((UiText.T(Context, "ردیابی و منبع رویداد", "Event Traceability"), (string?)UiText.T(Context, "منبع رویداد، مقادیر و مسئولیت کسری را وارد کنید.", "Enter the event source, quantities and responsibility.")))" />
-            <div class="ak-form-grid">
+            <div class="ak-form-grid ak-form-grid--3">
                 <div class="ak-field">
                     <label asp-for="Stage" class="ak-label"></label>
                     <select asp-for="Stage" asp-items="ViewBag.Stages" class="ak-input"></select>
@@ -101,7 +104,7 @@
             <summary class="ak-advanced-summary">
                 <span><i class="bi bi-sliders2" aria-hidden="true"></i>@UiText.T(Context, "جزئیات بیشتر", "More details")</span>
             </summary>
-            <div class="ak-form-grid">
+            <div class="ak-advanced-body">
                 <div class="ak-form-grid">
                     <div class="ak-field">
                         <label for="lossReferenceType" class="ak-label">@UiText.T(Context, "نوع مرجع", "Reference type")</label>
@@ -111,6 +114,7 @@
                             <option value="LoadingRegisterId" selected="@(selectedLossSourceType == nameof(Model.LoadingRegisterId) ? "selected" : null)">@UiText.T(Context, "بارگیری", "Loading")</option>
                             <option value="LoadingReceiptId" selected="@(selectedLossSourceType == nameof(Model.LoadingReceiptId) ? "selected" : null)">@UiText.T(Context, "رسید بارگیری", "Loading receipt")</option>
                             <option value="TruckDispatchId" selected="@(selectedLossSourceType == nameof(Model.TruckDispatchId) ? "selected" : null)">@UiText.T(Context, "ارسال با موتر", "Truck send")</option>
+                            <option value="TransportLegId" selected="@(selectedLossSourceType == nameof(Model.TransportLegId) ? "selected" : null)">@UiText.T(Context, "حمل", "Transport")</option>
                             <option value="SalesTransactionId" selected="@(selectedLossSourceType == nameof(Model.SalesTransactionId) ? "selected" : null)">@UiText.T(Context, "فروش", "Sale")</option>
                             <option value="ShipmentId" selected="@(selectedLossSourceType == nameof(Model.ShipmentId) ? "selected" : null)">@UiText.T(Context, "محموله / کشتی", "Shipment / Vessel")</option>
                             <option value="TerminalId" selected="@(selectedLossSourceType == nameof(Model.TerminalId) ? "selected" : null)">@UiText.T(Context, "ترمینال", "Terminal")</option>
@@ -138,6 +142,10 @@
                             <option value=""></option>
                         </select>
                         <span asp-validation-for="TruckDispatchId" class="field-validation-error"></span>
+                        <select asp-for="TransportLegId" asp-items="ViewBag.TransportLegs" data-loss-reference-backing="TransportLegId">
+                            <option value=""></option>
+                        </select>
+                        <span asp-validation-for="TransportLegId" class="field-validation-error"></span>
                         <select asp-for="SalesTransactionId" asp-items="ViewBag.Sales" data-loss-reference-backing="SalesTransactionId">
                             <option value=""></option>
                         </select>

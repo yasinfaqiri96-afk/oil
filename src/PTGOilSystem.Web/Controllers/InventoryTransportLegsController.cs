@@ -23,8 +23,9 @@ namespace PTGOilSystem.Web.Controllers;
 [Authorize]
 public partial class InventoryTransportLegsController : Controller
 {
-    // پیشوند یادداشت رسیدهای «همراه» موتر چندواگنه در انتقال گروهی؛ پیوند لغو گروهی به رسید اصلی.
-    private const string GroupTransferCompanionNotePrefix = "[انتقال همراه رسید #";
+    // پیشوند یادداشت رسیدهای «همراه» موتر چندواگنه؛ پیوند لغو گروهی به رسید اصلی.
+    // قالب را موتور مشترک می‌سازد تا فهرست انتقال‌ها و لغو گروهی با آن هم‌قدم بمانند.
+    private const string GroupTransferCompanionNotePrefix = TransportChainService.CompanionReceiptNotePrefix;
 
     private readonly ApplicationDbContext _db;
     private readonly IStockService _stock;
@@ -61,8 +62,12 @@ public partial class InventoryTransportLegsController : Controller
         ILogger<InventoryTransportLegsController> logger,
         IInventoryLineageWriter lineage,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        InventoryTransportReceiptService? receiptService = null,
+        ITransportQuantityService? quantities = null,
+        ITransportChainService? transportChain = null)
     {
+        _quantities = quantities ?? new TransportQuantityService(db);
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
@@ -74,14 +79,24 @@ public partial class InventoryTransportLegsController : Controller
         _logger = logger;
         _lineage = lineage;
         _expenseAccounting = expenseAccounting;
+        // از DI می‌آید تا آداپترهای حسابداری وصل باشند؛ ساخت دستی آن‌ها را null می‌گذارد.
+        _receiptService = receiptService ?? new InventoryTransportReceiptService(db, currencyConversion, lineage);
+        _transportChain = transportChain
+            ?? new TransportChainService(db, _receiptService, _quantities);
     }
+
+    private readonly InventoryTransportReceiptService _receiptService;
+    // تک‌منبع «باقیماندهٔ حمل»؛ هیچ اکشنی نباید فرمول خودش را داشته باشد.
+    private readonly ITransportQuantityService _quantities;
+    // موتور عمومی وسیله → وسیله؛ انتقال گروهی فقط آن را به‌صورت Bulk اجرا می‌کند.
+    private readonly ITransportChainService _transportChain;
 
     // مرحله ۵ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IExpenseAccountingAdapter? _expenseAccounting;
 
     public async Task<IActionResult> Index(InventoryTransportLegIndexFilterViewModel filter, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        var pageSize = ListPageSize.Resolve(perPage, 5);
+        var pageSize = ListPageSize.Resolve(perPage, 15);
         ViewData["PageSize"] = pageSize;
         ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
@@ -108,7 +123,8 @@ public partial class InventoryTransportLegsController : Controller
 
         if (filter.ContractId.HasValue)
         {
-            query = query.Where(l => l.SourcePurchaseContractId == filter.ContractId.Value);
+            query = query.Where(l => l.SourcePurchaseContractId == filter.ContractId.Value
+                || l.Allocations.Any(a => a.SourcePurchaseContractId == filter.ContractId.Value));
         }
 
         if (filter.ProductId.HasValue)
@@ -119,6 +135,34 @@ public partial class InventoryTransportLegsController : Controller
         if (filter.Status.HasValue)
         {
             query = query.Where(l => l.Status == filter.Status.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.WorkflowState))
+        {
+            query = filter.WorkflowState.Trim().ToLowerInvariant() switch
+            {
+                "active" => query.Where(l => l.Status != InventoryTransportLegStatus.Received
+                    && l.Status != InventoryTransportLegStatus.Cancelled),
+                "completed" => query.Where(l => l.Status == InventoryTransportLegStatus.Received),
+                "cancelled" => query.Where(l => l.Status == InventoryTransportLegStatus.Cancelled),
+                _ => query
+            };
+        }
+
+        if (filter.TransportType.HasValue)
+        {
+            query = query.Where(l => l.TransportType == filter.TransportType.Value);
+        }
+
+        if (filter.StorageTankId.HasValue)
+        {
+            query = query.Where(l => l.SourceStorageTankId == filter.StorageTankId.Value
+                || l.DestinationStorageTankId == filter.StorageTankId.Value
+                || l.Allocations.Any(a => a.SourceInventoryMovement != null
+                    && a.SourceInventoryMovement.StorageTankId == filter.StorageTankId.Value)
+                || _db.InventoryTransportReceipts.Any(r => r.InventoryTransportLegId == l.Id
+                    && !r.IsCancelled
+                    && r.DestinationStorageTankId == filter.StorageTankId.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Query))
@@ -145,6 +189,9 @@ public partial class InventoryTransportLegsController : Controller
                 Id = l.Id,
                 ShipmentId = l.ShipmentId,
                 ShipmentCode = l.Shipment != null ? l.Shipment.ShipmentCode : null,
+                VesselName = l.Vessel != null
+                    ? l.Vessel.Name
+                    : l.Shipment != null && l.Shipment.Vessel != null ? l.Shipment.Vessel.Name : null,
                 ContractNumber = l.SourcePurchaseContract != null ? l.SourcePurchaseContract.ContractNumber : "",
                 ProductName = l.Product != null ? l.Product.Name : "",
                 SourceTerminalName = l.SourceTerminal != null ? l.SourceTerminal.Name : "",
@@ -167,6 +214,98 @@ public partial class InventoryTransportLegsController : Controller
                 OutboundInventoryMovementId = l.OutboundInventoryMovementId
             })
             .ToListAsync();
+
+        var itemIds = items.Select(i => i.Id).ToList();
+        var remainingByLeg = await _quantities.GetRemainingMtAsync(itemIds);
+        List<TransportListSourceRow> sourceRows = itemIds.Count == 0
+            ? []
+            : await _db.InventoryTransportLegAllocations.AsNoTracking()
+                .Where(a => itemIds.Contains(a.InventoryTransportLegId))
+                .Select(a => new TransportListSourceRow
+                {
+                    LegId = a.InventoryTransportLegId,
+                    ContractLabel = a.SourcePurchaseContract != null
+                        ? a.SourcePurchaseContract.ContractName + " — " + a.SourcePurchaseContract.ContractNumber
+                        : "",
+                    LoadingReceiptReference = a.SourceLoadingReceipt != null
+                        ? a.SourceLoadingReceipt.ReferenceDocument
+                        : null,
+                    ParentVehicle = a.SourceTransportLeg == null
+                        ? null
+                        : a.SourceTransportLeg.Truck != null ? a.SourceTransportLeg.Truck.PlateNumber
+                        : a.SourceTransportLeg.Wagon != null ? a.SourceTransportLeg.Wagon.WagonNumber
+                        : a.SourceTransportLeg.Vessel != null ? a.SourceTransportLeg.Vessel.Name
+                        : a.SourceTransportLeg.WagonNumber
+                })
+                .ToListAsync();
+        var latestOutcomes = itemIds.Count == 0
+            ? new Dictionary<int, TransportListOutcomeRow>()
+            : (await _db.InventoryTransportReceipts.AsNoTracking()
+                .Where(r => itemIds.Contains(r.InventoryTransportLegId) && !r.IsCancelled)
+                .OrderByDescending(r => r.ReceiptDate)
+                .ThenByDescending(r => r.Id)
+                .Select(r => new TransportListOutcomeRow
+                {
+                    LegId = r.InventoryTransportLegId,
+                    Destination = r.DestinationStorageTank != null
+                        ? r.DestinationStorageTank.DisplayName ?? r.DestinationStorageTank.TankCode
+                        : r.DestinationTerminal != null ? r.DestinationTerminal.Name
+                        : r.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale ? "فروش در مسیر"
+                        : r.ReceiptDestination == InventoryTransportReceiptDestination.DirectDispatch ? "وسیله بعدی"
+                        : "مقصد ثبت‌شده"
+                })
+                .ToListAsync())
+                .GroupBy(x => x.LegId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+        foreach (var item in items)
+        {
+            item.RemainingQuantityMt = remainingByLeg.GetValueOrDefault(item.Id);
+            var sources = sourceRows.Where(s => s.LegId == item.Id).ToList();
+            var contracts = sources.Select(s => s.ContractLabel)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            item.SourceContractsLabel = contracts.Count switch
+            {
+                0 => item.ContractNumber,
+                1 => contracts[0],
+                _ => $"{contracts[0]} +{contracts.Count - 1} منبع"
+            };
+            var parentVehicle = sources.Select(s => s.ParentVehicle).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
+            var loadingReceipt = sources.Select(s => s.LoadingReceiptReference).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
+            item.SourceLabel = !string.IsNullOrWhiteSpace(parentVehicle)
+                ? $"وسیله {parentVehicle}"
+                : !string.IsNullOrWhiteSpace(item.SourceTankCode)
+                    ? item.SourceTankCode
+                    : !string.IsNullOrWhiteSpace(loadingReceipt) ? loadingReceipt
+                    : item.SourceTerminalName;
+            var vehicle = item.TransportType switch
+            {
+                LoadingTransportType.Truck or LoadingTransportType.Wagon => item.WagonNumber,
+                LoadingTransportType.Vessel => item.VesselName,
+                _ => item.WagonNumber ?? item.VesselName
+            };
+            item.CurrentLocationLabel = item.RemainingQuantityMt > TransportQuantityService.Epsilon
+                ? (string.IsNullOrWhiteSpace(vehicle) ? "روی وسیله" : vehicle)
+                : latestOutcomes.TryGetValue(item.Id, out var outcome) ? outcome.Destination : "تکمیل‌شده";
+            item.PhysicalStatusText = item.Status switch
+            {
+                InventoryTransportLegStatus.Cancelled => "لغوشده",
+                InventoryTransportLegStatus.Draft => "پیش‌نویس",
+                _ when item.RemainingQuantityMt <= TransportQuantityService.Epsilon => "تکمیل‌شده",
+                _ when item.RemainingQuantityMt < item.QuantityMt - TransportQuantityService.Epsilon => "بخشی تکمیل‌شده",
+                InventoryTransportLegStatus.Loaded => "بارگیری‌شده",
+                _ => "در مسیر"
+            };
+            item.NextActionText = item.Status switch
+            {
+                InventoryTransportLegStatus.Draft => "تأیید بارگیری",
+                InventoryTransportLegStatus.Cancelled or InventoryTransportLegStatus.Received => "مشاهده",
+                _ when item.RemainingQuantityMt <= TransportQuantityService.Epsilon => "مشاهده",
+                _ => "ثبت نتیجه / ادامه"
+            };
+        }
 
         await PopulateIndexLookupsAsync();
 
@@ -215,6 +354,24 @@ public partial class InventoryTransportLegsController : Controller
             new { Value = (int)InventoryTransportLegStatus.Received, Text = "Received" },
             new { Value = (int)InventoryTransportLegStatus.Cancelled, Text = "Cancelled" }
         }, "Value", "Text");
+
+        ViewBag.WorkflowStateOptions = new SelectList(new[]
+        {
+            new { Value = "active", Text = "در جریان" },
+            new { Value = "completed", Text = "تکمیل‌شده" },
+            new { Value = "cancelled", Text = "لغوشده" }
+        }, "Value", "Text");
+        ViewBag.TransportTypeOptions = new SelectList(new[]
+        {
+            new { Value = (int)LoadingTransportType.Truck, Text = "موتر" },
+            new { Value = (int)LoadingTransportType.Wagon, Text = "واگن" },
+            new { Value = (int)LoadingTransportType.Vessel, Text = "کشتی" }
+        }, "Value", "Text");
+        ViewBag.StorageTanks = new SelectList(
+            await StorageTankDisplay.LoadOptionsAsync(_db.StorageTanks.AsNoTracking()
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.DisplayName ?? t.TankCode)),
+            "Id", "Display");
     }
 
     public async Task<IActionResult> Active()
@@ -255,7 +412,7 @@ public partial class InventoryTransportLegsController : Controller
     }
 
     public IActionResult Create(int? shipmentId = null, string? returnUrl = null)
-        => RedirectToAction(nameof(CreateFromInventory), new { shipmentId });
+        => RedirectToAction("Create", "Transports", new { sourceKind = (int)TransportStartSourceKind.Inventory });
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -583,6 +740,11 @@ public partial class InventoryTransportLegsController : Controller
             .Where(w => w.IsActive)
             .OrderBy(w => w.WagonNumber)
             .Select(w => new InventoryTransportLookupOption { Id = w.Id, Name = w.WagonNumber, CapacityMt = w.CapacityMt })
+            .ToListAsync();
+        ViewBag.InventoryTransportVessels = await _db.Vessels.AsNoTracking()
+            .Where(v => v.IsActive)
+            .OrderBy(v => v.Name)
+            .Select(v => new InventoryTransportLookupOption { Id = v.Id, Name = v.Name })
             .ToListAsync();
         ViewBag.InventoryTransportDrivers = await _db.Drivers.AsNoTracking()
             .Where(d => d.IsActive)
@@ -940,67 +1102,26 @@ public partial class InventoryTransportLegsController : Controller
                     4,
                     MidpointRounding.AwayFromZero);
 
-                var receipt = new InventoryTransportReceipt
-                {
-                    InventoryTransportLegId = leg.Id,
-                    ReceiptDate = model.ReceiptDate.Date,
-                    ReceivedQuantityMt = receivedQuantityMt,
-                    ShortageQuantityMt = shortageQuantityMt,
-                    AllowanceMt = allowanceMt > 0m ? allowanceMt : null,
-                    ChargeableShortageMt = shortageQuantityMt > 0m ? chargeableShortageMt : null,
-                    ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
-                    DestinationTerminalId = model.DestinationTerminalId,
-                    DestinationStorageTankId = model.DestinationStorageTankId,
-                    Notes = BuildGroupReceiptNotes(model, normalizedGroupKey, totalLoadedQuantityMt)
-                };
-
-                _db.InventoryTransportReceipts.Add(receipt);
-                await _db.SaveChangesAsync();
+                // رسید گروهی موتور جدا ندارد: همان سرویس رسیدِ مشترک آن را می‌سازد. پیش از این
+                // رسید/ضایعات/سند موجودی اینجا دستی ساخته می‌شد و در نتیجه تقسیم چندقراردادی و
+                // قلاب‌های حسابداری/نسب‌نامه از این مسیر رد می‌شدند.
+                var receipt = await _receiptService.ApplyAsync(
+                    new InventoryTransportReceiptCreateViewModel
+                    {
+                        InventoryTransportLegId = leg.Id,
+                        ReceiptDate = model.ReceiptDate.Date,
+                        ReceivedQuantityMt = receivedQuantityMt,
+                        ShortageQuantityMt = shortageQuantityMt,
+                        AllowanceMt = allowanceMt > 0m ? allowanceMt : null,
+                        ChargeableShortageMt = shortageQuantityMt > 0m ? chargeableShortageMt : null,
+                        ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+                        DestinationTerminalId = model.DestinationTerminalId,
+                        DestinationStorageTankId = model.DestinationStorageTankId,
+                        Notes = BuildGroupReceiptNotes(model, normalizedGroupKey, totalLoadedQuantityMt)
+                    },
+                    leg,
+                    saleConversion: null);
                 receiptIds.Add(receipt.Id);
-
-                if (shortageQuantityMt > 0m)
-                {
-                    _db.LossEvents.Add(new LossEvent
-                    {
-                        Stage = LossEventStage.ReceiptShortage,
-                        ProductId = leg.ProductId,
-                        ContractId = leg.SourcePurchaseContractId,
-                        ShipmentId = leg.ShipmentId,
-                        TransportLegId = leg.Id,
-                        TerminalId = model.DestinationTerminalId,
-                        StorageTankId = model.DestinationStorageTankId,
-                        EventDate = model.ReceiptDate.Date,
-                        ExpectedQuantityMt = leg.QuantityMt,
-                        ActualQuantityMt = receivedQuantityMt,
-                        DifferenceQuantityMt = shortageQuantityMt,
-                        ToleranceQuantityMt = allowanceMt,
-                        AllowableLossMt = allowanceMt,
-                        ChargeableLossMt = chargeableShortageMt,
-                        AffectsInventory = false,
-                        Reference = $"TRANSPORT-RECEIPT:{receipt.Id}",
-                        Notes = "Group inventory transport receipt shortage"
-                    });
-                }
-
-                if (receivedQuantityMt > 0m)
-                {
-                    var movement = new InventoryMovement
-                    {
-                        ProductId = leg.ProductId,
-                        ContractId = leg.SourcePurchaseContractId,
-                        TerminalId = model.DestinationTerminalId!.Value,
-                        StorageTankId = model.DestinationStorageTankId,
-                        Direction = MovementDirection.In,
-                        MovementDate = model.ReceiptDate.Date,
-                        QuantityMt = receivedQuantityMt,
-                        ReferenceDocument = $"TRANSPORT-RECEIPT:{receipt.Id}",
-                        Notes = "Group inventory transport destination receipt"
-                    };
-
-                    _db.InventoryMovements.Add(movement);
-                    await _db.SaveChangesAsync();
-                    receipt.InventoryMovementId = movement.Id;
-                }
 
                 var remainingAfterReceipt = decimal.Round(
                     Math.Max(
@@ -1116,7 +1237,7 @@ public partial class InventoryTransportLegsController : Controller
             ModelState.AddModelError(nameof(model.GroupKey), "حملی برای رسید در این گروه یافت نشد.");
         }
 
-        var receiptService = new InventoryTransportReceiptService(_db, _currencyConversion, _lineage);
+        var receiptService = _receiptService;
 
         // کرایهٔ قبلاً ثبت‌شده (نوع «کرایه حمل») را سرور-محاسبه می‌خوانیم تا برای آن حمل‌ها
         // کرایه دوباره روی رسید ذخیره/شمارش نشود (جلوگیری از دوباره‌شماری در P&L).
@@ -1397,8 +1518,13 @@ public partial class InventoryTransportLegsController : Controller
     // هر تخصیص روی همان InventoryTransportReceiptService با ReceiptDestination=DirectDispatch سوار می‌شود؛
     // بنابراین هیچ موجودی/حرکت جدید و هیچ فروشی ساخته نمی‌شود، فقط باقیماندهٔ واگن به موتر منتقل می‌گردد.
     [Authorize(Policy = AuthPolicies.ManageData)]
-    public async Task<IActionResult> GroupTransfer(int? shipmentId = null, string? returnUrl = null)
+    public async Task<IActionResult> GroupTransfer(int? shipmentId = null, string? returnUrl = null, bool legacy = false)
     {
+        if (!legacy)
+        {
+            return RedirectToAction("Continue", "Transports");
+        }
+
         var model = new InventoryTransportGroupTransferViewModel
         {
             TransferDate = _businessClock.Today,
@@ -1505,7 +1631,7 @@ public partial class InventoryTransportLegsController : Controller
             return View(model);
         }
 
-        var receiptService = new InventoryTransportReceiptService(_db, _currencyConversion, _lineage);
+        var receiptService = _receiptService;
         var appliedCount = 0;
 
         await using var transaction = _db.Database.IsRelational()
@@ -1535,83 +1661,33 @@ public partial class InventoryTransportLegsController : Controller
                 return View(model);
             }
 
-            var legIds = chunks.Select(c => c.WagonLegId).Distinct().ToList();
-            var legs = await _db.InventoryTransportLegs
-                .Include(l => l.SourcePurchaseContract)
-                .Include(l => l.Product)
-                .Where(l => legIds.Contains(l.Id))
-                .ToDictionaryAsync(l => l.Id);
-
-            // «هر موتر = یک دیسپچ با وزن کامل». قطعه‌های موتر بر اساس ردیفش گروه می‌شوند:
-            // قطعهٔ اول رسیدِ اصلی است و دیسپچ واحد را با وزن کامل موتر می‌سازد؛
-            // قطعه‌های بعدی رسیدهای «همراه» هستند (فقط حساب واگن خودشان، بدون دیسپچ جدا).
-            var truckGroups = new List<List<(InventoryTransportReceiptCreateViewModel Model, InventoryTransportLeg Leg)>>();
-            var chunkIndex = 0;
-            foreach (var group in chunks.GroupBy(c => c.TruckRowIndex))
+            // انتقال گروهی دیگر منطق تجاری خودش را ندارد: هر موترِ مقصد یک فرمانِ عمومی
+            // «ادامه به وسیلهٔ دیگر» می‌شود و موتور مشترک آن را اجرا می‌کند. تقسیم چند واگن
+            // بین چند موتر (BuildTransferChunks) همچنان همین‌جا می‌ماند چون فقط الگوریتم Bulk است.
+            var transferCommands = new List<ContinueToVehicleCommand>();
+            foreach (var group in chunks.GroupBy(c => c.TruckRowIndex).OrderBy(g => g.Key))
             {
                 var groupChunks = group.ToList();
-                var truckTotalMt = groupChunks.Sum(c => c.QuantityMt);
-                var groupModels = new List<(InventoryTransportReceiptCreateViewModel Model, InventoryTransportLeg Leg)>();
-
-                for (var j = 0; j < groupChunks.Count; j++)
+                transferCommands.Add(new ContinueToVehicleCommand
                 {
-                    var chunk = groupChunks[j];
-                    if (!legs.TryGetValue(chunk.WagonLegId, out var leg))
-                    {
-                        ModelState.AddModelError(string.Empty, "یکی از واگن‌ها دیگر قابل‌انتقال نیست.");
-                        continue;
-                    }
-
-                    var isPrimary = j == 0;
-                    var perModel = new InventoryTransportReceiptCreateViewModel
-                    {
-                        InventoryTransportLegId = chunk.WagonLegId,
-                        ReceiptDate = model.TransferDate,
-                        ReceivedQuantityMt = chunk.QuantityMt,
-                        ShortageQuantityMt = 0m,
-                        ReceiptDestination = InventoryTransportReceiptDestination.DirectDispatch,
-                        DirectDispatchTruckId = chunk.TruckId,
-                        DirectDispatchDriverId = chunk.DriverId,
-                        DirectDispatchDate = model.TransferDate,
-                        // دیسپچ واحد وزن کامل موتر را دارد؛ رسیدهای همراه دیسپچ نمی‌سازند.
-                        DirectDispatchLoadedQuantityMt = isPrimary ? truckTotalMt : chunk.QuantityMt,
-                        AllowDirectDispatchBeyondReceipt = isPrimary && groupChunks.Count > 1,
-                        SkipDirectDispatchRecord = !isPrimary,
-                        DirectDispatchTicketSerialNumber = chunk.TicketSerialNumber,
-                        Notes = model.Notes
-                    };
-                    await receiptService.ValidateAsync(perModel, leg, ModelState, keyPrefix: $"Chunks[{chunkIndex}].");
-                    chunkIndex++;
-                    groupModels.Add((perModel, leg));
-                }
-
-                if (groupModels.Count > 0)
-                {
-                    truckGroups.Add(groupModels);
-                }
+                    Sources = groupChunks
+                        .Select(c => new ContinueToVehicleSource(c.WagonLegId, c.QuantityMt))
+                        .ToList(),
+                    TargetTransportType = LoadingTransportType.Truck,
+                    TargetTruckId = groupChunks[0].TruckId,
+                    DriverId = groupChunks[0].DriverId,
+                    TransferDate = model.TransferDate,
+                    TicketSerialNumber = groupChunks[0].TicketSerialNumber,
+                    Notes = model.Notes
+                });
             }
 
-            if (!ModelState.IsValid)
+            foreach (var transferCommand in transferCommands)
             {
-                if (transaction is not null) { await transaction.RollbackAsync(); }
-                await RebuildGroupTransferForRedisplayAsync(model, wagonRows, selectedIds);
-                return View(model);
+                await _transportChain.ContinueToVehicleAsync(transferCommand);
             }
 
-            foreach (var groupModels in truckGroups)
-            {
-                // رسید اصلی اول ثبت می‌شود تا شناسه‌اش در یادداشت رسیدهای همراه بنشیند (پیوند لغو).
-                var primaryReceipt = await receiptService.ApplyAsync(groupModels[0].Model, groupModels[0].Leg, saleConversion: null);
-                for (var j = 1; j < groupModels.Count; j++)
-                {
-                    var (companionModel, companionLeg) = groupModels[j];
-                    var marker = $"{GroupTransferCompanionNotePrefix}{primaryReceipt.Id}]";
-                    companionModel.Notes = string.IsNullOrWhiteSpace(model.Notes) ? marker : $"{marker} {model.Notes.Trim()}";
-                    await receiptService.ApplyAsync(companionModel, companionLeg, saleConversion: null);
-                }
-            }
-
-            appliedCount = truckGroups.Count;
+            appliedCount = transferCommands.Count;
 
             if (transaction is not null)
             {
@@ -1660,18 +1736,13 @@ public partial class InventoryTransportLegsController : Controller
         }
 
         var ids = legs.Select(l => l.Id).ToList();
-        var consumedByLeg = await _db.InventoryTransportReceipts
-            .AsNoTracking()
-            .Where(r => ids.Contains(r.InventoryTransportLegId) && !r.IsCancelled)
-            .GroupBy(r => r.InventoryTransportLegId)
-            .Select(g => new { LegId = g.Key, Consumed = g.Sum(r => r.ReceivedQuantityMt + r.ShortageQuantityMt) })
-            .ToDictionaryAsync(x => x.LegId, x => x.Consumed);
+        var remainingByLeg = await _quantities.GetRemainingMtAsync(ids);
 
         var rows = new List<InventoryTransportGroupTransferWagonRow>();
         foreach (var leg in legs)
         {
-            var consumed = consumedByLeg.TryGetValue(leg.Id, out var c) ? c : 0m;
-            var remaining = decimal.Round(leg.QuantityMt - consumed, 4, MidpointRounding.AwayFromZero);
+            var remaining = remainingByLeg.TryGetValue(leg.Id, out var r) ? r : 0m;
+            var consumed = leg.QuantityMt - remaining;
             if (remaining <= 0.0001m)
             {
                 continue;
@@ -1789,21 +1860,36 @@ public partial class InventoryTransportLegsController : Controller
             return RedirectToAction(nameof(GroupTransfer), new { shipmentId, returnUrl });
         }
 
+        // رسیدهای «همراه» پیش از هر تغییری خوانده می‌شوند تا نگهبان زنجیره همهٔ مرحله‌های
+        // فرزندِ این انتقال را با هم ببیند (موتر چندواگنه یک فرزند دارد، نه چند تا).
+        var companionMarker = $"{GroupTransferCompanionNotePrefix}{receipt.Id}]";
+        var companions = await _db.InventoryTransportReceipts
+            .Include(r => r.InventoryTransportLeg)
+            .Where(r => !r.IsCancelled && r.Notes != null && r.Notes.StartsWith(companionMarker))
+            .ToListAsync();
+        var cancelledReceiptIds = companions.Select(c => c.Id).Append(receipt.Id).ToList();
+
         await using var transaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync()
             : null;
         try
         {
+            // مرحلهٔ فرزندِ زنجیره اول لغو می‌شود: اگر خودش بارش را جای دیگری برده باشد،
+            // اینجا استثنا می‌آید و هیچ‌چیز دیگری تغییر نکرده است.
+            await _transportChain.CancelVehicleTransferAsync(cancelledReceiptIds);
+
             receipt.IsCancelled = true;
             foreach (var dispatch in dispatches)
             {
                 dispatch.Status = DispatchStatus.Cancelled;
             }
 
-            // مصرف کرایهٔ ثبت‌شده برای همین رسید (اگر باشد) لغو و لجر آن حذف می‌شود.
+            // مصرف کرایهٔ ثبت‌شده برای همین رسید (اگر باشد) لغو می‌شود؛ ردیف لجر اصلی
+            // دست‌نخورده می‌ماند و ردیف معکوس audit-preserving ثبت می‌گردد.
             var receiptReference = $"TRANSPORT-RECEIPT:{receipt.Id}";
             var freightLedgers = await _db.LedgerEntries
-                .Where(l => l.SourceType == "Expense" && l.Reference == receiptReference)
+                .Where(l => l.SourceType == "Expense"
+                    && l.Reference == receiptReference)
                 .ToListAsync();
             if (freightLedgers.Count > 0)
             {
@@ -1813,9 +1899,12 @@ public partial class InventoryTransportLegsController : Controller
                     .ToListAsync();
                 foreach (var expense in expenses)
                 {
-                    expense.IsCancelled = true;
+                    await DispatchFreightExpenseSync.CancelExpenseAsync(
+                        _db,
+                        expense,
+                        _expenseAccounting,
+                        _businessClock.Today);
                 }
-                _db.LedgerEntries.RemoveRange(freightLedgers);
             }
 
             // رویداد کسریِ همین رسید (در صورت وجود) لغو می‌شود.
@@ -1828,11 +1917,6 @@ public partial class InventoryTransportLegsController : Controller
             }
 
             // رسیدهای «همراه» موتر چندواگنه (پیوندشده با یادداشت) هم لغو و واگن‌هایشان آزاد می‌شوند.
-            var companionMarker = $"{GroupTransferCompanionNotePrefix}{receipt.Id}]";
-            var companions = await _db.InventoryTransportReceipts
-                .Include(r => r.InventoryTransportLeg)
-                .Where(r => !r.IsCancelled && r.Notes != null && r.Notes.StartsWith(companionMarker))
-                .ToListAsync();
             foreach (var companion in companions)
             {
                 companion.IsCancelled = true;
@@ -1863,6 +1947,16 @@ public partial class InventoryTransportLegsController : Controller
             }
 
             TempData["ok"] = "انتقال لغو شد و باقیماندهٔ واگن برگشت.";
+        }
+        catch (BusinessRuleException ex)
+        {
+            // نگهبان زنجیره: پیام تجاری همان‌طور که هست به کاربر می‌رسد، نه پیام عمومی خطا.
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+
+            TempData["error"] = ex.Message;
         }
         catch (Exception ex)
         {
@@ -2872,7 +2966,7 @@ public partial class InventoryTransportLegsController : Controller
     private async Task PopulateGroupExpenseModalLookupsAsync()
     {
         // نوع مصرف استاندارد «کرایه حمل» را تضمین کن تا کاربر بتواند آن را در مودال انتخاب کند.
-        await new InventoryTransportReceiptService(_db, _currencyConversion, _lineage).EnsureTransportFreightExpenseTypeAsync();
+        await _receiptService.EnsureTransportFreightExpenseTypeAsync();
 
         ViewBag.ExpenseTypes = new SelectList(
             await _db.ExpenseTypes.AsNoTracking()
@@ -3016,6 +3110,8 @@ public partial class InventoryTransportLegsController : Controller
                 ChargeableQuantityMt = l.ChargeableQuantityMt,
                 PurchaseUnitCostUsd = l.PurchaseUnitCostUsd,
                 Status = l.Status,
+                IsFreightSettled = l.IsFreightSettled,
+                FreightSettledDate = l.FreightSettledDate,
                 OutboundInventoryMovementId = l.OutboundInventoryMovementId,
                 OutboundReferenceDocument = l.OutboundInventoryMovement != null
                     ? l.OutboundInventoryMovement.ReferenceDocument
@@ -3028,6 +3124,15 @@ public partial class InventoryTransportLegsController : Controller
         {
             return null;
         }
+
+        model.CompatibilityDispatchId = await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .Where(a => a.InventoryTransportLegId == id && a.SourceTransportReceiptId.HasValue)
+            .SelectMany(a => _db.TruckDispatches
+                .Where(d => d.InventoryTransportReceiptId == a.SourceTransportReceiptId
+                    && d.Status != DispatchStatus.Cancelled)
+                .Select(d => (int?)d.Id))
+            .FirstOrDefaultAsync();
 
         model.Expenses = await _db.ExpenseTransactions
             .AsNoTracking()
@@ -3182,7 +3287,85 @@ public partial class InventoryTransportLegsController : Controller
             4,
             MidpointRounding.AwayFromZero);
 
+        model.Chain = await BuildConnectedTransportChainAsync(id);
+        var sourceContracts = await _db.InventoryTransportLegAllocations.AsNoTracking()
+            .Where(a => a.InventoryTransportLegId == id && a.SourcePurchaseContract != null)
+            .Select(a => a.SourcePurchaseContract!.ContractName + " — " + a.SourcePurchaseContract.ContractNumber)
+            .Distinct()
+            .ToListAsync();
+        model.SourceContractsLabel = sourceContracts.Count switch
+        {
+            0 => model.ContractNumber,
+            1 => sourceContracts[0],
+            _ => string.Join("، ", sourceContracts)
+        };
+
         return model;
+    }
+
+    private async Task<IReadOnlyList<InventoryTransportChainItemViewModel>> BuildConnectedTransportChainAsync(int selectedLegId)
+    {
+        var connected = new HashSet<int> { selectedLegId };
+        while (true)
+        {
+            var ids = connected.ToList();
+            var edges = await _db.InventoryTransportLegAllocations.AsNoTracking()
+                .Where(a => a.SourceTransportLegId.HasValue
+                    && (ids.Contains(a.InventoryTransportLegId) || ids.Contains(a.SourceTransportLegId.Value)))
+                .Select(a => new { ChildId = a.InventoryTransportLegId, ParentId = a.SourceTransportLegId!.Value })
+                .Distinct()
+                .ToListAsync();
+            var countBefore = connected.Count;
+            foreach (var edge in edges)
+            {
+                connected.Add(edge.ParentId);
+                connected.Add(edge.ChildId);
+            }
+            if (connected.Count == countBefore)
+            {
+                break;
+            }
+        }
+
+        var connectedIds = connected.ToList();
+        var legs = await _db.InventoryTransportLegs.AsNoTracking()
+            .Where(l => connectedIds.Contains(l.Id))
+            .OrderBy(l => l.LoadedDate)
+            .ThenBy(l => l.Id)
+            .Select(l => new
+            {
+                l.Id,
+                l.TransportType,
+                Vehicle = l.Truck != null ? l.Truck.PlateNumber
+                    : l.Wagon != null ? l.Wagon.WagonNumber
+                    : l.Vessel != null ? l.Vessel.Name
+                    : l.WagonNumber,
+                l.LoadedDate,
+                l.QuantityMt,
+                l.Status
+            })
+            .ToListAsync();
+        var parentRows = await _db.InventoryTransportLegAllocations.AsNoTracking()
+            .Where(a => connectedIds.Contains(a.InventoryTransportLegId)
+                && a.SourceTransportLegId.HasValue
+                && connectedIds.Contains(a.SourceTransportLegId.Value))
+            .Select(a => new { ChildId = a.InventoryTransportLegId, ParentId = a.SourceTransportLegId!.Value })
+            .Distinct()
+            .ToListAsync();
+        var remaining = await _quantities.GetRemainingMtAsync(connectedIds);
+
+        return legs.Select(l => new InventoryTransportChainItemViewModel
+        {
+            Id = l.Id,
+            ParentLegIds = parentRows.Where(p => p.ChildId == l.Id).Select(p => p.ParentId).OrderBy(x => x).ToList(),
+            TransportType = l.TransportType,
+            VehicleLabel = string.IsNullOrWhiteSpace(l.Vehicle) ? $"حمل #{l.Id}" : l.Vehicle,
+            LoadedDate = l.LoadedDate,
+            QuantityMt = l.QuantityMt,
+            RemainingQuantityMt = remaining.GetValueOrDefault(l.Id),
+            Status = l.Status,
+            IsCurrent = l.Id == selectedLegId
+        }).ToList();
     }
 
     private async Task<InventoryTransportJourneyViewModel?> BuildJourneyViewModelAsync(string groupKey)
@@ -4748,7 +4931,7 @@ public partial class InventoryTransportLegsController : Controller
     private async Task PopulateGroupExpenseLookupsAsync(InventoryTransportGroupExpenseCreateViewModel model)
     {
         // نوع مصرف استاندارد «کرایه حمل» را تضمین کن تا در فهرست انتخاب مودال موجود باشد.
-        await new InventoryTransportReceiptService(_db, _currencyConversion, _lineage).EnsureTransportFreightExpenseTypeAsync();
+        await _receiptService.EnsureTransportFreightExpenseTypeAsync();
 
         var expenseTypes = await _db.ExpenseTypes
             .AsNoTracking()
@@ -5321,6 +5504,20 @@ public partial class InventoryTransportLegsController : Controller
         public int LegId { get; set; }
         public decimal ReceivedQuantityMt { get; set; }
         public decimal ShortageQuantityMt { get; set; }
+    }
+
+    private sealed class TransportListSourceRow
+    {
+        public int LegId { get; set; }
+        public string ContractLabel { get; set; } = "";
+        public string? LoadingReceiptReference { get; set; }
+        public string? ParentVehicle { get; set; }
+    }
+
+    private sealed class TransportListOutcomeRow
+    {
+        public int LegId { get; set; }
+        public string Destination { get; set; } = "";
     }
 
     private sealed record DirectShipmentLossRow(int? ContractId, decimal QuantityMt);

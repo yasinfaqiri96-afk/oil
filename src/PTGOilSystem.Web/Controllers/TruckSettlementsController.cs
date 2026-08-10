@@ -30,20 +30,33 @@ public partial class TruckSettlementsController : Controller
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IInventoryLineageWriter _lineage;
     private readonly ILossEventWorkflowService _lossWorkflow;
+    // از DI می‌آید تا آداپترهای حسابداری وصل باشند؛ ساخت دستی آن‌ها را null می‌گذارد.
+    private readonly InventoryTransportReceiptService _receiptService;
 
     public TruckSettlementsController(
         ApplicationDbContext db,
         ICurrencyConversionService currencyConversion,
         IInventoryLineageWriter lineage,
         ILossEventWorkflowService lossWorkflow,
-        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null)
+        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
+        InventoryTransportReceiptService? receiptService = null,
+        IInventoryMovementWriter? movements = null,
+        ITransportQuantityService? quantities = null)
     {
+        _quantities = quantities ?? new TransportQuantityService(db);
         _db = db;
         _currencyConversion = currencyConversion;
         _lineage = lineage;
         _lossWorkflow = lossWorkflow;
         _expenseAccounting = expenseAccounting;
+        _receiptService = receiptService ?? new InventoryTransportReceiptService(db, currencyConversion, lineage);
+        _movements = movements ?? new InventoryMovementWriter(db, new StockService(db));
     }
+
+    // تنها مسیر ثبت حرکت موجودی این کنترلر. تراکنش را همین اکشن‌ها مالک‌اند.
+    private readonly IInventoryMovementWriter _movements;
+    // تک‌منبع «باقیماندهٔ حمل»؛ هیچ اکشنی نباید فرمول خودش را داشته باشد.
+    private readonly ITransportQuantityService _quantities;
 
     // مرحله ۵ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IExpenseAccountingAdapter? _expenseAccounting;
@@ -53,9 +66,12 @@ public partial class TruckSettlementsController : Controller
 
     private sealed record FreightParty(int? ServiceProviderId, int? OperationalAssetId, int? DriverId);
 
-    public async Task<IActionResult> Index(string? q, TruckSettlementSourceKind? kind)
+    public async Task<IActionResult> Index(
+        string? q,
+        TruckSettlementSourceKind? kind,
+        int? sourceId = null)
     {
-        var model = await BuildIndexAsync(preserveInputs: null, q, kind);
+        var model = await BuildIndexAsync(preserveInputs: null, q, kind, sourceId);
         return View(model);
     }
 
@@ -79,7 +95,7 @@ public partial class TruckSettlementsController : Controller
             return View("Index", await BuildIndexAsync(inputs));
         }
 
-        var receiptService = new InventoryTransportReceiptService(_db, _currencyConversion, _lineage);
+        var receiptService = _receiptService;
 
         IDbContextTransaction? transaction = null;
         if (_db.Database.IsRelational())
@@ -272,10 +288,7 @@ public partial class TruckSettlementsController : Controller
         // کسری = باقیماندهٔ بار منهای وزن تخلیه (باقیمانده = مقدار حمل − رسیدهای قبلی).
         // اگر ترازوی مقصد بیشتر از بارگیری نشان دهد، این عدد منفی می‌شود (اضافه‌وزن) و باقیماندهٔ
         // قابل تخلیه/فروش حمل را به همان اندازه بالا می‌برد. کسری منفی هیچ جریمه/ضایعاتی نمی‌سازد.
-        var consumedMt = await _db.InventoryTransportReceipts
-            .Where(r => r.InventoryTransportLegId == leg.Id && !r.IsCancelled)
-            .SumAsync(r => r.ReceivedQuantityMt + r.ShortageQuantityMt);
-        var remainingMt = decimal.Round(leg.QuantityMt - consumedMt, 4, MidpointRounding.AwayFromZero);
+        var remainingMt = await _quantities.GetRemainingMtAsync(leg.Id);
         var shortageMt = decimal.Round(remainingMt - row.QuantityMt, 4, MidpointRounding.AwayFromZero);
 
         // مبنای کرایه = کل باقیماندهٔ بار (وزن تخلیه + کسری). کسورات دیگر از کرایهٔ ناخالص کم می‌شود.
@@ -310,8 +323,7 @@ public partial class TruckSettlementsController : Controller
 
         if (party.OperationalAssetId.HasValue)
         {
-            await AddAssetFreightIncomeAsync(
-                receiptService,
+            await receiptService.RecordOperationalAssetFreightIncomeAsync(
                 party.OperationalAssetId.Value,
                 vm.FreightPayableUsd ?? vm.FreightCostUsd ?? 0m,
                 row.OperationDate.Date,
@@ -458,8 +470,7 @@ public partial class TruckSettlementsController : Controller
 
         if (party.OperationalAssetId.HasValue)
         {
-            await AddAssetFreightIncomeAsync(
-                receiptService: null,
+            await _receiptService.RecordOperationalAssetFreightIncomeAsync(
                 party.OperationalAssetId.Value,
                 freightPayableUsd ?? netFreightUsd ?? 0m,
                 row.OperationDate.Date,
@@ -659,68 +670,12 @@ public partial class TruckSettlementsController : Controller
         return driver.Id;
     }
 
-    // کرایهٔ خالص موتر/واگنِ خودِ شرکت = عوایدِ دارایی: مصرفِ همان حمل با OperationalAssetId
-    // (نوع استاندارد «کرایه حمل») — بدون LedgerEntry چون طلبِ طرف خارجی نیست.
-    // پروفایل دارایی همین رکورد را به‌عنوان «عواید کرایه» می‌شمارد (IsAssetFreightIncome).
-    private async Task AddAssetFreightIncomeAsync(
-        InventoryTransportReceiptService? receiptService,
-        int operationalAssetId,
-        decimal amountUsd,
-        DateTime date,
-        int? contractId,
-        int? shipmentId,
-        int? transportLegId,
-        int? truckDispatchId,
-        string reference)
-    {
-        if (amountUsd <= 0m)
-        {
-            return;
-        }
-
-        receiptService ??= new InventoryTransportReceiptService(_db, _currencyConversion, _lineage);
-        var expenseType = await receiptService.EnsureTransportFreightExpenseTypeAsync();
-        var description = $"Freight income for operational asset — {reference}";
-
-        var exists = await _db.ExpenseTransactions.AnyAsync(e => !e.IsCancelled
-            && e.OperationalAssetId == operationalAssetId
-            && e.ExpenseTypeId == expenseType.Id
-            && e.Description == description);
-        if (exists)
-        {
-            return;
-        }
-
-        var expense = new ExpenseTransaction
-        {
-            ExpenseTypeId = expenseType.Id,
-            ContractId = contractId,
-            ShipmentId = shipmentId,
-            TransportLegId = transportLegId,
-            TruckDispatchId = truckDispatchId,
-            OperationalAssetId = operationalAssetId,
-            ExpenseDate = date,
-            Amount = amountUsd,
-            Currency = SystemCurrency.BaseCurrencyCode,
-            AppliedFxRateToUsd = 1m,
-            AmountUsd = amountUsd,
-            Description = description
-        };
-        _db.ExpenseTransactions.Add(expense);
-        await _db.SaveChangesAsync();
-
-        // مرحله ۵ — Dual-write داخل همان Transaction قدیمی.
-        if (_expenseAccounting is not null)
-        {
-            await _expenseAccounting.TryPostExpenseAsync(expense);
-        }
-    }
-
     // ── ساخت لیست وسایط دارای بار (حمل‌های موجودی + ارسال‌های موتر نهایی‌نشده) ──
     private async Task<TruckSettlementIndexViewModel> BuildIndexAsync(
         List<TruckSettlementRowInputViewModel>? preserveInputs,
         string? query = null,
-        TruckSettlementSourceKind? kind = null)
+        TruckSettlementSourceKind? kind = null,
+        int? sourceId = null)
     {
         var rows = new List<TruckSettlementRowViewModel>();
 
@@ -750,19 +705,11 @@ public partial class TruckSettlementsController : Controller
             .ToListAsync();
 
         var legIds = legs.Select(l => l.Id).ToList();
-        var consumedByLeg = legIds.Count == 0
-            ? new Dictionary<int, decimal>()
-            : await _db.InventoryTransportReceipts
-                .AsNoTracking()
-                .Where(r => legIds.Contains(r.InventoryTransportLegId) && !r.IsCancelled)
-                .GroupBy(r => r.InventoryTransportLegId)
-                .Select(g => new { LegId = g.Key, Mt = g.Sum(r => r.ReceivedQuantityMt + r.ShortageQuantityMt) })
-                .ToDictionaryAsync(g => g.LegId, g => g.Mt);
+        var remainingByLeg = await _quantities.GetRemainingMtAsync(legIds);
 
         foreach (var leg in legs)
         {
-            consumedByLeg.TryGetValue(leg.Id, out var consumedMt);
-            var remainingMt = decimal.Round(leg.QuantityMt - consumedMt, 4, MidpointRounding.AwayFromZero);
+            remainingByLeg.TryGetValue(leg.Id, out var remainingMt);
             if (remainingMt <= QuantityEpsilon)
             {
                 continue;
@@ -861,6 +808,11 @@ public partial class TruckSettlementsController : Controller
             rows = rows.Where(r => r.Kind == kind.Value).ToList();
         }
 
+        if (sourceId is > 0)
+        {
+            rows = rows.Where(r => r.SourceId == sourceId.Value).ToList();
+        }
+
         var term = query?.Trim();
         if (!string.IsNullOrEmpty(term))
         {
@@ -886,6 +838,7 @@ public partial class TruckSettlementsController : Controller
             var preserved = preserveInputs?.FirstOrDefault(i => i.Kind == row.Kind && i.SourceId == row.SourceId);
             inputs.Add(preserved ?? new TruckSettlementRowInputViewModel
             {
+                Selected = sourceId is > 0 && row.SourceId == sourceId.Value,
                 Kind = row.Kind,
                 SourceId = row.SourceId,
                 OperationDate = AfghanistanBusinessClock.SystemToday,
@@ -901,7 +854,8 @@ public partial class TruckSettlementsController : Controller
             Rows = rows,
             Inputs = inputs,
             Query = term,
-            Kind = kind
+            Kind = kind,
+            FocusedSourceId = sourceId is > 0 ? sourceId : null
         };
     }
 

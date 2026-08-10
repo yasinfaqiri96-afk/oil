@@ -188,6 +188,7 @@ public sealed class InventoryTransportVehicleInput
     public LoadingTransportType TransportType { get; set; } = LoadingTransportType.Truck;
     public int? TruckId { get; set; }
     public int? WagonId { get; set; }
+    public int? VesselId { get; set; }
     [MaxLength(50)] public string? TruckPlateNumberInput { get; set; }
     [MaxLength(50)] public string? WagonNumberInput { get; set; }
     public int? DriverId { get; set; }
@@ -355,6 +356,15 @@ public sealed class InventoryTransportLegIndexFilterViewModel
 
     [Display(Name = "وضعیت")]
     public InventoryTransportLegStatus? Status { get; set; }
+
+    [Display(Name = "نمایش")]
+    public string? WorkflowState { get; set; }
+
+    [Display(Name = "نوع وسیله")]
+    public LoadingTransportType? TransportType { get; set; }
+
+    [Display(Name = "مخزن")]
+    public int? StorageTankId { get; set; }
 
     [Display(Name = "جست‌وجو")]
     public string? Query { get; set; }
@@ -638,6 +648,7 @@ public sealed class InventoryTransportLegListItemViewModel
     public int Id { get; set; }
     public int? ShipmentId { get; set; }
     public string? ShipmentCode { get; set; }
+    public string? VesselName { get; set; }
     public string ContractNumber { get; set; } = "";
     public string ProductName { get; set; } = "";
     public string SourceTerminalName { get; set; } = "";
@@ -654,6 +665,12 @@ public sealed class InventoryTransportLegListItemViewModel
     public DateTime LoadedDate { get; set; }
     public InventoryTransportLegStatus Status { get; set; }
     public int? OutboundInventoryMovementId { get; set; }
+    public decimal RemainingQuantityMt { get; set; }
+    public string SourceLabel { get; set; } = "";
+    public string CurrentLocationLabel { get; set; } = "";
+    public string SourceContractsLabel { get; set; } = "";
+    public string PhysicalStatusText { get; set; } = "";
+    public string NextActionText { get; set; } = "";
 }
 
 public sealed class InventoryTransportLegDetailsViewModel
@@ -684,6 +701,8 @@ public sealed class InventoryTransportLegDetailsViewModel
     public decimal? ChargeableQuantityMt { get; set; }
     public decimal? PurchaseUnitCostUsd { get; set; }
     public InventoryTransportLegStatus Status { get; set; }
+    public bool IsFreightSettled { get; set; }
+    public DateTime? FreightSettledDate { get; set; }
     public int? OutboundInventoryMovementId { get; set; }
     public string? OutboundReferenceDocument { get; set; }
     public IReadOnlyList<InventoryTransportLegExpenseItemViewModel> Expenses { get; set; } = [];
@@ -693,7 +712,23 @@ public sealed class InventoryTransportLegDetailsViewModel
     // همه رسیدهای مقصد این حمل (چند تخلیه/نقل مستقیم جزئی ممکن است) — برای نمایش کامل و باقیمانده.
     public IReadOnlyList<InventoryTransportReceiptSummaryViewModel> DestinationReceipts { get; set; } = [];
     public InventoryTransportLegPnlSummaryViewModel Pnl { get; set; } = new();
+    public IReadOnlyList<InventoryTransportChainItemViewModel> Chain { get; set; } = [];
+    public string SourceContractsLabel { get; set; } = "";
+    public int? CompatibilityDispatchId { get; set; }
     public string? Notes { get; set; }
+}
+
+public sealed class InventoryTransportChainItemViewModel
+{
+    public int Id { get; set; }
+    public IReadOnlyList<int> ParentLegIds { get; set; } = [];
+    public LoadingTransportType TransportType { get; set; }
+    public string VehicleLabel { get; set; } = "";
+    public DateTime LoadedDate { get; set; }
+    public decimal QuantityMt { get; set; }
+    public decimal RemainingQuantityMt { get; set; }
+    public InventoryTransportLegStatus Status { get; set; }
+    public bool IsCurrent { get; set; }
 }
 
 public sealed class InventoryTransportLegPnlSummaryViewModel
@@ -852,8 +887,22 @@ public sealed class InventoryTransportReceiptCreateViewModel
     [Display(Name = "FX Rate to USD")]
     public decimal? SaleAppliedFxRateToUsd { get; set; }
 
+    // وسیلهٔ مقصدِ انتقال. پیش‌فرض موتر است تا همهٔ فراخوانی‌های فعلی بدون تغییر بمانند؛
+    // واگن و کشتی از همین مسیر عمومی عبور می‌کنند و موتور تجاری جدا ندارند.
+    public LoadingTransportType DirectDispatchTransportType { get; set; } = LoadingTransportType.Truck;
+
     [Display(Name = "Truck")]
     public int? DirectDispatchTruckId { get; set; }
+
+    [Display(Name = "Wagon")]
+    public int? DirectDispatchWagonId { get; set; }
+
+    [Display(Name = "Wagon Number")]
+    [StringLength(200)]
+    public string? DirectDispatchWagonNumber { get; set; }
+
+    [Display(Name = "Vessel")]
+    public int? DirectDispatchVesselId { get; set; }
 
     [Display(Name = "Driver")]
     public int? DirectDispatchDriverId { get; set; }

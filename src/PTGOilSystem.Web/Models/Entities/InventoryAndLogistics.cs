@@ -151,6 +151,11 @@ public class InventoryMovement : BaseEntity
     public LoadingReceipt? LoadingReceipt { get; set; }
     public int? SalesTransactionId { get; set; }
     public SalesTransaction? SalesTransaction { get; set; }
+    // پیوند حسابرسیِ برگشت. nullable است تا داده‌های تاریخی بدون backfill اجباری معتبر بمانند.
+    // برگشت، سند اصلی را حذف/ویرایش نمی‌کند و فقط یک حرکت معکوس به آن متصل می‌سازد.
+    public int? ReversalOfInventoryMovementId { get; set; }
+    public InventoryMovement? ReversalOfInventoryMovement { get; set; }
+    public ICollection<InventoryMovement> Reversals { get; set; } = new List<InventoryMovement>();
 
     public MovementDirection Direction { get; set; }
     public DateTime MovementDate { get; set; }
@@ -315,6 +320,8 @@ public class InventoryTransportLeg : BaseEntity
     public Truck? Truck { get; set; }
     public int? WagonId { get; set; }
     public Wagon? Wagon { get; set; }
+    public int? VesselId { get; set; }
+    public Vessel? Vessel { get; set; }
     [MaxLength(200)] public string? WagonNumber { get; set; }
     [MaxLength(100)] public string? RwbNo { get; set; }
     [MaxLength(100)] public string? BillOfLadingNumber { get; set; }
@@ -365,6 +372,15 @@ public class InventoryTransportBatch : BaseEntity
     public ICollection<InventoryTransportLeg> Legs { get; set; } = new List<InventoryTransportLeg>();
 }
 
+// یک «سهم منبع» از بار یک مرحلهٔ حمل: چه مقدار، از کدام قرارداد خرید، و از کجا آمده.
+//
+// منبع دو نوع است و همیشه فقط یکی از آن‌ها پر است:
+//   • منبع موجودی  → SourceInventoryMovementId (مخزن → وسیله؛ خروجی موجودی ساخته می‌شود)
+//   • منبع وسیله   → SourceTransportLegId      (وسیله → وسیله؛ هیچ حرکت موجودی ساخته نمی‌شود)
+//
+// چون هر مرحله می‌تواند چند سهم داشته باشد، همین یک جدول هم Split و هم Merge را پوشش می‌دهد:
+//   Split : یک مرحلهٔ والد در سهم‌های چند مرحلهٔ فرزند ظاهر می‌شود.
+//   Merge : یک مرحلهٔ فرزند چند سهم با والدهای متفاوت دارد.
 public class InventoryTransportLegAllocation : BaseEntity
 {
     public int InventoryTransportLegId { get; set; }
@@ -373,8 +389,15 @@ public class InventoryTransportLegAllocation : BaseEntity
     public Contract? SourcePurchaseContract { get; set; }
     public int? SourceLoadingReceiptId { get; set; }
     public LoadingReceipt? SourceLoadingReceipt { get; set; }
-    public int SourceInventoryMovementId { get; set; }
+    // برای سهم‌هایی که منبعشان وسیله است null می‌ماند؛ کالا مرز مخزن را رد نکرده تا سندی داشته باشد.
+    public int? SourceInventoryMovementId { get; set; }
     public InventoryMovement? SourceInventoryMovement { get; set; }
+    // مرحلهٔ والد در زنجیرهٔ حمل (وسیله → وسیله). برای سهم‌های مخزنی null است.
+    public int? SourceTransportLegId { get; set; }
+    public InventoryTransportLeg? SourceTransportLeg { get; set; }
+    // رسیدی از والد که این انتقال را ثبت کرده (پیوند لغو/ردیابی).
+    public int? SourceTransportReceiptId { get; set; }
+    public InventoryTransportReceipt? SourceTransportReceipt { get; set; }
     public decimal QuantityMt { get; set; }
     public int? OutboundInventoryMovementId { get; set; }
     public InventoryMovement? OutboundInventoryMovement { get; set; }
@@ -476,6 +499,7 @@ public class Shipment : BaseEntity
     [MaxLength(1000)] public string? Notes { get; set; }
     // Gap #7 — multi-contract vessel shipment
     public ICollection<ShipmentContract> ShipmentContracts { get; set; } = new List<ShipmentContract>();
+    public ICollection<ShipmentLoadingAllocation> LoadingAllocations { get; set; } = new List<ShipmentLoadingAllocation>();
     public ICollection<InventoryTransportLeg> InventoryTransportLegs { get; set; } = new List<InventoryTransportLeg>();
 }
 
@@ -487,6 +511,29 @@ public class ShipmentContract : BaseEntity
     public int ContractId { get; set; }
     public Contract? Contract { get; set; }
     public decimal? QuantityMt { get; set; }
+    [MaxLength(500)] public string? Notes { get; set; }
+}
+
+// سهمِ دقیقِ یک بارگیریِ خرید از بار یک محموله.
+//
+// ShipmentContract فقط می‌گوید «این محموله چقدر از قرارداد A دارد»، اما یک قرارداد می‌تواند
+// چند بارگیری با نرخ‌های قطعیِ متفاوت داشته باشد. این جدول همان یک سطح گمشده را پر می‌کند:
+// «چه مقدار از کدام بارگیریِ مشخص». بهای خرید محموله از همین ردیف‌ها ساخته می‌شود:
+//   Σ (QuantityMt × LoadingRegister.LoadingPriceUsd)
+//
+// اختیاری و additive است: محموله‌های قدیمی بدون این ردیف‌ها با همان fallback قبلی
+// (میانگین وزنیِ قرارداد → نرخ نهایی هدر) محاسبه می‌شوند و هیچ backfill حدسی انجام نمی‌شود.
+public class ShipmentLoadingAllocation : BaseEntity
+{
+    public int ShipmentId { get; set; }
+    public Shipment? Shipment { get; set; }
+    // قرارداد خریدِ همین بارگیری. denormalized نگه داشته می‌شود تا رول‌آپ per-contract یک join کمتر
+    // بخواهد؛ هنگام ثبت با LoadingRegister.ContractId اعتبارسنجی می‌شود.
+    public int ContractId { get; set; }
+    public Contract? Contract { get; set; }
+    public int LoadingRegisterId { get; set; }
+    public LoadingRegister? LoadingRegister { get; set; }
+    public decimal QuantityMt { get; set; }
     [MaxLength(500)] public string? Notes { get; set; }
 }
 
@@ -545,4 +592,5 @@ public class LossEvent : BaseEntity
     [MaxLength(1000)] public string? Notes { get; set; }
 
     public bool IsCancelled { get; set; }
+    public ICollection<LossEventSourceAllocation> SourceAllocations { get; set; } = new List<LossEventSourceAllocation>();
 }

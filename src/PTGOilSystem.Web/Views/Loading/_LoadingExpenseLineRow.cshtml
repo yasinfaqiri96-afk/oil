@@ -25,6 +25,7 @@
         <input type="hidden" name="@Name("Id")" value="@Model.Id" />
         <input type="hidden" name="@Name("ExpenseTransactionId")" value="@Model.ExpenseTransactionId" data-row-expense-tx />
         <input type="hidden" name="@Name("AssetRentTransactionId")" value="@Model.AssetRentTransactionId" data-row-asset-rent />
+        <input type="hidden" name="@Name("Notes")" value="@Model.Notes" />
         <select name="@Name("ExpenseTypeId")" class="ak-input" data-row-type aria-label="نوع مصرف">
             <option value="">انتخاب نوع</option>
             @foreach (var o in typeOptions)
@@ -79,8 +80,6 @@
         </select>
         <span data-row-noparty hidden="@(Model.PartyType == PTGOilSystem.Web.Models.Entities.LoadingExpensePartyType.None ? null : "hidden")">—</span>
     </td>
-
-    <td><input name="@Name("Notes")" value="@Model.Notes" type="text" maxlength="1000" class="ak-input" aria-label="توضیح" placeholder="توضیح" /></td>
 
     <td class="ak-col-actions">
         <button type="button" class="ak-row-menu-btn" data-row-remove title="حذف ردیف" aria-label="حذف ردیف">

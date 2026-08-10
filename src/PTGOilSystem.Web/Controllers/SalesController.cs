@@ -31,6 +31,8 @@ public partial class SalesController : Controller
     private readonly IMemoryCache? _cache;
     private readonly IInventoryLineageWriter _lineage;
     private readonly IFormTokenGuard _formTokens;
+    private readonly IInventoryMovementWriter _movements;
+    private readonly ITransportSourceAllocationService _sourceAllocations;
     // مرحله ۷ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.ISalesAccountingAdapter? _salesAccounting;
     private const int DefaultListLimit = 100;
@@ -111,8 +113,13 @@ public partial class SalesController : Controller
         IInventoryLineageWriter? lineage = null,
         IFormTokenGuard? formTokens = null,
         Services.Accounting.ISalesAccountingAdapter? salesAccounting = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        InventoryTransportReceiptService? receiptService = null,
+        ITransportQuantityService? quantities = null,
+        IInventoryMovementWriter? movements = null,
+        ITransportSourceAllocationService? sourceAllocations = null)
     {
+        _quantities = quantities ?? new TransportQuantityService(db);
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _salesAccounting = salesAccounting;
@@ -126,7 +133,22 @@ public partial class SalesController : Controller
         _cache = cache;
         _lineage = lineage ?? InventoryLineageWriterFactory.Disabled(db);
         _formTokens = formTokens ?? new FormTokenGuard(db);
+        _movements = movements ?? new InventoryMovementWriter(db, stock);
+        _sourceAllocations = sourceAllocations ?? new TransportSourceAllocationService(db);
+        // از DI می‌آید تا آداپترهای حسابداری وصل باشند؛ ساخت دستی آن‌ها را null می‌گذارد.
+        _receiptService = receiptService
+            ?? new InventoryTransportReceiptService(
+                db,
+                currencyConversion,
+                _lineage,
+                movements: _movements,
+                quantities: _quantities,
+                sourceAllocations: _sourceAllocations);
     }
+
+    private readonly InventoryTransportReceiptService _receiptService;
+    // تک‌منبع «باقیماندهٔ حمل»؛ هیچ اکشنی نباید فرمول خودش را داشته باشد.
+    private readonly ITransportQuantityService _quantities;
 
     public SalesController(
         ApplicationDbContext db,
@@ -696,11 +718,11 @@ public partial class SalesController : Controller
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        var stockOutMovement = await _db.InventoryMovements
+        var stockOutMovements = await _db.InventoryMovements
             .AsNoTracking()
             .Where(m => m.SalesTransactionId == sale.Id && m.Direction == MovementDirection.Out)
-            .OrderByDescending(m => m.Id)
-            .FirstOrDefaultAsync();
+            .OrderBy(m => m.Id)
+            .ToListAsync();
 
         IDbContextTransaction? transaction = null;
         if (_db.Database.IsRelational())
@@ -727,47 +749,23 @@ public partial class SalesController : Controller
                 .FirstOrDefaultAsync();
         }
 
-        var reversalLedger = new LedgerEntry
-        {
-            EntryDate = _businessClock.Today,
-            Side = LedgerSide.Debit,
-            AmountUsd = originalLedger.AmountUsd,
-            Currency = originalLedger.Currency,
-            SourceAmount = originalLedger.SourceAmount,
-            SourceCurrencyCode = originalLedger.SourceCurrencyCode,
-            AppliedFxRateToUsd = originalLedger.AppliedFxRateToUsd,
-            AppliedFxRateDate = originalLedger.AppliedFxRateDate,
-            AppliedFxRateSource = originalLedger.AppliedFxRateSource,
-            Description = $"لغو فروش #{sale.Id} | {originalLedger.Description}",
-            SourceType = "Sale",
-            SourceId = sale.Id,
-            Reference = (originalLedger.Reference ?? sale.InvoiceNumber) + "-CANCEL",
-            ContractId = originalLedger.ContractId,
-            CustomerId = originalLedger.CustomerId,
-            ShipmentId = originalLedger.ShipmentId
-        };
-        _db.LedgerEntries.Add(reversalLedger);
-
-        if (stockOutMovement is not null)
-        {
-            var reversalMovement = new InventoryMovement
-            {
-                ProductId = stockOutMovement.ProductId,
-                ContractId = stockOutMovement.ContractId,
-                TerminalId = stockOutMovement.TerminalId,
-                StorageTankId = stockOutMovement.StorageTankId,
-                SalesTransactionId = sale.Id,
-                Direction = MovementDirection.In,
-                MovementDate = _businessClock.Today,
-                QuantityMt = stockOutMovement.QuantityMt,
-                ReferenceDocument = (stockOutMovement.ReferenceDocument ?? sale.InvoiceNumber) + "-CANCEL",
-                Notes = $"Reversal for cancelled SaleId={sale.Id}"
-            };
-            _db.InventoryMovements.Add(reversalMovement);
-        }
-
         try
         {
+            await LedgerReversalWriter.ReverseAsync(
+                _db,
+                originalLedger,
+                _businessClock.Today,
+                $"لغو فروش #{sale.Id} | {originalLedger.Description}",
+                sale.InvoiceNumber);
+
+            foreach (var stockOutMovement in stockOutMovements)
+            {
+                await _movements.PostReversalAsync(
+                    stockOutMovement,
+                    _businessClock.Today,
+                    $"Reversal for cancelled SaleId={sale.Id}");
+            }
+
             await _db.SaveChangesAsync();
             await ReverseSaleAccountingAsync(sale);
 
@@ -1762,19 +1760,13 @@ public partial class SalesController : Controller
                         });
                     }
 
-                    // چک موجودی پیش از تراکنش انجام شده، اما بدون قفل. اینجا داخل همان
-                    // تراکنش قفل هم‌زمانی گرفته و چک نقطه‌ای (در تاریخ خودِ فروش) تکرار
-                    // می‌شود تا دو فروش هم‌زمان از یک مخزن نتوانند هر دو عبور کنند و
-                    // موجودی معتبر را منفی کنند.
-                    foreach (var stockOutMovement in stockOutMovements)
-                    {
-                        await _stock.AcquireStockMutationLockAsync(stockOutMovement);
-                        await _stock.EnsureSufficientStockForMovementAsync(stockOutMovement);
-                        await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(stockOutMovement);
-                    }
+                    await _movements.PostOutboundRangeAsync(stockOutMovements, StockGuard.Full);
 
-                    _db.InventoryMovements.AddRange(stockOutMovements);
-                    await _db.SaveChangesAsync();
+                    var saleSourcePlan = await _sourceAllocations.BuildFromInventoryMovementsAsync(
+                        stockOutMovements,
+                        sale.QuantityMt);
+                    _sourceAllocations.ApplyLegacyHeader(sale, saleSourcePlan);
+                    await _sourceAllocations.PersistSaleAsync(sale, saleSourcePlan);
 
                     // لایهٔ Lineage: تخصیص فروش به Lotها با FIFO (پشت flag Lineage:WriteLots؛ خاموش=no-op).
                     // موجودی فیزیکی و Ledger دست‌نخورده می‌ماند؛ فقط SaleLotAllocation نوشته می‌شود.

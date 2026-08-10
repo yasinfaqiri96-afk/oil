@@ -91,6 +91,9 @@ public sealed class TruckSettlementIndexViewModel
     // فیلترهای نوار جست‌وجوی مشترک (مثل بقیهٔ تب‌های عملیات): متن آزاد + نوع منبع.
     public string? Query { get; set; }
     public TruckSettlementSourceKind? Kind { get; set; }
+
+    // Deep-link از جزئیات حمل: همان منبع را دقیق فیلتر و برای بازبینی انتخاب می‌کند.
+    public int? FocusedSourceId { get; set; }
 }
 
 // گزینهٔ طرف کرایه برای selectها (راننده / شرکت خدماتی / دارایی عملیاتی).

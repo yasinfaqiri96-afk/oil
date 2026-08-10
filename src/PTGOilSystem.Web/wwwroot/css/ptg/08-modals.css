@@ -1,315 +1,84 @@
 /*
- * PTG migrated modal workbench hooks.
- * These selectors remain before the canonical PTG modal rules below so the
- * PTG system keeps final cascade authority.
+ * PTG modal system — the single owner of shared modal chrome and of the
+ * modal document that the shared page-modal loads into its iframe.
+ *
+ * Consumers
+ *   • Parent document — #ptgPageModal.ak-page-modal (_Layout), .ak-modal
+ *     (_CreateModalShell) and view-local Bootstrap modals. Dialog sizing for
+ *     .ak-page-modal lives in 50-ak-components.css; only chrome is owned here.
+ *   • Iframe document — body.ptg-modal-document (_ModalLayout). Any page can
+ *     render there: _ViewStart switches layout on ?modal=1, and the entity
+ *     combobox quick-create opens /{Controller}/Create through it.
+ *
+ * No other layer may restyle .modal-content / .modal-header / .modal-footer.
  */
 
-/* modal-unified-system:start */
-:root {
-    --ptg-modal-bg: #ffffff;
-    --ptg-modal-surface: #ffffff;
-    --ptg-modal-ink: #424242;
-    --ptg-modal-muted: #7B7B7B;
-    --ptg-modal-line: rgba(13, 55, 80, .1);
-    --ptg-modal-blue: #1768e8;
-    --ptg-modal-blue-soft: #eaf2ff;
-    --ptg-modal-teal: #14b8a6;
-    --ptg-modal-green: #31b76a;
-    --ptg-modal-amber: #f59e0b;
-}
-.ptg-modal-reference-page {
-    min-height: calc(100vh - 7rem);
-    padding: clamp(1rem, 2vw, 1.75rem);
-    border-radius: 1.35rem;
-    background:
-        linear-gradient(135deg, rgba(232, 248, 247, .9), rgba(248, 252, 255, .98)),
-        var(--ptg-modal-bg);
-}
-.ptg-modal-workbench {
-    width: min(100%, 1360px);
-    margin-inline: auto;
+/* ============================================================= *
+ * 1. Modal chrome — parent document and iframe document alike.
+ * ============================================================= */
+body.boltz-shell.app-shell-authenticated :where(.modal-content),
+body.ptg-modal-document :where(.modal-content) {
     overflow: hidden;
-    border: 1px solid var(--ptg-modal-line);
-    border-radius: 1.05rem;
-    background: rgba(255, 255, 255, .96);
-    box-shadow: 0 22px 70px rgba(15, 56, 86, .12);
+    border: 1px solid var(--ptg-border);
+    border-radius: var(--ptg-radius-card);
+    background: var(--ptg-surface);
+    box-shadow: var(--ptg-shadow-soft);
 }
-.ptg-modal-workbench-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1.15rem 1.35rem 1rem;
-    border-bottom: 1px solid rgba(15, 56, 86, .08);
-    background: rgba(255, 255, 255, .88);
+
+/* Block padding is tightened by the compact layer (41-compact.css); this rule
+   owns the inline padding and the surface only, so the two never disagree. */
+body.boltz-shell.app-shell-authenticated :where(.modal-header),
+body.ptg-modal-document :where(.modal-header) {
+    padding: 1.15rem 1.4rem;
+    border-bottom: 1px solid var(--ptg-border);
+    background: var(--ptg-surface);
 }
-.ptg-modal-title-block {
-    min-width: 0;
+
+/* Type scale comes from 71-typography.css — colour only here. */
+body.boltz-shell.app-shell-authenticated :where(.modal-title),
+body.ptg-modal-document :where(.modal-title) {
+    color: var(--ptg-text);
 }
-.ptg-modal-kicker {
-    display: inline-flex;
-    align-items: center;
-    width: fit-content;
-    margin-bottom: .28rem;
-    color: #1768e8;
-    font-size: .72rem;
-    font-weight: 800;
-    letter-spacing: 0;
+
+body.boltz-shell.app-shell-authenticated :where(.modal-body),
+body.ptg-modal-document :where(.modal-body) {
+    background: var(--ptg-surface);
 }
-.ptg-modal-title-block h1 {
-    margin: 0;
-    color: var(--ptg-modal-ink);
-    font-size: clamp(1.15rem, 1.8vw, 1.55rem);
-    font-weight: 850;
-    line-height: 1.5;
-    letter-spacing: 0;
+
+body.boltz-shell.app-shell-authenticated :where(.modal-footer),
+body.ptg-modal-document :where(.modal-footer) {
+    gap: .75rem;
+    padding: 1rem 1.4rem;
+    border-top: 1px solid var(--ptg-border);
+    background: var(--ptg-surface);
 }
-.ptg-modal-title-block p {
-    max-width: 58rem;
-    margin: .22rem 0 0;
-    color: var(--ptg-modal-muted);
-    font-size: .9rem;
-    line-height: 1.9;
+
+body.boltz-shell.app-shell-authenticated :where(.btn-close),
+body.ptg-modal-document :where(.btn-close) {
+    box-shadow: none;
 }
-.ptg-modal-close {
-    display: inline-grid;
-    place-items: center;
-    flex: 0 0 auto;
-    width: 2.4rem;
-    height: 2.4rem;
-    border: 1px solid rgba(15, 56, 86, .1);
-    border-radius: .8rem;
-    color: #253044;
-    background: #fff;
-    box-shadow: 0 10px 26px rgba(15, 56, 86, .07);
-    text-decoration: none;
+
+/* The backdrop only ever exists in the parent document. */
+body.boltz-shell.app-shell-authenticated :where(.modal-backdrop.show) {
+    opacity: .30;
 }
-.ptg-modal-close:hover {
-    color: var(--ptg-modal-blue);
-    border-color: rgba(23, 104, 232, .22);
-}
-.ptg-modal-workbench-content {
-    padding: clamp(1rem, 2vw, 1.5rem);
-    background: #ffffff;
-}
-.ptg-modal-workbench-body {
-    display: grid;
-    grid-template-columns: minmax(18rem, .74fr) minmax(0, 1.5fr);
-    gap: clamp(1rem, 2vw, 1.35rem);
-    align-items: stretch;
-    direction: ltr;
-}
-.ptg-modal-workbench-body > * {
-    direction: rtl;
-}
-.ptg-modal-preview-card,
-.ptg-form-panel {
-    min-width: 0;
-    border: 1px solid var(--ptg-modal-line);
-    border-radius: 1rem;
-    background: rgba(255, 255, 255, .94);
-    box-shadow: 0 16px 42px rgba(15, 56, 86, .08);
-}
-.ptg-modal-preview-card {
-    position: static;
-    top: auto;
-    align-self: start;
-    padding: 1.2rem;
-}
-.ptg-preview-visual {
-    display: grid;
-    place-items: center;
-    width: 7.8rem;
-    height: 7.8rem;
-    margin: .4rem auto 1rem;
-    border: 2px dashed rgba(23, 104, 232, .24);
-    border-radius: 999px;
-    background: #ffffff;
-}
-.ptg-preview-visual i {
-    display: grid;
-    place-items: center;
-    width: 3.4rem;
-    height: 3.4rem;
-    border-radius: 999px;
-    color: #1768e8;
-    background: #eaf2ff;
-    font-size: 1.55rem;
-}
-.ptg-preview-head {
-    text-align: center;
-}
-.ptg-preview-head h2 {
-    margin: .7rem 0 .25rem;
-    color: var(--ptg-modal-ink);
-    font-size: 1.05rem;
-    font-weight: 850;
-    line-height: 1.6;
-}
-.ptg-preview-head p,
-.ptg-preview-note {
-    margin: 0;
-    color: var(--ptg-modal-muted);
-    font-size: .82rem;
-    line-height: 1.85;
-}
-.ptg-status-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 1.65rem;
-    padding: .22rem .68rem;
-    border-radius: 999px;
-    font-size: .75rem;
-    font-weight: 800;
-    line-height: 1.4;
-    white-space: nowrap;
-}
-.ptg-status-badge.is-neutral {
-    color: #1877f2;
-    background: #eaf2ff;
-}
-.ptg-status-badge.is-success {
-    color: #16804f;
-    background: #e7f8ef;
-}
-.ptg-preview-metrics,
-.receipt-preview-list {
-    display: grid;
-    gap: .65rem;
-    margin-top: 1.05rem;
-}
-.ptg-preview-row,
-.receipt-preview-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: .85rem;
-    padding: .7rem .8rem;
-    border: 1px solid rgba(15, 56, 86, .07);
-    border-radius: .82rem;
-    background: #f8fcfc;
-}
-.ptg-preview-row span,
-.receipt-preview-row span {
-    color: #788395;
-    font-size: .75rem;
-    font-weight: 750;
-}
-.ptg-preview-row strong,
-.receipt-preview-row strong {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--ptg-modal-ink);
-    font-size: .86rem;
-    font-weight: 850;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.ptg-preview-warning {
-    display: flex;
-    gap: .6rem;
-    margin-top: 1rem;
-    padding: .85rem;
-    border: 1px solid rgba(245, 158, 11, .18);
-    border-radius: .9rem;
-    color: #805300;
-    background: #fff8e6;
-    font-size: .78rem;
-    line-height: 1.8;
-}
-.ptg-preview-warning i {
-    margin-top: .18rem;
-    color: var(--ptg-modal-amber);
-}
-.ptg-form-panel {
+
+/* ============================================================= *
+ * 2. In-dialog form shell — _CreateModalShell renders the form inside a
+ *    Bootstrap modal, so the scroll region is capped to the viewport.
+ *    The same wrapper is reused on full create pages, where 50-ak-components
+ *    releases the cap (.ak-form-page .ptg-modal-form-scroll).
+ * ============================================================= */
+.ptg-modal-inline-form {
     overflow: hidden;
 }
-.ptg-form-panel > .card-body {
-    padding: clamp(1rem, 2.2vw, 1.5rem) !important;
+
+.ptg-modal-form-scroll {
+    max-height: min(68vh, 720px);
+    overflow: auto;
+    padding: clamp(1rem, 2vw, 1.25rem);
 }
-.ptg-form-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .45rem;
-    margin-bottom: 1.1rem;
-    padding: .35rem;
-    border: 1px solid rgba(15, 56, 86, .08);
-    border-radius: .95rem;
-    background: #f6fafb;
-}
-.ptg-form-tab {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: .45rem;
-    min-height: 2.45rem;
-    padding: .45rem .8rem;
-    border: 0;
-    border-radius: .72rem;
-    color: #7B7B7B;
-    background: transparent;
-    font-size: .82rem;
-    font-weight: 850;
-    line-height: 1.45;
-}
-.ptg-form-tab i {
-    color: inherit;
-    font-size: .95rem;
-}
-.ptg-form-tab.is-active {
-    color: #1768e8;
-    background: #fff;
-    box-shadow: 0 9px 24px rgba(15, 56, 86, .08);
-}
-.ptg-form-mode-switch,
-.receipt-choice-grid.ptg-form-mode-switch {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: .7rem;
-}
-.ptg-modal-workbench .receipt-choice-card {
-    min-height: 8.6rem;
-    border-radius: .95rem;
-    border-color: rgba(15, 56, 86, .09);
-    background: #fbfefe;
-    box-shadow: 0 8px 24px rgba(15, 56, 86, .05);
-}
-.ptg-modal-workbench .receipt-choice-card.is-selected {
-    border-color: rgba(23, 104, 232, .42);
-    background: linear-gradient(180deg, #f1f7ff 0%, #ffffff 100%);
-    box-shadow: 0 16px 34px rgba(23, 104, 232, .12);
-}
-.ptg-modal-workbench .form-section {
-    padding: 0;
-    border: 0;
-    background: transparent;
-}
-.ptg-modal-workbench .receipt-section-heading {
-    margin-bottom: .15rem;
-    padding: .85rem 1rem;
-    border: 1px solid rgba(15, 56, 86, .07);
-    border-radius: .9rem;
-    background: #f8fcfc;
-}
-.ptg-modal-workbench .form-section-title {
-    margin-bottom: .2rem;
-    color: var(--ptg-modal-ink);
-    font-size: 1rem;
-    font-weight: 850;
-}
-.ptg-modal-workbench .form-section-text {
-    color: var(--ptg-modal-muted);
-    font-size: .82rem;
-    line-height: 1.8;
-}
-.ptg-modal-workbench .form-label {
-    margin-bottom: .42rem;
-    color: #344054;
-    font-size: .8rem;
-    font-weight: 850;
-}
-.ptg-modal-workbench .field-note,
+
 .ptg-field-hint {
     display: block;
     margin-top: .38rem;
@@ -317,500 +86,43 @@
     font-size: .73rem;
     line-height: 1.7;
 }
-.ptg-modal-workbench .field-validation-error {
-    display: block;
-    margin-top: .35rem;
-    color: #B80000;
-    font-size: .74rem;
-    font-weight: 700;
-}
-.ptg-modal-workbench .info-note {
-    border-radius: .85rem;
-}
-.ptg-modal-workbench .btn {
-    border-radius: .8rem;
-    font-weight: 850;
-}
-.ptg-modal-workbench .btn-primary,
-.ptg-modal-workbench .btn-success {
-    border-color: var(--ptg-modal-blue);
-    background: var(--ptg-modal-blue);
-    box-shadow: 0 12px 28px rgba(23, 104, 232, .18);
-}
-.ptg-modal-inline-form {
-    overflow: hidden;
-}
-.ptg-modal-form-scroll {
-    max-height: min(68vh, 720px);
-    overflow: auto;
-    padding: clamp(1rem, 2vw, 1.25rem);
-}
-.ptg-create-preview-card {
-    min-height: 100%;
-}
 
-body.action-createdirectfromreceipt .boltz-content :is(.app-form-card, .detail-card),
-body.action-customsbatch .boltz-content .app-form-card {
-    border: 1px solid var(--ptg-modal-line) !important;
-    border-radius: 1rem !important;
-    background: rgba(255, 255, 255, .96) !important;
-    box-shadow: 0 18px 52px rgba(15, 56, 86, .1) !important;
-}
-
-body.action-customsbatch .boltz-content .app-form-card > .card-body {
-    padding: clamp(1rem, 2.2vw, 1.45rem) !important;
-}
-
-body.action-customsbatch .boltz-content .app-form-card .form-section {
-    margin-bottom: 1rem;
-    padding: .95rem 1rem;
-    border: 1px solid rgba(15, 56, 86, .07);
-    border-radius: .95rem;
-    background: #fbfefe;
-}
-
-body.action-customsbatch .boltz-content .app-form-card .form-section-title {
-    margin-bottom: .32rem;
-    color: var(--ptg-modal-ink);
-    font-size: 1rem;
-    font-weight: 850;
-}
-
-body.action-customsbatch .boltz-content .app-form-card .form-actions {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid rgba(15, 56, 86, .08);
-}
-body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbench-body {
-    display: grid;
-    grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
-    gap: .85rem;
-    direction: ltr;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-create-page.ptg-modal-reference-page {
-    width: 100%;
-    min-height: auto;
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench {
-    width: 100%;
-    margin-inline: 0;
-    border-radius: .9rem;
-    box-shadow: 0 10px 28px rgba(15, 56, 86, .06);
-}
-body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbench-body > * {
-    direction: rtl;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-modal-workbench-head {
-    align-items: center;
-    min-height: auto;
-    padding: .8rem 1rem;
-    background: #fff;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-modal-kicker,
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-modal-title-block p,
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-preview-visual,
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-preview-warning {
-    display: none;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-modal-title-block h1 {
-    font-size: 1.08rem;
-    line-height: 1.45;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-modal-workbench-content {
-    padding: .85rem;
-    background: #fff;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-modal-preview-card,
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-form-panel {
-    border-radius: .85rem;
-    box-shadow: none;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-modal-preview-card {
-    position: static;
-    padding: .85rem;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-reference-workbench .ptg-form-panel > .card-body {
-    padding: 1rem 1.1rem !important;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-preview-card .receipt-brief-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: .45rem;
-    margin-top: .7rem;
-    border: 0;
-    background: transparent;
-}
-body.controller-loadingreceipts.action-create .boltz-content .receipt-preview-card .receipt-brief-item {
-    padding: .5rem .6rem;
-    border: 1px solid rgba(15, 56, 86, .07);
-    border-radius: .65rem;
-    background: #fbfcfd;
-}
-body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbench .receipt-choice-grid.ptg-form-mode-switch {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: .55rem;
-}
-body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbench .receipt-choice-card {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-        "icon"
-        "title"
-        "body";
-    min-height: 6.4rem;
-    padding: .8rem;
-    border-color: rgba(15, 56, 86, .09);
-    background: #fff;
-    box-shadow: none;
-}
-body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbench .receipt-choice-card.is-selected {
-    border-color: rgba(23, 104, 232, .42);
-    background: linear-gradient(180deg, #f1f7ff 0%, #ffffff 100%);
-    box-shadow: 0 16px 34px rgba(23, 104, 232, .12);
-}
-@media (max-width: 1180px) {
-    .ptg-form-mode-switch,
-    .receipt-choice-grid.ptg-form-mode-switch {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbench .receipt-choice-grid.ptg-form-mode-switch {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-@media (max-width: 992px) {
-    .ptg-modal-reference-page {
-        padding: .75rem;
-    }
-    .ptg-modal-workbench-body {
-        grid-template-columns: 1fr;
-    }
-    body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbench-body {
-        grid-template-columns: 1fr;
-    }
-    .ptg-modal-preview-card {
-        position: static;
-        order: 2;
-    }
-    .ptg-form-panel {
-        order: 1;
-    }
-}
-@media (max-width: 640px) {
-    .ptg-modal-workbench-head {
-        padding: 1rem;
-    }
-    .ptg-modal-workbench-content {
-        padding: .75rem;
-    }
-    .ptg-form-mode-switch,
-    .receipt-choice-grid.ptg-form-mode-switch {
-        grid-template-columns: 1fr;
-    }
-    body.controller-loadingreceipts.action-create .boltz-content .ptg-modal-workbench .receipt-choice-grid.ptg-form-mode-switch {
-        grid-template-columns: 1fr;
-    }
-    .ptg-form-tab {
-        flex: 1 1 100%;
-    }
-}
-.ptg-modal-document {
+/* ============================================================= *
+ * 3. The modal document — the canvas inside the shared page-modal iframe.
+ * ============================================================= */
+body.ptg-modal-document {
     min-height: 100vh;
-    overflow-x: hidden;
+    /* The document scrolls itself: it has no sidebar frame to scroll for it.
+       overflow-x stays reachable — clipping it hid the far edge of wide
+       tables and grids with no way to scroll to them. */
+    overflow-x: auto;
     overflow-y: auto;
     scrollbar-gutter: stable;
-    background: #f6f8fc;
+    background: var(--ptg-bg);
 }
-.ptg-modal-document .receipt-modal-iframe-page {
-    height: 100vh;
-    padding: .85rem;
-    overflow: auto;
-    background: #f6f8fc;
-}
-.ptg-modal-document .receipt-modal-iframe-page .receipt-preview-card {
-    display: none;
-}
-@media (max-width: 767.98px) {
-    .ptg-modal-document .receipt-modal-iframe-page {
-        padding: .55rem;
-    }
-}
-/* employee-create-reference-modal:start */
-.employee-create-modal,
-.employee-create-page {
-    --employee-modal-line: #e8edf5;
-    --employee-modal-ink: #2f3a4c;
-    --employee-modal-muted: #8491a6;
-    --employee-modal-blue: #2467ed;
-    --employee-modal-blue-soft: #eaf2ff;
-    --employee-modal-green: #22c767;
-}
-.employee-create-page {
-    max-width: 1164px;
-    margin-inline: auto;
-}
-.employee-table-avatar img,
-.employee-details-photo img,
-.employee-edit-photo-field img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.employee-photo-error {
-    display: block;
-    margin-bottom: 6px;
-}
-.employee-create-tabs {
-    justify-self: start;
-    display: inline-flex;
-    align-items: center;
-    gap: 0;
-    min-height: 38px;
-    margin-bottom: 7px;
-    padding: 4px;
-    border: 1px solid #e8edf5;
-    border-radius: 16px;
-    background: #f0f3f8;
-}
-.employee-create-tabs button {
-    min-height: 30px;
-    padding: 0 18px;
-    border: 0;
-    border-radius: 11px;
-    color: #76859d;
-    background: transparent;
-    font-size: .74rem;
-    font-weight: 700;
-    white-space: nowrap;
-}
-.employee-create-tabs button.active {
-    color: #1767ef;
-    background: #fff;
-    box-shadow: 0 8px 20px rgba(34, 57, 98, .08);
-}
-.employee-create-tab-content,
-.employee-create-tab-content > .tab-pane.active {
-    min-width: 0;
-}
-.employee-form-panel {
-    min-height: 286px;
-    padding: 10px 12px 7px;
-    border: 1px solid var(--employee-modal-line);
-    border-radius: 20px;
-    background: #fff;
-}
-.employee-panel-heading {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 6px;
-}
-.employee-panel-heading h2 {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-    color: #465268;
-    font-size: .78rem;
-    font-weight: 700;
-}
-.employee-panel-heading i {
-    color: #8092b0;
-    font-size: .95rem;
-}
-.employee-modal-validation {
-    margin: 0 0 6px;
-}
-.employee-modal-fields {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px 12px;
-}
-.employee-modal-fields-dense {
-    gap: 6px 12px;
-}
-.employee-modal-field {
-    min-width: 0;
-}
-.employee-modal-field-wide {
-    grid-column: 1 / -1;
-}
-.employee-modal-label {
-    display: flex;
-    flex-direction: row-reverse;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 6px;
-    margin: 0 0 4px;
-    color: #465268;
-    font-size: .72rem;
-    font-weight: 700;
-    line-height: 1.25;
-}
-.employee-modal-label i {
-    color: #8b9bb4;
-    font-size: .86rem;
-}
-.employee-required {
-    color: #e5484d;
-}
-.employee-input-shell {
-    position: relative;
-    min-width: 0;
-}
-.employee-table-avatar {
-    display: inline-grid;
-    place-items: center;
-    width: 2.35rem;
-    height: 2.35rem;
-    overflow: hidden;
-    border-radius: 999px;
-    color: #5e87c5;
-    background: #d8e8ff;
-    font-size: 1rem;
-}
-.employee-details-photo {
-    display: grid;
-    place-items: center;
-    width: 7.25rem;
-    height: 7.25rem;
-    margin: 0 auto 1rem;
-    overflow: hidden;
-    border: 2px solid #e8edf5;
-    border-radius: 999px;
-    color: #5e87c5;
-    background: #d8e8ff;
-    font-size: 2.5rem;
-}
-.employee-edit-photo-field {
-    display: grid;
-    gap: .55rem;
-}
-.employee-edit-photo-field :is(img, span) {
-    display: grid;
-    place-items: center;
-    width: 4.5rem;
-    height: 4.5rem;
-    overflow: hidden;
-    border-radius: 999px;
-    color: #5e87c5;
-    background: #d8e8ff;
-    font-size: 1.7rem;
-}
-@media (max-width: 991.98px) {
-    .employee-create-modal .employee-create-dialog {
-        --bs-modal-width: min(96vw, 760px);
-        width: auto;
-        max-width: var(--bs-modal-width);
-    }
-    .employee-create-modal .modal-content {
-        max-height: min(82vh, 740px);
-    }
-    .employee-create-modal .modal-body,
-    .employee-create-modal .employee-create-surface {
-        max-height: calc(min(82vh, 740px) - 3.55rem);
-    }
-    .employee-create-profile-card {
-        min-height: auto;
-    }
-    .employee-modal-fields {
-        grid-template-columns: minmax(0, 1fr);
-    }
-    .employee-create-footer {
-        grid-template-columns: minmax(0, 1fr);
-    }
-}
-@media (max-width: 575.98px) {
-    .employee-create-surface {
-        grid-template-rows: minmax(0, 1fr) auto;
-    }
-    .employee-create-tabs {
-        justify-self: stretch;
-    }
-    .employee-create-tabs button {
-        flex: 1 1 0;
-        padding-inline: 10px;
-    }
-}
-.ptg-modal-shell .ptg-modal-workbench-head {
-    border-bottom: 1px solid var(--ptg-modal-unified-line-soft);
-    background: var(--ptg-modal-unified-bg);
-}
-.ptg-modal-shell-mark {
-    width: 3rem;
-    height: 2.5rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-inline-end: .7rem;
-    border-radius: .65rem;
-    background: transparent;
-    color: inherit;
-    font-size: 1.25rem;
-    vertical-align: middle;
-}
-.ptg-modal-shell-mark .ptg-modal-visual-svg {
-    width: 3rem;
-    height: 2.5rem;
-}
-.ptg-modal-document,
-.ptg-modal-document .receipt-modal-iframe-page {
-    background: #ffffff !important;
-}
-@keyframes ptg-unified-modal-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: none; }
-}
-body.boltz-shell .modal:not(.ptg-reference-modal):not(.ptg-page-modal) .modal-content {
-    border-radius: 16px !important;
-}
-/* ptg-unified-modal-radius:end */
 
-/*
- * PTG modal system.
- */
+/* 03-layout.css locks the authenticated shell body because .ptg-app owns the
+   scrollport there. The modal document has no .ptg-app, so it keeps its own. */
+body.boltz-shell.app-shell-authenticated.ptg-modal-document {
+    overflow-y: auto;
+}
 
-body.boltz-shell.app-shell-authenticated :where(.modal-content, .ptg-modal-shell, .entity-modal-card),
-body.ptg-modal-document :where(.modal-content, .ptg-modal-shell, .entity-modal-card) {
-    border: 1px solid var(--ptg-border) !important;
-    border-radius: var(--ptg-radius-card) !important;
-    background: var(--ptg-surface) !important;
-    box-shadow: var(--ptg-shadow-soft) !important;
-    overflow: hidden;
+/* The dialog is already the constrained reading column, so the page-level form
+   cap (--ak-form-content-max, 50-ak-components.css) would leave a dead band
+   beside every form. Release both canvases inside the modal document only. */
+body.ptg-modal-document {
+    --ak-form-content-max: 100%;
+    --ak-form-content-wide-max: 100%;
 }
-body.boltz-shell.app-shell-authenticated :where(.modal-header),
-body.ptg-modal-document :where(.modal-header) {
-    min-height: 4.25rem;
-    padding: 1.15rem 1.4rem;
-    border-bottom: 1px solid var(--ptg-border) !important;
-    background: var(--ptg-surface) !important;
-}
-body.boltz-shell.app-shell-authenticated :where(.modal-title),
-body.ptg-modal-document :where(.modal-title) {
-    color: var(--ptg-text);
-    font-size: 1.15rem;
-    font-weight: 850;
-}
-body.boltz-shell.app-shell-authenticated :where(.modal-body),
-body.ptg-modal-document :where(.modal-body) {
-    background: var(--ptg-surface);
-}
-body.boltz-shell.app-shell-authenticated :where(.modal-footer),
-body.ptg-modal-document :where(.modal-footer) {
-    gap: .75rem;
-    padding: 1rem 1.4rem;
-    border-top: 1px solid var(--ptg-border) !important;
-    background: var(--ptg-surface) !important;
-}
-body.boltz-shell.app-shell-authenticated :where(.btn-close),
-body.ptg-modal-document :where(.btn-close) {
-    box-shadow: none !important;
-}
-body.boltz-shell.app-shell-authenticated :where(.modal-backdrop.show) {
-    opacity: .22;
-}
+
 body.ptg-modal-document .ptg-modal-body-shell {
     min-height: 100vh;
     padding: 1rem;
     background: var(--ptg-bg);
 }
-/* ptg-page-modal-loading:end */
+
+/* The shell offsets the flash stack by the topbar height; the modal document
+   has no topbar, so it starts at its own gutter instead. */
+body.ptg-modal-document .boltz-alert-stack {
+    top: 1rem;
+}

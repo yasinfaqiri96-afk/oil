@@ -11,20 +11,24 @@ namespace PTGOilSystem.Web.Services;
 public sealed class LossEventWorkflowService : ILossEventWorkflowService
 {
     private readonly ApplicationDbContext _db;
-    private readonly IStockService _stock;
     private readonly IAuditService _audit;
     private readonly Accounting.IInventoryLossAccountingAdapter? _lossAccounting;
+    private readonly IInventoryMovementWriter _movements;
+    private readonly ITransportSourceAllocationService _sourceAllocations;
 
     public LossEventWorkflowService(
         ApplicationDbContext db,
         IStockService stock,
         IAuditService audit,
-        Accounting.IInventoryLossAccountingAdapter? lossAccounting = null)
+        Accounting.IInventoryLossAccountingAdapter? lossAccounting = null,
+        IInventoryMovementWriter? movements = null,
+        ITransportSourceAllocationService? sourceAllocations = null)
     {
         _db = db;
-        _stock = stock;
         _audit = audit;
         _lossAccounting = lossAccounting;
+        _movements = movements ?? new InventoryMovementWriter(db, stock);
+        _sourceAllocations = sourceAllocations ?? new TransportSourceAllocationService(db);
     }
 
     public LossEventComputation ComputeMetrics(
@@ -132,6 +136,21 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
                 {
                     addError(nameof(submission.LoadingReceiptId), "رسید بارگیری انتخاب‌شده با قرارداد انتخابی هم‌خوان نیست.");
                 }
+            }
+        }
+
+        if (submission.TransportLegId.HasValue)
+        {
+            var leg = await _db.InventoryTransportLegs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == submission.TransportLegId.Value, ct);
+            if (leg is null || leg.Status == InventoryTransportLegStatus.Cancelled)
+            {
+                addError(nameof(submission.TransportLegId), "حمل انتخاب‌شده معتبر نیست.");
+            }
+            else if (leg.ProductId != submission.ProductId)
+            {
+                addError(nameof(submission.TransportLegId), "حمل انتخاب‌شده با کالای انتخابی هم‌خوان نیست.");
             }
         }
 
@@ -292,19 +311,32 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
         _db.LossEvents.AddRange(pending.Select(p => p.Event));
         await _db.SaveChangesAsync(ct);
 
+        await _sourceAllocations.PersistLossBatchAsync(
+            pending
+                .Where(p => p.SourcePlan.Shares.Count > 0)
+                .Select(p => new LossSourceAllocationWrite(p.Event, p.SourcePlan, p.TransportLegId))
+                .ToList(),
+            ct);
+
         var movementRows = pending.Where(p => p.Movement is not null).ToList();
         if (movementRows.Count > 0)
         {
             foreach (var row in movementRows)
             {
+                if (string.IsNullOrWhiteSpace(row.Submission.Reference))
+                {
+                    row.Movement!.ReferenceDocument = $"LOSS:{row.Event.Id}";
+                }
                 row.Movement!.Notes = BuildInventoryNotes(
                     row.Submission.Stage,
                     $"LossEventId={row.Event.Id}"
                         + (string.IsNullOrWhiteSpace(row.Submission.Notes) ? string.Empty : $" | {row.Submission.Notes}"));
             }
 
-            _db.InventoryMovements.AddRange(movementRows.Select(r => r.Movement!));
-            await _db.SaveChangesAsync(ct);
+            await _movements.PostOutboundRangeAsync(
+                movementRows.Select(r => r.Movement!).ToList(),
+                StockGuard.Standard,
+                ct);
 
             foreach (var row in movementRows)
             {
@@ -337,7 +369,9 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
         LossEventSubmission Submission,
         LossEvent Event,
         InventoryMovement? Movement,
-        LossEventComputation Metrics);
+        LossEventComputation Metrics,
+        TransportSourcePlan SourcePlan,
+        int? TransportLegId);
 
     private async Task<PendingLossEvent> BuildPendingLossEventAsync(
         LossEventSubmission submission,
@@ -349,6 +383,35 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
             submission.ActualQuantityMt,
             submission.ToleranceQuantityMt);
         var inventoryLossMt = Math.Max(metrics.DifferenceQuantityMt, 0m);
+
+        int? transportLegId = submission.TransportLegId;
+        TransportSourcePlan sourcePlan = TransportSourcePlan.Empty;
+        var allocationQuantityMt = Math.Abs(metrics.DifferenceQuantityMt);
+        if (submission.SalesTransactionId.HasValue)
+        {
+            sourcePlan = await _sourceAllocations.BuildFromSaleAsync(
+                submission.SalesTransactionId.Value,
+                allocationQuantityMt,
+                ct);
+        }
+        else if (submission.TruckDispatchId.HasValue)
+        {
+            var dispatch = await _db.TruckDispatches
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == submission.TruckDispatchId.Value, ct);
+            if (dispatch is not null)
+            {
+                transportLegId ??= await _sourceAllocations.ResolveCurrentLegIdAsync(dispatch, ct);
+            }
+        }
+
+        if (sourcePlan.Shares.Count == 0 && transportLegId.HasValue)
+        {
+            sourcePlan = await _sourceAllocations.BuildFromLegAsync(
+                transportLegId.Value,
+                allocationQuantityMt,
+                ct);
+        }
 
         InventoryMovement? movement = null;
         if (submission.AffectsInventory)
@@ -366,19 +429,20 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
                 Notes = BuildInventoryNotes(submission.Stage, submission.Notes)
             };
 
-            // قفل هم‌زمانی روی مخزن/کالا پیش از چک موجودی، تا دو ثبت هم‌زمانِ کسری روی یک مخزن
-            // نتوانند هر دو از چک عبور کنند و بیش از موجودی خارج شود (داخل تراکنشِ فراخوان اجرا می‌شود).
-            await _stock.AcquireStockMutationLockAsync(movement, ct);
-            // کنترل کفایت موجودی به‌ازای هر حرکت باقی می‌ماند: یک قاعده کسب‌وکاری است که باید
-            // اثر تجمعی حرکت‌های قبلی همین دسته را هم ببیند، پس دسته‌ای‌کردن آن رفتار را عوض می‌کند.
-            await _stock.EnsureSufficientStockForMovementAsync(movement, ct);
         }
 
-        var lossEvent = BuildLossEvent(submission, metrics);
-        return new PendingLossEvent(submission, lossEvent, movement, metrics);
+        var lossEvent = BuildLossEvent(submission, metrics, transportLegId);
+        if (sourcePlan.Shares.Count > 0)
+        {
+            _sourceAllocations.ApplyLegacyHeader(lossEvent, sourcePlan);
+        }
+        return new PendingLossEvent(submission, lossEvent, movement, metrics, sourcePlan, transportLegId);
     }
 
-    private static LossEvent BuildLossEvent(LossEventSubmission submission, LossEventComputation metrics)
+    private static LossEvent BuildLossEvent(
+        LossEventSubmission submission,
+        LossEventComputation metrics,
+        int? transportLegId)
     {
         return new LossEvent
         {
@@ -388,6 +452,7 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
             ShipmentId = submission.ShipmentId,
             LoadingRegisterId = submission.LoadingRegisterId,
             LoadingReceiptId = submission.LoadingReceiptId,
+            TransportLegId = transportLegId,
             TruckDispatchId = submission.TruckDispatchId,
             SalesTransactionId = submission.SalesTransactionId,
             TerminalId = submission.TerminalId,

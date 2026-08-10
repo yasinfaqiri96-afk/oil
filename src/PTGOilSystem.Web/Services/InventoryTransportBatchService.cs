@@ -17,15 +17,18 @@ public sealed class InventoryTransportBatchService
     private readonly ApplicationDbContext _db;
     private readonly IStockService _stock;
     private readonly IFormTokenGuard _formTokens;
+    private readonly IInventoryMovementWriter _movements;
 
     public InventoryTransportBatchService(
         ApplicationDbContext db,
         IStockService stock,
-        IFormTokenGuard? formTokens = null)
+        IFormTokenGuard? formTokens = null,
+        IInventoryMovementWriter? movements = null)
     {
         _db = db;
         _stock = stock;
         _formTokens = formTokens ?? new FormTokenGuard(db);
+        _movements = movements ?? new InventoryMovementWriter(db, stock);
     }
 
     public async Task<IReadOnlyList<InventoryTransportSourceAvailabilityViewModel>> GetAvailableSourcesAsync(
@@ -125,9 +128,10 @@ public sealed class InventoryTransportBatchService
         var sourceMovementIds = valid.Select(m => m.Id).ToArray();
         var usedRows = await _db.InventoryTransportLegAllocations
             .AsNoTracking()
-            .Where(a => sourceMovementIds.Contains(a.SourceInventoryMovementId)
+            .Where(a => a.SourceInventoryMovementId != null
+                && sourceMovementIds.Contains(a.SourceInventoryMovementId.Value)
                 && a.OutboundInventoryMovementId != null)
-            .Select(a => new { a.SourceInventoryMovementId, a.QuantityMt })
+            .Select(a => new { SourceInventoryMovementId = a.SourceInventoryMovementId!.Value, a.QuantityMt })
             .ToListAsync(ct);
         var usedBySource = usedRows
             .GroupBy(a => a.SourceInventoryMovementId)
@@ -499,6 +503,7 @@ public sealed class InventoryTransportBatchService
                     TransportType = vehicle.Input.TransportType,
                     TruckId = vehicle.Input.TruckId,
                     WagonId = vehicle.Input.WagonId,
+                    VesselId = vehicle.Input.VesselId,
                     WagonNumber = vehicle.WagonNumber,
                     DriverId = vehicle.Input.DriverId,
                     CarrierType = vehicle.Input.CarrierType,
@@ -622,7 +627,9 @@ public sealed class InventoryTransportBatchService
                 SubmissionMode = InventoryTransportSubmissionMode.Loaded,
                 Sources = batch.Legs
                     .SelectMany(l => l.Allocations)
-                    .GroupBy(a => a.SourceInventoryMovementId)
+                    // فقط سهم‌های منبع‌مخزنی؛ سهم‌های وسیله‌به‌وسیله سند موجودی ندارند.
+                    .Where(a => a.SourceInventoryMovementId != null)
+                    .GroupBy(a => a.SourceInventoryMovementId!.Value)
                     .Select(g => new InventoryTransportSourceSelectionInput
                     {
                         SourceInventoryMovementId = g.Key,
@@ -644,11 +651,13 @@ public sealed class InventoryTransportBatchService
                     FreightCurrencyId = l.FreightCurrencyId,
                     RwbNo = l.RwbNo,
                     BillOfLadingNumber = l.BillOfLadingNumber,
-                    Allocations = l.Allocations.Select(a => new InventoryTransportVehicleAllocationInput
-                    {
-                        SourceInventoryMovementId = a.SourceInventoryMovementId,
-                        QuantityMt = a.QuantityMt
-                    }).ToList()
+                    Allocations = l.Allocations
+                        .Where(a => a.SourceInventoryMovementId != null)
+                        .Select(a => new InventoryTransportVehicleAllocationInput
+                        {
+                            SourceInventoryMovementId = a.SourceInventoryMovementId!.Value,
+                            QuantityMt = a.QuantityMt
+                        }).ToList()
                 }).ToList()
             };
             await ValidateAndPrepareAsync(validationModel, ct);
@@ -686,7 +695,8 @@ public sealed class InventoryTransportBatchService
         // برای منابع مخزن = همان مخزن؛ برای «بار روی کشتی» = ترمینالِ همان با مخزنِ null (بدون توقف در مخزن).
         var sourceMovementIds = batch.Legs
             .SelectMany(l => l.Allocations)
-            .Select(a => a.SourceInventoryMovementId)
+            .Where(a => a.SourceInventoryMovementId != null)
+            .Select(a => a.SourceInventoryMovementId!.Value)
             .Distinct()
             .ToList();
         var sourceLocations = await _db.InventoryMovements.AsNoTracking()
@@ -698,26 +708,25 @@ public sealed class InventoryTransportBatchService
         {
             foreach (var allocation in leg.Allocations)
             {
-                var location = sourceLocations.TryGetValue(allocation.SourceInventoryMovementId, out var loc)
-                    ? loc
-                    : (batch.SourceTerminalId, batch.SourceStorageTankId);
-                var movement = new InventoryMovement
-                {
-                    ProductId = batch.ProductId,
-                    ContractId = allocation.SourcePurchaseContractId,
-                    TerminalId = location.Item1,
-                    StorageTankId = location.Item2,
-                    Direction = MovementDirection.Out,
-                    MovementDate = batch.TransportDate,
-                    QuantityMt = allocation.QuantityMt,
-                    ReferenceDocument = $"TRANSPORT-ALLOCATION:{allocation.Id}",
-                    Notes = $"Inventory transport batch {batch.BatchNumber}, leg {leg.Id}"
-                };
-                // قفل هم‌زمانی روی مخزن/کالا پیش از چک موجودی (داخل تراکنشِ caller).
-                await _stock.AcquireStockMutationLockAsync(movement, ct);
-                await _stock.EnsureSufficientStockForMovementAsync(movement, ct);
-                _db.InventoryMovements.Add(movement);
-                await _db.SaveChangesAsync(ct);
+                var location = allocation.SourceInventoryMovementId is { } sourceMovementId
+                    && sourceLocations.TryGetValue(sourceMovementId, out var loc)
+                        ? loc
+                        : (batch.SourceTerminalId, batch.SourceStorageTankId);
+                // قفل هم‌زمانی روی مخزن/کالا پیش از چک موجودی، و هر دو داخل تراکنشِ caller.
+                var movement = await _movements.PostOutboundAsync(
+                    new InventoryMovementRequest
+                    {
+                        ProductId = batch.ProductId,
+                        ContractId = allocation.SourcePurchaseContractId,
+                        TerminalId = location.Item1,
+                        StorageTankId = location.Item2,
+                        MovementDate = batch.TransportDate,
+                        QuantityMt = allocation.QuantityMt,
+                        ReferenceDocument = $"TRANSPORT-ALLOCATION:{allocation.Id}",
+                        Notes = $"Inventory transport batch {batch.BatchNumber}, leg {leg.Id}"
+                    },
+                    StockGuard.Standard,
+                    ct);
                 allocation.OutboundInventoryMovementId = movement.Id;
             }
 
@@ -793,20 +802,19 @@ public sealed class InventoryTransportBatchService
             _db.InventoryTransportLegs.Add(vesselReceiptLeg);
             await _db.SaveChangesAsync(ct);
 
-            var inboundMovement = new InventoryMovement
-            {
-                ProductId = model.ProductId,
-                ContractId = source.SourcePurchaseContractId,
-                TerminalId = model.SourceTerminalId,
-                StorageTankId = null,
-                Direction = MovementDirection.In,
-                MovementDate = model.TransportDate.Date,
-                QuantityMt = quantity,
-                ReferenceDocument = $"VESSEL-DIRECT-LEG:{vesselReceiptLeg.Id}",
-                Notes = "Direct-from-vessel discharge (no tank)"
-            };
-            _db.InventoryMovements.Add(inboundMovement);
-            await _db.SaveChangesAsync(ct);
+            var inboundMovement = await _movements.PostInboundAsync(
+                new InventoryMovementRequest
+                {
+                    ProductId = model.ProductId,
+                    ContractId = source.SourcePurchaseContractId,
+                    TerminalId = model.SourceTerminalId,
+                    StorageTankId = null,
+                    MovementDate = model.TransportDate.Date,
+                    QuantityMt = quantity,
+                    ReferenceDocument = $"VESSEL-DIRECT-LEG:{vesselReceiptLeg.Id}",
+                    Notes = "Direct-from-vessel discharge (no tank)"
+                },
+                ct);
 
             var receipt = new InventoryTransportReceipt
             {
@@ -863,6 +871,7 @@ public sealed class InventoryTransportBatchService
                 {
                     createdTrucks.Add((vehicle, pendingTruck));
                     vehicle.WagonId = null;
+                    vehicle.VesselId = null;
                     continue;
                 }
                 var existing = await _db.Trucks.FirstOrDefaultAsync(t => t.PlateNumber == plate, ct);
@@ -881,6 +890,7 @@ public sealed class InventoryTransportBatchService
                     createdTrucks.Add((vehicle, truck));
                 }
                 vehicle.WagonId = null;
+                vehicle.VesselId = null;
             }
             else if (vehicle.TransportType == LoadingTransportType.Wagon)
             {
@@ -905,6 +915,13 @@ public sealed class InventoryTransportBatchService
                     createdWagons.Add((vehicle, wagon));
                 }
                 vehicle.TruckId = null;
+                vehicle.VesselId = null;
+            }
+            else if (vehicle.TransportType == LoadingTransportType.Vessel)
+            {
+                vehicle.TruckId = null;
+                vehicle.WagonId = null;
+                vehicle.DriverId = null;
             }
         }
 
@@ -1017,11 +1034,12 @@ public sealed class InventoryTransportBatchService
         var vehicles = (model.Vehicles ?? []).Where(v => v.QuantityMt > 0m).ToList();
         if (vehicles.Count == 0)
         {
-            throw Rule("INVENTORY_TRANSPORT_VEHICLE_REQUIRED", "حداقل یک موتر یا واگن وارد کنید.");
+            throw Rule("INVENTORY_TRANSPORT_VEHICLE_REQUIRED", "حداقل یک وسیلهٔ حمل وارد کنید.");
         }
 
         var truckIds = vehicles.Where(v => v.TruckId.HasValue).Select(v => v.TruckId!.Value).Distinct().ToArray();
         var wagonIds = vehicles.Where(v => v.WagonId.HasValue).Select(v => v.WagonId!.Value).Distinct().ToArray();
+        var vesselIds = vehicles.Where(v => v.VesselId.HasValue).Select(v => v.VesselId!.Value).Distinct().ToArray();
         var driverIds = vehicles.Where(v => v.DriverId.HasValue).Select(v => v.DriverId!.Value).Distinct().ToArray();
         var providerIds = vehicles.Where(v => v.ServiceProviderId.HasValue).Select(v => v.ServiceProviderId!.Value).Distinct().ToArray();
         var assetIds = vehicles.Where(v => v.OperationalAssetId.HasValue).Select(v => v.OperationalAssetId!.Value).Distinct().ToArray();
@@ -1034,6 +1052,7 @@ public sealed class InventoryTransportBatchService
         var resolvedTruckIds = truckIds.Concat(linkedTruckIds).Distinct().ToArray();
         var trucks = await _db.Trucks.AsNoTracking().Where(t => resolvedTruckIds.Contains(t.Id) && t.IsActive).ToDictionaryAsync(t => t.Id, ct);
         var wagons = await _db.Wagons.AsNoTracking().Where(w => wagonIds.Contains(w.Id) && w.IsActive).ToDictionaryAsync(w => w.Id, ct);
+        var vessels = await _db.Vessels.AsNoTracking().Where(v => vesselIds.Contains(v.Id) && v.IsActive).ToDictionaryAsync(v => v.Id, ct);
         var drivers = (await _db.Drivers.AsNoTracking().Where(d => driverIds.Contains(d.Id) && d.IsActive).Select(d => d.Id).ToListAsync(ct)).ToHashSet();
         var providers = (await _db.ServiceProviders.AsNoTracking().Where(p => providerIds.Contains(p.Id) && p.IsActive).Select(p => p.Id).ToListAsync(ct)).ToHashSet();
         var currencies = (await _db.Currencies.AsNoTracking().Where(c => currencyIds.Contains(c.Id) && c.IsActive).Select(c => c.Id).ToListAsync(ct)).ToHashSet();
@@ -1065,7 +1084,7 @@ public sealed class InventoryTransportBatchService
                 {
                     throw Rule("INVENTORY_TRANSPORT_TRUCK_INVALID", $"موتر ردیف {i + 1} فعال یا معتبر نیست.");
                 }
-                if (vehicle.WagonId.HasValue)
+                if (vehicle.WagonId.HasValue || vehicle.VesselId.HasValue)
                 {
                     throw Rule("INVENTORY_TRANSPORT_VEHICLE_CONFLICT", $"در ردیف {i + 1} فقط موتر باید انتخاب شود.");
                 }
@@ -1090,7 +1109,7 @@ public sealed class InventoryTransportBatchService
                 {
                     throw Rule("INVENTORY_TRANSPORT_WAGON_INVALID", $"واگن ردیف {i + 1} فعال یا معتبر نیست.");
                 }
-                if (vehicle.TruckId.HasValue || vehicle.DriverId.HasValue)
+                if (vehicle.TruckId.HasValue || vehicle.VesselId.HasValue || vehicle.DriverId.HasValue)
                 {
                     throw Rule("INVENTORY_TRANSPORT_VEHICLE_CONFLICT", $"در ردیف {i + 1} فقط واگن باید انتخاب شود.");
                 }
@@ -1103,9 +1122,28 @@ public sealed class InventoryTransportBatchService
                 wagonNumber = wagon?.WagonNumber ?? selectedAsset?.AssetCode;
                 vehicleKey = assetCanBeVehicle ? $"A:{selectedAsset!.Id}" : $"W:{wagon!.Id}";
             }
+            else if (vehicle.TransportType == LoadingTransportType.Vessel)
+            {
+                vessels.TryGetValue(vehicle.VesselId.GetValueOrDefault(), out var vessel);
+                if (vessel is null)
+                {
+                    throw Rule("INVENTORY_TRANSPORT_VESSEL_INVALID", $"کشتی ردیف {i + 1} فعال یا معتبر نیست.");
+                }
+                if (vehicle.TruckId.HasValue || vehicle.WagonId.HasValue || vehicle.DriverId.HasValue)
+                {
+                    throw Rule("INVENTORY_TRANSPORT_VEHICLE_CONFLICT", $"در ردیف {i + 1} فقط کشتی باید انتخاب شود.");
+                }
+                if (vehicle.CarrierType != CarrierType.ServiceProvider || vehicle.OperationalAssetId.HasValue)
+                {
+                    throw Rule("INVENTORY_TRANSPORT_VESSEL_CARRIER", $"برای کشتی ردیف {i + 1} شرکت خدماتی را انتخاب کنید.");
+                }
+                capacity = PositiveCapacity(vehicle.CapacityMt) ?? 0m;
+                wagonNumber = null;
+                vehicleKey = $"V:{vessel.Id}";
+            }
             else
             {
-                throw Rule("INVENTORY_TRANSPORT_VEHICLE_TYPE", $"نوع وسیله ردیف {i + 1} باید موتر یا واگن باشد.");
+                throw Rule("INVENTORY_TRANSPORT_VEHICLE_TYPE", $"نوع وسیله ردیف {i + 1} باید موتر، واگن یا کشتی باشد.");
             }
 
             if (!seenVehicles.Add(vehicleKey))
@@ -1132,9 +1170,12 @@ public sealed class InventoryTransportBatchService
                 {
                     throw Rule("INVENTORY_TRANSPORT_ASSET_INVALID", $"دارایی عملیاتی فعال ردیف {i + 1} را انتخاب و شرکت خدماتی را خالی کنید.");
                 }
-                var validAssetType = vehicle.TransportType == LoadingTransportType.Truck
-                    ? asset.AssetType is OperationalAssetType.Truck or OperationalAssetType.TankerTruck
-                    : asset.AssetType == OperationalAssetType.Wagon;
+                var validAssetType = vehicle.TransportType switch
+                {
+                    LoadingTransportType.Truck => asset.AssetType is OperationalAssetType.Truck or OperationalAssetType.TankerTruck,
+                    LoadingTransportType.Wagon => asset.AssetType == OperationalAssetType.Wagon,
+                    _ => false
+                };
                 if (!validAssetType || (asset.LinkedTruckId.HasValue && asset.LinkedTruckId != vehicle.TruckId))
                 {
                     throw Rule("INVENTORY_TRANSPORT_ASSET_VEHICLE", $"دارایی عملیاتی ردیف {i + 1} با وسیله انتخاب‌شده سازگار نیست.");

@@ -142,7 +142,8 @@ public static class DispatchFreightExpenseSync
     public static async Task CancelExpenseAsync(
         ApplicationDbContext db,
         ExpenseTransaction expense,
-        Accounting.IExpenseAccountingAdapter? expenseAccounting = null)
+        Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
+        DateTime? reversalDate = null)
     {
         if (expense.IsCancelled)
         {
@@ -158,10 +159,20 @@ public static class DispatchFreightExpenseSync
 
         expense.IsCancelled = true;
         expense.UpdatedAtUtc = DateTime.UtcNow;
-        var ledger = await db.LedgerEntries.FirstOrDefaultAsync(l => l.SourceType == "Expense" && l.SourceId == expense.Id);
+        var ledger = await db.LedgerEntries
+            .Where(l => l.SourceType == "Expense"
+                && l.SourceId == expense.Id
+                && (l.Reference == null || !l.Reference.EndsWith(LedgerReversalWriter.CancelReferenceSuffix)))
+            .OrderByDescending(l => l.Id)
+            .FirstOrDefaultAsync();
         if (ledger is not null)
         {
-            db.LedgerEntries.Remove(ledger);
+            await LedgerReversalWriter.ReverseAsync(
+                db,
+                ledger,
+                reversalDate ?? DateTime.UtcNow.Date,
+                $"لغو کرایه/مصرف #{expense.Id} | {ledger.Description}",
+                $"EXP-{expense.Id}");
         }
 
         await db.SaveChangesAsync();
@@ -170,7 +181,11 @@ public static class DispatchFreightExpenseSync
     private static async Task UpsertLedgerAsync(ApplicationDbContext db, ExpenseTransaction expense)
     {
         var ledger = await db.LedgerEntries
-            .FirstOrDefaultAsync(l => l.SourceType == "Expense" && l.SourceId == expense.Id);
+            .Where(l => l.SourceType == "Expense"
+                && l.SourceId == expense.Id
+                && (l.Reference == null || !l.Reference.EndsWith(LedgerReversalWriter.CancelReferenceSuffix)))
+            .OrderByDescending(l => l.Id)
+            .FirstOrDefaultAsync();
 
         ledger ??= new LedgerEntry
         {

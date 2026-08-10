@@ -45,6 +45,9 @@ public sealed class LossEventCreateViewModel
     [Display(Name = "دیسپچ")]
     public int? TruckDispatchId { get; set; }
 
+    [Display(Name = "حمل")]
+    public int? TransportLegId { get; set; }
+
     [Display(Name = "فروش")]
     public int? SalesTransactionId { get; set; }
 

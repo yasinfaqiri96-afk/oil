@@ -17,7 +17,23 @@
     }
 }
 
-<div class="ak-form-page">
+@{
+    var loadingAllocationLabels = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        selectContract = UiText.T(Context, "ابتدا قرارداد را انتخاب کنید", "Select contract first"),
+        loading = UiText.T(Context, "در حال دریافت بارگیری‌ها...", "Loading loadings..."),
+        noLoadings = UiText.T(Context, "برای این قرارداد بارگیری قابل تخصیص نیست", "No allocatable loading for this contract"),
+        loadError = UiText.T(Context, "دریافت بارگیری‌ها ناموفق بود؛ قرارداد را دوباره انتخاب کنید.", "Could not load loadings; select the contract again."),
+        noPrice = UiText.T(Context, "بدون نرخ", "No rate"),
+        matched = UiText.T(Context, "برابر مقدار تخصیص", "Matches allocation"),
+        mismatch = UiText.T(Context, "جمع سهم بارگیری‌ها {0} است ولی مقدار تخصیص این قرارداد {1} — باید برابر باشند.", "Loading allocations total {0} but this contract is allocated {1} — they must match."),
+        quantityFor = UiText.T(Context, "مقدار از بارگیری", "Quantity from loading")
+    });
+}
+
+<div class="ak-form-page" data-loading-allocations
+     data-loading-endpoint="@Url.Action("LoadingAvailability", "Shipments")"
+     data-labels="@loadingAllocationLabels">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "ثبت محموله / کشتی", "Create Shipment"), false, (string?)null, (string?)null, (string?)null, (string?)null, UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", Url.Action("Index", "ShipmentPnl")))" />
     <form asp-action="Create" method="post" class="ak-form-section ak-form">
@@ -120,6 +136,7 @@
                                 <th>@UiText.T(Context,"یادداشت","Notes")</th>
                                 <th></th>
                             </tr>
+                            @* ستون‌ها ثابت می‌مانند؛ سهم بارگیری در یک ردیف کشویی زیر هر قرارداد می‌آید. *@
                         </thead>
                         <tbody data-allocation-body>
                             @for (var i = 0; i < allocationRows.Count; i++)
@@ -154,6 +171,8 @@
                                         </button>
                                     </td>
                                 </tr>
+                                <partial name="_ShipmentLoadingAllocationRow"
+                                         model="@((i.ToString(System.Globalization.CultureInfo.InvariantCulture), (IReadOnlyList<PTGOilSystem.Web.Models.Shipments.ShipmentLoadingAllocationInput>)row.LoadingAllocations))" />
                             }
                         </tbody>
                     </table>
@@ -191,6 +210,11 @@
                     </tr>
                 </template>
 
+                <template id="loading-allocation-row-template">
+                    <partial name="_ShipmentLoadingAllocationRow"
+                             model="@(("__index__", (IReadOnlyList<PTGOilSystem.Web.Models.Shipments.ShipmentLoadingAllocationInput>)new List<PTGOilSystem.Web.Models.Shipments.ShipmentLoadingAllocationInput>()))" />
+                </template>
+
             </div>
         </div>
 
@@ -216,6 +240,7 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/shipment-loading-allocations.js" asp-append-version="true" defer></script>
     <script>
         (function () {
             const table = document.querySelector('[data-allocation-table]');

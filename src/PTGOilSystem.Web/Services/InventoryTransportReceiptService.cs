@@ -24,6 +24,9 @@ public sealed class InventoryTransportReceiptService
     private readonly ApplicationDbContext _db;
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IInventoryLineageWriter _lineage;
+    private readonly IInventoryMovementWriter _movements;
+    private readonly ITransportQuantityService _quantities;
+    private readonly ITransportSourceAllocationService _sourceAllocations;
 
     // writer اختیاری: call siteهای موجود بدون تغییر می‌مانند و در نبودِ آن writerِ خاموش (no-op) استفاده می‌شود.
     // مراحل ۵، ۷ و ۸ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
@@ -39,11 +42,17 @@ public sealed class InventoryTransportReceiptService
         Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
         Accounting.ISalesAccountingAdapter? salesAccounting = null,
         Accounting.IShortageChargeAccountingAdapter? shortageAccounting = null,
-        Accounting.IInventoryTransferAccountingAdapter? transferAccounting = null)
+        Accounting.IInventoryTransferAccountingAdapter? transferAccounting = null,
+        IInventoryMovementWriter? movements = null,
+        ITransportQuantityService? quantities = null,
+        ITransportSourceAllocationService? sourceAllocations = null)
     {
         _db = db;
         _currencyConversion = currencyConversion;
         _lineage = lineage ?? InventoryLineageWriterFactory.Disabled(db);
+        _movements = movements ?? new InventoryMovementWriter(db, new StockService(db));
+        _quantities = quantities ?? new TransportQuantityService(db);
+        _sourceAllocations = sourceAllocations ?? new TransportSourceAllocationService(db);
         _expenseAccounting = expenseAccounting;
         _salesAccounting = salesAccounting;
         _shortageAccounting = shortageAccounting;
@@ -228,6 +237,7 @@ public sealed class InventoryTransportReceiptService
         await SyncShortageDebtAsync(receipt, leg, model.ShortageAsSeparateDebt);
 
         LossEvent? shortageLoss = null;
+        TransportSourcePlan shortageSourcePlan = TransportSourcePlan.Empty;
         InventoryMovement? inboundMovement = null;
         SalesTransaction? directSale = null;
 
@@ -242,6 +252,9 @@ public sealed class InventoryTransportReceiptService
         {
             var isSurplus = TransportVarianceMath.IsSurplus(model.ShortageQuantityMt);
             var allowanceMt = model.AllowanceMt ?? 0m;
+            shortageSourcePlan = await _sourceAllocations.BuildFromLegAsync(
+                leg.Id,
+                Math.Abs(model.ShortageQuantityMt));
             shortageLoss = new LossEvent
             {
                 Stage = LossEventStage.ReceiptShortage,
@@ -266,40 +279,60 @@ public sealed class InventoryTransportReceiptService
                     ? "Inventory transport receipt positive variance (surplus)"
                     : "Inventory transport receipt shortage"
             };
+            _sourceAllocations.ApplyLegacyHeader(shortageLoss, shortageSourcePlan);
             _db.LossEvents.Add(shortageLoss);
+            await _db.SaveChangesAsync();
+            await _sourceAllocations.PersistLossAsync(
+                shortageLoss,
+                shortageSourcePlan,
+                leg.Id);
         }
 
         // «فقط تسویه» (ReceivedQuantityMt=0) هیچ حرکت موجودی نمی‌سازد؛ بار داخل وسیله می‌ماند.
         if (model.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
             && model.ReceivedQuantityMt > 0m)
         {
-            inboundMovement = new InventoryMovement
-            {
-                ProductId = leg.ProductId,
-                ContractId = leg.SourcePurchaseContractId,
-                TerminalId = model.DestinationTerminalId!.Value,
-                StorageTankId = model.DestinationStorageTankId,
-                Direction = MovementDirection.In,
-                MovementDate = model.ReceiptDate,
-                QuantityMt = model.ReceivedQuantityMt,
-                ReferenceDocument = $"TRANSPORT-RECEIPT:{receipt.Id}",
-                Notes = "Inventory transport leg destination receipt"
-            };
+            // خروجی مبدأ برای هر قرارداد جداگانه ثبت شده است (یک سند به‌ازای هر Allocation).
+            // پس ورودی مقصد هم باید به همان نسبت تقسیم شود، وگرنه حملی که از دو قرارداد تغذیه
+            // شده کل مقدار را به قرارداد سرصفحه می‌بندد و موجودیِ قراردادی هر دو طرف غلط می‌شود.
+            var sourcePlan = await _sourceAllocations.BuildFromLegAsync(leg.Id, model.ReceivedQuantityMt);
+            var preparedMovements = sourcePlan.Shares
+                .OrderByDescending(share => share.QuantityMt)
+                .ThenBy(share => share.SourcePurchaseContractId)
+                .Select(share => new InventoryMovement
+                {
+                    ProductId = leg.ProductId,
+                    ContractId = share.SourcePurchaseContractId,
+                    TerminalId = model.DestinationTerminalId!.Value,
+                    StorageTankId = model.DestinationStorageTankId,
+                    MovementDate = model.ReceiptDate,
+                    QuantityMt = share.QuantityMt,
+                    ReferenceDocument = $"TRANSPORT-RECEIPT:{receipt.Id}",
+                    Notes = "Inventory transport leg destination receipt"
+                })
+                .ToList();
+            var inboundMovements = await _movements.PostInboundRangeAsync(preparedMovements);
 
-            _db.InventoryMovements.Add(inboundMovement);
-            await _db.SaveChangesAsync();
-
+            // بزرگ‌ترین سهم سند اصلی است؛ کلید یکتای رسید فقط به همان وصل می‌شود و بقیهٔ سهم‌ها
+            // با همان ReferenceDocument قابل ردیابی‌اند.
+            inboundMovement = inboundMovements[0];
             receipt.InventoryMovementId = inboundMovement.Id;
         }
         else if (model.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale)
         {
+            var saleSourcePlan = await _sourceAllocations.BuildFromLegAsync(leg.Id, model.ReceivedQuantityMt);
             directSale = BuildDirectSale(model, leg, saleConversion!);
+            _sourceAllocations.ApplyLegacyHeader(directSale, saleSourcePlan);
             _db.SalesTransactions.Add(directSale);
             await _db.SaveChangesAsync();
+            await _sourceAllocations.PersistSaleAsync(directSale, saleSourcePlan, leg.Id);
 
             receipt.SalesTransactionId = directSale.Id;
 
-            _db.LedgerEntries.Add(BuildDirectSaleLedgerEntry(directSale, leg.SourcePurchaseContractId, saleConversion!));
+            _db.LedgerEntries.Add(BuildDirectSaleLedgerEntry(
+                directSale,
+                saleSourcePlan.SingleContractId,
+                saleConversion!));
             await _db.SaveChangesAsync();
 
             // مرحله ۷ — Dual-write داخل همان Transaction قدیمی.
@@ -312,7 +345,10 @@ public sealed class InventoryTransportReceiptService
         else if (model.ReceiptDestination == InventoryTransportReceiptDestination.DirectDispatch)
         {
             // رسیدهای «همراهِ» موتر چندواگنه دیسپچ جدا نمی‌سازند؛ دیسپچ واحد روی رسید اول ثبت شده است.
-            if (!model.SkipDirectDispatchRecord)
+            // TruckDispatch فقط رکورد سازگاری برای مقصدِ موتر است؛ واگن/کشتی معادلی ندارند و
+            // زنجیرهٔ حمل برای هر سه نوع از مرحلهٔ فرزند خوانده می‌شود.
+            if (!model.SkipDirectDispatchRecord
+                && model.DirectDispatchTransportType == LoadingTransportType.Truck)
             {
                 var dispatch = BuildDirectDispatch(model, leg, receipt.Id);
                 _db.TruckDispatches.Add(dispatch);
@@ -405,13 +441,43 @@ public sealed class InventoryTransportReceiptService
         ModelStateDictionary modelState,
         string keyPrefix)
     {
-        if (!model.DirectDispatchTruckId.HasValue || model.DirectDispatchTruckId.Value <= 0)
+        // وسیلهٔ مقصد هر سه نوع می‌تواند باشد؛ منطق یکی است و فقط شناسهٔ وسیله فرق می‌کند.
+        switch (model.DirectDispatchTransportType)
         {
-            modelState.AddModelError(keyPrefix + nameof(model.DirectDispatchTruckId), "Truck is required for direct dispatch.");
-        }
-        else if (!await _db.Trucks.AsNoTracking().AnyAsync(t => t.Id == model.DirectDispatchTruckId.Value && t.IsActive))
-        {
-            modelState.AddModelError(keyPrefix + nameof(model.DirectDispatchTruckId), "Truck is invalid.");
+            case LoadingTransportType.Wagon:
+                if ((!model.DirectDispatchWagonId.HasValue || model.DirectDispatchWagonId.Value <= 0)
+                    && string.IsNullOrWhiteSpace(model.DirectDispatchWagonNumber))
+                {
+                    modelState.AddModelError(keyPrefix + nameof(model.DirectDispatchWagonId), "Wagon is required for this transfer.");
+                }
+                else if (model.DirectDispatchWagonId is > 0
+                    && !await _db.Wagons.AsNoTracking().AnyAsync(w => w.Id == model.DirectDispatchWagonId.Value && w.IsActive))
+                {
+                    modelState.AddModelError(keyPrefix + nameof(model.DirectDispatchWagonId), "Wagon is invalid.");
+                }
+                break;
+
+            case LoadingTransportType.Vessel:
+                if (!model.DirectDispatchVesselId.HasValue || model.DirectDispatchVesselId.Value <= 0)
+                {
+                    modelState.AddModelError(keyPrefix + nameof(model.DirectDispatchVesselId), "Vessel is required for this transfer.");
+                }
+                else if (!await _db.Vessels.AsNoTracking().AnyAsync(v => v.Id == model.DirectDispatchVesselId.Value && v.IsActive))
+                {
+                    modelState.AddModelError(keyPrefix + nameof(model.DirectDispatchVesselId), "Vessel is invalid.");
+                }
+                break;
+
+            default:
+                if (!model.DirectDispatchTruckId.HasValue || model.DirectDispatchTruckId.Value <= 0)
+                {
+                    modelState.AddModelError(keyPrefix + nameof(model.DirectDispatchTruckId), "Truck is required for direct dispatch.");
+                }
+                else if (!await _db.Trucks.AsNoTracking().AnyAsync(t => t.Id == model.DirectDispatchTruckId.Value && t.IsActive))
+                {
+                    modelState.AddModelError(keyPrefix + nameof(model.DirectDispatchTruckId), "Truck is invalid.");
+                }
+                break;
         }
 
         if (model.DirectDispatchDriverId.HasValue
@@ -482,7 +548,7 @@ public sealed class InventoryTransportReceiptService
 
     private static LedgerEntry BuildDirectSaleLedgerEntry(
         SalesTransaction sale,
-        int sourcePurchaseContractId,
+        int? sourcePurchaseContractId,
         CurrencyConversionResult conversion)
         => SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: sourcePurchaseContractId);
 
@@ -513,17 +579,12 @@ public sealed class InventoryTransportReceiptService
         };
 
     // باقیمانده حمل = مقدار کل منهای مجموع رسیدهای فعال (دریافت + کسری). مبنای مجاز بودن رسید جزئی بعدی.
-    private async Task<decimal> GetRemainingQuantityAsync(InventoryTransportLeg leg)
-    {
-        var consumedMt = await _db.InventoryTransportReceipts
-            .Where(r => r.InventoryTransportLegId == leg.Id && !r.IsCancelled)
-            .SumAsync(r => r.ReceivedQuantityMt + r.ShortageQuantityMt);
-        return decimal.Round(leg.QuantityMt - consumedMt, 4, MidpointRounding.AwayFromZero);
-    }
+    private Task<decimal> GetRemainingQuantityAsync(InventoryTransportLeg leg)
+        => _quantities.GetRemainingMtAsync(leg.Id);
 
     // موتر و واگن هر دو از جریان «تخلیه + کرایه» (تلورانس، کسری قابل مجرا، کرایهٔ فی‌تن) استفاده می‌کنند.
     private static bool UsesUnloadFreightFlow(InventoryTransportLeg leg)
-        => leg.TransportType is LoadingTransportType.Truck or LoadingTransportType.Wagon;
+        => leg.TransportType is LoadingTransportType.Truck or LoadingTransportType.Wagon or LoadingTransportType.Vessel;
 
     private static void NormalizeTruckReceiptFields(
         InventoryTransportReceiptCreateViewModel model,
@@ -833,6 +894,59 @@ public sealed class InventoryTransportReceiptService
         _db.ExpenseTypes.Add(expenseType);
         await _db.SaveChangesAsync();
         return expenseType;
+    }
+
+    // کرایهٔ وسیلهٔ ملکی شرکت بدهیِ بیرونی و LedgerEntry نمی‌سازد؛ پروفایل دارایی
+    // همین رکورد را به‌عنوان عاید کرایه می‌خواند. مسیر قدیمی تسویه و Facade جدید
+    // هر دو از این قرارداد idempotent استفاده می‌کنند تا رفتار مالی یکسان بماند.
+    public async Task RecordOperationalAssetFreightIncomeAsync(
+        int operationalAssetId,
+        decimal amountUsd,
+        DateTime date,
+        int? contractId,
+        int? shipmentId,
+        int? transportLegId,
+        int? truckDispatchId,
+        string reference,
+        CancellationToken ct = default)
+    {
+        if (amountUsd <= 0m)
+        {
+            return;
+        }
+
+        var expenseType = await EnsureTransportFreightExpenseTypeAsync();
+        var description = $"Freight income for operational asset — {reference}";
+        if (await _db.ExpenseTransactions.AnyAsync(e => !e.IsCancelled
+            && e.OperationalAssetId == operationalAssetId
+            && e.ExpenseTypeId == expenseType.Id
+            && e.Description == description, ct))
+        {
+            return;
+        }
+
+        var expense = new ExpenseTransaction
+        {
+            ExpenseTypeId = expenseType.Id,
+            ContractId = contractId,
+            ShipmentId = shipmentId,
+            TransportLegId = transportLegId,
+            TruckDispatchId = truckDispatchId,
+            OperationalAssetId = operationalAssetId,
+            ExpenseDate = date.Date,
+            Amount = amountUsd,
+            Currency = SystemCurrency.BaseCurrencyCode,
+            AppliedFxRateToUsd = 1m,
+            AmountUsd = amountUsd,
+            Description = description
+        };
+        _db.ExpenseTransactions.Add(expense);
+        await _db.SaveChangesAsync(ct);
+
+        if (_expenseAccounting is not null)
+        {
+            await _expenseAccounting.TryPostExpenseAsync(expense);
+        }
     }
 
     private static decimal GetFreightExpenseAmountUsd(decimal? payableUsd, decimal? grossUsd)

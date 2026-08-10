@@ -72,7 +72,7 @@
     var isBusinessPartyCompactPage = businessPartyControllers
         .Any(controller => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase));
     var isDetailsPage = string.Equals(currentAction, "Details", StringComparison.OrdinalIgnoreCase);
-    var operationTabControllers = new[] { "Loading", "InventoryTransportLegs", "ShipmentPnl", "Dispatch", "TruckSettlements", "Expenses", "LossEvents", "LoadingReceipts", "CustomsDeclarations", "Sales" };
+    var operationTabControllers = new[] { "Loading", "LoadingReceipts", "InventoryTransportLegs", "Transports", "ShipmentPnl", "Expenses", "LossEvents", "CustomsDeclarations", "Sales", "Dispatch", "TruckSettlements" };
     var operationSubPageHidesSectionTabs = !string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase)
         && operationTabControllers.Any(controller => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase));
     var detailPageHidesSectionTabs = isDetailsPage
@@ -205,7 +205,7 @@
         primarySidebarItems.Add(SidebarItem("Users", "Index", T("کاربران", "Users"), "nav-users", activeControllers: adminManagementControllers));
     }
     primarySidebarItems.Add(SidebarItem("Suppliers", "Index", T("طرف حساب‌ها", "Parties"), "nav-parties", activeControllers: businessPartyGroupControllers));
-    primarySidebarItems.Add(SidebarItem("Trucks", "Index", T("حمل و نقل", "Transport"), "nav-truck", activeControllers: transportControllers));
+    primarySidebarItems.Add(SidebarItem("Trucks", "Index", T("وسایط و راننده‌ها", "Vehicles & Drivers"), "nav-truck", activeControllers: transportControllers));
     primarySidebarItems.Add(SidebarItem("StorageTanks", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", activeControllers: coreDataControllers));
     primarySidebarItems = primarySidebarItems
         .Where(item => !string.Equals(item.Controller, "Sales", StringComparison.OrdinalIgnoreCase))
@@ -275,7 +275,7 @@
             active: new[] { "Reports" }),
         // این سه بخش زیرمنو ندارند؛ هر کدام مستقیم به صفحهٔ فهرست خودشان می‌روند.
         NavNode("Suppliers", "Index", T("طرف حساب‌ها", "Parties"), "nav-parties", active: businessPartyGroupControllers),
-        NavNode("Trucks", "Index", T("حمل و نقل", "Transport"), "nav-truck", active: transportControllers),
+        NavNode("Trucks", "Index", T("وسایط و راننده‌ها", "Vehicles & Drivers"), "nav-truck", active: transportControllers),
         NavNode("StorageTanks", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", active: coreDataControllers)
     };
     if (adminSettingItems.Length > 0)
@@ -421,11 +421,7 @@
            stylesheet in that persistent shell so finance pages never arrive
            before their CSS; every rule is guarded by body.is-finance-workspace. *@
         <link rel="stylesheet" href="~/css/ptg/61-finance-workspace.css" asp-append-version="true" />
-        @* لیست‌های رکوردی پرونده محموله — هر قاعده زیر [data-shipment-details-page] قفل است.
-           مثل 61-finance-workspace در همین پوستهٔ ماندگار می‌ماند تا با ناوبری SPA/Back
-           هیچ تبی بدون CSS خودش نرسد و فایل فقط یک‌بار بارگیری شود. *@
-        <link rel="stylesheet" href="~/css/ptg/64-shipment-record-list.css" asp-append-version="true" />
-        @* جدول رزنامچه — هر قاعده زیر .ak-journal-page قفل است. مثل ۶۱ و ۶۴ در همین
+        @* جدول رزنامچه — هر قاعده زیر .ak-journal-page قفل است. مثل ۶۱ در همین
            پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
         <link rel="stylesheet" href="~/css/ptg/67-journal-table.css" asp-append-version="true" />
         <link rel="stylesheet" href="~/css/ptg/70-page-frame.css" asp-append-version="true" />

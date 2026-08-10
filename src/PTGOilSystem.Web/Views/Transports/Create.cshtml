@@ -1,0 +1,97 @@
+@using PTGOilSystem.Web.Models.InventoryTransport
+@model TransportStartViewModel
+@{
+    ViewData["Title"] = "ثبت حمل";
+    ViewData["HideSectionTabs"] = true;
+}
+
+<main class="ak-form-page" dir="rtl" data-transport-start>
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("ثبت حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))" />
+
+    <form asp-action="Create" method="post" class="ak-form" data-submit-lock>
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
+
+        <section class="ak-form-section" aria-labelledby="transport-source-title">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("منبع بار", (string?)"سیستم بر اساس منبع، مسیر درست ثبت را انتخاب می‌کند."))" />
+            <div class="ak-segmented-control" role="radiogroup" aria-labelledby="transport-source-title">
+                <label class="ak-segmented-option">
+                    <input asp-for="SourceKind" type="radio" value="@((int)TransportStartSourceKind.Inventory)" />
+                    <span><i class="bi bi-database" aria-hidden="true"></i> موجودی مخزن</span>
+                </label>
+                <label class="ak-segmented-option">
+                    <input asp-for="SourceKind" type="radio" value="@((int)TransportStartSourceKind.LoadingReceipt)" />
+                    <span><i class="bi bi-receipt" aria-hidden="true"></i> رسید/بارگیری مستقیم</span>
+                </label>
+                <label class="ak-segmented-option">
+                    <input asp-for="SourceKind" type="radio" value="@((int)TransportStartSourceKind.ActiveTransport)" />
+                    <span><i class="bi bi-arrow-left-right" aria-hidden="true"></i> حمل در جریان</span>
+                </label>
+            </div>
+
+            <div class="ak-form-grid mt-3">
+                <div class="ak-field" data-source-panel="@((int)TransportStartSourceKind.Inventory)">
+                    <strong>شروع از موجودی مخزن</strong>
+                    <small>در مرحلهٔ بعد فقط مخزن، محصول، سهم منبع، وسیله، مقدار و تاریخ را ثبت می‌کنید. خروج موجودی یک‌بار ساخته می‌شود.</small>
+                </div>
+                <div class="ak-field" data-source-panel="@((int)TransportStartSourceKind.LoadingReceipt)">
+                    <label asp-for="LoadingReceiptId">رسید/بارگیری مستقیم</label>
+                    <select asp-for="LoadingReceiptId" class="ak-input">
+                        <option value="">انتخاب کنید</option>
+                        @foreach (var item in Model.LoadingReceipts)
+                        {
+                            <option value="@item.Id">@item.Label</option>
+                        }
+                    </select>
+                    @if (Model.LoadingReceipts.Count == 0)
+                    {
+                        <small class="ak-field-error">رسید مستقیمِ دارای باقیمانده وجود ندارد.</small>
+                    }
+                </div>
+                <div class="ak-field" data-source-panel="@((int)TransportStartSourceKind.ActiveTransport)">
+                    <label asp-for="TransportLegId">حمل در جریان</label>
+                    <select asp-for="TransportLegId" class="ak-input">
+                        <option value="">انتخاب کنید</option>
+                        @foreach (var item in Model.ActiveTransports)
+                        {
+                            <option value="@item.Id">@item.Label — @item.AvailableQuantityMt.ToString("N4") MT باقیمانده</option>
+                        }
+                    </select>
+                    @if (Model.ActiveTransports.Count == 0)
+                    {
+                        <small class="ak-field-error">حمل در جریانِ دارای باقیمانده وجود ندارد.</small>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <div class="ak-footer-actions">
+            <a asp-controller="InventoryTransportLegs" asp-action="Index" class="btn btn-light ak-secondary-action">انصراف</a>
+            <button type="submit" class="btn btn-primary ak-primary-action" data-submit-button>
+                ادامه <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            </button>
+        </div>
+    </form>
+</main>
+
+@section Scripts {
+    <script>
+        (function () {
+            var root = document.querySelector('[data-transport-start]');
+            if (!root) return;
+            function sync() {
+                var checked = root.querySelector('input[name="SourceKind"]:checked');
+                var value = checked ? checked.value : '1';
+                root.querySelectorAll('[data-source-panel]').forEach(function (panel) {
+                    var active = panel.getAttribute('data-source-panel') === value;
+                    panel.hidden = !active;
+                    panel.querySelectorAll('select, input').forEach(function (field) { field.disabled = !active; });
+                });
+            }
+            root.addEventListener('change', function (event) { if (event.target.name === 'SourceKind') sync(); });
+            sync();
+        })();
+    </script>
+}

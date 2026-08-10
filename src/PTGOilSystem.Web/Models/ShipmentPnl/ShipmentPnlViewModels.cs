@@ -1,5 +1,6 @@
 using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Models.ShipmentPnl;
@@ -33,12 +34,50 @@ public sealed class ShipmentPnlListItemViewModel
     public RealisedPnlViewModel RealisedPnl { get; init; } = RealisedPnlViewModel.Empty;
 }
 
+/// <summary>
+/// یک ردیف لیست محموله‌ها. عمداً فقط چیزی را دارد که لیست نشان می‌دهد؛ ارقام بهای خرید و
+/// مصرف در پروندهٔ محموله و خروجی (<see cref="ShipmentPnlListItemViewModel"/>) می‌مانند تا
+/// باز کردن لیست به رول‌آپ کامل مالی گره نخورد.
+/// </summary>
+public sealed class ShipmentPnlIndexRowViewModel
+{
+    public int Id { get; init; }
+    public string ShipmentCode { get; init; } = string.Empty;
+    public string? VesselName { get; init; }
+    public DateTime? DepartureDate { get; init; }
+    public DateTime? ArrivalDate { get; init; }
+    public decimal QuantityMt { get; init; }
+    public string? ProductName { get; init; }
+    public string? OriginName { get; init; }
+    public string? DestinationName { get; init; }
+    public int RelatedTransportLegCount { get; init; }
+    public int RelatedSalesCount { get; init; }
+    public int RelatedExpensesCount { get; init; }
+
+    // ===== سود محقق‌شدهٔ فروش: تنها منبع مجاز ProfitAndLossService است =====
+    public decimal TotalSalesUsd { get; init; }
+    public RealisedPnlViewModel RealisedPnl { get; init; } = RealisedPnlViewModel.Empty;
+}
+
 public sealed class ShipmentPnlIndexViewModel
 {
-    public IReadOnlyList<ShipmentPnlListItemViewModel> Items { get; init; } = [];
+    public IReadOnlyList<ShipmentPnlIndexRowViewModel> Items { get; init; } = [];
     public int CurrentPage { get; init; } = 1;
     public int PageCount { get; init; } = 1;
     public int TotalCount { get; init; }
+    public ShipmentPnlIndexTotalsViewModel Totals { get; init; } = new();
+}
+
+/// <summary>
+/// اعداد کارت‌های آمار بالای لیست محموله‌ها. روی همهٔ محموله‌ها هستند، پس فقط از query سبک
+/// ساخته می‌شوند؛ سود محقق‌شده مثل بقیهٔ صفحات از ProfitAndLossService می‌آید.
+/// </summary>
+public sealed record ShipmentPnlIndexTotalsViewModel
+{
+    public int TotalCount { get; init; }
+    public decimal SumQuantityMt { get; init; }
+    public int SumRelatedSalesCount { get; init; }
+    public decimal RealisedGrossProfitUsd { get; init; }
 }
 
 public sealed class ShipmentPnlSalesItemViewModel
@@ -137,9 +176,11 @@ public sealed class ShipmentContractLineViewModel
     public string? ProductName { get; init; }
     public string ContractUnitText { get; init; } = "-";
     public decimal AllocatedQuantityMt { get; init; }
-    // آیا این قرارداد نرخ نهاییِ خرید دارد؟ اگر نه، بهای خرید این مقدار در «سود کل محموله»
-    // شمرده نمی‌شود (چون TotalPurchaseCostUsd فقط قراردادهای دارای نرخ نهایی را جمع می‌زند).
+    // آیا برای این قرارداد نرخ مؤثر خرید پیدا شد؟ (میانگین وزنی بارگیری‌ها یا نرخ نهایی هدر —
+    // ShipmentPurchaseCostResolver). اگر نه، بهای خرید این مقدار در «سود کل محموله» شمرده نمی‌شود.
     public bool HasFinalPrice { get; init; }
+    // منبع نرخ (ثابت‌های ShipmentPurchaseCostResolver) — برای توضیح‌پذیریِ «این نرخ از کجا آمده».
+    public string? UnitPriceSource { get; init; }
     // Only the original vessel stage consumes the shipment allocation.
     public decimal UsedQuantityMt { get; init; }
     public decimal TransportedFromInventoryQuantityMt { get; init; }
@@ -256,6 +297,23 @@ public sealed class ShipmentPnlDetailsViewModel
         => decimal.Round(RegisteredVesselReceipts.Sum(r => r.ReceivedQuantityMt), 4, MidpointRounding.AwayFromZero);
     // قراردادهای خرید داخل این محموله (از ShipmentContracts) با مقدار باقی‌مانده.
     public IReadOnlyList<ShipmentContractLineViewModel> ContractLines { get; init; } = [];
+    // ریز منابع بهای خرید: هر سطر یک بارگیریِ تخصیص‌یافته (یا در دادهٔ قدیمی، یک قرارداد).
+    // فقط نمایش؛ همان اعدادی که TotalPurchaseCostUsd از آن‌ها ساخته شده است.
+    public IReadOnlyList<ShipmentPurchaseSourceLine> PurchaseSourceLines { get; init; } = [];
+    public bool HasLoadingExactPurchaseSources => PurchaseSourceLines.Any(l => l.IsLoadingExact);
+    public decimal PurchaseSourceQuantityMt
+        => decimal.Round(PurchaseSourceLines.Sum(l => l.QuantityMt), 4, MidpointRounding.AwayFromZero);
+    public decimal? PurchaseSourceWeightedAverageUsd
+    {
+        get
+        {
+            var priced = PurchaseSourceLines.Where(l => l.UnitCostUsd is > 0m).ToList();
+            var quantityMt = priced.Sum(l => l.QuantityMt);
+            return quantityMt > 0m
+                ? decimal.Round(priced.Sum(l => l.ExtendedCostUsd) / quantityMt, 4, MidpointRounding.AwayFromZero)
+                : null;
+        }
+    }
     public decimal TotalCargoValueUsd
     {
         get

@@ -31,7 +31,12 @@ body.boltz-shell.app-shell-authenticated .ptg-app {
     height: 100vh;
     overflow-y: auto;
     overflow-x: hidden;
-    padding-block: var(--ptg-page-top) var(--ptg-space-page);
+    /* فاصلهٔ عمودی صفحه روی ستون محتوا اعمال می‌شود، نه روی خودِ قاب اسکرول.
+       اگر padding روی قاب باشد، ناحیهٔ گرید سایدبار از لبهٔ scrollport فاصله
+       می‌گیرد و position:sticky داخل همان ناحیه محدود می‌ماند: سایدبار در
+       ابتدای اسکرول به اندازهٔ padding بالا جابه‌جا می‌شود و در انتهای اسکرول
+       به اندازهٔ padding پایین زیر آن فضای خالی می‌ماند. */
+    padding-block: 0;
     padding-inline: 0;
     background: var(--ptg-bg);
     /* نوار اسکرول باریک (فقط عرض؛ روی ارتفاع صفحه اثری ندارد). */
@@ -59,12 +64,13 @@ body.boltz-shell.app-shell-authenticated .ptg-app::-webkit-scrollbar-thumb:hover
     background: rgba(143, 145, 165, .6);
 }
 
-/* قاب اصلی نباید بلندتر از ناحیهٔ اسکرول (ارتفاع ptg-app منهای padding بالا و پایین)
-   شود؛ در غیر این صورت پایه min-height:100vh باعث یک اسکرول اضافه و بهم‌ریختن
-   فاصلهٔ هدر با بالای صفحه می‌شد. */
+/* فاصلهٔ بالا و پایین صفحه اینجاست (نه روی .ptg-app) تا سایدبار sticky بتواند
+   تمام ارتفاع scrollport را بگیرد. با box-sizing:border-box نتیجهٔ بصری همان
+   قبل است: ارتفاع کل ستون محتوا دقیقاً یک صفحه. */
 body.boltz-shell.app-shell-authenticated .ptg-main {
     min-width: 0;
-    min-height: calc(100vh - var(--ptg-page-top) - var(--ptg-space-page));
+    min-height: 100vh;
+    padding-block: var(--ptg-page-top) var(--ptg-space-page);
     gap: var(--ptg-space-gap);
 }
 

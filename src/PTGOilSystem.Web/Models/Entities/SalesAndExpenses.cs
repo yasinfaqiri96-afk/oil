@@ -90,6 +90,7 @@ public class SalesTransaction : BaseEntity
     public PreSaleOrder? PreSaleOrder { get; set; }
 
     public bool IsCancelled { get; set; }
+    public ICollection<SalesTransactionSourceAllocation> SourceAllocations { get; set; } = new List<SalesTransactionSourceAllocation>();
 }
 
 // وضعیت‌های ذخیره‌شدهٔ پیش‌فروش. وضعیت‌های مشتق (رزرو، مانده پرداخت، آماده تحویل) عمداً

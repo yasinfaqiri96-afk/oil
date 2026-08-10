@@ -23,19 +23,25 @@ public partial class LossEventsController : Controller
     private readonly IAuditService _audit;
     private readonly ILogger<LossEventsController> _logger;
     private readonly Services.Accounting.IInventoryLossAccountingAdapter? _lossAccounting;
+    private readonly IInventoryMovementWriter _movements;
+    private readonly ITransportSourceAllocationService _sourceAllocations;
 
     public LossEventsController(
         ApplicationDbContext db,
         IStockService stock,
         IAuditService audit,
         ILogger<LossEventsController> logger,
-        Services.Accounting.IInventoryLossAccountingAdapter? lossAccounting = null)
+        Services.Accounting.IInventoryLossAccountingAdapter? lossAccounting = null,
+        IInventoryMovementWriter? movements = null,
+        ITransportSourceAllocationService? sourceAllocations = null)
     {
         _db = db;
         _stock = stock;
         _audit = audit;
         _logger = logger;
         _lossAccounting = lossAccounting;
+        _movements = movements ?? new InventoryMovementWriter(db, stock);
+        _sourceAllocations = sourceAllocations ?? new TransportSourceAllocationService(db);
     }
 
     private bool TryGetLocalReturnUrl(string? returnUrl, out string localReturnUrl)
@@ -181,20 +187,10 @@ public partial class LossEventsController : Controller
 
             if (linkedMovement is not null)
             {
-                var reversal = new InventoryMovement
-                {
-                    ProductId = linkedMovement.ProductId,
-                    ContractId = linkedMovement.ContractId,
-                    TerminalId = linkedMovement.TerminalId,
-                    StorageTankId = linkedMovement.StorageTankId,
-                    Direction = MovementDirection.In,
-                    MovementDate = AfghanistanBusinessClock.SystemToday,
-                    QuantityMt = linkedMovement.QuantityMt,
-                    ReferenceDocument = (linkedMovement.ReferenceDocument ?? $"LOSS-{item.Id}") + "-CANCEL",
-                    Notes = $"Reversal for cancelled LossEventId={item.Id}"
-                };
-
-                _db.InventoryMovements.Add(reversal);
+                await _movements.PostReversalAsync(
+                    linkedMovement,
+                    AfghanistanBusinessClock.SystemToday,
+                    $"Reversal for cancelled LossEventId={item.Id}");
             }
         }
 
@@ -261,6 +257,7 @@ public partial class LossEventsController : Controller
                 .FirstOrDefaultAsync(l => l.Id == transportLegId.Value);
             if (leg is not null)
             {
+                model.TransportLegId = leg.Id;
                 if (model.ProductId <= 0)
                 {
                     model.ProductId = leg.ProductId;
@@ -429,6 +426,20 @@ public partial class LossEventsController : Controller
             }
         }
 
+        if (model.TransportLegId.HasValue)
+        {
+            var leg = await _db.InventoryTransportLegs.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == model.TransportLegId.Value);
+            if (leg is null || leg.Status == InventoryTransportLegStatus.Cancelled)
+            {
+                ModelState.AddModelError(nameof(model.TransportLegId), "حمل انتخاب‌شده معتبر نیست.");
+            }
+            else if (leg.ProductId != model.ProductId)
+            {
+                ModelState.AddModelError(nameof(model.TransportLegId), "حمل انتخاب‌شده با کالای انتخابی هم‌خوان نیست.");
+            }
+        }
+
         if (model.SalesTransactionId.HasValue)
         {
             var sale = await _db.SalesTransactions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == model.SalesTransactionId.Value);
@@ -525,30 +536,8 @@ public partial class LossEventsController : Controller
             return View(model);
         }
 
-        InventoryMovement? movement = null;
-        if (model.AffectsInventory)
-        {
-            movement = new InventoryMovement
-            {
-                ProductId = model.ProductId,
-                ContractId = model.ContractId,
-                TerminalId = model.TerminalId!.Value,
-                StorageTankId = model.StorageTankId,
-                Direction = MovementDirection.Out,
-                MovementDate = model.EventDate,
-                QuantityMt = inventoryLossMt,
-                ReferenceDocument = normalizedReference ?? $"LOSS-{model.EventDate:yyyyMMdd}",
-                Notes = BuildInventoryNotes(model.Stage, normalizedNotes)
-            };
-        }
-
         try
         {
-            if (movement is not null)
-            {
-                await _stock.EnsureSufficientStockForMovementAsync(movement);
-            }
-
             IDbContextTransaction? transaction = null;
             if (_db.Database.IsRelational())
             {
@@ -557,6 +546,35 @@ public partial class LossEventsController : Controller
 
             try
             {
+                int? transportLegId = model.TransportLegId;
+                TransportSourcePlan sourcePlan = TransportSourcePlan.Empty;
+                var allocationQuantityMt = Math.Abs(metrics.DifferenceQuantityMt);
+                if (transportLegId.HasValue)
+                {
+                    sourcePlan = await _sourceAllocations.BuildFromLegAsync(
+                        transportLegId.Value,
+                        allocationQuantityMt);
+                }
+                else if (model.SalesTransactionId.HasValue)
+                {
+                    sourcePlan = await _sourceAllocations.BuildFromSaleAsync(
+                        model.SalesTransactionId.Value,
+                        allocationQuantityMt);
+                }
+                else if (model.TruckDispatchId.HasValue)
+                {
+                    var sourceDispatch = await _db.TruckDispatches
+                        .AsNoTracking()
+                        .FirstAsync(d => d.Id == model.TruckDispatchId.Value);
+                    transportLegId = await _sourceAllocations.ResolveCurrentLegIdAsync(sourceDispatch);
+                    if (transportLegId.HasValue)
+                    {
+                        sourcePlan = await _sourceAllocations.BuildFromLegAsync(
+                            transportLegId.Value,
+                            allocationQuantityMt);
+                    }
+                }
+
                 var lossEvent = new LossEvent
                 {
                     Stage = model.Stage,
@@ -565,6 +583,7 @@ public partial class LossEventsController : Controller
                     ShipmentId = model.ShipmentId,
                     LoadingRegisterId = model.LoadingRegisterId,
                     LoadingReceiptId = model.LoadingReceiptId,
+                    TransportLegId = transportLegId,
                     TruckDispatchId = model.TruckDispatchId,
                     SalesTransactionId = model.SalesTransactionId,
                     TerminalId = model.TerminalId,
@@ -583,15 +602,32 @@ public partial class LossEventsController : Controller
                     Reference = normalizedReference,
                     Notes = normalizedNotes
                 };
+                if (sourcePlan.Shares.Count > 0)
+                {
+                    _sourceAllocations.ApplyLegacyHeader(lossEvent, sourcePlan);
+                }
 
                 _db.LossEvents.Add(lossEvent);
                 await _db.SaveChangesAsync();
+                await _sourceAllocations.PersistLossAsync(lossEvent, sourcePlan, transportLegId);
 
-                if (movement is not null)
+                InventoryMovement? movement = null;
+                if (model.AffectsInventory)
                 {
-                    movement.Notes = BuildInventoryNotes(model.Stage, $"LossEventId={lossEvent.Id}" + (string.IsNullOrWhiteSpace(normalizedNotes) ? string.Empty : $" | {normalizedNotes}"));
-                    _db.InventoryMovements.Add(movement);
-                    await _db.SaveChangesAsync();
+                    movement = await _movements.PostOutboundAsync(new InventoryMovementRequest
+                    {
+                        ProductId = model.ProductId,
+                        ContractId = lossEvent.ContractId,
+                        TerminalId = model.TerminalId!.Value,
+                        StorageTankId = model.StorageTankId,
+                        MovementDate = model.EventDate,
+                        QuantityMt = inventoryLossMt,
+                        ReferenceDocument = normalizedReference ?? $"LOSS:{lossEvent.Id}",
+                        Notes = BuildInventoryNotes(
+                            model.Stage,
+                            $"LossEventId={lossEvent.Id}"
+                                + (string.IsNullOrWhiteSpace(normalizedNotes) ? string.Empty : $" | {normalizedNotes}"))
+                    });
 
                     lossEvent.InventoryMovementId = movement.Id;
                     await _db.SaveChangesAsync();
@@ -934,6 +970,27 @@ public partial class LossEventsController : Controller
             "Label",
             createModel?.TruckDispatchId);
 
+        ViewBag.TransportLegs = new SelectList(
+            await _db.InventoryTransportLegs
+                .AsNoTracking()
+                .Where(l => l.Status != InventoryTransportLegStatus.Cancelled)
+                .OrderByDescending(l => l.LoadedDate)
+                .ThenByDescending(l => l.Id)
+                .Take(200)
+                .Select(l => new
+                {
+                    l.Id,
+                    Label = $"حمل #{l.Id} | {DateDisplay.Date(l.LoadedDate)} | "
+                        + (l.Truck != null ? l.Truck.PlateNumber
+                            : l.Wagon != null ? l.Wagon.WagonNumber
+                            : l.Vessel != null ? l.Vessel.Name
+                            : l.WagonNumber)
+                })
+                .ToListAsync(),
+            "Id",
+            "Label",
+            createModel?.TransportLegId);
+
         ViewBag.Sales = new SelectList(
             await _db.SalesTransactions
                 .AsNoTracking()
@@ -1020,6 +1077,7 @@ public partial class LossEventsController : Controller
             LoadingRegisterId = item.LoadingRegisterId,
             LoadingReceiptId = item.LoadingReceiptId,
             TruckDispatchId = item.TruckDispatchId,
+            TransportLegId = item.TransportLegId,
             SalesTransactionId = item.SalesTransactionId,
             TerminalId = item.TerminalId,
             StorageTankId = item.StorageTankId,

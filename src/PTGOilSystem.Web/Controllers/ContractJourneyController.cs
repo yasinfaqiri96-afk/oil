@@ -318,7 +318,8 @@ public partial class ContractJourneyController : Controller
             // برای نمایش «نمبر وسیله» در سفرهای موتری.
             .Include(l => l.Truck)
             .AsNoTracking()
-            .Where(l => l.SourcePurchaseContractId == contractId)
+            .Where(l => l.SourcePurchaseContractId == contractId
+                || l.Allocations.Any(a => a.SourcePurchaseContractId == contractId))
             .OrderBy(l => l.LoadedDate)
             .ThenBy(l => l.Id)
             .ToListAsync();
@@ -852,39 +853,74 @@ public partial class ContractJourneyController : Controller
                 .AsNoTracking()
                 .Where(s => directInventoryTransportSaleIds.Contains(s.Id))
                 .ToDictionaryAsync(s => s.Id);
+        var directInventoryTransportSourceRows = await _db.SalesTransactionSourceAllocations
+            .AsNoTracking()
+            .Where(a => directInventoryTransportSaleIds.Contains(a.SalesTransactionId))
+            .Select(a => new
+            {
+                a.SalesTransactionId,
+                a.SourcePurchaseContractId,
+                a.TransportLegId,
+                a.QuantityMt,
+                a.AmountUsd
+            })
+            .ToListAsync();
+        var directInventoryTransportSourceBySaleId = directInventoryTransportSourceRows
+            .Where(a => a.SourcePurchaseContractId == contractId)
+            .GroupBy(a => a.SalesTransactionId)
+            .ToDictionary(
+                g => g.Key,
+                g => new
+                {
+                    QuantityMt = g.Sum(a => a.QuantityMt),
+                    AmountUsd = g.Sum(a => a.AmountUsd),
+                    TransportLegId = g.Select(a => a.TransportLegId).FirstOrDefault(id => id.HasValue)
+                });
+        var salesWithPersistedSourceAllocations = directInventoryTransportSourceRows
+            .Select(a => a.SalesTransactionId)
+            .ToHashSet();
         var directInventoryTransportSaleItems = inventoryTransportReceipts
             .Where(r => r.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale
                 && r.SalesTransactionId.HasValue
                 && directInventoryTransportSalesById.ContainsKey(r.SalesTransactionId.Value)
                 && inventoryTransportLegById.ContainsKey(r.InventoryTransportLegId)
+                && (!salesWithPersistedSourceAllocations.Contains(r.SalesTransactionId.Value)
+                    || directInventoryTransportSourceBySaleId.ContainsKey(r.SalesTransactionId.Value))
                 && !inventorySaleIdSet.Contains(r.SalesTransactionId.Value)
                 && !directSaleIdSet.Contains(r.SalesTransactionId.Value))
             .Select(r =>
             {
                 var sale = directInventoryTransportSalesById[r.SalesTransactionId!.Value];
                 var leg = inventoryTransportLegById[r.InventoryTransportLegId];
-                var hasQuantityMismatch = r.ReceivedQuantityMt != sale.QuantityMt;
+                directInventoryTransportSourceBySaleId.TryGetValue(sale.Id, out var sourceShare);
+                var quantityMt = sourceShare?.QuantityMt ?? sale.QuantityMt;
+                var amountUsd = sourceShare?.AmountUsd ?? sale.TotalUsd;
+                var sourceLegId = sourceShare?.TransportLegId ?? leg.Id;
+                var hasQuantityMismatch = !salesWithPersistedSourceAllocations.Contains(sale.Id)
+                    && r.ReceivedQuantityMt != sale.QuantityMt;
                 return new ContractJourneySaleItemViewModel
                 {
                     SalesTransactionId = sale.Id,
                     ShipmentId = sale.ShipmentId,
-                    InventoryTransportLegId = leg.Id,
+                    InventoryTransportLegId = sourceLegId,
                     InventoryTransportReceiptId = r.Id,
                     InvoiceNumber = sale.InvoiceNumber,
                     CustomerName = sale.Customer?.Name ?? string.Empty,
                     SaleDate = sale.SaleDate,
-                    QuantityMt = sale.QuantityMt,
+                    QuantityMt = quantityMt,
                     UnitPriceUsd = sale.UnitPriceUsd,
-                    AmountUsd = sale.TotalUsd,
+                    AmountUsd = amountUsd,
                     SalesContractDisplay = sale.Contract?.DisplayLabel ?? SalesContractText.WithoutSalesContract,
                     StockSourceTypeName = sale.StockSourceType.HasValue ? ToStockSourceTypeName(sale.StockSourceType.Value) : null,
                     SaleStageName = SaleStageLabels.ToPersian(sale.SaleStage),
                     HasInventoryMovementTrace = false,
                     SourcePurchaseContractNumber = contract.DisplayLabel,
                     InventoryTransportReference = BuildTransportLegReference(leg),
-                    AllocationQuantityMt = r.ReceivedQuantityMt,
+                    AllocationQuantityMt = quantityMt,
                     HasQuantityMismatch = hasQuantityMismatch,
-                    TraceKind = "Direct Sale from Inventory Transport Receipt"
+                    TraceKind = sourceShare is null
+                        ? "Direct Sale from Inventory Transport Receipt"
+                        : "Direct Sale from Transport Source Allocation"
                 };
             })
             .Where(s => !directInventoryTransportSalesById[s.SalesTransactionId].IsCancelled
@@ -1424,13 +1460,26 @@ public partial class ContractJourneyController : Controller
         var lossEntities = await _db.LossEvents
             .AsNoTracking()
             .Where(e => e.ContractId == contractId
+                || e.SourceAllocations.Any(a => a.SourcePurchaseContractId == contractId)
                 || (hasInventoryTransportLegIds && e.TransportLegId.HasValue && inventoryTransportLegIds.Contains(e.TransportLegId.Value))
                 || (hasDispatchIds && e.TruckDispatchId.HasValue && dispatchIds.Contains(e.TruckDispatchId.Value))
                 || (hasLoadingIds && e.LoadingRegisterId.HasValue && loadingIds.Contains(e.LoadingRegisterId.Value))
                 || (hasReceiptIds && e.LoadingReceiptId.HasValue && receiptIds.Contains(e.LoadingReceiptId.Value))
                 || (hasMovementIds && e.InventoryMovementId.HasValue && movementIds.Contains(e.InventoryMovementId.Value)))
             .ToListAsync();
+        var lossEntityIds = lossEntities.Select(e => e.Id).ToList();
+        var lossIdsWithSourceAllocations = await _db.LossEventSourceAllocations
+            .AsNoTracking()
+            .Where(a => lossEntityIds.Contains(a.LossEventId))
+            .Select(a => new { a.LossEventId, a.SourcePurchaseContractId, a.QuantityMt })
+            .ToListAsync();
+        var lossSourceQuantityById = lossIdsWithSourceAllocations
+            .Where(a => a.SourcePurchaseContractId == contractId)
+            .GroupBy(a => a.LossEventId)
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.QuantityMt));
+        var allocatedLossIds = lossIdsWithSourceAllocations.Select(a => a.LossEventId).ToHashSet();
         var losses = lossEntities
+            .Where(e => !allocatedLossIds.Contains(e.Id) || lossSourceQuantityById.ContainsKey(e.Id))
             .GroupBy(e => e.Id)
             .Select(g => g.First())
             .OrderByDescending(e => e.EventDate)
@@ -1439,8 +1488,10 @@ public partial class ContractJourneyController : Controller
         var activeLosses = losses
             .Where(e => !e.IsCancelled)
             .ToList();
-        static decimal DisplayLossEventQuantityMt(LossEvent loss)
-            => loss.DifferenceQuantityMt > 0m
+        decimal DisplayLossEventQuantityMt(LossEvent loss)
+            => lossSourceQuantityById.TryGetValue(loss.Id, out var sourceQuantityMt)
+                ? sourceQuantityMt
+                : loss.DifferenceQuantityMt > 0m
                 ? loss.DifferenceQuantityMt
                 : Math.Max(loss.ChargeableLossMt, 0m);
         static decimal DisplayLossItemQuantityMt(ContractJourneyLossItemViewModel loss)
@@ -1575,20 +1626,32 @@ public partial class ContractJourneyController : Controller
         }
 
         var recordedLossItems = activeLosses
-            .Select(e => new ContractJourneyLossItemViewModel
+            .Select(e =>
             {
-                LossEventId = e.Id,
-                StageName = ToLossStageName(e.Stage),
-                EventDate = e.EventDate,
-                ExpectedQuantityMt = e.ExpectedQuantityMt,
-                ActualQuantityMt = e.ActualQuantityMt,
-                DifferenceQuantityMt = e.DifferenceQuantityMt,
-                ToleranceQuantityMt = e.ToleranceQuantityMt,
-                AllowableLossMt = e.AllowableLossMt,
-                ChargeableLossMt = e.ChargeableLossMt,
-                RelatedMovementId = e.InventoryMovementId,
-                VehicleNumber = ResolveLossVehicleNumber(e),
-                TraceKind = ResolveLossTraceKind(e, contractId, shipmentIdSet, dispatchIdSet, loadingIds, receiptIds, movementIds, inventoryTransportLegIds)
+                var displayedQuantityMt = DisplayLossEventQuantityMt(e);
+                var originalQuantityMt = e.DifferenceQuantityMt > 0m
+                    ? e.DifferenceQuantityMt
+                    : Math.Max(e.ChargeableLossMt, 0m);
+                var ratio = originalQuantityMt > 0m
+                    ? Math.Min(displayedQuantityMt / originalQuantityMt, 1m)
+                    : 1m;
+                return new ContractJourneyLossItemViewModel
+                {
+                    LossEventId = e.Id,
+                    StageName = ToLossStageName(e.Stage),
+                    EventDate = e.EventDate,
+                    ExpectedQuantityMt = e.ExpectedQuantityMt,
+                    ActualQuantityMt = e.ActualQuantityMt,
+                    DifferenceQuantityMt = displayedQuantityMt,
+                    ToleranceQuantityMt = decimal.Round(e.ToleranceQuantityMt * ratio, 4, MidpointRounding.AwayFromZero),
+                    AllowableLossMt = decimal.Round(e.AllowableLossMt * ratio, 4, MidpointRounding.AwayFromZero),
+                    ChargeableLossMt = decimal.Round(e.ChargeableLossMt * ratio, 4, MidpointRounding.AwayFromZero),
+                    RelatedMovementId = e.InventoryMovementId,
+                    VehicleNumber = ResolveLossVehicleNumber(e),
+                    TraceKind = lossSourceQuantityById.ContainsKey(e.Id)
+                        ? "Transport source allocation"
+                        : ResolveLossTraceKind(e, contractId, shipmentIdSet, dispatchIdSet, loadingIds, receiptIds, movementIds, inventoryTransportLegIds)
+                };
             })
             .ToList();
         var derivedDispatchLossItems = directDispatches

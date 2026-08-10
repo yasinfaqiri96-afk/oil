@@ -189,21 +189,20 @@
 
             if (provider) {
                 provider.disabled = !isProvider;
-                // style.display (not .hidden) so it overrides the inline display:none set in markup.
-                provider.style.display = isProvider ? "" : "none";
+                provider.hidden = !isProvider;
                 if (!isProvider) {
                     provider.value = "";
                 }
             }
             if (asset) {
                 asset.disabled = !isAsset;
-                asset.style.display = isAsset ? "" : "none";
+                asset.hidden = !isAsset;
                 if (!isAsset) {
                     asset.value = "";
                 }
             }
             if (noParty) {
-                noParty.style.display = (isProvider || isAsset) ? "none" : "";
+                noParty.hidden = isProvider || isAsset;
             }
         }
 

@@ -68,6 +68,7 @@ public sealed class InventoryTransportPnlService
         }
 
         var requestedLegs = await _db.InventoryTransportLegs
+            .Include(l => l.Allocations)
             .Include(l => l.SourcePurchaseContract)
             .AsNoTracking()
             .Where(l => requestedIds.Contains(l.Id))
@@ -94,12 +95,18 @@ public sealed class InventoryTransportPnlService
                 .ToListAsync(ct);
         var allocationLegIds = allocationLegs.Select(l => l.Id).Distinct().ToList();
 
-        var finalPriceByContract = requestedLegs
-            .Where(l => l.SourcePurchaseContract is not null)
-            .GroupBy(l => l.SourcePurchaseContractId)
-            .ToDictionary(
-                g => g.Key,
-                g => ContractPricingAdapter.GetCanonicalFinalPrice(g.First().SourcePurchaseContract!));
+        var sourceContractIds = requestedLegs
+            .Select(l => l.SourcePurchaseContractId)
+            .Concat(allocationLegs.SelectMany(l => l.Allocations.Select(a => a.SourcePurchaseContractId)))
+            .Distinct()
+            .ToList();
+        var sourceContracts = await _db.Contracts
+            .AsNoTracking()
+            .Where(c => sourceContractIds.Contains(c.Id))
+            .ToListAsync(ct);
+        var finalPriceByContract = sourceContracts.ToDictionary(
+            c => c.Id,
+            ContractPricingAdapter.GetCanonicalFinalPrice);
 
         var purchaseSnapshots = await new PurchaseAggregationService(_db)
             .AggregateForContractsAsync(finalPriceByContract.Keys.ToList(), finalPriceByContract, ct);
@@ -108,7 +115,10 @@ public sealed class InventoryTransportPnlService
             l => l.Id,
             l =>
             {
-                var (unitCost, source) = ResolvePurchaseUnitCost(l, purchaseSnapshots);
+                var (unitCost, source) = ResolvePurchaseUnitCost(
+                    l,
+                    purchaseSnapshots,
+                    finalPriceByContract);
                 return new PnlBuilder(l, unitCost, source);
             });
 
@@ -148,6 +158,34 @@ public sealed class InventoryTransportPnlService
                 "Direct sale from transport receipt"));
         }
 
+        // نسب‌نامهٔ جدید نتیجهٔ حمل، فروش موترِ چندمنبعی را مستقیماً به child leg واقعی وصل
+        // می‌کند. این مسیر پیش از Projection قدیمی خوانده می‌شود تا درآمد روی parent تکرار نشود.
+        var alreadyExactSaleIds = exactSaleIds.ToList();
+        var allocatedSaleRows = await _db.SalesTransactionSourceAllocations
+            .Include(a => a.SalesTransaction)
+            .AsNoTracking()
+            .Where(a => a.TransportLegId.HasValue
+                && requestedIds.Contains(a.TransportLegId.Value)
+                && !alreadyExactSaleIds.Contains(a.SalesTransactionId)
+                && a.SalesTransaction != null
+                && !a.SalesTransaction.IsCancelled)
+            .ToListAsync(ct);
+        foreach (var group in allocatedSaleRows.GroupBy(a => new { a.SalesTransactionId, LegId = a.TransportLegId!.Value }))
+        {
+            var sale = group.First().SalesTransaction!;
+            exactSaleIds.Add(sale.Id);
+            if (sale.SaleStage == SaleStage.PreSale || !builders.ContainsKey(group.Key.LegId))
+            {
+                continue;
+            }
+
+            builders[group.Key.LegId].AddSale(ToSaleSnapshot(
+                sale,
+                group.Sum(a => a.QuantityMt),
+                group.Sum(a => a.AmountUsd),
+                "Transport source allocation"));
+        }
+
         var receiptIds = receipts.Select(r => r.Id).ToList();
         if (receiptIds.Count > 0)
         {
@@ -163,6 +201,11 @@ public sealed class InventoryTransportPnlService
             foreach (var dispatch in dispatchSales)
             {
                 if (dispatch.SalesTransaction is null || dispatch.SalesTransaction.IsCancelled)
+                {
+                    continue;
+                }
+
+                if (exactSaleIds.Contains(dispatch.SalesTransaction.Id))
                 {
                     continue;
                 }
@@ -440,27 +483,66 @@ public sealed class InventoryTransportPnlService
 
     private static (decimal? UnitCost, string Source) ResolvePurchaseUnitCost(
         InventoryTransportLeg leg,
-        IReadOnlyDictionary<int, PurchaseAggregationSnapshot> purchaseSnapshots)
+        IReadOnlyDictionary<int, PurchaseAggregationSnapshot> purchaseSnapshots,
+        IReadOnlyDictionary<int, decimal?> finalPriceByContract)
     {
         if (leg.PurchaseUnitCostUsd.HasValue && leg.PurchaseUnitCostUsd.Value > 0m)
         {
-            return (leg.PurchaseUnitCostUsd.Value, "Transport leg actual cost");
+            return (leg.PurchaseUnitCostUsd.Value, ShipmentPurchaseCostResolver.SourceLegActualCost);
         }
 
-        if (purchaseSnapshots.TryGetValue(leg.SourcePurchaseContractId, out var snapshot)
-            && snapshot.WeightedAveragePurchasePriceUsd.HasValue
-            && snapshot.WeightedAveragePurchasePriceUsd.Value > 0m)
+
+        var allocationShares = leg.Allocations
+            .Where(a => a.QuantityMt > 0m)
+            .GroupBy(a => a.SourcePurchaseContractId)
+            .Select(g => new { ContractId = g.Key, QuantityMt = g.Sum(a => a.QuantityMt) })
+            .ToList();
+        if (allocationShares.Count > 0)
         {
-            return (snapshot.WeightedAveragePurchasePriceUsd.Value, "Contract weighted average");
+            decimal weightedCost = 0m;
+            var allCostsKnown = true;
+            foreach (var share in allocationShares)
+            {
+                decimal? sourceUnitCost = null;
+                if (purchaseSnapshots.TryGetValue(share.ContractId, out var allocationSnapshot)
+                    && allocationSnapshot.WeightedAveragePurchasePriceUsd is > 0m)
+                {
+                    sourceUnitCost = allocationSnapshot.WeightedAveragePurchasePriceUsd.Value;
+                }
+                else if (finalPriceByContract.TryGetValue(share.ContractId, out var finalPrice)
+                    && finalPrice is > 0m)
+                {
+                    sourceUnitCost = finalPrice.Value;
+                }
+
+                if (!sourceUnitCost.HasValue)
+                {
+                    allCostsKnown = false;
+                    break;
+                }
+
+                weightedCost += sourceUnitCost.Value * share.QuantityMt;
+            }
+
+            var totalAllocatedMt = allocationShares.Sum(a => a.QuantityMt);
+            if (allCostsKnown && totalAllocatedMt > 0m)
+            {
+                return (
+                    RoundMoney(weightedCost / totalAllocatedMt),
+                    allocationShares.Count == 1
+                        ? "Source allocation contract cost"
+                        : "Source allocation weighted average");
+            }
         }
 
-        var contractFinalPrice = leg.SourcePurchaseContract is null
-            ? null
-            : ContractPricingAdapter.GetCanonicalFinalPrice(leg.SourcePurchaseContract);
+        // زنجیرهٔ پایانی (میانگین وزنی بارگیری‌ها → نرخ نهایی قرارداد) از منبع واحد می‌آید.
+        purchaseSnapshots.TryGetValue(leg.SourcePurchaseContractId, out var snapshot);
+        var contractFinalPrice = finalPriceByContract.GetValueOrDefault(leg.SourcePurchaseContractId)
+            ?? (leg.SourcePurchaseContract is null
+                ? null
+                : ContractPricingAdapter.GetCanonicalFinalPrice(leg.SourcePurchaseContract));
 
-        return contractFinalPrice.HasValue && contractFinalPrice.Value > 0m
-            ? (contractFinalPrice.Value, "Contract final price")
-            : (null, "Missing purchase cost");
+        return ShipmentPurchaseCostResolver.ResolveContractUnitCost(snapshot, contractFinalPrice);
     }
 
     private static decimal RoundMoney(decimal value)
