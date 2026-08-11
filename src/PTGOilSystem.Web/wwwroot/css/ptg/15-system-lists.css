@@ -9,8 +9,6 @@ body.ptg-modal-document {
     --ptg-list-border: #E5E7EB;
     --ptg-list-line: #EEF2F6;
     --ptg-list-head-bg: var(--ptg-table-head-bg);
-    --ptg-list-card-shadow: 0 1px 2px rgba(16, 24, 40, .035);
-    --ptg-list-title: #10233F;
     --ptg-list-text: #243B5A;
     --ptg-list-muted: #637793;
     --ptg-list-soft: #8B9AB0;
@@ -385,7 +383,7 @@ body.ptg-modal-document .ak-list-card > .ak-list-toolbar {
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-host,
 body.ptg-modal-document .ak-list-card .ak-filter-host {
-    min-height: 42px;
+    min-height: var(--ak-control-height, 42px);
     margin: 0;
 }
 
@@ -406,7 +404,7 @@ body.ptg-modal-document .ak-list-card > .ak-list-toolbar:has(.ak-filter-popover:
    height/offsets below stay list-card specific. */
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter,
 body.ptg-modal-document .ak-list-card .ak-filter {
-    min-height: 42px;
+    min-height: var(--ak-control-height, 42px);
     border: 0;
     border-bottom: 1px solid var(--divider);
     border-radius: 0;

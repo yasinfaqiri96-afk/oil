@@ -24,7 +24,7 @@
     <form method="get" asp-action="Index" class="ak-form">
         <div class="ak-field">
             <label class="ak-label" for="fiscalYearId">سال مالی</label>
-            <select class="form-select" id="fiscalYearId" name="fiscalYearId" onchange="this.form.submit()">
+            <select class="ak-input" id="fiscalYearId" name="fiscalYearId" onchange="this.form.submit()">
                 @foreach (var y in Model.Years)
                 {
                     <option value="@y.FiscalYearId" selected="@y.IsSelected">@y.Name</option>

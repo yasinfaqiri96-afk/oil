@@ -526,7 +526,7 @@ public partial class ShipmentPnlController : Controller
             .ToListAsync();
 
         var shipmentGroupReceiptTag = $"Group receipt: SHIP:{id} |";
-        var registeredVesselReceipts = await _db.InventoryTransportReceipts
+        var registeredVesselReceiptRows = await _db.InventoryTransportReceipts
             .AsNoTracking()
             .Where(r => !r.IsCancelled
                 && r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
@@ -537,23 +537,62 @@ public partial class ShipmentPnlController : Controller
                 && r.Notes.Contains(shipmentGroupReceiptTag))
             .OrderByDescending(r => r.ReceiptDate)
             .ThenByDescending(r => r.Id)
-            .Select(r => new ShipmentPnlRegisteredVesselReceiptItemViewModel
+            .Select(r => new
             {
-                Id = r.Id,
-                ReceiptDate = r.ReceiptDate,
-                ContractNumber = r.InventoryTransportLeg!.SourcePurchaseContract != null
-                    ? r.InventoryTransportLeg.SourcePurchaseContract.DisplayLabel
-                    : $"#{r.InventoryTransportLeg.SourcePurchaseContractId}",
-                DestinationTerminalName = r.DestinationTerminal != null ? r.DestinationTerminal.Name : "-",
-                DestinationTankName = r.DestinationStorageTank != null
-                    ? (r.DestinationStorageTank.DisplayName ?? r.DestinationStorageTank.TankCode)
-                    : null,
-                ReceivedQuantityMt = r.ReceivedQuantityMt,
-                DestinationTerminalId = r.DestinationTerminalId,
-                DestinationStorageTankId = r.DestinationStorageTankId,
-                ProductId = r.InventoryTransportLeg!.ProductId
+                Item = new ShipmentPnlRegisteredVesselReceiptItemViewModel
+                {
+                    Id = r.Id,
+                    InventoryTransportLegId = r.InventoryTransportLegId,
+                    ReceiptDate = r.ReceiptDate,
+                    ContractNumber = r.InventoryTransportLeg!.SourcePurchaseContract != null
+                        ? r.InventoryTransportLeg.SourcePurchaseContract.DisplayLabel
+                        : $"#{r.InventoryTransportLeg.SourcePurchaseContractId}",
+                    DestinationTerminalName = r.DestinationTerminal != null ? r.DestinationTerminal.Name : "-",
+                    DestinationTankName = r.DestinationStorageTank != null
+                        ? (r.DestinationStorageTank.DisplayName ?? r.DestinationStorageTank.TankCode)
+                        : null,
+                    ReceivedQuantityMt = r.ReceivedQuantityMt,
+                    DestinationTerminalId = r.DestinationTerminalId,
+                    DestinationStorageTankId = r.DestinationStorageTankId,
+                    ProductId = r.InventoryTransportLeg!.ProductId
+                },
+                // یادداشتِ رسید گروهی برای همهٔ قراردادهای یک بار ثبت یکسان ساخته می‌شود،
+                // پس کلید تشخیصِ «یک بار ثبت» است؛ فقط برای گروه‌بندی نمایشی استفاده می‌شود.
+                r.Notes
             })
             .ToListAsync();
+        var registeredVesselReceipts = registeredVesselReceiptRows
+            .Select(row => row.Item)
+            .ToList();
+        // نمایش: رسیدهای هم‌ثبت (تاریخ + مقصد + یادداشت گروهی یکسان) یک سطر جمع می‌شوند و
+        // سهم هر قرارداد داخل همان سطر باز می‌شود. هیچ رکوردی ادغام یا حذف نمی‌شود.
+        var registeredVesselReceiptGroups = registeredVesselReceiptRows
+            .GroupBy(row => new
+            {
+                row.Item.ReceiptDate,
+                row.Item.DestinationTerminalId,
+                row.Item.DestinationStorageTankId,
+                Notes = row.Notes ?? string.Empty
+            })
+            .Select(group => new ShipmentPnlRegisteredVesselReceiptGroupViewModel
+            {
+                Key = group.Max(row => row.Item.Id),
+                ReceiptDate = group.Key.ReceiptDate,
+                DestinationTerminalName = group.First().Item.DestinationTerminalName,
+                DestinationTankName = group.First().Item.DestinationTankName,
+                ReceivedQuantityMt = decimal.Round(
+                    group.Sum(row => row.Item.ReceivedQuantityMt),
+                    4,
+                    MidpointRounding.AwayFromZero),
+                Items = group
+                    .Select(row => row.Item)
+                    .OrderBy(item => item.ContractNumber, StringComparer.Ordinal)
+                    .ThenBy(item => item.Id)
+                    .ToList()
+            })
+            .OrderByDescending(group => group.ReceiptDate)
+            .ThenByDescending(group => group.Key)
+            .ToList();
 
         // دریافت‌های نقدیِ مشتری که مستقیماً به همین کشتی وصل شده‌اند (PaymentTransaction.ShipmentId).
         // فقط نمایش/تجمیع؛ محاسبهٔ حاشیهٔ سود تغییری نمی‌کند (درآمد همچنان از فروش است، نه پول رسیده).
@@ -754,6 +793,7 @@ public partial class ShipmentPnlController : Controller
             LedgerEntries = rollup.LedgerEntries,
             DispatchTraces = dispatchTraces,
             RegisteredVesselReceipts = registeredVesselReceipts,
+            RegisteredVesselReceiptGroups = registeredVesselReceiptGroups,
             CustomerReceipts = customerReceiptRows,
             CustomerReceiptsUsd = customerReceiptsUsd
         });

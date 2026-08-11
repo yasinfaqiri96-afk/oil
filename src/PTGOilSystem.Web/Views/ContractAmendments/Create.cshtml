@@ -1,42 +1,83 @@
 @model ContractAmendment
-@{ ViewData["Title"] = "متمم جدید"; var contract = ViewBag.Contract as Contract; }
+@{
+    ViewData["Title"] = "متمم جدید";
+    var contract = ViewBag.Contract as Contract;
+    var backUrl = Url.Action("Details", "ContractJourney", new { contractId = Model.ContractId, lockContract = true })
+        ?? Url.Action("Index", "Contracts")
+        ?? "/Contracts";
+}
 
-<h3 class="mb-3">متمم جدید برای قرارداد <code>@contract?.ContractNumber</code></h3>
+<main class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"متمم جدید برای قرارداد {contract?.ContractNumber}", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به قرارداد", "bi-arrow-right", (string?)backUrl))" />
 
-<div class="mb-3 bg-light small">
-    <div class="ak-form-grid">
-        <div class="ak-field"><b>جنس:</b> @contract?.Product?.Name</div>
-        <div class="ak-field"><b>واحد قرارداد:</b> @(contract?.Unit?.Symbol ?? contract?.Unit?.Code ?? contract?.Unit?.NamePersian ?? contract?.Unit?.Name ?? "—")</div>
-        <div class="ak-field"><b>مقدار فعلی:</b> @contract?.QuantityMt.ToString("N3") MT</div>
-        <div class="ak-field"><b>قیمت/پرمیوم فعلی:</b> @(contract?.UnitPriceUsd?.ToString("N2") ?? contract?.PremiumUsd?.ToString("+0.##;-0.##;0") ?? "—")</div>
-    </div>
-</div>
+    <form asp-action="Create" method="post" class="ak-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="ContractId" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert" role="alert"></div>
 
-<form asp-action="Create" method="post" class="ak-form">
-    @Html.AntiForgeryToken()
-    <input type="hidden" asp-for="ContractId" />
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("وضعیت فعلی قرارداد", (string?)"مقادیر پیش از اعمال متمم."))" />
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <span class="ak-label">جنس</span>
+                    <span>@contract?.Product?.Name</span>
+                </div>
+                <div class="ak-field">
+                    <span class="ak-label">واحد قرارداد</span>
+                    <span>@(contract?.Unit?.Symbol ?? contract?.Unit?.Code ?? contract?.Unit?.NamePersian ?? contract?.Unit?.Name ?? "—")</span>
+                </div>
+                <div class="ak-field">
+                    <span class="ak-label">مقدار فعلی</span>
+                    <span class="ak-num">@contract?.QuantityMt.ToString("N3") MT</span>
+                </div>
+                <div class="ak-field">
+                    <span class="ak-label">قیمت/پرمیوم فعلی</span>
+                    <span class="ak-num">@(contract?.UnitPriceUsd?.ToString("N2") ?? contract?.PremiumUsd?.ToString("+0.##;-0.##;0") ?? "—")</span>
+                </div>
+            </div>
+        </section>
 
-    <div class="ak-form-grid">
-        <div class="ak-field"><label class="ak-label">تاریخ متمم <span class="text-danger">*</span></label><input asp-for="AmendmentDate" type="date" class="ak-input" /></div>
-        <div class="ak-field"><label class="ak-label">مقدار جدید (MT)</label><input asp-for="NewQuantityMt" class="ak-input" /></div>
-        <div class="ak-field"><label class="ak-label">قیمت جدید USD/MT</label><input asp-for="NewUnitPriceUsd" class="ak-input" /></div>
-        <div class="ak-field"><label class="ak-label">پرمیوم جدید USD/MT</label><input asp-for="NewPremiumUsd" class="ak-input" /></div>
-        <div class="ak-field ak-col-full"><label class="ak-label">خلاصه تغییرات <span class="text-danger">*</span></label>
-            <textarea asp-for="ChangeSummary" class="ak-input" rows="3" placeholder="توضیح کامل دلیل و محتوای متمم..."></textarea>
-            <span asp-validation-for="ChangeSummary" class="text-danger small"></span>
-        </div>
-    </div>
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("مقادیر جدید", (string?)"فقط فیلدهایی را پر کنید که تغییر می‌کنند."))" />
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label class="ak-label">تاریخ متمم <span class="text-danger">*</span></label>
+                    <input asp-for="AmendmentDate" type="date" class="ak-input" />
+                    <span asp-validation-for="AmendmentDate" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label">مقدار جدید (MT)</label>
+                    <input asp-for="NewQuantityMt" class="ak-input ak-num" />
+                    <span asp-validation-for="NewQuantityMt" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label">قیمت جدید USD/MT</label>
+                    <input asp-for="NewUnitPriceUsd" class="ak-input ak-num" />
+                    <span asp-validation-for="NewUnitPriceUsd" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label">پرمیوم جدید USD/MT</label>
+                    <input asp-for="NewPremiumUsd" class="ak-input ak-num" />
+                    <span asp-validation-for="NewPremiumUsd" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full">
+                    <label class="ak-label">خلاصه تغییرات <span class="text-danger">*</span></label>
+                    <textarea asp-for="ChangeSummary" class="ak-input" rows="3" placeholder="توضیح کامل دلیل و محتوای متمم..."></textarea>
+                    <span asp-validation-for="ChangeSummary" class="ak-field-error"></span>
+                </div>
+            </div>
 
-    <div class="alert alert-warning small mt-3 mb-0">
-        <i class="bi bi-exclamation-triangle ms-1"></i>
-        پس از ثبت، این متمم قابل ویرایش یا حذف نخواهد بود. شماره متمم به‌صورت خودکار اختصاص می‌یابد.
-    </div>
+            <div class="alert alert-warning small mt-3 mb-0">
+                <i class="bi bi-exclamation-triangle ms-1"></i>
+                پس از ثبت، این متمم قابل ویرایش یا حذف نخواهد بود. شماره متمم به‌صورت خودکار اختصاص می‌یابد.
+            </div>
+        </section>
 
-    <div class="mt-4 d-flex gap-2">
-        <button class="btn ak-primary-action">ثبت متمم</button>
-        <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@Model.ContractId" asp-route-lockContract="true" class="btn ak-secondary-action">انصراف</a>
-    </div>
-</form>
+        <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@(("ثبت متمم", backUrl, "انصراف"))" />
+    </form>
+</main>
 
 @section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

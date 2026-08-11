@@ -39,11 +39,11 @@
                 <div class="ak-field ak-col-full">
                     <label class="ak-label">این گمرک‌ها برای کدام عملیات است؟</label>
                     <div class="d-flex flex-wrap gap-2">
-                        <label class="ak-toggle-field" style="flex:1 1 260px; cursor:pointer;">
+                        <label class="ak-toggle-field ak-toggle-grow">
                             <input type="radio" asp-for="Scope" value="@((int)CustomsImportScope.InventoryTransport)" />
                             <span>حمل از موجودی‌ها <small class="text-muted d-block">تطبیق با نمبر پلیت + سیمیر</small></span>
                         </label>
-                        <label class="ak-toggle-field" style="flex:1 1 260px; cursor:pointer;">
+                        <label class="ak-toggle-field ak-toggle-grow">
                             <input type="radio" asp-for="Scope" value="@((int)CustomsImportScope.TruckDispatch)" />
                             <span>ارسال‌های موتر <small class="text-muted d-block">تطبیق فقط با نمبر پلیت</small></span>
                         </label>

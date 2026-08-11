@@ -297,6 +297,32 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
     padding-inline-end: 0;
 }
 
+/* مقیاس عرض ستون — جایگزین style="min-width:*"های پراکنده در Viewها.
+   گام ۸ پیکسلی و فقط min-width، تا جدول کشسان بماند. */
+.ak-table :is(th, td).ak-col-w-xs {
+    min-width: 56px;
+}
+
+.ak-table :is(th, td).ak-col-w-sm {
+    min-width: 112px;
+}
+
+.ak-table :is(th, td).ak-col-w-md {
+    min-width: 144px;
+}
+
+.ak-table :is(th, td).ak-col-w-lg {
+    min-width: 168px;
+}
+
+.ak-table :is(th, td).ak-col-w-xl {
+    min-width: 184px;
+}
+
+.ak-table :is(th, td).ak-col-w-2xl {
+    min-width: 224px;
+}
+
 /* Reserved end column for the contextual actions overlay. tables.js sets
    --ak-actions-w on the table (widest real action box + 16px); until then, or
    for tables with no row actions, it falls back to the bare 44px. Both thead
@@ -390,7 +416,7 @@ a.ptg-person-name:focus-visible {
     width: auto;
     height: 22px;
     padding-inline: 10px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill, 999px);
     background: var(--primary-lighter, #DCE2F9);
     color: var(--primary-main, #173F73);
     font-size: 12px;
@@ -593,7 +619,7 @@ a.ak-list-row:focus-visible {
     height: 32px;
     border: 0;
     background: transparent;
-    border-radius: 8px;
+    border-radius: var(--radius-base, 8px);
     color: var(--ptg-muted);
     cursor: pointer;
     transition: background-color var(--ptg-motion-fast, 150ms) ease-out;
@@ -660,7 +686,7 @@ a.ak-list-row:focus-visible {
     overflow: hidden;
     background: #FFFFFF;
     border: 1px solid #E8E9F0;
-    border-radius: 8px;
+    border-radius: var(--radius-base, 8px);
     box-shadow: 0 2px 8px rgba(31, 35, 48, 0.08);
     opacity: 0;
     visibility: hidden;
@@ -701,7 +727,7 @@ a.ak-list-row:focus-visible {
     height: 34px;
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--radius-base, 8px);
     background: transparent;
     color: #42465F;
     cursor: pointer;
@@ -749,10 +775,10 @@ a.ak-list-row:focus-visible {
     z-index: 5;
     display: flex;
     align-items: center;
-    height: 42px;
-    min-height: 42px;
+    height: var(--ak-control-height, 42px);
+    min-height: var(--ak-control-height, 42px);
     padding-inline: 40px;
-    border-radius: 10px;
+    border-radius: var(--radius-base, 8px);
     background: #F2F4FC;
     overflow: hidden;
     opacity: 0;
@@ -1115,7 +1141,7 @@ a.ak-list-row:focus-visible {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 42px;
+    min-height: var(--ak-control-height, 42px);
     padding: 8px 12px;
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--ptg-radius-md);
@@ -1150,11 +1176,27 @@ a.ak-list-row:focus-visible {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 42px;
+    min-height: var(--ak-control-height, 42px);
     padding: 8px 12px;
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
+}
+
+/* label است، پس اشاره‌گر باید کلیک‌پذیر بودنش را نشان دهد. */
+label.ak-toggle-field {
+    cursor: pointer;
+}
+
+/* گزینه‌های کارتیِ هم‌عرض در یک ردیف wrap — جایگزین flex inline در ImportExcel. */
+.ak-toggle-field.ak-toggle-grow {
+    flex: 1 1 260px;
+}
+
+/* ورودی عددیِ باریک وسط سلول جدول — جایگزین max-width/margin inline. */
+.ak-input.ak-input-compact {
+    max-width: 140px;
+    margin-inline: auto;
 }
 
 .ak-label {
@@ -1172,7 +1214,7 @@ a.ak-list-row:focus-visible {
 
 .ak-input {
     width: 100%;
-    height: 42px;
+    height: var(--ak-control-height, 42px);
     padding: 0 12px;
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--ptg-radius-md);
@@ -1243,7 +1285,7 @@ select.ak-input {
     height: 6px;
     overflow: hidden;
     margin-top: 8px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill, 999px);
     background: var(--ptg-surface-subtle, #f0f1f4);
 }
 
@@ -1421,14 +1463,8 @@ select.ak-input {
     color: var(--ptg-muted);
 }
 
-/* Standard toggle (soft active/inactive), reusing the Bootstrap switch. */
-.ak-toggle-field {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 42px;
-}
-
+/* Standard toggle (soft active/inactive), reusing the Bootstrap switch.
+   قاب و اندازهٔ خود .ak-toggle-field بالاتر تعریف شده؛ اینجا فقط اجزای داخلی. */
 .ak-toggle-field .form-check {
     margin: 0;
     min-height: 0;
@@ -1486,7 +1522,7 @@ select.ak-input {
 .ak-save {
     width: 84px;
     padding: 6px 12px;
-    border-radius: 12px;
+    border-radius: var(--radius-btn, 12px);
     background: #1877f2;
     color: #fff;
 }
@@ -1575,7 +1611,7 @@ select.ak-input {
     min-height: 80px;
     padding: 12px;
     border: 1px dashed var(--ptg-input-border);
-    border-radius: 8px;
+    border-radius: var(--radius-base, 8px);
     background: var(--ptg-surface);
     color: var(--ptg-muted);
     font-size: 14px;
@@ -1603,7 +1639,7 @@ select.ak-input {
     width: 48px;
     height: 48px;
     margin-inline-end: 10px;
-    border-radius: 9999px;
+    border-radius: var(--radius-pill, 999px);
     object-fit: cover;
 }
 
@@ -1635,7 +1671,7 @@ select.ak-input {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 42px;
+    min-height: var(--ak-control-height, 42px);
     padding: 8px 0;
     border-bottom: 1px solid var(--divider);
     color: var(--ptg-text);
@@ -1823,10 +1859,10 @@ select.ak-input {
 
 .ak-entity-input {
     width: 100%;
-    height: 42px;
+    height: var(--ak-control-height, 42px);
     padding: 0 38px 0 12px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: 8px;
+    border-radius: var(--radius-base, 8px);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
     font-size: 14px;
@@ -1943,7 +1979,7 @@ select.ak-input {
     width: 100%;
     overflow: hidden;
     border: 1px solid #E5E7EB;
-    border-radius: 6px;
+    border-radius: var(--radius-base, 8px);
     background: var(--ptg-surface);
     box-shadow: 0 10px 24px rgba(66, 66, 66, 0.12);
     opacity: 0;
@@ -1998,7 +2034,7 @@ select.ak-input {
     width: 38px;
     height: 38px;
     border: 1px solid #E5E7EB;
-    border-radius: 9999px;
+    border-radius: var(--radius-pill, 999px);
     background: #FCFCFC;
     color: var(--primary-main);
     font-size: 13px;
@@ -2047,7 +2083,7 @@ select.ak-input {
     display: flex;
     align-items: center;
     width: 100%;
-    min-height: 42px;
+    min-height: var(--ak-control-height, 42px);
     padding: 8px 12px;
     border: 0;
     border-top: 1px solid #E5E7EB;
@@ -2096,7 +2132,7 @@ select.ak-input {
     overflow-y: auto;
     padding: 6px;
     border: 1px solid #E5E7EB;
-    border-radius: 8px;
+    border-radius: var(--radius-base, 8px);
     background: var(--ptg-surface);
     box-shadow: var(--shadow-dropdown);
 }
@@ -2112,7 +2148,7 @@ select.ak-input {
     gap: 8px;
     min-height: 38px;
     padding: 7px 9px;
-    border-radius: 6px;
+    border-radius: var(--radius-base, 8px);
     color: var(--ptg-text);
     font-size: 14px;
     cursor: pointer;
@@ -2158,7 +2194,7 @@ select.ak-input {
 [data-loading-date-overlay] .loading-date-picker {
     width: min(316px, 100%);
     overflow: hidden;
-    border-radius: 12px;
+    border-radius: var(--radius-btn, 12px);
     background: var(--ptg-surface);
     box-shadow: var(--shadow-dialog);
 }
@@ -2245,7 +2281,7 @@ select.ak-input {
 .loading-date-day {
     width: 40px;
     height: 40px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill, 999px);
     color: var(--ptg-text);
 }
 
@@ -2263,7 +2299,7 @@ select.ak-input {
 
 .loading-date-year-option {
     min-height: 44px;
-    border-radius: 8px;
+    border-radius: var(--radius-base, 8px);
 }
 
 [data-loading-logistics-pair] {
@@ -2449,7 +2485,7 @@ select.ak-input {
     gap: 6px;
     padding: 16px;
     border: 1px solid var(--divider, #ececf1);
-    border-radius: 8px;
+    border-radius: var(--radius-base, 8px);
     background: var(--ptg-surface, #fff);
     text-decoration: none;
     color: inherit;
@@ -2927,7 +2963,7 @@ select.ak-input {
     width: 32px;
     height: 32px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--radius-base, 8px);
     background: transparent;
     color: var(--ptg-muted);
     cursor: pointer;
@@ -2971,7 +3007,7 @@ select.ak-input {
     width: 100%;
     aspect-ratio: 1;
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--radius-pill, 999px);
     background: transparent;
     color: var(--ak-date-day-text);
     font: inherit;
@@ -3002,7 +3038,7 @@ select.ak-input {
 .ak-date-year {
     padding: 9px 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--radius-base, 8px);
     background: transparent;
     color: var(--ak-date-day-text);
     font: inherit;
@@ -3047,7 +3083,7 @@ select.ak-input {
 .ak-group-wizard-page > form.ak-form {
     overflow: hidden;
     border: 1px solid var(--divider);
-    border-radius: 12px;
+    border-radius: var(--radius-btn, 12px);
     background: var(--background-paper, #fff);
 }
 
@@ -3092,7 +3128,7 @@ select.ak-input {
 .ak-group-wizard-main > .ak-form-section {
     padding: 18px;
     border: 1px solid var(--divider);
-    border-radius: 10px;
+    border-radius: var(--radius-base, 8px);
     background: #fff;
 }
 
@@ -3101,7 +3137,7 @@ select.ak-input {
     top: calc(var(--ptg-topbar-height, 64px) + 16px);
     padding: 16px;
     border: 1px solid var(--divider);
-    border-radius: 10px;
+    border-radius: var(--radius-base, 8px);
     background: #fff;
 }
 
@@ -3155,7 +3191,7 @@ select.ak-input {
     }
 
     .ak-group-wizard-page > form.ak-form {
-        border-radius: 8px;
+        border-radius: var(--radius-base, 8px);
     }
 
     .ak-group-wizard-page > form.ak-form > .ak-page-header,
@@ -3306,7 +3342,7 @@ select.ak-input {
     align-items: center;
     width: fit-content;
     max-width: 100%;
-    height: 42px;
+    height: var(--ak-control-height, 42px);
     margin: 0;
     padding-block: 0;
     padding-inline-end: 12px;
@@ -3525,7 +3561,7 @@ select.ak-input {
     margin: 0 0 12px;
     padding: 8px 12px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: 7px;
+    border-radius: var(--radius-base, 8px);
     background: #F7F8FA;
     font-size: 13px;
     color: var(--ptg-text);
@@ -3591,7 +3627,7 @@ select.ak-input {
     height: 34px;
     padding: 0 14px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: 7px;
+    border-radius: var(--radius-base, 8px);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
     font-size: 13px;
@@ -3707,7 +3743,7 @@ select.ak-input {
 [data-inv-transport-form] [data-vehicle-table] td .ak-input {
     height: 38px;
     padding: 0 10px;
-    border-radius: 7px;
+    border-radius: var(--radius-base, 8px);
     font-size: 13px;
     min-width: 118px;
 }
@@ -3792,13 +3828,13 @@ select.ak-input {
     max-width: 100%;
     overflow-x: auto;
     border: 1px solid var(--ptg-border, #E2E8F0);
-    border-radius: 8px;
+    border-radius: var(--radius-base, 8px);
     background: var(--ptg-surface-subtle, #F8FAFC);
 }
 
 .ak-list-state-nav a {
     padding: 7px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-base, 8px);
     color: var(--ptg-text-muted, #64748B);
     font-size: 13px;
     font-weight: 600;
@@ -3813,10 +3849,13 @@ select.ak-input {
     box-shadow: 0 0 0 1px var(--ptg-border, #E2E8F0);
 }
 
+/* انتخاب منبع در «ثبت حمل»: این سه گزینه نقش دکمهٔ اصلی فرم را دارند، پس کمی پایین‌تر
+   از تیتر بخش و در اندازهٔ دکمه رندر می‌شوند. */
 .ak-segmented-control {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    gap: 12px;
+    margin-block-start: 18px;
 }
 
 .ak-segmented-option {
@@ -3834,19 +3873,25 @@ select.ak-input {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 8px 12px;
+    gap: 10px;
+    min-height: 60px;
+    padding: 14px 18px;
     border: 1px solid var(--ptg-border, #E2E8F0);
-    border-radius: 8px;
+    border-radius: var(--radius-btn, 12px);
     background: var(--ptg-surface, #FFFFFF);
     color: var(--ptg-text, #1E293B);
+    font-size: 16px;
     font-weight: 600;
     cursor: pointer;
 }
 
+.ak-segmented-option span .bi {
+    font-size: 20px;
+}
+
 .ak-segmented-option input:checked + span {
     border-color: var(--ptg-primary, #C2410C);
+    box-shadow: 0 0 0 1px var(--ptg-primary, #C2410C);
     color: var(--ptg-primary, #C2410C);
     background: var(--ptg-primary-soft, #FFF7ED);
 }

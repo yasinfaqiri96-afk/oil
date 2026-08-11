@@ -67,6 +67,36 @@ main.boltz-content.ptg-page-reveal {
     animation: ptg-fade-in var(--ptg-motion-base) var(--ptg-motion-ease);
 }
 
+/* ── 2-b) View Transitions — گذر بومی به‌جای مخفی‌کردن main ────────────────
+   هرجا مرورگر document.startViewTransition داشته باشد و کاربر کاهش حرکت
+   نخواسته باشد، spa-nav.js از این مسیر می‌رود و بند ۲ بالا اصلاً اجرا
+   نمی‌شود. مرورگر از صفحهٔ قدیم عکس می‌گیرد، ما DOM را عوض می‌کنیم، بعد بین
+   دو حالت محو می‌کند: نه فریم خالی می‌ماند، نه --background-default یک لحظه
+   لخت می‌شود. مدت همان --ptg-motion-base است تا ریتم تعویض صفحه دقیقاً مثل
+   مسیر قدیمی بماند. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: var(--ptg-motion-base);
+    animation-timing-function: var(--ptg-motion-ease);
+}
+
+/* عنوان صفحه به‌جای پلک‌زدن، بین جای قدیم و جدیدش morph می‌شود. در هر view
+   حداکثر یک .ak-page-title رندر می‌شود، پس این نام یکتا می‌ماند؛ اگر روزی
+   تکراری شود مرورگر فقط گذر را skip می‌کند و محتوا سالم عوض می‌شود. */
+.ak-page-title {
+    view-transition-name: ptg-page-title;
+}
+
+/* حین گذر، خودِ crossfade نقش انیمیشن ورود را دارد؛ لایهٔ ۲ نباید دوباره روی
+   محتوای تازه اجرا شود وگرنه همان «بندبندشدن»ی که بند ۲ حذفش کرده برمی‌گردد.
+   به‌جای بازنویسی تک‌تک قواعد لایهٔ ۲ فقط توکن‌هایشان صفر می‌شود.
+   --ptg-motion-base عمداً دست‌نخورده می‌ماند چون خودِ گذر از آن می‌خواند. */
+html.ptg-vt-active {
+    --ptg-motion-enter: 0s;
+    --ptg-motion-step: 0s;
+    --ptg-motion-rise: 0px;
+}
+
 /* ── 3) تغییر تب / پنل جزئیات (ptg-tabs.js همزمان به پنل و عناصر
        data-ak-tab می‌دهد تا همهٔ بخش‌های تب با هم ظاهر شوند) ─────────────── */
 .ptg-tab-enter,

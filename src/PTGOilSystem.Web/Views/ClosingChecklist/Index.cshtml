@@ -36,7 +36,7 @@
     <form method="get" asp-action="Index" class="ak-form">
         <div class="ak-field">
             <label class="ak-label" for="fiscalYearId">سال مالی</label>
-            <select class="form-select" id="fiscalYearId" name="fiscalYearId" onchange="this.form.submit()">
+            <select class="ak-input" id="fiscalYearId" name="fiscalYearId" onchange="this.form.submit()">
                 @foreach (var y in Model.Years)
                 {
                     <option value="@y.FiscalYearId" selected="@y.IsSelected">@y.Name</option>
@@ -59,9 +59,9 @@
             <span class="badge bg-success">قبول: @r.PassedCount</span>
             <span class="ms-auto"></span>
             @* فایل خروجی است نه صفحه: ناوبری SPA نباید آن را به‌جای محتوا swap کند. *@
-            <a class="btn btn-sm btn-outline-secondary" data-no-spa="true"
+            <a class="btn btn-sm btn-light ak-secondary-action" data-no-spa="true"
                asp-action="Json" asp-route-fiscalYearId="@r.FiscalYearId">JSON</a>
-            <a class="btn btn-sm btn-outline-secondary" data-no-spa="true"
+            <a class="btn btn-sm btn-light ak-secondary-action" data-no-spa="true"
                asp-action="Csv" asp-route-fiscalYearId="@r.FiscalYearId">CSV</a>
         </div>
 

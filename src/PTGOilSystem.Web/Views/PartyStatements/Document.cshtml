@@ -132,9 +132,9 @@
             </div>
         </div>
         <div class="statement-actions no-print" aria-label="عملیات صورت‌حساب">
-            <a class="btn btn-sm btn-outline-success" href="@ExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
-            <a class="btn btn-sm btn-outline-danger" href="@pdfUrl"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-statement-print data-print-url="@printUrl"><i class="bi bi-printer"></i> چاپ</button>
+            <a class="btn btn-sm btn-light ak-secondary-action text-success" href="@ExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+            <a class="btn btn-sm btn-light ak-secondary-action text-danger" href="@pdfUrl"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+            <button class="btn btn-sm btn-light ak-secondary-action" type="button" data-statement-print data-print-url="@printUrl"><i class="bi bi-printer"></i> چاپ</button>
             <a class="statement-csv-link" href="@csvUrl">CSV</a>
         </div>
     </header>
@@ -229,8 +229,8 @@
                 <nav class="statement-pagination no-print" aria-label="صفحه‌بندی تراکنش‌ها">
                     <span>صفحه @currentPage از @totalPages · @s.Rows.Count سطر</span>
                     <div>
-                        <a class="btn btn-sm btn-outline-secondary @(currentPage == 1 ? "disabled" : null)" href="@(currentPage == 1 ? null : PageUrl(currentPage - 1))">قبلی</a>
-                        <a class="btn btn-sm btn-outline-secondary @(currentPage == totalPages ? "disabled" : null)" href="@(currentPage == totalPages ? null : PageUrl(currentPage + 1))">بعدی</a>
+                        <a class="btn btn-sm btn-light ak-secondary-action @(currentPage == 1 ? "disabled" : null)" href="@(currentPage == 1 ? null : PageUrl(currentPage - 1))">قبلی</a>
+                        <a class="btn btn-sm btn-light ak-secondary-action @(currentPage == totalPages ? "disabled" : null)" href="@(currentPage == totalPages ? null : PageUrl(currentPage + 1))">بعدی</a>
                     </div>
                 </nav>
             }

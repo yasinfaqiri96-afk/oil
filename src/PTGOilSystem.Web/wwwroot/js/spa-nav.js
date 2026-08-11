@@ -41,7 +41,25 @@
         window.addEventListener("pageshow", function () {
             var main = document.querySelector("main");
             if (main) main.classList.remove("ptg-page-swap");
+            document.documentElement.classList.remove(VT_CLASS);
         });
+    }
+
+    // --- View Transitions ---------------------------------------------------
+    // اگر مرورگر پشتیبانی کند، به‌جای «مخفی‌کردن main تا پایان کار DOM» از
+    // crossfade بومی استفاده می‌شود: مرورگر از صفحهٔ قدیم عکس می‌گیرد، ما DOM را
+    // عوض می‌کنیم، بعد بین دو حالت محو می‌کند. نتیجه: هیچ فریم خالی و هیچ فلاش
+    // پس‌زمینه‌ای. اگر پشتیبانی نبود یا کاربر کاهش حرکت خواسته باشد، دقیقاً همان
+    // مسیر قبلی (ptg-page-swap → ptg-page-reveal) اجرا می‌شود.
+    var VT_CLASS = "ptg-vt-active";
+
+    function canViewTransition() {
+        if (typeof document.startViewTransition !== "function") return false;
+        try {
+            return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        } catch (_) {
+            return true;
+        }
     }
 
     function prefetchableLink(target) {
@@ -312,56 +330,88 @@
         }
 
         return preloadPageStyles(doc).then(function () {
+            if (canViewTransition()) {
+                // عکس صفحهٔ قدیم تا پایان کارهای DOM روی صفحه می‌ماند، پس نه
+                // ptg-page-swap لازم است نه revealMain؛ خودِ گذر نقش انیمیشن
+                // ورود را دارد و کلاس VT_CLASS لایهٔ ۲ را ساکت نگه می‌دارد.
+                document.documentElement.classList.add(VT_CLASS);
+                var transition = document.startViewTransition(function () {
+                    applySwap(doc, curMain, newMain, url, push, false);
+                });
+
+                var clearVtClass = function () {
+                    document.documentElement.classList.remove(VT_CLASS);
+                };
+                // ready/finished وقتی گذر skip شود (ناوبری تازه‌تر یا نام تکراری)
+                // reject می‌شوند؛ DOM در هر حال داخل callback بالا عوض شده است، پس
+                // فقط بی‌صدا مصرفشان می‌کنیم تا unhandled rejection نسازند.
+                transition.ready.then(clearVtClass, clearVtClass);
+                transition.finished.then(clearVtClass, clearVtClass);
+
+                // مثل مسیر قدیمی به‌محض پایان کار DOM حل می‌شود (نه پایان انیمیشن)
+                // تا loader و settle منتظر گذر نمانند. خطای callback عمداً رها
+                // می‌شود تا caller مثل قبل fallback کامل بزند.
+                return transition.updateCallbackDone;
+            }
+
             // محتوای تازه تا پایان همهٔ کارهای DOM (اسکریپت‌ها، بازچینی list-shell،
             // تب‌ها) مخفی می‌ماند و بعد یک‌جا با fade واحد ظاهر می‌شود؛ وگرنه
             // بازچینی‌ها وسط انیمیشن دیده می‌شوند و صفحه بندبند به‌نظر می‌رسد.
             curMain.classList.add("ptg-page-swap");
             try {
-                // Clean up Bootstrap overlays & mobile sidebar before DOM swap
-                cleanupBootstrapOverlays();
-                syncDocumentShell(doc);
-
-                curMain.className = newMain.className + " ptg-page-swap";
-                curMain.innerHTML = newMain.innerHTML;
-                syncPageAssets(doc);
-
-                var newPageScripts = doc.getElementById("ptg-page-scripts");
-                var curPageScripts = document.getElementById("ptg-page-scripts");
-                if (newPageScripts && curPageScripts) {
-                    curPageScripts.innerHTML = "";
-                    execScripts(newPageScripts, curPageScripts);
-                }
-
-                document.title = doc.title;
-                updateActiveNav(url);
-
-                if (typeof window.__ptgReinit === "function") {
-                    window.__ptgReinit();
-                }
-
-                execScripts(curMain, curMain);
-
-                if (typeof window.__ptgApplyLanguage === "function") {
-                    window.__ptgApplyLanguage();
-                }
-
-                window.dispatchEvent(new CustomEvent("ptg:page-ready", {
-                    detail: { url: url }
-                }));
-
-                if (push) {
-                    history.pushState({ ptgSpa: true }, document.title, url);
-                } else {
-                    history.replaceState({ ptgSpa: true }, document.title, url);
-                }
-
-                // صفحهٔ تازه از بالا شروع می‌شود؛ Back/Forward به همان جای قبلی برمی‌گردد.
-                restoreScroll(url, push);
-                if (push) focusMain(curMain);
+                applySwap(doc, curMain, newMain, url, push, true);
             } finally {
                 revealMain(curMain);
             }
         });
+    }
+
+    // تعویض واقعی محتوا. hideDuringSwap فقط در مسیر بدون View Transitions لازم
+    // است؛ در مسیر گذر، عکس صفحهٔ قدیم جای آن را می‌گیرد.
+    function applySwap(doc, curMain, newMain, url, push, hideDuringSwap) {
+        // Clean up Bootstrap overlays & mobile sidebar before DOM swap
+        cleanupBootstrapOverlays();
+        syncDocumentShell(doc);
+
+        curMain.className = hideDuringSwap
+            ? newMain.className + " ptg-page-swap"
+            : newMain.className;
+        curMain.innerHTML = newMain.innerHTML;
+        syncPageAssets(doc);
+
+        var newPageScripts = doc.getElementById("ptg-page-scripts");
+        var curPageScripts = document.getElementById("ptg-page-scripts");
+        if (newPageScripts && curPageScripts) {
+            curPageScripts.innerHTML = "";
+            execScripts(newPageScripts, curPageScripts);
+        }
+
+        document.title = doc.title;
+        updateActiveNav(url);
+
+        if (typeof window.__ptgReinit === "function") {
+            window.__ptgReinit();
+        }
+
+        execScripts(curMain, curMain);
+
+        if (typeof window.__ptgApplyLanguage === "function") {
+            window.__ptgApplyLanguage();
+        }
+
+        window.dispatchEvent(new CustomEvent("ptg:page-ready", {
+            detail: { url: url }
+        }));
+
+        if (push) {
+            history.pushState({ ptgSpa: true }, document.title, url);
+        } else {
+            history.replaceState({ ptgSpa: true }, document.title, url);
+        }
+
+        // صفحهٔ تازه از بالا شروع می‌شود؛ Back/Forward به همان جای قبلی برمی‌گردد.
+        restoreScroll(url, push);
+        if (push) focusMain(curMain);
     }
 
     // --- Scroll & focus -----------------------------------------------------

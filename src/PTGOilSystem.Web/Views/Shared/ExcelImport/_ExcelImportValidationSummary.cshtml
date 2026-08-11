@@ -27,8 +27,8 @@
     </div>
 
     <div class="excel-import__actions excel-import__actions--end">
-        <button type="button" class="btn btn-outline-secondary" data-excel-reupload>اصلاح فایل و بارگذاری دوباره</button>
-        <a class="btn btn-outline-danger d-none" data-excel-error-report>دانلود گزارش خطاها</a>
+        <button type="button" class="btn btn-light ak-secondary-action" data-excel-reupload>اصلاح فایل و بارگذاری دوباره</button>
+        <a class="btn btn-light ak-secondary-action text-danger d-none" data-excel-error-report>دانلود گزارش خطاها</a>
         @if (Model?.RequiresConfirmation != false)
         {
             <button type="button" class="btn btn-primary" data-excel-confirm>@Model?.ConfirmButtonText</button>

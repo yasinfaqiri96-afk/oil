@@ -32,18 +32,18 @@
         <div class="row g-2 align-items-end">
             <div class="col-md-4">
                 <label class="form-label" for="contractId">@UiText.T(Context, "قرارداد خرید", "Purchase contract")</label>
-                <select id="contractId" name="contractId" class="form-select" asp-items="contracts">
+                <select id="contractId" name="contractId" class="ak-input" asp-items="contracts">
                     <option value="">@UiText.T(Context, "— انتخاب کنید —", "— select —")</option>
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label" for="importedFrom">@UiText.T(Context, "ثبت از (UTC)", "Created from (UTC)")</label>
-                <input id="importedFrom" name="importedFrom" type="datetime-local" class="form-control"
+                <input id="importedFrom" name="importedFrom" type="datetime-local" class="ak-input"
                        value="@(Model.ImportedFrom?.ToString("yyyy-MM-ddTHH:mm"))" />
             </div>
             <div class="col-md-3">
                 <label class="form-label" for="importedTo">@UiText.T(Context, "ثبت تا (UTC)", "Created to (UTC)")</label>
-                <input id="importedTo" name="importedTo" type="datetime-local" class="form-control"
+                <input id="importedTo" name="importedTo" type="datetime-local" class="ak-input"
                        value="@(Model.ImportedTo?.ToString("yyyy-MM-ddTHH:mm"))" />
             </div>
             <div class="col-md-2">

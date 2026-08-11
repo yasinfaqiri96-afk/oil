@@ -160,7 +160,7 @@
                 @if (Model.SupplierId.HasValue)
                 {
                     <a asp-controller="Suppliers" asp-action="Details" asp-route-id="@Model.SupplierId"
-                       class="btn btn-outline-primary ak-primary-action">
+                       class="btn btn-primary ak-primary-action">
                         <i class="bi bi-arrow-left-right"></i> مانده قابل انتقال تأمین‌کننده
                     </a>
                 }
@@ -218,7 +218,7 @@
                                 <td class="ak-col-actions">
                                     @if (a.IsActive)
                                     {
-                                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#reverseAllocationModal-@a.Id">برگشت</button>
+                                        <button type="button" class="btn btn-sm btn-light ak-secondary-action text-danger" data-bs-toggle="modal" data-bs-target="#reverseAllocationModal-@a.Id">برگشت</button>
                                     }
                                     else if (!string.IsNullOrWhiteSpace(a.ReversalReason))
                                     {

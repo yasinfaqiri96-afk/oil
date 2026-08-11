@@ -161,12 +161,13 @@ else
                         <table class="ak-table" id="customsItemsTable">
                             <thead>
                                 <tr>
-                                    <th style="min-width:220px;">نوع مصرف</th>
-                                    <th style="min-width:110px;">ارز</th>
-                                    <th style="min-width:150px;">مبلغ</th>
-                                    <th style="min-width:140px;">نرخ تبدیل (AFN/USD)</th>
-                                    <th style="min-width:160px;">معادل</th>
-                                    <th style="min-width:180px;">یادداشت</th>
+                                    <th class="ak-col-w-2xl">نوع مصرف</th>
+                                    <th class="ak-col-w-sm">ارز</th>
+                                    <th class="ak-col-w-md">مبلغ</th>
+                                    <th class="ak-col-w-md">نرخ تبدیل (AFN/USD)</th>
+                                    <th class="ak-col-w-lg">معادل</th>
+                                    <th class="ak-col-w-xl">یادداشت</th>
+                                    <th class="ak-col-actions">عملیات</th>
                                 </tr>
                             </thead>
                             <tbody id="customsItemsBody">
@@ -174,13 +175,8 @@ else
                                 {
                                     <tr class="customs-item-row">
                                         <td>
-                                            <div class="d-flex align-items-center gap-2">
-                                                <button type="button" class="customs-row-remove" title="حذف ردیف" aria-label="حذف ردیف">
-                                                    <i class="bi bi-x-lg" aria-hidden="true"></i>
-                                                </button>
-                                                <input asp-for="Items[i].ComponentType" type="hidden" class="row-component-type" />
-                                                <input asp-for="Items[i].ComponentLabel" type="text" class="ak-input customs-label-input" placeholder="عنوان مصرف" />
-                                            </div>
+                                            <input asp-for="Items[i].ComponentType" type="hidden" class="row-component-type" />
+                                            <input asp-for="Items[i].ComponentLabel" type="text" class="ak-input customs-label-input" placeholder="عنوان مصرف" />
                                         </td>
                                         <td>
                                             <select asp-for="Items[i].Currency" class="ak-input currency-input">
@@ -200,6 +196,11 @@ else
                                         <td>
                                             <input asp-for="Items[i].Notes" class="ak-input" />
                                         </td>
+                                        <td class="ak-col-actions">
+                                            <button type="button" class="ak-row-menu-btn text-danger" data-row-remove title="حذف ردیف" aria-label="حذف ردیف">
+                                                <i class="bi bi-trash-fill" aria-hidden="true"></i>
+                                            </button>
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -210,12 +211,13 @@ else
                                     <td></td>
                                     <td class="fw-bold" id="totalUsd">—</td>
                                     <td><small class="text-muted" id="ratePerMt">نرخ / MT: —</small></td>
+                                    <td class="ak-col-actions"></td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
                     <div class="mt-3">
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="addCustomsRow">
+                        <button type="button" class="btn btn-sm btn-light ak-secondary-action" id="addCustomsRow">
                             <i class="bi bi-plus-lg ms-1" aria-hidden="true"></i>افزودن ردیف
                         </button>
                     </div>
@@ -223,13 +225,8 @@ else
                     <template id="customsRowTemplate">
                         <tr class="customs-item-row">
                             <td>
-                                <div class="d-flex align-items-center gap-2">
-                                    <button type="button" class="customs-row-remove" title="حذف ردیف" aria-label="حذف ردیف">
-                                        <i class="bi bi-x-lg" aria-hidden="true"></i>
-                                    </button>
-                                    <input type="hidden" class="row-component-type" name="Items[0].ComponentType" value="Other" />
-                                    <input type="text" class="ak-input customs-label-input" name="Items[0].ComponentLabel" value="" placeholder="عنوان مصرف" />
-                                </div>
+                                <input type="hidden" class="row-component-type" name="Items[0].ComponentType" value="Other" />
+                                <input type="text" class="ak-input customs-label-input" name="Items[0].ComponentLabel" value="" placeholder="عنوان مصرف" />
                             </td>
                             <td>
                                 <select class="ak-input currency-input" name="Items[0].Currency">
@@ -248,6 +245,11 @@ else
                             </td>
                             <td>
                                 <input type="text" class="ak-input" name="Items[0].Notes" value="" />
+                            </td>
+                            <td class="ak-col-actions">
+                                <button type="button" class="ak-row-menu-btn text-danger" data-row-remove title="حذف ردیف" aria-label="حذف ردیف">
+                                    <i class="bi bi-trash-fill" aria-hidden="true"></i>
+                                </button>
                             </td>
                         </tr>
                     </template>
@@ -340,7 +342,7 @@ else
     body.addEventListener('change', function (e) { handleRowChange(e.target); });
 
     body.addEventListener('click', function (e) {
-        var btn = e.target.closest('.customs-row-remove');
+        var btn = e.target.closest('[data-row-remove]');
         if (!btn) return;
         var row = btn.closest('tr.customs-item-row');
         if (row) { row.remove(); renumber(); recalc(); }

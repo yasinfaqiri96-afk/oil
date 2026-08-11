@@ -628,28 +628,28 @@
                             <div class="ak-form-grid">
                                 <div class="ak-field">
                                     <label class="form-label" for="freightSettlementDate">@T("تاریخ", "Date")</label>
-                                    <input id="freightSettlementDate" class="form-control" type="date" name="SettlementDate"
+                                    <input id="freightSettlementDate" class="ak-input" type="date" name="SettlementDate"
                                            value="@PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock.SystemToday.ToString("yyyy-MM-dd")" required />
                                 </div>
                                 <div class="ak-field">
                                     <label class="form-label" for="freightRate">@T("نرخ فی‌تن (USD)", "Rate per MT (USD)")</label>
-                                    <input id="freightRate" class="form-control ak-num" type="number" name="FreightRateUsdPerMt"
+                                    <input id="freightRate" class="ak-input ak-num" type="number" name="FreightRateUsdPerMt"
                                            min="0" step="0.0001" inputmode="decimal" />
                                 </div>
                                 <div class="ak-field">
                                     <label class="form-label" for="freightTotal">@T("مبلغ کل (USD)", "Total amount (USD)")</label>
-                                    <input id="freightTotal" class="form-control ak-num" type="number" name="FreightCostUsd"
+                                    <input id="freightTotal" class="ak-input ak-num" type="number" name="FreightCostUsd"
                                            min="0" step="0.0001" inputmode="decimal" />
                                     <div class="form-text">@T("یکی از نرخ یا مبلغ کل کافی است.", "Enter either rate or total amount.")</div>
                                 </div>
                                 <div class="ak-field ak-field-full">
                                     <label class="form-label" for="freightNotes">@T("یادداشت", "Notes")</label>
-                                    <textarea id="freightNotes" class="form-control" name="Notes" rows="2" maxlength="500"></textarea>
+                                    <textarea id="freightNotes" class="ak-input" name="Notes" rows="2" maxlength="500"></textarea>
                                 </div>
                             </div>
                         </div>
                         <div class="modal-footer ak-modal-actions">
-                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@T("انصراف", "Cancel")</button>
+                            <button type="button" class="btn btn-light ak-secondary-action" data-bs-dismiss="modal">@T("انصراف", "Cancel")</button>
                             <button type="submit" class="btn btn-primary" data-loading-text="@T("در حال ثبت...", "Saving...")">@T("ثبت تسویه", "Settle")</button>
                         </div>
                     </form>

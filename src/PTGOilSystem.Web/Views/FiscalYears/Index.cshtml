@@ -42,19 +42,19 @@
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label class="form-label" for="initial-name">نام سال مالی</label>
-                            <input class="form-control" id="initial-name" name="name" value="FY-@today.Year" required maxlength="100" />
+                            <input class="ak-input" id="initial-name" name="name" value="FY-@today.Year" required maxlength="100" />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label" for="initial-start">تاریخ شروع</label>
-                            <input class="form-control" id="initial-start" name="startDate" type="date" value="@defaultStart.ToString("yyyy-MM-dd")" required />
+                            <input class="ak-input" id="initial-start" name="startDate" type="date" value="@defaultStart.ToString("yyyy-MM-dd")" required />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label" for="initial-end">تاریخ پایان</label>
-                            <input class="form-control" id="initial-end" name="endDate" type="date" value="@defaultEnd.ToString("yyyy-MM-dd")" required />
+                            <input class="ak-input" id="initial-end" name="endDate" type="date" value="@defaultEnd.ToString("yyyy-MM-dd")" required />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label" for="initial-count">تعداد دوره</label>
-                            <input class="form-control" id="initial-count" name="periodCount" type="number" min="1" max="53" value="12" required />
+                            <input class="ak-input" id="initial-count" name="periodCount" type="number" min="1" max="53" value="12" required />
                         </div>
                     </div>
                     <p class="ak-hint">دوره‌ها به‌صورت ماهانه و پیوسته تولید می‌شوند و باید کل بازهٔ سال را دقیقاً بپوشانند.</p>

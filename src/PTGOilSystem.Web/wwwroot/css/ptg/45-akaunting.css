@@ -258,7 +258,10 @@ body.ptg-modal-document .btn-outline-danger {
 
 body.boltz-shell.app-shell-authenticated :is(.form-control, .form-select),
 body.ptg-modal-document :is(.form-control, .form-select) {
-    background-color: #FFFFFF;
+    /* هم‌ارتفاع با .ak-input؛ بدون این، فرم‌هایی که هر دو کلاس را کنار هم دارند
+       اختلاف ارتفاع می‌گرفتند. textarea از همان قاعدهٔ ak مستثنا می‌ماند. */
+    min-height: var(--ak-control-height, 42px);
+    background-color: var(--ptg-field-bg, #FFFFFF);
     border: 1px solid var(--ptg-input-border);
     border-radius: var(--ptg-radius-input);
     color: var(--ptg-text);

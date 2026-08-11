@@ -26,10 +26,10 @@
     <section class="ak-form-section">
         <form method="get" class="ak-filter-row">
             <input type="hidden" name="category" value="@Model.SelectedCategory" />
-            <label>از تاریخ<input type="date" class="form-control" name="fromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" /></label>
-            <label>تا تاریخ<input type="date" class="form-control" name="toDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" /></label>
+            <label>از تاریخ<input type="date" class="ak-input" name="fromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" /></label>
+            <label>تا تاریخ<input type="date" class="ak-input" name="toDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" /></label>
             <button type="submit" class="btn btn-primary btn-sm">اعمال فیلتر</button>
-            <a class="btn btn-outline-secondary btn-sm" asp-action="Discrepancies">پاک‌کردن</a>
+            <a class="btn btn-light ak-secondary-action btn-sm" asp-action="Discrepancies">پاک‌کردن</a>
         </form>
     </section>
 
@@ -59,7 +59,7 @@
                         <td>
                             @if (count.Count > 0)
                             {
-                                <a class="btn btn-sm btn-outline-primary"
+                                <a class="btn btn-sm btn-light ak-secondary-action"
                                    asp-action="Discrepancies"
                                    asp-route-category="@count.Category"
                                    asp-route-fromDate="@(Model.FromDate?.ToString("yyyy-MM-dd"))"
@@ -110,7 +110,7 @@
                             <td>
                                 @if (row.HasDrillDown)
                                 {
-                                    <a class="btn btn-sm btn-outline-secondary"
+                                    <a class="btn btn-sm btn-light ak-secondary-action"
                                        href="@Url.Action(row.DrillDownAction, row.DrillDownController, new { id = row.DrillDownId })">سند</a>
                                 }
                             </td>
@@ -133,7 +133,7 @@
                 <nav class="ak-pager" aria-label="صفحه‌بندی">
                     @if (detail.HasPrevious)
                     {
-                        <a class="btn btn-sm btn-outline-secondary"
+                        <a class="btn btn-sm btn-light ak-secondary-action"
                            asp-action="Discrepancies"
                            asp-route-category="@detail.Category"
                            asp-route-page="@(detail.Page - 1)"
@@ -144,7 +144,7 @@
                     <span class="ak-num" dir="ltr">@detail.Page / @detail.PageCount</span>
                     @if (detail.HasNext)
                     {
-                        <a class="btn btn-sm btn-outline-secondary"
+                        <a class="btn btn-sm btn-light ak-secondary-action"
                            asp-action="Discrepancies"
                            asp-route-category="@detail.Category"
                            asp-route-page="@(detail.Page + 1)"

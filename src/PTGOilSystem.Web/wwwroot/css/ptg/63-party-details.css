@@ -126,7 +126,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detai
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detail-table > tbody > tr > td {
-    min-height: 42px;
+    min-height: var(--ak-control-height, 42px);
     padding: 9px 10px;
 }
 

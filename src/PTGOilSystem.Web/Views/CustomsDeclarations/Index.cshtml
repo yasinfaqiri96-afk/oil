@@ -50,7 +50,7 @@
                 @if (Model.FromDate.HasValue) { <input type="hidden" name="fromDate" value="@Model.FromDate.Value.ToString("yyyy-MM-dd")" /> }
                 @if (Model.ToDate.HasValue) { <input type="hidden" name="toDate" value="@Model.ToDate.Value.ToString("yyyy-MM-dd")" /> }
                 <input type="hidden" name="returnUrl" value="@currentUrl" />
-                <button type="submit" class="btn btn-light ak-secondary-action" style="color:#c0392b">
+                <button type="submit" class="btn btn-light ak-secondary-action text-danger">
                     <i class="bi bi-trash" aria-hidden="true"></i>
                     <span>لغو همه (این لیست)</span>
                 </button>

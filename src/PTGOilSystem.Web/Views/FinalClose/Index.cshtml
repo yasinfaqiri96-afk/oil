@@ -24,7 +24,7 @@
     <form method="get" asp-action="Index" class="ak-form">
         <div class="ak-field">
             <label class="ak-label" for="fiscalYearId">سال مالی</label>
-            <select class="form-select" id="fiscalYearId" name="fiscalYearId" onchange="this.form.submit()">
+            <select class="ak-input" id="fiscalYearId" name="fiscalYearId" onchange="this.form.submit()">
                 @foreach (var y in Model.Years)
                 {
                     <option value="@y.FiscalYearId" selected="@y.IsSelected">@y.Name</option>
@@ -59,7 +59,7 @@
                 <input type="hidden" name="fiscalYearId" value="@Model.SelectedFiscalYearId" />
                 <div class="ak-field">
                     <label class="ak-label" for="confirmation">عبارت تأیید (کد سال مالی: <code>@Model.SelectedFiscalYearName</code>)</label>
-                    <input class="form-control" id="confirmation" name="confirmation" autocomplete="off" required />
+                    <input class="ak-input" id="confirmation" name="confirmation" autocomplete="off" required />
                 </div>
                 <button type="submit" class="btn btn-danger mt-2"
                         onclick="return confirm('بستن نهایی سال برگشت‌ناپذیر است (جز از طریق بازگشایی کنترل‌شده). ادامه؟');">

@@ -147,7 +147,7 @@
         <div class="ak-stat-grid mb-3" data-ak-tab="shipment-flow"
              hidden="@(activeShipmentTab == "flow" ? null : "hidden")"
              aria-label="@T("خلاصه رسیدها", "Receipt summary")">
-            <vc:stat-card title="@T("تعداد رسیدها", "Receipts")" value="@Model.RegisteredVesselReceipts.Count.ToString("N0")" unit="@T("رسید", "receipts")" avatar="documents"></vc:stat-card>
+            <vc:stat-card title="@T("تعداد رسیدها", "Receipts")" value="@Model.RegisteredVesselReceiptGroups.Count.ToString("N0")" unit="@T("رسید", "receipts")" avatar="documents"></vc:stat-card>
             <vc:stat-card title="@T("تخلیه‌شده", "Unloaded")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-discharged"></vc:stat-card>
             <vc:stat-card title="@T("حمل‌شده از موجودی", "Transported from stock")" value="@NumberDisplay.Quantity(Model.InventoryTransportedOutQuantityMt)" unit="@T("تن", "MT")" avatar="transported"></vc:stat-card>
             <vc:stat-card title="@T("تحویل‌شده در مقصد", "Delivered")" value="@NumberDisplay.Quantity(Model.DeliveredAtDestinationQuantityMt)" unit="@T("تن", "MT")" avatar="in-transit"></vc:stat-card>
@@ -383,7 +383,7 @@
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">
                         @T("رسیدهای ثبت‌شده از کشتی", "Registered vessel receipts")
-                        <span class="ptg-capsule-badge">@Model.RegisteredVesselReceipts.Count.ToString("N0")</span>
+                        <span class="ptg-capsule-badge">@Model.RegisteredVesselReceiptGroups.Count.ToString("N0")</span>
                     </h2>
                     <div class="ak-list-toolbar-actions no-print">
                         <a asp-controller="InventoryTransportLegs"
@@ -409,47 +409,139 @@
                             </tr>
                         </thead>
                         <tbody>
-                        @foreach (var receipt in Model.RegisteredVesselReceipts)
+                        @foreach (var receiptGroup in Model.RegisteredVesselReceiptGroups)
                         {
+                            // یک بار «ثبت رسید» به‌ازای هر قرارداد منبع یک رسید جدا می‌سازد؛ سطر بالا
+                            // مقدار کل همان ثبت است و با باز کردنش سهم هر قرارداد دیده می‌شود.
+                            var receiptBreakdownKey = $"vessel-receipt-{receiptGroup.Key}";
+                            var firstReceipt = receiptGroup.Items[0];
                             <tr>
-                                <td class="ak-num">@receipt.ReceiptDate.ToDisplayDate()</td>
+                                <td class="ak-num">@receiptGroup.ReceiptDate.ToDisplayDate()</td>
                                 <td class="ak-num">
-                                    <a class="ak-name" asp-controller="InventoryTransportReceipts" asp-action="Details" asp-route-id="@receipt.Id" asp-route-returnUrl="@selfUrl">#@receipt.Id</a>
+                                    @if (receiptGroup.IsSplitAcrossContracts)
+                                    {
+                                        <span class="ak-name">@T($"{receiptGroup.Items.Count:N0} رسید", $"{receiptGroup.Items.Count:N0} receipts")</span>
+                                    }
+                                    else
+                                    {
+                                        <a class="ak-name" asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@firstReceipt.InventoryTransportLegId" asp-route-returnUrl="@selfUrl">#@firstReceipt.Id</a>
+                                    }
                                 </td>
-                                <td>@receipt.ContractNumber</td>
-                                <td class="ak-col-grow">@receipt.DestinationTerminalName</td>
-                                <td>@(string.IsNullOrWhiteSpace(receipt.DestinationTankName) ? "—" : receipt.DestinationTankName)</td>
-                                <td class="ak-num ak-col-num">@NumberDisplay.Quantity(receipt.ReceivedQuantityMt) @T("تن", "MT")</td>
+                                <td>
+                                    @if (receiptGroup.IsSplitAcrossContracts)
+                                    {
+                                        @T($"{receiptGroup.Items.Count:N0} قرارداد", $"{receiptGroup.Items.Count:N0} contracts")
+                                    }
+                                    else
+                                    {
+                                        @firstReceipt.ContractNumber
+                                    }
+                                </td>
+                                <td class="ak-col-grow">@receiptGroup.DestinationTerminalName</td>
+                                <td>@(string.IsNullOrWhiteSpace(receiptGroup.DestinationTankName) ? "—" : receiptGroup.DestinationTankName)</td>
+                                <td class="ak-num ak-col-num">@NumberDisplay.Quantity(receiptGroup.ReceivedQuantityMt) @T("تن", "MT")</td>
                                 <td class="ak-col-actions no-print">
-                                    <div class="dropdown ak-row-menu">
-                                        <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T($"عملیات رسید شماره {receipt.Id}", $"Actions for receipt {receipt.Id}")">
-                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                    @if (receiptGroup.IsSplitAcrossContracts)
+                                    {
+                                        <button type="button"
+                                                class="ak-row-menu-btn"
+                                                title="@T("سهم هر قرارداد", "Per-contract breakdown")"
+                                                aria-label="@T("سهم هر قرارداد از این رسید", "Per-contract breakdown for this receipt")"
+                                                data-contract-breakdown-toggle="@receiptBreakdownKey"
+                                                aria-expanded="false">
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <a class="dropdown-item" asp-controller="InventoryTransportReceipts" asp-action="Details" asp-route-id="@receipt.Id" asp-route-returnUrl="@selfUrl">
-                                                    <i class="bi bi-eye"></i><span>@T("جزئیات رسید", "Receipt details")</span>
-                                                </a>
-                                            </li>
-                                            @if (receipt.CanChainOnward)
-                                            {
+                                    }
+                                    else
+                                    {
+                                        <div class="dropdown ak-row-menu">
+                                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T($"عملیات رسید شماره {firstReceipt.Id}", $"Actions for receipt {firstReceipt.Id}")">
+                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
                                                 <li>
-                                                    <a class="dropdown-item"
-                                                       asp-controller="InventoryTransportLegs"
-                                                       asp-action="CreateFromInventory"
-                                                       asp-route-shipmentId="@Model.Id"
-                                                       asp-route-sourceTerminalId="@receipt.DestinationTerminalId"
-                                                       asp-route-sourceStorageTankId="@receipt.DestinationStorageTankId"
-                                                       asp-route-productId="@receipt.ProductId"
-                                                       asp-route-returnUrl="@selfUrl">
-                                                        <i class="bi bi-arrow-right-circle"></i><span>@T("حمل بعدی از این مخزن", "Next leg from this tank")</span>
+                                                    <a class="dropdown-item" asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@firstReceipt.InventoryTransportLegId" asp-route-returnUrl="@selfUrl">
+                                                        <i class="bi bi-eye"></i><span>@T("جزئیات رسید", "Receipt details")</span>
                                                     </a>
                                                 </li>
-                                            }
-                                        </ul>
-                                    </div>
+                                                @if (firstReceipt.CanChainOnward)
+                                                {
+                                                    <li>
+                                                        <a class="dropdown-item"
+                                                           asp-controller="InventoryTransportLegs"
+                                                           asp-action="CreateFromInventory"
+                                                           asp-route-shipmentId="@Model.Id"
+                                                           asp-route-sourceTerminalId="@firstReceipt.DestinationTerminalId"
+                                                           asp-route-sourceStorageTankId="@firstReceipt.DestinationStorageTankId"
+                                                           asp-route-productId="@firstReceipt.ProductId"
+                                                           asp-route-returnUrl="@selfUrl">
+                                                            <i class="bi bi-arrow-right-circle"></i><span>@T("حمل بعدی از این مخزن", "Next leg from this tank")</span>
+                                                        </a>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
                                 </td>
                             </tr>
+                            @if (receiptGroup.IsSplitAcrossContracts)
+                            {
+                                <tr data-contract-breakdown-row="@receiptBreakdownKey" hidden>
+                                    <td colspan="7">
+                                        <table class="ak-table ak-detail-table">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col" class="ak-col-grow">@T("قرارداد", "Contract")</th>
+                                                    <th scope="col">@T("شماره رسید", "Receipt no.")</th>
+                                                    <th scope="col" class="ak-col-num">@T("سهم مقدار", "Quantity share")</th>
+                                                    <th scope="col" class="ak-col-actions no-print">@T("عملیات", "Actions")</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var receipt in receiptGroup.Items)
+                                                {
+                                                    <tr>
+                                                        <td class="ak-col-grow">@receipt.ContractNumber</td>
+                                                        <td class="ak-num">
+                                                            <a class="ak-name" asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@receipt.InventoryTransportLegId" asp-route-returnUrl="@selfUrl">#@receipt.Id</a>
+                                                        </td>
+                                                        <td class="ak-num ak-col-num">@NumberDisplay.Quantity(receipt.ReceivedQuantityMt) @T("تن", "MT")</td>
+                                                        <td class="ak-col-actions no-print">
+                                                            <div class="dropdown ak-row-menu">
+                                                                <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T($"عملیات رسید شماره {receipt.Id}", $"Actions for receipt {receipt.Id}")">
+                                                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                                </button>
+                                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                                    <li>
+                                                                        <a class="dropdown-item" asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@receipt.InventoryTransportLegId" asp-route-returnUrl="@selfUrl">
+                                                                            <i class="bi bi-eye"></i><span>@T("جزئیات رسید", "Receipt details")</span>
+                                                                        </a>
+                                                                    </li>
+                                                                    @if (receipt.CanChainOnward)
+                                                                    {
+                                                                        <li>
+                                                                            <a class="dropdown-item"
+                                                                               asp-controller="InventoryTransportLegs"
+                                                                               asp-action="CreateFromInventory"
+                                                                               asp-route-shipmentId="@Model.Id"
+                                                                               asp-route-sourceTerminalId="@receipt.DestinationTerminalId"
+                                                                               asp-route-sourceStorageTankId="@receipt.DestinationStorageTankId"
+                                                                               asp-route-productId="@receipt.ProductId"
+                                                                               asp-route-returnUrl="@selfUrl">
+                                                                                <i class="bi bi-arrow-right-circle"></i><span>@T("حمل بعدی از این مخزن", "Next leg from this tank")</span>
+                                                                            </a>
+                                                                        </li>
+                                                                    }
+                                                                </ul>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </td>
+                                </tr>
+                            }
                         }
                         @if (!Model.RegisteredVesselReceipts.Any())
                         {

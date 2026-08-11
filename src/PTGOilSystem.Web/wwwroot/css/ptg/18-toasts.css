@@ -38,7 +38,12 @@
     overflow: hidden;
     opacity: 0;
     transform: translateY(-10px);
-    transition: opacity .22s ease, transform .22s ease, margin .22s ease, max-height .22s ease;
+    /* زمان‌بندی و منحنی از سیستم Motion (40-motion.css) می‌آید تا toast با
+       بقیهٔ نرم‌افزار یک ریتم داشته باشد. fallbackها برای حالتی است که این
+       فایل بدون 40-motion لود شود. */
+    transition-property: opacity, transform, margin, max-height;
+    transition-duration: var(--ptg-motion-enter, 200ms);
+    transition-timing-function: var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .ptg-toast.is-visible {
@@ -53,6 +58,9 @@
     margin-top: -0.75rem;
     padding-top: 0;
     padding-bottom: 0;
+    /* خروج کوتاه‌تر از ورود: پیام باید سریع راه را باز کند، نه با ناز برود.
+       ۱۵۰ms خیلی زیر safety-net چهارصد میلی‌ثانیه‌ای ptg-toasts.js است. */
+    transition-duration: var(--ptg-motion-base, 150ms);
 }
 
 .ptg-toast__icon {
@@ -101,7 +109,9 @@
     font-size: .8rem;
     line-height: 1;
     border-radius: 8px;
-    transition: color .15s ease, background .15s ease;
+    transition-property: color, background;
+    transition-duration: var(--ptg-motion-fast, 120ms);
+    transition-timing-function: var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .ptg-toast__close:hover {
@@ -164,7 +174,7 @@
     background: rgba(32, 35, 49, .42);
     backdrop-filter: blur(2px);
     opacity: 0;
-    transition: opacity .18s ease;
+    transition: opacity var(--ptg-motion-base, 150ms) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .ptg-confirm.is-open .ptg-confirm__backdrop { opacity: 1; }
@@ -178,9 +188,13 @@
     box-shadow: var(--ptg-shadow-soft, 0 24px 60px rgba(32, 35, 49, .18));
     padding: 1.4rem 1.25rem 1.1rem;
     text-align: center;
-    transform: translateY(8px) scale(.97);
+    /* همان حرکت مودال‌های Bootstrap در 40-motion.css (بند ۴) تا دو نوع دیالوگ
+       سیستم یک‌جور بالا بیایند. مدت زیر ۱۸۰ms می‌ماند چون closeConfirm در
+       ptg-toasts.js با همان عدد پنل را hidden می‌کند. */
+    transform: translateY(4px) scale(.985);
     opacity: 0;
-    transition: transform .18s ease, opacity .18s ease;
+    transition: transform var(--ptg-motion-base, 150ms) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1)),
+                opacity var(--ptg-motion-base, 150ms) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .ptg-confirm.is-open .ptg-confirm__panel {
@@ -229,7 +243,9 @@
     font-size: .82rem;
     font-weight: 600;
     cursor: pointer;
-    transition: filter .15s ease, background .15s ease;
+    transition-property: filter, background;
+    transition-duration: var(--ptg-motion-fast, 120ms);
+    transition-timing-function: var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .ptg-confirm__btn--ghost {

@@ -13,47 +13,12 @@ body.boltz-shell.app-shell-authenticated:not(.is-sidebar-collapsed) .boltz-sideb
 }
 
 /*
- * Form-field unification. 08-modals.css forces create/edit inputs to a compact
- * 2.78rem / legacy border via high-specificity selectors that beat the zero-
- * specificity :where() rules in 06-forms.css{
-    min-height: var(--ptg-field-height) !important;
-    border: 1px solid var(--ptg-field-border) !important;
-    border-radius: var(--ptg-radius-input) !important;
-    background-color: var(--ptg-field-bg) !important;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ds-card) {
-    padding: var(--ptg-space-card);
-}
-
-body.boltz-shell.app-shell-authenticated :where(.summary-strip.ds-detail-facts) {
-    width: 100%;
-}
-
-body.boltz-shell.app-shell-authenticated .page-stack.boltz-detail-page .summary-strip.ds-detail-facts {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)) !important;
-    gap: .5rem !important;
-}
-
-body.boltz-shell.app-shell-authenticated .page-stack.boltz-detail-page .summary-strip.ds-detail-facts .summary-tile {
-    min-height: 3.6rem !important;
-    padding: .35rem .45rem !important;
-    overflow: hidden !important;
-}
-
-body.boltz-shell.app-shell-authenticated .page-stack.boltz-detail-page .summary-strip.ds-detail-facts .summary-tile .summary-tile-label {
-    font-size: .64rem !important;
-    line-height: 1 !important;
-}
-
-body.boltz-shell.app-shell-authenticated .page-stack.boltz-detail-page .summary-strip.ds-detail-facts .summary-tile .summary-tile-value {
-    font-size: .95rem !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-}
-
+ * حذف‌شده: بلوکِ «Form-field unification» به‌همراه قواعد ds-card / summary-strip / summary-tile.
+ * کامنت بازِ همین بلوک از خط ۱۵ تا ۵۸ بسته نشده بود، پس این ~۴۰ خط در هیچ نسخه‌ای اجرا نشده‌اند
+ * (در کل تاریخچهٔ git خراب بوده). سلکتور قاعدهٔ اول گم شده و فرضش (2.78rem در 08-modals.css)
+ * دیگر وجود ندارد؛ زنده‌کردن آن‌ها ارتفاع فیلد را روی 3.5rem می‌برد و با .ak-input تداخل می‌ساخت.
+ * قاب و تراکم صفحات Details از 73-detail-system.css می‌آید.
+ */
 /* پروندهٔ کشتی/محموله (ShipmentPnl/Details) — کارت‌ها و جدول‌های داخل هر تب فاصلهٔ یکدست بگیرند.
    گرید .page-stack فقط به فرزندان مستقیم gap می‌داد؛ محتوای داخل tab-pane پراکنده می‌ماند. */
 body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .tab-content > .tab-pane.active,
@@ -66,27 +31,6 @@ body.boltz-shell.controller-shipmentpnl.action-details .ak-detail-page .tab-cont
 /* ردیف دو ستونه (آخرین حمل‌ها / آخرین فروش‌ها) به‌عنوان یک آیتم گرید تمام‌عرض بماند. */
 body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .tab-content > .tab-pane.active > .row {
     margin: 0;
-}
-
-/* هدر سرمه‌ای — ظریف‌تر و کم‌ارتفاع‌تر. */
-body.boltz-shell.controller-shipmentpnl.action-details .ptg-operation-header {
-    padding: .55rem 1rem !important;
-    border-radius: 12px !important;
-}
-body.boltz-shell.controller-shipmentpnl.action-details .ptg-operation-header-icon {
-    width: 1.9rem !important;
-    height: 1.9rem !important;
-    border-radius: 9px !important;
-    font-size: .95rem !important;
-}
-body.boltz-shell.controller-shipmentpnl.action-details .ptg-operation-header-copy strong {
-    font-size: .98rem !important;
-    font-weight: 750 !important;
-}
-body.boltz-shell.controller-shipmentpnl.action-details .ptg-operation-header-actions .btn {
-    --bs-btn-padding-y: .2rem;
-    --bs-btn-padding-x: .55rem;
-    --bs-btn-font-size: .78rem;
 }
 
 body.boltz-shell.controller-shipmentpnl.action-details .shipment-pnl-header .badge.text-bg-warning {
@@ -285,43 +229,8 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row > .kpi-card
     }
 }
 
-@media (max-width: 1199.98px) {
-
-}
-
-@media (max-width: 767.98px) {
-
-}
-
-body.boltz-shell.controller-customsdeclarations #customsItemsTable .customs-label-input {
-    flex: 1 1 auto;
-}
-
 body.boltz-shell.controller-customsdeclarations #customsItemsTable .rate-input {
     max-width: 8.75rem;
-}
-
-body.boltz-shell.controller-customsdeclarations #customsItemsTable .customs-row-remove {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    justify-content: center;
-    width: 1.85rem;
-    height: 1.85rem;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: var(--ptg-danger-soft);
-    color: var(--ptg-danger);
-    font-size: .8rem;
-    cursor: pointer;
-    transition: background .15s ease, color .15s ease;
-}
-
-body.boltz-shell.controller-customsdeclarations #customsItemsTable .customs-row-remove:hover,
-body.boltz-shell.controller-customsdeclarations #customsItemsTable .customs-row-remove:focus-visible {
-    background: #F8C9CD;
-    color: #B42332;
 }
 
 /* Global topbar: compact rounded shell for the authenticated app header. */
@@ -596,12 +505,6 @@ body.boltz-shell.controller-operationalassets.action-details .boltz-content [dat
     opacity: .55;
 }
 
-@media (max-width: 1199.98px) {
-}
-
-@media (max-width: 767.98px) {
-}
-
 /* operational-assets-reference-redesign:end */
 
 /* ============================================================================
@@ -614,12 +517,6 @@ body.boltz-shell.controller-operationalassets.action-details .boltz-content [dat
     background: #ffffff !important;
     box-shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 12px 30px rgba(15, 23, 42, .05) !important;
     padding: 1.3rem 1.5rem !important;
-}
-
-@media (max-width: 991.98px) {
-}
-
-@media (max-width: 575.98px) {
 }
 
 /* Inventory movements (حرکت‌های موجودی) table: the "مقدار (MT)" column had the
@@ -700,14 +597,12 @@ body.boltz-shell .role-detail-section-list {
     gap: 6px;
 }
 
-
-
 /* استایل قدیمی صفحهٔ «ثبت بارگیری» (loading-create-page / l-col-* / loading-action-*)
  * حذف شد: ویو با data-loading-create-page رندر می‌شود و آن مارکاپ دیگر وجود ندارد،
  * پس این قواعد هیچ‌وقت اعمال نمی‌شدند و فقط با لایهٔ ak تداخل ایجاد می‌کردند.
  * منبع فعلی استایل این صفحه: 50-ak-components.css (.loading-import-workbook / .ak-*).
  */
-body.boltz-shell:is(.controller-expenses, .controller-lossevents, .controller-inventorytransportlegs):is(.action-create, .action-edit) .ptg-operation-header {
+body.boltz-shell:is(.controller-expenses, .controller-lossevents, .controller-inventorytransportlegs):is(.action-create{
     padding: .6rem 1.1rem !important;
 }
 

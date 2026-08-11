@@ -482,12 +482,12 @@
                                         {
                                             <form asp-action="MarkLoaded" asp-route-id="@leg.Id" method="post" class="m-0 d-inline">
                                                 @Html.AntiForgeryToken()
-                                                <button type="submit" class="btn btn-sm btn-outline-warning">بارگیری</button>
+                                                <button type="submit" class="btn btn-sm btn-light ak-secondary-action text-warning">بارگیری</button>
                                             </form>
                                         }
                                         @if (canReceiveLeg)
                                         {
-                                            <a asp-controller="InventoryTransportReceipts" asp-action="Create" asp-route-transportLegId="@leg.Id" asp-route-returnUrl="@currentReturnUrl" class="btn btn-sm btn-outline-success">ثبت تخلیه / فروش / ارسال با موتر</a>
+                                            <a asp-controller="InventoryTransportReceipts" asp-action="Create" asp-route-transportLegId="@leg.Id" asp-route-returnUrl="@currentReturnUrl" class="btn btn-sm btn-light ak-secondary-action text-success">ثبت تخلیه / فروش / ارسال با موتر</a>
                                         }
                                         <a asp-controller="CustomsDeclarations" asp-action="Create" asp-route-transportLegId="@leg.Id" asp-route-returnUrl="@currentReturnUrl" class="btn btn-sm btn-light ak-secondary-action">@(legCustoms is { Count: > 0 } ? "افزودن گمرک" : "ثبت گمرک")</a>
                                     </div>

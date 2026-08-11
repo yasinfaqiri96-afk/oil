@@ -218,6 +218,8 @@ public sealed class ShipmentPnlDispatchTraceItemViewModel
 public sealed class ShipmentPnlRegisteredVesselReceiptItemViewModel
 {
     public int Id { get; init; }
+    // رسیدِ حمل صفحهٔ جزئیات جدا ندارد؛ جزئیاتش در پروندهٔ همان leg دیده می‌شود.
+    public int InventoryTransportLegId { get; init; }
     public DateTime ReceiptDate { get; init; }
     public string ContractNumber { get; init; } = "-";
     public string DestinationTerminalName { get; init; } = "-";
@@ -232,6 +234,21 @@ public sealed class ShipmentPnlRegisteredVesselReceiptItemViewModel
     public bool CanChainOnward => DestinationTerminalId.HasValue
         && DestinationStorageTankId.HasValue
         && ProductId > 0;
+}
+
+// یک بار «ثبت رسید» گروهی، به‌ازای هر قرارداد منبع یک رسید جدا می‌سازد (تقسیم چندقراردادی).
+// این مدل فقط برای نمایش است: همان رسیدها را زیر یک سطرِ جمع کنار هم می‌گذارد تا کاربر
+// اول مقدار کل را ببیند و با باز کردن سطر، سهم هر قرارداد را. داده و محاسبه تغییر نمی‌کند.
+public sealed class ShipmentPnlRegisteredVesselReceiptGroupViewModel
+{
+    public int Key { get; init; }
+    public DateTime ReceiptDate { get; init; }
+    public string DestinationTerminalName { get; init; } = "-";
+    public string? DestinationTankName { get; init; }
+    public decimal ReceivedQuantityMt { get; init; }
+    public IReadOnlyList<ShipmentPnlRegisteredVesselReceiptItemViewModel> Items { get; init; } = [];
+
+    public bool IsSplitAcrossContracts => Items.Count > 1;
 }
 
 // یک دریافت/پرداخت نقدیِ وصل‌شده به همین کشتی (از PaymentTransaction.ShipmentId).
@@ -293,6 +310,8 @@ public sealed class ShipmentPnlDetailsViewModel
     public IReadOnlyList<ShipmentPnlLedgerItemViewModel> LedgerEntries { get; init; } = [];
     public IReadOnlyList<ShipmentPnlDispatchTraceItemViewModel> DispatchTraces { get; init; } = [];
     public IReadOnlyList<ShipmentPnlRegisteredVesselReceiptItemViewModel> RegisteredVesselReceipts { get; init; } = [];
+    // همان RegisteredVesselReceipts، فقط برای نمایش گروه‌شده بر اساس یک بار ثبت رسید.
+    public IReadOnlyList<ShipmentPnlRegisteredVesselReceiptGroupViewModel> RegisteredVesselReceiptGroups { get; init; } = [];
     public decimal RegisteredVesselReceiptQuantityMt
         => decimal.Round(RegisteredVesselReceipts.Sum(r => r.ReceivedQuantityMt), 4, MidpointRounding.AwayFromZero);
     // قراردادهای خرید داخل این محموله (از ShipmentContracts) با مقدار باقی‌مانده.

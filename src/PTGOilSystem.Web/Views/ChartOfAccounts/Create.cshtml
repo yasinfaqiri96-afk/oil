@@ -17,7 +17,7 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label" asp-for="ParentAccountId">@UiText.T(Context, "حساب والد", "Parent account")</label>
-                    <select asp-for="ParentAccountId" class="form-select" asp-items="ViewBag.ParentAccounts">
+                    <select asp-for="ParentAccountId" class="ak-input" asp-items="ViewBag.ParentAccounts">
                         <option value="">@UiText.T(Context, "— حساب اصلی —", "— Root account —")</option>
                     </select>
                     <span asp-validation-for="ParentAccountId" class="text-danger"></span>
@@ -26,31 +26,31 @@
 
                 <div class="col-md-4">
                     <label class="form-label" asp-for="Code">@UiText.T(Context, "کد حساب", "Code")</label>
-                    <input asp-for="Code" class="form-control" autocomplete="off" />
+                    <input asp-for="Code" class="ak-input" autocomplete="off" />
                     <span asp-validation-for="Code" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-8">
                     <label class="form-label" asp-for="Name">@UiText.T(Context, "نام حساب", "Account name")</label>
-                    <input asp-for="Name" class="form-control" autocomplete="off" />
+                    <input asp-for="Name" class="ak-input" autocomplete="off" />
                     <span asp-validation-for="Name" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-4">
                     <label class="form-label" asp-for="AccountType">@UiText.T(Context, "نوع حساب", "Account type")</label>
-                    <select asp-for="AccountType" class="form-select" asp-items="ViewBag.AccountTypes"></select>
+                    <select asp-for="AccountType" class="ak-input" asp-items="ViewBag.AccountTypes"></select>
                     <span asp-validation-for="AccountType" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-4">
                     <label class="form-label" asp-for="NormalBalance">@UiText.T(Context, "مانده طبیعی", "Normal balance")</label>
-                    <select asp-for="NormalBalance" class="form-select" asp-items="ViewBag.NormalBalances"></select>
+                    <select asp-for="NormalBalance" class="ak-input" asp-items="ViewBag.NormalBalances"></select>
                     <span asp-validation-for="NormalBalance" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-4">
                     <label class="form-label" asp-for="MonetaryTreatment">@UiText.T(Context, "طبقه‌بندی پولی", "Monetary treatment")</label>
-                    <select asp-for="MonetaryTreatment" class="form-select" asp-items="ViewBag.MonetaryTreatments"></select>
+                    <select asp-for="MonetaryTreatment" class="ak-input" asp-items="ViewBag.MonetaryTreatments"></select>
                     <span asp-validation-for="MonetaryTreatment" class="text-danger"></span>
                 </div>
 

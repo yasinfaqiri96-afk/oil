@@ -32,10 +32,6 @@
             </div>
 
             <div class="ak-form-grid mt-3">
-                <div class="ak-field" data-source-panel="@((int)TransportStartSourceKind.Inventory)">
-                    <strong>شروع از موجودی مخزن</strong>
-                    <small>در مرحلهٔ بعد فقط مخزن، محصول، سهم منبع، وسیله، مقدار و تاریخ را ثبت می‌کنید. خروج موجودی یک‌بار ساخته می‌شود.</small>
-                </div>
                 <div class="ak-field" data-source-panel="@((int)TransportStartSourceKind.LoadingReceipt)">
                     <label asp-for="LoadingReceiptId">رسید/بارگیری مستقیم</label>
                     <select asp-for="LoadingReceiptId" class="ak-input">

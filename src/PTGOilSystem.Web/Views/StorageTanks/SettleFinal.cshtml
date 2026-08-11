@@ -147,8 +147,8 @@
                                             <input type="hidden" asp-for="ManualLosses[i].ContractId" />
                                             <input type="hidden" asp-for="ManualLosses[i].ProductId" />
                                             <input asp-for="ManualLosses[i].LossMt" type="number" step="0.0001" min="0"
-                                                   max="@Fmt(bookBalance)" class="ak-input text-center"
-                                                   style="max-width:140px;margin-inline:auto" data-manual-loss />
+                                                   max="@Fmt(bookBalance)" class="ak-input ak-input-compact text-center"
+                                                   data-manual-loss />
                                             <span asp-validation-for="ManualLosses[i].LossMt" class="text-danger small d-block"></span>
                                         </td>
                                     </tr>
