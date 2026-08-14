@@ -1,415 +1,180 @@
 @model PTGOilSystem.Web.Models.Loading.LoadingDetailsViewModel
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
-    var returnUrl = ViewBag.ReturnUrl as string;
+
     ViewData["Title"] = T("جزئیات بارگیری", "Loading details");
     ViewData["HideSectionTabs"] = true;
     ViewData["LoadingExpenseEditorAssets"] = true;
+
+    var returnUrl = ViewBag.ReturnUrl as string;
     var loadingListReturnUrl = Url.Action("Index", "Loading", new { contractId = Model.ContractId }) ?? "/Loading";
     var effectiveReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : loadingListReturnUrl;
     var currentPageReturnUrl = Context.Request.Path + Context.Request.QueryString;
+    var contractUrl = Url.Action("Index", "ContractJourney", new { contractId = Model.ContractId }) ?? "#";
     var expenseEditorUrl = Url.Action("EditExpenses", "Loading", new { id = Model.Id, returnUrl = currentPageReturnUrl, modal = true });
     var receiptEditorUrl = Model.CanRegisterReceipt
         ? Url.Action("Create", "LoadingReceipts", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl, modal = true })
         : null;
 
-    var loadingExpenseTotal = Model.LoadingExpenseTotalUsd;
-    var customsTotal = Model.CustomsTotalUsd;
-    var lossChargeableTotal = Model.ChargeableLossTotalMt;
-    var loadingCostsGrandTotal = Model.LoadingCostsGrandTotalUsd;
-    var loadingJourneyUrl = Url.Action("Index", "ContractJourney", new { contractId = Model.ContractId }) ?? "#";
-
-    // صفحه‌بندی سروری فهرست‌های داخلی؛ هیچ رکوردی نباید مثل Take(5) سابق بریده و مخفی شود.
-    const int detailListPageSize = 5;
-    int ReadPositivePage(string key)
-    {
-        if (Context.Request.Query.TryGetValue(key, out var raw)
-            && int.TryParse(raw.FirstOrDefault(), out var page)
-            && page > 0)
-        {
-            return page;
-        }
-
-        return 1;
-    }
-
-    int PageCountFor(int totalCount)
-        => Math.Max(1, (int)Math.Ceiling(totalCount / (double)detailListPageSize));
-
-    // رسیدهای لغوشده دیده می‌شوند اما در شمارش عملیاتی نمی‌آیند.
-    var activeReceiptCount = Model.ReceiptItems.Count(r => !r.IsCancelled);
-    var receiptsPageCount = PageCountFor(Model.ReceiptItems.Count);
-    var receiptsPage = Math.Min(ReadPositivePage("receiptsPage"), receiptsPageCount);
-    var pagedReceiptItems = Model.ReceiptItems
-        .Skip((receiptsPage - 1) * detailListPageSize)
-        .Take(detailListPageSize)
-        .ToList();
-
-    var customsPageCount = PageCountFor(Model.CustomsItems.Count);
-    var customsPage = Math.Min(ReadPositivePage("customsPage"), customsPageCount);
-    var pagedCustomsItems = Model.CustomsItems
-        .Skip((customsPage - 1) * detailListPageSize)
-        .Take(detailListPageSize)
-        .ToList();
-
-    var lossesPageCount = PageCountFor(Model.LossItems.Count);
-    var lossesPage = Math.Min(ReadPositivePage("lossesPage"), lossesPageCount);
-    var pagedLossItems = Model.LossItems
-        .Skip((lossesPage - 1) * detailListPageSize)
-        .Take(detailListPageSize)
-        .ToList();
-
-    var isRubSettlement = string.Equals(Model.SettlementCurrencyCode, "RUB", StringComparison.OrdinalIgnoreCase);
-    var rubRateEditor = Model.RubleRateEditor;
-    var rubStatusLabel = Model.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Locked
-        ? "قفل‌شده"
-        : Model.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Pending ? "در انتظار نرخ" : "نیاز نیست";
-    var hasFileRub = Model.HasFileRub;
-    var fileRubAmountText = Model.SettlementValueRub.HasValue ? $"₽ {Model.SettlementValueRub.Value:N2}" : null;
-    var fileRubUnitText = Model.SettlementUnitPriceRub.HasValue ? $"₽ {Model.SettlementUnitPriceRub.Value:N2}" : null;
-    var rubAmountText = Model.AmountRubAtRubLock.HasValue
-        ? $"₽ {Model.AmountRubAtRubLock.Value:N2}"
-        : hasFileRub ? fileRubAmountText : isRubSettlement ? "در انتظار نرخ" : null;
-
     var loadingComplete = Model.RemainingToReceiveMt <= 0m;
-    ViewData["AkHeaderStatus"] = loadingComplete ? T("تکمیل رسید", "Receipt completed") : T("در انتظار رسید", "Awaiting receipt");
-    ViewData["AkHeaderStatusState"] = loadingComplete ? "is-active" : "is-warning";
-    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
+    var statusText = loadingComplete ? T("تکمیل‌شده", "Completed") : T("در انتظار رسید", "Awaiting receipt");
+    var statusState = loadingComplete ? "is-active" : "is-warning";
+    var documentNumber = string.IsNullOrWhiteSpace(Model.BillOfLadingNumber)
+        ? $"LD-{Model.Id:0000}"
+        : Model.BillOfLadingNumber;
+    var loadingCostsGrandTotal = Model.LoadingCostsGrandTotalUsd;
+    var shortageTotal = Model.ChargeableLossTotalMt;
+    var isRubSettlement = string.Equals(Model.SettlementCurrencyCode, "RUB", StringComparison.OrdinalIgnoreCase);
+    var showRubRateForm = isRubSettlement
+        && Model.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Pending;
+
+    var headerItems = new List<AkInfoItem>
     {
-        new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-pencil-square" },
-        new() { Label = T("نمای قرارداد", "Contract journey"), Href = loadingJourneyUrl, Icon = "bi-diagram-3" }
+        new() { Label = T("محصول", "Product"), Value = Model.ProductName },
+        new() { Label = T("تاریخ بارگیری", "Loading date"), Value = Model.LoadingDate.ToDisplayDate() },
+        new() { Label = T("ترمینل / مبدأ", "Terminal / origin"), Value = Model.OriginLocationName },
+        new() { Label = T("شماره سند", "Document no."), Value = documentNumber, IsNumeric = true }
     };
 
-    // شاخص‌های اصلی. «جمع مصرف» فقط اینجاست و در کارت خلاصه تکرار نمی‌شود.
-    var kpis = new List<AkKpiItem>
+    var pricingMethod = Model.PlattsUsd.HasValue
+        ? $"Platts {Model.PlattsUsd.Value:N2}"
+        : Model.LoadingPriceUsd.HasValue ? T("قیمت ثابت", "Fixed price") : null;
+    var overviewItems = new List<AkInfoItem>
     {
-        new() { Title = T("بارگیری‌شده", "Loaded"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", Avatar = "loading" },
-        new() { Title = T("رسیدشده", "Received"), Value = NumberDisplay.Quantity(Model.TotalReceivedQuantityMt), Unit = "MT", Avatar = "dispatch-station" },
-        new() { Title = T("باقی‌مانده", "Remaining"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "warehouse", State = loadingComplete ? null : "warning" },
-        new() { Title = T("جمع مصرف", "Total cost"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD", Avatar = "expenses" }
-    };
-
-    // قرارداد/جنس/تاریخ در خط زمینهٔ سربرگ آمده‌اند و اینجا تکرار نمی‌شوند.
-    var valueItems = new List<AkInfoItem>
-    {
+        new() { Label = T("قرارداد خرید", "Purchase contract"), Value = Model.ContractNumber, Href = contractUrl },
+        new() { Label = T("مبنای قیمت‌گذاری", "Pricing basis"), Value = pricingMethod },
         new() { Label = T("قیمت فی تن", "Unit price"), Value = Model.LoadingPriceUsd?.ToString("N2"), Unit = "USD/MT", IsNumeric = true },
         new() { Label = T("ارزش بارگیری", "Loading value"), Value = Model.LoadingValueUsd?.ToString("N2"), Unit = "USD", IsNumeric = true },
-        new() { Label = T("مصارف عملیاتی", "Operational expenses"), Value = loadingExpenseTotal.ToString("N2"), Unit = "USD", IsNumeric = true },
-        new() { Label = T("گمرکات", "Customs"), Value = customsTotal.ToString("N2"), Unit = "USD", IsNumeric = true }
-    };
-
-    var transportItems = new List<AkInfoItem>
-    {
         new() { Label = T("نوع حمل", "Transport type"), Value = Model.TransportTypeLabel },
         new() { Label = T("وسیله", "Vehicle"), Value = Model.VehicleSummary },
-        new() { Label = T("سند حمل", "Bill of lading"), Value = Model.BillOfLadingNumber },
-        new() { Label = T("مبدأ", "Origin"), Value = Model.OriginLocationName },
-        new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName },
-        new() { Label = T("گیرنده", "Consignee"), Value = Model.ConsigneeName },
         new() { Label = T("کرایه فی تن", "Freight rate"), Value = NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, "USD/MT"), IsNumeric = true },
-        new()
-        {
-            Label = T("شرکت خدماتی", "Service provider"),
-            Value = Model.LogisticsCompanyName,
-            Href = Model.LogisticsServiceProviderId.HasValue
-                ? Url.Action("Details", "ServiceProviders", new { id = Model.LogisticsServiceProviderId.Value, returnUrl = currentPageReturnUrl })
-                : null
-        },
-        new() { Label = T("مسیر", "Route"), Value = Model.RouteDescription, IsWide = true },
+        new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName },
+        new() { Label = T("شرکت خدماتی", "Service provider"), Value = Model.LogisticsCompanyName,
+                Href = Model.LogisticsServiceProviderId.HasValue
+                    ? Url.Action("Details", "ServiceProviders", new { id = Model.LogisticsServiceProviderId.Value, returnUrl = currentPageReturnUrl })
+                    : null },
         new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
     };
-
-    var rubItems = new List<AkInfoItem>
+    overviewItems.InsertRange(0, headerItems);
+    if (Model.HasFileRub)
     {
-        new() { Label = T("قیمت روبلی فی تن (فایل)", "File RUB unit price"), Value = fileRubUnitText, Unit = "/ MT", IsNumeric = true },
-        new() { Label = T("ارزش روبلی (فایل)", "File RUB value"), Value = fileRubAmountText, IsNumeric = true }
-    };
-    if (isRubSettlement)
-    {
-        rubItems.Add(new AkInfoItem { Label = T("وضعیت نرخ", "Rate status"), Value = rubStatusLabel, Tone = Model.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Pending ? "warning" : null });
-        rubItems.Add(new AkInfoItem { Label = T("هر ۱ دالر چند روبل؟", "RUB per USD"), Value = NumberDisplay.FxRate(Model.RubPerUsdRate), IsNumeric = true });
-        rubItems.Add(new AkInfoItem { Label = T("ارزش دالری بارگیری", "USD value"), Value = Model.AmountUsdAtRubLock?.ToString("N2") ?? Model.LoadingValueUsd?.ToString("N2"), Unit = "USD", IsNumeric = true });
-        if (!hasFileRub)
-        {
-            rubItems.Add(new AkInfoItem { Label = T("معادل روبلی", "RUB equivalent"), Value = rubAmountText, IsNumeric = true });
-        }
-        rubItems.Add(new AkInfoItem { Label = T("تاریخ نرخ", "Rate date"), Value = Model.RubRateDate?.ToDisplayDate() });
-        rubItems.Add(new AkInfoItem { Label = T("مرجع نرخ", "Rate source"), Value = Model.RubRateSource });
+        overviewItems.Add(new AkInfoItem { Label = T("ارزش روبلی", "RUB value"), Value = Model.SettlementValueRub?.ToString("N2"), Unit = "RUB", IsNumeric = true });
     }
-    var showRubRateForm = isRubSettlement && Model.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Pending;
 
-    var advancedItems = new List<AkInfoItem>
+    var kpis = new List<AkKpiItem>
     {
-        new() { Label = T("شماره داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
-        new() { Label = T("شناسه قرارداد", "Contract id"), Value = $"#{Model.ContractId}", IsNumeric = true },
-        new() { Label = T("ارز تسویه", "Settlement currency"), Value = Model.SettlementCurrencyCode }
+        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", Avatar = "loading" },
+        new() { Title = T("قابل ارسال / تخصیص", "Available to dispatch"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "transported" },
+        new() { Title = T("کسری", "Shortage"), Value = NumberDisplay.Quantity(shortageTotal), Unit = "MT", Avatar = "losses", State = shortageTotal > 0m ? "warning" : null },
+        new() { Title = T("مجموع مصارف", "Total expenses"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD", Avatar = "expenses" }
+    };
+
+    var latestReceipt = Model.ReceiptItems.OrderByDescending(item => item.ReceiptDate).FirstOrDefault();
+    var latestCustoms = Model.CustomsItems.OrderByDescending(item => item.DeclarationDate).FirstOrDefault();
+    var latestLoss = Model.LossItems.OrderByDescending(item => item.EventDate).FirstOrDefault();
+    var activeReceiptCount = Model.ReceiptItems.Count(item => !item.IsCancelled);
+    var activityRows = new List<AkDetailActivityRow>
+    {
+        new() { Label = T("رسیدهای بارگیری", "Loading receipts"), Value = activeReceiptCount.ToString("N0"), Meta = T("مورد", "items"),
+                Status = loadingComplete ? T("تکمیل", "Complete") : T("در جریان", "In progress"), StatusTone = loadingComplete ? "success" : "warning",
+                Href = latestReceipt is null ? null : Url.Action("Details", "LoadingReceipts", new { id = latestReceipt.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-box-arrow-in-down" },
+        new() { Label = T("گمرکات", "Customs"), Value = Model.CustomsItems.Count.ToString("N0"), Meta = T("مورد", "items"),
+                Href = latestCustoms is null ? null : Url.Action("Details", "CustomsDeclarations", new { id = latestCustoms.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" },
+        new() { Label = T("مصارف", "Expenses"), Value = Model.ExpenseEditor.Lines.Count > 0 ? Model.ExpenseEditor.Lines.Count.ToString("N0") : null,
+                Meta = Model.ExpenseEditor.Lines.Count > 0 ? T("مورد", "items") : null,
+                Status = Model.LoadingExpenseTotalUsd > 0m ? T("ثبت شده", "Recorded") : T("ثبت نشده", "Not recorded"),
+                StatusTone = Model.LoadingExpenseTotalUsd > 0m ? "success" : null, Icon = "bi-receipt" },
+        new() { Label = T("کسری", "Shortage"), Value = Model.LossItems.Count.ToString("N0"), Meta = T("مورد", "items"),
+                Status = Model.LossItems.Count > 0 ? T("ثبت شده", "Recorded") : null, StatusTone = Model.LossItems.Count > 0 ? "warning" : null,
+                Href = latestLoss is null ? null : Url.Action("Details", "LossEvents", new { id = latestLoss.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" }
     };
 
     var timelineItems = new List<AkTimelineItem>
     {
-        new() { Title = T("بارگیری ثبت شد", "Loading registered"), Date = Model.LoadingDate.ToDisplayDate(), Icon = "bi-box-arrow-up", State = "is-current", Meta = $"{NumberDisplay.Quantity(Model.LoadedQuantityMt)} MT" }
+        new() { Title = T("بارگیری ثبت شد", "Loading registered"), Date = Model.LoadingDate.ToDisplayDate(), Timestamp = Model.LoadingDate,
+                Icon = "bi-box-arrow-up", State = "is-current", Meta = $"{NumberDisplay.Quantity(Model.LoadedQuantityMt)} MT" }
     };
-    timelineItems.AddRange(Model.ReceiptItems.Select(item => new AkTimelineItem
+    timelineItems.AddRange(Model.ReceiptItems.Where(item => !item.IsCancelled).Select(item => new AkTimelineItem
     {
-        Title = T("رسید بارگیری", "Loading receipt"), Date = item.ReceiptDate.ToDisplayDate(), Icon = "bi-box-arrow-in-down",
-        Href = Url.Action("Details", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl }),
+        Title = T("رسید بارگیری ثبت شد", "Loading receipt recorded"), Date = item.ReceiptDate.ToDisplayDate(), Timestamp = item.ReceiptDate,
+        Icon = "bi-box-arrow-in-down", Href = Url.Action("Details", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl }),
         Meta = $"{NumberDisplay.Quantity(item.ReceivedQuantityMt)} MT"
     }));
     timelineItems.AddRange(Model.CustomsItems.Select(item => new AkTimelineItem
     {
-        Title = T("سند گمرکی", "Customs declaration"), Date = item.DeclarationDate.ToDisplayDate(), Icon = "bi-shield-check",
-        Href = Url.Action("Details", "CustomsDeclarations", new { id = item.Id, returnUrl = currentPageReturnUrl }),
+        Title = T("گمرک ثبت شد", "Customs recorded"), Date = item.DeclarationDate.ToDisplayDate(), Timestamp = item.DeclarationDate,
+        Icon = "bi-shield-check", Href = Url.Action("Details", "CustomsDeclarations", new { id = item.Id, returnUrl = currentPageReturnUrl }),
         Meta = $"{item.TotalUsd:N2} USD"
     }));
     timelineItems.AddRange(Model.LossItems.Select(item => new AkTimelineItem
     {
-        Title = T("کسری ثبت شد", "Loss recorded"), Date = item.EventDate.ToDisplayDate(), Icon = "bi-exclamation-diamond",
-        Href = Url.Action("Details", "LossEvents", new { id = item.Id, returnUrl = currentPageReturnUrl }),
+        Title = T("کسری ثبت شد", "Shortage recorded"), Date = item.EventDate.ToDisplayDate(), Timestamp = item.EventDate,
+        Icon = "bi-exclamation-diamond", Href = Url.Action("Details", "LossEvents", new { id = item.Id, returnUrl = currentPageReturnUrl }),
         Meta = $"{NumberDisplay.Quantity(item.ChargeableLossMt)} MT"
     }));
-    // خط زمانی فقط وقتی کارت مستقل می‌گیرد که بیش از رویداد «ثبت شد» داشته باشد.
-    var showTimeline = timelineItems.Count > 1;
 
-    var relatedRecords = new List<AkRelatedRecord>
-    {
-        new() { TypeLabel = T("قرارداد", "Contract"), Label = Model.ContractNumber, Href = loadingJourneyUrl, KeyValue = Model.ProductName, Icon = "bi-file-earmark-text" }
-    };
-    if (Model.LogisticsServiceProviderId.HasValue)
-    {
-        relatedRecords.Add(new AkRelatedRecord
-        {
-            TypeLabel = T("شرکت خدماتی", "Service provider"),
-            Label = Model.LogisticsCompanyName ?? $"#{Model.LogisticsServiceProviderId.Value}",
-            Href = Url.Action("Details", "ServiceProviders", new { id = Model.LogisticsServiceProviderId.Value, returnUrl = currentPageReturnUrl }),
-            Icon = "bi-building"
-        });
-    }
-
-    // ثبت رسید می‌تواند اکشن اصلی باشد؛ ثبت مصارف همیشه داخل منوی سه‌نقطه می‌ماند.
-    var headerPrimaryModal = Model.CanRegisterReceipt ? "loadingReceiptModal" : null;
     var nextActions = new List<AkHeaderMenuItem>();
     if (Model.CanRegisterReceipt)
     {
         nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت رسید", "Register receipt"), ModalTarget = "loadingReceiptModal", Icon = "bi-box-arrow-in-down" });
     }
-    nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "loadingExpensesModal", Icon = "bi-receipt-cutoff" });
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" });
-    nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت کسری", "Register loss"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" });
-    if (headerPrimaryModal is not null)
-    {
-        nextActions.RemoveAll(action => string.Equals(action.ModalTarget, headerPrimaryModal, StringComparison.Ordinal));
-    }
-    ViewData["AkHeaderOverflowActions"] = nextActions;
+    nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "loadingExpensesModal", Icon = "bi-receipt-cutoff" });
+    nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت کسری", "Register shortage"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" });
 
-    var loadingRecordsTab = (Context.Request.Query["recordsTab"].ToString() ?? string.Empty).Trim().ToLowerInvariant();
-    loadingRecordsTab = loadingRecordsTab is "customs" or "losses" ? loadingRecordsTab : "receipts";
-    string LoadingRecordsPane(string slug) => "tab-pane ak-form-section ak-detail-section ak-detail-subsection" + (loadingRecordsTab == slug ? " show active" : "");
-    var loadingRecordTabs = new[]
+    var headerMenu = new List<AkHeaderMenuItem>
     {
-        $"#loading-receipts|{T("رسیدها", "Receipts")}||{(loadingRecordsTab == "receipts" ? "active" : "")}",
-        $"#loading-customs|{T("گمرکات", "Customs")}||{(loadingRecordsTab == "customs" ? "active" : "")}",
-        $"#loading-losses|{T("کسری", "Losses")}||{(loadingRecordsTab == "losses" ? "active" : "")}"
+        new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-pencil-square" },
+        new() { Label = T("نمای قرارداد", "Contract journey"), Href = contractUrl, Icon = "bi-diagram-3" }
     };
+    if (showRubRateForm)
+    {
+        headerMenu.Add(new AkHeaderMenuItem { Label = T("تعیین نرخ روبل", "Set RUB rate"), ModalTarget = "loadingRubleRateModal", Icon = "bi-currency-exchange" });
+    }
+    ViewData["AkHeaderKebab"] = headerMenu;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-loading-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl"
+     data-loading-details data-ak-detail-v2="true" data-ak-operations-detail="true">
+    @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
+       {
+           Title = T("جزئیات بارگیری", "Loading details"),
+           Eyebrow = $"LD-{Model.Id:0000}",
+           Icon = "bi-box-arrow-up",
+           Status = statusText,
+           StatusState = statusState
+       }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@(($"{T("بارگیری", "Loading")} LD-{Model.Id:0000}", false,
-                       Model.CanRegisterReceipt ? T("ثبت رسید", "Register receipt") : (string?)null,
-                       Model.CanRegisterReceipt ? "bi-box-arrow-in-down" : (string?)null,
-                       (string?)null, headerPrimaryModal,
+             model="@((T("جزئیات بارگیری", "Loading details"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)effectiveReturnUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
+    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
+             model="@(new AkDetailOverviewModel
+             {
+                 AriaLabel = T("خلاصه اطلاعات بارگیری", "Loading information summary"),
+                 Title = T("خلاصه اطلاعات بارگیری", "Loading information summary"),
+                 Metrics = kpis,
+                 Facts = overviewItems
+             })" />
 
-    <div class="ak-operations-overview ak-operations-clean-overview">
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("ارزش و مصارف", "Value & costs"), (string?)null, (IReadOnlyList<AkInfoItem>)valueItems))" />
-
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("حمل و مسیر", "Transport & route"), (string?)null, (IReadOnlyList<AkInfoItem>)transportItems))" />
-
-        @if (hasFileRub || isRubSettlement)
-        {
-            <section class="ak-form-section ak-detail-section ak-summary-card loading-ruble-pricing">
-                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("قیمت روبلی بارگیری", "Ruble pricing"), (string?)null))" />
-                <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml" model="@((IReadOnlyList<AkInfoItem>)rubItems)" />
-
-                @if (showRubRateForm)
-                {
-                    <form asp-action="SetRubleRate" asp-route-id="@Model.Id" method="post" class="ak-form">
-                        @Html.AntiForgeryToken()
-                        <input name="Id" value="@rubRateEditor.Id" type="hidden" />
-                        <input name="ReturnUrl" value="@currentPageReturnUrl" type="hidden" />
-                        <div class="ak-form-grid ak-form-grid--3">
-                            <div class="ak-field">
-                                <label class="ak-label" for="RubPerUsdRate">هر ۱ دالر چند روبل؟</label>
-                                <input class="ak-input" id="RubPerUsdRate" name="RubPerUsdRate" value="@(rubRateEditor.RubPerUsdRate?.ToString("0.######"))" type="number" min="0.000001" step="0.000001" placeholder="مثلاً 80" />
-                            </div>
-                            <div class="ak-field">
-                                <label class="ak-label" for="RubRateDate">تاریخ نرخ</label>
-                                <input class="ak-input" id="RubRateDate" name="RubRateDate" value="@(rubRateEditor.RubRateDate?.ToHtmlDateInput())" type="date" />
-                            </div>
-                            <div class="ak-field">
-                                <label class="ak-label" for="RubRateSource">مرجع نرخ</label>
-                                <input class="ak-input" id="RubRateSource" name="RubRateSource" value="@rubRateEditor.RubRateSource" type="text" maxlength="200" />
-                            </div>
-                        </div>
-                        <div class="ak-footer-actions"><button type="submit" class="ak-save">تعیین نرخ روبل</button></div>
-                    </form>
-                }
-            </section>
-        }
-    </div>
-
-    <div class="ak-detail-tabbed-sections">
-        <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
-                 model="@((T("سوابق بارگیری", "Loading records"), loadingRecordTabs))" />
-        <div class="tab-content ak-detail-content ak-tab-content">
-        <section id="loading-receipts" class="@LoadingRecordsPane("receipts")">
-            <header class="ak-section-head ak-detail-section-header">
-                <h2 class="ak-section-title">@T("رسیدها", "Receipts")</h2>
-                <span class="ak-status">@activeReceiptCount</span>
-                @if (activeReceiptCount > 0)
-                {
-                    <button type="button" class="btn btn-light ak-secondary-action text-danger btn-sm ms-auto"
-                            data-bs-toggle="modal" data-bs-target="#receiptCancelModal"
-                            data-receipt-id="" data-receipt-row-version="">
-                        <i class="bi bi-x-octagon"></i> @T("لغو گروهی", "Bulk cancel")
-                    </button>
-                }
-            </header>
-            <div class="ak-list">
-                @foreach (var item in pagedReceiptItems)
-                {
-                    <div class="ak-list-row">
-                        <span class="ak-receipt-select-slot">
-                            @if (!item.IsCancelled)
-                            {
-                                <input type="checkbox" class="form-check-input js-receipt-select" form="receiptCancelForm"
-                                       name="ids" value="@item.Id" aria-label="@T("انتخاب رسید", "Select receipt")" />
-                            }
-                        </span>
-                        <div class="ak-col-grow">
-                            <span>@item.ReceiptDate.ToDisplayDate()</span>
-                            <strong>@item.TerminalName@(string.IsNullOrWhiteSpace(item.StorageTankCode) ? "" : " / " + item.StorageTankCode)</strong>
-                            @if (item.IsCancelled)
-                            {
-                                <span class="badge text-bg-danger">@T("لغوشده", "Cancelled")</span>
-                                <span class="ak-section-desc">
-                                    @item.CancellationReason
-                                    @if (item.CancelledAtUtc.HasValue)
-                                    {
-                                        @($" · {item.CancelledAtUtc.Value.ToDisplayDate()}")
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(item.CancelledByUserName))
-                                    {
-                                        @($" · {item.CancelledByUserName}")
-                                    }
-                                </span>
-                            }
-                        </div>
-                        <div class="ak-num">
-                            <strong>@NumberDisplay.Quantity(item.ReceivedQuantityMt) MT</strong>
-                            @if (!string.IsNullOrWhiteSpace(item.ReferenceDocument))
-                            {
-                                <span>@item.ReferenceDocument</span>
-                            }
-                        </div>
-                        <div class="ak-detail-list-actions no-print">
-                            <a class="ak-row-menu-btn" href="@Url.Action("Details", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("مشاهده", "View")" aria-label="@T("مشاهده", "View")"><i class="bi bi-eye"></i></a>
-                            @if (!item.IsCancelled)
-                            {
-                                <a class="ak-row-menu-btn" href="@Url.Action("Edit", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("ویرایش", "Edit")" aria-label="@T("ویرایش", "Edit")"><i class="bi bi-pencil"></i></a>
-                                <a class="ak-row-menu-btn" href="@Url.Action("Correct", "LoadingReceipts", new { id = item.Id, returnUrl = currentPageReturnUrl })" title="@T("اصلاح مقدار", "Correct quantity")" aria-label="@T("اصلاح مقدار", "Correct quantity")"><i class="bi bi-arrow-repeat"></i></a>
-                                <button type="button" class="ak-row-menu-btn text-danger"
-                                        data-bs-toggle="modal" data-bs-target="#receiptCancelModal"
-                                        data-receipt-id="@item.Id" data-receipt-row-version="@item.RowVersion"
-                                        title="@T("لغو", "Cancel")" aria-label="@T("لغو", "Cancel")"><i class="bi bi-x-octagon"></i></button>
-                            }
-                        </div>
-                    </div>
-                }
-                @if (Model.ReceiptItems.Count == 0)
-                {
-                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هنوز رسید ثبت نشده است.", "No receipt recorded yet.")" />
-                }
-            </div>
-            <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((receiptsPage, receiptsPageCount, "receiptsPage", (string?)"loading-receipts"))" />
-        </section>
-
-        <section id="loading-customs" class="@LoadingRecordsPane("customs")">
-            <header class="ak-section-head ak-detail-section-header">
-                <h2 class="ak-section-title">@T("گمرکات", "Customs")</h2>
-                <span class="ak-status">@customsTotal.ToString("N2") USD</span>
-            </header>
-            <div class="ak-list">
-                @foreach (var cd in pagedCustomsItems)
-                {
-                    <div class="ak-list-row">
-                        <div class="ak-col-grow">
-                            <span>@cd.DeclarationDate.ToDisplayDate()</span>
-                            <strong>@(cd.DeclarationReference ?? "")</strong>
-                        </div>
-                        <div class="ak-num">
-                            <strong>@cd.TotalUsd.ToString("N2") USD</strong>
-                            <span>@cd.TotalAfnEquivalent.ToString("N0") AFN</span>
-                        </div>
-                    </div>
-                }
-                @if (Model.CustomsItems.Count == 0)
-                {
-                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هنوز سند گمرکی ثبت نشده است.", "No customs declaration recorded yet.")" />
-                }
-            </div>
-            <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((customsPage, customsPageCount, "customsPage", (string?)"loading-customs"))" />
-        </section>
-
-        <section id="loading-losses" class="@LoadingRecordsPane("losses")">
-            <header class="ak-section-head ak-detail-section-header">
-                <h2 class="ak-section-title">@T("کسری", "Losses")</h2>
-                <span class="ak-status">@NumberDisplay.Quantity(lossChargeableTotal) MT</span>
-            </header>
-            <div class="ak-list">
-                @foreach (var loss in pagedLossItems)
-                {
-                    <div class="ak-list-row">
-                        <div class="ak-col-grow">
-                            <span>@loss.EventDate.ToDisplayDate()</span>
-                            <strong>@loss.Stage</strong>
-                        </div>
-                        <div class="ak-num">
-                            <strong>@NumberDisplay.Quantity(loss.DifferenceQuantityMt) MT</strong>
-                            @if (!string.IsNullOrWhiteSpace(loss.ResponsiblePartyName))
-                            {
-                                <span>@loss.ResponsiblePartyName</span>
-                            }
-                        </div>
-                        <a class="ak-row-menu-btn" asp-controller="LossEvents" asp-action="Edit" asp-route-id="@loss.Id" asp-route-returnUrl="@currentPageReturnUrl" aria-label="@T("ویرایش", "Edit")"><i class="bi bi-pencil"></i></a>
-                    </div>
-                }
-                @if (Model.LossItems.Count == 0)
-                {
-                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("کسری ثبت نشده است.", "No loss recorded.")" />
-                }
-            </div>
-            <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((lossesPage, lossesPageCount, "lossesPage", (string?)"loading-losses"))" />
-        </section>
-        </div>
-    </div>
-
-    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
-             model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
-                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
-                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
+    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
+             model="@(new AkDetailSecondaryModel
+             {
+                 Timeline = timelineItems,
+                 TimelineTitle = T("آخرین فعالیت‌ها", "Latest activity"),
+                 TimelineLimit = 4
+             })" />
+    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
     <div class="modal fade" id="loadingExpensesModal" tabindex="-1" aria-labelledby="loadingExpensesModalLabel" aria-hidden="true"
          data-loading-expense-remote-modal="true" data-loading-expense-url="@expenseEditorUrl" data-loading-expense-prefetch="false">
         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2 class="modal-title" id="loadingExpensesModalLabel">مصارف بارگیری #@Model.Id</h2>
-                    <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="بستن"></button>
+                    <h2 class="modal-title" id="loadingExpensesModalLabel">@T("مصارف بارگیری", "Loading expenses") #@Model.Id</h2>
+                    <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
                 </div>
                 <div class="modal-body" data-loading-expense-remote-body>
                     <div class="ak-empty"><span>@T("فرم هنگام باز کردن بارگذاری می‌شود.", "The form loads when opened.")</span></div>
@@ -418,58 +183,61 @@
         </div>
     </div>
 
-    @* لغو رسید: یک فرم و یک مودال برای هر دو حالت تکی و گروهی. دلیل لغو اجباری است. *@
-    <form id="receiptCancelForm" method="post"
-          action="@(Url.Action("BulkCancel", "LoadingReceipts") ?? "/LoadingReceipts/BulkCancel")"
-          data-single-url="@(Url.Action("Cancel", "LoadingReceipts") ?? "/LoadingReceipts/Cancel")"
-          data-bulk-url="@(Url.Action("BulkCancel", "LoadingReceipts") ?? "/LoadingReceipts/BulkCancel")">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="returnUrl" value="@currentPageReturnUrl" />
-        <input type="hidden" name="id" id="receiptCancelId" disabled />
-        <input type="hidden" name="rowVersion" id="receiptCancelRowVersion" disabled />
-
-        <div class="modal fade" id="receiptCancelModal" tabindex="-1" aria-labelledby="receiptCancelModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2 class="modal-title" id="receiptCancelModalLabel">@T("لغو رسید بارگیری", "Cancel loading receipt")</h2>
-                        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="ak-section-desc" id="receiptCancelSummary"></p>
-                        <p class="ak-section-desc">
-                            @T("رسید حذف نمی‌شود؛ موجودی، کسری، فروش، دیسپچ و اسناد مالی مرتبط با سند معکوس برمی‌گردند.",
-                               "The receipt is not deleted; inventory, loss, sale, dispatch and financial documents are reversed.")
-                        </p>
-                        <div class="ak-field">
-                            <label class="ak-label" for="receiptCancelReason">@T("دلیل لغو", "Cancellation reason")</label>
-                            <textarea class="ak-input" id="receiptCancelReason" name="reason" rows="3" maxlength="500" required></textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@T("انصراف", "Back")</button>
-                        <button type="submit" class="btn btn-danger">@T("لغو رسید", "Cancel receipt")</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </form>
-
     @if (Model.CanRegisterReceipt)
     {
-        <div class="modal fade" id="loadingReceiptModal" tabindex="-1" aria-labelledby="loadingReceiptModalLabel" aria-hidden="true" data-receipt-remote-modal data-receipt-url="@receiptEditorUrl">
+        <div class="modal fade" id="loadingReceiptModal" tabindex="-1" aria-labelledby="loadingReceiptModalLabel" aria-hidden="true"
+             data-receipt-remote-modal data-receipt-url="@receiptEditorUrl">
             <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
                         <div>
-                            <h2 class="modal-title" id="loadingReceiptModalLabel">ثبت رسید بارگیری #@Model.Id</h2>
-                            <p class="ak-section-desc">@Model.ContractNumber · @Model.ProductName · باقی‌مانده @NumberDisplay.Quantity(Model.RemainingToReceiveMt) MT</p>
+                            <h2 class="modal-title" id="loadingReceiptModalLabel">@T("ثبت رسید بارگیری", "Register loading receipt") #@Model.Id</h2>
+                            <p class="ak-section-desc">@Model.ContractNumber · @Model.ProductName · @T("باقی‌مانده", "Remaining") @NumberDisplay.Quantity(Model.RemainingToReceiveMt) MT</p>
                         </div>
-                        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="بستن"></button>
+                        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
                     </div>
                     <div class="modal-body" data-receipt-remote-body>
                         <div class="ak-empty"><span>@T("فرم هنگام باز کردن بارگذاری می‌شود.", "The form loads when opened.")</span></div>
                     </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (showRubRateForm)
+    {
+        <div class="modal fade" id="loadingRubleRateModal" tabindex="-1" aria-labelledby="loadingRubleRateModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form asp-action="SetRubleRate" asp-route-id="@Model.Id" method="post" class="ak-form">
+                        @Html.AntiForgeryToken()
+                        <input name="Id" value="@Model.RubleRateEditor.Id" type="hidden" />
+                        <input name="ReturnUrl" value="@currentPageReturnUrl" type="hidden" />
+                        <div class="modal-header">
+                            <h2 class="modal-title" id="loadingRubleRateModalLabel">@T("تعیین نرخ روبل", "Set RUB rate")</h2>
+                            <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="ak-form-grid">
+                                <div class="ak-field">
+                                    <label class="ak-label" for="RubPerUsdRate">@T("هر ۱ دالر چند روبل؟", "RUB per USD")</label>
+                                    <input class="ak-input" id="RubPerUsdRate" name="RubPerUsdRate" value="@(Model.RubleRateEditor.RubPerUsdRate?.ToString("0.######"))" type="number" min="0.000001" step="0.000001" required />
+                                </div>
+                                <div class="ak-field">
+                                    <label class="ak-label" for="RubRateDate">@T("تاریخ نرخ", "Rate date")</label>
+                                    <input class="ak-input" id="RubRateDate" name="RubRateDate" value="@(Model.RubleRateEditor.RubRateDate?.ToHtmlDateInput())" type="date" required />
+                                </div>
+                                <div class="ak-field ak-field-full">
+                                    <label class="ak-label" for="RubRateSource">@T("مرجع نرخ", "Rate source")</label>
+                                    <input class="ak-input" id="RubRateSource" name="RubRateSource" value="@Model.RubleRateEditor.RubRateSource" type="text" maxlength="200" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">@T("انصراف", "Cancel")</button>
+                            <button type="submit" class="btn btn-primary">@T("ثبت نرخ", "Save rate")</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -503,46 +271,6 @@
                     body.innerHTML = '<div class="alert alert-danger mb-0">@T("بارگذاری فرم رسید انجام نشد.", "Could not load the receipt form.") <a class="alert-link" href="' + url + '">@T("باز کردن صفحه", "Open page")</a></div>';
                 } finally {
                     delete receiptModal.dataset.loading;
-                }
-            });
-        })();
-
-        // لغو تکی: id و نسخهٔ سطر ارسال می‌شود. لغو گروهی: چک‌باکس‌های انتخاب‌شده.
-        (function () {
-            var modal = document.getElementById('receiptCancelModal');
-            var form = document.getElementById('receiptCancelForm');
-            if (!modal || !form) { return; }
-
-            var idInput = document.getElementById('receiptCancelId');
-            var rowVersionInput = document.getElementById('receiptCancelRowVersion');
-            var summary = document.getElementById('receiptCancelSummary');
-
-            modal.addEventListener('show.bs.modal', function (event) {
-                var trigger = event.relatedTarget;
-                var receiptId = trigger ? trigger.getAttribute('data-receipt-id') : '';
-
-                if (receiptId) {
-                    idInput.disabled = false;
-                    idInput.value = receiptId;
-                    rowVersionInput.disabled = false;
-                    rowVersionInput.value = trigger.getAttribute('data-receipt-row-version') || '';
-                    form.setAttribute('action', form.getAttribute('data-single-url'));
-                    summary.textContent = '@T("رسید انتخاب‌شده", "Selected receipt")' + ': #' + receiptId;
-                    return;
-                }
-
-                var selected = document.querySelectorAll('.js-receipt-select:checked');
-                idInput.disabled = true;
-                rowVersionInput.disabled = true;
-                form.setAttribute('action', form.getAttribute('data-bulk-url'));
-                summary.textContent = '@T("تعداد رسید انتخاب‌شده", "Selected receipts")' + ': ' + selected.length;
-            });
-
-            form.addEventListener('submit', function (event) {
-                if (!idInput.disabled) { return; }
-                if (document.querySelectorAll('.js-receipt-select:checked').length === 0) {
-                    event.preventDefault();
-                    summary.textContent = '@T("هیچ رسیدی انتخاب نشده است.", "No receipt selected.")';
                 }
             });
         })();

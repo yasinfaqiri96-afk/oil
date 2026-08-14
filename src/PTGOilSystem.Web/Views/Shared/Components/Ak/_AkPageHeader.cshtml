@@ -46,8 +46,13 @@
     var hasSecondary = !string.IsNullOrWhiteSpace(Model.SecondaryLabel) && !string.IsNullOrWhiteSpace(Model.SecondaryHref);
     var secIcon = string.IsNullOrWhiteSpace(Model.SecondaryIcon) ? "bi-arrow-right" : Model.SecondaryIcon;
 
-    var statusText = ViewData["AkHeaderStatus"] as string;
-    var requestedStatusState = ViewData["AkHeaderStatusState"] as string;
+    var identity = ViewData["AkHeaderIdentity"] as PTGOilSystem.Web.Models.Shared.AkDetailHeroModel;
+    var identityItems = (identity?.Items ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkInfoItem>())
+        .Where(item => item.HasValue)
+        .Take(5)
+        .ToList();
+    var statusText = identity?.Status ?? ViewData["AkHeaderStatus"] as string;
+    var requestedStatusState = identity?.StatusState ?? ViewData["AkHeaderStatusState"] as string;
     var hideTitle = ViewData["AkHeaderHideTitle"] as bool? == true;
     var statusState = requestedStatusState switch
     {
@@ -101,24 +106,64 @@
     const string contextId = "ak-detail-header-context";
     const string kebabId = "ak-detail-header-menu-toggle";
 }
-<header class="ak-page-header@(isDetailPage ? " ak-detail-header" : string.Empty)">
+<header class="ak-page-header@(isDetailPage ? " ak-detail-header" : string.Empty)@(identity is not null ? " ak-detail-identity-header" : string.Empty)">
     <div class="ak-page-heading@(isDetailPage ? " ak-detail-header-main" : string.Empty)"
          aria-describedby="@(!string.IsNullOrWhiteSpace(contextLine) ? contextId : null)">
-        <div class="ak-detail-title-row">
-            <h1 class="ak-page-title@(isDetailPage ? " ak-detail-title" : string.Empty)@(hideTitle ? " visually-hidden" : string.Empty)">@Model.Title</h1>
-            @if (Model.Star)
-            {
-                <i class="bi bi-star ak-star" aria-hidden="true"></i>
-            }
-            @if (hasStatus)
-            {
-                <span class="ak-status @statusState ak-detail-status"
-                      aria-label="@statusAriaLabel">@statusText</span>
-            }
-        </div>
-        @if (!string.IsNullOrWhiteSpace(contextLine))
+        @if (identity is not null)
         {
-            <p class="ak-detail-subtitle" id="@contextId">@contextLine</p>
+            <div class="ak-detail-identity-main">
+                <span class="ak-detail-identity-visual" aria-hidden="true"><i class="bi @identity.Icon"></i></span>
+                <div class="ak-detail-identity-copy">
+                    @if (!string.IsNullOrWhiteSpace(identity.Eyebrow))
+                    {
+                        <small>@identity.Eyebrow</small>
+                    }
+                    <div class="ak-detail-title-row">
+                        <h1 class="ak-page-title ak-detail-title@(hideTitle ? " visually-hidden" : string.Empty)">@identity.Title</h1>
+                        @if (Model.Star)
+                        {
+                            <i class="bi bi-star ak-star" aria-hidden="true"></i>
+                        }
+                        @if (hasStatus)
+                        {
+                            <span class="ak-status @statusState ak-detail-status"
+                                  aria-label="@statusAriaLabel">@statusText</span>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(identity.Meta))
+                    {
+                        <span>@identity.Meta</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(contextLine))
+                    {
+                        <p class="ak-detail-subtitle" id="@contextId">@contextLine</p>
+                    }
+                </div>
+            </div>
+            @if (identityItems.Count > 0)
+            {
+                <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml"
+                         model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem>)identityItems)" />
+            }
+        }
+        else
+        {
+            <div class="ak-detail-title-row">
+                <h1 class="ak-page-title@(isDetailPage ? " ak-detail-title" : string.Empty)@(hideTitle ? " visually-hidden" : string.Empty)">@Model.Title</h1>
+                @if (Model.Star)
+                {
+                    <i class="bi bi-star ak-star" aria-hidden="true"></i>
+                }
+                @if (hasStatus)
+                {
+                    <span class="ak-status @statusState ak-detail-status"
+                          aria-label="@statusAriaLabel">@statusText</span>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(contextLine))
+            {
+                <p class="ak-detail-subtitle" id="@contextId">@contextLine</p>
+            }
         }
     </div>
     @if (hasPrimary || hasSecondary || hasCompanionAction || hasKebab || hasToggle || hasExport)

@@ -42,7 +42,7 @@
     ViewData["AkHeaderKebab"] = customsKebab;
     var timelineItems = new List<AkTimelineItem>
     {
-        new() { Title = T("اعلامیه گمرکی ثبت شد", "Customs declaration recorded"), Date = Model.DeclarationDate.ToDisplayDate(), Icon = "bi-shield-check", State = "is-current", Meta = $"{Model.TotalUsd:N2} USD" }
+        new() { Title = T("اعلامیه گمرکی ثبت شد", "Customs declaration recorded"), Date = Model.DeclarationDate.ToDisplayDate(), Timestamp = Model.DeclarationDate, Icon = "bi-shield-check", State = "is-current", Meta = $"{Model.TotalUsd:N2} USD" }
     };
     timelineItems.AddRange(Model.Documents.OrderBy(document => document.UploadedAt).Select(document => new AkTimelineItem
     {
@@ -69,6 +69,7 @@
         new() { Label = T("شماره واگن بارگیری", "Loading wagon"), Value = Model.WagonNumber },
         new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
     };
+    var overviewItems = summaryItems;
 
     var advancedItems = new List<AkInfoItem>
     {
@@ -83,31 +84,42 @@
     };
     if (Model.TransportLegId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("حمل", "Transport"), Label = $"TR-{Model.TransportLegId.Value:0000}", Href = Url.Action("Details", "InventoryTransportLegs", new { id = Model.TransportLegId.Value, returnUrl = currentUrl }), Icon = "bi-truck-front" });
     else relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("بارگیری", "Loading"), Label = $"LD-{Model.LoadingRegisterId:0000}", Href = Url.Action("Details", "Loading", new { id = Model.LoadingRegisterId, returnUrl = currentUrl }), Icon = "bi-box-arrow-up" });
-    var nextActions = new List<AkHeaderMenuItem>
+    // The only forward operation on a declaration is attaching its documents; the
+    // anchor targets the upload form itself, not the section heading above the table.
+    var nextActions = new List<AkHeaderMenuItem>();
+    if (canManageDocuments)
     {
-        new() { Label = T("اعلامیه جدید", "New declaration"), Href = newDeclarationUrl, Icon = "bi-plus-lg" }
+        nextActions.Add(new AkHeaderMenuItem { Label = T("افزودن سند", "Add document"), Href = "#customs-upload", Icon = "bi-paperclip" });
+    }
+    var activityRows = new List<AkDetailActivityRow>
+    {
+        new() { Label = T("مصارف گمرکی", "Customs costs"), Value = Model.TotalUsd.ToString("N2"), Unit = "USD", Meta = T($"{Model.Items.Count} مورد", $"{Model.Items.Count} items"), Status = T("ثبت شده", "Recorded"), StatusTone = "success", Href = "#customs-costs", Icon = "bi-cash-stack" },
+        new() { Label = T("اسناد", "Documents"), Value = hasDocs ? Model.Documents.Count.ToString("N0") : null, Meta = hasDocs ? T("پیوست شده", "Attached") : null, Status = hasDocs ? T("موجود", "Available") : null, StatusTone = hasDocs ? "success" : null, Href = hasDocs ? "#customs-documents" : null, Icon = "bi-paperclip" }
     };
-    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     ViewData["Title"] = "جزئیات اعلامیه گمرکی";
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+    @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
+       {
+           Title = $"{T("اعلامیه گمرکی", "Customs declaration")} #{Model.Id}",
+           Eyebrow = $"{Model.ContractNumber} · {Model.ProductName}",
+           Meta = Model.DeclarationDate.ToDisplayDate(),
+           Icon = "bi-shield-check",
+           Status = hasDocs ? T($"{Model.Documents.Count} سند", $"{Model.Documents.Count} documents") : T("بدون سند", "No document"),
+            StatusState = hasDocs ? "is-active" : "is-warning"
+       }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("اعلامیه", "Declaration")} #{Model.Id}", false,
-                       T("افزودن سند", "Add document"), "bi-paperclip",
-                       (string?)"#customs-documents", (string?)null,
-                       "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
+    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
+             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات گمرکی", "Customs summary"), AriaLabel = T("نمای اصلی اعلامیه", "Declaration overview"), Metrics = kpis, Facts = overviewItems })" />
 
-    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("مشخصات اعلامیه", "Declaration profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
-    </div>
-
-    <section class="ak-form-section ak-detail-section">
+    <section class="ak-form-section ak-detail-section ak-detail-reference-section" id="customs-costs">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تفکیک اقلام مصارف گمرکی", (string?)null))" />
         <div class="ak-table-wrap">
             <table class="ak-table ak-detail-table">
@@ -149,7 +161,7 @@
         </div>
     </section>
 
-    <section class="ak-form-section ak-detail-section" id="customs-documents">
+    <section class="ak-form-section ak-detail-section ak-detail-reference-section" id="customs-documents">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اسناد گمرکی این موتر", (string?)null))" />
 
         @if (TempData["ok"] is string okMsg)
@@ -224,7 +236,7 @@
 
         @if (canManageDocuments)
         {
-            <form asp-action="UploadDocument" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" class="ak-form" data-no-spa="true">
+            <form id="customs-upload" asp-action="UploadDocument" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" class="ak-form" data-no-spa="true">
                 @Html.AntiForgeryToken()
                 <div class="ak-form-grid">
                     <div class="ak-field">
@@ -248,9 +260,16 @@
         }
     </section>
 
-    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
-             model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
-                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
-                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
+    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
+             model="@(new AkDetailSecondaryModel
+             {
+                 TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
+                 TimelineLimit = 4,
+                 Timeline = showTimeline ? timelineItems : Array.Empty<AkTimelineItem>(),
+                 Related = relatedRecords,
+                 Technical = advancedItems
+             })" />
+    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
 </div>

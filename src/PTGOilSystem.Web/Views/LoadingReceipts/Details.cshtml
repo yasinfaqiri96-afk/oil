@@ -60,16 +60,12 @@
         ? T("لغوشده", "Cancelled")
         : allocBalanced ? T("تخصیص متوازن", "Allocation balanced") : T("اختلاف تخصیص", "Allocation mismatch");
     ViewData["AkHeaderStatusState"] = Model.IsCancelled ? "is-danger" : allocBalanced ? "is-active" : "is-warning";
+    // Kebab: side routes and destructive actions only. Editing and correcting this
+    // receipt are its own operations and live in the action bar instead.
     var headerKebab = new List<AkHeaderMenuItem>
     {
-        new() { Label = T("ویرایش", "Edit"), Href = Model.IsCancelled ? null : receiptEditUrl, Icon = "bi-pencil" },
-        new()
-        {
-            Label = T("اصلاح مقدار", "Correct quantity"),
-            Href = Model.IsCancelled ? null : Url.Action("Correct", new { id = Model.Id, returnUrl = currentReturnUrl }),
-            Icon = "bi-arrow-repeat"
-        },
-        new() { Label = T("نمای قرارداد", "Contract journey"), Href = Model.ContractId > 0 ? receiptJourneyUrl : null, Icon = "bi-diagram-3" }
+        new() { Label = T("نمای قرارداد", "Contract journey"), Href = Model.ContractId > 0 ? receiptJourneyUrl : null, Icon = "bi-diagram-3" },
+        new() { Label = T("رسید جدید", "New receipt"), Href = Model.RemainingToReceiveMt > 0 ? newReceiptUrl : null, Icon = "bi-box-arrow-in-down" }
     };
     if (!Model.IsCancelled)
     {
@@ -131,6 +127,7 @@
         new() { Label = T("گیرنده", "Consignee"), Value = Model.ConsigneeName },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
     };
+    var overviewItems = loadingItems.Concat(receiptItems.Skip(1)).ToList();
 
     var advancedItems = new List<AkInfoItem>
     {
@@ -148,12 +145,12 @@
 
     var timelineItems = new List<AkTimelineItem>
     {
-        new() { Title = T("بارگیری ثبت شد", "Loading registered"), Date = Model.LoadingDate.ToDisplayDate(), Icon = "bi-box-arrow-up", Meta = $"{NumberDisplay.Quantity(Model.LoadedQuantityMt)} MT" },
-        new() { Title = T("رسید ثبت شد", "Receipt recorded"), Date = Model.ReceiptDate.ToDisplayDate(), Icon = "bi-box-arrow-in-down", State = "is-current", Meta = $"{NumberDisplay.Quantity(Model.ReceivedQuantityMt)} MT" }
+        new() { Title = T("بارگیری ثبت شد", "Loading registered"), Date = Model.LoadingDate.ToDisplayDate(), Timestamp = Model.LoadingDate, Icon = "bi-box-arrow-up", Meta = $"{NumberDisplay.Quantity(Model.LoadedQuantityMt)} MT" },
+        new() { Title = T("رسید ثبت شد", "Receipt recorded"), Date = Model.ReceiptDate.ToDisplayDate(), Timestamp = Model.ReceiptDate, Icon = "bi-box-arrow-in-down", State = "is-current", Meta = $"{NumberDisplay.Quantity(Model.ReceivedQuantityMt)} MT" }
     };
-    if (Model.ArrivalDate.HasValue) timelineItems.Add(new AkTimelineItem { Title = T("رسیدن ثبت شد", "Arrival recorded"), Date = Model.ArrivalDate.Value.ToDisplayDate(), Icon = "bi-geo-alt" });
-    if (Model.LeakDate.HasValue) timelineItems.Add(new AkTimelineItem { Title = T("نشتی ثبت شد", "Leak recorded"), Date = Model.LeakDate.Value.ToDisplayDate(), Icon = "bi-droplet" });
-    timelineItems.AddRange(Model.LossItems.OrderBy(item => item.EventDate).Select(item => new AkTimelineItem { Title = T("کسری ثبت شد", "Loss recorded"), Date = item.EventDate.ToDisplayDate(), Icon = "bi-exclamation-diamond", Href = Url.Action("Details", "LossEvents", new { id = item.Id, returnUrl = currentReturnUrl }), Meta = $"{NumberDisplay.Quantity(item.ChargeableLossMt)} MT" }));
+    if (Model.ArrivalDate.HasValue) timelineItems.Add(new AkTimelineItem { Title = T("رسیدن ثبت شد", "Arrival recorded"), Date = Model.ArrivalDate.Value.ToDisplayDate(), Timestamp = Model.ArrivalDate.Value, Icon = "bi-geo-alt" });
+    if (Model.LeakDate.HasValue) timelineItems.Add(new AkTimelineItem { Title = T("نشتی ثبت شد", "Leak recorded"), Date = Model.LeakDate.Value.ToDisplayDate(), Timestamp = Model.LeakDate.Value, Icon = "bi-droplet" });
+    timelineItems.AddRange(Model.LossItems.Select(item => new AkTimelineItem { Title = T("کسری ثبت شد", "Loss recorded"), Date = item.EventDate.ToDisplayDate(), Timestamp = item.EventDate, Icon = "bi-exclamation-diamond", Href = Url.Action("Details", "LossEvents", new { id = item.Id, returnUrl = currentReturnUrl }), Meta = $"{NumberDisplay.Quantity(item.ChargeableLossMt)} MT" }));
 
     var relatedRecords = new List<AkRelatedRecord>
     {
@@ -166,16 +163,29 @@
         if (allocation.SalesTransactionId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("فروش", "Sale"), Label = $"#{allocation.SalesTransactionId.Value}", Href = Url.Action("Details", "Sales", new { id = allocation.SalesTransactionId.Value, returnUrl = currentReturnUrl }), KeyValue = $"{NumberDisplay.Quantity(allocation.QuantityMt)} MT", Icon = "bi-receipt" });
     }
 
-    // اکشن اصلی سربرگ («رسید جدید») در نوار عملیات پایانی تکرار نمی‌شود.
+    // Operations of this receipt. A cancelled receipt has none.
     var nextActions = new List<AkHeaderMenuItem>();
-    ViewData["AkHeaderOverflowActions"] = nextActions;
+    if (!Model.IsCancelled)
+    {
+        nextActions.Add(new AkHeaderMenuItem { Label = T("ویرایش رسید", "Edit receipt"), Href = receiptEditUrl, Icon = "bi-pencil-square" });
+        nextActions.Add(new AkHeaderMenuItem { Label = T("اصلاح مقدار", "Correct quantity"), Href = Url.Action("Correct", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-arrow-repeat" });
+    }
+    var linkedSalesCount = Model.Allocations.Count(item => item.SalesTransactionId.HasValue);
+    var linkedDispatchCount = Model.Allocations.Count(item => item.TruckDispatchId.HasValue);
+    var activityRows = new List<AkDetailActivityRow>
+    {
+        new() { Label = T("تخصیص‌ها", "Allocations"), Value = Model.Allocations.Count > 0 ? Model.Allocations.Count.ToString("N0") : null, Meta = Model.Allocations.Count > 0 ? (allocBalanced ? T("مقدار متوازن", "Balanced quantity") : T("اختلاف تخصیص", "Allocation mismatch")) : null, Status = Model.Allocations.Count > 0 ? (allocBalanced ? T("تکمیل", "Complete") : T("نیاز به بررسی", "Review")) : null, StatusTone = Model.Allocations.Count > 0 ? (allocBalanced ? "success" : "warning") : null, Icon = "bi-diagram-3" },
+        new() { Label = T("کسری", "Loss"), Value = Model.LossItems.Count > 0 ? Model.LossItems.Count.ToString("N0") : null, Meta = Model.LossItems.Count > 0 ? $"{NumberDisplay.Quantity(lossDifferenceTotal)} MT" : null, Status = Model.LossItems.Count > 0 ? T("ثبت شده", "Recorded") : null, StatusTone = Model.LossItems.Count > 0 ? "warning" : null, Href = Model.LossItems.Count > 0 ? "#receipt-losses" : null, Icon = "bi-exclamation-diamond" },
+        new() { Label = T("فروش‌ها", "Sales"), Value = linkedSalesCount > 0 ? linkedSalesCount.ToString("N0") : null, Status = linkedSalesCount > 0 ? T("متصل", "Linked") : null, StatusTone = linkedSalesCount > 0 ? "success" : null, Icon = "bi-receipt" },
+        new() { Label = T("ارسال‌ها", "Dispatches"), Value = linkedDispatchCount > 0 ? linkedDispatchCount.ToString("N0") : null, Status = linkedDispatchCount > 0 ? T("متصل", "Linked") : null, StatusTone = linkedDispatchCount > 0 ? "success" : null, Icon = "bi-truck" }
+    };
 
     ViewData["Title"] = pageTitle;
     ViewData["HideSectionTabs"] = true;
     ViewData["ModalDesignSystemAssets"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-loading-receipt-details data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-loading-receipt-details data-ak-detail-v2="true" data-ak-operations-detail="true">
 
     @if (Model.IsCancelled)
     {
@@ -198,25 +208,26 @@
             </div>
         </div>
     }
+    @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
+       {
+           Title = $"{T("رسید", "Receipt")} #{Model.Id} · {Model.ProductName}",
+           Eyebrow = receiptDestinationText,
+           Meta = Model.ReceiptDate.ToDisplayDate(),
+           Icon = "bi-box-arrow-in-down",
+           Status = ViewData["AkHeaderStatus"]?.ToString(),
+           StatusState = ViewData["AkHeaderStatusState"]?.ToString()
+       }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
          model="@(($"{T("رسید", "Receipt")} #{Model.Id}", false,
-                    Model.RemainingToReceiveMt > 0 ? T("رسید جدید", "New receipt") : (string?)null, "bi-box-arrow-in-down",
-                    Model.RemainingToReceiveMt > 0 ? newReceiptUrl : null, (string?)null,
+                    (string?)null, (string?)null, (string?)null, (string?)null,
                    T("بازگشت", "Back"), "bi-arrow-right", backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
-
-    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("مشخصات رسید", "Receipt profile"), (string?)null, (IReadOnlyList<AkInfoItem>)receiptItems))" />
-
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("خلاصه بارگیری", "Loading summary"), (string?)null, (IReadOnlyList<AkInfoItem>)loadingItems))" />
-    </div>
+    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
+             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات رسید", "Receipt summary"), AriaLabel = T("نمای اصلی رسید", "Receipt overview"), Metrics = kpis, Facts = overviewItems })" />
 
     @if (Model.LossItems.Count > 0)
     {
-        <div class="ak-form-grid">
+        <div class="ak-form-grid ak-detail-reference-section" id="receipt-losses">
             <section class="ak-form-section ak-detail-section ak-col-full" data-loading-receipt-losses>
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">@T("کسری رسید", "Receipt shortage")</h2>
@@ -246,10 +257,10 @@
         </div>
     }
 
-    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
-             model="@(((IReadOnlyList<AkTimelineItem>)timelineItems,
-                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
-                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
+    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
+             model="@(new AkDetailSecondaryModel { TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"), TimelineLimit = 4, Timeline = timelineItems, Related = relatedRecords, Technical = advancedItems })" />
+    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
     @if (!Model.IsCancelled)
     {

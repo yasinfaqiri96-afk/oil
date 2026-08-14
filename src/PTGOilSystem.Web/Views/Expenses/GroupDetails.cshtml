@@ -1,126 +1,163 @@
 @model PTGOilSystem.Web.Models.Expenses.GroupExpenseDetailsViewModel
 @{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+
     ViewData["Title"] = $"مصرف گروهی {Model.BatchNumber}";
     ViewData["HideSectionTabs"] = true;
+
+    var backUrl = Url.Action("Index", "Expenses") ?? "/Expenses";
+    var currentReturnUrl = Context.Request.Path + Context.Request.QueryString;
     var activeShares = Model.Shares.Where(s => !s.IsCancelled).ToList();
     var liveTotal = activeShares.Sum(s => s.Amount);
     var liveTotalUsd = activeShares.Sum(s => s.AmountUsd);
+    var cancelledCount = Model.Shares.Count - activeShares.Count;
+
+    ViewData["AkHeaderStatus"] = Model.IsCancelled ? T("لغو شده", "Cancelled") : T("فعال", "Active");
+    ViewData["AkHeaderStatusState"] = Model.IsCancelled ? "is-danger" : "is-active";
+
+    // Kebab: side route and the destructive action; a batch has no forward operation.
+    var groupKebab = new List<AkHeaderMenuItem>
+    {
+        new() { Label = T("مصرف جدید", "New expense"), Href = Url.Action("Create", new { returnUrl = currentReturnUrl }), Icon = "bi-plus-lg" }
+    };
+    if (!Model.IsCancelled)
+    {
+        groupKebab.Add(new AkHeaderMenuItem
+        {
+            Label = T("لغو مصرف گروهی", "Cancel group expense"),
+            PostUrl = Url.Action("CancelGroup", new { id = Model.Id }),
+            Icon = "bi-x-circle",
+            IsDestructive = true,
+            ConfirmTitle = T("لغو مصرف گروهی", "Cancel group expense"),
+            ConfirmMessage = T("همه سهم‌های این مصرف گروهی لغو و سند معکوس ثبت می‌شود. ادامه می‌دهید؟",
+                               "Every share of this group expense is cancelled and a reversing document is posted. Continue?")
+        });
+    }
+    ViewData["AkHeaderKebab"] = groupKebab;
+
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = T("مبلغ فعال", "Active amount"), Value = liveTotal.ToString("N2"), Unit = Model.Currency, Avatar = "expenses" },
+        new() { Title = T("معادل دالر", "USD equivalent"), Value = liveTotalUsd.ToString("N2"), Unit = "USD", Avatar = "payments-out" },
+        new() { Title = T("سهم فعال", "Active shares"), Value = activeShares.Count.ToString("N0"), Unit = T("از", "of") + " " + Model.Shares.Count.ToString("N0"), Avatar = "analysis", State = cancelledCount > 0 ? "warning" : null }
+    };
+
+    var identityItems = new List<AkInfoItem>
+    {
+        new() { Label = T("نوع مصرف", "Expense type"), Value = Model.ExpenseTypeName },
+        new() { Label = T("پرداخت شونده", "Paid to"), Value = Model.ServiceProviderName },
+        new() { Label = T("روش تقسیم", "Allocation method"), Value = Model.AllocationMethodName },
+        new() { Label = T("تاریخ مصرف", "Expense date"), Value = Model.ExpenseDate.ToDisplayDate(), IsNumeric = true },
+        new() { Label = T("ارز", "Currency"), Value = Model.Currency }
+    };
+
+    var overviewItems = new List<AkInfoItem>
+    {
+        new() { Label = T("نرخ تبدیل", "FX rate"), Value = Model.AppliedFxRateToUsd?.ToString("N4"), IsNumeric = true },
+        new() { Label = T("مبلغ ثبت‌شده", "Recorded amount"), Value = Model.TotalAmount.ToString("N2"), Unit = Model.Currency, IsNumeric = true },
+        new() { Label = T("توضیحات", "Description"), Value = Model.Description, IsWide = true }
+    };
+
+    var activityRows = new List<AkDetailActivityRow>
+    {
+        new()
+        {
+            Label = T("سهم عملیات‌ها", "Operation shares"),
+            Value = Model.Shares.Count.ToString("N0"),
+            Meta = cancelledCount > 0 ? T($"{cancelledCount} سهم لغو شده", $"{cancelledCount} cancelled") : T("همه فعال", "All active"),
+            Status = cancelledCount > 0 ? T("نیاز به بررسی", "Review") : T("فعال", "Active"),
+            StatusTone = cancelledCount > 0 ? "warning" : "success",
+            Href = "#group-expense-shares",
+            Icon = "bi-diagram-3"
+        }
+    };
+
+    var advancedItems = new List<AkInfoItem>
+    {
+        new() { Label = T("شماره داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = T("شماره دسته", "Batch number"), Value = Model.BatchNumber, IsNumeric = true }
+    };
 }
 
-<div class="ak-form-page">
-    <div>
-        <header class="ak-page-header">
-            <div class="ak-page-heading">
-                <span class="ak-page-icon"><i class="bi bi-journal-check"></i></span>
-                <div>
-                    <h1>مصرف گروهی <span class="ak-num">@Model.BatchNumber</span></h1>
-                    <p>@Model.ExpenseTypeName — @Model.ExpenseDate.ToDisplayDate()</p>
-                </div>
-            </div>
-            <div class="ak-page-actions">
-                @if (Model.IsCancelled)
-                {
-                    <span class="ak-status is-inactive">لغو شده</span>
-                }
-                else
-                {
-                    <form asp-action="CancelGroup" asp-route-id="@Model.Id" method="post"
-                          onsubmit="return confirm('همه سهم‌های این مصرف گروهی لغو و سند معکوس ثبت می‌شود. ادامه می‌دهید؟');" class="ak-form">
-                        @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-danger">
-                            <i class="bi bi-x-circle"></i> لغو مصرف گروهی
-                        </button>
-                    </form>
-                }
-                <a asp-action="Index" class="btn ak-secondary-action">بازگشت به مصارف</a>
-            </div>
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+    @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
+       {
+           Title = $"{T("مصرف گروهی", "Group expense")} {Model.BatchNumber}",
+           Eyebrow = T("مصرف گروهی", "Group expense"),
+           Meta = $"{Model.ExpenseTypeName} · {Model.ExpenseDate.ToDisplayDate()}",
+           Icon = "bi-journal-check",
+           Status = ViewData["AkHeaderStatus"]?.ToString(),
+           StatusState = ViewData["AkHeaderStatusState"]?.ToString(),
+           Items = identityItems
+       }; }
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"{T("مصرف گروهی", "Group expense")} {Model.BatchNumber}", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
+
+    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
+             model="@(new AkDetailOverviewModel { AriaLabel = T("نمای اصلی مصرف گروهی", "Group expense overview"), Metrics = kpis, Facts = overviewItems })" />
+
+    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
+
+    <section class="ak-form-section ak-detail-section" id="group-expense-shares">
+        <header class="ak-section-head ak-detail-section-header">
+            <h2 class="ak-section-title">@T("سهم عملیات‌ها", "Operation shares")</h2>
+            <span class="ak-status">@Model.Shares.Count</span>
         </header>
-
-        <section class="ak-form-section">
-            <div>
-                <div class="ak-form-section">
-                    <h2 class="ak-section-title">سهم عملیات‌ها</h2>
-                    <div class="ak-table-wrap">
-                        <table class="ak-table">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>عملیات</th>
-                                    <th>نوع وسیله</th>
-                                    <th>شماره</th>
-                                    <th>مسیر</th>
-                                    <th>مقدار (تن)</th>
-                                    <th>سهم</th>
-                                    <th>معادل USD</th>
-                                    <th>وضعیت</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @for (var i = 0; i < Model.Shares.Count; i++)
-                                {
-                                    var s = Model.Shares[i];
-                                    <tr class="@(s.IsCancelled ?"is-inactive" : null)">
-                                        <td>@(i + 1)</td>
-                                        <td>@s.OperationLabel</td>
-                                        <td>@s.VehicleKind</td>
-                                        <td class="ak-num">@s.Number</td>
-                                        <td>@s.Route</td>
-                                        <td class="ak-num">@s.QuantityMt.ToString("N3")</td>
-                                        <td class="ak-num">@s.Amount.ToString("N2") @Model.Currency</td>
-                                        <td class="ak-num">@s.AmountUsd.ToString("N2")</td>
-                                        <td>
-                                            @if (s.IsCancelled)
-                                            {
-                                                <span class="ak-status is-inactive">لغو شده</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="ak-status is-active">فعال</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            <a asp-action="Details" asp-route-id="@s.ExpenseId" class="ak-name">جزئیات</a>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="6" class="ak-table-total">مجموع سهم‌های فعال</td>
-                                    <td class="ak-num">@liveTotal.ToString("N2") @Model.Currency</td>
-                                    <td class="ak-num">@liveTotalUsd.ToString("N2")</td>
-                                    <td colspan="2"></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <aside class="ak-form-section">
-                <div class="ak-form-section ak-list">
-                    <h2 class="ak-section-title">خلاصه</h2>
-                    <div class="ak-list-row"><span>نوع مصرف</span><strong>@Model.ExpenseTypeName</strong></div>
-                    <div class="ak-list-row"><span>پرداخت شونده</span><strong>@(Model.ServiceProviderName ??"—")</strong></div>
-                    <div class="ak-list-row"><span>روش تقسیم</span><strong>@Model.AllocationMethodName</strong></div>
-                    <div class="ak-list-row"><span>تاریخ مصرف</span><strong class="ak-num">@Model.ExpenseDate.ToDisplayDate()</strong></div>
-                    <div class="ak-list-row"><span>ارز</span><strong class="ak-num">@Model.Currency</strong></div>
-                    @if (Model.AppliedFxRateToUsd.HasValue)
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th class="ak-col-grow">@T("عملیات", "Operation")</th>
+                        <th>@T("نوع وسیله", "Vehicle type")</th>
+                        <th>@T("شماره", "Number")</th>
+                        <th>@T("مسیر", "Route")</th>
+                        <th class="ak-col-num">@T("مقدار (تن)", "Quantity (MT)")</th>
+                        <th class="ak-col-num">@T("سهم", "Share")</th>
+                        <th class="ak-col-num">@T("معادل USD", "USD")</th>
+                        <th>@T("وضعیت", "Status")</th>
+                        <th class="ak-col-actions"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Shares.Count; i++)
                     {
-                        <div class="ak-list-row"><span>نرخ تبدیل</span><strong class="ak-num">@Model.AppliedFxRateToUsd.Value.ToString("N4")</strong></div>
+                        var s = Model.Shares[i];
+                        <tr class="@(s.IsCancelled ? "is-inactive" : null)">
+                            <td>@(i + 1)</td>
+                            <td class="ak-col-grow">@s.OperationLabel</td>
+                            <td>@s.VehicleKind</td>
+                            <td class="ak-num">@s.Number</td>
+                            <td>@s.Route</td>
+                            <td class="ak-col-num ak-num">@s.QuantityMt.ToString("N3")</td>
+                            <td class="ak-col-num ak-num">@s.Amount.ToString("N2") @Model.Currency</td>
+                            <td class="ak-col-num ak-num">@s.AmountUsd.ToString("N2")</td>
+                            <td>
+                                <span class="ak-status @(s.IsCancelled ? "is-inactive" : "is-active")">
+                                    @(s.IsCancelled ? T("لغو شده", "Cancelled") : T("فعال", "Active"))
+                                </span>
+                            </td>
+                            <td class="ak-col-actions">
+                                <a class="ak-row-menu-btn" asp-action="Details" asp-route-id="@s.ExpenseId" asp-route-returnUrl="@currentReturnUrl"
+                                   title="@T("مشاهده", "View")" aria-label="@T("مشاهده", "View")"><i class="bi bi-eye"></i></a>
+                            </td>
+                        </tr>
                     }
-                    <div class="ak-list-row"><span>مبلغ ثبت‌شده</span><strong class="ak-num">@Model.TotalAmount.ToString("N2") @Model.Currency</strong></div>
-                    <div class="ak-list-row"><span>تعداد سهم‌ها</span><strong>@Model.Shares.Count</strong></div>
-                    @if (!string.IsNullOrWhiteSpace(Model.Description))
-                    {
-                        <div class="ak-list-row">
-                            <span>توضیحات</span>
-                            <div class="ak-list"><div>@Model.Description</div></div>
-                        </div>
-                    }
-                </div>
-            </aside>
-        </section>
-    </div>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="6" class="ak-table-total">@T("مجموع سهم‌های فعال", "Active shares total")</td>
+                        <td class="ak-col-num ak-num">@liveTotal.ToString("N2") @Model.Currency</td>
+                        <td class="ak-col-num ak-num">@liveTotalUsd.ToString("N2")</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+
+    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
+             model="@(new AkDetailSecondaryModel { Technical = advancedItems })" />
 </div>

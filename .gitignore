@@ -153,6 +153,7 @@ artifacts/
 /docs/*.xlsx
 /docs/*.pdf
 /docs/contract-audit/
+/docs/exel/
 /tools/PtgImporter/loadings.json
 /docs/*.zip
 /exel/

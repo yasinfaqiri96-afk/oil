@@ -13,9 +13,10 @@
 
     ViewData["AkHeaderStatus"] = ledgerStatus;
     ViewData["AkHeaderStatusState"] = ledgerRecorded ? "is-active" : "is-warning";
+    // Kebab keeps the side route only; the record's own action lives in the bar.
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
-        new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-pencil-square" }
+        new() { Label = T("مصرف جدید", "New expense"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
     };
 
     // وضعیت دفتر در سربرگ نشان داده می‌شود و کارت KPI جدا نمی‌گیرد.
@@ -25,7 +26,7 @@
         new() { Title = T("معادل دالر", "USD equivalent"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", Avatar = "payments-out" }
     };
 
-    // نوع مصرف/تاریخ/طرف خدماتی در خط زمینهٔ سربرگ‌اند؛ قرارداد و محموله فقط چیپ مرتبط‌اند.
+    // نوار هویتی جدا حذف شده و مشخصات عملیاتی داخل surface خلاصه می‌آیند.
     var summaryItems = new List<AkInfoItem>
     {
         new() { Label = T("نرخ تبدیل", "FX rate"), Value = Model.AppliedFxRateToUsd?.ToString("N6"), IsNumeric = true },
@@ -39,6 +40,7 @@
         },
         new() { Label = T("شرح", "Description"), Value = Model.Description, IsWide = true }
     };
+    var overviewItems = summaryItems;
 
     // ردپای حسابداری و شناسه‌های داخلی — پشت آکاردئون، بدون حذف هیچ عدد مالی.
     var advancedItems = new List<AkInfoItem>
@@ -58,33 +60,47 @@
     if (Model.OperationalAssetId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("دارایی عملیاتی", "Operational asset"), Label = Model.OperationalAssetName ?? $"#{Model.OperationalAssetId.Value}", Href = Url.Action("Details", "OperationalAssets", new { id = Model.OperationalAssetId.Value, returnUrl = currentReturnUrl }), Icon = "bi-truck" });
     if (Model.LedgerEntryId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("سند دفتر کل", "Ledger entry"), Label = $"#{Model.LedgerEntryId.Value}", KeyValue = $"{Model.AmountUsd:N2} USD", Href = Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value, returnUrl = currentReturnUrl }), Icon = "bi-journal-text" });
 
+    // A posted expense has no forward operation, so correcting it is the single CTA.
     var nextActions = new List<AkHeaderMenuItem>
     {
-        new() { Label = T("مصرف جدید", "New expense"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
+        new() { Label = T("ویرایش مصرف", "Edit expense"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-pencil-square" }
     };
-    ViewData["AkHeaderOverflowActions"] = nextActions;
+    var activityRows = new List<AkDetailActivityRow>
+    {
+        new() { Label = T("ثبت مالی", "Financial posting"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", Meta = Model.LedgerReference, Status = ledgerStatus, StatusTone = ledgerRecorded ? "success" : "warning", Href = Model.LedgerEntryId.HasValue ? Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value, returnUrl = currentReturnUrl }) : null, Icon = "bi-journal-text" },
+        new() { Label = T("ارتباطات عملیاتی", "Operational links"), Value = relatedRecords.Count > 0 ? relatedRecords.Count.ToString("N0") : null, Meta = relatedRecords.Count > 0 ? providerText : null, Status = relatedRecords.Count > 0 ? T("متصل", "Linked") : null, StatusTone = relatedRecords.Count > 0 ? "success" : null, Icon = "bi-link-45deg" }
+    };
+    var timelineItems = new List<AkTimelineItem>
+    {
+        new() { Title = T("مصرف ثبت شد", "Expense recorded"), Date = Model.ExpenseDate.ToDisplayDate(), Timestamp = Model.ExpenseDate, Icon = "bi-receipt-cutoff", State = "is-current", Meta = $"{Model.AmountUsd:N2} USD" }
+    };
 
     ViewData["Title"] = T("جزئیات مصرف", "Expense Details");
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+    @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
+       {
+           Title = Model.ExpenseTypeName,
+           Eyebrow = T("مصرف عملیاتی", "Operational expense"),
+           Meta = $"#{Model.Id} · {Model.ExpenseDate.ToDisplayDate()}",
+           Icon = "bi-receipt-cutoff",
+           Status = ledgerStatus,
+           StatusState = ledgerRecorded ? "is-active" : "is-warning"
+       }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("مصرف", "Expense") + $" #{Model.Id}", false,
-                       T("ویرایش", "Edit"), "bi-pencil-square",
-                       Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), (string?)null,
-                       T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
+    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
+             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات مصرف", "Expense summary"), AriaLabel = T("نمای اصلی مصرف", "Expense overview"), Metrics = kpis, Facts = overviewItems })" />
 
-    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("مشخصات مصرف", "Expense profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
-    </div>
+    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
 
-    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
-             model="@(((IReadOnlyList<AkTimelineItem>)Array.Empty<AkTimelineItem>(),
-                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
-                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
+             model="@(new AkDetailSecondaryModel { TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"), TimelineLimit = 4, Timeline = timelineItems, Related = relatedRecords, Technical = advancedItems })" />
+    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
 </div>

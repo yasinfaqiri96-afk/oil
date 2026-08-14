@@ -1,0 +1,94 @@
+@*
+    Secondary material of the linear Operations detail shell.
+
+    Three quiet blocks after the main flow:
+      - related records: one line of chips;
+      - history: every real event, ordered by its own timestamp — the old
+        Take(4) hid customs and shortage events behind the receipts of the
+        same record, so the page contradicted its own activity summary;
+      - technical details: internal ids, ledger and audit trace, collapsed
+        by default so identifiers never compete with business data.
+
+    Model: AkDetailSecondaryModel
+*@
+@model PTGOilSystem.Web.Models.Shared.AkDetailSecondaryModel
+@{
+    var timeline = Model.Timeline ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkTimelineItem>();
+    var related = Model.Related ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkRelatedRecord>();
+    var technical = (Model.Technical ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkInfoItem>())
+        .Where(item => item.HasValue)
+        .ToList();
+
+    // Chronological order only when the page dated every event. A partially
+    // dated list keeps the order the page authored, so nothing silently jumps.
+    var events = timeline.Count > 1 && timeline.All(item => item.Timestamp.HasValue)
+        ? timeline.OrderBy(item => item.Timestamp!.Value).ToList()
+        : timeline.ToList();
+    if (Model.TimelineLimit is > 0 && events.Count > Model.TimelineLimit.Value)
+    {
+        events = events.TakeLast(Model.TimelineLimit.Value).ToList();
+    }
+    var timelineTitle = string.IsNullOrWhiteSpace(Model.TimelineTitle)
+        ? UiText.T(Context, "سابقه", "History")
+        : Model.TimelineTitle;
+}
+@if (events.Count > 0 || related.Count > 0 || technical.Count > 0)
+{
+    <footer class="ak-detail-secondary">
+        @if (related.Count > 0)
+        {
+            <nav class="ak-detail-secondary-links" aria-label="@UiText.T(Context, "رکوردهای مرتبط", "Related records")">
+                @foreach (var item in related)
+                {
+                    @if (!string.IsNullOrWhiteSpace(item.Href))
+                    {
+                        <a href="@item.Href">@item.TypeLabel: <bdi>@item.Label</bdi></a>
+                    }
+                    else
+                    {
+                        <span>@item.TypeLabel: <bdi>@item.Label</bdi></span>
+                    }
+                }
+            </nav>
+        }
+        @if (events.Count > 0)
+        {
+            <section class="ak-detail-history" aria-labelledby="ak-detail-history-title">
+                <h2 id="ak-detail-history-title">@timelineTitle</h2>
+                <ol class="ak-detail-history-list">
+                    @foreach (var item in events)
+                    {
+                        <li class="ak-detail-history-item @item.StateClass">
+                            @if (!string.IsNullOrWhiteSpace(item.Date))
+                            {
+                                <span class="ak-detail-history-date ak-num"><bdi>@item.Date</bdi></span>
+                            }
+                            <span class="ak-detail-history-title">
+                                @if (!string.IsNullOrWhiteSpace(item.Href))
+                                {
+                                    <a href="@item.Href">@item.Title</a>
+                                }
+                                else
+                                {
+                                    @item.Title
+                                }
+                            </span>
+                            @if (!string.IsNullOrWhiteSpace(item.Meta))
+                            {
+                                <span class="ak-detail-history-meta ak-num"><bdi>@item.Meta</bdi></span>
+                            }
+                        </li>
+                    }
+                </ol>
+            </section>
+        }
+        @if (technical.Count > 0)
+        {
+            <details class="ak-detail-technical" id="technical-details">
+                <summary>@UiText.T(Context, "جزئیات فنی", "Technical details")</summary>
+                <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml"
+                         model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem>)technical)" />
+            </details>
+        }
+    </footer>
+}

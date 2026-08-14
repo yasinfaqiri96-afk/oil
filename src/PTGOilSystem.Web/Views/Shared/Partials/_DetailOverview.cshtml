@@ -1,0 +1,78 @@
+@model PTGOilSystem.Web.Models.Shared.AkDetailOverviewModel
+@{
+    // Metrics keep the order the page authored; the strip renders 2, 3 or 4 of them and the
+    // grid adapts, so a page with two KPIs no longer leaves half a row empty.
+    var metrics = (Model.Metrics ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkKpiItem>())
+        .Where(item => !string.IsNullOrWhiteSpace(item.Title))
+        .Take(4)
+        .ToList();
+    var facts = (Model.Facts ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkInfoItem>())
+        .Where(item => item.HasValue)
+        .ToList();
+    var visualPath = PTGOilSystem.Web.Models.StatCards.StatCardAvatarRegistry.ResolvePath(Model.VisualAvatar);
+    var hasVisual = !string.IsNullOrWhiteSpace(visualPath)
+        || !string.IsNullOrWhiteSpace(Model.VisualTitle)
+        || !string.IsNullOrWhiteSpace(Model.VisualMeta);
+}
+@if (metrics.Count > 0 || facts.Count > 0 || hasVisual)
+{
+    <section class="ak-detail-overview" aria-label="@Model.AriaLabel">
+        @if (!string.IsNullOrWhiteSpace(Model.Title))
+        {
+            <h2 class="ak-detail-overview-title">@Model.Title</h2>
+        }
+        <div class="ak-detail-overview-body@(hasVisual ? " has-visual" : string.Empty)">
+            @if (hasVisual)
+            {
+                <aside class="ak-detail-vehicle" aria-label="@Model.VisualTitle">
+                    @if (!string.IsNullOrWhiteSpace(visualPath))
+                    {
+                        <img src="@visualPath" alt="" aria-hidden="true" width="190" height="118"
+                             loading="eager" decoding="async" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.VisualTitle))
+                    {
+                        <strong>@Model.VisualTitle</strong>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.VisualMeta))
+                    {
+                        <span>@Model.VisualMeta</span>
+                    }
+                </aside>
+            }
+            <div class="ak-detail-overview-content">
+                @if (metrics.Count > 0)
+                {
+                    <dl class="ak-detail-metrics" data-metric-count="@metrics.Count">
+                        @foreach (var metric in metrics)
+                        {
+                            var avatarPath = PTGOilSystem.Web.Models.StatCards.StatCardAvatarRegistry.ResolvePath(metric.Avatar);
+                            <div class="ak-detail-metric @metric.StateClass">
+                                <dt>
+                                    @if (!string.IsNullOrWhiteSpace(avatarPath))
+                                    {
+                                        <img class="ak-detail-metric-avatar" src="@avatarPath" alt="" aria-hidden="true"
+                                             width="38" height="38" loading="lazy" decoding="async" />
+                                    }
+                                    <span>@metric.Title</span>
+                                </dt>
+                                <dd>
+                                    <bdi>@metric.Value</bdi>
+                                    @if (!string.IsNullOrWhiteSpace(metric.Unit))
+                                    {
+                                        <span>@metric.Unit</span>
+                                    }
+                                </dd>
+                            </div>
+                        }
+                    </dl>
+                }
+                @if (facts.Count > 0)
+                {
+                    <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml"
+                             model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem>)facts)" />
+                }
+            </div>
+        </div>
+    </section>
+}

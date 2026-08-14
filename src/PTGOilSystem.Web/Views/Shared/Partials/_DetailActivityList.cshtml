@@ -1,0 +1,50 @@
+@model IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkDetailActivityRow>
+@{
+    var rows = (Model ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkDetailActivityRow>())
+        .Where(row => row.HasValue)
+        .ToList();
+}
+@if (rows.Count > 0)
+{
+    <section class="ak-detail-activity" aria-labelledby="ak-detail-activity-title">
+        <h2 id="ak-detail-activity-title">@UiText.T(Context, "فعالیت و خلاصه مالی", "Activity & financial summary")</h2>
+        <div class="ak-detail-activity-list">
+            @foreach (var row in rows)
+            {
+                <div class="ak-detail-activity-row">
+                    <span class="ak-detail-activity-label">
+                        @if (!string.IsNullOrWhiteSpace(row.Icon))
+                        {
+                            <i class="bi @row.Icon" aria-hidden="true"></i>
+                        }
+                        <strong>@row.Label</strong>
+                    </span>
+                    @* Empty cells are not rendered: the row is a flex line under 992px,
+                       so a blank span would reserve a whole wrapped line for nothing. *@
+                    @if (!string.IsNullOrWhiteSpace(row.Value))
+                    {
+                        <span class="ak-detail-activity-value ak-num">
+                            <bdi>@row.Value</bdi>
+                            @if (!string.IsNullOrWhiteSpace(row.Unit))
+                            {
+                                <small>@row.Unit</small>
+                            }
+                        </span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(row.Meta))
+                    {
+                        <span class="ak-detail-activity-meta">@row.Meta</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(row.Status))
+                    {
+                        <span class="ak-detail-activity-status @row.StatusClass">@row.Status</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(row.Href))
+                    {
+                        <a class="ak-detail-activity-link" href="@row.Href">@UiText.T(Context, "مشاهده", "View")</a>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+}

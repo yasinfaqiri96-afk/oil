@@ -15,27 +15,19 @@ public sealed class SalesDetailsRedesignStructureTests
         // partials, so the page declares data instead of repeating their markup.
         Assert.Contains("data-ak-detail-v2=\"true\"", view);
         Assert.Contains("_AkPageHeader.cshtml", view);
-        Assert.Contains("_DetailKpiStrip.cshtml", view);
-        Assert.Equal(4, Count(view, "Avatar = \""));
-        Assert.Contains("_DetailSummaryCard.cshtml", view);
-        Assert.Contains("_OperationsDetailMore.cshtml", view);
-        Assert.Contains("AkHeaderOverflowActions", view);
-        Assert.DoesNotContain("_DetailActionBar.cshtml", view);
+        Assert.Contains("AkHeaderIdentity", view);
+        Assert.Contains("_DetailOverview.cshtml", view);
+        Assert.Contains("_DetailActivityList.cshtml", view);
+        Assert.Contains("_DetailSecondary.cshtml", view);
+        Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
+        Assert.DoesNotContain("_OperationsDetailMore.cshtml", view);
+        // Next operations live in the action bar only. Feeding the same list to the header
+        // kebab as well is what printed every action twice on the page.
+        Assert.DoesNotContain("AkHeaderOverflowActions", view);
+        Assert.Contains("_DetailActionBar.cshtml", view);
         Assert.Contains("ak-list", view);
-        Assert.Contains("ak-operations-overview", view);
-        Assert.Contains("ak-operations-overview ak-operations-clean-overview", view);
+        Assert.Contains("ak-linear-detail", view);
         Assert.Contains("data-ak-operations-detail=\"true\"", view);
-
-        var saleInformation = view.IndexOf("Sale information", StringComparison.Ordinal);
-        var saleStatement = view.IndexOf("Sale statement", StringComparison.Ordinal);
-        var sourceAndDelivery = view.IndexOf("Source and delivery", StringComparison.Ordinal);
-        Assert.True(saleInformation < saleStatement);
-        Assert.True(saleStatement < sourceAndDelivery);
-
-        var more = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_OperationsDetailMore.cshtml");
-        Assert.Contains("_DetailTimeline.cshtml", more);
-        Assert.Contains("_RelatedRecords.cshtml", more);
-        Assert.Contains("_DetailInfoGrid.cshtml", more);
 
         // No page-local stat cards or hand-written key/value lists any more.
         Assert.DoesNotContain("<vc:stat-card", view);
@@ -50,9 +42,10 @@ public sealed class SalesDetailsRedesignStructureTests
         Assert.DoesNotContain("<h1", view);
 
         var detailCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
-        Assert.Contains(".ak-operations-clean-page .ak-operations-clean-overview", detailCss);
+        Assert.Contains(".ak-linear-detail .ak-detail-overview", detailCss);
+        Assert.Contains(".ak-linear-detail .ak-detail-activity-row", detailCss);
         Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", detailCss);
-        Assert.Contains(".ak-operations-clean-page .ak-operations-clean-overview > .ak-sale-money", detailCss);
+        Assert.DoesNotContain(".ak-operations-clean-page .ak-operations-clean-overview", detailCss);
     }
 
     [Fact]
@@ -97,7 +90,7 @@ public sealed class SalesDetailsRedesignStructureTests
         Assert.DoesNotContain("Sale contract\"), Value = contractText", view);
         Assert.DoesNotContain("Ledger amount", view);
         Assert.DoesNotContain("Booked value", view);
-        Assert.Contains("T(\"مقدار\", \"Quantity\")", view);
+        Assert.Contains("T(\"مقدار فروش\", \"Sale quantity\")", view);
         Assert.Contains("T(\"فاکتور ۱\", \"Invoice 1\")", view);
         Assert.Contains("T(\"فاکتور ۲\", \"Invoice 2\")", view);
         Assert.Contains("template = \"faisal\"", view);
