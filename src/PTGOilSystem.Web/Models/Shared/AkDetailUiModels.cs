@@ -138,6 +138,82 @@ public sealed class AkKpiItem
 
     /// <summary>Stat-card state: "warning", "empty", "loading".</summary>
     public string? State { get; init; }
+
+    /// <summary>
+    /// Tone class for the linear metric row (<c>_DetailOverview</c>). Only the
+    /// meaning-bearing states get a colour; "empty"/"loading" stay neutral so a
+    /// placeholder never reads as a real warning.
+    /// </summary>
+    public string? StateClass => State switch
+    {
+        "warning" => "is-warning",
+        "danger" => "is-danger",
+        "success" => "is-success",
+        _ => null
+    };
+}
+
+/// <summary>
+/// Presentation-only identity block shared by Operations detail pages. Values
+/// are already formatted by the Razor page; the component never derives or
+/// changes business data.
+/// </summary>
+public sealed class AkDetailHeroModel
+{
+    public required string Title { get; init; }
+    public string? Eyebrow { get; init; }
+    public string? Meta { get; init; }
+    public string Icon { get; init; } = "bi-file-earmark-text";
+    public string? Status { get; init; }
+    public string? StatusState { get; init; }
+    public IReadOnlyList<AkInfoItem> Items { get; init; } = [];
+}
+
+/// <summary>Single-surface overview used by the linear Operations detail shell.</summary>
+public sealed class AkDetailOverviewModel
+{
+    public required string AriaLabel { get; init; }
+    public string? Title { get; init; }
+    public IReadOnlyList<AkKpiItem> Metrics { get; init; } = [];
+    public IReadOnlyList<AkInfoItem> Facts { get; init; } = [];
+    public string? VisualAvatar { get; init; }
+    public string? VisualTitle { get; init; }
+    public string? VisualMeta { get; init; }
+}
+
+/// <summary>One compact operational or financial row in a detail page.</summary>
+public sealed class AkDetailActivityRow
+{
+    public required string Label { get; init; }
+    public string? Value { get; init; }
+    public string? Unit { get; init; }
+    public string? Meta { get; init; }
+    public string? Status { get; init; }
+    public string? StatusTone { get; init; }
+    public string? Href { get; init; }
+    public string? Icon { get; init; }
+
+    public bool HasValue => !string.IsNullOrWhiteSpace(Value)
+        || !string.IsNullOrWhiteSpace(Meta)
+        || !string.IsNullOrWhiteSpace(Status);
+
+    public string? StatusClass => StatusTone switch
+    {
+        "success" => "is-success",
+        "warning" => "is-warning",
+        "danger" => "is-danger",
+        _ => null
+    };
+}
+
+/// <summary>Presentation-only secondary material rendered after the main flow.</summary>
+public sealed class AkDetailSecondaryModel
+{
+    public IReadOnlyList<AkTimelineItem> Timeline { get; init; } = [];
+    public IReadOnlyList<AkRelatedRecord> Related { get; init; } = [];
+    public IReadOnlyList<AkInfoItem> Technical { get; init; } = [];
+    public string? TimelineTitle { get; init; }
+    public int? TimelineLimit { get; init; }
 }
 
 /// <summary>One option of the small display switch in the account card header (USD/RUB).</summary>

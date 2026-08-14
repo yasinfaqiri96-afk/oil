@@ -15,7 +15,6 @@
         : Model.CustomerName;
     var ledgerRecorded = Model.LedgerEntryId.HasValue;
     var canRegisterReceipt = !Model.IsCancelled && Model.CustomerId > 0 && Model.ReceivableBalanceUsd > 0m;
-    var isSameCurrency = string.Equals(Model.Currency, "USD", StringComparison.OrdinalIgnoreCase);
     var stockSourceText = Model.StockSourceType?.ToString() switch
     {
         "Wagon" => T("واگن", "Wagon"),
@@ -30,6 +29,11 @@
     ViewData["AkHeaderStatusState"] = Model.IsCancelled ? "is-danger" : "is-active";
     // خط زمینهٔ سربرگ حذف شد: مشتری، تاریخ و مرحله عیناً در کارت «اطلاعات فروش» می‌آیند.
 
+    // Action split shared by every Operations detail page:
+    //   action bar = the next operations of THIS record, first one is the single CTA;
+    //   kebab      = edit, side routes and destructive actions.
+    // No action is listed in both places, and no "create another record" link
+    // takes the primary slot.
     var salesKebab = new List<AkHeaderMenuItem>
     {
         new()
@@ -37,6 +41,12 @@
             Label = T("ویرایش", "Edit"),
             Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }),
             Icon = "bi-pencil-square"
+        },
+        new()
+        {
+            Label = T("فروش جدید", "New sale"),
+            Href = Url.Action("Create", new { returnUrl = backUrl }),
+            Icon = "bi-plus-lg"
         }
     };
     if (!Model.IsCancelled)
@@ -51,22 +61,7 @@
             ConfirmMessage = T("این فروش ابطال شود؟", "Cancel this sale?")
         });
     }
-    salesKebab.Add(new AkHeaderMenuItem
-    {
-        Label = T("فاکتور ۲", "Invoice 2"),
-        Href = Url.Action("Invoice", new { id = Model.Id, template = "fawad" }),
-        Icon = "bi-receipt-cutoff"
-    });
     ViewData["AkHeaderKebab"] = salesKebab;
-    if (canRegisterReceipt)
-    {
-        ViewData["AkHeaderCompanionAction"] = new AkHeaderMenuItem
-        {
-            Label = T("فاکتور ۱", "Invoice 1"),
-            Href = Url.Action("Invoice", new { id = Model.Id, template = "faisal" }),
-            Icon = "bi-receipt"
-        };
-    }
 
     var kpis = new List<AkKpiItem>
     {
@@ -93,32 +88,9 @@
             Tone = ledgerRecorded ? null : "warning"
         }
     };
-
-    // صورت‌حساب: برچسب راست، عدد چپ، ردیف پایانی برجسته. Tone فقط برای عدد وضعیت‌دار.
-    var moneyRows = new List<(string Label, string? Hint, string Value, string Unit, string? Tone, bool IsTotal)>
-    {
-        (T("قیمت واحد", "Unit price"), $"{NumberDisplay.Quantity(Model.QuantityMt)} MT",
-            Model.UnitPriceInCurrency.ToString("N2"), $"{Model.Currency}/MT", null, false),
-        (T("مبلغ کل فروش", "Sale total"), null,
-            Model.TotalInCurrency.ToString("N2"), Model.Currency, null, false)
-    };
-    if (!isSameCurrency && Model.AppliedFxRateToUsd.HasValue)
-    {
-        moneyRows.Add((T("نرخ تبدیل به USD", "FX rate to USD"), null,
-            NumberDisplay.FxRate(Model.AppliedFxRateToUsd) ?? "-", $"{Model.Currency}/USD", null, false));
-    }
-    moneyRows.Add((T("مقدار", "Quantity"), null,
-        NumberDisplay.Quantity(Model.QuantityMt), "MT", null, false));
-    moneyRows.Add((T("دریافت‌شده", "Received"), T("جمع پرداخت‌های ثبت‌شده", "Sum of linked payments"),
-        Model.ReceivedUsd.ToString("N2"), "USD", "success", false));
-    if (Model.OverpaymentUsd > 0)
-    {
-        moneyRows.Add((T("مازاد دریافت", "Overpayment"), null,
-            Model.OverpaymentUsd.ToString("N2"), "USD", "warning", false));
-    }
-    moneyRows.Add((T("مانده قابل دریافت", "Outstanding receivable"), null,
-        Model.ReceivableBalanceUsd.ToString("N2"), "USD",
-        Model.ReceivableBalanceUsd > 0 ? "warning" : "success", true));
+    // The separate identity strip is intentionally removed; all business facts
+    // continue in the single shared overview surface.
+    var overviewSummaryItems = summaryItems;
 
     // کارت منبع فقط واقعیت عملیاتی است؛ هیچ‌کدام state نیستند، پس بدون رنگ می‌مانند.
     var sourceItems = new List<AkInfoItem>
@@ -130,6 +102,7 @@
         new() { Label = T("مرجع حمل", "Transport reference"), Value = Model.InventoryTransportReference },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
     };
+    var overviewItems = overviewSummaryItems.Concat(sourceItems).ToList();
 
     // ردیابی فنی و شناسه‌های داخلی — پشت آکاردئون بسته.
     var advancedItems = new List<AkInfoItem>
@@ -149,6 +122,7 @@
         {
             Title = T("فروش ثبت شد", "Sale recorded"),
             Date = Model.SaleDate.ToDisplayDate(),
+            Timestamp = Model.SaleDate,
             Icon = "bi-receipt",
             State = Model.Payments.Count == 0 ? "is-current" : null,
             Meta = $"{Model.TotalUsd:N2} USD"
@@ -162,6 +136,7 @@
                 ? T("مصرف پیش‌دریافت", "Advance applied")
                 : payment.IsIncoming ? T("دریافت", "Receipt") : T("برگشت وجه", "Refund"),
             Date = payment.PaymentDate.ToDisplayDate(),
+            Timestamp = payment.PaymentDate,
             Icon = payment.IsAdvanceApplication ? "bi-arrow-repeat" : payment.IsIncoming ? "bi-arrow-down-left" : "bi-arrow-up-right",
             Href = Url.Action("Details", "Payments", new { id = payment.PaymentTransactionId, returnUrl = currentReturnUrl }),
             Meta = $"{(payment.IsIncoming ? "+" : "-")}{payment.Amount.ToString("N2")} {payment.Currency}"
@@ -231,63 +206,60 @@
         });
     }
 
-    var nextActions = new List<AkHeaderMenuItem>
+    // Next operations of this sale. Recording the receipt is the CTA while money
+    // is still outstanding; otherwise printing the invoice is.
+    var nextActions = new List<AkHeaderMenuItem>();
+    if (canRegisterReceipt)
     {
-        new() { Label = T("فروش جدید", "New sale"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
+        nextActions.Add(new AkHeaderMenuItem
+        {
+            Label = T("ثبت دریافت", "Record receipt"),
+            Href = Url.Action("Create", "Payments", new { customerId = Model.CustomerId, salesTransactionId = Model.Id, returnUrl = currentReturnUrl }),
+            Icon = "bi-cash-coin"
+        });
+    }
+    nextActions.Add(new AkHeaderMenuItem
+    {
+        Label = T("فاکتور ۱", "Invoice 1"),
+        Href = Url.Action("Invoice", new { id = Model.Id, template = "faisal" }),
+        Icon = "bi-receipt"
+    });
+    nextActions.Add(new AkHeaderMenuItem
+    {
+        Label = T("فاکتور ۲", "Invoice 2"),
+        Href = Url.Action("Invoice", new { id = Model.Id, template = "fawad" }),
+        Icon = "bi-receipt-cutoff"
+    });
+    var activityRows = new List<AkDetailActivityRow>
+    {
+        new() { Label = T("دریافت‌ها", "Receipts"), Value = Model.Payments.Count.ToString("N0"), Meta = Model.Payments.Count > 0 ? T("پرداخت ثبت شده", "Recorded payments") : T("بدون پرداخت", "No payment"), Status = Model.ReceivableBalanceUsd <= 0m ? T("تکمیل", "Complete") : T("باز", "Open"), StatusTone = Model.ReceivableBalanceUsd <= 0m ? "success" : "warning", Href = "#sale-payments", Icon = "bi-cash-coin" },
+        new() { Label = T("منبع و تحویل", "Source & delivery"), Value = stockSourceText, Meta = Model.DestinationName, Status = !string.IsNullOrWhiteSpace(stockSourceText) ? T("مشخص", "Defined") : null, StatusTone = !string.IsNullOrWhiteSpace(stockSourceText) ? "success" : null, Icon = "bi-box-arrow-right" },
+        new() { Label = T("رکوردهای مرتبط", "Related records"), Value = relatedRecords.Count > 0 ? relatedRecords.Count.ToString("N0") : null, Status = relatedRecords.Count > 0 ? T("متصل", "Linked") : null, StatusTone = relatedRecords.Count > 0 ? "success" : null, Icon = "bi-link-45deg" }
     };
-    ViewData["AkHeaderOverflowActions"] = nextActions;
 
     ViewData["Title"] = T("جزئیات فروش", "Sale details");
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+    @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
+       {
+           Title = $"{customerText} · {Model.ProductName}",
+           Eyebrow = $"{T("فروش", "Sale")} {Model.InvoiceNumber}",
+           Meta = $"{Model.SaleDate.ToDisplayDate()} · {stageText}",
+           Icon = "bi-receipt",
+           Status = ViewData["AkHeaderStatus"]?.ToString(),
+           StatusState = ViewData["AkHeaderStatusState"]?.ToString()
+       }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("فروش", "Sale") + " " + Model.InvoiceNumber, false,
-                       canRegisterReceipt ? T("ثبت دریافت", "Record receipt") : T("فاکتور ۱", "Invoice 1"),
-                       canRegisterReceipt ? "bi-cash-coin" : "bi-receipt",
-                       canRegisterReceipt
-                           ? Url.Action("Create", "Payments", new { customerId = Model.CustomerId, salesTransactionId = Model.Id, returnUrl = currentReturnUrl })
-                           : Url.Action("Invoice", new { id = Model.Id, template = "faisal" }), (string?)null,
-                       T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
+    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
+             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات فروش", "Sale summary"), AriaLabel = T("نمای اصلی فروش", "Sale overview"), Metrics = kpis, Facts = overviewItems })" />
 
-    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("اطلاعات فروش", "Sale information"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
-
-        <section class="ak-form-section ak-detail-section ak-sale-money">
-            <header class="ak-section-head ak-detail-section-header">
-                <h2 class="ak-section-title">@T("صورت‌حساب فروش", "Sale statement")</h2>
-                @* جفت‌ارز فقط وقتی تبدیل واقعی هست؛ در فروش دلاری «USD → USD» نویز است. *@
-                <span class="ak-sale-money-currency" dir="ltr">@(isSameCurrency ? "USD" : $"{Model.Currency} → USD")</span>
-            </header>
-            <div class="ak-list ak-sale-money-list">
-                @foreach (var row in moneyRows)
-                {
-                    <div class="ak-list-row @(row.IsTotal ? "is-total" : null)">
-                        <span class="ak-field">
-                            <strong>@row.Label</strong>
-                            @if (!string.IsNullOrWhiteSpace(row.Hint))
-                            {
-                                <small>@row.Hint</small>
-                            }
-                        </span>
-                        <span class="ak-num @(row.Tone is not null ? "is-" + row.Tone : null)">
-                            <bdi>@row.Value</bdi>
-                            <span class="ak-sale-money-unit">@row.Unit</span>
-                        </span>
-                    </div>
-                }
-            </div>
-        </section>
-
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("منبع و تحویل", "Source and delivery"), (string?)null, (IReadOnlyList<AkInfoItem>)sourceItems))" />
-    </div>
-
-    <section class="ak-form-section ak-detail-section">
+    <section class="ak-form-section ak-detail-section ak-detail-reference-section" id="sale-payments">
         <header class="ak-section-head ak-detail-section-header">
             <h2 class="ak-section-title">@T("پرداخت‌های مرتبط", "Linked payments")</h2>
             <span class="ak-status">@Model.Payments.Count</span>
@@ -317,16 +289,23 @@
 
     @if (!string.IsNullOrWhiteSpace(Model.Notes))
     {
-        <section class="ak-form-section ak-detail-section ak-sale-notes">
+        <section class="ak-form-section ak-detail-section ak-sale-notes ak-detail-reference-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                      model="@((T("یادداشت", "Notes"), (string?)null))" />
             <p class="ak-note mb-0">@Model.Notes</p>
         </section>
     }
 
-    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
-             model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
-                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
-                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
+    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
+             model="@(new AkDetailSecondaryModel
+             {
+                 TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
+                 TimelineLimit = 4,
+                 Timeline = showTimeline ? timelineItems : Array.Empty<AkTimelineItem>(),
+                 Related = relatedRecords,
+                 Technical = advancedItems
+             })" />
+    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
 </div>

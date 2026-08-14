@@ -31,7 +31,7 @@ public sealed class ShipmentSummaryPdfTests
         Assert.Equal("تأمین‌کننده نمونه", model.Rows[0].DetailText);
 
         AssertRow(model.Rows[1], "کل بار", "100.000", "-", "MV SADIQI");
-        AssertRow(model.Rows[2], "تخلیه‌شده", "89.000", "-", "-");
+        AssertRow(model.Rows[2], "تخلیه‌شده", "90.000", "-", "-");
         AssertRow(model.Rows[3], "ضایعات ثبت‌شده", "0.000", "-", "-");
         AssertRow(model.Rows[4], "هزینه خرید", "-", "55,000.00", "-");
         AssertRow(model.Rows[5], "مصارف عملیاتی", "-", "5,000.00", "-");

@@ -588,6 +588,12 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     gap: 6px;
 }
 
+/* POST actions arrive wrapped in an antiforgery form; the form is a submission
+   wrapper only, so the button stays the direct flex item of the bar. */
+:where(.ak-detail-page) :where(.ak-detail-actionbar) > form {
+    display: contents;
+}
+
 :where(.ak-detail-page) :where(
     .ak-kebab-toggle,
     .ak-detail-pager-link,
@@ -1907,81 +1913,6 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
         border-inline: 5px solid transparent;
         border-top: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
         transform: translateX(-50%);
-    }
-}
-
-/* ==========================================================================
- * Transport-leg / dispatch details ([data-transport-details]).
- * 1) Header identity strip: the info fields flow in the grid while the
- *    vehicle illustration sits compact on the side (was a 640px image
- *    dumped inside a 36px .ak-page-icon box, breaking the header).
- * 2) Action bar: the .ak-page-actions links/buttons carry the shared
- *    Bootstrap .btn look, compact like the party-details toolbar.
- * ======================================================================== */
-[data-transport-details] .ak-detail-section:has(> .itl-vehicle-art) {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-}
-
-/* Info items: compact, tidy, held to one side (narrow two-column pack). */
-[data-transport-details] .ak-detail-section:has(> .itl-vehicle-art) > .ak-form-grid {
-    flex: 0 1 auto;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, max-content));
-    gap: 8px 28px;
-    align-content: center;
-}
-
-[data-transport-details] .ak-detail-section:has(> .itl-vehicle-art) > .ak-form-grid .ak-field {
-    gap: 2px;
-}
-
-/* Vehicle illustration: wider hero on the opposite side. */
-[data-transport-details] .itl-vehicle-art {
-    flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 0;
-    width: clamp(220px, 32vw, 460px);
-}
-
-[data-transport-details] .itl-vehicle-art img {
-    width: 100%;
-    height: auto;
-    max-height: 104px;
-    object-fit: contain;
-    opacity: 0.95;
-}
-
-/* Action toolbar buttons: shared .btn look, compact + wrapping. */
-[data-transport-details] .ak-page-actions {
-    flex-wrap: wrap;
-    row-gap: 8px;
-}
-
-[data-transport-details] .ak-page-actions .btn {
-    min-height: 34px;
-    padding: 6px 12px;
-    font-size: 12.5px;
-    line-height: 1.25;
-    white-space: nowrap;
-}
-
-[data-transport-details] .ak-page-actions .ak-form {
-    margin: 0;
-}
-
-@media (max-width: 640px) {
-    [data-transport-details] .ak-detail-section:has(> .itl-vehicle-art) {
-        flex-direction: column-reverse;
-        align-items: stretch;
-        gap: 12px;
-    }
-    [data-transport-details] .itl-vehicle-art {
-        width: 100%;
     }
 }
 

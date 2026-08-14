@@ -89,6 +89,8 @@
         new() { Label = T("راننده", "Driver"), Value = Model.DriverName },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
     };
+    var identityItems = routeItems.Take(5).ToList();
+    var overviewItems = routeItems.Skip(5).ToList();
 
     var financeItems = new List<AkInfoItem>
     {
@@ -151,6 +153,13 @@
         nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصرف / کرایه", "Register expense"), ModalTarget = "dispatchExpensesModal", Icon = "bi-receipt" });
     }
     ViewData["AkHeaderOverflowActions"] = nextActions;
+    var activityRows = new List<AkDetailActivityRow>
+    {
+        new() { Label = T("گمرک", "Customs"), Value = customsCount > 0 ? customsTotalUsd.ToString("N2") : null, Unit = customsCount > 0 ? "USD" : null, Meta = customsCount > 0 ? T($"{customsCount} مورد", $"{customsCount} items") : null, Status = customsCount > 0 ? T("ثبت شده", "Recorded") : null, StatusTone = customsCount > 0 ? "success" : null, Href = customsCount > 0 ? "#dispatch-customs" : null, Icon = "bi-shield-check" },
+        new() { Label = T("مصارف و کرایه", "Expenses & freight"), Value = expenseCount > 0 || freightUsd > 0 ? (expenseTotalUsd + freightUsd).ToString("N2") : null, Unit = expenseCount > 0 || freightUsd > 0 ? "USD" : null, Meta = expenseCount > 0 ? T($"{expenseCount} مورد", $"{expenseCount} items") : null, Status = expenseCount > 0 || freightUsd > 0 ? T("ثبت شده", "Recorded") : null, StatusTone = expenseCount > 0 || freightUsd > 0 ? "success" : null, Href = expenseCount > 0 || freightUsd > 0 ? "#dispatch-expenses" : null, Icon = "bi-receipt" },
+        new() { Label = T("رسیدهای تحویل", "Delivery receipts"), Value = receiptCount > 0 ? receiptCount.ToString("N0") : null, Meta = receiptCount > 0 ? T("رسید ثبت شده", "Recorded receipts") : null, Status = receiptCount > 0 ? (statusDone ? T("تکمیل", "Complete") : T("در جریان", "In progress")) : null, StatusTone = receiptCount > 0 ? (statusDone ? "success" : "warning") : null, Href = receiptCount > 0 ? "#dispatch-receipts" : null, Icon = "bi-box-arrow-in-down" },
+        new() { Label = T("فروش", "Sale"), Value = Model.SaleQuantityMt.HasValue ? Q(Model.SaleQuantityMt.Value) : null, Unit = Model.SaleQuantityMt.HasValue ? "MT" : null, Meta = Model.SaleInvoiceNumber, Status = Model.SalesTransactionId.HasValue ? T("ثبت شده", "Recorded") : null, StatusTone = Model.SalesTransactionId.HasValue ? "success" : null, Href = Model.SalesTransactionId.HasValue ? "#dispatch-sales" : null, Icon = "bi-receipt-cutoff" }
+    };
 
     ViewData["Title"] = T("جزئیات ارسال با موتر", "Truck dispatch details");
     ViewData["HideSectionTabs"] = true;
@@ -173,24 +182,31 @@
         .ToArray();
 }
 
-<div class="page-stack ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page" dir="rtl" data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
+<div class="page-stack ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="rtl" data-dispatch-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
+    @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
+       {
+           Title = $"{T("حمل با موتر", "Truck dispatch")} · {Model.TruckPlateNumber}",
+           Eyebrow = productName,
+           Meta = documentNumber,
+           Icon = "bi-truck",
+           Status = statusText,
+           StatusState = isCancelled ? "is-danger" : statusDone ? "is-active" : "is-warning",
+           Items = identityItems
+       }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("ارسال", "Dispatch")} {documentNumber}", false,
                        headerIsUnload ? T("ثبت تخلیه / فروش", "Register unload or sale") : T("ثبت مصرف", "Register expense"),
                        headerIsUnload ? "bi-box-arrow-down" : "bi-receipt",
                        headerIsUnload ? Url.Action("Unload", new { id = Model.Id, returnUrl = currentPageReturnUrl }) : (string?)null,
                        headerIsUnload ? (string?)null : "dispatchExpensesModal",
-                       T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
+                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
+    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
+             model="@(new AkDetailOverviewModel { AriaLabel = T("نمای اصلی ارسال", "Dispatch overview"), Metrics = kpis, Facts = overviewItems })" />
 
-    <div class="ak-operations-overview ak-operations-clean-overview" aria-label="@T("نگاه سریع", "Quick scan")">
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("منبع، مسیر و موتر", "Source, route & truck"), (string?)null, (IReadOnlyList<AkInfoItem>)routeItems))" />
+    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
 
-        <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-                 model="@((T("خلاصه مالی ارسال", "Dispatch financial summary"), (string?)null, (IReadOnlyList<AkInfoItem>)financeItems))" />
-    </div>
+    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
     @if (dispatchRecordTabs.Length > 0)
     {
@@ -363,10 +379,13 @@
     </section>
     }
 
-    <partial name="~/Views/Shared/Partials/_OperationsDetailMore.cshtml"
-             model="@((showTimeline ? (IReadOnlyList<AkTimelineItem>)timelineItems : Array.Empty<AkTimelineItem>(),
-                        (IReadOnlyList<AkRelatedRecord>)relatedRecords,
-                        (IReadOnlyList<AkInfoItem>)advancedItems))" />
+    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
+             model="@(new AkDetailSecondaryModel
+             {
+                 Timeline = showTimeline ? timelineItems : Array.Empty<AkTimelineItem>(),
+                 Related = relatedRecords,
+                 Technical = advancedItems
+             })" />
 
     <div class="modal fade loading-expense-modal" id="dispatchExpensesModal" tabindex="-1"
          aria-labelledby="dispatchExpensesModalLabel" aria-hidden="true" data-loading-expense-remote-modal>
@@ -406,7 +425,7 @@
 @section Scripts {
     <script>
         (function () {
-            var root = document.querySelector('[data-transport-details]');
+            var root = document.querySelector('[data-dispatch-details]');
             if (!root) { return; }
 
             // --- row click -> detail modal (resolve bootstrap lazily; bundle is deferred) ---

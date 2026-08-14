@@ -57,7 +57,7 @@ public partial class ShipmentPnlController
         rows.AddRange(
         [
             SummaryRow(isEnglish ? "Original cargo" : "کل بار", model.OriginalShipmentQuantityMt, null, model.VesselName),
-            SummaryRow(isEnglish ? "Received" : "تخلیه‌شده", model.RegisteredVesselReceiptQuantityMt, null, null),
+            SummaryRow(isEnglish ? "Discharged" : "تخلیه‌شده", model.VesselUnloadedQuantityMt, null, null),
             SummaryRow(isEnglish ? "Recorded losses" : "ضایعات ثبت‌شده", model.RecordedLossQuantityMt, null, null),
             SummaryRow(isEnglish ? "Purchase cost" : "هزینه خرید", null, model.TotalPurchaseCostUsd, null),
             SummaryRow(isEnglish ? "Operational expenses" : "مصارف عملیاتی", null, model.TotalOperationalExpensesUsd, null),
@@ -102,11 +102,11 @@ public partial class ShipmentPnlController
         return Document(fileStem, title, filters,
         [
             new("تاریخ", "Date", TabularExportValueType.Date, 14),
-            new("شماره رسید", "Receipt no.", TabularExportValueType.Integer, 12),
+            new("شماره تخلیه", "Discharge no.", TabularExportValueType.Integer, 12),
             new("قرارداد", "Contract", Width: 16),
             new("مقصد", "Destination", Width: 20),
             new("مخزن تخلیه", "Unload tank", Width: 18),
-            new("مقدار رسید MT", "Received MT", TabularExportValueType.Number, 16)
+            new("مقدار تخلیه MT", "Discharged MT", TabularExportValueType.Number, 16)
         ], rows, new TabularExportRow(
         [
             TabularExportCell.Text("جمع / Total"),

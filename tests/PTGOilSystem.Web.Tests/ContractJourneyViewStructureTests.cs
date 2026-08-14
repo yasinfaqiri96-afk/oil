@@ -606,29 +606,46 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-transport-details", view);
         Assert.Contains("data-ak-detail-v2=\"true\"", view);
         Assert.Contains("_AkPageHeader.cshtml", view);
-        Assert.Contains("_DetailKpiStrip.cshtml", view);
+        Assert.Contains("AkHeaderIdentity", view);
+        Assert.Contains("_DetailOverview.cshtml", view);
+        Assert.Contains("_DetailActivityList.cshtml", view);
+        Assert.Contains("ak-linear-detail", view);
+        Assert.Contains("حمل با موتر", view);
+        Assert.Contains("حمل با واگن", view);
+        Assert.Contains("حمل با کشتی", view);
+        Assert.Contains("Model.TransportType == LoadingTransportType.Truck", view);
+        Assert.Contains("Model.TransportType == LoadingTransportType.Wagon", view);
+        Assert.Contains("Model.TransportType == LoadingTransportType.Vessel", view);
+        Assert.Contains("ak-detail-reference-layout", view);
+        Assert.Contains("VisualAvatar = transportVisual", view);
         Assert.DoesNotContain("<vc:stat-card", view);
-        Assert.Contains("_DetailPager.cshtml", view);
-        Assert.Contains("_OperationsDetailMore.cshtml", view);
+        Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
+        Assert.DoesNotContain("<details", view);
+        Assert.DoesNotContain("_DetailPager.cshtml", view);
+        Assert.DoesNotContain("_OperationsDetailMore.cshtml", view);
         Assert.Contains("AkHeaderOverflowActions", view);
-        Assert.DoesNotContain("_DetailActionBar.cshtml", view);
+        // Next operations are the shared bottom bar; the kebab keeps only the side routes.
+        // The old page duplicated both lists into a "next cargo operation" modal as well.
+        Assert.Contains("_DetailActionBar.cshtml", view);
+        Assert.DoesNotContain("nextOperationModal", view);
+        Assert.DoesNotContain("data-next-op-forward", view);
         Assert.Contains("data-ak-operations-detail=\"true\"", view);
         Assert.DoesNotContain("data-ptcd-tab", view);
         Assert.DoesNotContain("data-ptcd-pager", view);
         Assert.DoesNotContain("ak-form-section ak-detail-section is-receipt", view);
-        Assert.Contains("عملیات بعدی بار", view);
         Assert.Contains("ثبت گمرک", view);
         Assert.DoesNotContain("نگاه سریع", view);
         Assert.DoesNotContain("خلاصه مالی حمل", view);
-        Assert.Contains("transport-details-records", view);
-        Assert.Contains("transport-records-table", view);
-        Assert.Contains("data-transport-detail-trigger", view);
-        Assert.Contains("template data-row-detail", view);
-        Assert.Contains("trigger.parentElement.querySelector('template[data-row-detail]')", view);
+        Assert.DoesNotContain("transport-details-records", view);
+        Assert.DoesNotContain("transport-records-table", view);
+        Assert.DoesNotContain("data-transport-detail-trigger", view);
         Assert.DoesNotContain("root.querySelectorAll('.ak-list-row')", view);
         Assert.DoesNotContain("<dl class=\"ak-list\">", view);
         Assert.DoesNotContain("ak-detail-totals", view);
-        Assert.Contains("[data-transport-details] > .ak-operations-clean-overview::before", css);
+        Assert.Contains(".ak-linear-detail .ak-detail-overview", css);
+        Assert.Contains(".ak-linear-detail .ak-detail-metrics", css);
+        Assert.Contains(".ak-linear-detail .ak-detail-activity-row", css);
+        Assert.DoesNotContain("[data-transport-details] .transport-primary-grid", css);
         Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(1)", css);
         Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(2)", css);
         Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(3)", css);
@@ -648,7 +665,8 @@ public class ContractJourneyViewStructureTests
             "src/PTGOilSystem.Web/Views/CustomsDeclarations/Details.cshtml",
             "src/PTGOilSystem.Web/Views/LoadingReceipts/Details.cshtml",
             "src/PTGOilSystem.Web/Views/Loading/Details.cshtml",
-            "src/PTGOilSystem.Web/Views/InventoryTransportLegs/Details.cshtml"
+            "src/PTGOilSystem.Web/Views/InventoryTransportLegs/Details.cshtml",
+            "src/PTGOilSystem.Web/Views/ShipmentPnl/Details.cshtml"
         };
 
         foreach (var path in pages)
@@ -657,13 +675,27 @@ public class ContractJourneyViewStructureTests
 
             Assert.Contains("ak-form-page", view);
             Assert.Contains("_AkPageHeader.cshtml", view);
-            Assert.Contains("ak-operations-overview", view);
-            Assert.Contains("_OperationsDetailMore.cshtml", view);
+            Assert.Contains("AkHeaderIdentity", view);
+            Assert.Contains("_DetailOverview.cshtml", view);
+            Assert.Contains("_DetailActivityList.cshtml", view);
+            Assert.Contains("ak-linear-detail", view);
             Assert.Contains("data-ak-operations-detail=\"true\"", view);
             Assert.Contains("ViewData[\"HideSectionTabs\"] = true;", view);
-            Assert.Contains("AkHeaderOverflowActions", view);
-            Assert.DoesNotContain("AkHeaderContext", view);
-            Assert.DoesNotContain("_DetailActionBar.cshtml", view);
+            Assert.DoesNotContain("_OperationsDetailMore.cshtml", view);
+            Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
+            Assert.DoesNotContain("<vc:stat-card", view);
+            Assert.DoesNotContain("<details", view);
+
+            // Transport legs are the one operation record whose identity is not readable from
+            // the document number alone — the same plate can haul a different product on a
+            // different date over a different route — so this page states product · date · route
+            // in the header context line and drives its staged workflow from the shared action
+            // bar. Every other operation record keeps identity in the summary card and next
+            // actions in the kebab.
+            if (!path.Contains("ShipmentPnl", StringComparison.Ordinal))
+            {
+                Assert.Contains("_DetailActionBar.cshtml", view);
+            }
 
             foreach (var legacy in new[]
             {
@@ -698,10 +730,16 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("class=\"ak-form-grid\"", active);
         Assert.Contains("class=\"ak-table\"", active);
         Assert.Contains("asp-action=\"Details\"", active);
+        // ActiveDetails is a detail page, so it uses the shared linear detail shell like
+        // every other Operations detail view instead of a page-local header and card wall.
         Assert.Contains("ak-form-page", activeDetails);
-        Assert.Contains("class=\"ak-page-header\"", activeDetails);
-        Assert.Contains("class=\"ak-stat-grid\"", activeDetails);
-        Assert.Contains("<vc:stat-card", activeDetails);
+        Assert.Contains("ak-linear-detail", activeDetails);
+        Assert.Contains("_AkPageHeader.cshtml", activeDetails);
+        Assert.Contains("AkHeaderIdentity", activeDetails);
+        Assert.Contains("_DetailOverview.cshtml", activeDetails);
+        Assert.Contains("_DetailActivityList.cshtml", activeDetails);
+        Assert.Contains("_DetailActionBar.cshtml", activeDetails);
+        Assert.DoesNotContain("<vc:stat-card", activeDetails);
         Assert.Contains("class=\"ak-table", activeDetails);
         Assert.Contains("data-href=\"@Url.Action(\"Details\"", index);
         Assert.Contains("LoadingTransportType.Truck => UiText.T(Context, \"موتر\", \"Truck\")", index);
@@ -1138,26 +1176,27 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-receipt-remote-modal", view);
         Assert.Contains("data-receipt-url=\"@receiptEditorUrl\"", view);
         Assert.Contains("Url.Action(\"Create\", \"LoadingReceipts\", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl, modal = true })", view);
-        Assert.Contains("var loadingExpenseTotal = Model.LoadingExpenseTotalUsd;", view);
-        Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page\"", view);
+        Assert.Contains("ak-linear-detail", view);
+        Assert.Contains("ak-detail-reference-layout", view);
         Assert.Contains("_AkPageHeader", view);
-        Assert.Contains("_AkSectionHead", view);
-        Assert.Contains("class=\"ak-form-section", view);
-        Assert.Contains("class=\"ak-list\"", view);
-        Assert.Contains("class=\"ak-status", view);
+        Assert.Contains("_DetailOverview.cshtml", view);
+        Assert.Contains("_DetailActivityList.cshtml", view);
+        Assert.Contains("_DetailSecondary.cshtml", view);
+        Assert.Contains("_DetailActionBar.cshtml", view);
         Assert.DoesNotContain("data-bs-toggle=\"tab\"", view);
         Assert.DoesNotContain("id=\"loading-tab-", view);
         Assert.DoesNotContain("loading-details-simple-page", view);
         Assert.DoesNotContain("loading-detail-clean-header", view);
         Assert.DoesNotContain("loading-detail-single-shell", view);
         Assert.Contains("NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, \"USD/MT\")", view);
-        // AK Detail v2: both totals now flow through the shared _DetailSummaryCard /
-        // _DetailKpiStrip instead of hand-written markup, but they must still come from
-        // the same precomputed view-model values (no re-summing inside the view).
-        Assert.Contains("loadingExpenseTotal.ToString(\"N2\")", view);
+        // Totals must still come from the precomputed view-model values; Razor never
+        // creates a second financial calculation path.
+        Assert.Contains("Model.LoadingExpenseTotalUsd > 0m", view);
         Assert.Contains("loadingCostsGrandTotal.ToString(\"N2\")", view);
-        Assert.Contains("_DetailSummaryCard.cshtml", view);
-        Assert.Contains("_DetailKpiStrip.cshtml", view);
+        Assert.Contains("_DetailOverview.cshtml", view);
+        Assert.Contains("_DetailActivityList.cshtml", view);
+        Assert.DoesNotContain("_DetailSummaryCard.cshtml", view);
+        Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
         Assert.DoesNotContain("expenseLines.Sum", view);
         Assert.DoesNotContain("Model.CustomsItems.Sum", view);
         Assert.DoesNotContain("loading-journal-metrics", view);
@@ -1189,33 +1228,36 @@ public class ContractJourneyViewStructureTests
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
         var detailCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
 
-        Assert.Contains("class=\"ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page\"", view);
+        Assert.Contains("ak-linear-detail", view);
         Assert.Contains("_AkPageHeader", view);
-        Assert.Contains("_AkSectionHead", view);
+        Assert.Contains("_DetailOverview.cshtml", view);
+        Assert.Contains("_DetailActivityList.cshtml", view);
+        Assert.Contains("_DetailSecondary.cshtml", view);
+        Assert.Contains("_DetailActionBar.cshtml", view);
         Assert.Contains("class=\"ak-form-grid", view);
-        Assert.Contains("class=\"ak-list\"", view);
-        Assert.Contains("class=\"ak-status", view);
         Assert.Contains(".ak-form-page", css);
         Assert.Contains(".ak-form-section", css);
         Assert.Contains(".ak-form-grid", css);
         Assert.Contains(".ak-list", css);
         Assert.Contains(".ak-status", css);
-        Assert.Contains("ak-summary-card loading-ruble-pricing", view);
-        Assert.Contains("ak-form-grid ak-form-grid--3", view);
-        Assert.Contains(".ak-operations-overview > .loading-ruble-pricing", detailCss);
-        Assert.Contains(".loading-ruble-pricing .ak-info-grid", detailCss);
-        Assert.Contains("flex-wrap: nowrap;", detailCss);
-        Assert.Contains("var headerPrimaryModal = Model.CanRegisterReceipt ? \"loadingReceiptModal\" : null;", view);
+        Assert.Contains("خلاصه اطلاعات بارگیری", view);
+        Assert.Contains("ak-detail-reference-layout", view);
+        Assert.Contains("TimelineLimit = 4", view);
+        Assert.DoesNotContain("ak-summary-card loading-ruble-pricing", view);
+        Assert.DoesNotContain(".ak-loading-rub-secondary > .loading-ruble-pricing", detailCss);
+        // The header carries no primary button any more: every forward operation of the
+        // loading sits in the action bar, in workflow order, so nothing is offered twice.
+        Assert.DoesNotContain("headerPrimaryModal", view);
         Assert.Contains("Label = T(\"ثبت مصارف\", \"Register expenses\"), ModalTarget = \"loadingExpensesModal\"", view);
-        Assert.Contains("Model.CanRegisterReceipt ? T(\"ثبت رسید\", \"Register receipt\") : (string?)null", view);
+        Assert.Contains("Label = T(\"ثبت رسید\", \"Register receipt\"), ModalTarget = \"loadingReceiptModal\"", view);
         Assert.DoesNotContain("نگاه سریع", view);
         Assert.Contains("[data-loading-details] > .ak-detail-header .ak-kebab-toggle", detailCss);
         Assert.Contains("background: #1877f2 !important;", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(1) .ak-stat-card__value", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(2) .ak-stat-card__value", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(3) .ak-stat-card__value", detailCss);
-        Assert.Contains("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(4) .ak-stat-card__value", detailCss);
-        Assert.Contains("[data-loading-details] > .ak-operations-clean-overview::before", detailCss);
+        Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(4) .ak-stat-card__value", detailCss);
+        Assert.Contains(".ak-linear-detail .ak-detail-overview", detailCss);
         Assert.DoesNotContain("loading-details-simple-page", view);
         Assert.DoesNotContain("loading-detail-simple-card", view);
     }
@@ -1295,10 +1337,9 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("T(\"ورود تکمیل‌شده به موجودی\", \"Completed to inventory\")", view);
         Assert.Contains("allocation.Destination == LoadingReceiptAllocationDestination.ToInventory", view);
         Assert.Contains("allocation.Status == LoadingReceiptAllocationStatus.Completed", view);
-        Assert.Contains("[data-loading-receipt-details] > .ak-operations-clean-overview::before", detailCss);
-        Assert.Contains("[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby=\"operations-more-technical-title\"] .ak-info-cell", detailCss);
-        Assert.Contains("[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby=\"operations-more-technical-title\"] .ak-info-value.ak-num", detailCss);
-        Assert.Contains("direction: rtl;", detailCss);
+        Assert.Contains(".ak-linear-detail .ak-detail-overview", detailCss);
+        Assert.DoesNotContain("[data-loading-receipt-details] .ak-operations-more-group", detailCss);
+        Assert.Contains("dir=\"rtl\"", view);
         Assert.DoesNotContain("var allocationItems", view);
         Assert.DoesNotContain("T(\"ردیف‌های رسید\", \"Receipt lines\")", view);
         Assert.DoesNotContain("loading-details-simple-page", view);
@@ -1690,6 +1731,3 @@ public class ContractJourneyViewStructureTests
             "..",
             relativePath.Replace('/', Path.DirectorySeparatorChar)));
 }
-
-
-

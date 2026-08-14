@@ -414,46 +414,43 @@ public sealed class ShipmentPnlDetailsViewModel
     public decimal DraftTransportQuantityMt { get; init; }
     public bool HasExactSourceTankLineage { get; init; }
 
-    // Compatibility aliases. New KPI/UI code must use the explicit properties.
-    public decimal TransportQuantityMt => InventoryTransportedOutQuantityMt;
-    public decimal ReceivedQuantityMt => VesselUnloadedQuantityMt;
-    public decimal ShortageQuantityMt => InventoryTransportShortageQuantityMt;
     public decimal ShipmentSalesQuantityMt { get; init; }
-    public decimal TraceSoldQuantityMt => TransportLegs.Sum(l => l.SoldQuantityMt);
     public decimal SoldQuantityMt
         => decimal.Round(Math.Max(ShipmentSalesQuantityMt, 0m), 4, MidpointRounding.AwayFromZero);
-    // ماندهٔ منبع از محاسبهٔ منبع‌محور Controller می‌آید.
-    public decimal InStockQuantityMt => RemainingInSourceTankQuantityMt;
     public decimal DispatchedQuantityMt => DispatchTraces.Sum(d => d.ReceivedQuantityMt);
-    // مجموع کسری/ضایعه برای کارت خلاصه.
+
+    // ===== کسری و ضایعه: سه سطلِ بدون هم‌پوشانی و یک جمع =====
+    // هر مقدارِ ازدست‌رفته دقیقاً در یکی از سه سطل می‌افتد، پس TotalLossAndShortageMt
+    // همیشه برابر جمع همان سه است و هیچ عددی دوبار شمرده نمی‌شود.
+    //  ۱) کسری تخلیهٔ ریشه: کشتی/واگن → مخزن.
     public decimal VesselUnloadingShortageQuantityMt
         => ContractLines.Sum(c => c.TransportShortageQuantityMt);
+    //  ۲) کسری حمل داخلی: مخزن → مقصد، از رسیدهای لِج‌های موتر/واگون (InventoryTransportShortageQuantityMt).
+    //  ۳) ضایعهٔ مستقیم محموله: LossEventهایی که به هیچ لِج/بارگیری/فروش وصل نیستند (DirectLossQuantityMt).
     public decimal TotalLossAndShortageMt
         => VesselUnloadingShortageQuantityMt + InventoryTransportShortageQuantityMt + DirectLossQuantityMt;
-    // ضایعات واقعی و سنددار = مجموع LossEventهای ثبت‌شدهٔ محموله (همان ردیف‌های تب کسری‌ها/ضایعات).
-    // بدون هیچ اختلاف مقدارِ بی‌سند؛ اگر کاربر LossEvent ثبت نکرده باشد صفر است.
+    // مجموع همهٔ LossEventهای محموله — همان ردیف‌هایی که جدول تب کسری‌ها فهرست می‌کند.
+    // با سه سطل بالا هم‌پوشانی دارد (LossEventِ وصل به لِج در سطل ۱ یا ۲ هم دیده می‌شود)،
+    // پس هرگز نباید کنار آن‌ها جمع زده شود؛ فقط جمعِ خودِ جدول است.
     public decimal RecordedLossQuantityMt => LossQuantityMt;
-    // کسری مشتق (اختلاف بارگیری/رسید در لِج‌های ریشه و انتقال) — سند «ضایعات» نیست و جدا نمایش داده می‌شود.
-    public decimal TotalTransportShortageMt
+    // کسری مشتق (اختلاف بارگیری/رسید) بدون ضایعهٔ مستقیم = سطل ۱ + سطل ۲.
+    public decimal DerivedShortageMt
         => VesselUnloadingShortageQuantityMt + InventoryTransportShortageQuantityMt;
     public decimal RemainingUnsoldQuantityMt
         => decimal.Round(
             Math.Max(OriginalShipmentQuantityMt - SoldQuantityMt - TotalLossAndShortageMt, 0m),
             4,
             MidpointRounding.AwayFromZero);
-    // «باقی روی کشتی» = بار محموله منهای هر مقدار که از بار کشتی خارج شده:
-    //   حمل از موجودی (موتر/واگون) + فروخته‌شده + کسری تخلیهٔ کشتی→مخزن + ضایعهٔ مستقیم.
-    // به‌خواستهٔ کاربر، فروش به‌صورت کامل کسر می‌شود (حتی اگر از روی واگنِ حمل‌شده فروخته شده باشد)؛
-    // یعنی حمل و فروش هر دو به‌عنوان «خروج از کشتی» شمرده می‌شوند. کسری حمل جدا کسر نمی‌شود چون
-    // بخشی از «حمل‌شده» است. این رقم فقط نمایشی است و به P&L/ارزش موجودی کاری ندارد (آن‌ها RemainingUnsold را می‌بینند).
-    public decimal RemainingInVesselTankQuantityMt
+    // «بار تخلیه‌نشده» = بار محموله منهای آنچه واقعاً از کشتی تخلیه شده و کسری همان تخلیه.
+    // پیش‌تر اینجا RemainingInVesselTankQuantityMt بود که حمل داخلی و فروش را هم کسر می‌کرد؛
+    // آن رقم با ثبت تخلیه تغییر نمی‌کرد و «باقی روی کشتی» را اشتباه نشان می‌داد.
+    // رابطهٔ بسته: OriginalShipment = VesselUnloaded + VesselUnloadingShortage + NotYetDischarged.
+    public decimal NotYetDischargedQuantityMt
         => decimal.Round(
             Math.Max(
                 OriginalShipmentQuantityMt
-                - InventoryTransportedOutQuantityMt
-                - SoldQuantityMt
-                - VesselUnloadingShortageQuantityMt
-                - DirectLossQuantityMt,
+                - VesselUnloadedQuantityMt
+                - VesselUnloadingShortageQuantityMt,
                 0m),
             4,
             MidpointRounding.AwayFromZero);

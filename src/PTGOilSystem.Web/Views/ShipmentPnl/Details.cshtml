@@ -7,6 +7,8 @@
     ViewData["HideSectionTabs"] = true;
     string T(string fa, string en) => UiText.T(Context, fa, en);
     string MoneyCard(decimal value) => value.ToString("#,0.##");
+    string UnitMt() => T("تن", "MT");
+    string UnitUsd() => T("دالر", "USD");
     var selfUrl = Url.Action("Details", "ShipmentPnl", new { id = Model.Id });
     var shipmentGroupKey = $"SHIP:{Model.Id}";
     ViewData["LoadingExpenseEditorAssets"] = true;
@@ -15,14 +17,20 @@
     string DecimalInput(decimal value) => value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
     string MoneyInput(decimal value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     var defaultLossAmountUsd = Model.EstimateLossValueUsd(Model.TotalShortageRegisterableQuantityMt);
-    var shipmentTitle = !string.IsNullOrWhiteSpace(Model.VesselName) ? Model.VesselName : Model.ShipmentCode;
+    var hasVesselName = !string.IsNullOrWhiteSpace(Model.VesselName);
+    var shipmentTitle = hasVesselName ? Model.VesselName! : Model.ShipmentCode;
+    // eyebrow فقط کد محموله است. برچسب توضیحی «حمل با کشتی» حذف شد؛ آیکن کشتی
+    // همین را می‌رساند. وقتی نام کشتی نباشد، عنوان خودش کد است و eyebrow خالی می‌ماند.
+    var shipmentEyebrow = hasVesselName ? Model.ShipmentCode : null;
     var primaryDate = Model.DepartureDate ?? Model.ArrivalDate;
+    var shipmentHeroItems = new List<AkInfoItem>
+    {
+        new() { Label = T("محصول", "Product"), Value = Model.ProductName },
+        new() { Label = T("تأمین‌کننده", "Supplier"), Value = Model.SupplierName },
+        new() { Label = T("مبدأ", "Origin"), Value = Model.OriginName },
+        new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
+    };
     var saleDisplayRows = Model.SaleDisplayRows;
-    var expenseDisplayRows = Model.ExpenseDisplayRows;
-    var customsDisplayRows = expenseDisplayRows.Where(e => e.IsCustoms).ToList();
-    var regularExpenseDisplayRows = expenseDisplayRows.Where(e => !e.IsCustoms).ToList();
-    var customsTotalUsd = customsDisplayRows.Sum(e => e.AmountUsd);
-    var regularExpenseTotalUsd = regularExpenseDisplayRows.Sum(e => e.AmountUsd);
     var lossDisplayRows = Model.LossDisplayRows;
     var transportDisplayGroups = Model.TransportDisplayRows;
     var vesselMovementGroups = transportDisplayGroups.Where(group => group.IsOriginalVesselMovement).ToList();
@@ -42,18 +50,20 @@
     // دسته‌بندی مصارف فقط از منبع واحد مدل (ShipmentExpenseCategorizer) خوانده می‌شود؛
     // KPI، گروه‌های تب مصارف و جدول سود و زیان همگی از همین اعداد استفاده می‌کنند.
     var expenseCategoryGroups = Model.ExpenseCategoryGroups;
-    var freightExpenseUsd = ShipmentExpenseCategorizer.TotalFor(expenseCategoryGroups, ShipmentExpenseCategory.Freight);
-    var customsExpenseUsd = ShipmentExpenseCategorizer.TotalFor(expenseCategoryGroups, ShipmentExpenseCategory.Customs);
-    var documentExpenseUsd = ShipmentExpenseCategorizer.TotalFor(expenseCategoryGroups, ShipmentExpenseCategory.Documents);
-    var terminalExpenseUsd = ShipmentExpenseCategorizer.TotalFor(expenseCategoryGroups, ShipmentExpenseCategory.Terminal);
-    var otherExpenseUsd = ShipmentExpenseCategorizer.TotalFor(expenseCategoryGroups, ShipmentExpenseCategory.Other);
-    var grandExpenseTotalUsd = regularExpenseTotalUsd + customsTotalUsd;
     // کارت‌های KPI مصارف باید با «کل مصارف» جمع بزنند. دسته‌بندی همهٔ ردیف‌ها را بین
     // پنج سطل تقسیم می‌کند، ولی ردیف کارت‌ها فقط کرایه/گمرک/سایر را نشان می‌داد و
     // ترمینال و اسناد نامرئی می‌ماندند؛ پس جمع سه کارت کمتر از «کل» درمی‌آمد.
     // اینجا سه سطلِ غیرکرایه/غیرگمرک زیر همان عنوان «سایر مصارف» جمع می‌شوند.
     // تفکیک کامل پنج دسته در جدول «جزئیات هزینه‌ها بر اساس دسته» همین تب باقی است.
-    var otherExpenseCardUsd = terminalExpenseUsd + documentExpenseUsd + otherExpenseUsd;
+    decimal ExpenseBucketUsd(ShipmentExpenseCategory category) =>
+        expenseCategoryGroups.Where(g => g.Category == category).Sum(g => g.TotalUsd);
+    var freightExpenseUsd = ExpenseBucketUsd(ShipmentExpenseCategory.Freight);
+    var customsExpenseUsd = ExpenseBucketUsd(ShipmentExpenseCategory.Customs);
+    var otherExpenseUsd = Model.TotalOperationalExpensesUsd - freightExpenseUsd - customsExpenseUsd;
+    // درصد حاشیهٔ سود فقط نمایشی است و از همان دو عدد رسمی صفحه ساخته می‌شود.
+    var shipmentMarginPercent = Model.TotalSalesUsd > 0m
+        ? Model.ShipmentNetResultUsd / Model.TotalSalesUsd * 100m
+        : 0m;
     var activeShipmentTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
     activeShipmentTab = activeShipmentTab is "flow" or "compliance" or "balance" or "sales" or "finance" or "trips"
         ? activeShipmentTab
@@ -65,7 +75,7 @@
     var shipmentTabs = new[]
     {
         $"#shipment-summary|{T("خلاصه", "Summary")}|bi-grid-1x2|{(activeShipmentTab == "summary" ? "active" : "")}",
-        $"#shipment-flow|{T("رسیدها", "Receipts")}|bi-box-arrow-in-down|{(activeShipmentTab == "flow" ? "active" : "")}",
+        $"#shipment-flow|{T("تخلیه‌ها", "Discharges")}|bi-box-arrow-in-down|{(activeShipmentTab == "flow" ? "active" : "")}",
         $"#shipment-compliance|{T("مصارف و گمرک", "Expenses & customs")}|bi-receipt-cutoff|{(activeShipmentTab == "compliance" ? "active" : "")}",
         $"#shipment-balance|{T("کسری‌ها", "Shortages")}|bi-clipboard-minus|{(activeShipmentTab == "balance" ? "active" : "")}",
         $"#shipment-sales|{T("فروش‌ها", "Sales")}|bi-cart-check|{(activeShipmentTab == "sales" ? "active" : "")}",
@@ -87,8 +97,6 @@
         _ => "is-amber"
     };
     var totalSourceAllocationMt = Model.ContractLines.Sum(c => c.AllocatedQuantityMt);
-    var avgSalePriceUsd = Model.SoldQuantityMt > 0m ? Model.TotalSalesUsd / Model.SoldQuantityMt : 0m;
-    var totalShipmentCostUsd = Model.TotalPurchaseCostUsd + Model.TotalOperationalExpensesUsd;
     var lineageNoteFa = hasActiveLineage && isApproxLineage
         ? T("بخشی از اطلاعات این پرونده از داده‌های قدیمی یا تخمینی ساخته شده است.",
             "Some information in this file is based on legacy or estimated data.")
@@ -96,114 +104,132 @@
             ? T("این اعداد بر اساس اتصال‌های فعلی سیستم محاسبه شده‌اند و نیازمند ردیابی دقیق موجودی در فاز بعدی هستند.",
                 "These figures are computed from the system's current links and need exact inventory tracing in the next phase.")
             : null;
-    ViewData["AkHeaderStatus"] = hasActiveLineage ? Model.LineageBadgeText : T("پرونده عملیاتی", "Operational file");
+    // نشان وضعیت فقط وقتی حرف تازه‌ای دارد (وضعیت ردیابی بار). برچسب خنثای
+    // «پرونده عملیاتی» چیزی به کاربر نمی‌گفت و حذف شد.
+    ViewData["AkHeaderStatus"] = hasActiveLineage ? Model.LineageBadgeText : null;
     ViewData["AkHeaderStatusState"] = hasVerifiedLineage ? "is-active" : "is-warning";
-    ViewData["AkHeaderContext"] = $"{Model.ShipmentCode} · {(primaryDate.HasValue ? primaryDate.Value.ToDisplayDate() : T("تاریخ ثبت نشده", "No date"))}";
+    // خط context حذف شد: کد محموله در eyebrow و تاریخ در Meta همین header آمده‌اند.
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("ویرایش محموله", "Edit shipment"), Href = Url.Action("Edit", "Shipments", new { id = Model.Id }), Icon = "bi-pencil-square" }
     };
 }
 
-<div class="ak-form-page sf-detail ak-detail-page ak-operations-detail" data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs data-shipment-details-page>
+<div class="ak-form-page sf-detail ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs data-shipment-details-page>
+    @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
+       {
+           Title = shipmentTitle,
+           Eyebrow = shipmentEyebrow,
+           Meta = primaryDate.HasValue ? primaryDate.Value.ToDisplayDate() : null,
+           Icon = "bi-water",
+           Status = ViewData["AkHeaderStatus"]?.ToString(),
+           StatusState = ViewData["AkHeaderStatusState"]?.ToString(),
+           Items = shipmentHeroItems
+       }; }
+    @* هدر اکشن اصلی ندارد. «ثبت کسری» فقط در تب «کسری‌ها» می‌ماند، کنار همان
+       جدولی که روی آن اثر می‌گذارد؛ نه بالای هر هفت تب. *@
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((shipmentTitle, false,
-                       canRegisterDirectLoss ? T("ثبت کسری", "Add loss") : (string?)null,
-                       "bi-clipboard-minus", (string?)null,
-                       canRegisterDirectLoss ? "shipmentDirectLossModal" : (string?)null,
-                       T("برگشت", "Back"), "bi-arrow-right", Url.Action("Index")))" />
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                        T("برگشت", "Back"), "bi-arrow-right", Url.Action("Index")))" />
 
-    @foreach (var exportTab in shipmentExportTabs)
-    {
-        <div class="ak-page-actions" data-ak-tab="shipment-@exportTab"
-             hidden="@(activeShipmentTab == exportTab ? null : "hidden")">
-            @* همان کامپوننت مشترک سیستم، با خروجی اختصاصی تب فعال. *@
-            <partial name="~/Views/Shared/_ExportMenu.cshtml"
-                     model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel(
-                         "DetailsExport",
-                         RouteValues: new Dictionary<string, string?>
-                         {
-                             ["id"] = Model.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                             ["tab"] = exportTab
-                         }))" />
-        </div>
-    }
+
+    @* ===== Shipment key indicators =====
+       آمار مخصوص هر تب. گریدها بیرون از پنل‌ها و بالای ریل تب می‌نشینند و
+       ptg-tabs.js با همان قرارداد [data-ak-tab] آن‌ها را همراه تب فعال عوض می‌کند
+       (مثل منوی خروجی بالا). اعداد فقط از فیلدهای موجود ViewModel می‌آیند. *@
+    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-summary"
+             aria-label="@T("آمار کلی محموله", "Shipment overview statistics")"
+             hidden="@(activeShipmentTab == "summary" ? null : "hidden")">
+        @* اعداد پولی در کارت «خلاصه حساب» همین تب می‌آیند؛ اینجا فقط مقدار بار است. *@
+        <vc:stat-card title="@T("بار کل محموله", "Total cargo")" value="@NumberDisplay.Quantity(Model.OriginalShipmentQuantityMt)" unit="@UnitMt()" avatar="shipment-loaded"></vc:stat-card>
+        <vc:stat-card title="@T("تخلیه‌شده از کشتی", "Discharged from vessel")" value="@NumberDisplay.Quantity(Model.VesselUnloadedQuantityMt)" unit="@UnitMt()" avatar="shipment-discharged"></vc:stat-card>
+        <vc:stat-card title="@T("موجودی در مخزن", "In storage tank")" value="@NumberDisplay.Quantity(Model.RemainingInSourceTankQuantityMt)" unit="@UnitMt()" avatar="shipment-remaining"></vc:stat-card>
+        <vc:stat-card title="@T("فروخته‌شده", "Sold")" value="@NumberDisplay.Quantity(Model.SoldQuantityMt)" unit="@UnitMt()" avatar="shipment-sales"></vc:stat-card>
+    </section>
+
+    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-flow"
+             aria-label="@T("آمار تخلیه‌های کشتی", "Vessel discharge statistics")"
+             hidden="@(activeShipmentTab == "flow" ? null : "hidden")">
+        @* هر چهار عدد از یک مرحلهٔ واحد می‌آیند و جمعشان بسته است:
+           بار کل = تخلیه‌شده + کسری تخلیه + تخلیه‌نشده. *@
+        <vc:stat-card title="@T("تخلیه‌های ثبت‌شده", "Registered discharges")" value="@Model.RegisteredVesselReceiptGroups.Count.ToString("N0")" unit="@T("تخلیه", "discharges")" avatar="documents"></vc:stat-card>
+        <vc:stat-card title="@T("مقدار تخلیه‌شده", "Discharged quantity")" value="@NumberDisplay.Quantity(Model.VesselUnloadedQuantityMt)" unit="@UnitMt()" avatar="shipment-discharged"></vc:stat-card>
+        <vc:stat-card title="@T("بار تخلیه‌نشده", "Not yet discharged")" value="@NumberDisplay.Quantity(Model.NotYetDischargedQuantityMt)" unit="@UnitMt()" avatar="shipment-remaining"></vc:stat-card>
+        <vc:stat-card title="@T("کسری تخلیه", "Discharge shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@UnitMt()" avatar="shipment-losses" state="@(Model.VesselUnloadingShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
+    </section>
+
+    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-compliance"
+             aria-label="@T("آمار مصارف و گمرک", "Expense & customs statistics")"
+             hidden="@(activeShipmentTab == "compliance" ? null : "hidden")">
+        @* جمع سه کارت دقیقاً با «کل مصارف» برابر است؛ ترمینال و اسناد زیر «سایر مصارف» می‌آیند. *@
+        <vc:stat-card title="@T("کل مصارف (با گمرک)", "Total expenses")" value="@MoneyCard(Model.TotalOperationalExpensesUsd)" unit="@UnitUsd()" avatar="shipment-expenses"></vc:stat-card>
+        <vc:stat-card title="@T("کرایه و حمل", "Freight")" value="@MoneyCard(freightExpenseUsd)" unit="@UnitUsd()" avatar="transported"></vc:stat-card>
+        <vc:stat-card title="@T("گمرک", "Customs")" value="@MoneyCard(customsExpenseUsd)" unit="@UnitUsd()" avatar="security"></vc:stat-card>
+        <vc:stat-card title="@T("سایر مصارف", "Other expenses")" value="@MoneyCard(otherExpenseUsd)" unit="@UnitUsd()" avatar="expenses"></vc:stat-card>
+    </section>
+
+    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-balance"
+             aria-label="@T("آمار کسری‌ها", "Shortage statistics")"
+             hidden="@(activeShipmentTab == "balance" ? null : "hidden")">
+        @* سه سطلِ بدون هم‌پوشانی + جمعشان. همان سه جزئی که TotalLossAndShortageMt از
+           آن‌ها ساخته می‌شود، پس کارت چهارم دقیقاً جمع سه کارت اول است. *@
+        <vc:stat-card title="@T("کسری تخلیه (کشتی → مخزن)", "Discharge shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@UnitMt()" avatar="shipment-losses" state="@(Model.VesselUnloadingShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
+        <vc:stat-card title="@T("کسری حمل داخلی", "Internal transport shortage")" value="@NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt)" unit="@UnitMt()" avatar="losses" state="@(Model.InventoryTransportShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
+        <vc:stat-card title="@T("ضایعات مستقیم محموله", "Direct shipment losses")" value="@NumberDisplay.Quantity(Model.DirectLossQuantityMt)" unit="@UnitMt()" avatar="shortage" state="@(Model.DirectLossQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
+        <vc:stat-card title="@T("مجموع کسری و ضایعات", "Total shortage & losses")" value="@NumberDisplay.Quantity(Model.TotalLossAndShortageMt)" unit="@UnitMt()" avatar="profit-loss" state="@(Model.TotalLossAndShortageMt > 0m ? "warning" : null)"></vc:stat-card>
+    </section>
+
+    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-sales"
+             aria-label="@T("آمار فروش محموله", "Shipment sales statistics")"
+             hidden="@(activeShipmentTab == "sales" ? null : "hidden")">
+        <vc:stat-card title="@T("تعداد فروش", "Sales count")" value="@saleDisplayRows.Count.ToString("N0")" unit="@T("فروش", "sales")" avatar="sales-contracts"></vc:stat-card>
+        <vc:stat-card title="@T("مقدار فروخته‌شده", "Sold quantity")" value="@NumberDisplay.Quantity(Model.SoldQuantityMt)" unit="@UnitMt()" avatar="sold-quantity"></vc:stat-card>
+        <vc:stat-card title="@T("درآمد فروش", "Sales revenue")" value="@MoneyCard(Model.TotalSalesUsd)" unit="@UnitUsd()" avatar="shipment-sales"></vc:stat-card>
+        <vc:stat-card title="@T("باقی‌ماندهٔ نافروخته", "Unsold remainder")" value="@NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt)" unit="@UnitMt()" avatar="shipment-remaining"></vc:stat-card>
+    </section>
+
+    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-finance"
+             aria-label="@T("آمار سود و زیان", "Profit & loss statistics")"
+             hidden="@(activeShipmentTab == "finance" ? null : "hidden")">
+        @* تفکیک فروش/خرید/مصارف در بلوک «محاسبهٔ سود و زیان» همان تب می‌ماند؛ کارت‌ها زاویهٔ مدیریتی می‌دهند. *@
+        <vc:stat-card title="@shipmentResultLabel" value="@MoneyCard(Model.NetResultAbsUsd)" unit="@UnitUsd()" avatar="@shipmentResultAvatar" state="@(shipmentResultIsProfit ? null : "warning")"></vc:stat-card>
+        <vc:stat-card title="@T("حاشیهٔ سود", "Profit margin")" value="@shipmentMarginPercent.ToString("0.#")" unit="%" avatar="analysis"></vc:stat-card>
+        <vc:stat-card title="@T("ارزش موجودی باقی‌مانده", "Remaining inventory value")" value="@MoneyCard(Model.RemainingInventoryValueUsd)" unit="@UnitUsd()" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@T("مانده وصول‌نشده", "Outstanding receivable")" value="@MoneyCard(Model.OutstandingReceivableUsd)" unit="@UnitUsd()" avatar="receivables" state="@(Model.OutstandingReceivableUsd > 0m ? "warning" : null)"></vc:stat-card>
+    </section>
+
+    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-trips"
+             aria-label="@T("آمار موجودی و انتقالات", "Inventory & transfer statistics")"
+             hidden="@(activeShipmentTab == "trips" ? null : "hidden")">
+        <vc:stat-card title="@T("تعداد سفرها", "Trips")" value="@inventoryTransportItems.Count.ToString("N0")" unit="@T("سفر", "trips")" avatar="transported"></vc:stat-card>
+        <vc:stat-card title="@T("خارج‌شده از مخزن", "Dispatched from tank")" value="@NumberDisplay.Quantity(Model.InventoryTransportedOutQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@T("در مسیر", "In transit")" value="@NumberDisplay.Quantity(Model.InTransitQuantityMt)" unit="@UnitMt()" avatar="in-transit"></vc:stat-card>
+        <vc:stat-card title="@T("تحویل‌شده در مقصد", "Delivered at destination")" value="@NumberDisplay.Quantity(Model.DeliveredAtDestinationQuantityMt)" unit="@UnitMt()" avatar="dispatch-station"></vc:stat-card>
+    </section>
 
     <section class="ak-form-page">
-        @* هر تب فقط کارت‌های آماری خودش را پیش از نوار تب‌ها نمایش می‌دهد. *@
-        <div class="ak-stat-grid mb-3" data-ak-tab="shipment-summary"
-             hidden="@(activeShipmentTab == "summary" ? null : "hidden")"
-             aria-label="@T("شاخص‌های کلیدی محموله", "Shipment key indicators")">
-            <vc:stat-card title="@T("کل بار", "Total cargo")" value="@NumberDisplay.Quantity(Model.OriginalShipmentQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-loaded"></vc:stat-card>
-            <vc:stat-card title="@T("تخلیه‌شده", "Received")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-discharged"></vc:stat-card>
-            @* «کسری کل» از این تب برداشته شد: TotalTransportShortageMt فقط کسری مشتق است
-               (بدون ضایعات مستقیم)، پس زیر عنوان «کسری کل» رقمِ کمتر از واقع نشان می‌داد.
-               تفکیک کامل کسری در تب «کسری‌ها» است؛ اینجا زنجیرهٔ مقدار ادامه پیدا می‌کند. *@
-            <vc:stat-card title="@T("فروخته‌شده", "Sold")" value="@NumberDisplay.Quantity(Model.SoldQuantityMt)" unit="@T("تن", "MT")" avatar="sold-quantity"></vc:stat-card>
-            @* سود/زیان فقط در تب «سود و زیان» می‌ماند تا خلاصه یک زنجیرهٔ مقدار یکدست باشد. *@
-            <vc:stat-card title="@T("باقی‌مانده در کشتی", "Remaining in vessel")" value="@NumberDisplay.Quantity(Model.RemainingInVesselTankQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-remaining"></vc:stat-card>
-        </div>
+        @* ریل تب و دکمهٔ خروجی یک ردیف‌اند: تب‌ها یک سر، خروجیِ همان تب سر مقابل. *@
+        <div class="sf-tabs-row">
+            <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
+                     model="@(T("بخش‌های پرونده محموله", "Shipment file sections"), shipmentTabs)" />
 
-        <div class="ak-stat-grid mb-3" data-ak-tab="shipment-flow"
-             hidden="@(activeShipmentTab == "flow" ? null : "hidden")"
-             aria-label="@T("خلاصه رسیدها", "Receipt summary")">
-            <vc:stat-card title="@T("تعداد رسیدها", "Receipts")" value="@Model.RegisteredVesselReceiptGroups.Count.ToString("N0")" unit="@T("رسید", "receipts")" avatar="documents"></vc:stat-card>
-            <vc:stat-card title="@T("تخلیه‌شده", "Unloaded")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-discharged"></vc:stat-card>
-            <vc:stat-card title="@T("حمل‌شده از موجودی", "Transported from stock")" value="@NumberDisplay.Quantity(Model.InventoryTransportedOutQuantityMt)" unit="@T("تن", "MT")" avatar="transported"></vc:stat-card>
-            <vc:stat-card title="@T("تحویل‌شده در مقصد", "Delivered")" value="@NumberDisplay.Quantity(Model.DeliveredAtDestinationQuantityMt)" unit="@T("تن", "MT")" avatar="in-transit"></vc:stat-card>
+            @foreach (var exportTab in shipmentExportTabs)
+            {
+                <div class="ak-page-actions" data-ak-tab="shipment-@exportTab"
+                     hidden="@(activeShipmentTab == exportTab ? null : "hidden")">
+                    @* همان کامپوننت مشترک سیستم، با خروجی اختصاصی تب فعال. *@
+                    <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                             model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel(
+                                 "DetailsExport",
+                                 RouteValues: new Dictionary<string, string?>
+                                 {
+                                     ["id"] = Model.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                     ["tab"] = exportTab
+                                 }))" />
+                </div>
+            }
         </div>
-
-        <div class="ak-stat-grid mb-3" data-ak-tab="shipment-compliance"
-             hidden="@(activeShipmentTab == "compliance" ? null : "hidden")"
-             aria-label="@T("خلاصه مصارف", "Expense summary")">
-            <vc:stat-card title="@T("کل مصارف", "Total")" value="@MoneyCard(grandExpenseTotalUsd)" unit="USD" avatar="shipment-expenses"></vc:stat-card>
-            <vc:stat-card title="@T("کرایه و حمل", "Freight")" value="@MoneyCard(freightExpenseUsd)" unit="USD" avatar="transported"></vc:stat-card>
-            <vc:stat-card title="@T("گمرک", "Customs")" value="@MoneyCard(customsExpenseUsd)" unit="USD" avatar="dispatch-station"></vc:stat-card>
-            <vc:stat-card title="@T("سایر مصارف", "Other")" value="@MoneyCard(otherExpenseCardUsd)" unit="USD" avatar="expense-types"></vc:stat-card>
-        </div>
-
-        <div class="ak-stat-grid mb-3" data-ak-tab="shipment-balance"
-             hidden="@(activeShipmentTab == "balance" ? null : "hidden")"
-             aria-label="@T("خلاصه کسری‌ها", "Shortage summary")">
-            @* «کسری کل» حالا همان TotalLossAndShortageMt است که RemainingUnsoldQuantityMt هم
-               کسر می‌کند، و دقیقاً برابر جمع سه کارت بعدی است. پیش از این
-               TotalTransportShortageMt بود که ضایعهٔ مستقیم را نداشت، پس عنوان «کل» با
-               عددش نمی‌خواند. «ضایعات ثبت‌شده» (LossEventها) محور دیگری بود و با بقیه جمع
-               نمی‌شد؛ همان ردیف‌ها در جدول «کسری‌ها و ضایعات ثبت‌شده» همین تب کامل هستند. *@
-            <vc:stat-card title="@T("کسری کل", "Total shortage")" value="@NumberDisplay.Quantity(Model.TotalLossAndShortageMt)" unit="@T("تن", "MT")" avatar="shipment-losses"></vc:stat-card>
-            <vc:stat-card title="@T("کسری تخلیه کشتی", "Vessel unloading shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@T("تن", "MT")" avatar="vessel"></vc:stat-card>
-            <vc:stat-card title="@T("کسری حمل", "Transport shortage")" value="@NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt)" unit="@T("تن", "MT")" avatar="transported"></vc:stat-card>
-            <vc:stat-card title="@T("کسری ثبت‌شدهٔ کشتی", "Registered ship shortage")" value="@NumberDisplay.Quantity(Model.DirectLossQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-losses"></vc:stat-card>
-        </div>
-
-        <div class="ak-stat-grid mb-3" data-ak-tab="shipment-sales"
-             hidden="@(activeShipmentTab == "sales" ? null : "hidden")"
-             aria-label="@T("خلاصه فروش", "Sales summary")">
-            <vc:stat-card title="@T("کل فروش", "Total sales")" value="@MoneyCard(Model.TotalSalesUsd)" unit="@T("دالر", "USD")" avatar="shipment-sales"></vc:stat-card>
-            <vc:stat-card title="@T("فروخته‌شده", "Sold")" value="@NumberDisplay.Quantity(Model.SoldQuantityMt)" unit="@T("تن", "MT")" avatar="sold-quantity"></vc:stat-card>
-            <vc:stat-card title="@T("میانگین قیمت", "Avg price")" value="@MoneyCard(avgSalePriceUsd)" unit="@T("دالر در هر تن", "USD per MT")" avatar="analysis"></vc:stat-card>
-            <vc:stat-card title="@T("مقدار فروش‌نشده", "Unsold quantity")" value="@NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-remaining"></vc:stat-card>
-        </div>
-
-        <div class="ak-stat-grid mb-3" data-ak-tab="shipment-finance"
-             hidden="@(activeShipmentTab == "finance" ? null : "hidden")"
-             aria-label="@T("خلاصه سود و زیان", "Profit and loss summary")">
-            <vc:stat-card title="@T("درآمد فروش", "Sales revenue")" value="@MoneyCard(Model.TotalSalesUsd)" unit="USD" avatar="shipment-sales"></vc:stat-card>
-            <vc:stat-card title="@T("کل بهای محموله", "Total shipment cost")" value="@MoneyCard(totalShipmentCostUsd)" unit="USD" avatar="purchase-value"></vc:stat-card>
-            <vc:stat-card title="@shipmentResultLabel" value="@MoneyCard(Model.ShipmentNetResultUsd)" unit="USD" avatar="@shipmentResultAvatar"></vc:stat-card>
-        </div>
-
-        <div class="ak-stat-grid mb-3" data-ak-tab="shipment-trips"
-             hidden="@(activeShipmentTab == "trips" ? null : "hidden")"
-             aria-label="@T("خلاصه موجودی و انتقالات", "Inventory and transfer summary")">
-            <vc:stat-card title="@T("تعداد سفرها", "Trips")" value="@inventoryTransportItems.Count.ToString("N0")" unit="@T("سفر", "trips")" avatar="in-transit"></vc:stat-card>
-            <vc:stat-card title="@T("حمل‌شده از موجودی", "Transported from stock")" value="@NumberDisplay.Quantity(Model.InventoryTransportedOutQuantityMt)" unit="@T("تن", "MT")" avatar="transported"></vc:stat-card>
-            <vc:stat-card title="@T("تحویل‌شده", "Delivered")" value="@NumberDisplay.Quantity(Model.DeliveredAtDestinationQuantityMt)" unit="@T("تن", "MT")" avatar="dispatch-station"></vc:stat-card>
-            <vc:stat-card title="@T("باقی‌مانده در مخزن", "Remaining in source tank")" value="@NumberDisplay.Quantity(Model.RemainingInSourceTankQuantityMt)" unit="@T("تن", "MT")" avatar="shipment-remaining"></vc:stat-card>
-        </div>
-
-        <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
-                 model="@(T("بخش‌های پرونده محموله", "Shipment file sections"), shipmentTabs)" />
 
         @if (hasActiveLineage)
         {
@@ -382,7 +408,7 @@
             <section class="ak-form-section ak-detail-section">
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">
-                        @T("رسیدهای ثبت‌شده از کشتی", "Registered vessel receipts")
+                        @T("تخلیه‌های ثبت‌شده از کشتی", "Registered vessel discharges")
                         <span class="ptg-capsule-badge">@Model.RegisteredVesselReceiptGroups.Count.ToString("N0")</span>
                     </h2>
                     <div class="ak-list-toolbar-actions no-print">
@@ -391,7 +417,7 @@
                            asp-route-groupKey="SHIP:@Model.Id"
                            asp-route-returnUrl="@selfUrl"
                            class="btn btn-primary ak-primary-action">
-                            <i class="bi bi-box-arrow-in-down"></i><span>@T("ثبت رسید", "Register receipt")</span>
+                            <i class="bi bi-box-arrow-in-down"></i><span>@T("ثبت تخلیه", "Register discharge")</span>
                         </a>
                     </div>
                 </header>
@@ -400,18 +426,18 @@
                         <thead>
                             <tr>
                                 <th scope="col">@T("تاریخ", "Date")</th>
-                                <th scope="col">@T("شماره رسید", "Receipt no.")</th>
+                                <th scope="col">@T("شماره تخلیه", "Discharge no.")</th>
                                 <th scope="col">@T("قرارداد", "Contract")</th>
                                 <th scope="col" class="ak-col-grow">@T("مقصد", "Destination")</th>
                                 <th scope="col">@T("مخزن تخلیه", "Unload tank")</th>
-                                <th scope="col" class="ak-col-num">@T("مقدار رسید", "Received")</th>
+                                <th scope="col" class="ak-col-num">@T("مقدار تخلیه", "Discharged")</th>
                                 <th scope="col" class="ak-col-actions no-print">@T("عملیات", "Actions")</th>
                             </tr>
                         </thead>
                         <tbody>
                         @foreach (var receiptGroup in Model.RegisteredVesselReceiptGroups)
                         {
-                            // یک بار «ثبت رسید» به‌ازای هر قرارداد منبع یک رسید جدا می‌سازد؛ سطر بالا
+                            // یک بار «ثبت تخلیه» به‌ازای هر قرارداد منبع یک تخلیهٔ جدا می‌سازد؛ سطر بالا
                             // مقدار کل همان ثبت است و با باز کردنش سهم هر قرارداد دیده می‌شود.
                             var receiptBreakdownKey = $"vessel-receipt-{receiptGroup.Key}";
                             var firstReceipt = receiptGroup.Items[0];
@@ -420,7 +446,7 @@
                                 <td class="ak-num">
                                     @if (receiptGroup.IsSplitAcrossContracts)
                                     {
-                                        <span class="ak-name">@T($"{receiptGroup.Items.Count:N0} رسید", $"{receiptGroup.Items.Count:N0} receipts")</span>
+                                        <span class="ak-name">@T($"{receiptGroup.Items.Count:N0} تخلیه", $"{receiptGroup.Items.Count:N0} discharges")</span>
                                     }
                                     else
                                     {
@@ -446,7 +472,7 @@
                                         <button type="button"
                                                 class="ak-row-menu-btn"
                                                 title="@T("سهم هر قرارداد", "Per-contract breakdown")"
-                                                aria-label="@T("سهم هر قرارداد از این رسید", "Per-contract breakdown for this receipt")"
+                                                aria-label="@T("سهم هر قرارداد از این تخلیه", "Per-contract breakdown for this discharge")"
                                                 data-contract-breakdown-toggle="@receiptBreakdownKey"
                                                 aria-expanded="false">
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
@@ -455,13 +481,13 @@
                                     else
                                     {
                                         <div class="dropdown ak-row-menu">
-                                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T($"عملیات رسید شماره {firstReceipt.Id}", $"Actions for receipt {firstReceipt.Id}")">
+                                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T($"عملیات تخلیه شماره {firstReceipt.Id}", $"Actions for discharge {firstReceipt.Id}")">
                                                 <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
                                                 <li>
                                                     <a class="dropdown-item" asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@firstReceipt.InventoryTransportLegId" asp-route-returnUrl="@selfUrl">
-                                                        <i class="bi bi-eye"></i><span>@T("جزئیات رسید", "Receipt details")</span>
+                                                        <i class="bi bi-eye"></i><span>@T("جزئیات تخلیه", "Discharge details")</span>
                                                     </a>
                                                 </li>
                                                 @if (firstReceipt.CanChainOnward)
@@ -492,7 +518,7 @@
                                             <thead>
                                                 <tr>
                                                     <th scope="col" class="ak-col-grow">@T("قرارداد", "Contract")</th>
-                                                    <th scope="col">@T("شماره رسید", "Receipt no.")</th>
+                                                    <th scope="col">@T("شماره تخلیه", "Discharge no.")</th>
                                                     <th scope="col" class="ak-col-num">@T("سهم مقدار", "Quantity share")</th>
                                                     <th scope="col" class="ak-col-actions no-print">@T("عملیات", "Actions")</th>
                                                 </tr>
@@ -508,13 +534,13 @@
                                                         <td class="ak-num ak-col-num">@NumberDisplay.Quantity(receipt.ReceivedQuantityMt) @T("تن", "MT")</td>
                                                         <td class="ak-col-actions no-print">
                                                             <div class="dropdown ak-row-menu">
-                                                                <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T($"عملیات رسید شماره {receipt.Id}", $"Actions for receipt {receipt.Id}")">
+                                                                <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="@T($"عملیات تخلیه شماره {receipt.Id}", $"Actions for discharge {receipt.Id}")">
                                                                     <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                                                 </button>
                                                                 <ul class="dropdown-menu dropdown-menu-end">
                                                                     <li>
                                                                         <a class="dropdown-item" asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@receipt.InventoryTransportLegId" asp-route-returnUrl="@selfUrl">
-                                                                            <i class="bi bi-eye"></i><span>@T("جزئیات رسید", "Receipt details")</span>
+                                                                            <i class="bi bi-eye"></i><span>@T("جزئیات تخلیه", "Discharge details")</span>
                                                                         </a>
                                                                     </li>
                                                                     @if (receipt.CanChainOnward)
@@ -547,7 +573,7 @@
                         {
                             <tr>
                                 <td colspan="7">
-                                    <div class="ak-empty"><i class="bi bi-inbox"></i>@T("هنوز رسیدی از فورم ثبت رسید کشتی برای این محموله ثبت نشده است.", "No vessel receipt has been registered from the receipt form for this shipment.")</div>
+                                    <div class="ak-empty"><i class="bi bi-inbox"></i>@T("هنوز تخلیه‌ای از فورم ثبت تخلیهٔ کشتی برای این محموله ثبت نشده است.", "No vessel discharge has been registered from the discharge form for this shipment.")</div>
                                 </td>
                             </tr>
                         }
@@ -556,7 +582,7 @@
                         {
                             <tfoot>
                                 <tr>
-                                    <th scope="row" colspan="5">@T("مجموع رسیدها", "Receipts total")</th>
+                                    <th scope="row" colspan="5">@T("مجموع تخلیه‌ها", "Discharges total")</th>
                                     <th class="ak-num ak-col-num">@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt) @T("تن", "MT")</th>
                                     <th class="ak-col-actions no-print"></th>
                                 </tr>
@@ -569,7 +595,6 @@
 
         @* ============ تب ۲: مصارف و کسورات ============ *@
         <div class="@PaneClass("compliance")" id="shipment-compliance" role="tabpanel">
-
             @{
                 // گروه‌بندی از منبع واحد مدل می‌آید؛ اینجا فقط برچسب و آیکن نمایش تعیین می‌شود.
                 // گمرک هم مثل بقیه یک دسته است و در «جمع کل» شمرده می‌شود.
@@ -611,7 +636,7 @@
                             data-bs-toggle="modal" data-bs-target="#shipmentExpensesModal"
                             data-expense-url="@Url.Action("CreateGroupExpenseModal", "InventoryTransportLegs", new { groupKey = shipmentGroupKey, returnUrl = selfUrl })"><i class="bi bi-receipt-cutoff me-1"></i> @T("ثبت مصرف", "Add expense")</button>
                 </div>
-                <p class="ak-section-desc no-print">@T("این هزینه‌ها همهٔ مراحل بار تا فروش را پوشش می‌دهند و در دسته‌های زیر تفکیک شده‌اند.", "These costs cover every stage from cargo to sale, split into the categories below.")</p>
+                <p class="ak-section-desc no-print">@T("", "These costs cover every stage from cargo to sale, split into the categories below.")</p>
             </section>
 
             @if (expenseGroups.Count == 0)
@@ -900,9 +925,12 @@
         </div>
 
         <div class="@PaneClass("balance")" id="shipment-balance" role="tabpanel">
+            @* جدول زیر همهٔ LossEventهای محموله را فهرست می‌کند (از جمله آن‌هایی که به یک
+               لِج/بارگیری وصل‌اند)، پس جمع آن با کارت «ضایعات مستقیم» یکی نیست. هر دو عدد
+               اینجا صریح می‌آیند تا اختلافشان سؤال‌برانگیز نباشد. *@
             <p class="ak-operations-tab-fact">
-                <span>@T("ارزش تخمینی کسری", "Estimated shortage value")</span>
-                <strong dir="ltr">@MoneyCard(Model.EstimatedShortageValueUsd) USD</strong>
+                <span>@T("مجموع ضایعات ثبت‌شده", "Recorded loss events total"): <strong dir="ltr">@NumberDisplay.Quantity(Model.RecordedLossQuantityMt) MT</strong></span>
+                <span>@T("ارزش تخمینی کسری", "Estimated shortage value"): <strong dir="ltr">@MoneyCard(Model.EstimatedShortageValueUsd) USD</strong></span>
             </p>
             <section class="ak-form-section ak-detail-section">
                 <header class="ak-section-head ak-detail-section-header">

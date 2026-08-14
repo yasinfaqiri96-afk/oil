@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -525,16 +526,12 @@ public partial class ShipmentPnlController : Controller
             })
             .ToListAsync();
 
-        var shipmentGroupReceiptTag = $"Group receipt: SHIP:{id} |";
+        // جدول تب تخلیه و مرحلهٔ VesselUnloaded باید یک مجموعهٔ یکسان را ببینند؛
+        // پیش‌تر دو شرط جدا داشتند و تخلیه‌های ثبت‌شده بیرون از فورم گروهی فقط در
+        // یکی از دو طرف شمرده می‌شدند. حالا هر دو از VesselDischargeReceiptFilter می‌آیند.
         var registeredVesselReceiptRows = await _db.InventoryTransportReceipts
             .AsNoTracking()
-            .Where(r => !r.IsCancelled
-                && r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
-                && r.InventoryMovementId.HasValue
-                && r.InventoryTransportLeg != null
-                && r.InventoryTransportLeg.ShipmentId == id
-                && r.Notes != null
-                && r.Notes.Contains(shipmentGroupReceiptTag))
+            .Where(VesselDischargeReceiptFilter(id))
             .OrderByDescending(r => r.ReceiptDate)
             .ThenByDescending(r => r.Id)
             .Select(r => new
@@ -1166,6 +1163,30 @@ public partial class ShipmentPnlController : Controller
             .ToList();
     }
 
+    /// <summary>
+    /// تنها تعریف «تخلیهٔ کشتی» در پروندهٔ محموله. یک رسیدِ ورود به موجودی که روی
+    /// لِج فعالِ همین محموله ثبت شده و یا لِجِ کشتی است یا از فورم «ثبت تخلیهٔ گروهی»
+    /// همین صفحه آمده است.
+    ///
+    /// جدول تب تخلیه، مقدار مرحلهٔ VesselUnloaded و خروجی همان تب همگی از این یک
+    /// شرط تغذیه می‌شوند. پیش‌تر دو شرط جداگانه وجود داشت (یکی فقط یادداشت گروهی را
+    /// می‌پذیرفت و دیگری لِجِ کشتی را هم) و همین باعث می‌شد کارت آماری و جدول دو عدد
+    /// متفاوت بدهند.
+    /// </summary>
+    private static Expression<Func<InventoryTransportReceipt, bool>> VesselDischargeReceiptFilter(int shipmentId)
+    {
+        var groupReceiptTag = $"Group receipt: SHIP:{shipmentId} |";
+        return r => !r.IsCancelled
+            && r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
+            && r.InventoryMovementId.HasValue
+            && r.InventoryTransportLeg != null
+            && r.InventoryTransportLeg.ShipmentId == shipmentId
+            && r.InventoryTransportLeg.Status != InventoryTransportLegStatus.Draft
+            && r.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled
+            && (r.InventoryTransportLeg.TransportType == LoadingTransportType.Vessel
+                || (r.Notes != null && r.Notes.Contains(groupReceiptTag)));
+    }
+
     private sealed record ShipmentSourceReceiptRow(
         int ContractId,
         int ProductId,
@@ -1238,19 +1259,10 @@ public partial class ShipmentPnlController : Controller
                     0m);
             });
 
-        var shipmentGroupReceiptTag = $"Group receipt: SHIP:{shipment.Id} |";
         var exactVesselSourceRows = await _db.InventoryTransportReceipts
             .AsNoTracking()
-            .Where(r => !r.IsCancelled
-                && r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
-                && r.DestinationTerminalId.HasValue
-                && r.InventoryMovementId.HasValue
-                && r.InventoryTransportLeg != null
-                && r.InventoryTransportLeg.ShipmentId == shipment.Id
-                && (r.InventoryTransportLeg.TransportType == LoadingTransportType.Vessel
-                    || (r.Notes != null && r.Notes.Contains(shipmentGroupReceiptTag)))
-                && r.InventoryTransportLeg.Status != InventoryTransportLegStatus.Draft
-                && r.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+            .Where(VesselDischargeReceiptFilter(shipment.Id))
+            .Where(r => r.DestinationTerminalId.HasValue)
             .Select(r => new ShipmentSourceReceiptRow(
                 r.InventoryTransportLeg!.SourcePurchaseContractId,
                 r.InventoryTransportLeg.ProductId,
