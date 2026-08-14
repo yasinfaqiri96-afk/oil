@@ -151,10 +151,12 @@
     <section class="ak-stat-grid mb-3" data-ak-tab="shipment-flow"
              aria-label="@T("آمار تخلیه‌های کشتی", "Vessel discharge statistics")"
              hidden="@(activeShipmentTab == "flow" ? null : "hidden")">
+        @* هر چهار عدد از یک مرحلهٔ واحد می‌آیند و جمعشان بسته است:
+           بار کل = تخلیه‌شده + کسری تخلیه + تخلیه‌نشده. *@
         <vc:stat-card title="@T("تخلیه‌های ثبت‌شده", "Registered discharges")" value="@Model.RegisteredVesselReceiptGroups.Count.ToString("N0")" unit="@T("تخلیه", "discharges")" avatar="documents"></vc:stat-card>
-        <vc:stat-card title="@T("مقدار تخلیه‌شده", "Discharged quantity")" value="@NumberDisplay.Quantity(Model.RegisteredVesselReceiptQuantityMt)" unit="@UnitMt()" avatar="shipment-discharged"></vc:stat-card>
-        <vc:stat-card title="@T("باقی‌مانده در کشتی", "Remaining in vessel")" value="@NumberDisplay.Quantity(Model.RemainingInVesselTankQuantityMt)" unit="@UnitMt()" avatar="shipment-remaining"></vc:stat-card>
-        <vc:stat-card title="@T("کسری تخلیه کشتی", "Discharge shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@UnitMt()" avatar="shipment-losses" state="@(Model.VesselUnloadingShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
+        <vc:stat-card title="@T("مقدار تخلیه‌شده", "Discharged quantity")" value="@NumberDisplay.Quantity(Model.VesselUnloadedQuantityMt)" unit="@UnitMt()" avatar="shipment-discharged"></vc:stat-card>
+        <vc:stat-card title="@T("بار تخلیه‌نشده", "Not yet discharged")" value="@NumberDisplay.Quantity(Model.NotYetDischargedQuantityMt)" unit="@UnitMt()" avatar="shipment-remaining"></vc:stat-card>
+        <vc:stat-card title="@T("کسری تخلیه", "Discharge shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@UnitMt()" avatar="shipment-losses" state="@(Model.VesselUnloadingShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
     </section>
 
     <section class="ak-stat-grid mb-3" data-ak-tab="shipment-compliance"
@@ -170,10 +172,12 @@
     <section class="ak-stat-grid mb-3" data-ak-tab="shipment-balance"
              aria-label="@T("آمار کسری‌ها", "Shortage statistics")"
              hidden="@(activeShipmentTab == "balance" ? null : "hidden")">
-        <vc:stat-card title="@T("کسری کشتی", "Vessel shortage")" value="@NumberDisplay.Quantity(Model.ShipShortageQuantityMt)" unit="@UnitMt()" avatar="shipment-losses" state="@(Model.ShipShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
-        <vc:stat-card title="@T("کسری حمل داخلی", "Transport shortage")" value="@NumberDisplay.Quantity(Model.TotalTransportShortageMt)" unit="@UnitMt()" avatar="losses" state="@(Model.TotalTransportShortageMt > 0m ? "warning" : null)"></vc:stat-card>
-        <vc:stat-card title="@T("ضایعات ثبت‌شده", "Recorded losses")" value="@NumberDisplay.Quantity(Model.RecordedLossQuantityMt)" unit="@UnitMt()" avatar="shortage"></vc:stat-card>
-        <vc:stat-card title="@T("ارزش تخمینی کسری", "Estimated shortage value")" value="@MoneyCard(Model.EstimatedShortageValueUsd)" unit="@UnitUsd()" avatar="profit-loss"></vc:stat-card>
+        @* سه سطلِ بدون هم‌پوشانی + جمعشان. همان سه جزئی که TotalLossAndShortageMt از
+           آن‌ها ساخته می‌شود، پس کارت چهارم دقیقاً جمع سه کارت اول است. *@
+        <vc:stat-card title="@T("کسری تخلیه (کشتی → مخزن)", "Discharge shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@UnitMt()" avatar="shipment-losses" state="@(Model.VesselUnloadingShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
+        <vc:stat-card title="@T("کسری حمل داخلی", "Internal transport shortage")" value="@NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt)" unit="@UnitMt()" avatar="losses" state="@(Model.InventoryTransportShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
+        <vc:stat-card title="@T("ضایعات مستقیم محموله", "Direct shipment losses")" value="@NumberDisplay.Quantity(Model.DirectLossQuantityMt)" unit="@UnitMt()" avatar="shortage" state="@(Model.DirectLossQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
+        <vc:stat-card title="@T("مجموع کسری و ضایعات", "Total shortage & losses")" value="@NumberDisplay.Quantity(Model.TotalLossAndShortageMt)" unit="@UnitMt()" avatar="profit-loss" state="@(Model.TotalLossAndShortageMt > 0m ? "warning" : null)"></vc:stat-card>
     </section>
 
     <section class="ak-stat-grid mb-3" data-ak-tab="shipment-sales"
@@ -921,6 +925,13 @@
         </div>
 
         <div class="@PaneClass("balance")" id="shipment-balance" role="tabpanel">
+            @* جدول زیر همهٔ LossEventهای محموله را فهرست می‌کند (از جمله آن‌هایی که به یک
+               لِج/بارگیری وصل‌اند)، پس جمع آن با کارت «ضایعات مستقیم» یکی نیست. هر دو عدد
+               اینجا صریح می‌آیند تا اختلافشان سؤال‌برانگیز نباشد. *@
+            <p class="ak-operations-tab-fact">
+                <span>@T("مجموع ضایعات ثبت‌شده", "Recorded loss events total"): <strong dir="ltr">@NumberDisplay.Quantity(Model.RecordedLossQuantityMt) MT</strong></span>
+                <span>@T("ارزش تخمینی کسری", "Estimated shortage value"): <strong dir="ltr">@MoneyCard(Model.EstimatedShortageValueUsd) USD</strong></span>
+            </p>
             <section class="ak-form-section ak-detail-section">
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">

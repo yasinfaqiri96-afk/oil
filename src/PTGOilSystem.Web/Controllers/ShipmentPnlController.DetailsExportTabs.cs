@@ -57,7 +57,7 @@ public partial class ShipmentPnlController
         rows.AddRange(
         [
             SummaryRow(isEnglish ? "Original cargo" : "کل بار", model.OriginalShipmentQuantityMt, null, model.VesselName),
-            SummaryRow(isEnglish ? "Received" : "تخلیه‌شده", model.RegisteredVesselReceiptQuantityMt, null, null),
+            SummaryRow(isEnglish ? "Discharged" : "تخلیه‌شده", model.VesselUnloadedQuantityMt, null, null),
             SummaryRow(isEnglish ? "Recorded losses" : "ضایعات ثبت‌شده", model.RecordedLossQuantityMt, null, null),
             SummaryRow(isEnglish ? "Purchase cost" : "هزینه خرید", null, model.TotalPurchaseCostUsd, null),
             SummaryRow(isEnglish ? "Operational expenses" : "مصارف عملیاتی", null, model.TotalOperationalExpensesUsd, null),
