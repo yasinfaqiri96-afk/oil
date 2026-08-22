@@ -162,7 +162,11 @@ else
                             <thead>
                                 <tr>
                                     <th class="ak-col-w-2xl">نوع مصرف</th>
-                                    <th class="ak-col-w-sm">ارز</th>
+                                    @* ستون ارز یک <select> بومی دارد، نه متن. با ak-col-w-sm عرض کنترل
+                                       ۸۰px می‌شد و پس از کسر padding و فلش بومی چیزی برای متن نمی‌ماند؛
+                                       لیست بازشونده هم چون عرضش را از خود کنترل می‌گیرد باریک می‌ماند.
+                                       ak-col-w-md همان توکنی است که ستون‌های مبلغ و نرخ تبدیل دارند. *@
+                                    <th class="ak-col-w-md">ارز</th>
                                     <th class="ak-col-w-md">مبلغ</th>
                                     <th class="ak-col-w-md">نرخ تبدیل (AFN/USD)</th>
                                     <th class="ak-col-w-lg">معادل</th>

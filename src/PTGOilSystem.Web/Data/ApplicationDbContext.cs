@@ -1064,6 +1064,21 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(p => p.CashAccountId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // منبعِ پول. Default در سطح دیتابیس تعریف می‌شود تا هم رکوردهای موجود درست Backfill شوند و
+        // هم مسیرهای INSERT خامِ SQL (که این ستون را نمی‌شناسند) نشکنند. مقدار پیش‌فرض Company است
+        // و چون CLR default این enum صفر است، EF همیشه مقدار واقعی را صریح می‌فرستد.
+        modelBuilder.Entity<PaymentTransaction>()
+            .Property(p => p.FundingSource)
+            .HasDefaultValue(PaymentFundingSource.Company);
+
+        // پرداختِ تأمین‌شده توسط شریک. Restrict مثل بقیهٔ طرف‌حساب‌ها تا شریکِ دارای پرداخت حذف نشود.
+        modelBuilder.Entity<PaymentTransaction>()
+            .HasOne(p => p.PaidByPartner)
+            .WithMany()
+            .HasForeignKey(p => p.PaidByPartnerId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PaymentTransaction>().HasIndex(p => p.PaidByPartnerId);
+
         modelBuilder.Entity<PaymentTransaction>()
             .HasOne(p => p.Company)
             .WithMany()

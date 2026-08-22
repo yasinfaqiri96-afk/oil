@@ -152,7 +152,36 @@
                         <span asp-validation-for="SarrafId" class="field-validation-error"></span>
                     </div>
 
-                    <div class="ak-field">
+                    @* پرداخت توسط شرکت یا شریک. «شریک» یعنی پول از صندوق/بانک شرکت خارج نشده
+                       و شریکِ همین قرارداد مستقیماً پرداخت کرده است. *@
+                    <div class="ak-field" id="fundingSourceField">
+                        <label class="ak-label"><i class="bi bi-wallet2"></i> پرداخت توسط</label>
+                        <div class="d-flex gap-3 align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="FundingSource" value="1"
+                                       id="fundingSourceCompany"
+                                       checked="@(Model.FundingSource != PaymentFundingSource.Partner)" />
+                                <label class="form-check-label" for="fundingSourceCompany">شرکت</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="FundingSource" value="2"
+                                       id="fundingSourcePartner"
+                                       checked="@(Model.FundingSource == PaymentFundingSource.Partner)" />
+                                <label class="form-check-label" for="fundingSourcePartner">شریک</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ak-field" id="paidByPartnerField">
+                        <label asp-for="PaidByPartnerId" class="ak-label"><i class="bi bi-people"></i> شریک پرداخت‌کننده</label>
+                        <select asp-for="PaidByPartnerId" id="paidByPartnerSelect" class="ak-input"
+                                asp-items="@(ViewBag.ContractPartners as List<SelectListItem>)">
+                            <option value="">انتخاب شریک</option>
+                        </select>
+                        <span asp-validation-for="PaidByPartnerId" class="field-validation-error"></span>
+                    </div>
+
+                    <div class="ak-field" id="cashAccountField">
                         <label asp-for="CashAccountId" class="ak-label">حساب</label>
                         <select asp-for="CashAccountId" id="cashAccountSelect" class="ak-input">
                             <option value="">انتخاب حساب</option>
@@ -612,4 +641,5 @@
     <script src="~/js/fx-rate-field.js" asp-append-version="true" defer></script>
     <script src="~/js/roznamcha-form.js" asp-append-version="true" defer></script>
     <script src="~/js/commission-field.js" asp-append-version="true" defer></script>
+    <script src="~/js/payment-funding-source.js" asp-append-version="true" defer></script>
 }

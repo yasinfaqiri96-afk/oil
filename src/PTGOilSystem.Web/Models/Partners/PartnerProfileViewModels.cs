@@ -43,6 +43,12 @@ public sealed class PartnerProfileViewModel
     public decimal CashOutUsd { get; init; }
     public decimal PartnerCashInUsd { get; init; }
     public decimal PartnerCashOutUsd { get; init; }
+
+    // پرداخت واقعیِ خودِ شریک (FundingSource = Partner). مبلغ کامل است، نه سهم درصدی.
+    public decimal ActualPartnerPaidUsd { get; init; }
+
+    // مانده شریک با همان علامت صورت‌حساب رسمی: مثبت = شریک طلبکار، منفی = شریک بدهکار.
+    public decimal PartnerPositionUsd { get; init; }
     public DateTime? LastContractDate { get; init; }
     public DateTime? LastFinancialDate { get; init; }
 
@@ -92,6 +98,9 @@ public sealed class PartnerContractSummaryViewModel
     public decimal CashOutUsd { get; init; }
     public decimal PartnerCashInUsd { get; init; }
     public decimal PartnerCashOutUsd { get; init; }
+
+    // پرداخت واقعیِ خودِ شریک روی همین قرارداد (FundingSource = Partner).
+    public decimal ActualPartnerPaidUsd { get; init; }
     public decimal StatementBalanceUsd { get; init; }
 }
 

@@ -36,16 +36,46 @@
                      model="@((UiText.T(Context, "اطلاعات قابل ویرایش", "Editable Information"), (string?)UiText.T(Context, "ارتباط این رویداد با بارگیری و موجودی تغییر نمی‌کند.", "The loading and inventory links remain unchanged.")))" />
             <div class="ak-form-grid">
                 <div class="ak-field"><label asp-for="EventDate" class="ak-label"></label><input asp-for="EventDate" type="date" class="ak-input" /><span asp-validation-for="EventDate" class="ak-field-error"></span></div>
-                <div class="ak-field"><label asp-for="ExpectedQuantityMt" class="ak-label"></label><input asp-for="ExpectedQuantityMt" class="ak-input" /><span asp-validation-for="ExpectedQuantityMt" class="ak-field-error"></span></div>
-                <div class="ak-field"><label asp-for="ActualQuantityMt" class="ak-label"></label><input asp-for="ActualQuantityMt" class="ak-input" /><span asp-validation-for="ActualQuantityMt" class="ak-field-error"></span></div>
-                <div class="ak-field"><label asp-for="ToleranceQuantityMt" class="ak-label"></label><input asp-for="ToleranceQuantityMt" class="ak-input" /><span asp-validation-for="ToleranceQuantityMt" class="ak-field-error"></span></div>
-                <div class="ak-field"><label asp-for="ResponsiblePartyType" class="ak-label"></label><input asp-for="ResponsiblePartyType" class="ak-input" /><span asp-validation-for="ResponsiblePartyType" class="ak-field-error"></span></div>
-                <div class="ak-field"><label asp-for="ResponsiblePartyName" class="ak-label"></label><input asp-for="ResponsiblePartyName" class="ak-input" /><span asp-validation-for="ResponsiblePartyName" class="ak-field-error"></span></div>
-                <div class="ak-field"><label asp-for="FinancialTreatment" class="ak-label"></label><input asp-for="FinancialTreatment" class="ak-input" /><span asp-validation-for="FinancialTreatment" class="ak-field-error"></span></div>
-                <div class="ak-field"><label asp-for="Reference" class="ak-label"></label><input asp-for="Reference" class="ak-input" /><span asp-validation-for="Reference" class="ak-field-error"></span></div>
+                <div class="ak-field">
+                    <label asp-for="ExpectedQuantityMt" class="ak-label"></label>
+                    <div class="ak-input-unit"><input asp-for="ExpectedQuantityMt" type="number" step="0.0001" min="0" class="ak-input" data-loss-expected /><span>MT</span></div>
+                    <span asp-validation-for="ExpectedQuantityMt" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="ActualQuantityMt" class="ak-label"></label>
+                    <div class="ak-input-unit"><input asp-for="ActualQuantityMt" type="number" step="0.0001" min="0" class="ak-input" data-loss-actual /><span>MT</span></div>
+                    <span asp-validation-for="ActualQuantityMt" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label">@UiText.T(Context, "کسری", "Loss")</label>
+                    <div class="ak-input-unit">
+                        @* فقط نمایش؛ سرور همین عدد را دوباره از دو مقدار بالا محاسبه می‌کند. *@
+                        <input type="text" class="ak-input" readonly data-loss-difference value="@NumberDisplay.Quantity(Model.ExpectedQuantityMt - Model.ActualQuantityMt)" />
+                        <span>MT</span>
+                    </div>
+                </div>
                 <div class="ak-field ak-col-full"><label asp-for="Notes" class="ak-label"></label><textarea asp-for="Notes" rows="4" class="ak-input"></textarea><span asp-validation-for="Notes" class="ak-field-error"></span></div>
             </div>
         </section>
+
+        <details class="ak-advanced" aria-label="@UiText.T(Context, "جزئیات بیشتر کسری", "Loss advanced details")">
+            <summary class="ak-advanced-summary">
+                <span><i class="bi bi-sliders2" aria-hidden="true"></i>@UiText.T(Context, "جزئیات بیشتر", "More details")</span>
+            </summary>
+            <div class="ak-advanced-body">
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="ToleranceQuantityMt" class="ak-label"></label>
+                        <div class="ak-input-unit"><input asp-for="ToleranceQuantityMt" type="number" step="0.0001" min="0" class="ak-input" /><span>MT</span></div>
+                        <span asp-validation-for="ToleranceQuantityMt" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field"><label asp-for="ResponsiblePartyType" class="ak-label"></label><input asp-for="ResponsiblePartyType" class="ak-input" /><span asp-validation-for="ResponsiblePartyType" class="ak-field-error"></span></div>
+                    <div class="ak-field"><label asp-for="ResponsiblePartyName" class="ak-label"></label><input asp-for="ResponsiblePartyName" class="ak-input" /><span asp-validation-for="ResponsiblePartyName" class="ak-field-error"></span></div>
+                    <div class="ak-field"><label asp-for="FinancialTreatment" class="ak-label"></label><input asp-for="FinancialTreatment" class="ak-input" /><span asp-validation-for="FinancialTreatment" class="ak-field-error"></span></div>
+                    <div class="ak-field"><label asp-for="Reference" class="ak-label"></label><input asp-for="Reference" class="ak-input" /><span asp-validation-for="Reference" class="ak-field-error"></span></div>
+                </div>
+            </div>
+        </details>
 
         <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
                  model="@((UiText.T(Context, "ذخیره تغییرات", "Save Changes"), cancelUrl, UiText.T(Context, "بازگشت", "Back")))" />
@@ -54,4 +84,25 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const expected = document.querySelector('[data-loss-expected]');
+            const actual = document.querySelector('[data-loss-actual]');
+            const output = document.querySelector('[data-loss-difference]');
+            if (!expected || !actual || !output) {
+                return;
+            }
+
+            const refresh = () => {
+                const difference = (parseFloat(expected.value) || 0) - (parseFloat(actual.value) || 0);
+                output.value = difference.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+            };
+
+            [expected, actual].forEach((field) => {
+                field.addEventListener('input', refresh);
+                field.addEventListener('change', refresh);
+            });
+            refresh();
+        })();
+    </script>
 }

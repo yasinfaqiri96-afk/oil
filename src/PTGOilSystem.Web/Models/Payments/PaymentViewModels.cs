@@ -14,6 +14,17 @@ public static class PaymentDirectionLabels
     };
 }
 
+// برچسب دری «پول این پرداخت را چه کسی داد». فقط نمایشی.
+public static class PaymentFundingSourceLabels
+{
+    public static string ToPersian(PaymentFundingSource source) => source switch
+    {
+        PaymentFundingSource.Company => "شرکت",
+        PaymentFundingSource.Partner => "شریک",
+        _ => source.ToString()
+    };
+}
+
 public static class PaymentKindLabels
 {
     public static string ToPersian(PaymentKind paymentKind) => paymentKind switch
@@ -111,9 +122,16 @@ public sealed class PaymentCreateViewModel
     [Display(Name = "نوع طرف حساب")]
     public PaymentCounterpartyType CounterpartyType { get; set; } = PaymentCounterpartyType.Customer;
 
+    // برای پرداختِ شرکت اجباری است و برای پرداختِ شریک اصلاً استفاده نمی‌شود؛ چون این شرط
+    // به FundingSource وابسته است، اعتبارسنجی‌اش در ValidateAndResolveAsync انجام می‌شود نه با Range.
     [Display(Name = "حساب نقد / بانک")]
-    [Range(1, int.MaxValue, ErrorMessage = "انتخاب حساب نقد / بانک الزامی است.")]
-    public int CashAccountId { get; set; }
+    public int? CashAccountId { get; set; }
+
+    [Display(Name = "پرداخت توسط")]
+    public PaymentFundingSource FundingSource { get; set; } = PaymentFundingSource.Company;
+
+    [Display(Name = "شریک پرداخت‌کننده")]
+    public int? PaidByPartnerId { get; set; }
 
     [Display(Name = "مشتری")]
     public int? CustomerId { get; set; }
@@ -362,6 +380,10 @@ public sealed class PaymentListItemViewModel
     public string? Reference { get; init; }
     public int? LedgerEntryId { get; init; }
 
+    // منبع پول. فقط نمایشی در رزنامچه: پرداختِ شریک صندوق شرکت را تکان نداده است.
+    public PaymentFundingSource FundingSource { get; init; } = PaymentFundingSource.Company;
+    public string? PaidByPartnerName { get; init; }
+
     // کمیسیون مرتبط با این ردیف (اگر ثبت شده باشد). فقط نمایشی: «کمیسیون: 50 USD».
     public decimal? CommissionAmount { get; set; }
     public string? CommissionCurrency { get; set; }
@@ -423,6 +445,10 @@ public sealed class PaymentDetailsViewModel
     public string CashAccountCode { get; init; } = string.Empty;
     public string CashAccountName { get; init; } = string.Empty;
     public string CashAccountTypeName { get; init; } = string.Empty;
+    public PaymentFundingSource FundingSource { get; init; } = PaymentFundingSource.Company;
+    public string FundingSourceName { get; init; } = string.Empty;
+    public int? PaidByPartnerId { get; init; }
+    public string? PaidByPartnerName { get; init; }
     public string Currency { get; init; } = "USD";
     public decimal Amount { get; init; }
     public decimal AmountUsd { get; init; }

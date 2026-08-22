@@ -214,6 +214,9 @@ public partial class LossEventsController : Controller
         int? loadingRegisterId = null,
         int? shipmentId = null,
         int? transportLegId = null,
+        int? storageTankId = null,
+        int? truckDispatchId = null,
+        int? loadingReceiptId = null,
         string? returnUrl = null)
     {
         var model = new LossEventCreateViewModel
@@ -244,6 +247,70 @@ public partial class LossEventsController : Controller
             {
                 model.ContractId = contract.Id;
                 model.ProductId = contract.ProductId;
+            }
+        }
+
+        // ورود از صفحهٔ رسید بارگیری: مرجع، قرارداد، کالا و محل رسید از خود سند می‌آیند.
+        if (loadingReceiptId.HasValue)
+        {
+            var receipt = await _db.LoadingReceipts
+                .AsNoTracking()
+                .Include(r => r.LoadingRegister)
+                .FirstOrDefaultAsync(r => r.Id == loadingReceiptId.Value && !r.IsCancelled);
+            if (receipt is not null)
+            {
+                model.LoadingReceiptId = receipt.Id;
+                model.LoadingRegisterId ??= receipt.LoadingRegisterId;
+                if (receipt.LoadingRegister is not null)
+                {
+                    model.ContractId ??= receipt.LoadingRegister.ContractId;
+                    if (model.ProductId <= 0)
+                    {
+                        model.ProductId = receipt.LoadingRegister.ProductId;
+                    }
+                }
+
+                model.Stage = LossEventStage.ReceiptShortage;
+            }
+        }
+
+        // ورود از صفحهٔ ارسال با موتر.
+        if (truckDispatchId.HasValue)
+        {
+            var dispatch = await _db.TruckDispatches
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == truckDispatchId.Value);
+            if (dispatch is not null)
+            {
+                model.TruckDispatchId = dispatch.Id;
+                model.ContractId ??= dispatch.ContractId;
+                if (model.ProductId <= 0)
+                {
+                    model.ProductId = dispatch.ProductId;
+                }
+
+                model.ExpectedQuantityMt = dispatch.LoadedQuantityMt;
+                model.ActualQuantityMt = dispatch.DischargedQuantityMt ?? 0m;
+                model.Stage = LossEventStage.DispatchShortage;
+            }
+        }
+
+        // ورود از صفحهٔ مخزن: ترمینال هرگز جدا پرسیده نمی‌شود و از خود مخزن می‌آید.
+        if (storageTankId.HasValue)
+        {
+            var tank = await _db.StorageTanks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == storageTankId.Value);
+            if (tank is not null)
+            {
+                model.StorageTankId = tank.Id;
+                model.TerminalId = tank.TerminalId;
+                if (model.ProductId <= 0 && tank.ProductId.HasValue)
+                {
+                    model.ProductId = tank.ProductId.Value;
+                }
+
+                model.Stage = LossEventStage.TankNaturalLoss;
             }
         }
 
@@ -322,6 +389,17 @@ public partial class LossEventsController : Controller
         var normalizedResponsiblePartyType = TrimToNull(model.ResponsiblePartyType);
         var normalizedResponsiblePartyName = TrimToNull(model.ResponsiblePartyName);
         var normalizedFinancialTreatment = TrimToNull(model.FinancialTreatment);
+
+        // تسویهٔ نهایی مخزن فقط از صفحهٔ «تسویه مخزن» ساخته می‌شود.
+        if (!LossStagePolicy.AllowedInManualForm(model.Stage))
+        {
+            ModelState.AddModelError(nameof(model.Stage), "این نوع رویداد فقط از صفحهٔ «تسویه نهایی مخزن» ثبت می‌شود.");
+        }
+
+        // اثر روی موجودی قاعدهٔ کاری است، نه انتخاب کاربر. مقدار ارسالی مرورگر عمداً دور
+        // ریخته می‌شود تا یک درخواست دستکاری‌شده نتواند کسری‌ای را که سند اصلی (رسید، دیسپچ،
+        // فروش یا بارگیری) از قبل در موجودی لحاظ کرده، دوباره از مخزن کم کند.
+        model.AffectsInventory = LossStagePolicy.AffectsInventory(model.Stage);
 
         var product = await _db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == model.ProductId && p.IsActive);
         if (product is null)
@@ -461,22 +539,34 @@ public partial class LossEventsController : Controller
             }
         }
 
-        if (model.AffectsInventory)
+        // کاربر فقط مخزن را انتخاب می‌کند؛ ترمینال از خود مخزن مشتق می‌شود و هرگز
+        // جداگانه پرسیده نمی‌شود (رابطهٔ StorageTank.TerminalId مرجع است).
+        if (model.StorageTankId.HasValue)
         {
-            if (!CanAffectInventory(model.Stage))
+            var tank = await _db.StorageTanks.AsNoTracking().FirstOrDefaultAsync(t => t.Id == model.StorageTankId.Value);
+            if (tank is null)
             {
-                ModelState.AddModelError(nameof(model.AffectsInventory), "این مرحله فقط برای گزارش است و نباید موجودی را دوباره کم کند.");
+                ModelState.AddModelError(nameof(model.StorageTankId), "مخزن انتخاب‌شده معتبر نیست.");
+                model.TerminalId = null;
             }
+            else
+            {
+                model.TerminalId = tank.TerminalId;
 
-            if (!model.TerminalId.HasValue)
-            {
-                ModelState.AddModelError(nameof(model.TerminalId), "برای ثبت اثر روی موجودی، انتخاب ترمینال الزامی است.");
+                if (tank.ProductId.HasValue && tank.ProductId != model.ProductId)
+                {
+                    ModelState.AddModelError(nameof(model.StorageTankId), "این مخزن برای جنس انتخاب‌شده تعریف نشده است.");
+                }
             }
+        }
+        else
+        {
+            model.TerminalId = null;
+        }
 
-            if (!model.StorageTankId.HasValue)
-            {
-                ModelState.AddModelError(nameof(model.StorageTankId), "برای ثبت اثر روی موجودی، انتخاب مخزن الزامی است.");
-            }
+        if (model.AffectsInventory && !model.StorageTankId.HasValue)
+        {
+            ModelState.AddModelError(nameof(model.StorageTankId), "برای ثبت ضایعات مخزن، اول مخزن را انتخاب کنید.");
         }
 
         if (model.TerminalId.HasValue)
@@ -484,28 +574,7 @@ public partial class LossEventsController : Controller
             var terminal = await _db.Terminals.AsNoTracking().FirstOrDefaultAsync(t => t.Id == model.TerminalId.Value && t.IsActive);
             if (terminal is null)
             {
-                ModelState.AddModelError(nameof(model.TerminalId), "ترمینال انتخاب‌شده معتبر نیست.");
-            }
-        }
-
-        if (model.StorageTankId.HasValue)
-        {
-            var tank = await _db.StorageTanks.AsNoTracking().FirstOrDefaultAsync(t => t.Id == model.StorageTankId.Value);
-            if (tank is null)
-            {
-                ModelState.AddModelError(nameof(model.StorageTankId), "مخزن انتخاب‌شده معتبر نیست.");
-            }
-            else
-            {
-                if (model.TerminalId.HasValue && tank.TerminalId != model.TerminalId.Value)
-                {
-                    ModelState.AddModelError(nameof(model.StorageTankId), "مخزن انتخاب‌شده به ترمینال انتخابی تعلق ندارد.");
-                }
-
-                if (tank.ProductId.HasValue && tank.ProductId != model.ProductId)
-                {
-                    ModelState.AddModelError(nameof(model.StorageTankId), "مخزن انتخاب‌شده برای کالای انتخابی تعریف نشده است.");
-                }
+                ModelState.AddModelError(nameof(model.StorageTankId), "ترمینال این مخزن فعال نیست؛ اول ترمینال را فعال کنید.");
             }
         }
 
@@ -522,7 +591,7 @@ public partial class LossEventsController : Controller
 
         if (model.AffectsInventory && inventoryLossMt <= 0m)
         {
-            ModelState.AddModelError(nameof(model.AffectsInventory), "برای کاهش موجودی باید اختلاف مثبت باشد.");
+            ModelState.AddModelError(nameof(model.ActualQuantityMt), "مقدار واقعی باید کمتر از مقدار مورد انتظار باشد تا کسری ثبت شود.");
         }
 
         if (!ModelState.IsValid)
@@ -1019,15 +1088,30 @@ public partial class LossEventsController : Controller
             "Display",
             createModel?.StorageTankId);
 
-        ViewBag.Stages = Enum.GetValues<LossEventStage>()
-            // تسویه نهایی مخزن فقط از مسیر «تسویهٔ مخزن» ساخته می‌شود، نه از فرم دستی ضایعات.
-            .Where(stage => stage != LossEventStage.TankFinalSettlement)
-            .Select(stage => new SelectListItem
-            {
-                Value = ((int)stage).ToString(),
-                Text = LossEventStageLabels.ToPersian(stage),
-                Selected = stage == (createModel?.Stage ?? filter?.Stage)
-            })
+        // فرم دستی فقط چهار حالت ساده را نشان می‌دهد؛ فیلتر فهرست همچنان همهٔ مرحله‌ها را
+        // دارد تا رویدادهای قدیمی (گمرکی، فروش، تسویهٔ مخزن) قابل جستجو بمانند.
+        ViewBag.Stages = createModel is not null
+            ? LossEventStageChoices.Build(createModel.Stage)
+                .Select(choice => new SelectListItem
+                {
+                    Value = ((int)choice.Stage).ToString(),
+                    Text = choice.Label,
+                    Selected = choice.Stage == createModel.Stage
+                })
+                .ToList()
+            : Enum.GetValues<LossEventStage>()
+                .Select(stage => new SelectListItem
+                {
+                    Value = ((int)stage).ToString(),
+                    Text = LossEventStageLabels.ToPersian(stage),
+                    Selected = stage == filter?.Stage
+                })
+                .ToList();
+
+        // مرحله‌هایی که در UI باید فیلد مخزن را نشان دهند (اثر واقعی روی موجودی).
+        ViewBag.TankScopeStageValues = Enum.GetValues<LossEventStage>()
+            .Where(LossStagePolicy.RequiresTankScope)
+            .Select(stage => ((int)stage).ToString())
             .ToList();
 
         ViewBag.AffectsInventoryOptions = new SelectList(
@@ -1116,9 +1200,6 @@ public partial class LossEventsController : Controller
         ViewBag.TerminalName = item.Terminal?.Name;
         ViewBag.StorageTankCode = StorageTankDisplay.BuildOptional(item.StorageTank);
     }
-
-    private static bool CanAffectInventory(LossEventStage stage)
-        => stage == LossEventStage.TankNaturalLoss || stage == LossEventStage.ManualAdjustment;
 
     private static (decimal DifferenceQuantityMt, decimal AllowableLossMt, decimal ChargeableLossMt) ComputeLossMetrics(
         decimal expectedQuantityMt,

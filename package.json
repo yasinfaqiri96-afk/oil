@@ -8,7 +8,8 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "playwright:mcp": "playwright-mcp --isolated --output-dir .playwright-mcp --save-session --viewport-size 1440x900"
+    "playwright:mcp": "playwright-mcp --isolated --output-dir .playwright-mcp --save-session --viewport-size 1440x900",
+    "ui:pick": "node tools/ui-pick/server.mjs"
   },
   "keywords": [],
   "author": "",

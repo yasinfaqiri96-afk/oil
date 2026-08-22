@@ -773,6 +773,24 @@
                     // (در چیدمان LTR برعکس). مرحله‌های ۳ و ۶ مسیر را به ردیف بعد می‌سپارند.
                     var forwardArrowIcon = T("bi-chevron-left", "bi-chevron-right");
                     var backwardArrowIcon = T("bi-chevron-right", "bi-chevron-left");
+
+                    // قرارداد شراکتی: سهم هر شریک کنار کارت سود و زیان می‌نشیند. کارت‌ها
+                    // شماره و فلش ندارند چون مرحلهٔ چرخه نیستند؛ درصدِ ثبت‌شده در قرارداد
+                    // ضربدر مقدار، ارزش و مفاد همین قرارداد است و هیچ عدد مالی تازه‌ای نمی‌سازد.
+                    var partnerShareProfitLabel = pnlOperationalMarginUsd < 0m
+                        ? T("سهم ضرر", "Share of loss")
+                        : T("سهم مفاد", "Share of profit");
+                    var partnerShareCards = Model.PartnerShareItems
+                        .Where(_ => Model.IsPartnershipContract)
+                        .Select(partner => new
+                        {
+                            partner.PartnerName,
+                            partner.SharePercent,
+                            ShareQuantityMt = Model.ContractQuantityMt * partner.SharePercent / 100m,
+                            ShareValueUsd = contractDisplayValueUsd * partner.SharePercent / 100m,
+                            ShareProfitUsd = pnlOperationalMarginUsd * partner.SharePercent / 100m
+                        })
+                        .ToList();
                 }
                 <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                          model="@((T("چرخه قرارداد", "Contract lifecycle"), (string?)null))" />
@@ -801,6 +819,25 @@
                             {
                                 <span class="ak-journey-arrow" aria-hidden="true"><i class="bi @arrowIcon"></i></span>
                             }
+                        </li>
+                    }
+                    @foreach (var partner in partnerShareCards)
+                    {
+                        var avatarPath = PTGOilSystem.Web.Models.StatCards.StatCardAvatarRegistry.ResolvePath("partners");
+                        <li class="ak-journey-step" data-partner-share="true">
+                            @if (!string.IsNullOrEmpty(avatarPath))
+                            {
+                                <img class="ak-cycle-avatar" src="@avatarPath" alt="" aria-hidden="true" loading="lazy" decoding="async" width="56" height="56" />
+                            }
+                            <div class="ak-cycle-body">
+                                <div class="ak-journey-step-head">
+                                    <h3 class="ak-cycle-title">@TextOrDash(partner.PartnerName)</h3>
+                                    <span class="ak-journey-badge"><i class="bi bi-pie-chart-fill" aria-hidden="true"></i>@T("سهم", "Share") @NumberDisplay.Number(partner.SharePercent, 2)%</span>
+                                </div>
+                                <div class="ak-cycle-row"><span class="ak-cycle-label">@T("سهم مقدار", "Share quantity")</span><span class="ak-cycle-value">@FormatLifecycleQuantity(partner.ShareQuantityMt)</span></div>
+                                <div class="ak-cycle-row"><span class="ak-cycle-label">@T("سهم ارزش", "Share value")</span><span class="ak-cycle-value">@FormatHeaderValueUsd(partner.ShareValueUsd)</span></div>
+                                <div class="ak-cycle-row"><span class="ak-cycle-label">@partnerShareProfitLabel</span><span class="ak-cycle-value">@FormatLifecycleUsd(partner.ShareProfitUsd)</span></div>
+                            </div>
                         </li>
                     }
                 </ol>

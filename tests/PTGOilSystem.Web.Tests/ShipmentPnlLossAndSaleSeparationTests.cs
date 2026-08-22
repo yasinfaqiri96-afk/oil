@@ -53,7 +53,7 @@ public class ShipmentPnlLossAndSaleSeparationTests
         // ضایعات ثبت‌شده = صفر چون هیچ LossEvent ثبت نشده.
         Assert.Equal(0m, vm.RecordedLossQuantityMt);
         // کسری از اختلاف بارگیری/رسید می‌آید و جدا شمرده می‌شود.
-        Assert.Equal(7m, vm.TotalTransportShortageMt);
+        Assert.Equal(7m, vm.DerivedShortageMt);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class ShipmentPnlLossAndSaleSeparationTests
         };
 
         Assert.Equal(3m, vm.RecordedLossQuantityMt);
-        Assert.Equal(5m, vm.TotalTransportShortageMt);
+        Assert.Equal(5m, vm.DerivedShortageMt);
     }
 
     [Fact]

@@ -5083,7 +5083,7 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal?>("AppliedFxRateToUsd")
                         .HasColumnType("numeric(18,6)");
 
-                    b.Property<int>("CashAccountId")
+                    b.Property<int?>("CashAccountId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("CompanyId")
@@ -5122,6 +5122,11 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("ExpenseTransactionId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("FundingSource")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.Property<bool?>("IsAdvancePayment")
                         .HasColumnType("boolean");
 
@@ -5129,6 +5134,9 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<int?>("LedgerEntryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PaidByPartnerId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("PaymentDate")
@@ -5184,6 +5192,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("LedgerEntryId")
                         .IsUnique();
+
+                    b.HasIndex("PaidByPartnerId");
 
                     b.HasIndex("PaymentDate");
 
@@ -9481,8 +9491,7 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasOne("PTGOilSystem.Web.Models.Entities.CashAccount", "CashAccount")
                         .WithMany()
                         .HasForeignKey("CashAccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Company", "Company")
                         .WithMany()
@@ -9517,6 +9526,11 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasOne("PTGOilSystem.Web.Models.Entities.LedgerEntry", "LedgerEntry")
                         .WithMany()
                         .HasForeignKey("LedgerEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Partner", "PaidByPartner")
+                        .WithMany()
+                        .HasForeignKey("PaidByPartnerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.SalesTransaction", "SalesTransaction")
@@ -9564,6 +9578,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("ExpenseTransaction");
 
                     b.Navigation("LedgerEntry");
+
+                    b.Navigation("PaidByPartner");
 
                     b.Navigation("SalesTransaction");
 

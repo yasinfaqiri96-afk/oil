@@ -22,6 +22,16 @@
 
 For any UI/UX request, follow the `ptg-ui-design-rules` skill (source order, design-system reading order, review checklist).
 
+## UI Pick (Browser → Claude Code)
+
+When the user picks an element in the browser (`Alt+Shift+P`), the selection is
+written to `.ptg-ui-pick/last-pick.md` / `.json`, and the VS Code bridge
+(`tools/vscode-ptg-ui-pick`) puts a `/ui-pick …` prompt on the clipboard and
+focuses the Claude input. Whenever a message starts with `/ui-pick` — or refers
+to "this element/section/card" without naming a file — read the pick files
+first, then locate the View/Partial/CSS/JS and change only that region.
+Setup and limitations: `docs/ui-pick-workflow.md`.
+
 ## graphify
 
 This project has a knowledge graph at `graphify-out/`. For codebase questions, use the `graphify` skill before raw grep or source browsing; after modifying code, run `graphify update .`.

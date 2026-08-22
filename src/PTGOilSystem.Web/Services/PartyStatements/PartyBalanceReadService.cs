@@ -362,8 +362,13 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             query = query.Where(l => l.EntryDate < end);
         }
         var ledgerRows = await query
-            .Select(l => new { l.ContractId, l.SourceId, l.EntryDate, l.Side, l.AmountUsd, l.SourceType })
+            .Select(l => new { l.Id, l.ContractId, l.SourceId, l.EntryDate, l.Side, l.AmountUsd, l.SourceType })
             .ToListAsync(ct);
+
+        // پرداخت‌های روزنامچه دیگر کورکورانه بین شرکا تقسیم نمی‌شوند: پرداختِ شرکت پولِ شریک
+        // نیست و اصلاً وارد صورت‌حساب او نمی‌شود، و پرداختِ شریک کامل به خودِ همان شریک می‌رسد.
+        // رویدادهای اقتصادی (بارگیری، مصرف، فروش) دقیقاً مثل قبل بر SharePercent تقسیم می‌شوند.
+        var funding = await PartnerFundingReader.LoadLedgerMapAsync(db: _db, contractIds, ct);
 
         var sharesByContract = shareRows.ToLookup(s => s.ContractId);
         foreach (var row in ledgerRows)
@@ -375,6 +380,24 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                         : (int?)null);
             if (!contractId.HasValue)
             {
+                continue;
+            }
+
+            if (funding.PaymentLedgerEntryIds.Contains(row.Id))
+            {
+                if (funding.PartnerByPaymentLedgerEntryId.TryGetValue(row.Id, out var payerPartnerId))
+                {
+                    AddLedgerEvent(
+                        target,
+                        payerPartnerId,
+                        PartyStatementPartyType.Partner,
+                        CompanyFlowPartyRole.Partner,
+                        row.EntryDate,
+                        row.Side,
+                        decimal.Round(row.AmountUsd, 2, MidpointRounding.AwayFromZero),
+                        row.SourceType);
+                }
+
                 continue;
             }
 

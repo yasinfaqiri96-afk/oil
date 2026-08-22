@@ -1,14 +1,21 @@
 @model PTGOilSystem.Web.Models.LossEvents.LossEventCreateViewModel
+@using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.LossEvents
 @{
     var returnUrl = Model.ReturnUrl;
     var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl);
-    ViewData["Title"] = UiText.T(Context, "ثبت رویداد کسری", "Record Loss Event");
+    ViewData["Title"] = UiText.T(Context, "ثبت کسری / ضایعات", "Record Loss Event");
     ViewData["ContentBodyClass"] = "boltz-content-body";
     ViewData["HideSectionTabs"] = true;
     ViewData["LoadingCreateAssets"] = true;
     var cancelUrl = hasLocalReturnUrl ? returnUrl : Url.Action("Index");
+
+    // مرحله‌هایی که فیلد مخزن را لازم دارند؛ همان قاعدهٔ LossStagePolicy در سرور.
+    var tankScopeStageValues = ViewBag.TankScopeStageValues as IEnumerable<string> ?? Array.Empty<string>();
+    var tankStageTokens = string.Join(" ", tankScopeStageValues);
+
+    // مرجع رویداد از صفحه‌ای که کاربر از آن آمده تعیین می‌شود؛ کاربر «نوع مرجع» انتخاب نمی‌کند.
     var selectedLossSourceType = Model.LoadingRegisterId.HasValue
         ? nameof(Model.LoadingRegisterId)
         : Model.LoadingReceiptId.HasValue
@@ -21,81 +28,116 @@
                     ? nameof(Model.SalesTransactionId)
                     : Model.ShipmentId.HasValue
                         ? nameof(Model.ShipmentId)
-                        : Model.StorageTankId.HasValue
-                            ? nameof(Model.StorageTankId)
-                            : Model.TerminalId.HasValue
-                                ? nameof(Model.TerminalId)
-                                : Model.ContractId.HasValue
-                                    ? nameof(Model.ContractId)
-                                    : string.Empty;
-    var showLossAdvanced =
-        Model.ContractId.HasValue
+                        : Model.ContractId.HasValue
+                            ? nameof(Model.ContractId)
+                            : string.Empty;
+
+    var hasSourceContext = Model.ContractId.HasValue
         || Model.ShipmentId.HasValue
         || Model.LoadingRegisterId.HasValue
         || Model.LoadingReceiptId.HasValue
         || Model.TruckDispatchId.HasValue
         || Model.TransportLegId.HasValue
         || Model.SalesTransactionId.HasValue
-        || Model.TerminalId.HasValue
-        || Model.StorageTankId.HasValue
-        || Model.ToleranceQuantityMt > 0m
+        || Model.StorageTankId.HasValue;
+
+    var productItems = ViewBag.Products as IEnumerable<SelectListItem>;
+    var productName = productItems?
+        .FirstOrDefault(item => item.Value == Model.ProductId.ToString())?.Text;
+    // جنس وقتی از سند مبدأ می‌آید قفل می‌شود تا با قرارداد/مخزن ناهم‌خوان نشود.
+    var productLocked = hasSourceContext && Model.ProductId > 0 && !string.IsNullOrWhiteSpace(productName);
+
+    var showLossAdvanced =
+        Model.ToleranceQuantityMt > 0m
         || !string.IsNullOrWhiteSpace(Model.ResponsiblePartyType)
         || !string.IsNullOrWhiteSpace(Model.ResponsiblePartyName)
         || !string.IsNullOrWhiteSpace(Model.FinancialTreatment)
-        || Model.AffectsInventory
-        || !string.IsNullOrWhiteSpace(Model.Reference)
-        || !string.IsNullOrWhiteSpace(Model.Notes);
+        || !string.IsNullOrWhiteSpace(Model.Reference);
 }
 
 <div class="page-stack ak-form-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "ثبت رویداد کسری", "Record Loss Event"), false,
+             model="@((UiText.T(Context, "ثبت کسری / ضایعات", "Record Loss Event"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right",
                        (string?)cancelUrl))" />
 
-    <form asp-action="Create" method="post" class="ak-form">
+    <form asp-action="Create" method="post" class="ak-form" data-loss-event-form="true">
         @Html.AntiForgeryToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
 
         <section class="ak-form-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@((UiText.T(Context, "ردیابی و منبع رویداد", "Event Traceability"), (string?)UiText.T(Context, "منبع رویداد، مقادیر و مسئولیت کسری را وارد کنید.", "Enter the event source, quantities and responsibility.")))" />
             <div class="ak-form-grid ak-form-grid--3">
                 <div class="ak-field">
                     <label asp-for="Stage" class="ak-label"></label>
                     <select asp-for="Stage" asp-items="ViewBag.Stages" class="ak-input"></select>
                     <span asp-validation-for="Stage" class="ak-field-error"></span>
                 </div>
-                <div class="ak-field">
-                    <label asp-for="ProductId" class="ak-label"></label>
-                    <select asp-for="ProductId" asp-items="ViewBag.Products" class="ak-input">
+
+                <div class="ak-field" data-loss-stage-fields="@tankStageTokens">
+                    <label asp-for="StorageTankId" class="ak-label"></label>
+                    <select asp-for="StorageTankId" asp-items="ViewBag.StorageTanks" class="ak-input">
                         <option value=""></option>
                     </select>
+                    <span asp-validation-for="StorageTankId" class="ak-field-error"></span>
+                </div>
+
+                <div class="ak-field">
+                    <label asp-for="ProductId" class="ak-label"></label>
+                    @if (productLocked)
+                    {
+                        <input value="@productName" class="ak-input" readonly />
+                        <input asp-for="ProductId" type="hidden" />
+                    }
+                    else
+                    {
+                        <select asp-for="ProductId" asp-items="ViewBag.Products" class="ak-input">
+                            <option value=""></option>
+                        </select>
+                    }
                     <span asp-validation-for="ProductId" class="ak-field-error"></span>
                 </div>
+
                 <div class="ak-field">
                     <label asp-for="EventDate" class="ak-label"></label>
                     <input asp-for="EventDate" type="date" class="ak-input" />
                     <span asp-validation-for="EventDate" class="ak-field-error"></span>
                 </div>
-            </div>
-        </section>
 
-        <section class="ak-form-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@((UiText.T(Context, "مقادیر، اثر مالی و مسئولیت", "Quantities & Responsibility"), (string?)null))" />
-            <div class="ak-form-grid">
                 <div class="ak-field">
                     <label asp-for="ExpectedQuantityMt" class="ak-label"></label>
-                    <input asp-for="ExpectedQuantityMt" class="ak-input" />
+                    <div class="ak-input-unit">
+                        <input asp-for="ExpectedQuantityMt" type="number" step="0.0001" min="0" class="ak-input" data-loss-expected />
+                        <span>MT</span>
+                    </div>
                     <span asp-validation-for="ExpectedQuantityMt" class="ak-field-error"></span>
                 </div>
+
                 <div class="ak-field">
                     <label asp-for="ActualQuantityMt" class="ak-label"></label>
-                    <input asp-for="ActualQuantityMt" class="ak-input" />
+                    <div class="ak-input-unit">
+                        <input asp-for="ActualQuantityMt" type="number" step="0.0001" min="0" class="ak-input" data-loss-actual />
+                        <span>MT</span>
+                    </div>
                     <span asp-validation-for="ActualQuantityMt" class="ak-field-error"></span>
+                </div>
+
+                <div class="ak-field">
+                    <label class="ak-label">@UiText.T(Context, "کسری", "Loss")</label>
+                    <div class="ak-input-unit">
+                        @* فقط نمایش: سرور همین عدد را از «مورد انتظار − واقعی» دوباره محاسبه می‌کند. *@
+                        <input type="text" class="ak-input" readonly data-loss-difference
+                               value="@NumberDisplay.Quantity(Model.ExpectedQuantityMt - Model.ActualQuantityMt)" />
+                        <span>MT</span>
+                    </div>
+                    <small class="ak-section-desc" data-loss-inventory-hint></small>
+                </div>
+
+                <div class="ak-field ak-col-full">
+                    <label asp-for="Notes" class="ak-label"></label>
+                    <textarea asp-for="Notes" rows="2" class="ak-input"></textarea>
+                    <span asp-validation-for="Notes" class="ak-field-error"></span>
                 </div>
             </div>
         </section>
@@ -117,14 +159,14 @@
                             <option value="TransportLegId" selected="@(selectedLossSourceType == nameof(Model.TransportLegId) ? "selected" : null)">@UiText.T(Context, "حمل", "Transport")</option>
                             <option value="SalesTransactionId" selected="@(selectedLossSourceType == nameof(Model.SalesTransactionId) ? "selected" : null)">@UiText.T(Context, "فروش", "Sale")</option>
                             <option value="ShipmentId" selected="@(selectedLossSourceType == nameof(Model.ShipmentId) ? "selected" : null)">@UiText.T(Context, "محموله / کشتی", "Shipment / Vessel")</option>
-                            <option value="TerminalId" selected="@(selectedLossSourceType == nameof(Model.TerminalId) ? "selected" : null)">@UiText.T(Context, "ترمینال", "Terminal")</option>
-                            <option value="StorageTankId" selected="@(selectedLossSourceType == nameof(Model.StorageTankId) ? "selected" : null)">@UiText.T(Context, "مخزن", "Tank")</option>
                         </select>
                     </div>
                     <div class="ak-field ak-col-full">
                         <label for="lossReferenceItem" class="ak-label">@UiText.T(Context, "ردیف مرجع", "Reference record")</label>
                         <select id="lossReferenceItem" class="ak-input" data-loss-reference-item></select>
                     </div>
+                    @* مخزن و ترمینال عمداً در این گروه نیستند: مخزن فیلد اصلی خودش را دارد و
+                       ترمینال در سرور از StorageTank.TerminalId مشتق می‌شود. *@
                     <div class="d-none" data-loss-reference-backings>
                         <select asp-for="ContractId" asp-items="ViewBag.Contracts" data-loss-reference-backing="ContractId">
                             <option value=""></option>
@@ -154,18 +196,13 @@
                             <option value=""></option>
                         </select>
                         <span asp-validation-for="ShipmentId" class="field-validation-error"></span>
-                        <select asp-for="TerminalId" asp-items="ViewBag.Terminals" data-loss-reference-backing="TerminalId">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="TerminalId" class="field-validation-error"></span>
-                        <select asp-for="StorageTankId" asp-items="ViewBag.StorageTanks" data-loss-reference-backing="StorageTankId">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="StorageTankId" class="field-validation-error"></span>
                     </div>
                     <div class="ak-field">
                         <label asp-for="ToleranceQuantityMt" class="ak-label"></label>
-                        <input asp-for="ToleranceQuantityMt" class="ak-input" />
+                        <div class="ak-input-unit">
+                            <input asp-for="ToleranceQuantityMt" type="number" step="0.0001" min="0" class="ak-input" />
+                            <span>MT</span>
+                        </div>
                         <span asp-validation-for="ToleranceQuantityMt" class="ak-field-error"></span>
                     </div>
                     <div class="ak-field">
@@ -188,23 +225,12 @@
                         <input asp-for="Reference" class="ak-input" />
                         <span asp-validation-for="Reference" class="ak-field-error"></span>
                     </div>
-                    <div class="ak-toggle-field">
-                        <div class="form-check form-switch">
-                            <input asp-for="AffectsInventory" class="form-check-input" role="switch" />
-                            <label asp-for="AffectsInventory" class="form-check-label"></label>
-                        </div>
-                    </div>
-                    <div class="ak-field ak-col-full">
-                        <label asp-for="Notes" class="ak-label"></label>
-                        <textarea asp-for="Notes" rows="2" class="ak-input"></textarea>
-                        <span asp-validation-for="Notes" class="ak-field-error"></span>
-                    </div>
                 </div>
             </div>
         </details>
 
         <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
-                 model="@((UiText.T(Context, "ثبت رویداد کسری", "Save loss event"), cancelUrl ?? "#", UiText.T(Context, "بازگشت", "Back")))" />
+                 model="@((UiText.T(Context, "ثبت کسری", "Save loss event"), cancelUrl ?? "#", UiText.T(Context, "بازگشت", "Back")))" />
     </form>
 </div>
 
@@ -266,6 +292,37 @@
                 syncBacking();
             });
             itemSelect.addEventListener('change', syncBacking);
+        })();
+
+        (() => {
+            // «کسری» فقط نمایش زنده است؛ عدد نهایی را سرور از همان دو مقدار محاسبه می‌کند.
+            const expected = document.querySelector('[data-loss-expected]');
+            const actual = document.querySelector('[data-loss-actual]');
+            const output = document.querySelector('[data-loss-difference]');
+            const stage = document.querySelector('#Stage');
+            const hint = document.querySelector('[data-loss-inventory-hint]');
+            if (!expected || !actual || !output) {
+                return;
+            }
+
+            const tankStages = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(tankScopeStageValues));
+            const reducesText = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(UiText.T(Context, "این مقدار از موجودی مخزن کم می‌شود.", "This quantity is deducted from tank stock.")));
+            const reportText = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(UiText.T(Context, "این کسری قبلاً در عملیات اصلی از موجودی کم شده؛ این ثبت فقط برای گزارش و مسئولیت است.", "Already reflected by the source document; this record is for reporting only.")));
+
+            const refresh = () => {
+                const difference = (parseFloat(expected.value) || 0) - (parseFloat(actual.value) || 0);
+                output.value = difference.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+                if (hint && stage) {
+                    hint.textContent = tankStages.indexOf(String(stage.value || '')) !== -1 ? reducesText : reportText;
+                }
+            };
+
+            [expected, actual].forEach((field) => {
+                field.addEventListener('input', refresh);
+                field.addEventListener('change', refresh);
+            });
+            if (stage) stage.addEventListener('change', refresh);
+            refresh();
         })();
     </script>
 }

@@ -59,6 +59,7 @@
                         <th>@UiText.T(Context, "شماره حمل / تاریخ", "Transport / date")</th>
                         <th>@UiText.T(Context, "محصول / منبع", "Product / source")</th>
                         <th class="text-end">@UiText.T(Context, "مقدار", "Quantity")</th>
+                        <th class="text-end">@UiText.T(Context, "ارزش حمل", "Transport value")</th>
                         <th>@UiText.T(Context, "وسیله", "Vehicle")</th>
                         <th>@UiText.T(Context, "مبدأ", "Origin")</th>
                         <th>@UiText.T(Context, "وضعیت", "Status")</th>
@@ -94,6 +95,10 @@
                         "پیش‌نویس" => "is-info",
                         _ => "is-pending"
                     };
+                    // ارزش حمل = مقدار حمل‌شده × قیمت خرید واحد همان حمل (بدون تغییر در منطق قیمت‌گذاری).
+                    var transportValueUsd = item.PurchaseUnitCostUsd.HasValue
+                        ? item.QuantityMt * item.PurchaseUnitCostUsd.Value
+                        : (decimal?)null;
                     <tr data-href="@Url.Action("Details", new { id = item.Id })">
                         <td>
                             <strong class="ak-num">TR-@item.Id.ToString("0000")</strong>
@@ -105,6 +110,17 @@
                         </td>
                         <td class="text-end">
                             <strong class="ak-num">@NumberDisplay.Quantity(item.QuantityMt) MT</strong>
+                        </td>
+                        <td class="text-end">
+                            @if (transportValueUsd.HasValue)
+                            {
+                                <strong class="ak-num">@NumberDisplay.Money(transportValueUsd.Value, "USD")</strong>
+                                <span class="ak-section-desc">@NumberDisplay.UnitPrice(item.PurchaseUnitCostUsd) USD/MT</span>
+                            }
+                            else
+                            {
+                                <span class="ak-section-desc">@UiText.T(Context, "قیمت خرید ثبت نشده", "Purchase cost not set")</span>
+                            }
                         </td>
                         <td>
                             <strong>@vehicleName</strong>
@@ -126,7 +142,7 @@
                 }
                 @if (!Model.Items.Any())
                 {
-                    <tr><td colspan="7"><div class="ak-empty"><i class="bi bi-truck-front" aria-hidden="true"></i> @UiText.T(Context, "حمل مطابق فیلتر پیدا نشد.", "No matching transport found.")</div></td></tr>
+                    <tr><td colspan="8"><div class="ak-empty"><i class="bi bi-truck-front" aria-hidden="true"></i> @UiText.T(Context, "حمل مطابق فیلتر پیدا نشد.", "No matching transport found.")</div></td></tr>
                 }
                 </tbody>
             </table>

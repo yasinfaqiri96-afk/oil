@@ -1083,6 +1083,59 @@ public class ContractJourneyControllerTests
         Assert.Equal(4_475m, model.MiniPnl.GrossMarginUsd);
     }
 
+    // ضایعهٔ «تسویه نهایی مخزن» فقط به مخزن وصل است و هیچ بارگیری/رسید/دیسپچی ندارد؛
+    // قبلاً قیمتی برایش پیدا نمی‌شد و ارزشش صفر می‌ماند و از سود کم نمی‌شد.
+    [Fact]
+    public async Task Details_Purchase_MiniPnl_Values_TankFinalSettlement_Loss_At_Weighted_Purchase_Price()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Contracts.Add(BuildPurchaseContract(1, "PUR-001", 100m));
+        db.LoadingRegisters.Add(new LoadingRegister
+        {
+            Id = 1,
+            ContractId = 1,
+            ProductId = 1,
+            LoadingDate = new DateTime(2026, 5, 1),
+            LoadedQuantityMt = 25m,
+            LoadingPriceUsd = 300m
+        });
+        db.LoadingReceipts.Add(new LoadingReceipt
+        {
+            Id = 1,
+            LoadingRegisterId = 1,
+            TerminalId = 1,
+            ReceiptDate = new DateTime(2026, 5, 2),
+            ReceivedQuantityMt = 25m
+        });
+        db.LossEvents.Add(new LossEvent
+        {
+            Id = 1,
+            Stage = LossEventStage.TankFinalSettlement,
+            ProductId = 1,
+            ContractId = 1,
+            TerminalId = 1,
+            StorageTankId = 1,
+            EventDate = new DateTime(2026, 5, 6),
+            ExpectedQuantityMt = 2m,
+            DifferenceQuantityMt = 2m,
+            ChargeableLossMt = 2m,
+            AffectsInventory = true
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new ContractJourneyController(db, new StockService(db));
+
+        var result = await controller.Details(1);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<ContractJourneyDetailsViewModel>(view.Model);
+        Assert.Equal(2m, model.TankLossMt);
+        Assert.Equal(600m, model.MiniPnl.TraceableExpensesUsd);
+    }
+
     [Fact]
     public async Task Details_Purchase_Warns_When_DirectSale_Allocation_Quantity_Differs_From_Sale()
     {

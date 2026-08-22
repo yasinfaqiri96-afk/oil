@@ -325,6 +325,160 @@ public class LossEventsControllerTests
         Assert.Equal(49.25m, freeQuantity);
     }
 
+    [Fact]
+    public async Task Create_Post_ReceiptShortage_Ignores_Tampered_AffectsInventory_Flag()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedTerminalStock(db, quantityMt: 100m, contractId: 1);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        // درخواست دستکاری‌شده: کاربر تیک اثر موجودی را با ابزار بیرونی true فرستاده است.
+        var result = await controller.Create(new LossEventCreateViewModel
+        {
+            Stage = LossEventStage.ReceiptShortage,
+            ProductId = 1,
+            ContractId = 1,
+            TerminalId = 1,
+            StorageTankId = 1,
+            EventDate = new DateTime(2026, 4, 27),
+            ExpectedQuantityMt = 100m,
+            ActualQuantityMt = 92m,
+            AffectsInventory = true
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var lossEvent = await db.LossEvents.SingleAsync();
+        Assert.False(lossEvent.AffectsInventory);
+        Assert.Null(lossEvent.InventoryMovementId);
+        Assert.Equal(8m, lossEvent.DifferenceQuantityMt);
+
+        // فقط همان ورودی اولیه باقی می‌ماند؛ هیچ خروجی دوباره‌ای ساخته نشده است.
+        Assert.False(await db.InventoryMovements.AnyAsync(m => m.Direction == MovementDirection.Out));
+        var freeQuantity = await new StockService(db).GetFreeQuantityMtAsync(1, terminalId: 1, contractId: 1);
+        Assert.Equal(100m, freeQuantity);
+    }
+
+    [Fact]
+    public async Task Create_Post_TankNaturalLoss_Derives_Terminal_From_Selected_Tank()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedTerminalStock(db, quantityMt: 40m, contractId: 2);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        // کاربر فقط مخزن را انتخاب کرده؛ ترمینال در فرم وجود ندارد.
+        var result = await controller.Create(new LossEventCreateViewModel
+        {
+            Stage = LossEventStage.TankNaturalLoss,
+            ProductId = 1,
+            ContractId = 2,
+            StorageTankId = 1,
+            EventDate = new DateTime(2026, 4, 30),
+            ExpectedQuantityMt = 40m,
+            ActualQuantityMt = 38.5m
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var lossEvent = await db.LossEvents.SingleAsync();
+        Assert.True(lossEvent.AffectsInventory);
+        Assert.Equal(1, lossEvent.TerminalId);
+        Assert.True(lossEvent.InventoryMovementId.HasValue);
+
+        var stockOut = await db.InventoryMovements.Where(m => m.Direction == MovementDirection.Out).SingleAsync();
+        Assert.Equal(1.5m, stockOut.QuantityMt);
+        Assert.Equal(1, stockOut.TerminalId);
+        Assert.Equal(1, stockOut.StorageTankId);
+    }
+
+    [Fact]
+    public async Task Create_Post_TankNaturalLoss_Without_Tank_Is_Rejected()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedTerminalStock(db, quantityMt: 40m, contractId: 2);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new LossEventCreateViewModel
+        {
+            Stage = LossEventStage.TankNaturalLoss,
+            ProductId = 1,
+            ContractId = 2,
+            EventDate = new DateTime(2026, 4, 30),
+            ExpectedQuantityMt = 40m,
+            ActualQuantityMt = 38.5m
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey(nameof(LossEventCreateViewModel.StorageTankId)));
+        Assert.Empty(await db.LossEvents.ToListAsync());
+        Assert.False(await db.InventoryMovements.AnyAsync(m => m.Direction == MovementDirection.Out));
+    }
+
+    [Fact]
+    public async Task Create_Post_TankFinalSettlement_Is_Rejected_From_Manual_Form()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedTerminalStock(db, quantityMt: 40m, contractId: 2);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        // تسویهٔ نهایی مخزن فقط از صفحهٔ «تسویه مخزن» ساخته می‌شود.
+        var result = await controller.Create(new LossEventCreateViewModel
+        {
+            Stage = LossEventStage.TankFinalSettlement,
+            ProductId = 1,
+            ContractId = 2,
+            StorageTankId = 1,
+            EventDate = new DateTime(2026, 4, 30),
+            ExpectedQuantityMt = 40m,
+            ActualQuantityMt = 0m
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey(nameof(LossEventCreateViewModel.Stage)));
+        Assert.Empty(await db.LossEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Create_Get_From_Tank_Prefills_Tank_Terminal_And_Stage()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(storageTankId: 1, returnUrl: "/StorageTanks/Details/1");
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<LossEventCreateViewModel>(view.Model);
+        Assert.Equal(1, model.StorageTankId);
+        Assert.Equal(1, model.TerminalId);
+        Assert.Equal(1, model.ProductId);
+        Assert.Equal(LossEventStage.TankNaturalLoss, model.Stage);
+    }
+
     private static DbContextOptions<ApplicationDbContext> NewDbOptions()
         => new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

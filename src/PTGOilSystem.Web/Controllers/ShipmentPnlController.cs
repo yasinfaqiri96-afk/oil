@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -525,16 +526,12 @@ public partial class ShipmentPnlController : Controller
             })
             .ToListAsync();
 
-        var shipmentGroupReceiptTag = $"Group receipt: SHIP:{id} |";
+        // جدول تب تخلیه و مرحلهٔ VesselUnloaded باید یک مجموعهٔ یکسان را ببینند؛
+        // پیش‌تر دو شرط جدا داشتند و تخلیه‌های ثبت‌شده بیرون از فورم گروهی فقط در
+        // یکی از دو طرف شمرده می‌شدند. حالا هر دو از VesselDischargeReceiptFilter می‌آیند.
         var registeredVesselReceiptRows = await _db.InventoryTransportReceipts
             .AsNoTracking()
-            .Where(r => !r.IsCancelled
-                && r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
-                && r.InventoryMovementId.HasValue
-                && r.InventoryTransportLeg != null
-                && r.InventoryTransportLeg.ShipmentId == id
-                && r.Notes != null
-                && r.Notes.Contains(shipmentGroupReceiptTag))
+            .Where(VesselDischargeReceiptFilter(id))
             .OrderByDescending(r => r.ReceiptDate)
             .ThenByDescending(r => r.Id)
             .Select(r => new
@@ -977,25 +974,11 @@ public partial class ShipmentPnlController : Controller
                 && l.Status != InventoryTransportLegStatus.Cancelled)
             .ToListAsync();
 
-        // Vessel legs are the normal shipment root. The current tank-backed
-        // shipment flow records its root as Unspecified, so accept that fallback
-        // only when a persisted outbound movement proves stock was loaded.
-        var originalVesselLegs = shipmentTransportLegs
-            .Where(l => l.TransportType == LoadingTransportType.Vessel
-                && l.Status != InventoryTransportLegStatus.Draft)
-            .ToList();
-        var tankLoadedRootLegs = originalVesselLegs.Count > 0
-            ? []
-            : shipmentTransportLegs
-                .Where(l => l.TransportType == LoadingTransportType.Unspecified
-                    && l.Status != InventoryTransportLegStatus.Draft
-                    && l.OutboundInventoryMovementId.HasValue
-                    && l.SourceStorageTankId.HasValue)
-                .ToList();
-        var shipmentRootLegs = originalVesselLegs.Count > 0
-            ? originalVesselLegs
-            : tankLoadedRootLegs;
+        var shipmentRootLegs = ResolveShipmentRootLegs(
+            shipmentTransportLegs,
+            await LoadVesselDischargeLegIdsAsync(shipmentId));
         var shipmentRootLegIds = shipmentRootLegs.Select(l => l.Id).ToHashSet();
+        var hasVesselRootLegs = shipmentRootLegs.Any(l => l.TransportType == LoadingTransportType.Vessel);
 
         var loadedByContract = shipmentRootLegs
             .GroupBy(l => l.SourcePurchaseContractId)
@@ -1006,7 +989,7 @@ public partial class ShipmentPnlController : Controller
             })
             .ToDictionary(x => x.ContractId, x => x.LoadedMt);
 
-        if (originalVesselLegs.Count == 0)
+        if (!hasVesselRootLegs)
         {
             foreach (var shipmentContract in shipmentContracts)
             {
@@ -1066,11 +1049,17 @@ public partial class ShipmentPnlController : Controller
                     6,
                     MidpointRounding.AwayFromZero));
 
-        // کسری تخلیهٔ ریشه (کشتی/واگن → مخزن) باید «کسری واقعیِ ورودی» را نشان دهد؛ یعنی اختلاف
-        // مقدار لِج با مقداری که واقعاً رسید. این هم کسریِ صریح (ShortageQuantityMt) را می‌گیرد و هم
-        // «کسری خاموش» را — حالتی که فقط رسیدِ کمتر ثبت شده ولی ShortageQuantityMt صفر مانده و در نتیجه
-        // ضایعه در پرونده دیده نمی‌شد. برای سازگاری، بیشینهٔ این دو گرفته می‌شود، پس در شیپمنت‌هایی که
-        // کسری درست ثبت شده نتیجه دقیقاً مثل قبل است.
+        // کسری تخلیهٔ ریشه (کشتی/واگن → مخزن) از همان «قرارداد مصرف» TransportQuantityService
+        // ساخته می‌شود:  بارگیری = فروش + رسید به موجودی + انتقال به وسیله + کسری + باقیمانده.
+        // هر رسیدِ لغو‌نشده به‌اندازهٔ ReceivedQuantityMt + ShortageQuantityMt از لِج مصرف می‌کند.
+        //
+        //   کسری = کسریِ صریحِ ثبت‌شده  +  «کسری خاموش»
+        //
+        // «کسری خاموش» فقط برای لِجی معنی دارد که تخلیه‌اش بسته شده (Status=Received) ولی مقدارش
+        // کامل مصرف نشده — دادهٔ قدیمی که کسری را ثبت نکرده است. تا وقتی لِج باز است (Loaded/InTransit)
+        // مقدارِ مصرف‌نشده هنوز روی کشتی است و «بار تخلیه‌نشده» به حساب می‌آید، نه کسری؛ وگرنه در
+        // تخلیهٔ مرحله‌ای، تمام بارِ هنوز تخلیه‌نشده به‌عنوان کسری گزارش می‌شد.
+        //
         // فقط لِج‌هایی که رسید (تخلیه) دارند؛ لِج بدون رسید هنوز در راه است و کسری قطعی ندارد.
         var rootReceiptTotals = await _db.InventoryTransportReceipts
             .AsNoTracking()
@@ -1084,10 +1073,10 @@ public partial class ShipmentPnlController : Controller
             .Select(g => new
             {
                 LegId = g.Key,
-                ReceivedMt = g.Sum(x => x.ReceivedQuantityMt),
+                ConsumedMt = g.Sum(x => x.ReceivedQuantityMt + x.ShortageQuantityMt),
                 RecordedShortageMt = g.Sum(x => x.ShortageQuantityMt)
             })
-            .ToDictionaryAsync(x => x.LegId, x => new { x.ReceivedMt, x.RecordedShortageMt });
+            .ToDictionaryAsync(x => x.LegId, x => new { x.ConsumedMt, x.RecordedShortageMt });
 
         var transportShortageByContract = shipmentRootLegs
             .Where(l => rootReceiptTotals.ContainsKey(l.Id))
@@ -1097,9 +1086,12 @@ public partial class ShipmentPnlController : Controller
                 g => g.Sum(l =>
                 {
                     var totals = rootReceiptTotals[l.Id];
-                    var unaccountedGapMt = Math.Max(0m, l.QuantityMt - totals.ReceivedMt);
+                    var unconsumedMt = Math.Max(0m, l.QuantityMt - totals.ConsumedMt);
+                    var silentShortageMt = l.Status == InventoryTransportLegStatus.Received
+                        ? unconsumedMt
+                        : 0m;
                     return decimal.Round(
-                        Math.Max(totals.RecordedShortageMt, unaccountedGapMt),
+                        totals.RecordedShortageMt + silentShortageMt,
                         4,
                         MidpointRounding.AwayFromZero);
                 }));
@@ -1166,6 +1158,71 @@ public partial class ShipmentPnlController : Controller
             .ToList();
     }
 
+    /// <summary>
+    /// تنها تعریف «تخلیهٔ کشتی» در پروندهٔ محموله. یک رسیدِ ورود به موجودی که روی
+    /// لِج فعالِ همین محموله ثبت شده و یا لِجِ کشتی است یا از فورم «ثبت تخلیهٔ گروهی»
+    /// همین صفحه آمده است.
+    ///
+    /// جدول تب تخلیه، مقدار مرحلهٔ VesselUnloaded و خروجی همان تب همگی از این یک
+    /// شرط تغذیه می‌شوند. پیش‌تر دو شرط جداگانه وجود داشت (یکی فقط یادداشت گروهی را
+    /// می‌پذیرفت و دیگری لِجِ کشتی را هم) و همین باعث می‌شد کارت آماری و جدول دو عدد
+    /// متفاوت بدهند.
+    /// </summary>
+    private static Expression<Func<InventoryTransportReceipt, bool>> VesselDischargeReceiptFilter(int shipmentId)
+    {
+        var groupReceiptTag = $"Group receipt: SHIP:{shipmentId} |";
+        return r => !r.IsCancelled
+            && r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
+            && r.InventoryMovementId.HasValue
+            && r.InventoryTransportLeg != null
+            && r.InventoryTransportLeg.ShipmentId == shipmentId
+            && r.InventoryTransportLeg.Status != InventoryTransportLegStatus.Draft
+            && r.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled
+            && (r.InventoryTransportLeg.TransportType == LoadingTransportType.Vessel
+                || (r.Notes != null && r.Notes.Contains(groupReceiptTag)));
+    }
+
+    /// <summary>شناسهٔ لِج‌هایی که رسید تخلیهٔ کشتی روی آن‌ها ثبت شده (همان تعریف واحد بالا).</summary>
+    private async Task<HashSet<int>> LoadVesselDischargeLegIdsAsync(int shipmentId)
+        => (await _db.InventoryTransportReceipts
+                .AsNoTracking()
+                .Where(VesselDischargeReceiptFilter(shipmentId))
+                .Select(r => r.InventoryTransportLegId)
+                .Distinct()
+                .ToListAsync())
+            .ToHashSet();
+
+    /// <summary>
+    /// لِج‌های «ریشه» محموله: مرحلهٔ ورود بار (کشتی/واگن → مخزن). مقدار بارگیری‌شدهٔ هر قرارداد
+    /// و «کسری تخلیه» فقط از این لِج‌ها ساخته می‌شوند.
+    ///
+    /// لِجِ نوع Vessel حالت عادی است. جریان فعلیِ محموله ریشه را با نوع Unspecified ثبت می‌کند،
+    /// پس آن حالت هم پذیرفته می‌شود — اما فقط با یک نشانهٔ قطعی: یا حرکت خروجیِ ثبت‌شده از مخزن،
+    /// یا رسید تخلیهٔ کشتیِ ثبت‌شده روی همان لِج. پیش‌تر فقط شرط اول بود؛ بارِ کشتی حرکت خروجیِ
+    /// موجودی ندارد، پس ریشه خالی می‌ماند و «کسری تخلیه»، «بار تخلیه‌نشده»، «مجموع کسری و ضایعات»
+    /// و ظرفیت دکمهٔ «ثبت کسری» همگی صفر نشان داده می‌شدند.
+    /// </summary>
+    private static List<InventoryTransportLeg> ResolveShipmentRootLegs(
+        IReadOnlyList<InventoryTransportLeg> shipmentLegsExcludingCancelled,
+        IReadOnlySet<int> vesselDischargeLegIds)
+    {
+        var originalVesselLegs = shipmentLegsExcludingCancelled
+            .Where(l => l.TransportType == LoadingTransportType.Vessel
+                && l.Status != InventoryTransportLegStatus.Draft)
+            .ToList();
+        if (originalVesselLegs.Count > 0)
+        {
+            return originalVesselLegs;
+        }
+
+        return shipmentLegsExcludingCancelled
+            .Where(l => l.TransportType == LoadingTransportType.Unspecified
+                && l.Status != InventoryTransportLegStatus.Draft
+                && ((l.OutboundInventoryMovementId.HasValue && l.SourceStorageTankId.HasValue)
+                    || vesselDischargeLegIds.Contains(l.Id)))
+            .ToList();
+    }
+
     private sealed record ShipmentSourceReceiptRow(
         int ContractId,
         int ProductId,
@@ -1190,11 +1247,23 @@ public partial class ShipmentPnlController : Controller
         IReadOnlyList<ShipmentContractLineViewModel> contractLines)
     {
         var originalShipmentQuantityMt = ResolveOriginalShipmentQuantity(shipment);
-        var inventoryLegs = await _db.InventoryTransportLegs
+        var shipmentLegs = await _db.InventoryTransportLegs
             .AsNoTracking()
-            .Where(l => l.ShipmentId == shipment.Id
-                && l.TransportType != LoadingTransportType.Vessel)
+            .Where(l => l.ShipmentId == shipment.Id)
             .ToListAsync();
+        // مرحلهٔ ورودِ محموله (کشتی → مخزن) حملِ داخلی نیست. اگر همان لِج‌ها اینجا هم شمرده شوند،
+        // یک کسری دو بار دیده می‌شود: یک بار زیر «کسری تخلیه» و یک بار زیر «کسری حمل داخلی»؛
+        // در نتیجه «مجموع کسری و ضایعات» دوبرابر می‌شود و رسیدِ تخلیه به‌جای تخلیه زیر
+        // «تحویل‌شده در مقصد»/«در مسیر» می‌نشیند. همان قاعدهٔ TransportedFromInventory است.
+        var rootLegIds = ResolveShipmentRootLegs(
+                shipmentLegs.Where(l => l.Status != InventoryTransportLegStatus.Cancelled).ToList(),
+                await LoadVesselDischargeLegIdsAsync(shipment.Id))
+            .Select(l => l.Id)
+            .ToHashSet();
+        var inventoryLegs = shipmentLegs
+            .Where(l => l.TransportType != LoadingTransportType.Vessel
+                && !rootLegIds.Contains(l.Id))
+            .ToList();
 
         var activeInventoryLegs = inventoryLegs
             .Where(l => l.Status != InventoryTransportLegStatus.Draft
@@ -1226,8 +1295,27 @@ public partial class ShipmentPnlController : Controller
                     ReceivedQuantityMt = group.Sum(r => r.ReceivedQuantityMt),
                     ShortageQuantityMt = group.Sum(r => r.ShortageQuantityMt)
                 });
-        var inTransitQuantityMt = activeInventoryLegs
-            .Where(l => l.Status is InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit)
+        // ===== تعریف واحد «سفر داخلی» =====
+        // سفر = حرکت واقعی وسیله (موتر/واگون) پس از تخلیهٔ کشتی. legهای Unspecified
+        // منبعِ ورودِ محموله‌اند (بدون وسیله و مقصد) و سفر نیستند؛ مرحلهٔ کشتی و legهای
+        // ریشه هم پیش‌تر از inventoryLegs بیرون رفته‌اند.
+        // postedTripLegs = سفرهایی که واقعاً روی موجودی نشسته‌اند و تنها مبنای هر سه
+        // عدد «خارج‌شده از مخزن / در مسیر / تحویل‌شده در مقصد» هستند؛ پیش‌نویس‌ها و
+        // سفرهای بدون خروج ثبت‌شده جداگانه در DraftTransportQuantityMt دیده می‌شوند.
+        var tripLegs = inventoryLegs
+            .Where(l => l.Status != InventoryTransportLegStatus.Cancelled
+                && l.TransportType is LoadingTransportType.Wagon or LoadingTransportType.Truck)
+            .ToList();
+        var postedTripLegs = tripLegs
+            .Where(l => l.Status != InventoryTransportLegStatus.Draft
+                && l.OutboundInventoryMovementId.HasValue)
+            .ToList();
+
+        // باقی‌ماندهٔ هر سفر = بارگیری منهای آنچه تخلیه یا کسری ثبت شده. فیلتر وضعیت
+        // (Loaded/InTransit) برداشته شد؛ سفری که وضعیتش «رسیده» است ولی رسید ناقص دارد
+        // هم باید دیده شود، وگرنه مابه‌التفاوت در هیچ کارتی نمی‌آمد و معادلهٔ
+        // «خارج‌شده = در مسیر + تحویل‌شده + کسری» بسته نمی‌شد.
+        var inTransitQuantityMt = postedTripLegs
             .Sum(l =>
             {
                 var receipt = receivedByLeg.GetValueOrDefault(l.Id);
@@ -1237,20 +1325,13 @@ public partial class ShipmentPnlController : Controller
                     - (receipt?.ShortageQuantityMt ?? 0m),
                     0m);
             });
+        var deliveredAtDestinationQuantityMt = postedTripLegs
+            .Sum(l => receivedByLeg.GetValueOrDefault(l.Id)?.ReceivedQuantityMt ?? 0m);
 
-        var shipmentGroupReceiptTag = $"Group receipt: SHIP:{shipment.Id} |";
         var exactVesselSourceRows = await _db.InventoryTransportReceipts
             .AsNoTracking()
-            .Where(r => !r.IsCancelled
-                && r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
-                && r.DestinationTerminalId.HasValue
-                && r.InventoryMovementId.HasValue
-                && r.InventoryTransportLeg != null
-                && r.InventoryTransportLeg.ShipmentId == shipment.Id
-                && (r.InventoryTransportLeg.TransportType == LoadingTransportType.Vessel
-                    || (r.Notes != null && r.Notes.Contains(shipmentGroupReceiptTag)))
-                && r.InventoryTransportLeg.Status != InventoryTransportLegStatus.Draft
-                && r.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+            .Where(VesselDischargeReceiptFilter(shipment.Id))
+            .Where(r => r.DestinationTerminalId.HasValue)
             .Select(r => new ShipmentSourceReceiptRow(
                 r.InventoryTransportLeg!.SourcePurchaseContractId,
                 r.InventoryTransportLeg.ProductId,
@@ -1398,16 +1479,14 @@ public partial class ShipmentPnlController : Controller
         // «حمل از موجودی» فقط legهای واقعیِ وسیله (موتر/واگون) است. legهای منبع/ورودیِ محموله
         // (TransportType=Unspecified، بدون وسیله و مقصد) نباید به‌عنوان حملِ خارج‌شده شمرده شوند،
         // وگرنه کل بار محموله دوباره از «باقی‌مانده» کسر می‌شود و منفی/صفر می‌شود.
-        var transportedToVehicleQuantityMt = activeInventoryLegs
-            .Where(l => l.TransportType is LoadingTransportType.Wagon or LoadingTransportType.Truck)
-            .Sum(l => l.QuantityMt);
+        var transportedToVehicleQuantityMt = postedTripLegs.Sum(l => l.QuantityMt);
 
         return new ShipmentQuantityFlowSnapshot(
             RoundQuantity(originalShipmentQuantityMt),
             RoundQuantity(sourceScopes.Sum(row => row.QuantityMt)),
             RoundQuantity(transportedToVehicleQuantityMt),
             RoundQuantity(inTransitQuantityMt),
-            RoundQuantity(destinationReceipts.Sum(r => r.ReceivedQuantityMt)),
+            RoundQuantity(deliveredAtDestinationQuantityMt),
             RoundQuantity(remainingInSourceTankQuantityMt),
             RoundQuantity(destinationReceipts.Sum(r => r.ShortageQuantityMt)),
             RoundQuantity(inventoryLegs.Where(l => l.Status == InventoryTransportLegStatus.Cancelled).Sum(l => l.QuantityMt)),
@@ -2333,17 +2412,30 @@ public partial class ShipmentPnlController : Controller
         return directLosses.Sum(l => l.QuantityMt);
     }
 
+    /// <summary>Reference لِ LossEventـی که خودِ سیستم برای کسریِ رسیدِ حمل می‌سازد.</summary>
+    private const string TransportReceiptLossReferencePrefix = "TRANSPORT-RECEIPT:";
+
+    /// <summary>
+    /// ضایعاتی که هنوز در هیچ سطلِ دیگری شمرده نشده‌اند.
+    ///
+    /// تنها LossEventـی که واقعاً تکراری است، آن است که خودِ سیستم هنگام ثبت کسریِ رسیدِ حمل
+    /// می‌سازد (Stage=ReceiptShortage با Reference «TRANSPORT-RECEIPT:{id}»)؛ همان مقدار از
+    /// طریق ShortageQuantityMt رسید در «کسری تخلیه» یا «کسری حمل داخلی» آمده است.
+    ///
+    /// پیش‌تر هر LossEventـی که به یک لِج/بارگیری/رسید/ارسال/فروش وصل بود کنار گذاشته می‌شد.
+    /// نتیجه: کسری‌ای که کاربر با دکمهٔ «ثبت کسری» روی یک سفر (یا روی یک ارسال/فروش) ثبت می‌کرد
+    /// در جدول تب کسری‌ها دیده می‌شد ولی در هیچ‌کدام از چهار کارت آماری شمرده نمی‌شد و
+    /// «مجموع کسری و ضایعات» تکان نمی‌خورد. کسری‌ای که رسید پشتش نیست تکراری هم نیست.
+    /// </summary>
     private async Task<List<DirectShipmentLossRow>> GetDirectShipmentLossesAsync(int shipmentId)
         => await _db.LossEvents
             .AsNoTracking()
             .Where(l => l.ShipmentId == shipmentId
                 && !l.IsCancelled
-                && l.TransportLegId == null
-                && l.LoadingRegisterId == null
-                && l.LoadingReceiptId == null
-                && l.TruckDispatchId == null
-                && l.SalesTransactionId == null
-                && l.DifferenceQuantityMt > 0m)
+                && l.DifferenceQuantityMt > 0m
+                && !(l.Stage == LossEventStage.ReceiptShortage
+                    && l.Reference != null
+                    && l.Reference.StartsWith(TransportReceiptLossReferencePrefix)))
             .Select(l => new DirectShipmentLossRow(l.ContractId, l.DifferenceQuantityMt))
             .ToListAsync();
 

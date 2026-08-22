@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -24,18 +25,27 @@ public class PartnersController : Controller
     private readonly IPurchaseAggregationService _purchaseAggregation;
     private readonly IPartyStatementReadService? _partyStatements;
 
+    // مانده شریک در پروفایل باید دقیقاً همان چیزی باشد که صورت‌حساب رسمی نشان می‌دهد،
+    // پس از همان لایهٔ جهت/بیلانس استفاده می‌کند و علامت جداگانه‌ای تعریف نمی‌کند.
+    private readonly ICompanyFlowDirectionResolver _directions;
+    private readonly ICompanyFlowBalanceService _balances;
+
     public PartnersController(
         ApplicationDbContext db,
         IAuditService audit,
         MasterDataDeleteSafetyService deleteSafety,
         IPurchaseAggregationService? purchaseAggregation = null,
-        IPartyStatementReadService? partyStatements = null)
+        IPartyStatementReadService? partyStatements = null,
+        ICompanyFlowDirectionResolver? directions = null,
+        ICompanyFlowBalanceService? balances = null)
     {
         _db = db;
         _audit = audit;
         _deleteSafety = deleteSafety;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
         _partyStatements = partyStatements;
+        _directions = directions ?? new CompanyFlowDirectionResolver();
+        _balances = balances ?? new CompanyFlowBalanceService();
     }
 
     public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -402,7 +412,11 @@ public class PartnersController : Controller
                 var sharePercent = resolvedContractId.HasValue
                     ? shareByContract.GetValueOrDefault(resolvedContractId.Value)
                     : 0m;
-                var shareRatio = sharePercent / 100m;
+
+                // «مبلغ شریک» دیگر درصدی نیست: پرداختِ شرکت پولِ شریک نیست (صفر) و پرداختی که
+                // خودِ همین شریک تأمین کرده کامل به او تعلق می‌گیرد.
+                var isOwnFunding = p.FundingSource == PaymentFundingSource.Partner
+                    && p.PaidByPartnerId == partner.Id;
 
                 return new PartnerPaymentSummaryViewModel
                 {
@@ -419,7 +433,7 @@ public class PartnersController : Controller
                     Amount = p.Amount,
                     Currency = p.Currency,
                     AmountUsd = p.AmountUsd,
-                    PartnerAmountUsd = RoundMoney(p.AmountUsd * shareRatio),
+                    PartnerAmountUsd = isOwnFunding ? RoundMoney(p.AmountUsd) : 0m,
                     Reference = p.Reference,
                     Description = p.Description,
                     LedgerEntryId = p.LedgerEntryId
@@ -452,18 +466,59 @@ public class PartnersController : Controller
                 .DistinctBy(l => l.Id)
                 .ToList();
 
+        // مانده شریک — دقیقاً همان قاعدهٔ صورت‌حساب رسمی:
+        //   • رویداد اقتصادی (بارگیری، مصرف، فروش): سهم شریک = مبلغ × SharePercent
+        //   • پرداختِ شرکت: اصلاً پولِ شریک نیست و شمرده نمی‌شود
+        //   • پرداختِ شریک: کامل (۱۰۰٪) به‌نام خودِ همان شریک
+        // جهت و علامت از CompanyFlowDirectionResolver/BalanceService می‌آید، نه از Credit/Debit خام،
+        // تا این عدد با صورت‌حساب شریک یکی بماند.
+        var funding = await PartnerFundingReader.LoadLedgerMapAsync(_db, contractIds.ToList());
         var ledgerBalanceByContract = ledgers
             .Select(l => new { ContractId = ResolveLedgerContractId(l, saleContractById), Ledger = l })
             .Where(x => x.ContractId.HasValue && shareByContract.ContainsKey(x.ContractId.Value))
             .GroupBy(x => x.ContractId!.Value)
             .ToDictionary(
                 g => g.Key,
-                g => g.Sum(x =>
+                g => RoundMoney(g.Sum(x =>
                 {
-                    var shareRatio = shareByContract[x.ContractId!.Value] / 100m;
-                    var amount = RoundMoney(x.Ledger.AmountUsd * shareRatio);
-                    return x.Ledger.Side == LedgerSide.Credit ? amount : -amount;
-                }));
+                    decimal ratio;
+                    if (funding.PaymentLedgerEntryIds.Contains(x.Ledger.Id))
+                    {
+                        if (!funding.PartnerByPaymentLedgerEntryId.TryGetValue(x.Ledger.Id, out var payerId)
+                            || payerId != partner.Id)
+                        {
+                            return 0m;
+                        }
+
+                        ratio = 1m;
+                    }
+                    else
+                    {
+                        ratio = shareByContract[x.ContractId!.Value] / 100m;
+                    }
+
+                    var direction = _directions.Resolve(new CompanyFlowEvent(
+                        x.Ledger.SourceType,
+                        x.Ledger.Side,
+                        CompanyFlowPartyRole.Partner,
+                        CompanyFlowSourceTypes.IsReversal(x.Ledger.SourceType)
+                            ? CompanyFlowLifecycle.Reversal
+                            : CompanyFlowLifecycle.Original));
+
+                    return _balances.SignedEffect(
+                        direction,
+                        Math.Abs(RoundMoney(x.Ledger.AmountUsd * ratio)),
+                        CompanyFlowAccountKind.PartyAccount);
+                })));
+
+        // پرداخت واقعیِ همین شریک روی هر قرارداد — مبلغ کامل، بدون ضرب در SharePercent.
+        var actualPartnerPayments = await PartnerFundingReader.LoadPartnerFundedPaymentsAsync(
+            _db, contractIds.ToList(), partner.Id);
+        var actualPaidByContract = actualPartnerPayments
+            .GroupBy(x => x.ContractId)
+            .ToDictionary(
+                g => g.Key,
+                g => RoundMoney(g.Sum(x => x.Direction == PaymentDirection.Out ? x.AmountUsd : -x.AmountUsd)));
 
         var contractSummaries = partnerLinks
             .Select(cp =>
@@ -482,6 +537,7 @@ public class PartnersController : Controller
                 directExpenseByContract.TryGetValue(contract.Id, out var directExpenseUsd);
                 allExpenseByContract.TryGetValue(contract.Id, out var saleExpenseUsd);
                 ledgerBalanceByContract.TryGetValue(contract.Id, out var statementBalanceUsd);
+                actualPaidByContract.TryGetValue(contract.Id, out var actualPartnerPaidUsd);
 
                 var isPurchase = contract.ContractType == ContractType.Purchase;
                 var executedQuantity = isPurchase
@@ -538,6 +594,7 @@ public class PartnersController : Controller
                     CashOutUsd = paymentTotals?.CashOutUsd ?? 0m,
                     PartnerCashInUsd = paymentTotals?.PartnerCashInUsd ?? 0m,
                     PartnerCashOutUsd = paymentTotals?.PartnerCashOutUsd ?? 0m,
+                    ActualPartnerPaidUsd = actualPartnerPaidUsd,
                     StatementBalanceUsd = statementBalanceUsd
                 };
             })
@@ -597,6 +654,8 @@ public class PartnersController : Controller
             CashOutUsd = contractSummaries.Sum(c => c.CashOutUsd),
             PartnerCashInUsd = contractSummaries.Sum(c => c.PartnerCashInUsd),
             PartnerCashOutUsd = contractSummaries.Sum(c => c.PartnerCashOutUsd),
+            ActualPartnerPaidUsd = contractSummaries.Sum(c => c.ActualPartnerPaidUsd),
+            PartnerPositionUsd = contractSummaries.Sum(c => c.StatementBalanceUsd),
             LastContractDate = contractSummaries.Count == 0 ? null : contractSummaries.Max(c => (DateTime?)c.ContractDate),
             LastFinancialDate = lastFinancialDate,
             StatementContractOptions = contractSummaries

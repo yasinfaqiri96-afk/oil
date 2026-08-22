@@ -313,6 +313,12 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     --ak-operations-panel-shadow: var(--ptg-panel-shadow);
 }
 
+/* Detail pages keep the semantic and visual hierarchy aligned. This also
+   neutralizes the generic list-page rule that promotes a direct stat grid. */
+.ak-operations-detail > .ak-detail-header {
+    order: -3;
+}
+
 .ak-operations-detail > .ak-page-header,
 .ak-operations-detail > .ak-detail-header {
     margin-block-end: 0;
@@ -371,144 +377,13 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     border-width: 1px;
 }
 
-.ak-operations-detail .ak-operations-overview {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-    gap: 12px;
-    align-items: stretch;
-}
-
-.ak-operations-detail .ak-operations-overview::before {
-    content: attr(aria-label);
-    grid-column: 1 / -1;
-    inline-size: max-content;
-    max-inline-size: 100%;
-    margin-block-end: -2px;
-    padding-inline-start: 8px;
-    border-inline-start: 2px solid var(--ptg-primary);
-    color: var(--ptg-primary);
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1.4;
-}
-
-.ak-operations-detail .ak-operations-overview > .ak-summary-card {
-    margin: 0;
-    min-width: 0;
-    border-color: transparent;
-    border-radius: var(--ak-operations-panel-radius);
-    background: var(--ak-operations-panel-surface);
-    box-shadow: var(--ak-operations-panel-shadow);
-}
-
-.ak-operations-detail .ak-operations-more {
-    overflow: clip;
-    border: 1px solid transparent;
-    border-radius: var(--ak-operations-panel-radius);
-    background: var(--ak-operations-panel-surface);
-    box-shadow: var(--ak-operations-panel-shadow);
-}
-
-.ak-operations-detail .ak-operations-more-summary {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-block-size: 48px;
-    padding: 10px 13px;
-    color: var(--ak-detail-text, var(--ptg-text));
-    cursor: pointer;
-    list-style: none;
-}
-
-.ak-operations-detail .ak-operations-more-summary::-webkit-details-marker {
-    display: none;
-}
-
-.ak-operations-detail .ak-operations-more-summary::after {
-    content: "";
-    inline-size: 8px;
-    block-size: 8px;
-    flex: 0 0 auto;
-    margin-inline-start: 2px;
-    border-inline-end: 1.5px solid currentColor;
-    border-block-end: 1.5px solid currentColor;
-    transform: rotate(-45deg);
-    transition: transform var(--ptg-motion-fast, 140ms) ease-out;
-}
-
-.ak-operations-detail .ak-operations-more[open] > .ak-operations-more-summary::after {
-    transform: rotate(45deg);
-}
-
-.ak-operations-detail .ak-operations-more-summary:focus-visible {
-    outline: 2px solid var(--ptg-primary);
-    outline-offset: -2px;
-}
-
-.ak-operations-detail .ak-operations-more-heading {
-    display: grid;
-    gap: 1px;
-    min-width: 0;
-}
-
-.ak-operations-detail .ak-operations-more-heading strong {
-    font-size: 14px;
-    font-weight: 700;
-}
-
-.ak-operations-detail .ak-operations-more-heading small {
-    color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 11px;
-    line-height: 1.5;
-}
-
-.ak-operations-detail .ak-operations-more-count {
-    margin-inline-start: auto;
-    padding: 1px 7px;
-    border-radius: var(--ptg-radius-badge);
-    background: var(--ak-detail-soft, var(--ptg-surface-soft));
-    color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-}
-
-.ak-operations-detail .ak-operations-more-body {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-    border-block-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
-}
-
-.ak-operations-detail .ak-operations-more-group {
-    min-width: 0;
-    padding: 13px;
-}
-
-.ak-operations-detail .ak-operations-more-group + .ak-operations-more-group {
-    border-inline-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
-}
-
-.ak-operations-detail .ak-operations-more-title {
-    margin: 0 0 9px;
-    color: var(--ak-detail-text, var(--ptg-text));
-    font-size: 13px;
-    font-weight: 700;
-}
-
-.ak-operations-detail .ak-operations-more .ak-timeline {
-    gap: 8px;
-}
-
-.ak-operations-detail .ak-operations-more .ak-related {
-    gap: 6px;
-}
-
 .ak-operations-detail .ak-operations-tab-fact {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
-    margin: 0 0 10px;
-    padding: 8px 11px;
+    margin: 0 0 8px;
+    padding: 6px 10px;
     border-inline-start: 3px solid var(--ptg-warning, #d97706);
     background: var(--ak-detail-soft, var(--ptg-surface-soft));
     color: var(--ak-detail-muted, var(--ptg-muted));
@@ -526,9 +401,6 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .ak-operations-detail .ak-operations-overview {
-        grid-template-columns: minmax(0, 1fr);
-    }
 }
 
 @media (max-width: 767.98px) {
@@ -537,18 +409,6 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
         --ak-detail-card-padding: 12px;
     }
 
-    .ak-operations-detail .ak-operations-more-body {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .ak-operations-detail .ak-operations-more-group + .ak-operations-more-group {
-        border-inline-start: 0;
-        border-block-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
-    }
-
-    .ak-operations-detail .ak-operations-more-heading small {
-        display: none;
-    }
 }
 
 :root[data-theme="dark"] .ak-operations-detail .ak-stat-card,
@@ -557,8 +417,6 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 [data-bs-theme="dark"] .ak-operations-detail .ak-summary-card,
 :root[data-theme="dark"] .ak-operations-detail .ak-detail-section,
 [data-bs-theme="dark"] .ak-operations-detail .ak-detail-section,
-:root[data-theme="dark"] .ak-operations-detail .ak-operations-more,
-[data-bs-theme="dark"] .ak-operations-detail .ak-operations-more,
 :root[data-theme="dark"] .ak-operations-detail.ak-operations-settlement > .ak-list,
 [data-bs-theme="dark"] .ak-operations-detail.ak-operations-settlement > .ak-list {
     border-color: transparent;
@@ -581,7 +439,6 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     .ak-operations-detail .ak-stat-card,
     .ak-operations-detail .ak-summary-card,
     .ak-operations-detail .ak-detail-section,
-    .ak-operations-detail .ak-operations-more,
     .ak-operations-detail.ak-operations-settlement > .ak-list {
         border: 1px solid #ccc;
         background: #fff;
@@ -595,18 +452,6 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
         box-shadow: none;
     }
 
-    .ak-operations-detail .ak-operations-more {
-        overflow: visible;
-    }
-
-    .ak-operations-detail .ak-operations-more > .ak-operations-more-body {
-        display: grid !important;
-    }
-
-    .ak-operations-detail .ak-operations-more-summary::after,
-    .ak-operations-detail .ak-operations-more-count {
-        display: none;
-    }
 }
 
 /* ===================================================================
@@ -617,21 +462,6 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
    readable without hunting; labels and secondary text stay as they are.
    Scoped to the page marker, so no other detail page shifts.
    =================================================================== */
-[data-transport-details] .ak-stat-card__value { font-size: clamp(24px, 1.9vw, 30px); }
-[data-transport-details] .ak-stat-card__value--compact { font-size: clamp(20px, 1.6vw, 25px); }
-[data-transport-details] .ak-stat-card__value--dense { font-size: clamp(16px, 1.3vw, 20px); }
-[data-transport-details] .ak-stat-card__value--ultra { font-size: clamp(13px, 1.05vw, 16px); }
-
-/* Use the shared stat-card number colour; the transport page has no custom
-   per-card palette. Its state remains clear through labels and record status. */
-
-/* Start directly with the profile card; the visible "Quick scan" eyebrow is
-   redundant with the card title on this page. */
-[data-transport-details] > .ak-operations-clean-overview::before {
-    content: none;
-    display: none;
-}
-
 /* Transport chain: compact directional timeline with explicit split/merge parents. */
 .transport-chain-timeline {
     display: flex;
@@ -730,83 +560,882 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     }
 }
 
-/* Transport history is table-first. Each tab exposes only primary facts and
-   keeps secondary fields in the existing detail modal. */
-[data-transport-details] .transport-details-records > .ak-detail-tabs {
-    margin-block-end: 0;
+/* ==========================================================================
+   Linear Operations Details
+   Identity -> one overview surface -> one activity/financial list.
+   ========================================================================== */
+.ak-linear-detail {
+    inline-size: min(100%, 1120px);
+    margin-inline: auto;
+    gap: 18px;
+    --ak-linear-border: color-mix(in srgb, var(--ptg-border) 82%, transparent);
 }
 
-[data-transport-details] .transport-details-records .ak-tab-content {
-    padding-block-start: 12px;
+.ak-linear-detail > .ak-detail-header {
+    align-items: flex-start;
+    padding-block: 0 16px;
+    border-block-end: 1px solid var(--ak-linear-border);
 }
 
-[data-transport-details] .transport-records-table th,
-[data-transport-details] .transport-records-table td {
-    vertical-align: middle;
+.ak-linear-detail .ak-detail-identity-header .ak-detail-header-main {
+    gap: 10px;
+    min-width: 0;
 }
 
-[data-transport-details] .transport-records-table .ak-col-actions {
-    width: 64px;
-    text-align: center;
-}
-
-[data-transport-details] .transport-tab-summary {
+.ak-linear-detail .ak-detail-identity-main {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px 24px;
-    margin-block-start: 10px;
-    padding-block-start: 10px;
-    border-block-start: 1px solid var(--ak-detail-divider, var(--ptg-border));
-    color: var(--ak-detail-muted, var(--ptg-muted));
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.ak-linear-detail .ak-detail-identity-visual {
+    display: grid;
+    place-items: center;
+    inline-size: 42px;
+    block-size: 42px;
+    flex: 0 0 42px;
+    border-radius: 10px;
+    background: var(--ptg-primary-soft);
+    color: var(--ptg-primary);
+    font-size: 20px;
+}
+
+.ak-linear-detail .ak-detail-identity-copy {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+}
+
+.ak-linear-detail .ak-detail-identity-copy > small,
+.ak-linear-detail .ak-detail-identity-copy > span,
+.ak-linear-detail .ak-detail-identity-copy .ak-detail-subtitle {
+    margin: 0;
+    color: var(--ptg-muted);
     font-size: 12px;
 }
 
-[data-transport-details] .transport-tab-summary > span {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
+.ak-linear-detail .ak-detail-identity-copy .ak-detail-title {
+    font-size: clamp(18px, 1.7vw, 23px);
 }
 
-[data-transport-details] .transport-tab-summary strong {
-    color: var(--ak-detail-text, var(--ptg-text));
-    font-size: 14px;
-    font-variant-numeric: tabular-nums;
+.ak-linear-detail .ak-detail-identity-header .ak-info-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px 22px;
 }
 
-[data-transport-details] .transport-tab-summary.is-warning strong {
-    color: var(--ptg-warning-text);
+.ak-linear-detail .ak-detail-identity-header .ak-info-cell,
+.ak-linear-detail .ak-detail-identity-header .ak-info-cell.is-wide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    padding: 0;
+    border: 0;
 }
 
-/* Toned summary facts (remaining in vehicle) — colour already comes from the
-   tone class, only the size step is added here. */
-[data-transport-details] .ak-info-value.is-warning,
-[data-transport-details] .ak-info-value.is-danger,
-[data-transport-details] .ak-info-value.is-success {
+.ak-linear-detail .ak-detail-identity-header .ak-info-cell.is-wide {
+    grid-column: auto;
+}
+
+.ak-linear-detail .ak-detail-overview,
+.ak-linear-detail .ak-detail-activity {
+    margin: 0;
+    padding: 15px 17px;
+    border: 1px solid var(--ak-linear-border);
+    border-radius: 14px;
+    background: var(--background-paper, #fff);
+    box-shadow: none;
+}
+
+.ak-linear-detail .ak-detail-overview-title {
+    margin: -2px -2px 12px;
+    padding-block-end: 10px;
+    border-block-end: 1px solid var(--ak-linear-border);
+    color: var(--ptg-text);
     font-size: 16px;
     font-weight: 700;
 }
 
-/* Record-list figures: quantities and amounts read as values, not body text. */
-[data-transport-details] .ak-list-row > span.ak-num {
-    color: var(--ptg-primary);
+.ak-linear-detail .ak-detail-overview-body,
+.ak-linear-detail .ak-detail-overview-content {
+    min-width: 0;
+}
+
+.ak-linear-detail .ak-detail-overview-body.has-visual {
+    display: grid;
+    grid-template-columns: minmax(180px, .28fr) minmax(0, 1fr);
+    gap: 22px;
+    align-items: stretch;
+}
+
+.ak-linear-detail .ak-detail-vehicle {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 5px;
+    min-width: 0;
+    padding-inline-end: 20px;
+    border-inline-end: 1px solid var(--ak-linear-border);
+    text-align: center;
+}
+
+.ak-linear-detail .ak-detail-vehicle img {
+    inline-size: min(100%, 190px);
+    block-size: 104px;
+    object-fit: contain;
+}
+
+.ak-linear-detail .ak-detail-vehicle strong {
+    color: var(--ptg-text);
     font-size: 15px;
+}
+
+.ak-linear-detail .ak-detail-vehicle span {
+    color: var(--ptg-muted);
+    font-size: 12px;
+}
+
+/* Metric count drives the column count, so 2 or 3 KPIs fill the strip evenly
+   instead of leaving the old fixed 4-column grid half empty. */
+.ak-linear-detail .ak-detail-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 0 0 12px;
+    border-block-end: 1px solid var(--ak-linear-border);
+}
+
+.ak-linear-detail .ak-detail-metrics[data-metric-count="1"] {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.ak-linear-detail .ak-detail-metrics[data-metric-count="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ak-linear-detail .ak-detail-metrics[data-metric-count="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Same box as the shared stat card in this section (.ak-operations-detail
+   .ak-stat-card): 72px floor, 8px/9px padding, 16px radius and the illustration
+   in a fixed share of the card. The metric sits inside the overview panel, so it
+   stays flat — hairline plus soft surface, never a second elevation. The avatar
+   is taken out of flow because the shared markup keeps it inside <dt>, and the
+   reserved padding on the same side is its column.
+   Physical side on purpose: .ak-stat-card is direction-locked to LTR, so its
+   illustration is always on the right; a logical inset would mirror it to the
+   left on these RTL pages. */
+.ak-linear-detail .ak-detail-metric {
+    /* Reserved illustration column. The rendered artwork is square, so its size
+       is bound by the card's inner height, not by this share; the share only has
+       to be wide enough to hold that square and is capped in px so a two-column
+       row does not hand the copy less room than it needs. */
+    --ak-metric-visual: min(40%, 112px);
+    --ak-metric-inset: 8px;
+
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* width + box-sizing before aspect-ratio, exactly as .ak-stat-card declares
+       them: a grid item that carries a ratio with an auto width stops
+       stretching to its track and sizes itself from the ratio instead, which
+       pushes the card out of its column. */
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    aspect-ratio: 2.6;
+    min-block-size: 72px;
+    max-block-size: 112px;
+    padding: 8px 9px;
+    padding-right: calc(var(--ak-metric-visual) + var(--ak-metric-inset) + 5px);
+    border: 1px solid var(--ak-linear-border);
+    border-radius: 16px;
+    background: var(--ptg-surface-soft);
+    overflow: hidden;
+}
+
+.ak-linear-detail .ak-detail-metric dt {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-block-end: 3px;
+    min-width: 0;
+    color: var(--ptg-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ak-linear-detail .ak-detail-metric dt > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The illustration keeps the shared card's proportion: it owns ~40% of the box
+   and its full inner height, instead of a 38px thumbnail.
+   Both axes are card-driven. The assets are square (512x512), so an auto height
+   would resolve to the image ratio — 40% of a 264px card is 105px against a 56px
+   inner height — and an over-constrained replaced box drops the trailing inset
+   instead of shrinking, which is what pushed the avatar out of the card. */
+.ak-linear-detail .ak-detail-metric-avatar {
+    position: absolute;
+    top: var(--ak-metric-inset);
+    right: var(--ak-metric-inset);
+    inline-size: var(--ak-metric-visual);
+    block-size: calc(100% - (var(--ak-metric-inset) * 2));
+    object-fit: contain;
+    object-position: center;
+}
+
+.ak-linear-detail .ak-detail-metric dd {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ptg-text);
+    /* Ceiling matches .ak-operations-clean-page .ak-stat-card__value (22px); the
+       floor keeps long money strings inside the narrower copy column. */
+    font-size: clamp(16px, 1.5vw, 22px);
+    font-weight: 700;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+    /* A figure is one token: it is shortened, never broken across two lines. */
+    white-space: nowrap;
+}
+
+.ak-linear-detail .ak-detail-metric dd > bdi {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* State-bearing metrics (shortage, outstanding balance, remaining) carry the
+   tone the page already declared; neutral metrics stay text-coloured. */
+.ak-linear-detail .ak-detail-metric.is-warning dd { color: var(--ptg-warning-text); }
+.ak-linear-detail .ak-detail-metric.is-danger dd { color: var(--ptg-danger-text); }
+.ak-linear-detail .ak-detail-metric.is-success dd { color: var(--ptg-success-text); }
+
+.ak-linear-detail .ak-detail-metric dd span {
+    flex: 0 0 auto;
+    color: var(--ptg-muted);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* The two tiers below mirror .ak-stat-card in 52-stat-card.css, so a metric and
+   a stat card of the same width keep the same box on every screen. */
+@media (max-width: 1399.98px) {
+    .ak-linear-detail .ak-detail-metric {
+        aspect-ratio: 2.1;
+    }
+
+    /* Same type steps the shared card takes here, so a narrow card shortens the
+       figure instead of dropping half of it behind an ellipsis. */
+    .ak-linear-detail .ak-detail-metric dt {
+        font-size: clamp(9.5px, 1.05vw, 12px);
+    }
+
+    .ak-linear-detail .ak-detail-metric dd {
+        font-size: clamp(13px, 1.75vw, 20px);
+    }
+
+    .ak-linear-detail .ak-detail-metric dd span {
+        font-size: clamp(8.5px, 0.92vw, 10.5px);
+    }
+}
+
+@media (max-width: 899.98px) {
+    .ak-linear-detail .ak-detail-metric {
+        /* Copy takes the wider share on the smallest card, exactly like the
+           shared card's 63/37 split — a truncated figure is worse than a
+           slightly smaller illustration. */
+        --ak-metric-visual: 34%;
+
+        aspect-ratio: 1.95;
+    }
+
+    /* And the unit drops under the figure, as it already does in the shared
+       card, so the whole money string survives on the narrowest card. */
+    .ak-linear-detail .ak-detail-metric dd {
+        flex-wrap: wrap;
+        gap: 0 6px;
+    }
+}
+
+.ak-linear-detail .ak-detail-overview-content > .ak-info-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px 18px;
+}
+
+/* Facts read as a dense reference block under the cards, not as tall rows. */
+.ak-linear-detail .ak-detail-overview-content > .ak-info-grid .ak-info-label {
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+.ak-linear-detail .ak-detail-overview-content > .ak-info-grid .ak-info-value {
+    font-size: 13.5px;
+    line-height: 1.45;
+}
+
+.ak-linear-detail .ak-detail-overview .ak-info-cell,
+.ak-linear-detail .ak-detail-overview .ak-info-cell.is-wide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    padding: 0;
+    border: 0;
+}
+
+.ak-linear-detail .ak-detail-overview .ak-info-cell.is-wide {
+    grid-column: span 2;
+}
+
+.ak-linear-detail .ak-detail-activity {
+    padding-block: 8px;
+}
+
+.ak-linear-detail .ak-detail-activity > h2 {
+    margin: 0;
+    padding: 6px 4px 8px;
+    color: var(--ptg-text);
+    font-size: 14px;
     font-weight: 700;
 }
 
-[data-transport-details] .ak-list-row > span.ak-num > small {
-    color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 11px;
-    font-weight: 500;
+/* Flex, not a fixed 5-column grid: cells are omitted when a row has no value,
+   meta or status, and the meta column wraps onto its own line on narrow screens
+   instead of being hidden. */
+.ak-linear-detail .ak-detail-activity-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 12px;
+    min-block-size: 34px;
+    padding: 5px 4px;
+    border-block-start: 1px solid var(--ak-linear-border);
 }
 
-[data-transport-details] .ak-list-row.is-remaining > span.ak-num {
-    color: var(--ptg-warning-text);
-    font-size: 17px;
+.ak-linear-detail .ak-detail-activity-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 170px;
+    min-width: 0;
 }
 
-/* Tab totals are the closing figure of each tab. */
-[data-transport-details] .ak-detail-totals .ak-list-row > b {
-    font-size: 17px;
+.ak-linear-detail .ak-detail-activity-value {
+    flex: 0 1 auto;
+    min-inline-size: 110px;
+}
+
+.ak-linear-detail .ak-detail-activity-meta {
+    flex: 1 1 110px;
+    min-width: 0;
+}
+
+.ak-linear-detail .ak-detail-activity-status {
+    flex: 0 0 auto;
+    min-inline-size: 78px;
+}
+
+.ak-linear-detail .ak-detail-activity-label i {
+    color: var(--ptg-muted);
+}
+
+.ak-linear-detail .ak-detail-activity-label strong,
+.ak-linear-detail .ak-detail-activity-value {
+    color: var(--ptg-text);
+    font-size: 13px;
+}
+
+.ak-linear-detail .ak-detail-activity-value small,
+.ak-linear-detail .ak-detail-activity-meta,
+.ak-linear-detail .ak-detail-activity-status {
+    color: var(--ptg-muted);
+    font-size: 12px;
+}
+
+/* Unit never touches the figure. */
+.ak-linear-detail .ak-detail-activity-value small {
+    margin-inline-start: 4px;
+}
+
+.ak-linear-detail .ak-detail-activity-status.is-success { color: var(--ptg-success-text); }
+.ak-linear-detail .ak-detail-activity-status.is-warning { color: var(--ptg-warning-text); }
+.ak-linear-detail .ak-detail-activity-status.is-danger { color: var(--ptg-danger-text); }
+
+.ak-linear-detail .ak-detail-activity-link {
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    color: var(--ptg-primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ak-linear-detail .ak-detail-actionbar {
+    position: static;
+    justify-content: flex-start;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.ak-linear-detail .ak-detail-actionbar .btn {
+    min-block-size: 38px;
+}
+
+/* Reference Details composition: the existing shared overview, activity,
+   history and action components become one balanced three-column closing row. */
+.ak-detail-reference-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.08fr) minmax(220px, .82fr);
+    align-items: stretch;
+}
+
+.ak-detail-reference-layout > .ak-detail-header,
+.ak-detail-reference-layout > .ak-detail-overview,
+.ak-detail-reference-layout > .ak-detail-reference-section,
+.ak-detail-reference-layout > .alert,
+.ak-detail-reference-layout > .modal,
+.ak-detail-reference-layout > script {
+    grid-column: 1 / -1;
+}
+
+.ak-detail-reference-layout > .ak-detail-identity-header {
+    align-items: end;
+    padding-block-end: 0;
+    border-block-end: 0;
+}
+
+.ak-detail-reference-layout > .ak-detail-identity-header .ak-detail-header-main {
+    gap: 14px;
+}
+
+.ak-detail-reference-layout > .ak-detail-identity-header .ak-info-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: 14px 18px;
+    border: 1px solid var(--ak-linear-border);
+    border-radius: 14px;
+    background: var(--background-paper, #fff);
+}
+
+.ak-detail-reference-layout > .ak-detail-identity-header .ak-info-cell {
+    padding-inline: 18px;
+    border-inline-start: 1px solid var(--ak-linear-border);
+}
+
+.ak-detail-reference-layout > .ak-detail-identity-header .ak-info-cell:first-child {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+}
+
+.ak-detail-reference-layout > .ak-detail-identity-header .ak-info-cell:last-child {
+    padding-inline-end: 0;
+}
+
+/* The three closing columns already stretch to the tallest one, so the old
+   270px floor only added empty space under short lists. */
+.ak-detail-reference-layout > :is(.ak-detail-activity, .ak-detail-secondary, .ak-detail-actions-panel) {
+    min-width: 0;
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--ak-linear-border);
+    border-radius: 14px;
+    background: var(--background-paper, #fff);
+}
+
+.ak-detail-reference-layout > :is(.ak-detail-activity, .ak-detail-secondary, .ak-detail-actions-panel) h2 {
+    margin: 0;
+    padding: 0 2px 9px;
+    border-block-end: 1px solid var(--ak-linear-border);
+    color: var(--ptg-text);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.ak-detail-reference-layout > .ak-detail-secondary {
+    display: block;
+    color: var(--ptg-muted);
+    font-size: 12px;
+}
+
+.ak-detail-reference-layout .ak-detail-history > h2 {
+    margin-block-end: 10px;
+}
+
+.ak-detail-reference-layout .ak-detail-history-list {
+    gap: 0;
+}
+
+.ak-detail-reference-layout .ak-detail-history-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 10px;
+    min-height: 38px;
+    padding-block: 6px;
+    padding-inline: 24px 0;
+    border-block-end: 1px solid var(--ak-linear-border);
+}
+
+.ak-detail-reference-layout .ak-detail-history-item::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 3px;
+    inset-block-start: 13px;
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: var(--ptg-primary);
+}
+
+.ak-detail-reference-layout .ak-detail-history-date {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    min-inline-size: 0;
+    color: var(--ptg-muted);
+}
+
+.ak-detail-reference-layout .ak-detail-history-title {
+    grid-column: 1;
+}
+
+.ak-detail-reference-layout .ak-detail-history-meta {
+    grid-column: 1;
+    color: var(--ptg-muted);
+}
+
+.ak-detail-reference-layout > .ak-detail-actions-panel {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+}
+
+.ak-detail-reference-layout .ak-detail-actionbar {
+    display: grid;
+    gap: 8px;
+}
+
+.ak-detail-reference-layout .ak-detail-actionbar > :is(a, button, form),
+.ak-detail-reference-layout .ak-detail-actionbar form > button {
+    width: 100%;
+}
+
+.ak-detail-reference-layout .ak-detail-actionbar .btn {
+    justify-content: center;
+}
+
+.ak-linear-detail .ak-detail-secondary {
+    display: grid;
+    gap: 12px;
+    padding-block: 4px 18px;
+    color: var(--ptg-muted);
+    font-size: 12px;
+}
+
+.ak-linear-detail .ak-detail-secondary-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+}
+
+.ak-linear-detail .ak-detail-secondary a {
+    color: var(--ptg-muted);
+    text-decoration: none;
+}
+
+/* History: every recorded event, one compact line each. */
+.ak-linear-detail .ak-detail-history > h2 {
+    margin: 0 0 6px;
+    color: var(--ptg-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ak-linear-detail .ak-detail-history-list {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ak-linear-detail .ak-detail-history-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    min-width: 0;
+}
+
+.ak-linear-detail .ak-detail-history-date {
+    flex: 0 0 auto;
+    min-inline-size: 88px;
+}
+
+/* The title does not stretch: date, title and figure stay adjacent instead of
+   throwing the figure to the opposite edge of a very wide page. */
+.ak-linear-detail .ak-detail-history-title {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.ak-linear-detail .ak-detail-history-meta {
+    flex: 0 0 auto;
+}
+
+.ak-linear-detail .ak-detail-history-item.is-current .ak-detail-history-title {
+    color: var(--ptg-text);
+    font-weight: 600;
+}
+
+/* Internal ids, ledger and audit trace: present, but folded away by default. */
+.ak-linear-detail .ak-detail-technical {
+    padding-block-start: 12px;
+    border-block-start: 1px solid var(--ak-linear-border);
+}
+
+.ak-linear-detail .ak-detail-technical > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--ptg-muted);
+    font-size: 12px;
+    font-weight: 600;
+    list-style: none;
+}
+
+.ak-linear-detail .ak-detail-technical > summary::-webkit-details-marker {
+    display: none;
+}
+
+.ak-linear-detail .ak-detail-technical > summary::before {
+    content: "";
+    inline-size: 6px;
+    block-size: 6px;
+    border-inline-end: 1.5px solid currentColor;
+    border-block-end: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 140ms ease;
+}
+
+.ak-linear-detail .ak-detail-technical[open] > summary::before {
+    transform: rotate(45deg);
+}
+
+.ak-linear-detail .ak-detail-technical > summary:focus-visible {
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: 2px;
+}
+
+.ak-linear-detail .ak-detail-technical > .ak-info-grid {
+    margin-block-start: 8px;
+}
+
+/* .ak-detail-page .ak-info-grid sets display:grid, and an author rule outranks the
+   UA sheet that hides a closed <details>. Without this the block never collapses. */
+.ak-linear-detail .ak-detail-technical:not([open]) > .ak-info-grid {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ak-linear-detail .ak-detail-technical > summary::before {
+        transition: none;
+    }
+}
+
+/* Same rule the older .ak-detail-advanced disclosure follows: identifiers and
+   the accounting trace stay on paper even though the block is closed on screen. */
+@media print {
+    .ak-linear-detail .ak-detail-technical:not([open]) > .ak-info-grid {
+        display: grid;
+    }
+
+    .ak-linear-detail .ak-detail-technical > summary::before {
+        display: none;
+    }
+}
+
+.ak-linear-detail .ak-detail-deep-section {
+    padding-block: 18px;
+    border-block-start: 1px solid var(--ak-linear-border);
+}
+
+.ak-linear-detail .ak-detail-deep-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-block-end: 12px;
+}
+
+.ak-linear-detail .ak-detail-deep-title {
+    display: grid;
+    gap: 2px;
+}
+
+.ak-linear-detail .ak-detail-deep-title small {
+    color: var(--ptg-muted);
+    font-size: 12px;
+}
+
+.ak-linear-detail .ak-detail-deep-count {
+    min-inline-size: 28px;
+    color: var(--ptg-muted);
+    font-size: 12px;
+    text-align: center;
+}
+
+.ak-linear-detail .ak-detail-deep-body {
+    display: grid;
+    gap: 12px;
+}
+
+/* Older detailed tables/forms remain available below the three primary zones,
+   but lose the nested-card/dashboard treatment in this shell. */
+.ak-linear-detail > .ak-detail-section,
+.ak-linear-detail > .ak-form-section,
+.ak-linear-detail > .ak-form-grid > .ak-detail-section,
+.ak-linear-detail > .ak-tab-content > .tab-pane > .ak-detail-section {
+    border-radius: 0;
+    box-shadow: none;
+}
+
+@media (max-width: 991.98px) {
+    .ak-linear-detail .ak-detail-identity-header .ak-info-grid,
+    .ak-linear-detail .ak-detail-overview-content > .ak-info-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ak-detail-reference-layout {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ak-detail-reference-layout > .ak-detail-identity-header .ak-info-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 0;
+    }
+
+    .ak-detail-reference-layout > .ak-detail-identity-header .ak-info-cell:nth-child(3) {
+        padding-inline-start: 0;
+        border-inline-start: 0;
+    }
+
+    .ak-detail-reference-layout > .ak-detail-actions-panel {
+        grid-column: 1 / -1;
+        min-height: 0;
+    }
+
+    .ak-detail-reference-layout .ak-detail-actionbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Four large numbers in four columns are unreadable on a tablet; 2x2 keeps
+       them full size and still leaves no empty cell. */
+    .ak-linear-detail .ak-detail-metrics[data-metric-count="4"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 12px;
+    }
+
+    /* The meta column wraps to its own line here — it is never removed. */
+    .ak-linear-detail .ak-detail-activity-meta {
+        flex-basis: 100%;
+        order: 1;
+    }
+
+    .ak-linear-detail .ak-detail-activity-link {
+        order: 2;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .ak-linear-detail {
+        gap: 14px;
+    }
+
+    .ak-linear-detail .ak-detail-identity-header .ak-info-grid,
+    .ak-linear-detail .ak-detail-overview-content > .ak-info-grid,
+    .ak-linear-detail .ak-detail-metrics[data-metric-count="3"],
+    .ak-linear-detail .ak-detail-metrics[data-metric-count="4"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 12px;
+    }
+
+    /* An odd count would leave a hole in the last row; the trailing metric
+       takes the whole width instead. */
+    .ak-linear-detail .ak-detail-metrics[data-metric-count="3"] > .ak-detail-metric:last-child {
+        grid-column: 1 / -1;
+    }
+
+    /* The card box itself is not touched here: a half-width phone card measures
+       about the same as a tablet quarter, so it keeps the tablet box exactly as
+       .ak-stat-card does. Only the column count above changes. */
+
+    .ak-linear-detail .ak-detail-overview,
+    .ak-linear-detail .ak-detail-activity {
+        padding-inline: 14px;
+    }
+
+    .ak-linear-detail .ak-detail-overview-body.has-visual,
+    .ak-detail-reference-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ak-linear-detail .ak-detail-vehicle {
+        padding: 0 0 14px;
+        border-inline-end: 0;
+        border-block-end: 1px solid var(--ak-linear-border);
+    }
+
+    .ak-detail-reference-layout > .ak-detail-identity-header .ak-info-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ak-detail-reference-layout > .ak-detail-identity-header .ak-info-cell {
+        padding: 8px 0;
+        border-inline-start: 0;
+        border-block-start: 1px solid var(--ak-linear-border);
+    }
+
+    .ak-detail-reference-layout > .ak-detail-identity-header .ak-info-cell:first-child {
+        padding-block-start: 0;
+        border-block-start: 0;
+    }
+
+    .ak-detail-reference-layout > :is(.ak-detail-activity, .ak-detail-secondary, .ak-detail-actions-panel) {
+        grid-column: 1;
+        min-height: 0;
+    }
+
+    .ak-detail-reference-layout .ak-detail-actionbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Figure and status share one line; only the meta text takes its own. */
+    .ak-linear-detail .ak-detail-activity-value {
+        min-inline-size: 0;
+    }
+
+    .ak-linear-detail .ak-detail-activity-label {
+        flex-basis: 100%;
+    }
+
+    .ak-linear-detail .ak-detail-history-date {
+        min-inline-size: 0;
+    }
 }
 
 /* -------------------------------------------------------------------
@@ -866,33 +1495,6 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     color: var(--ptg-primary-contrast) !important;
 }
 
-/* The loading overview starts directly with its cards; it has no visual label. */
-[data-loading-details] > .ak-operations-clean-overview::before {
-    content: none;
-    display: none;
-}
-
-/* Loading receipt details also begin directly with their compact summaries. */
-[data-loading-receipt-details] > .ak-operations-clean-overview::before {
-    content: none;
-    display: none;
-}
-
-/* Keep each technical value directly below its label on this RTL page.
-   Numeric values retain LTR digit isolation inside the RTL-aligned container. */
-[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby="operations-more-technical-title"] .ak-info-cell {
-    grid-template-columns: minmax(0, 1fr);
-    align-content: start;
-}
-
-[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby="operations-more-technical-title"] .ak-info-value,
-[data-loading-receipt-details] .ak-operations-more-group[aria-labelledby="operations-more-technical-title"] .ak-info-value.ak-num {
-    width: 100%;
-    direction: rtl;
-    justify-content: flex-start;
-    text-align: start;
-}
-
 .ak-operations-clean-page .ak-stat-card__title {
     color: var(--ak-detail-muted, var(--ptg-muted));
     font-size: 12px;
@@ -945,51 +1547,6 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     justify-content: flex-end;
 }
 
-/* Loading RUB pricing is a compact comparison strip, not a statement list.
-   Keep its facts in one horizontal row without changing other operation cards. */
-.ak-operations-clean-page .ak-operations-overview > .loading-ruble-pricing {
-    grid-column: 1 / -1;
-}
-
-.ak-operations-clean-page .loading-ruble-pricing .ak-info-grid {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 0;
-    overflow-x: auto;
-    scrollbar-width: thin;
-}
-
-.ak-operations-clean-page .loading-ruble-pricing .ak-info-cell,
-.ak-operations-clean-page .loading-ruble-pricing .ak-info-cell.is-wide {
-    grid-template-columns: minmax(0, 1fr);
-    align-content: start;
-    flex: 1 0 150px;
-    padding: 4px 12px;
-    border-block-end: 0;
-    border-inline-end: 1px solid var(--ak-detail-divider, var(--ptg-border));
-}
-
-.ak-operations-clean-page .loading-ruble-pricing .ak-info-cell:first-child {
-    padding-inline-start: 0;
-}
-
-.ak-operations-clean-page .loading-ruble-pricing .ak-info-cell:last-child {
-    padding-inline-end: 0;
-    border-inline-end: 0;
-}
-
-.ak-operations-clean-page .loading-ruble-pricing .ak-info-value,
-.ak-operations-clean-page .loading-ruble-pricing .ak-info-value.ak-num {
-    justify-content: flex-start;
-    text-align: start;
-}
-
-/* The first identity fact is the quickest recognition cue. It is distinguished
-   by size rather than a decorative accent. */
-.ak-operations-clean-page .ak-operations-clean-overview > .ak-summary-card:first-child .ak-info-cell:first-child .ak-info-value {
-    font-size: 16px;
-}
-
 /* Soft chips for classified and state values, so the eye finds "what kind" and
    "is it settled" without reading every row. Tinted background, no border, no
    extra weight — the accent stays quiet next to the money figures. */
@@ -1005,81 +1562,118 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ak-operations-clean-page .ak-summary-card .ak-info-value.is-warning { background: var(--ptg-warning-soft); }
 .ak-operations-clean-page .ak-summary-card .ak-info-value.is-danger  { background: var(--ptg-danger-soft); }
 
-/* Keep paired summaries together; with an odd card count, the final supporting
-   summary uses the full row. */
-.ak-operations-clean-page .ak-operations-clean-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+/* -------------------------------------------------------------------
+   بخش عملیات — factهای «عملیات» در دقیقاً دو ردیف
+   پیش‌تر ۴ ستون با برچسب روی مقدار بود: هر فقره دو خط می‌گرفت و ردیف
+   آخر با یک سلول پر و سه سلول خالی رها می‌شد. اینجا همان markup مشترک
+   دست‌نخورده می‌ماند و فقط چیدمان عوض می‌شود: هر فقره یک خط (برچسب در
+   ابتدا، مقدار در انتها) — همان ریتم .ak-operations-clean-page
+   .ak-summary-card بالاتر در همین فایل.
+
+   شبکه ۴ ستونه و ردیف‌محور است، پس صفحهٔ بارگیری با ده فقره سه ردیف
+   ۴+۴+۲ می‌شود: هویت، قیمت‌گذاری، ارقام روبلی.
+   دامنه: فقط صفحات جزئیات عملیات (.ak-operations-detail).
+   ------------------------------------------------------------------- */
+.ak-operations-detail .ak-detail-overview-content > .ak-info-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
 }
 
-.ak-operations-clean-page .ak-operations-clean-overview > .ak-sale-money {
-    min-width: 0;
-    margin: 0;
-}
-
-.ak-operations-clean-page .ak-operations-clean-overview > .ak-summary-card:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-}
-
-/* Statement list: label right, figure left, one closing total. */
-.ak-operations-clean-page .ak-sale-money-currency {
-    color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 12px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    padding-block: 10px;
-}
-
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-field > strong {
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--ak-detail-muted, var(--ptg-muted));
-}
-
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-field > small {
-    font-size: 11.5px;
-}
-
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-num {
+/* سلول با flex-wrap، نه دو ستون گرید: وقتی عدد بلند شود (مثلاً مبلغ روبلی)
+   به‌جای فشردنِ برچسب یا زدن بیرون از سلول، به خط بعدی همان سلول می‌رود و
+   با margin خودکار باز هم به لبهٔ انتها می‌چسبد. is-wide هم بی‌اثر می‌شود تا
+   هر سلول دقیقاً یک خانه بگیرد و ریاضی nth-child زیر لبهٔ واقعی را بشناسد. */
+.ak-operations-detail .ak-detail-overview .ak-info-cell,
+.ak-operations-detail .ak-detail-overview .ak-info-cell.is-wide {
+    grid-column: auto;
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 5px;
-    font-size: 16px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--ak-detail-text, var(--ptg-text));
+    column-gap: 12px;
+    row-gap: 0;
+    min-width: 0;
+    padding: 6px 14px;
+    border-inline-start: 1px solid var(--ak-linear-border);
+    border-block-start: 1px solid var(--ak-linear-border);
 }
 
-.ak-operations-clean-page .ak-sale-money-unit {
-    color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 11.5px;
-    font-weight: 600;
+.ak-operations-detail .ak-detail-overview .ak-info-cell:nth-child(4n + 1) {
+    padding-inline-start: 0;
+    border-inline-start: 0;
 }
 
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-num.is-success { color: var(--ptg-success-text); }
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-num.is-warning { color: var(--ptg-warning-text); }
-
-/* The closing balance is the one figure a reader must not miss. */
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row.is-total {
-    margin-block-start: 6px;
-    padding: 12px 14px;
-    border-block-end: 0;
-    border-radius: var(--ptg-radius-input, 8px);
-    background: var(--ptg-surface-soft, #f7f8fa);
+.ak-operations-detail .ak-detail-overview .ak-info-cell:nth-child(-n + 4) {
+    padding-block-start: 0;
+    border-block-start: 0;
 }
 
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row.is-total > span.ak-field > strong {
-    color: var(--ak-detail-text, var(--ptg-text));
-    font-size: 14px;
-    font-weight: 700;
+.ak-operations-detail .ak-detail-overview-content > .ak-info-grid .ak-info-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
 }
 
-.ak-operations-clean-page .ak-sale-money-list > .ak-list-row.is-total > span.ak-num {
-    font-size: 20px;
+/* margin خودکار مقدار را در هر دو حالت — کنار برچسب یا روی خط خودش — به
+   لبهٔ انتهای سلول می‌برد، بدون اینکه به برچسب برخورد کند. */
+.ak-operations-detail .ak-detail-overview-content > .ak-info-grid .ak-info-value {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin-inline-start: auto;
+    justify-content: flex-end;
+    text-align: end;
+    font-size: 13.5px;
+    line-height: 1.6;
+}
+
+.ak-operations-detail .ak-detail-overview-content > .ak-info-grid .ak-info-value.ak-num {
+    justify-content: flex-end;
+}
+
+/* ستون‌ها که کم می‌شوند لبهٔ ستون و ردیف جابه‌جا می‌شود؛ :nth-child(n) با
+   همان وزن انتخابگرِ قاعدهٔ بالا خط‌کشی را کامل reset می‌کند و بعد لبهٔ تازه
+   دوباره تعریف می‌شود. */
+@media (max-width: 991.98px) {
+    .ak-operations-detail .ak-detail-overview-content > .ak-info-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ak-operations-detail .ak-detail-overview .ak-info-cell:nth-child(n) {
+        padding-inline-start: 14px;
+        padding-block-start: 6px;
+        border-inline-start: 1px solid var(--ak-linear-border);
+        border-block-start: 1px solid var(--ak-linear-border);
+    }
+
+    .ak-operations-detail .ak-detail-overview .ak-info-cell:nth-child(2n + 1) {
+        padding-inline-start: 0;
+        border-inline-start: 0;
+    }
+
+    .ak-operations-detail .ak-detail-overview .ak-info-cell:nth-child(-n + 2) {
+        padding-block-start: 0;
+        border-block-start: 0;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .ak-operations-detail .ak-detail-overview-content > .ak-info-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ak-operations-detail .ak-detail-overview .ak-info-cell:nth-child(n) {
+        padding-inline: 0;
+        padding-block-start: 6px;
+        border-inline-start: 0;
+        border-block-start: 1px solid var(--ak-linear-border);
+    }
+
+    .ak-operations-detail .ak-detail-overview .ak-info-cell:nth-child(1) {
+        padding-block-start: 0;
+        border-block-start: 0;
+    }
 }
 
 /* Notes read as a quiet aside, never as another data card. */
@@ -1087,67 +1681,94 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     border-radius: var(--ptg-radius-input, 8px);
 }
 
-/* Detail-list actions are one grid child. Keeping the buttons in a compact
-   cluster prevents receipt metadata, quantity, and four actions from competing
-   for separate columns on narrow RTL layouts. */
-.ak-operations-clean-page .ak-detail-list-actions {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
+/* Record rows carry two facts per cell (date + party, figure + reference). As
+   inline children they ran together into one unreadable string, so each cell
+   stacks its own two lines. */
+.ak-linear-detail .ak-list-row > .ak-col-grow,
+.ak-linear-detail .ak-list-row > .ak-num {
+    display: grid;
+    gap: 2px;
     min-width: 0;
-    white-space: nowrap;
 }
 
-[data-loading-details] #loading-receipts .ak-list-row {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
-}
-
-[data-loading-details] .ak-receipt-select-slot {
-    display: inline-flex;
+/* -------------------------------------------------------------------
+   پرونده محموله — هویت صفحه در یک ردیف
+   کد، نام کشتی، تاریخ و factهای ثابت (محصول/تأمین‌کننده/مبدأ/مقصد)
+   پیش‌تر سه بلوک روی هم بودند و بالای صفحه را شلوغ می‌کردند. اینجا همان
+   markup مشترک بدون تغییر می‌ماند و فقط در یک نوار افقی می‌نشیند.
+   ------------------------------------------------------------------- */
+.sf-detail .ak-detail-identity-header .ak-detail-header-main {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    min-width: 18px;
+    column-gap: 22px;
+    row-gap: 8px;
 }
 
-/* Loading KPI values use the shared stat-card number colour. Only the final
-   total-cost card remains red to retain its financial warning emphasis. */
-[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(4) .ak-stat-card__value {
-    color: var(--ptg-danger-text);
+/* کد · نام · تاریخ روی یک خط، هم‌تراز از پایین حروف. */
+.sf-detail .ak-detail-identity-copy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 10px;
+    row-gap: 2px;
 }
 
-@media (max-width: 720px) {
-    [data-loading-details] #loading-receipts .ak-list-row {
-        grid-template-columns: auto minmax(0, 1fr);
-    }
+/* factها ادامهٔ همان نوارند، با یک جداکنندهٔ نازک از بلوک هویت. */
+.sf-detail .ak-detail-identity-header .ak-info-grid {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 20px;
+    row-gap: 6px;
+    padding-inline-start: 22px;
+    border-inline-start: 1px solid var(--ak-linear-border);
+}
 
-    [data-loading-details] #loading-receipts .ak-num {
-        grid-column: 2;
-    }
-
-    .ak-operations-clean-page .ak-detail-list-actions {
-        grid-column: 1 / -1;
-        width: 100%;
-        justify-content: flex-start;
-    }
+/* هر fact یک خط: برچسب کنار مقدار، نه بالای آن. */
+.sf-detail .ak-detail-identity-header .ak-info-cell,
+.sf-detail .ak-detail-identity-header .ak-info-cell.is-wide {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
 }
 
 @media (max-width: 991.98px) {
-    .ak-operations-clean-page .ak-operations-clean-overview {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .ak-operations-clean-page .ak-operations-clean-overview > .ak-summary-card:last-child:nth-child(odd) {
-        grid-column: auto;
+    /* در عرض کم، factها به خط دوم می‌روند و جداکننده معنایی ندارد. */
+    .sf-detail .ak-detail-identity-header .ak-info-grid {
+        flex-basis: 100%;
+        padding-inline-start: 0;
+        border-inline-start: 0;
     }
 }
 
-@media (max-width: 575.98px) {
-    .ak-operations-clean-page .ak-sale-money-list > .ak-list-row {
+/* -------------------------------------------------------------------
+   پرونده محموله — ریل تب و دکمهٔ خروجی در یک ردیف
+   خروجی مخصوص تب فعال است، پس باید کنار همان ریل بنشیند نه در نوار
+   جدا بالای صفحه. ریل خودش دست‌نخورده می‌ماند (قرارداد 16-system-tabs)
+   و فقط ستون خودش را پر می‌کند؛ پنل‌های hidden جای گرید نمی‌گیرند.
+   ------------------------------------------------------------------- */
+.sf-detail .sf-tabs-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: 12px;
+}
+
+/* دکمه روی همان خط پایانی ریل می‌نشیند، در سر مقابل تب‌ها. */
+.sf-detail .sf-tabs-row > .ak-page-actions {
+    margin-block-end: var(--ptg-tabs-space-below);
+}
+
+@media (max-width: 767.98px) {
+    /* در عرض کم ریل تمام‌عرض می‌ماند و خروجی به خط بعد می‌رود. */
+    .sf-detail .sf-tabs-row {
         grid-template-columns: minmax(0, 1fr);
-        gap: 2px;
     }
 
-    .ak-operations-clean-page .ak-sale-money-list > .ak-list-row > span.ak-num {
-        justify-self: start;
+    .sf-detail .sf-tabs-row > .ak-page-actions {
+        justify-content: flex-start;
+        margin-block-end: var(--ptg-tabs-space-below);
     }
 }

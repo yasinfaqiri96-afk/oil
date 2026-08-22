@@ -307,6 +307,9 @@ public class PaymentsController : Controller
                 CashAccountCode = p.CashAccount != null ? p.CashAccount.Code : string.Empty,
                 CashAccountName = p.CashAccount != null ? p.CashAccount.Name : string.Empty,
                 CashAccountType = p.CashAccount != null ? (CashAccountType?)p.CashAccount.AccountType : null,
+                p.FundingSource,
+                p.PaidByPartnerId,
+                PaidByPartnerName = p.PaidByPartner != null ? p.PaidByPartner.Name : null,
                 p.Currency,
                 p.Amount,
                 p.AmountUsd,
@@ -451,6 +454,10 @@ public class PaymentsController : Controller
             CashAccountCode = payment.CashAccountCode,
             CashAccountName = payment.CashAccountName,
             CashAccountTypeName = payment.CashAccountType.HasValue ? CashAccountTypeLabels.ToPersian(payment.CashAccountType.Value) : string.Empty,
+            FundingSource = payment.FundingSource,
+            FundingSourceName = PaymentFundingSourceLabels.ToPersian(payment.FundingSource),
+            PaidByPartnerId = payment.PaidByPartnerId,
+            PaidByPartnerName = payment.PaidByPartnerName,
             Currency = payment.Currency,
             Amount = payment.Amount,
             AmountUsd = payment.AmountUsd,
@@ -688,7 +695,7 @@ public class PaymentsController : Controller
         // کمیسیون (اختیاری) — اعتبارسنجی و محاسبه قبل از هر نوشتنی روی DB تا در صورت خطا
         // فرم با مقادیر کمیسیون حفظ شود.
         CommissionComputation? commission = null;
-        var commissionCashAccountId = context.CashAccount.Id;
+        var commissionCashAccountId = context.CashAccount?.Id ?? 0;
         ExpenseType? commissionType = null;
         if (model.CommissionEnabled)
         {
@@ -697,7 +704,7 @@ public class PaymentsController : Controller
                 conversion.AppliedRateToBase, conversion.EffectiveDate.Date, conversion.SourceDescription);
             if (commission is not null)
             {
-                commissionCashAccountId = await ValidateCommissionCashAccountAsync(model, context.CashAccount.Id, commission.Currency);
+                commissionCashAccountId = await ValidateCommissionCashAccountAsync(model, context.CashAccount!.Id, commission.Currency);
             }
             if (!ModelState.IsValid || commission is null)
             {
@@ -712,7 +719,9 @@ public class PaymentsController : Controller
             PaymentDate = model.PaymentDate.Date,
             Direction = model.Direction,
             PaymentKind = model.PaymentKind,
-            CashAccountId = context.CashAccount.Id,
+            CashAccountId = context.CashAccount?.Id,
+            FundingSource = context.FundingSource,
+            PaidByPartnerId = context.PaidByPartnerId,
             CustomerId = context.CustomerId,
             SupplierId = context.SupplierId,
             ServiceProviderId = context.ServiceProviderId,
@@ -915,6 +924,8 @@ public class PaymentsController : Controller
             Description = payment.Description,
             IsAdvancePayment = payment.IsAdvancePayment,
             IsCustomerAdvance = payment.IsCustomerAdvance,
+            FundingSource = payment.FundingSource,
+            PaidByPartnerId = payment.PaidByPartnerId,
             ReturnUrl = returnUrl
         };
 
@@ -1063,7 +1074,7 @@ public class PaymentsController : Controller
         // کمیسیون (اختیاری) — اعتبارسنجی قبل از نوشتن. رفتار ویرایش: رکوردهای کمیسیونِ قبلی
         // حذف امن و در صورت فعال‌بودن دوباره ساخته می‌شوند (بدون duplicate).
         CommissionComputation? commission = null;
-        var commissionCashAccountId = context.CashAccount.Id;
+        var commissionCashAccountId = context.CashAccount?.Id ?? 0;
         ExpenseType? commissionType = null;
         if (model.CommissionEnabled)
         {
@@ -1072,7 +1083,7 @@ public class PaymentsController : Controller
                 conversion.AppliedRateToBase, conversion.EffectiveDate.Date, conversion.SourceDescription);
             if (commission is not null)
             {
-                commissionCashAccountId = await ValidateCommissionCashAccountAsync(model, context.CashAccount.Id, commission.Currency);
+                commissionCashAccountId = await ValidateCommissionCashAccountAsync(model, context.CashAccount!.Id, commission.Currency);
             }
             if (!ModelState.IsValid || commission is null)
             {
@@ -1086,7 +1097,9 @@ public class PaymentsController : Controller
         payment.PaymentDate = model.PaymentDate.Date;
         payment.Direction = model.Direction;
         payment.PaymentKind = model.PaymentKind;
-        payment.CashAccountId = context.CashAccount.Id;
+        payment.CashAccountId = context.CashAccount?.Id;
+        payment.FundingSource = context.FundingSource;
+        payment.PaidByPartnerId = context.PaidByPartnerId;
         payment.CustomerId = context.CustomerId;
         payment.SupplierId = context.SupplierId;
         payment.ServiceProviderId = context.ServiceProviderId;
@@ -1611,6 +1624,8 @@ public class PaymentsController : Controller
                 PaymentKind = p.PaymentKind,
                 CashAccountName = p.CashAccount != null ? p.CashAccount.Name : "",
                 CashAccountCurrency = p.CashAccount != null ? p.CashAccount.Currency : p.Currency,
+                FundingSource = p.FundingSource,
+                PaidByPartnerName = p.PaidByPartner != null ? p.PaidByPartner.Name : null,
                 CreatedAtUtc = p.CreatedAtUtc,
                 CustomerId = p.CustomerId,
                 CustomerName = p.Customer != null ? p.Customer.Name : null,
@@ -2059,7 +2074,8 @@ public class PaymentsController : Controller
 
         var cashTotals = await _db.PaymentTransactions
             .AsNoTracking()
-            .GroupBy(p => p.CashAccountId)
+            .Where(p => p.CashAccountId != null)
+            .GroupBy(p => p.CashAccountId!.Value)
             .Select(g => new
             {
                 CashAccountId = g.Key,
@@ -2112,6 +2128,47 @@ public class PaymentsController : Controller
             CashAccountBalances: balances);
     }
 
+    // فهرست شرکای یک قرارداد برای فرم روزنامچه. فقط خواندنی.
+    [HttpGet]
+    public async Task<IActionResult> ContractPartnerOptions(int contractId)
+    {
+        var partners = await _db.ContractPartners
+            .AsNoTracking()
+            .Where(cp => cp.ContractId == contractId)
+            .OrderByDescending(cp => cp.SharePercent)
+            .ThenBy(cp => cp.Partner != null ? cp.Partner.Name : string.Empty)
+            .Select(cp => new
+            {
+                id = cp.PartnerId,
+                name = cp.Partner != null ? cp.Partner.Name : ("#" + cp.PartnerId),
+                sharePercent = cp.SharePercent
+            })
+            .ToListAsync();
+
+        return Json(new { partners });
+    }
+
+    private async Task<List<SelectListItem>> LoadContractPartnerOptionsAsync(int contractId, int? selectedPartnerId)
+        => (await _db.ContractPartners
+                .AsNoTracking()
+                .Where(cp => cp.ContractId == contractId)
+                .OrderByDescending(cp => cp.SharePercent)
+                .ThenBy(cp => cp.Partner != null ? cp.Partner.Name : string.Empty)
+                .Select(cp => new
+                {
+                    cp.PartnerId,
+                    Name = cp.Partner != null ? cp.Partner.Name : ("#" + cp.PartnerId),
+                    cp.SharePercent
+                })
+                .ToListAsync())
+            .Select(cp => new SelectListItem
+            {
+                Value = cp.PartnerId.ToString(),
+                Text = $"{cp.Name} ({cp.SharePercent:N2}%)",
+                Selected = selectedPartnerId == cp.PartnerId
+            })
+            .ToList();
+
     private static IQueryable<PaymentTransaction> ApplyCounterpartyTypeFilter(
         IQueryable<PaymentTransaction> query,
         PaymentCounterpartyType counterpartyType)
@@ -2153,11 +2210,15 @@ public class PaymentsController : Controller
             PaymentDate = payment.PaymentDate,
             Direction = payment.Direction,
             PaymentKind = payment.PaymentKind,
-            CashAccount = new CashAccount
-            {
-                Name = payment.CashAccountName,
-                Currency = payment.CashAccountCurrency
-            },
+            FundingSource = payment.FundingSource,
+            PaidByPartner = payment.PaidByPartnerName is null ? null : new Partner { Name = payment.PaidByPartnerName },
+            CashAccount = string.IsNullOrEmpty(payment.CashAccountName)
+                ? null
+                : new CashAccount
+                {
+                    Name = payment.CashAccountName,
+                    Currency = payment.CashAccountCurrency
+                },
             CustomerId = payment.CustomerId,
             Customer = payment.CustomerName is null ? null : new Customer { Name = payment.CustomerName },
             SupplierId = payment.SupplierId,
@@ -2220,8 +2281,11 @@ public class PaymentsController : Controller
             DirectionName = PaymentDirectionLabels.ToPersian(payment.Direction),
             PaymentKind = payment.PaymentKind,
             PaymentKindName = PaymentKindLabels.ToPersian(payment.PaymentKind),
-            CashAccountName = payment.CashAccount?.Name ?? string.Empty,
+            CashAccountName = payment.CashAccount?.Name
+                ?? (payment.FundingSource == PaymentFundingSource.Partner ? "پرداخت شریک" : string.Empty),
             CashAccountCurrency = payment.CashAccount?.Currency ?? payment.Currency,
+            FundingSource = payment.FundingSource,
+            PaidByPartnerName = payment.PaidByPartner?.Name,
             CounterpartyTypeName = PaymentCounterpartyTypeLabels.ToPersian(counterpartyType),
             CounterpartyName = BuildCounterpartyName(payment, counterpartyType),
             CounterpartyType = counterpartyType,
@@ -2623,6 +2687,13 @@ public class PaymentsController : Controller
             })
             .ToList();
 
+        // شرکای قرارداد انتخاب‌شده — فقط برای «پرداخت توسط شریک». هنگام تعویض قرارداد،
+        // فرم همین فهرست را از ContractPartnerOptions تازه می‌کند.
+        var partnerContractId = createModel?.ContractId;
+        ViewBag.ContractPartners = partnerContractId.HasValue
+            ? await LoadContractPartnerOptionsAsync(partnerContractId.Value, createModel?.PaidByPartnerId)
+            : new List<SelectListItem>();
+
         var selectedSarrafId = createModel?.SarrafId ?? filter?.SarrafId;
         ViewBag.Sarrafs = new SelectList(
             await _db.Sarrafs
@@ -2819,12 +2890,25 @@ public class PaymentsController : Controller
             ModelState.AddModelError(nameof(model.Direction), "جهت انتخاب‌شده با نوع پرداخت / دریافت سازگار نیست.");
         }
 
-        var cashAccount = await _db.CashAccounts
-            .AsNoTracking()
-            .FirstOrDefaultAsync(a => a.Id == model.CashAccountId);
-        if (cashAccount is null || !cashAccount.IsActive)
+        // پرداختِ شریک از صندوق/بانکِ شرکت خارج نمی‌شود، پس حساب نقدی نمی‌خواهد و نباید هم بگیرد.
+        var isPartnerFunded = model.FundingSource == PaymentFundingSource.Partner;
+        CashAccount? cashAccount = null;
+        if (!isPartnerFunded)
         {
-            ModelState.AddModelError(nameof(model.CashAccountId), "حساب نقد / بانک انتخاب‌شده معتبر و فعال نیست.");
+            if (!model.CashAccountId.HasValue || model.CashAccountId.Value <= 0)
+            {
+                ModelState.AddModelError(nameof(model.CashAccountId), "انتخاب حساب نقد / بانک الزامی است.");
+            }
+            else
+            {
+                cashAccount = await _db.CashAccounts
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(a => a.Id == model.CashAccountId.Value);
+                if (cashAccount is null || !cashAccount.IsActive)
+                {
+                    ModelState.AddModelError(nameof(model.CashAccountId), "حساب نقد / بانک انتخاب‌شده معتبر و فعال نیست.");
+                }
+            }
         }
 
         var hasCurrenciesConfigured = await _db.Currencies.AsNoTracking().AnyAsync(c => c.IsActive);
@@ -3064,13 +3148,55 @@ public class PaymentsController : Controller
             ModelState.AddModelError(nameof(model.EmployeeId), "برای پرداخت یا برداشت معاش باید کارمند مشخص باشد.");
         }
 
-        if (!ModelState.IsValid || cashAccount is null)
+        // ——— پرداخت توسط شریک ———
+        // شرط‌ها عمداً کم و قطعی‌اند: قرارداد باید مشخص و شراکتی باشد و شریک باید عضو همان قرارداد.
+        var paidByPartnerId = isPartnerFunded ? model.PaidByPartnerId : null;
+        if (isPartnerFunded)
+        {
+            if (model.CommissionEnabled)
+            {
+                ModelState.AddModelError(
+                    nameof(model.CommissionEnabled),
+                    "برای پرداخت توسط شریک، ثبت کمیسیون از صندوق شرکت ممکن نیست.");
+            }
+
+            if (!paidByPartnerId.HasValue)
+            {
+                ModelState.AddModelError(nameof(model.PaidByPartnerId), "برای پرداخت توسط شریک، انتخاب شریک الزامی است.");
+            }
+
+            if (!resolvedContractId.HasValue)
+            {
+                ModelState.AddModelError(nameof(model.ContractId), "پرداخت توسط شریک فقط با قرارداد مشخص ممکن است.");
+            }
+            else
+            {
+                var ownership = await _db.Contracts.AsNoTracking()
+                    .Where(c => c.Id == resolvedContractId.Value)
+                    .Select(c => (ContractOwnershipType?)c.OwnershipType)
+                    .FirstOrDefaultAsync();
+                if (ownership != ContractOwnershipType.Partnership)
+                {
+                    ModelState.AddModelError(nameof(model.ContractId), "پرداخت توسط شریک فقط در قرارداد شراکتی مجاز است.");
+                }
+                else if (paidByPartnerId.HasValue
+                    && !await _db.ContractPartners.AsNoTracking().AnyAsync(cp =>
+                        cp.ContractId == resolvedContractId.Value && cp.PartnerId == paidByPartnerId.Value))
+                {
+                    ModelState.AddModelError(nameof(model.PaidByPartnerId), "شریک انتخاب‌شده عضو این قرارداد نیست.");
+                }
+            }
+        }
+
+        if (!ModelState.IsValid || (!isPartnerFunded && cashAccount is null))
         {
             return null;
         }
 
         return new ResolvedPaymentContext(
             cashAccount,
+            model.FundingSource,
+            paidByPartnerId,
             resolvedCustomerId,
             resolvedSupplierId,
             resolvedServiceProviderId,
@@ -3873,12 +3999,15 @@ public class PaymentsController : Controller
         return PaymentCounterpartyType.Other;
     }
 
-    private static string BuildLedgerDescription(PaymentTransaction payment, CashAccount cashAccount)
+    private static string BuildLedgerDescription(PaymentTransaction payment, CashAccount? cashAccount)
     {
         var baseText = $"{PaymentDirectionLabels.ToPersian(payment.Direction)} - {PaymentKindLabels.ToPersian(payment.PaymentKind)}";
+        // پرداختِ شریک حساب نقدی ندارد؛ به‌جای نام صندوق، نام شریک در شرح می‌نشیند.
+        var source = cashAccount?.Name
+            ?? (payment.FundingSource == PaymentFundingSource.Partner ? "پرداخت توسط شریک" : "بدون حساب نقدی");
         var reference = string.IsNullOrWhiteSpace(payment.Reference) ? string.Empty : $" / {payment.Reference}";
         var description = string.IsNullOrWhiteSpace(payment.Description) ? string.Empty : $" / {payment.Description}";
-        return $"{baseText} / {cashAccount.Name}{reference}{description}";
+        return $"{baseText} / {source}{reference}{description}";
     }
 
     // ===================== کمیسیون (رزنامچه) =====================
@@ -4575,7 +4704,9 @@ public class PaymentsController : Controller
     private string GetSideName(LedgerSide side) => UiText.LedgerSideName(HttpContext, side);
 
     private sealed record ResolvedPaymentContext(
-        CashAccount CashAccount,
+        CashAccount? CashAccount,
+        PaymentFundingSource FundingSource,
+        int? PaidByPartnerId,
         int? CustomerId,
         int? SupplierId,
         int? ServiceProviderId,
@@ -4615,6 +4746,8 @@ public class PaymentsController : Controller
         public PaymentKind PaymentKind { get; init; }
         public string CashAccountName { get; init; } = "";
         public string CashAccountCurrency { get; init; } = "USD";
+        public PaymentFundingSource FundingSource { get; init; } = PaymentFundingSource.Company;
+        public string? PaidByPartnerName { get; init; }
         public DateTime CreatedAtUtc { get; init; }
         public int? CustomerId { get; init; }
         public string? CustomerName { get; init; }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
@@ -169,6 +169,9 @@ public partial class ContractJourneyController : Controller
         var subContractItems = needsSummaryContext
             ? await LoadSubContractSummariesAsync(_db, contract.Id)
             : [];
+        var partnerShareItems = needsSummaryContext && contract.OwnershipType == ContractOwnershipType.Partnership
+            ? await LoadContractPartnerSharesAsync(_db, contract.Id)
+            : [];
 
         var pricingResult = await _pricing.CalculateContractPriceAsync(contract);
         var journeyReturnUrl = $"/ContractJourney/Details?contractId={contract.Id}&tab={activeTab}&lockContract={lockContract.ToString().ToLowerInvariant()}";
@@ -194,6 +197,8 @@ public partial class ContractJourneyController : Controller
             ParentContractId = contract.ParentContractId,
             ParentContractNumber = contract.ParentContract?.DisplayLabel,
             SubContractItems = subContractItems,
+            IsPartnershipContract = contract.OwnershipType == ContractOwnershipType.Partnership,
+            PartnerShareItems = partnerShareItems,
             Currency = contract.Currency,
             PriceDisplay = ToResolvedPriceDisplay(contract, pricingResult),
             PricingMethodName = ToPricingMethodName(contract),
@@ -1528,8 +1533,11 @@ public partial class ContractJourneyController : Controller
         var inventoryTransportLossMt = activeLosses
             .Where(e => e.TransportLegId.HasValue || e.Stage == LossEventStage.TransitLoss)
             .Sum(DisplayLossEventQuantityMt);
+        // ضایعات مخزن هم شامل کسریِ طبیعی است و هم ضایعهٔ «تسویه نهایی مخزن» (سناریوی Deferred)
+        // که هنگام تخلیهٔ کامل مخزن معلوم می‌شود؛ هر دو روی همان مخزن ثبت می‌شوند.
         var tankLossMt = activeLosses
-            .Where(e => e.Stage == LossEventStage.TankNaturalLoss)
+            .Where(e => e.Stage == LossEventStage.TankNaturalLoss
+                || e.Stage == LossEventStage.TankFinalSettlement)
             .Sum(DisplayLossEventQuantityMt);
         var salesLossMt = activeLosses
             .Where(e => e.Stage == LossEventStage.SalesDifference)
@@ -1546,6 +1554,14 @@ public partial class ContractJourneyController : Controller
         decimal? ResolveLossLoadingPriceUsd(LossEvent loss)
         {
             if (loss.TransportLegId.HasValue)
+            {
+                return purchaseAgg.WeightedAveragePurchasePriceUsd;
+            }
+
+            // ضایعهٔ تسویه نهایی مخزن روی خودِ مخزن ثبت می‌شود و به بارگیری/رسید/دیسپچ وصل نیست،
+            // پس هیچ‌کدام از مسیرهای زیر قیمت نمی‌دهند و ارزش ضایعه صفر می‌ماند. مثل ضایعهٔ leg-دار
+            // از میانگین وزنی خریدِ همین قرارداد قیمت می‌گیرد.
+            if (loss.Stage == LossEventStage.TankFinalSettlement)
             {
                 return purchaseAgg.WeightedAveragePurchasePriceUsd;
             }
@@ -2002,6 +2018,8 @@ public partial class ContractJourneyController : Controller
             ParentContractId = baseModel.ParentContractId,
             ParentContractNumber = baseModel.ParentContractNumber,
             SubContractItems = baseModel.SubContractItems,
+            IsPartnershipContract = baseModel.IsPartnershipContract,
+            PartnerShareItems = baseModel.PartnerShareItems,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,
@@ -2387,6 +2405,25 @@ public partial class ContractJourneyController : Controller
             .ToList();
     }
 
+    // سهم شرکای قرارداد شراکتی. فقط خواندنی برای نمایش در تب خلاصه؛ هیچ محاسبهٔ مالی
+    // یا ثبت دفترکل بر اساس آن انجام نمی‌شود.
+    public static async Task<IReadOnlyList<ContractJourneyPartnerShareItemViewModel>> LoadContractPartnerSharesAsync(
+        ApplicationDbContext db,
+        int contractId)
+        => await db.ContractPartners
+            .AsNoTracking()
+            .Where(cp => cp.ContractId == contractId)
+            .OrderByDescending(cp => cp.SharePercent)
+            .ThenBy(cp => cp.Partner != null ? cp.Partner.Name : string.Empty)
+            .Select(cp => new ContractJourneyPartnerShareItemViewModel
+            {
+                PartnerId = cp.PartnerId,
+                PartnerCode = cp.Partner != null ? cp.Partner.Code : string.Empty,
+                PartnerName = cp.Partner != null ? cp.Partner.Name : string.Empty,
+                SharePercent = cp.SharePercent
+            })
+            .ToListAsync();
+
     private async Task<decimal> GetPendingTankSettlementQuantityMtAsync(int contractId)
     {
         var deferredTankIds = await _db.LoadingReceipts.AsNoTracking()
@@ -2694,6 +2731,8 @@ public partial class ContractJourneyController : Controller
             ParentContractId = baseModel.ParentContractId,
             ParentContractNumber = baseModel.ParentContractNumber,
             SubContractItems = baseModel.SubContractItems,
+            IsPartnershipContract = baseModel.IsPartnershipContract,
+            PartnerShareItems = baseModel.PartnerShareItems,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,
@@ -3335,8 +3374,10 @@ public partial class ContractJourneyController : Controller
         var inventoryTransportLossMt = activeLosses
             .Where(e => e.TransportLegId.HasValue || e.Stage == LossEventStage.TransitLoss)
             .Sum(e => DisplayLossQuantity(e.DifferenceQuantityMt, e.ChargeableLossMt));
+        // مثل تب اصلی: ضایعات مخزن هم کسری طبیعی است و هم تسویه نهایی مخزن.
         var tankLossMt = activeLosses
-            .Where(e => e.Stage == LossEventStage.TankNaturalLoss)
+            .Where(e => e.Stage == LossEventStage.TankNaturalLoss
+                || e.Stage == LossEventStage.TankFinalSettlement)
             .Sum(e => DisplayLossQuantity(e.DifferenceQuantityMt, e.ChargeableLossMt));
         var salesLossMt = activeLosses
             .Where(e => e.Stage == LossEventStage.SalesDifference)
@@ -3391,6 +3432,12 @@ public partial class ContractJourneyController : Controller
                 decimal? loadingPriceUsd = null;
                 if (loss.TransportLegId.HasValue)
                 {
+                    loadingPriceUsd = purchaseAgg.WeightedAveragePurchasePriceUsd;
+                }
+                else if (loss.Stage == LossEventStage.TankFinalSettlement)
+                {
+                    // ضایعهٔ تسویه نهایی مخزن به بارگیری/رسید/دیسپچ وصل نیست؛ قیمتش از
+                    // میانگین وزنی خریدِ همین قرارداد می‌آید تا از هزینه جا نیفتد.
                     loadingPriceUsd = purchaseAgg.WeightedAveragePurchasePriceUsd;
                 }
                 else
@@ -3776,6 +3823,8 @@ public partial class ContractJourneyController : Controller
             ParentContractId = baseModel.ParentContractId,
             ParentContractNumber = baseModel.ParentContractNumber,
             SubContractItems = baseModel.SubContractItems,
+            IsPartnershipContract = baseModel.IsPartnershipContract,
+            PartnerShareItems = baseModel.PartnerShareItems,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,
@@ -4456,6 +4505,8 @@ public partial class ContractJourneyController : Controller
             ParentContractId = baseModel.ParentContractId,
             ParentContractNumber = baseModel.ParentContractNumber,
             SubContractItems = baseModel.SubContractItems,
+            IsPartnershipContract = baseModel.IsPartnershipContract,
+            PartnerShareItems = baseModel.PartnerShareItems,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,

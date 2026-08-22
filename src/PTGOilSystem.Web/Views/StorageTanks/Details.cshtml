@@ -157,7 +157,8 @@
     ViewData["AkHeaderContext"] = $"{Model.TankCode} · {UiText.T(Context, "ترمینال", "Terminal")}: {Model.TerminalName}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
-        new() { Label = UiText.T(Context, "تسویه مخزن", "Settle Tank"), Href = Url.Action("SettleFinal", new { id = Model.Id }), Icon = "bi-check2-circle" },
+        new() { Label = UiText.T(Context, "ثبت ضایعات مخزن", "Record tank loss"), Href = Url.Action("Create", "LossEvents", new { storageTankId = Model.Id, returnUrl = Context.Request.Path + Context.Request.QueryString }), Icon = "bi-exclamation-diamond" },
+        new() { Label = UiText.T(Context, "تسویه نهایی مخزن", "Final tank settlement"), Href = Url.Action("SettleFinal", new { id = Model.Id }), Icon = "bi-check2-circle" },
         new() { Label = UiText.T(Context, "ویرایش", "Edit"), Href = editUrl, Icon = "bi-pencil" }
     };
     var tankTabs = new[]

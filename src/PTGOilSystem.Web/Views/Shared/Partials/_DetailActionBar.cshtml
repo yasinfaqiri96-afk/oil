@@ -1,7 +1,7 @@
 @*
     Shared "next operations" bar (AK Detail v2 zone 7).
     End-of-page action row; sticks to the bottom of the viewport under 768px.
-    At most 4 direct buttons — pass overflow items to the header kebab instead.
+    At most 5 direct buttons — pass overflow items to the header kebab instead.
     Destructive items never belong here (kebab + confirm only).
     Model: IReadOnlyList<AkHeaderMenuItem>
 *@
@@ -9,17 +9,38 @@
 @{
     var actions = (Model ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>())
         .Where(a => a.IsRenderable && !a.IsDestructive)
-        .Take(4)
+        .Take(5)
         .ToList();
 }
 @if (actions.Count > 0)
 {
-    <nav class="ak-detail-actionbar no-print" aria-label="@UiText.T(Context, "عملیات بعدی", "Next operations")">
-        @for (var i = 0; i < actions.Count; i++)
-        {
-            var action = actions[i];
-            var buttonClass = i == 0 ? "btn btn-primary ak-primary-action" : "btn btn-light ak-secondary-action";
-            if (!string.IsNullOrWhiteSpace(action.ModalTarget))
+    <section class="ak-detail-actions-panel no-print" aria-labelledby="ak-detail-actions-title">
+        <h2 id="ak-detail-actions-title">@UiText.T(Context, "اقدامات سریع", "Quick actions")</h2>
+        <nav class="ak-detail-actionbar" aria-label="@UiText.T(Context, "عملیات بعدی", "Next operations")">
+            @for (var i = 0; i < actions.Count; i++)
+            {
+                var action = actions[i];
+                var buttonClass = i == 0 ? "btn btn-primary ak-primary-action" : "btn btn-light ak-secondary-action";
+            if (!string.IsNullOrWhiteSpace(action.PostUrl))
+            {
+                @* Non-destructive state transitions (e.g. "confirm outbound") are the real
+                   next step of a record, so they belong in the bar. Rendered exactly like the
+                   header kebab renders them: antiforgery form + the shared confirm hook. *@
+                <form method="post" action="@action.PostUrl" data-no-spa="true"
+                      data-ptg-confirm="@(string.IsNullOrWhiteSpace(action.ConfirmMessage) ? null : "true")"
+                      data-ptg-confirm-title="@action.ConfirmTitle"
+                      data-ptg-confirm-message="@action.ConfirmMessage">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="@buttonClass" aria-label="@action.AccessibleLabel">
+                        @if (!string.IsNullOrWhiteSpace(action.Icon))
+                        {
+                            <i class="bi @action.Icon" aria-hidden="true"></i>
+                        }
+                        <span>@action.Label</span>
+                    </button>
+                </form>
+            }
+            else if (!string.IsNullOrWhiteSpace(action.ModalTarget))
             {
                 <button type="button" class="@buttonClass" data-bs-toggle="modal" data-bs-target="#@action.ModalTarget"
                         aria-label="@action.AccessibleLabel"
@@ -46,6 +67,7 @@
                     <span>@action.Label</span>
                 </a>
             }
-        }
-    </nav>
+            }
+        </nav>
+    </section>
 }

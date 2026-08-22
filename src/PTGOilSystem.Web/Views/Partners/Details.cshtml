@@ -42,12 +42,23 @@
         $"contracts|معاملات و سود/زیان|bi-diagram-3|{(showContracts ? "active" : "")}"
     };
 
+    // مانده شریک با همان علامت صورت‌حساب رسمی: مثبت یعنی شریک بیشتر از سهم خود پرداخت کرده.
+    var partnerPositionLabel = Model.PartnerPositionUsd > 0m
+        ? "طلب شریک (پرداخت بیش از سهم)"
+        : Model.PartnerPositionUsd < 0m
+            ? "بدهی شریک (پرداخت کمتر از سهم)"
+            : "مانده شریک";
+
     // کارت‌های آماری تب خلاصه — همان اعداد کارت قبلی، بدون هیچ محاسبهٔ تازه.
     var partnerKpis = new List<AkKpiItem>
     {
         new() { Title = "مانده قابل تسویه", Value = NumberDisplay.Money(Math.Abs(settlementUsd)), Unit = "USD", Avatar = "receivables" },
         new() { Title = "سهم درآمد فروش", Value = NumberDisplay.Money(Model.PartnerSalesRevenueUsd), Unit = "USD", Avatar = "sales-value" },
-        new() { Title = "سهم مصرف و خرید", Value = NumberDisplay.Money(Model.PartnerTotalCostUsd), Unit = "USD", Avatar = "expenses" }
+        new() { Title = "سهم مصرف و خرید", Value = NumberDisplay.Money(Model.PartnerTotalCostUsd), Unit = "USD", Avatar = "expenses" },
+        // پرداخت واقعی شریک: فقط پرداخت‌هایی که خودِ شریک تأمین کرده (FundingSource = شریک).
+        new() { Title = "پرداخت واقعی شریک", Value = NumberDisplay.Money(Model.ActualPartnerPaidUsd), Unit = "USD", Avatar = "payments" },
+        // مانده شریک: مثبت = شریک بیشتر از سهمش پرداخت کرده (طلبکار)، منفی = کمتر (بدهکار).
+        new() { Title = partnerPositionLabel, Value = NumberDisplay.Money(Math.Abs(Model.PartnerPositionUsd)), Unit = "USD", Avatar = "receivables" }
     };
 
     // کارت وضعیت حساب تب خلاصه — فقط چیدمان نمایشی روی همان اعداد مدل.

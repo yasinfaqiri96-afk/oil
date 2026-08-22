@@ -60,8 +60,11 @@ public static class FinanceMetricCardsQuery
             })
             .FirstOrDefaultAsync();
 
+        // موجودی صندوق/بانک فقط از پرداخت‌هایی می‌آید که واقعاً حساب نقدیِ شرکت را تکان داده‌اند.
+        // پرداختِ تأمین‌شده توسط شریک حساب نقدی ندارد و اینجا شمرده نمی‌شود.
         var cashBalanceUsd = await db.PaymentTransactions
             .AsNoTracking()
+            .Where(p => p.CashAccountId != null)
             .GroupBy(_ => 1)
             .Select(g =>
                 (g.Where(p => p.Direction == PaymentDirection.In).Sum(p => (decimal?)p.AmountUsd) ?? 0m)

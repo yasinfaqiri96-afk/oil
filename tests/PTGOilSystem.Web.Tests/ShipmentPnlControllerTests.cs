@@ -20,7 +20,6 @@ public class ShipmentPnlControllerTests
     [InlineData("compliance", 6)]
     [InlineData("balance", 6)]
     [InlineData("sales", 8)]
-    [InlineData("trips", 9)]
     public void Details_Tab_Export_Builds_A_Dedicated_Document(
         string tab,
         int expectedColumnCount)
@@ -64,7 +63,8 @@ public class ShipmentPnlControllerTests
         Assert.DoesNotContain("data-shipment-file-tabs", view);
         Assert.Contains("data-instant-tabs", view);
         Assert.Contains("#shipment-summary|", view);
-        Assert.Contains("#shipment-trips|", view);
+        // تب «موجودی و انتقالات» از پروندهٔ محموله حذف شده است.
+        Assert.DoesNotContain("#shipment-trips|", view);
         Assert.DoesNotContain("tab-pane fade", view);
         Assert.Contains("tab-content ak-detail-content ak-tab-content", view);
         var statisticsPosition = view.IndexOf("Shipment key indicators", StringComparison.Ordinal);
@@ -73,8 +73,9 @@ public class ShipmentPnlControllerTests
         Assert.True(statisticsPosition >= 0, "Shipment key indicators must be rendered.");
         Assert.True(tabsPosition > statisticsPosition, "Shipment tabs must follow the statistic cards.");
         Assert.True(tabContentPosition > tabsPosition, "Shipment tab content must follow the tab rail.");
-        Assert.Equal(8, Regex.Matches(view, "data-ak-tab=\"shipment-").Count);
-        Assert.Equal(7, Regex.Matches(view, "class=\"ak-stat-grid mb-3\" data-ak-tab=").Count);
+        // شش تب باقی‌مانده: هر کدام یک گرید آمار + یک منوی خروجی مشترک.
+        Assert.Equal(7, Regex.Matches(view, "data-ak-tab=\"shipment-").Count);
+        Assert.Equal(6, Regex.Matches(view, "class=\"ak-stat-grid mb-3\" data-ak-tab=").Count);
         Assert.Single(Regex.Matches(view, "new PTGOilSystem.Web.Services.Exports.ExportMenuModel\\("));
         Assert.Contains("[\"tab\"] = exportTab", view);
         var lastStatisticsPosition = view.LastIndexOf("class=\"ak-stat-grid mb-3\" data-ak-tab=", StringComparison.Ordinal);
@@ -90,48 +91,42 @@ public class ShipmentPnlControllerTests
         Assert.Contains("نیازمند بازبینی", controller);
         Assert.Contains("بر اساس اتصال‌های فعلی سیستم", view);
         Assert.Contains("خلاصه", view);
-        Assert.Contains("موجودی و انتقالات", view);
+        Assert.DoesNotContain("موجودی و انتقالات", view);
         Assert.Contains("مصارف و گمرک", view);
         Assert.Contains("کسری‌ها", view);
         Assert.Contains("فروش‌ها", view);
         Assert.Contains("سود و زیان", view);
-        Assert.Contains("سفره‌های موتر/واگن", view);
+        Assert.DoesNotContain("سفره‌های موتر/واگن", view);
         // طراحی تأییدشده: نوار عملیات گروهی disabled و چک‌باکس‌های انتخاب سفر حذف شدند.
         Assert.DoesNotContain("data-shipment-batch-bar", view);
         Assert.DoesNotContain("data-shipment-trip-select", view);
         Assert.Contains("dropdown-menu", view);
-        Assert.Contains("ثبت گمرک", view);
         Assert.Contains("ثبت مصرف", view);
         Assert.Contains("ثبت فروش", view);
         Assert.Contains("ثبت کسری", view);
         Assert.Contains("@(canRegisterDirectLoss ? null : \"disabled\")", view);
         Assert.Contains("ثبت تخلیه", view);
-        Assert.Contains("مشاهده رسید", view);
-        Assert.Contains("مشاهده اسناد", view);
         Assert.Contains("asp-controller=\"Sales\" asp-action=\"CreateFromShipment\"", view);
-        Assert.Contains("data-shipment-trip-search", view);
         Assert.DoesNotContain("shipment-file-bulk-actions", view);
         Assert.DoesNotContain("shipment-file-row-actions", view);
         Assert.DoesNotContain("shipment-file-shell", view);
     }
 
     [Fact]
-    public void Details_Trip_Table_Uses_Operations_List_Design_System()
+    public void Details_Record_Tables_Use_Operations_List_Design_System()
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/ShipmentPnl/Details.cshtml");
 
-        // نوار ابزار فقط جستجو دارد؛ نوار عملیات گروهی disabled و چک‌باکس‌ها حذف شدند.
-        Assert.Contains("data-shipment-trip-search", view);
+        // نوار عملیات گروهی disabled و چک‌باکس‌ها حذف شدند.
         Assert.DoesNotContain("data-shipment-batch-bar", view);
-        // جدول سفرها هم مثل بقیهٔ لیست‌های سیستم از جدول مشترک استفاده می‌کند.
+        // جدول‌های این صفحه هم مثل بقیهٔ لیست‌های سیستم از جدول مشترک استفاده می‌کنند.
         Assert.Contains("class=\"ak-table ak-detail-table\"", view);
         Assert.Contains("class=\"ak-col-actions no-print\"", view);
         Assert.Contains("~/Views/Shared/Partials/_Capsule.cshtml", view);
         Assert.Contains("class=\"ak-row-menu-btn\"", view);
         Assert.DoesNotContain("class=\"form-check-input\"", view);
-        Assert.Contains("class=\"dropdown ak-row-menu\" data-ak-static-row-menu", view);
+        Assert.Contains("class=\"dropdown ak-row-menu\"", view);
         Assert.DoesNotContain("class=\"ak-row-actions\"", view);
-        Assert.Contains("menu.hasAttribute(\"data-ak-static-row-menu\")", ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/tables.js"));
         Assert.DoesNotContain("shipment-file-actions-col", view);
     }
 
@@ -432,6 +427,146 @@ public class ShipmentPnlControllerTests
     }
 
     [Fact]
+    public async Task Inventory_Trip_Quantities_Use_Only_Posted_Vehicle_Legs_And_Close_The_Equation()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Shipments.Local.Single(s => s.Id == 1).QuantityMt = 10_000m;
+        db.Terminals.AddRange(
+            new Terminal { Id = 1, Code = "SRC", Name = "Source terminal" },
+            new Terminal { Id = 2, Code = "DST", Name = "Destination terminal" });
+        db.StorageTanks.AddRange(
+            new StorageTank { Id = 1, TerminalId = 1, ProductId = 1, TankCode = "TK-01", CapacityMt = 20_000m },
+            new StorageTank { Id = 2, TerminalId = 2, ProductId = 1, TankCode = "TK-02", CapacityMt = 20_000m });
+        db.Contracts.Add(new Contract
+        {
+            Id = 2,
+            ContractNumber = "PUR-10000",
+            ContractType = ContractType.Purchase,
+            CompanyId = 1,
+            SupplierId = 1,
+            ProductId = 1,
+            ContractDate = new DateTime(2026, 6, 1),
+            QuantityMt = 10_000m,
+            PricingMethod = PricingMethod.Fixed,
+            UnitPriceUsd = 100m
+        });
+        db.ShipmentContracts.Add(new ShipmentContract { ShipmentId = 1, ContractId = 2, QuantityMt = 10_000m });
+        db.InventoryMovements.AddRange(
+            new InventoryMovement
+            {
+                Id = 1, ContractId = 2, ProductId = 1, TerminalId = 1, StorageTankId = 1,
+                Direction = MovementDirection.In, MovementDate = new DateTime(2026, 6, 2), QuantityMt = 10_000m
+            },
+            new InventoryMovement
+            {
+                Id = 2, ContractId = 2, ProductId = 1, TerminalId = 1, StorageTankId = 1,
+                Direction = MovementDirection.Out, MovementDate = new DateTime(2026, 6, 3), QuantityMt = 2_000m
+            },
+            new InventoryMovement
+            {
+                Id = 3, ContractId = 2, ProductId = 1, TerminalId = 1,
+                Direction = MovementDirection.Out, MovementDate = new DateTime(2026, 6, 3), QuantityMt = 700m
+            });
+        db.InventoryTransportLegs.AddRange(
+            // مرحلهٔ ورودِ محموله (کشتی → مخزن): سفر نیست.
+            new InventoryTransportLeg
+            {
+                Id = 100, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+                SourceTerminalId = 1, DestinationTerminalId = 1, DestinationStorageTankId = 1,
+                TransportType = LoadingTransportType.Vessel, LoadedDate = new DateTime(2026, 6, 1),
+                QuantityMt = 10_000m, Status = InventoryTransportLegStatus.Received
+            },
+            // سفر واقعی و ثبت‌شده روی موجودی، با رسید ناقص (۱٬۸۰۰ تخلیه + ۱۰۰ کسری).
+            new InventoryTransportLeg
+            {
+                Id = 101, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+                SourceTerminalId = 1, SourceStorageTankId = 1, DestinationTerminalId = 2, DestinationStorageTankId = 2,
+                TransportType = LoadingTransportType.Truck, LoadedDate = new DateTime(2026, 6, 3),
+                QuantityMt = 2_000m, Status = InventoryTransportLegStatus.Received, OutboundInventoryMovementId = 2
+            },
+            // سفر پیش‌نویس: در جدول دیده می‌شود ولی روی موجودی ننشسته است.
+            new InventoryTransportLeg
+            {
+                Id = 102, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+                SourceTerminalId = 1, SourceStorageTankId = 1, DestinationTerminalId = 2,
+                TransportType = LoadingTransportType.Truck, LoadedDate = new DateTime(2026, 6, 4),
+                QuantityMt = 500m, Status = InventoryTransportLegStatus.Draft
+            },
+            // سفر بدون مبدأ مخزن: قبلاً از جدول و شمارش می‌افتاد ولی مقدارش در کارت‌ها بود.
+            new InventoryTransportLeg
+            {
+                Id = 103, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+                SourceTerminalId = 1, DestinationTerminalId = 2,
+                TransportType = LoadingTransportType.Wagon, LoadedDate = new DateTime(2026, 6, 5),
+                QuantityMt = 300m, Status = InventoryTransportLegStatus.Loaded
+            },
+            // legِ منبع (Unspecified، بدون وسیله): سفر نیست و نباید در هیچ کارت این تب بیاید.
+            new InventoryTransportLeg
+            {
+                Id = 104, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+                SourceTerminalId = 1, DestinationTerminalId = 2,
+                TransportType = LoadingTransportType.Unspecified, LoadedDate = new DateTime(2026, 6, 6),
+                QuantityMt = 700m, Status = InventoryTransportLegStatus.Received, OutboundInventoryMovementId = 3
+            },
+            // سفر لغوشده: از همه‌جا بیرون است.
+            new InventoryTransportLeg
+            {
+                Id = 105, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+                SourceTerminalId = 1, SourceStorageTankId = 1, DestinationTerminalId = 2,
+                TransportType = LoadingTransportType.Truck, LoadedDate = new DateTime(2026, 6, 7),
+                QuantityMt = 400m, Status = InventoryTransportLegStatus.Cancelled
+            });
+        db.InventoryTransportReceipts.AddRange(
+            new InventoryTransportReceipt
+            {
+                Id = 200, InventoryTransportLegId = 100, ReceiptDate = new DateTime(2026, 6, 2),
+                ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+                DestinationTerminalId = 1, DestinationStorageTankId = 1,
+                ReceivedQuantityMt = 10_000m, InventoryMovementId = 1
+            },
+            new InventoryTransportReceipt
+            {
+                Id = 201, InventoryTransportLegId = 101, ReceiptDate = new DateTime(2026, 6, 4),
+                ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+                DestinationTerminalId = 2, DestinationStorageTankId = 2,
+                ReceivedQuantityMt = 1_800m, ShortageQuantityMt = 100m
+            },
+            new InventoryTransportReceipt
+            {
+                Id = 202, InventoryTransportLegId = 104, ReceiptDate = new DateTime(2026, 6, 6),
+                ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+                DestinationTerminalId = 2,
+                ReceivedQuantityMt = 700m
+            });
+        await db.SaveChangesAsync();
+
+        var controller = new ShipmentPnlController(db);
+        var view = Assert.IsType<ViewResult>(await controller.Details(1));
+        var model = Assert.IsType<ShipmentPnlDetailsViewModel>(view.Model);
+
+        // فقط سفرِ واقعیِ موتر/واگون که روی موجودی نشسته (۱۰۱) مقدار می‌سازد:
+        // پیش‌نویس (۱۰۲)، سفر بدون خروج ثبت‌شده (۱۰۳)، legِ منبع Unspecified (۱۰۴)
+        // و سفر لغوشده (۱۰۵) هیچ‌کدام در این سه عدد نمی‌آیند.
+        Assert.Equal(2_000m, model.InventoryTransportedOutQuantityMt);
+        Assert.Equal(1_800m, model.DeliveredAtDestinationQuantityMt);
+        Assert.Equal(100m, model.InTransitQuantityMt);
+        Assert.Equal(100m, model.InventoryTransportShortageQuantityMt);
+        // معادلهٔ بستهٔ تب سفرها.
+        Assert.Equal(
+            model.InventoryTransportedOutQuantityMt,
+            model.InTransitQuantityMt
+                + model.DeliveredAtDestinationQuantityMt
+                + model.InventoryTransportShortageQuantityMt);
+        Assert.Equal(500m, model.DraftTransportQuantityMt);
+        Assert.Equal(400m, model.CancelledTransportQuantityMt);
+    }
+
+    [Fact]
     public async Task Details_Uses_Registered_Shipment_Group_Receipt_When_Leg_Type_Is_Unspecified()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -515,6 +650,86 @@ public class ShipmentPnlControllerTests
         Assert.Equal(3_888.880m, model.VesselUnloadedQuantityMt);
         Assert.Equal(3_888.880m, model.RemainingInSourceTankQuantityMt);
         Assert.Equal(3_888.880m, model.RegisteredVesselReceiptQuantityMt);
+
+        // لِجِ ریشه با نوع Unspecified حرکت خروجیِ موجودی ندارد (بار از کشتی می‌آید، نه از مخزن)،
+        // ولی رسید تخلیهٔ کشتی روی آن ثبت شده است؛ پس باید ریشه شناخته شود.
+        Assert.Equal(3_906.531m, model.ContractLines.Single().UsedQuantityMt);
+        // لِج هنوز باز است (Loaded): 17.651 مصرف‌نشده هنوز روی کشتی است، نه کسری.
+        Assert.Equal(0m, model.VesselUnloadingShortageQuantityMt);
+        Assert.Equal(17.651m, model.NotYetDischargedQuantityMt);
+        // کسری تخلیه نباید دوباره زیر «کسری حمل داخلی» هم بیاید.
+        Assert.Equal(0m, model.InventoryTransportShortageQuantityMt);
+        Assert.Equal(0m, model.TotalLossAndShortageMt);
+        // رسیدِ تخلیه، حملِ داخلی نیست.
+        Assert.Equal(0m, model.DeliveredAtDestinationQuantityMt);
+        Assert.Equal(0m, model.InTransitQuantityMt);
+
+        // تخلیهٔ لِج بسته می‌شود بدون آنکه کسری ثبت شده باشد (دادهٔ قدیمی):
+        // حالا همان 17.651 «کسری خاموش» است و رابطهٔ بسته برقرار می‌ماند.
+        db.InventoryTransportLegs.Local.Single(l => l.Id == 100).Status = InventoryTransportLegStatus.Received;
+        await db.SaveChangesAsync();
+
+        var closedView = Assert.IsType<ViewResult>(await new ShipmentPnlController(db).Details(1));
+        var closed = Assert.IsType<ShipmentPnlDetailsViewModel>(closedView.Model);
+        Assert.Equal(3_888.880m, closed.VesselUnloadedQuantityMt);
+        Assert.Equal(17.651m, closed.VesselUnloadingShortageQuantityMt);
+        Assert.Equal(0m, closed.InventoryTransportShortageQuantityMt);
+        Assert.Equal(17.651m, closed.TotalLossAndShortageMt);
+        // بار کل = تخلیه‌شده + کسری تخلیه + تخلیه‌نشده.
+        Assert.Equal(0m, closed.NotYetDischargedQuantityMt);
+        // ظرفیت ثبت کسری دستی = آنچه واقعاً تخلیه شده است.
+        Assert.Equal(3_888.880m, closed.TotalShortageRegisterableQuantityMt);
+    }
+
+    [Fact]
+    public async Task Details_Does_Not_Report_Undischarged_Vessel_Cargo_As_Shortage_During_Partial_Discharge()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Shipments.Local.Single(s => s.Id == 1).QuantityMt = 10_000m;
+        db.Terminals.Add(new Terminal { Id = 1, Code = "SRC", Name = "Source" });
+        db.StorageTanks.Add(new StorageTank { Id = 1, TerminalId = 1, ProductId = 1, TankCode = "TK-01", CapacityMt = 20_000m });
+        db.Contracts.Add(new Contract
+        {
+            Id = 2, ContractNumber = "PUR-10000", ContractType = ContractType.Purchase,
+            CompanyId = 1, SupplierId = 1, ProductId = 1, ContractDate = new DateTime(2026, 6, 1),
+            QuantityMt = 10_000m, PricingMethod = PricingMethod.Fixed, UnitPriceUsd = 100m
+        });
+        db.ShipmentContracts.Add(new ShipmentContract { ShipmentId = 1, ContractId = 2, QuantityMt = 10_000m });
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            Id = 1, ContractId = 2, ProductId = 1, TerminalId = 1, StorageTankId = 1,
+            Direction = MovementDirection.In, MovementDate = new DateTime(2026, 6, 2), QuantityMt = 2_990m
+        });
+        db.InventoryTransportLegs.Add(new InventoryTransportLeg
+        {
+            Id = 100, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+            SourceTerminalId = 1, DestinationTerminalId = 1, DestinationStorageTankId = 1,
+            TransportType = LoadingTransportType.Vessel, LoadedDate = new DateTime(2026, 6, 1),
+            QuantityMt = 10_000m, Status = InventoryTransportLegStatus.Loaded
+        });
+        // تخلیهٔ مرحلهٔ اول: 2,990 رسید + 10 کسری. 7,000 هنوز داخل کشتی است.
+        db.InventoryTransportReceipts.Add(new InventoryTransportReceipt
+        {
+            Id = 200, InventoryTransportLegId = 100, ReceiptDate = new DateTime(2026, 6, 2),
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            DestinationTerminalId = 1, DestinationStorageTankId = 1,
+            ReceivedQuantityMt = 2_990m, ShortageQuantityMt = 10m, InventoryMovementId = 1
+        });
+        await db.SaveChangesAsync();
+
+        var view = Assert.IsType<ViewResult>(await new ShipmentPnlController(db).Details(1));
+        var model = Assert.IsType<ShipmentPnlDetailsViewModel>(view.Model);
+
+        Assert.Equal(2_990m, model.VesselUnloadedQuantityMt);
+        // فقط کسریِ واقعاً ثبت‌شده. 7,000 باقیمانده هنوز روی کشتی است، نه کسری.
+        Assert.Equal(10m, model.VesselUnloadingShortageQuantityMt);
+        Assert.Equal(10m, model.TotalLossAndShortageMt);
+        Assert.Equal(7_000m, model.NotYetDischargedQuantityMt);
     }
 
     [Fact]
@@ -1366,6 +1581,112 @@ public class ShipmentPnlControllerTests
         Assert.Equal(13m, model.TotalShortageRegisterableQuantityMt);
         Assert.Equal(0m, model.AvailableForSaleOrReceiptQuantityMt);
         Assert.Equal(7m, model.DirectLossQuantityMt);
+    }
+
+    [Fact]
+    public async Task Details_Counts_Manual_Losses_Registered_On_A_Leg_Dispatch_Or_Sale_And_Skips_The_Receipt_Mirror()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Shipments.Local.Single(s => s.Id == 1).QuantityMt = 1_000m;
+        db.Terminals.Add(new Terminal { Id = 1, Code = "SRC", Name = "Source" });
+        db.StorageTanks.Add(new StorageTank { Id = 1, TerminalId = 1, ProductId = 1, TankCode = "TK-01", CapacityMt = 2_000m });
+        db.Contracts.Add(new Contract
+        {
+            Id = 2, ContractNumber = "PUR-1000", ContractType = ContractType.Purchase,
+            CompanyId = 1, SupplierId = 1, ProductId = 1, ContractDate = new DateTime(2026, 6, 1),
+            QuantityMt = 1_000m, PricingMethod = PricingMethod.Fixed, UnitPriceUsd = 100m
+        });
+        db.ShipmentContracts.Add(new ShipmentContract { ShipmentId = 1, ContractId = 2, QuantityMt = 1_000m });
+        db.InventoryMovements.AddRange(
+            new InventoryMovement
+            {
+                Id = 1, ContractId = 2, ProductId = 1, TerminalId = 1, StorageTankId = 1,
+                Direction = MovementDirection.In, MovementDate = new DateTime(2026, 6, 2), QuantityMt = 1_000m
+            },
+            new InventoryMovement
+            {
+                Id = 2, ContractId = 2, ProductId = 1, TerminalId = 1, StorageTankId = 1,
+                Direction = MovementDirection.Out, MovementDate = new DateTime(2026, 6, 3), QuantityMt = 200m
+            });
+        db.InventoryTransportLegs.AddRange(
+            new InventoryTransportLeg
+            {
+                Id = 100, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+                SourceTerminalId = 1, DestinationTerminalId = 1, DestinationStorageTankId = 1,
+                TransportType = LoadingTransportType.Vessel, LoadedDate = new DateTime(2026, 6, 1),
+                QuantityMt = 1_000m, Status = InventoryTransportLegStatus.Received
+            },
+            new InventoryTransportLeg
+            {
+                Id = 101, ShipmentId = 1, SourcePurchaseContractId = 2, ProductId = 1,
+                SourceTerminalId = 1, SourceStorageTankId = 1, DestinationTerminalId = 1,
+                TransportType = LoadingTransportType.Truck, LoadedDate = new DateTime(2026, 6, 3),
+                QuantityMt = 200m, Status = InventoryTransportLegStatus.Received,
+                OutboundInventoryMovementId = 2
+            });
+        db.InventoryTransportReceipts.AddRange(
+            new InventoryTransportReceipt
+            {
+                Id = 200, InventoryTransportLegId = 100, ReceiptDate = new DateTime(2026, 6, 2),
+                ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+                DestinationTerminalId = 1, DestinationStorageTankId = 1,
+                ReceivedQuantityMt = 995m, ShortageQuantityMt = 5m, InventoryMovementId = 1
+            },
+            new InventoryTransportReceipt
+            {
+                Id = 201, InventoryTransportLegId = 101, ReceiptDate = new DateTime(2026, 6, 5),
+                ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+                DestinationTerminalId = 1, ReceivedQuantityMt = 197m, ShortageQuantityMt = 3m
+            });
+        db.LossEvents.AddRange(
+            // آینهٔ خودکارِ کسری رسید — نباید دوباره شمرده شود.
+            new LossEvent
+            {
+                ShipmentId = 1, ProductId = 1, ContractId = 2, TransportLegId = 100,
+                Stage = LossEventStage.ReceiptShortage, EventDate = new DateTime(2026, 6, 2),
+                ExpectedQuantityMt = 1_000m, ActualQuantityMt = 995m, DifferenceQuantityMt = 5m,
+                Reference = "TRANSPORT-RECEIPT:200"
+            },
+            new LossEvent
+            {
+                ShipmentId = 1, ProductId = 1, ContractId = 2, TransportLegId = 101,
+                Stage = LossEventStage.ReceiptShortage, EventDate = new DateTime(2026, 6, 5),
+                ExpectedQuantityMt = 200m, ActualQuantityMt = 197m, DifferenceQuantityMt = 3m,
+                Reference = "TRANSPORT-RECEIPT:201"
+            },
+            // کسری دستی با دکمهٔ «ثبت کسری» روی همان سفر — رسیدی پشتش نیست، پس تکراری نیست.
+            new LossEvent
+            {
+                ShipmentId = 1, ProductId = 1, ContractId = 2, TransportLegId = 101,
+                Stage = LossEventStage.TransitLoss, EventDate = new DateTime(2026, 6, 6),
+                ExpectedQuantityMt = 197m, ActualQuantityMt = 193m, DifferenceQuantityMt = 4m
+            },
+            // کسری کشف‌شده هنگام فروش — باز هم کسری است، نه فروش.
+            new LossEvent
+            {
+                ShipmentId = 1, ProductId = 1, ContractId = 2, SalesTransactionId = null,
+                TruckDispatchId = null, Stage = LossEventStage.TankNaturalLoss,
+                EventDate = new DateTime(2026, 6, 7), ExpectedQuantityMt = 100m,
+                ActualQuantityMt = 98m, DifferenceQuantityMt = 2m
+            });
+        await db.SaveChangesAsync();
+
+        var view = Assert.IsType<ViewResult>(await new ShipmentPnlController(db).Details(1));
+        var model = Assert.IsType<ShipmentPnlDetailsViewModel>(view.Model);
+
+        Assert.Equal(5m, model.VesselUnloadingShortageQuantityMt);
+        Assert.Equal(3m, model.InventoryTransportShortageQuantityMt);
+        // ۴ + ۲ = کسری‌هایی که پیش‌تر در هیچ کارتی دیده نمی‌شدند.
+        Assert.Equal(6m, model.DirectLossQuantityMt);
+        // کارت «مجموع کسری و ضایعات» حالا هر سه سطل را دارد و آینهٔ رسیدها را دوبار نمی‌شمارد.
+        Assert.Equal(14m, model.TotalLossAndShortageMt);
+        // جدول همان تب همچنان هر چهار رویداد را نشان می‌دهد.
+        Assert.Equal(14m, model.RecordedLossQuantityMt);
     }
 
     [Fact]

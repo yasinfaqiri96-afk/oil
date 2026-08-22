@@ -1,4 +1,9 @@
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
+@inject Microsoft.Extensions.Configuration.IConfiguration AppConfiguration
 @{
+    // ابزار توسعه UI Pick — فقط Development + PTG_UI_PICK=1
+    var uiPickEnabled = HostEnvironment.IsDevelopment()
+        && string.Equals(AppConfiguration["PTG_UI_PICK"], "1", StringComparison.Ordinal);
     var title = ViewData["Title"] as string ?? "PTG Oil System";
     // SPA partial render: spa-nav.js sends X-PTG-SPA and only reads <main>, body
     // attributes, the shell-frame marker, page assets and #ptg-page-scripts.
@@ -450,6 +455,9 @@
 </head>
 <body class="app-body boltz-shell @(isAuthenticated ?"app-shell-authenticated" : "app-shell-public") @(isEnglishUi ? "boltz-ltr" : "boltz-rtl") @foundationCompactClass @masterDataCompactClass @(isFinanceWorkspace ? "is-finance-workspace" : null) @routeBodyClass"
       data-ui-language="@htmlLanguage"
+      data-ptg-view="@(uiPickEnabled ? ViewContext.View?.Path : null)"
+      data-ptg-controller="@(uiPickEnabled ? currentController : null)"
+      data-ptg-action="@(uiPickEnabled ? currentAction : null)"
       data-theme-version="light"
       data-layout="vertical"
       data-sidebar-style="full"
@@ -807,5 +815,11 @@
     <div id="ptg-page-scripts">
         @await RenderSectionAsync("Scripts", required: false)
     </div>
+    @* ابزار توسعه: انتخاب عنصر از مرورگر و ارسال آن به Claude Code.
+       فقط در محیط Development و تنها وقتی PTG_UI_PICK=1 باشد بارگذاری می‌شود. *@
+    @if (uiPickEnabled && renderShellChrome)
+    {
+        <script src="~/js/dev/ptg-ui-pick.js" asp-append-version="true" defer></script>
+    }
 </body>
 </html>

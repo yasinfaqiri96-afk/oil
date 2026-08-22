@@ -87,6 +87,15 @@ public sealed class ContractJourneySubContractItemViewModel
     public decimal LoadingsValueUsd { get; init; }
 }
 
+/// <summary>سهم یک شریک در قرارداد شراکتی (فقط نمایشی).</summary>
+public sealed class ContractJourneyPartnerShareItemViewModel
+{
+    public int PartnerId { get; init; }
+    public string PartnerCode { get; init; } = string.Empty;
+    public string PartnerName { get; init; } = string.Empty;
+    public decimal SharePercent { get; init; }
+}
+
 public sealed class ContractJourneyDetailsViewModel
 {
     public int ContractId { get; init; }
@@ -112,6 +121,9 @@ public sealed class ContractJourneyDetailsViewModel
     public int? ParentContractId { get; init; }
     public string? ParentContractNumber { get; init; }
     public IReadOnlyList<ContractJourneySubContractItemViewModel> SubContractItems { get; init; } = [];
+    // مالکیت شراکتی: فقط برای نمایش سهم هر شریک در تب خلاصه. هیچ اثر مالی یا دفترکلی ندارد.
+    public bool IsPartnershipContract { get; init; }
+    public IReadOnlyList<ContractJourneyPartnerShareItemViewModel> PartnerShareItems { get; init; } = [];
     public string Currency { get; init; } = "USD";
     public string PriceDisplay { get; init; } = string.Empty;
     public string PricingMethodName { get; init; } = string.Empty;

@@ -652,6 +652,11 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             })
             .ToListAsync(ct);
 
+        // سطرهای روزنامچه: پرداختِ شرکت پولِ شریک نیست و کنار می‌رود؛ پرداختِ شریک کامل (۱۰۰٪)
+        // فقط در صورت‌حساب خودِ همان شریک می‌نشیند. بقیهٔ سطرها (بارگیری، مصرف، فروش، ...) بدون
+        // تغییر بر SharePercent تقسیم می‌شوند.
+        var funding = await PartnerFundingReader.LoadLedgerMapAsync(_db, contractIds, ct);
+
         var allRows = new List<PartyStatementRow>();
         foreach (var entry in entries)
         {
@@ -663,12 +668,28 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             {
                 continue;
             }
-            if (!shareByContract.TryGetValue(contractId.Value, out var sharePercent))
+
+            decimal ratio;
+            if (funding.PaymentLedgerEntryIds.Contains(entry.Id))
             {
-                continue;
+                if (!funding.PartnerByPaymentLedgerEntryId.TryGetValue(entry.Id, out var payerPartnerId)
+                    || payerPartnerId != party.PartyId)
+                {
+                    continue;
+                }
+
+                ratio = 1m;
+            }
+            else
+            {
+                if (!shareByContract.TryGetValue(contractId.Value, out var sharePercent))
+                {
+                    continue;
+                }
+
+                ratio = sharePercent / 100m;
             }
 
-            var ratio = sharePercent / 100m;
             entry.AmountUsd = decimal.Round(entry.AmountUsd * ratio, 2, MidpointRounding.AwayFromZero);
             entry.OriginalAmount = entry.OriginalAmount.HasValue
                 ? decimal.Round(entry.OriginalAmount.Value * ratio, 4, MidpointRounding.AwayFromZero)

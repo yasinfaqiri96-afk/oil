@@ -257,9 +257,7 @@ public sealed class InventoryLossAccountingAdapter(
     /// applies before it will write an inventory movement at all.
     /// </summary>
     public static bool IsInventoryReducingStage(LossEventStage stage)
-        => stage is LossEventStage.TankNaturalLoss
-            or LossEventStage.ManualAdjustment
-            or LossEventStage.TankFinalSettlement;
+        => Models.LossEvents.LossStagePolicy.AffectsInventory(stage);
 
     private async Task<(int CompanyId, string? SkipReason)> ResolveCompanyAndSkipReasonAsync(
         LossEvent lossEvent,

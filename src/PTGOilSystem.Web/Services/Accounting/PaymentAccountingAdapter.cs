@@ -92,6 +92,9 @@ public sealed class PaymentAccountingAdapter(
 {
     public const string SourceModule = "Payment";
     public const string SourceEntityType = nameof(PaymentTransaction);
+
+    /// <summary>پرداختِ تأمین‌شده توسط شریک هنوز mapping دوطرفهٔ اثبات‌شده ندارد.</summary>
+    public const string PartnerFundedSkipReason = "PARTNER_FUNDED_PAYMENT_UNSUPPORTED";
     private const int MaxRevisions = 100;
 
     private readonly AccountingOptions _options = options.Value;
@@ -101,6 +104,18 @@ public sealed class PaymentAccountingAdapter(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payment);
+
+        // پرداختی که شریک از جیب خودش داده هیچ‌کدام از mappingهای این Adapter را ندارد: نه
+        // صندوق/بانک شرکت را بستانکار می‌کند و نه حساب سرمایهٔ شریک هنوز در Chart of Accounts وجود
+        // دارد. تا وقتی آن حساب تعریف نشده، عمداً skip می‌شود تا سند نادرست ساخته نشود — دقیقاً
+        // همان الگوی PARTNER_LEDGER_UNSUPPORTED در AssetRentPostingPolicy. دفتر قدیمی و ردیابیِ
+        // پرداخت شریک بدون این Adapter کامل کار می‌کنند.
+        if (payment.FundingSource == PaymentFundingSource.Partner)
+        {
+            LogOutcome(payment, null, 0, 0m, PaymentPostingStatus.Skipped, PartnerFundedSkipReason);
+            return new PaymentAccountingResult(
+                PaymentPostingStatus.Skipped, null, PartnerFundedSkipReason);
+        }
 
         var eventKind = ResolveEventKind(payment);
         if (eventKind is null)
@@ -447,7 +462,7 @@ public sealed class PaymentAccountingAdapter(
                 return (0, "PARTY_MISSING", null);
         }
 
-        if (payment.CashAccountId <= 0)
+        if (payment.CashAccountId is null or <= 0)
             return (0, "CASH_ACCOUNT_MISSING", null);
         if (payment.Amount <= 0m || payment.AmountUsd <= 0m)
             return (0, "INVALID_PAYMENT_AMOUNT", null);

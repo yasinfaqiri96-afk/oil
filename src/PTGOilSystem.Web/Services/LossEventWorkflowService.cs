@@ -202,9 +202,9 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
 
         if (submission.AffectsInventory)
         {
-            if (!CanAffectInventory(submission.Stage))
+            if (!LossStagePolicy.AffectsInventory(submission.Stage))
             {
-                addError(nameof(submission.AffectsInventory), "این مرحله فقط برای گزارش است و نباید موجودی را دوباره کم کند.");
+                addError(nameof(submission.AffectsInventory), "این نوع کسری قبلاً در عملیات اصلی از موجودی کم شده و نباید دوباره کم شود.");
             }
 
             if (!submission.TerminalId.HasValue)
@@ -525,11 +525,6 @@ public sealed class LossEventWorkflowService : ILossEventWorkflowService
                     ("LossEventStage", submission.Stage)));
         }
     }
-
-    private static bool CanAffectInventory(LossEventStage stage)
-        => stage == LossEventStage.TankNaturalLoss
-            || stage == LossEventStage.ManualAdjustment
-            || stage == LossEventStage.TankFinalSettlement;
 
     private static void NormalizeSubmission(LossEventSubmission submission)
     {

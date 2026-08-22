@@ -47,10 +47,14 @@ public sealed class TransportWorkflowViewStructureTests
         Assert.Contains("transport-chain-timeline", view);
         Assert.Contains("ParentLegIds", view);
         Assert.Contains("انتقال به وسیله دیگر", view);
-        Assert.Contains("تخلیه در مخزن", view);
+        // The unload action is named after the operator's outcome ("deliver at destination"),
+        // and freight has exactly one label everywhere on the page.
+        Assert.Contains("تحویل در مقصد", view);
         Assert.Contains("ثبت کسری", view);
         Assert.Contains("ثبت گمرک", view);
-        Assert.Contains("تسویهٔ کرایه", view);
+        Assert.Contains("تسویه کرایه", view);
+        Assert.DoesNotContain("تسویهٔ کرایه", view);
+        Assert.DoesNotContain("ثبت سادهٔ کرایه", view);
         Assert.Contains("لغو / برگشت", view);
         Assert.Contains("asp-controller=\"Transports\" asp-action=\"SettleFreight\"", view);
         Assert.Contains("@Html.AntiForgeryToken()", view);

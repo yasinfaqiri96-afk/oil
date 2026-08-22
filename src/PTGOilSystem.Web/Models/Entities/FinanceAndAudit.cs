@@ -6,6 +6,17 @@ namespace PTGOilSystem.Web.Models.Entities;
 public enum LedgerSide { Debit = 1, Credit = 2 }
 public enum CashAccountType { Cash = 1, Bank = 2, Mixed = 3 }
 public enum PaymentDirection { In = 1, Out = 2 }
+
+/// <summary>
+/// منبعِ واقعیِ پولِ یک پرداخت. پیش‌فرض <see cref="Company"/> است و همهٔ رکوردهای قبلی همین‌اند،
+/// پس رفتار موجود تغییر نمی‌کند. <see cref="Partner"/> یعنی شریکِ قرارداد مستقیماً از جیب خودش
+/// پرداخت کرده و صندوق/بانکِ شرکت اصلاً حرکت نکرده است.
+/// </summary>
+public enum PaymentFundingSource
+{
+    [Display(Name = "شرکت")] Company = 1,
+    [Display(Name = "شریک")] Partner = 2
+}
 public enum PaymentKind
 {
     CustomerReceipt = 1,
@@ -110,8 +121,17 @@ public class PaymentTransaction : BaseEntity
     public int? CompanyId { get; set; }
     public Company? Company { get; set; }
 
-    public int CashAccountId { get; set; }
+    // پرداختِ تأمین‌شده توسط شریک از صندوق/بانکِ شرکت خارج نمی‌شود، پس حسابِ نقدی ندارد.
+    // برای پرداختِ شرکت (FundingSource = Company) همچنان اجباری است — اعتبارسنجی در PaymentsController.
+    public int? CashAccountId { get; set; }
     public CashAccount? CashAccount { get; set; }
+
+    // منبعِ پول. رکوردهای قدیمی همگی Company هستند (پیش‌فرضِ ستون در Migration).
+    public PaymentFundingSource FundingSource { get; set; } = PaymentFundingSource.Company;
+
+    // شریکی که این پرداخت را واقعاً انجام داده. فقط وقتی مقدار دارد که FundingSource = Partner باشد.
+    public int? PaidByPartnerId { get; set; }
+    public Partner? PaidByPartner { get; set; }
 
     public int? CustomerId { get; set; }
     public Customer? Customer { get; set; }

@@ -24,7 +24,6 @@ public partial class ShipmentPnlController
             "compliance" => BuildExpenseExport(model, fileStem, shipmentName, filters, isEnglish),
             "balance" => BuildShortageExport(model, fileStem, shipmentName, filters),
             "sales" => BuildSalesExport(model, fileStem, shipmentName, filters, isEnglish),
-            "trips" => BuildTripsExport(model, fileStem, shipmentName, filters),
             _ => BuildSummaryExport(model, fileStem, shipmentName, filters, isEnglish)
         };
     }
@@ -32,7 +31,7 @@ public partial class ShipmentPnlController
     internal static string NormalizeDetailsExportTab(string? tab)
         => tab?.Trim().ToLowerInvariant() switch
         {
-            "flow" or "compliance" or "balance" or "sales" or "finance" or "trips" => tab.Trim().ToLowerInvariant(),
+            "flow" or "compliance" or "balance" or "sales" or "finance" => tab.Trim().ToLowerInvariant(),
             _ => "summary"
         };
 
@@ -57,7 +56,7 @@ public partial class ShipmentPnlController
         rows.AddRange(
         [
             SummaryRow(isEnglish ? "Original cargo" : "کل بار", model.OriginalShipmentQuantityMt, null, model.VesselName),
-            SummaryRow(isEnglish ? "Received" : "تخلیه‌شده", model.RegisteredVesselReceiptQuantityMt, null, null),
+            SummaryRow(isEnglish ? "Discharged" : "تخلیه‌شده", model.VesselUnloadedQuantityMt, null, null),
             SummaryRow(isEnglish ? "Recorded losses" : "ضایعات ثبت‌شده", model.RecordedLossQuantityMt, null, null),
             SummaryRow(isEnglish ? "Purchase cost" : "هزینه خرید", null, model.TotalPurchaseCostUsd, null),
             SummaryRow(isEnglish ? "Operational expenses" : "مصارف عملیاتی", null, model.TotalOperationalExpensesUsd, null),
@@ -102,11 +101,11 @@ public partial class ShipmentPnlController
         return Document(fileStem, title, filters,
         [
             new("تاریخ", "Date", TabularExportValueType.Date, 14),
-            new("شماره رسید", "Receipt no.", TabularExportValueType.Integer, 12),
+            new("شماره تخلیه", "Discharge no.", TabularExportValueType.Integer, 12),
             new("قرارداد", "Contract", Width: 16),
             new("مقصد", "Destination", Width: 20),
             new("مخزن تخلیه", "Unload tank", Width: 18),
-            new("مقدار رسید MT", "Received MT", TabularExportValueType.Number, 16)
+            new("مقدار تخلیه MT", "Discharged MT", TabularExportValueType.Number, 16)
         ], rows, new TabularExportRow(
         [
             TabularExportCell.Text("جمع / Total"),
@@ -230,55 +229,6 @@ public partial class ShipmentPnlController
             TabularExportCell.Number(model.SoldQuantityMt),
             TabularExportCell.Number(null),
             TabularExportCell.Number(model.TotalSalesUsd)
-        ]), forceLandscape: true);
-    }
-
-    private static TabularExportDocument BuildTripsExport(
-        ShipmentPnlDetailsViewModel model,
-        string fileStem,
-        (string Fa, string En) title,
-        IReadOnlyList<TabularExportFilter> filters)
-    {
-        var trips = model.TransportLegs
-            .Where(item => !item.IsOriginalVesselMovement && item.SourceIsStorageTank)
-            .OrderByDescending(item => item.LoadedDate)
-            .ThenByDescending(item => item.Id)
-            .ToList();
-        var rows = trips.Select(item => new TabularExportRow(
-        [
-            TabularExportCell.Date(item.LoadedDate),
-            TabularExportCell.Text(item.TransportReference ?? item.DocumentReference ?? $"#{item.Id}"),
-            TabularExportCell.Text(item.TransportTypeName),
-            TabularExportCell.Text(item.SourceName),
-            TabularExportCell.Text(item.DestinationName),
-            TabularExportCell.Number(item.QuantityMt),
-            TabularExportCell.Number(item.ReceivedQuantityMt),
-            TabularExportCell.Number(item.ShortageQuantityMt),
-            TabularExportCell.Text(item.TransportStatusName)
-        ])).ToList();
-
-        return Document(fileStem, title, filters,
-        [
-            new("تاریخ", "Date", TabularExportValueType.Date, 14),
-            new("مرجع", "Reference", Width: 16),
-            new("نوع حمل", "Transport type", Width: 16),
-            new("مبدأ", "Source", Width: 18),
-            new("مقصد", "Destination", Width: 18),
-            new("بارگیری MT", "Loaded MT", TabularExportValueType.Number, 15),
-            new("تحویل MT", "Received MT", TabularExportValueType.Number, 15),
-            new("کسری MT", "Shortage MT", TabularExportValueType.Number, 15),
-            new("وضعیت", "Status", Width: 16)
-        ], rows, new TabularExportRow(
-        [
-            TabularExportCell.Text("جمع / Total"),
-            TabularExportCell.Text(null),
-            TabularExportCell.Text(null),
-            TabularExportCell.Text(null),
-            TabularExportCell.Text(null),
-            TabularExportCell.Number(trips.Sum(item => item.QuantityMt)),
-            TabularExportCell.Number(trips.Sum(item => item.ReceivedQuantityMt)),
-            TabularExportCell.Number(trips.Sum(item => item.ShortageQuantityMt)),
-            TabularExportCell.Text(null)
         ]), forceLandscape: true);
     }
 

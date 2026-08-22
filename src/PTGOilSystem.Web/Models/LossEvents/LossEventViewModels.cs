@@ -21,9 +21,49 @@ public static class LossEventStageLabels
     };
 }
 
+/// <summary>
+/// چهار حالتی که کاربر در فرم دستی می‌بیند. مقادیر Enum دیتابیس دست‌نخورده می‌مانند؛ فقط
+/// عنوان‌ها ساده شده‌اند و مرحلهٔ دقیق از صفحه‌ای که کاربر از آن آمده تعیین می‌شود
+/// (بارگیری → اختلاف بارگیری، ارسال موتر → کمبود دیسپچ، رسید/حمل → کمبود هنگام رسید).
+/// اگر رویداد مرحله‌ای خارج از این چهار مورد داشته باشد، همان مرحله با نام اصلی‌اش
+/// به فهرست اضافه می‌شود تا داده‌های قدیمی و مسیرهای موجود نشکنند.
+/// </summary>
+public static class LossEventStageChoices
+{
+    public const string ShipmentOrLoadingLabel = "کسری هنگام ارسال / بارگیری";
+    public const string TransitOrReceiptLabel = "کسری در مسیر / هنگام رسید";
+    public const string TankLossLabel = "ضایعات داخل مخزن";
+    public const string StockCorrectionLabel = "اصلاح موجودی";
+
+    public static IReadOnlyList<(LossEventStage Stage, string Label)> Build(LossEventStage current)
+    {
+        var shipmentStage = current == LossEventStage.DispatchShortage
+            ? LossEventStage.DispatchShortage
+            : LossEventStage.LoadingDifference;
+        var transitStage = current == LossEventStage.TransitLoss
+            ? LossEventStage.TransitLoss
+            : LossEventStage.ReceiptShortage;
+
+        var choices = new List<(LossEventStage Stage, string Label)>
+        {
+            (shipmentStage, ShipmentOrLoadingLabel),
+            (transitStage, TransitOrReceiptLabel),
+            (LossEventStage.TankNaturalLoss, TankLossLabel),
+            (LossEventStage.ManualAdjustment, StockCorrectionLabel)
+        };
+
+        if (choices.All(c => c.Stage != current))
+        {
+            choices.Insert(0, (current, LossEventStageLabels.ToPersian(current)));
+        }
+
+        return choices;
+    }
+}
+
 public sealed class LossEventCreateViewModel
 {
-    [Display(Name = "مرحله ضایعات / کمبود")]
+    [Display(Name = "نوع رویداد")]
     public LossEventStage Stage { get; set; } = LossEventStage.ReceiptShortage;
 
     [Display(Name = "جنس")]
@@ -85,6 +125,8 @@ public sealed class LossEventCreateViewModel
     [StringLength(200)]
     public string? FinancialTreatment { get; set; }
 
+    // اثر روی موجودی تصمیم کاربر نیست: سرور آن را از روی مرحله و با LossStagePolicy تعیین
+    // می‌کند و مقدار ارسالی مرورگر را نادیده می‌گیرد. فیلد برای نمایش و سازگاری می‌ماند.
     [Display(Name = "بر موجودی اثر دارد")]
     public bool AffectsInventory { get; set; }
 

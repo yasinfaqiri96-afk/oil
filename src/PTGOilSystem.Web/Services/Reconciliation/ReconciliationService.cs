@@ -94,8 +94,8 @@ public partial class ReconciliationService : IReconciliationService
             .ToListAsync();
 
         var cashAccountIds = payments
-            .Select(p => p.CashAccountId)
-            .Where(id => id > 0)
+            .Where(p => p.CashAccountId is > 0)
+            .Select(p => p.CashAccountId!.Value)
             .Distinct()
             .ToList();
         var cashAccounts = cashAccountIds.Count == 0
@@ -107,7 +107,8 @@ public partial class ReconciliationService : IReconciliationService
 
         foreach (var payment in payments)
         {
-            if (cashAccounts.TryGetValue(payment.CashAccountId, out var cashAccount))
+            if (payment.CashAccountId.HasValue
+                && cashAccounts.TryGetValue(payment.CashAccountId.Value, out var cashAccount))
             {
                 payment.CashAccount = cashAccount;
             }
@@ -140,8 +141,10 @@ public partial class ReconciliationService : IReconciliationService
             .Select(p => ToRoznamchaIssue(p, "Roznamcha payment has a counterparty type but no usable related ID."))
             .ToList();
 
+        // پرداختِ تأمین‌شده توسط شریک عمداً حساب نقدی ندارد؛ نبودِ حساب برای آن مغایرت نیست.
         var paymentsWithoutCashAccount = payments
-            .Where(p => p.CashAccountId <= 0 || p.CashAccount is null)
+            .Where(p => p.FundingSource != PaymentFundingSource.Partner
+                && (p.CashAccountId is null or <= 0 || p.CashAccount is null))
             .Select(p => ToRoznamchaIssue(p, "Roznamcha payment has no valid cash/bank account."))
             .ToList();
 

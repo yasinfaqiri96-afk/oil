@@ -107,6 +107,7 @@ vite.config.*.timestamp-*
 .build-check/
 .codex-run/
 .playwright-mcp/
+.ptg-ui-pick/
 .qodo/
 
 
@@ -153,6 +154,7 @@ artifacts/
 /docs/*.xlsx
 /docs/*.pdf
 /docs/contract-audit/
+/docs/exel/
 /tools/PtgImporter/loadings.json
 /docs/*.zip
 /exel/
@@ -193,6 +195,7 @@ tmp/
 .DS_Store
 Thumbs.db
 desktop.ini
+*.lnk
 # ---------------------------------------------------------
 # Additional generated/test/temp outputs
 # ---------------------------------------------------------

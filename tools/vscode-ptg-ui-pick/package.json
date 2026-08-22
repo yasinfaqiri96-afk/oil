@@ -1,0 +1,73 @@
+{
+  "name": "ptg-ui-pick-bridge",
+  "displayName": "PTG UI Pick Bridge",
+  "description": "Delivers the element picked in the browser to the Claude Code panel.",
+  "version": "1.0.0",
+  "publisher": "ptg",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ptgUiPick.sendLastPickToClaude",
+        "title": "PTG: Send Selected UI Element to Claude Code"
+      },
+      {
+        "command": "ptgUiPick.copyLastPick",
+        "title": "PTG: Copy Last UI Pick to Clipboard"
+      },
+      {
+        "command": "ptgUiPick.openLastPickFile",
+        "title": "PTG: Open Last UI Pick File"
+      },
+      {
+        "command": "ptgUiPick.toggleAutoDeliver",
+        "title": "PTG: Toggle Automatic UI Pick Delivery"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "ptgUiPick.sendLastPickToClaude",
+        "key": "alt+shift+c",
+        "when": "ptgUiPick.hasPick"
+      }
+    ],
+    "configuration": {
+      "title": "PTG UI Pick",
+      "properties": {
+        "ptgUiPick.autoDeliver": {
+          "type": "boolean",
+          "default": true,
+          "description": "Deliver the pick to Claude Code automatically as soon as an element is picked in the browser."
+        },
+        "ptgUiPick.deliveryMode": {
+          "type": "string",
+          "enum": ["focusAndClipboard", "newClaudeTab", "clipboardOnly"],
+          "enumDescriptions": [
+            "Copy the prompt to the clipboard and focus the Claude Code input (keeps the current conversation; press Ctrl+V then Enter).",
+            "Open a NEW Claude Code tab with the prompt already typed in (press Enter to send; starts a new conversation).",
+            "Only copy the prompt to the clipboard."
+          ],
+          "default": "focusAndClipboard",
+          "description": "How a pick is delivered to Claude Code."
+        },
+        "ptgUiPick.promptStyle": {
+          "type": "string",
+          "enum": ["summary", "full"],
+          "enumDescriptions": [
+            "One /ui-pick line with the element identity; Claude reads the full details from .ptg-ui-pick/.",
+            "The whole element digest inlined into the prompt."
+          ],
+          "default": "summary",
+          "description": "How much of the pick is written into the Claude Code prompt."
+        }
+      }
+    }
+  }
+}
