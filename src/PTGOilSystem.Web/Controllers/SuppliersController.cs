@@ -5,6 +5,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
+using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Models.Suppliers;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
@@ -24,6 +25,7 @@ public partial class SuppliersController : Controller
     private readonly MasterDataDeleteSafetyService _deleteSafety;
     private readonly IPurchaseAggregationService _purchaseAggregation;
     private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyBalanceReadService _partyBalances;
     // موتور واحد «مانده قابل انتقال». nullable است تا سازنده‌های موجود و تست‌ها دست‌نخورده بمانند.
     private readonly ISupplierTransferableBalanceService? _transferableBalances;
 
@@ -33,7 +35,8 @@ public partial class SuppliersController : Controller
         MasterDataDeleteSafetyService deleteSafety,
         IPurchaseAggregationService? purchaseAggregation = null,
         IPartyStatementReadService? partyStatements = null,
-        ISupplierTransferableBalanceService? transferableBalances = null)
+        ISupplierTransferableBalanceService? transferableBalances = null,
+        IPartyBalanceReadService? partyBalances = null)
     {
         _db = db;
         _audit = audit;
@@ -41,6 +44,11 @@ public partial class SuppliersController : Controller
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
         _partyStatements = partyStatements;
         _transferableBalances = transferableBalances;
+        _partyBalances = partyBalances ?? new PartyBalanceReadService(
+            db,
+            new PartyStatementPolicyResolver(),
+            new CompanyFlowDirectionResolver(),
+            new CompanyFlowBalanceService());
     }
 
     public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -310,35 +318,25 @@ public partial class SuppliersController : Controller
                     : 0m);
         }
 
-        var ledgerRows = await _db.LedgerEntries
-            .AsNoTracking()
-            .Include(l => l.Contract)
-            // انتساب مرکزی: اسنادِ طرف‌حسابِ دیگر (کرایهٔ حمل و …) از متریکِ تأمین‌کننده کنار می‌مانند.
-            .Where(LedgerEntryOwnership.SupplierOwnedAny(supplierIds))
-            .Select(l => new SupplierLedgerMetricProjection
-            {
-                LedgerEntryId = l.Id,
-                DirectSupplierId = l.SupplierId,
-                ContractSupplierId = l.Contract != null && l.Contract.ContractType == ContractType.Purchase
-                    ? l.Contract.SupplierId
-                    : null,
-                Side = l.Side,
-                AmountUsd = l.AmountUsd
-            })
-            .ToListAsync();
+        // AUD-05: ماندهٔ List از همان bulk read-model رسمی می‌آید که Management استفاده می‌کند.
+        // این مسیر با PartyStatement در policy/direction/closing formula مشترک است؛ List دیگر
+        // Debit/Credit یا LoadedValue-Paid را به‌عنوان «Balance» دوباره محاسبه نمی‌کند.
+        var officialBalances = (await _partyBalances.GetBalancesAsync(
+                new ManagementReportFilterViewModel(),
+                HttpContext?.RequestAborted ?? CancellationToken.None))
+            .Where(row => row.PartyType == PartyStatementPartyType.Supplier
+                && bySupplierId.ContainsKey(row.PartyId))
+            .ToDictionary(row => row.PartyId);
 
-        foreach (var group in ExpandSupplierLedgerLinks(ledgerRows)
-            .GroupBy(x => new { x.SupplierId, x.Ledger.LedgerEntryId })
-            .Select(g => g.First())
-            .GroupBy(x => x.SupplierId))
+        foreach (var item in items)
         {
-            if (!bySupplierId.TryGetValue(group.Key, out var item))
+            if (!officialBalances.TryGetValue(item.SupplierId, out var balance))
             {
                 continue;
             }
 
-            item.LedgerOutflowUsd = group.Where(x => x.Ledger.Side == LedgerSide.Debit).Sum(x => x.Ledger.AmountUsd);
-            item.LedgerReceiptUsd = group.Where(x => x.Ledger.Side == LedgerSide.Credit).Sum(x => x.Ledger.AmountUsd);
+            item.LedgerOutflowUsd = balance.TotalOutflowUsd;
+            item.LedgerReceiptUsd = balance.TotalReceiptUsd;
         }
 
         var paymentRows = await _db.PaymentTransactions
@@ -1449,23 +1447,6 @@ public partial class SuppliersController : Controller
         => string.Equals(sourceType, ThreeWaySettlementController.LedgerSourceType, StringComparison.Ordinal)
             || string.Equals(sourceType, ThreeWaySettlementController.CancellationLedgerSourceType, StringComparison.Ordinal);
 
-    private static IEnumerable<(int SupplierId, SupplierLedgerMetricProjection Ledger)> ExpandSupplierLedgerLinks(
-        IEnumerable<SupplierLedgerMetricProjection> ledgers)
-    {
-        foreach (var ledger in ledgers)
-        {
-            if (ledger.DirectSupplierId.HasValue)
-            {
-                yield return (ledger.DirectSupplierId.Value, ledger);
-            }
-
-            if (ledger.ContractSupplierId.HasValue && ledger.ContractSupplierId != ledger.DirectSupplierId)
-            {
-                yield return (ledger.ContractSupplierId.Value, ledger);
-            }
-        }
-    }
-
     private static IEnumerable<(int SupplierId, SupplierPaymentMetricProjection Payment)> ExpandSupplierPaymentLinks(
         IEnumerable<SupplierPaymentMetricProjection> payments)
     {
@@ -1527,15 +1508,6 @@ public partial class SuppliersController : Controller
     }
 
     private sealed record LedgerTotals(decimal OutflowUsd, decimal ReceiptUsd);
-
-    private sealed class SupplierLedgerMetricProjection
-    {
-        public int LedgerEntryId { get; init; }
-        public int? DirectSupplierId { get; init; }
-        public int? ContractSupplierId { get; init; }
-        public LedgerSide Side { get; init; }
-        public decimal AmountUsd { get; init; }
-    }
 
     private sealed class SupplierPaymentMetricProjection
     {

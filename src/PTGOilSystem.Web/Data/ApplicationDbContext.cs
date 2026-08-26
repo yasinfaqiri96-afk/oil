@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data.Configurations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
@@ -99,6 +99,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ThreeWaySettlement> ThreeWaySettlements => Set<ThreeWaySettlement>();
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
     public DbSet<ContractBalanceTransfer> ContractBalanceTransfers => Set<ContractBalanceTransfer>();
+    public DbSet<PartnerSettlement> PartnerSettlements => Set<PartnerSettlement>();
     public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
     public DbSet<SupplierBalanceTransfer> SupplierBalanceTransfers => Set<SupplierBalanceTransfer>();
     public DbSet<SupplierBalanceTransferSource> SupplierBalanceTransferSources => Set<SupplierBalanceTransferSource>();
@@ -369,6 +370,30 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ContractBalanceTransfer>().Property(t => t.FxRateToUsd).HasColumnType("numeric(18,6)");
         modelBuilder.Entity<ContractBalanceTransfer>().Property(t => t.OriginalPaymentFxRateToUsd).HasColumnType("numeric(18,6)");
         modelBuilder.Entity<ContractBalanceTransfer>().Property(t => t.IsCancelled).HasDefaultValue(false);
+
+        // تسویهٔ بین شرکا — فقط رکورد نقدیِ بین دو شریک. هیچ Ledger/Journal/Expense ندارد،
+        // پس روی P&L و مصارف عملیاتی اثری نمی‌گذارد.
+        ConfigureMoney<PartnerSettlement>(modelBuilder, s => s.Amount);
+        ConfigureMoney<PartnerSettlement>(modelBuilder, s => s.AmountUsd);
+        modelBuilder.Entity<PartnerSettlement>().Property(s => s.AppliedFxRateToUsd).HasColumnType("numeric(18,6)");
+        modelBuilder.Entity<PartnerSettlement>().Property(s => s.IsReversed).HasDefaultValue(false);
+        modelBuilder.Entity<PartnerSettlement>()
+            .HasOne(s => s.FromPartner)
+            .WithMany()
+            .HasForeignKey(s => s.FromPartnerId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PartnerSettlement>()
+            .HasOne(s => s.ToPartner)
+            .WithMany()
+            .HasForeignKey(s => s.ToPartnerId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PartnerSettlement>()
+            .HasOne(s => s.Contract)
+            .WithMany()
+            .HasForeignKey(s => s.ContractId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PartnerSettlement>().HasIndex(s => new { s.FromPartnerId, s.ToPartnerId, s.SettlementDate });
+        modelBuilder.Entity<PartnerSettlement>().HasIndex(s => s.ContractId);
 
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedPaymentAmount);
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedBookAmountUsd);
@@ -739,6 +764,14 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(cp => cp.PartnerId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // نگهدارندهٔ عایدِ فروشِ قرارداد شراکتی. اختیاری است و حذف شریک را مسدود می‌کند.
+        modelBuilder.Entity<Contract>()
+            .HasOne(c => c.SaleProceedsHolderPartner)
+            .WithMany()
+            .HasForeignKey(c => c.SaleProceedsHolderPartnerId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Contract>().HasIndex(c => c.SaleProceedsHolderPartnerId);
 
         modelBuilder.Entity<LoadingReceipt>()
             .HasOne(r => r.Terminal)

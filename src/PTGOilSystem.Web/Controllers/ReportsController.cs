@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
@@ -24,6 +24,7 @@ public partial class ReportsController : Controller
     private readonly ApplicationDbContext _db;
     private readonly IPurchaseAggregationService _purchaseAggregation;
     private readonly IProfitAndLossService _profitAndLoss;
+    private readonly ISaleContractAttributionReader _saleAttribution;
     private readonly IPartyBalanceReadService _partyBalances;
     private readonly IStockService _stock;
     private readonly IPreSaleReservationService _preSaleReservations;
@@ -43,11 +44,14 @@ public partial class ReportsController : Controller
         INegativeStockAnalysisService? negativeStock = null,
         IAfghanistanBusinessClock? clock = null,
         IMemoryCache? cache = null,
-        Services.Accounting.ISystemCompanyProvider? systemCompany = null)
+        Services.Accounting.ISystemCompanyProvider? systemCompany = null,
+        ISaleContractAttributionReader? saleAttribution = null)
     {
         _db = db;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
         _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db);
+        // انتساب فروش به قرارداد خرید فقط از همین مرجع خوانده می‌شود.
+        _saleAttribution = saleAttribution ?? new SaleContractAttributionReader(db);
         _partyBalances = partyBalances ?? new PartyBalanceReadService(
             db,
             new PartyStatementPolicyResolver(),
@@ -469,6 +473,12 @@ public partial class ReportsController : Controller
             .Take(5)
             .ToList();
 
+        // تا وقتی فروشِ بدون بهای تمام‌شده وجود دارد، COGS آن فروش‌ها صفر خوانده می‌شود و
+        // «سود» بیش از واقع درمی‌آید. در آن حالت عدد سود منتشر نمی‌شود و به‌جایش دلیلش
+        // نوشته می‌شود؛ هیچ COGS حدسی (مثلاً بهای خرید) جایگزین نمی‌گردد.
+        var isProfitPublishable = companyPnl.Sales.UncostedSaleCount == 0
+            && companyPnl.Sales.Confidence == PnlConfidence.Verified;
+
         return new CompanyFinancialOverviewViewModel
         {
             Filter = filter,
@@ -491,7 +501,7 @@ public partial class ReportsController : Controller
                 new() { Label = "فروش کل", Value = Money(revenueUsd), Detail = "Sales revenue", Icon = "bi-cart-check", ToneClass = "finance-positive" },
                 new() { Label = "بهای تمام‌شده فروش", Value = Money(cogsUsd), Detail = "Realised COGS", Icon = "bi-box-arrow-in-down", ToneClass = "" },
                 new() { Label = "مصارف", Value = Money(expenseUsd), Detail = "Official expenses", Icon = "bi-receipt", ToneClass = "finance-negative" },
-                new() { Label = "سود خالص", Value = Money(companyPnl.NetProfitUsd), Detail = companyPnl.Sales.UncostedSaleCount == 0 ? "Net profit" : $"{companyPnl.Sales.UncostedSaleCount:N0} sale(s) need COGS review", Icon = "bi-graph-up-arrow", ToneClass = companyPnl.NetProfitUsd >= 0m ? "finance-positive" : "finance-negative" },
+                new() { Label = "سود خالص", Value = isProfitPublishable ? Money(companyPnl.NetProfitUsd) : "—", Detail = isProfitPublishable ? "Net profit" : $"COGS incomplete — {companyPnl.Sales.UncostedSaleCount:N0} sale(s) need COGS", Icon = "bi-graph-up-arrow", ToneClass = !isProfitPublishable ? "" : companyPnl.NetProfitUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = "حرکت نقدی", Value = Money(cashInUsd - cashOutUsd), Detail = "Payment inflow - outflow", Icon = "bi-cash-stack", ToneClass = cashInUsd - cashOutUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = "مغایرت‌ها", Value = warnings.TotalIssueCount.ToString("N0"), Detail = "Open warnings", Icon = "bi-exclamation-triangle", ToneClass = warnings.TotalIssueCount == 0 ? "finance-positive" : "finance-negative" }
             ]
@@ -863,29 +873,27 @@ public partial class ReportsController : Controller
                 && a.SalesTransaction != null
                 && !a.SalesTransaction.IsCancelled);
 
-        var directSaleAggById = purchaseIds.Count == 0
-            ? new Dictionary<int, (decimal TotalSoldMt, decimal TotalRevenueUsd, int QuantityMismatchCount)>()
+        // فقط پیوندِ (قرارداد، فروش) خوانده می‌شود، نه جمعِ کاملِ فروش. عددِ عاید هر قرارداد
+        // پایین‌تر و یکجا از روی سهم اثبات‌شده ساخته می‌شود تا یک فروش چند-قراردادی کل
+        // TotalUsd خود را به هر قرارداد ندهد.
+        var directSaleLinks = purchaseIds.Count == 0
+            ? []
             : await directSaleQuery
+                .Select(a => new SaleContractLink(a.SourcePurchaseContractId!.Value, a.SalesTransactionId!.Value))
+                .Distinct()
+                .ToListAsync();
+
+        var directSaleMismatchById = purchaseIds.Count == 0
+            ? new Dictionary<int, int>()
+            : await directSaleQuery
+                .Where(a => a.QuantityMt != a.SalesTransaction!.QuantityMt)
                 .GroupBy(a => a.SourcePurchaseContractId!.Value)
-                .Select(g => new
-                {
-                    ContractId = g.Key,
-                    TotalSoldMt = g.Sum(a => a.SalesTransaction!.QuantityMt),
-                    TotalRevenueUsd = g.Sum(a => a.SalesTransaction!.TotalUsd),
-                    QuantityMismatchCount = g.Count(a => a.QuantityMt != a.SalesTransaction!.QuantityMt)
-                })
-                .ToDictionaryAsync(
-                    x => x.ContractId,
-                    x => (x.TotalSoldMt, x.TotalRevenueUsd, x.QuantityMismatchCount));
+                .Select(g => new { ContractId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ContractId, x => x.Count);
 
         // TerminalStock sales — sales whose stock-out InventoryMovement is tied to one of these purchase contracts.
         // De-duplicate against DirectSale allocations so a sale never contributes revenue twice.
-        var directSaleSaleIds = purchaseIds.Count == 0
-            ? []
-            : await directSaleQuery
-                .Select(a => a.SalesTransactionId!.Value)
-                .Distinct()
-                .ToArrayAsync();
+        var directSaleSaleIds = directSaleLinks.Select(l => l.SaleId).Distinct().ToArray();
 
         var stockMovementQuery = _db.InventoryMovements.AsNoTracking()
             .Where(m => m.Direction == MovementDirection.Out
@@ -899,26 +907,12 @@ public partial class ReportsController : Controller
                 .Where(m => !directSaleSaleIds.Contains(m.SalesTransactionId!.Value));
         }
 
-        var stockSaleAggById = purchaseIds.Count == 0
-            ? new Dictionary<int, (decimal TotalSoldMt, decimal TotalRevenueUsd)>()
+        var stockSaleLinks = purchaseIds.Count == 0
+            ? []
             : await stockMovementQuery
-                .Select(m => new { ContractId = m.ContractId!.Value, SaleId = m.SalesTransactionId!.Value })
+                .Select(m => new SaleContractLink(m.ContractId!.Value, m.SalesTransactionId!.Value))
                 .Distinct()
-                .Join(
-                    _db.SalesTransactions.AsNoTracking().Where(s => !s.IsCancelled),
-                    link => link.SaleId,
-                    sale => sale.Id,
-                    (link, sale) => new { link.ContractId, sale.QuantityMt, sale.TotalUsd })
-                .GroupBy(row => row.ContractId)
-                .Select(g => new
-                {
-                    ContractId = g.Key,
-                    TotalSoldMt = g.Sum(row => row.QuantityMt),
-                    TotalRevenueUsd = g.Sum(row => row.TotalUsd)
-                })
-                .ToDictionaryAsync(
-                    x => x.ContractId,
-                    x => (x.TotalSoldMt, x.TotalRevenueUsd));
+                .ToListAsync();
 
         // ── In-transit direct sales (truck / internal transport receipt) ────
         // این فروش‌ها عمداً هیچ InventoryMovement نمی‌سازند (بار هنگام بارگیریِ موتر یا حمل قبلاً از
@@ -930,43 +924,18 @@ public partial class ReportsController : Controller
             ? new List<(int ContractId, int SaleId)>()
             : await BuildInTransitDirectSaleLinksAsync(purchaseIds);
 
-        var countedSaleIds = directSaleSaleIds.ToHashSet();
-        if (purchaseIds.Count > 0)
-        {
-            foreach (var saleId in await stockMovementQuery
-                .Select(m => m.SalesTransactionId!.Value)
-                .Distinct()
-                .ToListAsync())
-            {
-                countedSaleIds.Add(saleId);
-            }
-        }
-
-        var inTransitSaleAggById = new Dictionary<int, (decimal TotalSoldMt, decimal TotalRevenueUsd)>();
-        var newInTransitLinks = inTransitSaleLinks
-            .Where(link => countedSaleIds.Add(link.SaleId))
-            .ToList();
-        if (newInTransitLinks.Count > 0)
-        {
-            var inTransitSaleIds = newInTransitLinks.Select(l => l.SaleId).ToList();
-            var inTransitSales = await _db.SalesTransactions.AsNoTracking()
-                .Where(s => !s.IsCancelled && inTransitSaleIds.Contains(s.Id))
-                .Select(s => new { s.Id, s.QuantityMt, s.TotalUsd })
-                .ToDictionaryAsync(s => s.Id);
-
-            foreach (var link in newInTransitLinks)
-            {
-                if (!inTransitSales.TryGetValue(link.SaleId, out var row))
-                {
-                    continue;
-                }
-
-                inTransitSaleAggById.TryGetValue(link.ContractId, out var current);
-                inTransitSaleAggById[link.ContractId] = (
-                    current.TotalSoldMt + row.QuantityMt,
-                    current.TotalRevenueUsd + row.TotalUsd);
-            }
-        }
+        // ── Revenue per purchase contract — one place, one rule ─────────────
+        // ترتیب مسیرها مثل قبل است و هر فروش فقط از نخستین مسیری که آن را دیده شمرده
+        // می‌شود. سهم دالریِ هر قرارداد از SalesTransactionSourceAllocations خوانده
+        // می‌شود (منبعِ واحدِ انتساب فروش→قرارداد خرید) و جمع سهم‌ها دقیقاً برابر
+        // SalesTransaction.TotalUsd است؛ پس یک فروشِ چند-قراردادی دیگر عایدش را در دو
+        // قرارداد تکرار نمی‌کند. فروشِ بدون allocation «اثبات‌نشده» است و رفتار قدیمی
+        // همان صفحه نگه داشته می‌شود — هیچ قراردادی حدس زده نمی‌شود.
+        var saleAggById = await BuildContractSaleRevenueAsync(
+            purchaseIds,
+            directSaleLinks,
+            stockSaleLinks,
+            inTransitSaleLinks.Select(l => new SaleContractLink(l.ContractId, l.SaleId)).ToList());
 
         // ── Loss valuation per purchase contract (read-only) ────────────────
         // Chargeable losses are converted to USD using the originating
@@ -1200,9 +1169,8 @@ public partial class ReportsController : Controller
             lossAggByContract.TryGetValue(c.Id, out var lossAgg);
             pendingTankSettlementByContract.TryGetValue(c.Id, out var pendingSettlementMt);
             sarrafDifferenceByContract.TryGetValue(c.Id, out var sarrafDifference);
-            var hasDirectSaleAgg = directSaleAggById.TryGetValue(c.Id, out var directSaleAgg);
-            var hasStockSaleAgg = stockSaleAggById.TryGetValue(c.Id, out var stockSaleAgg);
-            inTransitSaleAggById.TryGetValue(c.Id, out var inTransitSaleAgg);
+            saleAggById.TryGetValue(c.Id, out var saleAgg);
+            var directSaleQuantityMismatchCount = directSaleMismatchById.GetValueOrDefault(c.Id);
             // Official wagon rent (ServiceProvider) is counted via ExpenseTransactions
             // (generalExpense). For LEGACY loadings the inline railway field mirrors that
             // same amount, so it must be dropped to avoid double counting. For row-based
@@ -1211,10 +1179,6 @@ public partial class ReportsController : Controller
             var inlineRailwayCostUsd = contractsWithOfficialWagonRent.Contains(c.Id)
                 ? agg?.LoadingRailwayExpenseUsdFromLines ?? 0m
                 : agg?.LoadingRailwayExpenseUsd ?? 0m;
-            var directSoldMt = hasDirectSaleAgg ? directSaleAgg.TotalSoldMt : 0m;
-            var directRevenueUsd = hasDirectSaleAgg ? directSaleAgg.TotalRevenueUsd : 0m;
-            var stockSoldMt = hasStockSaleAgg ? stockSaleAgg.TotalSoldMt : 0m;
-            var stockRevenueUsd = hasStockSaleAgg ? stockSaleAgg.TotalRevenueUsd : 0m;
             return new ContractPnlRowViewModel
             {
                 ContractId = c.Id,
@@ -1243,11 +1207,11 @@ public partial class ReportsController : Controller
                 SarrafSupplierShortfallUsd = sarrafDifference.SupplierShortfallUsd,
                 ExchangeGainUsd = sarrafDifference.ExchangeGainUsd,
                 ExchangeLossUsd = sarrafDifference.ExchangeLossUsd,
-                TotalSoldMt = directSoldMt + stockSoldMt + inTransitSaleAgg.TotalSoldMt,
-                TotalRevenueUsd = directRevenueUsd + stockRevenueUsd + inTransitSaleAgg.TotalRevenueUsd,
-                DirectSaleQuantityMismatchCount = hasDirectSaleAgg ? directSaleAgg.QuantityMismatchCount : 0,
+                TotalSoldMt = saleAgg.TotalSoldMt,
+                TotalRevenueUsd = saleAgg.TotalRevenueUsd,
+                DirectSaleQuantityMismatchCount = directSaleQuantityMismatchCount,
                 PnlConfidence = (agg?.PendingLoadingCount ?? 0) > 0
-                    || (hasDirectSaleAgg && directSaleAgg.QuantityMismatchCount > 0)
+                    || directSaleQuantityMismatchCount > 0
                     || lossAgg.UnvaluedCount > 0
                         ? PnlConfidence.NeedsReview
                         : PnlConfidence.Estimated
@@ -1522,6 +1486,104 @@ public partial class ReportsController : Controller
     /// Pair of (PurchaseContractId, SalesTransactionId) used by ContractPnl to
     /// aggregate TerminalStock sale revenue back onto the originating purchase contract.
     /// </summary>
+    private sealed record SaleContractLink(int ContractId, int SaleId);
+
+    /// <summary>
+    /// عاید و مقدار فروخته‌شدهٔ هر قرارداد خرید، از روی پیوندهای سه مسیر فروش.
+    /// <para>
+    /// هر فروش فقط از نخستین مسیری که آن را دیده شمرده می‌شود (DirectSale، سپس
+    /// TerminalStock، سپس فروش در راه) تا عاید تکرار نشود. برای فروشی که سهم
+    /// اثبات‌شده دارد، مبلغ هر قرارداد از <c>SalesTransactionSourceAllocations</c>
+    /// می‌آید و جمع سهم‌ها برابر <c>SalesTransaction.TotalUsd</c> است. فروش
+    /// اثبات‌نشده (بدون allocation) مثل قبل کامل به قرارداد پیوندخورده‌اش می‌نشیند؛
+    /// قراردادی حدس زده نمی‌شود.
+    /// </para>
+    /// </summary>
+    private async Task<Dictionary<int, (decimal TotalSoldMt, decimal TotalRevenueUsd)>> BuildContractSaleRevenueAsync(
+        IReadOnlyCollection<int> purchaseIds,
+        IReadOnlyList<SaleContractLink> directSaleLinks,
+        IReadOnlyList<SaleContractLink> stockSaleLinks,
+        IReadOnlyList<SaleContractLink> inTransitSaleLinks)
+    {
+        var aggregate = new Dictionary<int, (decimal TotalSoldMt, decimal TotalRevenueUsd)>();
+        if (purchaseIds.Count == 0)
+        {
+            return aggregate;
+        }
+
+        var claimedSaleIds = new HashSet<int>();
+        var effectiveLinks = new List<SaleContractLink>();
+        foreach (var path in new[] { directSaleLinks, stockSaleLinks, inTransitSaleLinks })
+        {
+            // یک مسیر می‌تواند یک جفت (قرارداد، فروش) را از دو راهِ lineage بدهد
+            // (مثلاً موترِ امروز و لینکِ قدیمیِ همان دیسپچ)؛ آن یک رویداد است، نه دو تا.
+            var pathLinks = path
+                .Distinct()
+                .OrderBy(link => link.ContractId)
+                .ToList();
+            var newSaleIds = pathLinks
+                .Select(link => link.SaleId)
+                .Where(saleId => !claimedSaleIds.Contains(saleId))
+                .ToHashSet();
+            if (newSaleIds.Count == 0)
+            {
+                continue;
+            }
+
+            effectiveLinks.AddRange(pathLinks.Where(link => newSaleIds.Contains(link.SaleId)));
+            claimedSaleIds.UnionWith(newSaleIds);
+        }
+
+        if (effectiveLinks.Count == 0)
+        {
+            return aggregate;
+        }
+
+        var saleIds = claimedSaleIds.ToList();
+        var saleRows = await _db.SalesTransactions.AsNoTracking()
+            .Where(s => !s.IsCancelled && saleIds.Contains(s.Id))
+            .Select(s => new { s.Id, s.QuantityMt, s.TotalUsd })
+            .ToDictionaryAsync(s => s.Id, s => (s.QuantityMt, s.TotalUsd));
+        var attribution = await _saleAttribution.LoadForSalesAsync(saleIds);
+        var purchaseIdSet = purchaseIds.ToHashSet();
+
+        void Accumulate(int contractId, decimal quantityMt, decimal revenueUsd)
+        {
+            aggregate.TryGetValue(contractId, out var current);
+            aggregate[contractId] = (
+                current.TotalSoldMt + quantityMt,
+                current.TotalRevenueUsd + revenueUsd);
+        }
+
+        foreach (var group in effectiveLinks.GroupBy(link => link.SaleId))
+        {
+            if (!saleRows.TryGetValue(group.Key, out var sale))
+            {
+                continue;
+            }
+
+            if (attribution.HasProvenAllocation(group.Key))
+            {
+                foreach (var share in attribution.SharesFor(group.Key))
+                {
+                    if (purchaseIdSet.Contains(share.SourcePurchaseContractId))
+                    {
+                        Accumulate(share.SourcePurchaseContractId, share.QuantityMt, share.AmountUsd);
+                    }
+                }
+
+                continue;
+            }
+
+            // فروشِ اثبات‌نشده سهم قابل اثبات ندارد، پس شکسته نمی‌شود؛ اما دو بار هم شمرده
+            // نمی‌شود. کلِ مبلغ یک بار روی نخستین قرارداد پیوندخورده (به ترتیب مسیر و شمارهٔ
+            // قرارداد) می‌نشیند تا جمع قراردادها از مبلغ فروش بیشتر نشود.
+            Accumulate(group.First().ContractId, sale.QuantityMt, sale.TotalUsd);
+        }
+
+        return aggregate;
+    }
+
     private sealed record ContractPnlExpenseRow(
         int ContractId,
         decimal AmountUsd,

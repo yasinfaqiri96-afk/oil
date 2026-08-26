@@ -1772,3 +1772,492 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
         margin-block-end: var(--ptg-tabs-space-below);
     }
 }
+
+/* ==========================================================================
+   Transport Details (InventoryTransportLegs/Details)
+   Reference composition: identity strip -> two-by-two card grid -> note ->
+   collapsed secondary material. Tokens only; nothing here leaks outside
+   .ptg-record-detail, and the shared partials keep their own styles.
+   ========================================================================== */
+.ptg-record-detail {
+    --ptg-td-border: var(--ak-linear-border);
+    --ptg-td-radius: 12px;
+    --ptg-td-pad: 16px 18px;
+}
+
+.ptg-record-detail > .ak-detail-header {
+    padding-block-end: 12px;
+}
+
+/* --- identity strip: one horizontal row of record facts + page actions --- */
+.ptg-record-detail .ptg-td-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 20px;
+    padding: var(--ptg-td-pad);
+    border: 1px solid var(--ptg-td-border);
+    border-radius: var(--ptg-td-radius);
+    background: var(--background-paper, #fff);
+}
+
+.ptg-record-detail .ptg-td-strip-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 0;
+    margin: 0;
+    min-width: 0;
+}
+
+.ptg-record-detail .ptg-td-strip-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding-inline: 18px;
+    border-inline-start: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-strip-cell:first-child {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+}
+
+.ptg-record-detail .ptg-td-strip-cell dt {
+    color: var(--ptg-muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ptg-record-detail .ptg-td-strip-cell dd {
+    margin: 0;
+    color: var(--ptg-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.ptg-record-detail .ptg-td-strip-cell dd.is-code {
+    font-size: 17px;
+    letter-spacing: .2px;
+}
+
+.ptg-record-detail .ptg-td-strip-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.ptg-record-detail .ptg-td-strip-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-block-size: 38px;
+}
+
+/* --- two equal cards per row on desktop, one column under 992px --- */
+.ptg-record-detail .ptg-td-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.ptg-record-detail .ptg-td-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: var(--ptg-td-pad);
+    border: 1px solid var(--ptg-td-border);
+    border-radius: var(--ptg-td-radius);
+    background: var(--background-paper, #fff);
+}
+
+.ptg-record-detail .ptg-td-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    color: var(--ptg-text);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.ptg-record-detail .ptg-td-card-head i {
+    color: var(--ptg-primary);
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* --- label / value rows, divider between rows only --- */
+.ptg-record-detail .ptg-td-rows {
+    margin: 0;
+}
+
+.ptg-record-detail .ptg-td-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding-block: 11px;
+    border-block-end: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-row:last-child {
+    padding-block-end: 0;
+    border-block-end: 0;
+}
+
+.ptg-record-detail .ptg-td-row dt {
+    color: var(--ptg-muted);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.ptg-record-detail .ptg-td-row dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--ptg-text);
+    font-size: 15px;
+    font-weight: 600;
+    text-align: start;
+}
+
+/* --- route head: source and destination side by side --- */
+.ptg-record-detail .ptg-td-route {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding-block: 10px 14px;
+}
+
+.ptg-record-detail .ptg-td-route-node {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    padding-inline-start: 20px;
+    border-inline-start: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-route-node:first-child {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+}
+
+.ptg-record-detail .ptg-td-route-node span {
+    color: var(--ptg-muted);
+    font-size: 13px;
+}
+
+.ptg-record-detail .ptg-td-route-node strong {
+    color: var(--ptg-text);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* --- stage rail: the record status cycle, read right to left in RTL --- */
+.ptg-record-detail .ptg-td-steps {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    margin: 0;
+    padding: 6px 0 14px;
+    list-style: none;
+}
+
+.ptg-record-detail .ptg-td-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ptg-record-detail .ptg-td-step::before {
+    content: "";
+    position: absolute;
+    inset-block-start: 13px;
+    inset-inline-start: 50%;
+    inline-size: 100%;
+    block-size: 2px;
+    background: var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-step:last-child::before {
+    display: none;
+}
+
+.ptg-record-detail .ptg-td-step.is-done::before {
+    background: var(--ptg-primary);
+}
+
+.ptg-record-detail .ptg-td-step-mark {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    inline-size: 28px;
+    block-size: 28px;
+    border-radius: 50%;
+    background: var(--background-neutral, #F5F7FA);
+    color: var(--ptg-muted);
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.ptg-record-detail .ptg-td-step.is-done .ptg-td-step-mark,
+.ptg-record-detail .ptg-td-step.is-current .ptg-td-step-mark {
+    background: var(--ptg-primary);
+    color: var(--primary-contrast, #fff);
+}
+
+.ptg-record-detail .ptg-td-step-label {
+    color: var(--ptg-muted);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.ptg-record-detail .ptg-td-step.is-done .ptg-td-step-label,
+.ptg-record-detail .ptg-td-step.is-current .ptg-td-step-label {
+    color: var(--ptg-text);
+    font-weight: 600;
+}
+
+/* --- the two dates under the rail --- */
+.ptg-record-detail .ptg-td-meta {
+    display: flex;
+    gap: 18px;
+    margin-block-start: auto;
+    padding-block-start: 12px;
+    border-block-start: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-meta-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    min-width: 0;
+    padding-inline-start: 18px;
+    border-inline-start: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-meta-cell:first-child {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+}
+
+.ptg-record-detail .ptg-td-meta-cell i {
+    color: var(--ptg-muted);
+    font-size: 14px;
+}
+
+.ptg-record-detail .ptg-td-meta-cell span {
+    color: var(--ptg-muted);
+    font-size: 13px;
+}
+
+.ptg-record-detail .ptg-td-meta-cell strong {
+    color: var(--ptg-text);
+    font-size: 14.5px;
+    font-weight: 600;
+}
+
+.ptg-record-detail .ptg-td-route-text {
+    margin: 12px 0 0;
+    color: var(--ptg-muted);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+/* --- numeric columns: label over value, divider between columns --- */
+.ptg-record-detail .ptg-td-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 12px 0;
+    margin: 6px 0 0;
+}
+
+.ptg-record-detail .ptg-td-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding-inline: 16px;
+    border-inline-start: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-metric:first-child {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+}
+
+.ptg-record-detail .ptg-td-metric dt {
+    color: var(--ptg-muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ptg-record-detail .ptg-td-metric dd {
+    margin: 0;
+    color: var(--ptg-text);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.ptg-record-detail .ptg-td-metric dd small {
+    margin-inline-start: 3px;
+    color: var(--ptg-muted);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ptg-record-detail .ptg-td-metric.is-accent dd {
+    color: var(--ptg-primary);
+}
+
+.ptg-record-detail .ptg-td-metric.is-warning dd {
+    color: var(--warning-main);
+}
+
+.ptg-record-detail .ptg-td-metric.is-danger dd {
+    color: var(--error-main);
+}
+
+.ptg-record-detail .ptg-td-metric.is-success dd {
+    color: var(--success-main);
+}
+
+/* A card the page marked as wide spans the whole grid row. */
+.ptg-record-detail .ptg-td-card.is-wide {
+    grid-column: 1 / -1;
+}
+
+/* Long free text (description, ledger note) stacks instead of splitting. */
+.ptg-record-detail .ptg-td-row.is-wide {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+}
+
+.ptg-record-detail .ptg-td-row dd small,
+.ptg-record-detail .ptg-td-strip-cell dd small {
+    margin-inline-start: 3px;
+    color: var(--ptg-muted);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ptg-record-detail .ptg-td-row dd a,
+.ptg-record-detail .ptg-td-strip-cell dd a {
+    color: var(--ptg-primary);
+    text-decoration: none;
+}
+
+.ptg-record-detail .ptg-td-row dd a:hover,
+.ptg-record-detail .ptg-td-strip-cell dd a:hover {
+    text-decoration: underline;
+}
+
+/* --- note card --- */
+.ptg-record-detail .ptg-td-note p {
+    margin: 4px 0 0;
+    color: var(--ptg-text);
+    font-size: 15px;
+    line-height: 1.75;
+}
+
+/* --- collapsed secondary material: activity, history, next operations --- */
+.ptg-record-detail .ptg-td-more {
+    border: 1px solid var(--ptg-td-border);
+    border-radius: var(--ptg-td-radius);
+    background: var(--background-paper, #fff);
+}
+
+.ptg-record-detail .ptg-td-more > summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding-block: 14px;
+    color: var(--ptg-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.ptg-record-detail .ptg-td-more > summary::-webkit-details-marker {
+    display: none;
+}
+
+.ptg-record-detail .ptg-td-more > summary i {
+    font-size: 13px;
+    transition: transform 190ms ease-out;
+}
+
+.ptg-record-detail .ptg-td-more[open] > summary i {
+    transform: rotate(180deg);
+}
+
+.ptg-record-detail .ptg-td-more[open] > summary {
+    border-block-end: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-more-body {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 16px 18px;
+}
+
+.ptg-record-detail .ptg-td-more-body > :is(.ak-detail-activity, .ak-detail-secondary, .ak-detail-actions-panel) {
+    margin: 0;
+}
+
+@media (max-width: 991.98px) {
+    .ptg-record-detail .ptg-td-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ptg-record-detail .ptg-td-strip-actions {
+        inline-size: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .ptg-record-detail .ptg-td-strip-cell {
+        padding-inline: 0;
+        border-inline-start: 0;
+        flex: 1 1 45%;
+    }
+
+    .ptg-record-detail .ptg-td-strip-facts {
+        gap: 12px 16px;
+    }
+
+    .ptg-record-detail .ptg-td-metric,
+    .ptg-record-detail .ptg-td-meta-cell,
+    .ptg-record-detail .ptg-td-route-node {
+        padding-inline: 0;
+        border-inline-start: 0;
+    }
+
+    .ptg-record-detail .ptg-td-meta {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ptg-record-detail .ptg-td-more > summary i {
+        transition: none;
+    }
+}

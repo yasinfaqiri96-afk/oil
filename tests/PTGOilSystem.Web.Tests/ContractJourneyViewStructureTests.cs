@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -607,8 +607,8 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-ak-detail-v2=\"true\"", view);
         Assert.Contains("_AkPageHeader.cshtml", view);
         Assert.Contains("AkHeaderIdentity", view);
-        Assert.Contains("_DetailOverview.cshtml", view);
-        Assert.Contains("_DetailActivityList.cshtml", view);
+        Assert.Contains("_DetailCards.cshtml", view);
+        Assert.Contains("_DetailMore.cshtml", view);
         Assert.Contains("ak-linear-detail", view);
         Assert.Contains("حمل با موتر", view);
         Assert.Contains("حمل با واگن", view);
@@ -616,17 +616,22 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("Model.TransportType == LoadingTransportType.Truck", view);
         Assert.Contains("Model.TransportType == LoadingTransportType.Wagon", view);
         Assert.Contains("Model.TransportType == LoadingTransportType.Vessel", view);
-        Assert.Contains("ak-detail-reference-layout", view);
-        Assert.Contains("VisualAvatar = transportVisual", view);
+        // The page states its identity in one horizontal strip, then a two-by-two card grid
+        // (main information, route/status, expenses, cargo). The shared overview strip is not
+        // used here, and the secondary material sits in one native <details> so no record,
+        // activity row or history entry is dropped from the page.
+        Assert.Contains("ptg-record-detail", view);
+        Assert.Contains("AkDetailCardsModel", view);
+        Assert.Contains("Steps = routeSteps", view);
+        Assert.Contains("RouteNodes = new List<AkInfoItem>", view);
+        Assert.DoesNotContain("_DetailOverview.cshtml", view);
         Assert.DoesNotContain("<vc:stat-card", view);
         Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
-        Assert.DoesNotContain("<details", view);
         Assert.DoesNotContain("_DetailPager.cshtml", view);
         Assert.DoesNotContain("_OperationsDetailMore.cshtml", view);
         Assert.Contains("AkHeaderOverflowActions", view);
         // Next operations are the shared bottom bar; the kebab keeps only the side routes.
         // The old page duplicated both lists into a "next cargo operation" modal as well.
-        Assert.Contains("_DetailActionBar.cshtml", view);
         Assert.DoesNotContain("nextOperationModal", view);
         Assert.DoesNotContain("data-next-op-forward", view);
         Assert.Contains("data-ak-operations-detail=\"true\"", view);
@@ -645,6 +650,14 @@ public class ContractJourneyViewStructureTests
         Assert.Contains(".ak-linear-detail .ak-detail-overview", css);
         Assert.Contains(".ak-linear-detail .ak-detail-metrics", css);
         Assert.Contains(".ak-linear-detail .ak-detail-activity-row", css);
+        // The card grid lives in the shared detail layer, scoped to the card pages.
+        Assert.Contains(".ptg-record-detail .ptg-td-grid", css);
+        Assert.Contains(".ptg-record-detail .ptg-td-step", css);
+        // Strip and cards are one shared component, not per-page markup.
+        var cardsPartial = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_DetailCards.cshtml");
+        Assert.Contains("ptg-td-strip", cardsPartial);
+        Assert.Contains("ptg-td-grid", cardsPartial);
+        Assert.Contains("ptg-td-steps", cardsPartial);
         Assert.DoesNotContain("[data-transport-details] .transport-primary-grid", css);
         Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(1)", css);
         Assert.DoesNotContain("[data-transport-details] .ak-detail-kpi-strip > .ak-stat-card:not(.ak-stat-card--empty):nth-child(2)", css);
@@ -676,15 +689,30 @@ public class ContractJourneyViewStructureTests
             Assert.Contains("ak-form-page", view);
             Assert.Contains("_AkPageHeader.cshtml", view);
             Assert.Contains("AkHeaderIdentity", view);
-            Assert.Contains("_DetailOverview.cshtml", view);
-            Assert.Contains("_DetailActivityList.cshtml", view);
+            // Card-layout pages state their identity in one strip and a card grid, and
+            // fold activity, history and next operations into the shared _DetailMore
+            // disclosure. Every other operation record keeps the classic composition.
+            // Neither shape drops a fact: both feed the same shared partials.
+            var usesCards = view.Contains("_DetailCards.cshtml", StringComparison.Ordinal);
+            if (usesCards)
+            {
+                Assert.Contains("_DetailMore.cshtml", view);
+                Assert.Contains("ptg-record-detail", view);
+                Assert.DoesNotContain("_DetailOverview.cshtml", view);
+            }
+            else
+            {
+                Assert.Contains("_DetailOverview.cshtml", view);
+                Assert.Contains("_DetailActivityList.cshtml", view);
+            }
+
+            Assert.DoesNotContain("<details", view);
             Assert.Contains("ak-linear-detail", view);
             Assert.Contains("data-ak-operations-detail=\"true\"", view);
             Assert.Contains("ViewData[\"HideSectionTabs\"] = true;", view);
             Assert.DoesNotContain("_OperationsDetailMore.cshtml", view);
             Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
             Assert.DoesNotContain("<vc:stat-card", view);
-            Assert.DoesNotContain("<details", view);
 
             // Transport legs are the one operation record whose identity is not readable from
             // the document number alone — the same plate can haul a different product on a
@@ -692,7 +720,7 @@ public class ContractJourneyViewStructureTests
             // in the header context line and drives its staged workflow from the shared action
             // bar. Every other operation record keeps identity in the summary card and next
             // actions in the kebab.
-            if (!path.Contains("ShipmentPnl", StringComparison.Ordinal))
+            if (!usesCards && !path.Contains("ShipmentPnl", StringComparison.Ordinal))
             {
                 Assert.Contains("_DetailActionBar.cshtml", view);
             }
@@ -1177,12 +1205,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-receipt-url=\"@receiptEditorUrl\"", view);
         Assert.Contains("Url.Action(\"Create\", \"LoadingReceipts\", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl, modal = true })", view);
         Assert.Contains("ak-linear-detail", view);
-        Assert.Contains("ak-detail-reference-layout", view);
+        Assert.Contains("ptg-record-detail", view);
         Assert.Contains("_AkPageHeader", view);
-        Assert.Contains("_DetailOverview.cshtml", view);
-        Assert.Contains("_DetailActivityList.cshtml", view);
-        Assert.Contains("_DetailSecondary.cshtml", view);
-        Assert.Contains("_DetailActionBar.cshtml", view);
+        Assert.Contains("_DetailCards.cshtml", view);
+        Assert.Contains("_DetailMore.cshtml", view);
         Assert.DoesNotContain("data-bs-toggle=\"tab\"", view);
         Assert.DoesNotContain("id=\"loading-tab-", view);
         Assert.DoesNotContain("loading-details-simple-page", view);
@@ -1193,8 +1219,6 @@ public class ContractJourneyViewStructureTests
         // creates a second financial calculation path.
         Assert.Contains("Model.LoadingExpenseTotalUsd > 0m", view);
         Assert.Contains("loadingCostsGrandTotal.ToString(\"N2\")", view);
-        Assert.Contains("_DetailOverview.cshtml", view);
-        Assert.Contains("_DetailActivityList.cshtml", view);
         Assert.DoesNotContain("_DetailSummaryCard.cshtml", view);
         Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
         Assert.DoesNotContain("expenseLines.Sum", view);
@@ -1230,18 +1254,16 @@ public class ContractJourneyViewStructureTests
 
         Assert.Contains("ak-linear-detail", view);
         Assert.Contains("_AkPageHeader", view);
-        Assert.Contains("_DetailOverview.cshtml", view);
-        Assert.Contains("_DetailActivityList.cshtml", view);
-        Assert.Contains("_DetailSecondary.cshtml", view);
-        Assert.Contains("_DetailActionBar.cshtml", view);
+        Assert.Contains("_DetailCards.cshtml", view);
+        Assert.Contains("_DetailMore.cshtml", view);
         Assert.Contains("class=\"ak-form-grid", view);
         Assert.Contains(".ak-form-page", css);
         Assert.Contains(".ak-form-section", css);
         Assert.Contains(".ak-form-grid", css);
         Assert.Contains(".ak-list", css);
         Assert.Contains(".ak-status", css);
-        Assert.Contains("خلاصه اطلاعات بارگیری", view);
-        Assert.Contains("ak-detail-reference-layout", view);
+        Assert.Contains("اطلاعات اصلی", view);
+        Assert.Contains("ptg-record-detail", view);
         Assert.Contains("TimelineLimit = 4", view);
         Assert.DoesNotContain("ak-summary-card loading-ruble-pricing", view);
         Assert.DoesNotContain(".ak-loading-rub-secondary > .loading-ruble-pricing", detailCss);

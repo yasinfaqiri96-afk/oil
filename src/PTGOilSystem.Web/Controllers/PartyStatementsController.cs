@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +33,7 @@ public sealed class PartyStatementsController : Controller
         int id,
         [FromQuery] PartyStatementFilter filter,
         bool print = false,
-        SupplierStatementView view = SupplierStatementView.Ledger,
+        SupplierStatementView? view = null,
         CancellationToken ct = default)
         => RenderAsync(PartyStatementPartyType.Customer, id, filter, print, ct, view);
 
@@ -41,7 +41,7 @@ public sealed class PartyStatementsController : Controller
     public Task<IActionResult> Supplier(
         int id,
         [FromQuery] PartyStatementFilter filter,
-        SupplierStatementView view = SupplierStatementView.Ledger,
+        SupplierStatementView? view = null,
         bool print = false,
         CancellationToken ct = default)
         => RenderAsync(PartyStatementPartyType.Supplier, id, filter, print, ct, view);
@@ -86,7 +86,7 @@ public sealed class PartyStatementsController : Controller
         {
             var statement = await _statementService.GetStatementAsync(
                 new PartyRef(partyType, id, filter.CompanyId), effective, ct);
-            var facts = await LoadContractFactsAsync([contractId], ct);
+            var facts = await LoadContractFactsAsync([contractId], ct, partyType, id);
             facts.TryGetValue(contractId, out var f);
             var detailRows = statement.Rows.Where(r => !r.IsOpeningBalance).ToList();
             const int detailPageSize = 25;
@@ -165,8 +165,13 @@ public sealed class PartyStatementsController : Controller
     }
 
     [HttpGet("ServiceProviders/{id:int}/Statement")]
-    public Task<IActionResult> ServiceProvider(int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
-        => RenderAsync(PartyStatementPartyType.ServiceProvider, id, filter, print, ct);
+    public Task<IActionResult> ServiceProvider(
+        int id,
+        [FromQuery] PartyStatementFilter filter,
+        bool print = false,
+        SupplierStatementView? view = null,
+        CancellationToken ct = default)
+        => RenderAsync(PartyStatementPartyType.ServiceProvider, id, filter, print, ct, view);
 
     [HttpGet("Sarrafs/{id:int}/Statement")]
     public Task<IActionResult> Sarraf(int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
@@ -177,8 +182,13 @@ public sealed class PartyStatementsController : Controller
         => RenderAsync(PartyStatementPartyType.Employee, id, filter, print, ct);
 
     [HttpGet("Partners/{id:int}/Statement")]
-    public Task<IActionResult> Partner(int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
-        => RenderAsync(PartyStatementPartyType.Partner, id, filter, print, ct);
+    public Task<IActionResult> Partner(
+        int id,
+        [FromQuery] PartyStatementFilter filter,
+        bool print = false,
+        SupplierStatementView? view = null,
+        CancellationToken ct = default)
+        => RenderAsync(PartyStatementPartyType.Partner, id, filter, print, ct, view);
 
     [HttpGet("Drivers/{id:int}/Statement")]
     public Task<IActionResult> Driver(int id, [FromQuery] PartyStatementFilter filter, bool print = false, CancellationToken ct = default)
@@ -189,7 +199,7 @@ public sealed class PartyStatementsController : Controller
         int id,
         [FromQuery] PartyStatementFilter filter,
         bool print = false,
-        SupplierStatementView view = SupplierStatementView.Ledger,
+        SupplierStatementView? view = null,
         CancellationToken ct = default)
         => RenderAsync(PartyStatementPartyType.Company, id, filter, print, ct, view);
 
@@ -212,10 +222,8 @@ public sealed class PartyStatementsController : Controller
         SupplierStatementView? view = null,
         CancellationToken ct = default)
     {
-        var effectiveView = UsesContractSummary(partyType)
-            ? view ?? SupplierStatementView.Ledger
-            : SupplierStatementView.Ledger;
-        var effectiveFilter = effectiveView == SupplierStatementView.Loadings
+        var effectiveView = ResolveView(partyType, view);
+        var effectiveFilter = NeedsOperationalColumns(effectiveView)
             ? WithOperationalColumns(filter)
             : filter;
         PartyStatementResult statement;
@@ -233,8 +241,9 @@ public sealed class PartyStatementsController : Controller
 
         string[] headers;
         IEnumerable<string?[]> rows;
-        if (UsesContractSummary(partyType)
-            && effectiveView is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
+        if (effectiveView == SupplierStatementView.Contracts
+            && UsesContractSummary(partyType)
+            && HasContractRows(statement))
         {
             var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
             headers = BuildContractCsvHeaders(statement.Summary.BaseCurrencyCode);
@@ -262,10 +271,8 @@ public sealed class PartyStatementsController : Controller
         if (_exportService is null)
             return NotFound();
 
-        var effectiveView = UsesContractSummary(partyType)
-            ? view ?? SupplierStatementView.Ledger
-            : SupplierStatementView.Ledger;
-        var effectiveFilter = effectiveView == SupplierStatementView.Loadings
+        var effectiveView = ResolveView(partyType, view);
+        var effectiveFilter = NeedsOperationalColumns(effectiveView)
             ? WithOperationalColumns(filter)
             : filter;
         PartyStatementResult statement;
@@ -280,8 +287,9 @@ public sealed class PartyStatementsController : Controller
         }
 
         await using var output = new MemoryStream();
-        if (UsesContractSummary(partyType)
-            && effectiveView is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
+        if (effectiveView == SupplierStatementView.Contracts
+            && UsesContractSummary(partyType)
+            && HasContractRows(statement))
         {
             var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
             await _exportService.WriteSupplierContractStatementPdfAsync(
@@ -314,10 +322,8 @@ public sealed class PartyStatementsController : Controller
             return NotFound();
         }
 
-        var effectiveView = UsesContractSummary(partyType)
-            ? view ?? SupplierStatementView.Ledger
-            : SupplierStatementView.Ledger;
-        var effectiveFilter = effectiveView == SupplierStatementView.Loadings
+        var effectiveView = ResolveView(partyType, view);
+        var effectiveFilter = NeedsOperationalColumns(effectiveView)
             ? WithOperationalColumns(filter)
             : filter;
         PartyStatementResult statement;
@@ -333,8 +339,9 @@ public sealed class PartyStatementsController : Controller
             return NotFound();
         }
 
-        if (UsesContractSummary(partyType)
-            && effectiveView is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
+        if (effectiveView == SupplierStatementView.Contracts
+            && UsesContractSummary(partyType)
+            && HasContractRows(statement))
         {
             var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
             if (Services.Exports.TabularExportSupport.ParseFormat(format) == Services.Exports.TabularExportFormat.Pdf)
@@ -365,12 +372,10 @@ public sealed class PartyStatementsController : Controller
         CancellationToken ct,
         SupplierStatementView? supplierView = null)
     {
-        var view = UsesContractSummary(partyType)
-            ? supplierView ?? SupplierStatementView.Ledger
-            : SupplierStatementView.Ledger;
+        var view = ResolveView(partyType, supplierView);
 
-        // نمای «بارگیری‌ها» به ستون‌های عملیاتی نیاز دارد؛ فیلتر مؤثر را می‌سازیم.
-        var effectiveFilter = view == SupplierStatementView.Loadings
+        // نمای «همه اسناد» به ستون‌های عملیاتی نیاز دارد؛ فیلتر مؤثر را می‌سازیم.
+        var effectiveFilter = NeedsOperationalColumns(view)
             ? WithOperationalColumns(filter)
             : filter;
 
@@ -413,11 +418,24 @@ public sealed class PartyStatementsController : Controller
         var statement = await _statementService.GetStatementAsync(new PartyRef(partyType, id, filter.CompanyId), filter, ct);
         var options = await LoadFilterOptionsAsync(partyType, id, ct);
 
+        // اگر هیچ سندِ این دوره به قرارداد وصل نباشد، «خلاصه قراردادها» بی‌معنا است و
+        // فقط یک ردیفِ «بدون قرارداد» می‌شود؛ در این حالت صفحه همان گردش حساب ساده است.
+        var showsContracts = UsesContractSummary(partyType) && HasContractRows(statement);
+        if (!showsContracts)
+        {
+            view = SupplierStatementView.Ledger;
+        }
+
         SupplierContractStatementViewModel? grouping = null;
-        if (UsesContractSummary(partyType)
-            && view is SupplierStatementView.Contracts or SupplierStatementView.Loadings)
+        if (view == SupplierStatementView.Contracts && showsContracts)
         {
             grouping = await BuildContractGroupingAsync(statement, filter, ct);
+        }
+        else if (view == SupplierStatementView.Ledger && showsContracts)
+        {
+            // گردش فشرده: بارگیری/فروش‌های یک قرارداد در یک سطر جمع می‌شوند. جمع دوره،
+            // مانده و بیلانس نهایی از همان Summary می‌آید و تغییر نمی‌کند.
+            statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
         }
 
         return View("Document", new PartyStatementViewModel
@@ -426,6 +444,7 @@ public sealed class PartyStatementsController : Controller
             Filter = filter,
             IsPrintMode = print,
             SupplierView = view,
+            HasContractRows = showsContracts,
             ContractGrouping = grouping,
             ContractOptions = options.Contracts,
             CompanyOptions = options.Companies,
@@ -446,7 +465,11 @@ public sealed class PartyStatementsController : Controller
             .Distinct()
             .ToList();
 
-        var facts = await LoadContractFactsAsync(contractIds, ct);
+        var facts = await LoadContractFactsAsync(
+            contractIds,
+            ct,
+            statement.Party.PartyType,
+            statement.Party.PartyId);
         return SupplierContractStatementBuilder.Build(
             statement,
             facts,
@@ -458,7 +481,9 @@ public sealed class PartyStatementsController : Controller
     // رسید/برد/بیلانس اثری ندارد. با دو کوئری projection (بدون N+1) خوانده می‌شود.
     private async Task<Dictionary<int, SupplierContractStatementBuilder.ContractFacts>> LoadContractFactsAsync(
         IReadOnlyCollection<int> contractIds,
-        CancellationToken ct)
+        CancellationToken ct,
+        PartyStatementPartyType? partyType = null,
+        int? partyId = null)
     {
         var facts = new Dictionary<int, SupplierContractStatementBuilder.ContractFacts>();
         if (contractIds.Count == 0)
@@ -490,6 +515,15 @@ public sealed class PartyStatementsController : Controller
             .Select(g => new { ContractId = g.Key, Qty = g.Sum(x => x.QuantityMt) })
             .ToDictionaryAsync(x => x.ContractId, x => x.Qty, ct);
 
+        // درصد سهم فقط برای شریک خوانده می‌شود و صرفاً برچسب ستون «سهم» است؛ مبالغِ
+        // سطرهای صورت‌حساب شریک از قبل سهم‌بندی شده‌اند و اینجا چیزی محاسبه نمی‌شود.
+        var shareByContract = partyType == PartyStatementPartyType.Partner && partyId.HasValue
+            ? await _db.ContractPartners.AsNoTracking()
+                .Where(cp => cp.PartnerId == partyId.Value && contractIds.Contains(cp.ContractId))
+                .Select(cp => new { cp.ContractId, cp.SharePercent })
+                .ToDictionaryAsync(x => x.ContractId, x => x.SharePercent, ct)
+            : [];
+
         foreach (var c in contracts)
         {
             // نرخ قطعیِ قرارداد را از همان helper مرکزی می‌گیریم تا با بقیهٔ سیستم یکسان بماند.
@@ -509,7 +543,8 @@ public sealed class PartyStatementsController : Controller
                 c.QuantityMt,
                 price,
                 contractValue,
-                hasConfirmedQuantity ? loaded + sold : null);
+                hasConfirmedQuantity ? loaded + sold : null,
+                shareByContract.TryGetValue(c.Id, out var share) ? share : null);
         }
 
         return facts;
@@ -658,9 +693,24 @@ public sealed class PartyStatementsController : Controller
     private static bool IsCurrency(PartyStatementRow row, string currency)
         => string.Equals(row.OriginalCurrency, currency, StringComparison.OrdinalIgnoreCase);
 
-    // نمای خلاصهٔ قراردادها/بارگیری‌ها فقط برای تأمین‌کننده؛ بقیه همیشه گردش حساب.
+    // نمای خلاصهٔ قراردادها برای طرف‌حساب‌های قراردادی؛ بقیه (کارمند، صراف، راننده) همیشه گردش حساب.
     private static bool UsesContractSummary(PartyStatementPartyType partyType)
-        => partyType == PartyStatementPartyType.Supplier;
+        => PartyStatementViewModel.SupportsContractSummary(partyType);
+
+    // نمای مؤثر: اگر کاربر چیزی انتخاب نکرده باشد، پیش‌فرضِ همان نوع طرف‌حساب.
+    private static SupplierStatementView ResolveView(
+        PartyStatementPartyType partyType,
+        SupplierStatementView? requested)
+        => UsesContractSummary(partyType)
+            ? requested ?? PartyStatementViewModel.DefaultViewFor(partyType)
+            : SupplierStatementView.Ledger;
+
+    private static bool NeedsOperationalColumns(SupplierStatementView view)
+        => view == SupplierStatementView.Loadings;
+
+    // نمای قراردادی فقط وقتی ساخته می‌شود که سندِ وصل‌شده به قرارداد وجود داشته باشد.
+    private static bool HasContractRows(PartyStatementResult statement)
+        => statement.Rows.Any(r => !r.IsOpeningBalance && r.ContractId.HasValue);
 
     private static bool IsConfirmedOperation(PartyStatementRow row)
         => row.SourceType is "Loading" or "Sale";

@@ -77,7 +77,9 @@ public sealed class ContractDisplayNameTests
 
         var partnerDetails = ReadRepoFile("src/PTGOilSystem.Web/Views/Partners/Details.cshtml");
         var shipmentPnlDetails = ReadRepoFile("src/PTGOilSystem.Web/Views/ShipmentPnl/Details.cshtml");
-        Assert.Contains("option.DisplayLabel", partnerDetails);
+        // فیلتر قرارداد در پروفایل شریک از گزینه‌های سرویس شراکت می‌آید و همان برچسب مرکزی را
+        // نشان می‌دهد؛ PartnershipContractOption.ContractLabel با Contract.BuildDisplayLabel ساخته می‌شود.
+        Assert.Contains("option.ContractLabel", partnerDetails);
         Assert.Contains("line.DisplayLabel", shipmentPnlDetails);
     }
 

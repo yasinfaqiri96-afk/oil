@@ -70,8 +70,10 @@ public static class PartnerFundingReader
         var rows = await db.PaymentTransactions
             .AsNoTracking()
             .Where(p => p.LedgerEntryId != null
-                && p.ContractId != null
-                && ids.Contains(p.ContractId!.Value))
+                && ((p.ContractId != null && ids.Contains(p.ContractId!.Value))
+                    || (p.SalesTransaction != null
+                        && p.SalesTransaction.ContractId != null
+                        && ids.Contains(p.SalesTransaction.ContractId!.Value))))
             .Select(p => new
             {
                 LedgerEntryId = p.LedgerEntryId!.Value,
@@ -107,12 +109,17 @@ public static class PartnerFundingReader
         }
 
         var ids = contractIds.Distinct().ToArray();
+        // دامنه دقیقاً همان چیزی است که پروفایل شریک نشان می‌دهد: پرداختِ مستقیمِ قرارداد و
+        // پرداختی که از راه یک فروشِ همان قرارداد ثبت شده. پیش‌تر فقط ContractId خوانده می‌شد
+        // و پرداخت شریک روی فروش، در جدول دیده می‌شد ولی در «پرداخت واقعی» شمرده نمی‌شد.
         var query = db.PaymentTransactions
             .AsNoTracking()
             .Where(p => p.FundingSource == PaymentFundingSource.Partner
                 && p.PaidByPartnerId != null
-                && p.ContractId != null
-                && ids.Contains(p.ContractId!.Value));
+                && ((p.ContractId != null && ids.Contains(p.ContractId!.Value))
+                    || (p.SalesTransaction != null
+                        && p.SalesTransaction.ContractId != null
+                        && ids.Contains(p.SalesTransaction.ContractId!.Value))));
 
         if (partnerId.HasValue)
         {
@@ -131,7 +138,7 @@ public static class PartnerFundingReader
             .Select(p => new PartnerFundingPaymentRow(
                 p.Id,
                 p.PaidByPartnerId!.Value,
-                p.ContractId!.Value,
+                p.ContractId != null ? p.ContractId!.Value : p.SalesTransaction!.ContractId!.Value,
                 p.PaymentDate,
                 p.Direction,
                 p.PaymentKind,

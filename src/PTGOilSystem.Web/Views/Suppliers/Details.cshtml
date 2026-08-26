@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Suppliers.SupplierProfileViewModel
+﻿@model PTGOilSystem.Web.Models.Suppliers.SupplierProfileViewModel
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Shared
 @{
@@ -320,6 +320,8 @@
 
     @if (unallocatedPayments.Any())
     {
+        @* جمعِ سرصفحه روی کل داده است؛ فقط تعداد سطرهای نمایشی کوتاه می‌شود. *@
+        var unallocatedShown = DetailListPreview.Take(Context.Request, "supplier-unallocated", unallocatedPayments);
         <section class="ak-form-section ak-detail-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("پیش‌پرداخت آزاد / بدون قرارداد", $"جمع {NumberDisplay.Money(Model.UnallocatedPaymentTotalUsd, "USD")}"))" />
             <div class="ak-table-wrap">
@@ -334,7 +336,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                    @foreach (var p in unallocatedPayments)
+                    @foreach (var p in unallocatedShown)
                     {
                         <tr>
                             <td>@p.Date.ToDisplayDate()</td>
@@ -356,6 +358,7 @@
                     </tbody>
                 </table>
             </div>
+            <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("supplier-unallocated", unallocatedShown.Count, unallocatedPayments.Count))" />
         </section>
     }
 
@@ -370,6 +373,7 @@
             </dl>
             @if (Model.AdvanceAllocations.Any())
             {
+                var advanceShown = DetailListPreview.Take(Context.Request, "supplier-advances", Model.AdvanceAllocations);
                 <div class="ak-table-wrap">
                     <table class="ak-table ak-detail-table">
                         <thead>
@@ -382,7 +386,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                        @foreach (var a in Model.AdvanceAllocations)
+                        @foreach (var a in advanceShown)
                         {
                             <tr>
                                 <td>@a.AllocationDate.ToDisplayDate()</td>
@@ -395,12 +399,14 @@
                         </tbody>
                     </table>
                 </div>
+                <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("supplier-advances", advanceShown.Count, Model.AdvanceAllocations.Count))" />
             }
         </section>
     }
 
     @if (Model.SarrafSettlements.Any())
     {
+        var sarrafShown = DetailListPreview.Take(Context.Request, "supplier-sarraf", Model.SarrafSettlements);
         <section class="ak-form-section ak-detail-section">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تسویه‌های صراف", (string?)null))" />
             <div class="ak-table-wrap">
@@ -418,7 +424,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                    @foreach (var row in Model.SarrafSettlements)
+                    @foreach (var row in sarrafShown)
                     {
                         <tr>
                             <td>@row.SettlementDate.ToDisplayDate()</td>
@@ -434,6 +440,7 @@
                     </tbody>
                 </table>
             </div>
+            <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("supplier-sarraf", sarrafShown.Count, Model.SarrafSettlements.Count))" />
         </section>
     }
     </div>

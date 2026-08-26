@@ -34,14 +34,10 @@
     //   kebab      = edit, side routes and destructive actions.
     // No action is listed in both places, and no "create another record" link
     // takes the primary slot.
+    var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl });
+    // «ویرایش» در نوار شناسه دیده می‌شود، پس در kebab تکرار نمی‌شود.
     var salesKebab = new List<AkHeaderMenuItem>
     {
-        new()
-        {
-            Label = T("ویرایش", "Edit"),
-            Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }),
-            Icon = "bi-pencil-square"
-        },
         new()
         {
             Label = T("فروش جدید", "New sale"),
@@ -63,12 +59,12 @@
     }
     ViewData["AkHeaderKebab"] = salesKebab;
 
-    var kpis = new List<AkKpiItem>
+    var amountMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مقدار فروش", "Sale quantity"), Value = NumberDisplay.Quantity(Model.QuantityMt), Unit = "MT", Avatar = "sold-quantity" },
-        new() { Title = T("مبلغ کل", "Total amount"), Value = Model.TotalInCurrency.ToString("N2"), Unit = Model.Currency, Avatar = "sales-value" },
-        new() { Title = T("دریافت‌شده", "Received"), Value = Model.ReceivedUsd.ToString("N2"), Unit = "USD", Avatar = "receipts" },
-        new() { Title = T("مانده قابل دریافت", "Outstanding receivable"), Value = Model.ReceivableBalanceUsd.ToString("N2"), Unit = "USD", Avatar = "receivables", State = Model.ReceivableBalanceUsd > 0 ? "warning" : null }
+        new() { Title = T("مقدار فروش", "Sale quantity"), Value = NumberDisplay.Quantity(Model.QuantityMt), Unit = "MT" },
+        new() { Title = T("مبلغ کل", "Total amount"), Value = Model.TotalInCurrency.ToString("N2"), Unit = Model.Currency, State = "accent" },
+        new() { Title = T("دریافت‌شده", "Received"), Value = Model.ReceivedUsd.ToString("N2"), Unit = "USD" },
+        new() { Title = T("مانده قابل دریافت", "Outstanding receivable"), Value = Model.ReceivableBalanceUsd.ToString("N2"), Unit = "USD", State = Model.ReceivableBalanceUsd > 0 ? "warning" : null }
     };
 
     // زون ۳: یک کارت هویتی + یک کارت منبع. اعداد پول از این گرید بیرون کشیده شده‌اند
@@ -88,10 +84,6 @@
             Tone = ledgerRecorded ? null : "warning"
         }
     };
-    // The separate identity strip is intentionally removed; all business facts
-    // continue in the single shared overview surface.
-    var overviewSummaryItems = summaryItems;
-
     // کارت منبع فقط واقعیت عملیاتی است؛ هیچ‌کدام state نیستند، پس بدون رنگ می‌مانند.
     var sourceItems = new List<AkInfoItem>
     {
@@ -102,7 +94,6 @@
         new() { Label = T("مرجع حمل", "Transport reference"), Value = Model.InventoryTransportReference },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
     };
-    var overviewItems = overviewSummaryItems.Concat(sourceItems).ToList();
 
     // ردیابی فنی و شناسه‌های داخلی — پشت آکاردئون بسته.
     var advancedItems = new List<AkInfoItem>
@@ -237,29 +228,65 @@
         new() { Label = T("رکوردهای مرتبط", "Related records"), Value = relatedRecords.Count > 0 ? relatedRecords.Count.ToString("N0") : null, Status = relatedRecords.Count > 0 ? T("متصل", "Linked") : null, StatusTone = relatedRecords.Count > 0 ? "success" : null, Icon = "bi-link-45deg" }
     };
 
+    var statusText = Model.IsCancelled ? T("لغو شده", "Cancelled") : T("تکمیل شده", "Completed");
+
+    var cardsModel = new AkDetailCardsModel
+    {
+        Code = Model.InvoiceNumber,
+        CodeLabel = T("شماره فاکتور", "Invoice no."),
+        Status = statusText,
+        StatusState = Model.IsCancelled ? "is-danger" : "is-active",
+        StripItems = new List<AkInfoItem>
+        {
+            new() { Label = T("مشتری", "Customer"), Value = customerText },
+            new() { Label = T("کالا", "Product"), Value = Model.ProductName },
+            new() { Label = T("مقدار", "Quantity"), Value = $"{NumberDisplay.Quantity(Model.QuantityMt)} MT", IsNumeric = true },
+            new() { Label = T("تاریخ", "Date"), Value = Model.SaleDate.ToDisplayDate(), IsNumeric = true }
+        },
+        PrimaryLabel = T("ویرایش", "Edit"),
+        PrimaryHref = editUrl,
+        Cards = new List<AkDetailCard>
+        {
+            new() { Title = T("اطلاعات فروش", "Sale information"), Icon = "bi-info-circle", Rows = summaryItems },
+            new() { Title = T("مبالغ", "Amounts"), Icon = "bi-cash-coin", Metrics = amountMetrics },
+            new() { Title = T("منبع و تحویل", "Source & delivery"), Icon = "bi-box-arrow-right", Rows = sourceItems }
+        }
+    };
+
+    var moreModel = new AkDetailMoreModel
+    {
+        Activity = activityRows,
+        Secondary = new AkDetailSecondaryModel
+        {
+            TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
+            TimelineLimit = 4,
+            Timeline = showTimeline ? timelineItems : Array.Empty<AkTimelineItem>(),
+            Related = relatedRecords,
+            Technical = advancedItems
+        },
+        NextActions = nextActions
+    };
+
     ViewData["Title"] = T("جزئیات فروش", "Sale details");
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = $"{customerText} · {Model.ProductName}",
            Eyebrow = $"{T("فروش", "Sale")} {Model.InvoiceNumber}",
            Meta = $"{Model.SaleDate.ToDisplayDate()} · {stageText}",
-           Icon = "bi-receipt",
-           Status = ViewData["AkHeaderStatus"]?.ToString(),
-           StatusState = ViewData["AkHeaderStatusState"]?.ToString()
+           Icon = "bi-receipt"
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("فروش", "Sale") + " " + Model.InvoiceNumber, false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                         T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
-             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات فروش", "Sale summary"), AriaLabel = T("نمای اصلی فروش", "Sale overview"), Metrics = kpis, Facts = overviewItems })" />
+    <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
 
-    <section class="ak-form-section ak-detail-section ak-detail-reference-section" id="sale-payments">
+    <section class="ak-form-section ak-detail-section" id="sale-payments">
         <header class="ak-section-head ak-detail-section-header">
             <h2 class="ak-section-title">@T("پرداخت‌های مرتبط", "Linked payments")</h2>
             <span class="ak-status">@Model.Payments.Count</span>
@@ -289,23 +316,13 @@
 
     @if (!string.IsNullOrWhiteSpace(Model.Notes))
     {
-        <section class="ak-form-section ak-detail-section ak-sale-notes ak-detail-reference-section">
+        <section class="ak-form-section ak-detail-section ak-sale-notes">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                      model="@((T("یادداشت", "Notes"), (string?)null))" />
             <p class="ak-note mb-0">@Model.Notes</p>
         </section>
     }
 
-    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
-    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
-             model="@(new AkDetailSecondaryModel
-             {
-                 TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
-                 TimelineLimit = 4,
-                 Timeline = showTimeline ? timelineItems : Array.Empty<AkTimelineItem>(),
-                 Related = relatedRecords,
-                 Technical = advancedItems
-             })" />
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
+    <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 
 </div>

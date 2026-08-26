@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -20,11 +20,21 @@ public sealed class OperationsLinearDetailStructureTests
         {
             var view = ReadRepoFile($"src/PTGOilSystem.Web/Views/{controller}/Details.cshtml");
 
+            // Two shapes of the same linear shell: the card composition
+            // (_DetailCards + _DetailMore) and the classic overview + activity list.
+            // Either way the page header comes first and the secondary material last.
+            var body = view.Contains("_DetailCards.cshtml", StringComparison.Ordinal)
+                ? "_DetailCards.cshtml"
+                : "_DetailOverview.cshtml";
+            var closing = body == "_DetailCards.cshtml"
+                ? "_DetailMore.cshtml"
+                : "_DetailActivityList.cshtml";
+
             Assert.Contains("ak-linear-detail", view);
             Assert.Contains("AkHeaderIdentity", view);
             Assert.Contains("_AkPageHeader.cshtml", view);
-            Assert.Contains("_DetailOverview.cshtml", view);
-            Assert.Contains("_DetailActivityList.cshtml", view);
+            Assert.Contains(body, view);
+            Assert.Contains(closing, view);
             Assert.Contains("data-ak-operations-detail=\"true\"", view);
             Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
             Assert.DoesNotContain("<vc:stat-card", view);
@@ -33,10 +43,10 @@ public sealed class OperationsLinearDetailStructureTests
 
             Assert.True(
                 view.IndexOf("_AkPageHeader.cshtml", StringComparison.Ordinal)
-                    < view.IndexOf("_DetailOverview.cshtml", StringComparison.Ordinal));
+                    < view.IndexOf(body, StringComparison.Ordinal));
             Assert.True(
-                view.IndexOf("_DetailOverview.cshtml", StringComparison.Ordinal)
-                    < view.IndexOf("_DetailActivityList.cshtml", StringComparison.Ordinal));
+                view.IndexOf(body, StringComparison.Ordinal)
+                    < view.LastIndexOf(closing, StringComparison.Ordinal));
         }
     }
 

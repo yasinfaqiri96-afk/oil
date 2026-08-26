@@ -1,4 +1,4 @@
-namespace PTGOilSystem.Web.Models.Shared;
+﻿namespace PTGOilSystem.Web.Models.Shared;
 
 /// <summary>
 /// One entry of the detail-page header kebab menu or the bottom "next
@@ -149,6 +149,8 @@ public sealed class AkKpiItem
         "warning" => "is-warning",
         "danger" => "is-danger",
         "success" => "is-success",
+        // Neutral emphasis for the total/decisive column of a card metric row.
+        "accent" => "is-accent",
         _ => null
     };
 }
@@ -296,4 +298,110 @@ public sealed class AkRelatedRecord
 
     /// <summary>Bootstrap icon class.</summary>
     public string? Icon { get; init; }
+}
+
+/// <summary>
+/// Record-detail card composition (_DetailCards): one identity strip, then a
+/// grid of small cards. Pages keep owning their own facts and formatting; this
+/// model only says which fact belongs to which card.
+/// </summary>
+public sealed class AkDetailCardsModel
+{
+    /// <summary>Facts of the horizontal identity strip, after the record code and status.</summary>
+    public IReadOnlyList<AkInfoItem> StripItems { get; init; } = [];
+
+    /// <summary>Record code shown first in the strip, e.g. "TR-0247".</summary>
+    public string? Code { get; init; }
+
+    public string? CodeLabel { get; init; }
+
+    public string? Status { get; init; }
+
+    /// <summary>Status pill state: "is-active", "is-inactive", "is-warning", "is-danger".</summary>
+    public string? StatusState { get; init; }
+
+    /// <summary>Primary page action of the strip (usually "edit").</summary>
+    public string? PrimaryLabel { get; init; }
+
+    public string? PrimaryHref { get; init; }
+
+    public string? PrimaryIcon { get; init; }
+
+    public IReadOnlyList<AkDetailCard> Cards { get; init; } = [];
+}
+
+/// <summary>
+/// One card of the detail grid. A card renders whichever blocks the page
+/// filled, in this order: rows, route nodes, stage rail, numeric columns,
+/// footer meta, free text.
+/// </summary>
+public sealed class AkDetailCard
+{
+    public required string Title { get; init; }
+
+    public string Icon { get; init; } = "bi-info-circle";
+
+    /// <summary>Label / value lines separated by a divider.</summary>
+    public IReadOnlyList<AkInfoItem> Rows { get; init; } = [];
+
+    /// <summary>Source / destination pair shown above the stage rail.</summary>
+    public IReadOnlyList<AkInfoItem> RouteNodes { get; init; } = [];
+
+    /// <summary>Stage rail of the record's own status cycle.</summary>
+    public IReadOnlyList<AkDetailStep> Steps { get; init; } = [];
+
+    /// <summary>Numeric columns, label over value.</summary>
+    public IReadOnlyList<AkKpiItem> Metrics { get; init; } = [];
+
+    /// <summary>Compact meta line at the bottom of the card (dates, references).</summary>
+    public IReadOnlyList<AkInfoItem> Footer { get; init; } = [];
+
+    /// <summary>Free text (notes, description) under the card content.</summary>
+    public string? Text { get; init; }
+
+    /// <summary>The card spans the whole grid width.</summary>
+    public bool IsWide { get; init; }
+
+    public bool HasContent
+        => Rows.Any(item => item.HasValue)
+        || RouteNodes.Any(item => item.HasValue)
+        || Steps.Count > 0
+        || Metrics.Count > 0
+        || Footer.Any(item => item.HasValue)
+        || !string.IsNullOrWhiteSpace(Text);
+}
+
+/// <summary>One stage of a record's status rail.</summary>
+public sealed class AkDetailStep
+{
+    public required string Label { get; init; }
+
+    /// <summary>"is-done", "is-current" or "is-pending".</summary>
+    public string State { get; init; } = "is-pending";
+
+    public bool IsDone => string.Equals(State, "is-done", StringComparison.Ordinal);
+}
+
+/// <summary>
+/// Secondary material of a card-layout detail page, collapsed behind one
+/// "show more" toggle: activity summary, history/related/technical and the
+/// next-operations bar. Nothing is dropped from the page — only folded away.
+/// </summary>
+public sealed class AkDetailMoreModel
+{
+    public IReadOnlyList<AkDetailActivityRow> Activity { get; init; } = [];
+
+    public AkDetailSecondaryModel? Secondary { get; init; }
+
+    public IReadOnlyList<AkHeaderMenuItem> NextActions { get; init; } = [];
+
+    public string? Label { get; init; }
+
+    public bool HasContent
+        => Activity.Any(row => row.HasValue)
+        || NextActions.Any(action => action.IsRenderable && !action.IsDestructive)
+        || (Secondary is not null
+            && (Secondary.Timeline.Count > 0
+                || Secondary.Related.Count > 0
+                || Secondary.Technical.Any(item => item.HasValue)));
 }

@@ -42,6 +42,15 @@ public static class CompanyFlowSourceTypes
     public const string Bonus = "Bonus";
     public const string Adjustment = "Adjustment";
 
+    /// <summary>
+    /// پسوندِ مرجعِ سطرِ معکوس‌کننده. برگشتِ بارگیری/فروش/مصرف عمداً SourceType سند اصلی را
+    /// نگه می‌دارد (تا ردیابی به همان سند حفظ شود)، پس نوعِ سند به‌تنهایی نمی‌گوید این سطر
+    /// برگشت است. همهٔ مسیرهای برگشت — <c>LedgerReversalWriter</c>، لغو مصرف، لغو کرایهٔ
+    /// دارایی — دقیقاً همین پسوند را به مرجع اصلی می‌چسبانند، بنابراین این نشانهٔ صریح و
+    /// از پیش ذخیره‌شده است و به هیچ ستون تازه یا Migration نیاز ندارد.
+    /// </summary>
+    public const string ReversalReferenceSuffix = "-CANCEL";
+
     /// <summary>سطرهایی که فقط معکوس‌کننده‌اند و باید با lifecycle=Reversal خوانده شوند.</summary>
     public static bool IsReversal(string? sourceType)
         => sourceType is SarrafSettlementCancel
@@ -49,4 +58,17 @@ public static class CompanyFlowSourceTypes
             or SupplierPaymentAllocationReversal
             or SupplierPaymentAllocationExchangeDifferenceReversal
             or ThreeWaySettlementCancellation;
+
+    /// <summary>مرجعِ سطر، نشانهٔ صریحِ برگشت را دارد؟ (به Debit/Credit تکیه نمی‌کند.)</summary>
+    public static bool IsReversalReference(string? reference)
+        => reference is not null
+            && reference.EndsWith(ReversalReferenceSuffix, StringComparison.Ordinal);
+
+    /// <summary>
+    /// تشخیص کاملِ سطر برگشت: یا SourceType اختصاصیِ برگشت دارد، یا مرجعش با پسوند برگشت
+    /// تمام می‌شود. هر خوانندهٔ صورت‌حساب باید از همین استفاده کند تا اصل و برگشتِ یک سند
+    /// همدیگر را خنثی کنند، نه اینکه دو برابر شوند.
+    /// </summary>
+    public static bool IsReversal(string? sourceType, string? reference)
+        => IsReversal(sourceType) || IsReversalReference(reference);
 }

@@ -141,6 +141,7 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                 l.Side,
                 l.AmountUsd,
                 l.SourceType,
+                l.Reference,
                 l.SourceId,
                 l.CustomerId,
                 EffectiveCustomerId = l.CustomerId
@@ -160,7 +161,9 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                 EffectiveSupplierId = l.SourceType == LedgerEntryOwnership.ViaSarrafPayableSourceType
                     ? null
                     : l.SupplierId
+                        // AUD-04: هزینه بدون SupplierId صریح از راهِ قرارداد به تأمین‌کننده نمی‌چسبد.
                         ?? (l.SupplierId == null
+                            && l.SourceType != LedgerEntryOwnership.ExpenseSourceType
                             && l.ServiceProviderId == null
                             && l.DriverId == null
                             && l.CustomerId == null
@@ -189,7 +192,7 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                 && !filter.SupplierId.HasValue)
             {
                 AddLedgerEvent(target, row.EffectiveCustomerId.Value, PartyStatementPartyType.Customer,
-                    CompanyFlowPartyRole.Customer, row.EntryDate, row.Side, row.AmountUsd, row.SourceType);
+                    CompanyFlowPartyRole.Customer, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
             }
 
             if (row.EffectiveSupplierId.HasValue
@@ -197,7 +200,7 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                 && !filter.CustomerId.HasValue)
             {
                 AddLedgerEvent(target, row.EffectiveSupplierId.Value, PartyStatementPartyType.Supplier,
-                    CompanyFlowPartyRole.Supplier, row.EntryDate, row.Side, row.AmountUsd, row.SourceType);
+                    CompanyFlowPartyRole.Supplier, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
             }
 
             if (!filter.CustomerId.HasValue && !filter.SupplierId.HasValue)
@@ -205,17 +208,17 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                 if (row.ServiceProviderId.HasValue)
                 {
                     AddLedgerEvent(target, row.ServiceProviderId.Value, PartyStatementPartyType.ServiceProvider,
-                        CompanyFlowPartyRole.ServiceProvider, row.EntryDate, row.Side, row.AmountUsd, row.SourceType);
+                        CompanyFlowPartyRole.ServiceProvider, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
                 }
                 if (row.DriverId.HasValue)
                 {
                     AddLedgerEvent(target, row.DriverId.Value, PartyStatementPartyType.Driver,
-                        CompanyFlowPartyRole.Driver, row.EntryDate, row.Side, row.AmountUsd, row.SourceType);
+                        CompanyFlowPartyRole.Driver, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
                 }
                 if (row.EffectiveCompanyId.HasValue)
                 {
                     AddLedgerEvent(target, row.EffectiveCompanyId.Value, PartyStatementPartyType.Company,
-                        CompanyFlowPartyRole.Company, row.EntryDate, row.Side, row.AmountUsd, row.SourceType);
+                        CompanyFlowPartyRole.Company, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
                 }
             }
         }
@@ -229,9 +232,12 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
         DateTime date,
         LedgerSide side,
         decimal amountUsd,
-        string sourceType)
+        string sourceType,
+        string? reference = null)
     {
-        var lifecycle = CompanyFlowSourceTypes.IsReversal(sourceType)
+        // مرجع هم خوانده می‌شود: برگشتِ بارگیری/فروش/مصرف SourceType اصلی را نگه می‌دارد و
+        // تنها با پسوندِ مرجع علامت می‌خورد. رجوع: CompanyFlowSourceTypes.ReversalReferenceSuffix.
+        var lifecycle = CompanyFlowSourceTypes.IsReversal(sourceType, reference)
             ? CompanyFlowLifecycle.Reversal
             : CompanyFlowLifecycle.Original;
         var direction = _directions.Resolve(new CompanyFlowEvent(sourceType, side, role, lifecycle));
@@ -288,12 +294,12 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             Math.Abs(s.SarrafChargedAmountUsd))));
 
         var viaRows = await via
-            .Select(l => new { SarrafId = l.SourceId, l.EntryDate, l.Side, l.AmountUsd, l.SourceType })
+            .Select(l => new { SarrafId = l.SourceId, l.EntryDate, l.Side, l.AmountUsd, l.SourceType, l.Reference })
             .ToListAsync(ct);
         foreach (var row in viaRows)
         {
             AddLedgerEvent(target, row.SarrafId, PartyStatementPartyType.Sarraf,
-                CompanyFlowPartyRole.Sarraf, row.EntryDate, row.Side, row.AmountUsd, row.SourceType);
+                CompanyFlowPartyRole.Sarraf, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
         }
     }
 
@@ -362,7 +368,7 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             query = query.Where(l => l.EntryDate < end);
         }
         var ledgerRows = await query
-            .Select(l => new { l.Id, l.ContractId, l.SourceId, l.EntryDate, l.Side, l.AmountUsd, l.SourceType })
+            .Select(l => new { l.Id, l.ContractId, l.SourceId, l.EntryDate, l.Side, l.AmountUsd, l.SourceType, l.Reference })
             .ToListAsync(ct);
 
         // پرداخت‌های روزنامچه دیگر کورکورانه بین شرکا تقسیم نمی‌شوند: پرداختِ شرکت پولِ شریک
@@ -395,7 +401,8 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                         row.EntryDate,
                         row.Side,
                         decimal.Round(row.AmountUsd, 2, MidpointRounding.AwayFromZero),
-                        row.SourceType);
+                        row.SourceType,
+                        row.Reference);
                 }
 
                 continue;
@@ -411,7 +418,8 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                     row.EntryDate,
                     row.Side,
                     decimal.Round(row.AmountUsd * share.SharePercent / 100m, 2, MidpointRounding.AwayFromZero),
-                    row.SourceType);
+                    row.SourceType,
+                    row.Reference);
             }
         }
     }

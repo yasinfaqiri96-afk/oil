@@ -127,8 +127,8 @@
                                 <div class="ak-cell-note">نرخ به USD: @Rate(row.FxRateToUsd)</div>
                             }
                         </td>
-                        <td class="ak-col-num ak-num">@Money(row.ReceiptUsd, row.ReceiptUsd.HasValue ? "USD" : null)</td>
-                        <td class="ak-col-num ak-num">@Money(row.OutflowUsd, row.OutflowUsd.HasValue ? "USD" : null)</td>
+                        <td class="ak-col-num ak-num @(row.ReceiptUsd.GetValueOrDefault() == 0m ? null : "ak-number--positive")">@Money(row.ReceiptUsd, row.ReceiptUsd.HasValue ? "USD" : null)</td>
+                        <td class="ak-col-num ak-num @(row.OutflowUsd.GetValueOrDefault() == 0m ? null : "ak-number--negative")">@Money(row.OutflowUsd, row.OutflowUsd.HasValue ? "USD" : null)</td>
                         <td class="ak-col-num ak-num">@row.BalanceUsd.ToString("N2") USD</td>
                     </tr>
                 }

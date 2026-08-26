@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.CompanyFlow;
@@ -273,7 +273,6 @@ public sealed class CompanyFlowTextTests
     [InlineData("src/PTGOilSystem.Web/Views/PartyStatements/_SupplierContractStatement.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Views/PartyStatements/_SupplierContractDetails.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Views/AccountStatements/Contract.cshtml")]
-    [InlineData("src/PTGOilSystem.Web/Views/Suppliers/_SupplierStatementByContract.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Views/Suppliers/_SupplierStatementSummaryTable.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Views/Shared/Statements/_PartyStatementRecent.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Views/Shared/Partials/_SupplierStatementLedger.cshtml")]

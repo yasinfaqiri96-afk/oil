@@ -1,4 +1,4 @@
-.statement-document {
+﻿.statement-document {
     --statement-line: var(--ptg-border, #e2e8f0);
     --statement-muted: var(--ptg-muted, #64748b);
     color: var(--ptg-text, #172033);
@@ -130,6 +130,20 @@
 .statement-outflow { color: var(--ptg-danger-text, #b42318); }
 .statement-balance { font-weight: 800; }
 .statement-empty { padding: 36px !important; text-align: center; color: var(--statement-muted); }
+
+/* یادداشت زیر جدول: توضیح نمای فشرده + لینک باز کردن تک‌تک اسناد. */
+.statement-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 22px;
+    color: var(--statement-muted);
+    font-size: 12px;
+}
+
+.statement-note a { color: var(--ptg-primary, #2563eb); text-decoration: none; font-weight: 700; }
+.statement-note a:hover { text-decoration: underline; }
 
 .statement-pagination {
     display: flex;

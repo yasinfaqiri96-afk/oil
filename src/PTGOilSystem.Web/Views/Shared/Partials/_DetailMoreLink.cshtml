@@ -1,0 +1,21 @@
+@model (string Key, int Shown, int Total)
+@{
+    // زیر جدول‌های بلند: «مشاهده همه» / «نمایش کمتر». فقط تعداد سطرهای نمایشی را عوض
+    // می‌کند؛ هیچ عدد یا جمعی وابسته به آن نیست.
+    var expanded = DetailListPreview.IsExpanded(Context.Request, Model.Key);
+}
+@if (Model.Total > Model.Shown || expanded)
+{
+    <p class="ak-more-link">
+        @if (expanded)
+        {
+            <span>نمایش همه @Model.Total.ToString("N0") مورد</span>
+            <a href="@DetailListPreview.Url(Context.Request, null)">نمایش کمتر</a>
+        }
+        else
+        {
+            <span>@Model.Shown.ToString("N0") مورد اخیر از @Model.Total.ToString("N0")</span>
+            <a href="@DetailListPreview.Url(Context.Request, Model.Key)">مشاهده همه</a>
+        }
+    </p>
+}

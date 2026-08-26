@@ -449,7 +449,9 @@ public partial class AccountStatementsController : Controller
             // جهت تجاری از لایهٔ مرکزی می‌آید تا همین رویداد در صورت‌حساب طرف‌حساب و اینجا
             // دقیقاً یکسان دیده شود. پیش‌تر اینجا خامِ Debit/Credit نمایش داده می‌شد و مثلاً
             // «بارگیری» در دفتر قرارداد بستانکار و در صورت‌حساب تأمین‌کننده بدهکار بود.
-            var lifecycle = CompanyFlowSourceTypes.IsReversal(entry.SourceType)
+            // مرجع هم خوانده می‌شود: سطرِ برگشتِ بارگیری/فروش/مصرف SourceType سند اصلی را نگه
+            // می‌دارد و تنها با پسوندِ مرجع علامت می‌خورد.
+            var lifecycle = CompanyFlowSourceTypes.IsReversal(entry.SourceType, entry.Reference)
                 ? CompanyFlowLifecycle.Reversal
                 : CompanyFlowLifecycle.Original;
             var direction = _flowResolver.Resolve(
@@ -488,6 +490,7 @@ public partial class AccountStatementsController : Controller
         await AddPaymentWarningRowsAsync(contractId, drafts);
         await AddExpenseWarningRowsAsync(contractId, drafts);
         await AddOperationalLoadingRowsAsync(contractId, drafts, postedLoadingIds);
+        await AddAllocatedSaleRowsAsync(contractId, flowRole, drafts, ledgerEntries);
 
         var rows = BuildContractAccountRows(drafts);
         var totals = new ContractAccountStatementTotalsViewModel
@@ -762,6 +765,96 @@ public partial class AccountStatementsController : Controller
                 WarningBadge = "Operational only",
                 IsOperationalOnly = true,
                 SortId = allocation.Id
+            });
+        }
+    }
+
+    /// <summary>
+    /// سهم اثبات‌شدهٔ این قرارداد خرید از فروش‌های چند-قراردادی.
+    /// <para>
+    /// فروشِ چند-قراردادی عمداً <c>LedgerEntry.ContractId</c> ندارد (AUD-06: هیچ قراردادی
+    /// حدس زده نمی‌شود)، پس در حلقهٔ دفترکل بالا اصلاً دیده نمی‌شود و عایدش از صورت‌حسابِ
+    /// هر دو قرارداد بیرون می‌ماند. اینجا فقط سهم واقعی همان قرارداد از
+    /// <c>SalesTransactionSourceAllocations</c> — همان منبعی که ContractPnl می‌خواند —
+    /// اضافه می‌شود. فروشی که سطر دفترکلش پیش‌تر روی همین قرارداد نشسته کنار گذاشته
+    /// می‌شود تا یک فروش دو بار شمرده نشود.
+    /// </para>
+    /// </summary>
+    private async Task AddAllocatedSaleRowsAsync(
+        int contractId,
+        CompanyFlowPartyRole flowRole,
+        List<ContractAccountStatementDraftRow> drafts,
+        IReadOnlyCollection<LedgerEntry> ledgerEntries)
+    {
+        var postedSaleIds = ledgerEntries
+            .Where(l => l.SourceType == CompanyFlowSourceTypes.Sale)
+            .Select(l => l.SourceId)
+            .ToHashSet();
+
+        var shares = await _db.SalesTransactionSourceAllocations
+            .AsNoTracking()
+            .Where(a => a.SourcePurchaseContractId == contractId
+                && a.AmountUsd != 0m
+                && a.SalesTransaction != null
+                && !a.SalesTransaction.IsCancelled)
+            .Select(a => new
+            {
+                a.SalesTransactionId,
+                a.QuantityMt,
+                a.AmountUsd,
+                SaleDate = a.SalesTransaction!.SaleDate,
+                a.SalesTransaction.InvoiceNumber
+            })
+            .ToListAsync();
+
+        var pending = shares
+            .Where(s => !postedSaleIds.Contains(s.SalesTransactionId))
+            .GroupBy(s => s.SalesTransactionId)
+            .Select(g => new
+            {
+                SaleId = g.Key,
+                QuantityMt = g.Sum(s => s.QuantityMt),
+                AmountUsd = g.Sum(s => s.AmountUsd),
+                g.First().SaleDate,
+                g.First().InvoiceNumber
+            })
+            .OrderBy(s => s.SaleDate)
+            .ThenBy(s => s.SaleId)
+            .ToList();
+
+        if (pending.Count == 0)
+        {
+            return;
+        }
+
+        var direction = _flowResolver.Resolve(
+            new CompanyFlowEvent(
+                CompanyFlowSourceTypes.Sale,
+                LedgerSide.Credit,
+                flowRole,
+                CompanyFlowLifecycle.Original));
+        var isReceipt = direction == CompanyFlowDirection.Receipt;
+
+        foreach (var share in pending)
+        {
+            drafts.Add(new ContractAccountStatementDraftRow
+            {
+                Date = share.SaleDate.Date,
+                SortGroup = 10,
+                SourceType = CompanyFlowSourceTypes.Sale,
+                SourceId = share.SaleId,
+                Reference = share.InvoiceNumber,
+                Description = $"سهم این قرارداد از فروش فاکتور {share.InvoiceNumber}",
+                QuantityMt = share.QuantityMt,
+                SourceCurrency = BaseCurrency,
+                ReceiptOriginal = isReceipt ? share.AmountUsd : null,
+                OutflowOriginal = isReceipt ? null : share.AmountUsd,
+                ReceiptUsd = isReceipt ? share.AmountUsd : null,
+                OutflowUsd = isReceipt ? null : share.AmountUsd,
+                Notes = "Multi-contract sale; only this contract's allocated share is shown.",
+                WarningBadge = "Allocated share",
+                IsFinancial = true,
+                SortId = share.SaleId
             });
         }
     }

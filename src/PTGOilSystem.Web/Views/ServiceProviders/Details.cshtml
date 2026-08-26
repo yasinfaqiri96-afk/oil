@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.ServiceProviders.ServiceProviderProfileViewModel
+﻿@model PTGOilSystem.Web.Models.ServiceProviders.ServiceProviderProfileViewModel
 @using PTGOilSystem.Web.Models.Shared
 @{
     ViewData["Title"] = Model.Name;
@@ -132,6 +132,11 @@
         </div>
     </section>
     @* ===== تب ۳: مصارف و پرداخت‌ها ===== *@
+    @{
+        // جدول‌های بلند پیش‌فرض ۱۰ مورد اخیر را نشان می‌دهند؛ شمارش سرصفحه روی کل داده می‌ماند.
+        var expensesShown = DetailListPreview.Take(Context.Request, "provider-expenses", Model.Expenses);
+        var providerPaymentsShown = DetailListPreview.Take(Context.Request, "provider-payments", Model.Payments);
+    }
     <section id="provider-documents" class="ak-form-section ak-detail-section" hidden="@(!showDocuments)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "مصارف و کرایه‌ها", "Expenses & Charges"), $"{Model.Expenses.Count:N0}"))" />
         <div class="ak-table-wrap">
@@ -147,7 +152,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var row in Model.Expenses)
+                @foreach (var row in expensesShown)
                 {
                     <tr>
                         <td>@row.ExpenseDate.ToDisplayDate()</td>
@@ -165,6 +170,7 @@
                 </tbody>
             </table>
         </div>
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("provider-expenses", expensesShown.Count, Model.Expenses.Count))" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "پرداخت‌ها", "Payments"), $"{Model.Payments.Count:N0}"))" />
         <div class="ak-table-wrap">
@@ -180,7 +186,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var row in Model.Payments)
+                @foreach (var row in providerPaymentsShown)
                 {
                     <tr>
                         <td>@row.PaymentDate.ToDisplayDate()</td>
@@ -198,6 +204,7 @@
                 </tbody>
             </table>
         </div>
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("provider-payments", providerPaymentsShown.Count, Model.Payments.Count))" />
 
         @if (Model.RelatedContracts.Any())
         {

@@ -618,7 +618,9 @@ public partial class SalesController
 
         await _lineage.AllocateSaleAsync(sale, input.SourcePurchaseContractId, input.TerminalId, input.StorageTankId);
 
-        var ledger = SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: input.SourcePurchaseContractId);
+        // AUD-06: مثل مسیر فروش تکی، قرارداد Ledger از همان planِ FIFO می‌آید (که
+        // ApplyLegacyHeader روی SourcePurchaseContractId نشانده) نه از انتخاب کاربر.
+        var ledger = SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: sale.SourcePurchaseContractId);
         _db.LedgerEntries.Add(ledger);
         await _db.SaveChangesAsync();
 

@@ -78,8 +78,8 @@
                 </td>
                 <td class="text-end ak-num">@Qty(row.QuantityMt)</td>
                 <td class="text-end ak-num">@Rate(row.UnitPrice)</td>
-                <td class="text-end ak-num sl-rub sl-credit">@Money2(row.ReceiptOriginal)</td>
-                <td class="text-end ak-num sl-rub sl-debit">@Money2(row.OutflowOriginal)</td>
+                <td class="text-end ak-num sl-rub sl-credit @(row.ReceiptOriginal.GetValueOrDefault() == 0m ? null : "ak-number--positive")">@Money2(row.ReceiptOriginal)</td>
+                <td class="text-end ak-num sl-rub sl-debit @(row.OutflowOriginal.GetValueOrDefault() == 0m ? null : "ak-number--negative")">@Money2(row.OutflowOriginal)</td>
                 <td class="text-end sl-rub">
                     @if (row.RunningBalanceOriginal.HasValue)
                     {
@@ -100,8 +100,8 @@
                         <span class="text-muted">—</span>
                     }
                 </td>
-                <td class="text-end ak-num sl-usd sl-credit">@Money2(row.ReceiptUsd)</td>
-                <td class="text-end ak-num sl-usd sl-debit">@Money2(row.OutflowUsd)</td>
+                <td class="text-end ak-num sl-usd sl-credit @(row.ReceiptUsd.GetValueOrDefault() == 0m ? null : "ak-number--positive")">@Money2(row.ReceiptUsd)</td>
+                <td class="text-end ak-num sl-usd sl-debit @(row.OutflowUsd.GetValueOrDefault() == 0m ? null : "ak-number--negative")">@Money2(row.OutflowUsd)</td>
                 <td class="text-end sl-usd">
                     <strong class="ak-num">@NumberDisplay.Money(row.RunningBalanceUsd)</strong>
                 </td>

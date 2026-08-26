@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.PartyStatements.PartyStatementViewModel
+﻿@model PTGOilSystem.Web.Models.PartyStatements.PartyStatementViewModel
 @using PTGOilSystem.Web.Helpers
 @using PTGOilSystem.Web.Models.PartyStatements
 @{
@@ -48,6 +48,10 @@
                         <td class="statement-num">@row.Sequence</td>
                         <td class="statement-contract">
                             <strong class="statement-contract-title">@row.Title</strong>
+                            @if (row.SharePercent.HasValue)
+                            {
+                                <small class="statement-contract-sub">سهم شریک @row.SharePercent.Value.ToString("N2")٪</small>
+                            }
                             @if (row.ContractQuantityMt.HasValue || row.LoadedQuantityMt.HasValue)
                             {
                                 <small class="statement-contract-sub">قرارداد @Qty(row.ContractQuantityMt) MT / بارگیری @Qty(row.LoadedQuantityMt) MT</small>

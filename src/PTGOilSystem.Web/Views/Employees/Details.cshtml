@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Employees.EmployeeDetailsViewModel
+﻿@model PTGOilSystem.Web.Models.Employees.EmployeeDetailsViewModel
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Shared
 @{
@@ -37,6 +37,14 @@
         .Skip((transactionPage - 1) * transactionPageSize)
         .Take(transactionPageSize)
         .ToList();
+
+    // جدول‌های بلندِ تب‌های معاش و فعالیت پیش‌فرض ۱۰ مورد اخیر را نشان می‌دهند؛ هیچ
+    // محاسبه یا شمارشِ سرصفحه‌ای به آن وابسته نیست. (کارمند قراردادی نیست و گروه‌بندی
+    // قرارداد ندارد.)
+    var financeTx = Model.Transactions.OrderByDescending(row => row.TransactionDate).ToList();
+    var financeTxShown = DetailListPreview.Take(Context.Request, "employee-transactions", financeTx);
+    var roznamchaShown = DetailListPreview.Take(Context.Request, "employee-roznamcha", Model.RoznamchaPayments);
+    var auditShown = DetailListPreview.Take(Context.Request, "employee-audit", Model.AuditItems);
 
     var salaryUrl = Url.Action("CreateSalaryTransaction", new { id = Model.Id, returnUrl = Context.Request.Path }) ?? "#";
     var editUrl = Url.Action("Edit", new { id = Model.Id }) ?? "#";
@@ -172,7 +180,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var row in Model.Transactions)
+                @foreach (var row in financeTxShown)
                 {
                     <tr class="@(row.IsCancelled ?"ak-row-muted" : "")">
                         <td>@row.TransactionDate.ToDisplayDate()</td>
@@ -221,6 +229,7 @@
                 </tbody>
             </table>
         </div>
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("employee-transactions", financeTxShown.Count, financeTx.Count))" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("پرداخت‌ها و برگشت‌های نقدی", $"{Model.RoznamchaPayments.Count:N0}"))" />
         <div class="ak-table-wrap">
@@ -237,7 +246,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var row in Model.RoznamchaPayments)
+                @foreach (var row in roznamchaShown)
                 {
                     <tr>
                         <td>@row.PaymentDate.ToDisplayDate()</td>
@@ -256,6 +265,7 @@
                 </tbody>
             </table>
         </div>
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("employee-roznamcha", roznamchaShown.Count, Model.RoznamchaPayments.Count))" />
     </section>
 
     @* ===== تب ۳: فعالیت و یادداشت ===== *@
@@ -265,7 +275,7 @@
             <table class="ak-table ak-detail-table">
                 <thead><tr><th>زمان</th><th class="ak-col-grow">عمل</th><th>کاربر</th><th>جزئیات</th></tr></thead>
                 <tbody>
-                @foreach (var audit in Model.AuditItems)
+                @foreach (var audit in auditShown)
                 {
                     <tr>
                         <td>@audit.ActionAtUtc.ToDisplayDateTime()</td>
@@ -281,6 +291,7 @@
                 </tbody>
             </table>
         </div>
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("employee-audit", auditShown.Count, Model.AuditItems.Count))" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("یادداشت", (string?)null))" />
         @if (string.IsNullOrWhiteSpace(Model.Notes))

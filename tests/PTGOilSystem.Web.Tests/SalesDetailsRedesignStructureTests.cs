@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -16,15 +16,14 @@ public sealed class SalesDetailsRedesignStructureTests
         Assert.Contains("data-ak-detail-v2=\"true\"", view);
         Assert.Contains("_AkPageHeader.cshtml", view);
         Assert.Contains("AkHeaderIdentity", view);
-        Assert.Contains("_DetailOverview.cshtml", view);
-        Assert.Contains("_DetailActivityList.cshtml", view);
-        Assert.Contains("_DetailSecondary.cshtml", view);
+        Assert.Contains("_DetailCards.cshtml", view);
+        Assert.Contains("_DetailMore.cshtml", view);
+        Assert.DoesNotContain("_DetailOverview.cshtml", view);
         Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
         Assert.DoesNotContain("_OperationsDetailMore.cshtml", view);
         // Next operations live in the action bar only. Feeding the same list to the header
         // kebab as well is what printed every action twice on the page.
         Assert.DoesNotContain("AkHeaderOverflowActions", view);
-        Assert.Contains("_DetailActionBar.cshtml", view);
         Assert.Contains("ak-list", view);
         Assert.Contains("ak-linear-detail", view);
         Assert.Contains("data-ak-operations-detail=\"true\"", view);

@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Reports;
 
@@ -241,6 +241,8 @@ public sealed class ContractJourneySummaryMetricsViewModel
     public decimal ExpenseTotalUsd { get; init; }
     public decimal InventoryTransportExpenseTotalUsd { get; init; }
     public decimal PaymentTotalUsd { get; init; }
+    // پرداخت خالص به تأمین‌کننده در payload خلاصه (PaymentItems در این حالت بارگذاری نمی‌شود).
+    public decimal SupplierPaidNetUsd { get; init; }
     public decimal LossQuantityMt { get; init; }
     public IReadOnlyList<ContractJourneyStorageOverviewItemViewModel> StorageOverviewItems { get; init; } = [];
     public IReadOnlyList<ContractJourneyTransportOverviewItemViewModel> TransportOverviewItems { get; init; } = [];
@@ -747,6 +749,10 @@ public sealed class ContractJourneyPaymentItemViewModel
     public PaymentKind PaymentKind { get; init; }
     public string PaymentKindName { get; init; } = string.Empty;
     public string CashAccountName { get; init; } = string.Empty;
+    /// <summary>منبع تأمین پول: صندوق شرکت یا جیب یکی از شرکای همین قرارداد.</summary>
+    public PaymentFundingSource FundingSource { get; init; } = PaymentFundingSource.Company;
+    /// <summary>نام شریکی که پرداخت را انجام داده؛ فقط وقتی FundingSource = Partner است.</summary>
+    public string? PaidByPartnerName { get; init; }
     public decimal Amount { get; init; }
     public string Currency { get; init; } = string.Empty;
     public decimal AmountUsd { get; init; }

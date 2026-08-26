@@ -1785,18 +1785,18 @@ public partial class SalesController : Controller
                     await _lossWorkflow.CreateAsync(lossSubmission);
                 }
 
-                var resolvedSourceContractId = model.SourcePurchaseContractId
-                    ?? (stockOutMovements
-                        .Select(movement => movement.ContractId)
-                        .Distinct()
-                        .Take(2)
-                        .Count() == 1
-                            ? stockOutMovements[0].ContractId
-                            : null);
+                // AUD-06: انتساب فروش به قرارداد خرید فقط از منبع رسمی خوانده می‌شود — همان
+                // planی که از InventoryMovementهای واقعی (FIFO) ساخته شد و در
+                // SalesTransactionSourceAllocations نگه داشته می‌شود. ApplyLegacyHeader نتیجهٔ
+                // همان plan را روی SourcePurchaseContractId نشانده است، پس Ledger و header
+                // همیشه یک عدد را می‌گویند. انتخاب کاربر در فرم دیگر تصمیم‌گیرندهٔ Ledger نیست:
+                // اگر FIFO قرارداد دیگری را مصرف کرده باشد FIFO برنده است، و اگر فروش
+                // چند-قراردادی باشد هر دو سر عمداً null می‌مانند و سهم هر قرارداد فقط در
+                // allocations زندگی می‌کند. هیچ قراردادی حدس زده نمی‌شود.
                 var ledgerEntry = SaleLedgerFactory.BuildSaleLedgerEntry(
                     sale,
                     conversion,
-                    contractId: sale.ContractId ?? resolvedSourceContractId);
+                    contractId: sale.ContractId ?? sale.SourcePurchaseContractId);
 
                 _db.LedgerEntries.Add(ledgerEntry);
                 await _db.SaveChangesAsync();

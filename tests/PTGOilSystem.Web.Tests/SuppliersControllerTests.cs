@@ -90,6 +90,8 @@ public class SuppliersControllerTests
         Assert.Equal(1, supplier.ActivePurchaseContractsCount);
         Assert.Equal(150m, supplier.TotalPurchaseQuantityMt);
         Assert.Equal(-750m, supplier.LedgerBalanceUsd);
+        Assert.Equal(250m, supplier.LedgerOutflowUsd);
+        Assert.Equal(1000m, supplier.LedgerReceiptUsd);
         Assert.Equal(100m, supplier.TotalPaidUsd);
         Assert.Equal(new DateTime(2026, 1, 4), supplier.LastPaymentDate);
     }

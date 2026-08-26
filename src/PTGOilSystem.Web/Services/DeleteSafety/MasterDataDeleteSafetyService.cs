@@ -191,6 +191,27 @@ public class MasterDataDeleteSafetyService
         return BuildArchivableResult(usageAreas);
     }
 
+    public async Task<MasterDataDeleteSafetyResult> EvaluateUserAsync(int userId)
+    {
+        var usageAreas = new List<string>();
+
+        if (await _db.FiscalYears.AnyAsync(fy => fy.OpenedByUserId == userId
+                || fy.ClosedByUserId == userId
+                || fy.ReopenedByUserId == userId))
+            usageAreas.Add("سال‌های مالی");
+        if (await _db.FiscalPeriods.AnyAsync(fp => fp.LockedByUserId == userId))
+            usageAreas.Add("دوره‌های مالی");
+        if (await _db.FiscalYearStatusHistories.AnyAsync(h => h.ChangedByUserId == userId))
+            usageAreas.Add("تاریخچه وضعیت سال مالی");
+        if (await _db.FiscalYearCloseRuns.AnyAsync(r => r.StartedByUserId == userId
+                || r.CompletedByUserId == userId))
+            usageAreas.Add("عملیات بستن سال مالی");
+        if (await _db.JournalEntries.AnyAsync(j => j.PostedByUserId == userId))
+            usageAreas.Add("اسناد حسابداری");
+
+        return BuildArchivableResult(usageAreas);
+    }
+
     private static MasterDataDeleteSafetyResult BuildArchivableResult(List<string> usageAreas)
         => usageAreas.Count == 0
             ? MasterDataDeleteSafetyResult.Allow()

@@ -312,6 +312,30 @@
 
     .ak-number--positive { color: var(--ptg-success-text); }
     .ak-number--negative { color: var(--ptg-danger-text); }
+
+    /* Inside a page-frame table the shared cell rule above (`… table > tbody >
+       tr > :where(td, th)`) outranks a plain tone class and resets it to
+       --text-primary, so the tone tokens are repeated here at that rule's own
+       strength. Colour only — no figure is touched. */
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame table > tbody > tr > td.ak-number--positive,
+    body.ptg-modal-document .ptg-modal-body-shell table > tbody > tr > td.ak-number--positive {
+        color: var(--ptg-success-text);
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame table > tbody > tr > td.ak-number--negative,
+    body.ptg-modal-document .ptg-modal-body-shell table > tbody > tr > td.ak-number--negative {
+        color: var(--ptg-danger-text);
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame table > tbody > tr > td.statement-receipt,
+    body.ptg-modal-document .ptg-modal-body-shell table > tbody > tr > td.statement-receipt {
+        color: var(--ptg-success-text);
+    }
+
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame table > tbody > tr > td.statement-outflow,
+    body.ptg-modal-document .ptg-modal-body-shell table > tbody > tr > td.statement-outflow {
+        color: var(--ptg-danger-text);
+    }
     .ak-number--warning { color: var(--ptg-warning-text); }
     .ak-number--neutral { color: var(--text-primary); }
     .ak-number--muted { color: var(--text-secondary); }

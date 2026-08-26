@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -46,12 +46,10 @@ public sealed class AkDetailV2StructureTests
         {
             var view = ReadView(controller);
             Assert.Contains("ak-linear-detail", view);
-            Assert.Contains("ak-detail-reference-layout", view);
+            Assert.Contains("ptg-record-detail", view);
             Assert.Contains("AkHeaderIdentity", view);
-            Assert.Contains("_DetailOverview.cshtml", view);
-            Assert.Contains("_DetailActivityList.cshtml", view);
-            Assert.Contains("_DetailActionBar.cshtml", view);
-            Assert.Contains("_DetailSecondary.cshtml", view);
+            Assert.Contains("_DetailCards.cshtml", view);
+            Assert.Contains("_DetailMore.cshtml", view);
             Assert.Contains("TimelineLimit = 4", view);
             Assert.DoesNotContain("_DetailsTabs.cshtml", view);
             Assert.DoesNotContain("_DetailPager.cshtml", view);
@@ -104,15 +102,15 @@ public sealed class AkDetailV2StructureTests
     public void Loading_And_Transport_Reference_Details_Keep_One_Surface_And_Three_Closing_Columns()
     {
         var loading = ReadView("Loading");
-        Assert.Contains("خلاصه اطلاعات بارگیری", loading);
+        Assert.Contains("اطلاعات اصلی", loading);
         Assert.Contains("قابل ارسال / تخصیص", loading);
         Assert.Contains("TimelineTitle = T(\"آخرین فعالیت‌ها\"", loading);
         Assert.DoesNotContain("ak-loading-rub-secondary", loading);
         Assert.DoesNotContain("ak-detail-tabbed-sections", loading);
 
         var transport = ReadView("InventoryTransportLegs");
-        Assert.Contains("خلاصه اطلاعات حمل", transport);
-        Assert.Contains("VisualAvatar = transportVisual", transport);
+        Assert.Contains("مسیر و وضعیت", transport);
+        Assert.Contains("Steps = routeSteps", transport);
         Assert.Contains("if (Model.TransportType == LoadingTransportType.Truck)", transport);
         Assert.Contains("else if (Model.TransportType == LoadingTransportType.Wagon)", transport);
         Assert.Contains("else if (Model.TransportType == LoadingTransportType.Vessel)", transport);
@@ -135,20 +133,28 @@ public sealed class AkDetailV2StructureTests
                  })
         {
             var view = ReadView(controller);
-            Assert.Contains("ak-detail-reference-layout", view);
-            Assert.Contains("_DetailOverview.cshtml", view);
-            Assert.Contains("_DetailActivityList.cshtml", view);
-            Assert.Contains("_DetailSecondary.cshtml", view);
-            Assert.Contains("_DetailActionBar.cshtml", view);
+            Assert.Contains("ptg-record-detail", view);
+            Assert.Contains("_DetailCards.cshtml", view);
+            Assert.Contains("_DetailMore.cshtml", view);
+            Assert.Contains("AkDetailCardsModel", view);
+            Assert.Contains("AkDetailMoreModel", view);
             Assert.Contains("TimelineTitle = T(\"آخرین فعالیت‌ها\"", view);
+            Assert.DoesNotContain("_DetailOverview.cshtml", view);
             Assert.DoesNotContain("Items = headerItems", view);
             Assert.DoesNotContain("Items = identityItems", view);
 
-            var activity = view.LastIndexOf("_DetailActivityList.cshtml", StringComparison.Ordinal);
-            var timeline = view.LastIndexOf("_DetailSecondary.cshtml", StringComparison.Ordinal);
-            var actions = view.LastIndexOf("_DetailActionBar.cshtml", StringComparison.Ordinal);
-            Assert.True(activity >= 0 && timeline > activity && actions > timeline);
+            // Identity strip first, secondary material last.
+            var cards = view.LastIndexOf("_DetailCards.cshtml", StringComparison.Ordinal);
+            var more = view.LastIndexOf("_DetailMore.cshtml", StringComparison.Ordinal);
+            Assert.True(cards >= 0 && more > cards);
         }
+
+        // The shared partials still compose the same three closing blocks, so no
+        // activity row, history entry or next operation was dropped from any page.
+        var moreShell = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_DetailMore.cshtml");
+        Assert.Contains("_DetailActivityList.cshtml", moreShell);
+        Assert.Contains("_DetailSecondary.cshtml", moreShell);
+        Assert.Contains("_DetailActionBar.cshtml", moreShell);
 
         var overview = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_DetailOverview.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
@@ -159,7 +165,8 @@ public sealed class AkDetailV2StructureTests
         Assert.Contains(".ak-linear-detail .ak-detail-metric-avatar", css);
         Assert.Contains("--ak-metric-visual: min(40%, 112px)", css);
         Assert.Contains("block-size: calc(100% - (var(--ak-metric-inset) * 2))", css);
-        Assert.Contains(".ak-detail-reference-layout > .ak-detail-reference-section", css);
+        Assert.Contains(".ptg-record-detail .ptg-td-grid", css);
+        Assert.Contains(".ptg-record-detail .ptg-td-step", css);
     }
 
     [Fact]
@@ -174,12 +181,20 @@ public sealed class AkDetailV2StructureTests
         foreach (var controller in operationsDetails)
         {
             var view = ReadView(controller);
+            var usesCards = view.Contains("_DetailCards.cshtml", StringComparison.Ordinal);
             Assert.Contains("ak-operations-detail", view);
             Assert.Contains("ak-linear-detail", view);
             Assert.Contains("data-ak-operations-detail=\"true\"", view);
             Assert.Contains("AkHeaderIdentity", view);
-            Assert.Contains("_DetailOverview.cshtml", view);
-            Assert.Contains("_DetailActivityList.cshtml", view);
+            if (usesCards)
+            {
+                Assert.Contains("_DetailMore.cshtml", view);
+            }
+            else
+            {
+                Assert.Contains("_DetailOverview.cshtml", view);
+                Assert.Contains("_DetailActivityList.cshtml", view);
+            }
             Assert.DoesNotContain("_OperationsDetailMore.cshtml", view);
             Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
             Assert.DoesNotContain("<vc:stat-card", view);

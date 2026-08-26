@@ -580,6 +580,80 @@ public class PaymentsControllerTests
     }
 
     [Fact]
+    public async Task Create_ServiceProviderPayment_OnAPurchaseContract_DoesNotInheritTheContractSupplier()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.ServiceProviders.Add(new PTGOilSystem.Web.Models.Entities.ServiceProvider
+        {
+            Id = 1,
+            Name = "Freight Company",
+            ProviderType = ServiceProviderType.RailwayService,
+            IsActive = true
+        });
+        db.Contracts.Add(new Contract
+        {
+            Id = 7,
+            ContractNumber = "PUR-SP-INHERIT",
+            ContractType = ContractType.Purchase,
+            CompanyId = 1,
+            SupplierId = 1,
+            ProductId = 1,
+            ContractDate = new DateTime(2026, 4, 1),
+            QuantityMt = 10m,
+            PricingMethod = PricingMethod.Fixed,
+            UnitPriceUsd = 100m
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildPaymentsController(db);
+
+        // کرایه‌ای که به شرکت خدماتی پرداخت می‌شود هیچ ربطی به تأمین‌کنندهٔ قرارداد ندارد و
+        // نباید صورت‌حساب او را حرکت بدهد.
+        var freight = await controller.Create(new PaymentCreateViewModel
+        {
+            PaymentDate = new DateTime(2026, 4, 27),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.ServiceProviderPayment,
+            CashAccountId = 1,
+            ServiceProviderId = 1,
+            ContractId = 7,
+            Amount = 300m,
+            Currency = "USD",
+            Reference = "SP-CONTRACT-1"
+        });
+
+        Assert.IsType<RedirectToActionResult>(freight);
+        var freightPayment = await db.PaymentTransactions.SingleAsync(p => p.Reference == "SP-CONTRACT-1");
+        var freightLedger = await db.LedgerEntries.SingleAsync(l => l.Id == freightPayment.LedgerEntryId);
+        Assert.Null(freightPayment.SupplierId);
+        Assert.Null(freightLedger.SupplierId);
+        Assert.Equal(1, freightPayment.ServiceProviderId);
+        Assert.Equal(1, freightLedger.ServiceProviderId);
+
+        // پرداخت واقعی به تأمین‌کننده همچنان تأمین‌کنندهٔ قرارداد را می‌گیرد.
+        var purchase = await controller.Create(new PaymentCreateViewModel
+        {
+            PaymentDate = new DateTime(2026, 4, 28),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.SupplierPayment,
+            CashAccountId = 1,
+            ContractId = 7,
+            Amount = 400m,
+            Currency = "USD",
+            Reference = "SUP-CONTRACT-1"
+        });
+
+        Assert.IsType<RedirectToActionResult>(purchase);
+        var purchasePayment = await db.PaymentTransactions.SingleAsync(p => p.Reference == "SUP-CONTRACT-1");
+        var purchaseLedger = await db.LedgerEntries.SingleAsync(l => l.Id == purchasePayment.LedgerEntryId);
+        Assert.Equal(1, purchasePayment.SupplierId);
+        Assert.Equal(1, purchaseLedger.SupplierId);
+    }
+
+    [Fact]
     public async Task Create_Payment_Requires_CashAccount()
     {
         var options = NewDbOptions();

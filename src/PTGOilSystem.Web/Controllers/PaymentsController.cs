@@ -756,7 +756,7 @@ public class PaymentsController : Controller
             AppliedFxRateToUsd = conversion.AppliedRateToBase,
             AppliedFxRateDate = conversion.EffectiveDate.Date,
             AppliedFxRateSource = conversion.SourceDescription,
-            Description = BuildLedgerDescription(payment, context.CashAccount),
+            Description = BuildLedgerDescription(payment, context.CashAccount, context.PaidByPartnerName),
             SourceType = payment.PaymentKind.ToString(),
             Reference = payment.Reference,
             ContractId = payment.ContractId,
@@ -1129,7 +1129,7 @@ public class PaymentsController : Controller
         ledgerEntry.AppliedFxRateToUsd = conversion.AppliedRateToBase;
         ledgerEntry.AppliedFxRateDate = conversion.EffectiveDate.Date;
         ledgerEntry.AppliedFxRateSource = conversion.SourceDescription;
-        ledgerEntry.Description = BuildLedgerDescription(payment, context.CashAccount);
+        ledgerEntry.Description = BuildLedgerDescription(payment, context.CashAccount, context.PaidByPartnerName);
         ledgerEntry.SourceType = payment.PaymentKind.ToString();
         ledgerEntry.SourceId = payment.Id;
         ledgerEntry.Reference = payment.Reference;
@@ -3086,7 +3086,11 @@ public class PaymentsController : Controller
         }
 
         var resolvedCustomerId = model.CustomerId ?? sale?.CustomerId ?? contract?.CustomerId;
-        var resolvedSupplierId = model.SupplierId ?? contract?.SupplierId;
+        // تأمین‌کنندهٔ قرارداد فقط برای پرداخت/دریافتِ خودِ تأمین‌کننده جانشین می‌شود. پیش‌تر روی هر
+        // پرداختِ متصل به قرارداد می‌نشست — از جمله پرداخت به شرکت خدماتی — و صورت‌حساب
+        // تأمین‌کننده را با کرایه و گمرکی‌ای که هرگز به او پرداخت نشده بود شلوغ می‌کرد.
+        var resolvedSupplierId = model.SupplierId
+            ?? (IsSupplierKind(model.PaymentKind) ? contract?.SupplierId : null);
         var resolvedServiceProviderId = model.ServiceProviderId;
         var resolvedSarrafId = model.SarrafId;
         var resolvedDriverId = model.DriverId ?? dispatch?.DriverId;
@@ -3193,10 +3197,20 @@ public class PaymentsController : Controller
             return null;
         }
 
+        // نام شریک برای شرح روزنامچه لازم است؛ LedgerEntry فیلد شریک ندارد و بدون نام،
+        // صورت‌حساب تأمین‌کننده و دفتر قرارداد نشان نمی‌دهند کدام شریک پرداخت کرده.
+        var paidByPartnerName = paidByPartnerId.HasValue
+            ? await _db.Partners.AsNoTracking()
+                .Where(x => x.Id == paidByPartnerId.Value)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync()
+            : null;
+
         return new ResolvedPaymentContext(
             cashAccount,
             model.FundingSource,
             paidByPartnerId,
+            paidByPartnerName,
             resolvedCustomerId,
             resolvedSupplierId,
             resolvedServiceProviderId,
@@ -3999,12 +4013,17 @@ public class PaymentsController : Controller
         return PaymentCounterpartyType.Other;
     }
 
-    private static string BuildLedgerDescription(PaymentTransaction payment, CashAccount? cashAccount)
+    private static string BuildLedgerDescription(PaymentTransaction payment, CashAccount? cashAccount, string? paidByPartnerName = null)
     {
         var baseText = $"{PaymentDirectionLabels.ToPersian(payment.Direction)} - {PaymentKindLabels.ToPersian(payment.PaymentKind)}";
-        // پرداختِ شریک حساب نقدی ندارد؛ به‌جای نام صندوق، نام شریک در شرح می‌نشیند.
+        // پرداختِ شریک حساب نقدی ندارد؛ به‌جای نام صندوق، نام خودِ شریک در شرح می‌نشیند تا
+        // در دفتر قرارداد و صورت‌حساب تأمین‌کننده معلوم باشد کدام شریک پول داده است.
         var source = cashAccount?.Name
-            ?? (payment.FundingSource == PaymentFundingSource.Partner ? "پرداخت توسط شریک" : "بدون حساب نقدی");
+            ?? (payment.FundingSource == PaymentFundingSource.Partner
+                ? string.IsNullOrWhiteSpace(paidByPartnerName)
+                    ? "پرداخت توسط شریک"
+                    : $"پرداخت توسط شریک: {paidByPartnerName}"
+                : "بدون حساب نقدی");
         var reference = string.IsNullOrWhiteSpace(payment.Reference) ? string.Empty : $" / {payment.Reference}";
         var description = string.IsNullOrWhiteSpace(payment.Description) ? string.Empty : $" / {payment.Description}";
         return $"{baseText} / {source}{reference}{description}";
@@ -4707,6 +4726,7 @@ public class PaymentsController : Controller
         CashAccount? CashAccount,
         PaymentFundingSource FundingSource,
         int? PaidByPartnerId,
+        string? PaidByPartnerName,
         int? CustomerId,
         int? SupplierId,
         int? ServiceProviderId,

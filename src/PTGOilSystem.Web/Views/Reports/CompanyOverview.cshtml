@@ -17,8 +17,21 @@
         <vc:stat-card title="@UiText.T(Context, "پرداختنی تأمین‌کنندگان", "Supplier payables")" value="@Model.SupplierPayableUsd.ToString("N2")" unit="USD" avatar="report-purchase"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "درآمد", "Revenue")" value="@Model.RevenueUsd.ToString("N2")" unit="USD" avatar="report-sales"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "مصرف و ضایعات", "Expenses and losses")" value="@((Model.ExpenseUsd + Model.LossCostUsd).ToString("N2"))" unit="USD" avatar="report-inventory"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "سود / زیان", "Profit / loss")" value="@Model.NetProfitUsd.ToString("N2")" unit="USD" avatar="report-finance"></vc:stat-card>
+        @* سود فقط وقتی عدد نشان داده می‌شود که بهای تمام‌شدهٔ همهٔ فروش‌ها ثبت شده باشد؛
+           در غیر این صورت COGS نبود = سود ساختگی، پس عدد منتشر نمی‌شود. *@
+        <vc:stat-card title="@UiText.T(Context, "سود / زیان", "Profit / loss")"
+                      value="@(Model.IsProfitPublishable ? Model.NetProfitUsd.ToString("N2") : "—")"
+                      unit="@(Model.IsProfitPublishable ? "USD" : "")"
+                      avatar="report-finance"></vc:stat-card>
     </section>
+
+    @if (!Model.IsProfitPublishable)
+    {
+        <div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-octagon"></i>
+            @UiText.T(Context, Model.ProfitUnavailableNoteFa, Model.ProfitUnavailableNoteEn)
+        </div>
+    }
 
     <div class="ak-list">
         @{

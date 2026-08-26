@@ -1,4 +1,4 @@
-@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
+﻿@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
 @inject Microsoft.Extensions.Configuration.IConfiguration AppConfiguration
 @{
     // ابزار توسعه UI Pick — فقط Development + PTG_UI_PICK=1
@@ -117,6 +117,7 @@
     var businessPartyItems = new (string Controller, string Action, string Label, string Icon)[]
     {
         ("Partners",  "Index", T("شرکا",           "Partners"),  "bi-diagram-3"),
+        ("PartnershipStatement", "Index", T("صورت‌حساب شراکت", "Partnership Statement"), "bi-arrow-left-right"),
         ("Companies", "Index", T("شرکت‌ها",         "Companies"), "bi-buildings"),
         ("Suppliers", "Index", T("تأمین‌کنندگان",  "Suppliers"), "bi-briefcase"),
         ("Customers", "Index", T("مشتریان",         "Customers"), "bi-people"),

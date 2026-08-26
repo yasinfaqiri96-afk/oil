@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
@@ -116,16 +116,19 @@ public partial class ReportsController
         var model = await BuildCompanyFinancialOverviewAsync(filter);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var lines = new (string Fa, string En, decimal Value)[]
+        // سود ناخالص/خالص فقط وقتی صادر می‌شود که بهای تمام‌شدهٔ همهٔ فروش‌ها ثبت شده باشد؛
+        // در غیر این صورت خانهٔ عدد خالی می‌ماند و علتش در ستون منبع نوشته می‌شود.
+        var profitPublishable = model.IsProfitPublishable;
+        var lines = new (string Fa, string En, decimal? Value)[]
         {
             ("درآمد فروش محقق‌شده", "Realised sales revenue", model.RevenueUsd),
             ("بهای تمام‌شدهٔ فروش", "Cost of goods sold", -model.PurchaseCostUsd),
-            ("سود ناخالص", "Gross profit", model.GrossProfitUsd),
+            ("سود ناخالص", "Gross profit", profitPublishable ? model.GrossProfitUsd : null),
             ("مصارف", "Expenses", -model.ExpenseUsd),
             ("ضایعات و کسری", "Losses and shortages", -model.LossCostUsd),
             ("سود تسعیر ارز", "Exchange gain", model.ExchangeGainUsd),
             ("زیان تسعیر ارز", "Exchange loss", -model.ExchangeLossUsd),
-            ("سود خالص", "Net profit", model.NetProfitUsd),
+            ("سود خالص", "Net profit", profitPublishable ? model.NetProfitUsd : null),
             ("گردش خالص نقدی", "Net cash movement", model.NetCashMovementUsd),
             ("دریافتنی از مشتریان", "Customer receivable", model.CustomerReceivableUsd),
             ("پرداختنی به تأمین‌کنندگان", "Supplier payable", model.SupplierPayableUsd),
@@ -157,7 +160,9 @@ public partial class ReportsController
                 [
                     TabularExportCell.Text(isEn ? line.En : line.Fa),
                     TabularExportCell.Number(line.Value),
-                    TabularExportCell.Text(isEn ? "Company total" : "جمع شرکت")
+                    TabularExportCell.Text(line.Value.HasValue
+                        ? isEn ? "Company total" : "جمع شرکت"
+                        : isEn ? model.ProfitUnavailableNoteEn : model.ProfitUnavailableNoteFa)
                 ]))
                 .Concat(model.TopContracts.Select(contract => new TabularExportRow(
                 [
@@ -168,8 +173,10 @@ public partial class ReportsController
             Totals = new TabularExportRow(
             [
                 TabularExportCell.Text(isEn ? "Net profit / Total" : "سود خالص / جمع"),
-                TabularExportCell.Number(model.NetProfitUsd),
-                TabularExportCell.Text(null)
+                TabularExportCell.Number(profitPublishable ? model.NetProfitUsd : null),
+                TabularExportCell.Text(profitPublishable
+                    ? null
+                    : isEn ? model.ProfitUnavailableNoteEn : model.ProfitUnavailableNoteFa)
             ])
         });
     }

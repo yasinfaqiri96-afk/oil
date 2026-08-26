@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -51,6 +51,14 @@ public class Contract : BaseEntity
     public Location? DestinationLocation { get; set; }
     public ContractOwnershipType OwnershipType { get; set; } = ContractOwnershipType.Personal;
     public ICollection<ContractPartner> ContractPartners { get; set; } = [];
+
+    /// <summary>
+    /// شریکی که عایدِ فروشِ این قرارداد نزد او مانده است. فقط برای قرارداد شراکتی معنا دارد.
+    /// این فیلد هیچ فروش یا رسید جدیدی نمی‌سازد و Revenue را تغییر نمی‌دهد؛ فقط مشخص می‌کند
+    /// پولِ حاصل از همان فروشِ ثبت‌شده دستِ کدام شریک است تا صورت‌حساب شراکت درست شود.
+    /// </summary>
+    public int? SaleProceedsHolderPartnerId { get; set; }
+    public Partner? SaleProceedsHolderPartner { get; set; }
 
     public DateTime ContractDate { get; set; }
     public DateTime? StartDate { get; set; }

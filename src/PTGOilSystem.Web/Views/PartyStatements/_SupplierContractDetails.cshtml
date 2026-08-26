@@ -68,8 +68,8 @@
                                     <small class="statement-ref-inline">@row.Reference</small>
                                 }
                             </td>
-                            <td class="statement-money statement-debit">@Base(row.ReceiptBase, row.ReceiptRub)</td>
-                            <td class="statement-money statement-credit">@Base(row.OutflowBase, row.OutflowRub)</td>
+                            <td class="statement-money statement-receipt">@Base(row.ReceiptBase, row.ReceiptRub)</td>
+                            <td class="statement-money statement-outflow">@Base(row.OutflowBase, row.OutflowRub)</td>
                             <td class="statement-money statement-balance">@Base(row.RunningBalance, row.RunningBalanceRub)</td>
                         </tr>
                     }

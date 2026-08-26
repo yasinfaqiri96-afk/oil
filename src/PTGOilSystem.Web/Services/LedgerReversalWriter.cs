@@ -10,7 +10,9 @@ namespace PTGOilSystem.Web.Services;
 /// </summary>
 public static class LedgerReversalWriter
 {
-    public const string CancelReferenceSuffix = "-CANCEL";
+    // یک تعریف برای نشانهٔ برگشت: نویسندهٔ سطر و خوانندهٔ صورت‌حساب باید دقیقاً یک رشته
+    // را بشناسند، وگرنه سطر برگشت مثل سند اصلی خوانده می‌شود و اثر را دو برابر می‌کند.
+    public const string CancelReferenceSuffix = CompanyFlow.CompanyFlowSourceTypes.ReversalReferenceSuffix;
 
     public static async Task<LedgerEntry?> ReverseAsync(
         ApplicationDbContext db,

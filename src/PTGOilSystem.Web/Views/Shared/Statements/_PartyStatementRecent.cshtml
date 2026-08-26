@@ -22,8 +22,8 @@
                 <td>@row.Date.ToDisplayDate()</td>
                 <td>@(row.Reference ?? "—")</td>
                 <td class="ak-col-grow">@row.DescriptionFor(UiText.IsEn(Context))</td>
-                <td class="ak-col-num ak-num">@Money(row.ReceiptBase)</td>
-                <td class="ak-col-num ak-num">@Money(row.OutflowBase)</td>
+                <td class="ak-col-num ak-num @(row.ReceiptBase.GetValueOrDefault() == 0m ? null : "ak-number--positive")">@Money(row.ReceiptBase)</td>
+                <td class="ak-col-num ak-num @(row.OutflowBase.GetValueOrDefault() == 0m ? null : "ak-number--negative")">@Money(row.OutflowBase)</td>
                 <td class="ak-col-num ak-num">@Money(row.RunningBalance)</td>
             </tr>
         }

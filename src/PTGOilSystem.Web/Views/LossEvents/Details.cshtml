@@ -10,40 +10,48 @@
     var currentReturnUrl = Context.Request.Path + Context.Request.QueryString;
     var inventoryStatus = Model.AffectsInventory ? T("اثر دارد", "Affects inventory") : T("اثر ندارد", "No impact");
     var hasChargeable = Model.ChargeableLossMt > 0m;
+    var statusText = hasChargeable ? T("قابل محاسبه", "Chargeable") : T("داخل حد مجاز", "Within tolerance");
+    var statusState = hasChargeable ? "is-warning" : "is-active";
+    var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl });
 
-    ViewData["AkHeaderStatus"] = hasChargeable ? T("قابل محاسبه", "Chargeable") : T("داخل حد مجاز", "Within tolerance");
-    ViewData["AkHeaderStatusState"] = hasChargeable ? "is-warning" : "is-active";
-    // Kebab keeps the side route only; the record's own action lives in the bar.
+    // Kebab keeps the side route only; the record's own action lives in the strip.
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("کسری جدید", "New loss"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
     };
 
-    // شاخص‌های اصلی: چهار عدد تصمیم‌ساز. حد تحمل و کسری مجاز عدد پشتیبان‌اند و
-    // در کارت خلاصه می‌مانند، نه در نوار KPI.
-    var kpis = new List<AkKpiItem>
+    // اعداد تصمیم‌ساز کسری در یک کارت؛ حد تحمل و کسری مجاز عدد پشتیبان‌اند و
+    // در کارت اندازه‌گیری کنار همان مقایسه می‌مانند.
+    var quantityMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مورد انتظار", "Expected"), Value = Model.ExpectedQuantityMt.ToString("N4"), Unit = "MT", Avatar = "analysis" },
-        new() { Title = T("واقعی", "Actual"), Value = Model.ActualQuantityMt.ToString("N4"), Unit = "MT", Avatar = "quality" },
-        new() { Title = T("تفاوت", "Difference"), Value = Model.DifferenceQuantityMt.ToString("N4"), Unit = "MT", Avatar = "losses" },
-        new() { Title = T("قابل محاسبه", "Chargeable"), Value = Model.ChargeableLossMt.ToString("N4"), Unit = "MT", Avatar = "statement", State = hasChargeable ? "warning" : null }
+        new() { Title = T("مورد انتظار", "Expected"), Value = Model.ExpectedQuantityMt.ToString("N4"), Unit = "MT" },
+        new() { Title = T("واقعی", "Actual"), Value = Model.ActualQuantityMt.ToString("N4"), Unit = "MT" },
+        new() { Title = T("تفاوت", "Difference"), Value = Model.DifferenceQuantityMt.ToString("N4"), Unit = "MT" },
+        new() { Title = T("قابل محاسبه", "Chargeable"), Value = Model.ChargeableLossMt.ToString("N4"), Unit = "MT", State = hasChargeable ? "warning" : "accent" }
     };
 
-    // مرحله/جنس/تاریخ در خط زمینهٔ سربرگ آمده‌اند و اینجا تکرار نمی‌شوند.
-    // بارگیری/رسید/ارسال/فروش/قرارداد/محموله فقط در «رکوردهای مرتبط» می‌آیند.
-    var summaryItems = new List<AkInfoItem>
+    var toleranceMetrics = new List<AkKpiItem>
     {
-        new() { Label = T("حد تحمل", "Tolerance"), Value = Model.ToleranceQuantityMt.ToString("N4"), Unit = "MT", IsNumeric = true },
-        new() { Label = T("کسری مجاز", "Allowable"), Value = Model.AllowableLossMt.ToString("N4"), Unit = "MT", IsNumeric = true },
+        new() { Title = T("حد تحمل", "Tolerance"), Value = Model.ToleranceQuantityMt.ToString("N4"), Unit = "MT" },
+        new() { Title = T("کسری مجاز", "Allowable"), Value = Model.AllowableLossMt.ToString("N4"), Unit = "MT" }
+    };
+
+    var mainItems = new List<AkInfoItem>
+    {
+        new() { Label = T("محصول", "Product"), Value = Model.ProductName },
+        new() { Label = T("مرحله", "Stage"), Value = Model.Stage.ToString() },
+        new() { Label = T("تاریخ رویداد", "Event date"), Value = Model.EventDate.ToDisplayDate(), IsNumeric = true },
         new() { Label = T("ترمینال", "Terminal"), Value = Model.TerminalName },
-        new() { Label = T("مخزن", "Tank"), Value = Model.StorageTankCode },
+        new() { Label = T("مخزن", "Tank"), Value = Model.StorageTankCode }
+    };
+
+    var responsibilityItems = new List<AkInfoItem>
+    {
         new() { Label = T("نوع مسئول", "Responsible type"), Value = Model.ResponsiblePartyType },
         new() { Label = T("مسئول", "Responsible party"), Value = Model.ResponsiblePartyName },
         new() { Label = T("برخورد مالی", "Financial treatment"), Value = Model.FinancialTreatment },
-        new() { Label = T("اثر بر موجودی", "Inventory impact"), Value = inventoryStatus, Tone = Model.AffectsInventory ? "warning" : null },
-        new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
+        new() { Label = T("اثر بر موجودی", "Inventory impact"), Value = inventoryStatus, Tone = Model.AffectsInventory ? "warning" : null }
     };
-    var overviewItems = summaryItems;
 
     // شناسه‌های داخلی و سیستمی — پشت آکاردئون بسته.
     var advancedItems = new List<AkInfoItem>
@@ -61,11 +69,6 @@
     if (!string.IsNullOrWhiteSpace(Model.TruckDispatchLabel)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("ارسال با موتر", "Truck dispatch"), Label = Model.TruckDispatchLabel, Icon = "bi-truck" });
     if (!string.IsNullOrWhiteSpace(Model.SalesLabel)) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("فروش", "Sale"), Label = Model.SalesLabel, Icon = "bi-receipt" });
 
-    // A recorded loss has no forward operation, so correcting it is the single CTA.
-    var nextActions = new List<AkHeaderMenuItem>
-    {
-        new() { Label = T("ویرایش کسری", "Edit loss"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-pencil-square" }
-    };
     var activityRows = new List<AkDetailActivityRow>
     {
         new() { Label = T("اثر موجودی", "Inventory impact"), Value = Model.ChargeableLossMt.ToString("N4"), Unit = "MT", Meta = inventoryStatus, Status = Model.AffectsInventory ? T("ثبت شده", "Recorded") : T("بدون اثر", "No impact"), StatusTone = Model.AffectsInventory ? "warning" : "success", Icon = "bi-box-seam" },
@@ -77,32 +80,69 @@
         new() { Title = T("کسری ثبت شد", "Loss recorded"), Date = Model.EventDate.ToDisplayDate(), Timestamp = Model.EventDate, Icon = "bi-exclamation-diamond", State = "is-current", Meta = $"{Model.ChargeableLossMt:N4} MT" }
     };
 
+    // A recorded loss has no forward operation, so correcting it is the single
+    // CTA and it now sits in the identity strip instead of the bottom bar.
+    var nextActions = new List<AkHeaderMenuItem>();
+
+    var cardsModel = new AkDetailCardsModel
+    {
+        Code = $"#{Model.Id}",
+        CodeLabel = T("شماره کسری", "Loss no."),
+        Status = statusText,
+        StatusState = statusState,
+        StripItems = new List<AkInfoItem>
+        {
+            new() { Label = T("محصول", "Product"), Value = Model.ProductName },
+            new() { Label = T("مرحله", "Stage"), Value = Model.Stage.ToString() },
+            new() { Label = T("قابل محاسبه", "Chargeable"), Value = $"{Model.ChargeableLossMt:N4} MT", IsNumeric = true },
+            new() { Label = T("تاریخ", "Date"), Value = Model.EventDate.ToDisplayDate(), IsNumeric = true }
+        },
+        PrimaryLabel = T("ویرایش کسری", "Edit loss"),
+        PrimaryHref = editUrl,
+        Cards = new List<AkDetailCard>
+        {
+            new() { Title = T("اطلاعات اصلی", "Main information"), Icon = "bi-info-circle", Rows = mainItems },
+            new() { Title = T("اندازه‌گیری", "Measurement"), Icon = "bi-rulers", Metrics = quantityMetrics, Footer = new List<AkInfoItem>
+                {
+                    new() { Label = T("حد تحمل", "Tolerance"), Value = $"{Model.ToleranceQuantityMt:N4} MT", IsNumeric = true },
+                    new() { Label = T("کسری مجاز", "Allowable"), Value = $"{Model.AllowableLossMt:N4} MT", IsNumeric = true }
+                } },
+            new() { Title = T("مسئولیت و اثر مالی", "Responsibility & financial impact"), Icon = "bi-cash-coin", Rows = responsibilityItems },
+            new() { Title = T("یادداشت", "Notes"), Icon = "bi-journal-text", Text = Model.Notes, IsWide = true }
+        }
+    };
+
+    var moreModel = new AkDetailMoreModel
+    {
+        Activity = activityRows,
+        Secondary = new AkDetailSecondaryModel
+        {
+            TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
+            TimelineLimit = 4,
+            Timeline = timelineItems,
+            Related = relatedRecords,
+            Technical = advancedItems
+        },
+        NextActions = nextActions
+    };
+
     ViewData["Title"] = T("جزئیات کسری", "Loss Event Details");
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = $"{T("کسری", "Loss")} · {Model.ProductName}",
            Eyebrow = Model.Stage.ToString(),
            Meta = $"#{Model.Id} · {Model.EventDate.ToDisplayDate()}",
-           Icon = "bi-exclamation-diamond",
-           Status = ViewData["AkHeaderStatus"]?.ToString(),
-           StatusState = ViewData["AkHeaderStatusState"]?.ToString()
+           Icon = "bi-exclamation-diamond"
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("کسری", "Loss") + $" #{Model.Id}", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                         T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
-             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات کسری", "Loss summary"), AriaLabel = T("نمای اصلی کسری", "Loss overview"), Metrics = kpis, Facts = overviewItems })" />
-
-    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
-
-    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
-             model="@(new AkDetailSecondaryModel { TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"), TimelineLimit = 4, Timeline = timelineItems, Related = relatedRecords, Technical = advancedItems })" />
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
-
+    <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
+    <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 </div>

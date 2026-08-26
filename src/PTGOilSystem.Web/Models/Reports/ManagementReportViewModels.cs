@@ -58,6 +58,20 @@ public sealed class CompanyFinancialOverviewViewModel
         ExpenseUsd + LossCostUsd,
         ExchangeGainUsd,
         ExchangeLossUsd);
+
+    /// <summary>
+    /// سود فقط وقتی عدد قطعی است که بهای تمام‌شدهٔ همهٔ فروش‌های این بازه ثبت شده باشد.
+    /// تا وقتی <see cref="UncostedSaleCount"/> بزرگ‌تر از صفر است، COGS آن فروش‌ها صفر
+    /// خوانده می‌شود و سود بیش از واقع درمی‌آید؛ در آن حالت هیچ صفحه/خروجی نباید این
+    /// عدد را به‌عنوان سود واقعی منتشر کند.
+    /// </summary>
+    public bool IsProfitPublishable => UncostedSaleCount == 0 && PnlConfidence == PnlConfidence.Verified;
+
+    public string ProfitUnavailableNoteFa =>
+        $"بهای تمام‌شدهٔ فروش تکمیل نشده ({UncostedSaleCount:N0} فروش)؛ سود نهایی قابل محاسبه نیست.";
+
+    public string ProfitUnavailableNoteEn =>
+        $"Cost of goods sold is incomplete ({UncostedSaleCount:N0} sale(s)); final profit cannot be calculated.";
 }
 
 public sealed class CashFlowReportRowViewModel

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace PTGOilSystem.Web.Models.Entities;
@@ -317,6 +317,54 @@ public class LedgerEntry : BaseEntity
     public Employee? Employee { get; set; }
     public int? ShipmentId { get; set; }
     public Shipment? Shipment { get; set; }
+}
+
+/// <summary>
+/// تسویهٔ مستقیم پول بین دو شریکِ همان قرارداد/قراردادها — یک یادداشتِ حساب شراکت (memorandum).
+///
+/// این رکورد عمداً هیچ LedgerEntry، هیچ JournalEntry و هیچ ExpenseTransaction نمی‌سازد:
+/// مصرف نیست، فروش نیست، پرداخت تأمین‌کننده/مشتری هم نیست. فقط جابه‌جایی پول بین دو شریک
+/// است، پس نه Revenue را تغییر می‌دهد و نه Operating Expense را، و P&amp;L قرارداد دست‌نخورده
+/// می‌ماند. تنها اثرش روی «صورت‌حساب شراکت» است.
+///
+/// چرا به CashAccount/Sarraf وصل نیست: در این سیستم پولِ شریک اصلاً از صندوق شرکت نمی‌گذرد
+/// (<see cref="PaymentFundingSource.Partner"/> یعنی صندوق/بانک شرکت حرکت نکرده). انتقالِ
+/// شریک‌به‌شریک هم همین‌طور است. اگر پولی واقعاً از حساب نقد/بانک/صرافِ شرکت رفته باشد،
+/// همان یک <see cref="PaymentTransaction"/> است و باید در روزنامچه ثبت شود؛ ثبت دوبارهٔ آن
+/// اینجا یعنی دوبار شمردن. برای همین اینجا حسابداری موازی ساخته نشده و
+/// <see cref="Reference"/> جای نوشتنِ شمارهٔ همان سندِ رسمی است.
+///
+/// اصلاح و حذف با الگوی reverse-and-repost انجام می‌شود: رکورد اشتباه
+/// <see cref="IsReversed"/> می‌شود و رکورد درست دوباره ثبت می‌گردد؛ تاریخچه دست‌نخورده می‌ماند.
+/// </summary>
+public class PartnerSettlement : BaseEntity
+{
+    public DateTime SettlementDate { get; set; }
+
+    /// <summary>شریکی که پول را پرداخت کرده.</summary>
+    public int FromPartnerId { get; set; }
+    public Partner? FromPartner { get; set; }
+
+    /// <summary>شریکی که پول را گرفته.</summary>
+    public int ToPartnerId { get; set; }
+    public Partner? ToPartner { get; set; }
+
+    /// <summary>قرارداد مرجع. خالی یعنی تسویهٔ کلیِ حساب شراکت، نه مربوط به یک قرارداد خاص.</summary>
+    public int? ContractId { get; set; }
+    public Contract? Contract { get; set; }
+
+    public decimal Amount { get; set; }
+    [Required, MaxLength(10)] public string Currency { get; set; } = "USD";
+    public decimal AppliedFxRateToUsd { get; set; } = 1m;
+    public decimal AmountUsd { get; set; }
+
+    [MaxLength(200)] public string? Reference { get; set; }
+    [MaxLength(1000)] public string? Description { get; set; }
+
+    public bool IsReversed { get; set; }
+    public DateTime? ReversedAtUtc { get; set; }
+    public int? ReversedByUserId { get; set; }
+    [MaxLength(500)] public string? ReversalReason { get; set; }
 }
 
 public class ContractBalanceTransfer : BaseEntity

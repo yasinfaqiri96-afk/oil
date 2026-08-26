@@ -57,40 +57,43 @@
         }
     </div>
 
-    @if (visibleFacts.Count > 0)
+    @if (visibleFacts.Count > 0 || identityRows.Count > 0)
     {
-        <dl class="ak-party-facts">
-            @foreach (var fact in visibleFacts)
+        <div class="ak-party-meta">
+            @if (visibleFacts.Count > 0)
             {
-                <div class="ak-party-fact">
-                    <dt>@fact.Label</dt>
-                    <dd class="@(fact.IsNumeric ? "is-num" : null)">
-                        <bdi>@fact.Value</bdi>
-                        @if (!string.IsNullOrWhiteSpace(fact.Unit))
+                <dl class="ak-party-meta-grid">
+                    @foreach (var fact in visibleFacts)
+                    {
+                        <div class="ak-party-meta-cell">
+                            <dt>@fact.Label</dt>
+                            <dd class="@(fact.IsNumeric ? "is-num" : null)" title="@fact.Value">
+                                <bdi>@fact.Value</bdi>
+                                @if (!string.IsNullOrWhiteSpace(fact.Unit))
+                                {
+                                    <span class="ak-party-meta-unit">@fact.Unit</span>
+                                }
+                            </dd>
+                        </div>
+                    }
+                </dl>
+            }
+
+            @if (identityRows.Count > 0)
+            {
+                <div class="ak-party-identity-panel">
+                    <h3 class="ak-party-subhead">@Model.IdentityTitle</h3>
+                    <dl class="ak-party-meta-grid ak-party-meta-grid--identity">
+                        @foreach (var item in identityRows)
                         {
-                            <span class="ak-party-fact-unit">@fact.Unit</span>
+                            <div class="ak-party-meta-cell @(item.IsWide ? "is-wide" : null)">
+                                <dt title="@item.Label">@item.Label</dt>
+                                <dd class="@(item.IsNumeric ? "is-num" : null)" title="@item.Value">@item.Value</dd>
+                            </div>
                         }
-                    </dd>
+                    </dl>
                 </div>
             }
-        </dl>
-    }
-
-    @if (identityRows.Count > 0)
-    {
-        <div class="ak-party-identity-block">
-            <h3 class="ak-party-subhead">@Model.IdentityTitle</h3>
-            <dl class="ak-list ak-list--flush ak-identity-list">
-                @foreach (var item in identityRows)
-                {
-                    @* Identity is one strip; a value longer than its cell is clipped,
-                       so the full text stays reachable through the native tooltip. *@
-                    <div class="ak-list-row @(item.IsWide ? "is-wide" : null)">
-                        <dt title="@item.Label">@item.Label</dt>
-                        <dd class="@(item.IsNumeric ? "ak-num" : null)" title="@item.Value">@item.Value</dd>
-                    </div>
-                }
-            </dl>
         </div>
     }
 </section>

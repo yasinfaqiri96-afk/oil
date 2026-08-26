@@ -22,6 +22,13 @@ namespace PTGOilSystem.Web.Services.PartyStatements;
 /// پرداخت می‌نشست و مانده را صفر می‌کرد. مالکیتِ صراف از SourceId (شناسهٔ صراف) خوانده
 /// می‌شود و دست‌نخورده می‌ماند.
 ///
+/// استثنای صریح (AUD-04): سطرِ <c>Expense</c> هرگز از راهِ قرارداد به تأمین‌کننده نمی‌چسبد.
+/// هزینه‌های حمل/انتقال (مصرف از موجودی، ارسال موتر و …) روی قرارداد خرید ثبت می‌شوند ولی
+/// هیچ FK طرف‌حسابی ندارند؛ شرط (۲) آن‌ها را «مالِ تأمین‌کنندهٔ قرارداد» می‌گرفت و بدهیِ او را
+/// بی‌جهت بالا می‌برد. اگر هزینه‌ای واقعاً بدهی به تأمین‌کننده باشد، <see cref="LedgerEntry.SupplierId"/>
+/// آن ست است و از مسیر (۱) شمرده می‌شود. سطر برگشتِ همان هزینه نیز SourceType یکسان دارد،
+/// پس هر دو پا با هم کنار می‌مانند و خنثایی برگشت حفظ می‌شود.
+///
 /// هیچ چیزی در ثبت Ledger/هزینه/حساب حمل‌کننده تغییر نمی‌کند؛ این فقط «انتساب
 /// خواندنیِ» صورت‌حساب/مانده تأمین‌کننده است و به‌صورت Expression نوشته شده تا در
 /// همهٔ Queryهای EF یکسان ترجمه شود (شرطِ پراکنده ساخته نشود).
@@ -31,11 +38,15 @@ public static class LedgerEntryOwnership
     /// <summary>بدهیِ شرکت به صراف؛ فقط در حساب صراف دیده می‌شود، هرگز در حساب تأمین‌کننده.</summary>
     public const string ViaSarrafPayableSourceType = "SupplierViaSarrafPayable";
 
+    /// <summary>هزینه/مصرف؛ فقط با SupplierId صریح مالِ تأمین‌کننده است، هرگز از راهِ قرارداد.</summary>
+    public const string ExpenseSourceType = "Expense";
+
     public static Expression<Func<LedgerEntry, bool>> SupplierOwned(int supplierId)
         => entry =>
             entry.SourceType != ViaSarrafPayableSourceType
             && (entry.SupplierId == supplierId
                 || (entry.SupplierId == null
+                    && entry.SourceType != ExpenseSourceType
                     && entry.ServiceProviderId == null
                     && entry.DriverId == null
                     && entry.CustomerId == null
@@ -49,6 +60,7 @@ public static class LedgerEntryOwnership
             entry.SourceType != ViaSarrafPayableSourceType
             && ((entry.SupplierId != null && supplierIds.Contains(entry.SupplierId.Value))
                 || (entry.SupplierId == null
+                    && entry.SourceType != ExpenseSourceType
                     && entry.ServiceProviderId == null
                     && entry.DriverId == null
                     && entry.CustomerId == null

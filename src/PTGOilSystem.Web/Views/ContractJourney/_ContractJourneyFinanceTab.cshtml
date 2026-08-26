@@ -32,6 +32,21 @@
         return T(fa, text);
     }
 
+    // پرداختِ شریک حساب نقدی ندارد؛ به‌جای سلول خالی نام همان شریک نشان داده می‌شود.
+    string PayerText(ContractJourneyPaymentItemViewModel item)
+        => item.FundingSource == PaymentFundingSource.Partner
+            ? (string.IsNullOrWhiteSpace(item.PaidByPartnerName)
+                ? T("شریک (نامشخص)", "Partner (unspecified)")
+                : item.PaidByPartnerName!)
+            : T("شرکت", "Company");
+
+    string AccountText(ContractJourneyPaymentItemViewModel item)
+        => !string.IsNullOrWhiteSpace(item.CashAccountName)
+            ? item.CashAccountName
+            : item.FundingSource == PaymentFundingSource.Partner
+                ? T("بدون صندوق شرکت", "Not from company cash")
+                : "-";
+
     string ReturnUrl(string tab)
         => Url.Action("Details", "ContractJourney", new { contractId = Model.ContractId, tab, lockContract = Model.LockContract })
             ?? $"/ContractJourney/Details?contractId={Model.ContractId}&tab={tab}&lockContract={Model.LockContract.ToString().ToLowerInvariant()}";
@@ -78,6 +93,7 @@
                         <th>@T("تاریخ", "Date")</th>
                         <th>@T("فاکتور / مرجع", "Invoice / Ref")</th>
                         <th>@T("نوع / حساب", "Type / Account")</th>
+                        <th>@T("پرداخت‌کننده", "Paid by")</th>
                         <th class="ak-col-num">@T("مبلغ", "Amount")</th>
                         <th>@T("دفتر کل", "Ledger")</th>
                         <th class="ak-col-actions">@T("عملیات", "Actions")</th>
@@ -92,7 +108,17 @@
                         </td>
                         <td>@item.PaymentDate.ToDisplayDate()</td>
                         <td>@(!string.IsNullOrWhiteSpace(item.Reference) ? item.Reference : "-")</td>
-                        <td>@LocalizeDisplay(item.PaymentKindName) / @item.CashAccountName</td>
+                        <td>@LocalizeDisplay(item.PaymentKindName) / @AccountText(item)</td>
+                        <td>
+                            @if (item.FundingSource == PaymentFundingSource.Partner)
+                            {
+                                <span class="ak-status is-active">@PayerText(item)</span>
+                            }
+                            else
+                            {
+                                @PayerText(item)
+                            }
+                        </td>
                         <td class="ak-num">@item.AmountUsd.ToString("N2") @UnitUsd()</td>
                         <td>@(item.LedgerEntryId?.ToString() ?? "-")</td>
                         <td class="ak-col-actions">
@@ -111,7 +137,7 @@
                 @if (!Model.Items.Any())
                 {
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="ak-empty">
                                 <i class="bi bi-cash-stack"></i>
                                 @Model.NoRecordsText

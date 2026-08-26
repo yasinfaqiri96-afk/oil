@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -60,8 +60,13 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         }
     }
 
-    private static CompanyFlowLifecycle LifecycleOf(string? sourceType)
-        => CompanyFlowSourceTypes.IsReversal(sourceType)
+    /// <summary>
+    /// چرخهٔ عمر سطر. مرجع هم خوانده می‌شود چون برگشتِ بارگیری/فروش/مصرف عمداً SourceType
+    /// سند اصلی را نگه می‌دارد و فقط با پسوندِ مرجع علامت می‌خورد؛ بدون آن، سطرِ برگشت
+    /// «اصلی» خوانده می‌شد و به‌جای صفرکردن، اثر سند را دو برابر می‌کرد.
+    /// </summary>
+    private static CompanyFlowLifecycle LifecycleOf(string? sourceType, string? reference)
+        => CompanyFlowSourceTypes.IsReversal(sourceType, reference)
             ? CompanyFlowLifecycle.Reversal
             : CompanyFlowLifecycle.Original;
 
@@ -238,6 +243,11 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
 
         var allRows = entries.Select(e => MapLedgerRow(e, policy)).ToList();
 
+        // سند فروش همیشه ContractId را روی خودِ سطر دفتر ندارد؛ قرارداد از خودِ فاکتور
+        // فروش خوانده می‌شود تا در نمای «قراردادها» زیر گروهِ اشتباه یا «بدون قرارداد»
+        // ننشیند. فقط برچسبِ قرارداد کامل می‌شود؛ هیچ مبلغ، جهت یا مانده‌ای تغییر نمی‌کند.
+        await ResolveSaleContractLabelsAsync(entries, allRows, ct);
+
         // یک خدمتِ ثبت‌شده روی یک محموله، هنگام ثبت به‌تناسبِ هر قرارداد تقسیم می‌شود و
         // چند سند مصرف می‌سازد. در حساب شرکت خدماتی طرفِ واقعی یکی است و باید یک سطر با
         // مبلغ کل دیده شود، نه سهمِ هر قرارداد. تقسیم در Ledger دست‌نخورده می‌ماند.
@@ -247,6 +257,56 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         }
 
         return SplitAtPeriodStart(allRows, filter.FromDate);
+    }
+
+    private const string SaleSourceType = "Sale";
+
+    // نگاشت «سند فروش → قرارداد» فقط برای سطرهایی که در دفتر قرارداد ندارند. یک کوئری
+    // projection (بدون N+1) و کاملاً نمایشی است.
+    private async Task ResolveSaleContractLabelsAsync(
+        List<LedgerStatementProjection> entries,
+        List<PartyStatementRow> rows,
+        CancellationToken ct)
+    {
+        var saleIds = entries
+            .Where(e => e.SourceType == SaleSourceType && !e.ContractId.HasValue)
+            .Select(e => e.SourceId)
+            .Distinct()
+            .ToList();
+        if (saleIds.Count == 0)
+        {
+            return;
+        }
+
+        var saleContracts = await _db.SalesTransactions
+            .AsNoTracking()
+            .Where(x => saleIds.Contains(x.Id) && x.ContractId.HasValue)
+            .Select(x => new
+            {
+                x.Id,
+                ContractId = x.ContractId!.Value,
+                ContractNumber = x.Contract != null ? x.Contract.ContractNumber : null
+            })
+            .ToListAsync(ct);
+        if (saleContracts.Count == 0)
+        {
+            return;
+        }
+
+        var map = saleContracts.ToDictionary(x => x.Id);
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var entry = entries[i];
+            if (entry.SourceType != SaleSourceType
+                || entry.ContractId.HasValue
+                || !map.TryGetValue(entry.SourceId, out var sale))
+            {
+                continue;
+            }
+
+            rows[i].ContractId = sale.ContractId;
+            rows[i].ContractNumber ??= sale.ContractNumber;
+        }
     }
 
     private const string ExpenseSourceType = "Expense";
@@ -553,7 +613,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 entry.SourceType,
                 entry.Side,
                 policy.FlowRole,
-                LifecycleOf(entry.SourceType)),
+                LifecycleOf(entry.SourceType, entry.Reference)),
             entry.AmountUsd);
 
         return row;
@@ -593,6 +653,12 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             .Select(s => new { s.Id, ContractId = s.ContractId!.Value })
             .ToDictionaryAsync(x => x.Id, x => x.ContractId, ct);
         var saleIds = saleMap.Keys.ToList();
+        // شمارهٔ قرارداد برای سطرهایی که ContractId را از سند فروش گرفته‌اند (سطر دفتر
+        // قرارداد ندارد و ContractNumber خالی می‌ماند). فقط برچسب است.
+        var contractNumberById = await _db.Contracts
+            .AsNoTracking()
+            .Where(c => contractIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.ContractNumber, ct);
 
         var query = _db.LedgerEntries
             .AsNoTracking()
@@ -695,7 +761,9 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 ? decimal.Round(entry.OriginalAmount.Value * ratio, 4, MidpointRounding.AwayFromZero)
                 : null;
             entry.ContractId = contractId;
-            allRows.Add(MapLedgerRow(entry, policy));
+            var partnerRow = MapLedgerRow(entry, policy);
+            partnerRow.ContractNumber ??= contractNumberById.GetValueOrDefault(contractId.Value);
+            allRows.Add(partnerRow);
         }
 
         return SplitAtPeriodStart(allRows, filter.FromDate);
@@ -898,7 +966,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             // صراف به‌جای شرکت به تأمین‌کننده پرداخت کرده ⇒ ارزش را او فراهم کرده ⇒ «رسید».
             ApplyFlow(
                 row,
-                new CompanyFlowEvent(ledger.SourceType, ledger.Side, CompanyFlowPartyRole.Sarraf, LifecycleOf(ledger.SourceType)),
+                new CompanyFlowEvent(ledger.SourceType, ledger.Side, CompanyFlowPartyRole.Sarraf, LifecycleOf(ledger.SourceType, ledger.Reference)),
                 ledger.AmountUsd);
             allRows.Add(row);
         }

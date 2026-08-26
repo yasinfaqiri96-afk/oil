@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Customers.CustomerProfileViewModel
+﻿@model PTGOilSystem.Web.Models.Customers.CustomerProfileViewModel
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Shared
 @{
@@ -21,6 +21,11 @@
     var activeSales = Model.Sales.Where(s => !s.IsCancelled).ToList();
     var allocatedPayments = Model.Payments.Where(p => p.SaleId.HasValue).ToList();
     var unallocatedPayments = Model.Payments.Where(p => !p.SaleId.HasValue).ToList();
+    // جدول‌های بلند پیش‌فرض ۱۰ مورد اخیر را نشان می‌دهند؛ شمارش سرصفحه روی کل داده می‌ماند.
+    var salesShown = DetailListPreview.Take(Context.Request, "customer-sales", Model.Sales);
+    var allocatedShown = DetailListPreview.Take(Context.Request, "customer-allocated", allocatedPayments);
+    var unallocatedShown = DetailListPreview.Take(Context.Request, "customer-unallocated", unallocatedPayments);
+    var customerContractsShown = DetailListPreview.Take(Context.Request, "customer-contracts", Model.Contracts);
 
     var newPaymentUrl = Url.Action("Create", "Payments", new { customerId = Model.CustomerId, returnUrl }) ?? "#";
     var threeWayUrl = Url.Action("Index", "ThreeWaySettlement", new { customerId = Model.CustomerId }) ?? "#";
@@ -129,7 +134,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var s in Model.Sales)
+                @foreach (var s in salesShown)
                 {
                     <tr class="@(s.IsCancelled ?"ak-row-muted" : "")">
                         <td class="ak-col-grow"><a class="ak-name" asp-controller="Sales" asp-action="Details" asp-route-id="@s.SaleId">@s.InvoiceNumber</a></td>
@@ -151,6 +156,7 @@
                 </tbody>
             </table>
         </div>
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("customer-sales", salesShown.Count, Model.Sales.Count))" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("دریافت‌های تخصیص‌یافته به فروش", $"{allocatedPayments.Count:N0} مورد"))" />
         <div class="ak-table-wrap">
@@ -167,7 +173,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var p in allocatedPayments)
+                @foreach (var p in allocatedShown)
                 {
                     <tr>
                         <td>@p.PaymentDate.ToDisplayDate()</td>
@@ -186,6 +192,7 @@
                 </tbody>
             </table>
         </div>
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("customer-allocated", allocatedShown.Count, allocatedPayments.Count))" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("دریافت‌های تخصیص‌نشده / اعتبار آزاد", $"{unallocatedPayments.Count:N0} مورد"))" />
         <div class="ak-table-wrap">
@@ -202,7 +209,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var p in unallocatedPayments)
+                @foreach (var p in unallocatedShown)
                 {
                     <tr>
                         <td>@p.PaymentDate.ToDisplayDate()</td>
@@ -221,6 +228,7 @@
                 </tbody>
             </table>
         </div>
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("customer-unallocated", unallocatedShown.Count, unallocatedPayments.Count))" />
 
         @if (Model.Contracts.Any())
         {
@@ -240,7 +248,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                    @foreach (var c in Model.Contracts)
+                    @foreach (var c in customerContractsShown)
                     {
                         <tr>
                             <td class="ak-col-grow"><a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@c.ContractId" asp-route-returnUrl="@returnUrl">@c.ContractNumber</a></td>
@@ -256,6 +264,7 @@
                     </tbody>
                 </table>
             </div>
+            <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("customer-contracts", customerContractsShown.Count, Model.Contracts.Count))" />
         }
     </section>
 </div>

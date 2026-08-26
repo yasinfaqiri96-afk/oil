@@ -183,6 +183,38 @@ public class ExportMatchesPageTests
         var revenueCell = export.Document.Rows.First().Cells[1];
         Assert.Equal(page.RevenueUsd, Assert.IsType<decimal>(revenueCell.Value));
         Assert.NotNull(export.Document.Totals);
+
+        // این فروش بهای تمام‌شده ندارد، پس صفحه سود را منتشر نمی‌کند و خروجی هم نباید
+        // بکند؛ صفحه و خروجی دقیقاً یک تصمیم می‌گیرند.
+        Assert.False(page.IsProfitPublishable);
+        Assert.Null(export.Document.Totals!.Cells[1].Value);
+    }
+
+    [Fact]
+    public async Task Company_Pnl_Export_Publishes_Net_Profit_Once_Sales_Are_Costed()
+    {
+        await using var db = NewDb();
+        SeedReference(db);
+        db.SalesTransactions.Add(NewSale(1, 5_000m));
+        db.SalesCostConsumptions.Add(new SalesCostConsumption
+        {
+            SalesTransactionId = 1,
+            CompanyId = 1,
+            ProductId = 1,
+            TerminalId = 1,
+            QuantityMt = 1m,
+            CostUsd = 3_000m,
+            Status = SalesCostConsumptionStatus.Active
+        });
+        await db.SaveChangesAsync();
+
+        var controller = WithHttpContext(new ReportsController(db, clock: Clock));
+
+        var view = Assert.IsType<ViewResult>(await controller.CompanyOverview());
+        var page = Assert.IsType<CompanyFinancialOverviewViewModel>(view.Model);
+        Assert.True(page.IsProfitPublishable);
+
+        var export = Assert.IsType<TabularExportResult>(await controller.CompanyOverviewExport("excel"));
         Assert.Equal(page.NetProfitUsd, Assert.IsType<decimal>(export.Document.Totals!.Cells[1].Value));
     }
 

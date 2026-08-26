@@ -1102,6 +1102,9 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
+                    b.Property<int?>("SaleProceedsHolderPartnerId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SettlementCurrencyCode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1147,6 +1150,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("ParentContractId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("SaleProceedsHolderPartnerId");
 
                     b.HasIndex("SupplierId");
 
@@ -5066,6 +5071,86 @@ namespace PTGOilSystem.Web.Migrations
                     b.ToTable("Partners");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PartnerSettlement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("AmountUsd")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("AppliedFxRateToUsd")
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<int?>("ContractId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("FromPartnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsReversed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ReversalReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ReversedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ReversedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SettlementDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ToPartnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("ToPartnerId");
+
+                    b.HasIndex("FromPartnerId", "ToPartnerId", "SettlementDate");
+
+                    b.ToTable("PartnerSettlements");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PaymentTransaction", b =>
                 {
                     b.Property<int>("Id")
@@ -7970,6 +8055,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Partner", "SaleProceedsHolderPartner")
+                        .WithMany()
+                        .HasForeignKey("SaleProceedsHolderPartnerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId");
@@ -7988,6 +8078,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("ParentContract");
 
                     b.Navigation("Product");
+
+                    b.Navigation("SaleProceedsHolderPartner");
 
                     b.Navigation("Supplier");
 
@@ -9484,6 +9576,32 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Location");
 
                     b.Navigation("Terminal");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PartnerSettlement", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Contract", "Contract")
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Partner", "FromPartner")
+                        .WithMany()
+                        .HasForeignKey("FromPartnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Partner", "ToPartner")
+                        .WithMany()
+                        .HasForeignKey("ToPartnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("FromPartner");
+
+                    b.Navigation("ToPartner");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PaymentTransaction", b =>

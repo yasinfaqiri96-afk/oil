@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Routing;
@@ -196,26 +196,6 @@ public sealed class PartnerFundingTests
 
         Assert.Equal(40_000m, a.ClosingBalanceUsd);
         Assert.Equal(-40_000m, b.ClosingBalanceUsd);
-    }
-
-    [Fact]
-    public async Task PartnerProfile_ReportsActualPaymentsAndPositionConsistentWithTheStatement()
-    {
-        await using var db = CreateDb();
-        var scenario = await SeedPartnershipAsync(db);
-
-        await AddPartnerFundedPaymentAsync(db, scenario, scenario.PartnerA, PurchaseUsd,
-            PaymentKind.SupplierPayment, "SupplierPayment", new DateTime(2026, 8, 5));
-        await AddPartnerFundedPaymentAsync(db, scenario, scenario.PartnerB, ExpenseUsd,
-            PaymentKind.ExpensePayment, "ExpensePayment", new DateTime(2026, 8, 6));
-
-        var a = await BuildPartnerProfileAsync(db, scenario.PartnerA);
-        var b = await BuildPartnerProfileAsync(db, scenario.PartnerB);
-
-        Assert.Equal(100_000m, a.ActualPartnerPaidUsd);
-        Assert.Equal(40_000m, a.PartnerPositionUsd);
-        Assert.Equal(20_000m, b.ActualPartnerPaidUsd);
-        Assert.Equal(-40_000m, b.PartnerPositionUsd);
     }
 
     // ————————————————— صندوق شرکت و سود/زیان —————————————————
@@ -642,21 +622,6 @@ public sealed class PartnerFundingTests
             .GetStatementAsync(
                 new PartyRef(PartyStatementPartyType.Partner, partnerId),
                 new PartyStatementFilter { IncludeOperationalColumns = false });
-
-    private static async Task<PartnerProfileViewModel> BuildPartnerProfileAsync(ApplicationDbContext db, int partnerId)
-    {
-        var controller = new PartnersController(
-            db,
-            new AuditService(db),
-            new MasterDataDeleteSafetyService(db))
-        {
-            TempData = new TempDataDictionary(new DefaultHttpContext(), new PartnerFundingTempDataProvider())
-        };
-
-        var result = await controller.Details(partnerId);
-        var view = Assert.IsType<ViewResult>(result);
-        return Assert.IsType<PartnerProfileViewModel>(view.Model);
-    }
 
     private static PaymentsController BuildPaymentsController(ApplicationDbContext db)
         => new(db, new PricingService(db), new AuditService(db), NullLogger<PaymentsController>.Instance)

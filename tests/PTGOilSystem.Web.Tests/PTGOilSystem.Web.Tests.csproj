@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PTGOilSystem.Web\PTGOilSystem.Web.csproj" />
+    <ProjectReference Include="..\..\tools\partner-settlement-import\PartnerSettlementImport.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-using PTGOilSystem.Web.Models.PartyStatements;
+﻿using PTGOilSystem.Web.Models.PartyStatements;
 
 namespace PTGOilSystem.Web.Services.PartyStatements;
 
@@ -15,7 +15,8 @@ public static class SupplierContractStatementBuilder
         decimal? ContractQuantityMt,
         decimal? UnitPriceUsd,
         decimal? ContractValueUsd,
-        decimal? LoadedQuantityMt);
+        decimal? LoadedQuantityMt,
+        decimal? SharePercent = null);
 
     public static SupplierContractStatementViewModel Build(
         PartyStatementResult statement,
@@ -82,7 +83,7 @@ public static class SupplierContractStatementBuilder
                 ? string.IsNullOrWhiteSpace(f?.ProductName)
                     ? $"قرارداد #{g.ContractNumber}"
                     : $"قرارداد #{g.ContractNumber} • {f!.ProductName}"
-                : "بدون قرارداد";
+                : "بدون قرارداد / عمومی";
 
             rows.Add(new SupplierContractStatementRow
             {
@@ -97,6 +98,7 @@ public static class SupplierContractStatementBuilder
                 UnitPriceUsd = f?.UnitPriceUsd,
                 ContractValueUsd = f?.ContractValueUsd,
                 LoadedQuantityMt = f?.LoadedQuantityMt,
+                SharePercent = f?.SharePercent,
                 ConfirmedValue = g.ConfirmedValue,
                 SettlementTotal = g.SettlementTotal,
                 ConfirmedValueRub = g.ConfirmedValueRub,

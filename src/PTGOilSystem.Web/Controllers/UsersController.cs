@@ -8,6 +8,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Helpers;
 
@@ -19,12 +20,21 @@ public class UsersController : Controller
     private readonly ApplicationDbContext _db;
     private readonly IUserService _users;
     private readonly IAuditService _audit;
+    private readonly MasterDataDeleteSafetyService _deleteSafety;
+    private readonly ICurrentUserContext _currentUser;
 
-    public UsersController(ApplicationDbContext db, IUserService users, IAuditService audit)
+    public UsersController(
+        ApplicationDbContext db,
+        IUserService users,
+        IAuditService audit,
+        MasterDataDeleteSafetyService deleteSafety,
+        ICurrentUserContext currentUser)
     {
         _db = db;
         _users = users;
         _audit = audit;
+        _deleteSafety = deleteSafety;
+        _currentUser = currentUser;
     }
 
     private async Task PopulateRolesAsync(int? selectedRoleId = null)
@@ -247,6 +257,56 @@ public class UsersController : Controller
             model.Username = user.Username;
             return View(model);
         }
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var user = await _db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == id);
+        if (user is null) return NotFound();
+
+        if (_currentUser.UserId == id)
+        {
+            TempData["err"] = "حذف حساب کاربری خودتان مجاز نیست.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (await IsLastActiveAdminAsync(user))
+        {
+            TempData["err"] = "حذف آخرین مدیر فعال سیستم مجاز نیست.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var safety = await _deleteSafety.EvaluateUserAsync(id);
+        if (!safety.CanDelete)
+        {
+            if (user.IsActive)
+            {
+                var archiveDiff = $"ArchiveInsteadOfDelete: {safety.DependencySummary} | "
+                    + AuditDiffFormatter.ForUpdate(("IsActive", user.IsActive, false));
+                user.IsActive = false;
+                await _db.SaveChangesAsync();
+                await _audit.LogAndSaveAsync(nameof(User), user.Id, AuditAction.Update, diff: archiveDiff);
+                TempData["ok"] = safety.BuildArchivedMessage("کاربر");
+                return RedirectToAction(nameof(Index));
+            }
+
+            TempData["err"] = $"{safety.BuildBlockedMessage("کاربر")} این کاربر قبلاً غیرفعال شده است.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var diff = AuditDiffFormatter.ForDelete(
+            ("Username", user.Username),
+            ("FullName", user.FullName),
+            ("Role", user.Role?.Name),
+            ("IsActive", user.IsActive));
+
+        _db.Users.Remove(user);
+        await _db.SaveChangesAsync();
+        await _audit.LogAndSaveAsync(nameof(User), user.Id, AuditAction.Delete, diff: diff);
+
+        TempData["ok"] = "کاربر حذف شد.";
+        return RedirectToAction(nameof(Index));
     }
 
     private async Task<bool> IsLastActiveAdminAsync(User user)

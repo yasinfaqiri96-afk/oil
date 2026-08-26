@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Services.CompanyFlow;
 
@@ -238,7 +238,9 @@ public sealed class PartyStatementResult
     public string CourtesyText { get; init; } = "از همکاری دوامدار شما سپاس‌گزاریم.";
 }
 
-// نمای صورت‌حساب تأمین‌کننده. پیش‌فرض Ledger؛ خلاصهٔ قراردادها و بارگیری‌ها نماهای جانبی‌اند.
+// نمای صورت‌حساب طرف‌حساب‌های قراردادی. پیش‌فرض «خلاصهٔ قراردادها» است؛ دو نمای دیگر
+// جزئیات‌اند: Ledger = گردش فشرده (بارگیری/فروش هر قرارداد در یک سطر جمع می‌شود)،
+// Loadings = تک‌تک اسناد. نام‌ها برای سازگاری routeهای موجود دست‌نخورده مانده‌اند.
 public enum SupplierStatementView
 {
     Contracts = 0,
@@ -260,10 +262,29 @@ public sealed class PartyStatementViewModel
     public IReadOnlyList<string> CurrencyOptions { get; init; } = [];
 
     // حالت نمایش برای طرف‌حساب‌های قراردادی؛ نام قدیمی برای سازگاری routeها حفظ شده است.
-    public SupplierStatementView SupplierView { get; init; } = SupplierStatementView.Ledger;
-    public bool ShowSupplierViewTabs => PartyType == PartyStatementPartyType.Supplier;
-    // تب‌های قرارداد/بارگیری فقط برای تأمین‌کننده معنا دارد؛ سایر طرف‌حساب‌ها فقط گردش حساب می‌بینند.
-    public bool ShowContractViewTabs => PartyType == PartyStatementPartyType.Supplier;
+    public SupplierStatementView SupplierView { get; init; } = SupplierStatementView.Contracts;
+
+    /// <summary>در این دوره دست‌کم یک سند به قرارداد وصل است.</summary>
+    public bool HasContractRows { get; init; }
+
+    public bool ShowSupplierViewTabs => ShowContractViewTabs;
+
+    // تب‌های خلاصه/جزئیات فقط برای تأمین‌کننده و شریک، و فقط وقتی در این دوره دست‌کم یک
+    // سند به قرارداد وصل باشد. بقیهٔ طرف‌حساب‌ها (مشتری، شرکت، خدماتی، صراف، راننده،
+    // کارمند) حتی با ContractId هم تب نمی‌بینند و همیشه گردش حساب می‌بینند.
+    public bool ShowContractViewTabs => SupportsContractSummary(PartyType) && HasContractRows;
+
+    // فقط تأمین‌کننده و شریک نمای «خلاصهٔ قراردادها» دارند. گروه‌بندی صرفاً نمایشی است
+    // و روی هیچ مبلغ یا مانده‌ای اثر ندارد.
+    public static bool SupportsContractSummary(PartyStatementPartyType partyType)
+        => partyType is PartyStatementPartyType.Supplier
+            or PartyStatementPartyType.Partner;
+
+    // نمای پیش‌فرض: طرف‌حساب قراردادی → خلاصهٔ قراردادها، بقیه → گردش حساب.
+    public static SupplierStatementView DefaultViewFor(PartyStatementPartyType partyType)
+        => SupportsContractSummary(partyType)
+            ? SupplierStatementView.Contracts
+            : SupplierStatementView.Ledger;
 
     // نمای خلاصه: گروه‌بندی نمایشیِ همان سطرهای مالی؛ بدون محاسبهٔ مالی جدید.
     public SupplierContractStatementViewModel? ContractGrouping { get; init; }
@@ -338,6 +359,9 @@ public sealed class SupplierContractStatementRow
     public decimal? UnitPriceUsd { get; init; }
     public decimal? ContractValueUsd { get; init; }
     public decimal? LoadedQuantityMt { get; init; }
+    // فقط برای شریک پر می‌شود: درصد سهمِ همین شریک از این قرارداد. صرفاً برچسب است و
+    // در هیچ جمعی وارد نمی‌شود؛ مبالغِ سطر از قبل سهم‌بندی‌شده‌اند.
+    public decimal? SharePercent { get; init; }
     public decimal? RemainingQuantityMt =>
         ContractQuantityMt.HasValue && LoadedQuantityMt.HasValue
             ? ContractQuantityMt.Value - LoadedQuantityMt.Value

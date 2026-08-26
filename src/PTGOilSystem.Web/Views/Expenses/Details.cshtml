@@ -10,26 +10,30 @@
     var ledgerRecorded = Model.LedgerEntryId.HasValue;
     var ledgerStatus = ledgerRecorded ? T("ثبت شده", "Recorded") : T("ثبت نشده", "Pending");
     var providerText = Model.ServiceProviderName ?? Model.OperationalAssetName;
+    var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl });
 
-    ViewData["AkHeaderStatus"] = ledgerStatus;
-    ViewData["AkHeaderStatusState"] = ledgerRecorded ? "is-active" : "is-warning";
-    // Kebab keeps the side route only; the record's own action lives in the bar.
+    // Kebab keeps the side route only; the record's own action lives in the strip.
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = T("مصرف جدید", "New expense"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
     };
 
-    // وضعیت دفتر در سربرگ نشان داده می‌شود و کارت KPI جدا نمی‌گیرد.
-    var kpis = new List<AkKpiItem>
+    var amountMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مبلغ سند", "Document amount"), Value = Model.Amount.ToString("N2"), Unit = Model.Currency, Avatar = "expenses" },
-        new() { Title = T("معادل دالر", "USD equivalent"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", Avatar = "payments-out" }
+        new() { Title = T("مبلغ سند", "Document amount"), Value = Model.Amount.ToString("N2"), Unit = Model.Currency },
+        new() { Title = T("معادل دالر", "USD equivalent"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", State = "accent" }
     };
 
-    // نوار هویتی جدا حذف شده و مشخصات عملیاتی داخل surface خلاصه می‌آیند.
-    var summaryItems = new List<AkInfoItem>
+    var mainItems = new List<AkInfoItem>
     {
-        new() { Label = T("نرخ تبدیل", "FX rate"), Value = Model.AppliedFxRateToUsd?.ToString("N6"), IsNumeric = true },
+        new() { Label = T("نوع مصرف", "Expense type"), Value = Model.ExpenseTypeName },
+        new() { Label = T("تاریخ", "Date"), Value = Model.ExpenseDate.ToDisplayDate(), IsNumeric = true },
+        new() { Label = T("طرف / دارایی", "Provider / asset"), Value = providerText },
+        new() { Label = T("نرخ تبدیل", "FX rate"), Value = Model.AppliedFxRateToUsd?.ToString("N6"), IsNumeric = true }
+    };
+
+    var linkItems = new List<AkInfoItem>
+    {
         new() { Label = T("ارسال با موتر", "Truck send"), Value = Model.TruckDispatchLabel },
         new() { Label = T("جریان حمل بار", "Cargo flow"), Value = Model.TransportLegLabel },
         new()
@@ -38,9 +42,19 @@
             Value = Model.ExpenseBatchId.HasValue ? (Model.ExpenseBatchNumber ?? $"#{Model.ExpenseBatchId}") : null,
             Href = Model.ExpenseBatchId.HasValue ? Url.Action("GroupDetails", new { id = Model.ExpenseBatchId }) : null
         },
-        new() { Label = T("شرح", "Description"), Value = Model.Description, IsWide = true }
+        new()
+        {
+            Label = T("قرارداد", "Contract"),
+            Value = Model.ContractNumber,
+            Href = Model.ContractId.HasValue ? Url.Action("Details", "ContractJourney", new { contractId = Model.ContractId.Value, returnUrl = currentReturnUrl }) : null
+        },
+        new()
+        {
+            Label = T("محموله", "Shipment"),
+            Value = Model.ShipmentCode,
+            Href = Model.ShipmentId.HasValue ? Url.Action("Details", "Shipments", new { id = Model.ShipmentId.Value, returnUrl = currentReturnUrl }) : null
+        }
     };
-    var overviewItems = summaryItems;
 
     // ردپای حسابداری و شناسه‌های داخلی — پشت آکاردئون، بدون حذف هیچ عدد مالی.
     var advancedItems = new List<AkInfoItem>
@@ -60,11 +74,6 @@
     if (Model.OperationalAssetId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("دارایی عملیاتی", "Operational asset"), Label = Model.OperationalAssetName ?? $"#{Model.OperationalAssetId.Value}", Href = Url.Action("Details", "OperationalAssets", new { id = Model.OperationalAssetId.Value, returnUrl = currentReturnUrl }), Icon = "bi-truck" });
     if (Model.LedgerEntryId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("سند دفتر کل", "Ledger entry"), Label = $"#{Model.LedgerEntryId.Value}", KeyValue = $"{Model.AmountUsd:N2} USD", Href = Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value, returnUrl = currentReturnUrl }), Icon = "bi-journal-text" });
 
-    // A posted expense has no forward operation, so correcting it is the single CTA.
-    var nextActions = new List<AkHeaderMenuItem>
-    {
-        new() { Label = T("ویرایش مصرف", "Edit expense"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-pencil-square" }
-    };
     var activityRows = new List<AkDetailActivityRow>
     {
         new() { Label = T("ثبت مالی", "Financial posting"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", Meta = Model.LedgerReference, Status = ledgerStatus, StatusTone = ledgerRecorded ? "success" : "warning", Href = Model.LedgerEntryId.HasValue ? Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value, returnUrl = currentReturnUrl }) : null, Icon = "bi-journal-text" },
@@ -75,32 +84,64 @@
         new() { Title = T("مصرف ثبت شد", "Expense recorded"), Date = Model.ExpenseDate.ToDisplayDate(), Timestamp = Model.ExpenseDate, Icon = "bi-receipt-cutoff", State = "is-current", Meta = $"{Model.AmountUsd:N2} USD" }
     };
 
+    // A posted expense has no forward operation, so correcting it is the single
+    // CTA and it now sits in the identity strip instead of the bottom bar.
+    var nextActions = new List<AkHeaderMenuItem>();
+
+    var cardsModel = new AkDetailCardsModel
+    {
+        Code = $"#{Model.Id}",
+        CodeLabel = T("شماره سند", "Document no."),
+        Status = ledgerStatus,
+        StatusState = ledgerRecorded ? "is-active" : "is-warning",
+        StripItems = new List<AkInfoItem>
+        {
+            new() { Label = T("نوع مصرف", "Expense type"), Value = Model.ExpenseTypeName },
+            new() { Label = T("تاریخ", "Date"), Value = Model.ExpenseDate.ToDisplayDate(), IsNumeric = true },
+            new() { Label = T("مبلغ", "Amount"), Value = $"{Model.Amount:N2} {Model.Currency}", IsNumeric = true }
+        },
+        PrimaryLabel = T("ویرایش مصرف", "Edit expense"),
+        PrimaryHref = editUrl,
+        Cards = new List<AkDetailCard>
+        {
+            new() { Title = T("اطلاعات اصلی", "Main information"), Icon = "bi-info-circle", Rows = mainItems },
+            new() { Title = T("مبلغ سند", "Document amount"), Icon = "bi-cash-coin", Metrics = amountMetrics },
+            new() { Title = T("ارتباطات عملیاتی", "Operational links"), Icon = "bi-link-45deg", Rows = linkItems },
+            new() { Title = T("شرح", "Description"), Icon = "bi-journal-text", Text = Model.Description, IsWide = true }
+        }
+    };
+
+    var moreModel = new AkDetailMoreModel
+    {
+        Activity = activityRows,
+        Secondary = new AkDetailSecondaryModel
+        {
+            TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
+            TimelineLimit = 4,
+            Timeline = timelineItems,
+            Related = relatedRecords,
+            Technical = advancedItems
+        },
+        NextActions = nextActions
+    };
+
     ViewData["Title"] = T("جزئیات مصرف", "Expense Details");
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = Model.ExpenseTypeName,
            Eyebrow = T("مصرف عملیاتی", "Operational expense"),
            Meta = $"#{Model.Id} · {Model.ExpenseDate.ToDisplayDate()}",
-           Icon = "bi-receipt-cutoff",
-           Status = ledgerStatus,
-           StatusState = ledgerRecorded ? "is-active" : "is-warning"
+           Icon = "bi-receipt-cutoff"
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("مصرف", "Expense") + $" #{Model.Id}", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                         T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
-             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات مصرف", "Expense summary"), AriaLabel = T("نمای اصلی مصرف", "Expense overview"), Metrics = kpis, Facts = overviewItems })" />
-
-    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
-
-    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
-             model="@(new AkDetailSecondaryModel { TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"), TimelineLimit = 4, Timeline = timelineItems, Related = relatedRecords, Technical = advancedItems })" />
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
-
+    <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
+    <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 </div>

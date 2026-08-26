@@ -59,6 +59,11 @@
     {
         new() { Label = "مرجع", Value = Model.Reference },
         new() { Label = "حساب نقد / بانک", Value = string.Join(" · ", new[] { Model.CashAccountCode, Model.CashAccountName, Model.CashAccountTypeName }.Where(part => !string.IsNullOrWhiteSpace(part))) },
+        // منبع تأمین پول: صندوق شرکت یا جیب یک شریک. بدون این سطر معلوم نبود پول از کجا آمده.
+        new() { Label = "منبع تأمین", Value = Model.FundingSource == PaymentFundingSource.Partner
+                    ? $"پرداخت توسط شریک: {(string.IsNullOrWhiteSpace(Model.PaidByPartnerName) ? "نامشخص" : Model.PaidByPartnerName)}"
+                    : Model.FundingSourceName,
+                Href = Model.PaidByPartnerId.HasValue ? Url.Action("Details", "Partners", new { id = Model.PaidByPartnerId.Value }) : null },
         new() { Label = "قرارداد", Value = Model.ContractNumber },
         new() { Label = "محموله", Value = Model.ShipmentCode },
         new() { Label = "شرح", Value = Model.Description, IsWide = true }

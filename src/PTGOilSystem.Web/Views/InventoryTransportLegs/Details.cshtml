@@ -57,12 +57,6 @@
         LoadingTransportType.Vessel => "bi-life-preserver",
         _ => "bi-truck-front"
     };
-    var transportVisual = Model.TransportType switch
-    {
-        LoadingTransportType.Wagon => "wagon",
-        LoadingTransportType.Vessel => "vessel",
-        _ => "transported"
-    };
 
     var sourceLabel = Model.SourceTankCode ?? Model.SourceTerminalName;
     var destinationLabel = Model.DestinationLocationName ?? Model.DestinationTerminalName ?? Model.DestinationTankCode;
@@ -73,53 +67,76 @@
     var vehicleName = Model.Chain.FirstOrDefault(step => step.IsCurrent)?.VehicleLabel
         ?? Model.OperationalAssetName
         ?? Model.WagonNumber;
+    var contractLabel = !string.IsNullOrWhiteSpace(Model.ContractNumber)
+        ? Model.ContractNumber
+        : (!string.IsNullOrWhiteSpace(Model.SourceContractsLabel) ? Model.SourceContractsLabel : Model.ShipmentCode);
 
-    var headerItems = new List<AkInfoItem>
+    // نوار خلاصهٔ بالای صفحه: هویت رکورد در یک ردیف افقی.
+    var stripItems = new List<AkInfoItem>
     {
-        new() { Label = T("نوع حمل", "Transport type"), Value = transportTypeName },
+        new() { Label = T("قرارداد", "Contract"), Value = contractLabel, IsNumeric = true },
         new() { Label = T("محصول", "Product"), Value = Model.ProductName },
-        new() { Label = T("تاریخ بارگیری", "Loading date"), Value = Model.LoadedDate.ToDisplayDate() },
-        new() { Label = T("شماره سند", "Document no."), Value = documentNumber, IsNumeric = true }
+        new() { Label = T("مقدار", "Quantity"), Value = $"{Q(Model.QuantityMt)} MT", IsNumeric = true },
+        new() { Label = T("تاریخ", "Date"), Value = Model.LoadedDate.ToDisplayDate(), IsNumeric = true }
     };
 
-    var summaryItems = new List<AkInfoItem>();
+    // کارت اطلاعات اصلی: هویت وسیله و متصدی، همان فیلدهای قبلی صفحه.
+    var mainItems = new List<AkInfoItem>();
     if (Model.TransportType == LoadingTransportType.Truck)
     {
-        summaryItems.Add(new() { Label = T("نمبر پلیت", "Plate no."), Value = Model.WagonNumber, IsNumeric = true });
-        summaryItems.Add(new() { Label = T("نمبر CMR", "CMR no."), Value = Model.RwbNo, IsNumeric = true });
-        summaryItems.Add(new() { Label = T("متصدی / راننده", "Carrier / driver"), Value = carrierName });
-        summaryItems.Add(new() { Label = T("نوع موتر", "Truck type"), Value = vehicleName ?? transportTypeName });
+        mainItems.Add(new() { Label = T("نمبر پلیت", "Plate no."), Value = Model.WagonNumber, IsNumeric = true });
+        mainItems.Add(new() { Label = T("متصدی / راننده", "Carrier / driver"), Value = carrierName });
+        mainItems.Add(new() { Label = T("شرکت حمل‌کننده", "Transport company"), Value = Model.ServiceProviderName });
+        mainItems.Add(new() { Label = T("نمبر CMR", "CMR no."), Value = Model.RwbNo, IsNumeric = true });
+        mainItems.Add(new() { Label = T("نوع موتر", "Truck type"), Value = vehicleName ?? transportTypeName });
     }
     else if (Model.TransportType == LoadingTransportType.Wagon)
     {
-        summaryItems.Add(new() { Label = T("نمبر واگن", "Wagon no."), Value = Model.WagonNumber, IsNumeric = true });
-        summaryItems.Add(new() { Label = T("نمبر RWB", "RWB no."), Value = Model.RwbNo, IsNumeric = true });
-        summaryItems.Add(new() { Label = T("متصدی حمل", "Carrier"), Value = carrierName });
-        summaryItems.Add(new() { Label = T("وسیله", "Vehicle"), Value = vehicleName });
+        mainItems.Add(new() { Label = T("نمبر واگن", "Wagon no."), Value = Model.WagonNumber, IsNumeric = true });
+        mainItems.Add(new() { Label = T("متصدی حمل", "Carrier"), Value = carrierName });
+        mainItems.Add(new() { Label = T("شرکت حمل‌کننده", "Transport company"), Value = Model.ServiceProviderName });
+        mainItems.Add(new() { Label = T("نمبر RWB", "RWB no."), Value = Model.RwbNo, IsNumeric = true });
+        mainItems.Add(new() { Label = T("وسیله", "Vehicle"), Value = vehicleName });
     }
     else if (Model.TransportType == LoadingTransportType.Vessel)
     {
-        summaryItems.Add(new() { Label = T("کشتی", "Vessel"), Value = Model.OperationalAssetName ?? vehicleName });
-        summaryItems.Add(new() { Label = T("بارنامه", "Bill of lading"), Value = Model.BillOfLadingNumber, IsNumeric = true });
-        summaryItems.Add(new() { Label = T("متصدی حمل", "Carrier"), Value = Model.ServiceProviderName });
+        mainItems.Add(new() { Label = T("کشتی", "Vessel"), Value = Model.OperationalAssetName ?? vehicleName });
+        mainItems.Add(new() { Label = T("متصدی حمل", "Carrier"), Value = Model.ServiceProviderName });
+        mainItems.Add(new() { Label = T("بارنامه", "Bill of lading"), Value = Model.BillOfLadingNumber, IsNumeric = true });
     }
-    summaryItems.Add(new() { Label = T("مبدأ", "Source"), Value = sourceLabel });
-    summaryItems.Add(new() { Label = T("مقصد", "Destination"), Value = destinationLabel });
-    summaryItems.Add(new() { Label = T("رسیدن تخمینی", "Expected arrival"), Value = Model.ExpectedArrivalDate?.ToDisplayDate() });
-    summaryItems.Add(new() { Label = T("مسیر", "Route"), Value = Model.RouteDescription, IsWide = true });
-    summaryItems.Add(new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true });
-    summaryItems.InsertRange(0, headerItems);
+    mainItems.Add(new() { Label = T("نوع حمل", "Transport type"), Value = transportTypeName });
+
+    // مراحل مسیر = همان چرخهٔ وضعیت رکورد؛ معنی وضعیت تغییر نمی‌کند.
+    var isCancelled = Model.Status == InventoryTransportLegStatus.Cancelled;
+    var isLoadedOrLater = !isCancelled && Model.Status is InventoryTransportLegStatus.Loaded
+        or InventoryTransportLegStatus.InTransit or InventoryTransportLegStatus.Received;
+    var isReceived = Model.Status == InventoryTransportLegStatus.Received;
+    var routeSteps = new List<AkDetailStep>
+    {
+        new() { Label = T("بارگیری", "Loading"), State = isLoadedOrLater ? "is-done" : (isCancelled ? "is-pending" : "is-current") },
+        new() { Label = T("در مسیر", "In transit"), State = isReceived ? "is-done" : (isLoadedOrLater ? "is-current" : "is-pending") },
+        new() { Label = T("تخلیه", "Unloading"), State = isReceived ? "is-done" : "is-pending" }
+    };
 
     var shortageQuantity = Model.Pnl.ShortageQuantityMt > 0m
         ? Model.Pnl.ShortageQuantityMt
         : Model.DestinationReceipts.Sum(item => item.ShortageQuantityMt);
-    var totalExpensesUsd = Model.Pnl.OperationalExpensesUsd;
-    var kpis = new List<AkKpiItem>
+
+    // مصارف: همان برچسب‌های موجود در Journey؛ هیچ محاسبه‌ای بازتعریف نشده.
+    var costMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = Q(Model.QuantityMt), Unit = "MT", Avatar = "loading" },
-        new() { Title = T("باقی‌مانده", "Remaining"), Value = Q(Model.RemainingQuantityMt), Unit = "MT", Avatar = "shipment-remaining" },
-        new() { Title = T("کسری", "Shortage"), Value = Q(shortageQuantity), Unit = "MT", Avatar = "losses", State = shortageQuantity > 0m ? "warning" : null },
-        new() { Title = T("مجموع مصارف", "Total expenses"), Value = U(totalExpensesUsd), Unit = "USD", Avatar = "expenses" }
+        new() { Title = T("کرایه رسید مقصد", "Destination freight"), Value = U(Model.Pnl.ReceiptFreightExpenseUsd), Unit = "USD" },
+        new() { Title = T("گمرک", "Customs"), Value = U(Model.Pnl.CustomsUsd), Unit = "USD" },
+        new() { Title = T("مجموع مصارف", "Total expenses"), Value = U(Model.Pnl.OperationalExpensesUsd), Unit = "USD", State = "accent" }
+    };
+
+    var cargoMetrics = new List<AkKpiItem>
+    {
+        new() { Title = T("محصول", "Product"), Value = Model.ProductName },
+        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = Q(Model.QuantityMt), Unit = "MT" },
+        new() { Title = T("تحویل‌شده", "Received"), Value = Q(Model.Pnl.ReceivedQuantityMt), Unit = "MT" },
+        new() { Title = T("کسری", "Shortage"), Value = Q(shortageQuantity), Unit = "MT", State = shortageQuantity > 0m ? "warning" : null },
+        new() { Title = T("باقی‌مانده", "Remaining"), Value = Q(Model.RemainingQuantityMt), Unit = "MT" }
     };
 
     var latestReceipt = Model.DestinationReceipts.OrderByDescending(item => item.ReceiptDate).FirstOrDefault();
@@ -197,10 +214,7 @@
         nextActions.Add(new AkHeaderMenuItem { Label = T("تسویه کرایه", "Settle freight"), ModalTarget = "freightSettlementModal", Icon = "bi-cash-coin" });
     }
 
-    var headerMenu = new List<AkHeaderMenuItem>
-    {
-        new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-pencil-square" }
-    };
+    var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl });
     var overflowActions = new List<AkHeaderMenuItem>();
     if (Model.ShipmentId.HasValue)
     {
@@ -225,46 +239,93 @@
             ConfirmMessage = T("اگر عملیات بعدی ثبت شده باشد، لغو مسدود می‌شود. این مرحله را لغو می‌کنید؟", "Cancellation is blocked when downstream activity exists. Cancel this step?")
         });
     }
-    ViewData["AkHeaderKebab"] = headerMenu;
+    // «ویرایش» در نوار خلاصه دیده می‌شود، پس دیگر در kebab تکرار نمی‌شود.
     ViewData["AkHeaderOverflowActions"] = overflowActions;
+
+    var cardsModel = new AkDetailCardsModel
+    {
+        Code = documentNumber,
+        CodeLabel = T("کد حمل", "Transport code"),
+        Status = statusText,
+        StatusState = statusState,
+        StripItems = stripItems,
+        PrimaryLabel = T("ویرایش", "Edit"),
+        PrimaryHref = editUrl,
+        Cards = new List<AkDetailCard>
+        {
+            new()
+            {
+                Title = T("اطلاعات اصلی", "Main information"),
+                Icon = "bi-info-circle",
+                Rows = mainItems
+            },
+            new()
+            {
+                Title = T("مسیر و وضعیت", "Route & status"),
+                Icon = "bi-map",
+                RouteNodes = new List<AkInfoItem>
+                {
+                    new() { Label = T("مبدأ", "Source"), Value = sourceLabel },
+                    new() { Label = T("مقصد", "Destination"), Value = destinationLabel }
+                },
+                Steps = routeSteps,
+                Footer = new List<AkInfoItem>
+                {
+                    new() { Label = T("تاریخ حرکت", "Departure date"), Value = Model.LoadedDate.ToDisplayDate(), IsNumeric = true },
+                    new() { Label = T("رسیدن تخمینی", "Expected arrival"), Value = Model.ExpectedArrivalDate?.ToDisplayDate(), IsNumeric = true }
+                },
+                Text = Model.RouteDescription
+            },
+            new()
+            {
+                Title = T("مصارف عملیاتی", "Operational expenses"),
+                Icon = "bi-cash-coin",
+                Metrics = costMetrics
+            },
+            new()
+            {
+                Title = T("محموله و وزن", "Cargo & weight"),
+                Icon = "bi-box-seam",
+                Metrics = cargoMetrics
+            },
+            new()
+            {
+                Title = T("یادداشت", "Notes"),
+                Icon = "bi-journal-text",
+                Text = Model.Notes,
+                IsWide = true
+            }
+        }
+    };
+
+    var moreModel = new AkDetailMoreModel
+    {
+        Activity = activityRows,
+        Secondary = new AkDetailSecondaryModel
+        {
+            Timeline = timelineItems,
+            TimelineTitle = T("آخرین فعالیت‌ها", "Latest activity"),
+            TimelineLimit = 4
+        },
+        NextActions = nextActions
+    };
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl"
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail ptg-transport-detail" dir="rtl"
      data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = T("جزئیات حمل", "Transport details"),
            Eyebrow = transportTypeName,
-           Icon = transportHeroIcon,
-           Status = statusText,
-           StatusState = statusState
+           Icon = transportHeroIcon
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("جزئیات حمل", "Transport details"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
-             model="@(new AkDetailOverviewModel
-             {
-                 AriaLabel = T("خلاصه اطلاعات حمل", "Transport information summary"),
-                 Title = T("خلاصه اطلاعات حمل", "Transport information summary"),
-                 Metrics = kpis,
-                 Facts = summaryItems,
-                 VisualAvatar = transportVisual,
-                 VisualTitle = transportTypeName,
-                 VisualMeta = vehicleName ?? carrierName
-             })" />
-
-    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
-    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
-             model="@(new AkDetailSecondaryModel
-             {
-                 Timeline = timelineItems,
-                 TimelineTitle = T("آخرین فعالیت‌ها", "Latest activity"),
-                 TimelineLimit = 4
-             })" />
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
+    <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
+    <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 
     @if (canAddRelatedRecord)
     {

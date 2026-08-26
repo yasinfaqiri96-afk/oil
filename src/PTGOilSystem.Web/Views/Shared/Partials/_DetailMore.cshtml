@@ -1,0 +1,44 @@
+@*
+    Secondary material of a card-layout detail page, folded behind one toggle:
+    the activity/financial summary, history + related + technical details, and
+    the next-operations bar. Nothing is removed from the page — the shared
+    partials render exactly as before, one disclosure lower.
+
+    A native <details> keeps this free of page-local JavaScript, so it also
+    survives SPA navigation without an init step.
+
+    Model: AkDetailMoreModel
+*@
+@model PTGOilSystem.Web.Models.Shared.AkDetailMoreModel
+@{
+    var activity = (Model.Activity ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkDetailActivityRow>()).ToList();
+    var actions = (Model.NextActions ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>()).ToList();
+    var label = string.IsNullOrWhiteSpace(Model.Label)
+        ? UiText.T(Context, "نمایش موارد بیشتر", "Show more")
+        : Model.Label;
+}
+@if (Model.HasContent)
+{
+    <details class="ptg-td-more no-print">
+        <summary>
+            <span>@label</span>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </summary>
+        <div class="ptg-td-more-body">
+            @if (activity.Count > 0)
+            {
+                <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml"
+                         model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkDetailActivityRow>)activity)" />
+            }
+            @if (Model.Secondary is not null)
+            {
+                <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml" model="@Model.Secondary" />
+            }
+            @if (actions.Count > 0)
+            {
+                <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml"
+                         model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>)actions)" />
+            }
+        </div>
+    </details>
+}

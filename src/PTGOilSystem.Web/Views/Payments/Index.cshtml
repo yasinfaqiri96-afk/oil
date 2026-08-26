@@ -102,7 +102,11 @@
                         var viaSarraf = item.IsSarrafHawala
                             || item.IsLedgerOnlyViaSarraf
                             || !string.IsNullOrWhiteSpace(item.SarrafName);
-                        var methodName = viaSarraf ? "از طریق صراف" : "حساب";
+                        // پرداخت شریک صندوق شرکت را تکان نداده؛ در ستون «روش» نام همان شریک می‌آید.
+                        var partnerFunded = item.FundingSource == PaymentFundingSource.Partner;
+                        var methodName = partnerFunded
+                            ? $"شریک: {(string.IsNullOrWhiteSpace(item.PaidByPartnerName) ? "نامشخص" : item.PaidByPartnerName)}"
+                            : viaSarraf ? "از طریق صراف" : "حساب";
                         @* کلیک روی ردیف مستقیم به رسید چاپی همان تراکنش می‌رود
                            (همان مقصد آیکون «سند چاپی» ستون عملیات). *@
                         <tr data-href="@(normalRow ? Url.Action("Payment", "Invoices", new { id = item.Id }) : null)">
@@ -131,7 +135,7 @@
                             </td>
                             <td class="jr-center">@item.Currency</td>
                             <td class="jr-center">
-                                <span class="jr-pill jr-pill-neutral">@methodName</span>
+                                <span class="jr-pill @(partnerFunded ? "jr-pill-in" : "jr-pill-neutral")" title="@(partnerFunded ? "پول از جیب شریک؛ صندوق شرکت تغییر نکرده" : null)">@methodName</span>
                             </td>
                             @* ساعت ستون جدا ندارد؛ کلیک روی تاریخ، تاریخ را با ساعت در همان
                                جای سلول عوض می‌کند. دکمه است تا با صفحه‌کلید کار کند و

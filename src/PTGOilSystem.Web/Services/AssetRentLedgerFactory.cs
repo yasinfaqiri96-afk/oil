@@ -21,7 +21,7 @@ public static class AssetRentLedgerFactory
     public const string LedgerSourceType = "AssetRent";
 
     /// <summary>پسوندِ ردیفِ برگشت — همان قراردادی که لغو فروش و لغو مصرف استفاده می‌کنند.</summary>
-    public const string CancelReferenceSuffix = "-CANCEL";
+    public const string CancelReferenceSuffix = CompanyFlow.CompanyFlowSourceTypes.ReversalReferenceSuffix;
 
     public static string BuildReference(AssetRentTransaction rent)
         => string.IsNullOrWhiteSpace(rent.ReferenceDocument)

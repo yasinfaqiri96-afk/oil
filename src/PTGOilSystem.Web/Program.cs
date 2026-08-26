@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authentication.Cookies;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -77,6 +77,8 @@ builder.Services.AddScoped<ITransportChainService, TransportChainService>();
 builder.Services.AddScoped<ITransportWorkflowService, TransportWorkflowService>();
 // نسب‌نامهٔ چندقراردادی نتیجه‌های حمل (فروش/کسری) بدون شکستن سند واحد و دفترکل قدیمی.
 builder.Services.AddScoped<ITransportSourceAllocationService, TransportSourceAllocationService>();
+// منبع واحد حقیقتِ «فروش → قرارداد خرید»: فقط SalesTransactionSourceAllocations.
+builder.Services.AddScoped<ISaleContractAttributionReader, SaleContractAttributionReader>();
 // صفحهٔ فقط‌خواندنیِ «مشاهده فعالیت‌های دوره». هیچ منطق مالی/نوشتنی ندارد.
 builder.Services.AddScoped<IPeriodActivityService, PeriodActivityService>();
 // ---- Independent accounting core (Stage 2; feature flag defaults to off). ----
@@ -181,6 +183,8 @@ builder.Services.AddSingleton<PTGOilSystem.Web.Services.PartyStatements.IPartySt
     PTGOilSystem.Web.Services.PartyStatements.PartyStatementPolicyResolver>();
 builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.IPartyStatementReadService,
     PTGOilSystem.Web.Services.PartyStatements.PartyStatementReadService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.IPartnershipStatementService,
+    PTGOilSystem.Web.Services.PartyStatements.PartnershipStatementService>();
 builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.IPartyBalanceReadService,
     PTGOilSystem.Web.Services.PartyStatements.PartyBalanceReadService>();
 builder.Services.AddScoped<ILoginAttemptGuard, AuditLoginAttemptGuard>();

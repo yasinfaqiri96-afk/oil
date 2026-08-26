@@ -2184,6 +2184,182 @@ public class SalesControllerTests
         Assert.Equal("کرایه تسویه‌شده", item.StatusLabel);
     }
 
+    // AUD-06 — انتساب فروش به قرارداد خرید فقط یک منبع دارد: planِ ساخته‌شده از
+    // InventoryMovementهای واقعی (FIFO). انتخاب کاربر در فرم فقط «ترجیح» است، نه حقیقت.
+    [Fact]
+    public async Task Create_Post_TerminalStock_Ledger_Follows_Fifo_Not_User_Selected_Contract()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        SeedPurchaseContract(db, 3);
+        // قرارداد ۲ در مخزن هیچ موجودی ندارد (مثل قراردادی که موجودی‌اش تمام شده)،
+        // پس FIFO ناچار از قرارداد ۳ برمی‌دارد در حالی که کاربر هنوز ۲ را انتخاب کرده است.
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = 1,
+            ContractId = 3,
+            TerminalId = 1,
+            StorageTankId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 4, 21),
+            QuantityMt = 500m,
+            ReferenceDocument = "GRN-AUD06-1"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.TerminalStock,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SourceTerminalId = 1,
+            SourceStorageTankId = 1,
+            SourcePurchaseContractId = 2,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 100m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-AUD06-FIFO"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        var stockOut = await db.InventoryMovements
+            .Where(m => m.Direction == MovementDirection.Out)
+            .SingleAsync();
+        var ledger = await db.LedgerEntries.SingleAsync();
+
+        Assert.Equal(3, stockOut.ContractId);
+        Assert.Equal(3, sale.SourcePurchaseContractId);
+        Assert.Equal(3, ledger.ContractId);
+        Assert.NotEqual(2, ledger.ContractId);
+    }
+
+    [Fact]
+    public async Task Create_Post_TerminalStock_Single_Contract_Keeps_Header_And_Ledger_Aligned()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = 1,
+            ContractId = 2,
+            TerminalId = 1,
+            StorageTankId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 4, 20),
+            QuantityMt = 300m,
+            ReferenceDocument = "GRN-AUD06-2"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.TerminalStock,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SourceTerminalId = 1,
+            SourceStorageTankId = 1,
+            SourcePurchaseContractId = 2,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 50m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-AUD06-SINGLE"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        var ledger = await db.LedgerEntries.SingleAsync();
+
+        Assert.Equal(2, sale.SourcePurchaseContractId);
+        Assert.Equal(2, ledger.ContractId);
+        Assert.Equal(25000m, sale.TotalUsd);
+        Assert.Equal(25000m, ledger.AmountUsd);
+        Assert.Equal(LedgerSide.Credit, ledger.Side);
+    }
+
+    // سناریوی فروش ۱۰۸ در دادهٔ واقعی: مخزن از دو قرارداد پر شده و یک فروش هر دو را مصرف
+    // می‌کند. هیچ قرارداد واحدی درست نیست، پس هر دو سر null می‌مانند و سهم‌ها فقط در
+    // allocations زندگی می‌کنند — نه اینکه کل مبلغ به یکی از دو قرارداد چسبانده شود.
+    [Fact]
+    public async Task Create_Post_TerminalStock_MultiContract_Leaves_Header_And_Ledger_Null_And_Keeps_Allocations()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        SeedPurchaseContract(db, 3);
+        db.InventoryMovements.AddRange(
+            new InventoryMovement
+            {
+                ProductId = 1,
+                ContractId = 2,
+                TerminalId = 1,
+                StorageTankId = 1,
+                Direction = MovementDirection.In,
+                MovementDate = new DateTime(2026, 4, 20),
+                QuantityMt = 17.75m,
+                ReferenceDocument = "GRN-AUD06-3"
+            },
+            new InventoryMovement
+            {
+                ProductId = 1,
+                ContractId = 3,
+                TerminalId = 1,
+                StorageTankId = 1,
+                Direction = MovementDirection.In,
+                MovementDate = new DateTime(2026, 4, 21),
+                QuantityMt = 100m,
+                ReferenceDocument = "GRN-AUD06-4"
+            });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.TerminalStock,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SourceTerminalId = 1,
+            SourceStorageTankId = 1,
+            SourcePurchaseContractId = 2,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 32.08m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-AUD06-MIXED"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var sale = await db.SalesTransactions.SingleAsync();
+        var ledger = await db.LedgerEntries.SingleAsync();
+
+        Assert.Null(sale.SourcePurchaseContractId);
+        Assert.Null(ledger.ContractId);
+
+        var allocations = await db.SalesTransactionSourceAllocations
+            .Where(a => a.SalesTransactionId == sale.Id)
+            .OrderBy(a => a.SourcePurchaseContractId)
+            .ToListAsync();
+
+        Assert.Equal(2, allocations.Count);
+        Assert.Equal(17.75m, allocations.Single(a => a.SourcePurchaseContractId == 2).QuantityMt);
+        Assert.Equal(14.33m, allocations.Single(a => a.SourcePurchaseContractId == 3).QuantityMt);
+        // مبلغ فروش دست‌نخورده می‌ماند و سهم‌ها دقیقاً همان را می‌سازند؛ نه گم می‌شود نه دوبار.
+        Assert.Equal(sale.TotalUsd, allocations.Sum(a => a.AmountUsd));
+        Assert.Equal(sale.QuantityMt, allocations.Sum(a => a.QuantityMt));
+    }
+
     private static DbContextOptions<ApplicationDbContext> NewDbOptions()
         => new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

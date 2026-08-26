@@ -1,0 +1,191 @@
+@*
+    Record-detail card composition.
+
+    One horizontal identity strip (record code, status, a few facts, the page
+    action) followed by a grid of small cards. Each card renders only the blocks
+    the page filled, so a two-fact record and a full transport leg use the same
+    component without empty boxes.
+
+    Styles: 73-detail-system.css, scoped under .ptg-record-detail.
+    Model: AkDetailCardsModel
+*@
+@model PTGOilSystem.Web.Models.Shared.AkDetailCardsModel
+@{
+    var stripItems = (Model.StripItems ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkInfoItem>())
+        .Where(item => item.HasValue)
+        .ToList();
+    var cards = (Model.Cards ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkDetailCard>())
+        .Where(card => card.HasContent)
+        .ToList();
+    var hasCode = !string.IsNullOrWhiteSpace(Model.Code);
+    var hasStatus = !string.IsNullOrWhiteSpace(Model.Status);
+    var hasPrimary = !string.IsNullOrWhiteSpace(Model.PrimaryLabel) && !string.IsNullOrWhiteSpace(Model.PrimaryHref);
+    var hasStrip = hasCode || hasStatus || stripItems.Count > 0 || hasPrimary;
+    var statusState = Model.StatusState switch
+    {
+        "is-active" => "is-active",
+        "is-warning" => "is-warning",
+        "is-danger" => "is-danger",
+        _ => "is-inactive"
+    };
+}
+@if (hasStrip)
+{
+    <section class="ptg-td-strip" aria-label="@UiText.T(Context, "شناسه رکورد", "Record identity")">
+        <dl class="ptg-td-strip-facts">
+            @if (hasCode)
+            {
+                <div class="ptg-td-strip-cell">
+                    <dt>@(string.IsNullOrWhiteSpace(Model.CodeLabel) ? UiText.T(Context, "کد", "Code") : Model.CodeLabel)</dt>
+                    <dd class="ak-num is-code"><bdi>@Model.Code</bdi></dd>
+                </div>
+            }
+            @if (hasStatus)
+            {
+                <div class="ptg-td-strip-cell">
+                    <dt>@UiText.T(Context, "وضعیت", "Status")</dt>
+                    <dd><span class="ak-status @statusState">@Model.Status</span></dd>
+                </div>
+            }
+            @foreach (var item in stripItems)
+            {
+                <div class="ptg-td-strip-cell">
+                    <dt>@item.Label</dt>
+                    <dd class="@(item.IsNumeric ? "ak-num" : null)">
+                        @if (!string.IsNullOrWhiteSpace(item.Href))
+                        {
+                            <a href="@item.Href"><bdi>@item.Value</bdi></a>
+                        }
+                        else
+                        {
+                            <bdi>@item.Value</bdi>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(item.Unit))
+                        {
+                            <small>@item.Unit</small>
+                        }
+                    </dd>
+                </div>
+            }
+        </dl>
+        @* دکمهٔ چاپ اینجا نمی‌آید: کنترل چاپ فقط در صورت‌حساب رسمی مجاز است. *@
+        @if (hasPrimary)
+        {
+            <div class="ptg-td-strip-actions no-print">
+                <a class="btn btn-primary ak-primary-action" href="@Model.PrimaryHref">
+                    <i class="bi @(string.IsNullOrWhiteSpace(Model.PrimaryIcon) ? "bi-pencil-square" : Model.PrimaryIcon)" aria-hidden="true"></i>
+                    <span>@Model.PrimaryLabel</span>
+                </a>
+            </div>
+        }
+    </section>
+}
+@if (cards.Count > 0)
+{
+    <div class="ptg-td-grid">
+        @foreach (var card in cards)
+        {
+            var rows = card.Rows.Where(item => item.HasValue).ToList();
+            var routeNodes = card.RouteNodes.Where(item => item.HasValue).ToList();
+            var footer = card.Footer.Where(item => item.HasValue).ToList();
+            <section class="ptg-td-card@(card.IsWide ? " is-wide" : string.Empty)">
+                <h2 class="ptg-td-card-head">
+                    <i class="bi @card.Icon" aria-hidden="true"></i><span>@card.Title</span>
+                </h2>
+                @if (routeNodes.Count > 0)
+                {
+                    <div class="ptg-td-route">
+                        @foreach (var node in routeNodes)
+                        {
+                            <div class="ptg-td-route-node">
+                                <span>@node.Label</span>
+                                <strong>@node.Value</strong>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (card.Steps.Count > 0)
+                {
+                    <ol class="ptg-td-steps" aria-label="@UiText.T(Context, "مراحل", "Stages")">
+                        @for (var i = 0; i < card.Steps.Count; i++)
+                        {
+                            var step = card.Steps[i];
+                            <li class="ptg-td-step @step.State">
+                                <span class="ptg-td-step-mark" aria-hidden="true">
+                                    @if (step.IsDone)
+                                    {
+                                        <i class="bi bi-check-lg"></i>
+                                    }
+                                    else
+                                    {
+                                        @(i + 1)
+                                    }
+                                </span>
+                                <span class="ptg-td-step-label">@step.Label</span>
+                            </li>
+                        }
+                    </ol>
+                }
+                @if (rows.Count > 0)
+                {
+                    <dl class="ptg-td-rows">
+                        @foreach (var item in rows)
+                        {
+                            <div class="ptg-td-row@(item.IsWide ? " is-wide" : string.Empty)">
+                                <dt>@item.Label</dt>
+                                <dd class="@(item.IsNumeric ? "ak-num" : null)">
+                                    @if (!string.IsNullOrWhiteSpace(item.Href))
+                                    {
+                                        <a href="@item.Href"><bdi>@item.Value</bdi></a>
+                                    }
+                                    else
+                                    {
+                                        <bdi>@item.Value</bdi>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.Unit))
+                                    {
+                                        <small>@item.Unit</small>
+                                    }
+                                </dd>
+                            </div>
+                        }
+                    </dl>
+                }
+                @if (card.Metrics.Count > 0)
+                {
+                    <dl class="ptg-td-metrics">
+                        @foreach (var metric in card.Metrics)
+                        {
+                            <div class="ptg-td-metric @metric.StateClass">
+                                <dt>@metric.Title</dt>
+                                <dd class="@(string.IsNullOrWhiteSpace(metric.Unit) ? null : "ak-num")">
+                                    <bdi>@metric.Value</bdi>
+                                    @if (!string.IsNullOrWhiteSpace(metric.Unit))
+                                    {
+                                        <small>@metric.Unit</small>
+                                    }
+                                </dd>
+                            </div>
+                        }
+                    </dl>
+                }
+                @if (footer.Count > 0)
+                {
+                    <div class="ptg-td-meta">
+                        @foreach (var item in footer)
+                        {
+                            <div class="ptg-td-meta-cell">
+                                <span>@item.Label</span>
+                                <strong class="@(item.IsNumeric ? "ak-num" : null)"><bdi>@item.Value</bdi></strong>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(card.Text))
+                {
+                    <p class="ptg-td-route-text">@card.Text</p>
+                }
+            </section>
+        }
+    </div>
+}

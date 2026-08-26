@@ -52,24 +52,30 @@
     // خط زمانی فقط با بیش از یک رویداد واقعی کارت مستقل می‌گیرد.
     var showTimeline = timelineItems.Count > 1;
 
-    // «اسناد» در وضعیت سربرگ شمرده می‌شود و کارت KPI جدا نمی‌گیرد.
-    var kpis = new List<AkKpiItem>();
+    // «اسناد» در وضعیت نوار شناسه شمرده می‌شود و کارت جدا نمی‌گیرد.
+    var amountMetrics = new List<AkKpiItem>();
     if (Model.ConsignmentWeightMt.HasValue)
     {
-        kpis.Add(new AkKpiItem { Title = T("وزن محموله", "Consignment weight"), Value = Model.ConsignmentWeightMt.Value.ToString("N4"), Unit = "MT", Avatar = "total-inventory" });
+        amountMetrics.Add(new AkKpiItem { Title = T("وزن محموله", "Consignment weight"), Value = Model.ConsignmentWeightMt.Value.ToString("N4"), Unit = "MT" });
     }
-    kpis.Add(new AkKpiItem { Title = T("مجموع افغانی", "Total AFN"), Value = Model.TotalAfn.ToString("N0"), Unit = "AFN", Avatar = "cash-flow" });
-    kpis.Add(new AkKpiItem { Title = T("معادل دالر", "USD equivalent"), Value = Model.TotalUsd.ToString("N2"), Unit = "USD", Avatar = "exchange-rate" });
+    amountMetrics.Add(new AkKpiItem { Title = T("مجموع افغانی", "Total AFN"), Value = Model.TotalAfn.ToString("N0"), Unit = "AFN" });
+    amountMetrics.Add(new AkKpiItem { Title = T("معادل دالر", "USD equivalent"), Value = Model.TotalUsd.ToString("N2"), Unit = "USD", State = "accent" });
 
-    // تاریخ/قرارداد/جنس در خط زمینهٔ سربرگ‌اند و اینجا تکرار نمی‌شوند.
-    var summaryItems = new List<AkInfoItem>
+    var mainItems = new List<AkInfoItem>
     {
-        new() { Label = T("واگن / موتر", "Wagon / truck"), Value = Model.WagonOrTruckNumber },
-        new() { Label = T("شماره مرجع", "Reference"), Value = Model.DeclarationReference },
-        new() { Label = T("شماره واگن بارگیری", "Loading wagon"), Value = Model.WagonNumber },
-        new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
+        new() { Label = T("قرارداد", "Contract"), Value = Model.ContractNumber },
+        new() { Label = T("محصول", "Product"), Value = Model.ProductName },
+        new() { Label = T("تاریخ اعلامیه", "Declaration date"), Value = Model.DeclarationDate.ToDisplayDate(), IsNumeric = true },
+        new() { Label = T("واگن / موتر", "Wagon / truck"), Value = Model.WagonOrTruckNumber, IsNumeric = true },
+        new() { Label = T("شماره مرجع", "Reference"), Value = Model.DeclarationReference, IsNumeric = true },
+        new() { Label = T("شماره واگن بارگیری", "Loading wagon"), Value = Model.WagonNumber, IsNumeric = true }
     };
-    var overviewItems = summaryItems;
+
+    var rateFooter = new List<AkInfoItem>
+    {
+        new() { Label = T("نرخ هر MT", "Rate per MT"), Value = Model.RatePerMtAfn.HasValue ? $"{Model.RatePerMtAfn.Value:N2} AFN/MT" : null, IsNumeric = true },
+        new() { Label = T("معادل دالر", "USD equivalent"), Value = Model.RatePerMtUsd.HasValue ? $"{Model.RatePerMtUsd.Value:N4} USD/MT" : null, IsNumeric = true }
+    };
 
     var advancedItems = new List<AkInfoItem>
     {
@@ -97,29 +103,66 @@
         new() { Label = T("اسناد", "Documents"), Value = hasDocs ? Model.Documents.Count.ToString("N0") : null, Meta = hasDocs ? T("پیوست شده", "Attached") : null, Status = hasDocs ? T("موجود", "Available") : null, StatusTone = hasDocs ? "success" : null, Href = hasDocs ? "#customs-documents" : null, Icon = "bi-paperclip" }
     };
 
+    var statusText = hasDocs ? T($"{Model.Documents.Count} سند", $"{Model.Documents.Count} documents") : T("بدون سند", "No document");
+    var editUrl = canManageDocuments ? Url.Action("Edit", new { id = Model.Id, returnUrl = currentUrl }) : null;
+
+    var cardsModel = new AkDetailCardsModel
+    {
+        Code = $"#{Model.Id}",
+        CodeLabel = T("شماره اعلامیه", "Declaration no."),
+        Status = statusText,
+        StatusState = hasDocs ? "is-active" : "is-warning",
+        StripItems = new List<AkInfoItem>
+        {
+            new() { Label = T("قرارداد", "Contract"), Value = Model.ContractNumber, IsNumeric = true },
+            new() { Label = T("محصول", "Product"), Value = Model.ProductName },
+            new() { Label = T("مجموع", "Total"), Value = $"{Model.TotalUsd:N2} USD", IsNumeric = true },
+            new() { Label = T("تاریخ", "Date"), Value = Model.DeclarationDate.ToDisplayDate(), IsNumeric = true }
+        },
+        PrimaryLabel = T("ویرایش", "Edit"),
+        PrimaryHref = editUrl,
+        Cards = new List<AkDetailCard>
+        {
+            new() { Title = T("اطلاعات اصلی", "Main information"), Icon = "bi-info-circle", Rows = mainItems },
+            new() { Title = T("مبالغ گمرکی", "Customs amounts"), Icon = "bi-cash-coin", Metrics = amountMetrics, Footer = rateFooter },
+            new() { Title = T("یادداشت", "Notes"), Icon = "bi-journal-text", Text = Model.Notes, IsWide = true }
+        }
+    };
+
+    var moreModel = new AkDetailMoreModel
+    {
+        Activity = activityRows,
+        Secondary = new AkDetailSecondaryModel
+        {
+            TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
+            TimelineLimit = 4,
+            Timeline = showTimeline ? timelineItems : Array.Empty<AkTimelineItem>(),
+            Related = relatedRecords,
+            Technical = advancedItems
+        },
+        NextActions = nextActions
+    };
+
     ViewData["Title"] = "جزئیات اعلامیه گمرکی";
     ViewData["HideSectionTabs"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = $"{T("اعلامیه گمرکی", "Customs declaration")} #{Model.Id}",
            Eyebrow = $"{Model.ContractNumber} · {Model.ProductName}",
            Meta = Model.DeclarationDate.ToDisplayDate(),
-           Icon = "bi-shield-check",
-           Status = hasDocs ? T($"{Model.Documents.Count} سند", $"{Model.Documents.Count} documents") : T("بدون سند", "No document"),
-            StatusState = hasDocs ? "is-active" : "is-warning"
+           Icon = "bi-shield-check"
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"{T("اعلامیه", "Declaration")} #{Model.Id}", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                         T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
-             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات گمرکی", "Customs summary"), AriaLabel = T("نمای اصلی اعلامیه", "Declaration overview"), Metrics = kpis, Facts = overviewItems })" />
+    <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
 
-    <section class="ak-form-section ak-detail-section ak-detail-reference-section" id="customs-costs">
+    <section class="ak-form-section ak-detail-section" id="customs-costs">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تفکیک اقلام مصارف گمرکی", (string?)null))" />
         <div class="ak-table-wrap">
             <table class="ak-table ak-detail-table">
@@ -161,7 +204,7 @@
         </div>
     </section>
 
-    <section class="ak-form-section ak-detail-section ak-detail-reference-section" id="customs-documents">
+    <section class="ak-form-section ak-detail-section" id="customs-documents">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("اسناد گمرکی این موتر", (string?)null))" />
 
         @if (TempData["ok"] is string okMsg)
@@ -260,16 +303,6 @@
         }
     </section>
 
-    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
-    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
-             model="@(new AkDetailSecondaryModel
-             {
-                 TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
-                 TimelineLimit = 4,
-                 Timeline = showTimeline ? timelineItems : Array.Empty<AkTimelineItem>(),
-                 Related = relatedRecords,
-                 Technical = advancedItems
-             })" />
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
+    <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 
 </div>

@@ -29,27 +29,34 @@
         ? $"Platts {Model.PlattsUsd.Value:N2}"
         : Model.LoadingPriceUsd.HasValue ? T("قیمت ثابت", "Fixed price") : null;
 
-    // ترتیب سه ردیفِ خواسته‌شده: ردیف اول هویت بارگیری، ردیف دوم قیمت‌گذاری،
-    // ردیف سوم ارقام روبلی (پایین‌تر اضافه می‌شوند). factهای باقی‌مانده — که
-    // روی اغلب رکوردها خالی‌اند و خودکار حذف می‌شوند — بعد از این ده مورد
-    // می‌آیند تا سه ردیف اول هرگز جابه‌جا نشوند.
-    var overviewItems = new List<AkInfoItem>
+    // کارت اول هویت بارگیری است، کارت سوم قیمت‌گذاری و ارقام روبلی. هر fact که
+    // مقدار نداشته باشد خودکار حذف می‌شود، پس ترتیب کارت‌ها هرگز جابه‌جا نمی‌شود.
+    var mainItems = new List<AkInfoItem>
     {
-        new() { Label = T("تاریخ بارگیری", "Loading date"), Value = Model.LoadingDate.ToDisplayDate() },
+        new() { Label = T("تاریخ بارگیری", "Loading date"), Value = Model.LoadingDate.ToDisplayDate(), IsNumeric = true },
         new() { Label = T("محصول", "Product"), Value = Model.ProductName },
         new() { Label = T("نوع حمل", "Transport type"), Value = Model.TransportTypeLabel },
-        new() { Label = T("نمبر وسیله", "Vehicle no."), Value = Model.VehicleSummary },
+        new() { Label = T("نمبر وسیله", "Vehicle no."), Value = Model.VehicleSummary, IsNumeric = true },
         new() { Label = T("قرارداد خرید", "Purchase contract"), Value = Model.ContractNumber, Href = contractUrl },
+        new() { Label = T("ترمینل / مبدأ", "Terminal / origin"), Value = Model.OriginLocationName },
+        new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName },
+        new() { Label = T("شرکت خدماتی", "Service provider"), Value = Model.LogisticsCompanyName,
+                Href = Model.LogisticsServiceProviderId.HasValue
+                    ? Url.Action("Details", "ServiceProviders", new { id = Model.LogisticsServiceProviderId.Value, returnUrl = currentPageReturnUrl })
+                    : null }
+    };
+
+    var pricingItems = new List<AkInfoItem>
+    {
         new() { Label = T("مبنای قیمت‌گذاری", "Pricing basis"), Value = pricingMethod },
         new() { Label = T("قیمت فی تن", "Unit price"), Value = Model.LoadingPriceUsd?.ToString("N2"), Unit = "USD/MT", IsNumeric = true },
-        new() { Label = T("ارزش بارگیری", "Loading value"), Value = Model.LoadingValueUsd?.ToString("N2"), Unit = "USD", IsNumeric = true }
+        new() { Label = T("ارزش بارگیری", "Loading value"), Value = Model.LoadingValueUsd?.ToString("N2"), Unit = "USD", IsNumeric = true },
+        new() { Label = T("کرایه فی تن", "Freight rate"), Value = NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, "USD/MT"), IsNumeric = true }
     };
+
     // ارزش روبلی از منبع واحد پروژه خوانده می‌شود، نه فقط از ارقام فایل بارگیری.
-    // پیش‌تر شرط HasFileRub بود (یعنی SettlementValueRub/SettlementUnitPriceRub)، پس
-    // بارگیری روبلی‌ای که نرخش هنگام ثبت قفل شده بود — AmountRubAtRubLock — هیچ رقم
-    // روبلی نشان نمی‌داد، در حالی که همان رقم در تب بارگیری‌های جریان قرارداد دیده می‌شد.
-    // LoadingRubValuation.Resolve همان ترتیب اولویتی را دارد که دفترکل و پروفایل تأمین‌کننده
-    // استفاده می‌کنند، پس این صفحه دیگر عدد متفاوتی از بقیهٔ سیستم نمی‌دهد.
+    // LoadingRubValuation.Resolve همان ترتیب اولویتی را دارد که دفترکل و پروفایل
+    // تأمین‌کننده استفاده می‌کنند، پس این صفحه عدد متفاوتی از بقیهٔ سیستم نمی‌دهد.
     var rubValue = LoadingRubValuation.Resolve(
         new LoadingRubFacts(
             Model.LoadedQuantityMt,
@@ -63,7 +70,7 @@
 
     if (Model.RubPerUsdRate is > 0m)
     {
-        overviewItems.Add(new AkInfoItem
+        pricingItems.Add(new AkInfoItem
         {
             Label = T("نرخ روبل", "RUB rate"),
             Value = Model.RubPerUsdRate.Value.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture),
@@ -74,7 +81,7 @@
 
     if (rubValue.HasValue)
     {
-        overviewItems.Add(new AkInfoItem
+        pricingItems.Add(new AkInfoItem
         {
             Label = T("ارزش روبلی", "RUB value"),
             Value = rubValue.AmountRub!.Value.ToString("N2"),
@@ -85,7 +92,7 @@
     else if (isRubSettlement)
     {
         // بارگیری روبلی بدون نرخ: به‌جای سطر خالی، دلیلِ نبودِ رقم گفته می‌شود.
-        overviewItems.Add(new AkInfoItem
+        pricingItems.Add(new AkInfoItem
         {
             Label = T("ارزش روبلی", "RUB value"),
             Value = T("در انتظار نرخ", "Awaiting rate"),
@@ -93,25 +100,12 @@
         });
     }
 
-    // factهای تکمیلی، بعد از سه ردیف اصلی. هرکدام مقدار نداشته باشد خودکار حذف می‌شود.
-    overviewItems.AddRange(new[]
+    var quantityMetrics = new List<AkKpiItem>
     {
-        new AkInfoItem { Label = T("ترمینل / مبدأ", "Terminal / origin"), Value = Model.OriginLocationName },
-        new AkInfoItem { Label = T("کرایه فی تن", "Freight rate"), Value = NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, "USD/MT"), IsNumeric = true },
-        new AkInfoItem { Label = T("مقصد", "Destination"), Value = Model.DestinationName },
-        new AkInfoItem { Label = T("شرکت خدماتی", "Service provider"), Value = Model.LogisticsCompanyName,
-                         Href = Model.LogisticsServiceProviderId.HasValue
-                             ? Url.Action("Details", "ServiceProviders", new { id = Model.LogisticsServiceProviderId.Value, returnUrl = currentPageReturnUrl })
-                             : null },
-        new AkInfoItem { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
-    });
-
-    var kpis = new List<AkKpiItem>
-    {
-        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", Avatar = "loading" },
-        new() { Title = T("قابل ارسال / تخصیص", "Available to dispatch"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "transported" },
-        new() { Title = T("کسری", "Shortage"), Value = NumberDisplay.Quantity(shortageTotal), Unit = "MT", Avatar = "losses", State = shortageTotal > 0m ? "warning" : null },
-        new() { Title = T("مجموع مصارف", "Total expenses"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD", Avatar = "expenses" }
+        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", State = "accent" },
+        new() { Title = T("قابل ارسال / تخصیص", "Available to dispatch"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT" },
+        new() { Title = T("کسری", "Shortage"), Value = NumberDisplay.Quantity(shortageTotal), Unit = "MT", State = shortageTotal > 0m ? "warning" : null },
+        new() { Title = T("مجموع مصارف", "Total expenses"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD" }
     };
 
     var latestReceipt = Model.ReceiptItems.OrderByDescending(item => item.ReceiptDate).FirstOrDefault();
@@ -167,9 +161,10 @@
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "loadingExpensesModal", Icon = "bi-receipt-cutoff" });
     nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت کسری", "Register shortage"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" });
 
+    var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl });
+    // «ویرایش» در نوار شناسه دیده می‌شود، پس در kebab تکرار نمی‌شود.
     var headerMenu = new List<AkHeaderMenuItem>
     {
-        new() { Label = T("ویرایش", "Edit"), Href = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-pencil-square" },
         new() { Label = T("نمای قرارداد", "Contract journey"), Href = contractUrl, Icon = "bi-diagram-3" }
     };
     if (showRubRateForm)
@@ -177,41 +172,59 @@
         headerMenu.Add(new AkHeaderMenuItem { Label = T("تعیین نرخ روبل", "Set RUB rate"), ModalTarget = "loadingRubleRateModal", Icon = "bi-currency-exchange" });
     }
     ViewData["AkHeaderKebab"] = headerMenu;
+
+    var cardsModel = new AkDetailCardsModel
+    {
+        Code = $"LD-{Model.Id:0000}",
+        CodeLabel = T("کد بارگیری", "Loading code"),
+        Status = statusText,
+        StatusState = statusState,
+        StripItems = new List<AkInfoItem>
+        {
+            new() { Label = T("قرارداد", "Contract"), Value = Model.ContractNumber, Href = contractUrl, IsNumeric = true },
+            new() { Label = T("محصول", "Product"), Value = Model.ProductName },
+            new() { Label = T("مقدار", "Quantity"), Value = $"{NumberDisplay.Quantity(Model.LoadedQuantityMt)} MT", IsNumeric = true },
+            new() { Label = T("تاریخ", "Date"), Value = Model.LoadingDate.ToDisplayDate(), IsNumeric = true }
+        },
+        PrimaryLabel = T("ویرایش", "Edit"),
+        PrimaryHref = editUrl,
+        Cards = new List<AkDetailCard>
+        {
+            new() { Title = T("اطلاعات اصلی", "Main information"), Icon = "bi-info-circle", Rows = mainItems },
+            new() { Title = T("مقادیر", "Quantities"), Icon = "bi-rulers", Metrics = quantityMetrics },
+            new() { Title = T("قیمت‌گذاری و ارزش", "Pricing & value"), Icon = "bi-cash-coin", Rows = pricingItems },
+            new() { Title = T("یادداشت", "Notes"), Icon = "bi-journal-text", Text = Model.Notes, IsWide = true }
+        }
+    };
+
+    var moreModel = new AkDetailMoreModel
+    {
+        Activity = activityRows,
+        Secondary = new AkDetailSecondaryModel
+        {
+            Timeline = timelineItems,
+            TimelineTitle = T("آخرین فعالیت‌ها", "Latest activity"),
+            TimelineLimit = 4
+        },
+        NextActions = nextActions
+    };
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl"
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail" dir="rtl"
      data-loading-details data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = T("جزئیات بارگیری", "Loading details"),
            Eyebrow = $"LD-{Model.Id:0000}",
-           Icon = "bi-box-arrow-up",
-           Status = statusText,
-           StatusState = statusState
+           Icon = "bi-box-arrow-up"
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("جزئیات بارگیری", "Loading details"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)effectiveReturnUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
-             model="@(new AkDetailOverviewModel
-             {
-                 AriaLabel = T("خلاصه اطلاعات بارگیری", "Loading information summary"),
-                 Title = T("خلاصه اطلاعات بارگیری", "Loading information summary"),
-                 Metrics = kpis,
-                 Facts = overviewItems
-             })" />
-
-    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
-    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
-             model="@(new AkDetailSecondaryModel
-             {
-                 Timeline = timelineItems,
-                 TimelineTitle = T("آخرین فعالیت‌ها", "Latest activity"),
-                 TimelineLimit = 4
-             })" />
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
+    <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
+    <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 
     <div class="modal fade" id="loadingExpensesModal" tabindex="-1" aria-labelledby="loadingExpensesModalLabel" aria-hidden="true"
          data-loading-expense-remote-modal="true" data-loading-expense-url="@expenseEditorUrl" data-loading-expense-prefetch="false">

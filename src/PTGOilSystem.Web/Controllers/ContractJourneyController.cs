@@ -1720,6 +1720,7 @@ public partial class ContractJourneyController : Controller
         var hasExpenseIds = expenseIdSet.Count > 0;
         var paymentEntities = await _db.PaymentTransactions
             .Include(p => p.CashAccount)
+            .Include(p => p.PaidByPartner)
             .Include(p => p.LedgerEntry)
             .AsNoTracking()
             .Where(p => p.ContractId == contractId
@@ -1746,6 +1747,8 @@ public partial class ContractJourneyController : Controller
                 PaymentKind = p.PaymentKind,
                 PaymentKindName = ToPaymentKindName(p.PaymentKind),
                 CashAccountName = p.CashAccount?.Name ?? string.Empty,
+                FundingSource = p.FundingSource,
+                PaidByPartnerName = p.PaidByPartner?.Name,
                 Amount = p.Amount,
                 Currency = p.Currency,
                 AmountUsd = p.AmountUsd,
@@ -3487,6 +3490,7 @@ public partial class ContractJourneyController : Controller
             {
                 p.Id,
                 p.Direction,
+                p.PaymentKind,
                 p.AmountUsd
             })
             .ToListAsync();
@@ -3494,6 +3498,28 @@ public partial class ContractJourneyController : Controller
         var paymentTotalUsd = paymentRows.Sum(p => p.AmountUsd);
         var paymentInTotalUsd = paymentRows.Where(p => p.Direction == PaymentDirection.In).Sum(p => p.AmountUsd);
         var paymentOutTotalUsd = paymentRows.Where(p => p.Direction == PaymentDirection.Out).Sum(p => p.AmountUsd);
+        // payload خلاصه فهرست PaymentItems/SarrafSettlementItems را پر نمی‌کند؛ رقم «پرداخت‌شده»
+        // کارت چرخه قرارداد باید همین‌جا محاسبه شود، هم‌فرمول با تب پرداخت‌ها.
+        var supplierSarrafSettledUsd = (await _db.SarrafSettlements
+            .AsNoTracking()
+            .Where(s => s.ContractId == contractId && s.Status == SarrafSettlementStatus.Posted)
+            .Select(s => new
+            {
+                s.DifferenceTreatment,
+                s.RequestedAmountUsd,
+                s.SupplierAcceptedAmountUsd
+            })
+            .ToListAsync())
+            .Sum(s => s.DifferenceTreatment == SarrafSettlementDifferenceTreatment.RecognizeExchangeGainLoss
+                ? s.RequestedAmountUsd
+                : s.SupplierAcceptedAmountUsd);
+        var supplierPaidNetUsd = paymentRows
+                .Where(p => p.PaymentKind == PaymentKind.SupplierPayment && p.Direction == PaymentDirection.Out)
+                .Sum(p => p.AmountUsd)
+            - paymentRows
+                .Where(p => p.PaymentKind == PaymentKind.SupplierReceipt && p.Direction == PaymentDirection.In)
+                .Sum(p => p.AmountUsd)
+            + supplierSarrafSettledUsd;
 
         var ledgerRows = await _db.LedgerEntries
             .AsNoTracking()
@@ -3794,6 +3820,7 @@ public partial class ContractJourneyController : Controller
             ExpenseTotalUsd = totalExpensesUsd,
             InventoryTransportExpenseTotalUsd = inventoryTransportExpenseTotalUsd,
             PaymentTotalUsd = paymentTotalUsd,
+            SupplierPaidNetUsd = supplierPaidNetUsd,
             LossQuantityMt = totalLossQuantityMt,
             StorageOverviewItems = storageOverviewItems,
             TransportOverviewItems = transportOverviewItems,
@@ -4324,6 +4351,7 @@ public partial class ContractJourneyController : Controller
         var paymentEntities = new List<PaymentTransaction>();
         paymentEntities.AddRange(await _db.PaymentTransactions
             .Include(p => p.CashAccount)
+            .Include(p => p.PaidByPartner)
             .Include(p => p.LedgerEntry)
             .AsNoTracking()
             .Where(p => p.ContractId == contract.Id)
@@ -4332,6 +4360,7 @@ public partial class ContractJourneyController : Controller
         {
             paymentEntities.AddRange(await _db.PaymentTransactions
                 .Include(p => p.CashAccount)
+                .Include(p => p.PaidByPartner)
                 .Include(p => p.LedgerEntry)
                 .AsNoTracking()
                 .Where(p => p.SalesTransactionId.HasValue && saleIdSet.Contains(p.SalesTransactionId.Value))
@@ -4355,6 +4384,8 @@ public partial class ContractJourneyController : Controller
                 PaymentKind = p.PaymentKind,
                 PaymentKindName = ToPaymentKindName(p.PaymentKind),
                 CashAccountName = p.CashAccount?.Name ?? string.Empty,
+                FundingSource = p.FundingSource,
+                PaidByPartnerName = p.PaidByPartner?.Name,
                 Amount = p.Amount,
                 Currency = p.Currency,
                 AmountUsd = p.AmountUsd,

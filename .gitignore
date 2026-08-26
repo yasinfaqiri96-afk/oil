@@ -195,7 +195,6 @@ tmp/
 .DS_Store
 Thumbs.db
 desktop.ini
-*.lnk
 # ---------------------------------------------------------
 # Additional generated/test/temp outputs
 # ---------------------------------------------------------

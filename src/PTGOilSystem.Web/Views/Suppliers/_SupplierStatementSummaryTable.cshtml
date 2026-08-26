@@ -39,10 +39,10 @@
                         <small>@row.ContractNumber</small>
                     }
                 </td>
-                <td class="text-end ak-num">@Amount(row.ReceiptUsd)</td>
-                <td class="text-end ak-num">@Amount(row.OutflowUsd)</td>
-                <td class="text-end ak-num">@Amount(row.ReceiptRubEquivalent)</td>
-                <td class="text-end ak-num">@Amount(row.OutflowRubEquivalent)</td>
+                <td class="text-end ak-num @(row.ReceiptUsd.GetValueOrDefault() == 0m ? null : "ak-number--positive")">@Amount(row.ReceiptUsd)</td>
+                <td class="text-end ak-num @(row.OutflowUsd.GetValueOrDefault() == 0m ? null : "ak-number--negative")">@Amount(row.OutflowUsd)</td>
+                <td class="text-end ak-num @(row.ReceiptRubEquivalent.GetValueOrDefault() == 0m ? null : "ak-number--positive")">@Amount(row.ReceiptRubEquivalent)</td>
+                <td class="text-end ak-num @(row.OutflowRubEquivalent.GetValueOrDefault() == 0m ? null : "ak-number--negative")">@Amount(row.OutflowRubEquivalent)</td>
                 <td class="supplier-balance-cell ak-num">@Html.Raw(Balance(row))</td>
             </tr>
         }

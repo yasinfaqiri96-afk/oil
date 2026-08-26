@@ -70,7 +70,10 @@
     var supplierSarrafSettledUsd = Model.SarrafSettlementItems
         .Where(s => s.Status == SarrafSettlementStatus.Posted)
         .Sum(s => s.SupplierReductionAmountUsd);
-    var supplierPaidNetUsd = supplierPaymentOutUsd - supplierReceiptInUsd + supplierSarrafSettledUsd;
+    // در payload خلاصه، PaymentItems/SarrafSettlementItems خالی است؛ رقم آماده کنترلر استفاده می‌شود.
+    var supplierPaidNetUsd = useSummaryMetrics
+        ? summaryMetrics.SupplierPaidNetUsd
+        : supplierPaymentOutUsd - supplierReceiptInUsd + supplierSarrafSettledUsd;
     var supplierRemainingUsd = supplierPayableTotalUsd - supplierPaidNetUsd;
     var supplierRemainingToneClass = supplierRemainingUsd > 0m
         ? "text-danger"
@@ -485,9 +488,32 @@
     var filteredExpenseItems = Model.ExpenseItems
         .Where(item => MatchesListSearch(expensesSearch, item.ExpenseTransactionId, item.ExpenseDate.ToDisplayDate(), item.ExpenseTypeName, item.ShipmentCode, item.DispatchLabel, item.TransportLegLabel, item.Description, item.VehicleNumber, item.TraceKind))
         .ToList();
-    var expensesPageCount = PageCountFor(filteredExpenseItems.Count);
+    // نمای مصارف به‌صورت تجمیعی بر اساس «نوع مصرف» است؛ ردیف‌های دانه‌دانه داخل هر گروه
+    // با دکمه «جزئیات» باز می‌شوند. صفحه‌بندی روی گروه‌ها اعمال می‌شود، نه روی تک‌تک اسناد.
+    var expenseGroups = filteredExpenseItems
+        .GroupBy(item => string.IsNullOrWhiteSpace(item.ExpenseTypeName) ? "-" : item.ExpenseTypeName)
+        .Select(group => new
+        {
+            TypeName = group.Key,
+            Items = group.OrderByDescending(item => item.ExpenseDate).ThenByDescending(item => item.ExpenseTransactionId).ToList(),
+            TotalUsd = group.Sum(item => item.AmountUsd),
+            LastDate = group.Max(item => item.ExpenseDate)
+        })
+        .OrderByDescending(group => group.TotalUsd)
+        .Select((group, index) => new
+        {
+            group.TypeName,
+            group.Items,
+            group.TotalUsd,
+            group.LastDate,
+            // شناسه پایدار برای collapse؛ نام نوع مصرف فارسی است و در id قابل استفاده نیست.
+            Slug = index + 1
+        })
+        .ToList();
+    var filteredExpenseTotalUsd = filteredExpenseItems.Sum(item => item.AmountUsd);
+    var expensesPageCount = PageCountFor(expenseGroups.Count);
     var expensesPage = Math.Min(ReadPositivePage("expensesPage"), expensesPageCount);
-    var pagedExpenseItems = filteredExpenseItems
+    var pagedExpenseGroups = expenseGroups
         .Skip((expensesPage - 1) * journeyListPageSize)
         .Take(journeyListPageSize)
         .ToList();
@@ -1122,36 +1148,72 @@
                         <table class="ak-table ak-detail-table">
                             <thead>
                                 <tr>
-                                    <th class="ak-col-grow">@T("نوع", "Type")</th>
-                                    <th>@T("تاریخ", "Date")</th>
-                                    <th class="ak-col-num">@T("مبلغ", "Amount")</th>
-                                    <th class="ak-col-actions">@T("عملیات", "Actions")</th>
+                                    <th class="ak-col-actions no-print"><span class="visually-hidden">@T("جزئیات", "Details")</span></th>
+                                    <th class="ak-col-grow">@T("بابت", "Purpose")</th>
+                                    <th class="ak-col-num">@T("تعداد سند", "Records")</th>
+                                    <th>@T("آخرین تاریخ", "Last date")</th>
+                                    <th class="ak-col-num">@T("جمع مبلغ", "Total amount")</th>
                                 </tr>
                             </thead>
                             <tbody>
-                            @foreach (var item in pagedExpenseItems)
+                            @foreach (var group in pagedExpenseGroups)
                             {
+                                var groupDetailId = $"journey-expense-group-{group.Slug}";
                                 <tr>
-                                    <td class="ak-col-grow"><a asp-controller="Expenses" asp-action="Details" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="ak-name">@item.ExpenseTypeName</a></td>
-                                    <td>@item.ExpenseDate.ToDisplayDate()</td>
-                                    <td class="ak-num">@item.AmountUsd.ToString("N2") @UnitUsd()</td>
-                                    <td class="ak-col-actions">
-                                        <div class="dropdown ak-row-menu">
-                                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
-                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><a asp-controller="Expenses" asp-action="Details" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
-                                                <li><a asp-controller="Expenses" asp-action="Edit" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
-                                            </ul>
-                                        </div>
+                                    <td class="ak-col-actions no-print">
+                                        <button type="button" class="ak-row-menu-btn" data-bs-toggle="collapse" data-bs-target="#@groupDetailId" aria-expanded="false" aria-controls="@groupDetailId" title="@T("جزئیات", "Details")">
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </button>
+                                    </td>
+                                    <td class="ak-col-grow"><span class="ak-name">@group.TypeName</span></td>
+                                    <td class="ak-num">@group.Items.Count.ToString("N0")</td>
+                                    <td>@group.LastDate.ToDisplayDate()</td>
+                                    <td class="ak-num">@group.TotalUsd.ToString("N2") @UnitUsd()</td>
+                                </tr>
+                                <tr class="collapse" id="@groupDetailId">
+                                    <td colspan="5">
+                                        <table class="ak-table ak-detail-table">
+                                            <thead>
+                                                <tr>
+                                                    <th class="ak-col-grow">@T("شرح", "Description")</th>
+                                                    <th>@T("تاریخ", "Date")</th>
+                                                    <th class="ak-col-num">@T("مبلغ", "Amount")</th>
+                                                    <th class="ak-col-actions">@T("عملیات", "Actions")</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            @foreach (var item in group.Items)
+                                            {
+                                                <tr>
+                                                    <td class="ak-col-grow">
+                                                        <a asp-controller="Expenses" asp-action="Details" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="ak-name">
+                                                            @(!string.IsNullOrWhiteSpace(item.Description) ? item.Description : item.ExpenseTypeName)
+                                                        </a>
+                                                    </td>
+                                                    <td>@item.ExpenseDate.ToDisplayDate()</td>
+                                                    <td class="ak-num">@item.AmountUsd.ToString("N2") @UnitUsd()</td>
+                                                    <td class="ak-col-actions">
+                                                        <div class="dropdown ak-row-menu">
+                                                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
+                                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                            </button>
+                                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                                <li><a asp-controller="Expenses" asp-action="Details" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
+                                                                <li><a asp-controller="Expenses" asp-action="Edit" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                                            </ul>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                            </tbody>
+                                        </table>
                                     </td>
                                 </tr>
                             }
                             @if (!filteredExpenseItems.Any())
                             {
                                 <tr>
-                                    <td colspan="4">
+                                    <td colspan="5">
                                         <div class="ak-empty ak-detail-empty-state">
                                             <i class="bi bi-receipt-cutoff"></i>
                                             @T("داده‌ای ثبت نشده است.", "No records yet.")
@@ -1160,6 +1222,18 @@
                                 </tr>
                             }
                             </tbody>
+                            @if (filteredExpenseItems.Any())
+                            {
+                                <tfoot>
+                                    <tr>
+                                        <td class="no-print"></td>
+                                        <td class="ak-col-grow">@T("مجموع", "Total")</td>
+                                        <td class="ak-num">@filteredExpenseItems.Count.ToString("N0")</td>
+                                        <td></td>
+                                        <td class="ak-num">@filteredExpenseTotalUsd.ToString("N2") @UnitUsd()</td>
+                                    </tr>
+                                </tfoot>
+                            }
                         </table>
                     </div>
                     @await DetailPager("expensesPage", expensesPage, expensesPageCount)

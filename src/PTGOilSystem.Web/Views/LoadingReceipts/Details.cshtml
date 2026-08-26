@@ -78,12 +78,12 @@
     }
     ViewData["AkHeaderKebab"] = headerKebab;
 
-    var kpis = new List<AkKpiItem>
+    var quantityMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مقدار این رسید", "Receipt quantity"), Value = NumberDisplay.Quantity(Model.ReceivedQuantityMt), Unit = "MT", Avatar = "total-inventory" },
-        new() { Title = T("جمع دریافت", "Total received"), Value = NumberDisplay.Quantity(Model.TotalReceivedQuantityMt), Unit = "MT", Avatar = "loading-terminal" },
-        new() { Title = T("باقی‌مانده", "Remaining"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "warehouse" },
-        new() { Title = T("اختلاف تخصیص", "Allocation difference"), Value = NumberDisplay.Quantity(Model.AllocationDifferenceMt), Unit = "MT", Avatar = "losses", State = allocBalanced ? null : "warning" }
+        new() { Title = T("مقدار این رسید", "Receipt quantity"), Value = NumberDisplay.Quantity(Model.ReceivedQuantityMt), Unit = "MT", State = "accent" },
+        new() { Title = T("جمع دریافت", "Total received"), Value = NumberDisplay.Quantity(Model.TotalReceivedQuantityMt), Unit = "MT" },
+        new() { Title = T("باقی‌مانده", "Remaining"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT" },
+        new() { Title = T("اختلاف تخصیص", "Allocation difference"), Value = NumberDisplay.Quantity(Model.AllocationDifferenceMt), Unit = "MT", State = allocBalanced ? null : "warning" }
     };
 
     // قرارداد/جنس/تاریخ رسید در خط زمینهٔ سربرگ‌اند و اینجا تکرار نمی‌شوند.
@@ -127,7 +127,7 @@
         new() { Label = T("گیرنده", "Consignee"), Value = Model.ConsigneeName },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
     };
-    var overviewItems = loadingItems.Concat(receiptItems.Skip(1)).ToList();
+
 
     var advancedItems = new List<AkInfoItem>
     {
@@ -167,7 +167,7 @@
     var nextActions = new List<AkHeaderMenuItem>();
     if (!Model.IsCancelled)
     {
-        nextActions.Add(new AkHeaderMenuItem { Label = T("ویرایش رسید", "Edit receipt"), Href = receiptEditUrl, Icon = "bi-pencil-square" });
+        // «ویرایش رسید» به نوار شناسه منتقل شده و اینجا تکرار نمی‌شود.
         nextActions.Add(new AkHeaderMenuItem { Label = T("اصلاح مقدار", "Correct quantity"), Href = Url.Action("Correct", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-arrow-repeat" });
     }
     var linkedSalesCount = Model.Allocations.Count(item => item.SalesTransactionId.HasValue);
@@ -180,12 +180,54 @@
         new() { Label = T("ارسال‌ها", "Dispatches"), Value = linkedDispatchCount > 0 ? linkedDispatchCount.ToString("N0") : null, Status = linkedDispatchCount > 0 ? T("متصل", "Linked") : null, StatusTone = linkedDispatchCount > 0 ? "success" : null, Icon = "bi-truck" }
     };
 
+    var statusText = Model.IsCancelled
+        ? T("لغوشده", "Cancelled")
+        : allocBalanced ? T("تخصیص متوازن", "Allocation balanced") : T("اختلاف تخصیص", "Allocation mismatch");
+    var statusState = Model.IsCancelled ? "is-danger" : allocBalanced ? "is-active" : "is-warning";
+
+    var cardsModel = new AkDetailCardsModel
+    {
+        Code = $"#{Model.Id}",
+        CodeLabel = T("شماره رسید", "Receipt no."),
+        Status = statusText,
+        StatusState = statusState,
+        StripItems = new List<AkInfoItem>
+        {
+            new() { Label = T("قرارداد", "Contract"), Value = Model.ContractNumber, IsNumeric = true },
+            new() { Label = T("محصول", "Product"), Value = Model.ProductName },
+            new() { Label = T("مقدار", "Quantity"), Value = $"{NumberDisplay.Quantity(Model.ReceivedQuantityMt)} MT", IsNumeric = true },
+            new() { Label = T("تاریخ رسید", "Receipt date"), Value = Model.ReceiptDate.ToDisplayDate(), IsNumeric = true }
+        },
+        PrimaryLabel = T("ویرایش رسید", "Edit receipt"),
+        PrimaryHref = Model.IsCancelled ? null : receiptEditUrl,
+        Cards = new List<AkDetailCard>
+        {
+            new() { Title = T("اطلاعات رسید", "Receipt information"), Icon = "bi-box-arrow-in-down", Rows = receiptItems },
+            new() { Title = T("مقادیر", "Quantities"), Icon = "bi-rulers", Metrics = quantityMetrics },
+            new() { Title = T("بارگیری مبدأ", "Source loading"), Icon = "bi-box-arrow-up", Rows = loadingItems }
+        }
+    };
+
+    var moreModel = new AkDetailMoreModel
+    {
+        Activity = activityRows,
+        Secondary = new AkDetailSecondaryModel
+        {
+            TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"),
+            TimelineLimit = 4,
+            Timeline = timelineItems,
+            Related = relatedRecords,
+            Technical = advancedItems
+        },
+        NextActions = nextActions
+    };
+
     ViewData["Title"] = pageTitle;
     ViewData["HideSectionTabs"] = true;
     ViewData["ModalDesignSystemAssets"] = true;
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ak-detail-reference-layout" dir="rtl" data-loading-receipt-details data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail" dir="rtl" data-loading-receipt-details data-ak-detail-v2="true" data-ak-operations-detail="true">
 
     @if (Model.IsCancelled)
     {
@@ -213,21 +255,18 @@
            Title = $"{T("رسید", "Receipt")} #{Model.Id} · {Model.ProductName}",
            Eyebrow = receiptDestinationText,
            Meta = Model.ReceiptDate.ToDisplayDate(),
-           Icon = "bi-box-arrow-in-down",
-           Status = ViewData["AkHeaderStatus"]?.ToString(),
-           StatusState = ViewData["AkHeaderStatusState"]?.ToString()
+           Icon = "bi-box-arrow-in-down"
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
          model="@(($"{T("رسید", "Receipt")} #{Model.Id}", false,
                     (string?)null, (string?)null, (string?)null, (string?)null,
                    T("بازگشت", "Back"), "bi-arrow-right", backUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
-             model="@(new AkDetailOverviewModel { Title = T("خلاصه اطلاعات رسید", "Receipt summary"), AriaLabel = T("نمای اصلی رسید", "Receipt overview"), Metrics = kpis, Facts = overviewItems })" />
+    <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
 
     @if (Model.LossItems.Count > 0)
     {
-        <div class="ak-form-grid ak-detail-reference-section" id="receipt-losses">
+        <div class="ak-form-grid" id="receipt-losses">
             <section class="ak-form-section ak-detail-section ak-col-full" data-loading-receipt-losses>
                 <header class="ak-section-head ak-detail-section-header">
                     <h2 class="ak-section-title">@T("کسری رسید", "Receipt shortage")</h2>
@@ -257,10 +296,7 @@
         </div>
     }
 
-    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
-    <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
-             model="@(new AkDetailSecondaryModel { TimelineTitle = T("آخرین فعالیت‌ها", "Latest activities"), TimelineLimit = 4, Timeline = timelineItems, Related = relatedRecords, Technical = advancedItems })" />
-    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml" model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
+    <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 
     @if (!Model.IsCancelled)
     {

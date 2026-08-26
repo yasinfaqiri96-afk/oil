@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Models.Auth;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.DeleteSafety;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -88,11 +89,17 @@ public class UserManagementTests
         var users = new UserService(db);
         var admin = await users.CreateUserAsync("admin", "System Admin", "StrongPass123!", 1);
 
-        var controller = new UsersController(db, users, new AuditService(db))
+        var httpContext = BuildHttpContext(admin.Id, admin.Username, admin.FullName, AuthRoles.Admin);
+        var controller = new UsersController(
+            db,
+            users,
+            new AuditService(db),
+            new MasterDataDeleteSafetyService(db),
+            new CurrentUserContext(new HttpContextAccessor { HttpContext = httpContext }))
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = BuildHttpContext(admin.Id, admin.Username, admin.FullName, AuthRoles.Admin)
+                HttpContext = httpContext
             },
             TempData = BuildTempData()
         };
@@ -148,7 +155,12 @@ public class UserManagementTests
         Assert.False(savedRole.CanManageUsers);
         Assert.Contains(RoleNavigationKeys.CashAccounts, RoleAccessRules.ResolveNavigationForRole(savedRole));
 
-        var usersController = new UsersController(db, new UserService(db), new AuditService(db));
+        var usersController = new UsersController(
+            db,
+            new UserService(db),
+            new AuditService(db),
+            new MasterDataDeleteSafetyService(db),
+            new CurrentUserContext(new HttpContextAccessor()));
 
         var indexResult = await usersController.Index(null, null, null);
 

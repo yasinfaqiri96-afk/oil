@@ -67,6 +67,16 @@
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><a asp-action="Details" asp-route-id="@user.Id" class="dropdown-item"><i class="bi bi-eye"></i> @UiText.T(Context, "مشاهده", "View")</a></li>
                                         <li><a asp-action="Edit" asp-route-id="@user.Id" class="dropdown-item"><i class="bi bi-pencil"></i> @UiText.T(Context, "ویرایش", "Edit")</a></li>
+                                        <li><hr class="dropdown-divider" /></li>
+                                        <li>
+                                            <form asp-action="Delete" asp-route-id="@user.Id" method="post"
+                                                  data-ptg-confirm="true"
+                                                  data-ptg-confirm-title="@UiText.T(Context, "حذف کاربر", "Delete user")"
+                                                  data-ptg-confirm-message="@UiText.T(Context, $"کاربر «{user.Username}» حذف یا در صورت استفاده غیرفعال شود؟", $"Delete user \"{user.Username}\", or deactivate it if already in use?")">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item ak-danger"><i class="bi bi-trash"></i> @UiText.T(Context, "حذف", "Delete")</button>
+                                            </form>
+                                        </li>
                                     </ul>
                                 </div>
                             </td>

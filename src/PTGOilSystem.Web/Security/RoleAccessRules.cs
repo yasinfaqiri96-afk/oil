@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Security;
@@ -77,7 +77,7 @@ public static class RoleAccessRules
         new(RoleNavigationKeys.Reports, "گزارشات", "bi-clipboard-data-fill",
             ["Reports", "Reconciliation", "CustomsPermitTurnover"]),
         new(RoleNavigationKeys.Partners, "اشخاص", "bi-person-vcard-fill",
-            ["Partners", "Companies", "Suppliers", "SupplierBalanceTransfers", "Customers", "ServiceProviders", "Sarrafs", "Employees"]),
+            ["Partners", "PartnershipStatement", "Companies", "Suppliers", "SupplierBalanceTransfers", "Customers", "ServiceProviders", "Sarrafs", "Employees"]),
         new(RoleNavigationKeys.BaseDefinitions, "تعاریف پایه", "bi-database-fill-gear",
             ["Products", "Units", "Currencies", "DailyFxRates", "Locations", "ExpenseTypes", "ExpenseRules",
                 "Terminals", "StorageTanks", "Trucks", "Wagons", "Drivers", "Vessels", "AutoCodes"]),

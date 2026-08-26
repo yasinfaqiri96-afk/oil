@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.PartyStatements.PartyStatementViewModel
+﻿@model PTGOilSystem.Web.Models.PartyStatements.PartyStatementViewModel
 @using PTGOilSystem.Web.Models.PartyStatements
 @{
     var s = Model.Statement;
@@ -158,13 +158,14 @@
 
     @if (Model.ShowContractViewTabs)
     {
+        @* پیش‌فرض «خلاصه قراردادها» است؛ جزئیات فقط با انتخاب کاربر باز می‌شود. *@
         <nav class="statement-view-tabs no-print" aria-label="نوع نمایش">
-            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Ledger ? "is-active" : null)" href="@StatementViewUrl(SupplierStatementView.Ledger)">گردش حساب</a>
             <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Contracts ? "is-active" : null)" href="@StatementViewUrl(SupplierStatementView.Contracts)">خلاصه قراردادها</a>
+            <a class="statement-view-tab @(Model.SupplierView is SupplierStatementView.Ledger or SupplierStatementView.Loadings ? "is-active" : null)" href="@StatementViewUrl(SupplierStatementView.Ledger)">جزئیات تراکنش‌ها</a>
         </nav>
     }
 
-    @if (Model.ShowContractViewTabs && Model.SupplierView is SupplierStatementView.Contracts or SupplierStatementView.Loadings && Model.ContractGrouping != null)
+    @if (Model.SupplierView == SupplierStatementView.Contracts && Model.ContractGrouping != null)
     {
         <partial name="_SupplierContractStatement" model="Model" />
     }
@@ -224,6 +225,23 @@
                     <tfoot><tr><th colspan="@leadColumns">جمع دوره</th><th class="statement-money statement-receipt">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</th><th class="statement-money statement-outflow">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</th><th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th></tr></tfoot>
                 </table>
             </div>
+            @if (!Model.IsPrintMode && Model.ShowContractViewTabs)
+            {
+                @* نمای فشرده: بارگیری/فروش‌های هر قرارداد در یک سطر جمع شده‌اند. لینک زیر
+                   همان سطرهای خام را بدون هیچ تغییر در جمع‌ها باز می‌کند. *@
+                <p class="statement-note no-print">
+                    @if (Model.SupplierView == SupplierStatementView.Ledger)
+                    {
+                        <span>اسناد بارگیری و فروش هر قرارداد در یک سطر جمع شده‌اند.</span>
+                        <a href="@StatementViewUrl(SupplierStatementView.Loadings)">مشاهده تک‌تک اسناد</a>
+                    }
+                    else
+                    {
+                        <span>همه اسناد به‌صورت جداگانه نمایش داده می‌شوند.</span>
+                        <a href="@StatementViewUrl(SupplierStatementView.Ledger)">نمایش فشرده</a>
+                    }
+                </p>
+            }
             @if (!Model.IsPrintMode && totalPages > 1)
             {
                 <nav class="statement-pagination no-print" aria-label="صفحه‌بندی تراکنش‌ها">
