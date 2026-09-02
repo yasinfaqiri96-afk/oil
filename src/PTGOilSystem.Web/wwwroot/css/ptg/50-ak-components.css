@@ -1000,6 +1000,50 @@ a.ak-list-row:focus-visible {
     border-block: 1px solid var(--divider);
 }
 
+/* Read-only summary strip built from <article class="ak-field"> items:
+   quiet label above a strong value, single row rhythm, tabular numbers.
+   Same hierarchy as .ak-summary-list; the <dl> variant keeps its own rules. */
+.ak-summary:has(> article.ak-field) {
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    column-gap: 24px;
+    row-gap: 0;
+    padding-block-end: 0;
+    border-block-end: 0;
+}
+
+.ak-summary > article.ak-field {
+    gap: 2px;
+    padding-block: 10px;
+    border-block-end: 1px solid var(--divider);
+}
+
+.ak-summary > article.ak-field > span {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--ptg-muted);
+}
+
+.ak-summary > article.ak-field > strong {
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--ptg-text);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.ak-summary > article.ak-field.is-primary > strong {
+    color: var(--primary-main);
+}
+
+/* Long identity values (supplier / contract) need a wider cell on desktop. */
+@media (min-width: 768px) {
+    .ak-summary > article.ak-field.is-wide {
+        grid-column: span 2;
+    }
+}
+
 .ak-table-total {
     font-weight: 600;
     background: var(--ptg-surface-subtle, #f7f8fa);
@@ -1170,6 +1214,11 @@ a.ak-list-row:focus-visible {
 
 .ak-choice.is-selected i {
     color: var(--primary-main);
+}
+
+.ak-choice:disabled {
+    opacity: .45;
+    cursor: not-allowed;
 }
 
 .ak-toggle-field {
@@ -3517,23 +3566,6 @@ select.ak-input {
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-}
-
-.loading-import-workbook .lic-toolbar-actions .lic-excel-import-btn {
-    border-color: var(--ptg-success);
-    background: var(--ptg-success);
-    color: #fff;
-}
-
-.loading-import-workbook .lic-toolbar-actions .lic-excel-import-btn:hover,
-.loading-import-workbook .lic-toolbar-actions .lic-excel-import-btn:focus-visible {
-    border-color: var(--ptg-success-text);
-    background: var(--ptg-success-text);
-    color: #fff;
-}
-
-.loading-import-workbook .lic-toolbar-actions .lic-excel-import-btn:focus-visible {
-    box-shadow: 0 0 0 3px rgba(var(--ptg-success-rgb), 0.24);
 }
 
 .loading-import-workbook .lic-toolbar-counts strong {

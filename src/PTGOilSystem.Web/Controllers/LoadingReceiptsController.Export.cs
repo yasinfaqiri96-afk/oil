@@ -8,9 +8,9 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class LoadingReceiptsController
 {
     [HttpGet, EnableRateLimiting(RateLimitPolicies.CsvExport)]
-    public async Task<IActionResult> Export(string? format, string? q = null, DateTime? fromDate = null, DateTime? toDate = null)
+    public async Task<IActionResult> Export(string? format, string? q = null, DateTime? fromDate = null, DateTime? toDate = null, int? productId = null, int? terminalId = null, int? destination = null, string? status = null)
     {
-        var view = (ViewResult)await Index(q, fromDate, toDate, page: 0);
+        var view = (ViewResult)await Index(q, fromDate, toDate, productId, terminalId, destination, status, page: 0);
         var document = TabularExportAuto.Build(view.Model!, "PTG_Loading_Receipts", "رسیدهای بارگیری", "Loading Receipts",
         [
             new("تاریخ", "Date", TabularExportValueType.Date, 13, "ReceiptDate"),

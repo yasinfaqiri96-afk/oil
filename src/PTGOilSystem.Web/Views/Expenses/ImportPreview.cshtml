@@ -10,11 +10,15 @@
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
                 <h1 class="h5 mb-1">پیش‌نمایش مصارف واردشده</h1>
-                <p class="text-muted small mb-0">ردیف‌های درست را می‌توانید ثبت کنید. تا وقتی «ثبت نهایی» را نزنید چیزی ذخیره نمی‌شود.</p>
+                <p class="text-muted small mb-0">تا وقتی «ثبت نهایی» را نزنید چیزی ذخیره نمی‌شود.</p>
             </div>
-            <div class="d-flex gap-3">
-                <span class="ak-status bg-success fs-6">آماده ثبت: @Model.ValidCount</span>
+            @* PTG-P2-02 — خلاصهٔ کامل: کل، سالم، خطا، تکراری، و آنچه واقعاً ثبت می‌شود. *@
+            <div class="d-flex flex-wrap gap-2">
+                <span class="ak-status fs-6">کل: @Model.Rows.Count</span>
+                <span class="ak-status bg-success fs-6">سالم: @Model.ValidCount</span>
                 <span class="ak-status bg-danger fs-6">دارای خطا: @Model.ErrorCount</span>
+                <span class="ak-status bg-warning fs-6">تکراری: @Model.DuplicateCount</span>
+                <span class="ak-status bg-primary fs-6">قابل ثبت: @Model.ImportableCount</span>
             </div>
         </div>
     </div>
@@ -24,10 +28,12 @@
         <div asp-validation-summary="All" class="alert alert-warning"></div>
     }
 
-    @if (Model.HasErrors)
+    @if (Model.SkippedCount > 0)
     {
         <div class="alert alert-warning">
-            بعضی ردیف‌ها خطا دارند. فایل اکسل را اصلاح کنید و دوباره وارد کنید. ثبت نهایی فقط وقتی فعال می‌شود که همهٔ ردیف‌ها درست باشند.
+            @Model.SkippedCount ردیف در وضعیت فعلی ثبت نمی‌شود. دلیل هر ردیف در ستون «وضعیت» نوشته شده است.
+            می‌توانید فایل را اصلاح و دوباره وارد کنید، یا گزینهٔ زیر را فعال کنید تا فقط ردیف‌های سالم ثبت شوند.
+            ورودِ دوبارهٔ همین فایل، ردیف‌های ثبت‌شده را دوباره ثبت نمی‌کند.
         </div>
     }
 
@@ -45,13 +51,17 @@
                             <th class="text-end">معادل USD</th>
                             <th>قرارداد</th>
                             <th>شرح</th>
+                            <th>شناسه یکتا</th>
                             <th>وضعیت</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var row in Model.Rows)
                         {
-                            <tr class="@(row.IsValid ?"" : "table-danger")">
+                            var rowClass = row.Errors.Count > 0
+                                ? "table-danger"
+                                : row.IsDuplicate ? "table-warning" : "";
+                            <tr class="@rowClass">
                                 <td>@row.ExcelRowNumber</td>
                                 <td dir="ltr">@(row.ExpenseDate?.ToString("yyyy-MM-dd") ?? row.ExpenseDateText)</td>
                                 <td>@(row.ResolvedExpenseTypeName ?? row.ExpenseTypeName)</td>
@@ -60,10 +70,16 @@
                                 <td class="text-end ak-num" dir="ltr">@Fa(row.AmountUsd)</td>
                                 <td>@row.ContractNumber</td>
                                 <td>@row.Description</td>
+                                <td class="small text-muted" dir="ltr">@row.ImportUniqueKey</td>
                                 <td>
-                                    @if (row.IsValid)
+                                    @if (row.IsImportable)
                                     {
-                                        <span class="ak-status bg-success">درست</span>
+                                        <span class="ak-status bg-success">ثبت می‌شود</span>
+                                    }
+                                    else if (row.IsDuplicate)
+                                    {
+                                        <span class="ak-status bg-warning">تکراری</span>
+                                        <div class="small text-muted">@row.SkipReason</div>
                                     }
                                     else
                                     {
@@ -83,31 +99,46 @@
         </div>
     </div>
 
-    <div class="d-flex gap-2">
-        @if (Model.CanConfirm)
+    <form asp-action="ImportConfirm" method="post" class="ak-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="ReturnUrl" />
+        @for (var i = 0; i < Model.Rows.Count; i++)
         {
-            <form asp-action="ImportConfirm" method="post" class="ak-form">
-                @Html.AntiForgeryToken()
-                <input type="hidden" asp-for="ReturnUrl" />
-                @for (var i = 0; i < Model.Rows.Count; i++)
-                {
-                    <input type="hidden" name="Rows[@i].ExcelRowNumber" value="@Model.Rows[i].ExcelRowNumber" />
-                    <input type="hidden" name="Rows[@i].ExpenseDateText" value="@Model.Rows[i].ExpenseDateText" />
-                    <input type="hidden" name="Rows[@i].ExpenseTypeName" value="@Model.Rows[i].ExpenseTypeName" />
-                    <input type="hidden" name="Rows[@i].AmountText" value="@Model.Rows[i].AmountText" />
-                    <input type="hidden" name="Rows[@i].Currency" value="@Model.Rows[i].Currency" />
-                    <input type="hidden" name="Rows[@i].RatePerUsdText" value="@Model.Rows[i].RatePerUsdText" />
-                    <input type="hidden" name="Rows[@i].ContractNumber" value="@Model.Rows[i].ContractNumber" />
-                    <input type="hidden" name="Rows[@i].Description" value="@Model.Rows[i].Description" />
-                }
-                <button type="submit" class="btn ak-primary-action">
-                    <i class="bi bi-check2-circle"></i> ثبت نهایی @Model.ValidCount ردیف
-                </button>
-            </form>
+            <input type="hidden" name="Rows[@i].ExcelRowNumber" value="@Model.Rows[i].ExcelRowNumber" />
+            <input type="hidden" name="Rows[@i].ExpenseDateText" value="@Model.Rows[i].ExpenseDateText" />
+            <input type="hidden" name="Rows[@i].ExpenseTypeName" value="@Model.Rows[i].ExpenseTypeName" />
+            <input type="hidden" name="Rows[@i].AmountText" value="@Model.Rows[i].AmountText" />
+            <input type="hidden" name="Rows[@i].Currency" value="@Model.Rows[i].Currency" />
+            <input type="hidden" name="Rows[@i].RatePerUsdText" value="@Model.Rows[i].RatePerUsdText" />
+            <input type="hidden" name="Rows[@i].ContractNumber" value="@Model.Rows[i].ContractNumber" />
+            <input type="hidden" name="Rows[@i].Description" value="@Model.Rows[i].Description" />
         }
-        <a asp-action="Import" asp-route-returnUrl="@Model.ReturnUrl" class="btn ak-secondary-action">
-            <i class="bi bi-arrow-counterclockwise"></i> وارد کردن فایل دیگر
-        </a>
-        <a asp-action="Index" class="btn ak-secondary-action">بازگشت به لیست مصارف</a>
-    </div>
+
+        @* PTG-P2-02 — حالت جزئی فقط با انتخابِ صریحِ کاربر. پیش‌فرض «همه یا هیچ» می‌ماند. *@
+        <div class="ak-form-section mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="true"
+                       id="importValidRowsOnly" name="ImportValidRowsOnly"
+                       @(Model.ImportValidRowsOnly ? "checked" : "") />
+                <input type="hidden" name="ImportValidRowsOnly" value="false" />
+                <label class="form-check-label" for="importValidRowsOnly">
+                    فقط ردیف‌های سالم و ثبت‌نشده را ثبت کن (@Model.ImportableCount ردیف)
+                </label>
+            </div>
+            <div class="form-text">
+                بدون این گزینه، اگر حتی یک ردیف خطا داشته باشد هیچ‌چیز ثبت نمی‌شود.
+                ردیف‌های ثبت‌نشده در همین جدول با دلیلشان می‌مانند.
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn ak-primary-action" @(Model.ImportableCount == 0 ? "disabled" : "")>
+                <i class="bi bi-check2-circle"></i> ثبت نهایی @Model.ImportableCount ردیف
+            </button>
+            <a asp-action="Import" asp-route-returnUrl="@Model.ReturnUrl" class="btn ak-secondary-action">
+                <i class="bi bi-arrow-counterclockwise"></i> وارد کردن فایل دیگر
+            </a>
+            <a asp-action="Index" class="btn ak-secondary-action">بازگشت به لیست مصارف</a>
+        </div>
+    </form>
 </div>

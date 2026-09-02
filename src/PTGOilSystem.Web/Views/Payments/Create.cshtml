@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Payments.PaymentCreateViewModel
+﻿@model PTGOilSystem.Web.Models.Payments.PaymentCreateViewModel
 @using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Payments
@@ -45,6 +45,7 @@
             @Html.AntiForgeryToken()
             @Html.FormToken()
             <input asp-for="Id" type="hidden" />
+            <input asp-for="Version" type="hidden" />
             <input asp-for="ReturnUrl" type="hidden" />
 
             <div class="d-none">
@@ -95,7 +96,7 @@
                 <div class="ak-form-grid journal-primary-grid">
                     <div class="ak-field">
                         <label asp-for="PaymentDate" class="ak-label">تاریخ</label>
-                        <input asp-for="PaymentDate" class="ak-input" />
+                        <input asp-for="PaymentDate" class="ak-input" type="date" data-ptg-date-guard data-ptg-today="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
                         <span asp-validation-for="PaymentDate" class="field-validation-error"></span>
                     </div>
 
@@ -613,6 +614,8 @@
                     </div>
                 </div>
             </section>
+
+            <partial name="~/Views/Shared/_ClosedPeriodOverride.cshtml" />
 
             @* ===== نوار پایین (اقدام‌ها + مبلغ کل) ===== *@
             <div class="ak-footer-actions journal-action-bar">

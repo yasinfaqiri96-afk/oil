@@ -8,6 +8,7 @@ using Microsoft.Extensions.Caching.Memory;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
@@ -22,6 +23,10 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class SalesController : Controller
 {
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly IStockService _stock;
     private readonly IPricingService _pricing;
     private readonly ICurrencyConversionService _currencyConversion;
@@ -684,9 +689,58 @@ public partial class SalesController : Controller
         });
     }
 
+    /// <summary>
+    /// PTG-P2-03 — صفحهٔ «ابطال / اصلاح فروش».
+    ///
+    /// ابطال دیگر یک کلیکِ بی‌سؤال نیست: دلیل اجباری است و کاربر تصمیم می‌گیرد که پس از
+    /// برگشتِ اسناد، فروشِ جایگزین هم ثبت کند یا نه. سندِ اصلی در هر دو حالت دست‌نخورده
+    /// و قابل مشاهده می‌ماند.
+    /// </summary>
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpGet]
+    public async Task<IActionResult> Correct(int id, string? returnUrl = null)
+    {
+        var sale = await _db.SalesTransactions
+            .AsNoTracking()
+            .Include(s => s.Customer)
+            .FirstOrDefaultAsync(s => s.Id == id);
+
+        if (sale is null)
+        {
+            return NotFound();
+        }
+
+        if (sale.IsCancelled)
+        {
+            TempData["err"] = "این فروش قبلاً ابطال شده است و دوباره ابطال نمی‌شود.";
+            return RedirectToAction(nameof(Details), new { id, returnUrl });
+        }
+
+        return View(new SaleCorrectionViewModel
+        {
+            SaleId = sale.Id,
+            Version = sale.Version,
+            InvoiceNumber = sale.InvoiceNumber,
+            SaleDate = sale.SaleDate,
+            CustomerName = sale.Customer?.Name ?? "",
+            QuantityMt = sale.QuantityMt,
+            Currency = sale.Currency,
+            TotalInCurrency = sale.TotalInCurrency,
+            TotalUsd = sale.TotalUsd,
+            CreateReplacement = true,
+            ReturnUrl = returnUrl
+        });
+    }
+
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Cancel(int id, string? returnUrl = null)
+    public async Task<IActionResult> Cancel(
+        int id,
+        string? cancelReason = null,
+        bool createReplacement = false,
+        long version = 0,
+        string? returnUrl = null,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         var sale = await _db.SalesTransactions
             .FirstOrDefaultAsync(s => s.Id == id);
@@ -694,6 +748,22 @@ public partial class SalesController : Controller
         if (sale is null)
         {
             return NotFound();
+        }
+
+        // PTG-P1-05 — ابطال هم روی نسخه‌ای که کاربر دید انجام می‌شود، نه روی نسخهٔ لحظه.
+        _db.UseExpectedVersion(sale, version);
+
+        // PTG-P2-03 — دلیل اجباری. بدون آن، تاریخچهٔ ابطال چیزی برای گفتن ندارد.
+        var reason = string.IsNullOrWhiteSpace(cancelReason) ? null : cancelReason.Trim();
+        if (reason is null)
+        {
+            TempData["err"] = "برای ابطال فروش، نوشتن دلیل الزامی است.";
+            return RedirectToAction(nameof(Correct), new { id, returnUrl });
+        }
+
+        if (reason.Length > 500)
+        {
+            reason = reason[..500];
         }
 
         if (sale.IsCancelled)
@@ -731,6 +801,12 @@ public partial class SalesController : Controller
         }
 
         sale.IsCancelled = true;
+        sale.CancelReason = reason;
+        sale.CancelledAtUtc = DateTime.UtcNow;
+        sale.CancelledByUserId = CurrentUserIdOrNull();
+
+        // PTG-P0-01 — ابطال هم یک‌بارمصرف است: توکن با همان SaveChanges سند مصرف می‌شود.
+        _formTokens.Stamp(formToken, "Sale.Cancel", nameof(SalesTransaction));
 
         // فروش مستقیم از موتر حرکت موجودی ندارد و تنها ردِ آن لینکِ موتر است. اگر
         // TruckDispatch.SalesTransactionId (که یکتاست) روی همین فروشِ لغوشده مانده باشد، موتر برای
@@ -797,6 +873,12 @@ public partial class SalesController : Controller
             }
         }
 
+        if (createReplacement)
+        {
+            TempData["ok"] = "فروش ابطال شد. حالا فروش جایگزین را ثبت کنید.";
+            return RedirectToAction(nameof(Create), new { correctedFromSaleId = sale.Id, returnUrl });
+        }
+
         TempData["ok"] = "فروش لغو شد.";
         if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
             return Redirect(returnUrl);
@@ -804,8 +886,18 @@ public partial class SalesController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    private int? CurrentUserIdOrNull()
+    {
+        var raw = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(raw, out var userId) ? userId : null;
+    }
+
     [Authorize(Policy = AuthPolicies.ManageData)]
-    public async Task<IActionResult> Create(int? contractId = null, int? sourcePurchaseContractId = null, string? returnUrl = null)
+    public async Task<IActionResult> Create(
+        int? contractId = null,
+        int? sourcePurchaseContractId = null,
+        int? correctedFromSaleId = null,
+        string? returnUrl = null)
     {
         var model = new SalesCreateViewModel
         {
@@ -813,6 +905,50 @@ public partial class SalesController : Controller
             SaleStage = SaleStage.TerminalStock,
             Currency = SystemCurrency.BaseCurrencyCode
         };
+
+        // PTG-P2-03 — فروشِ جایگزین: فرم با مقادیرِ سندِ ابطال‌شده پر می‌شود تا کاربر فقط
+        // همان چیزی را که اشتباه بود عوض کند. هیچ عددی خودکار ثبت نمی‌شود؛ این فقط
+        // پیش‌نویس است و ثبت مثل هر فروش دیگری از همان مسیر عادی می‌گذرد.
+        if (correctedFromSaleId is > 0)
+        {
+            var original = await _db.SalesTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == correctedFromSaleId.Value);
+
+            if (original is null || !original.IsCancelled || original.ReplacementSaleId.HasValue)
+            {
+                TempData["err"] = original is null
+                    ? "سند اصلی پیدا نشد."
+                    : original.IsCancelled
+                        ? "برای این سند قبلاً فروش جایگزین ثبت شده است."
+                        : "فروشِ جایگزین فقط برای سندِ ابطال‌شده ساخته می‌شود.";
+                return RedirectToAction(nameof(Details), new { id = correctedFromSaleId.Value });
+            }
+
+            model.CorrectedFromSaleId = original.Id;
+            model.SaleStage = original.SaleStage;
+            model.ContractId = original.ContractId;
+            model.CompanyId = original.CompanyId ?? 0;
+            model.CustomerId = original.CustomerId;
+            model.ProductId = original.ProductId;
+            model.DestinationLocationId = original.DestinationLocationId;
+            model.ShipmentId = original.ShipmentId;
+            model.SourcePurchaseContractId = original.SourcePurchaseContractId;
+            model.QuantityMt = original.QuantityMt;
+            model.Currency = original.Currency;
+            model.UnitPriceInCurrency = original.UnitPriceInCurrency;
+            model.AppliedFxRateToUsd = original.AppliedFxRateToUsd;
+            model.SaleDate = original.SaleDate;
+            model.TicketSerialNumber = original.TicketSerialNumber;
+            model.StockSourceType = original.StockSourceType;
+            model.Notes = original.Notes;
+            model.ReturnUrl = returnUrl;
+
+            ViewData["SaleCorrectionOriginalInvoice"] = original.InvoiceNumber;
+
+            await PopulateLookupsAsync(createModel: model);
+            return View(model);
+        }
 
         if (contractId.HasValue)
         {
@@ -1059,8 +1195,8 @@ public partial class SalesController : Controller
             _db.SalesTransactions.Add(sale);
             await _db.SaveChangesAsync();
 
-            var ledgerEntry = SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: null);
-            _db.LedgerEntries.Add(ledgerEntry);
+            var ledgerEntry = Ledger.Post(
+                SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: null));
             await _db.SaveChangesAsync();
 
             await PostSaleAccountingAsync(sale);
@@ -1146,6 +1282,8 @@ public partial class SalesController : Controller
 
         var model = new SalesCreateViewModel
         {
+            // PTG-P1-05 — نسخه‌ای که کاربر می‌بیند، با فرم برمی‌گردد.
+            Version = sale.Version,
             SaleStage = sale.SaleStage,
             ContractId = sale.ContractId,
             // فروش‌های چندجوازیِ محموله جواز واحد ندارند؛ فرم ویرایش انتخاب جواز را اجباری می‌کند.
@@ -1185,6 +1323,10 @@ public partial class SalesController : Controller
         {
             return NotFound();
         }
+
+        // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
+        // نه نسخه‌ای که همین حالا خوانده شد.
+        _db.UseExpectedVersion(sale, model.Version);
 
         if (sale.IsCancelled)
         {
@@ -1585,6 +1727,29 @@ public partial class SalesController : Controller
             ModelState.AddModelError(nameof(model.InvoiceNumber), "این شماره فاکتور قبلاً ثبت شده است.");
         }
 
+        // PTG-P2-03 — فروشِ جایگزین فقط برای سندی ساخته می‌شود که واقعاً ابطال شده و هنوز
+        // جایگزینی ندارد. این بررسی جلوی «دو بار اصلاح کردن یک فروش» را می‌گیرد — که در
+        // عمل یعنی دو برابر شدنِ عاید.
+        SalesTransaction? correctionOriginal = null;
+        if (model.CorrectedFromSaleId is > 0)
+        {
+            correctionOriginal = await _db.SalesTransactions
+                .FirstOrDefaultAsync(s => s.Id == model.CorrectedFromSaleId.Value);
+
+            if (correctionOriginal is null)
+            {
+                ModelState.AddModelError(string.Empty, "سند اصلیِ اصلاح پیدا نشد.");
+            }
+            else if (!correctionOriginal.IsCancelled)
+            {
+                ModelState.AddModelError(string.Empty, "فروشِ جایگزین فقط برای سندِ ابطال‌شده ثبت می‌شود.");
+            }
+            else if (correctionOriginal.ReplacementSaleId.HasValue)
+            {
+                ModelState.AddModelError(string.Empty, "برای این سند قبلاً فروش جایگزین ثبت شده است.");
+            }
+        }
+
         var allowedLossStages = GetAllowedSaleLossStages();
         StageLossCaptureMapper.Validate(
             model.Loss,
@@ -1738,6 +1903,15 @@ public partial class SalesController : Controller
                 _db.SalesTransactions.Add(sale);
                 await _db.SaveChangesAsync();
 
+                // PTG-P2-03 — پیوندِ دوطرفه در همان تراکنشِ خودِ فروش. اگر این ذخیره برگردد،
+                // نه فروشِ جایگزینی می‌ماند نه پیوندِ نیم‌بند.
+                if (correctionOriginal is not null)
+                {
+                    correctionOriginal.ReplacementSaleId = sale.Id;
+                    sale.CorrectedFromSaleId = correctionOriginal.Id;
+                    await _db.SaveChangesAsync();
+                }
+
                 if (requiresTerminalStock)
                 {
                     foreach (var allocation in stockAllocations)
@@ -1793,12 +1967,10 @@ public partial class SalesController : Controller
                 // اگر FIFO قرارداد دیگری را مصرف کرده باشد FIFO برنده است، و اگر فروش
                 // چند-قراردادی باشد هر دو سر عمداً null می‌مانند و سهم هر قرارداد فقط در
                 // allocations زندگی می‌کند. هیچ قراردادی حدس زده نمی‌شود.
-                var ledgerEntry = SaleLedgerFactory.BuildSaleLedgerEntry(
+                var ledgerEntry = Ledger.Post(SaleLedgerFactory.BuildSaleLedgerEntry(
                     sale,
                     conversion,
-                    contractId: sale.ContractId ?? sale.SourcePurchaseContractId);
-
-                _db.LedgerEntries.Add(ledgerEntry);
+                    contractId: sale.ContractId ?? sale.SourcePurchaseContractId));
                 await _db.SaveChangesAsync();
 
                 await PostSaleAccountingAsync(sale);

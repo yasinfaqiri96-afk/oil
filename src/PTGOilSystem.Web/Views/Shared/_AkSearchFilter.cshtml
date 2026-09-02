@@ -1,4 +1,4 @@
-@*
+﻿@*
     Shared Search/Filter component — single owner (groups A & B).
     Free-text search is a native GET submit; structured filters are rendered as
     hidden inputs with the EXACT existing query-string param names, so the produced
@@ -44,7 +44,7 @@
     var configJson = JsonSerializer.Serialize(config);
 }
 <div class="ak-filter-host">
-    <form class="ak-filter" method="get" role="search" data-ak-filter data-ak-filter-page="@filterPage">
+    <form class="ak-filter" method="get" role="search" action="@Model.FormAction" data-ak-filter data-ak-filter-page="@filterPage">
         <div class="ak-filter-chips" data-ak-filter-chips aria-live="polite">
             @foreach (var f in filters.Where(IsApplied))
             {

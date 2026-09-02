@@ -58,6 +58,9 @@ public class LoadingExpenseLine : BaseEntity
     public int? OperationalAssetId { get; set; }
     public OperationalAsset? OperationalAsset { get; set; }
 
+    public AccountingPartyType? CarrierPartyType { get; set; }
+    public int? CarrierPartyId { get; set; }
+
     [MaxLength(1000)] public string? Notes { get; set; }
 
     // Links to the financial documents created for this line (when applicable).

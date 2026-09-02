@@ -638,15 +638,18 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         }
 
         var shares = await sharesQuery
-            .Select(cp => new { cp.ContractId, cp.SharePercent })
+            .Select(cp => new { cp.ContractId, cp.PartnerId, cp.SharePercent, cp.EffectiveFrom, cp.EffectiveTo })
             .ToListAsync(ct);
         if (shares.Count == 0)
         {
             return new StatementCalculation(0m, 0m, []);
         }
 
-        var shareByContract = shares.ToDictionary(x => x.ContractId, x => x.SharePercent);
-        var contractIds = shareByContract.Keys.ToList();
+        // PTG-P0-03 — درصد سهم در «تاریخ همان سند» خوانده می‌شود، نه درصدِ امروز؛ وگرنه تغییر
+        // سهم، سطرهای دوره‌های بستهٔ گذشته را هم بازنویسی می‌کرد.
+        var shareHistory = ContractPartnerShareHistory.FromSlices(shares.Select(x =>
+            new ContractPartnerShareSlice(x.ContractId, x.PartnerId, x.SharePercent, x.EffectiveFrom, x.EffectiveTo)));
+        var contractIds = shares.Select(x => x.ContractId).Distinct().ToList();
         var saleMap = await _db.SalesTransactions
             .AsNoTracking()
             .Where(s => s.ContractId.HasValue && contractIds.Contains(s.ContractId.Value))
@@ -748,7 +751,8 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             }
             else
             {
-                if (!shareByContract.TryGetValue(contractId.Value, out var sharePercent))
+                var sharePercent = shareHistory.ShareFor(contractId.Value, party.PartyId, entry.Date);
+                if (sharePercent == 0m)
                 {
                     continue;
                 }

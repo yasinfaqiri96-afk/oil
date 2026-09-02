@@ -269,7 +269,8 @@ public sealed class AccountingPostingService(
             line.TankId,
             line.ProductId,
             line.CashAccountId,
-            line.Description)).ToArray();
+            line.Description,
+            OperationalAssetId: line.OperationalAssetId)).ToArray();
 
         var postRequest = new AccountingPostRequest(
             original.CompanyId,
@@ -554,6 +555,7 @@ public sealed class AccountingPostingService(
                 ShipmentId = line.ShipmentId,
                 TankId = line.TankId,
                 ProductId = line.ProductId,
+                OperationalAssetId = line.OperationalAssetId,
                 CashAccountId = line.CashAccountId,
                 Debit = line.Debit,
                 Credit = line.Credit,

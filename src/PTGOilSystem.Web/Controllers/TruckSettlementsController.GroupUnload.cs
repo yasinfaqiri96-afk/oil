@@ -31,7 +31,9 @@ public partial class TruckSettlementsController
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
     [RequestFormLimits(ValueCountLimit = 100_000)]
-    public async Task<IActionResult> GroupUnload(GroupUnloadCreateViewModel model)
+    public async Task<IActionResult> GroupUnload(
+        GroupUnloadCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         model.ReceiptDate = model.ReceiptDate.Date;
         model.DocumentReference = NormalizeNullable(model.DocumentReference);
@@ -222,6 +224,9 @@ public partial class TruckSettlementsController
                     notes: null);
             }
 
+            // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
+            _formTokens.Stamp(formToken, "TruckSettlement.GroupUnload", nameof(TruckDispatch));
+
             await _db.SaveChangesAsync();
             if (transaction is not null)
             {
@@ -229,6 +234,18 @@ public partial class TruckSettlementsController
             }
 
             TempData["ok"] = $"{selectedSources.Count:N0} حمل به‌صورت گروهی در مخزن انتخاب‌شده تخلیه شد.";
+            return model.ReturnUrl is not null
+                ? Redirect(model.ReturnUrl)
+                : RedirectToAction(nameof(GroupUnload));
+        }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+
+            TempData["err"] = "این تخلیهٔ گروهی قبلاً ثبت شده است و دوباره ثبت نشد.";
             return model.ReturnUrl is not null
                 ? Redirect(model.ReturnUrl)
                 : RedirectToAction(nameof(GroupUnload));

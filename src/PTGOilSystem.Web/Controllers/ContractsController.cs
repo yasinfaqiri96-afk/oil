@@ -1,13 +1,15 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.ContractJourney;
 using PTGOilSystem.Web.Models.Contracts;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
@@ -20,11 +22,17 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class ContractsController : Controller
 {
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly IAuditService _audit;
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IFormTokenGuard _formTokens;
     // مرحله ۶ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IPurchaseAccountingAdapter? _purchaseAccounting;
+
+    private readonly IAfghanistanBusinessClock _businessClock;
 
     [ActivatorUtilitiesConstructor]
     public ContractsController(
@@ -32,13 +40,16 @@ public partial class ContractsController : Controller
         IAuditService audit,
         ICurrencyConversionService currencyConversion,
         IFormTokenGuard formTokens,
-        Services.Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null)
+        Services.Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null,
+        IAfghanistanBusinessClock? businessClock = null)
     {
         _db = db;
         _audit = audit;
         _currencyConversion = currencyConversion;
         _formTokens = formTokens;
         _purchaseAccounting = purchaseAccounting;
+        // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
+        _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
     }
 
     public ContractsController(ApplicationDbContext db, IAuditService audit)
@@ -191,7 +202,15 @@ public partial class ContractsController : Controller
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim();
+            // PTG canonical search — کلیدِ canonical به شرطِ قبلی اضافه می‌شود، جایگزینِ آن نمی‌شود:
+            // هیچ نتیجه‌ای از دست نمی‌رود و «یوسف» سطرِ «يوسف» را هم پیدا می‌کند.
+            // SearchKey خالی یعنی سطرِ پیش از Backfill؛ همان شرطِ قبلی هنوز آن را می‌یابد.
+            var canonicalTerm = AfghanTextNormalizer.NormalizeForSearch(term);
             query = query.Where(c =>
+                (c.SearchKey != null && c.SearchKey.Contains(canonicalTerm)) ||
+                (c.Supplier != null && c.Supplier.SearchKey != null && c.Supplier.SearchKey.Contains(canonicalTerm)) ||
+                (c.Customer != null && c.Customer.SearchKey != null && c.Customer.SearchKey.Contains(canonicalTerm)) ||
+                c.ContractPartners.Any(cp => cp.Partner != null && cp.Partner.SearchKey != null && cp.Partner.SearchKey.Contains(canonicalTerm)) ||
                 c.ContractName.Contains(term) ||
                 c.ContractNumber.Contains(term) ||
                 (c.Supplier != null && c.Supplier.Name.Contains(term)) ||
@@ -348,11 +367,15 @@ public partial class ContractsController : Controller
         }
 
         var partnerShares = GetNormalizedPartnerShares(model);
+        // PTG-P0-03 — نخستین بازهٔ سهم از تاریخ خودِ قرارداد آغاز می‌شود، تا هر رویدادِ این
+        // قرارداد (حتی بارگیریِ عقب‌تاریخ) زیر همان توافقِ اولیه محاسبه شود.
+        var initialShareStart = contract.ContractDate.Date;
         contract.ContractPartners = partnerShares
             .Select(p => new ContractPartner
             {
                 PartnerId = p.PartnerId!.Value,
-                SharePercent = p.SharePercent!.Value
+                SharePercent = p.SharePercent!.Value,
+                EffectiveFrom = initialShareStart
             })
             .ToList();
 
@@ -368,6 +391,14 @@ public partial class ContractsController : Controller
         {
             TempData["err"] = "این عملیات قبلاً ثبت شده است و دوباره ثبت نشد.";
             return RedirectToAction(nameof(Index));
+        }
+        catch (PostgresException ex) when (IsPartnerShareViolation(ex))
+        {
+            // PTG-P0-04 — نگهبان دیتابیس. اعتبارسنجی فرم باید پیش از این جلوی کار را بگیرد؛
+            // این فقط پیام خوانا برای مسیرهایی است که از فرم عبور نکرده‌اند.
+            ModelState.AddModelError(nameof(model.PartnerShares), PartnerShareViolationMessage(ex));
+            await PopulateLookupsAsync(model);
+            return View(model);
         }
 
         await _audit.LogAndSaveAsync(
@@ -457,6 +488,10 @@ public partial class ContractsController : Controller
         if (existing == null) return NotFound();
 
         HydrateSummaryFields(model, existing);
+
+        // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
+        // نه نسخه‌ای که همین حالا خوانده شد.
+        _db.UseExpectedVersion(existing, model.Version);
         await ValidateLookupsAsync(model, isCreate: false);
         await ValidateOwnershipAsync(model);
         ValidatePricingModel(model);
@@ -603,16 +638,13 @@ public partial class ContractsController : Controller
         existing.ManualFinalPriceUsd = candidate.ManualFinalPriceUsd;
         existing.PricingFormulaNote = candidate.PricingFormulaNote;
 
-        _db.ContractPartners.RemoveRange(existing.ContractPartners);
-        foreach (var partnerShare in normalizedPartnerShares)
-        {
-            existing.ContractPartners.Add(new ContractPartner
-            {
-                ContractId = existing.Id,
-                PartnerId = partnerShare.PartnerId!.Value,
-                SharePercent = partnerShare.SharePercent!.Value
-            });
-        }
+        // PTG-P0-03 — تغییر درصد سهم دیگر تاریخچه را پاک نمی‌کند. اگر ترکیب واقعاً عوض شده
+        // باشد، بازهٔ جاری بسته و یک بازهٔ تازه از «امروزِ کاری» باز می‌شود؛ سطرهای گذشته
+        // دست‌نخورده می‌مانند تا صورت‌حساب دوره‌های بسته دقیقاً همان عدد قبلی را بدهد.
+        var shareSliceOpened = ApplyPartnerShareChange(
+            existing,
+            normalizedPartnerShares,
+            model.PartnerSharesEffectiveFrom);
 
         // قاعدهٔ #9: ویرایش عمومی قرارداد هم مانند EditPricing فقط بارگیری‌های «در انتظار قیمت» را قطعی
         // می‌کند. تغییر نرخ قرارداد، بارگیریِ از پیش قطعی‌شده را بازقیمت‌گذاری/بازقفل نمی‌کند.
@@ -624,13 +656,33 @@ public partial class ContractsController : Controller
             ? await CountFinalizedPurchaseLoadingsAsync(existing)
             : 0;
         var syncedLoadingCount = await SyncPurchaseLoadingPricesAsync(existing);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (PostgresException ex) when (IsPartnerShareViolation(ex))
+        {
+            // PTG-P0-04 — نگهبان دیتابیس (تریگر تعویق‌دار روی COMMIT).
+            ModelState.AddModelError(nameof(model.PartnerShares), PartnerShareViolationMessage(ex));
+            await PopulateLookupsAsync(model);
+            return View(model);
+        }
+
         await PostRepricedPurchasesAsync(existing.Id);
         await _audit.LogAndSaveAsync(nameof(Contract), existing.Id, AuditAction.Update, diff: diff);
+        // PTG-P0-03 / ۱۲-B — پیام باید دقیقاً همان تاریخی را بگوید که واقعاً ثبت شد،
+        // نه همیشه «امروز» — وگرنه تاریخِ آیندهٔ انتخابی کاربر غلط نشان داده می‌شد.
+        var appliedShareStart = existing.ContractPartners.Count == 0
+            ? _businessClock.Today.Date
+            : existing.ContractPartners.Max(cp => cp.EffectiveFrom).Date;
+        var shareSliceNote = shareSliceOpened
+            ? $" سهم‌های جدید از تاریخ {appliedShareStart:yyyy-MM-dd} تطبیق می‌شوند و دوره‌های قبلی تغییر نمی‌کنند."
+            : string.Empty;
+
         TempData["ok"] = BuildPricingSyncMessage(
-            syncedLoadingCount > 0
+            (syncedLoadingCount > 0
                 ? $"تغییرات قرارداد اعمال شد و قیمت خرید {syncedLoadingCount:N0} بارگیری هماهنگ شد."
-                : "تغییرات قرارداد اعمال شد.",
+                : "تغییرات قرارداد اعمال شد.") + shareSliceNote,
             skippedFinalizedCount);
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -1044,7 +1096,7 @@ public partial class ContractsController : Controller
         {
             if (!entriesByLoadingId.TryGetValue(loading.Id, out var entry))
             {
-                created.Add(SupplierLoadingLedger.Create(loading, contract));
+                created.Add(Ledger.Post(SupplierLoadingLedger.Create(loading, contract)));
                 continue;
             }
 
@@ -1073,7 +1125,6 @@ public partial class ContractsController : Controller
 
         // ذخیره لازم است تا شناسهٔ سطرهای تازه برای لاگ حسابرسی موجود شود؛ خودِ لاگ‌ها
         // مثل قبل با SaveChangesAsync فراخوان ثبت می‌شوند.
-        _db.LedgerEntries.AddRange(created);
         await _db.SaveChangesAsync();
         foreach (var entry in created)
         {
@@ -1327,6 +1378,183 @@ public partial class ContractsController : Controller
         {
             ModelState.AddModelError(nameof(model.PartnerShares), "جمع درصد سهم شریک‌ها باید دقیقاً 100 باشد.");
         }
+
+        await ValidatePartnerShareEffectiveDateAsync(model);
+    }
+
+    /// <summary>
+    /// PTG ۱۲-B — «از چه تاریخی؟».
+    ///
+    /// سه چیز اینجا رد می‌شود، و هر سه دلیلِ عددی دارند:
+    ///   • تاریخی پیش از آغازِ آخرین بازهٔ سهم — چون بازهٔ گذشته را بازنویسی می‌کرد و
+    ///     سهم مفادِ دوره‌ای که قبلاً گزارش شده عوض می‌شد؛
+    ///   • تاریخی داخل دورهٔ بستهٔ عملیاتی — همان قاعدهٔ P1-01؛
+    ///   • تاریخی پیش از خودِ قرارداد.
+    ///
+    /// تاریخِ آینده عمداً مجاز است: «از اول ماه بعد ۸۰/۲۰» یک درخواستِ کاملاً عادی است و
+    /// تا رسیدنِ آن تاریخ هیچ محاسبه‌ای عوض نمی‌شود.
+    /// </summary>
+    private async Task ValidatePartnerShareEffectiveDateAsync(ContractFormViewModel model)
+    {
+        if (model.PartnerSharesEffectiveFrom is not { } requested)
+        {
+            return;
+        }
+
+        var effectiveFrom = requested.Date;
+
+        if (model.Id > 0)
+        {
+            var latestStart = await _db.ContractPartners
+                .AsNoTracking()
+                .Where(cp => cp.ContractId == model.Id)
+                .Select(cp => (DateTime?)cp.EffectiveFrom)
+                .MaxAsync();
+
+            if (latestStart is { } latest && effectiveFrom < latest.Date)
+            {
+                ModelState.AddModelError(
+                    nameof(model.PartnerSharesEffectiveFrom),
+                    $"تاریخ اجرا نمی‌تواند پیش از آغاز آخرین بازهٔ سهم ({latest:yyyy-MM-dd}) باشد؛ "
+                    + "بازه‌های گذشته بازنویسی نمی‌شوند.");
+                return;
+            }
+        }
+
+        if (model.ContractDate != default && effectiveFrom < model.ContractDate.Date)
+        {
+            ModelState.AddModelError(
+                nameof(model.PartnerSharesEffectiveFrom),
+                "تاریخ اجرا نمی‌تواند پیش از تاریخ قرارداد باشد.");
+            return;
+        }
+
+        // قفلِ دورهٔ عملیاتی (P1-01) — همان دروازهٔ همیشگی، بدون تکرارِ قاعده.
+        var closedThrough = await _db.OperationalPeriodLocks
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderByDescending(x => x.LockedThroughDate)
+            .Select(x => (DateTime?)x.LockedThroughDate)
+            .FirstOrDefaultAsync();
+
+        if (closedThrough is { } lockedThrough && effectiveFrom <= lockedThrough.Date)
+        {
+            ModelState.AddModelError(
+                nameof(model.PartnerSharesEffectiveFrom),
+                $"دوره مالی تا {lockedThrough:yyyy-MM-dd} بسته است و تغییر سهم در آن دوره مجاز نیست.");
+        }
+    }
+
+    /// <summary>
+    /// PTG-P0-03 — اعمال ترکیب تازهٔ شرکا به‌صورت «بازهٔ جدید»، نه بازنویسیِ گذشته.
+    ///
+    /// اگر ترکیب دقیقاً همان بازهٔ جاری باشد، هیچ سطری دست نمی‌خورد (ویرایشِ بی‌اثر نباید
+    /// بازهٔ الکی بسازد). اگر عوض شده باشد، بازهٔ جاری در تاریخ شروعِ بازهٔ تازه بسته می‌شود.
+    /// اگر در همان روز دو بار ویرایش شود، همان بازه در جای خودش بازنویسی می‌شود تا کلید
+    /// یکتای (قرارداد، شریک، آغاز بازه) نشکند و بازه‌های قبلی هم سالم بمانند.
+    /// </summary>
+    private bool ApplyPartnerShareChange(
+        Contract existing,
+        IReadOnlyList<ContractPartnerShareInput> normalizedPartnerShares,
+        DateTime? requestedEffectiveFrom = null)
+    {
+        var desired = normalizedPartnerShares
+            .Select(p => (PartnerId: p.PartnerId!.Value, SharePercent: p.SharePercent!.Value))
+            .OrderBy(p => p.PartnerId)
+            .ToList();
+
+        var slices = existing.ContractPartners.ToList();
+
+        if (slices.Count == 0)
+        {
+            foreach (var (partnerId, sharePercent) in desired)
+            {
+                existing.ContractPartners.Add(new ContractPartner
+                {
+                    ContractId = existing.Id,
+                    PartnerId = partnerId,
+                    SharePercent = sharePercent,
+                    EffectiveFrom = existing.ContractDate.Date
+                });
+            }
+
+            return desired.Count > 0;
+        }
+
+        var latestStart = slices.Max(x => x.EffectiveFrom);
+        var current = slices
+            .Where(x => x.EffectiveFrom == latestStart)
+            .Select(x => (x.PartnerId, x.SharePercent))
+            .OrderBy(x => x.PartnerId)
+            .ToList();
+
+        var unchanged = current.Count == desired.Count
+            && current.Zip(desired).All(pair =>
+                pair.First.PartnerId == pair.Second.PartnerId
+                && pair.First.SharePercent == pair.Second.SharePercent);
+        if (unchanged)
+        {
+            return false;
+        }
+
+        // PTG ۱۲-B — بازهٔ تازه از تاریخِ انتخابیِ کاربر آغاز می‌شود؛ نبودِ انتخاب یعنی
+        // «امروزِ کاری»، همان رفتار قبلی. اعتبارسنجیِ تاریخ پیش از رسیدن به اینجا انجام
+        // شده است (ValidateOwnershipAsync)، پس اینجا فقط اعمال می‌شود.
+        var newStart = (requestedEffectiveFrom ?? _businessClock.Today).Date;
+        if (newStart <= latestStart.Date)
+        {
+            newStart = latestStart.Date;
+        }
+
+        if (newStart == latestStart.Date)
+        {
+            // همان روز، همان بازه: در جای خودش بازنویسی می‌شود (بازه‌های قدیمی‌تر دست‌نخورده).
+            _db.ContractPartners.RemoveRange(slices.Where(x => x.EffectiveFrom.Date == newStart));
+        }
+        else
+        {
+            foreach (var slice in slices.Where(x => x.EffectiveFrom == latestStart))
+            {
+                slice.EffectiveTo = newStart;
+            }
+        }
+
+        foreach (var (partnerId, sharePercent) in desired)
+        {
+            existing.ContractPartners.Add(new ContractPartner
+            {
+                ContractId = existing.Id,
+                PartnerId = partnerId,
+                SharePercent = sharePercent,
+                EffectiveFrom = newStart
+            });
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// PTG-P0-04 — تخطی از قاعدهٔ «جمع سهم شرکا = ۱۰۰» که تریگر تعویق‌دار دیتابیس در لحظهٔ
+    /// COMMIT گزارش می‌کند. چون تریگر DEFERRED است، خطا از EF عبور نمی‌کند و مستقیم
+    /// <see cref="PostgresException"/> است.
+    /// </summary>
+    private static bool IsPartnerShareViolation(PostgresException ex)
+        => ex.SqlState == "23514"
+           && (ex.MessageText.Contains("PTG_PARTNER_SHARE_SUM", StringComparison.Ordinal)
+               || ex.MessageText.Contains("PTG_PARTNER_SHARE_INVALID", StringComparison.Ordinal)
+               // PTG ۱۲-E — نگهبانِ تبدیلِ «شخصی → شراکتی» روی خودِ جدول Contracts.
+               || ex.MessageText.Contains("PTG_PARTNERSHIP_WITHOUT_SHARES", StringComparison.Ordinal));
+
+    private static string PartnerShareViolationMessage(PostgresException ex)
+    {
+        if (ex.MessageText.Contains("PTG_PARTNERSHIP_WITHOUT_SHARES", StringComparison.Ordinal))
+        {
+            return "این قرارداد به «شراکتی» تغییر کرده است، پس باید حداقل یک شریک با جمع سهم ۱۰۰٪ داشته باشد.";
+        }
+
+        return ex.MessageText.Contains("PTG_PARTNER_SHARE_INVALID", StringComparison.Ordinal)
+            ? "درصد سهم هر شریک باید بزرگ‌تر از صفر و حداکثر ۱۰۰ باشد."
+            : "جمع درصد سهم شریک‌ها باید دقیقاً ۱۰۰ باشد.";
     }
 
     private static string MapLegacyDetailsTabToJourneyTab(string? tab)
@@ -1610,6 +1838,8 @@ public partial class ContractsController : Controller
         var model = new ContractFormViewModel
         {
             Id = contract.Id,
+            // PTG-P1-05 — نسخه‌ای که کاربر می‌بیند، با فرم برمی‌گردد.
+            Version = contract.Version,
             ContractName = contract.ContractName,
             ContractNumber = contract.ContractNumber,
             ContractType = contract.ContractType,
@@ -1659,7 +1889,11 @@ public partial class ContractsController : Controller
             CounterpartyName = contract.ContractType == ContractType.Purchase
                 ? contract.Supplier?.Name
                 : contract.Customer?.Name,
+            // PTG-P0-03 — فرم ویرایش فقط بازهٔ جاری را نشان می‌دهد؛ بازه‌های گذشته
+            // تاریخچه‌اند و از اینجا قابل تغییر نیستند.
             PartnerShares = contract.ContractPartners
+                .GroupBy(cp => cp.PartnerId)
+                .Select(g => g.OrderByDescending(cp => cp.EffectiveFrom).First())
                 .OrderBy(cp => cp.Partner?.Code)
                 .Select(cp => new ContractPartnerShareInput
                 {
@@ -1683,7 +1917,10 @@ public partial class ContractsController : Controller
     }
 
     private static string BuildPartnerSummary(IEnumerable<ContractPartner> partners)
+        // PTG-P0-03 — خلاصهٔ Audit فقط بازهٔ جاری را می‌نویسد؛ بازه‌های گذشته خودشان سطر دارند.
         => string.Join(" | ", partners
+            .GroupBy(p => p.PartnerId)
+            .Select(g => g.OrderByDescending(p => p.EffectiveFrom).First())
             .OrderBy(p => p.Partner?.Code ?? p.PartnerId.ToString())
             .Select(p => $"{p.Partner?.Code ?? p.PartnerId.ToString()}: {p.SharePercent:N2}%"));
 

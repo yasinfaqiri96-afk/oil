@@ -319,11 +319,14 @@ public class ContractJourneyViewStructureTests
         var form = ReadRepoFile("src/PTGOilSystem.Web/Views/LoadingReceipts/_ReceiptCreateForm.cshtml");
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
 
+        // The two section headings were shortened from "Source Information" /
+        // "Destination Routing" to "Receipt" / "Destination"; the order they pin is
+        // unchanged, so the anchors move to the stable section ids and field names.
         var headerIndex = form.IndexOf("class=\"ak-form", StringComparison.Ordinal);
-        var sourceIndex = form.IndexOf("Source Information", StringComparison.Ordinal);
+        var sourceIndex = form.IndexOf("id=\"receiptLoadingTitle\"", StringComparison.Ordinal);
         var receivedQuantityIndex = form.IndexOf("name=\"ReceivedQuantityMt\"", StringComparison.Ordinal);
         var scenarioIndex = form.IndexOf("data-scenario-pick=\"inventory\"", StringComparison.Ordinal);
-        var destinationIndex = form.IndexOf("Destination Terminal", StringComparison.Ordinal);
+        var destinationIndex = form.IndexOf("for=\"TerminalId\"", StringComparison.Ordinal);
 
         Assert.True(headerIndex >= 0);
         Assert.True(sourceIndex > headerIndex);
@@ -334,16 +337,19 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("ak-form-grid", form);
         Assert.Contains("ak-field", form);
         Assert.Contains("ak-input", form);
-        Assert.Contains("Destination Routing", form);
-        Assert.Contains("مسیر مقصد", form);
-        Assert.Contains("Confirm Receipt", form);
-        Assert.Contains("تأیید رسید", form);
+        Assert.Contains("id=\"receiptRoutingTitle\"", form);
+        Assert.Contains("مقصد کالا", form);
+        Assert.Contains("Save receipt", form);
+        Assert.Contains("ثبت رسید", form);
         Assert.Contains("UiText.IsEn(Context)", form);
         Assert.Contains("asp-for=\"StorageTankId\"", form);
-        Assert.Contains("asp-for=\"Loss.Enabled\"", form);
-        Assert.Contains("id=\"lossPanelFields\"", form);
+        // «آیا کسری وجود دارد؟» با دو دکمه ثبت می‌شود و همان Loss.Enabled را می‌نویسد.
+        Assert.Contains("name=\"Loss.Enabled\"", form);
+        Assert.Contains("data-loss-pick=\"yes\"", form);
+        Assert.Contains("data-loss-panel", form);
         Assert.Contains("asp-for=\"Loss.QuantityMt\"", form);
-        Assert.DoesNotContain("data-copy-value-to=\"ActualArrivedQuantityMt\"", form);
+        // مقدار واقعی رسیده دیگر فیلد جدا ندارد و از مقدار رسید آینه می‌شود.
+        Assert.Contains("data-copy-value-to=\"ActualArrivedQuantityMt\"", form);
         Assert.DoesNotContain("data-copy-value-to=\"DestinationTerminalId\"", form);
         Assert.Contains(".ak-form-section", css);
         Assert.Contains(".ak-form-grid", css);
@@ -382,7 +388,9 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("ak-form-grid", form);
         Assert.Contains("ak-field", form);
         Assert.Contains("ak-input", form);
-        Assert.Contains("ak-table", form);
+        // جدول تخصیص ترکیبی حذف شده است؛ فرم رسید دیگر جدول ندارد.
+        Assert.DoesNotContain("ak-table", form);
+        Assert.DoesNotContain("data-scenario-pick=\"mixed\"", form);
         Assert.Contains("data-receipt-create-form", form);
         Assert.Contains("asp-controller=\"LoadingReceipts\"", form);
         Assert.Contains("asp-action=\"Create\"", form);
@@ -390,7 +398,6 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("data-scenario-pick=\"sale\"", form);
         Assert.Contains("data-scenario-pick=\"truck\"", form);
         Assert.Contains("data-scenario-pick=\"transfer\"", form);
-        Assert.Contains("data-scenario-pick=\"mixed\"", form);
         Assert.Contains("<input asp-for=\"LoadingRegisterId\" type=\"hidden\" />", form);
         Assert.Contains("<input asp-for=\"ReturnUrl\" type=\"hidden\" />", form);
         Assert.Contains("<input asp-for=\"ReceiptDestination\" type=\"hidden\" id=\"ReceiptDestination\" />", form);
@@ -401,9 +408,6 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("asp-for=\"DirectDriverName\"", form);
         Assert.Contains("asp-for=\"SaleAppliedFxRateToUsd\"", form);
         Assert.Contains("asp-for=\"SaleNotes\"", form);
-        Assert.Contains("AllocationLines[i].Destination", form);
-        Assert.Contains("AllocationLines[i].StorageTankId", form);
-        Assert.Contains("AllocationLines[i].DestinationTerminalId", form);
         Assert.DoesNotContain("<script>", form);
 
         Assert.Contains(".ak-form-section", css);
@@ -815,8 +819,8 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("وزن تخلیه", view);
         Assert.Contains("مجموع کرایه", view);
         Assert.Contains("مجرای کمبودی", view);
-        Assert.Contains("ثبت کرایه", view);
-        Assert.Contains("ثبت کمبودی قابل مجرا", view);
+        Assert.Contains("کرایه حمل (اختیاری)", view);
+        Assert.Contains("کسری یا مازاد (اختیاری)", view);
         Assert.Contains("data-optional-toggle=\"freight\"", view);
         Assert.Contains("data-optional-toggle=\"shortage\"", view);
         Assert.Contains("data-optional-body=\"freight\" @(freightOpen ? null : \"hidden\")", view);
@@ -826,6 +830,48 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("_AkPageHeader", view);
         Assert.DoesNotContain("shipment-receipt-form", view);
     }
+
+    [Fact]
+    public void InventoryTransportReceipt_Focused_DirectSale_Keeps_Required_Fields_Clear_And_Optional_Sections_Closed()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportReceipts/Create.cshtml");
+
+        Assert.Contains("data-focused-sale-primary", view);
+        Assert.Contains("اطلاعات ضروری فروش", view);
+        Assert.Contains("فقط فیلدهای ستاره‌دار برای ثبت فروش لازم‌اند", view);
+        Assert.Contains("<input asp-for=\"ReceiptDestination\" type=\"hidden\" data-receipt-destination", view);
+        Assert.Contains("<label asp-for=\"SaleCustomerId\" class=\"ak-label\">@T(\"مشتری\", \"Customer\") <b>*</b>", view);
+        Assert.Contains("<label asp-for=\"ReceivedQuantityMt\">@T(\"مقدار فروش\", \"Sale quantity\") <b>*</b>", view);
+        Assert.Contains("<label asp-for=\"SaleUnitPriceInCurrency\" class=\"ak-label\">@T(\"قیمت فی تن\", \"Unit price per MT\") <b>*</b>", view);
+        Assert.Contains("کرایه حمل (اختیاری)", view);
+        Assert.Contains("کسری یا مازاد (اختیاری)", view);
+        Assert.Contains("var shortageOpen = Model.ShortageQuantityMt != 0m", view);
+        Assert.DoesNotContain("if (hasValue) checkbox.checked = true", view);
+    }
+
+    [Fact]
+    public void InventoryTransportReceipt_Focused_Delivery_Shows_Only_Core_Fields_First()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportReceipts/Create.cshtml");
+        var transportDetails = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportLegs/Details.cshtml");
+
+        Assert.Contains("data-focused-inventory-primary", view);
+        Assert.Contains("اطلاعات ضروری تحویل", view);
+        Assert.Contains("تاریخ تحویل", view);
+        Assert.Contains("مقدار تحویل‌شده", view);
+        Assert.Contains("name=\"focused\" value=\"true\"", view);
+        Assert.Contains("data-focused-inventory=\"@focusedInventory.ToString().ToLowerInvariant()\"", view);
+        Assert.Contains("name=\"ReceiptDestination\" id=\"ReceiptDestination\" value=\"@toInventoryValue\"", view);
+        Assert.Contains("const isToInventory = focusedInventory || value === toInventoryValue;", view);
+        Assert.Contains("data-focused-financial-summary", view);
+        Assert.Contains("خلاصه محاسبه اختیاری", view);
+        Assert.Contains("focusedSale || focusedInventory", view);
+        Assert.Contains("!focusedSale && !focusedInventory", view);
+        Assert.Contains("focused = true", transportDetails);
+        Assert.Contains("PrimaryLabel = null", transportDetails);
+        Assert.Contains("Label = T(\"ویرایش\", \"Edit\"), Href = editUrl", transportDetails);
+    }
+
     [Fact]
     public void ContractJourney_Operational_Links_Are_ReturnUrl_Aware()
     {
@@ -1264,14 +1310,26 @@ public class ContractJourneyViewStructureTests
         Assert.Contains(".ak-status", css);
         Assert.Contains("اطلاعات اصلی", view);
         Assert.Contains("ptg-record-detail", view);
-        Assert.Contains("TimelineLimit = 4", view);
+        Assert.Contains("CombineActivityAndHistory = true", view);
+        Assert.DoesNotContain("TimelineLimit =", view);
         Assert.DoesNotContain("ak-summary-card loading-ruble-pricing", view);
         Assert.DoesNotContain(".ak-loading-rub-secondary > .loading-ruble-pricing", detailCss);
-        // The header carries no primary button any more: every forward operation of the
-        // loading sits in the action bar, in workflow order, so nothing is offered twice.
+        // Every loading action now lives in one header group: the next step is primary,
+        // one companion remains visible and secondary operations use the kebab.
         Assert.DoesNotContain("headerPrimaryModal", view);
         Assert.Contains("Label = T(\"ثبت مصارف\", \"Register expenses\"), ModalTarget = \"loadingExpensesModal\"", view);
         Assert.Contains("Label = T(\"ثبت رسید\", \"Register receipt\"), ModalTarget = \"loadingReceiptModal\"", view);
+        Assert.Contains("ViewData[\"AkHeaderCompanionAction\"]", view);
+        Assert.DoesNotContain("NextActions =", view);
+        Assert.DoesNotContain("PrimaryLabel =", view);
+        Assert.Contains("JourneyTitle = T(\"روند بارگیری\"", view);
+        var mainStart = view.IndexOf("var mainItems", StringComparison.Ordinal);
+        var pricingStart = view.IndexOf("var pricingItems", StringComparison.Ordinal);
+        Assert.True(mainStart >= 0 && pricingStart > mainStart);
+        var mainCardSource = view[mainStart..pricingStart];
+        Assert.DoesNotContain("تاریخ بارگیری", mainCardSource);
+        Assert.DoesNotContain("محصول", mainCardSource);
+        Assert.DoesNotContain("قرارداد خرید", mainCardSource);
         Assert.DoesNotContain("نگاه سریع", view);
         Assert.Contains("[data-loading-details] > .ak-detail-header .ak-kebab-toggle", detailCss);
         Assert.Contains("background: #1877f2 !important;", detailCss);
@@ -1569,8 +1627,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("TerminalId", contents);
         Assert.Contains("StorageTankId", contents);
         Assert.Contains("ReferenceDocument", contents);
-        Assert.Contains("data-receipt-difference-preview", contents);
-        Assert.Contains("Loaded Quantity - Received/Actual Quantity", contents);
+        // اختلاف مقدار حالا به‌صورت راهنمای زندهٔ زیر فیلد «مقدار رسیده» نشان داده می‌شود.
+        Assert.Contains("data-receipt-shortage-hint", contents);
+        Assert.Contains("data-loss-auto-quantity", contents);
+        Assert.Contains("data-preview-value=\"consumedQuantity\"", contents);
     }
 
     [Fact]

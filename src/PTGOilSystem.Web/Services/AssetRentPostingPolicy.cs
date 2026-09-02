@@ -8,14 +8,8 @@ namespace PTGOilSystem.Web.Services;
 /// Controller (ثبت)، Adapter (ژورنال) و Reconciliation (کنترل) هر سه از همین کلاس می‌پرسند، پس
 /// نمی‌توانند با هم اختلاف پیدا کنند: چیزی که ثبت نمی‌شود هرگز به‌عنوان «ثبت‌نشده» گزارش نمی‌شود.
 ///
-/// تصمیمِ فاز یک:
-///   • فقط کرایهٔ دستیِ OperationalAssetsController.CreateRent اثر مالی می‌گیرد.
-///   • کرایه‌هایی که LoadingController خودکار می‌سازد بیرون از این فاز می‌مانند، چون معادلِ
-///     Expense/Freight آن‌ها از سمتِ بارگیری/رسید قبلاً ثبت شده و ثبت دوباره یعنی دوباره‌شماری.
-///     این کرایه‌ها با لینکِ عملیاتیِ خودشان شناخته می‌شوند و به ستون جدید نیازی نیست.
-///   • استفادهٔ داخلی شرکت درآمد خارجی نیست و هیچ حسابی را بدهکار نمی‌کند.
-///   • کرایهٔ شریک فعلاً پشتیبانی نمی‌شود، چون LedgerEntry ستون PartnerId ندارد و ساختنش
-///     Migration می‌خواهد.
+/// Ledger قدیمی فقط برای کرایهٔ خارجیِ دارای طرف‌حساب است. استفادهٔ داخلی و کرایهٔ خودکار
+/// Ledger طرف‌حساب نمی‌سازند؛ انتقال داخلی متوازن در adapter حسابداری ثبت می‌شود.
 /// </summary>
 public static class AssetRentPostingPolicy
 {
@@ -56,10 +50,6 @@ public static class AssetRentPostingPolicy
         if (rent.UsageType == AssetRentUsageType.InternalCompanyUse
             || rent.ChargedToType == AssetRentChargedToType.CompanyInternal)
             return SkipInternalUse;
-        if (rent.UsageType == AssetRentUsageType.PartnerUse
-            || rent.ChargedToType == AssetRentChargedToType.Partner)
-            return SkipPartnerUnsupported;
-
         return rent.ChargedToType switch
         {
             AssetRentChargedToType.Customer =>
@@ -70,6 +60,8 @@ public static class AssetRentPostingPolicy
                 rent.ChargedToServiceProviderId.HasValue || rent.ChargedToCustomerId.HasValue
                     ? null
                     : SkipCounterpartyUnresolved,
+            AssetRentChargedToType.Partner =>
+                rent.ChargedToPartnerId.HasValue ? null : SkipCounterpartyUnresolved,
             _ => SkipCounterpartyUnresolved
         };
     }

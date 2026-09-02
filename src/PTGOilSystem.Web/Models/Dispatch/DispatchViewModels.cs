@@ -6,6 +6,12 @@ namespace PTGOilSystem.Web.Models.Dispatch;
 
 public sealed class DispatchCreateViewModel
 {
+    /// <summary>
+    /// PTG-P1-05 — نسخهٔ سطری که کاربر هنگامِ بازکردنِ فرم دید. با فرم برمی‌گردد تا ذخیره
+    /// روی نسخهٔ کهنه رد شود. صفر یعنی فرم نسخه نفرستاده است.
+    /// </summary>
+    public long Version { get; set; }
+
     [Display(Name = "قرارداد")]
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب قرارداد الزامی است.")]
     public int ContractId { get; set; }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Services.Accounting;
 
 namespace PTGOilSystem.Web.Services;
@@ -60,6 +61,10 @@ public sealed class AssetRentPostingService(
     IAssetRentAccountingAdapter? rentAccounting = null)
     : IAssetRentPostingService
 {
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(db);
+
     /// <summary>ردیف اصلی از قبل وجود دارد؛ ثبت دوباره یعنی دوباره‌شماری.</summary>
     public const string SkipAlreadyPosted = "ALREADY_POSTED";
 
@@ -81,6 +86,10 @@ public sealed class AssetRentPostingService(
         var skipReason = AssetRentPostingPolicy.ResolveSkipReason(rent);
         if (skipReason is not null)
         {
+            if (rent.UsageType == AssetRentUsageType.InternalCompanyUse && rentAccounting is not null)
+            {
+                await rentAccounting.TryPostRentAsync(rent, cancellationToken);
+            }
             return new AssetRentPostingResult(null, skipReason);
         }
 
@@ -91,8 +100,8 @@ public sealed class AssetRentPostingService(
         }
 
         var contractCustomerId = await ResolveContractCustomerIdAsync(rent, cancellationToken);
-        var ledger = AssetRentLedgerFactory.BuildRentLedgerEntry(rent, conversion, assetCode, contractCustomerId);
-        db.LedgerEntries.Add(ledger);
+        var ledger = Ledger.Post(
+            AssetRentLedgerFactory.BuildRentLedgerEntry(rent, conversion, assetCode, contractCustomerId));
         await db.SaveChangesAsync(cancellationToken);
 
         rent.LedgerEntryId = ledger.Id;
@@ -117,6 +126,25 @@ public sealed class AssetRentPostingService(
         var original = await FindOriginalLedgerAsync(rent.Id, cancellationToken);
         if (original is null)
         {
+            // Internal company use intentionally has no legacy party ledger, but it can have
+            // a balanced accounting journal (freight cost / internal asset recovery).
+            if (rent.UsageType == AssetRentUsageType.InternalCompanyUse && rentAccounting is not null)
+            {
+                var accountingReversal = await rentAccounting.TryReverseRentAsync(
+                    rent,
+                    reversalDate,
+                    cancellationToken);
+                if (accountingReversal.Status == PaymentPostingStatus.Posted)
+                {
+                    return new AssetRentReversalResult(null, null);
+                }
+
+                if (accountingReversal.Status == PaymentPostingStatus.Duplicate)
+                {
+                    return new AssetRentReversalResult(null, SkipAlreadyReversed);
+                }
+            }
+
             // کرایهٔ بدون اثر مالی. اگر پرچم‌ها بگویند ثبت شده ولی دفتر خالی باشد، همان تناقض را
             // Reconciliation گزارش می‌کند؛ اینجا ردیف مصنوعی ساخته نمی‌شود.
             return new AssetRentReversalResult(null, SkipNoFinancialPosting);
@@ -127,8 +155,8 @@ public sealed class AssetRentPostingService(
             return new AssetRentReversalResult(null, SkipAlreadyReversed);
         }
 
-        var reversal = AssetRentLedgerFactory.BuildReversalLedgerEntry(rent, original, reversalDate);
-        db.LedgerEntries.Add(reversal);
+        var reversal = Ledger.Post(
+            AssetRentLedgerFactory.BuildReversalLedgerEntry(rent, original, reversalDate));
         await db.SaveChangesAsync(cancellationToken);
 
         if (rentAccounting is not null)

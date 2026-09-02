@@ -41,7 +41,7 @@ public class Unit : BaseEntity
     [MaxLength(1000)] public string? Notes { get; set; }
 }
 
-public class Partner : BaseEntity
+public class Partner : BaseEntity, ICanonicalSearchable
 {
     [Required, MaxLength(50)] public string Code { get; set; } = "";
     [Required, MaxLength(200)] public string Name { get; set; } = "";
@@ -53,9 +53,14 @@ public class Partner : BaseEntity
     [MaxLength(150)] public string? Email { get; set; }
     public bool IsActive { get; set; } = true;
     [MaxLength(1000)] public string? Notes { get; set; }
+
+    /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
+    [MaxLength(600)] public string? SearchKey { get; set; }
+
+    public string BuildSearchSource() => string.Join(' ', new[] { Code, Name, NamePersian });
 }
 
-public class Company : BaseEntity
+public class Company : BaseEntity, ICanonicalSearchable
 {
     [Required, MaxLength(50)] public string Code { get; set; } = "";
     [Required, MaxLength(200)] public string Name { get; set; } = "";
@@ -71,6 +76,11 @@ public class Company : BaseEntity
     /// مالک‌بودن فقط از این فیلد خوانده می‌شود — نه از IsActive و نه از شناسهٔ هاردکد.
     /// </summary>
     public bool IsSystemOwner { get; set; }
+
+    /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
+    [MaxLength(600)] public string? SearchKey { get; set; }
+
+    public string BuildSearchSource() => string.Join(' ', new[] { Code, Name, NamePersian });
 }
 
 public enum ServiceProviderType
@@ -102,7 +112,7 @@ public class ServiceProvider : BaseEntity
     public bool IsActive { get; set; } = true;
 }
 
-public class Supplier : BaseEntity
+public class Supplier : BaseEntity, ICanonicalSearchable
 {
     [MaxLength(50)] public string? Code { get; set; }
     [Required, MaxLength(200)] public string Name { get; set; } = "";
@@ -113,9 +123,14 @@ public class Supplier : BaseEntity
     [MaxLength(300)] public string? Address { get; set; }
     public bool IsActive { get; set; } = true;
     [MaxLength(1000)] public string? Notes { get; set; }
+
+    /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
+    [MaxLength(600)] public string? SearchKey { get; set; }
+
+    public string BuildSearchSource() => string.Join(' ', new[] { Code, Name, NamePersian });
 }
 
-public class Customer : BaseEntity
+public class Customer : BaseEntity, ICanonicalSearchable
 {
     [MaxLength(50)] public string? Code { get; set; }
     [Required, MaxLength(200)] public string Name { get; set; } = "";
@@ -126,6 +141,11 @@ public class Customer : BaseEntity
     [MaxLength(300)] public string? Address { get; set; }
     public bool IsActive { get; set; } = true;
     [MaxLength(1000)] public string? Notes { get; set; }
+
+    /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
+    [MaxLength(600)] public string? SearchKey { get; set; }
+
+    public string BuildSearchSource() => string.Join(' ', new[] { Code, Name, NamePersian });
 }
 
 public class Terminal : BaseEntity
@@ -161,16 +181,21 @@ public class Vessel : BaseEntity
     [MaxLength(1000)] public string? Notes { get; set; }
 }
 
-public class Truck : BaseEntity
+public class Truck : BaseEntity, ICanonicalSearchable
 {
     [Required, MaxLength(50)] public string PlateNumber { get; set; } = "";
     [MaxLength(100)] public string? Owner { get; set; }
     public decimal? MaxLoadMt { get; set; }
     public bool IsActive { get; set; } = true;
     [MaxLength(1000)] public string? Notes { get; set; }
+
+    /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
+    [MaxLength(600)] public string? SearchKey { get; set; }
+
+    public string BuildSearchSource() => string.Join(' ', new[] { PlateNumber, Owner });
 }
 
-public class Wagon : BaseEntity
+public class Wagon : BaseEntity, ICanonicalSearchable
 {
     [Required, MaxLength(50)] public string WagonNumber { get; set; } = "";
     [MaxLength(50)] public string? WagonType { get; set; }
@@ -178,6 +203,11 @@ public class Wagon : BaseEntity
     public decimal? CapacityMt { get; set; }
     public bool IsActive { get; set; } = true;
     [MaxLength(1000)] public string? Notes { get; set; }
+
+    /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
+    [MaxLength(600)] public string? SearchKey { get; set; }
+
+    public string BuildSearchSource() => string.Join(' ', new[] { WagonNumber, Owner });
 }
 
 public class Driver : BaseEntity

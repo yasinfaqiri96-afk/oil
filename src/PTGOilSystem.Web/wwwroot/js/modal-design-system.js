@@ -248,172 +248,21 @@
     function initializeReceiptCreateForm(form) {
         if (!form || form.dataset.receiptCreateReady === "true") return;
 
-        var toggle = document.getElementById("lossEnabledToggle");
-        var panel = document.getElementById("lossPanelFields");
-        var hint = document.getElementById("lossPanelHint");
-
-        function syncLossPanel() {
-            if (!toggle || !panel) return;
-            var enabled = toggle.checked;
-            var openByDefault = panel.dataset.lossOpenDefault === "true" && toggle.dataset.lossTouched !== "true";
-            var visible = enabled || openByDefault;
-            panel.style.display = visible ? "" : "none";
-            panel.querySelectorAll("input, select, textarea").forEach(function (field) {
-                if (field.type !== "hidden") field.disabled = !visible;
-            });
-            if (hint) hint.style.display = enabled ? "none" : "";
+        // ---- helpers -------------------------------------------------------
+        function readDecimal(input) {
+            if (!input || !input.value) return null;
+            var parsed = Number.parseFloat(input.value.toString().replace(/,/g, ""));
+            return Number.isFinite(parsed) ? parsed : null;
         }
 
-        if (toggle) {
-            toggle.addEventListener("change", function () {
-                toggle.dataset.lossTouched = "true";
-                syncLossPanel();
-            });
-            if (panel) {
-                panel.querySelectorAll("input, select, textarea").forEach(function (field) {
-                    field.addEventListener("input", function () {
-                        if (!toggle.checked && field.value && field.value.toString().trim()) {
-                            toggle.checked = true;
-                            toggle.dataset.lossTouched = "true";
-                            syncLossPanel();
-                        }
-                    });
-                });
-            }
-            syncLossPanel();
+        function formatQuantity(value) {
+            if (value === null || value === undefined) return "";
+            return value.toLocaleString(undefined, { maximumFractionDigits: 4 }) + " MT";
         }
-
-        // Loss capture mode: immediate (known now) vs deferred tank settlement.
-        var lossModeValue = form.querySelector("[data-loss-mode-value]");
-        var lossModeButtons = form.querySelectorAll("[data-loss-mode-pick]");
-        var lossImmediateBlock = form.querySelector("[data-loss-immediate-block]");
-        var lossDeferredNote = form.querySelector("[data-loss-deferred-note]");
-        var LOSS_MODE_DEFERRED = "2";
-
-        function syncLossMode() {
-            if (!lossModeValue) return;
-            var currentValue = String(lossModeValue.value || "1");
-            var isDeferred = currentValue === LOSS_MODE_DEFERRED;
-
-            lossModeButtons.forEach(function (btn) {
-                var selected = btn.getAttribute("data-loss-mode-set") === currentValue;
-                btn.classList.toggle("is-selected", selected);
-                btn.setAttribute("aria-pressed", selected ? "true" : "false");
-            });
-
-            if (isDeferred && toggle) {
-                toggle.checked = false;
-                toggle.dataset.lossTouched = "true";
-                toggle.disabled = true;
-            } else if (toggle) {
-                toggle.disabled = false;
-            }
-
-            if (lossImmediateBlock) {
-                lossImmediateBlock.style.display = isDeferred ? "none" : "";
-            }
-
-            if (lossDeferredNote) {
-                lossDeferredNote.classList.toggle("d-none", !isDeferred);
-            }
-
-            if (isDeferred) {
-                if (lossImmediateBlock) {
-                    lossImmediateBlock.querySelectorAll("input, select, textarea").forEach(function (field) {
-                        if (field.type !== "hidden") field.disabled = true;
-                    });
-                }
-            } else {
-                syncLossPanel();
-            }
-        }
-
-        lossModeButtons.forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                if (!lossModeValue) return;
-                lossModeValue.value = btn.getAttribute("data-loss-mode-set") || "1";
-                syncLossMode();
-            });
-        });
-        syncLossMode();
-
-        var receiptDestinationInput = document.getElementById("ReceiptDestination");
-        var allocationDestinationInput = document.getElementById("AllocationDestination");
-        var scenarioKeyInput = document.getElementById("ScenarioKey");
-        var scenarioButtons = form.querySelectorAll("[data-scenario-pick]");
-        var scenarioPanels = form.querySelectorAll("[data-scenario-panel]");
-        var scenarioBanners = form.querySelectorAll("[data-scenario-banner]");
-        var scenarioSubtitles = form.querySelectorAll("[data-scenario-subtitle]");
-        var scenarioFinals = form.querySelectorAll("[data-scenario-final]");
-        var scenarioLabels = form.querySelectorAll("[data-scenario-label-for]");
-        var copiedValueFields = form.querySelectorAll("[data-copy-value-to]");
-
-        var scenarioMap = {
-            inventory: {
-                receipt: form.dataset.receiptToInventory,
-                allocation: form.dataset.allocToInventory,
-                label: "ورود به موجودی",
-                effect: "موجودی زیاد می‌شود"
-            },
-            truck: {
-                receipt: form.dataset.receiptDirectDispatch,
-                allocation: form.dataset.allocDirectTruck,
-                label: "دیسپچ مستقیم",
-                effect: "فقط ردیابی و دیسپچ ثبت می‌شود"
-            },
-            sale: {
-                receipt: form.dataset.receiptDirectDispatch,
-                allocation: form.dataset.allocDirectSale,
-                label: "فروش مستقیم",
-                effect: "موجودی جعلی ساخته نمی‌شود"
-            },
-            transfer: {
-                receipt: form.dataset.receiptDirectDispatch,
-                allocation: form.dataset.allocTransfer,
-                label: "انتقال به ترمینال دیگر",
-                effect: "در مسیر است"
-            },
-            mixed: {
-                receipt: form.dataset.receiptMixed,
-                allocation: form.dataset.allocToInventory,
-                label: "مختلط",
-                effect: "بر اساس خطوط تخصیص اثر می‌گذارد"
-            }
-        };
-
-        function splitTokens(value) {
-            return String(value || "").split(/[\s,]+/).filter(Boolean);
-        }
-
-        function syncMixedAllocationRow(row) {
-            var destinationSelect = row.querySelector("[data-mixed-destination-select]");
-            var destination = destinationSelect ? String(destinationSelect.value || "") : "";
-            row.querySelectorAll("[data-mixed-destination-field]").forEach(function (cell) {
-                var visible = splitTokens(cell.getAttribute("data-mixed-destination-field")).indexOf(destination) !== -1;
-                cell.hidden = !visible;
-                cell.classList.toggle("d-none", !visible);
-                cell.querySelectorAll("input, select, textarea").forEach(function (field) {
-                    if (field.type !== "hidden") {
-                        field.disabled = !visible;
-                    }
-                });
-            });
-        }
-
-        function syncMixedAllocationRows() {
-            form.querySelectorAll("[data-mixed-allocation-row]").forEach(syncMixedAllocationRow);
-        }
-
-        form.querySelectorAll("[data-mixed-destination-select]").forEach(function (select) {
-            select.addEventListener("change", function () {
-                var row = select.closest("[data-mixed-allocation-row]");
-                if (row) syncMixedAllocationRow(row);
-            });
-        });
 
         function setPreviewValue(key, value) {
-            document.querySelectorAll('[data-preview-value="' + key + '"]').forEach(function (node) {
-                node.textContent = value && String(value).trim() ? value : "-";
+            form.querySelectorAll('[data-preview-value="' + key + '"]').forEach(function (node) {
+                node.textContent = value && String(value).trim() ? value : "—";
             });
         }
 
@@ -427,6 +276,111 @@
             return element.value || "";
         }
 
+        function splitTokens(value) {
+            return String(value || "").split(/[\s,]+/).filter(Boolean);
+        }
+
+        // ---- shortage (loss) ----------------------------------------------
+        var lossEnabledInput = form.querySelector("[data-loss-enabled-value]");
+        var lossPanel = form.querySelector("[data-loss-panel]");
+        var lossButtons = form.querySelectorAll("[data-loss-pick]");
+        var lossQuantityInput = form.querySelector("[data-loss-auto-quantity]");
+        var receivedInput = document.getElementById("ReceivedQuantityMt");
+        var shortageHint = form.querySelector("[data-receipt-shortage-hint]");
+        var baseQuantity = Number.parseFloat((receivedInput && receivedInput.dataset.receiptBaseQuantity) || "0") || 0;
+
+        function lossIsEnabled() {
+            return !!lossEnabledInput && String(lossEnabledInput.value) === "true";
+        }
+
+        function syncLossPanel() {
+            var enabled = lossIsEnabled();
+
+            lossButtons.forEach(function (button) {
+                var selected = (button.getAttribute("data-loss-pick") === "yes") === enabled;
+                button.classList.toggle("is-selected", selected);
+                button.setAttribute("aria-pressed", selected ? "true" : "false");
+            });
+
+            if (!lossPanel) return;
+            lossPanel.classList.toggle("d-none", !enabled);
+            lossPanel.querySelectorAll("input, select, textarea").forEach(function (field) {
+                if (field.type !== "hidden") field.disabled = !enabled;
+            });
+        }
+
+        lossButtons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                if (!lossEnabledInput) return;
+                lossEnabledInput.value = button.getAttribute("data-loss-pick") === "yes" ? "true" : "false";
+                syncLossPanel();
+                syncReceiptPreview();
+            });
+        });
+
+        // کسری = باقیماندهٔ بارگیری − مقدار رسید. تا وقتی کاربر فیلد کسری را دستی
+        // تغییر نداده، همین مقدار در آن نوشته می‌شود.
+        if (lossQuantityInput) {
+            if (lossQuantityInput.value && lossQuantityInput.value.toString().trim()) {
+                lossQuantityInput.dataset.lossQuantityTouched = "true";
+            }
+            lossQuantityInput.addEventListener("input", function () {
+                lossQuantityInput.dataset.lossQuantityTouched = "true";
+                syncReceiptPreview();
+            });
+        }
+
+        function computeShortage() {
+            var received = readDecimal(receivedInput);
+            if (received === null || baseQuantity <= 0) return null;
+            return Math.round(Math.max(baseQuantity - received, 0) * 10000) / 10000;
+        }
+
+        function syncAutoLoss() {
+            var shortage = computeShortage();
+
+            if (shortageHint) {
+                var template = shortageHint.getAttribute("data-hint-template") || "{0}";
+                shortageHint.hidden = shortage === null;
+                if (shortage !== null) {
+                    shortageHint.textContent = template.replace(
+                        "{0}",
+                        shortage.toLocaleString(undefined, { maximumFractionDigits: 4 }));
+                }
+            }
+
+            if (!lossQuantityInput || lossQuantityInput.dataset.lossQuantityTouched === "true") return;
+            lossQuantityInput.value = shortage === null || shortage <= 0 ? "" : String(shortage);
+        }
+
+        // ---- destination scenarios ----------------------------------------
+        var scenarioMap = {
+            inventory: {
+                receipt: form.dataset.receiptToInventory,
+                allocation: form.dataset.allocToInventory
+            },
+            truck: {
+                receipt: form.dataset.receiptDirectDispatch,
+                allocation: form.dataset.allocDirectTruck
+            },
+            sale: {
+                receipt: form.dataset.receiptDirectDispatch,
+                allocation: form.dataset.allocDirectSale
+            },
+            transfer: {
+                receipt: form.dataset.receiptDirectDispatch,
+                allocation: form.dataset.allocTransfer
+            }
+        };
+
+        var receiptDestinationInput = document.getElementById("ReceiptDestination");
+        var allocationDestinationInput = document.getElementById("AllocationDestination");
+        var scenarioKeyInput = document.getElementById("ScenarioKey");
+        var scenarioButtons = form.querySelectorAll("[data-scenario-pick]");
+        var scenarioPanels = form.querySelectorAll("[data-scenario-panel]");
+        var copiedValueFields = form.querySelectorAll("[data-copy-value-to]");
+        var activeScenario = "inventory";
+
         function syncCopiedValueFields() {
             copiedValueFields.forEach(function (source) {
                 var targetId = source.getAttribute("data-copy-value-to");
@@ -434,15 +388,11 @@
                 var target = form.querySelector("#" + targetId);
                 if (!target) return;
                 target.value = source.value || "";
-                target.dispatchEvent(new Event("change", { bubbles: true }));
             });
         }
 
         function scenarioPanelMatches(panel, scenario) {
-            var keys = (panel.getAttribute("data-scenario-panel") || "")
-                .split(/\s+/)
-                .filter(Boolean);
-            return keys.indexOf(scenario) !== -1;
+            return splitTokens(panel.getAttribute("data-scenario-panel")).indexOf(scenario) !== -1;
         }
 
         function syncScenarioPanelFields(panel, isActive) {
@@ -454,6 +404,7 @@
 
         function applyScenario(scenario) {
             if (!scenarioMap[scenario]) scenario = "inventory";
+            activeScenario = scenario;
             var config = scenarioMap[scenario];
 
             if (receiptDestinationInput) receiptDestinationInput.value = config.receipt || "";
@@ -472,28 +423,7 @@
                 syncScenarioPanelFields(panel, isActive);
             });
 
-            scenarioBanners.forEach(function (banner) {
-                banner.classList.toggle("d-none", banner.getAttribute("data-scenario-banner") !== scenario);
-            });
-
-            scenarioSubtitles.forEach(function (node) {
-                node.classList.toggle("d-none", node.getAttribute("data-scenario-subtitle") !== scenario);
-            });
-
-            scenarioFinals.forEach(function (node) {
-                node.classList.toggle("d-none", node.getAttribute("data-scenario-final") !== scenario);
-            });
-
-            scenarioLabels.forEach(function (label) {
-                var customText = label.getAttribute("data-label-" + scenario);
-                var fallbackText = label.getAttribute("data-label-default");
-                label.textContent = customText || fallbackText || label.textContent;
-            });
-
-            setPreviewValue("destinationType", config.label);
-            setPreviewValue("inventoryEffect", config.effect);
             syncCopiedValueFields();
-            syncMixedAllocationRows();
             syncReceiptPreview();
         }
 
@@ -503,62 +433,60 @@
             });
         });
 
-        var differencePreview = form.querySelector("[data-receipt-difference-preview]");
-        var differenceValue = form.querySelector("[data-receipt-difference-value]");
-        var receivedInput = document.getElementById("ReceivedQuantityMt");
-        var actualInput = document.getElementById("ActualArrivedQuantityMt");
-
-        function readDecimal(input) {
-            if (!input || !input.value) return null;
-            var parsed = Number.parseFloat(input.value.toString().replace(/,/g, ""));
-            return Number.isFinite(parsed) ? parsed : null;
+        function activeScenarioButton() {
+            return form.querySelector('[data-scenario-pick="' + activeScenario + '"]');
         }
 
-        function formatQuantity(input) {
-            var parsed = readDecimal(input);
-            return parsed === null ? "" : parsed.toLocaleString(undefined, { maximumFractionDigits: 4 }) + " MT";
-        }
-
-        function syncDifferencePreview() {
-            if (!differencePreview || !differenceValue) return;
-            var loaded = Number.parseFloat(differencePreview.dataset.loadedQuantity || "0") || 0;
-            var actual = readDecimal(actualInput);
-            var received = readDecimal(receivedInput);
-            var compareQuantity = actual ?? received;
-
-            if (!compareQuantity || loaded <= 0) {
-                differenceValue.textContent = "-";
-                setPreviewValue("quantityDifference", "-");
-                return;
+        function destinationDetailText() {
+            if (activeScenario === "inventory") return selectedText("StorageTankId");
+            if (activeScenario === "sale") return selectedText("SaleCustomerId");
+            if (activeScenario === "truck") {
+                return [selectedText("DirectTruckId"), selectedText("DestinationLocationId")]
+                    .filter(Boolean)
+                    .join(" — ");
             }
-
-            var difference = (loaded - compareQuantity).toFixed(4);
-            differenceValue.textContent = difference;
-            setPreviewValue("quantityDifference", difference + " MT");
+            return [selectedText("DestinationTerminalId"), selectedText("DestinationLocationId")]
+                .filter(Boolean)
+                .join(" — ");
         }
 
+        // ---- live summary (step 5) ----------------------------------------
         function syncReceiptPreview() {
+            syncAutoLoss();
+
+            var received = readDecimal(receivedInput);
+            var loss = lossIsEnabled() ? readDecimal(lossQuantityInput) : null;
+            var button = activeScenarioButton();
+
+            setPreviewValue("receivedQuantity", received === null ? "" : formatQuantity(received));
+            setPreviewValue("destinationType", button ? button.getAttribute("data-scenario-label") : "");
+            setPreviewValue("inventoryEffect", button ? button.getAttribute("data-scenario-effect") : "");
+            setPreviewValue("destinationDetail", destinationDetailText());
+            setPreviewValue("lossQuantity", loss ? formatQuantity(loss) : "");
+            setPreviewValue(
+                "consumedQuantity",
+                received === null ? "" : formatQuantity(Math.round((received + (loss || 0)) * 10000) / 10000));
+            setPreviewValue(
+                "inventoryDelta",
+                activeScenario === "inventory" && received !== null ? "+ " + formatQuantity(received) : "");
             setPreviewValue("reference", selectedText("ReferenceDocument"));
-            setPreviewValue("receivedQuantity", formatQuantity(receivedInput));
             setPreviewValue("terminal", selectedText("TerminalId"));
-            setPreviewValue("storageTank", selectedText("StorageTankId") || selectedText("DestinationStorageTankId"));
+            setPreviewValue("storageTank", selectedText("StorageTankId"));
             setPreviewValue("customer", selectedText("SaleCustomerId"));
-            setPreviewValue("truck", selectedText("DirectTruckPlateNumber") || selectedText("DirectTruckId"));
-            setPreviewValue("driver", selectedText("DirectDriverName") || selectedText("DirectDriverId"));
-            syncDifferencePreview();
+            setPreviewValue("truck", selectedText("DirectTruckId"));
+            setPreviewValue("driver", selectedText("DirectDriverId"));
         }
 
         [
             "ReferenceDocument",
             "ReceivedQuantityMt",
-            "ActualArrivedQuantityMt",
             "TerminalId",
             "StorageTankId",
+            "DestinationTerminalId",
             "DestinationStorageTankId",
+            "DestinationLocationId",
             "SaleCustomerId",
-            "DirectTruckPlateNumber",
             "DirectTruckId",
-            "DirectDriverName",
             "DirectDriverId"
         ].forEach(function (id) {
             var element = document.getElementById(id);
@@ -572,10 +500,8 @@
             field.addEventListener("change", syncCopiedValueFields);
         });
 
+        syncLossPanel();
         applyScenario(scenarioKeyInput ? scenarioKeyInput.value : "inventory");
-        syncMixedAllocationRows();
-        syncCopiedValueFields();
-        syncReceiptPreview();
         form.dataset.receiptCreateReady = "true";
     }
 

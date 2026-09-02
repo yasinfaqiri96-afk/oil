@@ -113,6 +113,15 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("AccruedExpenseAccountId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("AccumulatedDepreciationAccountId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("AssetOperatingExpenseAccountId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("AssetRentalRevenueAccountId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("CashBankControlAccountId")
                         .HasColumnType("integer");
 
@@ -137,6 +146,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("CustomerAdvanceAccountId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("DepreciationExpenseAccountId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("EmployeeAdvanceAccountId")
                         .HasColumnType("integer");
 
@@ -149,6 +161,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("ExchangeLossAccountId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("FixedAssetAccountId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("FreightPayableAccountId")
                         .HasColumnType("integer");
 
@@ -158,6 +173,9 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(10)");
 
                     b.Property<int>("GeneralExpenseAccountId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("InternalAssetRecoveryAccountId")
                         .HasColumnType("integer");
 
                     b.Property<int>("InventoryAccountId")
@@ -198,6 +216,12 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("AccruedExpenseAccountId");
 
+                    b.HasIndex("AccumulatedDepreciationAccountId");
+
+                    b.HasIndex("AssetOperatingExpenseAccountId");
+
+                    b.HasIndex("AssetRentalRevenueAccountId");
+
                     b.HasIndex("CashBankControlAccountId");
 
                     b.HasIndex("CommissionPayableAccountId");
@@ -211,6 +235,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("CustomerAdvanceAccountId");
 
+                    b.HasIndex("DepreciationExpenseAccountId");
+
                     b.HasIndex("EmployeeAdvanceAccountId");
 
                     b.HasIndex("EmployeePayableAccountId");
@@ -219,9 +245,13 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("ExchangeLossAccountId");
 
+                    b.HasIndex("FixedAssetAccountId");
+
                     b.HasIndex("FreightPayableAccountId");
 
                     b.HasIndex("GeneralExpenseAccountId");
+
+                    b.HasIndex("InternalAssetRecoveryAccountId");
 
                     b.HasIndex("InventoryAccountId");
 
@@ -236,6 +266,362 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("SupplierPrepaymentAccountId");
 
                     b.ToTable("AccountingSettings", (string)null);
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetAssignment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("BaseTerminalId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DriverId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FromDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OperationalAssetId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ResponsiblePartyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ResponsiblePartyType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("ToDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BaseTerminalId");
+
+                    b.HasIndex("DriverId");
+
+                    b.HasIndex("OperationalAssetId", "Role")
+                        .IsUnique()
+                        .HasFilter("\"ToDate\" IS NULL");
+
+                    b.HasIndex("ResponsiblePartyType", "ResponsiblePartyId");
+
+                    b.ToTable("AssetAssignments");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetCharge", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AmountOriginal")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("AmountUsd")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("AssetUsageId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ChargeKind")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ContractId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CounterpartyPartyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CounterpartyPartyType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("USD");
+
+                    b.Property<decimal>("FxRateToUsd")
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<bool>("IsCancelled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int?>("JournalEntryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LedgerEntryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LegacyAssetRentTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PostingStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<decimal?>("QuantityBasis")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("Rate")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("RateBasis")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SkipReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("JournalEntryId");
+
+                    b.HasIndex("LedgerEntryId");
+
+                    b.HasIndex("LegacyAssetRentTransactionId")
+                        .IsUnique()
+                        .HasFilter("\"LegacyAssetRentTransactionId\" IS NOT NULL");
+
+                    b.HasIndex("AssetUsageId", "ChargeKind")
+                        .IsUnique();
+
+                    b.HasIndex("CounterpartyPartyType", "CounterpartyPartyId");
+
+                    b.ToTable("AssetCharges");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DocumentNumber")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("IssueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OperationalAssetId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UploadedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UploadedByUserName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationalAssetId", "DocumentType", "ExpiryDate");
+
+                    b.ToTable("AssetDocuments");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetMaintenanceJob", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DowntimeFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DowntimeTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ExpenseTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("JobType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OperationalAssetId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ScheduledDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("StartedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpenseTransactionId");
+
+                    b.HasIndex("OperationalAssetId", "Status", "ScheduledDate");
+
+                    b.ToTable("AssetMaintenanceJobs");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetMeterReading", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MeterType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OperationalAssetId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ReadingDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("ReadingValue")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationalAssetId", "MeterType", "ReadingDate");
+
+                    b.ToTable("AssetMeterReadings");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetOwnershipShare", b =>
@@ -500,6 +886,72 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("OperationalAssetId", "RentDate");
 
                     b.ToTable("AssetRentTransactions");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetUsage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("Days")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal?>("DistanceKm")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("DocumentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("FromLocationId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsReversed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("OperationalAssetId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("QuantityMt")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int?>("ToLocationId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UsageDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromLocationId");
+
+                    b.HasIndex("ToLocationId");
+
+                    b.HasIndex("UsageDate");
+
+                    b.HasIndex("OperationalAssetId", "DocumentType", "DocumentId")
+                        .IsUnique();
+
+                    b.ToTable("AssetUsages");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AuditLog", b =>
@@ -968,6 +1420,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("SearchKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -982,6 +1438,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("IsSystemOwner")
                         .IsUnique()
                         .HasFilter("\"IsSystemOwner\" = true");
+
+                    b.HasIndex("SearchKey");
 
                     b.ToTable("Companies");
                 });
@@ -1105,6 +1563,10 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("SaleProceedsHolderPartnerId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SearchKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<string>("SettlementCurrencyCode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1136,6 +1598,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyId");
@@ -1152,6 +1620,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("ProductId");
 
                     b.HasIndex("SaleProceedsHolderPartnerId");
+
+                    b.HasIndex("SearchKey");
 
                     b.HasIndex("SupplierId");
 
@@ -1314,6 +1784,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("PartnerId")
                         .HasColumnType("integer");
 
@@ -1326,11 +1802,19 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
                     b.HasKey("Id");
 
                     b.HasIndex("PartnerId");
 
-                    b.HasIndex("ContractId", "PartnerId")
+                    b.HasIndex("ContractId", "EffectiveFrom");
+
+                    b.HasIndex("ContractId", "PartnerId", "EffectiveFrom")
                         .IsUnique();
 
                     b.ToTable("ContractPartners");
@@ -1483,6 +1967,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("SearchKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1490,6 +1978,8 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SearchKey");
 
                     b.ToTable("Customers");
                 });
@@ -2495,6 +2985,10 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("ExpenseTypeId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ImportUniqueKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<bool>("IsCancelled")
                         .HasColumnType("boolean");
 
@@ -2525,6 +3019,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContractId");
@@ -2536,6 +3036,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("ExpenseRuleId");
 
                     b.HasIndex("ExpenseTypeId");
+
+                    b.HasIndex("ImportUniqueKey")
+                        .IsUnique();
 
                     b.HasIndex("LoadingRegisterId");
 
@@ -3456,6 +3959,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal?>("CapacityMt")
                         .HasColumnType("numeric(18,4)");
 
+                    b.Property<int?>("CarrierPartyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CarrierPartyType")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("CarrierType")
                         .HasColumnType("integer");
 
@@ -3564,6 +4073,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
                     b.Property<int?>("VesselId")
                         .HasColumnType("integer");
 
@@ -3620,6 +4135,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("WagonId");
 
                     b.HasIndex("WagonNumber");
+
+                    b.HasIndex("CarrierPartyType", "CarrierPartyId");
 
                     b.HasIndex("SourceTerminalId", "SourceStorageTankId");
 
@@ -3700,6 +4217,12 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<decimal?>("AllowanceMt")
                         .HasColumnType("numeric(18,4)");
+
+                    b.Property<int?>("CarrierPartyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CarrierPartyType")
+                        .HasColumnType("integer");
 
                     b.Property<decimal?>("ChargeableShortageMt")
                         .HasColumnType("numeric(18,4)");
@@ -3791,6 +4314,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("SalesTransactionId");
 
                     b.HasIndex("ServiceProviderId");
+
+                    b.HasIndex("CarrierPartyType", "CarrierPartyId");
 
                     b.ToTable("InventoryTransportReceipts", (string)null);
                 });
@@ -3962,6 +4487,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("LineNumber")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("OperationalAssetId")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("PartyId")
                         .HasColumnType("integer");
 
@@ -3998,6 +4526,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("CashAccountId");
 
                     b.HasIndex("ContractId");
+
+                    b.HasIndex("OperationalAssetId");
 
                     b.HasIndex("ProductId");
 
@@ -4073,6 +4603,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<DateTime>("EntryDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("PartnerId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Reference")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -4125,6 +4658,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("EntryDate");
 
+                    b.HasIndex("PartnerId");
+
                     b.HasIndex("Reference");
 
                     b.HasIndex("ServiceProviderId");
@@ -4161,6 +4696,12 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("CalculationMode")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CarrierPartyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CarrierPartyType")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -4219,6 +4760,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("OperationalAssetId");
 
                     b.HasIndex("ServiceProviderId");
+
+                    b.HasIndex("CarrierPartyType", "CarrierPartyId");
 
                     b.ToTable("LoadingExpenseLines");
                 });
@@ -4538,6 +5081,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("SearchKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<string>("SettlementCurrencyCode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -4566,6 +5113,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
                     b.Property<int?>("VesselId")
                         .HasColumnType("integer");
 
@@ -4588,6 +5141,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("OriginLocationId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("SearchKey");
 
                     b.HasIndex("TruckId");
 
@@ -4758,6 +5313,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContractId");
@@ -4919,6 +5480,12 @@ namespace PTGOilSystem.Web.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<decimal?>("AcquisitionCostUsd")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTime?>("AcquisitionDate")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("AssetCode")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -4941,6 +5508,12 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<decimal?>("DefaultInternalRateUsd")
                         .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTime?>("DisposalDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("InServiceDate")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -4967,6 +5540,11 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OperationalStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
 
                     b.Property<int>("OwnershipMode")
                         .HasColumnType("integer");
@@ -5000,6 +5578,44 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("IsActive", "Name");
 
                     b.ToTable("OperationalAssets");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.OperationalPeriodLock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LockedThroughDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive", "LockedThroughDate");
+
+                    b.ToTable("OperationalPeriodLocks");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Partner", b =>
@@ -5057,6 +5673,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("SearchKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -5067,6 +5687,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("SearchKey");
 
                     b.ToTable("Partners");
                 });
@@ -5260,6 +5882,12 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
 
                     b.HasKey("Id");
 
@@ -6004,10 +6632,23 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal?>("AppliedFxRateToUsd")
                         .HasColumnType("numeric(18,6)");
 
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CancelledByUserId")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("CompanyId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("ContractId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CorrectedFromSaleId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -6049,6 +6690,9 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<decimal>("QuantityMt")
                         .HasColumnType("numeric(18,4)");
+
+                    b.Property<int?>("ReplacementSaleId")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("SaleDate")
                         .HasColumnType("timestamp with time zone");
@@ -6093,11 +6737,20 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyId");
 
                     b.HasIndex("ContractId");
+
+                    b.HasIndex("CorrectedFromSaleId")
+                        .IsUnique();
 
                     b.HasIndex("CustomerId");
 
@@ -6109,6 +6762,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("PreSaleOrderId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("ReplacementSaleId")
+                        .IsUnique();
 
                     b.HasIndex("SalesBatchId");
 
@@ -6764,6 +7420,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("SearchKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -6771,6 +7431,8 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SearchKey");
 
                     b.ToTable("Suppliers");
                 });
@@ -7318,6 +7980,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("SearchKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -7328,6 +7994,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("PlateNumber")
                         .IsUnique();
+
+                    b.HasIndex("SearchKey");
 
                     b.ToTable("Trucks");
                 });
@@ -7342,6 +8010,12 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<decimal?>("AllowanceMt")
                         .HasColumnType("numeric(18,4)");
+
+                    b.Property<int?>("CarrierPartyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CarrierPartyType")
+                        .HasColumnType("integer");
 
                     b.Property<decimal?>("ChargeableShortageMt")
                         .HasColumnType("numeric(18,4)");
@@ -7437,6 +8111,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContractId");
@@ -7461,6 +8141,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("ServiceProviderId");
 
                     b.HasIndex("TruckId");
+
+                    b.HasIndex("CarrierPartyType", "CarrierPartyId");
 
                     b.ToTable("TruckDispatches");
                 });
@@ -7675,6 +8357,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("SearchKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -7691,6 +8377,8 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(50)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SearchKey");
 
                     b.HasIndex("WagonNumber")
                         .IsUnique();
@@ -7736,6 +8424,21 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "AccumulatedDepreciationAccount")
+                        .WithMany()
+                        .HasForeignKey("AccumulatedDepreciationAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "AssetOperatingExpenseAccount")
+                        .WithMany()
+                        .HasForeignKey("AssetOperatingExpenseAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "AssetRentalRevenueAccount")
+                        .WithMany()
+                        .HasForeignKey("AssetRentalRevenueAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "CashBankControlAccount")
                         .WithMany()
                         .HasForeignKey("CashBankControlAccountId")
@@ -7772,6 +8475,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "DepreciationExpenseAccount")
+                        .WithMany()
+                        .HasForeignKey("DepreciationExpenseAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "EmployeeAdvanceAccount")
                         .WithMany()
                         .HasForeignKey("EmployeeAdvanceAccountId")
@@ -7796,6 +8504,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "FixedAssetAccount")
+                        .WithMany()
+                        .HasForeignKey("FixedAssetAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "FreightPayableAccount")
                         .WithMany()
                         .HasForeignKey("FreightPayableAccountId")
@@ -7807,6 +8520,11 @@ namespace PTGOilSystem.Web.Migrations
                         .HasForeignKey("GeneralExpenseAccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "InternalAssetRecoveryAccount")
+                        .WithMany()
+                        .HasForeignKey("InternalAssetRecoveryAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "InventoryAccount")
                         .WithMany()
@@ -7850,6 +8568,12 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Navigation("AccruedExpenseAccount");
 
+                    b.Navigation("AccumulatedDepreciationAccount");
+
+                    b.Navigation("AssetOperatingExpenseAccount");
+
+                    b.Navigation("AssetRentalRevenueAccount");
+
                     b.Navigation("CashBankControlAccount");
 
                     b.Navigation("CommissionPayableAccount");
@@ -7862,6 +8586,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Navigation("CustomerAdvanceAccount");
 
+                    b.Navigation("DepreciationExpenseAccount");
+
                     b.Navigation("EmployeeAdvanceAccount");
 
                     b.Navigation("EmployeePayableAccount");
@@ -7870,9 +8596,13 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Navigation("ExchangeLossAccount");
 
+                    b.Navigation("FixedAssetAccount");
+
                     b.Navigation("FreightPayableAccount");
 
                     b.Navigation("GeneralExpenseAccount");
+
+                    b.Navigation("InternalAssetRecoveryAccount");
 
                     b.Navigation("InventoryAccount");
 
@@ -7885,6 +8615,110 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("SalesRevenueAccount");
 
                     b.Navigation("SupplierPrepaymentAccount");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetAssignment", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Terminal", "BaseTerminal")
+                        .WithMany()
+                        .HasForeignKey("BaseTerminalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Driver", "Driver")
+                        .WithMany()
+                        .HasForeignKey("DriverId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.OperationalAsset", "OperationalAsset")
+                        .WithMany("Assignments")
+                        .HasForeignKey("OperationalAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BaseTerminal");
+
+                    b.Navigation("Driver");
+
+                    b.Navigation("OperationalAsset");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetCharge", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.AssetUsage", "AssetUsage")
+                        .WithMany("Charges")
+                        .HasForeignKey("AssetUsageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Contract", "Contract")
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.JournalEntry", "JournalEntry")
+                        .WithMany()
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.LedgerEntry", "LedgerEntry")
+                        .WithMany()
+                        .HasForeignKey("LedgerEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.AssetRentTransaction", "LegacyAssetRentTransaction")
+                        .WithMany()
+                        .HasForeignKey("LegacyAssetRentTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AssetUsage");
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("JournalEntry");
+
+                    b.Navigation("LedgerEntry");
+
+                    b.Navigation("LegacyAssetRentTransaction");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetDocument", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.OperationalAsset", "OperationalAsset")
+                        .WithMany("Documents")
+                        .HasForeignKey("OperationalAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OperationalAsset");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetMaintenanceJob", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.ExpenseTransaction", "ExpenseTransaction")
+                        .WithMany()
+                        .HasForeignKey("ExpenseTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.OperationalAsset", "OperationalAsset")
+                        .WithMany("MaintenanceJobs")
+                        .HasForeignKey("OperationalAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ExpenseTransaction");
+
+                    b.Navigation("OperationalAsset");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetMeterReading", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.OperationalAsset", "OperationalAsset")
+                        .WithMany("MeterReadings")
+                        .HasForeignKey("OperationalAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OperationalAsset");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetOwnershipShare", b =>
@@ -8016,6 +8850,31 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("TransportLeg");
 
                     b.Navigation("TruckDispatch");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetUsage", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Location", "FromLocation")
+                        .WithMany()
+                        .HasForeignKey("FromLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.OperationalAsset", "OperationalAsset")
+                        .WithMany("Usages")
+                        .HasForeignKey("OperationalAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Location", "ToLocation")
+                        .WithMany()
+                        .HasForeignKey("ToLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("FromLocation");
+
+                    b.Navigation("OperationalAsset");
+
+                    b.Navigation("ToLocation");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.CashAccount", b =>
@@ -9131,6 +9990,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.OperationalAsset", "OperationalAsset")
+                        .WithMany()
+                        .HasForeignKey("OperationalAssetId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -9153,6 +10017,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Contract");
 
                     b.Navigation("JournalEntry");
+
+                    b.Navigation("OperationalAsset");
 
                     b.Navigation("Product");
 
@@ -9181,6 +10047,11 @@ namespace PTGOilSystem.Web.Migrations
                         .HasForeignKey("EmployeeId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Partner", "Partner")
+                        .WithMany()
+                        .HasForeignKey("PartnerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.ServiceProvider", "ServiceProvider")
                         .WithMany()
                         .HasForeignKey("ServiceProviderId")
@@ -9201,6 +10072,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Driver");
 
                     b.Navigation("Employee");
+
+                    b.Navigation("Partner");
 
                     b.Navigation("ServiceProvider");
 
@@ -10377,6 +11250,11 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("RentShares");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.AssetUsage", b =>
+                {
+                    b.Navigation("Charges");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Contract", b =>
                 {
                     b.Navigation("ChildContracts");
@@ -10474,11 +11352,21 @@ namespace PTGOilSystem.Web.Migrations
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.OperationalAsset", b =>
                 {
+                    b.Navigation("Assignments");
+
+                    b.Navigation("Documents");
+
                     b.Navigation("ExpenseTransactions");
+
+                    b.Navigation("MaintenanceJobs");
+
+                    b.Navigation("MeterReadings");
 
                     b.Navigation("OwnershipShares");
 
                     b.Navigation("RentTransactions");
+
+                    b.Navigation("Usages");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PaymentTransaction", b =>

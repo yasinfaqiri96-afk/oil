@@ -1961,7 +1961,9 @@ body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-ta
 
 
 /* Operational asset details - task-first composition.
-   Rhythm: identity card > one period bar > tabs > (stat strip, block head + action, table).
+   Rhythm: header > tabs > stat strip > period bar > (block head + action, table).
+   The stat strip, the period bar and the identity card are all shared components
+   now, so this block only carries page rhythm and the page's own small parts.
    Data-entry forms live in modals appended at page level, so a hidden tab pane
    can never trap an open dialog. Nothing is rendered only to be hidden by CSS. */
 .ak-detail-page.operational-asset-details-page {
@@ -1973,21 +1975,21 @@ body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-ta
 }
 
 /* identity card */
-.ak-detail-page.operational-asset-details-page > .ak-summary-card {
+.operational-asset-details-page .ak-summary-card {
     padding: 12px 16px;
 }
 
-.ak-detail-page.operational-asset-details-page > .ak-summary-card > .ak-section-head {
+.operational-asset-details-page .ak-summary-card > .ak-section-head {
     margin-block-end: 8px;
     padding-block-end: 8px;
 }
 
-.operational-asset-details-page > .ak-summary-card .ak-info-grid {
+.operational-asset-details-page .ak-summary-card .ak-info-grid {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 0;
 }
 
-.operational-asset-details-page > .ak-summary-card .ak-info-cell {
+.operational-asset-details-page .ak-summary-card .ak-info-cell {
     min-height: 0;
     padding: 7px 12px;
     border: 0;
@@ -1995,80 +1997,34 @@ body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-ta
     border-radius: 0;
 }
 
-.operational-asset-details-page > .ak-summary-card .ak-info-cell:first-child {
+.operational-asset-details-page .ak-summary-card .ak-info-cell:first-child {
     border-inline-start: 0;
 }
 
-.operational-asset-details-page > .ak-summary-card .ak-info-value {
+.operational-asset-details-page .ak-summary-card .ak-info-value {
     font-size: 14px;
     font-weight: 700;
 }
 
-/* period zone - collapsed by default, one filter for every tab */
-.operational-asset-details-page .oa-period-zone {
-    display: grid;
-    gap: 8px;
-}
-
-.operational-asset-details-page .oa-period-toggle {
-    display: inline-flex;
-    gap: 8px;
-    align-items: center;
-    justify-self: start;
-    min-height: 34px;
-}
-
-.operational-asset-details-page .oa-period-toggle b {
-    font-size: 12px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums lining-nums;
-}
-
-.operational-asset-details-page .oa-period-caret {
-    font-size: 11px;
-    transition: transform 180ms ease;
-}
-
-.operational-asset-details-page .oa-period-toggle[aria-expanded="true"] .oa-period-caret {
-    transform: rotate(180deg);
-}
-
-.operational-asset-details-page .oa-period-bar {
-    display: flex;
+/* period bar: the canonical .ak-detail-toolbar, aligned like the party-page
+   ledger filter so the buttons sit on the input row, not the label row. */
+.operational-asset-details-page .ak-detail-toolbar {
     flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    padding: 8px 12px;
-    border: 1px solid var(--ak-detail-divider);
-    border-radius: var(--ak-detail-radius);
-    background: var(--ak-detail-surface);
+    align-items: flex-end;
+    margin-block: 12px 0;
 }
 
-.operational-asset-details-page .oa-period-label {
+.operational-asset-details-page .ak-detail-toolbar .ak-field {
+    flex: 0 1 180px;
+}
+
+.operational-asset-details-page .ak-detail-toolbar > .btn {
     display: inline-flex;
     gap: 6px;
     align-items: center;
-    margin: 0;
-    color: var(--ak-detail-muted);
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.operational-asset-details-page .oa-period-bar input[type="date"] {
-    min-height: 34px;
-    padding-inline: 8px;
-    border: 1px solid var(--ak-detail-divider);
-    border-radius: 8px;
-    background: var(--ak-detail-surface);
-    font-variant-numeric: tabular-nums lining-nums;
-}
-
-.operational-asset-details-page .oa-period-bar > .btn {
-    min-height: 34px;
-}
-
-.operational-asset-details-page .oa-period-bar > .btn[type="submit"] {
-    margin-inline-start: auto;
+    height: var(--ak-control-height, 42px);
+    padding-inline: 14px;
+    white-space: nowrap;
 }
 
 /* tabs shell */
@@ -2085,23 +2041,16 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     background: var(--ak-detail-surface);
 }
 
+.operational-asset-details-page .ak-detail-kpi-strip {
+    margin-block: 12px 0;
+}
+
 .operational-asset-details-page .ak-detail-content {
     padding-block-start: 14px;
 }
 
 .operational-asset-details-page .tab-pane {
     padding: 0;
-}
-
-/* آمار هر تب از کامپوننت مشترک .ak-stat-grid/vc:stat-card می‌آید؛
-   strip و banner اختصاصی این صفحه حذف شده‌اند. رنگ سود/زیان اینجا می‌ماند
-   چون ردیف total جدول و ستون مبلغ مصارف هنوز از آن استفاده می‌کنند. */
-.operational-asset-details-page .is-positive {
-    color: var(--ptg-success-text, #007A55);
-}
-
-.operational-asset-details-page .is-negative {
-    color: var(--ptg-danger-text, #C70036);
 }
 
 /* block head: title on one side, single action on the other */
@@ -2139,8 +2088,23 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     min-height: 34px;
 }
 
-.operational-asset-details-page .oa-total-row td {
-    border-block-start: 1px solid var(--ak-detail-divider);
+/* توضیح کوتاه زیر مقدار سلول: جمله به زبان کاربر، بدون اینکه سطر شلوغ شود. */
+.operational-asset-details-page .oa-cell-hint {
+    display: block;
+    margin-block-start: 2px;
+    color: var(--ak-detail-muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+/* هشدار «مجموع سهم ۱۰۰٪ نیست»: یک خط آرام، نه بنر رنگی. */
+.operational-asset-details-page .oa-warning-line {
+    margin: 0 0 12px;
+    padding-inline-start: 10px;
+    border-inline-start: 2px solid var(--ptg-danger-text, #C70036);
+    color: var(--ak-detail-muted);
+    font-size: 12px;
+    line-height: 1.7;
 }
 
 /* فرم تک‌دکمه‌ای داخل سلول جدول: نباید ارتفاع سطر را باز کند یا دکمه را کشیده نشان دهد. */
@@ -2220,29 +2184,23 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
 }
 
 @media (max-width: 767.98px) {
-    .operational-asset-details-page > .ak-summary-card .ak-info-grid {
+    .operational-asset-details-page .ak-summary-card .ak-info-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .operational-asset-details-page > .ak-summary-card .ak-info-cell {
+    .operational-asset-details-page .ak-summary-card .ak-info-cell {
         padding: 8px 0;
         border-inline-start: 0;
         border-block-end: 1px solid var(--ak-detail-divider);
     }
 
-    .operational-asset-details-page > .ak-summary-card .ak-info-cell:last-child {
+    .operational-asset-details-page .ak-summary-card .ak-info-cell:last-child {
         border-block-end: 0;
     }
 
-    .operational-asset-details-page .oa-period-bar > .btn,
-    .operational-asset-details-page .oa-period-bar > .btn[type="submit"] {
-        margin-inline-start: 0;
-        width: 100%;
-    }
-
-    .operational-asset-details-page .oa-period-toggle {
-        justify-self: stretch;
-        justify-content: space-between;
+    .operational-asset-details-page .ak-detail-toolbar .ak-field,
+    .operational-asset-details-page .ak-detail-toolbar > .btn {
+        flex: 1 1 100%;
     }
 
     .operational-asset-details-page .oa-block-head .oa-modal-trigger {

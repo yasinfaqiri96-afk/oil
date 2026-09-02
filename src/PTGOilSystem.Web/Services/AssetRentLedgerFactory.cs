@@ -1,4 +1,5 @@
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -39,10 +40,9 @@ public static class AssetRentLedgerFactory
     ///
     /// نگاشتِ طرف‌حساب هیچ حدسی ندارد: هر شناسه از فیلدِ <c>ChargedTo*</c> خودش می‌آید و
     /// <paramref name="contractCustomerId"/> تنها وقتی پر می‌شود که فراخوان از روی قراردادِ فروشِ
-    /// واقعی آن را خوانده باشد. LedgerEntry ستون Partner ندارد، پس کرایهٔ شریک اصلاً به اینجا
-    /// نمی‌رسد (در Adapter و Controller صریحاً رد می‌شود).
+    /// واقعی آن را خوانده باشد. شریک نیز فقط از ChargedToPartnerId صریح نگاشت می‌شود.
     /// </summary>
-    public static LedgerEntry BuildRentLedgerEntry(
+    public static LedgerPostingRequest BuildRentLedgerEntry(
         AssetRentTransaction rent,
         CurrencyConversionResult conversion,
         string? assetCode,
@@ -64,7 +64,8 @@ public static class AssetRentLedgerFactory
             Reference = BuildReference(rent),
             ContractId = rent.ChargedToContractId,
             CustomerId = rent.ChargedToCustomerId ?? contractCustomerId,
-            ServiceProviderId = rent.ChargedToServiceProviderId
+            ServiceProviderId = rent.ChargedToServiceProviderId,
+            PartnerId = rent.ChargedToPartnerId
         };
 
     /// <summary>
@@ -72,7 +73,7 @@ public static class AssetRentLedgerFactory
     /// معکوس و همان <c>(SourceType, SourceId)</c> اضافه می‌شود تا هر دو در همان گردش حساب کنار هم
     /// دیده شوند و جمعشان صفر باشد. تاریخِ ردیف، تاریخِ لغو است نه تاریخِ کرایه.
     /// </summary>
-    public static LedgerEntry BuildReversalLedgerEntry(
+    public static LedgerPostingRequest BuildReversalLedgerEntry(
         AssetRentTransaction rent,
         LedgerEntry originalLedger,
         DateTime reversalDate)
@@ -93,6 +94,7 @@ public static class AssetRentLedgerFactory
             Reference = (originalLedger.Reference ?? BuildReference(rent)) + CancelReferenceSuffix,
             ContractId = originalLedger.ContractId,
             CustomerId = originalLedger.CustomerId,
-            ServiceProviderId = originalLedger.ServiceProviderId
+            ServiceProviderId = originalLedger.ServiceProviderId,
+            PartnerId = originalLedger.PartnerId
         };
 }

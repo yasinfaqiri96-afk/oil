@@ -10,6 +10,9 @@
     var formController = ViewData["CreateFormController"] as string;
     var formMethod = ViewData["CreateFormMethod"] as string ?? "post";
     var formEnctype = ViewData["CreateFormEnctype"] as string;
+    // PTG-P0-01 — فقط فرم‌هایی که سمت سرور توکن را مصرف می‌کنند آن را می‌گیرند (opt-in)،
+    // تا فیلد اضافه به مودال‌های دیگر تزریق نشود.
+    var isIdempotentForm = ViewData["CreateFormIdempotent"] as bool? ?? false;
     var labelId = $"{modalId}Label";
 
     var requestedLanguage = Context.Request.Cookies["ptg-ui-lang"] ?? "fa";
@@ -56,6 +59,10 @@
                 @* data-no-spa: ثبت را modal-design-system.js انجام می‌دهد نه spa-nav.
                    (شاخهٔ دوم این فرم با پرچم CreateFormNoSpa بود که هیچ‌جا ست نمی‌شد.) *@
                 <form id="@formId" asp-controller="@formController" asp-action="@formAction" method="@formMethod" enctype="@formEnctype" class="ak-form ptg-modal-inline-form" data-no-spa data-ptg-entity-modal-form>
+                    @if (isIdempotentForm)
+                    {
+                        @Html.FormToken()
+                    }
                     <div class="ptg-modal-form-scroll">
                         @await Html.PartialAsync(formPartialPath, Model)
                     </div>

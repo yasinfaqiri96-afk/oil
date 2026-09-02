@@ -108,6 +108,8 @@ public sealed class InventoryTransportLegLoadService
 
     public async Task ValidateForLoadAsync(InventoryTransportLeg leg)
     {
+        await EnsureSingleContractLegAsync(leg);
+
         if (leg.SourcePurchaseContract is null)
         {
             throw new BusinessRuleException("TRANSPORT_LEG_CONTRACT_MISSING", "Source purchase contract was not found.");
@@ -157,6 +159,45 @@ public sealed class InventoryTransportLegLoadService
             {
                 throw new BusinessRuleException("TRANSPORT_LEG_TANK_PRODUCT_MISMATCH", "Source tank product does not match the selected product.");
             }
+        }
+    }
+
+    /// <summary>
+    /// این مسیر عمداً یک حرکت خروجیِ واحد برای کل مقدار با قرارداد سرصفحهٔ leg می‌سازد، پس
+    /// فقط برای حملِ تک‌قراردادی معتبر است. حملی که سهم‌های منبع (<see cref="InventoryTransportLegAllocation"/>)
+    /// دارد مسیر allocation-aware خودش را دارد (<c>InventoryTransportBatchService.LoadDraftAsync</c>)
+    /// که برای هر سهم یک سند جدا می‌زند. اگر چنین حملی به این مسیر برسد، کلِ بار به قرارداد
+    /// سرصفحه بسته می‌شود و موجودیِ قراردادی/شرکتیِ بقیهٔ سهم‌ها غلط می‌شود — پس به‌جای ساختِ
+    /// بی‌صدای سند غلط، اینجا رد می‌شود.
+    ///
+    /// سهمِ تکی که دقیقاً همان قرارداد سرصفحه است رد نمی‌شود: سندی که ساخته می‌شود عیناً همان
+    /// سندِ مسیر allocation-aware است.
+    /// </summary>
+    public async Task EnsureSingleContractLegAsync(InventoryTransportLeg leg)
+    {
+        if (leg.Id <= 0)
+        {
+            return;
+        }
+
+        var allocationContractIds = await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .Where(a => a.InventoryTransportLegId == leg.Id && a.QuantityMt > 0m)
+            .Select(a => a.SourcePurchaseContractId)
+            .Distinct()
+            .ToListAsync();
+
+        if (allocationContractIds.Count == 0)
+        {
+            return;
+        }
+
+        if (allocationContractIds.Count > 1
+            || allocationContractIds[0] != leg.SourcePurchaseContractId)
+        {
+            throw new BusinessRuleException(
+                "TRANSPORT_LEG_MULTI_ALLOCATION_LOAD_BLOCKED",
+                $"حمل #{leg.Id} سهم منبع چندقراردادی دارد و از مسیر بارگیری تک‌قراردادی بارگیری نمی‌شود؛ باید از مسیر بارگیری پیش‌نویس دسته‌ای (allocation-aware) بارگیری شود.");
         }
     }
 

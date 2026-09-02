@@ -6,7 +6,6 @@
     var g = Model.ContractGrouping!;
     var isRub = g.IsRub;
     string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "–";
-    string Qty(decimal? value) => value.HasValue ? value.Value.ToString("N3") : "–";
     string BaseAmount(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
 
     string DetailsUrl(int contractId) => Url.Action("ContractDetails", "PartyStatements", new
@@ -28,9 +27,8 @@
                 <th class="statement-col-no">شماره</th>
                 <th class="statement-col-contract">قرارداد</th>
                 <th>مبلغ کل قرارداد (USD)</th>
-                <th>ارزش قطعی</th>
+                <th>ارزش مقدار بارگیری‌شده</th>
                 <th>پرداخت / دریافت</th>
-                <th>تعداد بارگیری</th>
                 <th>بیلانس قرارداد</th>
                 <th class="statement-col-actions no-print">جزئیات</th>
             </tr>
@@ -38,7 +36,7 @@
         <tbody>
             @if (g.Rows.Count == 0)
             {
-                <tr><td colspan="8" class="statement-empty">در این دوره قراردادی با گردش مالی ثبت نشده است.</td></tr>
+                <tr><td colspan="7" class="statement-empty">در این دوره قراردادی با گردش مالی ثبت نشده است.</td></tr>
             }
             else
             {
@@ -47,20 +45,17 @@
                     <tr class="statement-contract-row">
                         <td class="statement-num">@row.Sequence</td>
                         <td class="statement-contract">
-                            <strong class="statement-contract-title">@row.Title</strong>
+                            <strong class="statement-contract-title">
+                                @(row.ContractId.HasValue ? $"قرارداد #{row.ContractNumber}" : row.Title)
+                            </strong>
                             @if (row.SharePercent.HasValue)
                             {
                                 <small class="statement-contract-sub">سهم شریک @row.SharePercent.Value.ToString("N2")٪</small>
                             }
-                            @if (row.ContractQuantityMt.HasValue || row.LoadedQuantityMt.HasValue)
-                            {
-                                <small class="statement-contract-sub">قرارداد @Qty(row.ContractQuantityMt) MT / بارگیری @Qty(row.LoadedQuantityMt) MT</small>
-                            }
                         </td>
                         <td class="statement-money">@Amount(row.ContractValueUsd)</td>
-                        <td class="statement-money statement-debit">@BaseAmount(row.ConfirmedValue, row.ConfirmedValueRub)</td>
-                        <td class="statement-money statement-credit">@BaseAmount(row.SettlementTotal, row.SettlementTotalRub)</td>
-                        <td class="statement-money">@row.LoadingCount.ToString("N0")</td>
+                        <td class="statement-money statement-receipt">@BaseAmount(row.ConfirmedValue, row.ConfirmedValueRub)</td>
+                        <td class="statement-money statement-outflow">@BaseAmount(row.SettlementTotal, row.SettlementTotalRub)</td>
                         <td class="statement-money statement-balance">
                             @Amount(isRub ? row.BalanceRub : row.Balance)
                         </td>
@@ -79,7 +74,7 @@
                     @if (row.ContractId.HasValue)
                     {
                         <tr class="statement-details-row" hidden>
-                            <td colspan="8">
+                            <td colspan="7">
                                 <div class="statement-details-slot" data-details-slot></div>
                             </td>
                         </tr>
@@ -91,9 +86,8 @@
             <tr>
                 <th colspan="2">جمع دوره</th>
                 <th class="statement-money">–</th>
-                <th class="statement-money statement-debit">@BaseAmount(g.TotalConfirmedValue, g.TotalConfirmedValueRub)</th>
-                <th class="statement-money statement-credit">@BaseAmount(g.TotalSettlement, g.TotalSettlementRub)</th>
-                <th class="statement-money">@g.TotalLoadingCount.ToString("N0")</th>
+                <th class="statement-money statement-receipt">@BaseAmount(g.TotalConfirmedValue, g.TotalConfirmedValueRub)</th>
+                <th class="statement-money statement-outflow">@BaseAmount(g.TotalSettlement, g.TotalSettlementRub)</th>
                 <th class="statement-money statement-balance">
                     @Amount(isRub ? s.Summary.ClosingBalanceRub : s.Summary.ClosingBalance)
                 </th>

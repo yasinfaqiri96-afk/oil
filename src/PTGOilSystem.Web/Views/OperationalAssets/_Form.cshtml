@@ -31,6 +31,26 @@
                 <select asp-for="AssetType" asp-items="ViewBag.AssetTypes" class="ak-input"></select>
                 <span asp-validation-for="AssetType" class="ak-field-error"></span>
             </div>
+            <div class="ak-field">
+                <label asp-for="OperationalStatus" class="ak-label">@UiText.T(Context, "وضعیت عملیاتی", "Operational Status")</label>
+                <select asp-for="OperationalStatus" asp-items="ViewBag.OperationalStatuses" class="ak-input"></select>
+            </div>
+            <div class="ak-field"><label asp-for="AcquisitionDate" class="ak-label">@UiText.T(Context, "تاریخ خرید", "Acquisition Date")</label><input asp-for="AcquisitionDate" type="date" class="ak-input" /></div>
+            <div class="ak-field"><label asp-for="AcquisitionCostUsd" class="ak-label">@UiText.T(Context, "قیمت خرید (دالر)", "Acquisition Cost (USD)")</label><input asp-for="AcquisitionCostUsd" class="ak-input" /></div>
+            <div class="ak-field"><label asp-for="InServiceDate" class="ak-label">@UiText.T(Context, "تاریخ شروع کار", "In-Service Date")</label><input asp-for="InServiceDate" type="date" class="ak-input" /></div>
+            <div class="ak-field"><label asp-for="DisposalDate" class="ak-label">@UiText.T(Context, "تاریخ خروج", "Disposal Date")</label><input asp-for="DisposalDate" type="date" class="ak-input" /></div>
+        </div>
+    </section>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@((UiText.T(Context, "منبع و موقعیت", "Resource and location"), (string?)UiText.T(Context, "وسیله فنی مرتبط، ظرفیت و موقعیت جاری.", "Linked technical resource, capacity and current location.")))" />
+        <div class="ak-form-grid">
+            <div class="ak-field"><label asp-for="LinkedTruckId" class="ak-label">@UiText.T(Context, "موتر مرتبط", "Linked Truck")</label><select asp-for="LinkedTruckId" asp-items="ViewBag.Trucks" class="ak-input"><option value="">-</option></select></div>
+            <div class="ak-field"><label asp-for="LinkedStorageTankId" class="ak-label">@UiText.T(Context, "مخزن مرتبط", "Linked Tank")</label><select asp-for="LinkedStorageTankId" asp-items="ViewBag.StorageTanks" class="ak-input"><option value="">-</option></select></div>
+            <div class="ak-field"><label asp-for="CapacityMt" class="ak-label">@UiText.T(Context, "ظرفیت MT", "Capacity MT")</label><input asp-for="CapacityMt" class="ak-input" /></div>
+            <div class="ak-field"><label asp-for="LocationId" class="ak-label">@UiText.T(Context, "موقعیت جاری", "Current Location")</label><select asp-for="LocationId" asp-items="ViewBag.Locations" class="ak-input"><option value="">-</option></select></div>
+            <div class="ak-field"><label asp-for="TerminalId" class="ak-label">@UiText.T(Context, "ترمینال", "Terminal")</label><select asp-for="TerminalId" asp-items="ViewBag.Terminals" class="ak-input"><option value="">-</option></select></div>
         </div>
     </section>
 
@@ -43,6 +63,9 @@
                 <select asp-for="OwnershipMode" asp-items="ViewBag.OwnershipModes" class="ak-input"></select>
                 <span asp-validation-for="OwnershipMode" class="ak-field-error"></span>
             </div>
+            <div class="ak-field"><label asp-for="MonthlyDepreciationUsd" class="ak-label">@UiText.T(Context, "استهلاک ماهانه (دالر)", "Monthly Depreciation (USD)")</label><input asp-for="MonthlyDepreciationUsd" class="ak-input" /></div>
+            <div class="ak-field"><label asp-for="DefaultInternalRateUsd" class="ak-label">@UiText.T(Context, "نرخ داخلی پیش‌فرض", "Default Internal Rate")</label><input asp-for="DefaultInternalRateUsd" class="ak-input" /></div>
+            <div class="ak-field"><label asp-for="DefaultExternalRateUsd" class="ak-label">@UiText.T(Context, "نرخ بیرونی پیش‌فرض", "Default External Rate")</label><input asp-for="DefaultExternalRateUsd" class="ak-input" /></div>
             <div class="ak-field ak-col-full">
                 <label asp-for="Notes" class="ak-label">@UiText.T(Context, "یادداشت", "Notes")</label>
                 <textarea asp-for="Notes" class="ak-input"></textarea>

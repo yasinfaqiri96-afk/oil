@@ -86,6 +86,14 @@ public sealed class AssetRentAccountingAdapter(
             .AsNoTracking()
             .SingleAsync(x => x.CompanyId == companyId, cancellationToken);
         var (partyType, partyId) = await ResolvePartyAsync(rent, cancellationToken);
+        var shipmentId = await ResolveShipmentIdAsync(rent, cancellationToken);
+        var isInternal = rent.UsageType == AssetRentUsageType.InternalCompanyUse;
+        var debitAccountId = isInternal
+            ? settings.AssetOperatingExpenseAccountId!.Value
+            : settings.AccountsReceivableAccountId;
+        var creditAccountId = isInternal
+            ? settings.InternalAssetRecoveryAccountId!.Value
+            : settings.AssetRentalRevenueAccountId ?? settings.SalesRevenueAccountId;
 
         var request = new AccountingPostRequest(
             companyId,
@@ -96,25 +104,31 @@ public sealed class AssetRentAccountingAdapter(
             SourceModule,
             [
                 new AccountingPostLine(
-                    settings.AccountsReceivableAccountId,
+                    debitAccountId,
                     Debit: rent.AmountUsd,
                     Credit: 0m,
                     rent.Currency,
                     rent.AmountOriginal,
                     rent.FxRateToUsd,
-                    partyType,
-                    partyId,
+                    isInternal ? null : partyType,
+                    isInternal ? null : partyId,
                     ContractId: rent.ChargedToContractId,
-                    Description: $"Operational asset rent {AssetRentLedgerFactory.BuildReference(rent)}"),
+                    ShipmentId: shipmentId,
+                    OperationalAssetId: rent.OperationalAssetId,
+                    Description: isInternal
+                        ? $"Internal freight by asset {rent.OperationalAssetId}"
+                        : $"Operational asset rent {AssetRentLedgerFactory.BuildReference(rent)}"),
                 new AccountingPostLine(
-                    settings.SalesRevenueAccountId,
+                    creditAccountId,
                     Debit: 0m,
                     Credit: rent.AmountUsd,
                     rent.Currency,
                     rent.AmountOriginal,
                     rent.FxRateToUsd,
                     ContractId: rent.ChargedToContractId,
-                    Description: "Operational asset rent revenue")
+                    ShipmentId: shipmentId,
+                    OperationalAssetId: rent.OperationalAssetId,
+                    Description: isInternal ? "Internal asset recovery" : "Operational asset rent revenue")
             ],
             SourceEventId: sourceEventId,
             SourceEntityType: SourceEntityType,
@@ -208,10 +222,14 @@ public sealed class AssetRentAccountingAdapter(
         if (!_options.Pilots.AssetRent)
             return (0, "PILOT_DISABLED");
 
-        // همان سیاستی که Controller برای ساختِ ردیف لجر به کار می‌برد.
-        var policySkip = AssetRentPostingPolicy.ResolveSkipReason(rent);
-        if (policySkip is not null)
-            return (0, policySkip);
+        var isInternal = rent.UsageType == AssetRentUsageType.InternalCompanyUse;
+        if (!isInternal)
+        {
+            // مسیر خارجی همان سیاست legacy را حفظ می‌کند؛ مسیر داخلی فقط Journal متوازن دارد.
+            var policySkip = AssetRentPostingPolicy.ResolveSkipReason(rent);
+            if (policySkip is not null)
+                return (0, policySkip);
+        }
 
         if (rent.FxRateToUsd <= 0m)
             return (0, "INVALID_RENT_FX");
@@ -222,9 +240,22 @@ public sealed class AssetRentAccountingAdapter(
         if (rent.AmountUsd != expectedUsd)
             return (0, "INVALID_RENT_CONVERSION");
 
-        var companyId = await ResolveCompanyAsync(rent, cancellationToken);
+        var companyId = isInternal
+            ? await ResolveInternalOwnerCompanyAsync(rent, cancellationToken)
+            : await ResolveCompanyAsync(rent, cancellationToken);
         if (companyId is null)
             return (0, "RENT_COMPANY_UNKNOWN");
+
+        if (isInternal && rent.ChargedToContractId.HasValue)
+        {
+            var cargoCompanyId = await db.Contracts
+                .AsNoTracking()
+                .Where(x => x.Id == rent.ChargedToContractId.Value)
+                .Select(x => (int?)x.CompanyId)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (cargoCompanyId != companyId)
+                return (companyId.Value, "INTERNAL_ASSET_COMPANY_MISMATCH");
+        }
 
         var settings = await db.AccountingSettings
             .AsNoTracking()
@@ -234,11 +265,15 @@ public sealed class AssetRentAccountingAdapter(
         if (!string.Equals(settings.FunctionalCurrencyCode?.Trim(), "USD", StringComparison.OrdinalIgnoreCase))
             return (companyId.Value, "UNSUPPORTED_FUNCTIONAL_CURRENCY");
 
-        var accountIds = new[]
-        {
-            settings.AccountsReceivableAccountId,
-            settings.SalesRevenueAccountId
-        }.Distinct().ToArray();
+        if (isInternal
+            && (!settings.AssetOperatingExpenseAccountId.HasValue
+                || !settings.InternalAssetRecoveryAccountId.HasValue))
+            return (companyId.Value, "ASSET_INTERNAL_ACCOUNTS_MISSING");
+
+        var accountIds = isInternal
+            ? new[] { settings.AssetOperatingExpenseAccountId!.Value, settings.InternalAssetRecoveryAccountId!.Value }
+            : new[] { settings.AccountsReceivableAccountId, settings.AssetRentalRevenueAccountId ?? settings.SalesRevenueAccountId };
+        accountIds = accountIds.Distinct().ToArray();
         var validAccountCount = await db.Accounts.AsNoTracking().CountAsync(
             x => accountIds.Contains(x.Id) && x.CompanyId == companyId.Value && x.IsActive,
             cancellationToken);
@@ -246,6 +281,29 @@ public sealed class AssetRentAccountingAdapter(
             return (companyId.Value, "ACCOUNTING_SETTINGS_INVALID_ACCOUNTS");
 
         return (companyId.Value, null);
+    }
+
+    private async Task<int?> ResolveInternalOwnerCompanyAsync(
+        AssetRentTransaction rent,
+        CancellationToken cancellationToken)
+    {
+        var activeShares = await db.AssetOwnershipShares
+            .AsNoTracking()
+            .Where(x => x.OperationalAssetId == rent.OperationalAssetId
+                && x.EffectiveFrom <= rent.RentDate
+                && (x.EffectiveTo == null || x.EffectiveTo >= rent.RentDate))
+            .Select(x => new { x.OwnerType, x.CompanyId, x.SharePercent })
+            .ToListAsync(cancellationToken);
+
+        if (activeShares.Count == 0
+            || activeShares.Any(x => x.OwnerType != AssetOwnerType.Company || !x.CompanyId.HasValue)
+            || activeShares.Sum(x => x.SharePercent) != 100m)
+        {
+            return null;
+        }
+
+        var companyIds = activeShares.Select(x => x.CompanyId!.Value).Distinct().ToList();
+        return companyIds.Count == 1 ? companyIds[0] : null;
     }
 
     /// <summary>
@@ -310,7 +368,33 @@ public sealed class AssetRentAccountingAdapter(
         if (rent.ChargedToServiceProviderId.HasValue)
             return (AccountingPartyType.ServiceProvider, rent.ChargedToServiceProviderId);
 
+        if (rent.ChargedToPartnerId.HasValue)
+            return (AccountingPartyType.Partner, rent.ChargedToPartnerId);
+
         return (null, null);
+    }
+
+    private async Task<int?> ResolveShipmentIdAsync(
+        AssetRentTransaction rent,
+        CancellationToken cancellationToken)
+    {
+        if (rent.TransportLegId.HasValue)
+        {
+            return await db.InventoryTransportLegs.AsNoTracking()
+                .Where(x => x.Id == rent.TransportLegId.Value)
+                .Select(x => x.ShipmentId)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        if (rent.InventoryTransportReceiptId.HasValue)
+        {
+            return await db.InventoryTransportReceipts.AsNoTracking()
+                .Where(x => x.Id == rent.InventoryTransportReceiptId.Value)
+                .Select(x => x.InventoryTransportLeg!.ShipmentId)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        return null;
     }
 
     private async Task<JournalEntry?> FindJournalAsync(

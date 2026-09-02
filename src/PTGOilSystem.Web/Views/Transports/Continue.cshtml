@@ -1,4 +1,4 @@
-@using PTGOilSystem.Web.Models.Entities
+﻿@using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.InventoryTransport
 @model TransportContinueViewModel
 @{
@@ -10,6 +10,8 @@
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("انتقال به وسیله دیگر", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))" />
     <form asp-action="Continue" method="post" class="ak-form" data-submit-lock>
+                @* PTG-P3-B — محافظ سمت سرور: Refresh یا تلاش دوباره حمل دوم نمی‌سازد. *@
+                @Html.FormToken()
         @Html.AntiForgeryToken()
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
 

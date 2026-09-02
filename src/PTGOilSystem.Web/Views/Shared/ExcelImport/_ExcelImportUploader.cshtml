@@ -1,18 +1,23 @@
 @model PTGOilSystem.Web.Models.ExcelImport.ExcelImportComponentOptions
 <div class="excel-import__panel" data-excel-uploader>
-    <div class="excel-import__heading">
-        <div>
-            <h2>@Model.Title</h2>
-            <p>@Model.Description</p>
+    @* عنوان و توضیح در حالت مودال بالای مودال آمده است؛ تکرارشان فقط شلوغی می‌سازد. *@
+    @if (!Model.Collapsible)
+    {
+        <div class="excel-import__heading">
+            <div>
+                <h2>@Model.Title</h2>
+                <p>@Model.Description</p>
+            </div>
+            <span class="excel-import__badge">Excel</span>
         </div>
-        <span class="excel-import__badge">Excel</span>
-    </div>
+    }
 
-    <input type="file" name="@Model.FileFieldName" id="@Model.InputId" accept="@Model.AcceptExtensions" class="visually-hidden" data-excel-file />
+    @* d-none تا متن پیش‌فرض مرورگر («No file chosen») هیچ‌جا دیده نشود؛ خودِ dropzone کنترل قابل فوکوس است. *@
+    <input type="file" name="@Model.FileFieldName" id="@Model.InputId" accept="@Model.AcceptExtensions" class="d-none" data-excel-file />
     <label for="@Model.InputId" class="excel-import__dropzone" data-excel-dropzone tabindex="0">
         <span class="excel-import__excel-icon" aria-hidden="true"><i class="bi bi-file-earmark-excel"></i></span>
         <span class="excel-import__drop-title">فایل را اینجا رها کنید</span>
-        <span class="excel-import__drop-help">یا از کمپیوتر انتخاب کنید · @Model.AcceptExtensions.Replace(".", "").Replace(",", " / ").ToUpperInvariant() · حداکثر @Model.MaxFileSizeMb MB</span>
+        <span class="excel-import__drop-help">@Model.AcceptExtensions.Replace(".", "").Replace(",", " / ").ToUpperInvariant() · حداکثر @Model.MaxFileSizeMb MB</span>
         <span class="btn btn-primary btn-sm">انتخاب فایل</span>
     </label>
 

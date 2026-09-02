@@ -620,8 +620,8 @@ public partial class SalesController
 
         // AUD-06: مثل مسیر فروش تکی، قرارداد Ledger از همان planِ FIFO می‌آید (که
         // ApplyLegacyHeader روی SourcePurchaseContractId نشانده) نه از انتخاب کاربر.
-        var ledger = SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: sale.SourcePurchaseContractId);
-        _db.LedgerEntries.Add(ledger);
+        var ledger = Ledger.Post(
+            SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: sale.SourcePurchaseContractId));
         await _db.SaveChangesAsync();
 
         await PostSaleAccountingAsync(sale);
@@ -701,11 +701,10 @@ public partial class SalesController
 
         dispatch.SalesTransactionId = sale.Id;
 
-        var ledger = SaleLedgerFactory.BuildSaleLedgerEntry(
+        var ledger = Ledger.Post(SaleLedgerFactory.BuildSaleLedgerEntry(
             sale,
             conversion,
-            contractId: sourcePlan.Shares.Count > 0 ? sourcePlan.SingleContractId : sourceContract.Id);
-        _db.LedgerEntries.Add(ledger);
+            contractId: sourcePlan.Shares.Count > 0 ? sourcePlan.SingleContractId : sourceContract.Id));
         await _db.SaveChangesAsync();
 
         await PostSaleAccountingAsync(sale);

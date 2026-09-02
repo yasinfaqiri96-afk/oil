@@ -50,13 +50,27 @@ public sealed record PartnershipStatementLine(
 public sealed record PartnershipPartnerTotals(
     int PartnerId,
     string PartnerName,
+    /// <summary>
+    /// درصدِ <b>جاری</b> این شریک — یک برچسب، نه ضریبِ محاسبه.
+    /// وقتی <see cref="SharePeriodCount"/> بیش از ۱ است،
+    /// <see cref="ProfitShareUsd"/> از چند درصدِ تاریخی ساخته شده و برابرِ
+    /// <c>bookProfit × SharePercent</c> نیست. UI باید همین را بگوید (PTG ۱۲-C).
+    /// </summary>
     decimal SharePercent,
     decimal FundingUsd,
     decimal ProceedsHeldUsd,
     decimal ProfitShareUsd,
     decimal SettlementsPaidUsd,
-    decimal SettlementsReceivedUsd)
+    decimal SettlementsReceivedUsd,
+    /// <summary>تعداد بازه‌های سهمی که در ساختِ این ارقام دخیل بوده‌اند. ۱ یعنی یک درصدِ ثابت.</summary>
+    int SharePeriodCount = 1)
 {
+    /// <summary>
+    /// PTG ۱۲-C — «آیا این عدد با یک درصدِ واحد ساخته شده؟»
+    /// نه: پس نباید کنارش فقط درصدِ امروز نوشته شود.
+    /// </summary>
+    public bool SpansMultipleSharePeriods => SharePeriodCount > 1;
+
     /// <summary>
     /// مثبت = این شریک طلبکار است، منفی = این شریک بدهکار است.
     /// پرداخت/سرمایه‌ای که داده + سهم مفادش − عایدی که نزد خودش مانده
@@ -424,7 +438,9 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                     ProceedsHeldUsd: Round(rows.Sum(r => r.ProceedsHeldUsd)),
                     ProfitShareUsd: Round(rows.Sum(r => r.ProfitShareUsd)),
                     SettlementsPaidUsd: paid,
-                    SettlementsReceivedUsd: received);
+                    SettlementsReceivedUsd: received,
+                    // PTG ۱۲-C — جمعِ چند قرارداد: اگر حتی یکیِ آن‌ها چند بازه داشته، عدد ترکیبی است.
+                    SharePeriodCount: rows.Count == 0 ? 1 : rows.Max(r => r.SharePeriodCount));
             })
             .ToList();
 
@@ -594,7 +610,16 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
             ProceedsHeldUsd: Round(positions.Sum(p => p.ProceedsHeldUsd)),
             ProfitShareUsd: Round(positions.Sum(p => p.ProfitShareUsd)),
             SettlementsPaidUsd: settlementsPaidUsd,
-            SettlementsReceivedUsd: settlementsReceivedUsd);
+            SettlementsReceivedUsd: settlementsReceivedUsd,
+            // PTG ۱۲-C — پروفایل شریک هم باید بداند عددِ مفاد ترکیبی است یا نه.
+            SharePeriodCount: contractStatements.Count == 0
+                ? 1
+                : contractStatements
+                    .SelectMany(c => c.Partners)
+                    .Where(x => x.PartnerId == partnerId)
+                    .Select(x => x.SharePeriodCount)
+                    .DefaultIfEmpty(1)
+                    .Max());
 
         var entries = BuildPartnerEntries(partnerId, contractStatements, positions, settlements);
 
@@ -886,6 +911,9 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
         var (purchaseByContract, loadingExpenseByContract) = await LoadPurchaseAsync(selectedIds, ct);
         var expenseByContract = await LoadExpensesAsync(selectedIds, ct);
 
+        // PTG-P0-03 — تاریخچهٔ سهم، تنها مرجعِ «در تاریخ هر رویداد چه سهمی بود».
+        var shareHistory = await ContractPartnerShareHistory.LoadAsync(_db, selectedIds, ct);
+
         var contractStatements = new List<PartnershipContractStatement>();
         foreach (var group in selected)
         {
@@ -913,6 +941,17 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
             var paymentToBookDifferenceUsd = Round(totalFundingUsd - purchaseCostUsd - operationalExpenseUsd);
 
             var holderId = head.SaleProceedsHolderPartnerId;
+
+            // PTG-P0-03 — سهم مفاد دیگر با درصدِ امروز روی کلِ تاریخ قرارداد اعمال نمی‌شود.
+            // مفاد به نسبتِ فروشِ هر بازهٔ سهم تقسیم می‌شود (مفاد هنگام فروش محقق می‌شود)،
+            // و در هر بازه همان درصدی که در آن زمان توافق شده بود. برای قراردادی که فقط یک
+            // بازه دارد (همهٔ دادهٔ موجود پس از Backfill) نتیجه دقیقاً همان فرمولِ قبلی است.
+            var profitByPartner = AllocateProfitBySharePeriod(
+                contractId,
+                bookProfitUsd,
+                sales,
+                shareHistory);
+
             var partnerTotals = group
                 .OrderByDescending(x => x.SharePercent)
                 .ThenBy(x => x.PartnerId)
@@ -922,9 +961,11 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                     SharePercent: x.SharePercent,
                     FundingUsd: fundingByPartner.GetValueOrDefault(x.PartnerId),
                     ProceedsHeldUsd: holderId == x.PartnerId ? salesUsd : 0m,
-                    ProfitShareUsd: Round(bookProfitUsd * x.SharePercent / 100m),
+                    ProfitShareUsd: profitByPartner.GetValueOrDefault(x.PartnerId),
                     SettlementsPaidUsd: 0m,
-                    SettlementsReceivedUsd: 0m))
+                    SettlementsReceivedUsd: 0m,
+                    // PTG ۱۲-C — اگر قرارداد بیش از یک بازهٔ سهم دارد، مفاد ترکیبی است.
+                    SharePeriodCount: shareHistory.SharePeriodCount(contractId)))
                 .ToList();
 
             var lines = new List<PartnershipStatementLine>();
@@ -983,23 +1024,129 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                 ? PartnershipStatementLineKind.PartnerPurchase
                 : PartnershipStatementLineKind.PartnerExpense;
 
+    /// <summary>
+    /// PTG-P0-03 — تقسیمِ مفادِ یک قرارداد بین شرکا، بر پایهٔ درصدی که در زمانِ تحققِ
+    /// مفاد توافق شده بود، نه درصدِ امروز.
+    ///
+    /// مبنای تقسیم، فروش است: مفاد هنگام فروش محقق می‌شود، پس سهمِ هر بازه به
+    /// نسبتِ عایدِ فروش‌های همان بازه است. اگر قرارداد هنوز فروشی ندارد، همهٔ مفاد
+    /// (که آن وقت فقط هزینه است) به نخستین بازه می‌رود — همان توافقی که زیر آن هزینه شده است.
+    ///
+    /// سازگاری عددی: وقتی قرارداد فقط یک بازهٔ سهم دارد، نتیجه دقیقاً
+    /// <c>Round(bookProfit * share / 100)</c> است — همان فرمولی که پیش از این اجرا می‌شد.
+    /// </summary>
+    private static Dictionary<int, decimal> AllocateProfitBySharePeriod(
+        int contractId,
+        decimal bookProfitUsd,
+        IReadOnlyList<SaleRow> sales,
+        ContractPartnerShareHistory shareHistory)
+    {
+        var result = new Dictionary<int, decimal>();
+
+        // مرزهای بازه: هر تاریخِ آغازی که ترکیب شرکا از آنجا عوض می‌شود.
+        var boundaries = shareHistory.PeriodStartsFor(contractId);
+        if (boundaries.Count == 0)
+        {
+            return result;
+        }
+
+        // وزنِ هر بازه بر پایهٔ عایدِ فروشِ همان بازه.
+        var totalSalesUsd = sales.Sum(x => x.TotalUsd);
+        var weights = new Dictionary<DateTime, decimal>();
+
+        if (boundaries.Count == 1 || totalSalesUsd == 0m)
+        {
+            weights[boundaries[0]] = 1m;
+        }
+        else
+        {
+            foreach (var sale in sales)
+            {
+                var start = ResolvePeriodStart(boundaries, sale.SaleDate);
+                weights[start] = weights.GetValueOrDefault(start) + sale.TotalUsd;
+            }
+
+            foreach (var key in weights.Keys.ToList())
+            {
+                weights[key] /= totalSalesUsd;
+            }
+        }
+
+        foreach (var (start, weight) in weights)
+        {
+            if (weight == 0m)
+            {
+                continue;
+            }
+
+            foreach (var (partnerId, sharePercent) in shareHistory.SharesOn(contractId, start))
+            {
+                result[partnerId] = result.GetValueOrDefault(partnerId)
+                    + (bookProfitUsd * weight * sharePercent / 100m);
+            }
+        }
+
+        foreach (var key in result.Keys.ToList())
+        {
+            result[key] = Round(result[key]);
+        }
+
+        return result;
+    }
+
+    private static DateTime ResolvePeriodStart(IReadOnlyList<DateTime> boundaries, DateTime date)
+    {
+        var target = date.Date;
+        var chosen = boundaries[0];
+        foreach (var boundary in boundaries)
+        {
+            if (boundary.Date <= target)
+            {
+                chosen = boundary;
+            }
+        }
+
+        return chosen;
+    }
+
     /// <summary>عضویتِ شرکا در قراردادهای شراکتی، با همان اطلاعات سرقراردادی که محاسبه لازم دارد.</summary>
     private async Task<List<ContractMemberLink>> LoadMemberLinksAsync(
         System.Linq.Expressions.Expression<Func<ContractPartner, bool>> predicate,
         CancellationToken ct)
-        => await _db.ContractPartners
+    {
+        // PTG-P0-03 — سهم شرکا اکنون تاریخ‌دار است، پس هر (قرارداد، شریک) می‌تواند چند
+        // بازه داشته باشد. این فهرست فقط برای «عضویت و برچسب درصد» است، پس به آخرین
+        // بازه تقلیل می‌شود. ریاضیِ پول از ContractPartnerShareHistory می‌آید، نه اینجا.
+        var rows = await _db.ContractPartners
             .AsNoTracking()
             .Where(cp => cp.Contract != null && cp.Contract.OwnershipType == ContractOwnershipType.Partnership)
             .Where(predicate)
-            .Select(cp => new ContractMemberLink(
+            .Select(cp => new
+            {
                 cp.ContractId,
                 cp.PartnerId,
                 cp.SharePercent,
-                cp.Contract!.ContractNumber,
-                cp.Contract!.ContractName,
-                cp.Contract!.Currency,
-                cp.Contract!.SaleProceedsHolderPartnerId))
+                cp.EffectiveFrom,
+                ContractNumber = cp.Contract!.ContractNumber,
+                ContractName = cp.Contract!.ContractName,
+                Currency = cp.Contract!.Currency,
+                cp.Contract!.SaleProceedsHolderPartnerId
+            })
             .ToListAsync(ct);
+
+        return rows
+            .GroupBy(r => new { r.ContractId, r.PartnerId })
+            .Select(g => g.OrderByDescending(r => r.EffectiveFrom).First())
+            .Select(r => new ContractMemberLink(
+                r.ContractId,
+                r.PartnerId,
+                r.SharePercent,
+                r.ContractNumber,
+                r.ContractName,
+                r.Currency,
+                r.SaleProceedsHolderPartnerId))
+            .ToList();
+    }
 
     private sealed record ContractMemberLink(
         int ContractId,

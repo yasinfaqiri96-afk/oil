@@ -167,7 +167,7 @@ public class AssetRentPostingTests
     }
 
     [Fact]
-    public async Task CreateRent_Partner_Is_Skipped_As_Unsupported()
+    public async Task CreateRent_Partner_Posts_On_The_Partner_Account()
     {
         await using var db = CreateDb();
         SeedReferenceData(db);
@@ -182,11 +182,10 @@ public class AssetRentPostingTests
         await BuildController(db).CreateRent(model);
 
         var rent = await db.AssetRentTransactions.SingleAsync();
-        Assert.False(rent.IsPostedToLedger);
-        Assert.Empty(await db.LedgerEntries.ToListAsync());
-        Assert.Equal(
-            AssetRentPostingPolicy.SkipPartnerUnsupported,
-            AssetRentPostingPolicy.ResolveSkipReason(rent));
+        Assert.True(rent.IsPostedToLedger);
+        var ledger = Assert.Single(await db.LedgerEntries.ToListAsync());
+        Assert.Equal(1, ledger.PartnerId);
+        Assert.Null(AssetRentPostingPolicy.ResolveSkipReason(rent));
     }
 
     // ── جلوگیری از ثبت دوباره ────────────────────────────────────────────────
@@ -328,6 +327,36 @@ public class AssetRentPostingTests
     }
 
     [Fact]
+    public async Task Accounting_Chart_Seeder_Maps_Asset_Accounts_For_New_Company()
+    {
+        await using var db = CreateDb();
+        db.Companies.Add(new Company { Id = 1, Code = "PTG", Name = "PTG", IsActive = true });
+        await db.SaveChangesAsync();
+
+        await new AccountingChartSeeder(
+            db,
+            Options.Create(new AccountingOptions { DefaultFunctionalCurrencyCode = "USD" }))
+            .SeedAsync();
+
+        var settings = await db.AccountingSettings.SingleAsync();
+        var mappedIds = new[]
+        {
+            settings.FixedAssetAccountId,
+            settings.AccumulatedDepreciationAccountId,
+            settings.DepreciationExpenseAccountId,
+            settings.AssetRentalRevenueAccountId,
+            settings.InternalAssetRecoveryAccountId,
+            settings.AssetOperatingExpenseAccountId
+        };
+        Assert.All(mappedIds, id => Assert.True(id.HasValue));
+        var mappedCodes = await db.Accounts
+            .Where(x => mappedIds.Contains(x.Id))
+            .Select(x => x.Code)
+            .ToListAsync();
+        Assert.Equal(new[] { "1500", "1590", "4300", "4400", "5500", "5600" }, mappedCodes.OrderBy(x => x));
+    }
+
+    [Fact]
     public async Task Accounting_Adapter_Skips_When_Pilot_Disabled()
     {
         await using var db = CreateDb();
@@ -341,18 +370,63 @@ public class AssetRentPostingTests
     }
 
     [Fact]
-    public async Task Accounting_Adapter_Skips_Internal_Use_Even_When_Pilot_Enabled()
+    public async Task Accounting_Adapter_Posts_Balanced_Internal_Transfer_With_Asset_Dimension()
     {
         await using var db = CreateDb();
-        var adapter = BuildAdapter(db, enabled: true, pilot: true);
+        SeedReferenceData(db);
+        SeedAssetFullyCompanyOwned(db);
+        db.Accounts.AddRange(
+            new Account { Id = 101, CompanyId = 1, Code = "ASSET-EXP", Name = "Asset operating expense", IsActive = true },
+            new Account { Id = 102, CompanyId = 1, Code = "ASSET-REC", Name = "Internal asset recovery", IsActive = true });
+        db.AccountingSettings.Add(new AccountingSettings
+        {
+            CompanyId = 1,
+            FunctionalCurrencyCode = "USD",
+            AssetOperatingExpenseAccountId = 101,
+            InternalAssetRecoveryAccountId = 102
+        });
+        await db.SaveChangesAsync();
+        var posting = new CapturingPostingService();
+        var adapter = BuildAdapter(db, enabled: true, pilot: true, posting);
         var rent = BuildPostableRentEntity();
+        rent.Id = 99;
         rent.UsageType = AssetRentUsageType.InternalCompanyUse;
         rent.ChargedToType = AssetRentChargedToType.CompanyInternal;
+        rent.ChargedToCustomerId = null;
+        rent.ChargedToCompanyId = 1;
 
         var result = await adapter.TryPostRentAsync(rent);
 
+        Assert.Equal(PaymentPostingStatus.Posted, result.Status);
+        var request = Assert.IsType<AccountingPostRequest>(posting.Request);
+        Assert.Equal(2, request.Lines.Count);
+        Assert.Equal(5000m, request.Lines.Sum(x => x.Debit));
+        Assert.Equal(5000m, request.Lines.Sum(x => x.Credit));
+        Assert.All(request.Lines, line => Assert.Equal(1, line.OperationalAssetId));
+        Assert.Equal(101, request.Lines.Single(x => x.Debit > 0m).AccountId);
+        Assert.Equal(102, request.Lines.Single(x => x.Credit > 0m).AccountId);
+    }
+
+    [Fact]
+    public async Task Accounting_Adapter_Does_Not_Invent_Internal_Recovery_For_Partner_Owned_Asset()
+    {
+        await using var db = CreateDb();
+        SeedReferenceData(db);
+        SeedAssetFullyCompanyOwned(db);
+        var ownership = db.AssetOwnershipShares.Local.Single();
+        ownership.OwnerType = AssetOwnerType.Partner;
+        ownership.CompanyId = null;
+        ownership.PartnerId = 1;
+        await db.SaveChangesAsync();
+        var rent = BuildPostableRentEntity();
+        rent.UsageType = AssetRentUsageType.InternalCompanyUse;
+        rent.ChargedToType = AssetRentChargedToType.CompanyInternal;
+        rent.ChargedToCustomerId = null;
+
+        var result = await BuildAdapter(db, enabled: true, pilot: true).TryPostRentAsync(rent);
+
         Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
-        Assert.Equal(AssetRentPostingPolicy.SkipInternalUse, result.Reason);
+        Assert.Equal("RENT_COMPANY_UNKNOWN", result.Reason);
     }
 
     [Fact]
@@ -596,6 +670,25 @@ public class AssetRentPostingTests
     }
 
     [Fact]
+    public async Task ReverseAsync_Internal_Use_Reverses_Accounting_Without_Legacy_Ledger()
+    {
+        await using var db = CreateDb();
+        var rent = BuildPostableRentEntity();
+        rent.UsageType = AssetRentUsageType.InternalCompanyUse;
+        rent.LoadingRegisterId = 77;
+        db.AssetRentTransactions.Add(rent);
+        await db.SaveChangesAsync();
+        var accounting = new RecordingAssetRentAccountingAdapter();
+
+        var result = await new AssetRentPostingService(db, accounting)
+            .ReverseAsync(rent, new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        Assert.True(result.Reversed);
+        Assert.Equal(1, accounting.ReverseCalls);
+        Assert.Empty(await db.LedgerEntries.ToListAsync());
+    }
+
+    [Fact]
     public async Task ReverseAsync_Is_Idempotent_For_A_Posted_Rent()
     {
         await using var db = CreateDb();
@@ -761,10 +854,14 @@ public class AssetRentPostingTests
             AmountUsd = 5000m
         };
 
-    private static AssetRentAccountingAdapter BuildAdapter(ApplicationDbContext db, bool enabled, bool pilot)
+    private static AssetRentAccountingAdapter BuildAdapter(
+        ApplicationDbContext db,
+        bool enabled,
+        bool pilot,
+        IAccountingPostingService? postingService = null)
         => new(
             db,
-            new ThrowingPostingService(),
+            postingService ?? new ThrowingPostingService(),
             new AccountingJournalNumberGenerator(),
             Options.Create(new AccountingOptions
             {
@@ -772,6 +869,62 @@ public class AssetRentPostingTests
                 Pilots = new AccountingPilotOptions { AssetRent = pilot }
             }),
             NullLogger<AssetRentAccountingAdapter>.Instance);
+
+    private sealed class CapturingPostingService : IAccountingPostingService
+    {
+        public AccountingPostRequest? Request { get; private set; }
+
+        public Task<JournalEntry> PostAsync(AccountingPostRequest request, CancellationToken cancellationToken = default)
+        {
+            Request = request;
+            return Task.FromResult(new JournalEntry
+            {
+                Id = 500,
+                CompanyId = request.CompanyId,
+                JournalNumber = request.JournalNumber,
+                SourceModule = request.SourceModule,
+                SourceEventId = request.SourceEventId,
+                Lines = request.Lines.Select((line, index) => new JournalEntryLine
+                {
+                    LineNumber = index + 1,
+                    AccountId = line.AccountId,
+                    Debit = line.Debit,
+                    Credit = line.Credit,
+                    TransactionCurrencyCode = line.TransactionCurrencyCode,
+                    TransactionAmount = line.TransactionAmount,
+                    ExchangeRate = line.ExchangeRate,
+                    OperationalAssetId = line.OperationalAssetId
+                }).ToList()
+            });
+        }
+
+        public Task<JournalEntry> ReverseAsync(AccountingReversalRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<JournalEntry>> PostBatchAsync(
+            IReadOnlyList<AccountingPostRequest> requests,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class RecordingAssetRentAccountingAdapter : IAssetRentAccountingAdapter
+    {
+        public int ReverseCalls { get; private set; }
+
+        public Task<AssetRentAccountingResult> TryPostRentAsync(
+            AssetRentTransaction rent,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new AssetRentAccountingResult(PaymentPostingStatus.Posted, null, null));
+
+        public Task<AssetRentAccountingResult> TryReverseRentAsync(
+            AssetRentTransaction rent,
+            DateTime reversalDate,
+            CancellationToken cancellationToken = default)
+        {
+            ReverseCalls++;
+            return Task.FromResult(new AssetRentAccountingResult(PaymentPostingStatus.Posted, null, null));
+        }
+    }
 
     /// <summary>
     /// ثبت ژورنال واقعی به Chart of Accounts و PostgreSQL نیاز دارد؛ این تست‌ها فقط تضمین می‌کنند

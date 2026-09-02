@@ -181,12 +181,35 @@ public class MasterDataDeleteSafetyService
         return BuildArchivableResult(usageAreas);
     }
 
+    /// <summary>
+    /// PTG-P2-01 — شریک فقط با «قرارداد مشارکتی» بسته نمی‌شود.
+    ///
+    /// پیش‌تر تنها <c>ContractPartners</c> بررسی می‌شد، پس شریکی که فقط «تأمین مالی» کرده
+    /// بود <c>CanDelete=true</c> می‌گرفت، <c>Remove</c> می‌شد و کلید خارجیِ
+    /// <c>Restrict</c> در دیتابیس یک <c>DbUpdateException</c>ِ مدیریت‌نشده می‌ساخت:
+    /// داده سالم می‌ماند ولی کاربر خطای ۵۰۰ می‌دید. حالا هر ارجاعِ واقعیِ شریک شمرده
+    /// می‌شود و پیام می‌گوید کجا استفاده شده است.
+    /// </summary>
     public async Task<MasterDataDeleteSafetyResult> EvaluatePartnerAsync(int partnerId)
     {
         var usageAreas = new List<string>();
 
         if (await _db.ContractPartners.AnyAsync(cp => cp.PartnerId == partnerId))
             usageAreas.Add("قراردادهای مشارکتی");
+        if (await _db.PaymentTransactions.AnyAsync(p => p.PaidByPartnerId == partnerId))
+            usageAreas.Add("پرداخت‌های تأمین‌مالی‌شده توسط شریک");
+        if (await _db.PartnerSettlements.AnyAsync(s => s.FromPartnerId == partnerId || s.ToPartnerId == partnerId))
+            usageAreas.Add("تسویه‌های شرکا");
+        if (await _db.Contracts.AnyAsync(c => c.SaleProceedsHolderPartnerId == partnerId))
+            usageAreas.Add("قراردادهایی که عاید فروششان نزد این شریک است");
+        if (await _db.AssetOwnershipShares.AnyAsync(s => s.PartnerId == partnerId))
+            usageAreas.Add("سهم مالکیت دارایی‌های عملیاتی");
+        if (await _db.AssetRentShares.AnyAsync(s => s.PartnerId == partnerId))
+            usageAreas.Add("سهم کرایه دارایی‌های عملیاتی");
+        if (await _db.AssetRentTransactions.AnyAsync(t => t.ChargedToPartnerId == partnerId))
+            usageAreas.Add("کرایه‌های تحمیل‌شده به این شریک");
+        if (await _db.LedgerEntries.AnyAsync(l => l.PartnerId == partnerId))
+            usageAreas.Add("روزنامچهٔ مالی شریک");
 
         return BuildArchivableResult(usageAreas);
     }

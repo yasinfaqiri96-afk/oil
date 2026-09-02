@@ -214,7 +214,8 @@ public sealed class CompanyFlowTextTests
         Assert.Equal("بیلانس (USD)", flow[2].TitleFa);
         Assert.Equal("Balance (USD)", flow[2].TitleEn);
 
-        Assert.Contains(summary.Columns, c => c.TitleFa == "ارزش قطعی" && c.TitleEn == "Confirmed value");
+        // ستون‌های خلاصه دقیقاً همان ستون‌های جدول صفحه‌اند.
+        Assert.Contains(summary.Columns, c => c.TitleFa == "ارزش مقدار بارگیری‌شده" && c.TitleEn == "Loaded value");
         Assert.Contains(summary.Columns, c => c.TitleFa == "پرداخت / دریافت" && c.TitleEn == "Payment / receipt");
         Assert.Equal("بیلانس قرارداد", summary.Columns[^1].TitleFa);
         Assert.Equal("Contract balance", summary.Columns[^1].TitleEn);
@@ -269,7 +270,8 @@ public sealed class CompanyFlowTextTests
     // ------------------------------------------------------------------
 
     [Theory]
-    [InlineData("src/PTGOilSystem.Web/Views/PartyStatements/Document.cshtml")]
+    // بدنهٔ سند از Document.cshtml به این partial منتقل شد (تب پروفایل هم همین را رندر می‌کند).
+    [InlineData("src/PTGOilSystem.Web/Views/PartyStatements/_StatementBody.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Views/PartyStatements/_SupplierContractStatement.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Views/PartyStatements/_SupplierContractDetails.cshtml")]
     [InlineData("src/PTGOilSystem.Web/Views/AccountStatements/Contract.cshtml")]

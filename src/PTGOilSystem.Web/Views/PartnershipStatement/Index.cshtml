@@ -293,7 +293,20 @@
                             @foreach (var partner in contract.Partners)
                             {
                                 <tr>
-                                    <td class="ak-col-grow">سهم مفاد @partner.PartnerName — @partner.SharePercent.ToString("0.##")٪</td>
+                                    <td class="ak-col-grow">
+                                        @* PTG ۱۲-C — درصدِ امروز یک برچسب است، نه ضریبِ این عدد. اگر قرارداد
+                                           چند بازهٔ سهم داشته، مفاد ترکیبی است و نوشتنِ تنها درصدِ جاری گمراه‌کننده است. *@
+                                        سهم مفاد @partner.PartnerName —
+                                        @if (partner.SpansMultipleSharePeriods)
+                                        {
+                                            <text>سهم فعلی: @partner.SharePercent.ToString("0.##")٪</text>
+                                            <span class="ak-cell-note">محاسبهٔ تاریخی شامل @partner.SharePeriodCount.ToString("N0") بازهٔ سهم است</span>
+                                        }
+                                        else
+                                        {
+                                            <text>@partner.SharePercent.ToString("0.##")٪</text>
+                                        }
+                                    </td>
                                     <td>@PartnershipStatementSources.Book</td>
                                     <td class="ak-col-num ak-num">@Money(partner.ProfitShareUsd)</td>
                                 </tr>
@@ -482,6 +495,7 @@
     ViewData["CreateModalSubtitle"] = "یادداشت حساب شراکت است، نه سند صندوق. مصرف، فروش یا پرداخت تأمین‌کننده ایجاد نمی‌کند و مفاد قرارداد را تغییر نمی‌دهد.";
     ViewData["CreateModalSubmitText"] = "ثبت تسویه";
     ViewData["CreateFormAction"] = "CreateSettlement";
+    ViewData["CreateFormIdempotent"] = true;
     ViewData["CreateFormController"] = "PartnershipStatement";
     ViewData["CreateFormPartialPath"] = "/Views/PartnershipStatement/_SettlementForm.cshtml";
     ViewData["PartnershipStatement"] = statement;

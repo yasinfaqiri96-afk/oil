@@ -50,6 +50,26 @@ public class InventoryTransportReceiptsControllerTests
     }
 
     [Fact]
+    public async Task Create_Get_Uses_Focused_Inventory_Form_When_Opened_From_Transport_Details()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedLegAsync(db, quantityMt: 30m);
+        var controller = BuildController(db);
+
+        var result = await controller.Create(
+            leg.Id,
+            InventoryTransportReceiptDestination.ToInventory,
+            focused: true);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<InventoryTransportReceiptCreateViewModel>(view.Model);
+        Assert.Equal(InventoryTransportReceiptDestination.ToInventory, model.ReceiptDestination);
+        Assert.True(Assert.IsType<bool>(controller.ViewData["FocusedInventoryReceipt"]));
+        Assert.Equal(30m, Assert.IsType<decimal>(controller.ViewData["RemainingMt"]));
+    }
+
+    [Fact]
     public async Task Create_ToInventory_Creates_InventoryMovement_In_At_Destination()
     {
         await using var db = CreateDb();
@@ -183,6 +203,9 @@ public class InventoryTransportReceiptsControllerTests
         var receipt = await db.InventoryTransportReceipts.SingleAsync();
         Assert.Equal(1, receipt.ServiceProviderId);
         Assert.Equal(140m, receipt.FreightCostUsd);
+        var reloadedLeg = await db.InventoryTransportLegs.SingleAsync(l => l.Id == leg.Id);
+        Assert.True(reloadedLeg.IsFreightSettled);
+        Assert.Equal(new DateTime(2026, 5, 5), reloadedLeg.FreightSettledDate);
 
         var expense = await db.ExpenseTransactions
             .Include(e => e.ExpenseType)
@@ -209,6 +232,43 @@ public class InventoryTransportReceiptsControllerTests
         Assert.Equal(0m, snapshot.ExpenseTransactionsUsd);
         Assert.Equal(140m, snapshot.ReceiptFreightExpenseUsd);
         Assert.Equal(140m, snapshot.OperationalExpensesUsd);
+    }
+
+    [Fact]
+    public async Task Create_Partial_Receipt_With_Freight_Keeps_Remaining_Freight_Open()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        db.ServiceProviders.Add(new ServiceProvider
+        {
+            Id = 1,
+            Code = "PARTIAL-CARRIER",
+            Name = "Partial Carrier",
+            ProviderType = ServiceProviderType.TransportCompany,
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var leg = await SeedLoadedLegAsync(db, quantityMt: 30m);
+        leg.TransportType = LoadingTransportType.Truck;
+        await db.SaveChangesAsync();
+
+        var result = await BuildController(db).Create(new InventoryTransportReceiptCreateViewModel
+        {
+            InventoryTransportLegId = leg.Id,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            ReceiptDate = new DateTime(2026, 5, 5),
+            ReceivedQuantityMt = 10m,
+            DestinationTerminalId = 2,
+            DestinationStorageTankId = 2,
+            FreightCostUsd = 50m,
+            ServiceProviderId = 1
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var reloadedLeg = await db.InventoryTransportLegs.SingleAsync(l => l.Id == leg.Id);
+        Assert.NotEqual(InventoryTransportLegStatus.Received, reloadedLeg.Status);
+        Assert.False(reloadedLeg.IsFreightSettled);
+        Assert.Null(reloadedLeg.FreightSettledDate);
     }
 
     [Fact]

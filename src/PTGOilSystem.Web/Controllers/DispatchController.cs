@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Dispatch;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Models.Sales;
@@ -26,6 +27,10 @@ public partial class DispatchController : Controller
 {
     private const string DispatchFreightExpenseCode = DispatchFreightExpenseSync.DispatchFreightExpenseCode;
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly IStockService _stock;
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IAuditService _audit;
@@ -38,6 +43,8 @@ public partial class DispatchController : Controller
     private readonly IAfghanistanBusinessClock _businessClock;
 
     [ActivatorUtilitiesConstructor]
+    private readonly IFormTokenGuard _formTokens;
+
     public DispatchController(
         ApplicationDbContext db,
         IStockService stock,
@@ -50,10 +57,13 @@ public partial class DispatchController : Controller
         IAfghanistanBusinessClock? businessClock = null,
         IInventoryMovementWriter? movements = null,
         ITransportChainService? transportChain = null,
-        ITransportSourceAllocationService? sourceAllocations = null)
+        ITransportSourceAllocationService? sourceAllocations = null,
+        IFormTokenGuard? formTokens = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
+        // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
+        _formTokens = formTokens ?? new FormTokenGuard(db);
         _salesAccounting = salesAccounting;
         _db = db;
         _stock = stock;
@@ -953,6 +963,8 @@ public partial class DispatchController : Controller
 
         var model = new DispatchCreateViewModel
         {
+            // PTG-P1-05 — نسخه‌ای که کاربر می‌بیند، با فرم برمی‌گردد.
+            Version = dispatch.Version,
             ContractId = dispatch.ContractId,
             ProductId = dispatch.ProductId,
             TruckId = dispatch.TruckId,
@@ -998,6 +1010,10 @@ public partial class DispatchController : Controller
         {
             return NotFound();
         }
+
+        // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
+        // نه نسخه‌ای که همین حالا خوانده شد.
+        _db.UseExpectedVersion(dispatch, model.Version);
 
         if (dispatch.Status == DispatchStatus.Cancelled)
         {
@@ -1071,7 +1087,8 @@ public partial class DispatchController : Controller
             model.ServiceProviderId,
             model.OperationalAssetId,
             nameof(model.ServiceProviderId),
-            nameof(model.OperationalAssetId));
+            nameof(model.OperationalAssetId),
+            model.TruckId);
 
         if (!ModelState.IsValid)
         {
@@ -1230,6 +1247,7 @@ public partial class DispatchController : Controller
             }
 
             await _db.SaveChangesAsync();
+            await new AssetUsageChargeService(_db).SyncOperationAsync(dispatch);
             if (transaction is not null)
             {
                 await transaction.CommitAsync();
@@ -1289,7 +1307,9 @@ public partial class DispatchController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateDirectFromReceipt(DispatchDirectFromReceiptCreateViewModel model)
+    public async Task<IActionResult> CreateDirectFromReceipt(
+        DispatchDirectFromReceiptCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         var allocation = await BuildDirectFromReceiptAllocationQuery(asTracking: true)
             .FirstOrDefaultAsync(a => a.Id == model.LoadingReceiptAllocationId);
@@ -1370,7 +1390,8 @@ public partial class DispatchController : Controller
             model.ServiceProviderId,
             model.OperationalAssetId,
             nameof(model.ServiceProviderId),
-            nameof(model.OperationalAssetId));
+            nameof(model.OperationalAssetId),
+            model.TruckId);
 
         // Discharged weight comes from the destination scale and may exceed the loaded weight
         // (scale overage). Shortage then becomes zero; freight still follows the loaded weight.
@@ -1415,14 +1436,33 @@ public partial class DispatchController : Controller
             ChargeableShortageMt = model.ChargeableShortageMt,
             Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
         };
+        var carrierParty = await new AssetUsageChargeService(_db).ResolveCarrierPartyAsync(
+            dispatch.ServiceProviderId,
+            dispatch.DriverId,
+            dispatch.OperationalAssetId,
+            dispatch.DispatchDate);
+        dispatch.CarrierPartyType = carrierParty?.PartyType;
+        dispatch.CarrierPartyId = carrierParty?.PartyId;
 
         var totalAfterDispatchMt = totalDirectDispatchedQuantityMt + model.LoadedQuantityMt;
         allocation.Status = totalAfterDispatchMt >= allocation.QuantityMt
             ? LoadingReceiptAllocationStatus.Completed
             : LoadingReceiptAllocationStatus.InTransit;
 
+        // PTG-P0-01 — توکن با همان SaveChanges دیسپچ مصرف می‌شود؛ ارسال دوم چیزی نمی‌سازد.
+        _formTokens.Stamp(formToken, "Dispatch.CreateDirectFromReceipt", nameof(TruckDispatch));
+
         _db.TruckDispatches.Add(dispatch);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+            await new AssetUsageChargeService(_db).SyncOperationAsync(dispatch);
+        }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            TempData["err"] = "این دیسپچ قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction("FromReceipt", "Transports", new { loadingReceiptId = allocation.LoadingReceiptId });
+        }
 
         await SyncDispatchFreightExpenseAsync(dispatch);
 
@@ -1561,7 +1601,8 @@ public partial class DispatchController : Controller
             model.ServiceProviderId,
             model.OperationalAssetId,
             nameof(model.ServiceProviderId),
-            nameof(model.OperationalAssetId));
+            nameof(model.OperationalAssetId),
+            dispatch.TruckId);
 
         // وزن تخلیه از ترازوی مقصد می‌آید و می‌تواند از وزن بارگیری کمتر (کسری) یا بیشتر (اضافه‌بار) باشد.
         // تفاوت با علامتِ واقعی ذخیره می‌شود تا هیچ اختلافی گم نشود؛ اضافه‌بار هرگز جریمه نمی‌گیرد و
@@ -2124,14 +2165,12 @@ public partial class DispatchController : Controller
             // SalesTransaction.TruckDispatchId ردیابی می‌شوند.
             dispatch.SalesTransactionId ??= sale.Id;
 
-            var ledgerEntry = SaleLedgerFactory.BuildSaleLedgerEntry(
+            var ledgerEntry = Ledger.Post(SaleLedgerFactory.BuildSaleLedgerEntry(
                 sale,
                 conversion,
                 contractId: saleSourcePlan.Shares.Count > 0
                     ? saleSourcePlan.SingleContractId
-                    : sourcePurchaseContract.Id);
-
-            _db.LedgerEntries.Add(ledgerEntry);
+                    : sourcePurchaseContract.Id));
             await _db.SaveChangesAsync();
 
             // مرحله ۷ — Dual-write داخل همان Transaction قدیمی.
@@ -2205,7 +2244,9 @@ public partial class DispatchController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(DispatchCreateViewModel model)
+    public async Task<IActionResult> Create(
+        DispatchCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         if (!HasFieldError(nameof(model.ContractId)) && model.ContractId > 0)
         {
@@ -2296,7 +2337,8 @@ public partial class DispatchController : Controller
             model.ServiceProviderId,
             model.OperationalAssetId,
             nameof(model.ServiceProviderId),
-            nameof(model.OperationalAssetId));
+            nameof(model.OperationalAssetId),
+            model.TruckId);
 
         if (!ModelState.IsValid)
         {
@@ -2397,9 +2439,20 @@ public partial class DispatchController : Controller
                     ChargeableShortageMt = model.ChargeableShortageMt,
                     Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
                 };
+                var carrierParty = await new AssetUsageChargeService(_db).ResolveCarrierPartyAsync(
+                    dispatch.ServiceProviderId,
+                    dispatch.DriverId,
+                    dispatch.OperationalAssetId,
+                    dispatch.DispatchDate);
+                dispatch.CarrierPartyType = carrierParty?.PartyType;
+                dispatch.CarrierPartyId = carrierParty?.PartyId;
+
+                // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
+                _formTokens.Stamp(formToken, "Dispatch.Create", nameof(TruckDispatch));
 
                 _db.TruckDispatches.Add(dispatch);
                 await _db.SaveChangesAsync();
+                await new AssetUsageChargeService(_db).SyncOperationAsync(dispatch);
 
                 // موجودی از قبل روی provisionalMovement چک و قرارداد مبدأ قفل شده است؛ پس
                 // Writer اینجا فقط سند را می‌سازد و چک را دوباره اجرا نمی‌کند.
@@ -2474,6 +2527,11 @@ public partial class DispatchController : Controller
                 throw;
             }
         }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            TempData["err"] = "این دیسپچ قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
         catch (BusinessRuleException ex)
         {
             ModelState.AddModelError(string.Empty, ex.Message);
@@ -2494,7 +2552,12 @@ public partial class DispatchController : Controller
     private static int? NormalizePositiveInt(int? value)
         => value.HasValue && value.Value > 0 ? value.Value : null;
 
-    private async Task ValidateOperationalPartyAsync(int? serviceProviderId, int? operationalAssetId, string serviceProviderField, string operationalAssetField)
+    private async Task ValidateOperationalPartyAsync(
+        int? serviceProviderId,
+        int? operationalAssetId,
+        string serviceProviderField,
+        string operationalAssetField,
+        int? truckId = null)
     {
         if (serviceProviderId.HasValue && operationalAssetId.HasValue)
         {
@@ -2511,6 +2574,35 @@ public partial class DispatchController : Controller
             && !await _db.OperationalAssets.AsNoTracking().AnyAsync(a => a.Id == operationalAssetId.Value && a.IsActive))
         {
             ModelState.AddModelError(operationalAssetField, "Operational asset selection is invalid.");
+        }
+
+        // دارایی عملیاتی که به یک موتر مشخص وصل است نباید روی سندی بنشیند که موتر دیگری دارد؛
+        // همان کنترلی که مسیر گروهی حمل از قبل انجام می‌دهد. مقدار خودکار اصلاح نمی‌شود.
+        if (operationalAssetId.HasValue && truckId is > 0)
+        {
+            var asset = await _db.OperationalAssets
+                .AsNoTracking()
+                .Where(a => a.Id == operationalAssetId.Value)
+                .Select(a => new
+                {
+                    a.Name,
+                    a.LinkedTruckId,
+                    LinkedPlateNumber = a.LinkedTruck != null ? a.LinkedTruck.PlateNumber : null
+                })
+                .FirstOrDefaultAsync();
+
+            if (asset?.LinkedTruckId is int linkedTruckId && linkedTruckId != truckId.Value)
+            {
+                var documentPlateNumber = await _db.Trucks
+                    .AsNoTracking()
+                    .Where(t => t.Id == truckId.Value)
+                    .Select(t => t.PlateNumber)
+                    .FirstOrDefaultAsync();
+
+                ModelState.AddModelError(
+                    operationalAssetField,
+                    $"دارایی «{asset.Name}» به موتر {asset.LinkedPlateNumber ?? "-"} وصل است، اما موتر این سند {documentPlateNumber ?? "-"} است. یا موتر سند را تغییر دهید یا دارایی دیگری انتخاب کنید.");
+            }
         }
     }
 
@@ -2748,7 +2840,7 @@ public partial class DispatchController : Controller
                     await _expenseAccounting.TryPostExpenseAsync(expense);
                 }
 
-                var ledgerEntry = new LedgerEntry
+                var ledgerEntry = Ledger.Post(new LedgerPostingRequest
                 {
                     EntryDate = expense.ExpenseDate,
                     Side = provider is not null ? LedgerSide.Credit : LedgerSide.Debit,
@@ -2765,8 +2857,7 @@ public partial class DispatchController : Controller
                     Reference = $"TRUCK-DISPATCH:{expense.TruckDispatchId}-{expense.Id}",
                     ContractId = expense.ContractId,
                     ServiceProviderId = expense.ServiceProviderId
-                };
-                _db.LedgerEntries.Add(ledgerEntry);
+                });
                 await _db.SaveChangesAsync();
 
                 await _audit.LogAndSaveAsync(

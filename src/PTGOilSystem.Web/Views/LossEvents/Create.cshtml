@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.LossEvents.LossEventCreateViewModel
+﻿@model PTGOilSystem.Web.Models.LossEvents.LossEventCreateViewModel
 @using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.LossEvents
@@ -64,6 +64,7 @@
 
     <form asp-action="Create" method="post" class="ak-form" data-loss-event-form="true">
         @Html.AntiForgeryToken()
+        @Html.FormToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
 
@@ -101,7 +102,7 @@
 
                 <div class="ak-field">
                     <label asp-for="EventDate" class="ak-label"></label>
-                    <input asp-for="EventDate" type="date" class="ak-input" />
+                    <input asp-for="EventDate" type="date" class="ak-input" data-ptg-date-guard data-ptg-today="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
                     <span asp-validation-for="EventDate" class="ak-field-error"></span>
                 </div>
 

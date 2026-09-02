@@ -9,6 +9,7 @@ using System.Text.Json;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.ContractJourney;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.Loading;
 using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Models.Sales;
@@ -23,7 +24,6 @@ namespace PTGOilSystem.Web.Controllers;
 [Authorize]
 public partial class LoadingReceiptsController : Controller
 {
-    private const int MixedAllocationEditorRows = 4;
     private const decimal QuantityPrecisionUnit = 0.0001m;
     private sealed record DirectSaleDraft(SalesTransaction Sale, CurrencyConversionResult Conversion);
     private sealed record DirectTransportResolution(int TruckId, int? DriverId, Truck? CreatedTruck, Driver? CreatedDriver);
@@ -40,6 +40,10 @@ public partial class LoadingReceiptsController : Controller
         List<TruckDispatch> Dispatches);
 
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly IAuditService _audit;
     private readonly ILossEventWorkflowService _lossWorkflow;
     private readonly ICurrencyConversionService _currencyConversion;
@@ -52,6 +56,8 @@ public partial class LoadingReceiptsController : Controller
     private readonly Security.ICurrentUserContext? _currentUser;
     private readonly IInventoryMovementWriter _movements;
 
+    private readonly IFormTokenGuard _formTokens;
+
     public LoadingReceiptsController(
         ApplicationDbContext db,
         IAuditService audit,
@@ -62,8 +68,11 @@ public partial class LoadingReceiptsController : Controller
         Services.Accounting.ISalesAccountingAdapter? salesAccounting = null,
         Services.LoadingReceipts.ILoadingReceiptCancellationService? cancellation = null,
         Security.ICurrentUserContext? currentUser = null,
-        IInventoryMovementWriter? movements = null)
+        IInventoryMovementWriter? movements = null,
+        IFormTokenGuard? formTokens = null)
     {
+        // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
+        _formTokens = formTokens ?? new FormTokenGuard(db);
         _purchaseAccounting = purchaseAccounting;
         _salesAccounting = salesAccounting;
         _cancellation = cancellation;
@@ -154,22 +163,6 @@ public partial class LoadingReceiptsController : Controller
             })
             .ToList();
 
-    private static IReadOnlyList<SelectListItem> GetAllocationDestinationItems(LoadingReceiptAllocationDestination selectedDestination)
-        => new[]
-            {
-                LoadingReceiptAllocationDestination.ToInventory,
-                LoadingReceiptAllocationDestination.DirectSale,
-                LoadingReceiptAllocationDestination.DirectDispatchToTruck,
-                LoadingReceiptAllocationDestination.TransferToOtherTerminal
-            }
-            .Select(destination => new SelectListItem
-            {
-                Value = ((int)destination).ToString(),
-                Text = ToAllocationDestinationLabel(destination),
-                Selected = destination == selectedDestination
-            })
-            .ToList();
-
     private static string ToReceiptDestinationLabel(LoadingReceiptDestination destination)
         => destination switch
         {
@@ -203,6 +196,13 @@ public partial class LoadingReceiptsController : Controller
             return;
         }
 
+        // رسید ترکیبی دیگر ساخته نمی‌شود؛ رسیدهای ترکیبیِ قدیمی فقط خوانده می‌شوند.
+        if (model.ReceiptDestination == LoadingReceiptDestination.Mixed)
+        {
+            modelState.AddModelError(
+                nameof(model.ReceiptDestination),
+                "رسید ترکیبی پشتیبانی نمی‌شود. برای هر رسید یک مقصد انتخاب کنید.");
+        }
     }
 
     private static void NormalizeAndValidateAllocationDestination(LoadingReceiptCreateViewModel model, ModelStateDictionary modelState)
@@ -239,15 +239,16 @@ public partial class LoadingReceiptsController : Controller
             _ => LoadingReceiptAllocationStatus.TraceOnly
         };
 
-    private static void EnsureAllocationLineEditorRows(LoadingReceiptCreateViewModel model)
-    {
-        while (model.AllocationLines.Count < MixedAllocationEditorRows)
-        {
-            model.AllocationLines.Add(new LoadingReceiptAllocationLineInput());
-        }
-    }
-
-    public async Task<IActionResult> Index(string? q = null, DateTime? fromDate = null, DateTime? toDate = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(
+        string? q = null,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        int? productId = null,
+        int? terminalId = null,
+        int? destination = null,
+        string? status = null,
+        int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 5);
         ViewData["PageSize"] = pageSize;
@@ -268,6 +269,33 @@ public partial class LoadingReceiptsController : Controller
         {
             var exclusiveToDate = toDate.Value.Date.AddDays(1);
             query = query.Where(receipt => receipt.ReceiptDate < exclusiveToDate);
+        }
+
+        if (productId.HasValue)
+        {
+            query = query.Where(receipt => receipt.LoadingRegister != null && receipt.LoadingRegister.ProductId == productId.Value);
+        }
+
+        if (terminalId.HasValue)
+        {
+            query = query.Where(receipt => receipt.TerminalId == terminalId.Value);
+        }
+
+        if (destination.HasValue && Enum.IsDefined(typeof(LoadingReceiptDestination), destination.Value))
+        {
+            var destinationValue = (LoadingReceiptDestination)destination.Value;
+            query = query.Where(receipt => receipt.ReceiptDestination == destinationValue);
+        }
+
+        // وضعیت: رسیدهای لغوشده در فهرست دیده می‌شوند، این فیلتر فقط نمایش را محدود می‌کند.
+        var normalizedStatus = status?.Trim().ToLowerInvariant();
+        if (normalizedStatus == "active")
+        {
+            query = query.Where(receipt => !receipt.IsCancelled);
+        }
+        else if (normalizedStatus == "cancelled")
+        {
+            query = query.Where(receipt => receipt.IsCancelled);
         }
 
         if (!string.IsNullOrWhiteSpace(normalizedQuery))
@@ -338,6 +366,29 @@ public partial class LoadingReceiptsController : Controller
             && receipt.ReferenceDocument != ""
             && !receipt.ReferenceDocument.ToUpper().StartsWith("BULK-RCPT-"));
 
+        // گزینه‌های فیلتر از روی همان رسیدهای موجود ساخته می‌شوند تا فهرست کوتاه و مرتبط بماند.
+        var filterProducts = await _db.LoadingReceipts
+            .AsNoTracking()
+            .Where(receipt => receipt.LoadingRegister != null && receipt.LoadingRegister.Product != null)
+            .Select(receipt => new { receipt.LoadingRegister!.ProductId, receipt.LoadingRegister.Product!.Name })
+            .Distinct()
+            .OrderBy(product => product.Name)
+            .ToListAsync();
+        ViewBag.FilterProducts = filterProducts
+            .Select(product => new SelectListItem(product.Name, product.ProductId.ToString()))
+            .ToList();
+
+        var filterTerminals = await _db.LoadingReceipts
+            .AsNoTracking()
+            .Where(receipt => receipt.Terminal != null)
+            .Select(receipt => new { receipt.TerminalId, receipt.Terminal!.Name })
+            .Distinct()
+            .OrderBy(terminal => terminal.Name)
+            .ToListAsync();
+        ViewBag.FilterTerminals = filterTerminals
+            .Select(terminal => new SelectListItem(terminal.Name, terminal.TerminalId.ToString()))
+            .ToList();
+
         return View(new LoadingReceiptIndexViewModel
         {
             Items = items,
@@ -349,29 +400,6 @@ public partial class LoadingReceiptsController : Controller
             ToDate = toDate
         });
     }
-
-    private static bool HasLineData(LoadingReceiptAllocationLineInput line)
-        => line.QuantityMt > 0m
-           || line.TerminalId.HasValue
-           || line.StorageTankId.HasValue
-           || line.DestinationTerminalId.HasValue
-           || line.DestinationStorageTankId.HasValue
-           || line.DestinationLocationId.HasValue
-           || !string.IsNullOrWhiteSpace(line.DestinationName)
-           || !string.IsNullOrWhiteSpace(line.DestinationReference)
-           || line.SaleCustomerId.HasValue
-           || line.SaleDate.HasValue
-           || line.SaleUnitPriceInCurrency.HasValue
-           || line.SaleAppliedFxRateToUsd.HasValue
-           || !string.IsNullOrWhiteSpace(line.SaleInvoiceNumber)
-           || !string.IsNullOrWhiteSpace(line.SaleNotes)
-           || !string.IsNullOrWhiteSpace(line.ReferenceDocument)
-           || !string.IsNullOrWhiteSpace(line.Notes);
-
-    private static IReadOnlyList<LoadingReceiptAllocationLineInput> GetPostedMixedAllocationLines(LoadingReceiptCreateViewModel model)
-        => model.AllocationLines
-            .Where(HasLineData)
-            .ToList();
 
     private static string? NormalizeNullable(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -521,7 +549,7 @@ public partial class LoadingReceiptsController : Controller
         }
     }
 
-    private static void NormalizeAllocationLines(LoadingReceiptCreateViewModel model)
+    private static void NormalizeReceiptInputs(LoadingReceiptCreateViewModel model)
     {
         model.SaleCurrency = SystemCurrency.Normalize(model.SaleCurrency);
         model.SaleInvoiceNumber = NormalizeNullable(model.SaleInvoiceNumber);
@@ -529,17 +557,6 @@ public partial class LoadingReceiptsController : Controller
         model.DirectTruckTicketSerialNumber = NormalizeNullable(model.DirectTruckTicketSerialNumber);
         model.DirectTruckPlateNumber = NormalizeTruckPlateNumber(model.DirectTruckPlateNumber);
         model.DirectDriverName = NormalizeNullable(model.DirectDriverName);
-
-        foreach (var line in model.AllocationLines)
-        {
-            line.DestinationName = NormalizeNullable(line.DestinationName);
-            line.DestinationReference = NormalizeNullable(line.DestinationReference);
-            line.SaleCurrency = SystemCurrency.Normalize(line.SaleCurrency);
-            line.SaleInvoiceNumber = NormalizeNullable(line.SaleInvoiceNumber);
-            line.SaleNotes = NormalizeNullable(line.SaleNotes);
-            line.ReferenceDocument = NormalizeNullable(line.ReferenceDocument);
-            line.Notes = NormalizeNullable(line.Notes);
-        }
     }
 
     private static LoadingReceiptAllocationLineInput BuildScalarAllocationLine(
@@ -793,6 +810,11 @@ public partial class LoadingReceiptsController : Controller
                     TicketSerialNumber = directTruckTicketSerialNumber,
                     Notes = lineNotes
                 };
+                if (directTruckDispatch.DriverId is > 0)
+                {
+                    directTruckDispatch.CarrierPartyType = AccountingPartyType.Driver;
+                    directTruckDispatch.CarrierPartyId = directTruckDispatch.DriverId;
+                }
 
                 allocation.Status = LoadingReceiptAllocationStatus.Completed;
                 allocation.DirectTruckDispatches.Add(directTruckDispatch);
@@ -830,7 +852,6 @@ public partial class LoadingReceiptsController : Controller
             model.StorageTankId);
 
         ViewBag.ReceiptDestinations = GetReceiptDestinationItems(model.ReceiptDestination);
-        ViewBag.AllocationDestinations = GetAllocationDestinationItems(model.AllocationDestination);
         ViewBag.DestinationTerminals = new SelectList(
             await _db.Terminals
                 .AsNoTracking()
@@ -899,126 +920,6 @@ public partial class LoadingReceiptsController : Controller
             "Id",
             "FullName",
             model.DirectDriverId);
-    }
-
-    private async Task ValidateAllocationLineAsync(
-        LoadingReceiptAllocationLineInput line,
-        int index,
-        LoadingRegister loading,
-        ModelStateDictionary modelState)
-    {
-        var prefix = $"{nameof(LoadingReceiptCreateViewModel.AllocationLines)}[{index}]";
-
-        if (!Enum.IsDefined(typeof(LoadingReceiptAllocationDestination), line.Destination))
-        {
-            modelState.AddModelError($"{prefix}.{nameof(line.Destination)}", "مقصد allocation معتبر نیست.");
-            return;
-        }
-
-        if (line.QuantityMt <= 0m)
-        {
-            modelState.AddModelError($"{prefix}.{nameof(line.QuantityMt)}", "مقدار allocation باید بزرگ‌تر از صفر باشد.");
-        }
-
-        if (line.Destination == LoadingReceiptAllocationDestination.ToInventory)
-        {
-            if (!line.TerminalId.HasValue)
-            {
-                modelState.AddModelError($"{prefix}.{nameof(line.TerminalId)}", "برای خط ToInventory انتخاب ترمینال الزامی است.");
-            }
-            else
-            {
-                var terminal = await _db.Terminals
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(t => t.Id == line.TerminalId.Value && t.IsActive);
-                if (terminal is null)
-                {
-                    modelState.AddModelError($"{prefix}.{nameof(line.TerminalId)}", "ترمینال خط ToInventory معتبر نیست.");
-                }
-            }
-
-            if (!line.StorageTankId.HasValue)
-            {
-                modelState.AddModelError($"{prefix}.{nameof(line.StorageTankId)}", "برای خط ToInventory انتخاب مخزن الزامی است.");
-            }
-            else
-            {
-                var tank = await _db.StorageTanks
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(t => t.Id == line.StorageTankId.Value);
-                if (tank is null)
-                {
-                    modelState.AddModelError($"{prefix}.{nameof(line.StorageTankId)}", "مخزن خط ToInventory معتبر نیست.");
-                }
-                else
-                {
-                    if (line.TerminalId.HasValue && tank.TerminalId != line.TerminalId.Value)
-                    {
-                        modelState.AddModelError($"{prefix}.{nameof(line.StorageTankId)}", "مخزن خط ToInventory به ترمینال انتخاب‌شده تعلق ندارد.");
-                    }
-
-                    if (tank.ProductId.HasValue && tank.ProductId != loading.ProductId)
-                    {
-                        modelState.AddModelError($"{prefix}.{nameof(line.StorageTankId)}", "مخزن خط ToInventory برای کالای این loading تعریف نشده است.");
-                    }
-                }
-            }
-        }
-
-        if (line.Destination == LoadingReceiptAllocationDestination.TransferToOtherTerminal
-            && !line.DestinationTerminalId.HasValue)
-        {
-            modelState.AddModelError($"{prefix}.{nameof(line.DestinationTerminalId)}", "برای انتقال، ترمینال مقصد الزامی است.");
-        }
-
-        if (line.DestinationTerminalId.HasValue)
-        {
-            var destinationTerminal = await _db.Terminals
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Id == line.DestinationTerminalId.Value && t.IsActive);
-            if (destinationTerminal is null)
-            {
-                modelState.AddModelError($"{prefix}.{nameof(line.DestinationTerminalId)}", "ترمینال مقصد معتبر نیست.");
-            }
-        }
-
-        if (line.DestinationStorageTankId.HasValue)
-        {
-            var destinationTank = await _db.StorageTanks
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Id == line.DestinationStorageTankId.Value);
-            if (destinationTank is null)
-            {
-                modelState.AddModelError($"{prefix}.{nameof(line.DestinationStorageTankId)}", "مخزن مقصد معتبر نیست.");
-            }
-            else
-            {
-                if (!line.DestinationTerminalId.HasValue)
-                {
-                    modelState.AddModelError($"{prefix}.{nameof(line.DestinationTerminalId)}", "برای انتخاب مخزن مقصد، ترمینال مقصد نیز باید مشخص شود.");
-                }
-                else if (destinationTank.TerminalId != line.DestinationTerminalId.Value)
-                {
-                    modelState.AddModelError($"{prefix}.{nameof(line.DestinationStorageTankId)}", "مخزن مقصد به ترمینال مقصد انتخاب‌شده تعلق ندارد.");
-                }
-
-                if (destinationTank.ProductId.HasValue && destinationTank.ProductId != loading.ProductId)
-                {
-                    modelState.AddModelError($"{prefix}.{nameof(line.DestinationStorageTankId)}", "مخزن مقصد برای کالای این loading تعریف نشده است.");
-                }
-            }
-        }
-
-        if (line.DestinationLocationId.HasValue)
-        {
-            var destinationLocationExists = await _db.Locations
-                .AsNoTracking()
-                .AnyAsync(l => l.Id == line.DestinationLocationId.Value);
-            if (!destinationLocationExists)
-            {
-                modelState.AddModelError($"{prefix}.{nameof(line.DestinationLocationId)}", "شهر/موقعیت مقصد معتبر نیست.");
-            }
-        }
     }
 
     private async Task ValidateDirectSaleLineAsync(
@@ -1137,7 +1038,7 @@ public partial class LoadingReceiptsController : Controller
         return new DirectSaleDraft(sale, conversion);
     }
 
-    private static LedgerEntry BuildDirectSaleLedgerEntry(
+    private static LedgerPostingRequest BuildDirectSaleLedgerEntry(
         SalesTransaction sale,
         int sourcePurchaseContractId,
         CurrencyConversionResult conversion)
@@ -1451,7 +1352,6 @@ public partial class LoadingReceiptsController : Controller
             return RedirectToAction("Details", "Loading", new { id = loadingId.Value });
         }
 
-        EnsureAllocationLineEditorRows(model);
         await PopulateLookupsAsync(model);
         if (modal)
         {
@@ -1510,7 +1410,9 @@ public partial class LoadingReceiptsController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(LoadingReceiptCreateViewModel model)
+    public async Task<IActionResult> Create(
+        LoadingReceiptCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         var loadingContext = await GetLoadingContextAsync(model.LoadingRegisterId);
         if (loadingContext is null)
@@ -1520,7 +1422,7 @@ public partial class LoadingReceiptsController : Controller
 
         var loading = loadingContext.Value.Loading;
         ApplyLoadingContext(model, loading, loadingContext.Value.Quantities);
-        NormalizeAllocationLines(model);
+        NormalizeReceiptInputs(model);
 
         var normalizedReference = string.IsNullOrWhiteSpace(model.ReferenceDocument)
             ? null
@@ -1544,7 +1446,7 @@ public partial class LoadingReceiptsController : Controller
             model.DirectDispatchDate = model.ReceiptDate;
         }
 
-        if (model.ReceiptDestination is LoadingReceiptDestination.DirectDispatch or LoadingReceiptDestination.Mixed
+        if (model.ReceiptDestination == LoadingReceiptDestination.DirectDispatch
             && loading.ContractId <= 0)
         {
             ModelState.AddModelError(nameof(model.ReceiptDestination), "برای مسیرهای trace بعد از رسید، قرارداد خرید منبع باید روی Loading مشخص باشد.");
@@ -1556,6 +1458,12 @@ public partial class LoadingReceiptsController : Controller
         if (terminal is null)
         {
             ModelState.AddModelError(nameof(model.TerminalId), "ترمینال انتخاب‌شده معتبر نیست.");
+        }
+
+        // ثبت در موجودی بدون مخزن، موجودی بی‌مکان می‌سازد. مخزن الزامی است.
+        if (model.ReceiptDestination == LoadingReceiptDestination.ToInventory && !model.StorageTankId.HasValue)
+        {
+            ModelState.AddModelError(nameof(model.StorageTankId), "برای ثبت در موجودی، انتخاب مخزن الزامی است.");
         }
 
         if (model.ReceiptDestination == LoadingReceiptDestination.ToInventory && model.StorageTankId.HasValue)
@@ -1645,29 +1553,6 @@ public partial class LoadingReceiptsController : Controller
             }
         }
 
-        var mixedAllocationLines = model.ReceiptDestination == LoadingReceiptDestination.Mixed
-            ? GetPostedMixedAllocationLines(model)
-            : Array.Empty<LoadingReceiptAllocationLineInput>();
-        if (model.ReceiptDestination == LoadingReceiptDestination.Mixed)
-        {
-            if (mixedAllocationLines.Count == 0)
-            {
-                ModelState.AddModelError(string.Empty, "برای رسید ترکیبی حداقل یک allocation line لازم است.");
-            }
-
-            var allocationTotalMt = mixedAllocationLines.Sum(l => l.QuantityMt);
-            if (allocationTotalMt != model.ReceivedQuantityMt)
-            {
-                ModelState.AddModelError(string.Empty, $"مجموع allocationها باید دقیقاً برابر مقدار رسید باشد. مجموع فعلی: {allocationTotalMt:N4} MT.");
-            }
-
-            foreach (var line in mixedAllocationLines)
-            {
-                var lineIndex = model.AllocationLines.IndexOf(line);
-                await ValidateAllocationLineAsync(line, lineIndex, loading, ModelState);
-            }
-        }
-
         var directSaleInvoiceNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (model.ReceiptDestination == LoadingReceiptDestination.DirectDispatch
             && model.AllocationDestination == LoadingReceiptAllocationDestination.DirectSale)
@@ -1682,16 +1567,6 @@ public partial class LoadingReceiptsController : Controller
             await ValidateDirectSaleLineAsync(scalarDirectSaleLine, string.Empty, directSaleInvoiceNumbers, ModelState);
         }
 
-        if (model.ReceiptDestination == LoadingReceiptDestination.Mixed)
-        {
-            foreach (var line in mixedAllocationLines.Where(l => l.Destination == LoadingReceiptAllocationDestination.DirectSale))
-            {
-                var lineIndex = model.AllocationLines.IndexOf(line);
-                var prefix = $"{nameof(LoadingReceiptCreateViewModel.AllocationLines)}[{lineIndex}]";
-                await ValidateDirectSaleLineAsync(line, prefix, directSaleInvoiceNumbers, ModelState);
-            }
-        }
-
         if (model.RemainingToReceiveMt <= 0m)
         {
             ModelState.AddModelError(string.Empty, "برای این loading ظرفیتی برای receipt جدید باقی نمانده است.");
@@ -1700,6 +1575,12 @@ public partial class LoadingReceiptsController : Controller
         {
             ModelState.AddModelError(string.Empty, $"مقدار رسید بیشتر از باقیمانده loading است. باقیمانده فعلی: {model.RemainingToReceiveMt:N4} MT.");
         }
+
+        // کاربر فقط «کسری دارد / ندارد» را انتخاب می‌کند؛ حالت ثبت ضایعات از همان استنتاج
+        // می‌شود: کسری معلوم = همین حالا ثبت، بدون کسری = واگذاری به تسویهٔ نهایی مخزن.
+        model.LossMode = model.Loss.Enabled
+            ? ReceiptLossMode.ImmediateKnownLoss
+            : ReceiptLossMode.DeferredTankSettlement;
 
         // «ضایعات بعداً از تسویه مخزن» فقط برای رسید ورود به موجودی معنا دارد.
         if (model.ReceiptDestination != LoadingReceiptDestination.ToInventory)
@@ -1730,7 +1611,6 @@ public partial class LoadingReceiptsController : Controller
             model.Notes = normalizedNotes;
             model.AllocationDestinationName = normalizedDestinationName;
             model.DestinationReference = normalizedDestinationReference;
-            EnsureAllocationLineEditorRows(model);
             await PopulateLookupsAsync(model);
             return View(model);
         }
@@ -1781,7 +1661,6 @@ public partial class LoadingReceiptsController : Controller
                         model.Notes = normalizedNotes;
                         model.AllocationDestinationName = normalizedDestinationName;
                         model.DestinationReference = normalizedDestinationReference;
-                        EnsureAllocationLineEditorRows(model);
                         await PopulateLookupsAsync(model);
                         return View(model);
                     }
@@ -1811,7 +1690,6 @@ public partial class LoadingReceiptsController : Controller
                     model.Notes = normalizedNotes;
                     model.AllocationDestinationName = normalizedDestinationName;
                     model.DestinationReference = normalizedDestinationReference;
-                    EnsureAllocationLineEditorRows(model);
                     await PopulateLookupsAsync(model);
                     return View(model);
                 }
@@ -1835,20 +1713,18 @@ public partial class LoadingReceiptsController : Controller
                     Notes = normalizedNotes
                 };
 
-                IReadOnlyList<LoadingReceiptAllocationLineInput> effectiveAllocationLines = model.ReceiptDestination switch
-                {
-                    LoadingReceiptDestination.Mixed => mixedAllocationLines,
-                    _ =>
-                    [
-                        BuildScalarAllocationLine(
-                            model,
-                            normalizedReference,
-                            normalizedNotes,
-                            normalizedDestinationName,
-                            normalizedDestinationReference,
-                            loading)
-                    ]
-                };
+                // یک رسید = یک مقصد. تخصیص چندخطی (ترکیبی) از فرم حذف شده است؛ ساختار
+                // چندتخصیصی فقط برای خواندن رسیدهای قدیمی باقی مانده است.
+                IReadOnlyList<LoadingReceiptAllocationLineInput> effectiveAllocationLines =
+                [
+                    BuildScalarAllocationLine(
+                        model,
+                        normalizedReference,
+                        normalizedNotes,
+                        normalizedDestinationName,
+                        normalizedDestinationReference,
+                        loading)
+                ];
 
                 var graph = await BuildReceiptGraphAsync(
                     loading,
@@ -1870,6 +1746,9 @@ public partial class LoadingReceiptsController : Controller
                     movement.ReferenceDocument = $"LOADING-RECEIPT:{loading.Id}:{Guid.NewGuid():N}";
                 }
 
+                // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
+                _formTokens.Stamp(formToken, "LoadingReceipt.Create", nameof(LoadingReceipt));
+
                 _db.LoadingReceipts.Add(receipt);
                 _db.SalesTransactions.AddRange(directSaleDrafts.Select(d => d.Draft.Sale));
                 _db.LoadingReceiptAllocations.AddRange(allocations);
@@ -1884,12 +1763,11 @@ public partial class LoadingReceiptsController : Controller
                 }
 
                 var directSaleLedgerEntries = directSaleDrafts
-                    .Select(d => BuildDirectSaleLedgerEntry(
+                    .Select(d => Ledger.Post(BuildDirectSaleLedgerEntry(
                         d.Draft.Sale,
                         d.Allocation.SourcePurchaseContractId!.Value,
-                        d.Draft.Conversion))
+                        d.Draft.Conversion)))
                     .ToList();
-                _db.LedgerEntries.AddRange(directSaleLedgerEntries);
                 await _db.SaveChangesAsync();
 
                 // مرحله ۶ — Dual-write داخل همان Transaction قدیمی: کالای رسیده از «در راه»
@@ -2044,17 +1922,20 @@ public partial class LoadingReceiptsController : Controller
                     await transaction.CommitAsync();
                 }
 
-                TempData["ok"] = model.ReceiptDestination == LoadingReceiptDestination.Mixed
-                    ? "رسید ترکیبی با allocation lineها ثبت شد. فقط lineهای ToInventory موجودی ورودی ساختند و lineهای DirectSale فروش/ledger ساختند."
-                    : model.ReceiptDestination == LoadingReceiptDestination.DirectDispatch
-                    ? model.AllocationDestination == LoadingReceiptAllocationDestination.DirectSale
-                        ? "رسید DirectSale ثبت شد؛ فروش و Ledger ساخته شد، اما InventoryMovement ساخته نشد."
-                        : directTruckDispatches.Count > 0
-                            ? "رسید تخلیه مستقیم و دیسپچ موتر با موفقیت ثبت شد."
-                        : "رسید تخلیه مستقیم ثبت شد. در این فاز InventoryMovement یا دیسپچ موتر ساخته نمی‌شود."
+                TempData["ok"] = model.ReceiptDestination == LoadingReceiptDestination.DirectDispatch
+                    ? model.AllocationDestination switch
+                    {
+                        LoadingReceiptAllocationDestination.DirectSale =>
+                            "رسید ثبت شد و فروش مستقیم ساخته شد. موجودی مخزن تغییر نکرد.",
+                        LoadingReceiptAllocationDestination.TransferToOtherTerminal =>
+                            "رسید ثبت شد. کالا تا رسیدن به ترمینال مقصد «در مسیر» است.",
+                        _ => directTruckDispatches.Count > 0
+                            ? "رسید ثبت شد و ارسال با موتر ساخته شد. موجودی مخزن تغییر نکرد."
+                            : "رسید ارسال مستقیم ثبت شد. موجودی مخزن تغییر نکرد."
+                    }
                     : hasEmbeddedLoss
-                        ? "رسید موجودی و ضایعات این مرحله با موفقیت ثبت شد."
-                        : "رسید موجودی با موفقیت ثبت شد و موجودی ورودی ایجاد گردید.";
+                        ? "رسید و کسری آن با موفقیت ثبت شد و موجودی مخزن افزایش یافت."
+                        : "رسید ثبت شد و موجودی مخزن افزایش یافت.";
                 if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
                 {
                     return IsPageModalRequest()
@@ -2081,6 +1962,11 @@ public partial class LoadingReceiptsController : Controller
                 throw;
             }
         }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            TempData["err"] = "این رسید قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
         catch (BusinessRuleException ex)
         {
             ModelState.AddModelError(string.Empty, ex.Message);
@@ -2095,7 +1981,6 @@ public partial class LoadingReceiptsController : Controller
         model.Notes = normalizedNotes;
         model.AllocationDestinationName = normalizedDestinationName;
         model.DestinationReference = normalizedDestinationReference;
-        EnsureAllocationLineEditorRows(model);
         await PopulateLookupsAsync(model);
         return View(model);
     }

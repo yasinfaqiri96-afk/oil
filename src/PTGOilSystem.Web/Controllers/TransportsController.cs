@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -26,16 +26,21 @@ public sealed class TransportsController : Controller
     private readonly ITransportQuantityService _quantities;
     private readonly IAfghanistanBusinessClock _clock;
 
+    // PTG-P3-B — همان محافظ ضدتکراری فاز P0، برای مسیرهایی که بار واقعی جابه‌جا می‌کنند.
+    private readonly IFormTokenGuard? _formTokens;
+
     public TransportsController(
         ApplicationDbContext db,
         ITransportWorkflowService workflow,
         ITransportQuantityService quantities,
-        IAfghanistanBusinessClock clock)
+        IAfghanistanBusinessClock clock,
+        IFormTokenGuard? formTokens = null)
     {
         _db = db;
         _workflow = workflow;
         _quantities = quantities;
         _clock = clock;
+        _formTokens = formTokens;
     }
 
     public IActionResult Index(string? state = null)
@@ -99,7 +104,9 @@ public sealed class TransportsController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> FromReceipt(TransportStartFromReceiptViewModel model)
+    public async Task<IActionResult> FromReceipt(
+        TransportStartFromReceiptViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         if (!await PopulateReceiptModelAsync(model))
         {
@@ -115,6 +122,10 @@ public sealed class TransportsController : Controller
             await PopulateVehicleLookupsAsync();
             return View(model);
         }
+
+        // توکن پیش از فراخوانی سرویس فقط به ChangeTracker اضافه می‌شود و با نخستین
+        // SaveChanges داخل همان تراکنش ذخیره می‌گردد؛ اگر سرویس خطا بدهد ذخیره نمی‌شود.
+        _formTokens?.Stamp(formToken, "Transport.FromReceipt", nameof(InventoryTransportLeg));
 
         try
         {
@@ -134,6 +145,11 @@ public sealed class TransportsController : Controller
             });
             TempData["ok"] = "حمل مستقیم از رسید ثبت شد؛ هیچ خروج مصنوعی موجودی ساخته نشد.";
             return RedirectToAction(nameof(Details), new { id = leg.Id });
+        }
+        catch (DbUpdateException duplicate) when (_formTokens?.IsDuplicate(duplicate) == true)
+        {
+            TempData["err"] = "این حمل قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction("Index", "InventoryTransportLegs");
         }
         catch (BusinessRuleException ex)
         {
@@ -157,7 +173,9 @@ public sealed class TransportsController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Continue(TransportContinueViewModel model)
+    public async Task<IActionResult> Continue(
+        TransportContinueViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         var requested = (model.Sources ?? [])
             .Where(s => s.Selected && s.LegId > 0 && s.QuantityMt > 0m)
@@ -178,6 +196,8 @@ public sealed class TransportsController : Controller
         await using var transaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync()
             : null;
+        _formTokens?.Stamp(formToken, "Transport.Continue", nameof(InventoryTransportLeg));
+
         try
         {
             var result = await _workflow.ContinueToVehicleAsync(new ContinueToVehicleCommand
@@ -201,6 +221,15 @@ public sealed class TransportsController : Controller
                 : "انتقال به وسیلهٔ بعدی ثبت شد؛ هیچ حرکت موجودی ساخته نشد.";
             return RedirectToAction(nameof(Details), new { id = result.ChildLeg.Id });
         }
+        catch (DbUpdateException duplicate) when (_formTokens?.IsDuplicate(duplicate) == true)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+            TempData["err"] = "این انتقال قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction("Index", "InventoryTransportLegs");
+        }
         catch (BusinessRuleException ex)
         {
             if (transaction is not null)
@@ -217,13 +246,18 @@ public sealed class TransportsController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SettleFreight(TransportFreightSettlementViewModel model)
+    public async Task<IActionResult> SettleFreight(
+        TransportFreightSettlementViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         if (!ModelState.IsValid)
         {
             TempData["err"] = "اطلاعات تسویهٔ کرایه کامل یا معتبر نیست.";
             return RedirectToAction(nameof(Details), new { id = model.TransportLegId });
         }
+
+        // تسویهٔ کرایه یک مصرف واقعی می‌سازد؛ ارسال دوم نباید کرایه را دو برابر کند.
+        _formTokens?.Stamp(formToken, "Transport.SettleFreight", nameof(InventoryTransportLeg));
 
         try
         {
@@ -236,6 +270,10 @@ public sealed class TransportsController : Controller
                 Notes = model.Notes
             });
             TempData["ok"] = "کرایهٔ حمل تسویه شد؛ موجودی و وضعیت فیزیکی بار تغییر نکرد.";
+        }
+        catch (DbUpdateException duplicate) when (_formTokens?.IsDuplicate(duplicate) == true)
+        {
+            TempData["err"] = "کرایهٔ این حمل قبلاً تسویه شده است و دوباره ثبت نشد.";
         }
         catch (BusinessRuleException ex)
         {

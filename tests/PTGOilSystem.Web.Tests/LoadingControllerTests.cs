@@ -2963,8 +2963,10 @@ public class LoadingControllerTests
         db.SaveChanges();
     }
 
-    private static LoadingController NewLoadingController(ApplicationDbContext db)
-        => new(db, new AuditService(db), NullLogger<LoadingController>.Instance)
+    private static LoadingController NewLoadingController(
+        ApplicationDbContext db,
+        IAssetRentPostingService? rentPosting = null)
+        => new(db, new AuditService(db), NullLogger<LoadingController>.Instance, rentPosting: rentPosting)
         {
             TempData = BuildTempData()
         };
@@ -3197,6 +3199,30 @@ public class LoadingControllerTests
         Assert.Equal(AssetOwnerType.Company, share.OwnerType);
         Assert.Equal(100m, share.SharePercent);
         Assert.Equal(97.5m, share.ShareAmountUsd);
+    }
+
+    [Fact]
+    public async Task EditExpenses_Post_OperationalAsset_Line_Invokes_Internal_Accounting_Path()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        SeedPurchaseLoadingScenario(db, withOwnedAsset: true);
+        var posting = new RecordingAssetRentPostingService();
+
+        await NewLoadingController(db, posting).EditExpenses(1, ExpenseModelWithLines(new LoadingExpenseLineInputModel
+        {
+            ExpenseTypeId = 1,
+            CalculationMode = LoadingExpenseCalculationMode.FixedAmount,
+            AmountUsd = 97.5m,
+            PartyType = LoadingExpensePartyType.OperationalAsset,
+            OperationalAssetId = 1
+        }));
+
+        Assert.Equal(1, posting.PostCalls);
+        Assert.Equal(AssetRentUsageType.InternalCompanyUse, posting.LastRent?.UsageType);
+        Assert.Equal(1m, posting.LastConversion?.AppliedRateToBase);
     }
 
     [Fact]
@@ -3796,6 +3822,31 @@ public class LoadingControllerTests
 
         public void SaveTempData(HttpContext context, IDictionary<string, object> values)
             => _data = new Dictionary<string, object>(values);
+    }
+
+    private sealed class RecordingAssetRentPostingService : IAssetRentPostingService
+    {
+        public int PostCalls { get; private set; }
+        public AssetRentTransaction? LastRent { get; private set; }
+        public CurrencyConversionResult? LastConversion { get; private set; }
+
+        public Task<AssetRentPostingResult> PostAsync(
+            AssetRentTransaction rent,
+            CurrencyConversionResult conversion,
+            string? assetCode,
+            CancellationToken cancellationToken = default)
+        {
+            PostCalls++;
+            LastRent = rent;
+            LastConversion = conversion;
+            return Task.FromResult(new AssetRentPostingResult(null, AssetRentPostingPolicy.SkipSystemGenerated));
+        }
+
+        public Task<AssetRentReversalResult> ReverseAsync(
+            AssetRentTransaction rent,
+            DateTime reversalDate,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new AssetRentReversalResult(null, AssetRentPostingService.SkipNoFinancialPosting));
     }
 
 }

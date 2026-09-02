@@ -110,8 +110,11 @@ public class CashAccount : BaseEntity
     [MaxLength(1000)] public string? Notes { get; set; }
 }
 
-public class PaymentTransaction : BaseEntity
+public class PaymentTransaction : BaseEntity, IVersionedEntity
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
     public DateTime PaymentDate { get; set; }
     public PaymentDirection Direction { get; set; }
     public PaymentKind PaymentKind { get; set; }
@@ -315,6 +318,8 @@ public class LedgerEntry : BaseEntity
     public Driver? Driver { get; set; }
     public int? EmployeeId { get; set; }
     public Employee? Employee { get; set; }
+    public int? PartnerId { get; set; }
+    public Partner? Partner { get; set; }
     public int? ShipmentId { get; set; }
     public Shipment? Shipment { get; set; }
 }

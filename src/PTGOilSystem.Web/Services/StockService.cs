@@ -7,8 +7,6 @@ namespace PTGOilSystem.Web.Services;
 
 public class StockService : IStockService
 {
-    private static readonly bool FutureNegativeStockGuardTemporarilyDisabled = true;
-
     private readonly ApplicationDbContext _db;
 
     public StockService(ApplicationDbContext db) => _db = db;
@@ -497,24 +495,33 @@ public class StockService : IStockService
         }
     }
 
+    /// <summary>
+    /// PTG-P0-02 — یک سندِ خروجی نباید موجودیِ پایانیِ همان scope را منفی کند،
+    /// حتی اگر در تاریخِ خودش موجودی کافی بوده باشد.
+    ///
+    /// چرا لازم است: <see cref="EnsureSufficientStockForMovementAsync"/> موجودی را «در تاریخ
+    /// همان سند» می‌سنجد. یک فروشِ عقب‌تاریخ می‌تواند از آن عبور کند و در عوض
+    /// موجودیِ امروزِ همان مخزن را منفی کند، چون فروش‌های بعدی از موجودی‌ای
+    /// برداشته‌اند که حالا دیگر وجود ندارد. ثبتِ عقب‌تاریخ ممنوع نیست؛ فقط
+    /// نباید بی‌صدا موجودی را منفی کند.
+    ///
+    /// معیار دقیقاً «ماندهٔ پایانی» است، نه تک‌تکِ نقطه‌های میانی. دلیلش عملیاتی است:
+    /// در عمل، سندِ رسید اغلب بعد از بارگیریِ موتر/واگن به دفتر می‌رسد، پس خط زمانی
+    /// می‌تواند یک گودالِ گذرای منفی داشته باشد که خودش ترمیم می‌شود
+    /// (مسیر <c>InventoryTransportLegLoadService</c> عمداً موجودیِ جاری را مبنا می‌گیرد).
+    /// آنچه هرگز مجاز نیست، ماندنِ موجودی در منفی است — همان چیزی که COGS و سود را خراب می‌کند.
+    ///
+    /// کارایی: کلِ خط زمانی خوانده نمی‌شود. مانده تا پیش از تاریخ سند با یک SUM
+    /// گرفته می‌شود و فقط سطرهای «از آن تاریخ به بعد» پیموده می‌شوند — که برای ثبتِ
+    /// امروز (حالت رایج) تقریباً هیچ سطری نیست.
+    /// </summary>
     public async Task EnsureMovementDoesNotCauseFutureNegativeStockAsync(
         InventoryMovement movement,
         CancellationToken ct = default)
     {
         if (movement is null) throw new ArgumentNullException(nameof(movement));
 
-        // Temporarily disabled by operations request: backdated stock movements
-        // should not be blocked only because a later movement would become
-        // negative in the simulated timeline. Same-date/current availability is
-        // still enforced by EnsureSufficientStockForMovementAsync where callers
-        // use it before creating Out/Transfer movements.
-        if (FutureNegativeStockGuardTemporarilyDisabled)
-        {
-            await Task.CompletedTask;
-            return;
-        }
-
-        // Only Out/Transfer can drive a future balance below zero. In/Adjustment
+        // Only Out/Transfer can drive a balance below zero. In/Adjustment
         // (positive) cannot reduce stock, so this check is a no-op for them.
         if (movement.Direction != MovementDirection.Out
             && movement.Direction != MovementDirection.Transfer)
@@ -529,48 +536,118 @@ public class StockService : IStockService
                 "مقدار حرکت موجودی باید بزرگ‌تر از صفر باشد.");
         }
 
-        // Load the existing scoped timeline, excluding the pre-image of this
-        // movement when it is being updated.
-        var existing = await BuildMovementQuery(
+        var movementDate = NormalizeUtc(movement.MovementDate);
+
+        // خط زمانیِ همان scope، بدون پیش‌تصویرِ خودِ سند وقتی در حال ویرایش است.
+        var scopeQuery = BuildMovementQuery(
                 productId: movement.ProductId,
                 terminalId: movement.TerminalId,
                 contractId: movement.ContractId,
                 inventoryBatchId: movement.InventoryBatchId,
                 storageTankId: movement.StorageTankId)
-            .Where(m => m.Id != movement.Id)
-            .Select(m => new { m.Id, m.MovementDate, m.Direction, m.QuantityMt })
+            .Where(m => m.Id != movement.Id);
+
+        var balanceBefore = await SumSignedQuantityAsync(
+            scopeQuery.Where(m => m.MovementDate < movementDate),
+            ct) ?? 0m;
+
+        var laterRows = await scopeQuery
+            .Where(m => m.MovementDate >= movementDate)
+            .OrderBy(m => m.MovementDate)
+            .ThenBy(m => m.Id)
+            .Select(m => new { m.MovementDate, m.Direction, m.QuantityMt })
             .ToListAsync(ct);
 
-        // Simulate inserting/updating the candidate movement.
-        var simulated = existing
-            .Select(m => (Id: m.Id, Date: m.MovementDate, Signed: ToSignedQuantity(m.Direction, m.QuantityMt)))
-            .ToList();
-        simulated.Add((
-            Id: 0,
-            Date: movement.MovementDate,
-            Signed: ToSignedQuantity(movement.Direction, movement.QuantityMt)));
+        // سندِ جدید اول از همه در تاریخ خودش اعمال می‌شود (سخت‌گیرانه‌تر، نه شل‌تر).
+        var running = balanceBefore + ToSignedQuantity(movement.Direction, movement.QuantityMt);
+        var lowest = running;
+        DateTime? firstNegativeDate = running < 0m ? movementDate : null;
 
-        // Sort by date then by id (existing rows keep their original id; the new
-        // row uses 0 so it sorts <em>before</em> later same-day rows — i.e. apply
-        // the new movement first on its own date so concurrent stock checks are
-        // tighter rather than looser).
-        simulated.Sort((a, b) =>
+        foreach (var row in laterRows)
         {
-            var byDate = a.Date.CompareTo(b.Date);
-            return byDate != 0 ? byDate : a.Id.CompareTo(b.Id);
-        });
-
-        decimal running = 0m;
-        foreach (var (_, date, signed) in simulated)
-        {
-            running += signed;
-            if (running < 0m)
+            running += ToSignedQuantity(row.Direction, row.QuantityMt);
+            if (running < lowest)
             {
-                throw new BusinessRuleException(
-                    "STOCK_FUTURE_NEGATIVE",
-                    $"این حرکت موجودی باعث می‌شود موجودی در تاریخ {date:yyyy-MM-dd} منفی شود ({running:N4} MT). تاریخ یا مقدار را اصلاح کنید.");
+                lowest = running;
+            }
+
+            if (running < 0m && firstNegativeDate is null)
+            {
+                firstNegativeDate = row.MovementDate;
             }
         }
+
+        // running اکنون ماندهٔ پایانیِ scope است. گودالِ گذرای میانی که
+        // خودش ترمیم می‌شود مجاز است؛ ماندنِ موجودی در منفی نه.
+        if (running >= 0m)
+        {
+            return;
+        }
+
+        var scope = await DescribeStockScopeAsync(movement, ct);
+        throw new BusinessRuleException(
+            "STOCK_FUTURE_NEGATIVE",
+            $"این ثبت انجام نشد: خروج {movement.QuantityMt:N4} MT به تاریخ {movementDate:yyyy-MM-dd} " +
+            $"باعث می‌شود موجودی {scope} از تاریخ {firstNegativeDate:yyyy-MM-dd} منفی شود " +
+            $"(کمترین موجودی پیش‌بینی‌شده: {lowest:N4} MT، ماندهٔ پایانی: {running:N4} MT). " +
+            "اگر این سند عقب‌تاریخ است، اول اسناد بعدیِ همان مخزن را اصلاح کنید، " +
+            "یا تاریخ و مقدار این سند را تصحیح کنید.");
+    }
+
+    /// <summary>
+    /// شرحِ خوانا از scope موجودی، فقط زمانی که قرار است خطا داده شود.
+    /// </summary>
+    private async Task<string> DescribeStockScopeAsync(InventoryMovement movement, CancellationToken ct)
+    {
+        var parts = new List<string>();
+
+        var productName = await _db.Products
+            .AsNoTracking()
+            .Where(p => p.Id == movement.ProductId)
+            .Select(p => p.NamePersian ?? p.Name)
+            .FirstOrDefaultAsync(ct);
+        if (!string.IsNullOrWhiteSpace(productName))
+        {
+            parts.Add($"کالای «{productName}»");
+        }
+
+        if (movement.StorageTankId.HasValue)
+        {
+            var tankCode = await _db.StorageTanks
+                .AsNoTracking()
+                .Where(t => t.Id == movement.StorageTankId.Value)
+                .Select(t => t.DisplayName ?? t.TankCode)
+                .FirstOrDefaultAsync(ct);
+            if (!string.IsNullOrWhiteSpace(tankCode))
+            {
+                parts.Add($"مخزن «{tankCode}»");
+            }
+        }
+
+        var terminalName = await _db.Terminals
+            .AsNoTracking()
+            .Where(t => t.Id == movement.TerminalId)
+            .Select(t => t.Name)
+            .FirstOrDefaultAsync(ct);
+        if (!string.IsNullOrWhiteSpace(terminalName))
+        {
+            parts.Add($"ترمینال «{terminalName}»");
+        }
+
+        if (movement.ContractId.HasValue)
+        {
+            var contractNumber = await _db.Contracts
+                .AsNoTracking()
+                .Where(c => c.Id == movement.ContractId.Value)
+                .Select(c => c.ContractNumber)
+                .FirstOrDefaultAsync(ct);
+            if (!string.IsNullOrWhiteSpace(contractNumber))
+            {
+                parts.Add($"قرارداد {contractNumber}");
+            }
+        }
+
+        return parts.Count == 0 ? "این مخزن" : string.Join(" / ", parts);
     }
 
     [Obsolete("Use EnsureSufficientStockForSaleAsync(sale, sourcePurchaseContractId, ct) — sale.ContractId is the Sales contract and is NOT a valid stock filter.", error: true)]

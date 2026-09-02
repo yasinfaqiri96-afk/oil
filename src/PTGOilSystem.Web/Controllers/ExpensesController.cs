@@ -15,6 +15,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Ledger;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
 using PTGOilSystem.Web.Services.Time;
 
@@ -30,6 +31,12 @@ public partial class ExpensesController : Controller
     // مرحله ۵ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe: اگر تزریق
     // نشود یا خاموش باشد، مسیر قدیمی هیچ تغییری نمی‌کند.
     private readonly Services.Accounting.IExpenseAccountingAdapter? _expenseAccounting;
+    // PTG-P0-01 — نگهبان ثبت دوباره. روی اینترنت ضعیف کاربر Refresh می‌کند و مرورگر همان POST
+    // را دوباره می‌فرستد؛ قفلِ دکمه در مرورگر این حالت را نمی‌گیرد. توکن داخل همان Transaction
+    // مصرف می‌شود، پس ارسال دوم به Unique Index می‌خورد و رد می‌شود.
+    private readonly IFormTokenGuard _formTokens;
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private readonly ILedgerPostingService _ledger;
     private const int DefaultListLimit = 100;
     private const int LookupLimit = 200;
     private const string DefaultWagonRentExpenseName = "Wagon Rent";
@@ -43,7 +50,9 @@ public partial class ExpensesController : Controller
         IAuditService audit,
         ILogger<ExpensesController> logger,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        IFormTokenGuard? formTokens = null,
+        ILedgerPostingService? ledgerPosting = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
@@ -52,6 +61,8 @@ public partial class ExpensesController : Controller
         _audit = audit;
         _logger = logger;
         _expenseAccounting = expenseAccounting;
+        _formTokens = formTokens ?? new FormTokenGuard(db);
+        _ledger = ledgerPosting ?? new LedgerPostingService(db);
     }
 
     public ExpensesController(
@@ -556,7 +567,7 @@ public partial class ExpensesController : Controller
 
         expense.IsCancelled = true;
 
-        var reversal = new LedgerEntry
+        _ledger.Post(new LedgerPostingRequest
         {
             EntryDate = _businessClock.Today,
             Side = ReverseSide(originalLedger.Side),
@@ -574,9 +585,7 @@ public partial class ExpensesController : Controller
             ContractId = originalLedger.ContractId,
             ServiceProviderId = originalLedger.ServiceProviderId,
             ShipmentId = originalLedger.ShipmentId
-        };
-
-        _db.LedgerEntries.Add(reversal);
+        });
         await _db.SaveChangesAsync();
 
         TempData["ok"] = "هزینه لغو شد.";
@@ -673,7 +682,9 @@ public partial class ExpensesController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateWagonRent(WagonRentCreateViewModel model)
+    public async Task<IActionResult> CreateWagonRent(
+        WagonRentCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         NormalizeWagonRentModel(model);
         var manualExpenseTypeName = model.ManualExpenseTypeName?.Trim() ?? string.Empty;
@@ -778,10 +789,13 @@ public partial class ExpensesController : Controller
                 CostResponsibility = model.CostResponsibility
             };
 
+            // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
+            _formTokens.Stamp(formToken, "Expense.CreateWagonRent", nameof(ExpenseTransaction));
+
             _db.ExpenseTransactions.Add(expense);
             await _db.SaveChangesAsync();
 
-            var ledgerEntry = new LedgerEntry
+            var ledgerEntry = _ledger.Post(new LedgerPostingRequest
             {
                 EntryDate = expense.ExpenseDate,
                 Side = LedgerSide.Debit,
@@ -797,9 +811,7 @@ public partial class ExpensesController : Controller
                 SourceId = expense.Id,
                 Reference = BuildLedgerReference(expenseType, expense),
                 ContractId = expense.ContractId
-            };
-
-            _db.LedgerEntries.Add(ledgerEntry);
+            });
             await _db.SaveChangesAsync();
 
             await _audit.LogAndSaveAsync(
@@ -830,6 +842,16 @@ public partial class ExpensesController : Controller
 
             return RedirectToAction(nameof(Details), new { id = expense.Id });
         }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+
+            TempData["err"] = "این کرایه قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
         catch
         {
             if (transaction is not null)
@@ -843,7 +865,9 @@ public partial class ExpensesController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(ExpenseCreateViewModel model)
+    public async Task<IActionResult> Create(
+        ExpenseCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         NormalizeCreateModel(model);
         var normalizedDescription = model.Description?.Trim() ?? string.Empty;
@@ -1072,13 +1096,18 @@ public partial class ExpensesController : Controller
                     CostResponsibility = model.CostResponsibility
                 };
 
+                // PTG-P0-01 — توکن در همان SaveChanges (و همان Transaction) با خودِ مصرف ثبت
+                // می‌شود، پس ارسال دوم با همان توکن به Unique Index می‌خورد و هیچ سند/لجری
+                // نمی‌سازد. نبودِ توکن fail-open است و رفتار قبلی را عوض نمی‌کند.
+                _formTokens.Stamp(formToken, "Expense.Create", nameof(ExpenseTransaction));
+
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
                 var ledgerReference = BuildLedgerReference(expenseType!, expense);
                 var ledgerDescription = BuildLedgerDescription(expenseType!, expense);
 
-                var ledgerEntry = new LedgerEntry
+                var ledgerEntry = _ledger.Post(new LedgerPostingRequest
                 {
                     EntryDate = expense.ExpenseDate,
                     Side = GetExpenseLedgerSide(expense),
@@ -1096,9 +1125,7 @@ public partial class ExpensesController : Controller
                     ContractId = expense.ContractId,
                     ServiceProviderId = expense.ServiceProviderId,
                     ShipmentId = expense.ShipmentId
-                };
-
-                _db.LedgerEntries.Add(ledgerEntry);
+                });
                 await _db.SaveChangesAsync();
 
                 // مرحله ۵ — Dual-write داخل همان Transaction قدیمی.
@@ -1149,6 +1176,12 @@ public partial class ExpensesController : Controller
 
                 throw;
             }
+        }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            // ارسال دوباره همان فرم (Refresh، تب دوم، تلاش پس از Timeout).
+            TempData["err"] = "این مصرف قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
         }
         catch (Exception ex)
         {
@@ -1237,9 +1270,24 @@ public partial class ExpensesController : Controller
             {
                 ModelState.AddModelError(string.Empty, "ردیفی برای ثبت وجود ندارد. دوباره فایل را وارد کنید.");
             }
+            else if (model.ImportValidRowsOnly)
+            {
+                // حالت جزئی انتخاب شده ولی هیچ سطر قابل ثبتی نمانده است.
+                ModelState.AddModelError(
+                    string.Empty,
+                    "هیچ سطر سالمِ ثبت‌نشده‌ای در این فایل نیست. سطرهای دارای خطا را اصلاح کنید.");
+            }
+            else if (model.DuplicateCount > 0 && model.ErrorCount == 0)
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    $"{model.DuplicateCount} سطر از این فایل قبلاً ثبت شده است. برای ثبت بقیه، گزینهٔ «فقط سطرهای سالم و ثبت‌نشده» را فعال کنید.");
+            }
             else
             {
-                ModelState.AddModelError(string.Empty, "هنوز ردیف‌های دارای خطا وجود دارد. ابتدا فایل را اصلاح و دوباره وارد کنید.");
+                ModelState.AddModelError(
+                    string.Empty,
+                    "هنوز ردیف‌های دارای خطا وجود دارد. فایل را اصلاح کنید، یا گزینهٔ «فقط سطرهای سالم و ثبت‌نشده» را فعال کنید.");
             }
 
             return View("ImportPreview", model);
@@ -1266,6 +1314,13 @@ public partial class ExpensesController : Controller
             var savedCount = 0;
             foreach (var row in model.Rows)
             {
+                // PTG-P2-02 — هیچ سطری بی‌صدا رد نمی‌شود: سطرهای ردشده در پیش‌نمایش با
+                // دلیلشان دیده می‌شوند و شمارشِ نهایی هم آن‌ها را گزارش می‌کند.
+                if (!row.IsImportable)
+                {
+                    continue;
+                }
+
                 if (!row.ResolvedExpenseTypeId.HasValue
                     || !expenseTypeMap.TryGetValue(row.ResolvedExpenseTypeId.Value, out var expenseType)
                     || !row.ExpenseDate.HasValue
@@ -1290,13 +1345,16 @@ public partial class ExpensesController : Controller
                     Currency = conversion.SourceCurrencyCode,
                     AppliedFxRateToUsd = conversion.AppliedRateToBase,
                     AmountUsd = conversion.ConvertToBase(row.Amount.Value),
-                    Description = description
+                    Description = description,
+                    // PTG-P2-02 — هویتِ سطر ذخیره می‌شود، وگرنه ایمپورتِ دوبارهٔ همان فایل
+                    // همین مصرف را بار دوم می‌ساخت. Unique Index دیتابیس هم پشتوانهٔ نهایی است.
+                    ImportUniqueKey = row.ImportUniqueKey
                 };
 
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
-                var ledgerEntry = new LedgerEntry
+                var ledgerEntry = _ledger.Post(new LedgerPostingRequest
                 {
                     EntryDate = expense.ExpenseDate,
                     Side = GetExpenseLedgerSide(expense),
@@ -1312,9 +1370,7 @@ public partial class ExpensesController : Controller
                     SourceId = expense.Id,
                     Reference = BuildLedgerReference(expenseType, expense),
                     ContractId = expense.ContractId
-                };
-
-                _db.LedgerEntries.Add(ledgerEntry);
+                });
                 await _db.SaveChangesAsync();
 
                 await _audit.LogAndSaveAsync(
@@ -1341,7 +1397,10 @@ public partial class ExpensesController : Controller
                 await transaction.CommitAsync();
             }
 
-            TempData["ok"] = $"{savedCount} ردیف مصرف از فایل اکسل با موفقیت ثبت شد.";
+            var skipped = model.Rows.Count - savedCount;
+            TempData["ok"] = skipped == 0
+                ? $"{savedCount} ردیف مصرف از فایل اکسل با موفقیت ثبت شد."
+                : $"{savedCount} ردیف ثبت شد؛ {skipped} ردیف ثبت نشد ({model.ErrorCount} خطا، {model.DuplicateCount} تکراری).";
 
             if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
             {
@@ -1443,6 +1502,7 @@ public partial class ExpensesController : Controller
 
         var validCount = 0;
         var errorCount = 0;
+        var occurrences = new ExpenseImportKey.OccurrenceTracker();
 
         foreach (var row in model.Rows)
         {
@@ -1555,6 +1615,17 @@ public partial class ExpensesController : Controller
                 }
             }
 
+            // PTG-P2-02 — هویتِ canonical سطر. با آن، ایمپورتِ دوبارهٔ همان فایل سطرهای
+            // قبلاً ثبت‌شده را دوباره نمی‌سازد؛ بدون آن «ورودِ فقط سطرهای سالم» ناامن بود.
+            row.ImportUniqueKey = ExpenseImportKey.Build(
+                row.ResolvedExpenseTypeId,
+                row.ExpenseDate,
+                row.Amount,
+                row.Currency,
+                row.ResolvedContractId,
+                row.Description,
+                occurrences);
+
             if (row.Errors.Count == 0)
             {
                 validCount++;
@@ -1565,8 +1636,32 @@ public partial class ExpensesController : Controller
             }
         }
 
+        // یک پرس‌وجو برای همهٔ کلیدها؛ نه یک پرس‌وجو به‌ازای هر سطر.
+        var candidateKeys = model.Rows
+            .Where(r => r.Errors.Count == 0 && r.ImportUniqueKey is not null)
+            .Select(r => r.ImportUniqueKey!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var alreadyImported = candidateKeys.Count == 0
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : (await _db.ExpenseTransactions
+                    .AsNoTracking()
+                    .Where(e => e.ImportUniqueKey != null && candidateKeys.Contains(e.ImportUniqueKey))
+                    .Select(e => e.ImportUniqueKey!)
+                    .ToListAsync())
+                .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var row in model.Rows)
+        {
+            row.IsDuplicate = row.Errors.Count == 0
+                && row.ImportUniqueKey is not null
+                && alreadyImported.Contains(row.ImportUniqueKey);
+        }
+
         model.ValidCount = validCount;
         model.ErrorCount = errorCount;
+        model.DuplicateCount = model.Rows.Count(r => r.IsDuplicate);
     }
 
     private async Task PopulateImportLookupsAsync()
@@ -1619,6 +1714,8 @@ public partial class ExpensesController : Controller
         var model = new ExpenseCreateViewModel
         {
             Id = expense.Id,
+            // PTG-P1-05 — نسخه‌ای که کاربر می‌بیند، با فرم برمی‌گردد.
+            Version = expense.Version,
             ExpenseTypeId = expense.ExpenseTypeId,
             ContractId = expense.ContractId,
             ShipmentId = expense.ShipmentId,
@@ -1657,6 +1754,10 @@ public partial class ExpensesController : Controller
         {
             return NotFound();
         }
+
+        // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
+        // نه نسخه‌ای که همین حالا خوانده شد.
+        _db.UseExpectedVersion(expense, model.Version);
 
         if (expense.IsCancelled)
         {
@@ -1918,12 +2019,6 @@ public partial class ExpensesController : Controller
                 await _db.SaveChangesAsync();
             }
 
-            if (ledgerEntry is null)
-            {
-                ledgerEntry = new LedgerEntry();
-                _db.LedgerEntries.Add(ledgerEntry);
-            }
-
             expense.ExpenseTypeId = expenseType.Id;
             expense.ContractId = model.ContractId;
             expense.ShipmentId = model.ShipmentId;
@@ -1939,22 +2034,38 @@ public partial class ExpensesController : Controller
             expense.Description = normalizedDescription;
             expense.CostResponsibility = model.CostResponsibility;
 
-            ledgerEntry.EntryDate = expense.ExpenseDate;
-            ledgerEntry.Side = GetExpenseLedgerSide(expense);
-            ledgerEntry.AmountUsd = expense.AmountUsd;
-            ledgerEntry.Currency = SystemCurrency.BaseCurrencyCode;
-            ledgerEntry.SourceAmount = expense.Amount;
-            ledgerEntry.SourceCurrencyCode = expense.Currency;
-            ledgerEntry.AppliedFxRateToUsd = expense.AppliedFxRateToUsd;
-            ledgerEntry.AppliedFxRateDate = conversion.EffectiveDate.Date;
-            ledgerEntry.AppliedFxRateSource = conversion.SourceDescription;
-            ledgerEntry.Description = BuildLedgerDescription(expenseType, expense);
-            ledgerEntry.SourceType = "Expense";
-            ledgerEntry.SourceId = expense.Id;
-            ledgerEntry.Reference = BuildLedgerReference(expenseType, expense);
-            ledgerEntry.ContractId = expense.ContractId;
-            ledgerEntry.ServiceProviderId = expense.ServiceProviderId;
-            ledgerEntry.ShipmentId = expense.ShipmentId;
+            var ledgerRequest = new LedgerPostingRequest
+            {
+                EntryDate = expense.ExpenseDate,
+                Side = GetExpenseLedgerSide(expense),
+                AmountUsd = expense.AmountUsd,
+                Currency = SystemCurrency.BaseCurrencyCode,
+                SourceAmount = expense.Amount,
+                SourceCurrencyCode = expense.Currency,
+                AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
+                AppliedFxRateDate = conversion.EffectiveDate.Date,
+                AppliedFxRateSource = conversion.SourceDescription,
+                Description = BuildLedgerDescription(expenseType, expense),
+                SourceType = "Expense",
+                SourceId = expense.Id,
+                Reference = BuildLedgerReference(expenseType, expense),
+                ContractId = expense.ContractId,
+                ServiceProviderId = expense.ServiceProviderId,
+                ShipmentId = expense.ShipmentId,
+
+                // فیلدهایی که مسیر ویرایشِ مصرف هرگز دست نمی‌زد، عیناً از سطر موجود می‌آیند
+                // تا خروجی دقیقاً همان چیزی بماند که پیش از تمرکز نوشته می‌شد (PTG-P1-03).
+                AppliedCurrencyPerUsdRate = ledgerEntry?.AppliedCurrencyPerUsdRate,
+                ViaSarrafGroupId = ledgerEntry?.ViaSarrafGroupId,
+                CustomerId = ledgerEntry?.CustomerId,
+                SupplierId = ledgerEntry?.SupplierId,
+                DriverId = ledgerEntry?.DriverId,
+                EmployeeId = ledgerEntry?.EmployeeId,
+            };
+
+            ledgerEntry = ledgerEntry is null
+                ? _ledger.Post(ledgerRequest)
+                : _ledger.Apply(ledgerEntry, ledgerRequest);
 
             await _db.SaveChangesAsync();
 
@@ -2285,7 +2396,7 @@ public partial class ExpensesController : Controller
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
-                var ledgerEntry = new LedgerEntry
+                var ledgerEntry = _ledger.Post(new LedgerPostingRequest
                 {
                     EntryDate = expense.ExpenseDate,
                     Side = LedgerSide.Debit,
@@ -2301,9 +2412,7 @@ public partial class ExpensesController : Controller
                     SourceId = expense.Id,
                     Reference = $"{expenseType.Code}-{expense.Id}",
                     ContractId = expense.ContractId
-                };
-
-                _db.LedgerEntries.Add(ledgerEntry);
+                });
                 await _db.SaveChangesAsync();
                 savedCount++;
             }
@@ -2584,7 +2693,9 @@ public partial class ExpensesController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateGroup(GroupExpenseCreateViewModel model)
+    public async Task<IActionResult> CreateGroup(
+        GroupExpenseCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         model.Currency = SystemCurrency.Normalize(model.Currency);
         var description = model.Description?.Trim() ?? string.Empty;
@@ -2748,6 +2859,9 @@ public partial class ExpensesController : Controller
                 Description = descriptionBase
             };
 
+            // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
+            _formTokens.Stamp(formToken, "Expense.CreateGroup", nameof(ExpenseBatch));
+
             _db.ExpenseBatches.Add(batch);
             await _db.SaveChangesAsync();
 
@@ -2786,7 +2900,7 @@ public partial class ExpensesController : Controller
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
-                var ledgerEntry = new LedgerEntry
+                var ledgerEntry = _ledger.Post(new LedgerPostingRequest
                 {
                     EntryDate = expense.ExpenseDate,
                     Side = GetExpenseLedgerSide(expense),
@@ -2804,9 +2918,7 @@ public partial class ExpensesController : Controller
                     ContractId = expense.ContractId,
                     ServiceProviderId = expense.ServiceProviderId,
                     ShipmentId = expense.ShipmentId
-                };
-
-                _db.LedgerEntries.Add(ledgerEntry);
+                });
                 await _db.SaveChangesAsync();
             }
 
@@ -2832,6 +2944,16 @@ public partial class ExpensesController : Controller
 
             TempData["ok"] = $"مصرف گروهی {batch.BatchNumber} برای {selections.Count} عملیات ثبت شد.";
             return RedirectToAction(nameof(GroupDetails), new { id = batch.Id });
+        }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+
+            TempData["err"] = "این مصرف گروهی قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
         }
         catch (Exception ex)
         {
@@ -2959,7 +3081,7 @@ public partial class ExpensesController : Controller
             }
 
             expense.IsCancelled = true;
-            _db.LedgerEntries.Add(new LedgerEntry
+            _ledger.Post(new LedgerPostingRequest
             {
                 EntryDate = _businessClock.Today,
                 Side = ReverseSide(originalLedger.Side),

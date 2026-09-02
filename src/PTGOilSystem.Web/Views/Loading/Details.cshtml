@@ -29,15 +29,21 @@
         ? $"Platts {Model.PlattsUsd.Value:N2}"
         : Model.LoadingPriceUsd.HasValue ? T("قیمت ثابت", "Fixed price") : null;
 
+    var referenceLabel = Model.TransportType switch
+    {
+        PTGOilSystem.Web.Models.Entities.LoadingTransportType.Truck => T("شماره CMR", "CMR no."),
+        PTGOilSystem.Web.Models.Entities.LoadingTransportType.Vessel => T("بارنامه کشتی", "Vessel bill"),
+        PTGOilSystem.Web.Models.Entities.LoadingTransportType.Wagon => T("شماره RWB", "RWB no."),
+        _ => T("شماره سند", "Document no.")
+    };
+
     // کارت اول هویت بارگیری است، کارت سوم قیمت‌گذاری و ارقام روبلی. هر fact که
     // مقدار نداشته باشد خودکار حذف می‌شود، پس ترتیب کارت‌ها هرگز جابه‌جا نمی‌شود.
     var mainItems = new List<AkInfoItem>
     {
-        new() { Label = T("تاریخ بارگیری", "Loading date"), Value = Model.LoadingDate.ToDisplayDate(), IsNumeric = true },
-        new() { Label = T("محصول", "Product"), Value = Model.ProductName },
         new() { Label = T("نوع حمل", "Transport type"), Value = Model.TransportTypeLabel },
         new() { Label = T("نمبر وسیله", "Vehicle no."), Value = Model.VehicleSummary, IsNumeric = true },
-        new() { Label = T("قرارداد خرید", "Purchase contract"), Value = Model.ContractNumber, Href = contractUrl },
+        new() { Label = referenceLabel, Value = Model.BillOfLadingNumber, IsNumeric = true },
         new() { Label = T("ترمینل / مبدأ", "Terminal / origin"), Value = Model.OriginLocationName },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName },
         new() { Label = T("شرکت خدماتی", "Service provider"), Value = Model.LogisticsCompanyName,
@@ -102,30 +108,10 @@
 
     var quantityMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", State = "accent" },
-        new() { Title = T("قابل ارسال / تخصیص", "Available to dispatch"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT" },
-        new() { Title = T("کسری", "Shortage"), Value = NumberDisplay.Quantity(shortageTotal), Unit = "MT", State = shortageTotal > 0m ? "warning" : null },
-        new() { Title = T("مجموع مصارف", "Total expenses"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD" }
-    };
-
-    var latestReceipt = Model.ReceiptItems.OrderByDescending(item => item.ReceiptDate).FirstOrDefault();
-    var latestCustoms = Model.CustomsItems.OrderByDescending(item => item.DeclarationDate).FirstOrDefault();
-    var latestLoss = Model.LossItems.OrderByDescending(item => item.EventDate).FirstOrDefault();
-    var activeReceiptCount = Model.ReceiptItems.Count(item => !item.IsCancelled);
-    var activityRows = new List<AkDetailActivityRow>
-    {
-        new() { Label = T("رسیدهای بارگیری", "Loading receipts"), Value = activeReceiptCount.ToString("N0"), Meta = T("مورد", "items"),
-                Status = loadingComplete ? T("تکمیل", "Complete") : T("در جریان", "In progress"), StatusTone = loadingComplete ? "success" : "warning",
-                Href = latestReceipt is null ? null : Url.Action("Details", "LoadingReceipts", new { id = latestReceipt.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-box-arrow-in-down" },
-        new() { Label = T("گمرکات", "Customs"), Value = Model.CustomsItems.Count.ToString("N0"), Meta = T("مورد", "items"),
-                Href = latestCustoms is null ? null : Url.Action("Details", "CustomsDeclarations", new { id = latestCustoms.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" },
-        new() { Label = T("مصارف", "Expenses"), Value = Model.ExpenseEditor.Lines.Count > 0 ? Model.ExpenseEditor.Lines.Count.ToString("N0") : null,
-                Meta = Model.ExpenseEditor.Lines.Count > 0 ? T("مورد", "items") : null,
-                Status = Model.LoadingExpenseTotalUsd > 0m ? T("ثبت شده", "Recorded") : T("ثبت نشده", "Not recorded"),
-                StatusTone = Model.LoadingExpenseTotalUsd > 0m ? "success" : null, Icon = "bi-receipt" },
-        new() { Label = T("کسری", "Shortage"), Value = Model.LossItems.Count.ToString("N0"), Meta = T("مورد", "items"),
-                Status = Model.LossItems.Count > 0 ? T("ثبت شده", "Recorded") : null, StatusTone = Model.LossItems.Count > 0 ? "warning" : null,
-                Href = latestLoss is null ? null : Url.Action("Details", "LossEvents", new { id = latestLoss.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" }
+        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", State = "accent", Avatar = "flow-weight-mt" },
+        new() { Title = T("قابل ارسال / تخصیص", "Available to dispatch"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "flow-truck" },
+        new() { Title = T("کسری", "Shortage"), Value = NumberDisplay.Quantity(shortageTotal), Unit = "MT", State = shortageTotal > 0m ? "warning" : null, Avatar = "flow-warning" },
+        new() { Title = T("مجموع مصارف", "Total expenses"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD", Avatar = "flow-calculator" }
     };
 
     var timelineItems = new List<AkTimelineItem>
@@ -152,21 +138,28 @@
         Meta = $"{NumberDisplay.Quantity(item.ChargeableLossMt)} MT"
     }));
 
-    var nextActions = new List<AkHeaderMenuItem>();
-    if (Model.CanRegisterReceipt)
-    {
-        nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت رسید", "Register receipt"), ModalTarget = "loadingReceiptModal", Icon = "bi-box-arrow-in-down" });
-    }
-    nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" });
-    nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "loadingExpensesModal", Icon = "bi-receipt-cutoff" });
-    nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت کسری", "Register shortage"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" });
-
     var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl });
-    // «ویرایش» در نوار شناسه دیده می‌شود، پس در kebab تکرار نمی‌شود.
+    var receiptAction = new AkHeaderMenuItem { Label = T("ثبت رسید", "Register receipt"), ModalTarget = "loadingReceiptModal", Icon = "bi-box-arrow-in-down" };
+    var customsAction = new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" };
+    var editAction = new AkHeaderMenuItem { Label = T("ویرایش", "Edit"), Href = editUrl, Icon = "bi-pencil-square" };
+    var expenseAction = new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "loadingExpensesModal", Icon = "bi-receipt-cutoff" };
+    var lossAction = new AkHeaderMenuItem { Label = T("ثبت کسری", "Register shortage"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" };
+
+    // تمام عملیات صفحه در هدر جمع می‌شوند: گام بعدی واضح است، یک اکشن مستقیم
+    // کنارش می‌ماند و گزینه‌های فرعی در منوی سه‌نقطه قرار می‌گیرند.
+    var primaryAction = Model.CanRegisterReceipt ? receiptAction : customsAction;
+    ViewData["AkHeaderCompanionAction"] = Model.CanRegisterReceipt ? customsAction : editAction;
     var headerMenu = new List<AkHeaderMenuItem>
     {
+        editAction,
+        expenseAction,
+        lossAction,
         new() { Label = T("نمای قرارداد", "Contract journey"), Href = contractUrl, Icon = "bi-diagram-3" }
     };
+    if (!Model.CanRegisterReceipt)
+    {
+        headerMenu.Remove(editAction);
+    }
     if (showRubRateForm)
     {
         headerMenu.Add(new AkHeaderMenuItem { Label = T("تعیین نرخ روبل", "Set RUB rate"), ModalTarget = "loadingRubleRateModal", Icon = "bi-currency-exchange" });
@@ -186,8 +179,6 @@
             new() { Label = T("مقدار", "Quantity"), Value = $"{NumberDisplay.Quantity(Model.LoadedQuantityMt)} MT", IsNumeric = true },
             new() { Label = T("تاریخ", "Date"), Value = Model.LoadingDate.ToDisplayDate(), IsNumeric = true }
         },
-        PrimaryLabel = T("ویرایش", "Edit"),
-        PrimaryHref = editUrl,
         Cards = new List<AkDetailCard>
         {
             new() { Title = T("اطلاعات اصلی", "Main information"), Icon = "bi-info-circle", Rows = mainItems },
@@ -199,14 +190,14 @@
 
     var moreModel = new AkDetailMoreModel
     {
-        Activity = activityRows,
+        CombineActivityAndHistory = true,
+        JourneyTitle = T("روند بارگیری", "Loading journey"),
+        JourneyDescription = T("از زمان ثبت بارگیری تا وضعیت فعلی، همه رویدادها به ترتیب زمان نمایش داده می‌شوند.", "Every event from registration to the current status, in chronological order."),
         Secondary = new AkDetailSecondaryModel
         {
             Timeline = timelineItems,
-            TimelineTitle = T("آخرین فعالیت‌ها", "Latest activity"),
-            TimelineLimit = 4
-        },
-        NextActions = nextActions
+            TimelineTitle = T("همه رویدادهای بارگیری", "All loading events")
+        }
     };
 }
 
@@ -220,7 +211,7 @@
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("جزئیات بارگیری", "Loading details"), false,
-                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       primaryAction.Label, primaryAction.Icon, primaryAction.Href, primaryAction.ModalTarget,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)effectiveReturnUrl))" />
 
     <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />

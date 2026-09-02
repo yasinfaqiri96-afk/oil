@@ -87,5 +87,6 @@ public enum AccountingPartyType
     Sarraf = 4,
     Driver = 5,
     Employee = 6,
-    Partner = 7
+    Partner = 7,
+    Company = 8
 }

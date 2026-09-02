@@ -21,7 +21,7 @@ public enum StockGuard
     Lock = 1,
     /// <summary>موجودی آزادِ همان scope در تاریخ حرکت باید کافی باشد.</summary>
     Available = 2,
-    /// <summary>هیچ نقطه‌ای از خط زمانی نباید منفی شود (فعلاً در StockService خاموش است).</summary>
+    /// <summary>هیچ نقطه‌ای از خط زمانی نباید منفی شود (PTG-P0-02 — فعال).</summary>
     FutureTimeline = 4,
     Standard = Lock | Available,
     Full = Lock | Available | FutureTimeline

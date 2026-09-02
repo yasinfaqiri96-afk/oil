@@ -6,6 +6,12 @@ namespace PTGOilSystem.Web.Models.Expenses;
 
 public sealed class ExpenseCreateViewModel
 {
+    /// <summary>
+    /// PTG-P1-05 — نسخهٔ سطری که کاربر هنگامِ بازکردنِ فرم دید. با فرم برمی‌گردد تا ذخیره
+    /// روی نسخهٔ کهنه رد شود. صفر یعنی فرم نسخه نفرستاده است.
+    /// </summary>
+    public long Version { get; set; }
+
     public int Id { get; set; }
 
     [Display(Name = "نوع مصرف")]

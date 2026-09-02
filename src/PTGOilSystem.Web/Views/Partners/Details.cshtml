@@ -89,7 +89,7 @@
 
     var partnerAccountCard = new AkPartyAccountCard
     {
-        Meaning = balanceSentence,
+        Meaning = string.Empty,
         MeaningTone = balanceTone,
         Facts = new List<AkInfoItem>
         {
@@ -123,6 +123,8 @@
     // و هرگز صفرِ ساختگی چاپ نمی‌شود.
     var noValue = "—";
     string Money(decimal value) => value == 0m ? noValue : value.ToString("N2");
+    // مقدار و نرخ فقط وقتی چاپ می‌شوند که خودِ سند آن‌ها را دارد؛ صفرِ ساختگی بدتر از خالی است.
+    string Optional(decimal? value, string format) => value.HasValue ? value.Value.ToString(format) : noValue;
 
     string? SourceUrl(PartnerAccountEntry entry) => entry.SourceType switch
     {
@@ -229,6 +231,8 @@
                         <th>تاریخ</th>
                         <th>قرارداد</th>
                         <th class="ak-col-grow">شرح</th>
+                        <th class="ak-col-num">مقدار MT</th>
+                        <th class="ak-col-num">نرخ</th>
                         <th class="ak-col-num">بردگی</th>
                         <th class="ak-col-num">رسیدگی</th>
                         <th class="ak-col-num">مانده</th>
@@ -254,6 +258,8 @@
                                 @KindLabel(entry.Kind)@(string.IsNullOrWhiteSpace(entry.Reference) ? "" : $" · {entry.Reference}")
                             </span>
                         </td>
+                        <td class="ak-col-num ak-num">@Optional(entry.QuantityMt, "N3")</td>
+                        <td class="ak-col-num ak-num">@Optional(entry.UnitPriceUsd, "N2")</td>
                         <td class="ak-col-num ak-num @(entry.CreditUsd == 0m ? null : "ak-number--negative")">@Money(entry.CreditUsd)</td>
                         <td class="ak-col-num ak-num @(entry.DebitUsd == 0m ? null : "ak-number--positive")">@Money(entry.DebitUsd)</td>
                         <td class="ak-col-num ak-num">@entry.AccountantBalanceUsd.ToString("N2")</td>
@@ -261,7 +267,7 @@
                 }
                 @if (Model.Entries.Count == 0)
                 {
-                    <tr><td colspan="6"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-cash-stack"></i> برای این بازه و قرارداد، حرکتی ثبت نشده است.</div></td></tr>
+                    <tr><td colspan="8"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-cash-stack"></i> برای این بازه و قرارداد، حرکتی ثبت نشده است.</div></td></tr>
                 }
                 </tbody>
             </table>

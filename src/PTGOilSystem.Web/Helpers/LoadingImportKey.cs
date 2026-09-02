@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 
 namespace PTGOilSystem.Web.Helpers;
 
@@ -85,35 +84,14 @@ public static class LoadingImportKey
         }
     }
 
-    /// <summary>حذف فاصله‌های اضافی و یکسان‌سازی حروف بزرگ و کوچک پیش از مقایسه.</summary>
-    public static string Normalize(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var builder = new StringBuilder(value.Length);
-        var previousWasSpace = false;
-        foreach (var character in value.Trim())
-        {
-            if (char.IsWhiteSpace(character))
-            {
-                previousWasSpace = true;
-                continue;
-            }
-
-            if (previousWasSpace && builder.Length > 0)
-            {
-                builder.Append(' ');
-            }
-
-            previousWasSpace = false;
-            builder.Append(char.ToUpperInvariant(character));
-        }
-
-        return builder.ToString();
-    }
+    /// <summary>
+    /// نسخهٔ canonical برای مقایسه: ارقام فارسی/عربی → لاتین، «ي/ك» → «ی/ک»،
+    /// حذف کاراکترهای نامرئی (ZWNJ)، یکدست‌کردن فاصله و حروف بزرگ.
+    /// بدون این، <c>RWB-12345</c> و <c>RWB-۱۲۳۴۵</c> دو کلید متفاوت می‌ساختند و
+    /// Unique Index روی <c>ImportUniqueKey</c> همان واگن را دوباره می‌پذیرفت (PTG-P1-04).
+    /// برای متنِ کاملاً لاتین خروجی دقیقاً همان رفتارِ قبلی است.
+    /// </summary>
+    public static string Normalize(string? value) => AfghanTextNormalizer.CanonicalKey(value);
 
     /// <summary>مقایسهٔ مقدار/قیمت دو بارگیری با تحمل گِرد‌کردن، برای تشخیص «دارای اختلاف».</summary>
     public static bool ValuesMatch(decimal? left, decimal? right)

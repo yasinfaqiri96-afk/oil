@@ -33,6 +33,7 @@
           data-no-submit-guard
           novalidate>
         @Html.AntiForgeryToken()
+        @Html.FormToken()
         <input asp-for="ReturnUrl" type="hidden" />
 
         <header class="ak-page-header">

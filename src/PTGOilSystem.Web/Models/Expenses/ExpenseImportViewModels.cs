@@ -19,9 +19,30 @@ public class ExpenseImportViewModel
     public int ValidCount { get; set; }
     public int ErrorCount { get; set; }
 
+    /// <summary>PTG-P2-02 — سطرهایی که قبلاً از همین فایل (یا فایلی مشابه) ثبت شده‌اند.</summary>
+    public int DuplicateCount { get; set; }
+
+    /// <summary>
+    /// PTG-P2-02 — انتخابِ صریحِ کاربر: «فقط سطرهای سالم را ثبت کن».
+    ///
+    /// پیش‌فرض <c>false</c> است، یعنی رفتار قبلی و امن‌ترین حالت: یا همه ثبت می‌شوند یا
+    /// هیچ‌کدام. این گزینه هرگز خودکار روشن نمی‌شود و سطرهای ردشده هم بی‌صدا کنار
+    /// نمی‌روند: در پیش‌نمایش با دلیلشان دیده می‌شوند و گزارششان قابل دانلود است.
+    /// </summary>
+    public bool ImportValidRowsOnly { get; set; }
+
     public bool HasRows => Rows.Count > 0;
     public bool HasErrors => ErrorCount > 0;
-    public bool CanConfirm => HasRows && ErrorCount == 0;
+
+    /// <summary>سطرهایی که واقعاً ثبت می‌شوند: سالم، و قبلاً ثبت‌نشده.</summary>
+    public int ImportableCount => Rows.Count(r => r.IsImportable);
+
+    /// <summary>سطرهایی که ثبت نمی‌شوند — چه به‌خاطر خطا، چه به‌خاطر تکراری‌بودن.</summary>
+    public int SkippedCount => Rows.Count - ImportableCount;
+
+    public bool CanConfirm => ImportValidRowsOnly
+        ? ImportableCount > 0
+        : HasRows && ErrorCount == 0 && ImportableCount == Rows.Count;
 }
 
 /// <summary>
@@ -54,5 +75,21 @@ public class ExpenseImportRowViewModel
 
     public List<string> Errors { get; set; } = new();
 
+    /// <summary>PTG-P2-02 — هویتِ canonical سطر؛ همان چیزی که تکراری‌بودن با آن سنجیده می‌شود.</summary>
+    public string? ImportUniqueKey { get; set; }
+
+    /// <summary>این سطر با همین هویت قبلاً ثبت شده است.</summary>
+    public bool IsDuplicate { get; set; }
+
+    /// <summary>چرا این سطر ثبت نمی‌شود (خطا یا تکرار). خالی یعنی ثبت می‌شود.</summary>
+    public string? SkipReason => Errors.Count > 0
+        ? string.Join(" | ", Errors)
+        : IsDuplicate
+            ? "این سطر قبلاً از فایل اکسل ثبت شده است."
+            : null;
+
     public bool IsValid => Errors.Count == 0;
+
+    /// <summary>سالم و تکراری‌نبودن — تنها شرطِ ثبت شدن.</summary>
+    public bool IsImportable => Errors.Count == 0 && !IsDuplicate;
 }

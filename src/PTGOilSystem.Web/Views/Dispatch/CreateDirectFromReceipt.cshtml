@@ -18,6 +18,7 @@
 
         <div class="ak-section-body">
             @Html.AntiForgeryToken()
+            @Html.FormToken()
             <input asp-for="LoadingReceiptAllocationId" type="hidden" />
             <input asp-for="ReturnUrl" type="hidden" />
             <div asp-validation-summary="All" class="ak-form-alert text-danger"></div>

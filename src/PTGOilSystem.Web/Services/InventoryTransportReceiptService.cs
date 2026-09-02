@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Services.Exceptions;
@@ -22,6 +23,10 @@ public sealed class InventoryTransportReceiptService
     public const string TransportFreightExpenseCode = "TRANSPORT-FREIGHT";
 
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IInventoryLineageWriter _lineage;
     private readonly IInventoryMovementWriter _movements;
@@ -229,9 +234,17 @@ public sealed class InventoryTransportReceiptService
             DestinationStorageTankId = model.DestinationStorageTankId,
             Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
         };
+        var carrierParty = await new AssetUsageChargeService(_db).ResolveCarrierPartyAsync(
+            receipt.ServiceProviderId ?? leg.ServiceProviderId,
+            leg.DriverId,
+            receipt.OperationalAssetId ?? leg.OperationalAssetId,
+            receipt.ReceiptDate);
+        receipt.CarrierPartyType = carrierParty?.PartyType;
+        receipt.CarrierPartyId = carrierParty?.PartyId;
 
         _db.InventoryTransportReceipts.Add(receipt);
         await _db.SaveChangesAsync();
+        await new AssetUsageChargeService(_db).SyncOperationAsync(receipt, leg);
 
         await SyncReceiptFreightExpenseAsync(receipt, leg);
         await SyncShortageDebtAsync(receipt, leg, model.ShortageAsSeparateDebt);
@@ -329,7 +342,7 @@ public sealed class InventoryTransportReceiptService
 
             receipt.SalesTransactionId = directSale.Id;
 
-            _db.LedgerEntries.Add(BuildDirectSaleLedgerEntry(
+            Ledger.Post(BuildDirectSaleLedgerEntry(
                 directSale,
                 saleSourcePlan.SingleContractId,
                 saleConversion!));
@@ -546,7 +559,7 @@ public sealed class InventoryTransportReceiptService
         };
     }
 
-    private static LedgerEntry BuildDirectSaleLedgerEntry(
+    private static LedgerPostingRequest BuildDirectSaleLedgerEntry(
         SalesTransaction sale,
         int? sourcePurchaseContractId,
         CurrencyConversionResult conversion)
@@ -767,7 +780,7 @@ public sealed class InventoryTransportReceiptService
         }
 
         // کرایه بدهیِ ما به حمل‌کننده است ⇒ همیشه Credit روی حساب همان طرف (شرکت خدماتی یا راننده).
-        _db.LedgerEntries.Add(new LedgerEntry
+        Ledger.Post(new LedgerPostingRequest
         {
             EntryDate = expense.ExpenseDate,
             Side = LedgerSide.Credit,
@@ -791,8 +804,14 @@ public sealed class InventoryTransportReceiptService
     }
 
     // «بدهیِ جدا»: خسارتِ کسری را به‌عنوان مطالبه (Debit) روی حساب مسئول (شرکت خدماتی یا موتروانِ مستقل) ثبت می‌کند.
-    // یک رکورد به‌ازای هر رسید با کلید یکتا TRANSPORT-SHORTAGE:{receiptId} تا ثبت تکراری نشود.
     // موترِ خودِ شرکت (دارایی عملیاتی) مطالبه نمی‌گیرد. کرایه اینجا دست‌نمی‌خورد؛ P&L به‌صورت خالص می‌بیند.
+    //
+    // مالکیت: LedgerEntry ستون شرکت ندارد و انتسابِ شرکتیِ یک سطر فقط از راه ContractId خوانده
+    // می‌شود. پس در حملِ چندقراردادی/چندشرکتی یک سطرِ واحد با قراردادِ سرصفحه یعنی کلِ خسارت
+    // روی همان یک شرکت می‌نشیند. سهم‌های منبع همان تقسیمی را می‌دهند که کسری و ورودی مقصد
+    // با آن ثبت شده‌اند، پس مطالبه هم به همان نسبت به سطرهای per-contract تقسیم می‌شود
+    // (جمع سطرها دقیقاً برابر ShortageChargeUsd می‌ماند). حملِ تک‌قراردادی دقیقاً همان یک
+    // سطرِ قبلی را با همان Reference می‌سازد.
     private async Task SyncShortageDebtAsync(InventoryTransportReceipt receipt, InventoryTransportLeg leg, bool asSeparateDebt)
     {
         if (!asSeparateDebt || receipt.OperationalAssetId.HasValue)
@@ -813,26 +832,36 @@ public sealed class InventoryTransportReceiptService
             return;
         }
 
-        _db.LedgerEntries.Add(new LedgerEntry
+        // محافظِ ثبت تکراری: retry روی همان رسید نباید مطالبه را دوباره بسازد.
+        if (await _db.LedgerEntries.AnyAsync(l => l.SourceType == ShortageDebtSourceType && l.SourceId == receipt.Id))
         {
-            EntryDate = receipt.ReceiptDate.Date,
-            Side = LedgerSide.Debit,
-            AmountUsd = amountUsd,
-            Currency = SystemCurrency.BaseCurrencyCode,
-            SourceAmount = amountUsd,
-            SourceCurrencyCode = SystemCurrency.BaseCurrencyCode,
-            AppliedFxRateToUsd = 1m,
-            AppliedFxRateDate = receipt.ReceiptDate.Date,
-            AppliedFxRateSource = "Base currency",
-            Description = $"Shortage charge for transport leg #{leg.Id}, receipt #{receipt.Id}",
-            SourceType = "ShortageCharge",
-            SourceId = receipt.Id,
-            Reference = $"TRANSPORT-SHORTAGE:{receipt.Id}",
-            ContractId = leg.SourcePurchaseContractId,
-            ShipmentId = leg.ShipmentId,
-            ServiceProviderId = serviceProviderId,
-            DriverId = driverId
-        });
+            return;
+        }
+
+        foreach (var (contractId, shareUsd) in await BuildShortageDebtSharesAsync(receipt, leg))
+        {
+            Ledger.Post(new LedgerPostingRequest
+            {
+                EntryDate = receipt.ReceiptDate.Date,
+                Side = LedgerSide.Debit,
+                AmountUsd = shareUsd,
+                Currency = SystemCurrency.BaseCurrencyCode,
+                SourceAmount = shareUsd,
+                SourceCurrencyCode = SystemCurrency.BaseCurrencyCode,
+                AppliedFxRateToUsd = 1m,
+                AppliedFxRateDate = receipt.ReceiptDate.Date,
+                AppliedFxRateSource = "Base currency",
+                Description = $"Shortage charge for transport leg #{leg.Id}, receipt #{receipt.Id}",
+                SourceType = ShortageDebtSourceType,
+                SourceId = receipt.Id,
+                Reference = ShortageDebtReference(receipt.Id, contractId, leg.SourcePurchaseContractId),
+                ContractId = contractId,
+                ShipmentId = leg.ShipmentId,
+                ServiceProviderId = serviceProviderId,
+                DriverId = driverId
+            });
+        }
+
         await _db.SaveChangesAsync();
 
         if (_shortageAccounting is not null)
@@ -840,6 +869,49 @@ public sealed class InventoryTransportReceiptService
             await _shortageAccounting.TryPostShortageChargeAsync(receipt);
         }
     }
+
+    // سهم‌های پولیِ مطالبهٔ کسری به تفکیک قرارداد منبع. مبنای نسبت همان سهم‌های منبعِ حمل است
+    // که کسری فیزیکی هم با آن‌ها تقسیم شده؛ باقیماندهٔ گِرد به بزرگ‌ترین سهم می‌رود تا جمعِ
+    // سطرها دقیقاً برابر مبلغ کل بماند. حملِ بدون سهمِ منبع به قرارداد سرصفحه برمی‌گردد.
+    private async Task<IReadOnlyList<(int? ContractId, decimal AmountUsd)>> BuildShortageDebtSharesAsync(
+        InventoryTransportReceipt receipt,
+        InventoryTransportLeg leg)
+    {
+        var amountUsd = receipt.ShortageChargeUsd ?? 0m;
+        var chargeableMt = receipt.ChargeableShortageMt ?? Math.Abs(receipt.ShortageQuantityMt);
+        var plan = chargeableMt > 0m
+            ? await _sourceAllocations.BuildFromLegAsync(leg.Id, chargeableMt)
+            : TransportSourcePlan.Empty;
+
+        var byContract = plan.Shares
+            .GroupBy(share => share.SourcePurchaseContractId)
+            .Select(g => (ContractId: g.Key, QuantityMt: g.Sum(share => share.QuantityMt)))
+            .OrderBy(x => x.ContractId)
+            .ToList();
+
+        if (byContract.Count <= 1)
+        {
+            return [(byContract.Count == 1 ? byContract[0].ContractId : leg.SourcePurchaseContractId, amountUsd)];
+        }
+
+        var amounts = Accounting.InventoryTransportLegOwnershipResolver.ProportionalSplit(
+            amountUsd,
+            byContract.Select(x => x.QuantityMt).ToList());
+
+        return byContract
+            .Select((row, index) => ((int?)row.ContractId, amounts[index]))
+            .Where(row => row.Item2 > 0m)
+            .ToList();
+    }
+
+    private const string ShortageDebtSourceType = "ShortageCharge";
+
+    // حملِ تک‌قراردادی دقیقاً همان Reference قبلی را نگه می‌دارد؛ فقط سطرهای اضافیِ حملِ
+    // چندقراردادی پسوند قرارداد می‌گیرند تا هر سطر کلید یکتای خودش را داشته باشد.
+    private static string ShortageDebtReference(int receiptId, int? contractId, int? headerContractId)
+        => contractId is null || contractId == headerContractId
+            ? $"TRANSPORT-SHORTAGE:{receiptId}"
+            : $"TRANSPORT-SHORTAGE:{receiptId}:C{contractId}";
 
     private async Task<ExpenseType> EnsureReceiptFreightExpenseTypeAsync()
     {

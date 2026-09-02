@@ -1,4 +1,4 @@
-/*
+﻿/*
  * PTG Oil System - Core Module
  * Extracted from site.js for better organization
  */
@@ -18,7 +18,60 @@
         initializeBulkReceiptForms();
         initializeQuickCreateForms();
         initializeSubmitGuard();
+        initializeDateGuards();
         callIfAvailable("initializeFinanceForms");
+    }
+
+    // ---------------------------------------------------------------------
+    // PTG-P3-A — Backdated / future-dated notice
+    // A date input marked [data-ptg-date-guard] shows an inline notice as soon
+    // as the chosen day is not today. Nothing is blocked: back-dating is a
+    // legitimate daily operation here (documents arrive late). What was missing
+    // was any sign at all, so a mistyped year looked exactly like a correct one
+    // and only surfaced months later in the negative-stock report.
+    //
+    // "Today" comes from the input's data-ptg-today attribute, which the server
+    // renders from the Kabul business clock — the browser clock is not a source
+    // of truth for a business date.
+    // ---------------------------------------------------------------------
+    function initializeDateGuards() {
+        document.querySelectorAll("input[type=date][data-ptg-date-guard]").forEach(function (input) {
+            if (input.dataset.ptgDateGuardReady === "true") {
+                return;
+            }
+            input.dataset.ptgDateGuardReady = "true";
+
+            var notice = document.createElement("p");
+            notice.className = "ak-field-note ptg-date-note";
+            notice.hidden = true;
+            notice.setAttribute("role", "status");
+            input.insertAdjacentElement("afterend", notice);
+
+            function render() {
+                var today = input.getAttribute("data-ptg-today");
+                if (!today || !input.value) {
+                    notice.hidden = true;
+                    return;
+                }
+
+                var chosen = Date.parse(input.value + "T00:00:00Z");
+                var reference = Date.parse(today + "T00:00:00Z");
+                if (isNaN(chosen) || isNaN(reference) || chosen === reference) {
+                    notice.hidden = true;
+                    return;
+                }
+
+                var days = Math.round(Math.abs(chosen - reference) / 86400000);
+                notice.textContent = chosen < reference
+                    ? "تاریخ این سند " + days + " روز پیش از امروز است. اگر عمدی نیست، تاریخ را بررسی کنید."
+                    : "تاریخ این سند " + days + " روز بعد از امروز است. اگر عمدی نیست، تاریخ را بررسی کنید.";
+                notice.hidden = false;
+            }
+
+            input.addEventListener("change", render);
+            input.addEventListener("input", render);
+            render();
+        });
     }
 
     function callIfAvailable(functionName) {

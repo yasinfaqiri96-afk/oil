@@ -47,24 +47,24 @@
     };
     if (!Model.IsCancelled)
     {
+        // PTG-P2-03 — ابطال دیگر یک کلیکِ بی‌سؤال نیست: صفحهٔ اصلاح دلیل می‌خواهد و
+        // جایگزینِ پیونددار را پیشنهاد می‌دهد.
         salesKebab.Add(new AkHeaderMenuItem
         {
-            Label = T("ابطال فروش", "Cancel sale"),
-            PostUrl = Url.Action("Cancel", new { id = Model.Id, returnUrl = currentReturnUrl }),
+            Label = T("ابطال / اصلاح فروش", "Cancel / correct sale"),
+            Href = Url.Action("Correct", new { id = Model.Id, returnUrl = currentReturnUrl }),
             Icon = "bi-slash-circle",
-            IsDestructive = true,
-            ConfirmTitle = T("ابطال فروش", "Cancel sale"),
-            ConfirmMessage = T("این فروش ابطال شود؟", "Cancel this sale?")
+            IsDestructive = true
         });
     }
     ViewData["AkHeaderKebab"] = salesKebab;
 
     var amountMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مقدار فروش", "Sale quantity"), Value = NumberDisplay.Quantity(Model.QuantityMt), Unit = "MT" },
-        new() { Title = T("مبلغ کل", "Total amount"), Value = Model.TotalInCurrency.ToString("N2"), Unit = Model.Currency, State = "accent" },
-        new() { Title = T("دریافت‌شده", "Received"), Value = Model.ReceivedUsd.ToString("N2"), Unit = "USD" },
-        new() { Title = T("مانده قابل دریافت", "Outstanding receivable"), Value = Model.ReceivableBalanceUsd.ToString("N2"), Unit = "USD", State = Model.ReceivableBalanceUsd > 0 ? "warning" : null }
+        new() { Title = T("مقدار فروش", "Sale quantity"), Value = NumberDisplay.Quantity(Model.QuantityMt), Unit = "MT", Avatar = "flow-weight-mt" },
+        new() { Title = T("مبلغ کل", "Total amount"), Value = Model.TotalInCurrency.ToString("N2"), Unit = Model.Currency, State = "accent", Avatar = "flow-cash" },
+        new() { Title = T("دریافت‌شده", "Received"), Value = Model.ReceivedUsd.ToString("N2"), Unit = "USD", Avatar = "flow-receipt-check" },
+        new() { Title = T("مانده قابل دریافت", "Outstanding receivable"), Value = Model.ReceivableBalanceUsd.ToString("N2"), Unit = "USD", State = Model.ReceivableBalanceUsd > 0 ? "warning" : null, Avatar = "flow-invoice-check" }
     };
 
     // زون ۳: یک کارت هویتی + یک کارت منبع. اعداد پول از این گرید بیرون کشیده شده‌اند

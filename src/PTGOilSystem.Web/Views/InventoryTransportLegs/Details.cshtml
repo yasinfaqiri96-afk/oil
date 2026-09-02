@@ -1,3 +1,4 @@
+﻿@using Microsoft.AspNetCore.Html
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.TruckSettlements
 @model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportLegDetailsViewModel
@@ -24,9 +25,11 @@
     var canAddRelatedRecord = Model.Status != InventoryTransportLegStatus.Cancelled;
     var canSettleFreight = canAddRelatedRecord && !Model.IsFreightSettled
         && Model.Status is InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit or InventoryTransportLegStatus.Received;
-    var canFullTruckSettlement = canSettleFreight
-        && Model.TransportType == LoadingTransportType.Truck
-        && Model.Status is InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit;
+    var canDetailedVehicleSettlement = canSettleFreight
+        && Model.TransportType is LoadingTransportType.Truck or LoadingTransportType.Wagon
+        && Model.Status is InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit
+        && Model.RemainingQuantityMt > 0.0001m;
+    var canSimpleFreightSettlement = canSettleFreight && !canDetailedVehicleSettlement;
 
     var statusText = Model.Status switch
     {
@@ -63,7 +66,8 @@
     var documentNumber = string.IsNullOrWhiteSpace(Model.OutboundReferenceDocument)
         ? $"TR-{Model.Id:0000}"
         : Model.OutboundReferenceDocument;
-    var carrierName = Model.ServiceProviderName ?? Model.OperationalAssetName;
+    // حمل‌کنندهٔ شخصی نه شرکت دارد و نه دارایی؛ در آن حالت خودِ راننده متصدی حمل است.
+    var carrierName = Model.ServiceProviderName ?? Model.OperationalAssetName ?? Model.DriverName;
     var vehicleName = Model.Chain.FirstOrDefault(step => step.IsCurrent)?.VehicleLabel
         ?? Model.OperationalAssetName
         ?? Model.WagonNumber;
@@ -85,7 +89,11 @@
     if (Model.TransportType == LoadingTransportType.Truck)
     {
         mainItems.Add(new() { Label = T("نمبر پلیت", "Plate no."), Value = Model.WagonNumber, IsNumeric = true });
-        mainItems.Add(new() { Label = T("متصدی / راننده", "Carrier / driver"), Value = carrierName });
+        if (!string.IsNullOrWhiteSpace(Model.DriverName))
+        {
+            mainItems.Add(new() { Label = T("راننده", "Driver"), Value = Model.DriverName });
+        }
+        mainItems.Add(new() { Label = T("متصدی حمل", "Carrier"), Value = carrierName });
         mainItems.Add(new() { Label = T("شرکت حمل‌کننده", "Transport company"), Value = Model.ServiceProviderName });
         mainItems.Add(new() { Label = T("نمبر CMR", "CMR no."), Value = Model.RwbNo, IsNumeric = true });
         mainItems.Add(new() { Label = T("نوع موتر", "Truck type"), Value = vehicleName ?? transportTypeName });
@@ -125,18 +133,18 @@
     // مصارف: همان برچسب‌های موجود در Journey؛ هیچ محاسبه‌ای بازتعریف نشده.
     var costMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("کرایه رسید مقصد", "Destination freight"), Value = U(Model.Pnl.ReceiptFreightExpenseUsd), Unit = "USD" },
-        new() { Title = T("گمرک", "Customs"), Value = U(Model.Pnl.CustomsUsd), Unit = "USD" },
-        new() { Title = T("مجموع مصارف", "Total expenses"), Value = U(Model.Pnl.OperationalExpensesUsd), Unit = "USD", State = "accent" }
+        new() { Title = T("کرایه رسید مقصد", "Destination freight"), Value = U(Model.Pnl.ReceiptFreightExpenseUsd), Unit = "USD", Avatar = "flow-truck" },
+        new() { Title = T("گمرک", "Customs"), Value = U(Model.Pnl.CustomsUsd), Unit = "USD", Avatar = "flow-docs-plus" },
+        new() { Title = T("مجموع مصارف", "Total expenses"), Value = U(Model.Pnl.OperationalExpensesUsd), Unit = "USD", State = "accent", Avatar = "flow-calculator" }
     };
 
     var cargoMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("محصول", "Product"), Value = Model.ProductName },
-        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = Q(Model.QuantityMt), Unit = "MT" },
-        new() { Title = T("تحویل‌شده", "Received"), Value = Q(Model.Pnl.ReceivedQuantityMt), Unit = "MT" },
-        new() { Title = T("کسری", "Shortage"), Value = Q(shortageQuantity), Unit = "MT", State = shortageQuantity > 0m ? "warning" : null },
-        new() { Title = T("باقی‌مانده", "Remaining"), Value = Q(Model.RemainingQuantityMt), Unit = "MT" }
+        new() { Title = T("محصول", "Product"), Value = Model.ProductName, Avatar = "flow-drop" },
+        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = Q(Model.QuantityMt), Unit = "MT", Avatar = "flow-weight-mt" },
+        new() { Title = T("تحویل‌شده", "Received"), Value = Q(Model.Pnl.ReceivedQuantityMt), Unit = "MT", Avatar = "flow-stock-in" },
+        new() { Title = T("کسری", "Shortage"), Value = Q(shortageQuantity), Unit = "MT", State = shortageQuantity > 0m ? "warning" : null, Avatar = "flow-warning" },
+        new() { Title = T("باقی‌مانده", "Remaining"), Value = Q(Model.RemainingQuantityMt), Unit = "MT", Avatar = "flow-tank-gauge" }
     };
 
     var latestReceipt = Model.DestinationReceipts.OrderByDescending(item => item.ReceiptDate).FirstOrDefault();
@@ -198,38 +206,53 @@
     }
     if (canCreateReceipt)
     {
-        nextActions.Add(new AkHeaderMenuItem { Label = T("تحویل در مقصد", "Deliver at destination"), Href = Url.Action("Create", "InventoryTransportReceipts", new { transportLegId = Model.Id, destination = (int)InventoryTransportReceiptDestination.ToInventory }), Icon = "bi-box-arrow-in-down" });
+        nextActions.Add(new AkHeaderMenuItem { Label = T("تحویل در مقصد", "Deliver at destination"), Href = Url.Action("Create", "InventoryTransportReceipts", new { transportLegId = Model.Id, destination = (int)InventoryTransportReceiptDestination.ToInventory, focused = true }), Icon = "bi-box-arrow-in-down" });
     }
-    if (canAddRelatedRecord)
+    if (canDetailedVehicleSettlement)
     {
-        nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { transportLegId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" });
-        nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "transportExpensesModal", Icon = "bi-receipt" });
+        nextActions.Add(new AkHeaderMenuItem
+        {
+            Label = T("ثبت وزن، کسری و کرایه", "Record weight, shortage & freight"),
+            Href = Url.Action("Index", "TruckSettlements", new { kind = TruckSettlementSourceKind.Leg, sourceId = Model.Id }),
+            Icon = "bi-calculator"
+        });
     }
-    if (canCreateReceipt)
-    {
-        nextActions.Add(new AkHeaderMenuItem { Label = T("ثبت کسری", "Record shortage"), Href = Url.Action("Create", "LossEvents", new { transportLegId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" });
-    }
-    if (canSettleFreight)
+    else if (canSimpleFreightSettlement)
     {
         nextActions.Add(new AkHeaderMenuItem { Label = T("تسویه کرایه", "Settle freight"), ModalTarget = "freightSettlementModal", Icon = "bi-cash-coin" });
     }
 
-    var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl });
+    // «ویرایش» فقط وقتی نشان داده می‌شود که سرور هم آن را بپذیرد؛ وگرنه کلیک حتماً به خطا
+    // می‌خورد و کاربر به صفحهٔ جریان پرت می‌شود.
+    var editUrl = Model.CanEditDocument
+        ? Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl })
+        : null;
+    if (!string.IsNullOrWhiteSpace(editUrl))
+    {
+        nextActions.Add(new AkHeaderMenuItem { Label = T("ویرایش", "Edit"), Href = editUrl, Icon = "bi-pencil" });
+    }
     var overflowActions = new List<AkHeaderMenuItem>();
     if (Model.ShipmentId.HasValue)
     {
         overflowActions.Add(new AkHeaderMenuItem { Label = T("نمای محموله", "Shipment details"), Href = Url.Action("Details", "ShipmentPnl", new { id = Model.ShipmentId.Value, returnUrl = currentPageReturnUrl }), Icon = "bi-box-seam" });
     }
+    if (canAddRelatedRecord)
+    {
+        overflowActions.Add(new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { transportLegId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" });
+        overflowActions.Add(new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "transportExpensesModal", Icon = "bi-receipt" });
+    }
     if (canCreateReceipt)
     {
-        overflowActions.Add(new AkHeaderMenuItem { Label = T("فروش مستقیم و تسویه", "Direct sale & settle"), Href = Url.Action("Create", "InventoryTransportReceipts", new { transportLegId = Model.Id, destination = (int)InventoryTransportReceiptDestination.DirectSale }), Icon = "bi-cart-check" });
+        overflowActions.Add(new AkHeaderMenuItem { Label = T("فروش مستقیم بار", "Sell load directly"), Href = Url.Action("Create", "InventoryTransportReceipts", new { transportLegId = Model.Id, destination = (int)InventoryTransportReceiptDestination.DirectSale }), Icon = "bi-cart-check" });
         overflowActions.Add(new AkHeaderMenuItem { Label = T("انتقال به وسیله دیگر", "Transfer to another vehicle"), Href = Url.Action("Continue", "Transports", new { transportLegId = Model.Id }), Icon = "bi-arrow-left-right" });
+        overflowActions.Add(new AkHeaderMenuItem
+        {
+            Label = T("ثبت کسری مستقل (بدون تخلیه)", "Record standalone shortage (without unloading)"),
+            Href = Url.Action("Create", "LossEvents", new { transportLegId = Model.Id, returnUrl = currentPageReturnUrl }),
+            Icon = "bi-exclamation-diamond"
+        });
     }
-    if (canFullTruckSettlement)
-    {
-        overflowActions.Add(new AkHeaderMenuItem { Label = T("تسویه کامل موتر", "Full truck settlement"), Href = Url.Action("Index", "TruckSettlements", new { kind = TruckSettlementSourceKind.Leg, sourceId = Model.Id }), Icon = "bi-calculator" });
-    }
-    if (Model.CompatibilityDispatchId.HasValue)
+    if (Model.Status != InventoryTransportLegStatus.Cancelled && Model.CompatibilityDispatchId.HasValue)
     {
         overflowActions.Add(new AkHeaderMenuItem
         {
@@ -239,7 +262,21 @@
             ConfirmMessage = T("اگر عملیات بعدی ثبت شده باشد، لغو مسدود می‌شود. این مرحله را لغو می‌کنید؟", "Cancellation is blocked when downstream activity exists. Cancel this step?")
         });
     }
-    // «ویرایش» در نوار خلاصه دیده می‌شود، پس دیگر در kebab تکرار نمی‌شود.
+    // لغو سند حمل بسته‌ای: موجودی مبدأ برمی‌گردد و سند و همهٔ مرحله‌هایش لغو می‌شوند.
+    if (Model.CanCancelDocument && Model.InventoryTransportBatchId.HasValue)
+    {
+        overflowActions.Add(new AkHeaderMenuItem
+        {
+            Label = T("لغو سند حمل", "Cancel transport document"),
+            PostUrl = Url.Action("CancelBatch", new { id = Model.InventoryTransportBatchId.Value, returnUrl = currentPageReturnUrl }),
+            Icon = "bi-arrow-counterclockwise", IsDestructive = true,
+            ConfirmTitle = T("لغو این سند حمل", "Cancel this transport document"),
+            ConfirmMessage = T(
+                "موجودی کسرشدهٔ مبدأ برگشت داده می‌شود و همهٔ مرحله‌های این سند لغو می‌شوند. ادامه می‌دهید؟",
+                "Source inventory will be restored and every leg of this document will be cancelled. Continue?")
+        });
+    }
+    // «ویرایش» در نوار اقدامات سریع دیده می‌شود، پس در kebab تکرار نمی‌شود.
     ViewData["AkHeaderOverflowActions"] = overflowActions;
 
     var cardsModel = new AkDetailCardsModel
@@ -249,8 +286,8 @@
         Status = statusText,
         StatusState = statusState,
         StripItems = stripItems,
-        PrimaryLabel = T("ویرایش", "Edit"),
-        PrimaryHref = editUrl,
+        PrimaryLabel = null,
+        PrimaryHref = null,
         Cards = new List<AkDetailCard>
         {
             new()
@@ -298,16 +335,59 @@
         }
     };
 
+    // زنجیرهٔ حمل هویت همین بار است: کدام وسیله‌ها آن را بردند و از کدام حملِ قبلی
+    // Split یا Merge شده است. داخل «نمایش موارد بیشتر» تا می‌شود تا صفحه پیش‌فرض شلوغ
+    // نباشد، ولی از صفحه حذف نمی‌شود؛ وگرنه باری که بین دو موتر شکسته، منبعِ خود را
+    // در هیچ صفحه‌ای نشان نمی‌داد.
+    Func<object, IHtmlContent>? transportChainSection = Model.Chain.Count == 0 ? null : @<section class="ak-form-section transport-chain-section" aria-labelledby="transport-chain-title">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@((T("مسیر حمل", "Transport timeline"), (string?)T("وسیله‌ها، Split و Merge این بار", "Vehicles, splits and merges for this load")))" />
+            <div class="transport-chain-timeline" id="transport-chain-title">
+                @foreach (var step in Model.Chain)
+                {
+                    var stepType = step.TransportType switch
+                    {
+                        LoadingTransportType.Truck => T("موتر", "Truck"),
+                        LoadingTransportType.Wagon => T("واگن", "Wagon"),
+                        LoadingTransportType.Vessel => T("کشتی", "Vessel"),
+                        _ => T("وسیله", "Vehicle")
+                    };
+                    <article class="transport-chain-step @(step.IsCurrent ? "is-current" : null)">
+                        @if (step.ParentLegIds.Count > 0)
+                        {
+                            <div class="transport-chain-parent">
+                                <span>@(step.ParentLegIds.Count > 1 ? T("ادغام از", "Merged from") : T("ادامه از", "Continued from"))</span>
+                                @foreach (var parentId in step.ParentLegIds)
+                                {
+                                    <a asp-action="Details" asp-route-id="@parentId">TR-@parentId.ToString("0000")</a>
+                                }
+                            </div>
+                        }
+                        <div class="transport-chain-node">
+                            <span class="transport-chain-icon"><i class="bi @(step.TransportType == LoadingTransportType.Vessel ? "bi-life-preserver" : step.TransportType == LoadingTransportType.Wagon ? "bi-train-front" : "bi-truck-front")" aria-hidden="true"></i></span>
+                            <div>
+                                <strong>@stepType — @step.VehicleLabel</strong>
+                                <span>TR-@step.Id.ToString("0000") · @step.LoadedDate.ToDisplayDate()</span>
+                            </div>
+                            <div class="transport-chain-quantity"><bdi>@Q(step.QuantityMt)</bdi> MT <small>@T("باقی", "remaining") <bdi>@Q(step.RemainingQuantityMt)</bdi></small></div>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>;
+
     var moreModel = new AkDetailMoreModel
     {
         Activity = activityRows,
+        ExtraSection = transportChainSection,
         Secondary = new AkDetailSecondaryModel
         {
             Timeline = timelineItems,
             TimelineTitle = T("آخرین فعالیت‌ها", "Latest activity"),
             TimelineLimit = 4
-        },
-        NextActions = nextActions
+        }
+        // نوار «اقدامات سریع» دیگر اینجا نیست: پای بخش «مسیر حمل» در انتهای صفحه
+        // رندر می‌شود تا باز کردن disclosure برای رسیدن به عملیات بعدی لازم نباشد.
     };
 }
 
@@ -325,7 +405,12 @@
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
     <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
+
     <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
+
+    @* «اقدامات سریع» بیرون از disclosure می‌ماند: عملیات بعدی نباید پشت یک toggle پنهان شود. *@
+    <partial name="~/Views/Shared/Partials/_DetailActionBar.cshtml"
+             model="@((IReadOnlyList<AkHeaderMenuItem>)nextActions)" />
 
     @if (canAddRelatedRecord)
     {
@@ -345,13 +430,15 @@
         </div>
     }
 
-    @if (canSettleFreight)
+    @if (canSimpleFreightSettlement)
     {
         <div class="modal fade no-print" id="freightSettlementModal" tabindex="-1" aria-labelledby="freightSettlementModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content ak-modal-content">
                     <form asp-controller="Transports" asp-action="SettleFreight" method="post" data-loading-form>
                         @Html.AntiForgeryToken()
+                        @* PTG-P3-B — این فرم مصرف واقعی می‌سازد؛ ارسال دوم نباید دو برابرش کند. *@
+                        @Html.FormToken()
                         <input type="hidden" name="TransportLegId" value="@Model.Id" />
                         <div class="ak-modal-head">
                             <h2 class="modal-title" id="freightSettlementModalLabel">@T("تسویه کرایه", "Settle freight")</h2>

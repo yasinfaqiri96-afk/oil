@@ -47,7 +47,12 @@ public partial class PartnersController : Controller
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim();
+            // PTG canonical search — کلیدِ canonical به شرطِ قبلی اضافه می‌شود، جایگزینِ آن نمی‌شود:
+            // هیچ نتیجه‌ای از دست نمی‌رود و «یوسف» سطرِ «يوسف» را هم پیدا می‌کند.
+            // SearchKey خالی یعنی سطرِ پیش از Backfill؛ همان شرطِ قبلی هنوز آن را می‌یابد.
+            var canonicalTerm = AfghanTextNormalizer.NormalizeForSearch(term);
             query = query.Where(p =>
+                (p.SearchKey != null && p.SearchKey.Contains(canonicalTerm)) ||
                 p.Code.Contains(term) ||
                 p.Name.Contains(term) ||
                 (p.NamePersian != null && p.NamePersian.Contains(term)) ||
@@ -258,7 +263,22 @@ public partial class PartnersController : Controller
             ("Name", item.Name),
             ("Country", item.Country));
         _db.Partners.Remove(item);
-        await _db.SaveChangesAsync();
+
+        // PTG-P2-01 — کلیدهای خارجیِ Restrict آخرین نگهبان‌اند و همیشه باید باشند.
+        // EvaluatePartnerAsync ارجاع‌های شناخته‌شده را می‌گیرد، ولی اگر روزی رابطهٔ تازه‌ای
+        // اضافه شود و اینجا از قلم بیفتد، کاربر باید پیام فارسی ببیند نه خطای ۵۰۰.
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            _db.Entry(item).State = EntityState.Unchanged;
+            TempData["err"] = "این شریک در اسناد دیگری استفاده شده است و حذف نشد. "
+                + "ابتدا آن اسناد را بررسی کنید یا شریک را غیرفعال کنید.";
+            return RedirectToAction(nameof(Index));
+        }
+
         await _audit.LogAndSaveAsync(nameof(Partner), id, AuditAction.Delete, diff: diff);
         TempData["ok"] = "شریک حذف شد.";
         return RedirectToAction(nameof(Index));

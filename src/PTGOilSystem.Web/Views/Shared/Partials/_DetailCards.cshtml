@@ -153,11 +153,30 @@
                 }
                 @if (card.Metrics.Count > 0)
                 {
-                    <dl class="ptg-td-metrics">
+                    @* The figures read as one chain: an illustration per step, the label
+                       under it, the number under that, and a dashed connector drawn
+                       between neighbouring circles. The connector is a pseudo-element
+                       on the node itself, so the list stays a valid <dl> and a screen
+                       reader still hears plain term/description pairs.
+
+                       Same illustration contract the overview card already uses: the
+                       page names a concept, the registry resolves the file, and an
+                       unknown or unset key simply renders an empty circle. *@
+                    <dl class="ptg-td-flow" data-flow-count="@card.Metrics.Count">
                         @foreach (var metric in card.Metrics)
                         {
-                            <div class="ptg-td-metric @metric.StateClass">
-                                <dt>@metric.Title</dt>
+                            var avatarPath = PTGOilSystem.Web.Models.StatCards.StatCardAvatarRegistry.ResolvePath(metric.Avatar);
+                            <div class="ptg-td-flow-node @metric.StateClass">
+                                <dt>
+                                    <span class="ptg-td-flow-figure">
+                                        @if (!string.IsNullOrWhiteSpace(avatarPath))
+                                        {
+                                            <img src="@avatarPath" alt="" aria-hidden="true"
+                                                 width="46" height="46" loading="lazy" decoding="async" />
+                                        }
+                                    </span>
+                                    <span class="ptg-td-flow-label">@metric.Title</span>
+                                </dt>
                                 <dd class="@(string.IsNullOrWhiteSpace(metric.Unit) ? null : "ak-num")">
                                     <bdi>@metric.Value</bdi>
                                     @if (!string.IsNullOrWhiteSpace(metric.Unit))

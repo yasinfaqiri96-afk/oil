@@ -584,7 +584,7 @@ public sealed class PartyStatementReadServiceTests
     public void OfficialView_HasRequiredDocumentSections_AndNoFinancialArithmetic()
     {
         var root = FindRepositoryRoot();
-        var view = File.ReadAllText(Path.Combine(root, "src", "PTGOilSystem.Web", "Views", "PartyStatements", "Document.cshtml"));
+        var view = File.ReadAllText(Path.Combine(root, "src", "PTGOilSystem.Web", "Views", "PartyStatements", "_StatementBody.cshtml"));
         var css = File.ReadAllText(Path.Combine(root, "src", "PTGOilSystem.Web", "wwwroot", "css", "ptg", "62-party-statement.css"));
         var contractView = File.ReadAllText(Path.Combine(
             root, "src", "PTGOilSystem.Web", "Views", "PartyStatements", "_SupplierContractStatement.cshtml"));
@@ -596,7 +596,7 @@ public sealed class PartyStatementReadServiceTests
         Assert.Contains("statement-summary", view);
         Assert.Contains("statement-ledger", view);
         Assert.Contains("statement-table", view);
-        Assert.Contains("data-statement-print", view);
+        Assert.DoesNotContain("data-statement-print", view);
         Assert.Contains("asp-controller=\"Ledger\"", view);
         Assert.Contains("رسیدگی", view);
         Assert.Contains("بردگی", view);
@@ -606,7 +606,7 @@ public sealed class PartyStatementReadServiceTests
         Assert.Contains("خلاصه قراردادها", view);
         Assert.Contains("جزئیات تراکنش‌ها", view);
         Assert.Contains("مبلغ کل قرارداد", contractView);
-        Assert.Contains("ارزش قطعی", contractView);
+        Assert.Contains("ارزش مقدار بارگیری‌شده", contractView);
         Assert.Contains("data-statement-details", contractView);
         Assert.Contains("data-statement-details-page", detailsView);
         Assert.DoesNotContain("RunningBalance +=", view, StringComparison.Ordinal);

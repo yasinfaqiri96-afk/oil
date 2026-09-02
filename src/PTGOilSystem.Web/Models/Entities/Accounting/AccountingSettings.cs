@@ -51,5 +51,18 @@ public class AccountingSettings : BaseEntity
     public int RetainedEarningsAccountId { get; set; }
     public Account? RetainedEarningsAccount { get; set; }
 
+    public int? FixedAssetAccountId { get; set; }
+    public Account? FixedAssetAccount { get; set; }
+    public int? AccumulatedDepreciationAccountId { get; set; }
+    public Account? AccumulatedDepreciationAccount { get; set; }
+    public int? DepreciationExpenseAccountId { get; set; }
+    public Account? DepreciationExpenseAccount { get; set; }
+    public int? AssetRentalRevenueAccountId { get; set; }
+    public Account? AssetRentalRevenueAccount { get; set; }
+    public int? InternalAssetRecoveryAccountId { get; set; }
+    public Account? InternalAssetRecoveryAccount { get; set; }
+    public int? AssetOperatingExpenseAccountId { get; set; }
+    public Account? AssetOperatingExpenseAccount { get; set; }
+
     public uint RowVersion { get; set; }
 }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.ThreeWaySettlement;
 using PTGOilSystem.Web.Services.Time;
 
@@ -24,15 +25,24 @@ public class ThreeWaySettlementController : Controller
 
     private readonly ApplicationDbContext _db;
 
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
+
     // مرحلهٔ ۸ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Services.Accounting.IThreeWaySettlementAccountingAdapter? _settlementAccounting;
 
+    // PTG-P3-B — همان محافظ ضدتکراری که فاز P0 به بقیهٔ مسیرهای مالی داد.
+    private readonly Services.IFormTokenGuard? _formTokens;
+
     public ThreeWaySettlementController(
         ApplicationDbContext db,
-        Services.Accounting.IThreeWaySettlementAccountingAdapter? settlementAccounting = null)
+        Services.Accounting.IThreeWaySettlementAccountingAdapter? settlementAccounting = null,
+        Services.IFormTokenGuard? formTokens = null)
     {
         _db = db;
         _settlementAccounting = settlementAccounting;
+        _formTokens = formTokens;
     }
 
     [HttpGet]
@@ -116,7 +126,9 @@ public class ThreeWaySettlementController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Confirm(ThreeWaySettlementPreviewViewModel model)
+    public async Task<IActionResult> Confirm(
+        ThreeWaySettlementPreviewViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         var currencyWasMissing = string.IsNullOrWhiteSpace(model.Currency);
         NormalizePreviewInput(model);
@@ -144,11 +156,24 @@ public class ThreeWaySettlementController : Controller
 
         var settlement = BuildSettlement(model, HttpContext?.User?.Identity?.Name);
         _db.ThreeWaySettlements.Add(settlement);
-        await _db.SaveChangesAsync();
 
-        var customerLedger = BuildCustomerLedger(settlement);
-        var supplierLedger = BuildSupplierLedger(settlement);
-        _db.LedgerEntries.AddRange(customerLedger, supplierLedger);
+        // توکن در همان SaveChanges و همان تراکنشِ خودِ سند نوشته می‌شود، پس ارسال دوم
+        // روی Unique Index می‌خورد و کلِ تراکنش برمی‌گردد — نه نصفِ سند.
+        _formTokens?.Stamp(formToken, "ThreeWaySettlement.Confirm", nameof(ThreeWaySettlement));
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException duplicate) when (_formTokens?.IsDuplicate(duplicate) == true)
+        {
+            TempData["err"] = "این تسویه قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var posted = Ledger.PostRange(BuildCustomerLedger(settlement), BuildSupplierLedger(settlement));
+        var customerLedger = posted[0];
+        var supplierLedger = posted[1];
         await _db.SaveChangesAsync();
 
         settlement.CustomerLedgerEntryId = customerLedger.Id;
@@ -216,9 +241,9 @@ public class ThreeWaySettlementController : Controller
         await using var transaction = await BeginTransactionIfRelationalAsync();
 
         var cancellationDate = AfghanistanBusinessClock.SystemToday;
-        var customerReversal = BuildCancellationLedger(settlement.CustomerLedgerEntry!, settlement, cleanReason!, cancellationDate);
-        var supplierReversal = BuildCancellationLedger(settlement.SupplierLedgerEntry!, settlement, cleanReason!, cancellationDate);
-        _db.LedgerEntries.AddRange(customerReversal, supplierReversal);
+        Ledger.PostRange(
+            BuildCancellationLedger(settlement.CustomerLedgerEntry!, settlement, cleanReason!, cancellationDate),
+            BuildCancellationLedger(settlement.SupplierLedgerEntry!, settlement, cleanReason!, cancellationDate));
 
         settlement.Status = ThreeWaySettlementStatus.Cancelled;
         settlement.CancelledAtUtc = DateTime.UtcNow;
@@ -376,7 +401,7 @@ public class ThreeWaySettlementController : Controller
             CreatedByUserName = Clean(userName)
         };
 
-    private static LedgerEntry BuildCustomerLedger(ThreeWaySettlement settlement)
+    private static LedgerPostingRequest BuildCustomerLedger(ThreeWaySettlement settlement)
         => new()
         {
             EntryDate = settlement.SettlementDate,
@@ -396,7 +421,7 @@ public class ThreeWaySettlementController : Controller
             CustomerId = settlement.CustomerId
         };
 
-    private static LedgerEntry BuildSupplierLedger(ThreeWaySettlement settlement)
+    private static LedgerPostingRequest BuildSupplierLedger(ThreeWaySettlement settlement)
         => new()
         {
             EntryDate = settlement.SettlementDate,
@@ -416,7 +441,7 @@ public class ThreeWaySettlementController : Controller
             SupplierId = settlement.SupplierId
         };
 
-    private static LedgerEntry BuildCancellationLedger(
+    private static LedgerPostingRequest BuildCancellationLedger(
         LedgerEntry original,
         ThreeWaySettlement settlement,
         string cancellationReason,

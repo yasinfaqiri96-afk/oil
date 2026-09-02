@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Services.Accounting;
 using PTGOilSystem.Web.Services.Exceptions;
 
@@ -60,6 +61,10 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
 
     private readonly ApplicationDbContext _db;
     private readonly ISupplierPaymentAllocationAccountingAdapter? _accountingAdapter;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
 
     public SupplierPaymentAllocationService(
         ApplicationDbContext db,
@@ -271,7 +276,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
             _db.SupplierPaymentAllocations.Add(allocation);
             await _db.SaveChangesAsync(ct);
 
-            _db.LedgerEntries.AddRange(
+            Ledger.PostRange(
                 // ارزش تاریخی از پیش‌پرداخت آزاد خارج می‌شود تا باقی‌ماندهٔ موهومی نماند.
                 BuildLedgerEntry(
                     allocation,
@@ -303,8 +308,8 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
             // مجموع Debit و Credit برابر نمی‌ماند. الگو: SarrafSettlement (زیان=Debit، سود=Credit).
             if (allocation.ExchangeDifferenceType != SarrafSettlementDifferenceType.None)
             {
-                var differenceLedger = BuildExchangeDifferenceLedger(allocation, contract, ExchangeDifferenceLedgerSourceType);
-                _db.LedgerEntries.Add(differenceLedger);
+                var differenceLedger = Ledger.Post(
+                    BuildExchangeDifferenceLedger(allocation, contract, ExchangeDifferenceLedgerSourceType));
                 await _db.SaveChangesAsync(ct);
 
                 allocation.ExchangeDifferenceLedgerEntryId = differenceLedger.Id;
@@ -385,7 +390,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
             allocation.ReversalReason = request.ReversalReason.Trim();
 
             // ثبت‌های معکوس و جداگانه؛ Ledgerهای اصلی حذف یا ویرایش نمی‌شوند.
-            _db.LedgerEntries.AddRange(
+            Ledger.PostRange(
                 BuildLedgerEntry(
                     allocation,
                     supplierId,
@@ -412,7 +417,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
             // سود/زیان تسعیر هم باید معکوس شود، وگرنه ثبت‌های برگشت نامتوازن می‌مانند.
             if (allocation.ExchangeDifferenceType != SarrafSettlementDifferenceType.None)
             {
-                _db.LedgerEntries.Add(BuildExchangeDifferenceLedger(
+                Ledger.Post(BuildExchangeDifferenceLedger(
                     allocation,
                     allocation.Contract,
                     ExchangeDifferenceReversalLedgerSourceType,
@@ -457,7 +462,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
     /// به‌عنوان اثر P&L شناخته شود. دقیقاً همان قرارداد علامت‌گذاری SarrafSettlement:
     /// زیان = Debit، سود = Credit؛ در حالت برگشت، سمت آن معکوس می‌شود.
     /// </summary>
-    private static LedgerEntry BuildExchangeDifferenceLedger(
+    private static LedgerPostingRequest BuildExchangeDifferenceLedger(
         SupplierPaymentAllocation allocation,
         Contract? contract,
         string sourceType,
@@ -479,7 +484,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
                 ? $"{label} (#{allocation.Id})"
                 : $"{label} بابت قرارداد {contractNumber}";
 
-        return new LedgerEntry
+        return new LedgerPostingRequest
         {
             EntryDate = allocation.AllocationDate.Date,
             Side = side,
@@ -498,7 +503,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
         };
     }
 
-    private static LedgerEntry BuildLedgerEntry(
+    private static LedgerPostingRequest BuildLedgerEntry(
         SupplierPaymentAllocation allocation,
         int supplierId,
         LedgerSide side,

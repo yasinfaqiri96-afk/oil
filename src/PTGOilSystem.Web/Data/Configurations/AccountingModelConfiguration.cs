@@ -103,6 +103,18 @@ public static class AccountingModelConfiguration
             .HasForeignKey(x => x.CurrentYearProfitLossAccountId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(x => x.RetainedEarningsAccount).WithMany()
             .HasForeignKey(x => x.RetainedEarningsAccountId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.FixedAssetAccount).WithMany()
+            .HasForeignKey(x => x.FixedAssetAccountId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.AccumulatedDepreciationAccount).WithMany()
+            .HasForeignKey(x => x.AccumulatedDepreciationAccountId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.DepreciationExpenseAccount).WithMany()
+            .HasForeignKey(x => x.DepreciationExpenseAccountId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.AssetRentalRevenueAccount).WithMany()
+            .HasForeignKey(x => x.AssetRentalRevenueAccountId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.InternalAssetRecoveryAccount).WithMany()
+            .HasForeignKey(x => x.InternalAssetRecoveryAccountId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.AssetOperatingExpenseAccount).WithMany()
+            .HasForeignKey(x => x.AssetOperatingExpenseAccountId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureFiscalCalendar(ModelBuilder modelBuilder)
@@ -214,6 +226,7 @@ public static class AccountingModelConfiguration
         line.HasIndex(x => x.ShipmentId);
         line.HasIndex(x => x.TankId);
         line.HasIndex(x => x.ProductId);
+        line.HasIndex(x => x.OperationalAssetId);
         line.HasIndex(x => x.CashAccountId);
         line.HasOne(x => x.JournalEntry).WithMany(x => x.Lines).HasForeignKey(x => x.JournalEntryId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -226,6 +239,8 @@ public static class AccountingModelConfiguration
         line.HasOne(x => x.Tank).WithMany().HasForeignKey(x => x.TankId)
             .OnDelete(DeleteBehavior.Restrict);
         line.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+        line.HasOne(x => x.OperationalAsset).WithMany().HasForeignKey(x => x.OperationalAssetId)
             .OnDelete(DeleteBehavior.Restrict);
         line.HasOne(x => x.CashAccount).WithMany().HasForeignKey(x => x.CashAccountId)
             .OnDelete(DeleteBehavior.Restrict);

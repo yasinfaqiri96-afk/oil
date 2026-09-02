@@ -13,15 +13,18 @@
     var isDirectSale = Model.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale;
     // حالت متمرکز «فروش مستقیم و تسویه»: فرم ساده بدون گزینه‌های مخزن/تخلیه/دیسپچ.
     var focusedSale = (ViewData["FocusedSale"] as bool?) ?? false;
+    // ورود از دکمهٔ «تحویل در مقصد» صفحهٔ حمل: فقط فیلدهای لازمِ ورود به مخزن
+    // در دید اول می‌آیند؛ مسیر عمومی همین فرم برای سایر ورودی‌ها دست‌نخورده می‌ماند.
+    var focusedInventory = (ViewData["FocusedInventoryReceipt"] as bool?) ?? false;
     var remainingMt = ViewData["RemainingMt"] as decimal?;
     var freightOpen = (Model.FreightRateUsdPerMt ?? 0m) > 0m
         || (Model.FreightCostUsd ?? 0m) > 0m
         || Model.ServiceProviderId.HasValue
         || Model.OperationalAssetId.HasValue;
-    var shortageOpen = (Model.AllowanceMt ?? 0m) > 0m
+    var shortageOpen = Model.ShortageQuantityMt != 0m
+        || (Model.AllowanceMt ?? 0m) > 0m
         || (Model.ShortageRateUsd ?? 0m) > 0m
         || Model.DeductShortageFromFreight;
-    var documentOpen = !string.IsNullOrWhiteSpace(Model.Notes);
     var transportTypeText = Model.TransportType switch
     {
         LoadingTransportType.Truck => T("موتر", "Truck"),
@@ -29,12 +32,17 @@
         LoadingTransportType.Vessel => T("کشتی", "Vessel"),
         _ => T("وسیله حمل", "Transport")
     };
-    var receiptTitle = T("ثبت تخلیه مقصد", "Register Destination Unload");
+    var receiptTitle = focusedInventory
+        ? T("تحویل در مقصد", "Deliver at destination")
+        : T("ثبت تخلیه مقصد", "Register Destination Unload");
     var saleTitle = focusedSale
         ? T("فروش مستقیم و تسویه", "Direct sale & settle")
         : T("ثبت فروش از حمل موجودی", "Register Sale from Inventory Transport");
     var saleSubmit = focusedSale ? T("ثبت فروش و تسویه", "Save sale & settle") : T("ثبت فروش", "Save Sale");
-    var receiptDesc = T("ثبت مقدار تخلیه، کسری و کرایه برای این سفر حمل از موجودی", "Record unloading, shortage and freight for this inventory transport trip");
+    var receiptDesc = focusedInventory
+        ? T("مقدار تحویل و مخزن مقصد را ثبت کنید؛ کرایه و کسری فقط در صورت نیاز باز می‌شوند.", "Record the delivered quantity and destination tank; freight and shortage open only when needed.")
+        : T("ثبت مقدار تخلیه، کسری و کرایه برای این سفر حمل از موجودی", "Record unloading, shortage and freight for this inventory transport trip");
+    var receiptSubmit = focusedInventory ? T("ثبت تحویل", "Save delivery") : receiptTitle;
     var saleDesc = focusedSale
         ? T("موتر بعد از رسیدن، بار را مستقیم به مشتری می‌فروشد؛ کرایه هم همین‌جا تسویه می‌شود. بار وارد مخزن نمی‌شود.", "The truck sells its load directly to the customer on arrival; freight is settled here too. No inventory is added.")
         : T("فروش مستقیم بار این حمل، بدون ورود به مخزن", "Sell this transport load directly without entering inventory");
@@ -50,7 +58,7 @@
      data-sale-title="@saleTitle"
      data-receipt-description="@receiptDesc"
      data-sale-description="@saleDesc"
-     data-receipt-submit="@receiptTitle"
+     data-receipt-submit="@receiptSubmit"
      data-sale-submit="@saleSubmit">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(((isDirectSale ? saleTitle : receiptTitle), false,
@@ -62,9 +70,22 @@
           class="ak-form"
           data-inventory-receipt-form
           data-loaded-quantity="@Model.LoadedQuantityMt.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-          data-is-truck="@Model.IsTruckOrWagonTransport.ToString().ToLowerInvariant()">
+          data-is-truck="@Model.IsTruckOrWagonTransport.ToString().ToLowerInvariant()"
+          data-focused-inventory="@focusedInventory.ToString().ToLowerInvariant()">
         @Html.AntiForgeryToken()
         <input asp-for="InventoryTransportLegId" type="hidden" />
+        @if (focusedInventory)
+        {
+            <input type="hidden" name="ReceiptDestination" id="ReceiptDestination" value="@toInventoryValue" data-receipt-destination />
+        }
+        else if (focusedSale)
+        {
+            <input asp-for="ReceiptDestination" type="hidden" data-receipt-destination />
+        }
+        @if (focusedInventory)
+        {
+            <input type="hidden" name="focused" value="true" />
+        }
         <span class="d-none">@T("ثبت رسید / تخلیه", "Register receipt / unload")</span>
 
         <div class="d-none" aria-hidden="true">
@@ -80,98 +101,181 @@
             <section class="ak-form-section" aria-label="@T("خلاصه سفر", "Trip summary")">
                 <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("خلاصه سفر", "Trip Summary"), (string?)(isDirectSale ? saleDesc : receiptDesc)))" />
                 <div class="ak-form-grid">
-                <article class="ak-field">
-                    <span class="ak-label">@T("بارگیری‌شده از مخزن", "Loaded from tank")</span>
-                    <strong>@NumberDisplay.Quantity(Model.LoadedQuantityMt) @T("تن", "MT")</strong>
-                </article>
+                @if (!focusedSale)
+                {
+                    <article class="ak-field">
+                        <span class="ak-label">@T("بارگیری‌شده از مخزن", "Loaded from tank")</span>
+                        <strong>@NumberDisplay.Quantity(Model.LoadedQuantityMt) @T("تن", "MT")</strong>
+                    </article>
+                }
                 <article class="ak-field">
                     <span class="ak-label">@T("محصول", "Product")</span>
                     <strong>@productName</strong>
                 </article>
-                <article class="ak-field">
-                    <span class="ak-label">@T("وسیله حمل", "Transport")</span>
-                    <strong>@transportTypeText</strong>
-                </article>
-                @if (focusedSale && remainingMt.HasValue)
+                @if ((focusedSale || focusedInventory) && remainingMt.HasValue)
                 {
                     <article class="ak-field">
-                        <span class="ak-label">@T("قابل فروش (باقیمانده در وسیله)", "Sellable (remaining in vehicle)")</span>
+                        <span class="ak-label">@(focusedSale ? T("مقدار قابل فروش", "Sellable quantity") : T("باقی‌مانده قابل تحویل", "Remaining to deliver"))</span>
                         <strong>@NumberDisplay.Quantity(remainingMt.Value) @T("تن", "MT")</strong>
+                    </article>
+                    <article class="ak-field">
+                        <span class="ak-label">@T("نمبر وسیله", "Vehicle number")</span>
+                        <strong>@vehicleNo</strong>
+                    </article>
+                }
+                else
+                {
+                    <article class="ak-field">
+                        <span class="ak-label">@T("وسیله حمل", "Transport")</span>
+                        <strong>@transportTypeText</strong>
                     </article>
                 }
                 </div>
             </section>
 
             <div>
-                <section class="ak-form-section">
-                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("مشخصات سفر", "Trip Details"), (string?)null))" />
-                    <div class="ak-form-grid">
-                    <div class="ak-field">
-                        <label>@T("شماره سفر", "Trip number")</label>
-                        <strong>#@Model.InventoryTransportLegId</strong>
-                    </div>
-                    <div class="ak-field">
-                        <label>@T("نمبر موتر", "Vehicle number")</label>
-                        <strong>@vehicleNo</strong>
-                    </div>
-                    <div class="ak-field">
-                        <label>@T("مخزن بارگیری", "Loading tank")</label>
-                        <strong>@loadingTank</strong>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="ReceiptDate">@T("تاریخ", "Date") <b>*</b></label>
-                        <input asp-for="ReceiptDate" type="date" class="ak-input" />
-                        <span asp-validation-for="ReceiptDate" class="ak-field-error"></span>
-                    </div>
-                    </div>
-                </section>
+                @if (focusedSale)
+                {
+                    <section class="ak-form-section" data-focused-sale-primary>
+                        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("اطلاعات ضروری فروش", "Required sale information"), (string?)T("فقط فیلدهای ستاره‌دار برای ثبت فروش لازم‌اند.", "Only starred fields are required to save the sale.")))" />
+                        <div class="ak-form-grid">
+                            <div class="ak-field">
+                                <label asp-for="SaleCustomerId" class="ak-label">@T("مشتری", "Customer") <b>*</b></label>
+                                <select asp-for="SaleCustomerId" asp-items="ViewBag.Customers" class="ak-input"><option value="">@T("انتخاب مشتری", "Select customer")</option></select>
+                                <span asp-validation-for="SaleCustomerId" class="ak-field-error"></span>
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="ReceivedQuantityMt">@T("مقدار فروش", "Sale quantity") <b>*</b></label>
+                                <div><input asp-for="ReceivedQuantityMt" type="number" step="0.0001" min="0" class="ak-input" /><span>MT</span></div>
+                                <span asp-validation-for="ReceivedQuantityMt" class="ak-field-error"></span>
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="SaleUnitPriceInCurrency" class="ak-label">@T("قیمت فی تن", "Unit price per MT") <b>*</b></label>
+                                <input asp-for="SaleUnitPriceInCurrency" type="number" step="0.0001" min="0" class="ak-input" />
+                                <span asp-validation-for="SaleUnitPriceInCurrency" class="ak-field-error"></span>
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="SaleCurrency" class="ak-label">@T("ارز فروش", "Sale currency") <b>*</b></label>
+                                <select asp-for="SaleCurrency" asp-items="ViewBag.Currencies" class="ak-input"></select>
+                                <span asp-validation-for="SaleCurrency" class="ak-field-error"></span>
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="SaleInvoiceNumber" class="ak-label">@T("شماره فاکتور", "Invoice number") <b>*</b></label>
+                                <input asp-for="SaleInvoiceNumber" class="ak-input" />
+                                <span asp-validation-for="SaleInvoiceNumber" class="ak-field-error"></span>
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="SaleDate" class="ak-label">@T("تاریخ فروش", "Sale date") <b>*</b></label>
+                                <input asp-for="SaleDate" type="date" class="ak-input" />
+                                <span asp-validation-for="SaleDate" class="ak-field-error"></span>
+                            </div>
+                            <div class="ak-field">
+                                <label asp-for="ReceiptDate">@T("تاریخ رسید موتر", "Vehicle arrival date") <b>*</b></label>
+                                <input asp-for="ReceiptDate" type="date" class="ak-input" />
+                                <small>@T("اگر فروش در روز رسیدن انجام شده، همین تاریخ را نگه دارید.", "Keep this date when the sale happened on arrival.")</small>
+                                <span asp-validation-for="ReceiptDate" class="ak-field-error"></span>
+                            </div>
+                            <div class="ak-field" data-fx-rate-group data-fx-currency-source="#SaleCurrency">
+                                <label>@T("نرخ دالر به ارز", "Currency units per USD")</label>
+                                <div>
+                                    <div data-fx-rate-field><input type="text" inputmode="decimal" class="ak-input" data-fx-rate-input id="receiptSaleFxDisplay" autocomplete="off" /><input asp-for="SaleAppliedFxRateToUsd" type="hidden" data-fx-rate-technical /></div>
+                                    <div data-fx-usd-note class="d-none"><small>@T("برای فروش دالری نرخ تبدیل لازم نیست.", "No FX rate is needed for a USD sale.")</small></div>
+                                </div>
+                                <span asp-validation-for="SaleAppliedFxRateToUsd" class="ak-field-error"></span>
+                            </div>
+                        </div>
+                    </section>
+                }
+                else
+                {
+                    @if (focusedInventory)
+                    {
+                        <section class="ak-form-section" data-focused-inventory-primary>
+                            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                                     model="@((T("اطلاعات ضروری تحویل", "Required delivery information"), (string?)T("تاریخ، مقدار و مخزن مقصد را بررسی کنید.", "Check the date, quantity and destination tank.")))" />
+                            <div class="ak-form-grid">
+                                <div class="ak-field">
+                                    <label asp-for="ReceiptDate">@T("تاریخ تحویل", "Delivery date") <b>*</b></label>
+                                    <input asp-for="ReceiptDate" type="date" class="ak-input" />
+                                    <span asp-validation-for="ReceiptDate" class="ak-field-error"></span>
+                                </div>
+                                <div class="ak-field">
+                                    <label asp-for="ReceivedQuantityMt">@T("مقدار تحویل‌شده", "Delivered quantity") <b>*</b></label>
+                                    <div><input asp-for="ReceivedQuantityMt" type="number" step="0.0001" min="0" class="ak-input" /><span>MT</span></div>
+                                    <small>@T("برای تحویل کامل، مقدار پیش‌فرض را تغییر ندهید.", "Keep the default quantity for a full delivery.")</small>
+                                    <span asp-validation-for="ReceivedQuantityMt" class="ak-field-error"></span>
+                                </div>
+                                <div class="ak-field" data-to-inventory-field>
+                                    <label asp-for="DestinationTerminalId">@T("ترمینال مقصد", "Destination terminal") <b>*</b></label>
+                                    <select asp-for="DestinationTerminalId" asp-items="ViewBag.DestinationTerminals" class="ak-input">
+                                        <option value="">@T("انتخاب ترمینال", "Select terminal")</option>
+                                    </select>
+                                    <span asp-validation-for="DestinationTerminalId" class="ak-field-error"></span>
+                                </div>
+                                <div class="ak-field" data-to-inventory-field>
+                                    <label asp-for="DestinationStorageTankId">@T("مخزن مقصد", "Destination tank") <b>*</b></label>
+                                    <select asp-for="DestinationStorageTankId" asp-items="ViewBag.DestinationStorageTanks" class="ak-input">
+                                        <option value="">@T("انتخاب مخزن", "Select tank")</option>
+                                    </select>
+                                    <span asp-validation-for="DestinationStorageTankId" class="ak-field-error"></span>
+                                    <script type="application/json" data-destination-tanks>@Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.DestinationStorageTankTerminalMap ?? new object[0]))</script>
+                                </div>
+                            </div>
+                        </section>
+                    }
+                    else
+                    {
+                        <section class="ak-form-section">
+                            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("مشخصات سفر", "Trip Details"), (string?)null))" />
+                            <div class="ak-form-grid">
+                                <div class="ak-field"><label>@T("شماره سفر", "Trip number")</label><strong>#@Model.InventoryTransportLegId</strong></div>
+                                <div class="ak-field"><label>@T("نمبر موتر", "Vehicle number")</label><strong>@vehicleNo</strong></div>
+                                <div class="ak-field"><label>@T("مخزن بارگیری", "Loading tank")</label><strong>@loadingTank</strong></div>
+                                <div class="ak-field">
+                                    <label asp-for="ReceiptDate">@T("تاریخ", "Date") <b>*</b></label>
+                                    <input asp-for="ReceiptDate" type="date" class="ak-input" />
+                                    <span asp-validation-for="ReceiptDate" class="ak-field-error"></span>
+                                </div>
+                            </div>
+                        </section>
 
-                <section class="ak-form-section">
-                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(((focusedSale ? T("مقدار فروش", "Sale Quantity") : T("اطلاعات تخلیه", "Unload Information")), (string?)null))" />
-                    <div class="ak-form-grid">
-                    <div class="ak-field" @(focusedSale ? "hidden" : null)>
-                        <label asp-for="ReceiptDestination">@T("مقصد", "Destination") <b>*</b></label>
-                        <select asp-for="ReceiptDestination" asp-items="ViewBag.ReceiptDestinations" class="ak-input" data-receipt-destination></select>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="ReceivedQuantityMt">@(focusedSale ? T("مقدار فروخته‌شده", "Sold quantity") : T("وزن تخلیه", "Unload weight")) <b>*</b></label>
-                        <div>
-                            <input asp-for="ReceivedQuantityMt" type="number" step="0.0001" min="0" class="ak-input" />
-                            <span>MT</span>
-                        </div>
-                        <span asp-validation-for="ReceivedQuantityMt" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field">
-                        <label asp-for="ShortageQuantityMt">@T("کسری یا مازاد (اختیاری)", "Shortage or surplus (optional)")</label>
-                        <div>
-                            @* min حذف شد: مقدار منفی یعنی «مازاد» و باید از خود فرم قابل ثبت باشد. *@
-                            <input asp-for="ShortageQuantityMt" type="number" step="0.0001" class="ak-input" data-shortage-input />
-                            <span>MT</span>
-                        </div>
-                        <small>@T("عدد مثبت = کسری، عدد منفی = مازاد. مازاد جریمه نمی‌شود و از کرایه کم نمی‌گردد. باقیمانده پس از تخلیه و کسری در وسیله می‌ماند و قابل تخلیه مجدد است.", "Positive = shortage, negative = surplus. Surplus is never charged or deducted from freight. Remaining after unload and shortage stays in the vehicle for re-unload.")</small>
-                        <span asp-validation-for="ShortageQuantityMt" class="ak-field-error"></span>
-                    </div>
-                    <div class="ak-field" data-to-inventory-field>
-                        <label asp-for="DestinationTerminalId">@T("ترمینال مقصد", "Destination terminal")</label>
-                        <select asp-for="DestinationTerminalId" asp-items="ViewBag.DestinationTerminals" class="ak-input">
-                            <option value="">@T("انتخاب ترمینال", "Select terminal")</option>
-                        </select>
-                    </div>
-                    <div class="ak-field" data-to-inventory-field>
-                        <label asp-for="DestinationStorageTankId">@T("مخزن مقصد", "Destination tank")</label>
-                        <select asp-for="DestinationStorageTankId" asp-items="ViewBag.DestinationStorageTanks" class="ak-input">
-                            <option value="">@T("انتخاب مخزن", "Select tank")</option>
-                        </select>
-                        <script type="application/json" data-destination-tanks>@Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.DestinationStorageTankTerminalMap ?? new object[0]))</script>
-                    </div>
-                    </div>
-                </section>
+                        <section class="ak-form-section">
+                            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("اطلاعات تخلیه", "Unload Information"), (string?)null))" />
+                            <div class="ak-form-grid">
+                                <div class="ak-field">
+                                    <label asp-for="ReceiptDestination">@T("مقصد", "Destination") <b>*</b></label>
+                                    <select asp-for="ReceiptDestination" asp-items="ViewBag.ReceiptDestinations" class="ak-input" data-receipt-destination></select>
+                                </div>
+                                <div class="ak-field">
+                                    <label asp-for="ReceivedQuantityMt">@T("وزن تخلیه", "Unload weight") <b>*</b></label>
+                                    <div><input asp-for="ReceivedQuantityMt" type="number" step="0.0001" min="0" class="ak-input" /><span>MT</span></div>
+                                    <span asp-validation-for="ReceivedQuantityMt" class="ak-field-error"></span>
+                                </div>
+                                <div class="ak-field">
+                                    <label asp-for="ShortageQuantityMt">@T("کسری یا مازاد (اختیاری)", "Shortage or surplus (optional)")</label>
+                                    <div><input asp-for="ShortageQuantityMt" type="number" step="0.0001" class="ak-input" data-shortage-input /><span>MT</span></div>
+                                    <small>@T("عدد مثبت = کسری و عدد منفی = مازاد؛ باقیمانده در وسیله می‌ماند.", "Positive is shortage and negative is surplus; any remainder stays in the vehicle.")</small>
+                                    <span asp-validation-for="ShortageQuantityMt" class="ak-field-error"></span>
+                                </div>
+                                <div class="ak-field" data-to-inventory-field>
+                                    <label asp-for="DestinationTerminalId">@T("ترمینال مقصد", "Destination terminal")</label>
+                                    <select asp-for="DestinationTerminalId" asp-items="ViewBag.DestinationTerminals" class="ak-input"><option value="">@T("انتخاب ترمینال", "Select terminal")</option></select>
+                                </div>
+                                <div class="ak-field" data-to-inventory-field>
+                                    <label asp-for="DestinationStorageTankId">@T("مخزن مقصد", "Destination tank")</label>
+                                    <select asp-for="DestinationStorageTankId" asp-items="ViewBag.DestinationStorageTanks" class="ak-input"><option value="">@T("انتخاب مخزن", "Select tank")</option></select>
+                                    <script type="application/json" data-destination-tanks>@Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.DestinationStorageTankTerminalMap ?? new object[0]))</script>
+                                </div>
+                            </div>
+                        </section>
+                    }
+                }
 
                 <section class="ak-form-section" data-optional-section data-truck-receipt-fields>
                     <label class="ak-toggle-field">
                         <span>
                             <input type="checkbox" data-optional-toggle="freight" @(freightOpen ? "checked" : null) />
-                            <strong>@T("ثبت کرایه", "Register freight")</strong>
+                            <strong>@T("کرایه حمل (اختیاری)", "Transport freight (optional)")</strong>
                         </span>
                         <i class="bi bi-chevron-down" aria-hidden="true"></i>
                     </label>
@@ -210,11 +314,20 @@
                     <label class="ak-toggle-field">
                         <span>
                             <input type="checkbox" data-optional-toggle="shortage" @(shortageOpen ? "checked" : null) />
-                            <strong>@T("ثبت کمبودی قابل مجرا", "Register chargeable shortage")</strong>
+                            <strong>@T("کسری یا مازاد (اختیاری)", "Shortage or surplus (optional)")</strong>
                         </span>
                         <i class="bi bi-chevron-down" aria-hidden="true"></i>
                     </label>
                     <div class="ak-form-grid" data-optional-body="shortage" @(shortageOpen ? null : "hidden")>
+                        @if (focusedSale || focusedInventory)
+                        {
+                            <div class="ak-field">
+                                <label asp-for="ShortageQuantityMt">@T("مقدار کسری یا مازاد", "Shortage or surplus quantity")</label>
+                                <div><input asp-for="ShortageQuantityMt" type="number" step="0.0001" class="ak-input" data-shortage-input /><span>MT</span></div>
+                                <small>@T("عدد مثبت کسری و عدد منفی مازاد است.", "Positive is shortage; negative is surplus.")</small>
+                                <span asp-validation-for="ShortageQuantityMt" class="ak-field-error"></span>
+                            </div>
+                        }
                         <div class="ak-field">
                             <label asp-for="AllowanceMt">@T("تلورانس مجاز", "Allowed tolerance")</label>
                             <div><input asp-for="AllowanceMt" type="number" step="0.0001" min="0" class="ak-input" /><span>MT</span></div>
@@ -239,6 +352,8 @@
                     </div>
                 </section>
 
+                @if (!focusedSale && !focusedInventory)
+                {
                 <section class="ak-form-section" data-optional-section data-direct-sale-fields>
                     <label class="ak-toggle-field">
                         <span>
@@ -262,8 +377,9 @@
                         </div>
                     </div>
                 </section>
+                }
 
-                @if (!focusedSale)
+                @if (!focusedSale && !focusedInventory)
                 {
                     <section class="ak-form-section" data-optional-section data-direct-dispatch-fields>
                         <label class="ak-toggle-field">
@@ -285,6 +401,21 @@
                 }
             </div>
 
+            @if (focusedInventory)
+            {
+                <section class="ak-form-section" data-focused-financial-summary @((freightOpen || shortageOpen) ? null : "hidden")>
+                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                             model="@((T("خلاصه محاسبه اختیاری", "Optional calculation summary"), (string?)T("فقط هنگام ثبت کرایه یا کسری نمایش داده می‌شود.", "Shown only when freight or shortage is being recorded.")))" />
+                    <div class="ak-summary" aria-live="polite">
+                        <article class="ak-field"><span>@T("مجموع کرایه", "Gross freight")</span><strong><b data-preview-freight>@DecimalInput(Model.FreightCostUsd)</b> USD</strong></article>
+                        <article class="ak-field"><span>@T("کسری", "Shortage")</span><strong><b data-preview-shortage>@NumberDisplay.Quantity(Model.ShortageQuantityMt)</b> MT</strong></article>
+                        <article class="ak-field is-primary"><span>@T("کرایه پرداختی", "Payable freight")</span><strong><b data-preview-payable>@DecimalInput(Model.FreightPayableUsd)</b> USD</strong></article>
+                    </div>
+                </section>
+            }
+
+            @if (!focusedInventory)
+            {
             <section class="ak-form-section">
                 <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(((focusedSale ? T("نتیجهٔ فروش و کرایه", "Sale & freight result") : T("نتیجه تخلیه", "Unload result")), (string?)null))" />
                 <div class="ak-form-grid">
@@ -295,27 +426,34 @@
                             <strong><b data-preview-sale-total>@DecimalInput((Model.ReceivedQuantityMt) * (Model.SaleUnitPriceInCurrency ?? 0m))</b> <span data-preview-sale-currency>@Model.SaleCurrency</span></strong>
                         </div>
                     }
-                    <div class="ak-field">
-                        <span class="ak-label">@T("مجموع کرایه", "Gross freight")</span>
-                        <strong><b data-preview-freight>@DecimalInput(Model.FreightCostUsd)</b> USD</strong>
-                    </div>
-                    <div class="ak-field">
-                        <span class="ak-label">@T("کمبودی", "Shortage")</span>
-                        <strong><b data-preview-shortage>@NumberDisplay.Quantity(Model.ShortageQuantityMt)</b> MT</strong>
-                    </div>
-                    <div class="ak-field">
-                        <span class="ak-label">@T("مجرای کمبودی", "Shortage deduction")</span>
-                        <strong><b data-preview-deduction>@DecimalInput(Model.ShortageChargeUsd)</b> USD</strong>
-                    </div>
+                    @if (!focusedSale)
+                    {
+                        <div class="ak-field">
+                            <span class="ak-label">@T("مجموع کرایه", "Gross freight")</span>
+                            <strong><b data-preview-freight>@DecimalInput(Model.FreightCostUsd)</b> USD</strong>
+                        </div>
+                        <div class="ak-field">
+                            <span class="ak-label">@T("کمبودی", "Shortage")</span>
+                            <strong><b data-preview-shortage>@NumberDisplay.Quantity(Model.ShortageQuantityMt)</b> MT</strong>
+                        </div>
+                        <div class="ak-field">
+                            <span class="ak-label">@T("مجرای کمبودی", "Shortage deduction")</span>
+                            <strong><b data-preview-deduction>@DecimalInput(Model.ShortageChargeUsd)</b> USD</strong>
+                        </div>
+                    }
                     <div class="ak-field">
                         <span class="ak-label">@T("کرایه پرداختی", "Payable freight")</span>
                         <strong><b data-preview-payable>@DecimalInput(Model.FreightPayableUsd)</b> USD</strong>
                     </div>
                 </div>
             </section>
+            }
 
-            <a href="@listUrl" class="ak-form-secondary-action">@T("برگشت به لیست", "Back to list")</a>
-            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@(((isDirectSale ? saleSubmit : receiptTitle), backUrl, T("انصراف", "Cancel")))" />
+            @if (!focusedInventory)
+            {
+                <a href="@listUrl" class="ak-form-secondary-action">@T("برگشت به لیست", "Back to list")</a>
+            }
+            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@(((isDirectSale ? saleSubmit : receiptSubmit), backUrl, T("انصراف", "Cancel")))" />
     </form>
 </div>
 
@@ -333,6 +471,7 @@
             const form = document.querySelector("[data-inventory-receipt-form]");
             const loadedQuantity = parseFloat(form?.dataset.loadedQuantity || "0") || 0;
             const isTruck = form?.dataset.isTruck === "true";
+            const focusedInventory = form?.dataset.focusedInventory === "true";
             const page = document.querySelector(".itr-unload-page");
             const previewFreight = document.querySelector("[data-preview-freight]");
             const previewShortage = document.querySelector("[data-preview-shortage]");
@@ -435,6 +574,7 @@
             };
 
             const optionalSections = [...document.querySelectorAll("[data-optional-section]")];
+            const focusedFinancialSummary = document.querySelector("[data-focused-financial-summary]");
             const refreshOptionalSections = () => {
                 optionalSections.forEach(section => {
                     const checkbox = section.querySelector("[data-optional-toggle]");
@@ -447,13 +587,19 @@
                         if (input.type !== "hidden") input.disabled = !open;
                     });
                 });
+                if (focusedFinancialSummary) {
+                    focusedFinancialSummary.hidden = !optionalSections.some(section =>
+                        !section.hidden && section.querySelector("[data-optional-toggle]")?.checked === true);
+                }
             };
 
             const truckReceiptFields = [...document.querySelectorAll("[data-truck-receipt-fields]")];
 
             const toggle = () => {
                 const value = select?.value;
-                const isToInventory = value === toInventoryValue;
+                // در مسیر «تحویل در مقصد»، ترمینال و مخزن همیشه لازم‌اند. این شرط
+                // مانع disabled شدن فیلدها و حذف‌شدن آن‌ها از POST می‌شود.
+                const isToInventory = focusedInventory || value === toInventoryValue;
                 const isDirectSale = value === directSaleValue;
                 const isDirectDispatch = value === directDispatchValue;
                 setFieldsVisible(toInventoryFields, isToInventory);
@@ -543,18 +689,6 @@
             field("DeductShortageFromFreight")?.addEventListener("change", calculateTruckReceipt);
             field("ReceivedQuantityMt")?.addEventListener("input", refreshOperationSummary);
             field("ShortageQuantityMt")?.addEventListener("input", refreshOperationSummary);
-            // اگر بخش فروش/ارسال مستقیم از قبل مقدار دارد (مثلاً بعد از خطای اعتبارسنجی)، خودکار باز شود تا داده گم نشود
-            optionalSections.forEach(section => {
-                const checkbox = section.querySelector("[data-optional-toggle]");
-                if (!checkbox || checkbox.checked) return;
-                const body = section.querySelector("[data-optional-body]");
-                const hasValue = [...(body?.querySelectorAll("input, select, textarea") || [])].some(input => {
-                    if (input.type === "hidden" || input.type === "checkbox") return false;
-                    return String(input.value || "").trim() !== "";
-                });
-                if (hasValue) checkbox.checked = true;
-            });
-
             rebuildTanks();
             toggle();
             refreshDirectSaleFx();

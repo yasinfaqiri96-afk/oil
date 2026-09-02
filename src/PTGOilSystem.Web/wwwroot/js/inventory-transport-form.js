@@ -159,9 +159,17 @@
             var isWagon = transportType === "2";
             var isVessel = transportType === "1";
             var driver = row.querySelector("[data-driver]");
-            var carrier = row.querySelector("[data-carrier-type]").value;
+            var carrierSelect = row.querySelector("[data-carrier-type]");
+            var carrier = carrierSelect.value;
+            // حمل‌کنندهٔ شخصی فقط برای موتر معنا دارد؛ واگن و کشتی راننده ندارند.
+            var personalOption = carrierSelect.querySelector("option[value=\"3\"]");
+            if (personalOption) personalOption.hidden = !isTruck;
+            if ((isVessel || !isTruck) && carrier === "3") {
+                carrierSelect.value = "1";
+                carrier = "1";
+            }
             if (isVessel && carrier !== "1") {
-                row.querySelector("[data-carrier-type]").value = "1";
+                carrierSelect.value = "1";
                 carrier = "1";
             }
             var provider = row.querySelector("[data-provider]");
@@ -172,17 +180,21 @@
             var wagonNumber = row.querySelector("[data-wagon-number]");
             var vessel = row.querySelector("[data-vessel-id]");
             var usesProvider = carrier === "1";
+            var usesAsset = carrier === "2";
+            // شرکت خدماتی و حمل‌کنندهٔ شخصی نمبر وسیله را خودشان وارد می‌کنند؛
+            // فقط دارایی عملیاتی وسیله را از خودِ دارایی می‌گیرد.
+            var usesTypedVehicle = !usesAsset;
 
-            truckPlate.hidden = !usesProvider || !isTruck;
-            truckPlate.disabled = !usesProvider || !isTruck;
-            wagonNumber.hidden = !usesProvider || !isWagon;
-            wagonNumber.disabled = !usesProvider || !isWagon;
-            vessel.hidden = !usesProvider || !isVessel;
-            vessel.disabled = !usesProvider || !isVessel;
-            assetVehicleNote.hidden = usesProvider;
+            truckPlate.hidden = !usesTypedVehicle || !isTruck;
+            truckPlate.disabled = !usesTypedVehicle || !isTruck;
+            wagonNumber.hidden = !usesTypedVehicle || !isWagon;
+            wagonNumber.disabled = !usesTypedVehicle || !isWagon;
+            vessel.hidden = !usesTypedVehicle || !isVessel;
+            vessel.disabled = !usesTypedVehicle || !isVessel;
+            assetVehicleNote.hidden = !usesAsset;
             driver.hidden = !isTruck;
             driver.disabled = !isTruck;
-            if (!usesProvider) {
+            if (!usesTypedVehicle) {
                 truckPlate.value = "";
                 wagonNumber.value = "";
                 vessel.value = "";
@@ -201,10 +213,10 @@
 
             provider.hidden = !usesProvider;
             provider.disabled = !usesProvider;
-            asset.hidden = usesProvider;
-            asset.disabled = usesProvider;
-            if (usesProvider) asset.value = "";
-            else provider.value = "";
+            asset.hidden = !usesAsset;
+            asset.disabled = !usesAsset;
+            if (!usesProvider) provider.value = "";
+            if (!usesAsset) asset.value = "";
 
             Array.from(asset.options).forEach(function (option) {
                 if (!option.value) return;
@@ -214,6 +226,61 @@
             if (asset.selectedOptions[0] && asset.selectedOptions[0].hidden) asset.value = "";
 
             updateFreightUsd(row);
+        }
+
+        // حمل‌کنندهٔ هر ردیف باید یکی از سه حالت کامل باشد: شرکت خدماتی،
+        // دارایی عملیاتی + راننده، یا حمل‌کنندهٔ شخصی + راننده. همان قاعدهٔ سرور است.
+        function carrierIssue(row) {
+            var isTruck = row.querySelector("[data-vehicle-type]").value === "3";
+            var carrier = row.querySelector("[data-carrier-type]").value;
+            if (carrier === "1") {
+                return row.querySelector("[data-provider]").value
+                    ? null
+                    : { field: "[data-provider]", text: "شرکت خدماتی را انتخاب کنید." };
+            }
+            if (carrier === "2") {
+                if (!row.querySelector("[data-asset]").value) {
+                    return { field: "[data-asset]", text: "دارایی عملیاتی را انتخاب کنید." };
+                }
+                if (isTruck && !row.querySelector("[data-driver]").value) {
+                    return { field: "[data-driver]", text: "برای دارایی عملیاتی، راننده را انتخاب کنید." };
+                }
+                return null;
+            }
+            if (carrier === "3") {
+                if (!isTruck) {
+                    return { field: "[data-carrier-type]", text: "حمل‌کنندهٔ شخصی فقط برای حمل با موتر است." };
+                }
+                if (!row.querySelector("[data-driver]").value) {
+                    return { field: "[data-driver]", text: "برای حمل‌کنندهٔ شخصی، راننده را انتخاب کنید." };
+                }
+                return null;
+            }
+            return { field: "[data-carrier-type]", text: "نوع حمل‌کننده را انتخاب کنید." };
+        }
+
+        // علامت‌گذاری ردیف‌های ناقص و برگرداندن اولین مشکل برای پیام خلاصه.
+        // دقیقاً مانند سرور، ردیفِ بدون مقدار نادیده گرفته می‌شود و شمارهٔ ردیف هم روی همین ردیف‌های دارای مقدار شمرده می‌شود.
+        function markCarrierIssues() {
+            var carrierFields = ["[data-provider]", "[data-asset]", "[data-driver]", "[data-carrier-type]"];
+            var first = null;
+            var counted = 0;
+            rows().forEach(function (row) {
+                var hasQuantity = number(row.querySelector("[data-vehicle-quantity]").value) > 0;
+                var issue = hasQuantity ? carrierIssue(row) : null;
+                if (hasQuantity) counted += 1;
+                carrierFields.forEach(function (selector) {
+                    var field = row.querySelector(selector);
+                    if (!field) return;
+                    var flagged = !!issue && issue.field === selector;
+                    field.classList.toggle("input-validation-error", flagged);
+                    field.title = flagged ? issue.text : "";
+                });
+                if (issue && !first) {
+                    first = { row: counted, text: issue.text };
+                }
+            });
+            return first;
         }
 
         function renumberRows() {
@@ -246,12 +313,6 @@
                 if (Math.abs(number(allocationsBySource[source.id]) - source.quantity) > tolerance) allocationValid = false;
             });
 
-            var freightTotal = rows().reduce(function (sum, row) {
-                var field = row.querySelector("[data-freight]");
-                return sum + (field ? number(field.value) : 0);
-            }, 0);
-            var freightText = freightTotal > 0 ? fixed(freightTotal, 2) + " USD" : "0.00";
-
             form.querySelector("[data-selected-total]").textContent = fixed(selectedTotal);
             form.querySelector("[data-summary-source]").textContent = fixed(selectedTotal) + " MT";
             form.querySelector("[data-summary-vehicles]").textContent = fixed(vehicleTotal) + " MT";
@@ -259,9 +320,10 @@
             differenceNode.textContent = fixed(difference) + " MT";
             differenceNode.classList.toggle("is-invalid", Math.abs(difference) > tolerance || !allocationValid);
             differenceNode.title = allocationValid ? "" : "جمع سهم منابع هر وسیله یا هر منبع کامل نیست.";
-            form.querySelector("[data-summary-freight]").textContent = freightText;
 
-            var canSubmit = selectedTotal > 0 && rows().length > 0 && Math.abs(difference) <= tolerance && allocationValid;
+            var carrierProblem = markCarrierIssues();
+            var canSubmit = selectedTotal > 0 && rows().length > 0 && Math.abs(difference) <= tolerance
+                && allocationValid && !carrierProblem;
             var summaryMessage = form.querySelector("[data-summary-message]");
             if (summaryMessage) {
                 var reason = null;
@@ -269,6 +331,9 @@
                     reason = "حداقل یک وسیله حمل باید وارد شود.";
                 } else if (vehicleTotal <= 0) {
                     reason = "مقدار حداقل یک موتر یا واگن را وارد کنید.";
+                } else if (carrierProblem) {
+                    reason = "ردیف " + carrierProblem.row + ": " + carrierProblem.text
+                        + " ثبت بدون شرکت خدماتی، دارایی عملیاتی یا حمل‌کنندهٔ شخصی ممکن نیست.";
                 } else if (Math.abs(difference) > tolerance || !allocationValid) {
                     reason = "موجودی منابع تیک‌خورده کمتر از جمع بارگیری موترهاست؛ منبع بیشتری تیک بزنید یا مقدار موترها را کم کنید.";
                 }

@@ -32,7 +32,7 @@
     var spIndexUrl = Url.Action("Index") ?? "#";
     ViewData["AkHeaderStatus"] = Model.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive");
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
-    ViewData["AkHeaderContext"] = $"{providerTypeName} · {balanceLabel}";
+    ViewData["AkHeaderContext"] = providerTypeName;
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = UiText.T(Context, "صورت‌حساب رسمی", "Official statement"), Href = Url.Action("ServiceProvider", "PartyStatements", new { id = Model.Id }), Icon = "bi-file-earmark-text" },
@@ -106,6 +106,12 @@
     };
 }
 
+@section Styles {
+    @* تب «صورت‌حساب» همان بدنهٔ صفحهٔ مستقل را رندر می‌کند، پس استایل صورت‌حساب اینجا هم لازم است. *@
+    <link rel="stylesheet" href="~/css/ptg/62-party-statement.css" asp-append-version="true" data-ptg-page-asset="party-statement" />
+}
+
+
 <div class="ak-form-page ak-party-page service-provider-details-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((Model.Name, false,
@@ -124,12 +130,12 @@
     @* ===== تب ۱: صورت‌حساب ===== *@
     <section id="provider-statement" class="ak-form-section ak-detail-section" hidden="@(!showStatement)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "صورت‌حساب رسمی شرکت خدماتی", "Official service provider statement"), UiText.T(Context, "مانده و گردش در موتور مشترک صورت‌حساب محاسبه می‌شود.", "Balance and activity are calculated by the shared statement engine.")))" />
-        <div class="ak-party-statement-embed" data-party-statement-embed="@(Url.Action("ServiceProvider", "PartyStatements", new { id = Model.Id }))">
-            <div class="ak-empty ak-detail-empty-state">
-                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
-                <p>@UiText.T(Context, "در حال بارگذاری صورت‌حساب…", "Loading statement…")</p>
+        @if (showStatement)
+        {
+            <div class="ak-party-statement-embed">
+                <vc:party-statement party-type="@PTGOilSystem.Web.Models.PartyStatements.PartyStatementPartyType.ServiceProvider" party-id="@Model.Id"></vc:party-statement>
             </div>
-        </div>
+        }
     </section>
     @* ===== تب ۳: مصارف و پرداخت‌ها ===== *@
     @{

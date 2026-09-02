@@ -50,9 +50,14 @@ public sealed class TransportWorkflowViewStructureTests
         // The unload action is named after the operator's outcome ("deliver at destination"),
         // and freight has exactly one label everywhere on the page.
         Assert.Contains("تحویل در مقصد", view);
-        Assert.Contains("ثبت کسری", view);
+        Assert.Contains("ثبت کسری مستقل (بدون تخلیه)", view);
         Assert.Contains("ثبت گمرک", view);
         Assert.Contains("تسویه کرایه", view);
+        Assert.Contains("ثبت وزن، کسری و کرایه", view);
+        Assert.Contains("فروش مستقیم بار", view);
+        Assert.DoesNotContain("تسویه کامل موتر", view);
+        Assert.Contains("canSimpleFreightSettlement", view);
+        Assert.Contains("LoadingTransportType.Truck or LoadingTransportType.Wagon", view);
         Assert.DoesNotContain("تسویهٔ کرایه", view);
         Assert.DoesNotContain("ثبت سادهٔ کرایه", view);
         Assert.Contains("لغو / برگشت", view);
@@ -71,12 +76,13 @@ public sealed class TransportWorkflowViewStructureTests
 
         Assert.Contains("\"TruckSettlements\"", tabs);
         Assert.Contains("\"Truck Settlements\"", tabs);
-        Assert.Contains("Url.Action(\"Index\", \"TruckSettlements\")", index);
+        Assert.DoesNotContain("TruckSettlements", index);
         Assert.Contains("Url.Action(\"Index\", \"TruckSettlements\"", details);
         Assert.Contains("kind = TruckSettlementSourceKind.Leg", details);
         Assert.Contains("sourceId = Model.Id", details);
         Assert.Contains("Model.Status is InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit", details);
         Assert.Contains("asp-controller=\"Transports\" asp-action=\"SettleFreight\"", details);
+        Assert.Contains("ثبت وزن، کسری و کرایه", details);
 
         Assert.Contains("data-operations-list", settlement);
         Assert.Contains("_ExcelImport", settlement);

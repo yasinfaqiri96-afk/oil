@@ -44,13 +44,6 @@
         : isDirectDispatchReceipt ? "جزئیات رسید تخلیه مستقیم" : "جزئیات رسید ورود به موجودی";
 
     var lossDifferenceTotal = Model.LossItems.Sum(l => l.DifferenceQuantityMt);
-    var completedInventoryQuantityMt = Model.Allocations
-        .Where(allocation => allocation.Destination == LoadingReceiptAllocationDestination.ToInventory
-            && allocation.Status == LoadingReceiptAllocationStatus.Completed)
-        .Sum(allocation => allocation.QuantityMt);
-    var actualDiffMt = Model.ActualArrivedQuantityMt.HasValue
-        ? Model.ActualArrivedQuantityMt.Value - Model.ReceivedQuantityMt
-        : (decimal?)null;
     var allocBalanced = Model.AllocationDifferenceMt == 0;
     var receiptJourneyUrl = Url.Action("Index", "ContractJourney", new { contractId = Model.ContractId }) ?? "#";
     var receiptEditUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl }) ?? "#";
@@ -64,11 +57,17 @@
     // receipt are its own operations and live in the action bar instead.
     var headerKebab = new List<AkHeaderMenuItem>
     {
-        new() { Label = T("نمای قرارداد", "Contract journey"), Href = Model.ContractId > 0 ? receiptJourneyUrl : null, Icon = "bi-diagram-3" },
         new() { Label = T("رسید جدید", "New receipt"), Href = Model.RemainingToReceiveMt > 0 ? newReceiptUrl : null, Icon = "bi-box-arrow-in-down" }
     };
     if (!Model.IsCancelled)
     {
+        // «اصلاح مقدار» از فهرست اقدام‌های پایین صفحه به همین منو منتقل شده است.
+        headerKebab.Add(new AkHeaderMenuItem
+        {
+            Label = T("اصلاح مقدار", "Correct quantity"),
+            Href = Url.Action("Correct", new { id = Model.Id, returnUrl = currentReturnUrl }),
+            Icon = "bi-arrow-repeat"
+        });
         headerKebab.Add(new AkHeaderMenuItem
         {
             Label = T("لغو رسید", "Cancel receipt"),
@@ -80,10 +79,10 @@
 
     var quantityMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مقدار این رسید", "Receipt quantity"), Value = NumberDisplay.Quantity(Model.ReceivedQuantityMt), Unit = "MT", State = "accent" },
-        new() { Title = T("جمع دریافت", "Total received"), Value = NumberDisplay.Quantity(Model.TotalReceivedQuantityMt), Unit = "MT" },
-        new() { Title = T("باقی‌مانده", "Remaining"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT" },
-        new() { Title = T("اختلاف تخصیص", "Allocation difference"), Value = NumberDisplay.Quantity(Model.AllocationDifferenceMt), Unit = "MT", State = allocBalanced ? null : "warning" }
+        new() { Title = T("مقدار این رسید", "Receipt quantity"), Value = NumberDisplay.Quantity(Model.ReceivedQuantityMt), Unit = "MT", State = "accent", Avatar = "flow-weight-drop" },
+        new() { Title = T("جمع دریافت", "Total received"), Value = NumberDisplay.Quantity(Model.TotalReceivedQuantityMt), Unit = "MT", Avatar = "flow-stock-in" },
+        new() { Title = T("باقی‌مانده", "Remaining"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "flow-tank-gauge" },
+        new() { Title = T("اختلاف تخصیص", "Allocation difference"), Value = NumberDisplay.Quantity(Model.AllocationDifferenceMt), Unit = "MT", State = allocBalanced ? null : "warning", Avatar = "flow-warning" }
     };
 
     // قرارداد/جنس/تاریخ رسید در خط زمینهٔ سربرگ‌اند و اینجا تکرار نمی‌شوند.
@@ -97,31 +96,14 @@
             Value = isDirectDispatchReceipt ? T("وارد تانک نشده", "Not stored") : isMixedReceipt ? T("بر اساس خط تخصیص", "Per allocation line") : Model.StorageTankCode
         },
         new() { Label = T("ورود واقعی", "Arrival date"), Value = Model.ArrivalDate?.ToDisplayDate() },
-        new()
-        {
-            Label = T("مقدار واقعی", "Actual quantity"),
-            Value = Model.ActualArrivedQuantityMt.HasValue
-                ? NumberDisplay.Quantity(Model.ActualArrivedQuantityMt) + (actualDiffMt is { } diff && diff != 0 ? $" ({(diff > 0 ? "+" : "")}{NumberDisplay.Quantity(diff)})" : string.Empty)
-                : null,
-            Unit = "MT",
-            IsNumeric = true,
-            Tone = actualDiffMt is < 0 ? "danger" : null
-        },
         new() { Label = T("نشت / خرابی", "Leak date"), Value = Model.LeakDate?.ToDisplayDate(), Tone = Model.LeakDate.HasValue ? "warning" : null },
-        new() { Label = T("شماره مرجع", "Reference number"), Value = ToReceiptReferenceText(Model.ReferenceDocument) },
-        new()
-        {
-            Label = T("ورود تکمیل‌شده به موجودی", "Completed to inventory"),
-            Value = NumberDisplay.Quantity(completedInventoryQuantityMt),
-            Unit = "MT",
-            IsNumeric = true
-        }
+        new() { Label = T("شماره مرجع", "Reference number"), Value = ToReceiptReferenceText(Model.ReferenceDocument) }
     };
 
     var loadingItems = new List<AkInfoItem>
     {
         new() { Label = T("تاریخ بارگیری", "Loading date"), Value = Model.LoadingDate.ToDisplayDate() },
-        new() { Label = T("مقدار بارگیری", "Loaded quantity"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", IsNumeric = true },
+        new() { Label = T("مقدار بارگیری", "Loaded quantity"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Href = loadingDetailsUrl, Unit = "MT", IsNumeric = true },
         new() { Label = T("بارنامه", "Bill of lading"), Value = Model.BillOfLadingNumber },
         new() { Label = T("واگن", "Wagon"), Value = Model.WagonNumber },
         new() { Label = T("گیرنده", "Consignee"), Value = Model.ConsigneeName },
@@ -163,13 +145,6 @@
         if (allocation.SalesTransactionId.HasValue) relatedRecords.Add(new AkRelatedRecord { TypeLabel = T("فروش", "Sale"), Label = $"#{allocation.SalesTransactionId.Value}", Href = Url.Action("Details", "Sales", new { id = allocation.SalesTransactionId.Value, returnUrl = currentReturnUrl }), KeyValue = $"{NumberDisplay.Quantity(allocation.QuantityMt)} MT", Icon = "bi-receipt" });
     }
 
-    // Operations of this receipt. A cancelled receipt has none.
-    var nextActions = new List<AkHeaderMenuItem>();
-    if (!Model.IsCancelled)
-    {
-        // «ویرایش رسید» به نوار شناسه منتقل شده و اینجا تکرار نمی‌شود.
-        nextActions.Add(new AkHeaderMenuItem { Label = T("اصلاح مقدار", "Correct quantity"), Href = Url.Action("Correct", new { id = Model.Id, returnUrl = currentReturnUrl }), Icon = "bi-arrow-repeat" });
-    }
     var linkedSalesCount = Model.Allocations.Count(item => item.SalesTransactionId.HasValue);
     var linkedDispatchCount = Model.Allocations.Count(item => item.TruckDispatchId.HasValue);
     var activityRows = new List<AkDetailActivityRow>
@@ -218,8 +193,7 @@
             Timeline = timelineItems,
             Related = relatedRecords,
             Technical = advancedItems
-        },
-        NextActions = nextActions
+        }
     };
 
     ViewData["Title"] = pageTitle;

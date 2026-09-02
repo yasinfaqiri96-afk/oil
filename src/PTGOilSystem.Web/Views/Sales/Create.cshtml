@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Sales.SalesCreateViewModel
+﻿@model PTGOilSystem.Web.Models.Sales.SalesCreateViewModel
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Sales
 @{
@@ -33,6 +33,9 @@
         @Html.AntiForgeryToken()
         @Html.FormToken()
         <input asp-for="ReturnUrl" type="hidden" />
+        <input asp-for="Version" type="hidden" />
+        @* PTG-P2-03 — پیوند به سندِ ابطال‌شده، فقط در جریانِ اصلاح. *@
+        <input asp-for="CorrectedFromSaleId" type="hidden" />
         <input asp-for="DestinationLocationId" type="hidden" data-sales-destination-id />
         @if (Model.ContractId.HasValue)
         {
@@ -58,7 +61,7 @@
                 </div>
                 <div class="ak-field">
                     <label asp-for="SaleDate" class="ak-label">@UiText.T(Context, "تاریخ فروش", "Sale date") <span class="ak-req">*</span></label>
-                    <input asp-for="SaleDate" type="date" class="ak-input" data-sales-date />
+                    <input asp-for="SaleDate" type="date" class="ak-input" data-sales-date data-ptg-date-guard data-ptg-today="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
                     <span asp-validation-for="SaleDate" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
@@ -185,6 +188,8 @@
         <input asp-for="Loss.Stage" type="hidden" />
         <input asp-for="Loss.QuantityMt" type="hidden" />
         <input asp-for="Loss.Notes" type="hidden" />
+
+        <partial name="~/Views/Shared/_ClosedPeriodOverride.cshtml" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
                  model="@((submitLabel, cancelUrl ?? "#", UiText.T(Context, "انصراف", "Cancel")))" />

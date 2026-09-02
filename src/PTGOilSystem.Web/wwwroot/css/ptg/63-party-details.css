@@ -1,4 +1,4 @@
-/* =============================================================
+﻿/* =============================================================
  * Counterparty details
  * Compact, shared profile composition for every .ak-party-page.
  * Presentation only: no financial or workflow behavior lives here.
@@ -384,17 +384,76 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 }
 
 /* Identity is folded into the same panel: one hairline separates account state
-   from reference data, so the summary tab stays a single card. */
+   from reference data, so the summary tab stays a single card. The reference
+   rows sit behind a native <details>, closed by default, so the summary tab
+   opens on the account state alone. */
 .ak-party-identity-panel {
     padding-block-start: 10px;
     border-block-start: 1px solid var(--divider);
 }
 
+.ak-party-identity-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.ak-party-identity-toggle::-webkit-details-marker {
+    display: none;
+}
+
 .ak-party-subhead {
-    margin: 0 0 8px;
+    margin: 0;
     font-size: 12px;
     font-weight: 600;
     color: var(--ptg-muted);
+}
+
+.ak-party-identity-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ptg-primary);
+}
+
+.ak-party-identity-more i {
+    font-size: 11px;
+    transition: transform 190ms ease-out;
+}
+
+.ak-party-identity-panel[open] .ak-party-identity-more i {
+    transform: rotate(180deg);
+}
+
+.ak-party-identity-panel[open] .ak-party-identity-more-text {
+    display: none;
+}
+
+.ak-party-identity-toggle:focus-visible {
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.ak-party-identity-panel[open] > .ak-party-meta-grid--identity {
+    margin-block-start: 8px;
+}
+
+/* Opt-in variant: settled bar, fact chips and identity rows share one collapsed
+   panel, so the summary tab opens on the direction sentence alone. */
+.ak-party-more-body {
+    display: grid;
+    gap: 12px;
+    margin-block-start: 10px;
+}
+
+.ak-party-more-subhead {
+    margin-block-end: -4px;
 }
 
 /* =====================================================================

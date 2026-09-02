@@ -62,6 +62,8 @@ yarn-error.log*
 *.dump
 
 backups/postgres/
+# کل پوشه backups محلی است و هرگز commit نمی‌شود.
+/backups/
 # آرشیوهای ماژول پشتیبان‌گیری (Backup:StorageDirectory) هرگز نباید وارد مخزن شوند.
 backups/app/
 backups/secure/local-keys/

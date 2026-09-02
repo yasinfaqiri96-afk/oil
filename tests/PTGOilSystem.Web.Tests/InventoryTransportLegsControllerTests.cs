@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -1637,7 +1637,7 @@ public class InventoryTransportLegsControllerTests
     }
 
     [Fact]
-    public async Task Edit_Batch_Leg_Redirects_To_Journey()
+    public async Task Edit_Batch_Leg_Redirects_To_Batch_Edit_Form()
     {
         await using var db = CreateDb();
         db.InventoryTransportBatches.Add(new InventoryTransportBatch
@@ -1669,8 +1669,8 @@ public class InventoryTransportLegsControllerTests
         var result = await BuildController(db).Edit(11);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Journey", redirect.ActionName);
-        Assert.Equal("ITG:10", redirect.RouteValues!["groupKey"]);
+        Assert.Equal("EditBatch", redirect.ActionName);
+        Assert.Equal(10, redirect.RouteValues!["id"]);
     }
 
     // ───────── فروش گروهی مستقیم + تسویه: کسر از کرایه / بدهی جداگانه ─────────

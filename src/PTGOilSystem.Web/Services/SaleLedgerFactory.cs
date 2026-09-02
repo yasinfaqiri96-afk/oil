@@ -1,5 +1,6 @@
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Sales;
+using PTGOilSystem.Web.Services.Ledger;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -14,7 +15,7 @@ public static class SaleLedgerFactory
     public static string BuildDescription(SalesTransaction sale)
         => $"ثبت فروش {SaleStageLabels.ToPersian(sale.SaleStage)} فاکتور {sale.InvoiceNumber}";
 
-    public static LedgerEntry BuildSaleLedgerEntry(
+    public static LedgerPostingRequest BuildSaleLedgerEntry(
         SalesTransaction sale,
         CurrencyConversionResult conversion,
         int? contractId)

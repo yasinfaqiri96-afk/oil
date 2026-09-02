@@ -757,7 +757,8 @@ public sealed class TabularExportService : ITabularExportService
         TabularExportRow row,
         bool isEnglish)
     {
-        for (var index = 0; index < columns.Count; index++)
+        var lines = 1;
+        for (var index = 0; index < columns.Count && index < row.Cells.Count; index++)
         {
             if (!columns[index].Wrap)
             {
@@ -765,15 +766,25 @@ public sealed class TabularExportService : ITabularExportService
             }
 
             var text = row.Cells[index].ToDisplayText(isEnglish);
-            if (text.Contains('\n', StringComparison.Ordinal)
-                || text.Contains('\r', StringComparison.Ordinal)
-                || text.Length > columns[index].Width * 1.35D)
+            if (text.Length == 0)
             {
-                return ExcelDesignSystem.WrappedBodyRowHeight;
+                continue;
             }
+
+            // هر خطِ صریح یک خط است و متنِ بلندتر از عرض ستون به چند خط شکسته می‌شود؛
+            // بدون این حساب، سطر ارتفاع دو خطی می‌گرفت و متن از خانه بیرون می‌زد.
+            var explicitLines = text.Split('\n').Length;
+            var charsPerLine = Math.Max(1D, columns[index].Width * 1.35D);
+            var wrappedLines = (int)Math.Ceiling(text.Replace("\n", string.Empty).Length / charsPerLine);
+            lines = Math.Max(lines, Math.Max(explicitLines, wrappedLines));
         }
 
-        return ExcelDesignSystem.BodyRowHeight;
+        if (lines <= 1)
+        {
+            return ExcelDesignSystem.BodyRowHeight;
+        }
+
+        return Math.Min(lines, ExcelDesignSystem.MaxWrappedBodyLines) * ExcelDesignSystem.WrappedBodyLineHeight;
     }
 
     private static void WriteNumberCell(OpenXmlWriter writer, string value, uint styleIndex)

@@ -1,0 +1,51 @@
+@using PTGOilSystem.Web.Security
+@using PTGOilSystem.Web.Services.OperationalPeriod
+@inject IOperationalPeriodGuard PeriodGuard
+
+@*
+    PTG فاز ۹ — «ثبت استثنایی در دورهٔ بسته».
+
+    این بلوک فقط وقتی دیده می‌شود که هر دو شرط برقرار باشند:
+      ۱) دوره‌ای واقعاً بسته باشد،
+      ۲) کاربر دسترسیِ PostToClosedOperationalPeriod داشته باشد.
+    برای بقیهٔ کاربران هیچ چیزی رندر نمی‌شود — نه تیک، نه توضیح، نه نشانه‌ای از وجودِ
+    این راه. پس «کلیدِ بایپس» در رابط کاربری وجود ندارد.
+
+    قرار دادنش داخلِ هر <form> کافی است؛ خواندن و اعتبارسنجی در
+    ClosedPeriodOverrideFilter انجام می‌شود، نه این‌جا.
+*@
+
+@{
+    var canOverride = User.HasClaim(AppClaimTypes.Permission, AppPermissions.PostToClosedOperationalPeriod);
+    var lockStatus = canOverride ? await PeriodGuard.GetStatusAsync() : OperationalPeriodLockStatus.Open;
+}
+
+@if (canOverride && lockStatus.IsLocked)
+{
+    <div class="alert alert-warning ptg-closed-period-override" role="group">
+        <div class="form-check">
+            <input class="form-check-input"
+                   type="checkbox"
+                   value="true"
+                   id="closedPeriodOverride"
+                   name="@ClosedPeriodOverrideFilter.RequestedField">
+            <label class="form-check-label fw-semibold" for="closedPeriodOverride">
+                ثبت استثنایی در دورهٔ بسته
+            </label>
+        </div>
+
+        <p class="ak-note mb-2">
+            دوره تا @lockStatus.LockedThroughDate!.Value.ToString("yyyy-MM-dd") بسته است.
+            این کار فقط همین یک ثبت را مجاز می‌کند، قفل را باز نمی‌کند، و با نام شما و
+            همین دلیل در سوابق بازرسی ثبت می‌شود.
+        </p>
+
+        <label class="form-label" for="closedPeriodOverrideReason">دلیل (اجباری)</label>
+        <textarea class="form-control"
+                  id="closedPeriodOverrideReason"
+                  name="@ClosedPeriodOverrideFilter.ReasonField"
+                  rows="2"
+                  maxlength="500"
+                  placeholder="چرا این سند باید در دورهٔ بسته ثبت شود؟"></textarea>
+    </div>
+}

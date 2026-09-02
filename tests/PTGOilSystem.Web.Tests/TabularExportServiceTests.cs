@@ -325,13 +325,13 @@ public sealed class TabularExportServiceTests
     {
         var webRoot = FindWebRoot();
         var projectRoot = Directory.GetParent(webRoot)!.FullName;
-        var view = File.ReadAllText(Path.Combine(projectRoot, "Views", "PartyStatements", "Document.cshtml"));
+        var view = File.ReadAllText(Path.Combine(projectRoot, "Views", "PartyStatements", "_StatementBody.cshtml"));
         var script = File.ReadAllText(Path.Combine(webRoot, "js", "party-statement.js"));
         var controller = File.ReadAllText(Path.Combine(projectRoot, "Controllers", "PartyStatementsController.cs"));
 
         Assert.Contains("Url.Action(\"Pdf\", \"PartyStatements\"", view);
         Assert.Contains("PartyStatements/{partyType}/{id:int}/Pdf", controller);
-        Assert.Contains("data-statement-print", view);
+        Assert.DoesNotContain("data-statement-print", view);
         Assert.Contains("data-statement-auto-print", view);
         Assert.Contains("window.print", script);
     }

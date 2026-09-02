@@ -1,4 +1,4 @@
-namespace PTGOilSystem.Web.Security;
+﻿namespace PTGOilSystem.Web.Security;
 
 public static class AuthPolicies
 {
@@ -10,4 +10,10 @@ public static class AuthPolicies
     /// Permission صریح ManageBackups. مدیریت کاربران به‌تنهایی کافی نیست.
     /// </summary>
     public const string BackupAdmin = nameof(BackupAdmin);
+
+    /// <summary>
+    /// PTG-P1-01 — بستن و بازکردنِ دورهٔ عملیاتی. مثل صفحهٔ پشتیبان‌گیری: نقش Admin یا
+    /// Permission صریح ManageOperationalPeriodLock.
+    /// </summary>
+    public const string OperationalPeriodAdmin = nameof(OperationalPeriodAdmin);
 }

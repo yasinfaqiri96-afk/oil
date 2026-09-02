@@ -1,6 +1,7 @@
 using System;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Ledger;
 
 namespace PTGOilSystem.Web.Helpers;
 
@@ -65,26 +66,89 @@ public static class SupplierLoadingLedger
         return reference.Length > 200 ? reference[..200] : reference;
     }
 
-    public static LedgerEntry Create(LoadingRegister loading, Contract contract)
+    /// <summary>
+    /// PTG-P1-03 — همان سطرِ قبلی، این‌بار به‌شکلِ «درخواستِ ثبت» تا از مسیر متمرکز
+    /// (<c>ILedgerPostingService</c>) نوشته شود. مقادیر دقیقاً از همان snapshotی می‌آیند که
+    /// <see cref="ApplySnapshot"/> روی سطرهای موجود اعمال می‌کند، پس خروجی فیلد-به-فیلد
+    /// همان چیزی است که پیش از تمرکز نوشته می‌شد.
+    /// </summary>
+    public static LedgerPostingRequest Create(LoadingRegister loading, Contract contract)
     {
         ArgumentNullException.ThrowIfNull(loading);
         ArgumentNullException.ThrowIfNull(contract);
 
-        var entry = new LedgerEntry
+        var snapshot = BuildSnapshot(loading);
+
+        return new LedgerPostingRequest
         {
             Side = LedgerSide.Credit,
             Currency = SystemCurrency.BaseCurrencyCode,
-            SourceCurrencyCode = HasRubLockSnapshot(loading) ? "RUB" : SystemCurrency.BaseCurrencyCode,
+            SourceCurrencyCode = snapshot?.SourceCurrencyCode
+                ?? (HasRubLockSnapshot(loading) ? "RUB" : SystemCurrency.BaseCurrencyCode),
             Description = $"بدهی تأمین‌کننده بابت بارگیری #{loading.Id}",
             SourceType = SourceType,
             SourceId = loading.Id,
             Reference = BuildReference(loading),
             ContractId = contract.Id,
-            SupplierId = contract.SupplierId!.Value
-        };
+            SupplierId = contract.SupplierId!.Value,
 
-        ApplySnapshot(entry, loading);
-        return entry;
+            // وقتی snapshot وجود ندارد (بارگیری دالریِ بی‌قیمت) مقادیر دقیقاً همان
+            // پیش‌فرض‌هایی می‌مانند که ApplySnapshot هم دست نمی‌زد.
+            EntryDate = snapshot?.EntryDate ?? default,
+            AmountUsd = snapshot?.AmountUsd ?? 0m,
+            SourceAmount = snapshot?.SourceAmount,
+            AppliedFxRateToUsd = snapshot?.AppliedFxRateToUsd,
+            AppliedFxRateDate = snapshot?.AppliedFxRateDate,
+            AppliedFxRateSource = snapshot?.AppliedFxRateSource,
+        };
+    }
+
+    /// <summary>
+    /// مقادیرِ وابسته به snapshot بارگیری. <c>null</c> یعنی «چیزی برای نوشتن نیست» —
+    /// همان حالتی که <see cref="ApplyUsdSnapshot"/> با <c>false</c> اعلام می‌کرد.
+    ///
+    /// نکتهٔ مهم: مسیر روبل عمداً <c>SourceCurrencyCode</c> را برنمی‌گرداند، چون
+    /// هماهنگ‌سازیِ سطرهای روبلیِ موجود هرگز آن ستون را نمی‌نوشت.
+    /// </summary>
+    private sealed record LoadingLedgerSnapshot(
+        DateTime EntryDate,
+        decimal AmountUsd,
+        decimal SourceAmount,
+        string? SourceCurrencyCode,
+        decimal AppliedFxRateToUsd,
+        DateTime AppliedFxRateDate,
+        string AppliedFxRateSource);
+
+    private static LoadingLedgerSnapshot? BuildSnapshot(LoadingRegister loading)
+    {
+        // انتخابِ مسیر با وجودِ snapshot قفلِ روبل تعیین می‌شود، نه با کدِ ارز: سطرهای روبلیِ
+        // قفل‌شده دقیقاً مثل قبل هماهنگ می‌شوند و بارگیری دالری از حسابِ مقدار × قیمت می‌آید.
+        if (HasRubLockSnapshot(loading))
+        {
+            return new LoadingLedgerSnapshot(
+                loading.LoadingDate.Date,
+                loading.AmountUsdAtRubLock!.Value,
+                loading.AmountRubAtRubLock!.Value,
+                SourceCurrencyCode: null,
+                decimal.Round(1m / loading.RubPerUsdRate!.Value, 6, MidpointRounding.AwayFromZero),
+                loading.RubRateDate?.Date ?? loading.LoadingDate.Date,
+                loading.RubRateSource ?? "Loading RUB settlement");
+        }
+
+        var amountUsd = CalculateUsdAmount(loading);
+        if (amountUsd is not > 0m)
+        {
+            return null;
+        }
+
+        return new LoadingLedgerSnapshot(
+            loading.LoadingDate.Date,
+            amountUsd.Value,
+            amountUsd.Value,
+            SystemCurrency.BaseCurrencyCode,
+            1m,
+            loading.LoadingDate.Date,
+            UsdRateSource);
     }
 
     /// <summary>
@@ -97,70 +161,34 @@ public static class SupplierLoadingLedger
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(loading);
 
-        // انتخابِ مسیر با وجودِ snapshot قفلِ روبل تعیین می‌شود، نه با کدِ ارز: سطرهای روبلیِ
-        // قفل‌شده دقیقاً مثل قبل هماهنگ می‌شوند و بارگیری دالری از حسابِ مقدار × قیمت می‌آید.
-        return HasRubLockSnapshot(loading)
-            ? ApplyRubSnapshot(entry, loading)
-            : ApplyUsdSnapshot(entry, loading);
-    }
-
-    private static bool ApplyRubSnapshot(LedgerEntry entry, LoadingRegister loading)
-    {
-        var entryDate = loading.LoadingDate.Date;
-        var amountUsd = loading.AmountUsdAtRubLock!.Value;
-        var amountRub = loading.AmountRubAtRubLock!.Value;
-        var fxRateToUsd = decimal.Round(1m / loading.RubPerUsdRate!.Value, 6, MidpointRounding.AwayFromZero);
-        var fxRateDate = loading.RubRateDate?.Date ?? loading.LoadingDate.Date;
-        var fxRateSource = loading.RubRateSource ?? "Loading RUB settlement";
-
-        var changed = entry.EntryDate != entryDate
-            || entry.AmountUsd != amountUsd
-            || entry.SourceAmount != amountRub
-            || entry.AppliedFxRateToUsd != fxRateToUsd
-            || entry.AppliedFxRateDate != fxRateDate
-            || entry.AppliedFxRateSource != fxRateSource;
-
-        entry.EntryDate = entryDate;
-        entry.AmountUsd = amountUsd;
-        entry.SourceAmount = amountRub;
-        entry.AppliedFxRateToUsd = fxRateToUsd;
-        entry.AppliedFxRateDate = fxRateDate;
-        entry.AppliedFxRateSource = fxRateSource;
-
-        return changed;
-    }
-
-    /// <summary>
-    /// سطر دالری: مبلغ دفتر و مبلغ منبع هر دو USD و نرخ تبادله ۱ است؛
-    /// با ویرایش مقدار یا قیمتِ بارگیری همین سطر به‌روزرسانی می‌شود.
-    /// اگر قیمت برداشته شود مبلغ کهنه دست‌نخورده می‌ماند (پاک‌سازی کارِ فراخوان است).
-    /// </summary>
-    private static bool ApplyUsdSnapshot(LedgerEntry entry, LoadingRegister loading)
-    {
-        var amountUsd = CalculateUsdAmount(loading);
-        if (amountUsd is not > 0m)
+        // سطر دالریِ بی‌قیمت: مبلغ کهنه دست‌نخورده می‌ماند (پاک‌سازی کارِ فراخوان است).
+        var snapshot = BuildSnapshot(loading);
+        if (snapshot is null)
         {
             return false;
         }
 
-        var entryDate = loading.LoadingDate.Date;
-        var fxRateDate = loading.LoadingDate.Date;
+        var changed = entry.EntryDate != snapshot.EntryDate
+            || entry.AmountUsd != snapshot.AmountUsd
+            || entry.SourceAmount != snapshot.SourceAmount
+            || entry.AppliedFxRateToUsd != snapshot.AppliedFxRateToUsd
+            || entry.AppliedFxRateDate != snapshot.AppliedFxRateDate
+            || entry.AppliedFxRateSource != snapshot.AppliedFxRateSource
+            || (snapshot.SourceCurrencyCode is not null
+                && entry.SourceCurrencyCode != snapshot.SourceCurrencyCode);
 
-        var changed = entry.EntryDate != entryDate
-            || entry.AmountUsd != amountUsd.Value
-            || entry.SourceAmount != amountUsd.Value
-            || entry.SourceCurrencyCode != SystemCurrency.BaseCurrencyCode
-            || entry.AppliedFxRateToUsd != 1m
-            || entry.AppliedFxRateDate != fxRateDate
-            || entry.AppliedFxRateSource != UsdRateSource;
+        entry.EntryDate = snapshot.EntryDate;
+        entry.AmountUsd = snapshot.AmountUsd;
+        entry.SourceAmount = snapshot.SourceAmount;
+        entry.AppliedFxRateToUsd = snapshot.AppliedFxRateToUsd;
+        entry.AppliedFxRateDate = snapshot.AppliedFxRateDate;
+        entry.AppliedFxRateSource = snapshot.AppliedFxRateSource;
 
-        entry.EntryDate = entryDate;
-        entry.AmountUsd = amountUsd.Value;
-        entry.SourceAmount = amountUsd.Value;
-        entry.SourceCurrencyCode = SystemCurrency.BaseCurrencyCode;
-        entry.AppliedFxRateToUsd = 1m;
-        entry.AppliedFxRateDate = fxRateDate;
-        entry.AppliedFxRateSource = UsdRateSource;
+        // مسیر روبل این ستون را هرگز نمی‌نوشت؛ همان رفتار حفظ می‌شود.
+        if (snapshot.SourceCurrencyCode is not null)
+        {
+            entry.SourceCurrencyCode = snapshot.SourceCurrencyCode;
+        }
 
         return changed;
     }

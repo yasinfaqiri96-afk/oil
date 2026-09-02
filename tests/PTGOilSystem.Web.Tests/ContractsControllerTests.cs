@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Models.ContractJourney;
 using PTGOilSystem.Web.Models.Contracts;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Ledger;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -1459,9 +1460,10 @@ public class ContractsControllerTests
         };
         db.LoadingRegisters.Add(loading);
 
-        var entry = SupplierLoadingLedger.Create(loading, contract);
+        // PTG-P1-03 — سازنده حالا «درخواستِ ثبت» می‌دهد؛ خودِ سطر از مسیر متمرکز ساخته
+        // می‌شود. اینجا فقط دادهٔ آزمون کاشته می‌شود، پس همان سرویس مستقیم صدا زده می‌شود.
+        var entry = new LedgerPostingService(db).Post(SupplierLoadingLedger.Create(loading, contract));
         entry.Id = ledgerEntryId;
-        db.LedgerEntries.Add(entry);
     }
 
     [Fact]

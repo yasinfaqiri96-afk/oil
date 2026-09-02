@@ -67,19 +67,22 @@ public class ShipmentPnlControllerTests
         Assert.DoesNotContain("#shipment-trips|", view);
         Assert.DoesNotContain("tab-pane fade", view);
         Assert.Contains("tab-content ak-detail-content ak-tab-content", view);
-        var statisticsPosition = view.IndexOf("Shipment key indicators", StringComparison.Ordinal);
+        // شش شبکهٔ کارتِ مخصوصِ هر تب با نمای خطی مشترک بازنشسته شدند (commit 1550151)؛
+        // قاعدهٔ آن حالا در Shipment_Removes_The_Per_Tab_Kpi_Card_Dashboard است.
+        // آنچه اینجا هنوز pin می‌شود ترتیب صفحه است: اعداد محموله، بعد ریل تب، بعد محتوا.
+        var overviewPosition = view.IndexOf("_DetailOverview.cshtml", StringComparison.Ordinal);
+        var activityPosition = view.IndexOf("_DetailActivityList.cshtml", StringComparison.Ordinal);
         var tabsPosition = view.IndexOf("_DetailsTabs.cshtml", StringComparison.Ordinal);
         var tabContentPosition = view.IndexOf("tab-content ak-detail-content ak-tab-content", StringComparison.Ordinal);
-        Assert.True(statisticsPosition >= 0, "Shipment key indicators must be rendered.");
-        Assert.True(tabsPosition > statisticsPosition, "Shipment tabs must follow the statistic cards.");
+        Assert.True(overviewPosition >= 0, "Shipment key indicators must be rendered.");
+        Assert.True(activityPosition > overviewPosition, "The activity list must follow the headline metrics.");
+        Assert.True(tabsPosition > activityPosition, "Shipment tabs must follow the shipment numbers.");
         Assert.True(tabContentPosition > tabsPosition, "Shipment tab content must follow the tab rail.");
-        // شش تب باقی‌مانده: هر کدام یک گرید آمار + یک منوی خروجی مشترک.
-        Assert.Equal(7, Regex.Matches(view, "data-ak-tab=\"shipment-").Count);
-        Assert.Equal(6, Regex.Matches(view, "class=\"ak-stat-grid mb-3\" data-ak-tab=").Count);
+        // یک منوی خروجی مشترک که با تب فعال عوض می‌شود — نه یکی به‌ازای هر تب.
+        Assert.Single(Regex.Matches(view, "data-ak-tab=\"shipment-"));
+        Assert.Empty(Regex.Matches(view, "class=\"ak-stat-grid mb-3\" data-ak-tab="));
         Assert.Single(Regex.Matches(view, "new PTGOilSystem.Web.Services.Exports.ExportMenuModel\\("));
         Assert.Contains("[\"tab\"] = exportTab", view);
-        var lastStatisticsPosition = view.LastIndexOf("class=\"ak-stat-grid mb-3\" data-ak-tab=", StringComparison.Ordinal);
-        Assert.True(tabsPosition > lastStatisticsPosition, "Every tab-specific statistic grid must precede the tab rail.");
         Assert.Contains("ak-summary", view);
         Assert.Contains("بار داخل کشتی", view);
         Assert.Contains("باقی‌مانده", view);

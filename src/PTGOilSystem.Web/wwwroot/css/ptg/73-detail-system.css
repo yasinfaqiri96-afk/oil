@@ -931,13 +931,10 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     min-width: 0;
 }
 
+/* Figure, unit and meta are one statement in one cell: "3 items" is a single
+   thing to read, not three columns to scan across. */
 .ak-linear-detail .ak-detail-activity-value {
-    flex: 0 1 auto;
-    min-inline-size: 110px;
-}
-
-.ak-linear-detail .ak-detail-activity-meta {
-    flex: 1 1 110px;
+    flex: 1 1 130px;
     min-width: 0;
 }
 
@@ -957,7 +954,6 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 }
 
 .ak-linear-detail .ak-detail-activity-value small,
-.ak-linear-detail .ak-detail-activity-meta,
 .ak-linear-detail .ak-detail-activity-status {
     color: var(--ptg-muted);
     font-size: 12px;
@@ -968,17 +964,150 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     margin-inline-start: 4px;
 }
 
+/* Meta trails the figure as an aside, separated so the two never read as one
+   number. */
+.ak-linear-detail .ak-detail-activity-value small.ak-detail-activity-meta::before {
+    content: "·";
+    margin-inline-end: 4px;
+}
+
+.ak-linear-detail .ak-detail-activity-value:not(.ak-num) small.ak-detail-activity-meta::before {
+    content: none;
+}
+
 .ak-linear-detail .ak-detail-activity-status.is-success { color: var(--ptg-success-text); }
 .ak-linear-detail .ak-detail-activity-status.is-warning { color: var(--ptg-warning-text); }
 .ak-linear-detail .ak-detail-activity-status.is-danger { color: var(--ptg-danger-text); }
 
+/* A quiet "open" affordance. The history below carries the real links, so this
+   must not compete with them as a second button. */
 .ak-linear-detail .ak-detail-activity-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex: 0 0 auto;
+    inline-size: 24px;
+    block-size: 24px;
     margin-inline-start: auto;
-    color: var(--ptg-primary);
+    border-radius: 50%;
+    color: var(--ptg-muted);
     font-size: 12px;
-    font-weight: 600;
     text-decoration: none;
+}
+
+.ak-linear-detail .ak-detail-activity-link:hover,
+.ak-linear-detail .ak-detail-activity-link:focus-visible {
+    background: var(--ptg-surface-soft);
+    color: var(--ptg-primary);
+}
+
+/* Four shared columns: label, figure, state, open.
+   Each cell after the label is optional, so free flex packing let every row
+   start its figure at a different offset — one row's number sat beside its
+   label, the next one's drifted to the middle, and the link was pushed to the
+   far edge by margin-inline-start:auto.
+
+   The tracks live on the LIST, not on the row: a per-row grid would size its
+   own tracks from its own cells, so a row without a status or a row with a
+   long text value would still land its column somewhere else. The row spans
+   the list and borrows those tracks, so every column is measured once for the
+   whole list and a missing cell simply leaves its column empty.
+   Under 576px the phone layout keeps its existing stacked flex line. */
+@media (min-width: 576px) {
+    .ak-linear-detail .ak-detail-activity-list {
+        display: grid;
+        grid-template-columns:
+            minmax(0, 1.1fr)            /* label  */
+            minmax(0, 1fr)              /* figure */
+            minmax(78px, max-content)   /* state  */
+            24px;                       /* open   */
+        column-gap: 14px;
+    }
+
+    /* Fallback for engines without subgrid: content-independent tracks, so the
+       columns still resolve to the same widths on every row. */
+    .ak-linear-detail .ak-detail-activity-row {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) 92px 24px;
+        column-gap: 14px;
+        row-gap: 0;
+    }
+
+    @supports (grid-template-columns: subgrid) {
+        .ak-linear-detail .ak-detail-activity-row {
+            grid-template-columns: subgrid;
+            column-gap: 14px;
+        }
+    }
+
+    /* Every cell hugs the start of its own column, so text and figures share
+       one reading edge instead of floating inside a shrink-to-fit box. */
+    .ak-linear-detail .ak-detail-activity-row > * {
+        grid-row: 1;
+        justify-self: start;
+        min-width: 0;
+    }
+
+    .ak-linear-detail .ak-detail-activity-label { grid-column: 1; }
+    .ak-linear-detail .ak-detail-activity-value { grid-column: 2; }
+    .ak-linear-detail .ak-detail-activity-status { grid-column: 3; }
+
+    .ak-linear-detail .ak-detail-activity-link {
+        grid-column: 4;
+        margin-inline-start: 0;
+    }
+}
+
+/* Phone: label on its own line, then the figure with its state beside it, and
+   the chevron pinned to the label line so the row still has one tap target. */
+@media (max-width: 575.98px) {
+    .ak-linear-detail .ak-detail-activity-list {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) max-content;
+        column-gap: 12px;
+    }
+
+    .ak-linear-detail .ak-detail-activity-row {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 1fr) 92px;
+        column-gap: 12px;
+        row-gap: 2px;
+    }
+
+    @supports (grid-template-columns: subgrid) {
+        .ak-linear-detail .ak-detail-activity-row {
+            grid-template-columns: subgrid;
+        }
+    }
+
+    .ak-linear-detail .ak-detail-activity-row > * {
+        justify-self: start;
+        min-width: 0;
+    }
+
+    .ak-linear-detail .ak-detail-activity-label {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .ak-linear-detail .ak-detail-activity-value {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .ak-linear-detail .ak-detail-activity-status {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .ak-linear-detail .ak-detail-activity-link {
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: end;
+        margin-inline-start: 0;
+    }
 }
 
 .ak-linear-detail .ak-detail-actionbar {
@@ -1139,34 +1268,73 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 
 .ak-linear-detail .ak-detail-secondary {
     display: grid;
-    gap: 12px;
-    padding-block: 4px 18px;
-    color: var(--ptg-muted);
-    font-size: 12px;
+    gap: 22px;
+    padding-block: 0;
+    color: var(--ptg-text);
+    font-size: 13px;
 }
 
+/* Related records are chips, not a run-on sentence of links: each one is a
+   discrete place to go, so each gets its own hit area. */
 .ak-linear-detail .ak-detail-secondary-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 18px;
+    gap: 8px;
 }
 
-.ak-linear-detail .ak-detail-secondary a {
-    color: var(--ptg-muted);
+.ak-linear-detail .ak-detail-secondary-links > :is(a, span) {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 11px;
+    border: 1px solid var(--ak-linear-border);
+    border-radius: 999px;
+    background: var(--background-paper, #fff);
+    color: var(--ptg-text);
+    font-size: 12px;
+    font-weight: 600;
     text-decoration: none;
 }
 
-/* History: every recorded event, one compact line each. */
-.ak-linear-detail .ak-detail-history > h2 {
-    margin: 0 0 6px;
-    color: var(--ptg-muted);
-    font-size: 12px;
-    font-weight: 600;
+.ak-linear-detail .ak-detail-secondary-links > a:hover,
+.ak-linear-detail .ak-detail-secondary-links > a:focus-visible {
+    border-color: var(--ptg-primary);
+    color: var(--ptg-primary);
 }
 
+.ak-linear-detail .ak-detail-secondary-links > :is(a, span) > span {
+    color: var(--ptg-muted);
+    font-weight: 500;
+}
+
+.ak-linear-detail .ak-detail-secondary-links > span.is-plain {
+    color: var(--ptg-muted);
+}
+
+/* ── Zones inside the disclosure ────────────────────────────────────────────
+   Three questions, asked in order and never mixed: where does this record
+   stand, what happened to it, and what is it attached to. Each zone carries the
+   same heading weight and one plain-language note, so a reader who does not
+   know the domain can tell what they are looking at before reading a figure. */
+.ak-linear-detail :is(.ak-detail-activity, .ak-detail-history, .ak-detail-related) > h2 {
+    margin: 0;
+    color: var(--ptg-text);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.ak-linear-detail .ak-detail-zone-note {
+    margin: 3px 0 10px;
+    color: var(--ptg-muted);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+/* History: every recorded event, one compact line each. */
 .ak-linear-detail .ak-detail-history-list {
     display: grid;
-    gap: 2px;
+    gap: 0;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -1176,13 +1344,23 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 2px 10px;
-    min-width: 0;
+    gap: 2px 12px;
+    min-block-size: 30px;
+    padding-block: 5px;
+    border-block-start: 1px solid var(--ak-linear-border);
+    color: var(--ptg-text);
+    font-size: 13px;
+}
+
+.ak-linear-detail .ak-detail-history-item:first-child {
+    border-block-start: 0;
 }
 
 .ak-linear-detail .ak-detail-history-date {
     flex: 0 0 auto;
     min-inline-size: 88px;
+    color: var(--ptg-muted);
+    font-size: 12px;
 }
 
 /* The title does not stretch: date, title and figure stay adjacent instead of
@@ -1201,10 +1379,14 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     font-weight: 600;
 }
 
-/* Internal ids, ledger and audit trace: present, but folded away by default. */
+/* Internal ids, ledger and audit trace: present, but folded away by default and
+   visibly a footnote — a quieter ground and a "for support" tag, so a reader
+   who does not need it can skip it without opening it first. */
 .ak-linear-detail .ak-detail-technical {
-    padding-block-start: 12px;
-    border-block-start: 1px solid var(--ak-linear-border);
+    padding: 10px 12px;
+    border: 1px solid var(--ak-linear-border);
+    border-radius: 10px;
+    background: var(--ptg-surface-soft);
 }
 
 .ak-linear-detail .ak-detail-technical > summary {
@@ -1216,6 +1398,26 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     font-size: 12px;
     font-weight: 600;
     list-style: none;
+}
+
+/* The "earlier events" disclosure reuses this class for its summary chrome but
+   is not a footnote — it is more of the same history, so it keeps the plain
+   ground and only the technical block gets the boxed treatment. */
+.ak-linear-detail .ak-detail-history .ak-detail-technical {
+    padding: 8px 0 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.ak-linear-detail .ak-detail-technical > summary small {
+    color: var(--ptg-muted);
+    font-weight: 400;
+}
+
+.ak-linear-detail .ak-detail-technical > summary small::before {
+    content: "·";
+    margin-inline-end: 5px;
 }
 
 .ak-linear-detail .ak-detail-technical > summary::-webkit-details-marker {
@@ -2077,61 +2279,123 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 /* --- numeric columns: label over value, divider between columns --- */
-.ptg-record-detail .ptg-td-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
-    gap: 12px 0;
-    margin: 6px 0 0;
+/* ── Figure chain ───────────────────────────────────────────────────────────
+   The values of a record read as one left-running chain: illustration, label,
+   number, and a dashed connector between neighbouring circles. Every node takes
+   the same track width (flex-basis 0), which is what lets the connector be
+   drawn from geometry alone — half a node back, minus the two circle radii —
+   with no extra elements and no per-card measurement. */
+.ptg-record-detail .ptg-td-flow {
+    --ptg-flow-size: 76px;
+    --ptg-flow-gap: 10px;
+
+    display: flex;
+    align-items: flex-start;
+    gap: 18px var(--ptg-flow-gap);
+    margin: 10px 0 0;
 }
 
-.ptg-record-detail .ptg-td-metric {
+.ptg-record-detail .ptg-td-flow-node {
+    position: relative;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 6px;
-    min-width: 0;
-    padding-inline: 16px;
-    border-inline-start: 1px solid var(--ptg-td-border);
+    flex: 1 1 0;
+    min-inline-size: 0;
+    text-align: center;
 }
 
-.ptg-record-detail .ptg-td-metric:first-child {
-    padding-inline-start: 0;
-    border-inline-start: 0;
+/* Connector: starts at the previous circle's edge and ends at this one's.
+   -50% reaches the previous node's centre, then a radius steps off each
+   circle, so the line always meets the artwork and never crosses it. */
+.ptg-record-detail .ptg-td-flow-node + .ptg-td-flow-node::before {
+    content: "";
+    position: absolute;
+    inset-block-start: calc(var(--ptg-flow-size) / 2);
+    inset-inline-start: calc(-50% - (var(--ptg-flow-gap) / 2) + (var(--ptg-flow-size) / 2));
+    inline-size: calc(100% + var(--ptg-flow-gap) - var(--ptg-flow-size));
+    border-block-start: 2px dashed var(--ptg-td-border);
 }
 
-.ptg-record-detail .ptg-td-metric dt {
-    color: var(--ptg-muted);
-    font-size: 13px;
-    font-weight: 500;
+/* Arrow head sits at the connector's far end, pointing the way the chain runs.
+   A solid inline-start border with transparent block borders resolves to a
+   right-pointing wedge in LTR and a left-pointing one in RTL — the flow
+   direction in both cases, with no direction-specific rule. */
+.ptg-record-detail .ptg-td-flow-node + .ptg-td-flow-node::after {
+    content: "";
+    position: absolute;
+    inset-block-start: calc((var(--ptg-flow-size) / 2) - 4px);
+    inset-inline-start: calc(50% - (var(--ptg-flow-size) / 2) - 7px);
+    inline-size: 0;
+    block-size: 0;
+    border-block: 5px solid transparent;
+    border-inline-start: 7px solid var(--ptg-td-border);
 }
 
-.ptg-record-detail .ptg-td-metric dd {
-    margin: 0;
-    color: var(--ptg-text);
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.35;
+.ptg-record-detail .ptg-td-flow-node dt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-inline-size: 0;
 }
 
-.ptg-record-detail .ptg-td-metric dd small {
-    margin-inline-start: 3px;
+/* The circle is the constant of the row: same size whether or not the page
+   named an illustration, so the connectors stay on one line. */
+.ptg-record-detail .ptg-td-flow-figure {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--ptg-flow-size);
+    block-size: var(--ptg-flow-size);
+    border: 1px solid var(--ptg-td-border);
+    border-radius: 50%;
+    background: var(--ptg-surface-soft);
+}
+
+.ptg-record-detail .ptg-td-flow-figure img {
+    inline-size: 66%;
+    block-size: 66%;
+    object-fit: contain;
+    object-position: center;
+}
+
+.ptg-record-detail .ptg-td-flow-label {
     color: var(--ptg-muted);
     font-size: 12px;
     font-weight: 500;
+    line-height: 1.45;
 }
 
-.ptg-record-detail .ptg-td-metric.is-accent dd {
+.ptg-record-detail .ptg-td-flow-node dd {
+    margin: 0;
+    color: var(--ptg-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.ptg-record-detail .ptg-td-flow-node dd small {
+    margin-inline-start: 3px;
+    color: var(--ptg-muted);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.ptg-record-detail .ptg-td-flow-node.is-accent dd {
     color: var(--ptg-primary);
 }
 
-.ptg-record-detail .ptg-td-metric.is-warning dd {
+.ptg-record-detail .ptg-td-flow-node.is-warning dd {
     color: var(--warning-main);
 }
 
-.ptg-record-detail .ptg-td-metric.is-danger dd {
+.ptg-record-detail .ptg-td-flow-node.is-danger dd {
     color: var(--error-main);
 }
 
-.ptg-record-detail .ptg-td-metric.is-success dd {
+.ptg-record-detail .ptg-td-flow-node.is-success dd {
     color: var(--success-main);
 }
 
@@ -2211,15 +2475,89 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     border-block-end: 1px solid var(--ptg-td-border);
 }
 
+/* One zone per band, separated by a rule and real breathing room. The panel
+   holds three different kinds of answer, and without the separation they read
+   as one long undifferentiated list — which is what made it feel cluttered. */
 .ptg-record-detail .ptg-td-more-body {
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    padding: 16px 18px;
+    gap: 0;
+    padding: 4px 18px 18px;
 }
 
+.ptg-record-detail .ptg-td-more-body > * {
+    padding-block: 20px;
+    border-block-start: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail .ptg-td-more-body > :first-child {
+    border-block-start: 0;
+}
+
+.ptg-record-detail .ptg-td-more-body > :last-child {
+    padding-block-end: 0;
+}
+
+/* A detail can opt into one calm journey card for its complete chronological
+   history. An optional activity summary remains a separate band when supplied. */
+.ptg-record-detail .ptg-td-journey {
+    display: grid;
+    gap: 16px;
+}
+
+.ptg-record-detail .ptg-td-journey-head > h2 {
+    margin: 0;
+    color: var(--ptg-text);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.ptg-record-detail .ptg-td-journey-head > p {
+    margin: 4px 0 0;
+    color: var(--ptg-muted);
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+.ptg-record-detail .ptg-td-journey-body {
+    display: grid;
+    gap: 20px;
+}
+
+.ptg-record-detail .ptg-td-journey-body > * {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.ptg-record-detail .ptg-td-journey-body > * + * {
+    padding-block-start: 20px;
+    border-block-start: 1px solid var(--ptg-td-border);
+}
+
+/* Inside the disclosure every zone is a plain band. The activity block carries
+   card chrome when it sits on the page on its own; here that box would fight
+   the band rule above it and make one zone look more important than the rest. */
 .ptg-record-detail .ptg-td-more-body > :is(.ak-detail-activity, .ak-detail-secondary, .ak-detail-actions-panel) {
     margin: 0;
+    padding-inline: 0;
+    border-inline: 0;
+    border-block-end: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+/* The secondary footer holds three zones of its own, so it repeats the same
+   band rule internally rather than running them together. */
+.ptg-record-detail .ptg-td-more-body > .ak-detail-secondary {
+    gap: 0;
+}
+
+.ptg-record-detail .ptg-td-more-body > .ak-detail-secondary > * + * {
+    padding-block-start: 20px;
+    border-block-start: 1px solid var(--ptg-td-border);
 }
 
 @media (max-width: 991.98px) {
@@ -2243,7 +2581,6 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
         gap: 12px 16px;
     }
 
-    .ptg-record-detail .ptg-td-metric,
     .ptg-record-detail .ptg-td-meta-cell,
     .ptg-record-detail .ptg-td-route-node {
         padding-inline: 0;
@@ -2253,6 +2590,39 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     .ptg-record-detail .ptg-td-meta {
         flex-direction: column;
         gap: 8px;
+    }
+}
+
+/* A six-step chain inside a half-width card would leave about a hundred pixels
+   per node, so the circle steps down as the chain gets longer. Only the custom
+   property changes — connector geometry is expressed in it and follows. */
+.ptg-record-detail .ptg-td-flow[data-flow-count="5"] {
+    --ptg-flow-size: 68px;
+}
+
+.ptg-record-detail .ptg-td-flow[data-flow-count="6"] {
+    --ptg-flow-size: 60px;
+}
+
+.ptg-record-detail .ptg-td-flow[data-flow-count="7"],
+.ptg-record-detail .ptg-td-flow[data-flow-count="8"] {
+    --ptg-flow-size: 54px;
+}
+
+@media (max-width: 767.98px) {
+    /* Phone: the chain wraps, so a connector would point at whatever happened
+       to land next to it. The nodes become a plain two-column board instead. */
+    .ptg-record-detail .ptg-td-flow {
+        --ptg-flow-size: 64px;
+
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px 12px;
+    }
+
+    .ptg-record-detail .ptg-td-flow-node + .ptg-td-flow-node::before,
+    .ptg-record-detail .ptg-td-flow-node + .ptg-td-flow-node::after {
+        content: none;
     }
 }
 

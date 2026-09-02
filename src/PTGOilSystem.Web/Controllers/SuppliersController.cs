@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
@@ -60,8 +60,13 @@ public partial class SuppliersController : Controller
         var query = _db.Suppliers.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))
         {
+            // PTG canonical search — کلیدِ canonical به شرطِ قبلی اضافه می‌شود، جایگزینِ آن نمی‌شود:
+            // هیچ نتیجه‌ای از دست نمی‌رود و «یوسف» سطرِ «يوسف» را هم پیدا می‌کند.
+            // SearchKey خالی یعنی سطرِ پیش از Backfill؛ همان شرطِ قبلی هنوز آن را می‌یابد.
+            var canonicalTerm = AfghanTextNormalizer.NormalizeForSearch(q);
             query = query.Where(p =>
-                (p.Code != null && p.Code.Contains(q))
+                (p.SearchKey != null && p.SearchKey.Contains(canonicalTerm))
+                || (p.Code != null && p.Code.Contains(q))
                 || p.Name.Contains(q)
                 || (p.NamePersian != null && p.NamePersian.Contains(q))
                 || (p.ContactPerson != null && p.ContactPerson.Contains(q)));

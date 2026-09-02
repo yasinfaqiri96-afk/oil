@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -7,13 +7,14 @@ public sealed class PartyStatementFilterViewStructureTests
     [Fact]
     public void Official_Statements_Use_The_Shared_Search_Filter_Without_Legacy_Filter_Chrome()
     {
-        var view = ReadRepoFile("src", "PTGOilSystem.Web", "Views", "PartyStatements", "Document.cshtml");
+        var view = ReadRepoFile("src", "PTGOilSystem.Web", "Views", "PartyStatements", "_StatementBody.cshtml");
         var statementCss = ReadRepoFile("src", "PTGOilSystem.Web", "wwwroot", "css", "ptg", "62-party-statement.css");
         var surfaceCss = ReadRepoFile("src", "PTGOilSystem.Web", "wwwroot", "css", "ptg", "72-surfaces.css");
         var sharedFilterCss = ReadRepoFile("src", "PTGOilSystem.Web", "wwwroot", "css", "ptg", "45-akaunting.css");
-        var embedScript = ReadRepoFile("src", "PTGOilSystem.Web", "wwwroot", "js", "party-statement-embed.js");
 
         Assert.Contains("Views/Shared/_AkSearchFilter.cshtml", view);
+        Assert.Contains("statement-screen-search", view);
+        Assert.Contains("statement-screen-search .ak-filter-host", statementCss);
         Assert.Contains("new AkSearchFilterModel(", view);
         Assert.Contains("new(\"FromDate\"", view);
         Assert.Contains("new(\"ContractId\"", view);
@@ -27,16 +28,19 @@ public sealed class PartyStatementFilterViewStructureTests
         Assert.DoesNotContain("statement-filter-bar", surfaceCss);
         Assert.Contains("flex: 0 0 22px", sharedFilterCss);
         Assert.Contains("line-height: 1", sharedFilterCss);
-        Assert.Contains("host.querySelector(\"[data-ak-filter]\")", embedScript);
-        Assert.Contains("window.dispatchEvent(new CustomEvent(\"ptg:page-ready\"))", embedScript);
         Assert.Contains("رسیدگی", view);
         Assert.Contains("بردگی", view);
         Assert.Contains("بیلانس فعلی", view);
         Assert.Contains("statement-money statement-receipt", view);
         Assert.Contains("statement-money statement-outflow", view);
+        Assert.Contains("<strong class=\"statement-receipt\">@BaseAmount(s.Summary.TotalReceipt", view);
+        Assert.Contains("<strong class=\"statement-outflow\">@BaseAmount(s.Summary.TotalOutflow", view);
         Assert.Contains(".statement-receipt { color: var(--ptg-success-text", statementCss);
         Assert.Contains(".statement-outflow { color: var(--ptg-danger-text", statementCss);
         Assert.Contains("data-statement-auto-print", view);
+        Assert.DoesNotContain("data-statement-print", view);
+        Assert.DoesNotContain("statement-csv-link", view);
+        Assert.DoesNotContain("bi-printer", view);
         Assert.DoesNotContain("ClosingBalanceMeaningFor", view);
         Assert.DoesNotContain("statement-summary-icon", view);
         Assert.DoesNotContain(">بارگیری‌ها</a>", view);

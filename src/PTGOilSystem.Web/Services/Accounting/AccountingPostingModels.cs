@@ -16,7 +16,8 @@ public sealed record AccountingPostLine(
     int? TankId = null,
     int? ProductId = null,
     int? CashAccountId = null,
-    string? Description = null);
+    string? Description = null,
+    int? OperationalAssetId = null);
 
 public sealed record AccountingPostRequest(
     int CompanyId,

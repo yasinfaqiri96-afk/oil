@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +10,7 @@ using System.Text.Json.Serialization;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.Loading;
 using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Security;
@@ -25,6 +26,10 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class LoadingController : Controller
 {
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly IAuditService _audit;
     private readonly ILogger<LoadingController> _logger;
     private readonly IPricingService _pricing;
@@ -38,7 +43,6 @@ public partial class LoadingController : Controller
     private readonly IAssetRentPostingService _rentPosting;
     private const int DefaultListLimit = 100;
     private const int LookupLimit = 200;
-    private const int ReceiptAllocationEditorRows = 4;
     private const int LargeImportPreviewRows = 100;
     private const string LoadingTransportExpenseCode = "LOAD-TRANSPORT";
     private const string LoadingStorageExpenseCode = "LOAD-STORAGE";
@@ -61,6 +65,9 @@ public partial class LoadingController : Controller
 
     private readonly IAfghanistanBusinessClock _businessClock;
 
+    // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
+    private readonly IFormTokenGuard _formTokens;
+
     public LoadingController(
         ApplicationDbContext db,
         IAuditService audit,
@@ -71,10 +78,12 @@ public partial class LoadingController : Controller
         Services.Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
         IAfghanistanBusinessClock? businessClock = null,
-        IAssetRentPostingService? rentPosting = null)
+        IAssetRentPostingService? rentPosting = null,
+        IFormTokenGuard? formTokens = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
+        _formTokens = formTokens ?? new FormTokenGuard(db);
         _purchaseAccounting = purchaseAccounting;
         _expenseAccounting = expenseAccounting;
         _rentPosting = rentPosting ?? new AssetRentPostingService(db);
@@ -521,9 +530,7 @@ public partial class LoadingController : Controller
             return;
         }
 
-        var ledger = SupplierLoadingLedger.Create(loading, contract);
-
-        _db.LedgerEntries.Add(ledger);
+        var ledger = Ledger.Post(SupplierLoadingLedger.Create(loading, contract));
         await _db.SaveChangesAsync();
         await _audit.LogAndSaveAsync(
             nameof(LedgerEntry),
@@ -553,14 +560,12 @@ public partial class LoadingController : Controller
 
         var legacyLedgers = createdRows
             .Where(row => SupplierLoadingLedger.IsPostable(row.Loading, row.Contract))
-            .Select(row => SupplierLoadingLedger.Create(row.Loading, row.Contract))
+            .Select(row => Ledger.Post(SupplierLoadingLedger.Create(row.Loading, row.Contract)))
             .ToList();
         if (legacyLedgers.Count == 0)
         {
             return;
         }
-
-        _db.LedgerEntries.AddRange(legacyLedgers);
         await _db.SaveChangesAsync();
 
         foreach (var ledger in legacyLedgers)
@@ -618,37 +623,6 @@ public partial class LoadingController : Controller
             ("WarehouseExpenseUsd", loading.WarehouseExpenseUsd),
             ("OtherExpenseUsd", loading.OtherExpenseUsd));
 
-    private static IReadOnlyList<SelectListItem> GetReceiptAllocationDestinationItems(LoadingReceiptAllocationDestination selectedDestination)
-        => new[]
-            {
-                LoadingReceiptAllocationDestination.ToInventory,
-                LoadingReceiptAllocationDestination.DirectSale,
-                LoadingReceiptAllocationDestination.DirectDispatchToTruck,
-                LoadingReceiptAllocationDestination.TransferToOtherTerminal
-            }
-            .Select(destination => new SelectListItem
-            {
-                Value = ((int)destination).ToString(),
-                Text = destination switch
-                {
-                    LoadingReceiptAllocationDestination.ToInventory => "ورود به موجودی / تانک",
-                    LoadingReceiptAllocationDestination.DirectSale => "فروش مستقیم",
-                    LoadingReceiptAllocationDestination.DirectDispatchToTruck => "بارگیری مستقیم در موتر",
-                    LoadingReceiptAllocationDestination.TransferToOtherTerminal => "انتقال به ترمینال یا شهر دیگر",
-                    _ => "نامشخص"
-                },
-                Selected = destination == selectedDestination
-            })
-            .ToList();
-
-    private static void EnsureReceiptAllocationRows(LoadingReceiptCreateViewModel model)
-    {
-        while (model.AllocationLines.Count < ReceiptAllocationEditorRows)
-        {
-            model.AllocationLines.Add(new LoadingReceiptAllocationLineInput());
-        }
-    }
-
     private static LoadingReceiptCreateViewModel BuildLoadingReceiptCreateModel(
         LoadingRegister loading,
         decimal alreadyReceivedQuantityMt,
@@ -679,7 +653,6 @@ public partial class LoadingController : Controller
             DestinationName = loading.DestinationName
         };
 
-        EnsureReceiptAllocationRows(model);
         return model;
     }
 
@@ -712,7 +685,6 @@ public partial class LoadingController : Controller
             "Display",
             model.StorageTankId);
 
-        ViewBag.AllocationDestinations = GetReceiptAllocationDestinationItems(model.AllocationDestination);
 
         ViewBag.DestinationTerminals = new SelectList(
             terminalLookups,
@@ -787,6 +759,9 @@ public partial class LoadingController : Controller
         int? contractId = null,
         int? productId = null,
         bool withoutReceipt = false,
+        int? transportType = null,
+        string? receiptStatus = null,
+        string? priceStatus = null,
         DateTime? fromDate = null,
         DateTime? toDate = null,
         int page = 1,
@@ -837,9 +812,32 @@ public partial class LoadingController : Controller
             query = query.Where(l => l.ProductId == productId.Value);
         }
 
-        if (withoutReceipt)
+        // وضعیت رسید: پارامتر قدیمی withoutReceipt همچنان کار می‌کند و معادل
+        // receiptStatus=without است؛ لینک‌های موجود تغییری نمی‌بینند.
+        var normalizedReceiptStatus = withoutReceipt ? "without" : receiptStatus?.Trim().ToLowerInvariant();
+        if (normalizedReceiptStatus == "without")
         {
             query = query.Where(l => !l.Receipts.Any(r => !r.IsCancelled));
+        }
+        else if (normalizedReceiptStatus == "with")
+        {
+            query = query.Where(l => l.Receipts.Any(r => !r.IsCancelled));
+        }
+
+        if (transportType.HasValue && Enum.IsDefined(typeof(LoadingTransportType), transportType.Value))
+        {
+            var transportTypeValue = (LoadingTransportType)transportType.Value;
+            query = query.Where(l => l.TransportType == transportTypeValue);
+        }
+
+        var normalizedPriceStatus = priceStatus?.Trim().ToLowerInvariant();
+        if (normalizedPriceStatus == "pending")
+        {
+            query = query.Where(l => l.LoadingPriceUsd == null || l.LoadingPriceUsd <= 0m);
+        }
+        else if (normalizedPriceStatus == "priced")
+        {
+            query = query.Where(l => l.LoadingPriceUsd != null && l.LoadingPriceUsd > 0m);
         }
 
         if (fromDate.HasValue)
@@ -855,7 +853,13 @@ public partial class LoadingController : Controller
 
         if (!string.IsNullOrWhiteSpace(normalizedQuery))
         {
+            // PTG canonical search — کلیدِ canonical به شرطِ قبلی اضافه می‌شود، جایگزینِ آن نمی‌شود:
+            // هیچ نتیجه‌ای از دست نمی‌رود و «یوسف» سطرِ «يوسف» را هم پیدا می‌کند.
+            // SearchKey خالی یعنی سطرِ پیش از Backfill؛ همان شرطِ قبلی هنوز آن را می‌یابد.
+            var canonicalTerm = AfghanTextNormalizer.NormalizeForSearch(normalizedQuery);
             query = query.Where(l =>
+                (l.SearchKey != null && l.SearchKey.Contains(canonicalTerm)) ||
+                (l.Contract != null && l.Contract.SearchKey != null && l.Contract.SearchKey.Contains(canonicalTerm)) ||
                 (l.Contract != null && (l.Contract.ContractName.Contains(normalizedQuery) || l.Contract.ContractNumber.Contains(normalizedQuery))) ||
                 (l.Product != null && l.Product.Name.Contains(normalizedQuery)) ||
                 (l.WagonNumber != null && l.WagonNumber.Contains(normalizedQuery)) ||
@@ -992,6 +996,30 @@ public partial class LoadingController : Controller
         ViewBag.SumValue = stats?.SumValue ?? 0m;
         ViewBag.SumReceivedQuantity = stats?.SumReceivedQuantity ?? 0m;
         ViewBag.PricePendingCount = stats?.PricePendingCount ?? 0;
+
+        // گزینه‌های فیلتر فقط از روی همان قرارداد/جنس‌هایی ساخته می‌شوند که بارگیری دارند،
+        // تا فهرست کوتاه و مرتبط بماند.
+        var filterContracts = await _db.LoadingRegisters
+            .AsNoTracking()
+            .Where(l => l.Contract != null)
+            .Select(l => new { l.ContractId, l.Contract!.ContractNumber, l.Contract.ContractName })
+            .Distinct()
+            .OrderBy(c => c.ContractNumber)
+            .ToListAsync();
+        ViewBag.FilterContracts = filterContracts
+            .Select(c => new SelectListItem($"{c.ContractNumber} - {c.ContractName}", c.ContractId.ToString()))
+            .ToList();
+
+        var filterProducts = await _db.LoadingRegisters
+            .AsNoTracking()
+            .Where(l => l.Product != null)
+            .Select(l => new { l.ProductId, l.Product!.Name })
+            .Distinct()
+            .OrderBy(p => p.Name)
+            .ToListAsync();
+        ViewBag.FilterProducts = filterProducts
+            .Select(p => new SelectListItem(p.Name, p.ProductId.ToString()))
+            .ToList();
 
         return View(new LoadingIndexViewModel
         {
@@ -1363,7 +1391,9 @@ public partial class LoadingController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
     [RequestFormLimits(ValueCountLimit = 20000, ValueLengthLimit = 104_857_600, MultipartBodyLengthLimit = 104_857_600L)]
-    public async Task<IActionResult> Create(LoadingCreateViewModel model)
+    public async Task<IActionResult> Create(
+        LoadingCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         model.Notes = NormalizeNullable(model.Notes);
         var submittedWithCompactRows = !string.IsNullOrWhiteSpace(model.ImportedRowsJson);
@@ -1888,6 +1918,9 @@ public partial class LoadingController : Controller
                     return View(model);
                 }
 
+                // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
+                _formTokens.Stamp(formToken, "Loading.Create", nameof(LoadingRegister));
+
                 _db.LoadingRegisters.AddRange(createdRows.Select(row => row.Loading));
                 await _db.SaveChangesAsync();
 
@@ -1968,6 +2001,11 @@ public partial class LoadingController : Controller
 
                 throw;
             }
+        }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            TempData["err"] = "این بارگیری قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
         }
         catch (Exception ex)
         {
@@ -2360,6 +2398,8 @@ public partial class LoadingController : Controller
         var model = new LoadingEditViewModel
         {
             Id = loading.Id,
+            // PTG-P1-05 — نسخه‌ای که کاربر می‌بیند، با فرم برمی‌گردد.
+            Version = loading.Version,
             LoadingDate = loading.LoadingDate,
             ContractNumber = loading.Contract?.DisplayLabel ?? "",
             ProductName = loading.Product?.Name ?? "",
@@ -2401,6 +2441,10 @@ public partial class LoadingController : Controller
         {
             return NotFound();
         }
+
+        // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
+        // نه نسخه‌ای که همین حالا خوانده شد.
+        _db.UseExpectedVersion(loading, model.Version);
 
         var transportType = ResolveTransportType(loading.TransportType, loading.VesselId, loading.TruckId, loading.WagonNumber);
         model.ContractNumber = loading.Contract?.DisplayLabel ?? "";
@@ -3228,6 +3272,12 @@ public partial class LoadingController : Controller
             entity.PartyType = input.PartyType;
             entity.ServiceProviderId = input.PartyType == LoadingExpensePartyType.ServiceProvider ? input.ServiceProviderId : null;
             entity.OperationalAssetId = input.PartyType == LoadingExpensePartyType.OperationalAsset ? input.OperationalAssetId : null;
+            entity.CarrierPartyType = input.PartyType == LoadingExpensePartyType.ServiceProvider
+                ? AccountingPartyType.ServiceProvider
+                : null;
+            entity.CarrierPartyId = input.PartyType == LoadingExpensePartyType.ServiceProvider
+                ? input.ServiceProviderId
+                : null;
             entity.Notes = input.Notes;
             entity.ExpenseTransactionId = input.ExpenseTransactionId;
             entity.AssetRentTransactionId = input.AssetRentTransactionId;
@@ -3250,10 +3300,14 @@ public partial class LoadingController : Controller
             switch (entity.PartyType)
             {
                 case LoadingExpensePartyType.None:
+                    entity.CarrierPartyType = null;
+                    entity.CarrierPartyId = null;
                     await CancelLoadingExpenseLineExpenseAsync(entity);
                     await CancelLoadingExpenseLineRentAsync(entity, "ردیف مصرف بارگیری بدون طرف حساب شد.");
                     break;
                 case LoadingExpensePartyType.ServiceProvider:
+                    entity.CarrierPartyType = AccountingPartyType.ServiceProvider;
+                    entity.CarrierPartyId = entity.ServiceProviderId;
                     await CancelLoadingExpenseLineRentAsync(entity, "ردیف مصرف بارگیری به شرکت خدماتی تغییر کرد.");
                     await SyncLoadingExpenseLineServiceExpenseAsync(
                         loading,
@@ -3262,6 +3316,13 @@ public partial class LoadingController : Controller
                         providersById[entity.ServiceProviderId!.Value]);
                     break;
                 case LoadingExpensePartyType.OperationalAsset:
+                    var carrier = await new AssetUsageChargeService(_db).ResolveCarrierPartyAsync(
+                        null,
+                        null,
+                        entity.OperationalAssetId,
+                        loading.LoadingDate);
+                    entity.CarrierPartyType = carrier?.PartyType;
+                    entity.CarrierPartyId = carrier?.PartyId;
                     await CancelLoadingExpenseLineExpenseAsync(entity);
                     await SyncLoadingExpenseLineAssetRentAsync(
                         loading,
@@ -3424,8 +3485,7 @@ public partial class LoadingController : Controller
             _db.ExpenseTransactions.Add(expense);
             await _db.SaveChangesAsync();
 
-            var ledger = BuildLoadingServiceExpenseLedger(expenseType, expense, loading);
-            _db.LedgerEntries.Add(ledger);
+            var ledger = Ledger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
             await _db.SaveChangesAsync();
 
             // مرحله ۵ — Dual-write داخل همان Transaction قدیمی.
@@ -3473,15 +3533,10 @@ public partial class LoadingController : Controller
             .OrderByDescending(l => l.Id)
             .FirstOrDefaultAsync();
 
-        if (existingLedger is null)
-        {
-            existingLedger = BuildLoadingServiceExpenseLedger(expenseType, expense, loading);
-            _db.LedgerEntries.Add(existingLedger);
-        }
-        else
-        {
-            ApplyLoadingServiceExpenseLedger(existingLedger, expenseType, expense, loading);
-        }
+        var serviceExpenseRequest = BuildLoadingServiceExpenseLedger(expenseType, expense, loading);
+        existingLedger = existingLedger is null
+            ? Ledger.Post(serviceExpenseRequest)
+            : Ledger.Apply(existingLedger, serviceExpenseRequest);
 
         await _audit.LogAsync(
             nameof(ExpenseTransaction),
@@ -3540,10 +3595,8 @@ public partial class LoadingController : Controller
 
         if (rent is null)
         {
-            // NON-POSTING: کرایهٔ خودکارِ بارگیری. LoadingRegisterId پرشدن یعنی
-            // AssetRentPostingPolicy.IsSystemGenerated صادق است و هیچ LedgerEntry/JournalEntry
-            // ساخته نمی‌شود. معادلِ Expense/Freight همین مبلغ از سمت بارگیری ثبت می‌شود، پس ثبت
-            // مالی اینجا دوباره‌شماری بود.
+            // کرایهٔ خودکار بارگیری Ledger طرف‌حساب نمی‌سازد. برای دارایی کاملاً متعلق به همان
+            // شرکت، adapter حسابداری فقط انتقال داخلی متوازن را ثبت می‌کند.
             rent = new AssetRentTransaction
             {
                 OperationalAssetId = asset.Id,
@@ -3580,6 +3633,9 @@ public partial class LoadingController : Controller
                     ("ChargedToContractId", rent.ChargedToContractId),
                     ("AmountUsd", rent.AmountUsd),
                     ("IsPostedToLedger", rent.IsPostedToLedger)));
+
+            await PostLoadingInternalAssetTransferAsync(rent, asset.AssetCode);
+            await new AssetUsageChargeService(_db).SyncLegacyRentAsync(rent);
 
             line.AssetRentTransactionId = rent.Id;
             return;
@@ -3634,6 +3690,8 @@ public partial class LoadingController : Controller
 
         _db.AssetRentShares.AddRange(BuildLoadingAssetRentShareSnapshots(rent.Id, amountUsd, ownershipShares));
         await _db.SaveChangesAsync();
+        await PostLoadingInternalAssetTransferAsync(rent, asset.AssetCode);
+        await new AssetUsageChargeService(_db).SyncLegacyRentAsync(rent);
 
         line.AssetRentTransactionId = rent.Id;
     }
@@ -3691,8 +3749,7 @@ public partial class LoadingController : Controller
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
-                var newLedger = BuildLoadingServiceExpenseLedger(expenseType, expense, loading);
-                _db.LedgerEntries.Add(newLedger);
+                var newLedger = Ledger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
                 await _db.SaveChangesAsync();
 
                 // مرحله ۵ — Dual-write داخل همان Transaction قدیمی.
@@ -3741,15 +3798,10 @@ public partial class LoadingController : Controller
                 .OrderByDescending(l => l.Id)
                 .FirstOrDefaultAsync();
 
-            if (ledger is null)
-            {
-                ledger = BuildLoadingServiceExpenseLedger(expenseType, existing, loading);
-                _db.LedgerEntries.Add(ledger);
-            }
-            else
-            {
-                ApplyLoadingServiceExpenseLedger(ledger, expenseType, existing, loading);
-            }
+            var serviceExpenseRequest = BuildLoadingServiceExpenseLedger(expenseType, existing, loading);
+            ledger = ledger is null
+                ? Ledger.Post(serviceExpenseRequest)
+                : Ledger.Apply(ledger, serviceExpenseRequest);
 
             await _audit.LogAsync(
                 nameof(ExpenseTransaction),
@@ -3805,7 +3857,7 @@ public partial class LoadingController : Controller
 
         if (primaryRent is null)
         {
-            // NON-POSTING: کرایهٔ خودکارِ بارگیری — بند بالا در CreateOrUpdateLoadingAssetRentAsync.
+            // Ledger طرف‌حساب ساخته نمی‌شود؛ انتقال داخلی فقط از adapter حسابداری می‌گذرد.
             primaryRent = new AssetRentTransaction
             {
                 OperationalAssetId = operationalAsset.Id,
@@ -3842,6 +3894,8 @@ public partial class LoadingController : Controller
                     ("ChargedToContractId", primaryRent.ChargedToContractId),
                     ("AmountUsd", primaryRent.AmountUsd),
                     ("IsPostedToLedger", primaryRent.IsPostedToLedger)));
+            await PostLoadingInternalAssetTransferAsync(primaryRent, operationalAsset.AssetCode);
+            await new AssetUsageChargeService(_db).SyncLegacyRentAsync(primaryRent);
             return;
         }
 
@@ -3901,7 +3955,24 @@ public partial class LoadingController : Controller
 
         _db.AssetRentShares.AddRange(BuildLoadingAssetRentShareSnapshots(primaryRent.Id, amountUsd, activeOwnershipShares));
         await _db.SaveChangesAsync();
+        await PostLoadingInternalAssetTransferAsync(primaryRent, operationalAsset.AssetCode);
+        await new AssetUsageChargeService(_db).SyncLegacyRentAsync(primaryRent);
     }
+
+    private Task<AssetRentPostingResult> PostLoadingInternalAssetTransferAsync(
+        AssetRentTransaction rent,
+        string? assetCode)
+        => _rentPosting.PostAsync(
+            rent,
+            new CurrencyConversionResult(
+                SystemCurrency.BaseCurrencyCode,
+                SystemCurrency.BaseCurrencyCode,
+                1m,
+                ToUtcDate(rent.RentDate),
+                FallbackApplied: false,
+                ManualOverride: false,
+                SourceDescription: "Base currency"),
+            assetCode);
 
     private async Task CancelLoadingAssetRentAsync(AssetRentTransaction rent, string reason)
     {
@@ -3928,6 +3999,7 @@ public partial class LoadingController : Controller
         // دفتر است نه فرضِ ما دربارهٔ سیاست. اگر روزی این کرایه‌ها ثبت مالی بگیرند، لغو بدون هیچ
         // تغییری در این مسیر درست کار می‌کند.
         await _rentPosting.ReverseAsync(rent, ToUtcDate(_businessClock.Today));
+        await new AssetUsageChargeService(_db).CancelLegacyRentChargeAsync(rent.Id, reason);
     }
 
     private async Task<List<AssetOwnershipShare>> GetActiveAssetOwnershipSharesAsync(int assetId, DateTime date)
@@ -4085,8 +4157,7 @@ public partial class LoadingController : Controller
         var ledgers = new List<LedgerEntry>(expenses.Count);
         foreach (var (expense, expenseType, loading) in expenses)
         {
-            var ledger = BuildLoadingServiceExpenseLedger(expenseType, expense, loading);
-            _db.LedgerEntries.Add(ledger);
+            var ledger = Ledger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
             ledgers.Add(ledger);
         }
 
@@ -4304,7 +4375,7 @@ public partial class LoadingController : Controller
         expense.IsCancelled = true;
         if (originalLedger is not null)
         {
-            _db.LedgerEntries.Add(new LedgerEntry
+            Ledger.Post(new LedgerPostingRequest
             {
                 EntryDate = _businessClock.Today,
                 Side = ReverseSide(originalLedger.Side),
@@ -4333,39 +4404,31 @@ public partial class LoadingController : Controller
         await _db.SaveChangesAsync();
     }
 
-    private static LedgerEntry BuildLoadingServiceExpenseLedger(
+    // PTG-P1-03 — یک سازنده برای سطرِ «مصرف خدماتی بارگیری». همان فیلدها، همان مقادیر؛
+    // فقط دیگر خودش سطر نمی‌سازد و از مسیر متمرکز عبور می‌کند.
+    private static LedgerPostingRequest BuildLoadingServiceExpenseLedger(
         ExpenseType expenseType,
         ExpenseTransaction expense,
         LoadingRegister loading)
-    {
-        var ledger = new LedgerEntry();
-        ApplyLoadingServiceExpenseLedger(ledger, expenseType, expense, loading);
-        return ledger;
-    }
-
-    private static void ApplyLoadingServiceExpenseLedger(
-        LedgerEntry ledger,
-        ExpenseType expenseType,
-        ExpenseTransaction expense,
-        LoadingRegister loading)
-    {
-        ledger.EntryDate = expense.ExpenseDate;
-        ledger.Side = LedgerSide.Credit;
-        ledger.AmountUsd = expense.AmountUsd;
-        ledger.Currency = SystemCurrency.BaseCurrencyCode;
-        ledger.SourceAmount = expense.Amount;
-        ledger.SourceCurrencyCode = expense.Currency;
-        ledger.AppliedFxRateToUsd = expense.AppliedFxRateToUsd;
-        ledger.AppliedFxRateDate = ToUtcDate(loading.LoadingDate);
-        ledger.AppliedFxRateSource = "USD base currency";
-        ledger.Description = $"ثبت مصرف خدماتی بارگیری - {expenseType.NamePersian ?? expenseType.Name} - {expense.Description}";
-        ledger.SourceType = "Expense";
-        ledger.SourceId = expense.Id;
-        ledger.Reference = BuildLoadingServiceExpenseReference(expenseType, expense);
-        ledger.ContractId = expense.ContractId;
-        ledger.ServiceProviderId = expense.ServiceProviderId;
-        ledger.ShipmentId = expense.ShipmentId;
-    }
+        => new()
+        {
+            EntryDate = expense.ExpenseDate,
+            Side = LedgerSide.Credit,
+            AmountUsd = expense.AmountUsd,
+            Currency = SystemCurrency.BaseCurrencyCode,
+            SourceAmount = expense.Amount,
+            SourceCurrencyCode = expense.Currency,
+            AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
+            AppliedFxRateDate = ToUtcDate(loading.LoadingDate),
+            AppliedFxRateSource = "USD base currency",
+            Description = $"ثبت مصرف خدماتی بارگیری - {expenseType.NamePersian ?? expenseType.Name} - {expense.Description}",
+            SourceType = "Expense",
+            SourceId = expense.Id,
+            Reference = BuildLoadingServiceExpenseReference(expenseType, expense),
+            ContractId = expense.ContractId,
+            ServiceProviderId = expense.ServiceProviderId,
+            ShipmentId = expense.ShipmentId,
+        };
 
     private static string BuildLoadingServiceExpenseReference(ExpenseType expenseType, ExpenseTransaction expense)
     {

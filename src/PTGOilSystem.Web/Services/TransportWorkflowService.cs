@@ -211,6 +211,14 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
                 RwbNo = Normalize(command.Reference),
                 Notes = Normalize(command.Notes)
             };
+            var carrierParty = await new AssetUsageChargeService(_db).ResolveCarrierPartyAsync(
+                leg.ServiceProviderId,
+                leg.DriverId,
+                leg.OperationalAssetId,
+                leg.LoadedDate,
+                ct);
+            leg.CarrierPartyType = carrierParty?.PartyType;
+            leg.CarrierPartyId = carrierParty?.PartyId;
 
             var remaining = command.QuantityMt;
             foreach (var source in available)
@@ -233,6 +241,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
             batch.Legs.Add(leg);
             _db.InventoryTransportBatches.Add(batch);
             await _db.SaveChangesAsync(ct);
+            await new AssetUsageChargeService(_db).SyncOperationAsync(leg, ct);
 
             if (transaction is not null)
             {

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services;
@@ -66,6 +67,10 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
 
     // مرحلهٔ ۸ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Accounting.ISarrafSettlementAccountingAdapter? _settlementAccounting;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
 
     public SarrafSettlementService(
         ApplicationDbContext db,
@@ -162,8 +167,7 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
         _db.SarrafSettlements.Add(settlement);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var counterpartyLedger = BuildCounterpartyLedger(settlement, calculation);
-        _db.LedgerEntries.Add(counterpartyLedger);
+        var counterpartyLedger = Ledger.Post(BuildCounterpartyLedger(settlement, calculation));
         await _db.SaveChangesAsync(cancellationToken);
 
         settlement.LedgerEntryId = counterpartyLedger.Id;
@@ -172,8 +176,7 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
             && settlement.DifferenceType != SarrafSettlementDifferenceType.None
             && settlement.DifferenceAmountUsd != 0m)
         {
-            var differenceLedger = BuildExchangeDifferenceLedger(settlement);
-            _db.LedgerEntries.Add(differenceLedger);
+            var differenceLedger = Ledger.Post(BuildExchangeDifferenceLedger(settlement));
             await _db.SaveChangesAsync(cancellationToken);
             settlement.ExchangeDifferenceLedgerEntryId = differenceLedger.Id;
         }
@@ -222,12 +225,12 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
         // اثر دفتر کلِ قبلی را با سند معکوس برمی‌گردانیم، سپس سند جدید را با مقادیر تازه post می‌کنیم.
         if (settlement.LedgerEntry is not null)
         {
-            _db.LedgerEntries.Add(BuildReversalLedger(settlement.LedgerEntry, settlement, "ویرایش تسویه صراف", EditReversalSourceType));
+            Ledger.Post(BuildReversalLedger(settlement.LedgerEntry, settlement, "ویرایش تسویه صراف", EditReversalSourceType));
         }
 
         if (settlement.ExchangeDifferenceLedgerEntry is not null)
         {
-            _db.LedgerEntries.Add(BuildReversalLedger(settlement.ExchangeDifferenceLedgerEntry, settlement, "ویرایش تسویه صراف", EditReversalSourceType));
+            Ledger.Post(BuildReversalLedger(settlement.ExchangeDifferenceLedgerEntry, settlement, "ویرایش تسویه صراف", EditReversalSourceType));
         }
 
         // سند دوطرفهٔ نسخهٔ قبلی هم باید برگردد تا نسخهٔ بعدی روی یک مانده‌ی پاک بنشیند —
@@ -271,8 +274,7 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
         settlement.PostedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        var counterpartyLedger = BuildCounterpartyLedger(settlement, calculation);
-        _db.LedgerEntries.Add(counterpartyLedger);
+        var counterpartyLedger = Ledger.Post(BuildCounterpartyLedger(settlement, calculation));
         await _db.SaveChangesAsync(cancellationToken);
         settlement.LedgerEntryId = counterpartyLedger.Id;
 
@@ -280,8 +282,7 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
             && settlement.DifferenceType != SarrafSettlementDifferenceType.None
             && settlement.DifferenceAmountUsd != 0m)
         {
-            var differenceLedger = BuildExchangeDifferenceLedger(settlement);
-            _db.LedgerEntries.Add(differenceLedger);
+            var differenceLedger = Ledger.Post(BuildExchangeDifferenceLedger(settlement));
             await _db.SaveChangesAsync(cancellationToken);
             settlement.ExchangeDifferenceLedgerEntryId = differenceLedger.Id;
         }
@@ -327,13 +328,13 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
         if (settlement.LedgerEntry is not null
             && !await HasCancelLedgerAsync(settlement.Id, settlement.LedgerEntry.Id, cancellationToken))
         {
-            _db.LedgerEntries.Add(BuildReversalLedger(settlement.LedgerEntry, settlement, reason));
+            Ledger.Post(BuildReversalLedger(settlement.LedgerEntry, settlement, reason));
         }
 
         if (settlement.ExchangeDifferenceLedgerEntry is not null
             && !await HasCancelLedgerAsync(settlement.Id, settlement.ExchangeDifferenceLedgerEntry.Id, cancellationToken))
         {
-            _db.LedgerEntries.Add(BuildReversalLedger(settlement.ExchangeDifferenceLedgerEntry, settlement, reason));
+            Ledger.Post(BuildReversalLedger(settlement.ExchangeDifferenceLedgerEntry, settlement, reason));
         }
 
         settlement.Status = SarrafSettlementStatus.Cancelled;
@@ -470,9 +471,11 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
     //   تأمین‌کننده/شرکت خدماتی/راننده/کارمند: پرداخت(Out)→Debit، دریافت(In)→Credit؛
     //   مشتری: دریافت(In)→Debit، پرداخت/برگشت(Out)→Credit.
     // فقط FK طرف عوض می‌شود؛ مبالغ/ارز/نرخ دقیقاً مثل مسیر تأمین‌کننده می‌مانند (حفظ RUB/SourceAmount).
-    private static LedgerEntry BuildCounterpartyLedger(SarrafSettlement settlement, SarrafSettlementCalculation calculation)
+    private static LedgerPostingRequest BuildCounterpartyLedger(SarrafSettlement settlement, SarrafSettlementCalculation calculation)
     {
-        var ledger = new LedgerEntry
+        // PTG-P1-03 — همان مقادیر قبلی. ارجاعِ طرف مقابل که قبلاً بعد از ساخت روی شیء
+        // نوشته می‌شد، حالا پیش از ساخت تعیین و در همان درخواست گذاشته می‌شود.
+        var request = new LedgerPostingRequest
         {
             EntryDate = settlement.SettlementDate,
             Side = CounterpartyLedgerSide(settlement.CounterpartyType, settlement.Direction),
@@ -489,27 +492,19 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
             Reference = settlement.ReferenceNumber
         };
 
-        switch (settlement.CounterpartyType)
+        return settlement.CounterpartyType switch
         {
-            case SarrafSettlementCounterpartyType.Supplier:
-                ledger.SupplierId = settlement.SupplierId;
-                ledger.ContractId = settlement.ContractId; // قرارداد فقط برای تأمین‌کننده
-                break;
-            case SarrafSettlementCounterpartyType.Customer:
-                ledger.CustomerId = settlement.CustomerId;
-                break;
-            case SarrafSettlementCounterpartyType.ServiceProvider:
-                ledger.ServiceProviderId = settlement.ServiceProviderId;
-                break;
-            case SarrafSettlementCounterpartyType.Driver:
-                ledger.DriverId = settlement.DriverId;
-                break;
-            case SarrafSettlementCounterpartyType.Employee:
-                ledger.EmployeeId = settlement.EmployeeId;
-                break;
-        }
-
-        return ledger;
+            SarrafSettlementCounterpartyType.Supplier => request with
+            {
+                SupplierId = settlement.SupplierId,
+                ContractId = settlement.ContractId, // قرارداد فقط برای تأمین‌کننده
+            },
+            SarrafSettlementCounterpartyType.Customer => request with { CustomerId = settlement.CustomerId },
+            SarrafSettlementCounterpartyType.ServiceProvider => request with { ServiceProviderId = settlement.ServiceProviderId },
+            SarrafSettlementCounterpartyType.Driver => request with { DriverId = settlement.DriverId },
+            SarrafSettlementCounterpartyType.Employee => request with { EmployeeId = settlement.EmployeeId },
+            _ => request,
+        };
     }
 
     // سمت دفتر کل طرف مقابل بر اساس جهت و نوع، هم‌سو با GetLedgerSide مسیر نقدی:
@@ -533,13 +528,13 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
             _ => "Sarraf settlement supplier reduction"
         };
 
-    private static LedgerEntry BuildExchangeDifferenceLedger(SarrafSettlement settlement)
+    private static LedgerPostingRequest BuildExchangeDifferenceLedger(SarrafSettlement settlement)
     {
         var isLoss = settlement.DifferenceType == SarrafSettlementDifferenceType.Loss
             || settlement.DifferenceType == SarrafSettlementDifferenceType.SupplierShortfall;
         var amount = Money(Math.Abs(settlement.DifferenceAmountUsd));
 
-        return new LedgerEntry
+        return new LedgerPostingRequest
         {
             EntryDate = settlement.SettlementDate,
             Side = isLoss ? LedgerSide.Debit : LedgerSide.Credit,
@@ -558,7 +553,7 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
         };
     }
 
-    private static LedgerEntry BuildReversalLedger(LedgerEntry original, SarrafSettlement settlement, string? reason, string sourceType = CancelSourceType)
+    private static LedgerPostingRequest BuildReversalLedger(LedgerEntry original, SarrafSettlement settlement, string? reason, string sourceType = CancelSourceType)
         => new()
         {
             EntryDate = AfghanistanBusinessClock.SystemToday,

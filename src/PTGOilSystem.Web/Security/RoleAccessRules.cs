@@ -26,6 +26,19 @@ public static class AppPermissions
     /// «مدیریت کاربران» این دسترسی را نمی‌دهد؛ باید صریح داده شود.
     /// </summary>
     public const string ManageBackups = "ManageBackups";
+
+    /// <summary>
+    /// PTG-P1-01 — اجازهٔ ثبتِ استثنایی در دورهٔ عملیاتیِ بسته. مثل PostToSoftLockedPeriod
+    /// عمداً از نقش استنتاج نمی‌شود؛ بدون این Claim حتی Admin هم نمی‌تواند در ماهِ بسته
+    /// سند بزند، و هر عبور با دلیل در Audit ثبت می‌شود.
+    /// </summary>
+    public const string PostToClosedOperationalPeriod = "PostToClosedOperationalPeriod";
+
+    /// <summary>
+    /// PTG-P1-01 — اجازهٔ بستن و بازکردنِ دورهٔ عملیاتی. جدا از «ثبتِ استثنایی» است:
+    /// کسی که می‌تواند در دورهٔ بسته سند بزند لزوماً نباید بتواند دوره را باز کند.
+    /// </summary>
+    public const string ManageOperationalPeriodLock = "ManageOperationalPeriodLock";
 }
 
 public sealed record RoleNavigationItem(
@@ -84,7 +97,7 @@ public static class RoleAccessRules
         new(RoleNavigationKeys.Rates, "نرخ‌ها و قواعد", "bi-bar-chart-line-fill",
             ["PlattsRates"]),
         new(RoleNavigationKeys.Management, "مدیریت کاربران", "bi-person-fill-gear",
-            ["Users", "Roles", "AuditLogs", "Backups", "BackupRestore", "Maintenance"], IsSensitive: true)
+            ["Users", "Roles", "AuditLogs", "Backups", "BackupRestore", "Maintenance", "OperationalPeriodLocks"], IsSensitive: true)
     ];
 
     public static IReadOnlySet<string> BusinessNavigationKeys { get; } =
@@ -213,6 +226,14 @@ public static class RoleAccessRules
     /// </summary>
     public static bool CanRestoreBackups(ClaimsPrincipal user)
         => IsSuperAdmin(user);
+
+    /// <summary>
+    /// PTG-P1-01 — بستن و بازکردنِ دورهٔ عملیاتی: SuperAdmin یا Permission صریح.
+    /// همان الگوی <see cref="CanManageBackups"/>؛ چارچوب دسترسیِ تازه‌ای ساخته نشد.
+    /// </summary>
+    public static bool CanManageOperationalPeriodLock(ClaimsPrincipal user)
+        => IsSuperAdmin(user)
+            || user.HasClaim(AppClaimTypes.Permission, AppPermissions.ManageOperationalPeriodLock);
 
     public static IReadOnlySet<string> AllowedNavigationForUser(ClaimsPrincipal user)
     {

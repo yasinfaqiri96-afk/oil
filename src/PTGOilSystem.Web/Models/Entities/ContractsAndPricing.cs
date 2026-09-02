@@ -2,6 +2,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
+using PTGOilSystem.Web.Services.Time;
+
 namespace PTGOilSystem.Web.Models.Entities;
 
 public enum ContractType { Purchase = 1, Sale = 2 }
@@ -11,8 +13,11 @@ public enum ContractStatus { Draft = 0, Active = 1, Closed = 2, Cancelled = 3 }
 public enum ContractOwnershipType { Personal = 1, Partnership = 2 }
 public enum RubSettlementRatePolicy { NotApplicable = 0, FixedContractRate = 1, PerLoadingRate = 2, RateLater = 3 }
 
-public class Contract : BaseEntity
+public class Contract : BaseEntity, IVersionedEntity, ICanonicalSearchable
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
     [Required, MaxLength(200)] public string ContractName { get; set; } = "";
     [Required, MaxLength(50)] public string ContractNumber { get; set; } = "";
 
@@ -88,15 +93,42 @@ public class Contract : BaseEntity
     [MaxLength(200)] public string? ContractRubRateSource { get; set; }
 
     [MaxLength(1000)] public string? Notes { get; set; }
+
+    /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
+    [MaxLength(600)] public string? SearchKey { get; set; }
+
+    public string BuildSearchSource() => string.Join(' ', new[] { ContractName, ContractNumber });
 }
 
-public class ContractPartner : BaseEntity
+/// <summary>
+/// سهمِ یک شریک در یک قرارداد شراکتی، در یک بازهٔ زمانی مشخص.
+///
+/// PTG-P0-03 — این جدول عمداً «تاریخ‌دار» است. پیش از این فقط یک سطر زنده به‌ازای هر شریک
+/// وجود داشت و همهٔ گزارش‌ها درصدِ امروز را روی رویدادهای پارسال هم اعمال می‌کردند؛ نتیجه این
+/// بود که تغییر ۵۰/۵۰ به ۸۰/۲۰ سهمِ مفادِ دوره‌های بستهٔ گذشته را هم بازنویسی می‌کرد
+/// (۱۶۲٬۰۰۰ USD جابه‌جایی بدون هیچ رویداد مالی).
+///
+/// الگو دقیقاً همان <see cref="AssetOwnershipShare"/> است که از قبل در همین سیستم وجود دارد:
+/// هر تغییر، بازهٔ جاری را می‌بندد و یک بازهٔ تازه باز می‌کند. رکوردهای تاریخی حذف نمی‌شوند.
+/// </summary>
+public class ContractPartner : BaseEntity, IVersionedEntity
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
     public int ContractId { get; set; }
     public Contract? Contract { get; set; }
     public int PartnerId { get; set; }
     public Partner? Partner { get; set; }
     public decimal SharePercent { get; set; }
+
+    /// <summary>آغاز اعتبار این سهم (شامل همین تاریخ).</summary>
+    public DateTime EffectiveFrom { get; set; } = AfghanistanBusinessClock.SystemToday;
+
+    /// <summary>
+    /// پایان اعتبار (این تاریخ دیگر شامل نیست). خالی یعنی بازهٔ جاری و باز.
+    /// </summary>
+    public DateTime? EffectiveTo { get; set; }
 }
 
 public class ContractAmendment : BaseEntity

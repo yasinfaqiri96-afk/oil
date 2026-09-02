@@ -1,4 +1,4 @@
-@using PTGOilSystem.Web.Models.ShipmentPnl
+﻿@using PTGOilSystem.Web.Models.ShipmentPnl
 @using PTGOilSystem.Web.Models.Shared
 @using PTGOilSystem.Web.Services
 @model PTGOilSystem.Web.Models.ShipmentPnl.ShipmentPnlDetailsViewModel
@@ -48,16 +48,57 @@
     // پنج سطل تقسیم می‌کند، ولی ردیف کارت‌ها فقط کرایه/گمرک/سایر را نشان می‌داد و
     // ترمینال و اسناد نامرئی می‌ماندند؛ پس جمع سه کارت کمتر از «کل» درمی‌آمد.
     // اینجا سه سطلِ غیرکرایه/غیرگمرک زیر همان عنوان «سایر مصارف» جمع می‌شوند.
-    // تفکیک کامل پنج دسته در جدول «جزئیات هزینه‌ها بر اساس دسته» همین تب باقی است.
-    decimal ExpenseBucketUsd(ShipmentExpenseCategory category) =>
-        expenseCategoryGroups.Where(g => g.Category == category).Sum(g => g.TotalUsd);
-    var freightExpenseUsd = ExpenseBucketUsd(ShipmentExpenseCategory.Freight);
-    var customsExpenseUsd = ExpenseBucketUsd(ShipmentExpenseCategory.Customs);
+    // تفکیک کامل پنج دسته در تب «مصارف و کسورات» باقی است.
+    // جمعِ هر دسته هم از همان منبع خوانده می‌شود؛ جمع‌زدنِ دوباره در Razor یعنی دو منبع.
+    var freightExpenseUsd = ShipmentExpenseCategorizer.TotalFor(expenseCategoryGroups, ShipmentExpenseCategory.Freight);
+    var customsExpenseUsd = ShipmentExpenseCategorizer.TotalFor(expenseCategoryGroups, ShipmentExpenseCategory.Customs);
     var otherExpenseUsd = Model.TotalOperationalExpensesUsd - freightExpenseUsd - customsExpenseUsd;
     // درصد حاشیهٔ سود فقط نمایشی است و از همان دو عدد رسمی صفحه ساخته می‌شود.
     var shipmentMarginPercent = Model.TotalSalesUsd > 0m
         ? Model.ShipmentNetResultUsd / Model.TotalSalesUsd * 100m
         : 0m;
+    // ===== نمای خطی پروندهٔ محموله =====
+    // شش شبکهٔ کارتِ مخصوصِ هر تب جای خود را به همان ترکیبِ خطی‌ای دادند که
+    // بقیهٔ صفحه‌های عملیاتی دارند: چهار عددِ سرشاخه بالا، بقیهٔ اعداد در
+    // فهرستِ فعالیت. هیچ عددی حذف نشد؛ فقط دیگر پشتِ تبِ فعال پنهان نمی‌ماند.
+    var shipmentOverviewMetrics = new List<AkKpiItem>
+    {
+        new() { Title = T("بار کل محموله", "Total cargo"), Value = NumberDisplay.Quantity(Model.OriginalShipmentQuantityMt), Unit = UnitMt(), Avatar = "shipment-loaded" },
+        new() { Title = T("تخلیه‌شده از کشتی", "Discharged from vessel"), Value = NumberDisplay.Quantity(Model.VesselUnloadedQuantityMt), Unit = UnitMt(), Avatar = "shipment-discharged" },
+        new() { Title = T("فروخته‌شده", "Sold"), Value = NumberDisplay.Quantity(Model.SoldQuantityMt), Unit = UnitMt(), Avatar = "shipment-sales" },
+        new() { Title = shipmentResultLabel, Value = MoneyCard(Model.NetResultAbsUsd), Unit = UnitUsd(), Avatar = shipmentResultAvatar, State = shipmentResultIsProfit ? null : "warning" }
+    };
+
+    string WarnWhenPositive(decimal value) => value > 0m ? "warning" : null;
+
+    var shipmentActivityRows = new List<AkDetailActivityRow>
+    {
+        // مسیر بار: بار کل = تخلیه‌شده + کسری تخلیه + تخلیه‌نشده.
+        new() { Label = T("تخلیه‌های ثبت‌شده", "Registered discharges"), Value = Model.RegisteredVesselReceiptGroups.Count.ToString("N0"), Unit = T("تخلیه", "discharges"), Icon = "bi-file-earmark-text" },
+        new() { Label = T("بار تخلیه‌نشده", "Not yet discharged"), Value = NumberDisplay.Quantity(Model.NotYetDischargedQuantityMt), Unit = UnitMt(), Icon = "bi-hourglass-split" },
+        new() { Label = T("موجودی در مخزن", "In storage tank"), Value = NumberDisplay.Quantity(Model.RemainingInSourceTankQuantityMt), Unit = UnitMt(), Icon = "bi-database" },
+        new() { Label = T("باقی‌ماندهٔ نافروخته", "Unsold remainder"), Value = NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt), Unit = UnitMt(), Icon = "bi-box-seam" },
+
+        // کسری‌ها: سه سطلِ بدون هم‌پوشانی و جمعِ همان سه.
+        new() { Label = T("کسری تخلیه (کشتی → مخزن)", "Discharge shortage"), Value = NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt), Unit = UnitMt(), Icon = "bi-exclamation-diamond", StatusTone = WarnWhenPositive(Model.VesselUnloadingShortageQuantityMt) },
+        new() { Label = T("کسری حمل داخلی", "Internal transport shortage"), Value = NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt), Unit = UnitMt(), Icon = "bi-exclamation-diamond", StatusTone = WarnWhenPositive(Model.InventoryTransportShortageQuantityMt) },
+        new() { Label = T("سایر ضایعات ثبت‌شده", "Other recorded losses"), Value = NumberDisplay.Quantity(Model.DirectLossQuantityMt), Unit = UnitMt(), Icon = "bi-exclamation-diamond", StatusTone = WarnWhenPositive(Model.DirectLossQuantityMt) },
+        new() { Label = T("مجموع کسری و ضایعات", "Total shortage & losses"), Value = NumberDisplay.Quantity(Model.TotalLossAndShortageMt), Unit = UnitMt(), Icon = "bi-clipboard-data", StatusTone = WarnWhenPositive(Model.TotalLossAndShortageMt) },
+
+        // مصارف: جمع سه سطرِ تفکیکی دقیقاً برابر «کل مصارف» است.
+        new() { Label = T("کل مصارف (با گمرک)", "Total expenses"), Value = MoneyCard(Model.TotalOperationalExpensesUsd), Unit = UnitUsd(), Icon = "bi-receipt-cutoff" },
+        new() { Label = T("کرایه و حمل", "Freight"), Value = MoneyCard(freightExpenseUsd), Unit = UnitUsd(), Icon = "bi-truck" },
+        new() { Label = T("گمرک", "Customs"), Value = MoneyCard(customsExpenseUsd), Unit = UnitUsd(), Icon = "bi-shield-check" },
+        new() { Label = T("سایر مصارف", "Other expenses"), Value = MoneyCard(otherExpenseUsd), Unit = UnitUsd(), Icon = "bi-three-dots" },
+
+        // فروش و نتیجه.
+        new() { Label = T("تعداد فروش", "Sales count"), Value = saleDisplayRows.Count.ToString("N0"), Unit = T("فروش", "sales"), Icon = "bi-cart-check" },
+        new() { Label = T("درآمد فروش", "Sales revenue"), Value = MoneyCard(Model.TotalSalesUsd), Unit = UnitUsd(), Icon = "bi-cash-coin" },
+        new() { Label = T("حاشیهٔ سود", "Profit margin"), Value = shipmentMarginPercent.ToString("0.#"), Unit = "%", Icon = "bi-graph-up" },
+        new() { Label = T("ارزش موجودی باقی‌مانده", "Remaining inventory value"), Value = MoneyCard(Model.RemainingInventoryValueUsd), Unit = UnitUsd(), Icon = "bi-box-seam" },
+        new() { Label = T("مانده وصول‌نشده", "Outstanding receivable"), Value = MoneyCard(Model.OutstandingReceivableUsd), Unit = UnitUsd(), Icon = "bi-hourglass-bottom", StatusTone = WarnWhenPositive(Model.OutstandingReceivableUsd) }
+    };
+
     var activeShipmentTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
     activeShipmentTab = activeShipmentTab is "flow" or "compliance" or "balance" or "sales" or "finance"
         ? activeShipmentTab
@@ -127,70 +168,17 @@
                         T("برگشت", "Back"), "bi-arrow-right", Url.Action("Index")))" />
 
 
-    @* ===== Shipment key indicators =====
-       آمار مخصوص هر تب. گریدها بیرون از پنل‌ها و بالای ریل تب می‌نشینند و
-       ptg-tabs.js با همان قرارداد [data-ak-tab] آن‌ها را همراه تب فعال عوض می‌کند
-       (مثل منوی خروجی بالا). اعداد فقط از فیلدهای موجود ViewModel می‌آیند. *@
-    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-summary"
-             aria-label="@T("آمار کلی محموله", "Shipment overview statistics")"
-             hidden="@(activeShipmentTab == "summary" ? null : "hidden")">
-        @* اعداد پولی در کارت «خلاصه حساب» همین تب می‌آیند؛ اینجا فقط مقدار بار است. *@
-        <vc:stat-card title="@T("بار کل محموله", "Total cargo")" value="@NumberDisplay.Quantity(Model.OriginalShipmentQuantityMt)" unit="@UnitMt()" avatar="shipment-loaded"></vc:stat-card>
-        <vc:stat-card title="@T("تخلیه‌شده از کشتی", "Discharged from vessel")" value="@NumberDisplay.Quantity(Model.VesselUnloadedQuantityMt)" unit="@UnitMt()" avatar="shipment-discharged"></vc:stat-card>
-        <vc:stat-card title="@T("موجودی در مخزن", "In storage tank")" value="@NumberDisplay.Quantity(Model.RemainingInSourceTankQuantityMt)" unit="@UnitMt()" avatar="shipment-remaining"></vc:stat-card>
-        <vc:stat-card title="@T("فروخته‌شده", "Sold")" value="@NumberDisplay.Quantity(Model.SoldQuantityMt)" unit="@UnitMt()" avatar="shipment-sales"></vc:stat-card>
-    </section>
+    @* ترکیب خطی مشترک: سرشاخه‌ها بالا، بقیهٔ اعداد در یک فهرستِ فشرده،
+       مستقل از تبِ فعال — عددی پشتِ تب مخفی نمی‌ماند. *@
+    <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
+             model="@(new AkDetailOverviewModel
+                      {
+                          AriaLabel = T("آمار کلی محموله", "Shipment overview statistics"),
+                          Metrics = shipmentOverviewMetrics
+                      })" />
 
-    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-flow"
-             aria-label="@T("آمار تخلیه‌های کشتی", "Vessel discharge statistics")"
-             hidden="@(activeShipmentTab == "flow" ? null : "hidden")">
-        @* هر چهار عدد از یک مرحلهٔ واحد می‌آیند و جمعشان بسته است:
-           بار کل = تخلیه‌شده + کسری تخلیه + تخلیه‌نشده. *@
-        <vc:stat-card title="@T("تخلیه‌های ثبت‌شده", "Registered discharges")" value="@Model.RegisteredVesselReceiptGroups.Count.ToString("N0")" unit="@T("تخلیه", "discharges")" avatar="documents"></vc:stat-card>
-        <vc:stat-card title="@T("مقدار تخلیه‌شده", "Discharged quantity")" value="@NumberDisplay.Quantity(Model.VesselUnloadedQuantityMt)" unit="@UnitMt()" avatar="shipment-discharged"></vc:stat-card>
-        <vc:stat-card title="@T("بار تخلیه‌نشده", "Not yet discharged")" value="@NumberDisplay.Quantity(Model.NotYetDischargedQuantityMt)" unit="@UnitMt()" avatar="shipment-remaining"></vc:stat-card>
-        <vc:stat-card title="@T("کسری تخلیه", "Discharge shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@UnitMt()" avatar="shipment-losses" state="@(Model.VesselUnloadingShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
-    </section>
-
-    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-compliance"
-             aria-label="@T("آمار مصارف و گمرک", "Expense & customs statistics")"
-             hidden="@(activeShipmentTab == "compliance" ? null : "hidden")">
-        @* جمع سه کارت دقیقاً با «کل مصارف» برابر است؛ ترمینال و اسناد زیر «سایر مصارف» می‌آیند. *@
-        <vc:stat-card title="@T("کل مصارف (با گمرک)", "Total expenses")" value="@MoneyCard(Model.TotalOperationalExpensesUsd)" unit="@UnitUsd()" avatar="shipment-expenses"></vc:stat-card>
-        <vc:stat-card title="@T("کرایه و حمل", "Freight")" value="@MoneyCard(freightExpenseUsd)" unit="@UnitUsd()" avatar="transported"></vc:stat-card>
-        <vc:stat-card title="@T("گمرک", "Customs")" value="@MoneyCard(customsExpenseUsd)" unit="@UnitUsd()" avatar="security"></vc:stat-card>
-        <vc:stat-card title="@T("سایر مصارف", "Other expenses")" value="@MoneyCard(otherExpenseUsd)" unit="@UnitUsd()" avatar="expenses"></vc:stat-card>
-    </section>
-
-    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-balance"
-             aria-label="@T("آمار کسری‌ها", "Shortage statistics")"
-             hidden="@(activeShipmentTab == "balance" ? null : "hidden")">
-        @* سه سطلِ بدون هم‌پوشانی + جمعشان. همان سه جزئی که TotalLossAndShortageMt از
-           آن‌ها ساخته می‌شود، پس کارت چهارم دقیقاً جمع سه کارت اول است. *@
-        <vc:stat-card title="@T("کسری تخلیه (کشتی → مخزن)", "Discharge shortage")" value="@NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)" unit="@UnitMt()" avatar="shipment-losses" state="@(Model.VesselUnloadingShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
-        <vc:stat-card title="@T("کسری حمل داخلی", "Internal transport shortage")" value="@NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt)" unit="@UnitMt()" avatar="losses" state="@(Model.InventoryTransportShortageQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
-        <vc:stat-card title="@T("سایر ضایعات ثبت‌شده", "Other recorded losses")" value="@NumberDisplay.Quantity(Model.DirectLossQuantityMt)" unit="@UnitMt()" avatar="shortage" state="@(Model.DirectLossQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
-        <vc:stat-card title="@T("مجموع کسری و ضایعات", "Total shortage & losses")" value="@NumberDisplay.Quantity(Model.TotalLossAndShortageMt)" unit="@UnitMt()" avatar="profit-loss" state="@(Model.TotalLossAndShortageMt > 0m ? "warning" : null)"></vc:stat-card>
-    </section>
-
-    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-sales"
-             aria-label="@T("آمار فروش محموله", "Shipment sales statistics")"
-             hidden="@(activeShipmentTab == "sales" ? null : "hidden")">
-        <vc:stat-card title="@T("تعداد فروش", "Sales count")" value="@saleDisplayRows.Count.ToString("N0")" unit="@T("فروش", "sales")" avatar="sales-contracts"></vc:stat-card>
-        <vc:stat-card title="@T("مقدار فروخته‌شده", "Sold quantity")" value="@NumberDisplay.Quantity(Model.SoldQuantityMt)" unit="@UnitMt()" avatar="sold-quantity"></vc:stat-card>
-        <vc:stat-card title="@T("درآمد فروش", "Sales revenue")" value="@MoneyCard(Model.TotalSalesUsd)" unit="@UnitUsd()" avatar="shipment-sales"></vc:stat-card>
-        <vc:stat-card title="@T("باقی‌ماندهٔ نافروخته", "Unsold remainder")" value="@NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt)" unit="@UnitMt()" avatar="shipment-remaining"></vc:stat-card>
-    </section>
-
-    <section class="ak-stat-grid mb-3" data-ak-tab="shipment-finance"
-             aria-label="@T("آمار سود و زیان", "Profit & loss statistics")"
-             hidden="@(activeShipmentTab == "finance" ? null : "hidden")">
-        @* تفکیک فروش/خرید/مصارف در بلوک «محاسبهٔ سود و زیان» همان تب می‌ماند؛ کارت‌ها زاویهٔ مدیریتی می‌دهند. *@
-        <vc:stat-card title="@shipmentResultLabel" value="@MoneyCard(Model.NetResultAbsUsd)" unit="@UnitUsd()" avatar="@shipmentResultAvatar" state="@(shipmentResultIsProfit ? null : "warning")"></vc:stat-card>
-        <vc:stat-card title="@T("حاشیهٔ سود", "Profit margin")" value="@shipmentMarginPercent.ToString("0.#")" unit="%" avatar="analysis"></vc:stat-card>
-        <vc:stat-card title="@T("ارزش موجودی باقی‌مانده", "Remaining inventory value")" value="@MoneyCard(Model.RemainingInventoryValueUsd)" unit="@UnitUsd()" avatar="total-inventory"></vc:stat-card>
-        <vc:stat-card title="@T("مانده وصول‌نشده", "Outstanding receivable")" value="@MoneyCard(Model.OutstandingReceivableUsd)" unit="@UnitUsd()" avatar="receivables" state="@(Model.OutstandingReceivableUsd > 0m ? "warning" : null)"></vc:stat-card>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml"
+             model="@((IReadOnlyList<AkDetailActivityRow>)shipmentActivityRows)" />
 
     <section class="ak-form-page">
         @* ریل تب و دکمهٔ خروجی یک ردیف‌اند: تب‌ها یک سر، خروجیِ همان تب سر مقابل. *@

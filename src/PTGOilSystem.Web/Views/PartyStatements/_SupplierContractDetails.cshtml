@@ -3,11 +3,25 @@
     var statement = Model.Statement;
     var isRub = statement.Summary.IsRubPresentation;
     var rows = Model.DetailRows;
-    var loadingShown = Model.LoadingRows;
 
     string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "–";
     string Qty(decimal? value) => value.HasValue ? value.Value.ToString("N3") : "–";
     string Base(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
+
+    // خروجی همین پنل، با همان قرارداد و همان فیلترهای صفحه.
+    string? DetailsExportUrl(string format) => Url.Action("ContractDetailsExport", "PartyStatements", new
+    {
+        partyType = Model.PartyType,
+        id = Model.PartyId,
+        contractId = Model.ContractId,
+        format,
+        FromDate = Context.Request.Query["FromDate"],
+        ToDate = Context.Request.Query["ToDate"],
+        CompanyId = Context.Request.Query["CompanyId"],
+        CurrencyCode = Context.Request.Query["CurrencyCode"],
+        SourceType = Context.Request.Query["SourceType"],
+        Search = Context.Request.Query["Search"]
+    });
 }
 
 <div class="statement-details" dir="rtl">
@@ -39,7 +53,13 @@
     </section>
 
     <section class="statement-details-block">
-        <h3>گردش قرارداد</h3>
+        <div class="statement-details-block-head">
+            <h3>گردش قرارداد</h3>
+            <div class="statement-details-actions no-print">
+                <a class="btn btn-sm btn-light ak-secondary-action text-success" href="@DetailsExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+                <a class="btn btn-sm btn-light ak-secondary-action text-danger" href="@DetailsExportUrl("pdf")"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+            </div>
+        </div>
         <table class="statement-table statement-table-compact">
             <thead>
                 <tr>
@@ -71,42 +91,6 @@
                             <td class="statement-money statement-receipt">@Base(row.ReceiptBase, row.ReceiptRub)</td>
                             <td class="statement-money statement-outflow">@Base(row.OutflowBase, row.OutflowRub)</td>
                             <td class="statement-money statement-balance">@Base(row.RunningBalance, row.RunningBalanceRub)</td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-    </section>
-
-    <section class="statement-details-block">
-        <h3>بارگیری‌ها / تحویل‌های قطعی</h3>
-        <table class="statement-table statement-table-compact">
-            <thead>
-                <tr>
-                    <th>تاریخ</th>
-                    <th>مرجع</th>
-                    <th>مقدار (MT)</th>
-                    <th>Platts</th>
-                    <th>نرخ واحد</th>
-                    <th>ارزش</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (loadingShown.Count == 0)
-                {
-                    <tr><td colspan="6" class="statement-empty">بارگیری‌ای برای این قرارداد ثبت نشده است.</td></tr>
-                }
-                else
-                {
-                    @foreach (var row in loadingShown)
-                    {
-                        <tr>
-                            <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
-                            <td class="statement-ref">@(row.Reference ?? "–")</td>
-                            <td class="statement-money">@Qty(row.Quantity)</td>
-                            <td class="statement-money">@Amount(row.PlattsPrice)</td>
-                            <td class="statement-money">@Amount(row.UnitPrice)</td>
-                            <td class="statement-money">@Base(row.ReceiptBase ?? row.OutflowBase, row.ReceiptRub ?? row.OutflowRub)</td>
                         </tr>
                     }
                 }

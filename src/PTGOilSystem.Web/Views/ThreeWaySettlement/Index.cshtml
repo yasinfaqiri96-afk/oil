@@ -1,4 +1,4 @@
-@using PTGOilSystem.Web.Models.Entities
+﻿@using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.ThreeWaySettlement
 @model PTGOilSystem.Web.Models.ThreeWaySettlement.ThreeWaySettlementPreviewViewModel
 @{
@@ -236,6 +236,8 @@
             </div>
 
             <form asp-action="Confirm" method="post" class="ak-footer-actions">
+                @* PTG-P3-B — محافظ سمت سرور: Refresh یا تلاش دوباره دو تسویه نمی‌سازد. *@
+                @Html.FormToken()
                 <input asp-for="SettlementDate" type="hidden" />
                 <input asp-for="SourcePaymentTransactionId" type="hidden" />
                 <input asp-for="CustomerId" type="hidden" />

@@ -138,7 +138,11 @@ public partial class LoadingReceiptsController
         {
             LoadingRegisterId = receipt.LoadingRegisterId,
             CorrectionOfReceiptId = receipt.Id,
-            ReceiptDestination = receipt.ReceiptDestination,
+            // رسید ترکیبی دیگر ساخته نمی‌شود. اصلاح = لغو + ثبت دوباره، پس رسید قدیمیِ
+            // ترکیبی باید با یک مقصد مشخص دوباره ثبت شود؛ کاربر مقصد را روی فرم انتخاب می‌کند.
+            ReceiptDestination = receipt.ReceiptDestination == Models.Entities.LoadingReceiptDestination.Mixed
+                ? Models.Entities.LoadingReceiptDestination.ToInventory
+                : receipt.ReceiptDestination,
             LossMode = receipt.LossMode,
             ReceiptDate = receipt.ReceiptDate,
             ArrivalDate = receipt.ArrivalDate,
@@ -157,7 +161,6 @@ public partial class LoadingReceiptsController
         model.AlreadyReceivedQuantityMt = Math.Max(model.AlreadyReceivedQuantityMt - receipt.ReceivedQuantityMt, 0m);
         model.RemainingToReceiveMt += receipt.ReceivedQuantityMt;
 
-        EnsureAllocationLineEditorRows(model);
         await PopulateLookupsAsync(model);
         return View("Create", model);
     }

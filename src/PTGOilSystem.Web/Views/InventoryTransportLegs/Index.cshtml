@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportLegIndexViewModel
+﻿@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportLegIndexViewModel
 @using PTGOilSystem.Web.Models.Entities
 @{
     ViewData["Title"] = UiText.T(Context, "حمل‌ها", "Transports");
@@ -9,7 +9,7 @@
              model="@((UiText.T(Context, "حمل‌ها", "Transports"), true,
                        UiText.T(Context, "+ ثبت حمل", "+ New transport"), "bi-plus-lg", Url.Action("Create", "Transports"),
                        (string?)null,
-                       UiText.T(Context, "تسویه موترها", "Truck settlements"), "bi-cash-coin", Url.Action("Index", "TruckSettlements")))" />
+                       (string?)null, (string?)null, (string?)null))" />
 
     @{
         var sumQuantity = (decimal)(ViewBag.SumQuantity ?? 0m);
@@ -56,8 +56,8 @@
             <table class="ak-table transport-workflow-table">
                 <thead>
                     <tr>
-                        <th>@UiText.T(Context, "شماره حمل / تاریخ", "Transport / date")</th>
-                        <th>@UiText.T(Context, "محصول / منبع", "Product / source")</th>
+                        <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                        <th>@UiText.T(Context, "محصول", "Product")</th>
                         <th class="text-end">@UiText.T(Context, "مقدار", "Quantity")</th>
                         <th class="text-end">@UiText.T(Context, "ارزش حمل", "Transport value")</th>
                         <th>@UiText.T(Context, "وسیله", "Vehicle")</th>
@@ -101,12 +101,10 @@
                         : (decimal?)null;
                     <tr data-href="@Url.Action("Details", new { id = item.Id })">
                         <td>
-                            <strong class="ak-num">TR-@item.Id.ToString("0000")</strong>
-                            <span class="ak-section-desc">@item.LoadedDate.ToDisplayDate()</span>
+                            <strong class="ak-num">@item.LoadedDate.ToDisplayDate()</strong>
                         </td>
                         <td>
                             <strong>@item.ProductName</strong>
-                            <span class="ak-section-desc">@item.SourceContractsLabel</span>
                         </td>
                         <td class="text-end">
                             <strong class="ak-num">@NumberDisplay.Quantity(item.QuantityMt) MT</strong>
@@ -115,7 +113,6 @@
                             @if (transportValueUsd.HasValue)
                             {
                                 <strong class="ak-num">@NumberDisplay.Money(transportValueUsd.Value, "USD")</strong>
-                                <span class="ak-section-desc">@NumberDisplay.UnitPrice(item.PurchaseUnitCostUsd) USD/MT</span>
                             }
                             else
                             {

@@ -51,18 +51,18 @@
         ? officialSummary.ClosingBalanceTone
         : endingUsd > 0 ? "danger" : endingUsd < 0 ? "success" : null;
 
-    // سه تب: خلاصه (پیش‌فرض) · قراردادها (شامل پرداخت‌ها) · صورت‌حساب.
+    // خلاصه و قراردادها در یک تب واحد نمایش داده می‌شوند. کلیدهای قدیمیِ قرارداد/پرداخت
+    // همچنان به همین تب می‌رسند تا لینک‌های ذخیره‌شده و returnUrlها معتبر بمانند.
     var activeTab = Model.ActiveTab;
-    var showContracts = activeTab is "contracts" or "payments" or "sarraf";
     var showStatement = activeTab == "statement";
-    var showOverview = !showContracts && !showStatement;
+    var showSummaryAndContracts = !showStatement;
 
     var newPaymentUrl = Url.Action("Create", "Payments", new { supplierId = Model.SupplierId, returnUrl = supplierReturnUrl }) ?? "#";
     var editUrl = Url.Action("Edit", new { id = Model.SupplierId }) ?? "#";
     var indexUrl = Url.Action("Index") ?? "#";
     ViewData["AkHeaderStatus"] = Model.IsActive ? "فعال" : "غیرفعال";
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
-    ViewData["AkHeaderContext"] = $"کد: {(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)} · {balanceLabel}";
+    ViewData["AkHeaderContext"] = $"کد: {(string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code)}";
     // «ثبت پرداخت» از دکمهٔ اصلی هدر برداشته شد تا جای سوییچ ارز باز شود؛ خود اقدام
     // حذف نشده و در منوی سه‌نقطه می‌ماند.
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
@@ -84,8 +84,7 @@
 
     var supplierTabs = new[]
     {
-        $"overview|خلاصه|bi-clipboard-data|{(showOverview ? "active" : "")}",
-        $"contracts|قراردادها|bi-file-earmark-text|{(showContracts ? "active" : "")}",
+        $"overview|خلاصه و قراردادها|bi-clipboard-data|{(showSummaryAndContracts ? "active" : "")}",
         $"statement|صورت‌حساب|bi-journal-text|{(showStatement ? "active" : "")}"
     };
 
@@ -135,6 +134,7 @@
     {
         Meaning = balanceLabel,
         MeaningTone = balanceTone,
+        CollapseSecondary = true,
         SettledPercent = supplierPaidShare,
         SettledCaption = supplierPaidShare.HasValue
             ? $"{supplierPaidShare.Value:N0}٪ پرداخت شده"
@@ -157,6 +157,12 @@
     };
 }
 
+@section Styles {
+    @* تب «صورت‌حساب» همان بدنهٔ صفحهٔ مستقل را رندر می‌کند، پس استایل صورت‌حساب اینجا هم لازم است. *@
+    <link rel="stylesheet" href="~/css/ptg/62-party-statement.css" asp-append-version="true" data-ptg-page-asset="party-statement" />
+}
+
+
 <div class="ak-form-page ak-party-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((Model.Name, false,
@@ -165,14 +171,14 @@
 
     <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل تأمین‌کننده", supplierTabs)" />
 
-    @* ===== تب خلاصه: کارت‌های آماری، بعد یک کارت واحدِ وضعیت حساب + هویت ===== *@
-    <div class="ak-form-grid ak-overview-grid" hidden="@(!showOverview)">
+    @* ===== تب خلاصه و قراردادها: خلاصهٔ حساب در بالا، سپس سوابق قراردادی ===== *@
+    <div class="ak-form-grid ak-overview-grid" hidden="@(!showSummaryAndContracts)">
         <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)supplierKpis)" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@supplierAccountCard" />
     </div>
 
-    @* ===== تب ۱: قراردادها + پرداخت‌ها =====
+    @* ===== ادامهٔ تب خلاصه و قراردادها: قراردادها + پرداخت‌ها =====
        هر موضوع پنل مستقل خودش را دارد تا سکشن‌ها روی هم نریزند؛ گرید تک‌ستونی
        همان ریتم تب خلاصه است. فقط چیدمان است: داده و رفتار تغییر نمی‌کند. *@
     @{
@@ -187,7 +193,7 @@
             .Where(p => string.IsNullOrWhiteSpace(p.ContractNumber))
             .ToList();
     }
-    <div class="ak-form-grid ak-party-tab-grid" hidden="@(!showContracts)">
+    <div class="ak-form-grid ak-party-tab-grid" hidden="@(!showSummaryAndContracts)">
     <section id="supplier-contracts" class="ak-form-section ak-detail-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("قراردادهای خرید", $"{Model.Contracts.Count:N0} قرارداد"))" />
         <div class="ak-table-wrap">
@@ -447,15 +453,16 @@
 
     @* ===== تب ۳: صورت‌حساب ===== *@
     <section id="supplier-statement" class="ak-form-section ak-detail-section" hidden="@(!showStatement)">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("صورت‌حساب رسمی تأمین‌کننده", "مانده، نرخ تاریخی و اطلاعات نفتی در موتور مشترک محاسبه می‌شود."))" />
         @* ارز نمایش صفحه به صورت‌حساب رسمی هم پاس می‌شود (CurrencyCode = RUB یعنی نمایش روبلی
            در PartyStatementReadService). در نمای USD چیزی پاس نمی‌شود تا فیلترِ ارز اعمال نشود. *@
-        <div class="ak-party-statement-embed" data-party-statement-embed="@(Url.Action("Supplier", "PartyStatements", new { id = Model.SupplierId, CurrencyCode = isRubView ? "RUB" : null }))">
-            <div class="ak-empty ak-detail-empty-state">
-                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
-                <p>در حال بارگذاری صورت‌حساب…</p>
+        @* صورت‌حساب سمت سرور رندر می‌شود و فقط وقتی این تب باز است ساخته می‌شود؛
+           پیش‌تر با fetch گرفته می‌شد و کل صورت‌حساب دوبار محاسبه می‌شد. *@
+        @if (showStatement)
+        {
+            <div class="ak-party-statement-embed">
+                <vc:party-statement party-type="@PTGOilSystem.Web.Models.PartyStatements.PartyStatementPartyType.Supplier" party-id="@Model.SupplierId" currency-code="@(isRubView ? "RUB" : null)"></vc:party-statement>
             </div>
-        </div>
+        }
     </section>
 </div>
 

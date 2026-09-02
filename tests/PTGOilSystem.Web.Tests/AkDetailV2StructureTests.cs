@@ -50,7 +50,10 @@ public sealed class AkDetailV2StructureTests
             Assert.Contains("AkHeaderIdentity", view);
             Assert.Contains("_DetailCards.cshtml", view);
             Assert.Contains("_DetailMore.cshtml", view);
-            Assert.Contains("TimelineLimit = 4", view);
+            if (controller == "InventoryTransportLegs")
+            {
+                Assert.Contains("TimelineLimit = 4", view);
+            }
             Assert.DoesNotContain("_DetailsTabs.cshtml", view);
             Assert.DoesNotContain("_DetailPager.cshtml", view);
             Assert.DoesNotContain("data-ptcd-tab", view);
@@ -59,12 +62,12 @@ public sealed class AkDetailV2StructureTests
             Assert.DoesNotContain("<details", view);
         }
 
-        // Both pilots carry a real workflow, so their doable next steps sit in the shared
-        // bottom bar and only side routes fall back to the kebab. The two lists must stay
-        // disjoint: the page never feeds the same collection to the bar and to the kebab,
-        // which is what used to print every action twice.
+        // Loading keeps every action in one header group; transport retains the shared
+        // next-step bar. Neither page duplicates the same action in both locations.
         var loading = ReadView("Loading");
         Assert.DoesNotContain("AkHeaderOverflowActions", loading);
+        Assert.Contains("AkHeaderCompanionAction", loading);
+        Assert.DoesNotContain("NextActions =", loading);
 
         var transport = ReadView("InventoryTransportLegs");
         Assert.Contains("ViewData[\"AkHeaderOverflowActions\"] = overflowActions;", transport);
@@ -104,7 +107,8 @@ public sealed class AkDetailV2StructureTests
         var loading = ReadView("Loading");
         Assert.Contains("اطلاعات اصلی", loading);
         Assert.Contains("قابل ارسال / تخصیص", loading);
-        Assert.Contains("TimelineTitle = T(\"آخرین فعالیت‌ها\"", loading);
+        Assert.Contains("TimelineTitle = T(\"همه رویدادهای بارگیری\"", loading);
+        Assert.DoesNotContain("Activity = activityRows", loading);
         Assert.DoesNotContain("ak-loading-rub-secondary", loading);
         Assert.DoesNotContain("ak-detail-tabbed-sections", loading);
 
@@ -138,7 +142,15 @@ public sealed class AkDetailV2StructureTests
             Assert.Contains("_DetailMore.cshtml", view);
             Assert.Contains("AkDetailCardsModel", view);
             Assert.Contains("AkDetailMoreModel", view);
-            Assert.Contains("TimelineTitle = T(\"آخرین فعالیت‌ها\"", view);
+            if (controller == "Loading")
+            {
+                Assert.Contains("TimelineTitle = T(\"همه رویدادهای بارگیری\"", view);
+                Assert.DoesNotContain("Activity = activityRows", view);
+            }
+            else
+            {
+                Assert.Contains("TimelineTitle = T(\"آخرین فعالیت‌ها\"", view);
+            }
             Assert.DoesNotContain("_DetailOverview.cshtml", view);
             Assert.DoesNotContain("Items = headerItems", view);
             Assert.DoesNotContain("Items = identityItems", view);
@@ -228,8 +240,11 @@ public sealed class AkDetailV2StructureTests
         Assert.Contains(".ak-operations-detail.ak-operations-settlement > .ak-list", css);
         Assert.Contains("@media print", css);
 
+        // The declaration profile list was renamed summaryItems -> mainItems by the
+        // shared linear layout; the rule is unchanged: the consignment weight is a
+        // metric, so it must not be repeated as a profile fact.
         var customs = ReadView("CustomsDeclarations");
-        var summaryStart = customs.IndexOf("var summaryItems", StringComparison.Ordinal);
+        var summaryStart = customs.IndexOf("var mainItems", StringComparison.Ordinal);
         var advancedStart = customs.IndexOf("var advancedItems", StringComparison.Ordinal);
         Assert.True(summaryStart >= 0 && advancedStart > summaryStart);
         Assert.DoesNotContain(
@@ -298,17 +313,29 @@ public sealed class AkDetailV2StructureTests
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/11-details.css");
 
         Assert.Contains("data-operational-asset-details", view);
-        Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
 
-        // The page identity facts live in the one shared summary card above the tabs — the same
-        // partial every other master-data Details view uses — not in a KPI strip and not in a
-        // "status" tab. Exactly one card, and it must precede the tab strip, otherwise the page
-        // is no longer summary-then-tabs.
+        // Tab-first composition, the same order as Payments/Partners Details: tab rail, then one
+        // stat strip for the active tab, then the period filter, then the panes. The strip is the
+        // shared partial (capped at five cards), never a page-local card wall.
+        Assert.Equal(1, Count(view, "_DetailKpiStrip.cshtml"));
+        Assert.True(
+            view.IndexOf("_DetailsTabs.cshtml", StringComparison.Ordinal)
+                < view.IndexOf("_DetailKpiStrip.cshtml", StringComparison.Ordinal));
+
+        // The identity facts live in the one shared summary card — the same partial every other
+        // master-data Details view uses — inside the overview pane, so they no longer push the
+        // tabs and the decision-making numbers below the fold.
         Assert.Equal(1, Count(view, "_DetailSummaryCard.cshtml"));
         Assert.True(
-            view.IndexOf("_DetailSummaryCard.cshtml", StringComparison.Ordinal)
-                < view.IndexOf("_DetailsTabs.cshtml", StringComparison.Ordinal));
+            view.IndexOf("_DetailKpiStrip.cshtml", StringComparison.Ordinal)
+                < view.IndexOf("_DetailSummaryCard.cshtml", StringComparison.Ordinal));
         Assert.Contains("_DetailAdvancedSection.cshtml", view);
+
+        // One period filter, in the canonical detail toolbar, rendered only for the tabs whose
+        // rows are actually filtered by date. No page-local collapse toggle.
+        Assert.Equal(1, Count(view, "class=\"ak-detail-toolbar no-print\""));
+        Assert.Contains("if (isPeriodTab)", view);
+        Assert.DoesNotContain("oa-period", view);
         Assert.Equal(3, Count(view, "class=\"modal fade oa-action-modal\""));
         Assert.Contains("id=\"oaOwnershipModal\"", view);
         Assert.Contains("id=\"oaRentModal\"", view);
@@ -326,8 +353,12 @@ public sealed class AkDetailV2StructureTests
         // Every structural hook the view emits is styled in the page's own scoped block — no
         // inline styles and no orphan selectors for markup the page no longer renders.
         Assert.Contains(".ak-detail-page.operational-asset-details-page", css);
-        Assert.Contains(".operational-asset-details-page > .ak-summary-card", css);
-        Assert.Contains(".operational-asset-details-page .oa-period-zone", css);
+        Assert.Contains(".operational-asset-details-page .ak-summary-card", css);
+        Assert.Contains(".operational-asset-details-page .ak-detail-kpi-strip", css);
+        Assert.Contains(".operational-asset-details-page .ak-detail-toolbar", css);
+        Assert.DoesNotContain(".oa-period", css);
+        Assert.DoesNotContain(".oa-plain-list", css);
+        Assert.DoesNotContain(".oa-total-row", css);
         Assert.Contains(".operational-asset-details-page .oa-block-head", css);
         Assert.Contains(".operational-asset-details-page .oa-modal-trigger", css);
         Assert.Contains(".operational-asset-details-page .oa-action-modal .modal-dialog", css);

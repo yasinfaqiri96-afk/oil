@@ -188,9 +188,18 @@ public sealed class TransportChainService : ITransportChainService
             Status = InventoryTransportLegStatus.Loaded,
             Notes = command.Notes
         };
+        var carrierParty = await new AssetUsageChargeService(_db).ResolveCarrierPartyAsync(
+            childLeg.ServiceProviderId,
+            childLeg.DriverId,
+            childLeg.OperationalAssetId,
+            childLeg.LoadedDate,
+            ct);
+        childLeg.CarrierPartyType = carrierParty?.PartyType;
+        childLeg.CarrierPartyId = carrierParty?.PartyId;
 
         _db.InventoryTransportLegs.Add(childLeg);
         await _db.SaveChangesAsync(ct);
+        await new AssetUsageChargeService(_db).SyncOperationAsync(childLeg, ct);
 
         var receipts = new List<InventoryTransportReceipt>(validated.Count);
         var childAllocations = new List<InventoryTransportLegAllocation>();

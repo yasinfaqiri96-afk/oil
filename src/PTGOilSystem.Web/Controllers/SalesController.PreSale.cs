@@ -772,7 +772,12 @@ public partial class SalesController
         }
 
         // برگشت موجودی و لجر دقیقاً از همان مسیر لغو فروشِ موجود انجام می‌شود؛ هیچ سند مالی حذف نمی‌شود.
-        await Cancel(salesTransactionId);
+        //
+        // PTG-P2-03 — ابطال دیگر دلیل می‌خواهد. دلیلِ این مسیر از خودِ رویداد معلوم است
+        // (لغوِ یک تحویلِ پیش‌فروش)، پس اینجا صریح نوشته می‌شود تا تاریخچهٔ سند خالی نماند.
+        await Cancel(
+            salesTransactionId,
+            cancelReason: $"لغو تحویل پیش‌فروش {order.OrderNumber}");
         await RecomputePreSaleStatusAsync(order);
 
         return RedirectToAction(nameof(PreSaleDetails), new { id });

@@ -16,15 +16,19 @@ public sealed class PartyStatementsController : Controller
 {
     private readonly IPartyStatementReadService _statementService;
     private readonly ApplicationDbContext _db;
+    private readonly PartyStatementPageBuilder _pageBuilder;
     private readonly Services.Exports.ITabularExportService? _exportService;
 
     public PartyStatementsController(
         IPartyStatementReadService statementService,
         ApplicationDbContext db,
+        PartyStatementPageBuilder? pageBuilder = null,
         Services.Exports.ITabularExportService? exportService = null)
     {
         _statementService = statementService;
         _db = db;
+        // اگر تزریق نشده باشد (تست‌های قدیمی) با همان وابستگی‌ها ساخته می‌شود.
+        _pageBuilder = pageBuilder ?? new PartyStatementPageBuilder(statementService, db);
         _exportService = exportService;
     }
 
@@ -81,12 +85,12 @@ public sealed class PartyStatementsController : Controller
         int detailPage,
         CancellationToken ct)
     {
-        var effective = WithContract(WithOperationalColumns(filter), contractId);
+        var effective = WithContract(PartyStatementPageBuilder.WithOperationalColumns(filter), contractId);
         try
         {
             var statement = await _statementService.GetStatementAsync(
                 new PartyRef(partyType, id, filter.CompanyId), effective, ct);
-            var facts = await LoadContractFactsAsync([contractId], ct, partyType, id);
+            var facts = await _pageBuilder.LoadContractFactsAsync([contractId], ct, partyType, id);
             facts.TryGetValue(contractId, out var f);
             var detailRows = statement.Rows.Where(r => !r.IsOpeningBalance).ToList();
             const int detailPageSize = 25;
@@ -113,6 +117,33 @@ public sealed class PartyStatementsController : Controller
                 DetailPageSize = detailPageSize,
                 DetailTotalRows = detailRows.Count
             });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    // خروجی پنل «جزئیات قرارداد»: همان قرارداد، همان فیلترها و همان سطرهایی که روی صفحه
+    // باز شده‌اند — نه کل صورت‌حساب.
+    [EnableRateLimiting(RateLimitPolicies.CsvExport)]
+    [HttpGet("PartyStatements/{partyType}/{id:int}/Contract/{contractId:int}/Export")]
+    public async Task<IActionResult> ContractDetailsExport(
+        PartyStatementPartyType partyType,
+        int id,
+        int contractId,
+        string? format,
+        [FromQuery] PartyStatementFilter filter,
+        CancellationToken ct = default)
+    {
+        var effective = WithContract(PartyStatementPageBuilder.WithOperationalColumns(filter), contractId);
+        try
+        {
+            var statement = await _statementService.GetStatementAsync(
+                new PartyRef(partyType, id, filter.CompanyId), effective, ct);
+            var facts = await _pageBuilder.LoadContractFactsAsync([contractId], ct, partyType, id);
+            facts.TryGetValue(contractId, out var f);
+            return SupplierStatementExport.BuildContractDetails(this, format, statement, f, contractId);
         }
         catch (KeyNotFoundException)
         {
@@ -148,7 +179,7 @@ public sealed class PartyStatementsController : Controller
             return NotFound();
         }
 
-        var grouping = await BuildContractGroupingAsync(statement, filter, ct);
+        var grouping = await _pageBuilder.BuildContractGroupingAsync(statement, filter, ct);
 
         // PDF تب «قراردادها» باید همان سند رسمی صورت‌حساب باشد (لوگو، سربرگ شرکت، خلاصهٔ
         // مالی، امضا) و فقط جدولش خلاصهٔ قراردادی باشد؛ نه قالب جدول عمومیِ خروجی‌ها.
@@ -222,9 +253,9 @@ public sealed class PartyStatementsController : Controller
         SupplierStatementView? view = null,
         CancellationToken ct = default)
     {
-        var effectiveView = ResolveView(partyType, view);
-        var effectiveFilter = NeedsOperationalColumns(effectiveView)
-            ? WithOperationalColumns(filter)
+        var effectiveView = PartyStatementPageBuilder.ResolveView(partyType, view);
+        var effectiveFilter = PartyStatementPageBuilder.NeedsOperationalColumns(effectiveView)
+            ? PartyStatementPageBuilder.WithOperationalColumns(filter)
             : filter;
         PartyStatementResult statement;
         try
@@ -242,10 +273,10 @@ public sealed class PartyStatementsController : Controller
         string[] headers;
         IEnumerable<string?[]> rows;
         if (effectiveView == SupplierStatementView.Contracts
-            && UsesContractSummary(partyType)
-            && HasContractRows(statement))
+            && PartyStatementPageBuilder.UsesContractSummary(partyType)
+            && PartyStatementPageBuilder.HasContractRows(statement))
         {
-            var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
+            var grouping = await _pageBuilder.BuildContractGroupingAsync(statement, effectiveFilter, ct);
             headers = BuildContractCsvHeaders(statement.Summary.BaseCurrencyCode);
             rows = grouping.Rows.Select(row => BuildContractCsvRow(row, grouping.IsRub));
         }
@@ -271,9 +302,9 @@ public sealed class PartyStatementsController : Controller
         if (_exportService is null)
             return NotFound();
 
-        var effectiveView = ResolveView(partyType, view);
-        var effectiveFilter = NeedsOperationalColumns(effectiveView)
-            ? WithOperationalColumns(filter)
+        var effectiveView = PartyStatementPageBuilder.ResolveView(partyType, view);
+        var effectiveFilter = PartyStatementPageBuilder.NeedsOperationalColumns(effectiveView)
+            ? PartyStatementPageBuilder.WithOperationalColumns(filter)
             : filter;
         PartyStatementResult statement;
         try
@@ -288,10 +319,10 @@ public sealed class PartyStatementsController : Controller
 
         await using var output = new MemoryStream();
         if (effectiveView == SupplierStatementView.Contracts
-            && UsesContractSummary(partyType)
-            && HasContractRows(statement))
+            && PartyStatementPageBuilder.UsesContractSummary(partyType)
+            && PartyStatementPageBuilder.HasContractRows(statement))
         {
-            var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
+            var grouping = await _pageBuilder.BuildContractGroupingAsync(statement, effectiveFilter, ct);
             await _exportService.WriteSupplierContractStatementPdfAsync(
                 statement,
                 grouping,
@@ -322,9 +353,9 @@ public sealed class PartyStatementsController : Controller
             return NotFound();
         }
 
-        var effectiveView = ResolveView(partyType, view);
-        var effectiveFilter = NeedsOperationalColumns(effectiveView)
-            ? WithOperationalColumns(filter)
+        var effectiveView = PartyStatementPageBuilder.ResolveView(partyType, view);
+        var effectiveFilter = PartyStatementPageBuilder.NeedsOperationalColumns(effectiveView)
+            ? PartyStatementPageBuilder.WithOperationalColumns(filter)
             : filter;
         PartyStatementResult statement;
         try
@@ -340,10 +371,10 @@ public sealed class PartyStatementsController : Controller
         }
 
         if (effectiveView == SupplierStatementView.Contracts
-            && UsesContractSummary(partyType)
-            && HasContractRows(statement))
+            && PartyStatementPageBuilder.UsesContractSummary(partyType)
+            && PartyStatementPageBuilder.HasContractRows(statement))
         {
-            var grouping = await BuildContractGroupingAsync(statement, effectiveFilter, ct);
+            var grouping = await _pageBuilder.BuildContractGroupingAsync(statement, effectiveFilter, ct);
             if (Services.Exports.TabularExportSupport.ParseFormat(format) == Services.Exports.TabularExportFormat.Pdf)
             {
                 await using var output = new MemoryStream();
@@ -372,16 +403,16 @@ public sealed class PartyStatementsController : Controller
         CancellationToken ct,
         SupplierStatementView? supplierView = null)
     {
-        var view = ResolveView(partyType, supplierView);
+        var view = PartyStatementPageBuilder.ResolveView(partyType, supplierView);
 
         // نمای «همه اسناد» به ستون‌های عملیاتی نیاز دارد؛ فیلتر مؤثر را می‌سازیم.
-        var effectiveFilter = NeedsOperationalColumns(view)
-            ? WithOperationalColumns(filter)
+        var effectiveFilter = PartyStatementPageBuilder.NeedsOperationalColumns(view)
+            ? PartyStatementPageBuilder.WithOperationalColumns(filter)
             : filter;
 
         try
         {
-            return await BuildDocumentAsync(partyType, id, effectiveFilter, print, view, ct);
+            return View("Document", await _pageBuilder.BuildDocumentAsync(partyType, id, effectiveFilter, print, view, ct));
         }
         catch (KeyNotFoundException)
         {
@@ -403,151 +434,8 @@ public sealed class PartyStatementsController : Controller
                 PageSize = effectiveFilter.PageSize,
                 IncludeOperationalColumns = effectiveFilter.IncludeOperationalColumns
             };
-            return await BuildDocumentAsync(partyType, id, fallback, print, view, ct);
+            return View("Document", await _pageBuilder.BuildDocumentAsync(partyType, id, fallback, print, view, ct));
         }
-    }
-
-    private async Task<IActionResult> BuildDocumentAsync(
-        PartyStatementPartyType partyType,
-        int id,
-        PartyStatementFilter filter,
-        bool print,
-        SupplierStatementView view,
-        CancellationToken ct)
-    {
-        var statement = await _statementService.GetStatementAsync(new PartyRef(partyType, id, filter.CompanyId), filter, ct);
-        var options = await LoadFilterOptionsAsync(partyType, id, ct);
-
-        // اگر هیچ سندِ این دوره به قرارداد وصل نباشد، «خلاصه قراردادها» بی‌معنا است و
-        // فقط یک ردیفِ «بدون قرارداد» می‌شود؛ در این حالت صفحه همان گردش حساب ساده است.
-        var showsContracts = UsesContractSummary(partyType) && HasContractRows(statement);
-        if (!showsContracts)
-        {
-            view = SupplierStatementView.Ledger;
-        }
-
-        SupplierContractStatementViewModel? grouping = null;
-        if (view == SupplierStatementView.Contracts && showsContracts)
-        {
-            grouping = await BuildContractGroupingAsync(statement, filter, ct);
-        }
-        else if (view == SupplierStatementView.Ledger && showsContracts)
-        {
-            // گردش فشرده: بارگیری/فروش‌های یک قرارداد در یک سطر جمع می‌شوند. جمع دوره،
-            // مانده و بیلانس نهایی از همان Summary می‌آید و تغییر نمی‌کند.
-            statement = WithRows(statement, SupplierContractStatementBuilder.BuildCompactLedgerRows(statement));
-        }
-
-        return View("Document", new PartyStatementViewModel
-        {
-            Statement = statement,
-            Filter = filter,
-            IsPrintMode = print,
-            SupplierView = view,
-            HasContractRows = showsContracts,
-            ContractGrouping = grouping,
-            ContractOptions = options.Contracts,
-            CompanyOptions = options.Companies,
-            CurrencyOptions = options.Currencies
-        });
-    }
-
-    // اطلاعات نمایشیِ قرارداد (محصول/مقدار/نرخ/ارزش/بارگیری‌شده) را برای نمای «قراردادها»
-    // بارگذاری می‌کند. صرفاً metadata است؛ اعداد رسید/برد/بیلانس از خودِ سطرهای مالی می‌آیند.
-    private async Task<SupplierContractStatementViewModel> BuildContractGroupingAsync(
-        PartyStatementResult statement,
-        PartyStatementFilter filter,
-        CancellationToken ct)
-    {
-        var contractIds = statement.Rows
-            .Where(r => !r.IsOpeningBalance && r.ContractId.HasValue)
-            .Select(r => r.ContractId!.Value)
-            .Distinct()
-            .ToList();
-
-        var facts = await LoadContractFactsAsync(
-            contractIds,
-            ct,
-            statement.Party.PartyType,
-            statement.Party.PartyId);
-        return SupplierContractStatementBuilder.Build(
-            statement,
-            facts,
-            page: Math.Max(1, filter.Page),
-            pageSize: Math.Clamp(filter.PageSize, 10, 100));
-    }
-
-    // metadataِ نمایشیِ قرارداد (محصول/مقدار/نرخ/ارزش/بارگیری‌شده). فقط اطلاعاتی است؛ روی
-    // رسید/برد/بیلانس اثری ندارد. با دو کوئری projection (بدون N+1) خوانده می‌شود.
-    private async Task<Dictionary<int, SupplierContractStatementBuilder.ContractFacts>> LoadContractFactsAsync(
-        IReadOnlyCollection<int> contractIds,
-        CancellationToken ct,
-        PartyStatementPartyType? partyType = null,
-        int? partyId = null)
-    {
-        var facts = new Dictionary<int, SupplierContractStatementBuilder.ContractFacts>();
-        if (contractIds.Count == 0)
-        {
-            return facts;
-        }
-
-        var contracts = await _db.Contracts.AsNoTracking()
-            .Where(c => contractIds.Contains(c.Id))
-            .Select(c => new
-            {
-                c.Id,
-                ProductName = c.Product != null ? (c.Product.NamePersian ?? c.Product.Name) : null,
-                c.QuantityMt,
-                c.ManualFinalPriceUsd,
-                c.PricingMethod,
-                c.UnitPriceUsd
-            })
-            .ToListAsync(ct);
-
-        var loadedByContract = await _db.LoadingRegisters.AsNoTracking()
-            .Where(l => contractIds.Contains(l.ContractId))
-            .GroupBy(l => l.ContractId)
-            .Select(g => new { ContractId = g.Key, Qty = g.Sum(x => x.LoadedQuantityMt) })
-            .ToDictionaryAsync(x => x.ContractId, x => x.Qty, ct);
-        var soldByContract = await _db.SalesTransactions.AsNoTracking()
-            .Where(s => s.ContractId.HasValue && contractIds.Contains(s.ContractId.Value))
-            .GroupBy(s => s.ContractId!.Value)
-            .Select(g => new { ContractId = g.Key, Qty = g.Sum(x => x.QuantityMt) })
-            .ToDictionaryAsync(x => x.ContractId, x => x.Qty, ct);
-
-        // درصد سهم فقط برای شریک خوانده می‌شود و صرفاً برچسب ستون «سهم» است؛ مبالغِ
-        // سطرهای صورت‌حساب شریک از قبل سهم‌بندی شده‌اند و اینجا چیزی محاسبه نمی‌شود.
-        var shareByContract = partyType == PartyStatementPartyType.Partner && partyId.HasValue
-            ? await _db.ContractPartners.AsNoTracking()
-                .Where(cp => cp.PartnerId == partyId.Value && contractIds.Contains(cp.ContractId))
-                .Select(cp => new { cp.ContractId, cp.SharePercent })
-                .ToDictionaryAsync(x => x.ContractId, x => x.SharePercent, ct)
-            : [];
-
-        foreach (var c in contracts)
-        {
-            // نرخ قطعیِ قرارداد را از همان helper مرکزی می‌گیریم تا با بقیهٔ سیستم یکسان بماند.
-            var price = ContractPricingAdapter.GetCanonicalFinalPrice(new Contract
-            {
-                ManualFinalPriceUsd = c.ManualFinalPriceUsd,
-                PricingMethod = c.PricingMethod,
-                UnitPriceUsd = c.UnitPriceUsd
-            });
-            var contractValue = price.HasValue ? c.QuantityMt * price.Value : (decimal?)null;
-            loadedByContract.TryGetValue(c.Id, out var loaded);
-            soldByContract.TryGetValue(c.Id, out var sold);
-            var hasConfirmedQuantity = loadedByContract.ContainsKey(c.Id) || soldByContract.ContainsKey(c.Id);
-
-            facts[c.Id] = new SupplierContractStatementBuilder.ContractFacts(
-                c.ProductName,
-                c.QuantityMt,
-                price,
-                contractValue,
-                hasConfirmedQuantity ? loaded + sold : null,
-                shareByContract.TryGetValue(c.Id, out var share) ? share : null);
-        }
-
-        return facts;
     }
 
     private static PartyStatementFilter WithOperationalColumns(PartyStatementFilter filter)
@@ -579,44 +467,6 @@ public sealed class PartyStatementsController : Controller
             PageSize = filter.PageSize,
             IncludeOperationalColumns = filter.IncludeOperationalColumns
         };
-
-    // گزینه‌های نوار فیلتر: قراردادهای مرتبط با همین طرف‌حساب، شرکت‌ها و ارزهای فعال.
-    private async Task<(List<PartyStatementFilterOption> Contracts,
-        List<PartyStatementFilterOption> Companies,
-        List<string> Currencies)> LoadFilterOptionsAsync(
-        PartyStatementPartyType partyType,
-        int id,
-        CancellationToken ct)
-    {
-        var contractQuery = _db.Contracts.AsNoTracking().AsQueryable();
-        contractQuery = partyType switch
-        {
-            PartyStatementPartyType.Supplier => contractQuery.Where(x => x.SupplierId == id),
-            PartyStatementPartyType.Customer => contractQuery.Where(x => x.CustomerId == id),
-            PartyStatementPartyType.Company => contractQuery.Where(x => x.CompanyId == id),
-            _ => contractQuery
-        };
-
-        var contracts = await contractQuery
-            .OrderByDescending(x => x.ContractDate)
-            .Select(x => new PartyStatementFilterOption(x.Id, x.ContractNumber))
-            .Take(500)
-            .ToListAsync(ct);
-
-        var companies = await _db.Companies.AsNoTracking()
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.Name)
-            .Select(x => new PartyStatementFilterOption(x.Id, x.NamePersian ?? x.Name))
-            .ToListAsync(ct);
-
-        var currencies = await _db.Currencies.AsNoTracking()
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.Code)
-            .Select(x => x.Code)
-            .ToListAsync(ct);
-
-        return (contracts, companies, currencies);
-    }
 
     private static string[] BuildCsvHeaders(PartyStatementColumnOptions columns, string currency)
     {
@@ -693,43 +543,7 @@ public sealed class PartyStatementsController : Controller
     private static bool IsCurrency(PartyStatementRow row, string currency)
         => string.Equals(row.OriginalCurrency, currency, StringComparison.OrdinalIgnoreCase);
 
-    // نمای خلاصهٔ قراردادها برای طرف‌حساب‌های قراردادی؛ بقیه (کارمند، صراف، راننده) همیشه گردش حساب.
-    private static bool UsesContractSummary(PartyStatementPartyType partyType)
-        => PartyStatementViewModel.SupportsContractSummary(partyType);
-
-    // نمای مؤثر: اگر کاربر چیزی انتخاب نکرده باشد، پیش‌فرضِ همان نوع طرف‌حساب.
-    private static SupplierStatementView ResolveView(
-        PartyStatementPartyType partyType,
-        SupplierStatementView? requested)
-        => UsesContractSummary(partyType)
-            ? requested ?? PartyStatementViewModel.DefaultViewFor(partyType)
-            : SupplierStatementView.Ledger;
-
-    private static bool NeedsOperationalColumns(SupplierStatementView view)
-        => view == SupplierStatementView.Loadings;
-
-    // نمای قراردادی فقط وقتی ساخته می‌شود که سندِ وصل‌شده به قرارداد وجود داشته باشد.
-    private static bool HasContractRows(PartyStatementResult statement)
-        => statement.Rows.Any(r => !r.IsOpeningBalance && r.ContractId.HasValue);
-
     private static bool IsConfirmedOperation(PartyStatementRow row)
         => row.SourceType is "Loading" or "Sale";
 
-    private static PartyStatementResult WithRows(
-        PartyStatementResult statement,
-        IReadOnlyList<PartyStatementRow> rows)
-        => new()
-        {
-            Party = statement.Party,
-            Policy = statement.Policy,
-            CompanyInfo = statement.CompanyInfo,
-            PartyInfo = statement.PartyInfo,
-            DocumentInfo = statement.DocumentInfo,
-            Summary = statement.Summary,
-            ColumnOptions = statement.ColumnOptions,
-            Rows = rows,
-            Note = statement.Note,
-            Authorization = statement.Authorization,
-            CourtesyText = statement.CourtesyText
-        };
 }

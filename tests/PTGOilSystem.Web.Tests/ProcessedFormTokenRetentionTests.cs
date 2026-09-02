@@ -1,0 +1,137 @@
+﻿using Microsoft.EntityFrameworkCore;
+using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services;
+using Xunit;
+
+namespace PTGOilSystem.Web.Tests;
+
+/// <summary>
+/// ۱۲-A — نگهداریِ جدولِ توکن‌های Idempotency.
+///
+/// خطرِ واقعیِ این پاک‌سازی، خودِ رشدِ جدول نیست؛ حذفِ زودهنگام است: توکنی که هنوز ممکن
+/// است دوباره ارسال شود، اگر پاک شود، همان سندِ تکراریِ PTG-P0-01 دوباره ساخته می‌شود.
+/// این تست‌ها پنجرهٔ ایمنی را pin می‌کنند.
+/// </summary>
+public sealed class ProcessedFormTokenRetentionTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 8, 29, 12, 0, 0, TimeSpan.Zero);
+
+    private static ApplicationDbContext NewDb()
+        => new(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
+
+    private static ProcessedFormToken Token(string value, DateTime? consumedAtUtc) => new()
+    {
+        Token = value,
+        Purpose = "Expense.Create",
+        ConsumedAtUtc = consumedAtUtc
+    };
+
+    private static ProcessedFormTokenRetentionService Service(ApplicationDbContext db)
+        => new(db, new FixedTimeProvider(Now));
+
+    [Fact]
+    public async Task ATokenInsideTheRetentionWindow_IsNeverRemoved()
+    {
+        await using var db = NewDb();
+        db.ProcessedFormTokens.Add(Token("fresh", Now.UtcDateTime.AddDays(-89)));
+        await db.SaveChangesAsync();
+
+        var removed = await Service(db).PurgeExpiredAsync();
+
+        Assert.Equal(0, removed);
+        Assert.Equal(1, await db.ProcessedFormTokens.CountAsync());
+    }
+
+    [Fact]
+    public async Task ATokenOlderThanTheWindow_IsRemoved()
+    {
+        await using var db = NewDb();
+        db.ProcessedFormTokens.Add(Token("stale", Now.UtcDateTime.AddDays(-91)));
+        await db.SaveChangesAsync();
+
+        var removed = await Service(db).PurgeExpiredAsync();
+
+        Assert.Equal(1, removed);
+        Assert.Equal(0, await db.ProcessedFormTokens.CountAsync());
+    }
+
+    /// <summary>سنِ نامعلوم یعنی «نمی‌دانیم امن است یا نه» — پس دست نمی‌خورد.</summary>
+    [Fact]
+    public async Task ATokenWithoutAConsumedTimestamp_IsNeverRemoved()
+    {
+        await using var db = NewDb();
+        db.ProcessedFormTokens.Add(Token("unknown-age", consumedAtUtc: null));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(0, await Service(db).PurgeExpiredAsync());
+        Assert.Equal(1, await db.ProcessedFormTokens.CountAsync());
+    }
+
+    /// <summary>
+    /// پیکربندیِ کوتاه‌تر از کفِ ایمنی نباید بتواند پنجره را کوچک کند؛ وگرنه یک عددِ
+    /// اشتباه در تنظیمات، محافظ ضدتکرار را خاموش می‌کرد.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(-500)]
+    public async Task ARetentionShorterThanTheHardMinimum_IsClampedNotHonoured(int requestedDays)
+    {
+        await using var db = NewDb();
+        db.ProcessedFormTokens.Add(Token("two-weeks-old", Now.UtcDateTime.AddDays(-14)));
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+
+        Assert.Equal(
+            Now.UtcDateTime.AddDays(-ProcessedFormTokenRetentionService.MinimumRetentionDays),
+            service.CutoffUtc(requestedDays));
+        Assert.Equal(0, await service.PurgeExpiredAsync(requestedDays));
+        Assert.Equal(1, await db.ProcessedFormTokens.CountAsync());
+    }
+
+    [Fact]
+    public async Task EachRunIsBounded_SoCleanupNeverLocksTheWholeTable()
+    {
+        await using var db = NewDb();
+        var old = Now.UtcDateTime.AddDays(-200);
+        for (var index = 0; index < ProcessedFormTokenRetentionService.BatchSize + 25; index++)
+        {
+            db.ProcessedFormTokens.Add(Token($"old-{index}", old.AddSeconds(index)));
+        }
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+
+        Assert.Equal(ProcessedFormTokenRetentionService.BatchSize, await service.PurgeExpiredAsync());
+        Assert.Equal(25, await db.ProcessedFormTokens.CountAsync());
+
+        // اجرای بعدی بقیه را برمی‌دارد؛ کار نیمه‌تمام گم نمی‌شود.
+        Assert.Equal(25, await service.PurgeExpiredAsync());
+        Assert.Equal(0, await db.ProcessedFormTokens.CountAsync());
+    }
+
+    /// <summary>پس از پاک‌سازی، توکنِ زندهٔ همان فرم باید همچنان تکراری را بگیرد.</summary>
+    [Fact]
+    public async Task CleanupDoesNotWeakenDuplicateDetectionForLiveTokens()
+    {
+        await using var db = NewDb();
+        db.ProcessedFormTokens.AddRange(
+            Token("expired", Now.UtcDateTime.AddDays(-120)),
+            Token("live", Now.UtcDateTime.AddMinutes(-2)));
+        await db.SaveChangesAsync();
+
+        await Service(db).PurgeExpiredAsync();
+
+        Assert.False(await db.ProcessedFormTokens.AnyAsync(t => t.Token == "expired"));
+        Assert.True(await db.ProcessedFormTokens.AnyAsync(t => t.Token == "live"));
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+}

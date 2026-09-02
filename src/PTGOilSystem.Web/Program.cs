@@ -70,6 +70,8 @@ builder.Services.AddScoped<IStockService, StockService>();
 // تنها نقطهٔ اجرای قواعد مشترک ثبت حرکت موجودی (مقدار، قفل، نگهبان موجودی، سند).
 // تراکنش را caller مالک است؛ Writer تراکنش مستقل باز نمی‌کند.
 builder.Services.AddScoped<IInventoryMovementWriter, InventoryMovementWriter>();
+// PTG-P1-03 — تنها مسیرِ ساختنِ LedgerEntry.
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Ledger.ILedgerPostingService, PTGOilSystem.Web.Services.Ledger.LedgerPostingService>();
 // تک‌منبع «باقیماندهٔ حمل» و تفکیک سرنوشت مقدار (نگهداشت مقدار).
 builder.Services.AddScoped<ITransportQuantityService, TransportQuantityService>();
 // موتور عمومی وسیله → وسیله (هر نُه ترکیب موتر/واگن/کشتی، بدون حرکت موجودی).
@@ -183,6 +185,7 @@ builder.Services.AddSingleton<PTGOilSystem.Web.Services.PartyStatements.IPartySt
     PTGOilSystem.Web.Services.PartyStatements.PartyStatementPolicyResolver>();
 builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.IPartyStatementReadService,
     PTGOilSystem.Web.Services.PartyStatements.PartyStatementReadService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.PartyStatementPageBuilder>();
 builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.IPartnershipStatementService,
     PTGOilSystem.Web.Services.PartyStatements.PartnershipStatementService>();
 builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.IPartyBalanceReadService,
@@ -197,6 +200,16 @@ builder.Services.AddScoped<QuickCreateResultFilter>();
 builder.Services.AddScoped<MasterDataDeleteSafetyService>();
 builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 builder.Services.AddScoped<IFormTokenGuard, FormTokenGuard>();
+// PTG-P1-01 — قفل دورهٔ عملیاتی. مستقل از ماژول حسابداری (که خاموش است) و تنها مرجعِ
+// «آیا در این تاریخ می‌شود سند زد؟» برای دفترِ عملیاتی.
+builder.Services.AddScoped<PTGOilSystem.Web.Services.OperationalPeriod.IOperationalPeriodGuard,
+    PTGOilSystem.Web.Services.OperationalPeriod.OperationalPeriodGuard>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.OperationalPeriod.BusinessRuleExceptionFilter>();
+// PTG فاز ۹ — درخواستِ صریح و یک‌بارمصرفِ «ثبت استثنایی در دورهٔ بسته».
+builder.Services.AddScoped<PTGOilSystem.Web.Services.OperationalPeriod.ClosedPeriodOverrideFilter>();
+// PTG-P1-02 / ۱۲-F — تطبیق فقط‌خواندنیِ سلامتِ دفتر کل و دادهٔ تاریخی.
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Reconciliation.ILedgerIntegrityReconciliationService,
+    PTGOilSystem.Web.Services.Reconciliation.LedgerIntegrityReconciliationService>();
 builder.Services.AddScoped<RoleNavigationAuthorizationFilter>();
 builder.Services.AddScoped<AuthBootstrapper>();
 builder.Services.AddHttpContextAccessor();
@@ -262,6 +275,8 @@ builder.Services.AddScoped<PTGOilSystem.Web.Services.Backups.IBackupService,
 builder.Services.AddScoped<PTGOilSystem.Web.Services.Backups.IBackupRestoreService,
     PTGOilSystem.Web.Services.Backups.BackupRestoreService>();
 builder.Services.AddHostedService<PTGOilSystem.Web.Services.Backups.BackupSchedulerHostedService>();
+// ۱۲-A — پاک‌سازیِ کران‌دارِ توکن‌های Idempotency. توکنِ داخلِ پنجرهٔ تلاش دوباره حذف نمی‌شود.
+builder.Services.AddHostedService<PTGOilSystem.Web.Services.ProcessedFormTokenRetentionHostedService>();
 
 var configuredDataProtectionKeysPath = builder.Configuration["PTG_DATA_PROTECTION_KEYS_PATH"];
 var shouldUseLocalDataProtectionKeys =
@@ -326,12 +341,15 @@ builder.Services.AddRateLimiter(options =>
     // بنابراین چند خروجی معمولی در یک دقیقه سهمیه را تمام می‌کرد و کلیک بعدی — مثلاً
     // PDF صورت‌حساب تأمین‌کننده — با 429 رد می‌شد بی‌آنکه خودش پرمصرف بوده باشد.
     // کلید از الگوی مسیر ساخته می‌شود نه از URL کامل، تا id‌های مختلف سطل جدید نسازند.
+    // سقف ۵ برای کار عادی کم بود: Excel و PDF یک مسیر مشترک دارند (format فقط query است)
+    // و چند خروجی پشت‌سرهم از یک صفحه، کاربر را با 429 روبه‌رو می‌کرد. سقف ۶۰ در دقیقه
+    // همچنان جلوی سیل درخواست و تمام‌شدن Connection Pool را می‌گیرد.
     options.AddPolicy(RateLimitPolicies.CsvExport, httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: $"{ResolveRateLimitPartitionKey(httpContext)}|{ResolveRateLimitRouteKey(httpContext)}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 5,
+                PermitLimit = 60,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -436,6 +454,9 @@ builder.Services.AddAuthorization(options =>
     // پشتیبان‌گیری بالاترین سطح است: مدیریت کاربران به‌تنهایی کافی نیست.
     options.AddPolicy(AuthPolicies.BackupAdmin,
         policy => policy.RequireAssertion(context => RoleAccessRules.CanManageBackups(context.User)));
+    // بستن دورهٔ مالی گزارش‌های امضاشدهٔ گذشته را قفل می‌کند؛ همان سطحِ پشتیبان‌گیری.
+    options.AddPolicy(AuthPolicies.OperationalPeriodAdmin,
+        policy => policy.RequireAssertion(context => RoleAccessRules.CanManageOperationalPeriodLock(context.User)));
 });
 
 // ---- MVC --------------------------------------------------------------------
@@ -449,6 +470,12 @@ builder.Services.AddControllersWithViews(options =>
     options.Filters.AddService<AutoGeneratedCodeFilter>();
     options.Filters.AddService<RoleNavigationAuthorizationFilter>();
     options.Filters.AddService<QuickCreateResultFilter>();
+    // PTG-P1-01 / P1-05 / P3-C — قفل دوره، برخورد هم‌زمانی و خطای محدودیت دیتابیس باید
+    // پیام فارسی بدهند، نه صفحهٔ «خطای سرور» با متن فنی.
+    // PTG فاز ۹ — پیش از اجرای Action خوانده می‌شود تا اگر کاربرِ مجاز دلیل نوشته باشد،
+    // عبورِ همین یک درخواست باز شود. بدون دسترسی یا بدون دلیل، هیچ اثری ندارد.
+    options.Filters.AddService<PTGOilSystem.Web.Services.OperationalPeriod.ClosedPeriodOverrideFilter>();
+    options.Filters.AddService<PTGOilSystem.Web.Services.OperationalPeriod.BusinessRuleExceptionFilter>();
     if (builder.Environment.IsDevelopment())
     {
         options.Filters.AddService<MvcRequestTimingFilter>();

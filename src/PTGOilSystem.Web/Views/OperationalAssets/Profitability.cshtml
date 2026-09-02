@@ -7,15 +7,15 @@
 
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(((string)ViewData["Title"]!, true,
-                       UiText.T(Context, "ثبت کرایه/استفاده", "Record Use/Rent"), "bi-plus-lg", (string?)Url.Action("CreateRent"), (string?)null,
+                       UiText.T(Context, "ثبت کرایه یا استفاده", "Record use or rent"), "bi-plus-lg", (string?)Url.Action("CreateRent"), (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Index")))" />
     @* همان قرارداد تب سود در پروندهٔ دارایی: استهلاک ژورنال نمی‌سازد، پس نتیجه «مدیریتی» است. *@
     <p class="ak-note">@UiText.T(Context, "کرایه داخلی + کرایه بیرونی + درآمد حمل - مصارف مستقیم - استهلاک محاسباتی. استهلاک فقط مدیریتی است و در دفتر حسابداری ثبت نمی‌شود؛ این نتیجه معادل سود حسابداری نیست.", "Internal rent + external rent + freight income - direct expenses - calculated depreciation. Depreciation is management-only and is not posted to the accounting ledger; this result is not the accounting profit.")</p>
 
     <section class="summary-strip" aria-label="@UiText.T(Context, "آمار سود و زیان دارایی‌های عملیاتی", "Operational asset profitability metrics")">
-        <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "کرایه داخلی", "Internal Rent")</span><strong class="summary-tile-value ak-num">@Model.TotalInternalRentUsd.ToString("N2")</strong></div>
-        <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "کرایه بیرونی", "External Rent")</span><strong class="summary-tile-value ak-num">@Model.TotalExternalRentUsd.ToString("N2")</strong></div>
-        <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "درآمد کرایه حمل", "Freight Income")</span><strong class="summary-tile-value ak-num">@Model.TotalFreightIncomeUsd.ToString("N2")</strong></div>
+        <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "استفاده داخلی شرکت", "Company internal use")</span><strong class="summary-tile-value ak-num">@Model.TotalInternalRentUsd.ToString("N2")</strong></div>
+        <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "کرایه به بیرون", "Rented out")</span><strong class="summary-tile-value ak-num">@Model.TotalExternalRentUsd.ToString("N2")</strong></div>
+        <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "عواید کرایه حمل با وسیله شرکت", "Freight income with company vehicle")</span><strong class="summary-tile-value ak-num">@Model.TotalFreightIncomeUsd.ToString("N2")</strong></div>
         <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "مصارف", "Expenses")</span><strong class="summary-tile-value ak-num">@Model.TotalDirectExpensesUsd.ToString("N2")</strong></div>
         <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "استهلاک", "Depreciation")</span><strong class="summary-tile-value ak-num">@Model.TotalDepreciationUsd.ToString("N2")</strong></div>
         <div class="summary-tile"><span class="summary-tile-label">@UiText.T(Context, "نتیجه خالص مدیریتی", "Management Net Result")</span><strong class="summary-tile-value ak-num">@Model.TotalNetResultUsd.ToString("N2")</strong></div>
@@ -54,9 +54,9 @@
                         <th class="text-end">MT</th>
                         <th class="text-end">KM</th>
                         <th class="text-end">@UiText.T(Context, "روز", "Days")</th>
-                        <th class="text-end">@UiText.T(Context, "کرایه داخلی", "Internal Rent")</th>
-                        <th class="text-end">@UiText.T(Context, "کرایه بیرونی", "External Rent")</th>
-                        <th class="text-end">@UiText.T(Context, "درآمد کرایه حمل", "Freight Income")</th>
+                        <th class="text-end">@UiText.T(Context, "استفاده داخلی شرکت", "Company internal use")</th>
+                        <th class="text-end">@UiText.T(Context, "کرایه به بیرون", "Rented out")</th>
+                        <th class="text-end">@UiText.T(Context, "عواید کرایه حمل با وسیله شرکت", "Freight income with company vehicle")</th>
                         <th class="text-end">@UiText.T(Context, "مصارف مستقیم", "Direct Expenses")</th>
                         <th class="text-end">@UiText.T(Context, "استهلاک", "Depreciation")</th>
                         <th class="text-end">@UiText.T(Context, "نتیجه خالص مدیریتی", "Management Net Result")</th>

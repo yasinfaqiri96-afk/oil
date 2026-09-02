@@ -18,17 +18,32 @@ public sealed class InventoryTransportBatchService
     private readonly IStockService _stock;
     private readonly IFormTokenGuard _formTokens;
     private readonly IInventoryMovementWriter _movements;
+    private readonly IInventoryLineageWriter _lineage;
+
+    // Dual-write اختیاری به دفتر کل جدید — همان آداپتری که مسیر حمل تکی استفاده می‌کند.
+    // پشت Feature Flag و null-safe؛ با ساختِ دستیِ سرویس، دقیقاً مثل قبل خاموش می‌ماند.
+    private readonly Accounting.IInventoryTransferAccountingAdapter? _transferAccounting;
+
+    // برگشتِ ژورنالِ مصارفِ وصل به حمل هنگام لغو. مثل بقیه قلاب‌های حسابداری اختیاری و null-safe
+    // است؛ با ساختِ دستیِ سرویس (تست‌ها) دقیقاً مثل قبل خاموش می‌ماند.
+    private readonly Accounting.IExpenseAccountingAdapter? _expenseAccounting;
 
     public InventoryTransportBatchService(
         ApplicationDbContext db,
         IStockService stock,
         IFormTokenGuard? formTokens = null,
-        IInventoryMovementWriter? movements = null)
+        IInventoryMovementWriter? movements = null,
+        IInventoryLineageWriter? lineage = null,
+        Accounting.IInventoryTransferAccountingAdapter? transferAccounting = null,
+        Accounting.IExpenseAccountingAdapter? expenseAccounting = null)
     {
         _db = db;
         _stock = stock;
         _formTokens = formTokens ?? new FormTokenGuard(db);
         _movements = movements ?? new InventoryMovementWriter(db, stock);
+        _lineage = lineage ?? InventoryLineageWriterFactory.Disabled(db);
+        _transferAccounting = transferAccounting;
+        _expenseAccounting = expenseAccounting;
     }
 
     public async Task<IReadOnlyList<InventoryTransportSourceAvailabilityViewModel>> GetAvailableSourcesAsync(
@@ -451,7 +466,7 @@ public sealed class InventoryTransportBatchService
             }
 
             await ResolveTypedVehiclesAsync(model, ct);
-            var prepared = await ValidateAndPrepareAsync(model, ct);
+            var prepared = await ValidateAndPrepareAsync(model, ct, enforceFifo: true);
 
             // انتشار خودکار کشتی: اگر کاربر کشتی را صریح نداده باشد، از خودِ حرکت‌های موجودیِ انتخاب‌شده
             // (هرکدام حرکتِ ورودیِ رسیدِ مرحلهٔ قبلِ همین بار است) کشتی را استنتاج می‌کنیم تا legِ مرحلهٔ
@@ -488,70 +503,24 @@ public sealed class InventoryTransportBatchService
             // و نگاشتِ سنتینلِ منفی → شناسهٔ حرکتِ In واقعی را بگیر (در حالت پیش‌نویس این نگاشت خالی است).
             var vesselSentinelRemap = await MaterializeVesselSourcesAsync(model, prepared, groupKey, ct);
 
-            foreach (var vehicle in prepared.Vehicles)
-            {
-                var firstSource = prepared.Sources[vehicle.Allocations[0].SourceInventoryMovementId];
-                var leg = new InventoryTransportLeg
-                {
-                    InventoryTransportBatch = batch,
-                    ShipmentId = model.ShipmentId,
-                    TransportGroupKey = groupKey,
-                    SourcePurchaseContractId = firstSource.SourcePurchaseContractId,
-                    ProductId = model.ProductId,
-                    SourceTerminalId = model.SourceTerminalId,
-                    SourceStorageTankId = model.SourceStorageTankId > 0 ? model.SourceStorageTankId : null,
-                    TransportType = vehicle.Input.TransportType,
-                    TruckId = vehicle.Input.TruckId,
-                    WagonId = vehicle.Input.WagonId,
-                    VesselId = vehicle.Input.VesselId,
-                    WagonNumber = vehicle.WagonNumber,
-                    DriverId = vehicle.Input.DriverId,
-                    CarrierType = vehicle.Input.CarrierType,
-                    ServiceProviderId = vehicle.Input.CarrierType == CarrierType.ServiceProvider
-                        ? vehicle.Input.ServiceProviderId
-                        : null,
-                    OperationalAssetId = vehicle.Input.CarrierType == CarrierType.OperationalAsset
-                        ? vehicle.Input.OperationalAssetId
-                        : null,
-                    LoadedDate = model.TransportDate.Date,
-                    QuantityMt = vehicle.Input.QuantityMt,
-                    CapacityMt = vehicle.CapacityMt,
-                    FreightAmount = vehicle.Input.FreightAmount.GetValueOrDefault() > 0m
-                        ? vehicle.Input.FreightAmount
-                        : null,
-                    FreightCurrencyId = vehicle.Input.FreightAmount.GetValueOrDefault() > 0m
-                        ? vehicle.Input.FreightCurrencyId
-                        : null,
-                    RwbNo = Normalize(vehicle.Input.RwbNo),
-                    BillOfLadingNumber = Normalize(vehicle.Input.BillOfLadingNumber),
-                    Status = model.SubmissionMode == InventoryTransportSubmissionMode.Loaded
-                        ? InventoryTransportLegStatus.Loaded
-                        : InventoryTransportLegStatus.Draft,
-                    Notes = Normalize(model.Notes)
-                };
-
-                foreach (var allocationInput in vehicle.Allocations)
-                {
-                    var source = prepared.Sources[allocationInput.SourceInventoryMovementId];
-                    // منابع کشتی سنتینلِ منفی دارند؛ به شناسهٔ حرکتِ In واقعیِ ماتریالایزشده نگاشت می‌شوند.
-                    var sourceMovementId = vesselSentinelRemap.TryGetValue(allocationInput.SourceInventoryMovementId, out var realMovementId)
-                        ? realMovementId
-                        : allocationInput.SourceInventoryMovementId;
-                    leg.Allocations.Add(new InventoryTransportLegAllocation
-                    {
-                        SourcePurchaseContractId = source.SourcePurchaseContractId,
-                        SourceLoadingReceiptId = source.SourceLoadingReceiptId,
-                        SourceInventoryMovementId = sourceMovementId,
-                        QuantityMt = allocationInput.QuantityMt
-                    });
-                }
-
-                batch.Legs.Add(leg);
-            }
+            AddLegs(batch, model, prepared, vesselSentinelRemap, groupKey);
 
             _db.InventoryTransportBatches.Add(batch);
             _formTokens.Stamp(formToken, FormPurpose, nameof(InventoryTransportBatch));
             await _db.SaveChangesAsync(ct);
+            var usageWriter = new AssetUsageChargeService(_db);
+            foreach (var leg in batch.Legs)
+            {
+                var carrierParty = await usageWriter.ResolveCarrierPartyAsync(
+                    leg.ServiceProviderId,
+                    leg.DriverId,
+                    leg.OperationalAssetId,
+                    leg.LoadedDate,
+                    ct);
+                leg.CarrierPartyType = carrierParty?.PartyType;
+                leg.CarrierPartyId = carrierParty?.PartyId;
+                await usageWriter.SyncOperationAsync(leg, ct);
+            }
 
             if (model.SubmissionMode == InventoryTransportSubmissionMode.Loaded)
             {
@@ -590,6 +559,593 @@ public sealed class InventoryTransportBatchService
             {
                 await transaction.DisposeAsync();
             }
+        }
+    }
+
+    // ═════════════ نگهبانِ پایین‌دست و برگشتِ اثرِ یک سند حمل ═════════════
+    //
+    // ویرایش و لغو هر دو روی «سندی که بارش هنوز جای دیگری نرفته» کار می‌کنند. تفاوتشان فقط
+    // در سخت‌گیری است: لغو legها را سرِ جا نگه می‌دارد و فقط اثرشان را برمی‌گرداند، ولی ویرایش
+    // legها را فیزیکی حذف و از نو می‌سازد، پس هر سندی که به شناسهٔ leg چسبیده باشد (مصرف،
+    // کرایهٔ دارایی) هم مانعِ ویرایش است — وگرنه آن سند به legِ مرده اشاره می‌کرد.
+
+    /// <summary>
+    /// عملیات پایین‌دستیِ ثبت‌شده روی legهای یک سند حمل. لیستِ خالی یعنی سند هنوز آزاد است.
+    /// <paramref name="forEdit"/> نگهبان‌های اضافیِ ویرایش (بازساختِ leg) را هم اعمال می‌کند.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> FindDownstreamBlockersAsync(
+        int batchId,
+        bool forEdit,
+        CancellationToken ct = default)
+    {
+        var legIds = await _db.InventoryTransportLegs
+            .AsNoTracking()
+            .Where(l => l.InventoryTransportBatchId == batchId)
+            .Select(l => l.Id)
+            .ToListAsync(ct);
+
+        return await FindDownstreamBlockersForLegsAsync(legIds, forEdit, ct);
+    }
+
+    private async Task<IReadOnlyList<string>> FindDownstreamBlockersForLegsAsync(
+        IReadOnlyCollection<int> legIds,
+        bool forEdit,
+        CancellationToken ct)
+    {
+        var blockers = new List<string>();
+        if (legIds.Count == 0)
+        {
+            return blockers;
+        }
+
+        // بارِ این سند از وسیلهٔ دیگری آمده (زنجیرهٔ وسیله → وسیله). چنین سهمی هیچ حرکت موجودی
+        // ندارد، پس برگرداندنِ خروجیِ مبدأ کارِ این سرویس نیست؛ موتورِ درست همان لغوِ زنجیره است
+        // (TransportChainService از مسیر «لغو / برگشت») که رسیدهای والد را هم آزاد می‌کند.
+        if (await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .AnyAsync(a => legIds.Contains(a.InventoryTransportLegId)
+                && (a.SourceTransportLegId.HasValue || a.SourceTransportReceiptId.HasValue), ct))
+        {
+            blockers.Add("منبع این سند حملِ دیگری است؛ از «لغو / برگشت» همان مرحله استفاده کنید");
+        }
+
+        // رسیدِ مقصد: بار تحویل شده و کسرِ مبدأ دیگر تنها اثرِ این سند نیست.
+        if (await _db.InventoryTransportReceipts
+            .AsNoTracking()
+            .AnyAsync(r => legIds.Contains(r.InventoryTransportLegId) && !r.IsCancelled, ct))
+        {
+            blockers.Add("رسید تحویل ثبت شده است");
+        }
+
+        // فروش: چه مستقیم از همین حمل، چه از رسیدِ آن.
+        if (await _db.SalesTransactionSourceAllocations
+            .AsNoTracking()
+            .AnyAsync(a => (a.TransportLegId.HasValue && legIds.Contains(a.TransportLegId.Value))
+                || (a.SourceTransportLegId.HasValue && legIds.Contains(a.SourceTransportLegId.Value)), ct))
+        {
+            blockers.Add("فروش ثبت‌شده دارد");
+        }
+
+        // مرحلهٔ بعدی حمل (انتقال وسیله → وسیله) که بارِ همین سند را برده است.
+        if (await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .AnyAsync(a => a.SourceTransportLegId.HasValue
+                && legIds.Contains(a.SourceTransportLegId.Value)
+                && a.InventoryTransportLeg != null
+                && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled, ct))
+        {
+            blockers.Add("مرحلهٔ بعدی حمل ثبت شده است");
+        }
+
+        if (await _db.LossEvents
+            .AsNoTracking()
+            .AnyAsync(l => l.TransportLegId.HasValue && legIds.Contains(l.TransportLegId.Value) && !l.IsCancelled, ct))
+        {
+            blockers.Add("کسری/ضایعات ثبت شده است");
+        }
+
+        if (await _db.CustomsDeclarations
+            .AsNoTracking()
+            .AnyAsync(c => c.TransportLegId.HasValue && legIds.Contains(c.TransportLegId.Value), ct))
+        {
+            blockers.Add("اظهار گمرکی دارد");
+        }
+
+        if (forEdit)
+        {
+            // ویرایش legها را دوباره می‌سازد و شناسه عوض می‌شود؛ این دو سند به شناسهٔ leg
+            // چسبیده‌اند، پس اول باید خودشان لغو شوند. در لغو مانع نیستند، چون همان‌جا برگشت می‌خورند.
+            if (await _db.ExpenseTransactions
+                .AsNoTracking()
+                .AnyAsync(e => e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value) && !e.IsCancelled, ct))
+            {
+                blockers.Add("مصرف ثبت‌شده دارد");
+            }
+
+            if (await _db.AssetRentTransactions
+                .AsNoTracking()
+                .AnyAsync(r => r.TransportLegId.HasValue && legIds.Contains(r.TransportLegId.Value), ct))
+            {
+                blockers.Add("کرایهٔ دارایی ثبت شده است");
+            }
+        }
+
+        return blockers;
+    }
+
+    private static BusinessRuleException BlockedByDownstream(IReadOnlyList<string> blockers, string action)
+        => new(
+            "INVENTORY_TRANSPORT_BATCH_HAS_DOWNSTREAM",
+            $"{action} این سند ممکن نیست: " + string.Join("، ", blockers) + ".");
+
+    /// <summary>
+    /// اثرِ بارگیریِ یک سند حمل را برمی‌گرداند: ژورنالِ انتقال، حرکت‌های خروجیِ موجودی و
+    /// نسب‌نامه. legها و سهم‌ها دست‌نخورده می‌مانند — تصمیم دربارهٔ آن‌ها با فراخوان است.
+    ///
+    /// ترتیب عمداً همان <c>DispatchController.Cancel</c> است: اول برگشتِ حسابداری (تا آداپتر
+    /// بتواند مالکیت را از همان روابط فعلی حل کند)، بعد برگشتِ حرکت موجودی. همه‌چیز داخل
+    /// تراکنشِ فراخوان اجرا می‌شود و هر مرحله idempotent است.
+    ///
+    /// <para><paramref name="preserveOriginalDate"/> تاریخِ سندِ معکوس را تعیین می‌کند و فرقِ
+    /// «اصلاح» با «لغو» است:</para>
+    /// <list type="bullet">
+    /// <item>ویرایش (<c>true</c>): معکوس با تاریخِ خودِ سندِ اصلی ثبت می‌شود. سندِ اصلاح‌شده هم
+    /// همان تاریخ حمل را دارد، پس نگهبانِ موجودیِ «تا این تاریخ» باید کسرِ قبلی را برگشت‌خورده
+    /// ببیند؛ وگرنه ثبتِ دوباره با «موجودی کافی نیست» رد می‌شود، در حالی که موجودی واقعاً آزاد است.</item>
+    /// <item>لغو (<c>false</c>): معکوس با تاریخ امروز ثبت می‌شود — همان قاعدهٔ
+    /// <c>DispatchController.Cancel</c>؛ کالا تا امروز واقعاً در راه بوده و تاریخچه بازنویسی نمی‌شود.</item>
+    /// </list>
+    /// </summary>
+    private async Task ReverseBatchPostingsAsync(
+        InventoryTransportBatch batch,
+        bool preserveOriginalDate,
+        CancellationToken ct)
+    {
+        var today = Time.AfghanistanBusinessClock.SystemToday;
+
+        foreach (var leg in batch.Legs)
+        {
+            var movementIds = leg.Allocations
+                .Where(a => a.OutboundInventoryMovementId.HasValue)
+                .Select(a => a.OutboundInventoryMovementId!.Value)
+                .Distinct()
+                .ToList();
+            if (movementIds.Count == 0)
+            {
+                continue;
+            }
+
+            if (_transferAccounting is not null)
+            {
+                await _transferAccounting.TryPostLegLoadReversalAsync(leg, ct);
+            }
+
+            var movements = await _db.InventoryMovements
+                .AsNoTracking()
+                .Where(m => movementIds.Contains(m.Id))
+                .ToListAsync(ct);
+
+            foreach (var movement in movements)
+            {
+                // Writer خودش idempotent است: اگر معکوسِ همین سند از قبل باشد، سند دوم نمی‌سازد.
+                await _movements.PostReversalAsync(
+                    movement,
+                    preserveOriginalDate ? movement.MovementDate : today,
+                    $"Reversal for InventoryTransportBatchId={batch.Id}, TransportLegId={leg.Id}",
+                    ct);
+            }
+
+            await _lineage.OnLegLoadReversedAsync(leg, ct);
+
+            // پیوندِ خروجی پاک می‌شود تا سند دیگر «بارگیری‌شده» شمرده نشود؛ خودِ حرکت‌ها و
+            // معکوس‌هایشان به‌عنوان تاریخچهٔ مالی سرِ جا می‌مانند.
+            foreach (var allocation in leg.Allocations)
+            {
+                allocation.OutboundInventoryMovementId = null;
+            }
+            leg.OutboundInventoryMovementId = null;
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// «بار روی کشتی» هنگام ثبت به رسیدِ کشتی→ترمینال تبدیل شده و یک حرکت ورودی ساخته است.
+    /// اگر خودِ سند لغو شود آن ورودی هم باید برگردد، وگرنه ترمینال موجودیِ بی‌صاحب نگه می‌دارد.
+    /// فقط وقتی برگشت می‌خورد که هیچ سهمی بیرون از همین سند آن ورودی را مصرف نکرده باشد.
+    /// </summary>
+    private async Task ReverseVesselMaterializationAsync(InventoryTransportBatch batch, CancellationToken ct)
+    {
+        var batchLegIds = batch.Legs.Select(l => l.Id).ToList();
+        var sourceMovementIds = batch.Legs
+            .SelectMany(l => l.Allocations)
+            .Where(a => a.SourceInventoryMovementId.HasValue)
+            .Select(a => a.SourceInventoryMovementId!.Value)
+            .Distinct()
+            .ToList();
+        if (sourceMovementIds.Count == 0)
+        {
+            return;
+        }
+
+        // ورودی‌هایی که خودِ همین گروه ساخته است — با همان قالبِ Reference که هنگام ثبت نوشته شد.
+        var vesselLegIds = await _db.InventoryTransportLegs
+            .AsNoTracking()
+            .Where(l => l.TransportGroupKey == batch.TransportGroupKey
+                && l.InventoryTransportBatchId == null
+                && l.Status != InventoryTransportLegStatus.Cancelled)
+            .Select(l => l.Id)
+            .ToListAsync(ct);
+        if (vesselLegIds.Count == 0)
+        {
+            return;
+        }
+
+        var vesselReferences = vesselLegIds.Select(id => $"VESSEL-DIRECT-LEG:{id}").ToList();
+        var inboundMovements = await _db.InventoryMovements
+            .Where(m => m.ReferenceDocument != null
+                && vesselReferences.Contains(m.ReferenceDocument)
+                && m.Direction == MovementDirection.In
+                && sourceMovementIds.Contains(m.Id))
+            .ToListAsync(ct);
+        if (inboundMovements.Count == 0)
+        {
+            return;
+        }
+
+        var inboundIds = inboundMovements.Select(m => m.Id).ToList();
+        // حملِ لغوشدهٔ دیگری که قبلاً از همین بار برداشته بود، مصرف‌کننده نیست و نباید مانع شود.
+        var consumedElsewhere = await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .AnyAsync(a => a.SourceInventoryMovementId.HasValue
+                && inboundIds.Contains(a.SourceInventoryMovementId.Value)
+                && !batchLegIds.Contains(a.InventoryTransportLegId)
+                && a.InventoryTransportLeg != null
+                && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled, ct);
+        if (consumedElsewhere)
+        {
+            throw Rule(
+                "INVENTORY_TRANSPORT_VESSEL_SOURCE_CONSUMED",
+                "بارِ تخلیه‌شدهٔ کشتیِ این سند در حمل دیگری هم استفاده شده است؛ ابتدا آن حمل را لغو کنید.");
+        }
+
+        var reversalDate = Time.AfghanistanBusinessClock.SystemToday;
+        foreach (var movement in inboundMovements)
+        {
+            await _movements.PostReversalAsync(
+                movement,
+                reversalDate,
+                $"Reversal for cancelled InventoryTransportBatchId={batch.Id}",
+                ct);
+        }
+
+        // رسید و legِ تخلیهٔ کشتی هم باید کنار بروند تا «تخلیه‌شدهٔ» محموله دوباره پایین بیاید.
+        var vesselReceipts = await _db.InventoryTransportReceipts
+            .Where(r => vesselLegIds.Contains(r.InventoryTransportLegId) && !r.IsCancelled)
+            .ToListAsync(ct);
+        foreach (var receipt in vesselReceipts)
+        {
+            receipt.IsCancelled = true;
+            receipt.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        var vesselLegs = await _db.InventoryTransportLegs
+            .Where(l => vesselLegIds.Contains(l.Id))
+            .ToListAsync(ct);
+        foreach (var vesselLeg in vesselLegs)
+        {
+            vesselLeg.Status = InventoryTransportLegStatus.Cancelled;
+            vesselLeg.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// لغو کاملِ یک سند حمل: موجودیِ کسرشده برمی‌گردد، ژورنالِ انتقال و مصارفِ وصل به حمل
+    /// معکوس می‌شوند و وضعیت سند و همهٔ legها Cancelled می‌شود. اگر عملیات بعدی ثبت شده باشد
+    /// لغو رد می‌شود. کل کار داخل یک تراکنش است و اجرای دوباره سند تازه‌ای نمی‌سازد.
+    /// </summary>
+    public async Task<InventoryTransportBatch> CancelAsync(int batchId, CancellationToken ct = default)
+    {
+        IDbContextTransaction? transaction = null;
+        try
+        {
+            if (_db.Database.IsRelational())
+            {
+                transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            }
+
+            var batch = await _db.InventoryTransportBatches
+                .Include(b => b.Legs)
+                    .ThenInclude(l => l.Allocations)
+                .FirstOrDefaultAsync(b => b.Id == batchId, ct)
+                ?? throw Rule("INVENTORY_TRANSPORT_BATCH_MISSING", "سند حمل پیدا نشد.");
+
+            // لغو دوباره هیچ سندی نمی‌سازد و خطا هم نیست؛ همان حالتِ خواسته‌شده از قبل برقرار است.
+            if (batch.Status == InventoryTransportBatchStatus.Cancelled)
+            {
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(ct);
+                }
+                return batch;
+            }
+
+            var blockers = await FindDownstreamBlockersForLegsAsync(
+                batch.Legs.Select(l => l.Id).ToList(), forEdit: false, ct);
+            if (blockers.Count > 0)
+            {
+                throw BlockedByDownstream(blockers, "لغو");
+            }
+
+            await ReverseBatchPostingsAsync(batch, preserveOriginalDate: false, ct);
+            await ReverseVesselMaterializationAsync(batch, ct);
+            await CancelLegExpensesAsync(batch, ct);
+
+            foreach (var leg in batch.Legs)
+            {
+                leg.Status = InventoryTransportLegStatus.Cancelled;
+                leg.UpdatedAtUtc = DateTime.UtcNow;
+            }
+            batch.Status = InventoryTransportBatchStatus.Cancelled;
+            batch.UpdatedAtUtc = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+
+            // سطر مصرفِ دارایی بعد از Cancelled شدن sync می‌شود تا IsReversed درست بنشیند.
+            var usageWriter = new AssetUsageChargeService(_db);
+            foreach (var leg in batch.Legs)
+            {
+                await usageWriter.SyncOperationAsync(leg, ct);
+            }
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(ct);
+            }
+
+            return batch;
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(ct);
+            }
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
+    }
+
+    // مصارفِ وصل به legهای این سند (کرایه و هر مصرف دستی) با همان نویسندهٔ مشترکِ لغو مصرف
+    // برگشت می‌خورند: ژورنال معکوس، سطر لجرِ معکوس و IsCancelled. خودش idempotent است.
+    private async Task CancelLegExpensesAsync(InventoryTransportBatch batch, CancellationToken ct)
+    {
+        var legIds = batch.Legs.Select(l => l.Id).ToList();
+        if (legIds.Count == 0)
+        {
+            return;
+        }
+
+        var expenses = await _db.ExpenseTransactions
+            .Where(e => e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value) && !e.IsCancelled)
+            .ToListAsync(ct);
+
+        foreach (var expense in expenses)
+        {
+            await DispatchFreightExpenseSync.CancelExpenseAsync(_db, expense, _expenseAccounting);
+        }
+    }
+
+    /// <summary>
+    /// ویرایش یک سند حمل: legها و سهم‌های منبع دوباره از روی همان اعتبارسنجی ثبت جدید ساخته
+    /// می‌شوند. سندِ بارگیری‌شده هم قابل ویرایش است، به شرطی که هنوز هیچ عملیات پایین‌دستی
+    /// (رسید، فروش، مرحلهٔ بعدی، کسری، گمرک، مصرف، کرایهٔ دارایی) روی آن ثبت نشده باشد.
+    ///
+    /// برای سندِ بارگیری‌شده اول اثرِ قبلی کامل برگردانده می‌شود (ژورنال انتقال، خروجی موجودی،
+    /// نسب‌نامه) و بعد سند از نو ساخته و ــ در صورت انتخابِ حالت بارگیری ــ دوباره ثبت می‌شود.
+    /// همه‌چیز داخل یک تراکنش است؛ خطا یعنی هیچ‌کدام از دو طرف اعمال نشده.
+    /// </summary>
+    public async Task<InventoryTransportBatch> UpdateDraftAsync(
+        int batchId,
+        InventoryTransportFromInventoryViewModel model,
+        CancellationToken ct = default)
+    {
+        IDbContextTransaction? transaction = null;
+        try
+        {
+            if (_db.Database.IsRelational())
+            {
+                transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            }
+
+            var batch = await _db.InventoryTransportBatches
+                .Include(b => b.Legs)
+                    .ThenInclude(l => l.Allocations)
+                .FirstOrDefaultAsync(b => b.Id == batchId, ct)
+                ?? throw Rule("INVENTORY_TRANSPORT_BATCH_MISSING", "سند حمل پیدا نشد.");
+
+            // سندِ لغوشده دیگر برنمی‌گردد؛ اصلاح یعنی ثبت سند تازه، نه زنده‌کردن سند مرده.
+            if (batch.Status == InventoryTransportBatchStatus.Cancelled
+                || batch.Legs.Any(l => l.Status == InventoryTransportLegStatus.Cancelled))
+            {
+                throw Rule(
+                    "INVENTORY_TRANSPORT_BATCH_NOT_EDITABLE",
+                    "این سند لغو شده است و دیگر قابل ویرایش نیست.");
+            }
+
+            var legIds = batch.Legs.Select(l => l.Id).ToList();
+            var blockers = await FindDownstreamBlockersForLegsAsync(legIds, forEdit: true, ct);
+            if (blockers.Count > 0)
+            {
+                throw BlockedByDownstream(blockers, "ویرایش");
+            }
+
+            // اثرِ بارگیریِ قبلی پیش از بازساختِ legها برگردانده می‌شود: آداپتر حسابداری مالکیت
+            // را از همان سهم‌های فعلی می‌خواند، پس بعد از حذفشان دیگر قابل حل نبود. برای سندِ
+            // پیش‌نویس این مرحله هیچ کاری نمی‌کند (هیچ خروجی‌ای وجود ندارد).
+            await ReverseBatchPostingsAsync(batch, preserveOriginalDate: true, ct);
+
+            // سطر مصرفِ دارایی به شناسهٔ leg بسته است و legها همین حالا حذف می‌شوند؛ برگشتی
+            // علامت می‌خورد تا استفادهٔ باطل‌شده در محاسبهٔ کرایه/استهلاک نماند.
+            await new AssetUsageChargeService(_db).MarkLegUsagesReversedAsync(legIds, ct);
+
+            await ResolveTypedVehiclesAsync(model, ct);
+            var prepared = await ValidateAndPrepareAsync(model, ct, enforceFifo: true);
+
+            // همان قاعدهٔ ثبت جدید: اگر کشتی صریح داده نشده، از حرکت‌های موجودیِ منبع استنتاج می‌شود.
+            if (model.ShipmentId is null or <= 0)
+            {
+                var inference = await InferShipmentFromSourceMovementsAsync(prepared.Sources.Keys, ct);
+                if (inference.IsAmbiguous)
+                {
+                    throw new BusinessRuleException(
+                        "TRANSPORT_LEG_SHIPMENT_AMBIGUOUS",
+                        "منبع انتخاب‌شده به بیش از یک کشتی تعلق دارد و کشتی مشخص نیست. برای ثبت مرحلهٔ بعدی، از دکمهٔ «حمل بعدی» در پروندهٔ همان کشتی استفاده کنید.");
+                }
+                model.ShipmentId = inference.ShipmentId;
+            }
+
+            foreach (var leg in batch.Legs)
+            {
+                _db.InventoryTransportLegAllocations.RemoveRange(leg.Allocations);
+            }
+            _db.InventoryTransportLegs.RemoveRange(batch.Legs);
+            batch.Legs.Clear();
+
+            batch.SourceTerminalId = model.SourceTerminalId;
+            batch.SourceStorageTankId = model.SourceStorageTankId > 0 ? model.SourceStorageTankId : null;
+            batch.ProductId = model.ProductId;
+            batch.TotalQuantityMt = prepared.TotalQuantityMt;
+            batch.TransportDate = model.TransportDate.Date;
+            batch.Notes = Normalize(model.Notes);
+            batch.Status = model.SubmissionMode == InventoryTransportSubmissionMode.Loaded
+                ? InventoryTransportBatchStatus.Loaded
+                : InventoryTransportBatchStatus.Draft;
+            batch.UpdatedAtUtc = DateTime.UtcNow;
+
+            // کلید گروه ثابت می‌ماند تا لینک‌ها و صفحهٔ جریان همان سند بمانند.
+            var vesselSentinelRemap = await MaterializeVesselSourcesAsync(model, prepared, batch.TransportGroupKey, ct);
+            AddLegs(batch, model, prepared, vesselSentinelRemap, batch.TransportGroupKey);
+
+            await _db.SaveChangesAsync(ct);
+            var usageWriter = new AssetUsageChargeService(_db);
+            foreach (var leg in batch.Legs)
+            {
+                var carrierParty = await usageWriter.ResolveCarrierPartyAsync(
+                    leg.ServiceProviderId,
+                    leg.DriverId,
+                    leg.OperationalAssetId,
+                    leg.LoadedDate,
+                    ct);
+                leg.CarrierPartyType = carrierParty?.PartyType;
+                leg.CarrierPartyId = carrierParty?.PartyId;
+                await usageWriter.SyncOperationAsync(leg, ct);
+            }
+
+            if (model.SubmissionMode == InventoryTransportSubmissionMode.Loaded)
+            {
+                await CreateOutboundMovementsAsync(batch, ct);
+                await _db.SaveChangesAsync(ct);
+            }
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(ct);
+            }
+
+            return batch;
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(ct);
+            }
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
+    }
+
+    // ساخت leg‌های یک سند حمل از روی نتیجهٔ اعتبارسنجی. هم در ثبت جدید و هم در ویرایش
+    // پیش‌نویس صدا زده می‌شود تا قاعدهٔ ساخت leg و سهم منبع فقط یک جا باشد.
+    private static void AddLegs(
+        InventoryTransportBatch batch,
+        InventoryTransportFromInventoryViewModel model,
+        PreparedBatch prepared,
+        IReadOnlyDictionary<int, int> vesselSentinelRemap,
+        string groupKey)
+    {
+        foreach (var vehicle in prepared.Vehicles)
+        {
+            var firstSource = prepared.Sources[vehicle.Allocations[0].SourceInventoryMovementId];
+            var leg = new InventoryTransportLeg
+            {
+                InventoryTransportBatch = batch,
+                ShipmentId = model.ShipmentId,
+                TransportGroupKey = groupKey,
+                SourcePurchaseContractId = firstSource.SourcePurchaseContractId,
+                ProductId = model.ProductId,
+                SourceTerminalId = model.SourceTerminalId,
+                SourceStorageTankId = model.SourceStorageTankId > 0 ? model.SourceStorageTankId : null,
+                TransportType = vehicle.Input.TransportType,
+                TruckId = vehicle.Input.TruckId,
+                WagonId = vehicle.Input.WagonId,
+                VesselId = vehicle.Input.VesselId,
+                WagonNumber = vehicle.WagonNumber,
+                DriverId = vehicle.Input.DriverId,
+                CarrierType = vehicle.Input.CarrierType,
+                ServiceProviderId = vehicle.Input.CarrierType == CarrierType.ServiceProvider
+                    ? vehicle.Input.ServiceProviderId
+                    : null,
+                OperationalAssetId = vehicle.Input.CarrierType == CarrierType.OperationalAsset
+                    ? vehicle.Input.OperationalAssetId
+                    : null,
+                LoadedDate = model.TransportDate.Date,
+                QuantityMt = vehicle.Input.QuantityMt,
+                CapacityMt = vehicle.CapacityMt,
+                FreightAmount = vehicle.Input.FreightAmount.GetValueOrDefault() > 0m
+                    ? vehicle.Input.FreightAmount
+                    : null,
+                FreightCurrencyId = vehicle.Input.FreightAmount.GetValueOrDefault() > 0m
+                    ? vehicle.Input.FreightCurrencyId
+                    : null,
+                RwbNo = Normalize(vehicle.Input.RwbNo),
+                BillOfLadingNumber = Normalize(vehicle.Input.BillOfLadingNumber),
+                Status = model.SubmissionMode == InventoryTransportSubmissionMode.Loaded
+                    ? InventoryTransportLegStatus.Loaded
+                    : InventoryTransportLegStatus.Draft,
+                Notes = Normalize(model.Notes)
+            };
+            foreach (var allocationInput in vehicle.Allocations)
+            {
+                var source = prepared.Sources[allocationInput.SourceInventoryMovementId];
+                // منابع کشتی سنتینلِ منفی دارند؛ به شناسهٔ حرکتِ In واقعیِ ماتریالایزشده نگاشت می‌شوند.
+                var sourceMovementId = vesselSentinelRemap.TryGetValue(allocationInput.SourceInventoryMovementId, out var realMovementId)
+                    ? realMovementId
+                    : allocationInput.SourceInventoryMovementId;
+                leg.Allocations.Add(new InventoryTransportLegAllocation
+                {
+                    SourcePurchaseContractId = source.SourcePurchaseContractId,
+                    SourceLoadingReceiptId = source.SourceLoadingReceiptId,
+                    SourceInventoryMovementId = sourceMovementId,
+                    QuantityMt = allocationInput.QuantityMt
+                });
+            }
+
+            batch.Legs.Add(leg);
         }
     }
 
@@ -706,6 +1262,7 @@ public sealed class InventoryTransportBatchService
 
         foreach (var leg in batch.Legs)
         {
+            var legMovements = new List<InventoryMovement>(leg.Allocations.Count);
             foreach (var allocation in leg.Allocations)
             {
                 var location = allocation.SourceInventoryMovementId is { } sourceMovementId
@@ -728,6 +1285,7 @@ public sealed class InventoryTransportBatchService
                     StockGuard.Standard,
                     ct);
                 allocation.OutboundInventoryMovementId = movement.Id;
+                legMovements.Add(movement);
             }
 
             if (leg.Allocations.Count == 1)
@@ -736,6 +1294,17 @@ public sealed class InventoryTransportBatchService
             }
             leg.Status = InventoryTransportLegStatus.Loaded;
             leg.UpdatedAtUtc = DateTime.UtcNow;
+
+            // همان قلاب‌هایی که مسیر حمل تکی بعد از بارگیری اجرا می‌کند
+            // (InventoryTransportLegLoadService.LoadAsync). داخل همان تراکنشِ caller اجرا
+            // می‌شوند، هر دو پشت Feature Flag و هر دو idempotent با کلیدِ leg.Id — پس
+            // بارگیریِ دوباره یا retry سند تکراری نمی‌سازد.
+            if (_transferAccounting is not null)
+            {
+                await _transferAccounting.TryPostLegLoadAsync(leg, ct);
+            }
+
+            await _lineage.OnLegLoadedAsync(leg, legMovements, ct);
         }
     }
 
@@ -837,6 +1406,12 @@ public sealed class InventoryTransportBatchService
         return remap;
     }
 
+    private static string? NormalizeName(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
     private static string? NormalizePlate(string? value)
     {
         var normalized = string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
@@ -852,9 +1427,55 @@ public sealed class InventoryTransportBatchService
         var vehicles = (model.Vehicles ?? []).Where(v => v.QuantityMt > 0m).ToList();
         var createdTrucks = new List<(InventoryTransportVehicleInput Vehicle, Truck Truck)>();
         var createdWagons = new List<(InventoryTransportVehicleInput Vehicle, Wagon Wagon)>();
+        var createdDrivers = new List<(InventoryTransportVehicleInput Vehicle, Driver Driver)>();
+        var driverCache = new Dictionary<string, Driver>(StringComparer.OrdinalIgnoreCase);
         foreach (var vehicle in vehicles)
         {
-            if (vehicle.CarrierType != CarrierType.ServiceProvider)
+            // نام راننده تایپ می‌شود: راننده فعالِ هم‌نام استفاده و در نبودش پروفایل جدید ساخته می‌شود.
+            // پیش از شرط دارایی عملیاتی است، چون آن حالت هم برای موتر راننده می‌خواهد.
+            if (vehicle.TransportType == LoadingTransportType.Truck)
+            {
+                var driverName = NormalizeName(vehicle.DriverNameInput);
+                if (driverName is null)
+                {
+                    vehicle.DriverId = null;
+                }
+                else
+                {
+                    if (!driverCache.TryGetValue(driverName, out var driver))
+                    {
+                        driver = await _db.Drivers.FirstOrDefaultAsync(d => d.FullName == driverName, ct);
+                        if (driver is not null && !driver.IsActive)
+                        {
+                            throw Rule("INVENTORY_TRANSPORT_DRIVER_INACTIVE", $"راننده «{driverName}» قبلاً غیرفعال ثبت شده است؛ ابتدا آن را در داده‌های پایه فعال کنید.");
+                        }
+                        if (driver is null)
+                        {
+                            driver = new Driver { FullName = driverName, IsActive = true };
+                            _db.Drivers.Add(driver);
+                        }
+                        driverCache[driverName] = driver;
+                    }
+
+                    if (driver.Id > 0)
+                    {
+                        vehicle.DriverId = driver.Id;
+                    }
+                    else
+                    {
+                        vehicle.DriverId = null;
+                        createdDrivers.Add((vehicle, driver));
+                    }
+                }
+            }
+            else
+            {
+                vehicle.DriverId = null;
+            }
+
+            // فقط دارایی عملیاتی وسیله‌اش را از خودِ دارایی می‌گیرد؛ شرکت خدماتی و
+            // حمل‌کنندهٔ شخصی نمبر وسیله را تایپ می‌کنند.
+            if (vehicle.CarrierType == CarrierType.OperationalAsset)
             {
                 continue;
             }
@@ -925,9 +1546,13 @@ public sealed class InventoryTransportBatchService
             }
         }
 
-        if (createdTrucks.Count > 0 || createdWagons.Count > 0)
+        if (createdTrucks.Count > 0 || createdWagons.Count > 0 || createdDrivers.Count > 0)
         {
             await _db.SaveChangesAsync(ct);
+            foreach (var (vehicle, driver) in createdDrivers)
+            {
+                vehicle.DriverId = driver.Id;
+            }
             foreach (var (vehicle, truck) in createdTrucks)
             {
                 vehicle.TruckId = truck.Id;
@@ -939,9 +1564,13 @@ public sealed class InventoryTransportBatchService
         }
     }
 
+    // enforceFifo فقط برای ثبت/ویرایشِ فرم روشن است. LoadDraftAsync دادهٔ ذخیره‌شده را دوباره
+    // اعتبارسنجی می‌کند (برای کفایت موجودی)، نه شکلِ فرم را؛ اگر آنجا هم اجرا شود، پیش‌نویسی که
+    // موجودیِ منابعش از زمان ثبت جابه‌جا شده دیگر قابل بارگیری نمی‌ماند.
     private async Task<PreparedBatch> ValidateAndPrepareAsync(
         InventoryTransportFromInventoryViewModel model,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool enforceFifo = false)
     {
         if (model.ShipmentId.HasValue
             && !await _db.Shipments.AsNoTracking().AnyAsync(s => s.Id == model.ShipmentId.Value, ct))
@@ -1157,11 +1786,30 @@ public sealed class InventoryTransportBatchService
                 throw Rule("INVENTORY_TRANSPORT_CAPACITY_EXCEEDED", $"مقدار ردیف {i + 1} از ظرفیت وسیله بیشتر است.");
             }
 
+            // حمل‌کننده باید دقیقاً یکی از سه حالت معتبر باشد: شرکت خدماتی، دارایی عملیاتی،
+            // یا حمل‌کنندهٔ شخصی. ثبت بدون هیچ‌کدام ممنوع است تا leg بدون طرفِ حمل ساخته نشود.
             if (vehicle.CarrierType == CarrierType.ServiceProvider)
             {
                 if (!vehicle.ServiceProviderId.HasValue || !providers.Contains(vehicle.ServiceProviderId.Value) || vehicle.OperationalAssetId.HasValue)
                 {
                     throw Rule("INVENTORY_TRANSPORT_PROVIDER_INVALID", $"شرکت خدماتی فعال ردیف {i + 1} را انتخاب و دارایی عملیاتی را خالی کنید.");
+                }
+            }
+            else if (vehicle.CarrierType == CarrierType.PersonalCarrier)
+            {
+                // حمل‌کنندهٔ شخصی فقط با موتر و فقط با رانندهٔ مشخص معنا دارد؛
+                // واگن و کشتی راننده ندارند پس طرفِ حمل قابل شناسایی نمی‌ماند.
+                if (vehicle.ServiceProviderId.HasValue || vehicle.OperationalAssetId.HasValue)
+                {
+                    throw Rule("INVENTORY_TRANSPORT_PERSONAL_CARRIER_CONFLICT", $"برای حمل‌کنندهٔ شخصی ردیف {i + 1} نباید شرکت خدماتی یا دارایی عملیاتی انتخاب شود.");
+                }
+                if (vehicle.TransportType != LoadingTransportType.Truck)
+                {
+                    throw Rule("INVENTORY_TRANSPORT_PERSONAL_CARRIER_VEHICLE", $"حمل‌کنندهٔ شخصی ردیف {i + 1} فقط برای حمل با موتر قابل ثبت است.");
+                }
+                if (!vehicle.DriverId.HasValue || !drivers.Contains(vehicle.DriverId.Value))
+                {
+                    throw Rule("INVENTORY_TRANSPORT_PERSONAL_CARRIER_DRIVER", $"برای حمل‌کنندهٔ شخصی ردیف {i + 1} رانندهٔ فعال را انتخاب کنید.");
                 }
             }
             else if (vehicle.CarrierType == CarrierType.OperationalAsset)
@@ -1179,6 +1827,12 @@ public sealed class InventoryTransportBatchService
                 if (!validAssetType || (asset.LinkedTruckId.HasValue && asset.LinkedTruckId != vehicle.TruckId))
                 {
                     throw Rule("INVENTORY_TRANSPORT_ASSET_VEHICLE", $"دارایی عملیاتی ردیف {i + 1} با وسیله انتخاب‌شده سازگار نیست.");
+                }
+                // دارایی عملیاتی در حمل با موتر باید رانندهٔ مشخص داشته باشد؛ واگن راننده نمی‌گیرد.
+                if (vehicle.TransportType == LoadingTransportType.Truck
+                    && (!vehicle.DriverId.HasValue || !drivers.Contains(vehicle.DriverId.Value)))
+                {
+                    throw Rule("INVENTORY_TRANSPORT_ASSET_DRIVER_REQUIRED", $"برای دارایی عملیاتی ردیف {i + 1} رانندهٔ فعال را انتخاب کنید.");
                 }
             }
             else
@@ -1230,10 +1884,174 @@ public sealed class InventoryTransportBatchService
             }
         }
 
+        if (enforceFifo)
+        {
+            EnsureFifoAllocation(availableSources, selected, preparedVehicles);
+        }
+
         return new PreparedBatch(
             availableById,
             preparedVehicles,
             decimal.Round(selectedTotal, 4, MidpointRounding.AwayFromZero));
+    }
+
+    // فرمِ حمل توزیع سهم‌ها را خودش نمی‌پرسد؛ آن را می‌سازد. تابع autoAllocate در
+    // wwwroot/js/inventory-transport-form.js جمعِ بارِ هر وسیله را به‌ترتیب بین منابعِ
+    // تیک‌خورده تقسیم می‌کند: وسیله‌ها به ترتیبِ ردیفِ جدول، و برای هر وسیله منابع به ترتیبِ
+    // همان فهرستی که GetAvailableSourcesAsync برگردانده — یعنی قدیمی‌ترین ورودی اول
+    // (OrderBy MovementDate, ThenBy Id). سقفِ هر منبع، «قابل حمل»ِ همان فهرست است.
+    //
+    // اینجا همان محاسبه در سرور تکرار و با توزیعِ رسیده مقایسه می‌شود، تا کلاینت نتواند
+    // توزیعی بفرستد که جمع‌هایش درست است ولی ترتیب مصرف موجودی را رعایت نکرده.
+    private static void EnsureFifoAllocation(
+        IReadOnlyList<InventoryTransportSourceAvailabilityViewModel> availableSources,
+        IReadOnlyList<InventoryTransportSourceSelectionInput> selected,
+        IReadOnlyList<PreparedVehicle> preparedVehicles)
+    {
+        var selectedIds = selected.Select(s => s.SourceInventoryMovementId).ToHashSet();
+
+        // ترتیبِ حوض = ترتیبِ فهرستِ موجودی = همان چیزی که کاربر در جدول می‌بیند.
+        var pool = availableSources
+            .Where(s => selectedIds.Contains(s.SourceInventoryMovementId))
+            .Select(s => new FifoPoolEntry(s.SourceInventoryMovementId, s.AvailableQuantityMt))
+            .ToList();
+        if (pool.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < preparedVehicles.Count; i++)
+        {
+            var vehicle = preparedVehicles[i];
+            var expected = TakeFifoShares(pool, vehicle.Input.QuantityMt);
+
+            if (!FifoSharesMatch(expected, vehicle.Allocations))
+            {
+                throw Rule(
+                    "INVENTORY_TRANSPORT_ALLOCATION_NOT_FIFO",
+                    $"تقسیم سهم منابع ردیف {i + 1} با ترتیب مصرف موجودی (قدیمی‌ترین منبع اول) نمی‌خواند. صفحه را تازه کنید و دوباره ثبت نمایید.");
+            }
+        }
+    }
+
+    // یک وسیله را از حوضِ FIFO پر می‌کند و مصرفِ حوض را جلو می‌برد (پس وسیلهٔ بعدی از
+    // باقیماندهٔ همان حوض برمی‌دارد). تک‌منبعِ توزیعِ FIFO: هم برای اعتبارسنجیِ ثبت/ویرایش و
+    // هم برای آماده‌سازیِ فرمِ ویرایش استفاده می‌شود تا هر دو دقیقاً یک قاعده باشند.
+    private static Dictionary<int, decimal> TakeFifoShares(List<FifoPoolEntry> pool, decimal needed)
+    {
+        var shares = new Dictionary<int, decimal>();
+        foreach (var entry in pool)
+        {
+            if (needed <= Tolerance)
+            {
+                break;
+            }
+            var free = entry.AvailableQuantityMt - entry.ConsumedQuantityMt;
+            if (free <= Tolerance)
+            {
+                continue;
+            }
+            var share = Math.Min(needed, free);
+            shares[entry.SourceInventoryMovementId] = share;
+            entry.ConsumedQuantityMt += share;
+            needed -= share;
+        }
+        return shares;
+    }
+
+    // آماده‌سازیِ فرمِ ویرایشِ یک پیش‌نویس: توزیعِ ذخیره‌شده با «قابل حملِ امروز» بازسازی می‌شود.
+    // پیش‌نویس موجودی را رزرو نمی‌کند، پس اگر بعد از ثبت، موجودیِ منابع جابه‌جا شده باشد،
+    // توزیعِ ذخیره‌شده دیگر با FIFO جاری نمی‌خواند و ذخیرهٔ بدون تغییر با
+    // INVENTORY_TRANSPORT_ALLOCATION_NOT_FIFO رد می‌شد.
+    //
+    // فقط توزیعِ سهم‌ها عوض می‌شود: مقدار هر وسیله و مجموعهٔ منابعِ انتخاب‌شدهٔ کاربر دست‌نخورده
+    // می‌ماند و هیچ چیزی در دیتابیس نوشته نمی‌شود (فقط ViewModel). اگر موجودیِ منابعِ انتخابی
+    // کمتر از جمع وسایط باشد، سهم‌ها ناقص می‌مانند و همان اعتبارسنجی‌های موجود جلوی ذخیره را
+    // می‌گیرند — یعنی کمبود موجودی همچنان رد می‌شود.
+    public static void ApplyCurrentFifoAllocations(
+        InventoryTransportFromInventoryViewModel model,
+        IReadOnlyList<InventoryTransportSourceAvailabilityViewModel> availableSources)
+    {
+        var selectedIds = (model.Sources ?? [])
+            .Where(s => s.QuantityMt.GetValueOrDefault() > Tolerance)
+            .Select(s => s.SourceInventoryMovementId)
+            .ToHashSet();
+        if (selectedIds.Count == 0)
+        {
+            return;
+        }
+
+        // همان ترتیبِ حوضِ EnsureFifoAllocation: ترتیبِ فهرستِ موجودی (قدیمی‌ترین ورودی اول).
+        var pool = availableSources
+            .Where(s => selectedIds.Contains(s.SourceInventoryMovementId))
+            .Select(s => new FifoPoolEntry(s.SourceInventoryMovementId, s.AvailableQuantityMt))
+            .ToList();
+        if (pool.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var vehicle in model.Vehicles ?? [])
+        {
+            var shares = vehicle.QuantityMt > Tolerance
+                ? TakeFifoShares(pool, vehicle.QuantityMt)
+                : [];
+            vehicle.Allocations = shares
+                .Where(x => x.Value > Tolerance)
+                .Select(x => new InventoryTransportVehicleAllocationInput
+                {
+                    SourceInventoryMovementId = x.Key,
+                    QuantityMt = decimal.Round(x.Value, 4, MidpointRounding.AwayFromZero)
+                })
+                .ToList();
+        }
+
+        var consumedBySource = pool.ToDictionary(p => p.SourceInventoryMovementId, p => p.ConsumedQuantityMt);
+        foreach (var source in model.Sources ?? [])
+        {
+            var consumed = consumedBySource.GetValueOrDefault(source.SourceInventoryMovementId);
+            source.QuantityMt = consumed > Tolerance
+                ? decimal.Round(consumed, 4, MidpointRounding.AwayFromZero)
+                : null;
+        }
+    }
+
+    // مقایسه با همان روادارییِ مقداریِ بقیهٔ اعتبارسنجی‌ها؛ سهم‌های تقریباً صفر شمرده نمی‌شوند
+    // چون فرم هم آن‌ها را اصلاً نمی‌فرستد.
+    private static bool FifoSharesMatch(
+        IReadOnlyDictionary<int, decimal> expected,
+        IReadOnlyList<InventoryTransportVehicleAllocationInput> submitted)
+    {
+        var expectedShares = expected
+            .Where(x => x.Value > Tolerance)
+            .ToDictionary(x => x.Key, x => x.Value);
+        var submittedShares = submitted
+            .Where(a => a.QuantityMt > Tolerance)
+            .ToDictionary(a => a.SourceInventoryMovementId, a => a.QuantityMt);
+
+        if (expectedShares.Count != submittedShares.Count)
+        {
+            return false;
+        }
+
+        foreach (var (sourceId, quantityMt) in expectedShares)
+        {
+            if (!submittedShares.TryGetValue(sourceId, out var actual)
+                || Math.Abs(actual - quantityMt) > Tolerance)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // ردیفِ حوضِ FIFO. قابل تغییر است چون مصرفِ هر وسیله روی وسیلهٔ بعدی اثر می‌گذارد.
+    private sealed class FifoPoolEntry(int sourceInventoryMovementId, decimal availableQuantityMt)
+    {
+        public int SourceInventoryMovementId { get; } = sourceInventoryMovementId;
+        public decimal AvailableQuantityMt { get; } = availableQuantityMt;
+        public decimal ConsumedQuantityMt { get; set; }
     }
 
     private static string? Normalize(string? value)

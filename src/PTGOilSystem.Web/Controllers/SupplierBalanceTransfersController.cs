@@ -33,14 +33,19 @@ public sealed class SupplierBalanceTransfersController : Controller
     private readonly IAfghanistanBusinessClock _clock;
     private readonly IPricingService _pricing;
 
+    private readonly IFormTokenGuard _formTokens;
+
     public SupplierBalanceTransfersController(
         ApplicationDbContext db,
         ISupplierTransferableBalanceService balances,
         ISupplierBalanceTransferService transfers,
         IAuditService audit,
         IPricingService pricing,
-        IAfghanistanBusinessClock? clock = null)
+        IAfghanistanBusinessClock? clock = null,
+        IFormTokenGuard? formTokens = null)
     {
+        // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
+        _formTokens = formTokens ?? new FormTokenGuard(db);
         _db = db;
         _balances = balances;
         _transfers = transfers;
@@ -105,7 +110,9 @@ public sealed class SupplierBalanceTransfersController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(SupplierBalanceTransferCreateViewModel model)
+    public async Task<IActionResult> Create(
+        SupplierBalanceTransferCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         model.ReferenceNumber = string.IsNullOrWhiteSpace(model.ReferenceNumber) ? null : model.ReferenceNumber.Trim();
         model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
@@ -124,6 +131,10 @@ public sealed class SupplierBalanceTransfersController : Controller
             await RefreshFormAsync(model);
             return View(model);
         }
+
+        // PTG-P0-01 — توکن پیش از فراخوانی سرویس فقط به ChangeTracker اضافه می‌شود و با اولین
+        // SaveChanges داخل Transaction خودِ سرویس ذخیره می‌گردد؛ پس ارسال دوم همان‌جا رد می‌شود.
+        _formTokens.Stamp(formToken, "SupplierBalanceTransfer.Create", nameof(SupplierBalanceTransfer));
 
         try
         {
@@ -172,6 +183,11 @@ public sealed class SupplierBalanceTransfersController : Controller
                 ? $"انتقال ثبت شد: {created[0].TransferOriginalAmount:N2} {created[0].OriginalCurrencyCode} برابر {totalUsd:N2} USD."
                 : $"{created.Count} انتقال ثبت شد؛ مجموع {totalUsd:N2} USD.";
 
+            return RedirectToSupplier(model.SupplierId, model.ReturnUrl);
+        }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            TempData["err"] = "این انتقال قبلاً ثبت شده است و دوباره ثبت نشد.";
             return RedirectToSupplier(model.SupplierId, model.ReturnUrl);
         }
         catch (BusinessRuleException ex)

@@ -56,10 +56,10 @@
     var amountMetrics = new List<AkKpiItem>();
     if (Model.ConsignmentWeightMt.HasValue)
     {
-        amountMetrics.Add(new AkKpiItem { Title = T("وزن محموله", "Consignment weight"), Value = Model.ConsignmentWeightMt.Value.ToString("N4"), Unit = "MT" });
+        amountMetrics.Add(new AkKpiItem { Title = T("وزن محموله", "Consignment weight"), Value = Model.ConsignmentWeightMt.Value.ToString("N4"), Unit = "MT", Avatar = "flow-weight-mt" });
     }
-    amountMetrics.Add(new AkKpiItem { Title = T("مجموع افغانی", "Total AFN"), Value = Model.TotalAfn.ToString("N0"), Unit = "AFN" });
-    amountMetrics.Add(new AkKpiItem { Title = T("معادل دالر", "USD equivalent"), Value = Model.TotalUsd.ToString("N2"), Unit = "USD", State = "accent" });
+    amountMetrics.Add(new AkKpiItem { Title = T("مجموع افغانی", "Total AFN"), Value = Model.TotalAfn.ToString("N0"), Unit = "AFN", Avatar = "flow-coins" });
+    amountMetrics.Add(new AkKpiItem { Title = T("معادل دالر", "USD equivalent"), Value = Model.TotalUsd.ToString("N2"), Unit = "USD", State = "accent", Avatar = "flow-fx" });
 
     var mainItems = new List<AkInfoItem>
     {

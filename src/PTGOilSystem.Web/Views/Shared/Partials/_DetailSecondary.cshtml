@@ -1,4 +1,4 @@
-@*
+﻿@*
     Secondary material of the linear Operations detail shell.
 
     Three quiet blocks after the main flow:
@@ -24,9 +24,15 @@
     var events = timeline.Count > 1 && timeline.All(item => item.Timestamp.HasValue)
         ? timeline.OrderBy(item => item.Timestamp!.Value).ToList()
         : timeline.ToList();
+    // A limit only decides what is visible without a click. Nothing is dropped:
+    // the older events move into a disclosure, because a loading with twelve
+    // receipts must never present four of them as its whole history.
+    var olderEvents = new List<PTGOilSystem.Web.Models.Shared.AkTimelineItem>();
     if (Model.TimelineLimit is > 0 && events.Count > Model.TimelineLimit.Value)
     {
-        events = events.TakeLast(Model.TimelineLimit.Value).ToList();
+        var visibleCount = Model.TimelineLimit.Value;
+        olderEvents = events.Take(events.Count - visibleCount).ToList();
+        events = events.TakeLast(visibleCount).ToList();
     }
     var timelineTitle = string.IsNullOrWhiteSpace(Model.TimelineTitle)
         ? UiText.T(Context, "سابقه", "History")
@@ -35,26 +41,11 @@
 @if (events.Count > 0 || related.Count > 0 || technical.Count > 0)
 {
     <footer class="ak-detail-secondary">
-        @if (related.Count > 0)
-        {
-            <nav class="ak-detail-secondary-links" aria-label="@UiText.T(Context, "رکوردهای مرتبط", "Related records")">
-                @foreach (var item in related)
-                {
-                    @if (!string.IsNullOrWhiteSpace(item.Href))
-                    {
-                        <a href="@item.Href">@item.TypeLabel: <bdi>@item.Label</bdi></a>
-                    }
-                    else
-                    {
-                        <span>@item.TypeLabel: <bdi>@item.Label</bdi></span>
-                    }
-                }
-            </nav>
-        }
         @if (events.Count > 0)
         {
             <section class="ak-detail-history" aria-labelledby="ak-detail-history-title">
                 <h2 id="ak-detail-history-title">@timelineTitle</h2>
+                <p class="ak-detail-zone-note">@UiText.T(Context, "هر رویدادی که برای این رکورد ثبت شده، به ترتیب زمان.", "Every event recorded against this record, in order.")</p>
                 <ol class="ak-detail-history-list">
                     @foreach (var item in events)
                     {
@@ -80,12 +71,69 @@
                         </li>
                     }
                 </ol>
+                @if (olderEvents.Count > 0)
+                {
+                    <details class="ak-detail-technical">
+                        <summary>@string.Format(UiText.T(Context, "{0} رویداد قدیمی‌تر", "{0} earlier events"), olderEvents.Count.ToString("N0"))</summary>
+                        <ol class="ak-detail-history-list">
+                            @foreach (var item in olderEvents)
+                            {
+                                <li class="ak-detail-history-item @item.StateClass">
+                                    @if (!string.IsNullOrWhiteSpace(item.Date))
+                                    {
+                                        <span class="ak-detail-history-date ak-num"><bdi>@item.Date</bdi></span>
+                                    }
+                                    <span class="ak-detail-history-title">
+                                        @if (!string.IsNullOrWhiteSpace(item.Href))
+                                        {
+                                            <a href="@item.Href">@item.Title</a>
+                                        }
+                                        else
+                                        {
+                                            @item.Title
+                                        }
+                                    </span>
+                                    @if (!string.IsNullOrWhiteSpace(item.Meta))
+                                    {
+                                        <span class="ak-detail-history-meta ak-num"><bdi>@item.Meta</bdi></span>
+                                    }
+                                </li>
+                            }
+                        </ol>
+                    </details>
+                }
             </section>
         }
+        @* Related records come after the history: they are where to go next,
+           which only makes sense once the reader knows what happened here. *@
+        @if (related.Count > 0)
+        {
+            <section class="ak-detail-related" aria-labelledby="ak-detail-related-title">
+                <h2 id="ak-detail-related-title">@UiText.T(Context, "رکوردهای مرتبط", "Related records")</h2>
+                <nav class="ak-detail-secondary-links">
+                    @foreach (var item in related)
+                    {
+                        @if (!string.IsNullOrWhiteSpace(item.Href))
+                        {
+                            <a href="@item.Href"><span>@item.TypeLabel</span><bdi>@item.Label</bdi></a>
+                        }
+                        else
+                        {
+                            <span class="is-plain"><span>@item.TypeLabel</span><bdi>@item.Label</bdi></span>
+                        }
+                    }
+                </nav>
+            </section>
+        }
+        @* Internal ids and ledger trace. Labelled for who it is for, so a reader
+           who does not need it can tell that from the summary alone. *@
         @if (technical.Count > 0)
         {
             <details class="ak-detail-technical" id="technical-details">
-                <summary>@UiText.T(Context, "جزئیات فنی", "Technical details")</summary>
+                <summary>
+                    <span>@UiText.T(Context, "جزئیات فنی", "Technical details")</span>
+                    <small>@UiText.T(Context, "برای پشتیبانی", "for support")</small>
+                </summary>
                 <partial name="~/Views/Shared/Partials/_DetailInfoGrid.cshtml"
                          model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkInfoItem>)technical)" />
             </details>

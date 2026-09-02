@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace PTGOilSystem.Web.Models.Entities;
@@ -29,8 +29,11 @@ public enum StockSourceType
     [Display(Name = "تانک")] Tank = 3
 }
 
-public class SalesTransaction : BaseEntity
+public class SalesTransaction : BaseEntity, IVersionedEntity
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
     // جواز/شرکت داخلیِ قرارداد منبع. در فروشِ کلیِ محموله‌ای که قراردادهایش جواز متفاوت دارند،
     // هیچ جواز واحدی برای کل فروش وجود ندارد و این فیلد null می‌ماند؛ جواز هر سهم از قرارداد
     // خودش (ShipmentContracts → Contract.CompanyId) خوانده می‌شود.
@@ -90,6 +93,31 @@ public class SalesTransaction : BaseEntity
     public PreSaleOrder? PreSaleOrder { get; set; }
 
     public bool IsCancelled { get; set; }
+
+    // ---- PTG-P2-03 — زنجیرهٔ اصلاح فروش -------------------------------------------------
+    //
+    // فروشِ ثبت‌شده هرگز بازنویسی نمی‌شود. اصلاح یعنی: سندِ اصلی ابطال می‌شود (با برگشتِ
+    // دفتر کل و حرکتِ موجودی) و یک فروشِ تازه با هویتِ مستقل ثبت می‌گردد. هر دو سر پیوند
+    // دارند تا حسابرس بتواند «چه بود، چه شد و چرا» را از خودِ داده بخواند، نه از حافظهٔ کاربر.
+
+    /// <summary>دلیل ابطال — هنگام ابطال اجباری است. بدون دلیل، ابطال انجام نمی‌شود.</summary>
+    [MaxLength(500)] public string? CancelReason { get; set; }
+
+    /// <summary>زمان ابطال (UTC).</summary>
+    public DateTime? CancelledAtUtc { get; set; }
+
+    /// <summary>کاربری که ابطال کرد.</summary>
+    public int? CancelledByUserId { get; set; }
+
+    /// <summary>
+    /// روی سندِ ابطال‌شده: فروشِ جایگزین. خالی یعنی ابطال شد ولی جایگزینی ثبت نشد
+    /// (ابطالِ ساده) — که حالتِ کاملاً مجازی است.
+    /// </summary>
+    public int? ReplacementSaleId { get; set; }
+
+    /// <summary>روی فروشِ جایگزین: سندِ اصلیِ ابطال‌شده‌ای که این سند اصلاحِ آن است.</summary>
+    public int? CorrectedFromSaleId { get; set; }
+
     public ICollection<SalesTransactionSourceAllocation> SourceAllocations { get; set; } = new List<SalesTransactionSourceAllocation>();
 }
 
@@ -223,8 +251,18 @@ public class ExpenseBatch : BaseEntity
     public System.Collections.Generic.ICollection<ExpenseTransaction> Expenses { get; set; } = new System.Collections.Generic.List<ExpenseTransaction>();
 }
 
-public class ExpenseTransaction : BaseEntity
+public class ExpenseTransaction : BaseEntity, IVersionedEntity
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
+    /// <summary>
+    /// PTG-P2-02 — کلیدِ ضدتکراریِ ایمپورت اکسل. فقط سطرهایی که از فایل آمده‌اند
+    /// مقدار دارند؛ مصارفِ دستی و همهٔ رکوردهای موجود null می‌مانند و از یکتایی
+    /// معاف‌اند (PostgreSQL مقدار NULL را تکراری نمی‌شمارد). ببینید <see cref="Helpers.ExpenseImportKey"/>.
+    /// </summary>
+    [MaxLength(300)] public string? ImportUniqueKey { get; set; }
+
     public int ExpenseTypeId { get; set; }
     public ExpenseType? ExpenseType { get; set; }
     public int? ExpenseRuleId { get; set; }

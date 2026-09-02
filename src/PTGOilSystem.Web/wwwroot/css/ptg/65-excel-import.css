@@ -14,12 +14,32 @@
 .excel-import__progress-head h2{margin-bottom:.25rem}.excel-import__elapsed{font-variant-numeric:tabular-nums;color:#58667a;font-size:.8rem}.excel-import__current{font-size:.88rem;font-weight:700;padding:.6rem 0}.excel-import__progress-meta{display:flex;justify-content:space-between;color:#667388;font-size:.76rem;margin-bottom:.35rem}.excel-import .progress{height:8px;background:#e9eef5}.excel-import .progress-bar{background:#1769c2;transition:width .3s ease}.excel-import__notice{font-size:.72rem!important;margin-top:.55rem!important}
 .excel-import__result-icon{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:#e9f7ef;color:#219055;font-size:1.55rem;margin:0 auto .65rem}.excel-import__result-icon.is-error{background:#fff0f0;color:#c6363d}.excel-import__result{text-align:center}.excel-import__summary-grid--result{margin-top:1rem;text-align:right}
 .excel-import--compact{max-width:none;margin:.7rem 0}.excel-import--compact .excel-import__panel{padding:.85rem;box-shadow:none}.excel-import--compact .excel-import__dropzone{min-height:105px}.excel-import--compact .excel-import__heading{margin-bottom:.65rem}
-.excel-import-toggle{margin:0 0 .9rem}.excel-import-toggle>summary{display:inline-flex;align-items:center;gap:.45rem;padding:.5rem .95rem;border:1px solid #157a44;border-radius:9px;background:#18864b;color:#fff;font-size:.83rem;font-weight:750;cursor:pointer;list-style:none;transition:background-color .15s,border-color .15s}.excel-import-toggle>summary::-webkit-details-marker{display:none}.excel-import-toggle>summary::marker{content:""}.excel-import-toggle>summary:hover,.excel-import-toggle>summary:focus-visible{background:#136c3c;border-color:#0f5c33;outline:none}.excel-import-toggle>summary:focus-visible{box-shadow:0 0 0 3px rgba(24,134,75,.25)}.excel-import-toggle__caret{font-size:.72rem;transition:transform .15s}.excel-import-toggle[open]>summary .excel-import-toggle__caret{transform:rotate(180deg)}.excel-import-toggle[open]>summary{margin-bottom:.55rem}.excel-import-toggle .excel-import{margin-block:0}
+.excel-import-toggle__button{display:inline-flex;align-items:center;gap:.45rem;margin:0 0 .9rem;font-size:.83rem}
+/* داخل نوار ابزار، دکمه هم‌تراز بقیهٔ دکمه‌ها می‌ماند و فاصلهٔ پایین لازم ندارد. */
+.excel-import-inline>.excel-import-toggle__button{margin-bottom:0}
+.excel-import-modal .modal-dialog{max-width:min(920px,calc(100% - 2rem))}
+.excel-import-modal .modal-body{padding:0}
+.excel-import-modal .excel-import{max-width:none;margin:0}
+.excel-import-modal .excel-import__panel{border:0;border-radius:0;box-shadow:none}
 @media(max-width:700px){.excel-import-toggle>summary{width:100%;justify-content:center}.excel-import__summary-grid{grid-template-columns:repeat(2,1fr)}.excel-import__steps{grid-template-columns:1fr 1fr}.excel-import__steps>div::after{display:none}.excel-import__actions .btn,.excel-import__actions a.btn{flex:1 1 100%}.excel-import__panel{padding:.9rem}.excel-import__file{flex-wrap:wrap}.excel-import__file-main{min-width:calc(100% - 52px)}}
 /* دکمهٔ سبز داخل نوار ابزار زیرفرم: هم‌ردیف سایر دکمه‌ها، و پس از باز شدن،
    پنل کامل یک ردیف مستقل تمام‌عرض می‌گیرد تا ردیف دکمه‌ها بهم نریزد. */
 .ak-subform-toolbar>.excel-import-inline{flex:0 0 auto;display:flex;align-items:stretch}
 .ak-subform-toolbar>.excel-import-inline:has(details[open]){flex-basis:100%}
 .ak-subform-toolbar .excel-import-toggle{margin:0;inline-size:100%}
-.ak-subform-toolbar .excel-import-toggle>summary{block-size:100%}
+.ak-subform-toolbar .excel-import-toggle:not([open])>summary{block-size:100%}
 @media(prefers-reduced-motion:reduce){.excel-import__dropzone,.excel-import .progress-bar,.excel-import-toggle>summary,.excel-import-toggle__caret{transition:none}}
+
+/* پنلِ بازشدهٔ import داخل نوار ابزار زیرفرم: هم‌قد شدن با دکمه‌های کناری فقط
+   مربوط به حالت بسته است؛ در حالت باز پنل از بالا شروع می‌شود، عنوان تکراری
+   (همان متن دکمه) و نشان Excel حذف می‌شود و ناحیهٔ انتخاب فایل یک ردیف
+   جمع‌وجور می‌گیرد تا فضای عمودی فرم اشغال نشود. */
+.ak-subform-toolbar>.excel-import-inline:has(details[open]){align-items:flex-start}
+.ak-subform-toolbar .excel-import-toggle .excel-import{max-width:640px}
+.excel-import-toggle .excel-import__panel{padding:.7rem .8rem}
+.excel-import-toggle .excel-import__heading{margin-bottom:.5rem}
+.excel-import-toggle .excel-import__heading h2,.excel-import-toggle .excel-import__badge{display:none}
+.excel-import-toggle .excel-import__dropzone{min-height:0;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:.5rem;padding:.55rem .7rem;text-align:start}
+.excel-import-toggle .excel-import__excel-icon{font-size:1.15rem;line-height:1}
+.excel-import-toggle .excel-import__drop-help{flex:1 1 auto;margin-bottom:0}
+.excel-import-toggle .excel-import__actions{margin-top:.6rem}

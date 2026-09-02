@@ -25,12 +25,41 @@
             <i class="bi bi-chevron-down" aria-hidden="true"></i>
         </summary>
         <div class="ptg-td-more-body">
-            @if (activity.Count > 0)
+            @* بلوک اختیاریِ همان صفحه؛ اگر داده نشود هیچ چیزی رندر نمی‌شود و
+               صفحات دیگر دقیقاً مثل قبل می‌مانند. *@
+            @if (Model.ExtraSection is not null)
+            {
+                @Model.ExtraSection(null!)
+            }
+            @if (Model.CombineActivityAndHistory && Model.Secondary is not null)
+            {
+                var journeyTitle = string.IsNullOrWhiteSpace(Model.JourneyTitle)
+                    ? UiText.T(Context, "روند رکورد", "Record journey")
+                    : Model.JourneyTitle;
+                <section class="ptg-td-journey" aria-labelledby="ptg-td-journey-title">
+                    <header class="ptg-td-journey-head">
+                        <h2 id="ptg-td-journey-title">@journeyTitle</h2>
+                        @if (!string.IsNullOrWhiteSpace(Model.JourneyDescription))
+                        {
+                            <p>@Model.JourneyDescription</p>
+                        }
+                    </header>
+                    <div class="ptg-td-journey-body">
+                        @if (activity.Count > 0)
+                        {
+                            <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml"
+                                     model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkDetailActivityRow>)activity)" />
+                        }
+                        <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml" model="@Model.Secondary" />
+                    </div>
+                </section>
+            }
+            else if (activity.Count > 0)
             {
                 <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml"
                          model="@((IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkDetailActivityRow>)activity)" />
             }
-            @if (Model.Secondary is not null)
+            @if (!Model.CombineActivityAndHistory && Model.Secondary is not null)
             {
                 <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml" model="@Model.Secondary" />
             }

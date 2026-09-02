@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Services.Exceptions;
 
 namespace PTGOilSystem.Web.Services;
@@ -69,6 +70,10 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
     private readonly ApplicationDbContext _db;
     private readonly ISupplierTransferableBalanceService _balances;
     private readonly AccountingOptions? _accountingOptions;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
 
     public SupplierBalanceTransferService(
         ApplicationDbContext db,
@@ -353,7 +358,7 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
             foreach (var transfer in created)
             {
                 var contract = contracts[transfer.ContractId];
-                _db.LedgerEntries.AddRange(
+                Ledger.PostRange(
                     // ارزش تاریخی از مانده قابل انتقال خارج می‌شود تا باقی‌ماندهٔ موهومی نماند.
                     BuildLedgerEntry(
                         transfer,
@@ -384,11 +389,10 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
 
             foreach (var transfer in created.Where(t => t.ExchangeDifferenceType != SarrafSettlementDifferenceType.None))
             {
-                var differenceLedger = BuildExchangeDifferenceLedger(
+                var differenceLedger = Ledger.Post(BuildExchangeDifferenceLedger(
                     transfer,
                     contracts[transfer.ContractId],
-                    ExchangeDifferenceLedgerSourceType);
-                _db.LedgerEntries.Add(differenceLedger);
+                    ExchangeDifferenceLedgerSourceType));
                 await _db.SaveChangesAsync(ct);
 
                 transfer.ExchangeDifferenceLedgerEntryId = differenceLedger.Id;
@@ -455,7 +459,7 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
             transfer.ReversalReason = Clean(request.ReversalReason, 500);
 
             // ثبت‌های معکوس و جداگانه؛ سطرهای اصلی حذف یا ویرایش نمی‌شوند.
-            _db.LedgerEntries.AddRange(
+            Ledger.PostRange(
                 BuildLedgerEntry(
                     transfer,
                     LedgerSide.Debit,
@@ -482,7 +486,7 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
             // سود/زیان نرخ ارز هم باید معکوس شود، وگرنه ثبت‌های برگشت نامتوازن می‌مانند.
             if (transfer.ExchangeDifferenceType != SarrafSettlementDifferenceType.None)
             {
-                _db.LedgerEntries.Add(BuildExchangeDifferenceLedger(
+                Ledger.Post(BuildExchangeDifferenceLedger(
                     transfer,
                     transfer.Contract,
                     ExchangeDifferenceReversalLedgerSourceType,
@@ -513,7 +517,7 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
     /// سطر سود/زیان نرخ ارز — همان الگوی تسویهٔ صراف و تخصیص پیش‌پرداخت:
     /// زیان = Debit، سود = Credit؛ در حالت برگشت سمت آن معکوس می‌شود.
     /// </summary>
-    private static LedgerEntry BuildExchangeDifferenceLedger(
+    private static LedgerPostingRequest BuildExchangeDifferenceLedger(
         SupplierBalanceTransfer transfer,
         Contract? contract,
         string sourceType,
@@ -535,7 +539,7 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
                 ? $"{label} (#{transfer.Id})"
                 : $"{label} بابت قرارداد {contractNumber}";
 
-        return new LedgerEntry
+        return new LedgerPostingRequest
         {
             EntryDate = transfer.TransferDate.Date,
             Side = side,
@@ -554,7 +558,7 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
         };
     }
 
-    private static LedgerEntry BuildLedgerEntry(
+    private static LedgerPostingRequest BuildLedgerEntry(
         SupplierBalanceTransfer transfer,
         LedgerSide side,
         int? contractId,

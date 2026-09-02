@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Loading
+@using PTGOilSystem.Web.Models.ExcelImport
 @model PTGOilSystem.Web.Models.Loading.LoadingCreateViewModel
 @{
     ViewData["Title"] = "ثبت بارگیری";
@@ -83,6 +84,25 @@
     var createPostUrl = Url.Action("Create", "Loading");
     var importPostUrl = Url.Action("ImportWorkbook", "Loading");
     var importSampleUrl = Url.Action("DownloadSample", "LoadingExcelImport") ?? "/Loading/ExcelImport/sample";
+    // همان کامپوننت مشترک بقیهٔ صفحات: دکمهٔ سبز + مودال. حالت external یعنی خودِ این صفحه
+    // فایل را می‌فرستد و سطرها را به جدول اضافه می‌کند؛ هیچ Job سمت سرور ساخته نمی‌شود.
+    var loadingImportOptions = new ExcelImportComponentOptions
+    {
+        InputId = "loadingExcelImportFile",
+        FileFieldName = "LoadingImportWorkbookFile",
+        Mode = "external",
+        AcceptExtensions = ".xlsx",
+        Title = "امپورت سطرهای بارگیری از اکسل",
+        Description = "فایل اکسل بارگیری را انتخاب کنید؛ سطرهای فایل مستقیم به جدول همین فرم افزوده می‌شود.",
+        StartButtonText = "خواندن فایل و افزودن سطرها",
+        SuccessTitle = "سطرهای فایل به جدول افزوده شد",
+        ToggleText = "امپورت از اکسل",
+        MaxFileSizeMb = 20,
+        RequiresConfirmation = false,
+        ShowResultDetails = false,
+        Compact = true,
+        SampleUrl = importSampleUrl
+    };
 }
 
 <div class="ak-form-page ak-form-page--wide loading-import-workbook" data-loading-create-page>
@@ -93,6 +113,7 @@
 
     <form asp-action="Create" method="post" enctype="multipart/form-data" class="ak-form" data-loading-create-form data-create-action="@createPostUrl">
         @Html.AntiForgeryToken()
+        @Html.FormToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <input asp-for="LockContract" type="hidden" />
         <input type="hidden" name="ImportedRowsJson" id="loadingImportedRowsJson" value="" />
@@ -233,12 +254,9 @@
                     <button type="button" class="ak-btn" data-loading-row-add>
                         <i class="bi bi-plus-lg" aria-hidden="true"></i> افزودن سطر
                     </button>
-                    <button type="button" class="ak-btn lic-excel-import-btn" data-loading-import-open
-                            data-busy-text="در حال خواندن فایل...">
-                        <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> امپورت از اکسل
-                    </button>
-                    @* بدون name تا هرگز همراه فرم ارسال نشود؛ فایل با fetch فرستاده می‌شود. *@
-                    <input type="file" class="d-none" accept=".xlsx" data-loading-import-file aria-label="فایل اکسل بارگیری" />
+                    <div class="excel-import-inline" data-loading-import>
+                        <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="loadingImportOptions" />
+                    </div>
                     @* «فایل نمونه» به‌جای دانلود مستقیم، راهنمای ستون‌های موردنیاز فایل را باز می‌کند؛
                        خودِ فایل نمونه از داخل همان مودال قابل دانلود است. *@
                     <button type="button" class="ak-btn ak-btn--ghost"
@@ -2794,8 +2812,7 @@
             // ---- Excel import ------------------------------------------------
             // فایل خوانده می‌شود و سطرهایش مستقیماً به همان مجموعهٔ سطرهای فرم اضافه می‌شود.
             // هیچ پنل، مرحله، پیش‌نمایش یا ثبت جداگانه‌ای وجود ندارد.
-            const importButton = document.querySelector('[data-loading-import-open]');
-            const importFileInput = document.querySelector('[data-loading-import-file]');
+            const importComponent = document.querySelector('[data-loading-import] [data-excel-import]');
             const importSummary = document.querySelector('[data-loading-import-summary]');
             const loadingFormEl = document.querySelector('[data-loading-create-form]');
             const importUrl = '@importPostUrl';
@@ -2874,18 +2891,6 @@
                 target?.querySelector('.lic-input-error')?.focus({ preventScroll: true });
             }
 
-            function setImportBusy(busy) {
-                if (!importButton) return;
-                if (busy) {
-                    importButton.dataset.idleHtml = importButton.dataset.idleHtml || importButton.innerHTML;
-                    importButton.textContent = importButton.dataset.busyText || 'در حال خواندن فایل...';
-                    importButton.disabled = true;
-                } else {
-                    if (importButton.dataset.idleHtml) importButton.innerHTML = importButton.dataset.idleHtml;
-                    importButton.disabled = false;
-                }
-            }
-
             function applyImportedRows(payload) {
                 ensureVirtualMode();
                 const incoming = payload.rows || [];
@@ -2929,18 +2934,16 @@
                 return response.json();
             }
 
-            importButton?.addEventListener('click', () => importFileInput?.click());
-            importFileInput?.addEventListener('change', async () => {
-                const file = importFileInput.files && importFileInput.files[0];
-                if (!file) return;
-
-                setImportBusy(true);
+            // کامپوننت مشترک فقط فایل را می‌دهد؛ خواندن و افزودن سطرها همان منطق قبلی است.
+            importComponent?.addEventListener('excel-import:start', async event => {
+                const api = event.detail;
                 showImportMessage('', false, null);
+                api.progress({ stage: 2, message: 'در حال خواندن سطرهای فایل…' });
                 try {
-                    const payload = await runImport(file);
+                    const payload = await runImport(api.file);
                     if (!payload || payload.success !== true) {
                         const problems = (payload && payload.globalErrors) || [];
-                        showImportMessage(problems.join(' ') || (payload && payload.message) || 'فایل قابل امپورت نیست.', true, null);
+                        api.fail(problems.join(' ') || (payload && payload.message) || 'فایل قابل امپورت نیست.');
                         return;
                     }
 
@@ -2961,11 +2964,9 @@
                         payload.message,
                         payload.invalidRows > 0,
                         payload.invalidRows > 0 ? goToFirstErrorRow : null);
+                    api.complete({ message: payload.message || 'سطرهای فایل به جدول افزوده شد.' });
                 } catch (error) {
-                    showImportMessage(error.message || 'خواندن فایل انجام نشد.', true, null);
-                } finally {
-                    importFileInput.value = '';
-                    setImportBusy(false);
+                    api.fail(error.message || 'خواندن فایل انجام نشد.');
                 }
             });
 

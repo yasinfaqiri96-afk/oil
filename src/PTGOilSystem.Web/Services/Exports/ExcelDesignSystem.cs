@@ -29,6 +29,10 @@ public static class ExcelDesignSystem
     public const double HeaderRowHeight = 25D;
     public const double BodyRowHeight = 15D;
     public const double WrappedBodyRowHeight = 30D;
+    // ارتفاع هر خطِ متنِ شکسته، و سقف خطوطی که برای یک سطر باز می‌شود. بدون این، متن
+    // بلند در خانه جا نمی‌شد و از سطر بیرون می‌زد.
+    public const double WrappedBodyLineHeight = 15D;
+    public const int MaxWrappedBodyLines = 5;
     public const double TotalRowHeight = 25D;
 
     public const uint OrganizationStyle = 1;

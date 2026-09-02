@@ -244,6 +244,17 @@
         ['dragenter', 'dragover'].forEach(name => dropzone.addEventListener(name, event => { event.preventDefault(); dropzone.classList.add('is-dragging'); }));
         ['dragleave', 'drop'].forEach(name => dropzone.addEventListener(name, event => { event.preventDefault(); dropzone.classList.remove('is-dragging'); }));
         dropzone.addEventListener('drop', event => selectFile(event.dataTransfer.files[0]));
+        // کامپوننت همیشه داخل مودال مشترک است؛ با بستن مودال فایل انتخاب‌شده و پنل نتیجه
+        // پاک می‌شود تا باز کردن بعدی از صفر شروع شود و فایل هم داخل فرم صفحه باقی نماند.
+        // تنها استثنا Jobِ نیمه‌تمام سرور است که باید بعد از باز شدن دوباره ادامه پیدا کند.
+        const modalHost = root.closest('.modal');
+        if (modalHost) {
+            modalHost.addEventListener('hidden.bs.modal', () => {
+                if (mode === 'job' && jobId) return;
+                reset();
+            });
+        }
+
         if (mode === 'job' && jobId) poll();
     }
 

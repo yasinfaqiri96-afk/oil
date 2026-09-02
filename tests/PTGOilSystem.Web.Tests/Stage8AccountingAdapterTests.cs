@@ -274,6 +274,142 @@ public sealed class Stage8AccountingAdapterTests(AccountingPostgreSqlFixture fix
         Assert.Equal("NO_SHORTAGE_CHARGE", result.Reason);
     }
 
+    // ---- Shortage charge on a multi-company leg ----
+    //
+    // One truck can carry the cargo of two internal companies at once. The shortage claim against
+    // the carrier has to keep that ownership: charging the whole loss to whichever company heads
+    // the leg bills one owner for another owner's goods. The ledger itself is still single-company
+    // — AccountingPostingService refuses any journal that is not the system owner's — so a
+    // co-owner's share stays out of the ledger rather than being billed to the owner.
+
+    [Fact]
+    public async Task Shortage_Of_A_Multi_Company_Leg_Charges_Only_The_Owner_Share()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await InventoryTransferAccountingAdapterTests.AddCompanyWithContractAsync(db, scope);
+
+        // 30 MT truck: 10 MT on company A (the system owner), 20 MT on company B.
+        var receipt = await AddTransportReceiptAsync(
+            db, scope, chargeUsd: 900m, useServiceProvider: true,
+            legQuantityMt: 30m,
+            allocations: [(scope.Contract.Id, 10m), (second.Contract.Id, 20m)]);
+
+        var result = await CreateShortageAdapter(db).TryPostShortageChargeAsync(receipt);
+
+        Assert.Equal(PaymentPostingStatus.Posted, result.Status);
+
+        // A third of the truck is company A's, so a third of the claim is: 300, not 900.
+        Assert.Equal(300m, result.Journal!.Lines.Sum(x => x.Debit));
+        Assert.Equal(scope.Company.Id, result.Journal.CompanyId);
+        Assert.All(result.Journal.Lines, line => Assert.Equal(scope.Contract.Id, line.ContractId));
+
+        // Company B is not in the ledger at all — and its 600 was not charged to company A.
+        Assert.Equal(1, await CountShortageJournalsAsync(db, receipt.Id));
+        Assert.Equal(300m, await SumShortageDebitAsync(db, receipt.Id));
+    }
+
+    // A leg wholly owned by a company the ledger cannot take posts nothing and — the part that
+    // matters — throws nothing: the receipt being saved must not fail because of it.
+    [Fact]
+    public async Task Shortage_Of_A_Non_Owner_Leg_Is_Skipped_And_Never_Billed_To_The_Owner()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await InventoryTransferAccountingAdapterTests.AddCompanyWithContractAsync(db, scope);
+
+        var receipt = await AddTransportReceiptAsync(
+            db, scope, chargeUsd: 400m, useServiceProvider: true,
+            legQuantityMt: 20m,
+            allocations: [(second.Contract.Id, 20m)]);
+
+        var result = await CreateShortageAdapter(db).TryPostShortageChargeAsync(receipt);
+
+        Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
+        Assert.Equal("COMPANY_NOT_OWNER", result.Reason);
+        Assert.Equal(0, await CountShortageJournalsAsync(db, receipt.Id));
+        Assert.Equal(0m, await SumShortageDebitAsync(db, receipt.Id));
+    }
+
+    // Retry on a multi-company leg posts nothing new — a leg one of whose owners the ledger
+    // cannot take still reads as the duplicate it is.
+    [Fact]
+    public async Task Shortage_Of_A_Multi_Company_Leg_Is_Idempotent()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await InventoryTransferAccountingAdapterTests.AddCompanyWithContractAsync(db, scope);
+
+        var receipt = await AddTransportReceiptAsync(
+            db, scope, chargeUsd: 900m, useServiceProvider: true,
+            legQuantityMt: 30m,
+            allocations: [(scope.Contract.Id, 10m), (second.Contract.Id, 20m)]);
+        var adapter = CreateShortageAdapter(db);
+
+        Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryPostShortageChargeAsync(receipt)).Status);
+        var retry = await adapter.TryPostShortageChargeAsync(receipt);
+
+        Assert.Equal(PaymentPostingStatus.Duplicate, retry.Status);
+        Assert.Equal("DUPLICATE_SOURCE_EVENT", retry.Reason);
+        Assert.Equal(1, await CountShortageJournalsAsync(db, receipt.Id));
+        Assert.Equal(300m, await SumShortageDebitAsync(db, receipt.Id));
+    }
+
+    // JournalEntryLine.ContractId is metadata: the only thing that reads it back is the closing
+    // FX revaluation, which groups by it — and only over non-USD monetary lines. A shortage charge
+    // is USD at rate 1, so it is never in that population and an empty contract on it changes no
+    // money. When one owner brought several contracts into the same truck the dimension has no
+    // single answer, so it is left empty rather than guessed.
+    [Fact]
+    public async Task Shortage_Leaves_The_Contract_Empty_When_One_Owner_Brought_Several_Contracts()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var sameCompanySecondContract =
+            await InventoryTransferAccountingAdapterTests.AddPurchaseContractAsync(db, scope);
+        var second = await InventoryTransferAccountingAdapterTests.AddCompanyWithContractAsync(db, scope);
+
+        // Company A brings two contracts (10 + 5), company B one (15), of a 30 MT truck.
+        var receipt = await AddTransportReceiptAsync(
+            db, scope, chargeUsd: 900m, useServiceProvider: true,
+            legQuantityMt: 30m,
+            allocations:
+            [
+                (scope.Contract.Id, 10m),
+                (sameCompanySecondContract.Id, 5m),
+                (second.Contract.Id, 15m)
+            ]);
+
+        var result = await CreateShortageAdapter(db).TryPostShortageChargeAsync(receipt);
+
+        // A owns 15 of 30, so A is charged 450 — the two contracts are added up, not posted twice
+        // and not reduced to whichever one heads the leg.
+        Assert.Equal(PaymentPostingStatus.Posted, result.Status);
+        Assert.Equal(450m, result.Journal!.Lines.Sum(x => x.Debit));
+        Assert.All(result.Journal.Lines, line => Assert.Null(line.ContractId));
+
+        // USD at rate 1: outside the revaluation population, so the empty contract costs nothing.
+        Assert.All(result.Journal.Lines, line => Assert.Equal("USD", line.TransactionCurrencyCode));
+        Assert.Equal(1, await CountShortageJournalsAsync(db, receipt.Id));
+    }
+
+    private static Task<int> CountShortageJournalsAsync(ApplicationDbContext db, int receiptId)
+        => db.JournalEntries
+            .AsNoTracking()
+            .CountAsync(x => x.SourceModule == ShortageChargeAccountingAdapter.SourceModule
+                && x.SourceEntityType == ShortageChargeAccountingAdapter.SourceEntityType
+                && x.SourceEntityId == receiptId
+                && !x.IsReversal);
+
+    private static Task<decimal> SumShortageDebitAsync(ApplicationDbContext db, int receiptId)
+        => db.JournalEntryLines
+            .AsNoTracking()
+            .Where(x => x.JournalEntry!.SourceModule == ShortageChargeAccountingAdapter.SourceModule
+                && x.JournalEntry.SourceEntityType == ShortageChargeAccountingAdapter.SourceEntityType
+                && x.JournalEntry.SourceEntityId == receiptId
+                && !x.JournalEntry.IsReversal)
+            .SumAsync(x => x.Debit);
+
     // ---- Sarraf settlement ----
 
     [Fact]
@@ -606,7 +742,9 @@ public sealed class Stage8AccountingAdapterTests(AccountingPostgreSqlFixture fix
         PaymentAccountingAdapterTests.PaymentScope scope,
         decimal? chargeUsd,
         bool useServiceProvider,
-        int? operationalAssetId = null)
+        int? operationalAssetId = null,
+        decimal legQuantityMt = 20m,
+        (int ContractId, decimal QuantityMt)[]? allocations = null)
     {
         var leg = new InventoryTransportLeg
         {
@@ -617,11 +755,24 @@ public sealed class Stage8AccountingAdapterTests(AccountingPostgreSqlFixture fix
             DriverId = useServiceProvider ? null : scope.Driver.Id,
             ServiceProviderId = useServiceProvider ? scope.ServiceProvider.Id : null,
             LoadedDate = EventDate,
-            QuantityMt = 20m,
+            QuantityMt = legQuantityMt,
             Status = InventoryTransportLegStatus.Draft
         };
         db.InventoryTransportLegs.Add(leg);
         await db.SaveChangesAsync();
+
+        // Source shares are what make a leg multi-company; without them the header contract is
+        // the whole ownership, exactly as before.
+        if (allocations is { Length: > 0 })
+        {
+            db.InventoryTransportLegAllocations.AddRange(allocations.Select(a => new InventoryTransportLegAllocation
+            {
+                InventoryTransportLegId = leg.Id,
+                SourcePurchaseContractId = a.ContractId,
+                QuantityMt = a.QuantityMt
+            }));
+            await db.SaveChangesAsync();
+        }
 
         var receipt = new InventoryTransportReceipt
         {

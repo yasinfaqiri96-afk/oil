@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Employees;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 
@@ -61,6 +62,10 @@ public static class EmployeeSalarySummaryCalculator
 public sealed class EmployeeSalaryService : IEmployeeSalaryService
 {
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IAuditService _audit;
     private readonly ILogger<EmployeeSalaryService> _logger;
@@ -283,7 +288,7 @@ public sealed class EmployeeSalaryService : IEmployeeSalaryService
         _db.PaymentTransactions.Add(payment);
         await _db.SaveChangesAsync(ct);
 
-        var ledgerEntry = new LedgerEntry
+        var ledgerEntry = Ledger.Post(new LedgerPostingRequest
         {
             EntryDate = salaryTransaction.TransactionDate,
             Side = LedgerSide.Debit,
@@ -299,9 +304,7 @@ public sealed class EmployeeSalaryService : IEmployeeSalaryService
             SourceId = payment.Id,
             Reference = salaryTransaction.Reference,
             EmployeeId = employee.Id
-        };
-
-        _db.LedgerEntries.Add(ledgerEntry);
+        });
         await _db.SaveChangesAsync(ct);
 
         payment.LedgerEntryId = ledgerEntry.Id;

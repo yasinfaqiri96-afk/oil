@@ -322,25 +322,23 @@ internal sealed class PartyStatementPdfDocument(
             {
                 columns.ConstantColumn(36);
                 columns.RelativeColumn(2.4f);
-                columns.ConstantColumn(78);
-                columns.ConstantColumn(78);
-                columns.ConstantColumn(78);
-                columns.ConstantColumn(52);
-                columns.ConstantColumn(82);
+                columns.ConstantColumn(86);
+                columns.ConstantColumn(96);
+                columns.ConstantColumn(86);
+                columns.ConstantColumn(90);
             });
             table.Header(header =>
             {
                 HeaderCell(header.Cell(), "شماره");
                 HeaderCell(header.Cell(), "قرارداد");
                 HeaderCell(header.Cell(), "مبلغ کل قرارداد (USD)");
-                HeaderCell(header.Cell(), "ارزش قطعی");
+                HeaderCell(header.Cell(), "ارزش مقدار بارگیری‌شده");
                 HeaderCell(header.Cell(), "پرداخت / دریافت");
-                HeaderCell(header.Cell(), "تعداد");
                 HeaderCell(header.Cell(), "بیلانس قرارداد");
             });
             if (grouping.Rows.Count == 0)
             {
-                table.Cell().ColumnSpan(7)
+                table.Cell().ColumnSpan(6)
                     .Element(cell => PdfDesignSystem.SheetCell(cell, PlainFill))
                     .PaddingVertical(10).AlignCenter()
                     .Text("در این دوره قراردادی با گردش مالی ثبت نشده است.")
@@ -360,7 +358,6 @@ internal sealed class PartyStatementPdfDocument(
                     NumberCell(table.Cell(), row.ContractValueUsd, AmountFill);
                     NumberCell(table.Cell(), Money(row.ConfirmedValue, row.ConfirmedValueRub), AmountFill);
                     NumberCell(table.Cell(), Money(row.SettlementTotal, row.SettlementTotalRub), PositiveFill);
-                    NumberCell(table.Cell(), row.LoadingCount, PlainFill, 0);
                     NumberCell(table.Cell(), Money(row.Balance, row.BalanceRub), BalanceFill);
                 }
             }
@@ -370,7 +367,6 @@ internal sealed class PartyStatementPdfDocument(
             TotalMoneyCell(table.Cell(), null);
             TotalMoneyCell(table.Cell(), Money(grouping.TotalConfirmedValue, grouping.TotalConfirmedValueRub));
             TotalMoneyCell(table.Cell(), Money(grouping.TotalSettlement, grouping.TotalSettlementRub));
-            TotalMoneyCell(table.Cell(), grouping.TotalLoadingCount, 0);
             TotalMoneyCell(table.Cell(), grouping.IsRub
                 ? statement.Summary.ClosingBalanceRub
                 : statement.Summary.ClosingBalance);

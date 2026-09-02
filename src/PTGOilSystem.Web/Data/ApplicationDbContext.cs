@@ -126,6 +126,12 @@ public class ApplicationDbContext : DbContext
     // --- Owned Operational Assets ---
     public DbSet<OperationalAsset> OperationalAssets => Set<OperationalAsset>();
     public DbSet<AssetOwnershipShare> AssetOwnershipShares => Set<AssetOwnershipShare>();
+    public DbSet<AssetAssignment> AssetAssignments => Set<AssetAssignment>();
+    public DbSet<AssetMaintenanceJob> AssetMaintenanceJobs => Set<AssetMaintenanceJob>();
+    public DbSet<AssetMeterReading> AssetMeterReadings => Set<AssetMeterReading>();
+    public DbSet<AssetDocument> AssetDocuments => Set<AssetDocument>();
+    public DbSet<AssetUsage> AssetUsages => Set<AssetUsage>();
+    public DbSet<AssetCharge> AssetCharges => Set<AssetCharge>();
     public DbSet<AssetRentTransaction> AssetRentTransactions => Set<AssetRentTransaction>();
     public DbSet<AssetRentShare> AssetRentShares => Set<AssetRentShare>();
 
@@ -133,6 +139,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<BackupSetting> BackupSettings => Set<BackupSetting>();
     public DbSet<BackupDriveCredential> BackupDriveCredentials => Set<BackupDriveCredential>();
     public DbSet<BackupJob> BackupJobs => Set<BackupJob>();
+
+    // --- Operational period lock (PTG-P1-01; independent of the disabled Accounting module) ---
+    public DbSet<OperationalPeriodLock> OperationalPeriodLocks => Set<OperationalPeriodLock>();
 
     public override int SaveChanges()
     {
@@ -199,6 +208,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Wagon>().Property(w => w.IsActive).HasDefaultValue(true);
         modelBuilder.Entity<ServiceProviderEntity>().Property(p => p.IsActive).HasDefaultValue(true);
         modelBuilder.Entity<OperationalAsset>().Property(a => a.IsActive).HasDefaultValue(true);
+        modelBuilder.Entity<OperationalAsset>().Property(a => a.OperationalStatus).HasDefaultValue(OperationalAssetStatus.Active);
         modelBuilder.Entity<InventoryTransportLeg>().ToTable("InventoryTransportLegs");
         modelBuilder.Entity<InventoryTransportBatch>().ToTable("InventoryTransportBatches");
         modelBuilder.Entity<InventoryTransportLegAllocation>().ToTable("InventoryTransportLegAllocations");
@@ -267,6 +277,54 @@ public class ApplicationDbContext : DbContext
         // لغو نرم رسید بارگیری: پرچم لغو ایندکس می‌شود چون تقریباً همهٔ محاسبات عملیاتی روی آن فیلتر دارند.
         modelBuilder.Entity<LoadingReceipt>().HasIndex(r => r.IsCancelled);
         modelBuilder.Entity<LoadingReceipt>().Property(r => r.RowVersion).IsRowVersion();
+
+        // PTG-P1-05 — نشانهٔ هم‌زمانیِ صریح روی اسناد مالی/عملیاتیِ قابل ویرایش.
+        //
+        // الگوی LoadingReceipt (نگاشتِ uint RowVersion به ستونِ سیستمیِ xmin) روی این
+        // موجودیت‌ها آزموده شد و روی PostgreSQL واقعی شکست: `42703: column p.xmin does not exist`.
+        // ستونِ سیستمی در subquery/derived table قابل ارجاع نیست و EF برای این موجودیت‌ها
+        // چنین کوئری‌هایی می‌سازد. جزئیات در PTG_FULL_HARDENING_VALIDATION_REPORT.md.
+        //
+        // جایگزین: ستونِ واقعیِ bigint «Version» که خودِ برنامه در ApplyConcurrencyVersions
+        // یکی‌یکی زیاد می‌کند. مستقل از شکلِ کوئری و مستقل از Provider است، پس هم روی
+        // PostgreSQL تولید و هم روی SQLite تست‌ها یکسان کار می‌کند.
+        // فقط موجودیت‌هایی که واقعاً مسیرِ ویرایش دارند. سندهای فقط-افزودنی
+        // (مثل LedgerEntry یا InventoryMovement) عمداً بیرون‌اند: نشانهٔ هم‌زمانی برای
+        // سطری که هرگز UPDATE نمی‌شود فقط هزینه است.
+        ConfigureConcurrencyVersion<PaymentTransaction>(modelBuilder);
+        ConfigureConcurrencyVersion<ExpenseTransaction>(modelBuilder);
+        ConfigureConcurrencyVersion<SalesTransaction>(modelBuilder);
+        ConfigureConcurrencyVersion<Contract>(modelBuilder);
+        ConfigureConcurrencyVersion<ContractPartner>(modelBuilder);
+        ConfigureConcurrencyVersion<TruckDispatch>(modelBuilder);
+        ConfigureConcurrencyVersion<LoadingRegister>(modelBuilder);
+        ConfigureConcurrencyVersion<LossEvent>(modelBuilder);
+        ConfigureConcurrencyVersion<InventoryTransportLeg>(modelBuilder);
+
+        // جستجوی canonical — ستونِ کمکی ایندکس می‌شود، وگرنه جستجو روی جدولِ بزرگ
+        // (مثل LoadingRegisters) از اسکنِ کامل عبور می‌کرد.
+        modelBuilder.Entity<Partner>().HasIndex(x => x.SearchKey);
+        modelBuilder.Entity<Supplier>().HasIndex(x => x.SearchKey);
+        modelBuilder.Entity<Customer>().HasIndex(x => x.SearchKey);
+        modelBuilder.Entity<Company>().HasIndex(x => x.SearchKey);
+        modelBuilder.Entity<Truck>().HasIndex(x => x.SearchKey);
+        modelBuilder.Entity<Wagon>().HasIndex(x => x.SearchKey);
+        modelBuilder.Entity<Contract>().HasIndex(x => x.SearchKey);
+        modelBuilder.Entity<LoadingRegister>().HasIndex(x => x.SearchKey);
+
+        // PTG-P2-02 — کلیدِ ضدتکراریِ ایمپورتِ مصرف. همان الگوی LoadingRegister.ImportUniqueKey:
+        // یکتایی در سطح دیتابیس، و NULL برای هر مصرفی که از فایل نیامده است.
+        modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.ImportUniqueKey).IsUnique();
+
+        // PTG-P2-03 — زنجیرهٔ اصلاح فروش. هر دو سر یکتایند: یک سند ابطال‌شده فقط
+        // یک جایگزین دارد، و یک جایگزین فقط اصلاحِ یک سند است. بدون این، دو بار اصلاح
+        // کردنِ یک فروش دو عایدِ جایگزین می‌ساخت. NULL از یکتایی معاف است، پس همهٔ
+        // رکوردهای موجود دست‌نخورده می‌مانند.
+        modelBuilder.Entity<SalesTransaction>().HasIndex(s => s.ReplacementSaleId).IsUnique();
+        modelBuilder.Entity<SalesTransaction>().HasIndex(s => s.CorrectedFromSaleId).IsUnique();
+
+        // PTG-P1-01 — قفل دورهٔ عملیاتی. جدول عمداً کوچک است: یک واترمارک با تاریخچه.
+        modelBuilder.Entity<OperationalPeriodLock>().HasIndex(x => new { x.IsActive, x.LockedThroughDate });
 
         // New fields on TruckDispatch (Gap #4 + #5)
         ConfigureWeight<TruckDispatch>(modelBuilder, d => d.ToleranceMt!);
@@ -424,10 +482,12 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SupplierBalanceTransferSource>().Property(s => s.HistoricalCurrencyPerUsdRate).HasColumnType("numeric(24,12)");
 
         ConfigureWeight<OperationalAsset>(modelBuilder, a => a.CapacityMt!);
+        ConfigureMoney<OperationalAsset>(modelBuilder, a => a.AcquisitionCostUsd!);
         ConfigureMoney<OperationalAsset>(modelBuilder, a => a.MonthlyDepreciationUsd);
         ConfigureMoney<OperationalAsset>(modelBuilder, a => a.DefaultInternalRateUsd!);
         ConfigureMoney<OperationalAsset>(modelBuilder, a => a.DefaultExternalRateUsd!);
         modelBuilder.Entity<AssetOwnershipShare>().Property(s => s.SharePercent).HasColumnType("numeric(9,4)");
+        modelBuilder.Entity<AssetMeterReading>().Property(r => r.ReadingValue).HasColumnType("numeric(18,4)");
         ConfigureWeight<AssetRentTransaction>(modelBuilder, r => r.QuantityMt!);
         modelBuilder.Entity<AssetRentTransaction>().Property(r => r.DistanceKm).HasColumnType("numeric(18,4)");
         modelBuilder.Entity<AssetRentTransaction>().Property(r => r.Days).HasColumnType("numeric(18,4)");
@@ -465,6 +525,44 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<AssetOwnershipShare>().HasIndex(s => new { s.OperationalAssetId, s.EffectiveFrom, s.EffectiveTo });
         modelBuilder.Entity<AssetOwnershipShare>().HasIndex(s => s.CompanyId);
         modelBuilder.Entity<AssetOwnershipShare>().HasIndex(s => s.PartnerId);
+        modelBuilder.Entity<AssetAssignment>()
+            .HasIndex(a => new { a.OperationalAssetId, a.Role })
+            .IsUnique()
+            .HasFilter("\"ToDate\" IS NULL");
+        modelBuilder.Entity<AssetAssignment>().HasIndex(a => new { a.ResponsiblePartyType, a.ResponsiblePartyId });
+        modelBuilder.Entity<AssetAssignment>().HasIndex(a => a.DriverId);
+        modelBuilder.Entity<AssetAssignment>().HasIndex(a => a.BaseTerminalId);
+        modelBuilder.Entity<AssetMaintenanceJob>().HasIndex(j => new { j.OperationalAssetId, j.Status, j.ScheduledDate });
+        modelBuilder.Entity<AssetMaintenanceJob>().HasIndex(j => j.ExpenseTransactionId);
+        modelBuilder.Entity<AssetMeterReading>().HasIndex(r => new { r.OperationalAssetId, r.MeterType, r.ReadingDate });
+        modelBuilder.Entity<AssetDocument>().HasIndex(d => new { d.OperationalAssetId, d.DocumentType, d.ExpiryDate });
+        ConfigureWeight<AssetUsage>(modelBuilder, u => u.QuantityMt!);
+        modelBuilder.Entity<AssetUsage>().Property(u => u.DistanceKm).HasColumnType("numeric(18,4)");
+        modelBuilder.Entity<AssetUsage>().Property(u => u.Days).HasColumnType("numeric(18,4)");
+        modelBuilder.Entity<AssetUsage>().Property(u => u.IsReversed).HasDefaultValue(false);
+        ConfigureMoney<AssetCharge>(modelBuilder, c => c.Rate);
+        modelBuilder.Entity<AssetCharge>().Property(c => c.QuantityBasis).HasColumnType("numeric(18,4)");
+        modelBuilder.Entity<AssetCharge>().Property(c => c.FxRateToUsd).HasColumnType("numeric(18,6)");
+        ConfigureMoney<AssetCharge>(modelBuilder, c => c.AmountOriginal);
+        ConfigureMoney<AssetCharge>(modelBuilder, c => c.AmountUsd);
+        modelBuilder.Entity<AssetCharge>().Property(c => c.Currency).HasDefaultValue("USD");
+        modelBuilder.Entity<AssetCharge>().Property(c => c.PostingStatus).HasDefaultValue(AssetChargePostingStatus.Pending);
+        modelBuilder.Entity<AssetCharge>().Property(c => c.IsCancelled).HasDefaultValue(false);
+        modelBuilder.Entity<AssetUsage>()
+            .HasIndex(u => new { u.OperationalAssetId, u.DocumentType, u.DocumentId })
+            .IsUnique();
+        modelBuilder.Entity<AssetUsage>().HasIndex(u => u.UsageDate);
+        modelBuilder.Entity<AssetCharge>()
+            .HasIndex(c => new { c.AssetUsageId, c.ChargeKind })
+            .IsUnique();
+        modelBuilder.Entity<AssetCharge>()
+            .HasIndex(c => c.LegacyAssetRentTransactionId)
+            .IsUnique()
+            .HasFilter("\"LegacyAssetRentTransactionId\" IS NOT NULL");
+        modelBuilder.Entity<AssetCharge>().HasIndex(c => new { c.CounterpartyPartyType, c.CounterpartyPartyId });
+        modelBuilder.Entity<AssetCharge>().HasIndex(c => c.ContractId);
+        modelBuilder.Entity<AssetCharge>().HasIndex(c => c.JournalEntryId);
+        modelBuilder.Entity<AssetCharge>().HasIndex(c => c.LedgerEntryId);
         modelBuilder.Entity<AssetRentTransaction>().HasIndex(r => new { r.OperationalAssetId, r.RentDate });
         modelBuilder.Entity<AssetRentTransaction>().HasIndex(r => r.LoadingRegisterId);
         modelBuilder.Entity<AssetRentTransaction>().HasIndex(r => r.TransportLegId);
@@ -484,6 +582,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<LoadingExpenseLine>().HasIndex(l => l.ExpenseTypeId);
         modelBuilder.Entity<LoadingExpenseLine>().HasIndex(l => l.ServiceProviderId);
         modelBuilder.Entity<LoadingExpenseLine>().HasIndex(l => l.OperationalAssetId);
+        modelBuilder.Entity<LoadingExpenseLine>().HasIndex(l => new { l.CarrierPartyType, l.CarrierPartyId });
         modelBuilder.Entity<LoadingExpenseLine>().HasIndex(l => l.ExpenseTransactionId);
         modelBuilder.Entity<LoadingExpenseLine>().HasIndex(l => l.AssetRentTransactionId);
         modelBuilder.Entity<Terminal>().HasIndex(t => t.Code).IsUnique();
@@ -501,7 +600,12 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Wagon>().HasIndex(w => w.WagonNumber).IsUnique();
         modelBuilder.Entity<Vessel>().HasIndex(v => v.Name).IsUnique();
         modelBuilder.Entity<Contract>().HasIndex(c => c.ContractNumber).IsUnique();
-        modelBuilder.Entity<ContractPartner>().HasIndex(c => new { c.ContractId, c.PartnerId }).IsUnique();
+        // PTG-P0-03 — سهم شرکا تاریخ‌دار شد: یک شریک می‌تواند در یک قرارداد چند بازه داشته
+        // باشد، پس یکتایی روی (قرارداد، شریک، آغاز بازه) است نه (قرارداد، شریک).
+        modelBuilder.Entity<ContractPartner>()
+            .HasIndex(c => new { c.ContractId, c.PartnerId, c.EffectiveFrom })
+            .IsUnique();
+        modelBuilder.Entity<ContractPartner>().HasIndex(c => new { c.ContractId, c.EffectiveFrom });
         modelBuilder.Entity<SalesTransaction>().HasIndex(s => s.InvoiceNumber).IsUnique();
         modelBuilder.Entity<InventoryBatch>().HasIndex(b => b.BatchCode).IsUnique();
         modelBuilder.Entity<Shipment>().HasIndex(s => s.ShipmentCode).IsUnique();
@@ -530,6 +634,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<InventoryTransportLeg>().HasIndex(l => l.OutboundInventoryMovementId).IsUnique();
         modelBuilder.Entity<InventoryTransportLeg>().HasIndex(l => l.ServiceProviderId);
         modelBuilder.Entity<InventoryTransportLeg>().HasIndex(l => l.OperationalAssetId);
+        modelBuilder.Entity<InventoryTransportLeg>().HasIndex(l => new { l.CarrierPartyType, l.CarrierPartyId });
         modelBuilder.Entity<InventoryTransportLeg>().HasIndex(l => l.DriverId);
         modelBuilder.Entity<InventoryTransportLeg>().HasIndex(l => l.InventoryTransportBatchId);
         modelBuilder.Entity<InventoryTransportLeg>().HasIndex(l => l.TruckId);
@@ -553,11 +658,13 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<InventoryTransportReceipt>().HasIndex(r => r.InventoryMovementId).IsUnique();
         modelBuilder.Entity<InventoryTransportReceipt>().HasIndex(r => r.ServiceProviderId);
         modelBuilder.Entity<InventoryTransportReceipt>().HasIndex(r => r.OperationalAssetId);
+        modelBuilder.Entity<InventoryTransportReceipt>().HasIndex(r => new { r.CarrierPartyType, r.CarrierPartyId });
         modelBuilder.Entity<TruckDispatch>().HasIndex(d => d.LoadingReceiptAllocationId);
         modelBuilder.Entity<TruckDispatch>().HasIndex(d => d.InventoryTransportReceiptId);
         modelBuilder.Entity<TruckDispatch>().HasIndex(d => d.SalesTransactionId).IsUnique();
         modelBuilder.Entity<TruckDispatch>().HasIndex(d => d.ServiceProviderId);
         modelBuilder.Entity<TruckDispatch>().HasIndex(d => d.OperationalAssetId);
+        modelBuilder.Entity<TruckDispatch>().HasIndex(d => new { d.CarrierPartyType, d.CarrierPartyId });
         modelBuilder.Entity<TruckDispatch>().HasIndex(d => d.IsFreightSettled);
         modelBuilder.Entity<LossEvent>().HasIndex(e => new { e.EventDate, e.Stage });
         modelBuilder.Entity<LossEvent>().HasIndex(e => e.InventoryMovementId).IsUnique();
@@ -668,6 +775,8 @@ public class ApplicationDbContext : DbContext
             .HasIndex(l => l.ServiceProviderId);
         modelBuilder.Entity<LedgerEntry>()
             .HasIndex(l => l.DriverId);
+        modelBuilder.Entity<LedgerEntry>()
+            .HasIndex(l => l.PartnerId);
         // جستجوی سریع گروهِ «پرداخت از طریق صراف».
         modelBuilder.Entity<LedgerEntry>()
             .HasIndex(l => l.ViaSarrafGroupId);
@@ -1604,6 +1713,102 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(s => s.PartnerId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<LedgerEntry>()
+            .HasOne(l => l.Partner)
+            .WithMany()
+            .HasForeignKey(l => l.PartnerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetAssignment>()
+            .HasOne(a => a.OperationalAsset)
+            .WithMany(a => a.Assignments)
+            .HasForeignKey(a => a.OperationalAssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetAssignment>()
+            .HasOne(a => a.Driver)
+            .WithMany()
+            .HasForeignKey(a => a.DriverId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetAssignment>()
+            .HasOne(a => a.BaseTerminal)
+            .WithMany()
+            .HasForeignKey(a => a.BaseTerminalId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetMaintenanceJob>()
+            .HasOne(j => j.OperationalAsset)
+            .WithMany(a => a.MaintenanceJobs)
+            .HasForeignKey(j => j.OperationalAssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetMaintenanceJob>()
+            .HasOne(j => j.ExpenseTransaction)
+            .WithMany()
+            .HasForeignKey(j => j.ExpenseTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetMeterReading>()
+            .HasOne(r => r.OperationalAsset)
+            .WithMany(a => a.MeterReadings)
+            .HasForeignKey(r => r.OperationalAssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetDocument>()
+            .HasOne(d => d.OperationalAsset)
+            .WithMany(a => a.Documents)
+            .HasForeignKey(d => d.OperationalAssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetUsage>()
+            .HasOne(u => u.OperationalAsset)
+            .WithMany(a => a.Usages)
+            .HasForeignKey(u => u.OperationalAssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetUsage>()
+            .HasOne(u => u.FromLocation)
+            .WithMany()
+            .HasForeignKey(u => u.FromLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetUsage>()
+            .HasOne(u => u.ToLocation)
+            .WithMany()
+            .HasForeignKey(u => u.ToLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetCharge>()
+            .HasOne(c => c.AssetUsage)
+            .WithMany(u => u.Charges)
+            .HasForeignKey(c => c.AssetUsageId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetCharge>()
+            .HasOne(c => c.Contract)
+            .WithMany()
+            .HasForeignKey(c => c.ContractId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetCharge>()
+            .HasOne(c => c.JournalEntry)
+            .WithMany()
+            .HasForeignKey(c => c.JournalEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetCharge>()
+            .HasOne(c => c.LedgerEntry)
+            .WithMany()
+            .HasForeignKey(c => c.LedgerEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AssetCharge>()
+            .HasOne(c => c.LegacyAssetRentTransaction)
+            .WithMany()
+            .HasForeignKey(c => c.LegacyAssetRentTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<AssetRentTransaction>()
             .HasOne(r => r.OperationalAsset)
             .WithMany(a => a.RentTransactions)
@@ -2184,10 +2389,178 @@ public class ApplicationDbContext : DbContext
         System.Linq.Expressions.Expression<System.Func<T, decimal?>> property) where T : class
         => mb.Entity<T>().Property(property).HasColumnType("numeric(18,4)");
 
+    /// <summary>
+    /// PTG-P1-01 — عبورِ صریح و موقتِ یک درخواست از قفلِ دوره.
+    /// فقط <c>IOperationalPeriodGuard</c> پس از بررسی Permission، گرفتن دلیل و ثبت Audit
+    /// آن را روشن می‌کند. عمداً روی خودِ DbContext است (نه ثابتِ سراسری) تا دامنه‌اش
+    /// همان درخواست باشد و به درخواست دیگری نشت نکند.
+    /// </summary>
+    internal bool ClosedOperationalPeriodOverrideApproved { get; set; }
+
+    /// <summary>
+    /// واترمارکِ «تا این تاریخ بسته است»، یک‌بار در هر DbContext خوانده می‌شود.
+    /// null یعنی هنوز خوانده نشده؛ <see cref="OperationalPeriodClosedThrough"/> مقدارِ
+    /// خوانده‌شده را نگه می‌دارد (و <c>DateTime.MinValue</c> یعنی «قفلی وجود ندارد»).
+    /// </summary>
+    private DateTime? _operationalPeriodClosedThrough;
+
     private void PrepareTrackedEntitiesForSave()
     {
         ApplyAuditStamps();
+        ApplyConcurrencyVersions();
+        ApplyCanonicalSearchKeys();
         NormalizeDateTimePropertiesToUtc();
+        EnforceOperationalPeriodLock();
+    }
+
+    /// <summary>
+    /// PTG-P1-05 — نشانهٔ هم‌زمانی را برای موجودیت‌های <see cref="IVersionedEntity"/> جلو می‌برد.
+    ///
+    /// EF مقدارِ <c>Original</c> را در <c>WHERE</c> می‌گذارد و مقدارِ <c>Current</c> را در
+    /// <c>SET</c>. پس با یکی‌زیادکردنِ مقدارِ جاری، دستور به این شکل درمی‌آید:
+    /// <c>UPDATE ... SET "Version" = @orig + 1 ... WHERE "Id" = @id AND "Version" = @orig</c>
+    /// و اگر کاربر دیگری در این فاصله سطر را عوض کرده باشد، صفر سطر به‌روز می‌شود و EF
+    /// <see cref="DbUpdateConcurrencyException"/> می‌دهد — که
+    /// <c>BusinessRuleExceptionFilter</c> آن را به پیام دری ترجمه می‌کند.
+    ///
+    /// این‌جا هیچ قاعدهٔ کسب‌وکاری اجرا نمی‌شود؛ فقط یک شمارنده.
+    /// </summary>
+    private void ApplyConcurrencyVersions()
+    {
+        foreach (var entry in ChangeTracker.Entries<IVersionedEntity>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                if (entry.Entity.Version < 1)
+                    entry.Entity.Version = 1;
+                continue;
+            }
+
+            if (entry.State != EntityState.Modified)
+                continue;
+
+            var property = entry.Property(e => e.Version);
+
+            // ویرایشِ دستیِ خودِ ستون هرگز پذیرفته نمی‌شود: نسخه فقط از مقدارِ اصلیِ سطر
+            // ساخته می‌شود تا هیچ مسیری نتواند با فرستادنِ نسخهٔ دلخواه از کنترل عبور کند.
+            property.CurrentValue = property.OriginalValue + 1;
+        }
+    }
+
+    /// <summary>
+    /// PTG-P1-01 — پشتوانهٔ نهاییِ قفلِ دوره.
+    ///
+    /// کنترلرها پیش از کار، <c>IOperationalPeriodGuard</c> را صدا می‌زنند تا پیام خوانا
+    /// روی فرم بنشیند. این‌جا همان قاعده یک‌بار دیگر، در واپسین لحظه، اعمال می‌شود تا هیچ
+    /// مسیری — سرویس، ایمپورت، یا اسکریپت — نتواند بی‌صدا در ماهِ بسته سند بزند.
+    ///
+    /// تا وقتی هیچ قفلی ثبت نشده باشد (حالت پیش‌فرضِ سیستم) این متد یک <c>SELECT</c>
+    /// کوچک می‌زند و بیرون می‌آید؛ رفتار قبلی دقیقاً حفظ می‌شود.
+    /// </summary>
+    private void EnforceOperationalPeriodLock()
+    {
+        if (ClosedOperationalPeriodOverrideApproved)
+        {
+            return;
+        }
+
+        var pending = ChangeTracker.Entries()
+            .Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Select(entry => new
+            {
+                entry.Entity,
+                Date = Services.OperationalPeriod.OperationalPeriodScope.BusinessDateOf(entry.Entity)
+            })
+            .Where(candidate => candidate.Date.HasValue)
+            .ToList();
+
+        if (pending.Count == 0)
+        {
+            return;
+        }
+
+        var closedThrough = OperationalPeriodClosedThrough();
+        if (closedThrough == DateTime.MinValue)
+        {
+            return;
+        }
+
+        foreach (var candidate in pending)
+        {
+            var date = candidate.Date!.Value.Date;
+            if (date > closedThrough)
+            {
+                continue;
+            }
+
+            throw new Services.OperationalPeriod.OperationalPeriodLockedException(
+                Services.OperationalPeriod.OperationalPeriodGuard.BuildMessage(
+                    Services.OperationalPeriod.OperationalPeriodScope.DescribeKind(candidate.Entity),
+                    date,
+                    closedThrough),
+                closedThrough);
+        }
+    }
+
+    /// <summary>
+    /// آخرین روزِ بسته، یا <c>DateTime.MinValue</c> وقتی هیچ قفلی فعال نیست.
+    /// در طول عمر یک DbContext (یعنی یک درخواست) فقط یک‌بار خوانده می‌شود.
+    /// </summary>
+    private DateTime OperationalPeriodClosedThrough()
+    {
+        // اگر خودِ قفل در همین تراکنش عوض شده باشد، مقدارِ کش‌شده کهنه است. بدون این،
+        // «بستن دوره و بعد ثبت سند در همان درخواست» از قفلِ تازه رد می‌شد.
+        if (ChangeTracker.Entries<OperationalPeriodLock>().Any())
+        {
+            _operationalPeriodClosedThrough = null;
+        }
+
+        if (_operationalPeriodClosedThrough.HasValue)
+        {
+            return _operationalPeriodClosedThrough.Value;
+        }
+
+        var newest = OperationalPeriodLocks
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderByDescending(x => x.LockedThroughDate)
+            .Select(x => (DateTime?)x.LockedThroughDate)
+            .FirstOrDefault();
+
+        _operationalPeriodClosedThrough = newest?.Date ?? DateTime.MinValue;
+        return _operationalPeriodClosedThrough.Value;
+    }
+
+    /// <summary>
+    /// PTG-P1-05 — ستونِ نسخه به‌عنوان نشانهٔ هم‌زمانی، با پیش‌فرضِ ۱ برای سطرهای موجود.
+    /// افزودنی است: هیچ سطری تغییر نمی‌کند و هیچ کوئریِ موجودی معنایش عوض نمی‌شود.
+    /// </summary>
+    private static void ConfigureConcurrencyVersion<TEntity>(ModelBuilder modelBuilder)
+        where TEntity : class, IVersionedEntity
+        => modelBuilder.Entity<TEntity>()
+            .Property(e => e.Version)
+            .IsConcurrencyToken()
+            .HasDefaultValue(1L);
+
+    /// <summary>
+    /// جستجوی canonical — ستونِ کمکی همیشه از همان متنِ نمایشی ساخته می‌شود.
+    ///
+    /// متنِ نمایشی هرگز دست نمی‌خورد: «یوسف اسماعیل» دقیقاً همان ذخیره می‌ماند؛
+    /// فقط یک ستونِ اضافه شکلِ canonical آن را برای مقایسه نگه می‌دارد. چون اینجا
+    /// ساخته می‌شود، هیچ مسیری نمی‌تواند سطری با کلیدِ کهنه ذخیره کند.
+    /// </summary>
+    private void ApplyCanonicalSearchKeys()
+    {
+        foreach (var entry in ChangeTracker.Entries<ICanonicalSearchable>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+            {
+                continue;
+            }
+
+            var key = Helpers.AfghanTextNormalizer.NormalizeForSearch(entry.Entity.BuildSearchSource());
+            entry.Entity.SearchKey = string.IsNullOrWhiteSpace(key) ? null : key;
+        }
     }
 
     private void ApplyAuditStamps()

@@ -27,6 +27,8 @@ public sealed class AccountingChartSeeder(
         new("1310", "Inventory In Transit", AccountType.Asset, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
         new("1400", "Supplier Prepayment", AccountType.Asset, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
         new("1410", "Employee Advance", AccountType.Asset, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
+        new("1500", "Operational Fixed Assets", AccountType.Asset, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
+        new("1590", "Accumulated Depreciation", AccountType.Asset, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("2100", "Accounts Payable", AccountType.Liability, NormalBalance.Credit, MonetaryTreatment.Monetary),
         new("2200", "Customer Advance", AccountType.Liability, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("2300", "Freight Payable", AccountType.Liability, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
@@ -37,10 +39,14 @@ public sealed class AccountingChartSeeder(
         new("3200", "Retained Earnings", AccountType.Equity, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("4100", "Sales Revenue", AccountType.Revenue, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("4200", "Exchange Gain", AccountType.Revenue, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
+        new("4300", "Asset Rental Revenue", AccountType.Revenue, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
+        new("4400", "Internal Asset Recovery", AccountType.Revenue, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("5100", "Cost of Goods Sold", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
         new("5200", "General Expense", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
         new("5300", "Exchange Loss", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
-        new("5400", "Inventory Loss", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary)
+        new("5400", "Inventory Loss", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
+        new("5500", "Depreciation Expense", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
+        new("5600", "Asset Operating Expense", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary)
     ];
 
     private readonly AccountingOptions _options = options.Value;
@@ -125,10 +131,16 @@ public sealed class AccountingChartSeeder(
                 RetainedEarningsAccountId = accountsByCode["3200"].Id,
                 SalesRevenueAccountId = accountsByCode["4100"].Id,
                 ExchangeGainAccountId = accountsByCode["4200"].Id,
+                AssetRentalRevenueAccountId = accountsByCode["4300"].Id,
+                InternalAssetRecoveryAccountId = accountsByCode["4400"].Id,
                 CostOfGoodsSoldAccountId = accountsByCode["5100"].Id,
                 GeneralExpenseAccountId = accountsByCode["5200"].Id,
                 ExchangeLossAccountId = accountsByCode["5300"].Id,
-                InventoryLossAccountId = accountsByCode["5400"].Id
+                InventoryLossAccountId = accountsByCode["5400"].Id,
+                DepreciationExpenseAccountId = accountsByCode["5500"].Id,
+                AssetOperatingExpenseAccountId = accountsByCode["5600"].Id,
+                FixedAssetAccountId = accountsByCode["1500"].Id,
+                AccumulatedDepreciationAccountId = accountsByCode["1590"].Id
             });
 
             await db.SaveChangesAsync(cancellationToken);

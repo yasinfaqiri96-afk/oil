@@ -40,6 +40,7 @@
        قفلِ ضدِ دابل‌کلیکِ خودش را با آزادسازیِ امنِ زمان‌دار مدیریت می‌کند. *@
     <form asp-action="CreateGroup" method="post" id="gexpForm" class="ak-form" data-no-spa data-no-submit-guard novalidate>
         @Html.AntiForgeryToken()
+        @Html.FormToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <div id="gexpItemsContainer"></div>
 

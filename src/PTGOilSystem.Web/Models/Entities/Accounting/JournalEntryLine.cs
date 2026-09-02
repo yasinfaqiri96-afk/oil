@@ -21,6 +21,8 @@ public class JournalEntryLine : BaseEntity
     public StorageTank? Tank { get; set; }
     public int? ProductId { get; set; }
     public Product? Product { get; set; }
+    public int? OperationalAssetId { get; set; }
+    public OperationalAsset? OperationalAsset { get; set; }
     public int? CashAccountId { get; set; }
     public CashAccount? CashAccount { get; set; }
 

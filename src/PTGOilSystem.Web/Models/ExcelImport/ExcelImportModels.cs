@@ -70,9 +70,10 @@ public sealed class ExcelImportComponentOptions
     public bool AllowValidRowsWithErrors { get; init; }
     public bool Compact { get; init; }
 
-    // Inside a data-entry form the uploader is a side task, so it collapses behind a single
-    // green button and only unfolds on click instead of occupying half of the first screen.
-    public bool Collapsible { get; init; }
+    // Import is always a side task, so every page shows one green button and the uploader
+    // itself lives inside the shared modal. Set false only for a page that must render the
+    // uploader inline.
+    public bool Collapsible { get; init; } = true;
     public string ToggleText { get; init; } = "وارد کردن از اکسل";
     public bool ShowResultDetails { get; init; } = true;
     public string? ViewResultsUrl { get; init; }

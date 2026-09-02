@@ -42,6 +42,17 @@ public static class SalesContractText
 
 public sealed class SalesCreateViewModel
 {
+    /// <summary>
+    /// PTG-P1-05 — نسخهٔ سطری که کاربر هنگامِ بازکردنِ فرم دید. با فرم برمی‌گردد تا ذخیره
+    /// روی نسخهٔ کهنه رد شود. صفر یعنی فرم نسخه نفرستاده است.
+    /// </summary>
+    public long Version { get; set; }
+
+    /// <summary>
+    /// PTG-P2-03 — این فروش، جایگزینِ کدام سندِ ابطال‌شده است. خالی یعنی فروشِ عادی.
+    /// </summary>
+    public int? CorrectedFromSaleId { get; set; }
+
     [Display(Name = "مرحله فروش")]
     public SaleStage SaleStage { get; set; } = SaleStage.TerminalStock;
 

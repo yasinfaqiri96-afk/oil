@@ -26,14 +26,19 @@ public partial class PartnershipStatementController : Controller
     private readonly IPartnershipStatementService _statements;
     private readonly IAuditService _audit;
 
+    // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
+    private readonly IFormTokenGuard _formTokens;
+
     public PartnershipStatementController(
         ApplicationDbContext db,
         IPartnershipStatementService statements,
-        IAuditService audit)
+        IAuditService audit,
+        IFormTokenGuard? formTokens = null)
     {
         _db = db;
         _statements = statements;
         _audit = audit;
+        _formTokens = formTokens ?? new FormTokenGuard(db);
     }
 
     public async Task<IActionResult> Index(
@@ -127,7 +132,8 @@ public partial class PartnershipStatementController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateSettlement(
         PartnerSettlementFormViewModel model,
-        string? returnUrl = null)
+        string? returnUrl = null,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         if (model.FromPartnerId == model.ToPartnerId)
         {
@@ -166,8 +172,20 @@ public partial class PartnershipStatementController : Controller
             Description = model.Description
         };
 
+        // PTG-P0-01 — توکن با همان SaveChanges تسویه مصرف می‌شود؛ ارسال دوم چیزی نمی‌سازد.
+        _formTokens.Stamp(formToken, "PartnerSettlement.Create", nameof(PartnerSettlement));
+
         _db.PartnerSettlements.Add(settlement);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            TempData["err"] = "این تسویه قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectBack(returnUrl);
+        }
+
         await _audit.LogAndSaveAsync(
             nameof(PartnerSettlement),
             settlement.Id,

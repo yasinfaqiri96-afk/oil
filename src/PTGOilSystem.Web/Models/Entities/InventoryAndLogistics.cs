@@ -77,7 +77,9 @@ public enum InventoryTransportBatchStatus
 public enum CarrierType
 {
     ServiceProvider = 1,
-    OperationalAsset = 2
+    OperationalAsset = 2,
+    // حمل‌کنندهٔ شخصی: نه شرکت خدماتی و نه دارایی عملیاتی؛ طرف حمل خودِ راننده است.
+    PersonalCarrier = 3
 }
 public enum InventoryTransportReceiptDestination
 {
@@ -164,8 +166,11 @@ public class InventoryMovement : BaseEntity
     [MaxLength(1000)] public string? Notes { get; set; }
 }
 
-public class LoadingRegister : BaseEntity
+public class LoadingRegister : BaseEntity, IVersionedEntity, ICanonicalSearchable
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
     public int ContractId { get; set; }       // required by system rule #2
     public Contract? Contract { get; set; }
     public int ProductId { get; set; }        // required by system rule #2
@@ -223,6 +228,11 @@ public class LoadingRegister : BaseEntity
     public ICollection<ExpenseTransaction> ExpenseTransactions { get; set; } = new List<ExpenseTransaction>();
     public ICollection<AssetRentTransaction> AssetRentTransactions { get; set; } = new List<AssetRentTransaction>();
     public ICollection<LoadingExpenseLine> ExpenseLines { get; set; } = new List<LoadingExpenseLine>();
+
+    /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
+    [MaxLength(600)] public string? SearchKey { get; set; }
+
+    public string BuildSearchSource() => string.Join(' ', new[] { BillOfLadingNumber, RwbNo, WagonNumber });
 }
 
 public class LoadingReceipt : BaseEntity
@@ -292,8 +302,11 @@ public class LoadingReceiptAllocation : BaseEntity
     [MaxLength(1000)] public string? Notes { get; set; }
 }
 
-public class InventoryTransportLeg : BaseEntity
+public class InventoryTransportLeg : BaseEntity, IVersionedEntity
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
     public int? InventoryTransportBatchId { get; set; }
     public InventoryTransportBatch? InventoryTransportBatch { get; set; }
     public int? ShipmentId { get; set; }
@@ -330,6 +343,8 @@ public class InventoryTransportLeg : BaseEntity
     public ServiceProvider? ServiceProvider { get; set; }
     public int? OperationalAssetId { get; set; }
     public OperationalAsset? OperationalAsset { get; set; }
+    public AccountingPartyType? CarrierPartyType { get; set; }
+    public int? CarrierPartyId { get; set; }
     public CarrierType? CarrierType { get; set; }
     // مسئول/مالک این حمل وقتی موتر شخصی است (موتروان). کرایه در مرحلهٔ رسید روی حساب همین موتروان می‌نشیند.
     public int? DriverId { get; set; }
@@ -421,6 +436,8 @@ public class InventoryTransportReceipt : BaseEntity
     public ServiceProvider? ServiceProvider { get; set; }
     public int? OperationalAssetId { get; set; }
     public OperationalAsset? OperationalAsset { get; set; }
+    public AccountingPartyType? CarrierPartyType { get; set; }
+    public int? CarrierPartyId { get; set; }
     public InventoryTransportReceiptDestination ReceiptDestination { get; set; } = InventoryTransportReceiptDestination.ToInventory;
     public int? DestinationTerminalId { get; set; }
     public Terminal? DestinationTerminal { get; set; }
@@ -435,8 +452,11 @@ public class InventoryTransportReceipt : BaseEntity
     public ICollection<TruckDispatch> DirectTruckDispatches { get; set; } = new List<TruckDispatch>();
 }
 
-public class TruckDispatch : BaseEntity
+public class TruckDispatch : BaseEntity, IVersionedEntity
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
     public TruckDispatchMode DispatchMode { get; set; } = TruckDispatchMode.FromInventory;
     public int? LoadingReceiptAllocationId { get; set; }
     public LoadingReceiptAllocation? LoadingReceiptAllocation { get; set; }
@@ -458,6 +478,8 @@ public class TruckDispatch : BaseEntity
     public ServiceProvider? ServiceProvider { get; set; }
     public int? OperationalAssetId { get; set; }
     public OperationalAsset? OperationalAsset { get; set; }
+    public AccountingPartyType? CarrierPartyType { get; set; }
+    public int? CarrierPartyId { get; set; }
 
     public DateTime DispatchDate { get; set; }
     public DispatchStatus Status { get; set; } = DispatchStatus.Loaded;
@@ -549,8 +571,11 @@ public class DeliveryReceipt : BaseEntity
     [MaxLength(500)] public string? DocumentReference { get; set; }
 }
 
-public class LossEvent : BaseEntity
+public class LossEvent : BaseEntity, IVersionedEntity
 {
+    /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
+    public long Version { get; set; } = 1;
+
     public LossEventStage Stage { get; set; }
     public int ProductId { get; set; }
     public Product? Product { get; set; }

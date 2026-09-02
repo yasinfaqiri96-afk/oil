@@ -31,6 +31,7 @@
         <div >
             @Html.AntiForgeryToken()
             <input asp-for="Id" type="hidden" />
+            <input asp-for="Version" type="hidden" />
             <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
 
             <section class="ak-form-section">
@@ -193,6 +194,19 @@
                         </table>
                     </div>
                     <span asp-validation-for="PartnerShares" class="ak-field-error d-block mt-2"></span>
+
+                    @* PTG ۱۲-B — سهم‌ها تاریخ‌دارند؛ کاربر می‌تواند بگوید از کی اجرا شوند. *@
+                    <div class="ak-form-grid mt-3">
+                        <div class="ak-field">
+                            <label asp-for="PartnerSharesEffectiveFrom" class="ak-label"></label>
+                            <input asp-for="PartnerSharesEffectiveFrom" type="date" class="ak-input" />
+                            <div class="form-text">
+                                سهم‌های جدید از این تاریخ تطبیق می‌شوند و دوره‌های قبلی تغییر نمی‌کنند.
+                                خالی یعنی از امروز.
+                            </div>
+                            <span asp-validation-for="PartnerSharesEffectiveFrom" class="ak-field-error"></span>
+                        </div>
+                    </div>
                 </div>
 
                 <template id="partnerRowTemplate">

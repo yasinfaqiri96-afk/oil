@@ -127,6 +127,46 @@ public sealed class AccountingCorePostgreSqlTests(AccountingPostgreSqlFixture fi
     }
 
     [Fact]
+    public async Task Operational_Asset_Dimension_Is_Persisted_And_Preserved_On_Reversal()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await CreatePostingScopeAsync(db);
+        var asset = new OperationalAsset
+        {
+            AssetCode = Unique("ASSET"),
+            Name = "Accounting dimension asset",
+            AssetType = OperationalAssetType.Truck,
+            IsActive = true
+        };
+        db.OperationalAssets.Add(asset);
+        await db.SaveChangesAsync();
+        var request = BalancedRequest(scope) with
+        {
+            Lines =
+            [
+                new AccountingPostLine(scope.Accounts["5600"].Id, 100m, 0m, "USD", 100m, 1m,
+                    OperationalAssetId: asset.Id),
+                new AccountingPostLine(scope.Accounts["4400"].Id, 0m, 100m, "USD", 100m, 1m,
+                    OperationalAssetId: asset.Id)
+            ]
+        };
+        var service = CreatePostingService(db);
+
+        var original = await service.PostAsync(request);
+        var reversal = await service.ReverseAsync(new AccountingReversalRequest(
+            original.Id,
+            Unique("REV-ASSET"),
+            scope.AccountingDate,
+            "Tests",
+            Unique("asset-reversal")));
+
+        Assert.All(original.Lines, line => Assert.Equal(asset.Id, line.OperationalAssetId));
+        Assert.All(reversal.Lines, line => Assert.Equal(asset.Id, line.OperationalAssetId));
+        Assert.Equal(0m, original.Lines.Sum(x => x.Debit - x.Credit));
+        Assert.Equal(0m, reversal.Lines.Sum(x => x.Debit - x.Credit));
+    }
+
+    [Fact]
     public async Task Unbalanced_Journal_Is_Rejected_By_Service()
     {
         await using var db = fixture.CreateDbContext();
@@ -297,7 +337,7 @@ public sealed class AccountingCorePostgreSqlTests(AccountingPostgreSqlFixture fi
         await seeder.SeedAsync();
         await seeder.SeedAsync();
 
-        Assert.Equal(20, await db.Accounts.CountAsync(x => x.CompanyId == company.Id));
+        Assert.Equal(26, await db.Accounts.CountAsync(x => x.CompanyId == company.Id));
         Assert.Equal(1, await db.AccountingSettings.CountAsync(x => x.CompanyId == company.Id));
 
         var settings = await db.AccountingSettings.SingleAsync(x => x.CompanyId == company.Id);

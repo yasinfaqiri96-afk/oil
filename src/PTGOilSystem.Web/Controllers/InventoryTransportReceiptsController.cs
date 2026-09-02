@@ -44,7 +44,8 @@ public class InventoryTransportReceiptsController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     public async Task<IActionResult> Create(
         int transportLegId,
-        InventoryTransportReceiptDestination? destination = null)
+        InventoryTransportReceiptDestination? destination = null,
+        bool focused = false)
     {
         if (destination == InventoryTransportReceiptDestination.DirectDispatch)
         {
@@ -91,13 +92,15 @@ public class InventoryTransportReceiptsController : Controller
         // حالتِ «فروش مستقیم و تسویه»: فرم ساده و متمرکز فقط برای سناریوی «موتر بعد از رسیدن،
         // بار را مستقیم می‌فروشد» (بدون گزینه‌های مخزن/تخلیه). فقط نمایشی؛ منطق ثبت همان DirectSale است.
         ViewData["FocusedSale"] = selectedDestination == InventoryTransportReceiptDestination.DirectSale;
+        ViewData["FocusedInventoryReceipt"] = focused
+            && selectedDestination == InventoryTransportReceiptDestination.ToInventory;
         ViewData["RemainingMt"] = remainingMt;
         return View(model);
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(InventoryTransportReceiptCreateViewModel model)
+    public async Task<IActionResult> Create(InventoryTransportReceiptCreateViewModel model, bool focused = false)
     {
         if (model.ReceiptDestination == InventoryTransportReceiptDestination.DirectDispatch)
         {
@@ -107,6 +110,8 @@ public class InventoryTransportReceiptsController : Controller
 
         // فرم متمرکز فروش پس از خطای اعتبارسنجی هم باید ساده بماند.
         ViewData["FocusedSale"] = model.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale;
+        ViewData["FocusedInventoryReceipt"] = focused
+            && model.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory;
         var leg = await _receiptService.LoadLegAsync(model.InventoryTransportLegId, tracking: true);
         if (leg is null)
         {
@@ -132,7 +137,19 @@ public class InventoryTransportReceiptsController : Controller
             ? await _db.Database.BeginTransactionAsync()
             : null;
 
-        await _receiptService.ApplyAsync(model, leg!, saleConversion);
+        var receipt = await _receiptService.ApplyAsync(model, leg!, saleConversion);
+
+        // وقتی آخرین نتیجهٔ حمل ثبت شده و همین نتیجه واقعاً کرایه دارد، وضعیت کرایهٔ کل
+        // سفر نیز نهایی است. در تحویل جزئی پرچم باز می‌ماند تا کرایهٔ باقیمانده بعداً
+        // قابل ثبت باشد؛ موجودی و محاسبات کرایه در اینجا دوباره نوشته نمی‌شوند.
+        var freightSettledWithFinalOutcome = leg!.Status == InventoryTransportLegStatus.Received
+            && (receipt.FreightRateUsdPerMt.HasValue || receipt.FreightCostUsd.HasValue);
+        if (freightSettledWithFinalOutcome)
+        {
+            leg.IsFreightSettled = true;
+            leg.FreightSettledDate = receipt.ReceiptDate.Date;
+            await _db.SaveChangesAsync();
+        }
 
         if (transaction is not null)
         {
@@ -140,7 +157,9 @@ public class InventoryTransportReceiptsController : Controller
         }
 
         TempData["ok"] = model.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale
-            ? "فروش مستقیم از حمل ثبت و کرایه تسویه شد (بدون ورود به مخزن)."
+            ? freightSettledWithFinalOutcome
+                ? "فروش مستقیم از حمل ثبت و کرایه تسویه شد (بدون ورود به مخزن)."
+                : "فروش مستقیم از حمل ثبت شد (بدون ورود به مخزن)؛ کرایه هنوز تسویه نشده است."
             : "رسید مقصد انتقال از موجودی ثبت شد و موجودی مقصد افزایش یافت.";
         return RedirectToAction("Details", "InventoryTransportLegs", new { id = leg!.Id });
     }

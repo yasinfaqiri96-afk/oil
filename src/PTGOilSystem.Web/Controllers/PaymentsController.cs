@@ -19,6 +19,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Exports;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Services.PartyStatements;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
 using PTGOilSystem.Web.Services.Time;
@@ -38,6 +39,8 @@ public class PaymentsController : Controller
     private readonly IPurchaseAggregationService _purchaseAggregation;
     private readonly IMemoryCache? _summaryCache;
     private readonly IFormTokenGuard _formTokens;
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private readonly ILedgerPostingService _ledger;
     private readonly IPartyStatementReadService? _partyStatements;
     // مرحله ۴ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe: اگر تزریق
     // نشود یا خاموش باشد، مسیر قدیمی هیچ تغییری نمی‌کند.
@@ -71,7 +74,8 @@ public class PaymentsController : Controller
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
         IPartyStatementReadService? partyStatements = null,
         IPaymentCorrectionService? paymentCorrection = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        ILedgerPostingService? ledgerPosting = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
@@ -91,6 +95,7 @@ public class PaymentsController : Controller
         _viaSarrafAccounting = viaSarrafAccounting;
         _expenseAccounting = expenseAccounting;
         _partyStatements = partyStatements;
+        _ledger = ledgerPosting ?? new LedgerPostingService(db);
     }
 
     public PaymentsController(
@@ -663,7 +668,7 @@ public class PaymentsController : Controller
         // تأمین‌کننده کم می‌شود، صراف طلبکار می‌شود، صندوق/بانک دست نمی‌خورد.
         if (model.PaymentMethod == PaymentMethod.ViaSarraf)
         {
-            return await CreateViaSarrafAsync(model);
+            return await CreateViaSarrafAsync(model, formToken);
         }
 
         NormalizeCreateModel(model);
@@ -745,7 +750,9 @@ public class PaymentsController : Controller
             IsCustomerAdvance = model.IsCustomerAdvance
         };
 
-        var ledgerEntry = new LedgerEntry
+        // PTG-P1-03 — سند هنوز Id ندارد، پس اینجا فقط «درخواستِ ثبت» ساخته می‌شود؛ خودِ
+        // سطر دقیقاً همان‌جای قبلی (بعد از ذخیرهٔ پرداخت) نوشته می‌شود تا ترتیب عوض نشود.
+        var ledgerRequest = new LedgerPostingRequest
         {
             EntryDate = payment.PaymentDate,
             Side = GetLedgerSide(payment.PaymentKind),
@@ -758,6 +765,8 @@ public class PaymentsController : Controller
             AppliedFxRateSource = conversion.SourceDescription,
             Description = BuildLedgerDescription(payment, context.CashAccount, context.PaidByPartnerName),
             SourceType = payment.PaymentKind.ToString(),
+            SourceId = 0,
+            AllowDeferredSourceId = true,
             Reference = payment.Reference,
             ContractId = payment.ContractId,
             CustomerId = payment.CustomerId,
@@ -781,8 +790,7 @@ public class PaymentsController : Controller
             _db.PaymentTransactions.Add(payment);
             await _db.SaveChangesAsync();
 
-            ledgerEntry.SourceId = payment.Id;
-            _db.LedgerEntries.Add(ledgerEntry);
+            var ledgerEntry = _ledger.Post(ledgerRequest with { SourceId = payment.Id });
             await _db.SaveChangesAsync();
 
             payment.LedgerEntryId = ledgerEntry.Id;
@@ -896,6 +904,8 @@ public class PaymentsController : Controller
         var model = new PaymentCreateViewModel
         {
             Id = payment.Id,
+            // PTG-P1-05 — نسخه‌ای که کاربر می‌بیند، با فرم برمی‌گردد.
+            Version = payment.Version,
             PaymentDate = payment.PaymentDate,
             Direction = payment.Direction,
             PaymentKind = payment.PaymentKind,
@@ -981,6 +991,10 @@ public class PaymentsController : Controller
             return NotFound();
         }
 
+        // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
+        // نه نسخه‌ای که همین حالا خوانده شد.
+        _db.UseExpectedVersion(payment, model.Version);
+
         CurrencyConversionResult conversion;
         try
         {
@@ -1063,12 +1077,6 @@ public class PaymentsController : Controller
                 ledgerEntry.ShipmentId
             };
 
-        if (ledgerEntry is null)
-        {
-            ledgerEntry = new LedgerEntry();
-            _db.LedgerEntries.Add(ledgerEntry);
-        }
-
         var amountUsd = conversion.ConvertToBase(model.Amount);
 
         // کمیسیون (اختیاری) — اعتبارسنجی قبل از نوشتن. رفتار ویرایش: رکوردهای کمیسیونِ قبلی
@@ -1120,25 +1128,38 @@ public class PaymentsController : Controller
         payment.IsAdvancePayment = model.IsAdvancePayment;
         payment.IsCustomerAdvance = model.IsCustomerAdvance;
 
-        ledgerEntry.EntryDate = payment.PaymentDate;
-        ledgerEntry.Side = GetLedgerSide(payment.PaymentKind);
-        ledgerEntry.AmountUsd = amountUsd;
-        ledgerEntry.Currency = SystemCurrency.BaseCurrencyCode;
-        ledgerEntry.SourceAmount = payment.Amount;
-        ledgerEntry.SourceCurrencyCode = payment.Currency;
-        ledgerEntry.AppliedFxRateToUsd = conversion.AppliedRateToBase;
-        ledgerEntry.AppliedFxRateDate = conversion.EffectiveDate.Date;
-        ledgerEntry.AppliedFxRateSource = conversion.SourceDescription;
-        ledgerEntry.Description = BuildLedgerDescription(payment, context.CashAccount, context.PaidByPartnerName);
-        ledgerEntry.SourceType = payment.PaymentKind.ToString();
-        ledgerEntry.SourceId = payment.Id;
-        ledgerEntry.Reference = payment.Reference;
-        ledgerEntry.ContractId = payment.ContractId;
-        ledgerEntry.CustomerId = payment.CustomerId;
-        ledgerEntry.SupplierId = payment.SupplierId;
-        ledgerEntry.ServiceProviderId = payment.ServiceProviderId;
-        ledgerEntry.EmployeeId = payment.EmployeeId;
-        ledgerEntry.ShipmentId = payment.ShipmentId;
+        var ledgerRequest = new LedgerPostingRequest
+        {
+            EntryDate = payment.PaymentDate,
+            Side = GetLedgerSide(payment.PaymentKind),
+            AmountUsd = amountUsd,
+            Currency = SystemCurrency.BaseCurrencyCode,
+            SourceAmount = payment.Amount,
+            SourceCurrencyCode = payment.Currency,
+            AppliedFxRateToUsd = conversion.AppliedRateToBase,
+            AppliedFxRateDate = conversion.EffectiveDate.Date,
+            AppliedFxRateSource = conversion.SourceDescription,
+            Description = BuildLedgerDescription(payment, context.CashAccount, context.PaidByPartnerName),
+            SourceType = payment.PaymentKind.ToString(),
+            SourceId = payment.Id,
+            Reference = payment.Reference,
+            ContractId = payment.ContractId,
+            CustomerId = payment.CustomerId,
+            SupplierId = payment.SupplierId,
+            ServiceProviderId = payment.ServiceProviderId,
+            EmployeeId = payment.EmployeeId,
+            ShipmentId = payment.ShipmentId,
+
+            // فیلدهایی که مسیر ویرایشِ پرداخت هرگز دست نمی‌زد، عیناً از سطر موجود می‌آیند
+            // تا خروجی دقیقاً همان چیزی بماند که پیش از تمرکز نوشته می‌شد (PTG-P1-03).
+            AppliedCurrencyPerUsdRate = ledgerEntry?.AppliedCurrencyPerUsdRate,
+            ViaSarrafGroupId = ledgerEntry?.ViaSarrafGroupId,
+            DriverId = ledgerEntry?.DriverId,
+        };
+
+        ledgerEntry = ledgerEntry is null
+            ? _ledger.Post(ledgerRequest)
+            : _ledger.Apply(ledgerEntry, ledgerRequest);
 
         var correctionResult = new PaymentCorrectionResult(0, false);
         IDbContextTransaction? transaction = null;
@@ -2132,35 +2153,47 @@ public class PaymentsController : Controller
     [HttpGet]
     public async Task<IActionResult> ContractPartnerOptions(int contractId)
     {
-        var partners = await _db.ContractPartners
+        // // PTG-P0-03 — سهم تاریخ‌دار شد؛ برای نمایش فقط آخرین بازهٔ هر شریک دیده می‌شود.
+        var rows = await _db.ContractPartners
             .AsNoTracking()
             .Where(cp => cp.ContractId == contractId)
-            .OrderByDescending(cp => cp.SharePercent)
-            .ThenBy(cp => cp.Partner != null ? cp.Partner.Name : string.Empty)
             .Select(cp => new
             {
                 id = cp.PartnerId,
                 name = cp.Partner != null ? cp.Partner.Name : ("#" + cp.PartnerId),
-                sharePercent = cp.SharePercent
+                sharePercent = cp.SharePercent,
+                cp.EffectiveFrom
             })
             .ToListAsync();
+
+        var partners = rows
+            .GroupBy(x => x.id)
+            .Select(g => g.OrderByDescending(x => x.EffectiveFrom).First())
+            .OrderByDescending(x => x.sharePercent)
+            .ThenBy(x => x.name)
+            .Select(x => new { x.id, x.name, x.sharePercent })
+            .ToList();
 
         return Json(new { partners });
     }
 
     private async Task<List<SelectListItem>> LoadContractPartnerOptionsAsync(int contractId, int? selectedPartnerId)
+        // PTG-P0-03 — سهم تاریخ‌دار شد؛ برای فرم فقط آخرین بازهٔ هر شریک دیده می‌شود.
         => (await _db.ContractPartners
                 .AsNoTracking()
                 .Where(cp => cp.ContractId == contractId)
-                .OrderByDescending(cp => cp.SharePercent)
-                .ThenBy(cp => cp.Partner != null ? cp.Partner.Name : string.Empty)
                 .Select(cp => new
                 {
                     cp.PartnerId,
                     Name = cp.Partner != null ? cp.Partner.Name : ("#" + cp.PartnerId),
-                    cp.SharePercent
+                    cp.SharePercent,
+                    cp.EffectiveFrom
                 })
                 .ToListAsync())
+            .GroupBy(cp => cp.PartnerId)
+            .Select(g => g.OrderByDescending(cp => cp.EffectiveFrom).First())
+            .OrderByDescending(cp => cp.SharePercent)
+            .ThenBy(cp => cp.Name)
             .Select(cp => new SelectListItem
             {
                 Value = cp.PartnerId.ToString(),
@@ -3299,7 +3332,7 @@ public class PaymentsController : Controller
         filter.Reference = string.IsNullOrWhiteSpace(filter.Reference) ? null : filter.Reference.Trim();
     }
 
-    private async Task<IActionResult> CreateViaSarrafAsync(PaymentCreateViewModel model)
+    private async Task<IActionResult> CreateViaSarrafAsync(PaymentCreateViewModel model, string? formToken)
     {
         // تأمین‌کنندهٔ «پرداخت» (Out) با یک نرخ: مسیر خام و آزمودهٔ فعلی (دو LedgerEntry مستقیم)
         // دست‌نخورده می‌ماند تا صورت‌حساب‌هایی که SourceType=ViaSarrafSupplier* را می‌خوانند نشکنند.
@@ -3312,7 +3345,7 @@ public class PaymentsController : Controller
             || !directionIsOut
             || HasDistinctSarrafCompanyRate(model))
         {
-            return await CreateViaSarrafGeneralAsync(model);
+            return await CreateViaSarrafGeneralAsync(model, formToken);
         }
 
         var context = await ValidateViaSarrafSupplierAsync(model);
@@ -3348,7 +3381,7 @@ public class PaymentsController : Controller
             commissionType = await EnsureCommissionExpenseTypeAsync();
         }
 
-        var supplierLedger = new LedgerEntry
+        var supplierLedgerRequest = new LedgerPostingRequest
         {
             EntryDate = model.PaymentDate.Date,
             Side = LedgerSide.Debit,
@@ -3368,7 +3401,7 @@ public class PaymentsController : Controller
             ViaSarrafGroupId = viaSarrafGroupId
         };
 
-        var sarrafPayableLedger = new LedgerEntry
+        var sarrafPayableLedgerRequest = new LedgerPostingRequest
         {
             EntryDate = model.PaymentDate.Date,
             Side = LedgerSide.Credit,
@@ -3395,7 +3428,13 @@ public class PaymentsController : Controller
 
         try
         {
-            _db.LedgerEntries.AddRange(supplierLedger, sarrafPayableLedger);
+            // PTG-P0-01 — «پرداخت از طریق صراف» هم مثل پرداخت عادی یک‌بارمصرف است: توکن با
+            // همان SaveChanges دو ردیف دفتر کل مصرف می‌شود، پس ارسال دوم چیزی نمی‌سازد.
+            _formTokens.Stamp(formToken, "Payment.CreateViaSarraf", nameof(LedgerEntry));
+
+            // PTG-P1-03 — همان دو سطر، همان‌جا، فقط از مسیر متمرکز.
+            var supplierLedger = _ledger.Post(supplierLedgerRequest);
+            var sarrafPayableLedger = _ledger.Post(sarrafPayableLedgerRequest);
             await _db.SaveChangesAsync();
 
             await _audit.LogAsync(
@@ -3468,6 +3507,16 @@ public class PaymentsController : Controller
 
             return RedirectToAction(nameof(Index));
         }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+
+            TempData["err"] = "این پرداخت قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
         catch (Exception ex)
         {
             if (transaction is not null)
@@ -3485,7 +3534,7 @@ public class PaymentsController : Controller
     // پرداخت/دریافت از طریق صراف برای طرف‌حساب‌های غیر تأمین‌کننده (مشتری/شرکت خدماتی/راننده/کارمند).
     // از موتور عمومی SarrafSettlementService استفاده می‌کند. برای هم‌سانی با مسیر تأمین‌کننده،
     // نرخ صراف با شرکت را برابر نرخ طرف مقابل می‌گذاریم تا «یک نرخ، بدون تفاوت» بماند (DifferenceType=None).
-    private async Task<IActionResult> CreateViaSarrafGeneralAsync(PaymentCreateViewModel model)
+    private async Task<IActionResult> CreateViaSarrafGeneralAsync(PaymentCreateViewModel model, string? formToken)
     {
         var currency = string.IsNullOrWhiteSpace(model.SarrafSupplierCurrency)
             ? "RUB"
@@ -3531,6 +3580,10 @@ public class PaymentsController : Controller
             await PopulateLookupsAsync(createModel: model);
             return View(model);
         }
+
+        // PTG-P0-01 — توکن پیش از فراخوانی سرویس فقط به ChangeTracker اضافه می‌شود و با اولین
+        // SaveChanges داخل Transaction خودِ سرویس ذخیره می‌گردد.
+        _formTokens.Stamp(formToken, "Payment.CreateViaSarrafGeneral", nameof(SarrafSettlement));
 
         try
         {
@@ -3582,6 +3635,11 @@ public class PaymentsController : Controller
                 return Redirect(model.ReturnUrl);
             }
 
+            return RedirectToAction(nameof(Index));
+        }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            TempData["err"] = "این پرداخت قبلاً ثبت شده است و دوباره ثبت نشد.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -4220,7 +4278,7 @@ public class PaymentsController : Controller
         _db.ExpenseTransactions.Add(expense);
         await _db.SaveChangesAsync();
 
-        var expenseLedger = new LedgerEntry
+        var expenseLedger = _ledger.Post(new LedgerPostingRequest
         {
             EntryDate = mainPayment.PaymentDate,
             Side = LedgerSide.Debit,
@@ -4237,8 +4295,7 @@ public class PaymentsController : Controller
             Reference = mainPayment.Reference,
             ContractId = expense.ContractId,
             ShipmentId = expense.ShipmentId
-        };
-        _db.LedgerEntries.Add(expenseLedger);
+        });
 
         var cashOut = new PaymentTransaction
         {
@@ -4260,7 +4317,7 @@ public class PaymentsController : Controller
         _db.PaymentTransactions.Add(cashOut);
         await _db.SaveChangesAsync();
 
-        var cashOutLedger = new LedgerEntry
+        var cashOutLedger = _ledger.Post(new LedgerPostingRequest
         {
             EntryDate = mainPayment.PaymentDate,
             Side = LedgerSide.Debit,
@@ -4277,8 +4334,7 @@ public class PaymentsController : Controller
             Reference = mainPayment.Reference,
             ContractId = cashOut.ContractId,
             ShipmentId = cashOut.ShipmentId
-        };
-        _db.LedgerEntries.Add(cashOutLedger);
+        });
         await _db.SaveChangesAsync();
 
         cashOut.LedgerEntryId = cashOutLedger.Id;
@@ -4384,7 +4440,7 @@ public class PaymentsController : Controller
         _db.ExpenseTransactions.Add(expense);
         await _db.SaveChangesAsync();
 
-        var expenseLedger = new LedgerEntry
+        var expenseLedger = _ledger.Post(new LedgerPostingRequest
         {
             EntryDate = date.Date,
             Side = LedgerSide.Debit,
@@ -4405,8 +4461,8 @@ public class PaymentsController : Controller
             // ردیابیِ قرارداد روی خودِ ExpenseTransaction محفوظ است و گزارش‌های مصرف آن را می‌بینند.
             ContractId = null,
             SupplierId = null
-        };
-        var sarrafPayableLedger = new LedgerEntry
+        });
+        var sarrafPayableLedger = _ledger.Post(new LedgerPostingRequest
         {
             EntryDate = date.Date,
             Side = LedgerSide.Credit,
@@ -4426,8 +4482,7 @@ public class PaymentsController : Controller
             // می‌شمرد و صورت‌حساب رسمیِ او را به‌اندازهٔ کمیسیون کم می‌کرد. مانده و صورت‌حساب
             // صراف از SourceId (شناسهٔ صراف) خوانده می‌شود و دست‌نخورده می‌ماند.
             ContractId = null
-        };
-        _db.LedgerEntries.AddRange(expenseLedger, sarrafPayableLedger);
+        });
         await _db.SaveChangesAsync();
 
         await _audit.LogAsync(
@@ -4564,7 +4619,7 @@ public class PaymentsController : Controller
         _db.ExpenseTransactions.Add(expense);
         await _db.SaveChangesAsync();
 
-        _db.LedgerEntries.Add(BuildSarrafFxDifferenceLedger(
+        _ledger.Post(BuildSarrafFxDifferenceLedger(
             settlement,
             amountUsd,
             description,
@@ -4588,14 +4643,13 @@ public class PaymentsController : Controller
     // سود: سطر بستانکارِ درآمد. نه مصرف ساخته می‌شود، نه مبلغ منفی، نه کاهش هزینه.
     private async Task PostSarrafFxGainAsync(SarrafSettlement settlement, decimal amountUsd, string description)
     {
-        var gainLedger = BuildSarrafFxDifferenceLedger(
+        var gainLedger = _ledger.Post(BuildSarrafFxDifferenceLedger(
             settlement,
             amountUsd,
             description,
             LedgerSide.Credit,
             sourceType: SarrafFxGainLedgerSourceType,
-            sourceId: settlement.Id);
-        _db.LedgerEntries.Add(gainLedger);
+            sourceId: settlement.Id));
         await _db.SaveChangesAsync();
 
         await _audit.LogAsync(
@@ -4614,7 +4668,7 @@ public class PaymentsController : Controller
     // سطر دفترِ تفاوت نرخ — هر دو سمت یک شکل ساخته می‌شوند تا فقط Side و SourceType فرق کند.
     // نه SupplierId دارد نه ContractId: تفاوت نرخ بدهیِ تأمین‌کننده نیست و نباید مانده یا
     // صورت‌حساب او و مانده قرارداد را جابه‌جا کند (LedgerEntryOwnership.SupplierOwned هر دو را می‌خواند).
-    private static LedgerEntry BuildSarrafFxDifferenceLedger(
+    private static LedgerPostingRequest BuildSarrafFxDifferenceLedger(
         SarrafSettlement settlement,
         decimal amountUsd,
         string description,

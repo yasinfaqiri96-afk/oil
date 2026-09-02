@@ -265,6 +265,16 @@ public sealed class AkPartyAccountCard
     /// <summary>Sub-heading of the identity block.</summary>
     public string IdentityTitle { get; init; } = "اطلاعات هویتی";
 
+    /// <summary>
+    /// Opt-in: fold the settled bar, the fact chips and the identity rows into a
+    /// single collapsed «مشاهده بیشتر» panel, so the summary tab opens on the
+    /// direction sentence alone. Off keeps the original layout of every other page.
+    /// </summary>
+    public bool CollapseSecondary { get; init; }
+
+    /// <summary>Sub-heading of that collapsed panel.</summary>
+    public string MoreTitle { get; init; } = "جزئیات بیشتر";
+
     /// <summary>Optional display-currency switch rendered in the card header.</summary>
     public IReadOnlyList<AkPartyToggleOption> ToggleOptions { get; init; } = [];
 
@@ -393,12 +403,33 @@ public sealed class AkDetailMoreModel
 
     public AkDetailSecondaryModel? Secondary { get; init; }
 
+    /// <summary>
+    /// Opt-in: present the supplied activity summary and timeline as one
+    /// coherent record journey inside the disclosure.
+    /// </summary>
+    public bool CombineActivityAndHistory { get; init; }
+
+    /// <summary>Heading of the combined status/history card.</summary>
+    public string? JourneyTitle { get; init; }
+
+    /// <summary>Short explanation shown under the combined-card heading.</summary>
+    public string? JourneyDescription { get; init; }
+
     public IReadOnlyList<AkHeaderMenuItem> NextActions { get; init; } = [];
 
     public string? Label { get; init; }
 
+    /// <summary>
+    /// Optional page-specific block folded into the same disclosure, drawn before
+    /// the shared activity/history material. It lets one page hide a section of its
+    /// own behind this toggle without duplicating the disclosure markup, and stays
+    /// null on every page that does not need it.
+    /// </summary>
+    public Func<object, Microsoft.AspNetCore.Html.IHtmlContent>? ExtraSection { get; init; }
+
     public bool HasContent
         => Activity.Any(row => row.HasValue)
+        || ExtraSection is not null
         || NextActions.Any(action => action.IsRenderable && !action.IsDestructive)
         || (Secondary is not null
             && (Secondary.Timeline.Count > 0

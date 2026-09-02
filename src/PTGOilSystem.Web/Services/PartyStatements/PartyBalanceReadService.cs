@@ -345,12 +345,16 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             shares = shares.Where(s => s.ContractId == filter.ContractId.Value);
         }
         var shareRows = await shares
-            .Select(s => new { s.ContractId, s.PartnerId, s.SharePercent })
+            .Select(s => new { s.ContractId, s.PartnerId, s.SharePercent, s.EffectiveFrom, s.EffectiveTo })
             .ToListAsync(ct);
         if (shareRows.Count == 0)
         {
             return;
         }
+
+        // PTG-P0-03 — سهم در «تاریخ همان سند» اعمال می‌شود، نه درصدِ امروز.
+        var shareHistory = ContractPartnerShareHistory.FromSlices(shareRows.Select(s =>
+            new ContractPartnerShareSlice(s.ContractId, s.PartnerId, s.SharePercent, s.EffectiveFrom, s.EffectiveTo)));
 
         var contractIds = shareRows.Select(s => s.ContractId).Distinct().ToArray();
         var saleMap = await _db.SalesTransactions.AsNoTracking()
@@ -376,7 +380,6 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
         // رویدادهای اقتصادی (بارگیری، مصرف، فروش) دقیقاً مثل قبل بر SharePercent تقسیم می‌شوند.
         var funding = await PartnerFundingReader.LoadLedgerMapAsync(db: _db, contractIds, ct);
 
-        var sharesByContract = shareRows.ToLookup(s => s.ContractId);
         foreach (var row in ledgerRows)
         {
             var contractId = row.ContractId
@@ -408,16 +411,16 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                 continue;
             }
 
-            foreach (var share in sharesByContract[contractId.Value])
+            foreach (var (sharePartnerId, sharePercent) in shareHistory.SharesOn(contractId.Value, row.EntryDate))
             {
                 AddLedgerEvent(
                     target,
-                    share.PartnerId,
+                    sharePartnerId,
                     PartyStatementPartyType.Partner,
                     CompanyFlowPartyRole.Partner,
                     row.EntryDate,
                     row.Side,
-                    decimal.Round(row.AmountUsd * share.SharePercent / 100m, 2, MidpointRounding.AwayFromZero),
+                    decimal.Round(row.AmountUsd * sharePercent / 100m, 2, MidpointRounding.AwayFromZero),
                     row.SourceType,
                     row.Reference);
             }

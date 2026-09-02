@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Dispatch.DispatchCreateViewModel
+﻿@model PTGOilSystem.Web.Models.Dispatch.DispatchCreateViewModel
 @{
     var isEdit = ViewData["IsEdit"] as bool? ?? false;
     ViewData["Title"] = isEdit ? "ویرایش ارسال با موتر" : "ارسال مستقیم از مخزن با موتر";
@@ -31,7 +31,12 @@
     <form asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@(isEdit ? editId : null)" method="post" class="ak-form">
         @{ ViewData["OpHeaderBackUrl"] = cancelUrl; }
         <input asp-for="ReturnUrl" type="hidden" />
+        <input asp-for="Version" type="hidden" />
         @Html.AntiForgeryToken()
+        @if (!isEdit)
+        {
+            @Html.FormToken()
+        }
         <div asp-validation-summary="All" class="ak-form-alert"></div>
 
         <section class="ak-form-section" aria-label="مشخصات اصلی">
@@ -53,7 +58,7 @@
                         </div>
                         <div class="ak-field">
                             <label asp-for="DispatchDate" class="ak-label"></label>
-                            <input asp-for="DispatchDate" type="date" class="ak-input" />
+                            <input asp-for="DispatchDate" type="date" class="ak-input" data-ptg-date-guard data-ptg-today="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
                             <span asp-validation-for="DispatchDate" class="ak-field-error"></span>
                         </div>
                         <div class="ak-field">

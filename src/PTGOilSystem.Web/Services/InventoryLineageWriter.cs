@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
@@ -24,6 +24,16 @@ public interface IInventoryLineageWriter
 
     // hookها — هرکدام داخل خودشان flag را چک می‌کنند؛ caller می‌تواند بدون نگرانی صدا بزند.
     Task OnLegLoadedAsync(InventoryTransportLeg leg, InventoryMovement outboundMovement, CancellationToken ct = default);
+
+    // legی که چند سهم منبع دارد، چند سند خروجی می‌سازد (یکی به‌ازای هر قرارداد). نسب‌نامه همچنان
+    // در سطح leg ساخته می‌شود؛ این overload فقط اجازه می‌دهد آن legها هم بدون انتخابِ دلبخواهیِ
+    // «سند اصلی» ثبت شوند. رفتار تک‌سندی دقیقاً مثل قبل است.
+    Task OnLegLoadedAsync(InventoryTransportLeg leg, IReadOnlyList<InventoryMovement> outboundMovements, CancellationToken ct = default);
+
+    // برگشتِ اثرِ بارگیریِ یک leg روی نسب‌نامه: حرکت‌های Lot همان leg حذف و مقدارِ مصرف‌شده به
+    // Lotهای مبدأ برگردانده می‌شود. برای ویرایش/لغوِ حملی لازم است که هنوز رسید نخورده؛ بدون آن
+    // Lotها برای همیشه مصرف‌شده می‌مانند و نسب‌نامه از موجودی واقعی جدا می‌افتد. idempotent است.
+    Task OnLegLoadReversedAsync(InventoryTransportLeg leg, CancellationToken ct = default);
     Task OnLegReceiptAsync(InventoryTransportLeg leg, InventoryTransportReceipt receipt, InventoryMovement? inboundMovement, LossEvent? shortageLoss, CancellationToken ct = default);
     Task OnDirectSaleAsync(InventoryTransportLeg leg, SalesTransaction sale, CancellationToken ct = default);
     Task AllocateSaleAsync(SalesTransaction sale, int? sourcePurchaseContractId, int terminalId, int? storageTankId, CancellationToken ct = default);
@@ -152,7 +162,10 @@ public sealed class InventoryLineageWriter : IInventoryLineageWriter
         return new LotConsumptionResult(taken, Math.Max(remaining, 0m));
     }
 
-    public async Task OnLegLoadedAsync(InventoryTransportLeg leg, InventoryMovement outboundMovement, CancellationToken ct = default)
+    public Task OnLegLoadedAsync(InventoryTransportLeg leg, InventoryMovement outboundMovement, CancellationToken ct = default)
+        => OnLegLoadedAsync(leg, [outboundMovement], ct);
+
+    public async Task OnLegLoadedAsync(InventoryTransportLeg leg, IReadOnlyList<InventoryMovement> outboundMovements, CancellationToken ct = default)
     {
         if (!Enabled) return;
 
@@ -202,12 +215,65 @@ public sealed class InventoryLineageWriter : IInventoryLineageWriter
                 ShipmentId = leg.ShipmentId,
                 SourceReferenceType = LegRef,
                 SourceReferenceId = leg.Id,
-                InventoryMovementId = outboundMovement.Id,
+                // اشارهٔ برگشتی به سند موجودی. وقتی leg چند سهم منبع دارد چند سند خروجی وجود
+                // دارد و هیچ‌کدام «سند اصلی» نیست، پس این اشاره خالی می‌ماند تا یکی از آن‌ها
+                // به‌غلط نمایندهٔ بقیه نشود. پیوند اصلی همیشه SourceReferenceId = leg.Id است و
+                // همهٔ خواننده‌های نسب‌نامه از همان استفاده می‌کنند.
+                InventoryMovementId = outboundMovements.Count == 1 ? outboundMovements[0].Id : null,
                 LineageConfidence = source.Lot.LineageConfidence,
                 Notes = source.Lot.LineageConfidence == LineageConfidence.NeedsReview
                     ? "Source quantity needs lineage review"
                     : null
             });
+        }
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task OnLegLoadReversedAsync(InventoryTransportLeg leg, CancellationToken ct = default)
+    {
+        if (!Enabled) return;
+
+        var movements = await _db.InventoryLotMovements
+            .Where(m => m.SourceReferenceType == LegRef && m.SourceReferenceId == leg.Id)
+            .ToListAsync(ct);
+        if (movements.Count == 0) return;
+
+        // Lotهایی که خودِ همین leg ساخته (کسریِ نسب‌نامه هنگام بارگیری) بازگردانده نمی‌شوند؛
+        // اصلاً وجود نداشتند و باید با همان حرکت‌ها حذف شوند، نه اینکه موجودیِ ساختگی بسازند.
+        var ownLots = await _db.InventoryLots
+            .Where(l => l.SourceReferenceType == LegRef && l.SourceReferenceId == leg.Id)
+            .ToListAsync(ct);
+        var ownLotIds = ownLots.Select(l => l.Id).ToHashSet();
+
+        var restoreByLotId = new Dictionary<int, decimal>();
+        foreach (var movement in movements)
+        {
+            if (movement.FromLotId is not { } fromLotId || ownLotIds.Contains(fromLotId))
+            {
+                continue;
+            }
+            restoreByLotId[fromLotId] = restoreByLotId.GetValueOrDefault(fromLotId) + movement.LoadedQuantityMt;
+        }
+
+        if (restoreByLotId.Count > 0)
+        {
+            var lotIds = restoreByLotId.Keys.ToList();
+            var lots = await _db.InventoryLots.Where(l => lotIds.Contains(l.Id)).ToListAsync(ct);
+            foreach (var lot in lots)
+            {
+                lot.RemainingQuantityMt = Round(lot.RemainingQuantityMt + restoreByLotId[lot.Id]);
+                if (lot.RemainingQuantityMt > 0.0001m)
+                {
+                    lot.Status = InventoryLotStatus.Open;
+                }
+                lot.UpdatedAtUtc = DateTime.UtcNow;
+            }
+        }
+
+        _db.InventoryLotMovements.RemoveRange(movements);
+        if (ownLots.Count > 0)
+        {
+            _db.InventoryLots.RemoveRange(ownLots);
         }
         await _db.SaveChangesAsync(ct);
     }

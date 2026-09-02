@@ -63,6 +63,12 @@ public static class LossEventStageChoices
 
 public sealed class LossEventCreateViewModel
 {
+    /// <summary>
+    /// PTG-P1-05 — نسخهٔ سطری که کاربر هنگامِ بازکردنِ فرم دید. با فرم برمی‌گردد تا ذخیره
+    /// روی نسخهٔ کهنه رد شود. صفر یعنی فرم نسخه نفرستاده است.
+    /// </summary>
+    public long Version { get; set; }
+
     [Display(Name = "نوع رویداد")]
     public LossEventStage Stage { get; set; } = LossEventStage.ReceiptShortage;
 
@@ -220,10 +226,15 @@ public sealed class LossEventDetailsViewModel
     public string? ContractNumber { get; init; }
     public string ContractDisplayLabel => Contract.BuildDisplayLabel(ContractName, ContractNumber);
     public string? ShipmentCode { get; init; }
+    public int? ShipmentId { get; init; }
     public string? LoadingRegisterLabel { get; init; }
+    public int? LoadingRegisterId { get; init; }
     public string? LoadingReceiptLabel { get; init; }
+    public int? LoadingReceiptId { get; init; }
     public string? TruckDispatchLabel { get; init; }
+    public int? TruckDispatchId { get; init; }
     public string? SalesLabel { get; init; }
+    public int? SalesTransactionId { get; init; }
     public string? TerminalName { get; init; }
     public string? StorageTankCode { get; init; }
     public decimal ExpectedQuantityMt { get; init; }

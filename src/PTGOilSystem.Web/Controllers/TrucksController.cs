@@ -31,7 +31,12 @@ public class TrucksController : Controller
         var query = _db.Trucks.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))
         {
+            // PTG canonical search — کلیدِ canonical به شرطِ قبلی اضافه می‌شود، جایگزینِ آن نمی‌شود:
+            // هیچ نتیجه‌ای از دست نمی‌رود و «یوسف» سطرِ «يوسف» را هم پیدا می‌کند.
+            // SearchKey خالی یعنی سطرِ پیش از Backfill؛ همان شرطِ قبلی هنوز آن را می‌یابد.
+            var canonicalTerm = AfghanTextNormalizer.NormalizeForSearch(search);
             query = query.Where(t =>
+                (t.SearchKey != null && t.SearchKey.Contains(canonicalTerm)) ||
                 t.PlateNumber.Contains(search) ||
                 (t.Owner != null && t.Owner.Contains(search)) ||
                 (t.Notes != null && t.Notes.Contains(search)));

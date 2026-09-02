@@ -11,53 +11,64 @@
 
 .statement-screen-header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 24px;
-    padding: 20px 22px 16px;
+    gap: 14px;
+    padding: 12px 18px;
     border-bottom: 1px solid var(--statement-line);
 }
 
-.statement-eyebrow {
-    margin: 0 0 4px;
-    color: var(--statement-muted);
-    font-size: 12px;
-    font-weight: 700;
+.statement-screen-search {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.statement-screen-search .ak-filter-host {
+    min-height: 48px;
+    margin: 0;
+}
+
+.statement-print-header { display: none; }
+
+.statement-heading {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 3px 10px;
+    min-width: 0;
 }
 
 .statement-heading h1 {
     margin: 0;
-    font-size: clamp(20px, 2vw, 26px);
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 700;
     line-height: 1.35;
 }
 
 .statement-identity-line {
     display: flex;
+    align-items: baseline;
     flex-wrap: wrap;
-    gap: 5px 16px;
-    margin-top: 8px;
+    gap: 3px 10px;
+    margin-top: 0;
     color: var(--statement-muted);
     font-size: 12px;
+    line-height: 1.35;
 }
 
+.statement-heading .statement-identity-line::before,
 .statement-identity-line span + span::before {
     content: "·";
-    margin-inline-end: 16px;
+    margin-inline-end: 10px;
     color: #cbd5e1;
 }
 
 .statement-actions {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     flex-wrap: wrap;
     gap: 7px;
-}
-
-.statement-csv-link {
-    color: var(--statement-muted);
-    font-size: 12px;
-    text-decoration: none;
 }
 
 .statement-screen-tools {
@@ -67,6 +78,29 @@
 }
 
 .statement-screen-tools [data-ak-filter] { margin: 0; }
+
+/* انتخاب تأمین‌کننده در بالای نوار فیلتر — یک ردیف، بدون فضای اضافه. */
+.statement-party-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-block-end: 8px;
+}
+
+.statement-party-switch label {
+    margin: 0;
+    color: var(--statement-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.statement-party-switch select {
+    max-width: 260px;
+    min-width: 160px;
+    height: 32px;
+    padding-block: 0;
+    font-size: 12px;
+}
 
 .statement-summary {
     display: grid;
@@ -178,7 +212,8 @@
 .statement-print-footer { display: none; }
 
 @media (max-width: 767.98px) {
-    .statement-screen-header { flex-direction: column; padding: 16px; }
+    .statement-screen-header { flex-direction: column; align-items: flex-start; padding: 12px 14px; }
+    .statement-screen-search { width: 100%; }
     .statement-actions { width: 100%; }
     .statement-screen-tools { padding: 10px 16px; }
     .statement-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -199,8 +234,9 @@
     .section-tabs { display: none !important; }
     .statement-document { page: statement-normal; border: 0; border-radius: 0; overflow: visible; }
     .statement-document.is-landscape { page: statement-wide; }
-    .statement-screen-header { padding: 0 0 8mm; border-bottom: 1px solid #b8c0cc; }
-    .statement-heading h1 { font-size: 18pt; }
+    .statement-print-header { display: block; padding: 0 0 5mm; border-bottom: 1px solid #b8c0cc; }
+    .statement-heading h1 { font-size: 10.5pt; }
+    .statement-identity-line { font-size: 9pt; }
     .statement-summary { border: 1px solid #cbd5e1; break-inside: avoid; }
     .statement-summary-item { padding: 8px 10px; }
     .statement-summary-item strong { font-size: 12pt; }
@@ -211,4 +247,19 @@
     .statement-table th,
     .statement-table td { padding: 5px 6px; }
     .statement-print-footer { display: flex; justify-content: space-between; margin-top: 5mm; padding-top: 3mm; border-top: 1px solid #cbd5e1; color: #64748b; font-size: 7.5pt; }
+}
+
+/* سربرگ بلوک جزئیات قرارداد: عنوان در یک سو، خروجی‌های همان قرارداد در سوی دیگر. */
+.statement-details-block-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.statement-details-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }

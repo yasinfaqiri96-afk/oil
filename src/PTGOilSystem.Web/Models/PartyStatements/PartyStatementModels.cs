@@ -253,6 +253,9 @@ public sealed class PartyStatementViewModel
     public required PartyStatementResult Statement { get; init; }
     public required PartyStatementFilter Filter { get; init; }
     public bool IsPrintMode { get; init; }
+
+    /// <summary>صورت‌حساب داخل تب پروفایل طرف‌حساب رندر شده، نه در صفحهٔ مستقل.</summary>
+    public bool IsEmbedded { get; init; }
     public bool IsRtl { get; init; } = true;
     public PartyStatementPartyType PartyType => Statement.Party.PartyType;
 
@@ -260,6 +263,9 @@ public sealed class PartyStatementViewModel
     public IReadOnlyList<PartyStatementFilterOption> ContractOptions { get; init; } = [];
     public IReadOnlyList<PartyStatementFilterOption> CompanyOptions { get; init; } = [];
     public IReadOnlyList<string> CurrencyOptions { get; init; } = [];
+
+    // فهرست طرف‌حساب‌های هم‌نوع برای جابه‌جایی بین صورت‌حساب‌ها (فعلاً فقط تأمین‌کننده).
+    public IReadOnlyList<PartyStatementFilterOption> PartyOptions { get; init; } = [];
 
     // حالت نمایش برای طرف‌حساب‌های قراردادی؛ نام قدیمی برای سازگاری routeها حفظ شده است.
     public SupplierStatementView SupplierView { get; init; } = SupplierStatementView.Contracts;
@@ -452,8 +458,15 @@ public static class PartyStatementFormatting
         "EXP-"
     ];
 
+    /// <summary>طول شرح در خروجی Excel/PDF — کوتاه‌تر از صفحه، چون خانهٔ جدول عرض ثابت دارد.</summary>
+    public const int ExportDescriptionMaxLength = 42;
+
     /// <summary>شرح کوتاهِ سطر: بخش‌های ماشینی حذف و طول محدود می‌شود.</summary>
     public static string ShortDescription(string? text)
+        => ShortDescription(text, DescriptionMaxLength);
+
+    /// <summary>همان کوتاه‌سازی، با سقف طولِ دلخواه (خروجی‌ها سقف کوتاه‌تری دارند).</summary>
+    public static string ShortDescription(string? text, int maxLength)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -467,7 +480,7 @@ public static class PartyStatementFormatting
             .ToList();
 
         var joined = kept.Count == 0 ? CollapseWhitespace(text) : string.Join(" – ", kept);
-        return Truncate(joined, DescriptionMaxLength);
+        return Truncate(joined, maxLength);
     }
 
     /// <summary>مرجع کوتاهِ سطر: فقط کلید سند، بدون دنبالهٔ شرح.</summary>

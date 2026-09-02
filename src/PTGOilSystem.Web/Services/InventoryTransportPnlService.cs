@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
@@ -51,6 +51,59 @@ public sealed class InventoryTransportPnlService
     public InventoryTransportPnlService(ApplicationDbContext db)
     {
         _db = db;
+    }
+
+    /// <summary>
+    /// فقط «نرخ خرید مؤثر» هر لِج را با همان زنجیرهٔ سود و زیان برمی‌گرداند
+    /// (override خود لِج، سپس تخصیص‌های منبع، سپس زنجیرهٔ قرارداد).
+    /// برای فهرست‌ها که به کل محاسبهٔ P&L نیاز ندارند.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<int, decimal?>> ResolveUnitCostsForLegsAsync(
+        IReadOnlyCollection<int> transportLegIds,
+        CancellationToken ct = default)
+    {
+        var requestedIds = transportLegIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+
+        if (requestedIds.Count == 0)
+        {
+            return new Dictionary<int, decimal?>();
+        }
+
+        var legs = await _db.InventoryTransportLegs
+            .AsNoTracking()
+            .Include(l => l.Allocations)
+            .Include(l => l.SourcePurchaseContract)
+            .Where(l => requestedIds.Contains(l.Id))
+            .ToListAsync(ct);
+
+        if (legs.Count == 0)
+        {
+            return new Dictionary<int, decimal?>();
+        }
+
+        var sourceContractIds = legs
+            .Select(l => l.SourcePurchaseContractId)
+            .Concat(legs.SelectMany(l => l.Allocations.Select(a => a.SourcePurchaseContractId)))
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+        var sourceContracts = await _db.Contracts
+            .AsNoTracking()
+            .Where(c => sourceContractIds.Contains(c.Id))
+            .ToListAsync(ct);
+        var finalPriceByContract = sourceContracts.ToDictionary(
+            c => c.Id,
+            ContractPricingAdapter.GetCanonicalFinalPrice);
+
+        var purchaseSnapshots = await new PurchaseAggregationService(_db)
+            .AggregateForContractsAsync(finalPriceByContract.Keys.ToList(), finalPriceByContract, ct);
+
+        return legs.ToDictionary(
+            l => l.Id,
+            l => ResolvePurchaseUnitCost(l, purchaseSnapshots, finalPriceByContract).UnitCost);
     }
 
     public async Task<IReadOnlyDictionary<int, InventoryTransportPnlSnapshot>> BuildForLegsAsync(
@@ -337,8 +390,8 @@ public sealed class InventoryTransportPnlService
         foreach (var sale in shipmentSales)
         {
             // فروشِ سطح‌محموله/کشتی فقط به legهای مبدأِ خودِ محموله تخصیص می‌شود، نه به
-            // legهای پایین‌دستیِ «حمل از موجودی» (که از موجودیِ کشور ثالث ساخته شده و ShipmentId
-            // والد را حفظ کرده‌اند). آن فروش از خودِ کشتی/منبع رخ داده، نه از این حملِ بعدی؛
+            // legهایی که بارشان از موجودیِ داخلی برداشته شده (نگاه کنید به
+            // IsInventoryOriginTransport) و ShipmentId والد را حفظ کرده‌اند). آن فروش از خودِ کشتی/منبع رخ داده، نه از این حملِ بعدی؛
             // در غیر این صورت فروشِ ساختگی روی جزییات حمل از موجودی ظاهر می‌شود.
             // گاردِ تاریخ (LoadedDate.Date <= SaleDate.Date) صرفاً گاردِ فرعی است و راه‌حلِ اصلی نیست.
             // اگر فروش قرارداد منبع دارد، درآمد فقط به legهای همان قرارداد نسبت داده می‌شود تا
@@ -349,7 +402,7 @@ public sealed class InventoryTransportPnlService
                     && (!sale.SourcePurchaseContractId.HasValue
                         || l.SourcePurchaseContractId == sale.SourcePurchaseContractId.Value)
                     && l.QuantityMt > 0m
-                    && !IsDownstreamFromInventoryLeg(l)
+                    && !IsInventoryOriginTransport(l)
                     && l.LoadedDate.Date <= sale.SaleDate.Date)
                 .OrderBy(l => l.LoadedDate)
                 .ThenBy(l => l.Id)
@@ -427,11 +480,26 @@ public sealed class InventoryTransportPnlService
         }
     }
 
-    // legِ «حمل از موجودی» (پایین‌دستی): از موجودیِ کشور ثالث ساخته می‌شود؛ یا batch دارد
-    // (InventoryTransportBatchId) یا allocationهای SourceInventoryMovement. legِ مبدأِ محموله
-    // هیچ‌کدام را ندارد. این legها نباید فروشِ سطح‌محموله را جذب کنند.
-    private static bool IsDownstreamFromInventoryLeg(InventoryTransportLeg leg)
-        => leg.InventoryTransportBatchId.HasValue || leg.Allocations.Count > 0;
+    // آیا بارِ این leg از یک منبعِ داخلیِ ثبت‌شده برداشته شده است؟
+    //
+    // معیار، نسب‌نامهٔ واقعیِ بار است نه ظرفِ دیتابیسیِ آن: هر سهم منبع
+    // (InventoryTransportLegAllocation) دقیقاً می‌گوید بار از کجا آمده —
+    //   SourceInventoryMovementId → از موجودیِ مخزن/ترمینال
+    //   SourceLoadingReceiptId    → از رسیدِ بارگیریِ مستقیم
+    //   SourceTransportLegId      → از وسیلهٔ قبلی در زنجیره
+    // پس وجودِ سهم منبع، خودش سندِ «این بار از داخل سیستم برداشته شد» است.
+    //
+    // legِ مبدأِ خودِ محموله هیچ سهم منبعی ندارد، چون بار تازه وارد سیستم شده و از جایی
+    // برداشته نشده. فقط همان legها حق دارند فروشِ سطح‌محموله را جذب کنند.
+    //
+    // عمداً به InventoryTransportBatchId نگاه نمی‌شود: دو حملِ تجاریِ یکسان نباید فقط به‌خاطر
+    // اینکه یکی زیر سند Batch نشسته سود و زیان متفاوت بگیرند. هر مسیری که BatchId می‌گذارد
+    // سهم منبع هم می‌سازد (ValidateAndPrepareAsync حداقل یک سهم را الزامی می‌کند و
+    // StartFromReceiptAsync هم همیشه سهم می‌سازد)، پس رفتار موجود دست‌نخورده می‌ماند.
+    //
+    // فراخوان باید Allocations را Include کرده باشد، وگرنه نتیجه به‌غلط false می‌شود.
+    private static bool IsInventoryOriginTransport(InventoryTransportLeg leg)
+        => leg.Allocations.Count > 0;
 
     private static Dictionary<int, decimal> AllocateByLegQuantity(decimal total, IReadOnlyList<InventoryTransportLeg> legs)
     {

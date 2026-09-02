@@ -20,8 +20,8 @@
 
     var amountMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مبلغ سند", "Document amount"), Value = Model.Amount.ToString("N2"), Unit = Model.Currency },
-        new() { Title = T("معادل دالر", "USD equivalent"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", State = "accent" }
+        new() { Title = T("مبلغ سند", "Document amount"), Value = Model.Amount.ToString("N2"), Unit = Model.Currency, Avatar = "flow-doc-amount" },
+        new() { Title = T("معادل دالر", "USD equivalent"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", State = "accent", Avatar = "flow-money-bag" }
     };
 
     var mainItems = new List<AkInfoItem>

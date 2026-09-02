@@ -35,6 +35,7 @@
 
     <form asp-action="Create" method="post" class="ak-form" id="sbtForm">
         @Html.AntiForgeryToken()
+        @Html.FormToken()
         <input asp-for="SupplierId" type="hidden" />
         <input asp-for="CompanyId" type="hidden" />
         <input asp-for="ReturnUrl" type="hidden" />

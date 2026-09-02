@@ -1,4 +1,4 @@
-@*
+﻿@*
     Counterparty account status card — summary tab of every .ak-party-page profile
     (supplier, customer, sarraf, partner, service provider, employee).
 
@@ -37,12 +37,15 @@
     </header>
 
     <div class="ak-party-account-body">
-        <p class="ak-party-meaning @Model.MeaningToneClass">
-            <i class="bi @meaningIcon" aria-hidden="true"></i>
-            <span>@Model.Meaning</span>
-        </p>
+        @if (!string.IsNullOrWhiteSpace(Model.Meaning))
+        {
+            <p class="ak-party-meaning @Model.MeaningToneClass">
+                <i class="bi @meaningIcon" aria-hidden="true"></i>
+                <span>@Model.Meaning</span>
+            </p>
+        }
 
-        @if (Model.SettledPercent.HasValue)
+        @if (Model.SettledPercent.HasValue && !Model.CollapseSecondary)
         {
             <div class="ak-party-settled">
                 <progress class="ak-party-settled-bar"
@@ -57,10 +60,74 @@
         }
     </div>
 
-    @if (visibleFacts.Count > 0 || identityRows.Count > 0)
+    @if (visibleFacts.Count > 0 || identityRows.Count > 0 || (Model.CollapseSecondary && Model.SettledPercent.HasValue))
     {
         <div class="ak-party-meta">
-            @if (visibleFacts.Count > 0)
+            @if (Model.CollapseSecondary)
+            {
+                @* Everything below the direction sentence is reference detail: one
+                   collapsed panel keeps the summary tab down to the account state. *@
+                <details class="ak-party-identity-panel ak-party-more-panel">
+                    <summary class="ak-party-identity-toggle">
+                        <span class="ak-party-subhead">@Model.MoreTitle</span>
+                        <span class="ak-party-identity-more">
+                            <span class="ak-party-identity-more-text">@UiText.T(Context, "مشاهده بیشتر", "Show more")</span>
+                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                        </span>
+                    </summary>
+                    <div class="ak-party-more-body">
+                        @if (Model.SettledPercent.HasValue)
+                        {
+                            <div class="ak-party-settled">
+                                <progress class="ak-party-settled-bar"
+                                          value="@Model.SettledPercent.Value"
+                                          max="100"
+                                          aria-label="@Model.SettledCaption"></progress>
+                                @if (!string.IsNullOrWhiteSpace(Model.SettledCaption))
+                                {
+                                    <p class="ak-party-settled-caption">@Model.SettledCaption</p>
+                                }
+                            </div>
+                        }
+
+                        @if (visibleFacts.Count > 0)
+                        {
+                            <dl class="ak-party-meta-grid">
+                                @foreach (var fact in visibleFacts)
+                                {
+                                    <div class="ak-party-meta-cell">
+                                        <dt>@fact.Label</dt>
+                                        <dd class="@(fact.IsNumeric ? "is-num" : null)" title="@fact.Value">
+                                            <bdi>@fact.Value</bdi>
+                                            @if (!string.IsNullOrWhiteSpace(fact.Unit))
+                                            {
+                                                <span class="ak-party-meta-unit">@fact.Unit</span>
+                                            }
+                                        </dd>
+                                    </div>
+                                }
+                            </dl>
+                        }
+
+                        @if (identityRows.Count > 0)
+                        {
+                            <p class="ak-party-subhead ak-party-more-subhead">@Model.IdentityTitle</p>
+                            <dl class="ak-party-meta-grid ak-party-meta-grid--identity">
+                                @foreach (var item in identityRows)
+                                {
+                                    <div class="ak-party-meta-cell @(item.IsWide ? "is-wide" : null)">
+                                        <dt title="@item.Label">@item.Label</dt>
+                                        <dd class="@(item.IsNumeric ? "is-num" : null)" title="@item.Value">@item.Value</dd>
+                                    </div>
+                                }
+                            </dl>
+                        }
+                    </div>
+                </details>
+            }
+            else
+            {
+            if (visibleFacts.Count > 0)
             {
                 <dl class="ak-party-meta-grid">
                     @foreach (var fact in visibleFacts)
@@ -79,10 +146,16 @@
                 </dl>
             }
 
-            @if (identityRows.Count > 0)
+            if (identityRows.Count > 0)
             {
-                <div class="ak-party-identity-panel">
-                    <h3 class="ak-party-subhead">@Model.IdentityTitle</h3>
+                <details class="ak-party-identity-panel">
+                    <summary class="ak-party-identity-toggle">
+                        <span class="ak-party-subhead">@Model.IdentityTitle</span>
+                        <span class="ak-party-identity-more">
+                            <span class="ak-party-identity-more-text">@UiText.T(Context, "مشاهده بیشتر", "Show more")</span>
+                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                        </span>
+                    </summary>
                     <dl class="ak-party-meta-grid ak-party-meta-grid--identity">
                         @foreach (var item in identityRows)
                         {
@@ -92,7 +165,8 @@
                             </div>
                         }
                     </dl>
-                </div>
+                </details>
+            }
             }
         </div>
     }

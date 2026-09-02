@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace PTGOilSystem.Web.Models;
 
@@ -16,7 +16,10 @@ public sealed record AkSearchFilterModel(
     string? SearchValue,
     string Placeholder,
     IReadOnlyList<AkFilterDefinition>? Filters = null,
-    IReadOnlyDictionary<string, string>? Hidden = null)
+    IReadOnlyDictionary<string, string>? Hidden = null,
+    // مقصد submit. پیش‌فرض null یعنی همان نشانی فعلی (رفتار قبلی همهٔ صفحه‌ها).
+    // فقط جایی لازم است که نوار فیلتر داخل صفحهٔ دیگری embed شده باشد.
+    string? FormAction = null)
 {
     /// <summary>Search-only convenience (group A / drop-in for the old bar).</summary>
     public static AkSearchFilterModel SearchOnly(string name, string? value, string placeholder)

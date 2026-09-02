@@ -16,6 +16,23 @@ public sealed class ContractPartnerShareInput
 
 public sealed class ContractFormViewModel
 {
+    /// <summary>
+    /// PTG-P1-05 — نسخهٔ سطری که کاربر هنگامِ بازکردنِ فرم دید. با فرم برمی‌گردد تا ذخیره
+    /// روی نسخهٔ کهنه رد شود. صفر یعنی فرم نسخه نفرستاده است.
+    /// </summary>
+    public long Version { get; set; }
+
+    /// <summary>
+    /// PTG ۱۲-B — تاریخِ اجرای درصدهای تازهٔ شراکت.
+    ///
+    /// خالی یعنی «امروزِ کاری» — یعنی دقیقاً همان رفتاری که پیش از این تنها گزینه بود.
+    /// تاریخِ آینده مجاز است. تاریخِ گذشته فقط تا آغازِ آخرین بازهٔ موجود عقب می‌رود و از
+    /// دورهٔ بستهٔ عملیاتی رد نمی‌شود؛ وگرنه صورت‌حسابِ یک دورهٔ بسته بی‌صدا عوض می‌شد.
+    /// </summary>
+    [Display(Name = "اجرای سهم‌های جدید از تاریخ")]
+    [DataType(DataType.Date)]
+    public DateTime? PartnerSharesEffectiveFrom { get; set; }
+
     public int Id { get; set; }
 
     [Display(Name = "نام قرارداد")]

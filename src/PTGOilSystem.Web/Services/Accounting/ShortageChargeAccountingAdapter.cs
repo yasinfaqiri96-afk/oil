@@ -24,8 +24,10 @@ public interface IShortageChargeAccountingAdapter
 ///   Dr Freight Payable  (party = service provider or driver)
 ///   Cr Inventory Loss
 ///
-/// The debit mirrors the single legacy row exactly: SourceType "ShortageCharge", one Debit of
-/// ShortageChargeUsd against the responsible carrier. Freight Payable is that carrier's control
+/// The debit mirrors the legacy rows exactly: SourceType "ShortageCharge", debiting the responsible
+/// carrier for ShortageChargeUsd — split per owning company when one truck carried the cargo of
+/// several, so no owner is billed for another owner's goods; the shares still add up to
+/// ShortageChargeUsd. Freight Payable is that carrier's control
 /// account — the same account Stage 5 credits when their freight is accrued — so debiting it is
 /// what "they owe us for what did not arrive" means in a chart with one payable per party type.
 /// The legacy figure for the freight itself is untouched here, exactly as the legacy flow leaves
@@ -57,6 +59,15 @@ public sealed class ShortageChargeAccountingAdapter(
 
     private readonly AccountingOptions _options = options.Value;
 
+    // One truck can carry the cargo of several internal companies at once. The header contract is
+    // only the leg's first share, so who is charged for what did not arrive has to be read from the
+    // source allocations — the same ownership the receipt already split the inbound stock and the
+    // loss event with.
+    private readonly IInventoryTransportLegOwnershipResolver _ownership =
+        new InventoryTransportLegOwnershipResolver(db);
+
+    private readonly ISystemCompanyProvider _systemCompany = new SystemCompanyProvider(db);
+
     public async Task<ShortageChargeAccountingResult> TryPostShortageChargeAsync(
         InventoryTransportReceipt receipt,
         CancellationToken cancellationToken = default)
@@ -70,9 +81,7 @@ public sealed class ShortageChargeAccountingAdapter(
 
         var leg = await db.InventoryTransportLegs
             .AsNoTracking()
-            .Where(x => x.Id == receipt.InventoryTransportLegId)
-            .Select(x => new { x.Id, x.DriverId, x.SourcePurchaseContractId, x.ShipmentId })
-            .SingleOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(x => x.Id == receipt.InventoryTransportLegId, cancellationToken);
         if (leg is null)
             return Skipped(receipt, 0, "TRANSPORT_LEG_NOT_FOUND");
 
@@ -94,110 +103,169 @@ public sealed class ShortageChargeAccountingAdapter(
         if (partyId is null)
             return Skipped(receipt, 0, "PARTY_MISSING");
 
-        var (companyId, skipReason) = await ResolveCompanyAndSkipReasonAsync(
-            leg.SourcePurchaseContractId, cancellationToken);
-        if (skipReason is not null)
-            return Skipped(receipt, companyId, skipReason);
+        var slices = await _ownership.ResolveCompanyOwnershipSlicesAsync(leg, cancellationToken);
+        if (slices.Count == 0)
+            return Skipped(receipt, 0, "SHORTAGE_COMPANY_UNKNOWN");
+        var multiCompany = slices.Count > 1;
 
-        var sourceEventId = BuildCreatedSourceEventId(receipt.Id);
-        var existing = await FindJournalAsync(companyId, sourceEventId, cancellationToken);
-        if (existing is not null)
+        // The claim follows the cargo: each owner is charged for exactly its own share of the
+        // shortage, and the shares add back up to ShortageChargeUsd to the last cent.
+        var amounts = InventoryTransportLegOwnershipResolver.ProportionalSplit(
+            amountUsd, slices.Select(x => x.QuantityMt).ToList());
+
+        JournalEntry? firstJournal = null;
+        JournalEntry? firstDuplicate = null;
+        string? firstSkipReason = null;
+
+        for (var index = 0; index < slices.Count; index++)
         {
-            LogOutcome(receipt, companyId, amountUsd, existing.Lines.Sum(x => x.Debit),
-                PaymentPostingStatus.Duplicate, "DUPLICATE_SOURCE_EVENT");
+            var slice = slices[index];
+            var companyId = slice.CompanyId;
+            var sliceAmountUsd = decimal.Round(amounts[index], 4, MidpointRounding.AwayFromZero);
+            if (sliceAmountUsd <= 0m)
+            {
+                firstSkipReason ??= "NO_SHORTAGE_CHARGE";
+                continue;
+            }
+
+            var skipReason = await ResolveSkipReasonAsync(companyId, cancellationToken);
+            if (skipReason is not null)
+            {
+                // A co-owner the ledger cannot take is left out of the journal — never billed to
+                // whoever heads the leg, and never allowed to fail the receipt being saved.
+                firstSkipReason ??= skipReason;
+                LogOutcome(receipt, companyId, sliceAmountUsd, 0m, PaymentPostingStatus.Skipped, skipReason);
+                continue;
+            }
+
+            var sourceEventId = CreatedEventId(receipt.Id, companyId, multiCompany);
+            var existing = await FindJournalAsync(companyId, sourceEventId, cancellationToken);
+            if (existing is not null)
+            {
+                firstDuplicate ??= existing;
+                LogOutcome(receipt, companyId, sliceAmountUsd, existing.Lines.Sum(x => x.Debit),
+                    PaymentPostingStatus.Duplicate, "DUPLICATE_SOURCE_EVENT");
+                continue;
+            }
+
+            var settings = await db.AccountingSettings
+                .AsNoTracking()
+                .SingleAsync(x => x.CompanyId == companyId, cancellationToken);
+
+            // Metadata only — nothing reads it back to compute money. A single-company leg names
+            // its header contract exactly as before; a multi-company leg names the owner's own
+            // contract when it has just one, and nothing when that owner brought several along.
+            var lineContractId = multiCompany ? slice.SingleContractId : leg.SourcePurchaseContractId;
+
+            var request = new AccountingPostRequest(
+                companyId,
+                journalNumberGenerator.ForShortageCharge(companyId, receipt.Id),
+                receipt.ReceiptDate.Date,
+                receipt.ReceiptDate.Date,
+                receipt.ReceiptDate.Date,
+                SourceModule,
+                [
+                    new AccountingPostLine(
+                        settings.FreightPayableAccountId,
+                        Debit: sliceAmountUsd,
+                        Credit: 0m,
+                        SystemCurrency.BaseCurrencyCode,
+                        sliceAmountUsd,
+                        1m,
+                        partyType,
+                        partyId,
+                        ContractId: lineContractId,
+                        ShipmentId: leg.ShipmentId,
+                        Description: $"Shortage charged for transport leg #{leg.Id}, receipt #{receipt.Id}"),
+                    new AccountingPostLine(
+                        settings.InventoryLossAccountId,
+                        Debit: 0m,
+                        Credit: sliceAmountUsd,
+                        SystemCurrency.BaseCurrencyCode,
+                        sliceAmountUsd,
+                        1m,
+                        ContractId: lineContractId,
+                        ShipmentId: leg.ShipmentId,
+                        Description: "Shortage recovered from carrier")
+                ],
+                SourceEventId: sourceEventId,
+                SourceEntityType: SourceEntityType,
+                SourceEntityId: receipt.Id,
+                Description: $"Shortage charge for transport receipt #{receipt.Id} on {receipt.ReceiptDate:yyyy-MM-dd}");
+
+            try
+            {
+                var journal = await postingService.PostAsync(request, cancellationToken);
+                firstJournal ??= journal;
+                LogOutcome(receipt, companyId, sliceAmountUsd, journal.Lines.Sum(x => x.Debit),
+                    PaymentPostingStatus.Posted, null);
+            }
+            catch (Exception exception)
+            {
+                LogFailure(receipt, exception);
+                throw;
+            }
+        }
+
+        // Posted beats duplicate beats skipped, so a retry on a leg one of whose owners the ledger
+        // cannot take still reads as the duplicate it is.
+        if (firstJournal is not null)
+            return new ShortageChargeAccountingResult(PaymentPostingStatus.Posted, firstJournal, null);
+        if (firstDuplicate is not null)
             return new ShortageChargeAccountingResult(
-                PaymentPostingStatus.Duplicate, existing, "DUPLICATE_SOURCE_EVENT");
-        }
-
-        var settings = await db.AccountingSettings
-            .AsNoTracking()
-            .SingleAsync(x => x.CompanyId == companyId, cancellationToken);
-
-        var request = new AccountingPostRequest(
-            companyId,
-            journalNumberGenerator.ForShortageCharge(companyId, receipt.Id),
-            receipt.ReceiptDate.Date,
-            receipt.ReceiptDate.Date,
-            receipt.ReceiptDate.Date,
-            SourceModule,
-            [
-                new AccountingPostLine(
-                    settings.FreightPayableAccountId,
-                    Debit: amountUsd,
-                    Credit: 0m,
-                    SystemCurrency.BaseCurrencyCode,
-                    amountUsd,
-                    1m,
-                    partyType,
-                    partyId,
-                    ContractId: leg.SourcePurchaseContractId,
-                    ShipmentId: leg.ShipmentId,
-                    Description: $"Shortage charged for transport leg #{leg.Id}, receipt #{receipt.Id}"),
-                new AccountingPostLine(
-                    settings.InventoryLossAccountId,
-                    Debit: 0m,
-                    Credit: amountUsd,
-                    SystemCurrency.BaseCurrencyCode,
-                    amountUsd,
-                    1m,
-                    ContractId: leg.SourcePurchaseContractId,
-                    ShipmentId: leg.ShipmentId,
-                    Description: "Shortage recovered from carrier")
-            ],
-            SourceEventId: sourceEventId,
-            SourceEntityType: SourceEntityType,
-            SourceEntityId: receipt.Id,
-            Description: $"Shortage charge for transport receipt #{receipt.Id} on {receipt.ReceiptDate:yyyy-MM-dd}");
-
-        try
-        {
-            var journal = await postingService.PostAsync(request, cancellationToken);
-            LogOutcome(receipt, companyId, amountUsd, journal.Lines.Sum(x => x.Debit),
-                PaymentPostingStatus.Posted, null);
-            return new ShortageChargeAccountingResult(PaymentPostingStatus.Posted, journal, null);
-        }
-        catch (Exception exception)
-        {
-            LogFailure(receipt, exception);
-            throw;
-        }
+                PaymentPostingStatus.Duplicate, firstDuplicate, "DUPLICATE_SOURCE_EVENT");
+        return Skipped(receipt, 0, firstSkipReason ?? "NOTHING_TO_POST");
     }
 
     public static string BuildCreatedSourceEventId(int transportReceiptId)
         => $"ShortageCharge:{transportReceiptId}:Created";
 
-    private async Task<(int CompanyId, string? SkipReason)> ResolveCompanyAndSkipReasonAsync(
-        int? sourcePurchaseContractId,
-        CancellationToken cancellationToken)
-    {
-        // The source purchase contract is the only provable company for a transport leg.
-        if (!sourcePurchaseContractId.HasValue)
-            return (0, "SHORTAGE_COMPANY_UNKNOWN");
+    /// <summary>
+    /// The per-company event id a multi-company receipt posts under. A single-company receipt keeps
+    /// the plain id, so nothing already written changes shape.
+    /// </summary>
+    public static string BuildCreatedSourceEventId(int transportReceiptId, int companyId)
+        => $"{BuildCreatedSourceEventId(transportReceiptId)}:Company:{companyId}";
 
-        var companyId = await db.Contracts
-            .AsNoTracking()
-            .Where(x => x.Id == sourcePurchaseContractId.Value)
-            .Select(x => (int?)x.CompanyId)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (companyId is null)
-            return (0, "SHORTAGE_CONTRACT_NOT_FOUND");
+    private static string CreatedEventId(int transportReceiptId, int companyId, bool multiCompany)
+        => multiCompany
+            ? BuildCreatedSourceEventId(transportReceiptId, companyId)
+            : BuildCreatedSourceEventId(transportReceiptId);
+
+    /// <summary>
+    /// Whether this company can be charged at all — the same settings and account checks the
+    /// single-company path always ran, now asked once per owning company, plus the owner check.
+    ///
+    /// The ledger itself is still single-company: <c>AccountingPostingService</c> refuses any
+    /// journal whose company is not the system owner. Asking that here turns what would be a hard
+    /// failure in the middle of saving a receipt into an ordinary, logged skip
+    /// (<c>COMPANY_NOT_OWNER</c>), so a co-owner's share is left out of the ledger instead of being
+    /// billed to the owner or blocking the operation.
+    /// </summary>
+    private async Task<string?> ResolveSkipReasonAsync(int companyId, CancellationToken cancellationToken)
+    {
+        var ownerCompanyId = await _systemCompany.FindOwnerCompanyIdAsync(cancellationToken);
+        if (ownerCompanyId is null)
+            return "SYSTEM_OWNER_NOT_CONFIGURED";
+        if (ownerCompanyId.Value != companyId)
+            return "COMPANY_NOT_OWNER";
 
         var settings = await db.AccountingSettings
             .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.CompanyId == companyId.Value, cancellationToken);
+            .SingleOrDefaultAsync(x => x.CompanyId == companyId, cancellationToken);
         if (settings is null)
-            return (companyId.Value, "ACCOUNTING_SETTINGS_MISSING");
+            return "ACCOUNTING_SETTINGS_MISSING";
         if (!string.Equals(settings.FunctionalCurrencyCode?.Trim(), "USD", StringComparison.OrdinalIgnoreCase))
-            return (companyId.Value, "UNSUPPORTED_FUNCTIONAL_CURRENCY");
+            return "UNSUPPORTED_FUNCTIONAL_CURRENCY";
 
         var accountIds = new[] { settings.FreightPayableAccountId, settings.InventoryLossAccountId };
         var validAccountCount = await db.Accounts.AsNoTracking().CountAsync(
-            x => accountIds.Contains(x.Id) && x.CompanyId == companyId.Value && x.IsActive,
+            x => accountIds.Contains(x.Id) && x.CompanyId == companyId && x.IsActive,
             cancellationToken);
         if (validAccountCount != accountIds.Distinct().Count())
-            return (companyId.Value, "ACCOUNTING_SETTINGS_INVALID_ACCOUNTS");
+            return "ACCOUNTING_SETTINGS_INVALID_ACCOUNTS";
 
-        return (companyId.Value, null);
+        return null;
     }
 
     private async Task<JournalEntry?> FindJournalAsync(

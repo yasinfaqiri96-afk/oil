@@ -1,5 +1,14 @@
-(function () {
+﻿(function () {
     "use strict";
+
+    // spa-nav با هر ناوبری، اسکریپت‌های #ptg-page-scripts را دوباره اجرا می‌کند و
+    // syncPageAssets هم یک نسخه از این فایل را تزریق می‌کند. شنونده‌ها روی document
+    // (delegated) هستند و یک‌بار بستن کافی است؛ بدون این نگهبان، هر کلیک «جزئیات»
+    // دوبار پردازش می‌شد (باز و بلافاصله بسته) و «چاپ» دو پنجره باز می‌کرد.
+    if (window.__ptgPartyStatementBound) {
+        return;
+    }
+    window.__ptgPartyStatementBound = true;
 
     // نمای «قراردادها»: جزئیات هر قرارداد فقط هنگام کلیک (lazy) از سرور گرفته می‌شود.
     function toggleContractDetails(button) {
@@ -47,24 +56,39 @@
             });
     }
 
+    // واگذاری رویداد روی document: صورت‌حساب هم در صفحهٔ مستقل و هم داخل تب پروفایل
+    // (که بعد از DOMContentLoaded تزریق می‌شود) رندر می‌شود؛ با bind مستقیم، دکمهٔ
+    // «جزئیات» در حالت تزریقی هیچ شنونده‌ای نداشت و باز نمی‌شد.
+    document.addEventListener("click", function (event) {
+        var detailsButton = event.target.closest("[data-statement-details]");
+        if (detailsButton) {
+            toggleContractDetails(detailsButton);
+            return;
+        }
+
+        var printButton = event.target.closest("[data-statement-print]");
+        if (!printButton) {
+            return;
+        }
+        var printUrl = printButton.getAttribute("data-print-url");
+        if (printUrl) {
+            window.open(printUrl, "_blank", "noopener");
+            return;
+        }
+        window.print();
+    });
+
+    // انتخاب تأمین‌کننده: مقدار هر option نشانی صورت‌حساب همان تأمین‌کننده با فیلترهای
+    // فعلی است؛ فقط به آن نشانی می‌رویم و هیچ فیلتری اینجا ساخته نمی‌شود.
+    document.addEventListener("change", function (event) {
+        var select = event.target.closest("[data-statement-party-switch]");
+        if (!select || !select.value) {
+            return;
+        }
+        window.location.href = select.value;
+    });
+
     document.addEventListener("DOMContentLoaded", function () {
-        document.querySelectorAll("[data-statement-details]").forEach(function (button) {
-            button.addEventListener("click", function () {
-                toggleContractDetails(button);
-            });
-        });
-
-        document.querySelectorAll("[data-statement-print]").forEach(function (button) {
-            button.addEventListener("click", function () {
-                var printUrl = button.getAttribute("data-print-url");
-                if (printUrl) {
-                    window.open(printUrl, "_blank", "noopener");
-                    return;
-                }
-                window.print();
-            });
-        });
-
         if (document.querySelector('[data-statement-auto-print="true"]')) {
             window.setTimeout(function () { window.print(); }, 150);
         }

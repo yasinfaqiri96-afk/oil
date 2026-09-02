@@ -90,6 +90,25 @@ public sealed class OperationalAssetFormViewModel
     [Display(Name = "نوع مالکیت")]
     public OperationalAssetOwnershipMode OwnershipMode { get; set; } = OperationalAssetOwnershipMode.FullyCompanyOwned;
 
+    [Display(Name = "تاریخ خرید")]
+    [DataType(DataType.Date)]
+    public DateTime? AcquisitionDate { get; set; }
+
+    [Display(Name = "قیمت خرید USD")]
+    [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "قیمت خرید نمی‌تواند منفی باشد.")]
+    public decimal? AcquisitionCostUsd { get; set; }
+
+    [Display(Name = "تاریخ شروع کار")]
+    [DataType(DataType.Date)]
+    public DateTime? InServiceDate { get; set; }
+
+    [Display(Name = "تاریخ خروج")]
+    [DataType(DataType.Date)]
+    public DateTime? DisposalDate { get; set; }
+
+    [Display(Name = "وضعیت عملیاتی")]
+    public OperationalAssetStatus OperationalStatus { get; set; } = OperationalAssetStatus.Active;
+
     [Display(Name = "استهلاک ماهانه USD")]
     [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "استهلاک نمی‌تواند منفی باشد.")]
     public decimal MonthlyDepreciationUsd { get; set; }
@@ -232,6 +251,11 @@ public sealed class OperationalAssetProfileViewModel
     public decimal? CapacityMt { get; init; }
     public string? LocationName { get; init; }
     public string? TerminalName { get; init; }
+    public DateTime? AcquisitionDate { get; init; }
+    public decimal? AcquisitionCostUsd { get; init; }
+    public DateTime? InServiceDate { get; init; }
+    public DateTime? DisposalDate { get; init; }
+    public OperationalAssetStatus OperationalStatus { get; init; }
     public decimal MonthlyDepreciationUsd { get; init; }
     public decimal? DefaultInternalRateUsd { get; init; }
     public decimal? DefaultExternalRateUsd { get; init; }
@@ -248,11 +272,137 @@ public sealed class OperationalAssetProfileViewModel
     public decimal DepreciationUsd { get; init; }
     public decimal NetResultUsd => TotalRentUsd + FreightIncomeUsd - DirectExpensesUsd - DepreciationUsd;
     public IReadOnlyList<AssetOwnershipShareRowViewModel> OwnershipShares { get; init; } = [];
+    public IReadOnlyList<AssetAssignmentRowViewModel> Assignments { get; init; } = [];
+    public IReadOnlyList<AssetMaintenanceJobRowViewModel> MaintenanceJobs { get; init; } = [];
+    public IReadOnlyList<AssetMeterReadingRowViewModel> MeterReadings { get; init; } = [];
+    public IReadOnlyList<AssetDocumentRowViewModel> Documents { get; init; } = [];
     public IReadOnlyList<AssetRentRowViewModel> RentTransactions { get; init; } = [];
     public IReadOnlyList<AssetExpenseRowViewModel> Expenses { get; init; } = [];
     public IReadOnlyList<AssetRentShareRowViewModel> RentShares { get; init; } = [];
+
+    /// <summary>«کارکرد» — عملیات‌هایی که این دارایی در آن‌ها کار کرده است. بدون مبلغ.</summary>
+    public IReadOnlyList<AssetWorkRowViewModel> WorkRows { get; init; } = [];
+
+    /// <summary>«مصارف» — فقط هزینه‌های دارایی؛ ردیف‌های عایداتی از این لیست بیرون‌اند.</summary>
+    public IReadOnlyList<AssetExpenseRowViewModel> CostRows { get; init; } = [];
+
+    /// <summary>«عواید» گروه اول: استفادهٔ خود شرکت از دارایی (پرداخت بیرونی ندارد).</summary>
+    public IReadOnlyList<AssetIncomeRowViewModel> InternalIncomeRows { get; init; } = [];
+
+    /// <summary>«عواید» گروه دوم: کرایه دادن دارایی به بیرون (طلب واقعی از طرف بیرونی).</summary>
+    public IReadOnlyList<AssetIncomeRowViewModel> ExternalIncomeRows { get; init; } = [];
+
+    /// <summary>جمع درصد سهم مالکینی که امروز فعال‌اند؛ برای هشدار «مجموع ۱۰۰٪ نیست».</summary>
+    public decimal ActiveOwnershipPercent { get; init; }
     public AssetOwnershipShareCreateViewModel NewOwnershipShare { get; init; } = new();
+    public AssetAssignmentCreateViewModel NewAssignment { get; init; } = new();
+    public AssetMaintenanceJobCreateViewModel NewMaintenanceJob { get; init; } = new();
+    public AssetMeterReadingCreateViewModel NewMeterReading { get; init; } = new();
+    public AssetDocumentCreateViewModel NewDocument { get; init; } = new();
     public AssetRentCreateViewModel NewRent { get; init; } = new();
+}
+
+public sealed class AssetAssignmentCreateViewModel
+{
+    public int OperationalAssetId { get; set; }
+    [Required, Display(Name = "مسئول")]
+    public string ResponsiblePartyKey { get; set; } = "";
+    [Display(Name = "راننده")]
+    public int? DriverId { get; set; }
+    [Display(Name = "ترمینال پایه")]
+    public int? BaseTerminalId { get; set; }
+    [Required, StringLength(100), Display(Name = "نقش")]
+    public string Role { get; set; } = "مسئول اصلی";
+    [DataType(DataType.Date), Display(Name = "از تاریخ")]
+    public DateTime FromDate { get; set; } = AfghanistanBusinessClock.SystemToday;
+    [StringLength(1000), Display(Name = "یادداشت")]
+    public string? Notes { get; set; }
+}
+
+public sealed class AssetMaintenanceJobCreateViewModel
+{
+    public int OperationalAssetId { get; set; }
+    public AssetMaintenanceJobType JobType { get; set; } = AssetMaintenanceJobType.Service;
+    public AssetMaintenanceStatus Status { get; set; } = AssetMaintenanceStatus.Planned;
+    [Required, StringLength(200)] public string Title { get; set; } = "";
+    [DataType(DataType.Date)] public DateTime? ScheduledDate { get; set; }
+    [DataType(DataType.Date)] public DateTime? StartedDate { get; set; }
+    [DataType(DataType.Date)] public DateTime? CompletedDate { get; set; }
+    [DataType(DataType.Date)] public DateTime? DowntimeFrom { get; set; }
+    [DataType(DataType.Date)] public DateTime? DowntimeTo { get; set; }
+    public int? ExpenseTransactionId { get; set; }
+    [StringLength(1000)] public string? Notes { get; set; }
+}
+
+public sealed class AssetMeterReadingCreateViewModel
+{
+    public int OperationalAssetId { get; set; }
+    public AssetMeterType MeterType { get; set; } = AssetMeterType.OdometerKm;
+    [DataType(DataType.Date)] public DateTime ReadingDate { get; set; } = AfghanistanBusinessClock.SystemToday;
+    [Range(typeof(decimal), "0", "79228162514264337593543950335")] public decimal ReadingValue { get; set; }
+    [StringLength(200)] public string? Reference { get; set; }
+    [StringLength(1000)] public string? Notes { get; set; }
+}
+
+public sealed class AssetDocumentCreateViewModel
+{
+    public int OperationalAssetId { get; set; }
+    public AssetDocumentType DocumentType { get; set; } = AssetDocumentType.Other;
+    [StringLength(200)] public string? DocumentNumber { get; set; }
+    [DataType(DataType.Date)] public DateTime? IssueDate { get; set; }
+    [DataType(DataType.Date)] public DateTime? ExpiryDate { get; set; }
+    public IFormFile? File { get; set; }
+    [StringLength(1000)] public string? Notes { get; set; }
+}
+
+public sealed class AssetAssignmentRowViewModel
+{
+    public int Id { get; init; }
+    public string ResponsibleName { get; init; } = "";
+    public string Role { get; init; } = "";
+    public string? DriverName { get; init; }
+    public string? BaseTerminalName { get; init; }
+    public DateTime FromDate { get; init; }
+    public DateTime? ToDate { get; init; }
+    public string? Notes { get; init; }
+    public bool IsCurrent => !ToDate.HasValue;
+}
+
+public sealed class AssetMaintenanceJobRowViewModel
+{
+    public int Id { get; init; }
+    public AssetMaintenanceJobType JobType { get; init; }
+    public AssetMaintenanceStatus Status { get; init; }
+    public string Title { get; init; } = "";
+    public DateTime? ScheduledDate { get; init; }
+    public DateTime? StartedDate { get; init; }
+    public DateTime? CompletedDate { get; init; }
+    public DateTime? DowntimeFrom { get; init; }
+    public DateTime? DowntimeTo { get; init; }
+    public int? ExpenseTransactionId { get; init; }
+    public string? Notes { get; init; }
+}
+
+public sealed class AssetMeterReadingRowViewModel
+{
+    public int Id { get; init; }
+    public AssetMeterType MeterType { get; init; }
+    public DateTime ReadingDate { get; init; }
+    public decimal ReadingValue { get; init; }
+    public string? Reference { get; init; }
+}
+
+public sealed class AssetDocumentRowViewModel
+{
+    public int Id { get; init; }
+    public AssetDocumentType DocumentType { get; init; }
+    public string? DocumentNumber { get; init; }
+    public DateTime? IssueDate { get; init; }
+    public DateTime? ExpiryDate { get; init; }
+    public string OriginalFileName { get; init; } = "";
+    public bool IsExpired { get; init; }
+    public bool ExpiresSoon { get; init; }
+    public string? Notes { get; init; }
 }
 
 public sealed class AssetOwnershipShareRowViewModel
@@ -277,6 +427,9 @@ public sealed class AssetRentRowViewModel
     public AssetRentChargedToType ChargedToType { get; init; }
     public string ChargedToTypeName => OperationalAssetLabels.ChargedToType(ChargedToType);
     public string ChargedToName { get; init; } = "";
+
+    /// <summary>سندی که این ردیف را ساخته است — برای ردیف‌های دستی خالی می‌ماند.</summary>
+    public AssetSourceLinkViewModel? Source { get; init; }
     public string? ReferenceDocument { get; init; }
     public decimal? QuantityMt { get; init; }
     public decimal? DistanceKm { get; init; }
@@ -306,11 +459,74 @@ public sealed class AssetRentRowViewModel
     public bool IsPostingMissing => PostingSkipReason is null && !IsPostedToLedger;
 }
 
+/// <summary>
+/// لینکِ سندِ منبعِ یک ردیفِ خودکار. کاربر باید همیشه بتواند بپرسد «این رکورد از کجا آمده؟»
+/// و با یک کلیک به همان سند برود؛ <see cref="Url"/> فقط وقتی خالی است که صفحهٔ آن سند وجود ندارد.
+/// </summary>
+public sealed class AssetSourceLinkViewModel
+{
+    /// <summary>نوع سند به زبان کاربر، مثلاً «بارگیری» یا «ارسال با موتر».</summary>
+    public string DocumentTypeName { get; init; } = "";
+    public int DocumentId { get; init; }
+
+    /// <summary>متن کامل ردیف، مثلاً «ایجادشده از بارگیری #1042».</summary>
+    public string Label { get; init; } = "";
+    public string? Url { get; init; }
+}
+
+/// <summary>
+/// یک ردیفِ «کارکرد»: این دارایی در کدام عملیات و با چه مقداری کار کرده است.
+/// عمداً هیچ مبلغی ندارد — پول در بخش «عواید» و «مصارف» نشان داده می‌شود.
+/// </summary>
+public sealed class AssetWorkRowViewModel
+{
+    public DateTime Date { get; init; }
+    public string OperationTypeName { get; init; } = "";
+    public AssetSourceLinkViewModel? Source { get; init; }
+    public string? ContractNumber { get; init; }
+    public string? ShipmentCode { get; init; }
+    public decimal? QuantityMt { get; init; }
+    public decimal? DistanceKm { get; init; }
+    public string? RouteText { get; init; }
+    public string? CounterpartyName { get; init; }
+
+    /// <summary>استفادهٔ خود شرکت (نه کرایه به بیرون).</summary>
+    public bool IsInternalUse { get; init; }
+    public string UsageText { get; init; } = "";
+    public string? UsageHint { get; init; }
+}
+
+/// <summary>
+/// یک ردیفِ «عواید» — چه از کرایهٔ ثبت‌شده و چه از کرایهٔ حملی که با دارایی خود شرکت انجام شده.
+/// وضعیت مالی به زبان ساده در <see cref="StateText"/> می‌آید، نه با کد داخلی سیستم.
+/// </summary>
+public sealed class AssetIncomeRowViewModel
+{
+    public int Id { get; init; }
+    public DateTime Date { get; init; }
+    public string SourceTypeName { get; init; } = "";
+    public AssetSourceLinkViewModel? Source { get; init; }
+    public string? CounterpartyName { get; init; }
+    public string? ContractNumber { get; init; }
+    public decimal AmountOriginal { get; init; }
+    public string Currency { get; init; } = "USD";
+    public decimal AmountUsd { get; init; }
+    public string StateText { get; init; } = "";
+
+    /// <summary>تنها حالتی که باید مثل هشدار دیده شود: باید در حساب ثبت می‌شد ولی نشده است.</summary>
+    public bool NeedsAttention { get; init; }
+
+    /// <summary>ردیف‌های خودکار از سند خودشان لغو می‌شوند، نه از این صفحه.</summary>
+    public bool CanCancel { get; init; }
+    public string? Description { get; init; }
+}
+
 public sealed class AssetExpenseRowViewModel
 {
     public int Id { get; init; }
     public DateTime ExpenseDate { get; init; }
     public string ExpenseTypeName { get; init; } = "";
+    public AssetSourceLinkViewModel? Source { get; init; }
     public string? ContractNumber { get; init; }
     public string? ShipmentCode { get; init; }
     public string? TransportLegLabel { get; init; }
@@ -401,6 +617,27 @@ public sealed class OperationalAssetProfitabilityRowViewModel
 
 public static class OperationalAssetLabels
 {
+    public static string Status(OperationalAssetStatus status, HttpContext? context)
+        => UiText.IsEn(context)
+            ? status switch
+            {
+                OperationalAssetStatus.Planned => "Planned",
+                OperationalAssetStatus.Active => "Active",
+                OperationalAssetStatus.UnderMaintenance => "Under maintenance",
+                OperationalAssetStatus.OutOfService => "Out of service",
+                OperationalAssetStatus.Disposed => "Disposed",
+                _ => "Unknown"
+            }
+            : status switch
+            {
+                OperationalAssetStatus.Planned => "برنامه‌ریزی‌شده",
+                OperationalAssetStatus.Active => "فعال",
+                OperationalAssetStatus.UnderMaintenance => "زیر ترمیم",
+                OperationalAssetStatus.OutOfService => "خارج از کار",
+                OperationalAssetStatus.Disposed => "واگذار/اسقاط‌شده",
+                _ => "نامشخص"
+            };
+
     public static string AssetType(OperationalAssetType type)
         => type switch
         {
@@ -514,4 +751,32 @@ public static class OperationalAssetLabels
                 AssetRentChargedToType.Partner => "شریک",
                 _ => "شرکت خدماتی"
             };
+
+    /// <summary>
+    /// وضعیت مالیِ یک ردیف عواید به زبان کاربر. کدهای داخلی سیاست ثبت
+    /// (<c>AssetRentPostingPolicy</c>) هرگز به صفحه نمی‌روند؛ فقط ترجمهٔ ساده‌شان.
+    /// </summary>
+    public static string PostingState(bool isPostedToLedger, string? skipReason, HttpContext? context)
+    {
+        var en = UiText.IsEn(context);
+        if (isPostedToLedger)
+        {
+            return en ? "Recorded in accounts" : "در حساب ثبت شده";
+        }
+
+        return skipReason switch
+        {
+            null => en ? "Not recorded in accounts yet" : "هنوز در حساب ثبت نشده",
+            Services.AssetRentPostingPolicy.SkipCancelled => en ? "Cancelled" : "لغو شده",
+            Services.AssetRentPostingPolicy.SkipSystemGenerated or Services.AssetRentPostingPolicy.SkipInternalUse =>
+                en ? "Company internal use — no outside payment" : "استفاده داخلی شرکت — پرداخت بیرونی ندارد",
+            Services.AssetRentPostingPolicy.SkipPartnerUnsupported =>
+                en ? "Partner share — kept outside the accounts for now" : "سهم شریک — فعلاً در حساب ثبت نمی‌شود",
+            Services.AssetRentPostingPolicy.SkipCounterpartyUnresolved =>
+                en ? "Counterparty is not selected" : "طرف حساب مشخص نیست",
+            Services.AssetRentPostingPolicy.SkipInvalidAmount =>
+                en ? "Amount is not valid" : "مبلغ معتبر نیست",
+            _ => en ? "No outside payment" : "پرداخت بیرونی ندارد"
+        };
+    }
 }

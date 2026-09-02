@@ -51,7 +51,7 @@
     var indexUrl = Url.Action("Index") ?? "#";
     ViewData["AkHeaderStatus"] = Model.IsActive ? "فعال" : "غیرفعال";
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
-    ViewData["AkHeaderContext"] = $"کد: {Model.EmployeeCode} · {balanceLabel}";
+    ViewData["AkHeaderContext"] = $"کد: {Model.EmployeeCode}";
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
         new() { Label = "صورت‌حساب رسمی", Href = Url.Action("Employee", "PartyStatements", new { id = Model.Id }), Icon = "bi-file-earmark-text" },

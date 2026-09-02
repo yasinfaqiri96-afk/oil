@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 
@@ -13,6 +14,10 @@ namespace PTGOilSystem.Web.Controllers;
 public sealed class MaintenanceController : Controller
 {
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly IConfiguration _configuration;
     private readonly AuthBootstrapper _bootstrapper;
 
@@ -133,10 +138,11 @@ public sealed class MaintenanceController : Controller
             .OrderBy(l => l.Id)
             .ToList();
 
-        var entries = candidates
+        // حالت dry-run هیچ سطری نمی‌نویسد، پس فقط درخواست‌ها ساخته می‌شوند.
+        var requests = candidates
             .Select(l => SupplierLoadingLedger.Create(l, l.Contract!))
             .ToList();
-        var totalUsd = entries.Sum(e => e.AmountUsd);
+        var totalUsd = requests.Sum(e => e.AmountUsd);
 
         if (!commit)
         {
@@ -150,7 +156,7 @@ public sealed class MaintenanceController : Controller
             });
         }
 
-        if (entries.Count == 0)
+        if (requests.Count == 0)
         {
             return Ok(new { mode = "commit", created = 0, totalUsd = 0m });
         }
@@ -160,7 +166,7 @@ public sealed class MaintenanceController : Controller
             : null;
         try
         {
-            _db.LedgerEntries.AddRange(entries);
+            Ledger.PostRange([.. requests]);
             await _db.SaveChangesAsync();
             if (transaction is not null)
             {
@@ -186,7 +192,7 @@ public sealed class MaintenanceController : Controller
         return Ok(new
         {
             mode = "commit",
-            created = entries.Count,
+            created = requests.Count,
             totalUsd,
             loadingIds = candidates.Select(l => l.Id).ToList()
         });
@@ -261,4 +267,24 @@ public sealed class MaintenanceController : Controller
 
     private sealed record TableDescriptor(string Schema, string Table);
     private sealed record ForeignKeyDefinition(string Schema, string Table, string ConstraintName, string RecreateSql);
+
+    // Backfill: کلیدِ جستجوی canonical برای سطرهای پیش از این تغییر (SearchKey خالی).
+    // متنِ نمایشی دست نمی‌خورد؛ فقط ستونِ کمکی پر می‌شود. اجرای دوباره امن است چون کلید
+    // همیشه از همان متن ساخته می‌شود. پیش‌فرض Dry Run است. برخوردِ کلید فقط گزارش
+    // می‌شود — هیچ سطری ادغام یا حذف نمی‌شود.
+    [HttpPost]
+    [Route("/maintenance/backfill-canonical-search-keys")]
+    public async Task<IActionResult> BackfillCanonicalSearchKeys(bool commit = false, CancellationToken cancellationToken = default)
+    {
+        var result = await CanonicalSearchKeyBackfill.RunAsync(_db, commit, cancellationToken);
+
+        return Ok(new
+        {
+            message = commit ? "Canonical search keys backfilled." : "Dry run only. Pass commit=true to write.",
+            committed = result.Committed,
+            totalUpdated = result.TotalUpdated,
+            totalCollisions = result.TotalCollisions,
+            tables = result.Tables
+        });
+    }
 }

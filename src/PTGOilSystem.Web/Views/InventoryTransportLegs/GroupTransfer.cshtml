@@ -24,7 +24,8 @@
         MaxFileSizeMb = 5,
         RequiresConfirmation = false,
         ShowResultDetails = false,
-        Compact = true
+        Compact = true,
+        ToggleText = "اپلود اکسل موترها"
     };
 }
 
@@ -133,9 +134,10 @@
                 <section class="transfer-panel d-none" data-step="3">
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
                         <h2 class="h6 mb-0">موترهای مقصد را اضافه کنید</h2>
-                        <button type="button" class="btn btn-light ak-secondary-action btn-sm" data-upload-open>
-                            <i class="bi bi-file-earmark-excel"></i> اپلود اکسل موترها
-                        </button>
+                        @* اپلود فایل اکسل موترها: همان دکمه و مودال مشترک تمام صفحات *@
+                        <div class="excel-import-inline" data-upload-box>
+                            <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
+                        </div>
                     </div>
                     <p class="text-muted small mb-3">نمبر پلیت موتر و نام راننده را مستقیم تایپ کنید؛ اگر در سیستم نباشند هنگام ثبت ساخته می‌شوند.</p>
 
@@ -194,10 +196,6 @@
                         </tr>
                     </template>
 
-                    @* اپلود فایل اکسل موترها *@
-                    <div class="transfer-paste-box d-none" data-upload-box>
-                        <partial name="~/Views/Shared/ExcelImport/_ExcelImport.cshtml" model="excelImportOptions" />
-                    </div>
                     <span data-import-url="@Url.Action("ImportVehiclesExcel")" class="d-none"></span>
                 </section>
 
@@ -605,8 +603,6 @@
                     })
                     .catch(function () { api.fail('خطا در ارتباط با سرور.'); });
             }
-            var uploadOpen = document.querySelector('[data-upload-open]');
-            if (uploadOpen) { uploadOpen.addEventListener('click', function () { uploadBox.classList.toggle('d-none'); }); }
             if (uploadComponent) { uploadComponent.addEventListener('excel-import:start', applyUpload); }
 
             if (truckRows().length === 0) { addTruck(); }

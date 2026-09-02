@@ -2413,19 +2413,35 @@ public partial class ContractJourneyController : Controller
     public static async Task<IReadOnlyList<ContractJourneyPartnerShareItemViewModel>> LoadContractPartnerSharesAsync(
         ApplicationDbContext db,
         int contractId)
-        => await db.ContractPartners
+    {
+        // // PTG-P0-03 — سهم تاریخ‌دار شد؛ برای نمایش فقط آخرین بازهٔ هر شریک دیده می‌شود.
+        var rows = await db.ContractPartners
             .AsNoTracking()
             .Where(cp => cp.ContractId == contractId)
-            .OrderByDescending(cp => cp.SharePercent)
-            .ThenBy(cp => cp.Partner != null ? cp.Partner.Name : string.Empty)
-            .Select(cp => new ContractJourneyPartnerShareItemViewModel
+            .Select(cp => new
             {
-                PartnerId = cp.PartnerId,
+                cp.PartnerId,
                 PartnerCode = cp.Partner != null ? cp.Partner.Code : string.Empty,
                 PartnerName = cp.Partner != null ? cp.Partner.Name : string.Empty,
-                SharePercent = cp.SharePercent
+                cp.SharePercent,
+                cp.EffectiveFrom
             })
             .ToListAsync();
+
+        return rows
+            .GroupBy(x => x.PartnerId)
+            .Select(g => g.OrderByDescending(x => x.EffectiveFrom).First())
+            .OrderByDescending(x => x.SharePercent)
+            .ThenBy(x => x.PartnerName)
+            .Select(x => new ContractJourneyPartnerShareItemViewModel
+            {
+                PartnerId = x.PartnerId,
+                PartnerCode = x.PartnerCode,
+                PartnerName = x.PartnerName,
+                SharePercent = x.SharePercent
+            })
+            .ToList();
+    }
 
     private async Task<decimal> GetPendingTankSettlementQuantityMtAsync(int contractId)
     {

@@ -33,6 +33,8 @@ public partial class TruckSettlementsController : Controller
     // از DI می‌آید تا آداپترهای حسابداری وصل باشند؛ ساخت دستی آن‌ها را null می‌گذارد.
     private readonly InventoryTransportReceiptService _receiptService;
 
+    private readonly IFormTokenGuard _formTokens;
+
     public TruckSettlementsController(
         ApplicationDbContext db,
         ICurrencyConversionService currencyConversion,
@@ -41,8 +43,11 @@ public partial class TruckSettlementsController : Controller
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
         InventoryTransportReceiptService? receiptService = null,
         IInventoryMovementWriter? movements = null,
-        ITransportQuantityService? quantities = null)
+        ITransportQuantityService? quantities = null,
+        IFormTokenGuard? formTokens = null)
     {
+        // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
+        _formTokens = formTokens ?? new FormTokenGuard(db);
         _quantities = quantities ?? new TransportQuantityService(db);
         _db = db;
         _currencyConversion = currencyConversion;

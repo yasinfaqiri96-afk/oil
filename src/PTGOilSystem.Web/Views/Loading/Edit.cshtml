@@ -13,6 +13,7 @@
     <form asp-action="Edit" asp-route-id="@Model.Id" method="post" class="ak-form">
         @Html.AntiForgeryToken()
         <input asp-for="Id" type="hidden" />
+        <input asp-for="Version" type="hidden" />
         <input asp-for="ReturnUrl" type="hidden" />
 
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>

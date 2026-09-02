@@ -246,8 +246,9 @@ public sealed class SupplierBalanceTransferReportingTests
         var excel = SupplierStatementExport.BuildSummaryDocument(
             await BuildStatementAsync(db, "RUB"), grouping, "Statement", "RUB", [], isEnglish: false);
         var balanceIndex = excel.Columns.ToList().FindIndex(c => c.TitleFa == "بیلانس قرارداد");
+        // ستون «قرارداد» همان عنوانی است که جدول صفحه نشان می‌دهد: «قرارداد #P-009».
         var excelRow = Assert.Single(excel.Rows.Where(r =>
-            (string?)r.Cells[1].Value == "P-009"));
+            ((string?)r.Cells[1].Value)?.Contains("P-009", StringComparison.Ordinal) == true));
         Assert.Equal(ExpectedContractBalanceRub, excelRow.Cells[balanceIndex].Value);
 
         // هر سه منبع دقیقاً یک عدد و یک عنوان می‌دهند.

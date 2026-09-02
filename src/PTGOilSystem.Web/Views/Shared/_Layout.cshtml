@@ -810,7 +810,9 @@
         }
         @if (usePartyStatementEmbedAssets)
         {
-            <script src="~/js/party-statement-embed.js" asp-append-version="true" defer data-ptg-page-asset="party-statement-embed"></script>
+            @* تب «صورت‌حساب» پروفایل، سند را سمت سرور رندر می‌کند؛ پس همان CSS/JS صفحهٔ
+               مستقل صورت‌حساب باید روی صفحهٔ پروفایل هم بارگذاری شود. *@
+            <script src="~/js/party-statement.js" asp-append-version="true" defer data-ptg-page-asset="party-statement-script"></script>
         }
     }
     <div id="ptg-page-scripts">

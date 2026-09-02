@@ -1,0 +1,68 @@
+@using PTGOilSystem.Web.Helpers
+@model PTGOilSystem.Web.Models.Sales.SaleCorrectionViewModel
+@{
+    ViewData["Title"] = $"ابطال / اصلاح فروش {Model.InvoiceNumber}";
+    var backUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl)
+        ? Model.ReturnUrl
+        : Url.Action("Details", "Sales", new { id = Model.SaleId }) ?? $"/Sales/Details/{Model.SaleId}";
+}
+
+<div class="ak-form-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("ابطال / اصلاح فروش", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+
+    <form asp-action="Cancel" asp-route-id="@Model.SaleId" method="post" class="ak-form">
+        @Html.AntiForgeryToken()
+        @Html.FormToken()
+        <input asp-for="Version" name="version" type="hidden" />
+        <input asp-for="ReturnUrl" name="returnUrl" type="hidden" />
+
+        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("سند اصلی", (string?)"این سند بازنویسی نمی‌شود؛ ابطال می‌شود و در تاریخچه می‌ماند."))" />
+            <dl class="ak-form-grid">
+                <div class="ak-field"><dt class="ak-label">شماره فاکتور</dt><dd>@Model.InvoiceNumber</dd></div>
+                <div class="ak-field"><dt class="ak-label">تاریخ فروش</dt><dd>@Model.SaleDate.ToDisplayDate()</dd></div>
+                <div class="ak-field"><dt class="ak-label">مشتری</dt><dd>@Model.CustomerName</dd></div>
+                <div class="ak-field"><dt class="ak-label">مقدار</dt><dd>@NumberDisplay.Quantity(Model.QuantityMt) MT</dd></div>
+                <div class="ak-field"><dt class="ak-label">مبلغ</dt><dd>@Model.TotalInCurrency.ToString("N2") @Model.Currency</dd></div>
+                <div class="ak-field"><dt class="ak-label">معادل دالر</dt><dd>@Model.TotalUsd.ToString("N2") USD</dd></div>
+            </dl>
+        </section>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("دلیل و ادامهٔ کار", (string?)null))" />
+            <div class="ak-form-grid">
+                <div class="ak-field ak-col-full">
+                    <label asp-for="CancelReason" class="ak-label"></label>
+                    <textarea asp-for="CancelReason" name="cancelReason" class="ak-input" rows="3"
+                              placeholder="مثلاً: مقدار اشتباه ثبت شده بود"></textarea>
+                    <div class="form-text">دلیل ابطال در تاریخچهٔ سند ثبت می‌شود و پاک نمی‌شود.</div>
+                    <span asp-validation-for="CancelReason" class="ak-field-error"></span>
+                </div>
+
+                <div class="ak-field ak-col-full">
+                    <div class="form-check">
+                        <input asp-for="CreateReplacement" name="createReplacement" class="form-check-input" type="checkbox" value="true" />
+                        <input type="hidden" name="createReplacement" value="false" />
+                        <label asp-for="CreateReplacement" class="form-check-label"></label>
+                    </div>
+                    <div class="form-text">
+                        با ابطال، سند دفتر کل و حرکت موجودی این فروش برگردانده می‌شود.
+                        اگر این گزینه فعال باشد، پس از ابطال فرم فروش جدید با همان مقادیر باز می‌شود
+                        و سند تازه به سند اصلی پیوند می‌خورد.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@(("ابطال فروش", backUrl, "انصراف"))" />
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -501,6 +501,12 @@ public sealed class LoadingPriceEditViewModel
 
 public sealed class LoadingEditViewModel
 {
+    /// <summary>
+    /// PTG-P1-05 — نسخهٔ سطری که کاربر هنگامِ بازکردنِ فرم دید. با فرم برمی‌گردد تا ذخیره
+    /// روی نسخهٔ کهنه رد شود. صفر یعنی فرم نسخه نفرستاده است.
+    /// </summary>
+    public long Version { get; set; }
+
     public int Id { get; set; }
 
     public string ContractNumber { get; set; } = "";
@@ -632,9 +638,9 @@ public sealed class LoadingReceiptCreateViewModel
     [Display(Name = "مقصد رسید")]
     public LoadingReceiptDestination ReceiptDestination { get; set; } = LoadingReceiptDestination.ToInventory;
 
-    // نحوهٔ ثبت ضایعات: حالا معلوم (پیش‌فرض) یا معوق تا تسویهٔ نهایی مخزن.
+    // نحوهٔ ثبت ضایعات: معوق تا تسویهٔ نهایی مخزن (پیش‌فرض) یا حالا معلوم.
     [Display(Name = "نحوهٔ ثبت ضایعات")]
-    public ReceiptLossMode LossMode { get; set; } = ReceiptLossMode.ImmediateKnownLoss;
+    public ReceiptLossMode LossMode { get; set; } = ReceiptLossMode.DeferredTankSettlement;
 
     [Display(Name = "مقصد دقیق Allocation")]
     public LoadingReceiptAllocationDestination AllocationDestination { get; set; } = LoadingReceiptAllocationDestination.ToInventory;
@@ -736,8 +742,6 @@ public sealed class LoadingReceiptCreateViewModel
     [Display(Name = "مقدار دریافت‌شده (MT)")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "مقدار رسید باید بزرگ‌تر از صفر باشد.")]
     public decimal ReceivedQuantityMt { get; set; }
-
-    public List<LoadingReceiptAllocationLineInput> AllocationLines { get; set; } = [];
 
     [Display(Name = "مرجع رسید")]
     [StringLength(500)]

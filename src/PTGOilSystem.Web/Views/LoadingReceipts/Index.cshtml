@@ -24,10 +24,33 @@
             <vc:stat-card title="@UiText.T(Context, "دارای سند مرجع", "With reference")" value="@withReferenceCount.ToString("N0")" unit="@UiText.T(Context, "رسید", "receipts")" avatar="contract-signed"></vc:stat-card>
         </section>
         @{
+            List<AkFilterOption> ReceiptOpts(object? source) => (source as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(item => !string.IsNullOrEmpty(item.Value))
+                .Select(item => new AkFilterOption(item.Value, item.Text))
+                .ToList();
+            string? ReceiptQ(string key) { var value = Context.Request.Query[key].ToString(); return string.IsNullOrEmpty(value) ? null : value; }
             var lrFilter = new AkSearchFilterModel("q", Model.Query,
                 UiText.T(Context, "قرارداد، جنس، مخزن یا مرجع...", "Contract, product, tank or reference..."),
                 new List<AkFilterDefinition>
                 {
+                    new("productId", UiText.T(Context, "جنس", "Product"), "select",
+                        ReceiptOpts(ViewBag.FilterProducts), ReceiptQ("productId")),
+                    new("terminalId", UiText.T(Context, "ترمینال", "Terminal"), "select",
+                        ReceiptOpts(ViewBag.FilterTerminals), ReceiptQ("terminalId")),
+                    new("destination", UiText.T(Context, "مقصد رسید", "Receipt destination"), "select",
+                        new List<AkFilterOption>
+                        {
+                            new("0", UiText.T(Context, "ورود به موجودی", "To inventory")),
+                            new("1", UiText.T(Context, "تخلیه مستقیم", "Direct dispatch")),
+                            new("2", UiText.T(Context, "ترکیبی", "Mixed"))
+                        }, ReceiptQ("destination")),
+                    new("status", UiText.T(Context, "وضعیت", "Status"), "select",
+                        new List<AkFilterOption>
+                        {
+                            new("active", UiText.T(Context, "فعال", "Active")),
+                            new("cancelled", UiText.T(Context, "لغوشده", "Cancelled"))
+                        }, ReceiptQ("status")),
                     new("fromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.FromDate?.ToString("yyyy-MM-dd"), "toDate", Model.ToDate?.ToString("yyyy-MM-dd"))
                 });

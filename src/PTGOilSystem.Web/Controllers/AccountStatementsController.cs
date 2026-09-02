@@ -8,6 +8,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.AccountStatements;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
@@ -25,6 +26,10 @@ public partial class AccountStatementsController : Controller
     private const int LookupLimit = 200;
 
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IAuditService _audit;
     private readonly ICompanyFlowDirectionResolver _flowResolver;
@@ -201,7 +206,8 @@ public partial class AccountStatementsController : Controller
             : "ManualAdjustment";
         var amountUsd = conversion.ConvertToBase(model.SourceAmount);
 
-        var ledgerEntry = new LedgerEntry
+        // PTG-P1-03 — این سطر مبدأی بیرون از خودش ندارد: SourceId پس از ذخیره با Id خودش پر می‌شود.
+        var ledgerRequest = new LedgerPostingRequest
         {
             EntryDate = model.EntryDate.Date,
             Side = model.Side,
@@ -215,11 +221,14 @@ public partial class AccountStatementsController : Controller
             Description = model.Description,
             SourceType = sourceType,
             SourceId = 0,
+            AllowDeferredSourceId = true,
             Reference = model.Reference,
             ContractId = model.ContractId,
             CustomerId = model.CustomerId,
             SupplierId = model.SupplierId
         };
+
+        LedgerEntry ledgerEntry;
 
         IDbContextTransaction? transaction = null;
         if (_db.Database.IsRelational())
@@ -229,7 +238,7 @@ public partial class AccountStatementsController : Controller
 
         try
         {
-            _db.LedgerEntries.Add(ledgerEntry);
+            ledgerEntry = Ledger.Post(ledgerRequest);
             await _db.SaveChangesAsync();
 
             ledgerEntry.SourceId = ledgerEntry.Id;

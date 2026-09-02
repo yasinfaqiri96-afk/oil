@@ -796,143 +796,7 @@ public class LoadingReceiptControllerTests
     }
 
     [Fact]
-    public async Task Create_Post_Mixed_Creates_Line_Allocations_And_Only_ToInventory_Movements()
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        await using var db = new ApplicationDbContext(options);
-        SeedLoadingContext(db);
-        db.Customers.Add(new Customer { Id = 1, Name = "Mixed Direct Customer" });
-        db.Locations.AddRange(
-            new Location { Id = 10, Name = "Customer Yard" },
-            new Location { Id = 20, Name = "Kabul" });
-        db.Terminals.Add(new Terminal { Id = 2, Code = "TERM-2", Name = "Kabul Terminal" });
-        db.StorageTanks.Add(new StorageTank { Id = 2, TerminalId = 2, TankCode = "KBL-01", ProductId = 1, CapacityMt = 6000m });
-        await db.SaveChangesAsync();
-
-        var stock = new StockService(db);
-        var destinationStockBefore = await stock.GetFreeQuantityMtAsync(productId: 1, terminalId: 2, contractId: 1);
-
-        var controller = new LoadingReceiptsController(
-            db,
-            new AuditService(db),
-            NullLogger<LoadingReceiptsController>.Instance)
-        {
-            TempData = BuildTempData()
-        };
-
-        var result = await controller.Create(new LoadingReceiptCreateViewModel
-        {
-            LoadingRegisterId = 1,
-            ReceiptDestination = LoadingReceiptDestination.Mixed,
-            ReceiptDate = new DateTime(2026, 4, 24),
-            TerminalId = 1,
-            ReceivedQuantityMt = 100m,
-            ReferenceDocument = "RCPT-MIXED",
-            AllocationLines =
-            [
-                new()
-                {
-                    Destination = LoadingReceiptAllocationDestination.ToInventory,
-                    QuantityMt = 70m,
-                    TerminalId = 1,
-                    StorageTankId = 1,
-                    ReferenceDocument = "MIXED-IN"
-                },
-                new()
-                {
-                    Destination = LoadingReceiptAllocationDestination.DirectSale,
-                    QuantityMt = 10m,
-                    DestinationLocationId = 10,
-                    DestinationName = "Customer Yard",
-                    DestinationReference = "SALE-TRACE-MIXED",
-                    SaleCustomerId = 1,
-                    SaleDate = new DateTime(2026, 4, 24),
-                    SaleUnitPriceInCurrency = 520m,
-                    SaleCurrency = "USD",
-                    SaleInvoiceNumber = "INV-MIXED-001",
-                    SaleNotes = "Mixed direct sale"
-                },
-                new()
-                {
-                    Destination = LoadingReceiptAllocationDestination.DirectDispatchToTruck,
-                    QuantityMt = 10m,
-                    DestinationName = "Truck loading bay",
-                    DestinationReference = "TRUCK-TRACE-MIXED"
-                },
-                new()
-                {
-                    Destination = LoadingReceiptAllocationDestination.TransferToOtherTerminal,
-                    QuantityMt = 10m,
-                    DestinationTerminalId = 2,
-                    DestinationStorageTankId = 2,
-                    DestinationLocationId = 20,
-                    DestinationName = "Kabul Terminal",
-                    DestinationReference = "TRANSFER-TRACE-MIXED"
-                }
-            ]
-        });
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Details", redirect.ActionName);
-
-        var receipt = await db.LoadingReceipts.SingleAsync();
-        Assert.Equal(LoadingReceiptDestination.Mixed, receipt.ReceiptDestination);
-        Assert.Null(receipt.StorageTankId);
-        Assert.Equal(100m, receipt.ReceivedQuantityMt);
-
-        var movements = await db.InventoryMovements.OrderBy(m => m.Id).ToListAsync();
-        var movement = Assert.Single(movements);
-        Assert.Equal(MovementDirection.In, movement.Direction);
-        Assert.Equal(70m, movement.QuantityMt);
-        Assert.Equal(1, movement.TerminalId);
-        Assert.Equal(1, movement.StorageTankId);
-        Assert.Equal(receipt.Id, movement.LoadingReceiptId);
-
-        var allocations = await db.LoadingReceiptAllocations.OrderBy(a => a.Id).ToListAsync();
-        Assert.Equal(4, allocations.Count);
-
-        var toInventory = allocations.Single(a => a.Destination == LoadingReceiptAllocationDestination.ToInventory);
-        Assert.Equal(70m, toInventory.QuantityMt);
-        Assert.Equal(LoadingReceiptAllocationStatus.Completed, toInventory.Status);
-        Assert.Equal(movement.Id, toInventory.InventoryMovementId);
-
-        var directSale = allocations.Single(a => a.Destination == LoadingReceiptAllocationDestination.DirectSale);
-        Assert.Equal(LoadingReceiptAllocationStatus.Completed, directSale.Status);
-        Assert.Null(directSale.InventoryMovementId);
-        Assert.NotNull(directSale.SalesTransactionId);
-
-        var sale = await db.SalesTransactions.SingleAsync();
-        Assert.Equal(directSale.SalesTransactionId, sale.Id);
-        Assert.Equal(SaleStage.InTransit, sale.SaleStage);
-        Assert.Equal(10m, sale.QuantityMt);
-        Assert.Equal("INV-MIXED-001", sale.InvoiceNumber);
-
-        var ledger = await db.LedgerEntries.SingleAsync();
-        Assert.Equal("Sale", ledger.SourceType);
-        Assert.Equal(sale.Id, ledger.SourceId);
-        Assert.Equal(1, ledger.ContractId);
-
-        var directDispatch = allocations.Single(a => a.Destination == LoadingReceiptAllocationDestination.DirectDispatchToTruck);
-        Assert.Equal(LoadingReceiptAllocationStatus.TraceOnly, directDispatch.Status);
-        Assert.Null(directDispatch.InventoryMovementId);
-        Assert.Null(directDispatch.TruckDispatchId);
-
-        var transfer = allocations.Single(a => a.Destination == LoadingReceiptAllocationDestination.TransferToOtherTerminal);
-        Assert.Equal(LoadingReceiptAllocationStatus.InTransit, transfer.Status);
-        Assert.Equal(2, transfer.DestinationTerminalId);
-        Assert.Equal(2, transfer.DestinationStorageTankId);
-        Assert.Equal(20, transfer.DestinationLocationId);
-        Assert.Null(transfer.InventoryMovementId);
-
-        Assert.Equal(0, await db.TruckDispatches.CountAsync());
-        Assert.Equal(destinationStockBefore, await stock.GetFreeQuantityMtAsync(productId: 1, terminalId: 2, contractId: 1));
-    }
-
-    [Fact]
-    public async Task Create_Post_Mixed_Rejects_When_Allocation_Total_Does_Not_Match_ReceivedQuantity()
+    public async Task Create_Post_Rejects_Mixed_Receipt_Destination()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -954,39 +818,24 @@ public class LoadingReceiptControllerTests
         {
             LoadingRegisterId = 1,
             ReceiptDestination = LoadingReceiptDestination.Mixed,
-            ReceiptDate = new DateTime(2026, 4, 24),
+            ReceiptDate = new DateTime(2026, 4, 25),
             TerminalId = 1,
-            ReceivedQuantityMt = 100m,
-            AllocationLines =
-            [
-                new()
-                {
-                    Destination = LoadingReceiptAllocationDestination.ToInventory,
-                    QuantityMt = 60m,
-                    TerminalId = 1,
-                    StorageTankId = 1
-                },
-                new()
-                {
-                    Destination = LoadingReceiptAllocationDestination.DirectSale,
-                    QuantityMt = 20m,
-                    DestinationName = "Customer Yard"
-                }
-            ]
+            StorageTankId = 1,
+            ReceivedQuantityMt = 40m,
+            ReferenceDocument = "RCPT-MIXED"
         });
 
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<LoadingReceiptCreateViewModel>(view.Model);
-        Assert.Equal(LoadingReceiptDestination.Mixed, model.ReceiptDestination);
+        Assert.IsType<ViewResult>(result);
         Assert.False(controller.ModelState.IsValid);
-        Assert.Contains(controller.ModelState[string.Empty]!.Errors, e => e.ErrorMessage.Contains("مجموع allocation"));
+        Assert.Contains(
+            controller.ModelState[nameof(LoadingReceiptCreateViewModel.ReceiptDestination)]!.Errors,
+            e => e.ErrorMessage.Contains("ترکیبی"));
         Assert.Equal(0, await db.LoadingReceipts.CountAsync());
         Assert.Equal(0, await db.InventoryMovements.CountAsync());
-        Assert.Equal(0, await db.LoadingReceiptAllocations.CountAsync());
     }
 
     [Fact]
-    public async Task Create_Post_Mixed_With_Multiple_ToInventory_Lines_Links_Each_Allocation_To_Movement()
+    public async Task Create_Post_Requires_Storage_Tank_For_Inventory_Receipt()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -994,8 +843,6 @@ public class LoadingReceiptControllerTests
 
         await using var db = new ApplicationDbContext(options);
         SeedLoadingContext(db);
-        db.Terminals.Add(new Terminal { Id = 2, Code = "TERM-2", Name = "Second Terminal" });
-        db.StorageTanks.Add(new StorageTank { Id = 2, TerminalId = 2, TankCode = "TK-02", ProductId = 1, CapacityMt = 4000m });
         await db.SaveChangesAsync();
 
         var controller = new LoadingReceiptsController(
@@ -1009,48 +856,20 @@ public class LoadingReceiptControllerTests
         var result = await controller.Create(new LoadingReceiptCreateViewModel
         {
             LoadingRegisterId = 1,
-            ReceiptDestination = LoadingReceiptDestination.Mixed,
-            ReceiptDate = new DateTime(2026, 4, 24),
+            ReceiptDestination = LoadingReceiptDestination.ToInventory,
+            ReceiptDate = new DateTime(2026, 4, 25),
             TerminalId = 1,
-            ReceivedQuantityMt = 100m,
-            ReferenceDocument = "RCPT-MIXED-2IN",
-            AllocationLines =
-            [
-                new()
-                {
-                    Destination = LoadingReceiptAllocationDestination.ToInventory,
-                    QuantityMt = 60m,
-                    TerminalId = 1,
-                    StorageTankId = 1
-                },
-                new()
-                {
-                    Destination = LoadingReceiptAllocationDestination.ToInventory,
-                    QuantityMt = 40m,
-                    TerminalId = 2,
-                    StorageTankId = 2
-                }
-            ]
+            StorageTankId = null,
+            ReceivedQuantityMt = 40m,
+            ReferenceDocument = "RCPT-NO-TANK"
         });
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Details", redirect.ActionName);
-
-        var receipt = await db.LoadingReceipts.SingleAsync();
-        var movements = await db.InventoryMovements.OrderBy(m => m.Id).ToListAsync();
-        Assert.Equal(2, movements.Count);
-        Assert.Single(movements.Where(m => m.LoadingReceiptId == receipt.Id));
-
-        var allocations = await db.LoadingReceiptAllocations.OrderBy(a => a.Id).ToListAsync();
-        Assert.Equal(2, allocations.Count);
-        Assert.All(allocations, a =>
-        {
-            Assert.Equal(LoadingReceiptAllocationDestination.ToInventory, a.Destination);
-            Assert.Equal(LoadingReceiptAllocationStatus.Completed, a.Status);
-            Assert.NotNull(a.InventoryMovementId);
-        });
-        Assert.Equal(60m, movements.Single(m => m.TerminalId == 1).QuantityMt);
-        Assert.Equal(40m, movements.Single(m => m.TerminalId == 2).QuantityMt);
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Contains(
+            controller.ModelState[nameof(LoadingReceiptCreateViewModel.StorageTankId)]!.Errors,
+            e => e.ErrorMessage.Contains("مخزن"));
+        Assert.Equal(0, await db.LoadingReceipts.CountAsync());
     }
 
     [Fact]

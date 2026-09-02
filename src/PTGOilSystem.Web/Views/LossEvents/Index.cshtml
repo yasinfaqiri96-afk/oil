@@ -77,7 +77,7 @@
                         <tr data-href="@Url.Action("Details", new { id = item.Id })">
                             <td><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
                             <td class="col-name">
-                                @await Html.PartialAsync("_OperationsListIdentity", ("bi-exclamation-circle", LossEventStageLabels.ToPersian(item.Stage), item.EventDate.ToDisplayDate(), false))
+                                <div><span class="ak-name">@LossEventStageLabels.ToPersian(item.Stage)</span></div>
                             </td>
                             <td>
                                 <span>@item.ProductName</span>

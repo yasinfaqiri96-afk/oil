@@ -3,14 +3,33 @@
    دیده می‌شود و پنل کامل با کلیک باز می‌شود. صفحات اختصاصی import همان حالت باز را دارند. *@
 @if (Model.Collapsible)
 {
-    <details class="excel-import-toggle" data-excel-import-toggle>
-        <summary class="excel-import-toggle__button">
+    var modalId = $"{Model.InputId}Modal";
+    var modalLabelId = $"{modalId}Label";
+    <button type="button" class="btn btn-success excel-import-toggle__button"
+            data-bs-toggle="modal" data-bs-target="#@modalId"
+            aria-controls="@modalId">
             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
             <span>@Model.ToggleText</span>
-            <i class="bi bi-chevron-down excel-import-toggle__caret" aria-hidden="true"></i>
-        </summary>
-        <partial name="~/Views/Shared/ExcelImport/_ExcelImportBody.cshtml" model="Model" />
-    </details>
+    </button>
+    <div class="modal fade ak-modal excel-import-modal" id="@modalId" tabindex="-1"
+         aria-labelledby="@modalLabelId" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content ak-modal-content">
+                <div class="ak-modal-head">
+                    <div>
+                        <h2 class="ak-modal-title" id="@modalLabelId">@Model.Title</h2>
+                        <p class="ak-modal-subtitle">@Model.Description</p>
+                    </div>
+                    <button type="button" class="ak-modal-close" data-bs-dismiss="modal" aria-label="بستن">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="modal-body ak-modal-body">
+                    <partial name="~/Views/Shared/ExcelImport/_ExcelImportBody.cshtml" model="Model" />
+                </div>
+            </div>
+        </div>
+    </div>
 }
 else
 {

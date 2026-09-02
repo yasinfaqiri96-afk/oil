@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
@@ -489,6 +489,82 @@ public sealed class InventoryTransferAccountingAdapterTests(AccountingPostgreSql
 
     // ---- Helpers ----
 
+    /// <summary>
+    /// یک leg می‌تواند سهم چند قرارداد خرید را با هم ببرد (InventoryTransportLegAllocation).
+    /// بهای انتقال از حوضِ (شرکت، کالا، ترمینال) برداشته می‌شود و قرارداد در آن حوض نقشی ندارد،
+    /// پس کلِ مقدار leg با میانگینِ همان ترمینال قیمت می‌خورد؛ ContractId روی خطوط فقط ارجاع است.
+    /// </summary>
+    [Fact]
+    public async Task Load_Of_A_Multi_Contract_Leg_Values_The_Whole_Quantity_At_The_Terminal_Average()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+
+        // 40 MT at 20,000 averages 500 per MT.
+        await new InventoryValuationService(db)
+            .ApplyReceiptAsync(scope.Company.Id, scope.Product.Id, scope.Terminal.Id, 40m, 20_000m);
+        var secondContract = await AddPurchaseContractAsync(db, scope);
+        var leg = await AddLegAsync(db, scope, quantityMt: 25m);
+        db.InventoryTransportLegAllocations.AddRange(
+            new InventoryTransportLegAllocation
+            {
+                InventoryTransportLegId = leg.Id,
+                SourcePurchaseContractId = scope.Contract.Id,
+                QuantityMt = 10m
+            },
+            new InventoryTransportLegAllocation
+            {
+                InventoryTransportLegId = leg.Id,
+                SourcePurchaseContractId = secondContract.Id,
+                QuantityMt = 15m
+            });
+        await db.SaveChangesAsync();
+
+        var adapter = CreateAdapter(db);
+        var result = await adapter.TryPostLegLoadAsync(leg);
+
+        // 25 x 500 = 12,500 — کل مقدار leg، نه سهم یک قرارداد.
+        Assert.Equal(PaymentPostingStatus.Posted, result.Status);
+        Assert.Equal(12_500m, result.Journal!.Lines.Sum(x => x.Debit));
+        Assert.Equal(12_500m, result.Journal.Lines.Sum(x => x.Credit));
+        // بُعدِ قرارداد = قراردادِ سرصفحهٔ leg (فقط ارجاع؛ در ارزش‌گذاری اثر ندارد).
+        Assert.All(result.Journal.Lines, line => Assert.Equal(scope.Contract.Id, line.ContractId));
+
+        var pool = await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(15m, pool!.QuantityMt);
+        Assert.Equal(7_500m, pool.TotalValueUsd);
+
+        // ثبتِ دوباره (retry) سند تکراری نمی‌سازد و حوض را دوباره مصرف نمی‌کند.
+        var retry = await adapter.TryPostLegLoadAsync(leg);
+        Assert.Equal(PaymentPostingStatus.Duplicate, retry.Status);
+        var poolAfterRetry = await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(15m, poolAfterRetry!.QuantityMt);
+        Assert.Equal(7_500m, poolAfterRetry.TotalValueUsd);
+    }
+
+    internal static async Task<Contract> AddPurchaseContractAsync(
+        ApplicationDbContext db,
+        PaymentAccountingAdapterTests.PaymentScope scope)
+    {
+        var contract = new Contract
+        {
+            ContractNumber = PaymentAccountingAdapterTests.Unique("CN"),
+            ContractType = ContractType.Purchase,
+            Status = ContractStatus.Active,
+            CompanyId = scope.Company.Id,
+            ProductId = scope.Product.Id,
+            SupplierId = scope.Supplier.Id,
+            ContractDate = new DateTime(2026, 7, 1),
+            PricingMethod = PricingMethod.ManualFinalPrice,
+            QuantityMt = 100m,
+            Currency = "USD",
+            SettlementCurrencyCode = "USD"
+        };
+        db.Contracts.Add(contract);
+        await db.SaveChangesAsync();
+        return contract;
+    }
+
     private static AccountingOptions EnabledOptions()
         => new()
         {
@@ -578,4 +654,385 @@ public sealed class InventoryTransferAccountingAdapterTests(AccountingPostgreSql
             .SingleOrDefaultAsync(x => x.CompanyId == companyId
                 && x.ProductId == productId
                 && x.TerminalId == terminalId);
+
+    // ---- Multi-company legs ----
+    //
+    // One physical truck can carry the goods of two internal companies at once — 10 MT on
+    // P-016/company A and 20 MT on P-017/company B. The truck is not split, the batch is not
+    // split, but the valuation pool is keyed by company, so each owner may give up only its own
+    // share. The ledger itself is still single-company — AccountingPostingService refuses any
+    // journal that is not the system owner's — so a co-owner's share stays out of the ledger
+    // rather than being billed to the owner.
+
+    [Fact]
+    public async Task Load_Of_A_Multi_Company_Leg_Consumes_Only_The_Owner_Share()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await AddCompanyWithContractAsync(db, scope);
+
+        // Company A (the system owner): 40 MT at 20,000 → 500 per MT. Company B: 30 MT at 9,000.
+        var valuation = new InventoryValuationService(db);
+        await valuation.ApplyReceiptAsync(scope.Company.Id, scope.Product.Id, scope.Terminal.Id, 40m, 20_000m);
+        await valuation.ApplyReceiptAsync(second.Company.Id, scope.Product.Id, scope.Terminal.Id, 30m, 9_000m);
+
+        var leg = await AddLegAsync(db, scope, quantityMt: 30m);
+        await AddAllocationsAsync(db, leg, (scope.Contract.Id, 10m), (second.Contract.Id, 20m));
+
+        var adapter = CreateAdapter(db);
+        var result = await adapter.TryPostLegLoadAsync(leg);
+
+        Assert.Equal(PaymentPostingStatus.Posted, result.Status);
+
+        // 10 x 500 — company A's own share, not the whole 30 MT of a truck it only part owns.
+        var journalA = await FindJournalAsync(
+            db, scope.Company.Id,
+            InventoryTransferAccountingAdapter.BuildLegLoadedSourceEventId(leg.Id, scope.Company.Id));
+        Assert.NotNull(journalA);
+        Assert.Equal(5_000m, journalA!.Lines.Sum(x => x.Debit));
+        Assert.All(journalA.Lines, line => Assert.Equal(scope.Contract.Id, line.ContractId));
+        Assert.Equal(1, await CountLegJournalsAsync(db, leg.Id));
+
+        var poolA = await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(30m, poolA!.QuantityMt);
+        Assert.Equal(15_000m, poolA.TotalValueUsd);
+
+        // Company B's goods are untouched: the owner did not consume them, and B has no journal.
+        var poolB = await GetPoolAsync(db, second.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(30m, poolB!.QuantityMt);
+        Assert.Equal(9_000m, poolB.TotalValueUsd);
+        Assert.Null(await FindJournalAsync(
+            db, second.Company.Id,
+            InventoryTransferAccountingAdapter.BuildLegLoadedSourceEventId(leg.Id, second.Company.Id)));
+
+        // Retry posts nothing new and consumes the pool no second time.
+        var retry = await adapter.TryPostLegLoadAsync(leg);
+        Assert.Equal(PaymentPostingStatus.Duplicate, retry.Status);
+        Assert.Equal(1, await CountLegJournalsAsync(db, leg.Id));
+        var poolAfterRetry = await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(30m, poolAfterRetry!.QuantityMt);
+        Assert.Equal(15_000m, poolAfterRetry.TotalValueUsd);
+    }
+
+    // Two contracts of the same company are one owner: A/P-016 = 10 and A/P-018 = 5 post as 15.
+    [Fact]
+    public async Task Two_Contracts_Of_One_Company_Post_As_A_Single_Company_Slice()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var secondContractSameCompany = await AddPurchaseContractAsync(db, scope);
+        var second = await AddCompanyWithContractAsync(db, scope);
+
+        var valuation = new InventoryValuationService(db);
+        await valuation.ApplyReceiptAsync(scope.Company.Id, scope.Product.Id, scope.Terminal.Id, 40m, 20_000m);
+        await valuation.ApplyReceiptAsync(second.Company.Id, scope.Product.Id, scope.Terminal.Id, 30m, 9_000m);
+
+        var leg = await AddLegAsync(db, scope, quantityMt: 30m);
+        await AddAllocationsAsync(
+            db, leg,
+            (scope.Contract.Id, 10m),
+            (secondContractSameCompany.Id, 5m),
+            (second.Contract.Id, 15m));
+
+        var result = await CreateAdapter(db).TryPostLegLoadAsync(leg);
+
+        Assert.Equal(PaymentPostingStatus.Posted, result.Status);
+        Assert.Equal(1, await CountLegJournalsAsync(db, leg.Id));
+
+        // A = 15 x 500: the two contracts of company A are added up before anything is consumed,
+        // rather than posted twice or reduced to whichever one heads the leg.
+        var journalA = await FindJournalAsync(
+            db, scope.Company.Id,
+            InventoryTransferAccountingAdapter.BuildLegLoadedSourceEventId(leg.Id, scope.Company.Id));
+        Assert.Equal(7_500m, journalA!.Lines.Sum(x => x.Debit));
+
+        // Company A brought two contracts into the same truck, so the contract dimension on its
+        // lines has no single answer and is left empty rather than guessed.
+        Assert.All(journalA.Lines, line => Assert.Null(line.ContractId));
+
+        var poolA = await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(25m, poolA!.QuantityMt);
+        var poolB = await GetPoolAsync(db, second.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(30m, poolB!.QuantityMt);
+    }
+
+    [Fact]
+    public async Task Receipt_Of_A_Multi_Company_Leg_Lands_Only_The_Owner_Share()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await AddCompanyWithContractAsync(db, scope);
+        var destination = await AddTerminalAsync(db);
+
+        var valuation = new InventoryValuationService(db);
+        await valuation.ApplyReceiptAsync(scope.Company.Id, scope.Product.Id, scope.Terminal.Id, 40m, 20_000m);
+        await valuation.ApplyReceiptAsync(second.Company.Id, scope.Product.Id, scope.Terminal.Id, 30m, 9_000m);
+
+        var leg = await AddLegAsync(db, scope, quantityMt: 30m, destinationTerminalId: destination.Id);
+        await AddAllocationsAsync(db, leg, (scope.Contract.Id, 10m), (second.Contract.Id, 20m));
+
+        var adapter = CreateAdapter(db);
+        await adapter.TryPostLegLoadAsync(leg);
+
+        var receipt = await AddReceiptAsync(db, leg, destination.Id, receivedMt: 30m, shortageMt: 0m);
+        var result = await adapter.TryPostReceiptAsync(receipt);
+
+        Assert.Equal(PaymentPostingStatus.Posted, result.Status);
+
+        // 10 of the 30 MT that arrived are company A's, and they land with the cost they left with.
+        var destinationA = await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, destination.Id);
+        Assert.Equal(10m, destinationA!.QuantityMt);
+        Assert.Equal(5_000m, destinationA.TotalValueUsd);
+        Assert.Null(await GetPoolAsync(db, second.Company.Id, scope.Product.Id, destination.Id));
+
+        // Nothing of company A's is left on the road.
+        var journalA = await FindJournalAsync(
+            db, scope.Company.Id,
+            InventoryTransferAccountingAdapter.BuildReceiptSourceEventId(receipt.Id, scope.Company.Id));
+        Assert.Equal(5_000m, journalA!.Lines.Sum(x => x.Credit));
+
+        // Retry adds nothing.
+        var retry = await adapter.TryPostReceiptAsync(receipt);
+        Assert.Equal(PaymentPostingStatus.Duplicate, retry.Status);
+        Assert.Equal(1, await CountReceiptJournalsAsync(db, receipt.Id));
+    }
+
+    // 0.6 MT short on a 10/20 truck is 0.2 MT against A and 0.4 MT against B — the shortage
+    // follows the same shares the cargo did, so A is never written down for B's loss.
+    [Fact]
+    public async Task Shortage_On_A_Multi_Company_Leg_Falls_On_The_Owner_In_Proportion()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await AddCompanyWithContractAsync(db, scope);
+        var destination = await AddTerminalAsync(db);
+
+        var valuation = new InventoryValuationService(db);
+        await valuation.ApplyReceiptAsync(scope.Company.Id, scope.Product.Id, scope.Terminal.Id, 40m, 20_000m);
+        await valuation.ApplyReceiptAsync(second.Company.Id, scope.Product.Id, scope.Terminal.Id, 30m, 9_000m);
+
+        var leg = await AddLegAsync(db, scope, quantityMt: 30m, destinationTerminalId: destination.Id);
+        await AddAllocationsAsync(db, leg, (scope.Contract.Id, 10m), (second.Contract.Id, 20m));
+
+        var adapter = CreateAdapter(db);
+        await adapter.TryPostLegLoadAsync(leg);
+
+        var receipt = await AddReceiptAsync(db, leg, destination.Id, receivedMt: 29.4m, shortageMt: 0.6m);
+        var result = await adapter.TryPostReceiptAsync(receipt);
+
+        Assert.Equal(PaymentPostingStatus.Posted, result.Status);
+
+        // A: 9.8 MT arrive at 500 = 4,900; 0.2 MT written off = 100 — a third of the truck's
+        // shortage, because A owned a third of the truck.
+        var destinationA = await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, destination.Id);
+        Assert.Equal(9.8m, destinationA!.QuantityMt);
+        Assert.Equal(4_900m, destinationA.TotalValueUsd);
+
+        var journalA = await FindJournalAsync(
+            db, scope.Company.Id,
+            InventoryTransferAccountingAdapter.BuildReceiptSourceEventId(receipt.Id, scope.Company.Id));
+        Assert.Equal(100m, journalA!.Lines.Single(x => x.AccountId == scope.Settings.InventoryLossAccountId).Debit);
+        // Nothing of A's is left on the road.
+        Assert.Equal(5_000m, journalA.Lines.Sum(x => x.Credit));
+    }
+
+    // A leg whose cargo belongs entirely to a company the ledger cannot accept posts nothing at
+    // all — and, the point of this, does not blow up the loading it is attached to.
+    [Fact]
+    public async Task A_Leg_Owned_By_Another_Company_Is_Skipped_Not_Charged_To_The_Owner()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await AddCompanyWithContractAsync(db, scope);
+
+        var valuation = new InventoryValuationService(db);
+        await valuation.ApplyReceiptAsync(scope.Company.Id, scope.Product.Id, scope.Terminal.Id, 40m, 20_000m);
+        await valuation.ApplyReceiptAsync(second.Company.Id, scope.Product.Id, scope.Terminal.Id, 30m, 9_000m);
+
+        var leg = await AddLegAsync(db, scope, quantityMt: 20m);
+        await AddAllocationsAsync(db, leg, (second.Contract.Id, 20m));
+
+        var result = await CreateAdapter(db).TryPostLegLoadAsync(leg);
+
+        Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
+        Assert.Equal("COMPANY_NOT_OWNER", result.Reason);
+        Assert.Equal(0, await CountLegJournalsAsync(db, leg.Id));
+        Assert.Equal(40m, (await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, scope.Terminal.Id))!.QuantityMt);
+        Assert.Equal(30m, (await GetPoolAsync(db, second.Company.Id, scope.Product.Id, scope.Terminal.Id))!.QuantityMt);
+    }
+
+    // A posting that fails must leave the pool exactly as it was, and the journals go back with
+    // the caller's transaction: one leg, one atomic outcome, however many owners it has.
+    [Fact]
+    public async Task A_Failed_Posting_Leaves_Neither_Journal_Nor_Consumed_Pool()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await AddCompanyWithContractAsync(db, scope);
+
+        var valuation = new InventoryValuationService(db);
+        await valuation.ApplyReceiptAsync(scope.Company.Id, scope.Product.Id, scope.Terminal.Id, 40m, 20_000m);
+        await valuation.ApplyReceiptAsync(second.Company.Id, scope.Product.Id, scope.Terminal.Id, 30m, 9_000m);
+
+        var leg = await AddLegAsync(db, scope, quantityMt: 30m);
+        await AddAllocationsAsync(db, leg, (scope.Contract.Id, 10m), (second.Contract.Id, 20m));
+
+        // Closing every period of the owner makes its posting fail after its pool was consumed.
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE \"FiscalPeriods\" SET \"Status\" = {0} WHERE \"CompanyId\" = {1}",
+            (int)FiscalPeriodStatus.Closed, scope.Company.Id);
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        await Assert.ThrowsAnyAsync<Exception>(() => CreateAdapter(db).TryPostLegLoadAsync(leg));
+        await transaction.RollbackAsync();
+
+        Assert.Equal(0, await CountLegJournalsAsync(db, leg.Id));
+        var poolA = await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(40m, poolA!.QuantityMt);
+        Assert.Equal(20_000m, poolA.TotalValueUsd);
+        var poolB = await GetPoolAsync(db, second.Company.Id, scope.Product.Id, scope.Terminal.Id);
+        Assert.Equal(30m, poolB!.QuantityMt);
+        Assert.Equal(9_000m, poolB.TotalValueUsd);
+    }
+
+    [Fact]
+    public async Task A_Multi_Company_Leg_Does_Nothing_While_The_Pilot_Is_Off()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var second = await AddCompanyWithContractAsync(db, scope);
+
+        var valuation = new InventoryValuationService(db);
+        await valuation.ApplyReceiptAsync(scope.Company.Id, scope.Product.Id, scope.Terminal.Id, 40m, 20_000m);
+        await valuation.ApplyReceiptAsync(second.Company.Id, scope.Product.Id, scope.Terminal.Id, 30m, 9_000m);
+
+        var leg = await AddLegAsync(db, scope, quantityMt: 30m);
+        await AddAllocationsAsync(db, leg, (scope.Contract.Id, 10m), (second.Contract.Id, 20m));
+
+        var adapter = new InventoryTransferAccountingAdapter(
+            db,
+            CreatePostingService(db),
+            new AccountingJournalNumberGenerator(),
+            new InventoryValuationService(db),
+            Options.Create(new AccountingOptions { Enabled = true, DefaultFunctionalCurrencyCode = "USD" }),
+            NullLogger<InventoryTransferAccountingAdapter>.Instance);
+
+        var result = await adapter.TryPostLegLoadAsync(leg);
+
+        Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
+        Assert.Equal("PILOT_DISABLED", result.Reason);
+        Assert.Equal(0, await CountLegJournalsAsync(db, leg.Id));
+        Assert.Equal(40m, (await GetPoolAsync(db, scope.Company.Id, scope.Product.Id, scope.Terminal.Id))!.QuantityMt);
+        Assert.Equal(30m, (await GetPoolAsync(db, second.Company.Id, scope.Product.Id, scope.Terminal.Id))!.QuantityMt);
+    }
+
+    private static async Task AddAllocationsAsync(
+        ApplicationDbContext db,
+        InventoryTransportLeg leg,
+        params (int ContractId, decimal QuantityMt)[] allocations)
+    {
+        db.InventoryTransportLegAllocations.AddRange(allocations.Select(a => new InventoryTransportLegAllocation
+        {
+            InventoryTransportLegId = leg.Id,
+            SourcePurchaseContractId = a.ContractId,
+            QuantityMt = a.QuantityMt
+        }));
+        await db.SaveChangesAsync();
+    }
+
+    private static Task<JournalEntry?> FindJournalAsync(
+        ApplicationDbContext db,
+        int companyId,
+        string sourceEventId)
+        => db.JournalEntries
+            .AsNoTracking()
+            .Include(x => x.Lines)
+            .SingleOrDefaultAsync(x => x.CompanyId == companyId
+                && x.SourceModule == InventoryTransferAccountingAdapter.SourceModule
+                && x.SourceEventId == sourceEventId);
+
+    private static Task<int> CountLegJournalsAsync(ApplicationDbContext db, int legId)
+        => db.JournalEntries
+            .AsNoTracking()
+            .CountAsync(x => x.SourceModule == InventoryTransferAccountingAdapter.SourceModule
+                && x.SourceEntityType == InventoryTransferAccountingAdapter.LegEntityType
+                && x.SourceEntityId == legId
+                && !x.IsReversal);
+
+    private static Task<int> CountReceiptJournalsAsync(ApplicationDbContext db, int receiptId)
+        => db.JournalEntries
+            .AsNoTracking()
+            .CountAsync(x => x.SourceModule == InventoryTransferAccountingAdapter.SourceModule
+                && x.SourceEntityType == InventoryTransferAccountingAdapter.ReceiptEntityType
+                && x.SourceEntityId == receiptId
+                && !x.IsReversal);
+
+    /// <summary>
+    /// A second internal company, with its own chart, settings and purchase contract, so that one
+    /// leg can genuinely be owned by two companies at once.
+    /// </summary>
+    internal static async Task<SecondCompany> AddCompanyWithContractAsync(
+        ApplicationDbContext db,
+        PaymentAccountingAdapterTests.PaymentScope scope)
+    {
+        var company = new Company
+        {
+            Code = PaymentAccountingAdapterTests.Unique("C2"),
+            Name = PaymentAccountingAdapterTests.Unique("Company2"),
+            Country = "AF",
+            IsActive = true
+        };
+        db.Companies.Add(company);
+        await db.SaveChangesAsync();
+
+        await new AccountingChartSeeder(
+            db,
+            Options.Create(new AccountingOptions { DefaultFunctionalCurrencyCode = "USD" })).SeedAsync();
+        var settings = await db.AccountingSettings.AsNoTracking().SingleAsync(x => x.CompanyId == company.Id);
+
+        var year = new FiscalYear
+        {
+            CompanyId = company.Id,
+            Name = PaymentAccountingAdapterTests.Unique("FY"),
+            StartDate = new DateTime(2026, 1, 1),
+            EndDate = new DateTime(2026, 12, 31),
+            Status = FiscalYearStatus.Open,
+            IsCurrent = true
+        };
+        db.FiscalYears.Add(year);
+        await db.SaveChangesAsync();
+
+        db.FiscalPeriods.AddRange(Enumerable.Range(1, 12).Select(month => new FiscalPeriod
+        {
+            CompanyId = company.Id,
+            FiscalYearId = year.Id,
+            PeriodNumber = month,
+            Name = $"P{month}-{year.Id}",
+            StartDate = new DateTime(2026, month, 1),
+            EndDate = new DateTime(2026, month, DateTime.DaysInMonth(2026, month)),
+            Status = FiscalPeriodStatus.Open
+        }));
+        await db.SaveChangesAsync();
+
+        var contract = new Contract
+        {
+            ContractNumber = PaymentAccountingAdapterTests.Unique("CN2"),
+            ContractType = ContractType.Purchase,
+            Status = ContractStatus.Active,
+            CompanyId = company.Id,
+            ProductId = scope.Product.Id,
+            SupplierId = scope.Supplier.Id,
+            ContractDate = new DateTime(2026, 7, 1),
+            PricingMethod = PricingMethod.ManualFinalPrice,
+            QuantityMt = 100m,
+            Currency = "USD",
+            SettlementCurrencyCode = "USD"
+        };
+        db.Contracts.Add(contract);
+        await db.SaveChangesAsync();
+
+        return new SecondCompany(company, contract, settings);
+    }
+
+    internal sealed record SecondCompany(Company Company, Contract Contract, AccountingSettings Settings);
 }

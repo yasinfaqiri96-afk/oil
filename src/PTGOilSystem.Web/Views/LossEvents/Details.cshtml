@@ -24,22 +24,54 @@
     // در کارت اندازه‌گیری کنار همان مقایسه می‌مانند.
     var quantityMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مورد انتظار", "Expected"), Value = Model.ExpectedQuantityMt.ToString("N4"), Unit = "MT" },
-        new() { Title = T("واقعی", "Actual"), Value = Model.ActualQuantityMt.ToString("N4"), Unit = "MT" },
-        new() { Title = T("تفاوت", "Difference"), Value = Model.DifferenceQuantityMt.ToString("N4"), Unit = "MT" },
-        new() { Title = T("قابل محاسبه", "Chargeable"), Value = Model.ChargeableLossMt.ToString("N4"), Unit = "MT", State = hasChargeable ? "warning" : "accent" }
+        new() { Title = T("مورد انتظار", "Expected"), Value = Model.ExpectedQuantityMt.ToString("N4"), Unit = "MT", Avatar = "flow-weight-mt" },
+        new() { Title = T("واقعی", "Actual"), Value = Model.ActualQuantityMt.ToString("N4"), Unit = "MT", Avatar = "flow-weight-drop" },
+        new() { Title = T("تفاوت", "Difference"), Value = Model.DifferenceQuantityMt.ToString("N4"), Unit = "MT", Avatar = "flow-weight-minus" },
+        new() { Title = T("قابل محاسبه", "Chargeable"), Value = Model.ChargeableLossMt.ToString("N4"), Unit = "MT", State = hasChargeable ? "warning" : "accent", Avatar = "flow-warning" }
     };
 
     var toleranceMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("حد تحمل", "Tolerance"), Value = Model.ToleranceQuantityMt.ToString("N4"), Unit = "MT" },
-        new() { Title = T("کسری مجاز", "Allowable"), Value = Model.AllowableLossMt.ToString("N4"), Unit = "MT" }
+        new() { Title = T("حد تحمل", "Tolerance"), Value = Model.ToleranceQuantityMt.ToString("N4"), Unit = "MT", Avatar = "flow-doc-check" },
+        new() { Title = T("کسری مجاز", "Allowable"), Value = Model.AllowableLossMt.ToString("N4"), Unit = "MT", Avatar = "flow-weight" }
     };
+
+    // منبع کسری: همان رکوردی که کسری روی آن رخ داده. متن بدون تاریخ است و
+    // مستقیم به صفحهٔ همان رکورد لینک می‌شود.
+    string? sourceText = null;
+    string? sourceHref = null;
+    if (Model.LoadingReceiptId.HasValue)
+    {
+        sourceText = $"{T("رسید بارگیری", "Loading receipt")} #{Model.LoadingReceiptId}";
+        sourceHref = Url.Action("Details", "LoadingReceipts", new { id = Model.LoadingReceiptId, returnUrl = currentReturnUrl });
+    }
+    else if (Model.TruckDispatchId.HasValue)
+    {
+        sourceText = $"{T("ارسال با موتر", "Truck dispatch")} #{Model.TruckDispatchId}";
+        sourceHref = Url.Action("Details", "Dispatch", new { id = Model.TruckDispatchId, returnUrl = currentReturnUrl });
+    }
+    else if (Model.SalesTransactionId.HasValue)
+    {
+        sourceText = $"{T("فروش", "Sale")} #{Model.SalesTransactionId}";
+        sourceHref = Url.Action("Details", "Sales", new { id = Model.SalesTransactionId, returnUrl = currentReturnUrl });
+    }
+    else if (Model.LoadingRegisterId.HasValue)
+    {
+        sourceText = $"{T("بارگیری", "Loading")} #{Model.LoadingRegisterId}";
+        sourceHref = Url.Action("Details", "Loading", new { id = Model.LoadingRegisterId, returnUrl = currentReturnUrl });
+    }
+    else if (Model.ShipmentId.HasValue)
+    {
+        sourceText = string.IsNullOrWhiteSpace(Model.ShipmentCode)
+            ? $"{T("محموله", "Shipment")} #{Model.ShipmentId}"
+            : $"{T("محموله", "Shipment")} {Model.ShipmentCode}";
+        sourceHref = Url.Action("Details", "ShipmentPnl", new { id = Model.ShipmentId });
+    }
 
     var mainItems = new List<AkInfoItem>
     {
         new() { Label = T("محصول", "Product"), Value = Model.ProductName },
-        new() { Label = T("مرحله", "Stage"), Value = Model.Stage.ToString() },
+        new() { Label = T("منبع کسری", "Loss source"), Value = sourceText, Href = sourceHref, Tone = "info" },
         new() { Label = T("تاریخ رویداد", "Event date"), Value = Model.EventDate.ToDisplayDate(), IsNumeric = true },
         new() { Label = T("ترمینال", "Terminal"), Value = Model.TerminalName },
         new() { Label = T("مخزن", "Tank"), Value = Model.StorageTankCode }

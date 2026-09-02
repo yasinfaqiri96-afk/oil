@@ -1483,7 +1483,8 @@ public class DispatchControllerTests
             TempData = BuildTempData()
         };
 
-        await salesController.Cancel(saleId);
+        // PTG-P2-03 — ابطال فروش دیگر بدون دلیل انجام نمی‌شود.
+        await salesController.Cancel(saleId, cancelReason: "آزمون آزادسازی موتر");
 
         var dispatch = await db.TruckDispatches.SingleAsync();
         Assert.Null(dispatch.SalesTransactionId);

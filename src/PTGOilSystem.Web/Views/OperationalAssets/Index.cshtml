@@ -13,13 +13,13 @@
              model="@((UiText.T(Context, "دارایی‌های عملیاتی", "Operational Assets"), true,
                        UiText.T(Context, "دارایی جدید", "New Asset"), "bi-plus-lg",
                        (string?)Url.Action("Create"), (string?)null,
-                       UiText.T(Context, "ثبت کرایه", "Record Rent"), "bi-receipt", (string?)Url.Action("CreateRent")))" />
+                       UiText.T(Context, "ثبت کرایه به بیرون", "Record outside rent"), "bi-receipt", (string?)Url.Action("CreateRent")))" />
 
     <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار دارایی‌های عملیاتی", "Operational asset statistics")">
         <vc:stat-card title="@UiText.T(Context, "تعداد دارایی‌ها", "Total assets")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "دارایی", "assets")" avatar="equipment"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "جمع درآمد کرایه", "Total rent income")" value="@totalRentIncomeUsd.ToString("N0")" unit="USD" avatar="receipts"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "درآمد حمل‌ونقل", "Freight income")" value="@Model.TotalFreightIncomeUsd.ToString("N0")" unit="USD" avatar="transported"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "نتیجه خالص", "Net result")" value="@Model.TotalNetResultUsd.ToString("N0")" unit="USD" avatar="profit-loss"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "عواید کرایه (داخلی و بیرونی)", "Rent income (internal and outside)")" value="@totalRentIncomeUsd.ToString("N0")" unit="USD" avatar="receipts"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "عواید کرایه حمل با وسیله شرکت", "Freight income with company vehicle")" value="@Model.TotalFreightIncomeUsd.ToString("N0")" unit="USD" avatar="transported"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "نتیجه خالص مدیریتی", "Management net result")" value="@Model.TotalNetResultUsd.ToString("N0")" unit="USD" avatar="profit-loss"></vc:stat-card>
     </section>
 
     @{

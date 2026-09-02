@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +11,7 @@ using System.Text;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
@@ -28,6 +29,10 @@ public partial class InventoryTransportLegsController : Controller
     private const string GroupTransferCompanionNotePrefix = TransportChainService.CompanionReceiptNotePrefix;
 
     private readonly ApplicationDbContext _db;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
     private readonly IStockService _stock;
     private readonly InventoryTransportLegLoadService _legLoad;
     private readonly InventoryTransportBatchService _batchTransport;
@@ -217,6 +222,26 @@ public partial class InventoryTransportLegsController : Controller
 
         var itemIds = items.Select(i => i.Id).ToList();
         var remainingByLeg = await _quantities.GetRemainingMtAsync(itemIds);
+
+        // نرخ خرید ستون «ارزش حمل» باید با صفحهٔ جزئیات یکی باشد:
+        // وقتی خود لِج نرخ صریح ندارد، همان زنجیرهٔ منبع/قرارداد استفاده می‌شود.
+        var legIdsMissingCost = items
+            .Where(i => !(i.PurchaseUnitCostUsd > 0m))
+            .Select(i => i.Id)
+            .ToList();
+        if (legIdsMissingCost.Count > 0)
+        {
+            var resolvedUnitCosts = await new InventoryTransportPnlService(_db)
+                .ResolveUnitCostsForLegsAsync(legIdsMissingCost);
+            foreach (var item in items)
+            {
+                if (!(item.PurchaseUnitCostUsd > 0m)
+                    && resolvedUnitCosts.TryGetValue(item.Id, out var resolvedUnitCost))
+                {
+                    item.PurchaseUnitCostUsd = resolvedUnitCost;
+                }
+            }
+        }
         List<TransportListSourceRow> sourceRows = itemIds.Count == 0
             ? []
             : await _db.InventoryTransportLegAllocations.AsNoTracking()
@@ -559,6 +584,205 @@ public partial class InventoryTransportLegsController : Controller
         return View(model);
     }
 
+    // ویرایش سند حمل از موجودی: همان فرم ثبت، روی یک سند موجود که هنوز عملیات پایین‌دستی ندارد.
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpGet]
+    public async Task<IActionResult> EditBatch(int id, string? returnUrl = null)
+    {
+        var batch = await _db.InventoryTransportBatches
+            .AsNoTracking()
+            .Include(b => b.Legs).ThenInclude(l => l.Allocations)
+            .Include(b => b.Legs).ThenInclude(l => l.Truck)
+            .Include(b => b.Legs).ThenInclude(l => l.Wagon)
+            .Include(b => b.Legs).ThenInclude(l => l.Driver)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (batch is null)
+        {
+            return NotFound();
+        }
+
+        if (batch.Status == InventoryTransportBatchStatus.Cancelled
+            || batch.Legs.Any(l => l.Status == InventoryTransportLegStatus.Cancelled))
+        {
+            TempData["error"] = "این سند لغو شده است و دیگر قابل ویرایش نیست.";
+            return RedirectToAction(nameof(Journey), new { groupKey = batch.TransportGroupKey });
+        }
+
+        // همان نگهبانی که خودِ ذخیره هم اجرا می‌کند؛ اینجا فقط زودتر و با پیام روشن‌تر.
+        var editBlockers = await _batchTransport.FindDownstreamBlockersAsync(id, forEdit: true);
+        if (editBlockers.Count > 0)
+        {
+            TempData["error"] = "ویرایش این سند ممکن نیست: " + string.Join("، ", editBlockers) + ".";
+            return RedirectToAction(nameof(Journey), new { groupKey = batch.TransportGroupKey });
+        }
+
+        var model = ToFromInventoryViewModel(batch);
+        model.ReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true ? returnUrl : null;
+        await PopulateCreateFromInventoryLookupsAsync(model);
+        // پیش‌نویس موجودی را رزرو نمی‌کند؛ اگر «قابل حمل»ِ منابع از زمان ثبت جابه‌جا شده باشد،
+        // توزیعِ ذخیره‌شده دیگر FIFO نیست و ذخیرهٔ بدونِ تغییر رد می‌شد. اینجا فقط توزیعِ سهم‌ها
+        // با همان قاعدهٔ سرور بازسازی می‌شود (مقدار وسایط و انتخاب منابع دست‌نخورده، بدون نوشتن در DB).
+        InventoryTransportBatchService.ApplyCurrentFifoAllocations(
+            model,
+            ViewBag.InventoryTransportSources as IReadOnlyList<InventoryTransportSourceAvailabilityViewModel> ?? []);
+        return View("CreateFromInventory", model);
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestFormLimits(ValueCountLimit = 200_000)]
+    public async Task<IActionResult> EditBatch(int id, InventoryTransportFromInventoryViewModel model)
+    {
+        model.BatchId = id;
+        model.Notes = NormalizeOptionalString(model.Notes);
+        model.Sources ??= [];
+        model.Vehicles ??= [];
+        model.ActiveStep = Math.Clamp(model.ActiveStep, 1, 4);
+
+        // ورود از پروندهٔ محموله: ترمینال/مخزن در فرم پنهان‌اند و از خودِ محموله استنتاج می‌شوند.
+        if (model.ShipmentId is > 0 && model.ProductId > 0
+            && (model.SourceTerminalId <= 0 || model.SourceStorageTankId <= 0))
+        {
+            var (resolvedTerminalId, resolvedStorageTankId) =
+                await _batchTransport.ResolveShipmentSourceLocationAsync(model.ShipmentId.Value, model.ProductId);
+            if (model.SourceTerminalId <= 0)
+            {
+                model.SourceTerminalId = resolvedTerminalId;
+                ModelState.Remove(nameof(model.SourceTerminalId));
+            }
+            if (model.SourceStorageTankId <= 0)
+            {
+                model.SourceStorageTankId = resolvedStorageTankId;
+                ModelState.Remove(nameof(model.SourceStorageTankId));
+            }
+        }
+
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                var batch = await _batchTransport.UpdateDraftAsync(id, model);
+                TempData["ok"] = model.SubmissionMode == InventoryTransportSubmissionMode.Loaded
+                    ? $"سند {batch.BatchNumber} ویرایش شد و خروجی موجودی برای هر سهم ساخته شد."
+                    : $"پیش‌نویس {batch.BatchNumber} ویرایش شد.";
+                var firstLegId = batch.Legs.OrderBy(l => l.Id).Select(l => l.Id).FirstOrDefault();
+                return firstLegId > 0
+                    ? RedirectToAction(nameof(Details), new { id = firstLegId })
+                    : RedirectToAction(nameof(Index));
+            }
+            catch (BusinessRuleException ex)
+            {
+                ModelState.AddModelError(GetCreateFromInventoryErrorKey(ex.Code), ex.Message);
+            }
+        }
+
+        model.ActiveStep = ResolveCreateFromInventoryStep(ModelState, model.ActiveStep);
+        if (model.Vehicles.Count == 0)
+        {
+            model.Vehicles.Add(new InventoryTransportVehicleInput());
+        }
+        await PopulateCreateFromInventoryLookupsAsync(model);
+        return View("CreateFromInventory", model);
+    }
+
+    // لغو/برگشتِ یک سند حمل. کل کار در سرویس و داخل یک تراکنش انجام می‌شود؛ اینجا فقط
+    // نتیجه به کاربر گزارش می‌شود. اجرای دوباره بی‌اثر است و سند تازه‌ای نمی‌سازد.
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelBatch(int id, string? returnUrl = null)
+    {
+        var batch = await _db.InventoryTransportBatches
+            .AsNoTracking()
+            .Select(b => new { b.Id, b.BatchNumber, b.TransportGroupKey })
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (batch is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            await _batchTransport.CancelAsync(id);
+            TempData["ok"] = $"سند {batch.BatchNumber} لغو شد و موجودی مبدأ برگشت داده شد.";
+        }
+        catch (BusinessRuleException ex)
+        {
+            TempData["error"] = ex.Message;
+        }
+
+        return !string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true
+            ? Redirect(returnUrl)
+            : RedirectToAction(nameof(Journey), new { groupKey = batch.TransportGroupKey });
+    }
+
+    // سند پیش‌نویس موجود را به همان مدلی برمی‌گرداند که فرم «حمل از موجودی» می‌شناسد.
+    private static InventoryTransportFromInventoryViewModel ToFromInventoryViewModel(InventoryTransportBatch batch)
+    {
+        var shipmentIds = batch.Legs.Select(l => l.ShipmentId).Distinct().ToList();
+        return new InventoryTransportFromInventoryViewModel
+        {
+            BatchId = batch.Id,
+            ActiveStep = 4,
+            ShipmentId = shipmentIds.Count == 1 ? shipmentIds[0] : null,
+            ShipmentLocked = shipmentIds.Count == 1 && shipmentIds[0].HasValue,
+            SourceTerminalId = batch.SourceTerminalId,
+            SourceStorageTankId = batch.SourceStorageTankId ?? 0,
+            ProductId = batch.ProductId,
+            TransportDate = batch.TransportDate,
+            SubmissionMode = InventoryTransportSubmissionMode.Draft,
+            Notes = batch.Notes,
+            Sources = batch.Legs
+                .SelectMany(l => l.Allocations)
+                .Where(a => a.SourceInventoryMovementId != null)
+                .GroupBy(a => a.SourceInventoryMovementId!.Value)
+                .Select(g => new InventoryTransportSourceSelectionInput
+                {
+                    SourceInventoryMovementId = g.Key,
+                    QuantityMt = g.Sum(a => a.QuantityMt)
+                })
+                .ToList(),
+            Vehicles = batch.Legs
+                .OrderBy(l => l.Id)
+                .Select(l => new InventoryTransportVehicleInput
+                {
+                    TransportType = l.TransportType,
+                    TruckId = l.TruckId,
+                    WagonId = l.WagonId,
+                    VesselId = l.VesselId,
+                    TruckPlateNumberInput = l.Truck?.PlateNumber,
+                    WagonNumberInput = l.Wagon?.WagonNumber ?? l.WagonNumber,
+                    DriverId = l.DriverId,
+                    DriverNameInput = l.Driver?.FullName,
+                    QuantityMt = l.QuantityMt,
+                    CapacityMt = l.CapacityMt,
+                    CarrierType = l.CarrierType ?? CarrierType.ServiceProvider,
+                    ServiceProviderId = l.ServiceProviderId,
+                    OperationalAssetId = l.OperationalAssetId,
+                    FreightAmount = l.FreightAmount,
+                    FreightWeightMt = l.QuantityMt,
+                    FreightRatePerMt = l.FreightAmount.GetValueOrDefault() > 0m && l.QuantityMt > 0m
+                        ? decimal.Round(l.FreightAmount!.Value / l.QuantityMt, 4, MidpointRounding.AwayFromZero)
+                        : null,
+                    FreightCurrencyId = l.FreightCurrencyId,
+                    RwbNo = l.RwbNo,
+                    BillOfLadingNumber = l.BillOfLadingNumber,
+                    Allocations = l.Allocations
+                        .Where(a => a.SourceInventoryMovementId != null)
+                        .Select(a => new InventoryTransportVehicleAllocationInput
+                        {
+                            SourceInventoryMovementId = a.SourceInventoryMovementId!.Value,
+                            QuantityMt = a.QuantityMt
+                        })
+                        .ToList()
+                })
+                .ToList()
+        };
+    }
+
     // Reads an Excel sheet of trucks/wagons (نوع | نمبر پلیت/واگن | مقدار MT | کرایه | ارز)
     // and returns the parsed rows as JSON. Carrier/driver are left for the user to
     // pick in the grid; this endpoint only creates no data and touches nothing.
@@ -838,10 +1062,10 @@ public partial class InventoryTransportLegsController : Controller
             return NotFound();
         }
 
+        // حملِ بسته‌ای با فرم تک‌ردیفی ویرایش نمی‌شود؛ کاربر به فرم ویرایش همان سند برده می‌شود.
         if (leg.InventoryTransportBatchId.HasValue)
         {
-            TempData["error"] = "Batch transport legs must be managed from the batch journey.";
-            return RedirectToAction(nameof(Journey), new { groupKey = leg.TransportGroupKey });
+            return RedirectToAction(nameof(EditBatch), new { id = leg.InventoryTransportBatchId.Value });
         }
 
         if (!CanEdit(leg))
@@ -869,10 +1093,14 @@ public partial class InventoryTransportLegsController : Controller
             return NotFound();
         }
 
+        // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
+        // نه نسخه‌ای که همین حالا خوانده شد.
+        _db.UseExpectedVersion(leg, model.Version);
+
+        // حملِ بسته‌ای با فرم تک‌ردیفی ویرایش نمی‌شود؛ کاربر به فرم ویرایش همان سند برده می‌شود.
         if (leg.InventoryTransportBatchId.HasValue)
         {
-            TempData["error"] = "Batch transport legs must be managed from the batch journey.";
-            return RedirectToAction(nameof(Journey), new { groupKey = leg.TransportGroupKey });
+            return RedirectToAction(nameof(EditBatch), new { id = leg.InventoryTransportBatchId.Value });
         }
 
         if (!CanEdit(leg))
@@ -882,7 +1110,8 @@ public partial class InventoryTransportLegsController : Controller
         }
 
         Normalize(model);
-        await ValidateCreateAsync(model);
+        // موترِ ثبت‌شدهٔ همین حمل مبنای کنترل سازگاری با دارایی عملیاتی است.
+        await ValidateCreateAsync(model, leg.TruckId);
 
         if (!ModelState.IsValid)
         {
@@ -2441,7 +2670,7 @@ public partial class InventoryTransportLegsController : Controller
                     await _expenseAccounting.TryPostExpenseAsync(expense);
                 }
 
-                var ledgerEntry = new LedgerEntry
+                var ledgerEntry = Ledger.Post(new LedgerPostingRequest
                 {
                     EntryDate = expense.ExpenseDate,
                     Side = serviceProvider is not null ? LedgerSide.Credit : LedgerSide.Debit,
@@ -2459,9 +2688,7 @@ public partial class InventoryTransportLegsController : Controller
                     ContractId = expense.ContractId,
                     ShipmentId = expense.ShipmentId,
                     ServiceProviderId = expense.ServiceProviderId
-                };
-
-                _db.LedgerEntries.Add(ledgerEntry);
+                });
                 await _db.SaveChangesAsync();
 
                 await _audit.LogAndSaveAsync(
@@ -2788,7 +3015,7 @@ public partial class InventoryTransportLegsController : Controller
                         await _expenseAccounting.TryPostExpenseAsync(expense);
                     }
 
-                    var ledgerEntry = new LedgerEntry
+                    var ledgerEntry = Ledger.Post(new LedgerPostingRequest
                     {
                         EntryDate = expense.ExpenseDate,
                         Side = provider is not null ? LedgerSide.Credit : LedgerSide.Debit,
@@ -2806,8 +3033,7 @@ public partial class InventoryTransportLegsController : Controller
                         ContractId = expense.ContractId,
                         ShipmentId = expense.ShipmentId,
                         ServiceProviderId = expense.ServiceProviderId
-                    };
-                    _db.LedgerEntries.Add(ledgerEntry);
+                    });
                     await _db.SaveChangesAsync();
 
                     await _audit.LogAndSaveAsync(
@@ -3062,6 +3288,41 @@ public partial class InventoryTransportLegsController : Controller
         }
     }
 
+    // آیا این حمل هنوز قابل ویرایش/لغو است. برای حملِ بسته‌ای همان نگهبانِ سرویس اجرا می‌شود
+    // که خودِ ویرایش و لغو هم اجرا می‌کنند، پس دکمهٔ نمایش‌داده‌شده همیشه واقعاً کار می‌کند.
+    private async Task ApplyDocumentActionGuardsAsync(InventoryTransportLegDetailsViewModel model)
+    {
+        if (model.Status == InventoryTransportLegStatus.Cancelled)
+        {
+            model.DocumentLockReason = "این حمل لغو شده است.";
+            return;
+        }
+
+        if (model.InventoryTransportBatchId is not { } batchId)
+        {
+            // حملِ تکی: همان قاعدهٔ قبلیِ فرم تک‌ردیفی. لغو فقط از مسیر سازگاریِ دیسپچ ممکن است.
+            model.CanEditDocument = model.Status == InventoryTransportLegStatus.Draft
+                && !model.OutboundInventoryMovementId.HasValue;
+            model.CanCancelDocument = false;
+            if (!model.CanEditDocument)
+            {
+                model.DocumentLockReason = "این حمل بارگیری شده است و با فرم تک‌ردیفی ویرایش نمی‌شود.";
+            }
+            return;
+        }
+
+        var cancelBlockers = await _batchTransport.FindDownstreamBlockersAsync(batchId, forEdit: false);
+        var editBlockers = await _batchTransport.FindDownstreamBlockersAsync(batchId, forEdit: true);
+
+        model.CanCancelDocument = cancelBlockers.Count == 0;
+        model.CanEditDocument = editBlockers.Count == 0;
+
+        if (editBlockers.Count > 0)
+        {
+            model.DocumentLockReason = "ویرایش ممکن نیست: " + string.Join("، ", editBlockers) + ".";
+        }
+    }
+
     private async Task<InventoryTransportLegDetailsViewModel?> BuildDetailsViewModelAsync(int id)
     {
         var model = await _db.InventoryTransportLegs
@@ -3104,6 +3365,8 @@ public partial class InventoryTransportLegsController : Controller
                 ServiceProviderName = l.ServiceProvider != null ? l.ServiceProvider.Name : null,
                 OperationalAssetId = l.OperationalAssetId,
                 OperationalAssetName = l.OperationalAsset != null ? l.OperationalAsset.Name : null,
+                DriverId = l.DriverId,
+                DriverName = l.Driver != null ? l.Driver.FullName : null,
                 LoadedDate = l.LoadedDate,
                 ExpectedArrivalDate = l.ExpectedArrivalDate,
                 QuantityMt = l.QuantityMt,
@@ -3116,6 +3379,7 @@ public partial class InventoryTransportLegsController : Controller
                 OutboundReferenceDocument = l.OutboundInventoryMovement != null
                     ? l.OutboundInventoryMovement.ReferenceDocument
                     : null,
+                InventoryTransportBatchId = l.InventoryTransportBatchId,
                 Notes = l.Notes
             })
             .FirstOrDefaultAsync();
@@ -3133,6 +3397,8 @@ public partial class InventoryTransportLegsController : Controller
                     && d.Status != DispatchStatus.Cancelled)
                 .Select(d => (int?)d.Id))
             .FirstOrDefaultAsync();
+
+        await ApplyDocumentActionGuardsAsync(model);
 
         model.Expenses = await _db.ExpenseTransactions
             .AsNoTracking()
@@ -4760,7 +5026,7 @@ public partial class InventoryTransportLegsController : Controller
 
 
 
-    private async Task ValidateOperationalPartyAsync(int? serviceProviderId, int? operationalAssetId)
+    private async Task ValidateOperationalPartyAsync(int? serviceProviderId, int? operationalAssetId, int? truckId = null)
     {
         if (serviceProviderId.HasValue && operationalAssetId.HasValue)
         {
@@ -4777,6 +5043,35 @@ public partial class InventoryTransportLegsController : Controller
             && !await _db.OperationalAssets.AsNoTracking().AnyAsync(a => a.Id == operationalAssetId.Value && a.IsActive))
         {
             ModelState.AddModelError(nameof(InventoryTransportLegCreateViewModel.OperationalAssetId), "Operational asset selection is invalid.");
+        }
+
+        // دارایی عملیاتی که به یک موتر مشخص وصل است نباید روی حملی بنشیند که موتر دیگری دارد؛
+        // همان کنترلی که مسیر گروهی این ماژول از قبل انجام می‌دهد. مقدار خودکار اصلاح نمی‌شود.
+        if (operationalAssetId.HasValue && truckId is > 0)
+        {
+            var asset = await _db.OperationalAssets
+                .AsNoTracking()
+                .Where(a => a.Id == operationalAssetId.Value)
+                .Select(a => new
+                {
+                    a.Name,
+                    a.LinkedTruckId,
+                    LinkedPlateNumber = a.LinkedTruck != null ? a.LinkedTruck.PlateNumber : null
+                })
+                .FirstOrDefaultAsync();
+
+            if (asset?.LinkedTruckId is int linkedTruckId && linkedTruckId != truckId.Value)
+            {
+                var documentPlateNumber = await _db.Trucks
+                    .AsNoTracking()
+                    .Where(t => t.Id == truckId.Value)
+                    .Select(t => t.PlateNumber)
+                    .FirstOrDefaultAsync();
+
+                ModelState.AddModelError(
+                    nameof(InventoryTransportLegCreateViewModel.OperationalAssetId),
+                    $"دارایی «{asset.Name}» به موتر {asset.LinkedPlateNumber ?? "-"} وصل است، اما موتر این حمل {documentPlateNumber ?? "-"} است. یا موتر حمل را تغییر دهید یا دارایی دیگری انتخاب کنید.");
+            }
         }
     }
 
@@ -4809,7 +5104,7 @@ public partial class InventoryTransportLegsController : Controller
             : contractIds.ToHashSet();
     }
 
-    private async Task ValidateCreateAsync(InventoryTransportLegCreateViewModel model)
+    private async Task ValidateCreateAsync(InventoryTransportLegCreateViewModel model, int? truckId = null)
     {
         if (model.LoadedDate == default)
         {
@@ -4912,7 +5207,7 @@ public partial class InventoryTransportLegsController : Controller
             }
         }
 
-        await ValidateOperationalPartyAsync(model.ServiceProviderId, model.OperationalAssetId);
+        await ValidateOperationalPartyAsync(model.ServiceProviderId, model.OperationalAssetId, truckId);
     }
 
 
@@ -5417,6 +5712,8 @@ public partial class InventoryTransportLegsController : Controller
         => new()
         {
             Id = leg.Id,
+            // PTG-P1-05 — نسخه‌ای که کاربر می‌بیند، با فرم برمی‌گردد.
+            Version = leg.Version,
             ShipmentId = leg.ShipmentId,
             SourcePurchaseContractId = leg.SourcePurchaseContractId,
             ProductId = leg.ProductId,

@@ -1,0 +1,119 @@
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Services.OperationalPeriod
+@model IReadOnlyList<OperationalPeriodLock>
+@{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    ViewData["Title"] = T("قفل دوره مالی", "Financial period lock");
+    ViewData["HideSectionTabs"] = true;
+
+    var status = (OperationalPeriodLockStatus)ViewBag.Status;
+    var today = (DateTime)ViewBag.Today;
+}
+
+<div class="ak-form-page ak-detail-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((T("قفل دوره مالی", "Financial period lock"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <section class="ak-form-section" aria-labelledby="periodLockStatusTitle">
+        <div class="ak-section-head">
+            <h2 id="periodLockStatusTitle" class="ak-section-title">@T("وضعیت فعلی", "Current status")</h2>
+        </div>
+
+        @if (status.IsLocked)
+        {
+            <div class="ak-callout is-warning">
+                <p>
+                    @T("دوره مالی تا تاریخ", "The financial period is closed through")
+                    <bdi class="ak-num">@status.LockedThroughDate!.Value.ToString("yyyy-MM-dd")</bdi>
+                    @T("بسته است. ثبت، ویرایش و حذف سند در این دوره مجاز نیست.",
+                       "Creating, editing and deleting documents in that period is not allowed.")
+                </p>
+                @if (!string.IsNullOrWhiteSpace(status.Reason))
+                {
+                    <p class="ak-cell-note">@T("دلیل", "Reason"): @status.Reason</p>
+                }
+            </div>
+
+            <form asp-action="Reopen" method="post" class="ak-form-grid">
+                @Html.AntiForgeryToken()
+                <div class="ak-field">
+                    <label class="ak-label" for="reopenReason">@T("دلیل بازکردن دوره", "Reason for reopening")</label>
+                    <input id="reopenReason" name="reason" class="ak-input" required maxlength="400" />
+                </div>
+                <div class="ak-field">
+                    <button type="submit" class="btn btn-light">
+                        <i class="bi bi-unlock" aria-hidden="true"></i>
+                        <span>@T("برداشتن قفل", "Remove lock")</span>
+                    </button>
+                </div>
+            </form>
+        }
+        else
+        {
+            <div class="ak-callout">
+                <p>@T("هیچ دوره‌ای بسته نیست؛ ثبت در همهٔ تاریخ‌ها باز است.",
+                      "No period is closed; posting is open for every date.")</p>
+            </div>
+        }
+    </section>
+
+    <section class="ak-form-section" aria-labelledby="periodLockCloseTitle">
+        <div class="ak-section-head">
+            <h2 id="periodLockCloseTitle" class="ak-section-title">@T("بستن دوره", "Close a period")</h2>
+        </div>
+        @* بستن فقط تا امروز ممکن است: قفل‌کردنِ روزهای نیامده یعنی قفل‌کردنِ کارِ فردا. *@
+        <form asp-action="Close" method="post" class="ak-form-grid">
+            @Html.AntiForgeryToken()
+            <div class="ak-field">
+                <label class="ak-label" for="lockedThroughDate">@T("بسته تا تاریخ (شامل همان روز)", "Closed through (inclusive)")</label>
+                <input id="lockedThroughDate" name="lockedThroughDate" type="date" class="ak-input"
+                       max="@today.ToString("yyyy-MM-dd")" required />
+            </div>
+            <div class="ak-field">
+                <label class="ak-label" for="closeReason">@T("دلیل", "Reason")</label>
+                <input id="closeReason" name="reason" class="ak-input" required maxlength="400" />
+            </div>
+            <div class="ak-field">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-lock" aria-hidden="true"></i>
+                    <span>@T("بستن دوره", "Close period")</span>
+                </button>
+            </div>
+        </form>
+    </section>
+
+    <section class="ak-form-section" aria-labelledby="periodLockHistoryTitle">
+        <div class="ak-section-head">
+            <h2 id="periodLockHistoryTitle" class="ak-section-title">@T("تاریخچه", "History")</h2>
+        </div>
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <thead>
+                    <tr>
+                        <th>@T("بسته تا", "Closed through")</th>
+                        <th>@T("وضعیت", "State")</th>
+                        <th class="ak-col-grow">@T("دلیل", "Reason")</th>
+                        <th>@T("ثبت", "Recorded")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model)
+                {
+                    <tr>
+                        <td class="ak-num"><bdi>@row.LockedThroughDate.ToString("yyyy-MM-dd")</bdi></td>
+                        <td>@(row.IsActive ? T("فعال", "Active") : T("برداشته شده", "Removed"))</td>
+                        <td class="ak-col-grow">@row.Reason</td>
+                        <td class="ak-num"><bdi>@row.CreatedAtUtc.ToDisplayDate()</bdi></td>
+                    </tr>
+                }
+                @if (Model.Count == 0)
+                {
+                    <tr><td colspan="4"><div class="ak-empty ak-detail-empty-state">@T("هنوز دوره‌ای بسته نشده است.", "No period has been closed yet.")</div></td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

@@ -26,6 +26,8 @@ public partial class LossEventsController : Controller
     private readonly IInventoryMovementWriter _movements;
     private readonly ITransportSourceAllocationService _sourceAllocations;
 
+    private readonly IFormTokenGuard _formTokens;
+
     public LossEventsController(
         ApplicationDbContext db,
         IStockService stock,
@@ -33,8 +35,11 @@ public partial class LossEventsController : Controller
         ILogger<LossEventsController> logger,
         Services.Accounting.IInventoryLossAccountingAdapter? lossAccounting = null,
         IInventoryMovementWriter? movements = null,
-        ITransportSourceAllocationService? sourceAllocations = null)
+        ITransportSourceAllocationService? sourceAllocations = null,
+        IFormTokenGuard? formTokens = null)
     {
+        // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
+        _formTokens = formTokens ?? new FormTokenGuard(db);
         _db = db;
         _stock = stock;
         _audit = audit;
@@ -382,7 +387,9 @@ public partial class LossEventsController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(LossEventCreateViewModel model)
+    public async Task<IActionResult> Create(
+        LossEventCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         var normalizedReference = TrimToNull(model.Reference);
         var normalizedNotes = TrimToNull(model.Notes);
@@ -676,6 +683,9 @@ public partial class LossEventsController : Controller
                     _sourceAllocations.ApplyLegacyHeader(lossEvent, sourcePlan);
                 }
 
+                // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
+                _formTokens.Stamp(formToken, "LossEvent.Create", nameof(LossEvent));
+
                 _db.LossEvents.Add(lossEvent);
                 await _db.SaveChangesAsync();
                 await _sourceAllocations.PersistLossAsync(lossEvent, sourcePlan, transportLegId);
@@ -776,6 +786,11 @@ public partial class LossEventsController : Controller
                 throw;
             }
         }
+        catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
+        {
+            TempData["err"] = "این ضایعات قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction(nameof(Index));
+        }
         catch (BusinessRuleException ex)
         {
             ModelState.AddModelError(string.Empty, ex.Message);
@@ -816,6 +831,10 @@ public partial class LossEventsController : Controller
             TempData["ok"] = "ویرایش ضایعاتی که روی موجودی اثر گذاشته‌اند فعلاً از این صفحه پشتیبانی نمی‌شود.";
             return RedirectToAction(nameof(Details), new { id, returnUrl = model.ReturnUrl });
         }
+
+        // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
+        // نه نسخه‌ای که همین حالا خوانده شد.
+        _db.UseExpectedVersion(item, model.Version);
 
         var normalizedReference = TrimToNull(model.Reference);
         var normalizedNotes = TrimToNull(model.Notes);
@@ -926,18 +945,23 @@ public partial class LossEventsController : Controller
             ContractName = item.Contract?.ContractName,
             ContractNumber = item.Contract?.ContractNumber,
             ShipmentCode = item.Shipment?.ShipmentCode,
+            ShipmentId = item.ShipmentId,
             LoadingRegisterLabel = item.LoadingRegister is null
                 ? null
                 : $"#{item.LoadingRegister.Id} - {DateDisplay.Date(item.LoadingRegister.LoadingDate)}",
+            LoadingRegisterId = item.LoadingRegisterId,
             LoadingReceiptLabel = item.LoadingReceipt is null
                 ? null
                 : $"#{item.LoadingReceipt.Id} - {DateDisplay.Date(item.LoadingReceipt.ReceiptDate)}",
+            LoadingReceiptId = item.LoadingReceiptId,
             TruckDispatchLabel = item.TruckDispatch is null
                 ? null
                 : $"#{item.TruckDispatch.Id} - {(item.TruckDispatch.Truck?.PlateNumber ?? "Dispatch")}",
+            TruckDispatchId = item.TruckDispatchId,
             SalesLabel = item.SalesTransaction is null
                 ? null
                 : $"#{item.SalesTransaction.Id} - {item.SalesTransaction.InvoiceNumber}",
+            SalesTransactionId = item.SalesTransactionId,
             TerminalName = item.Terminal?.Name,
             StorageTankCode = StorageTankDisplay.BuildOptional(item.StorageTank),
             ExpectedQuantityMt = item.ExpectedQuantityMt,
@@ -1154,6 +1178,8 @@ public partial class LossEventsController : Controller
     private static LossEventCreateViewModel BuildEditModel(LossEvent item, string? returnUrl)
         => new()
         {
+            // PTG-P1-05 — نسخه‌ای که کاربر می‌بیند، با فرم برمی‌گردد.
+            Version = item.Version,
             Stage = item.Stage,
             ProductId = item.ProductId,
             ContractId = item.ContractId,

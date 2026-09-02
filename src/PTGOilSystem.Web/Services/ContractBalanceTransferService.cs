@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Services.Accounting;
 using PTGOilSystem.Web.Services.Exceptions;
 
@@ -36,6 +37,10 @@ public sealed class ContractBalanceTransferService : IContractBalanceTransferSer
 
     private readonly ApplicationDbContext _db;
     private readonly IContractBalanceTransferAccountingAdapter? _accountingAdapter;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
 
     public ContractBalanceTransferService(
         ApplicationDbContext db,
@@ -97,7 +102,7 @@ public sealed class ContractBalanceTransferService : IContractBalanceTransferSer
             _db.ContractBalanceTransfers.Add(transfer);
             await _db.SaveChangesAsync(ct);
 
-            _db.LedgerEntries.AddRange(
+            Ledger.PostRange(
                 BuildLedgerEntry(
                     transfer,
                     LedgerSide.Debit,
@@ -234,7 +239,7 @@ public sealed class ContractBalanceTransferService : IContractBalanceTransferSer
         };
     }
 
-    private static LedgerEntry BuildLedgerEntry(
+    private static LedgerPostingRequest BuildLedgerEntry(
         ContractBalanceTransfer transfer,
         LedgerSide side,
         int contractId,

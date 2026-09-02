@@ -1,3 +1,15 @@
+@*
+    Where the record stands — one line per aspect: what it is, how much of it
+    there is, and its state.
+
+    This block deliberately does NOT list events. The history below is the only
+    place a reader finds individual receipts, customs entries or shortages, so
+    the same fact is never told twice in two shapes. The figure and its meta
+    share one cell for the same reason: "3" and "items" are one statement, not
+    two columns.
+
+    Model: IReadOnlyList<AkDetailActivityRow>
+*@
 @model IReadOnlyList<PTGOilSystem.Web.Models.Shared.AkDetailActivityRow>
 @{
     var rows = (Model ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkDetailActivityRow>())
@@ -7,7 +19,8 @@
 @if (rows.Count > 0)
 {
     <section class="ak-detail-activity" aria-labelledby="ak-detail-activity-title">
-        <h2 id="ak-detail-activity-title">@UiText.T(Context, "فعالیت و خلاصه مالی", "Activity & financial summary")</h2>
+        <h2 id="ak-detail-activity-title">@UiText.T(Context, "وضعیت", "Status")</h2>
+        <p class="ak-detail-zone-note">@UiText.T(Context, "این رکورد در چه مرحله‌ای است.", "Where this record stands.")</p>
         <div class="ak-detail-activity-list">
             @foreach (var row in rows)
             {
@@ -19,29 +32,37 @@
                         }
                         <strong>@row.Label</strong>
                     </span>
-                    @* Empty cells are not rendered: the row is a flex line under 992px,
+                    @* Empty cells are not rendered: the row is a flex line on a phone,
                        so a blank span would reserve a whole wrapped line for nothing. *@
-                    @if (!string.IsNullOrWhiteSpace(row.Value))
+                    @if (!string.IsNullOrWhiteSpace(row.Value) || !string.IsNullOrWhiteSpace(row.Meta))
                     {
-                        <span class="ak-detail-activity-value ak-num">
-                            <bdi>@row.Value</bdi>
-                            @if (!string.IsNullOrWhiteSpace(row.Unit))
+                        <span class="ak-detail-activity-value@(string.IsNullOrWhiteSpace(row.Value) ? null : " ak-num")">
+                            @if (!string.IsNullOrWhiteSpace(row.Value))
                             {
-                                <small>@row.Unit</small>
+                                <bdi>@row.Value</bdi>
+                                @if (!string.IsNullOrWhiteSpace(row.Unit))
+                                {
+                                    <small>@row.Unit</small>
+                                }
+                            }
+                            @if (!string.IsNullOrWhiteSpace(row.Meta))
+                            {
+                                <small class="ak-detail-activity-meta">@row.Meta</small>
                             }
                         </span>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(row.Meta))
-                    {
-                        <span class="ak-detail-activity-meta">@row.Meta</span>
                     }
                     @if (!string.IsNullOrWhiteSpace(row.Status))
                     {
                         <span class="ak-detail-activity-status @row.StatusClass">@row.Status</span>
                     }
+                    @* A chevron, not a second "View" button: the history below already
+                       links every event, so this only needs to read as "open", quietly. *@
                     @if (!string.IsNullOrWhiteSpace(row.Href))
                     {
-                        <a class="ak-detail-activity-link" href="@row.Href">@UiText.T(Context, "مشاهده", "View")</a>
+                        <a class="ak-detail-activity-link" href="@row.Href"
+                           aria-label="@string.Format(UiText.T(Context, "مشاهدهٔ {0}", "Open {0}"), row.Label)">
+                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                        </a>
                     }
                 </div>
             }

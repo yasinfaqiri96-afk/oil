@@ -18,6 +18,7 @@
     <form asp-action="Edit" asp-route-id="@lossEventId" method="post" class="ak-form">
         @Html.AntiForgeryToken()
         <input asp-for="ReturnUrl" type="hidden" />
+        <input asp-for="Version" type="hidden" />
         <input asp-for="Stage" type="hidden" />
         <input asp-for="ProductId" type="hidden" />
         <input asp-for="ContractId" type="hidden" />

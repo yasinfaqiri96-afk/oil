@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.Expenses;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
@@ -15,6 +16,10 @@ public sealed class ExpenseRuleEngine : IExpenseRuleEngine
     private readonly IAuditService _audit;
     // مرحله ۵ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe.
     private readonly Accounting.IExpenseAccountingAdapter? _expenseAccounting;
+
+    // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
+    private ILedgerPostingService? _ledgerPosting;
+    private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
 
     public ExpenseRuleEngine(
         ApplicationDbContext db,
@@ -111,7 +116,7 @@ public sealed class ExpenseRuleEngine : IExpenseRuleEngine
                 await _expenseAccounting.TryPostExpenseAsync(expense, ct);
             }
 
-            var ledgerEntry = new LedgerEntry
+            var ledgerEntry = Ledger.Post(new LedgerPostingRequest
             {
                 EntryDate = expense.ExpenseDate,
                 Side = LedgerSide.Debit,
@@ -128,9 +133,7 @@ public sealed class ExpenseRuleEngine : IExpenseRuleEngine
                 Reference = BuildLedgerReference(rule, expense),
                 ContractId = expense.ContractId,
                 ShipmentId = expense.ShipmentId
-            };
-
-            _db.LedgerEntries.Add(ledgerEntry);
+            });
             await _db.SaveChangesAsync(ct);
 
             await _audit.LogAndSaveAsync(

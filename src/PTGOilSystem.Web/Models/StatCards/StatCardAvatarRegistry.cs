@@ -128,6 +128,41 @@ public static class StatCardAvatarRegistry
         ["purchase-requests"] = "ref-icons/rules-checklist",
         ["average-price"]     = "ref-icons/analysis",
         ["cash"]              = "ref-blue/ops-settlement",
+
+        // ── Figure chain (record detail "quantities" card) ───
+        // A separate, deliberately plainer family: one object per icon on a
+        // clear ground, sized to read at 40px inside the chain circle. The
+        // ref-blue set above is a busy scene illustration and turns to mush at
+        // that size, so these are not aliases of it and must not be merged.
+        ["flow-truck"]            = "ref-flow/truck",             // tanker truck
+        ["flow-drop"]             = "ref-flow/drop",              // product / fuel drop
+        ["flow-nozzle"]           = "ref-flow/nozzle-drop",       // dispensing nozzle + drop
+        ["flow-tank"]             = "ref-flow/tank",              // storage tank
+        ["flow-tank-gauge"]       = "ref-flow/tank-gauge",        // tank + level gauge
+        ["flow-origin"]           = "ref-flow/pin-origin",        // route start pin
+        ["flow-destination"]      = "ref-flow/pin-destination",   // route end pin
+        ["flow-weight"]           = "ref-flow/weight",            // plain weight
+        ["flow-weight-mt"]        = "ref-flow/weight-mt",         // weight marked MT
+        ["flow-weight-drop"]      = "ref-flow/weight-drop",       // weight of product received
+        ["flow-weight-person"]    = "ref-flow/weight-person",     // weight attributed to a party
+        ["flow-weight-minus"]     = "ref-flow/weight-minus",      // weight removed from stock
+        ["flow-stock-in"]         = "ref-flow/stock-in",          // warehouse, goods entering
+        ["flow-stock-out"]        = "ref-flow/stock-out",         // warehouse, goods leaving
+        ["flow-warning"]          = "ref-flow/warning",           // shortage / attention
+        ["flow-person"]           = "ref-flow/person",            // customer or counterparty
+        ["flow-doc-check"]        = "ref-flow/doc-check",         // approved document
+        ["flow-doc-plus"]         = "ref-flow/doc-plus",          // document adding to stock
+        ["flow-docs-plus"]        = "ref-flow/docs-plus",         // added documents
+        ["flow-doc-amount"]       = "ref-flow/doc-amount",        // document carrying an amount
+        ["flow-receipt-check"]    = "ref-flow/receipt-check",     // confirmed receipt
+        ["flow-invoice-check"]    = "ref-flow/invoice-check",     // settled invoice
+        ["flow-coins"]            = "ref-flow/coins",             // currency
+        ["flow-cash"]             = "ref-flow/cash-stack",        // coins + notes, sale value
+        ["flow-money-bag"]        = "ref-flow/money-bag",         // converted total
+        ["flow-fx"]               = "ref-flow/fx-exchange",       // conversion rate
+        ["flow-cards"]            = "ref-flow/cards",             // paying account
+        ["flow-price-tag"]        = "ref-flow/price-tag",         // unit price
+        ["flow-calculator"]       = "ref-flow/coins-calculator",  // totalled costs
     };
 
     /// <summary>All registered avatar keys (used by the Asset Spec / audits).</summary>

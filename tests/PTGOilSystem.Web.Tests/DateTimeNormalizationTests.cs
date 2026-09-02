@@ -160,14 +160,18 @@ public class DateTimeNormalizationTests
         Assert.Null(exception);
     }
 
+    // PTG-P0-02 — این تست قبلاً «مجاز بودنِ موقتِ» ثبت عقب‌تاریخی را pin می‌کرد که مانده را
+    // منفی می‌گذاشت. آن رفتار خودِ باگ بود؛ حالا همان سناریو باید مسدود شود.
     [Fact]
-    public async Task EnsureMovementDoesNotCauseFutureNegativeStock_Temporarily_AllowsBackdatedOutThatBreaksLaterBalance()
+    public async Task EnsureMovementDoesNotCauseFutureNegativeStock_BlocksBackdatedOutThatBreaksLaterBalance()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
         await using var db = new ApplicationDbContext(options);
+        db.Products.Add(new Product { Id = 1, Code = "GO", Name = "Gas Oil" });
+        db.Terminals.Add(new Terminal { Id = 1, Code = "T1", Name = "Terminal 1" });
         db.InventoryMovements.AddRange(
             new InventoryMovement
             {
@@ -189,10 +193,8 @@ public class DateTimeNormalizationTests
 
         var service = new StockService(db);
 
-        // This future-negative guard is intentionally disabled temporarily at
-        // user request. Current-date stock checks still live in
-        // EnsureSufficientStockForMovementAsync.
-        var exception = await Record.ExceptionAsync(() =>
+        // 100 − 90 − 50 = −40 ⇒ مانده پایانی منفی می‌شود، پس باید رد شود.
+        var exception = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.EnsureMovementDoesNotCauseFutureNegativeStockAsync(new InventoryMovement
             {
                 ProductId = 1,
@@ -200,6 +202,43 @@ public class DateTimeNormalizationTests
                 Direction = MovementDirection.Out,
                 MovementDate = new DateTime(2026, 4, 10),
                 QuantityMt = 50m
+            }));
+
+        Assert.Equal("STOCK_FUTURE_NEGATIVE", exception.Code);
+        Assert.Contains("2026-04-20", exception.Message, StringComparison.Ordinal);
+    }
+
+    // PTG-P0-02 — گودالِ گذرا مجاز است: سندِ رسید اغلب بعد از بارگیریِ موتر/واگن به دفتر
+    // می‌رسد، پس خط زمانی می‌تواند موقتاً منفی شود و خودش ترمیم گردد. معیار «ماندهٔ پایانی» است.
+    [Fact]
+    public async Task EnsureMovementDoesNotCauseFutureNegativeStock_AllowsTransientDipThatHealsLater()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = 1,
+            TerminalId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 5, 5),
+            QuantityMt = 100m
+        });
+        await db.SaveChangesAsync();
+
+        var service = new StockService(db);
+
+        // خروج ۳۰ تن در ۱ می: در آن لحظه ‎-30 است ولی رسیدِ ۵ می آن را ترمیم می‌کند ⇒ مانده پایانی ۷۰.
+        var exception = await Record.ExceptionAsync(() =>
+            service.EnsureMovementDoesNotCauseFutureNegativeStockAsync(new InventoryMovement
+            {
+                ProductId = 1,
+                TerminalId = 1,
+                Direction = MovementDirection.Out,
+                MovementDate = new DateTime(2026, 5, 1),
+                QuantityMt = 30m
             }));
 
         Assert.Null(exception);

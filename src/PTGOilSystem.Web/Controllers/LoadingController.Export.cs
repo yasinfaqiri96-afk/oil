@@ -8,13 +8,16 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class LoadingController
 {
     [HttpGet, EnableRateLimiting(RateLimitPolicies.CsvExport)]
-    public async Task<IActionResult> Export(string? format, string? q = null, int? contractId = null, DateTime? fromDate = null, DateTime? toDate = null, int? productId = null, bool withoutReceipt = false)
+    public async Task<IActionResult> Export(string? format, string? q = null, int? contractId = null, DateTime? fromDate = null, DateTime? toDate = null, int? productId = null, bool withoutReceipt = false, int? transportType = null, string? receiptStatus = null, string? priceStatus = null)
     {
         var view = (ViewResult)await Index(
             q: q,
             contractId: contractId,
             productId: productId,
             withoutReceipt: withoutReceipt,
+            transportType: transportType,
+            receiptStatus: receiptStatus,
+            priceStatus: priceStatus,
             fromDate: fromDate,
             toDate: toDate,
             page: 0);

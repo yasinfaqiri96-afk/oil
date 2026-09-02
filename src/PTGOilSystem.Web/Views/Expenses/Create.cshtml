@@ -1,4 +1,4 @@
-@using Microsoft.AspNetCore.Mvc.Rendering
+﻿@using Microsoft.AspNetCore.Mvc.Rendering
 @model PTGOilSystem.Web.Models.Expenses.ExpenseCreateViewModel
 @{
     var isEdit = string.Equals(ViewData["ExpenseFormMode"] as string, "Edit", StringComparison.OrdinalIgnoreCase);
@@ -71,7 +71,12 @@
 
     <form asp-action="@formAction" asp-route-id="@formRouteId" method="post" class="ak-form expense-create-form">
         @Html.AntiForgeryToken()
+        @if (!isEdit)
+        {
+            @Html.FormToken()
+        }
         <input asp-for="Id" type="hidden" />
+        <input asp-for="Version" type="hidden" />
         <input asp-for="ReturnUrl" type="hidden" />
         <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
 
@@ -105,7 +110,7 @@
                 </div>
                 <div class="ak-field">
                     <label asp-for="ExpenseDate" class="ak-label"></label>
-                    <input asp-for="ExpenseDate" type="date" class="ak-input" />
+                    <input asp-for="ExpenseDate" type="date" class="ak-input" data-ptg-date-guard data-ptg-today="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
                     <span asp-validation-for="ExpenseDate" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
@@ -222,6 +227,8 @@
                 </div>
             </div>
         </section>
+
+        <partial name="~/Views/Shared/_ClosedPeriodOverride.cshtml" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
                  model="@((submitText, cancelUrl ?? "#", UiText.T(Context, "بازگشت", "Back")))" />

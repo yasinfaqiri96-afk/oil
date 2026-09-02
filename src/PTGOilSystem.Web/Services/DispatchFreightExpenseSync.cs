@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Ledger;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -187,32 +188,44 @@ public static class DispatchFreightExpenseSync
             .OrderByDescending(l => l.Id)
             .FirstOrDefaultAsync();
 
-        ledger ??= new LedgerEntry
+        var request = new LedgerPostingRequest
         {
             SourceType = "Expense",
-            SourceId = expense.Id
+            SourceId = expense.Id,
+            EntryDate = expense.ExpenseDate,
+            // کرایه بدهیِ ما به حمل‌کننده است ⇒ Credit روی حساب همان طرف (شرکت خدماتی یا راننده).
+            Side = LedgerSide.Credit,
+            AmountUsd = expense.AmountUsd,
+            Currency = SystemCurrency.BaseCurrencyCode,
+            SourceAmount = expense.Amount,
+            SourceCurrencyCode = expense.Currency,
+            AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
+            AppliedFxRateDate = expense.ExpenseDate,
+            AppliedFxRateSource = "Base currency",
+            Description = expense.Description ?? "Truck dispatch freight",
+            Reference = $"TRUCK-DISPATCH:{expense.TruckDispatchId}",
+            ContractId = expense.ContractId,
+            ShipmentId = expense.ShipmentId,
+            ServiceProviderId = expense.ServiceProviderId,
+            DriverId = expense.DriverId,
+
+            // فیلدهایی که این هماهنگ‌سازی هرگز دست نمی‌زد، عیناً از سطر موجود می‌آیند
+            // تا خروجی دقیقاً همان چیزی بماند که پیش از تمرکز نوشته می‌شد (PTG-P1-03).
+            AppliedCurrencyPerUsdRate = ledger?.AppliedCurrencyPerUsdRate,
+            ViaSarrafGroupId = ledger?.ViaSarrafGroupId,
+            CustomerId = ledger?.CustomerId,
+            SupplierId = ledger?.SupplierId,
+            EmployeeId = ledger?.EmployeeId,
         };
 
-        ledger.EntryDate = expense.ExpenseDate;
-        // کرایه بدهیِ ما به حمل‌کننده است ⇒ Credit روی حساب همان طرف (شرکت خدماتی یا راننده).
-        ledger.Side = LedgerSide.Credit;
-        ledger.AmountUsd = expense.AmountUsd;
-        ledger.Currency = SystemCurrency.BaseCurrencyCode;
-        ledger.SourceAmount = expense.Amount;
-        ledger.SourceCurrencyCode = expense.Currency;
-        ledger.AppliedFxRateToUsd = expense.AppliedFxRateToUsd;
-        ledger.AppliedFxRateDate = expense.ExpenseDate;
-        ledger.AppliedFxRateSource = "Base currency";
-        ledger.Description = expense.Description ?? "Truck dispatch freight";
-        ledger.Reference = $"TRUCK-DISPATCH:{expense.TruckDispatchId}";
-        ledger.ContractId = expense.ContractId;
-        ledger.ShipmentId = expense.ShipmentId;
-        ledger.ServiceProviderId = expense.ServiceProviderId;
-        ledger.DriverId = expense.DriverId;
-
-        if (ledger.Id == 0)
+        var posting = new LedgerPostingService(db);
+        if (ledger is null)
         {
-            db.LedgerEntries.Add(ledger);
+            posting.Post(request);
+        }
+        else
+        {
+            posting.Apply(ledger, request);
         }
 
         await db.SaveChangesAsync();

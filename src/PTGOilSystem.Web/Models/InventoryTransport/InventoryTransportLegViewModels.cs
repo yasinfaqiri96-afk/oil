@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -6,6 +6,12 @@ namespace PTGOilSystem.Web.Models.InventoryTransport;
 
 public sealed class InventoryTransportLegCreateViewModel
 {
+    /// <summary>
+    /// PTG-P1-05 — نسخهٔ سطری که کاربر هنگامِ بازکردنِ فرم دید. با فرم برمی‌گردد تا ذخیره
+    /// روی نسخهٔ کهنه رد شود. صفر یعنی فرم نسخه نفرستاده است.
+    /// </summary>
+    public long Version { get; set; }
+
     public int Id { get; set; }
 
     [Display(Name = "Shipment")]
@@ -140,6 +146,9 @@ public sealed class InventoryTransportFromInventoryViewModel
 {
     public int ActiveStep { get; set; } = 1;
 
+    // وقتی مقدار دارد، فرم در حالت ویرایش همان سند حمل پیش‌نویس است (نه ثبت جدید).
+    public int? BatchId { get; set; }
+
     public int? ShipmentId { get; set; }
 
     // وقتی مرحلهٔ بعدی از یک مبدأ پیش‌پرشده ساخته می‌شود ولی کشتیِ آن مبدأ به‌طور قطعی
@@ -192,6 +201,8 @@ public sealed class InventoryTransportVehicleInput
     [MaxLength(50)] public string? TruckPlateNumberInput { get; set; }
     [MaxLength(50)] public string? WagonNumberInput { get; set; }
     public int? DriverId { get; set; }
+    // نام راننده به‌صورت تایپی؛ اگر راننده‌ای با همین نام نباشد هنگام ثبت پروفایلش ساخته می‌شود.
+    [MaxLength(200)] public string? DriverNameInput { get; set; }
     public decimal QuantityMt { get; set; }
     public decimal? CapacityMt { get; set; }
     public CarrierType CarrierType { get; set; } = CarrierType.ServiceProvider;
@@ -694,6 +705,9 @@ public sealed class InventoryTransportLegDetailsViewModel
     public string? ServiceProviderName { get; set; }
     public int? OperationalAssetId { get; set; }
     public string? OperationalAssetName { get; set; }
+    // راننده‌ای که هنگام ثبت حمل وارد شده است (اختیاری).
+    public int? DriverId { get; set; }
+    public string? DriverName { get; set; }
     public DateTime LoadedDate { get; set; }
     public DateTime? ExpectedArrivalDate { get; set; }
     public decimal QuantityMt { get; set; }
@@ -715,6 +729,13 @@ public sealed class InventoryTransportLegDetailsViewModel
     public IReadOnlyList<InventoryTransportChainItemViewModel> Chain { get; set; } = [];
     public string SourceContractsLabel { get; set; } = "";
     public int? CompatibilityDispatchId { get; set; }
+    public int? InventoryTransportBatchId { get; set; }
+    // نگهبان‌های عملِ صفحهٔ جزئیات. سرور تصمیم می‌گیرد، View فقط نمایش می‌دهد؛ وگرنه دکمه‌ای
+    // دیده می‌شود که کلیکش حتماً به خطا می‌خورد.
+    public bool CanEditDocument { get; set; }
+    public bool CanCancelDocument { get; set; }
+    // چرا ویرایش/لغو بسته است — همان فهرست عملیات پایین‌دستی، برای نمایش در tooltip.
+    public string? DocumentLockReason { get; set; }
     public string? Notes { get; set; }
 }
 

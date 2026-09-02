@@ -21,6 +21,9 @@ public class OperationalAssetsController : Controller
     private const int IndexPageSize = 20;
     private const int LookupLimit = 250;
     private const decimal PercentTolerance = 0.0001m;
+    private const long MaxDocumentBytes = 10 * 1024 * 1024;
+    private static readonly HashSet<string> AllowedDocumentExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".jpg", ".jpeg", ".png", ".webp" };
     private readonly ApplicationDbContext _db;
     private readonly ICurrencyConversionService _currencyConversion;
 
@@ -28,6 +31,7 @@ public class OperationalAssetsController : Controller
     // اگر Adapter حسابداری تزریق نشده باشد فقط ژورنال ساخته نمی‌شود و لجر legacy کامل ثبت می‌شود.
     private readonly IAssetRentPostingService _rentPosting;
     private readonly IAfghanistanBusinessClock _businessClock;
+    private readonly IWebHostEnvironment? _environment;
 
     [ActivatorUtilitiesConstructor]
     public OperationalAssetsController(
@@ -35,12 +39,14 @@ public class OperationalAssetsController : Controller
         ICurrencyConversionService currencyConversion,
         IAssetRentPostingService? rentPosting = null,
         Services.Accounting.IAssetRentAccountingAdapter? rentAccounting = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        IWebHostEnvironment? environment = null)
     {
         _db = db;
         _currencyConversion = currencyConversion;
         _rentPosting = rentPosting ?? new AssetRentPostingService(db, rentAccounting);
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
+        _environment = environment;
     }
 
     public OperationalAssetsController(ApplicationDbContext db)
@@ -315,6 +321,193 @@ public class OperationalAssetsController : Controller
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddAssignment(AssetAssignmentCreateViewModel model)
+    {
+        var assetExists = await _db.OperationalAssets.AsNoTracking()
+            .AnyAsync(a => a.Id == model.OperationalAssetId);
+        if (!assetExists) return NotFound();
+
+        model.Role = model.Role?.Trim() ?? "";
+        model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+        model.FromDate = ToUtcDate(model.FromDate);
+        if (!TryParsePartyKey(model.ResponsiblePartyKey, out var partyType, out var partyId)
+            || !await PartyExistsAsync(partyType, partyId))
+        {
+            TempData["err"] = Ui("مسئول انتخاب‌شده معتبر نیست.", "The selected responsible party is invalid.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "responsibility" });
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Role))
+        {
+            TempData["err"] = Ui("نقش مسئول الزامی است.", "The responsibility role is required.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "responsibility" });
+        }
+
+        if (model.DriverId.HasValue && !await _db.Drivers.AsNoTracking().AnyAsync(d => d.Id == model.DriverId.Value && d.IsActive))
+        {
+            TempData["err"] = Ui("راننده انتخاب‌شده معتبر نیست.", "The selected driver is invalid.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "responsibility" });
+        }
+
+        if (model.BaseTerminalId.HasValue && !await _db.Terminals.AsNoTracking().AnyAsync(t => t.Id == model.BaseTerminalId.Value && t.IsActive))
+        {
+            TempData["err"] = Ui("ترمینال پایه معتبر نیست.", "The base terminal is invalid.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "responsibility" });
+        }
+
+        var active = await _db.AssetAssignments
+            .Where(a => a.OperationalAssetId == model.OperationalAssetId && a.Role == model.Role && a.ToDate == null)
+            .ToListAsync();
+        if (active.Any(a => a.FromDate > model.FromDate))
+        {
+            TempData["err"] = Ui("تاریخ مسئولیت جدید نمی‌تواند پیش از مسئولیت فعال باشد.", "The new assignment cannot start before the active assignment.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "responsibility" });
+        }
+
+        foreach (var previous in active)
+            previous.ToDate = model.FromDate;
+
+        _db.AssetAssignments.Add(new AssetAssignment
+        {
+            OperationalAssetId = model.OperationalAssetId,
+            ResponsiblePartyType = partyType,
+            ResponsiblePartyId = partyId,
+            DriverId = model.DriverId,
+            BaseTerminalId = model.BaseTerminalId,
+            Role = model.Role,
+            FromDate = model.FromDate,
+            Notes = model.Notes
+        });
+        await _db.SaveChangesAsync();
+
+        TempData["ok"] = Ui("مسئولیت جدید ثبت و سابقه قبلی بسته شد.", "The new assignment was saved and the previous record was closed.");
+        return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "responsibility" });
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddMaintenanceJob(AssetMaintenanceJobCreateViewModel model)
+    {
+        if (!await _db.OperationalAssets.AsNoTracking().AnyAsync(a => a.Id == model.OperationalAssetId)) return NotFound();
+        model.Title = model.Title?.Trim() ?? "";
+        model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+        if (string.IsNullOrWhiteSpace(model.Title)
+            || (model.CompletedDate.HasValue && model.StartedDate.HasValue && model.CompletedDate < model.StartedDate)
+            || (model.DowntimeTo.HasValue && model.DowntimeFrom.HasValue && model.DowntimeTo < model.DowntimeFrom))
+        {
+            TempData["err"] = Ui("عنوان و ترتیب تاریخ‌های سرویس را بررسی کنید.", "Check the maintenance title and date order.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "maintenance" });
+        }
+
+        if (model.ExpenseTransactionId.HasValue && !await _db.ExpenseTransactions.AsNoTracking()
+                .AnyAsync(e => e.Id == model.ExpenseTransactionId.Value && e.OperationalAssetId == model.OperationalAssetId))
+        {
+            TempData["err"] = Ui("سند مصرف باید متعلق به همین دارایی باشد.", "The expense reference must belong to this asset.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "maintenance" });
+        }
+
+        _db.AssetMaintenanceJobs.Add(new AssetMaintenanceJob
+        {
+            OperationalAssetId = model.OperationalAssetId,
+            JobType = model.JobType,
+            Status = model.Status,
+            Title = model.Title,
+            ScheduledDate = ToUtcDate(model.ScheduledDate),
+            StartedDate = ToUtcDate(model.StartedDate),
+            CompletedDate = ToUtcDate(model.CompletedDate),
+            DowntimeFrom = ToUtcDate(model.DowntimeFrom),
+            DowntimeTo = ToUtcDate(model.DowntimeTo),
+            ExpenseTransactionId = model.ExpenseTransactionId,
+            Notes = model.Notes
+        });
+        await _db.SaveChangesAsync();
+        TempData["ok"] = Ui("سرویس/ترمیم ثبت شد.", "Maintenance was saved.");
+        return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "maintenance" });
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddMeterReading(AssetMeterReadingCreateViewModel model)
+    {
+        if (!await _db.OperationalAssets.AsNoTracking().AnyAsync(a => a.Id == model.OperationalAssetId)) return NotFound();
+        if (model.ReadingValue < 0m)
+        {
+            TempData["err"] = Ui("عدد کیلومتر/ساعت کار نمی‌تواند منفی باشد.", "The meter reading cannot be negative.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "maintenance" });
+        }
+
+        _db.AssetMeterReadings.Add(new AssetMeterReading
+        {
+            OperationalAssetId = model.OperationalAssetId,
+            MeterType = model.MeterType,
+            ReadingDate = ToUtcDate(model.ReadingDate),
+            ReadingValue = model.ReadingValue,
+            Reference = string.IsNullOrWhiteSpace(model.Reference) ? null : model.Reference.Trim(),
+            Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
+        });
+        await _db.SaveChangesAsync();
+        TempData["ok"] = Ui("عدد کارکرد ثبت شد.", "The meter reading was saved.");
+        return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "maintenance" });
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UploadDocument(AssetDocumentCreateViewModel model, CancellationToken ct = default)
+    {
+        if (!await _db.OperationalAssets.AsNoTracking().AnyAsync(a => a.Id == model.OperationalAssetId, ct)) return NotFound();
+        if (model.File is null || model.File.Length == 0 || model.File.Length > MaxDocumentBytes)
+        {
+            TempData["err"] = Ui("فایل معتبر تا حجم 10MB انتخاب کنید.", "Select a valid file up to 10MB.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "documents" });
+        }
+
+        var extension = Path.GetExtension(model.File.FileName);
+        if (string.IsNullOrWhiteSpace(extension) || !AllowedDocumentExtensions.Contains(extension))
+        {
+            TempData["err"] = Ui("فقط PDF، JPG، JPEG، PNG یا WEBP مجاز است.", "Only PDF, JPG, JPEG, PNG or WEBP files are allowed.");
+            return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "documents" });
+        }
+
+        var relativeDirectory = Path.Combine("uploads", "operational-assets", model.OperationalAssetId.ToString());
+        var absoluteDirectory = Path.Combine(GetWebRootPath(), relativeDirectory);
+        Directory.CreateDirectory(absoluteDirectory);
+        var storedFileName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
+        await using (var stream = System.IO.File.Create(Path.Combine(absoluteDirectory, storedFileName)))
+            await model.File.CopyToAsync(stream, ct);
+
+        _db.AssetDocuments.Add(new AssetDocument
+        {
+            OperationalAssetId = model.OperationalAssetId,
+            DocumentType = model.DocumentType,
+            DocumentNumber = string.IsNullOrWhiteSpace(model.DocumentNumber) ? null : model.DocumentNumber.Trim(),
+            IssueDate = ToUtcDate(model.IssueDate),
+            ExpiryDate = ToUtcDate(model.ExpiryDate),
+            OriginalFileName = Path.GetFileName(model.File.FileName),
+            StoredFileName = storedFileName,
+            FilePath = "/" + relativeDirectory.Replace('\\', '/') + "/" + storedFileName,
+            ContentType = model.File.ContentType,
+            FileSizeBytes = model.File.Length,
+            UploadedByUserName = User.Identity?.Name,
+            Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
+        });
+        await _db.SaveChangesAsync(ct);
+        TempData["ok"] = Ui("سند دارایی آپلود شد.", "The asset document was uploaded.");
+        return RedirectToAction(nameof(Details), new { id = model.OperationalAssetId, tab = "documents" });
+    }
+
+    public async Task<IActionResult> DownloadDocument(int id)
+    {
+        var document = await _db.AssetDocuments.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id);
+        if (document is null) return NotFound();
+        var absolutePath = Path.Combine(GetWebRootPath(), document.FilePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+        if (!System.IO.File.Exists(absolutePath)) return NotFound();
+        return PhysicalFile(absolutePath,
+            string.IsNullOrWhiteSpace(document.ContentType) ? "application/octet-stream" : document.ContentType,
+            document.OriginalFileName);
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
     public async Task<IActionResult> CreateRent(int? assetId = null)
     {
         var model = new AssetRentCreateViewModel
@@ -448,6 +641,7 @@ public class OperationalAssetsController : Controller
         await _db.SaveChangesAsync();
 
         var posting = await _rentPosting.PostAsync(rent, conversion, asset?.AssetCode);
+        await new AssetUsageChargeService(_db).SyncLegacyRentAsync(rent);
 
         if (transaction is not null)
         {
@@ -462,7 +656,7 @@ public class OperationalAssetsController : Controller
         return RedirectToAction(nameof(Details), new
         {
             id = rent.OperationalAssetId,
-            tab = "rents",
+            tab = "income",
             fromDate = rentFromDate.ToString("yyyy-MM-dd"),
             toDate = rentToDate.ToString("yyyy-MM-dd")
         });
@@ -489,7 +683,7 @@ public class OperationalAssetsController : Controller
             : Url.Action(nameof(Details), new
             {
                 id = rent.OperationalAssetId,
-                tab = "rents",
+                tab = "income",
                 fromDate = fromDate.ToString("yyyy-MM-dd"),
                 toDate = toDate.ToString("yyyy-MM-dd")
             });
@@ -513,6 +707,7 @@ public class OperationalAssetsController : Controller
         await _db.SaveChangesAsync();
 
         var reversal = await _rentPosting.ReverseAsync(rent, reversalDate);
+        await new AssetUsageChargeService(_db).CancelLegacyRentChargeAsync(rent.Id, rent.CancelReason);
 
         if (transaction is not null)
         {
@@ -633,8 +828,7 @@ public class OperationalAssetsController : Controller
         // (AfghanistanBusinessClock.SystemToday) و بازهٔ UTC بین ۱۹:۳۰ تا ۲۴:۰۰ یک روز عقب می‌ماند
         // و ردیف‌های همان روز را از لیست حذف می‌کرد.
         var today = AfghanistanBusinessClock.SystemToday;
-        var defaultPeriodFrom = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var periodFrom = fromDate.HasValue ? ToUtcDate(fromDate.Value) : defaultPeriodFrom;
+        var periodFrom = fromDate.HasValue ? ToUtcDate(fromDate.Value) : DefaultProfilePeriodFrom();
         var periodTo = toDate.HasValue ? ToUtcDate(toDate.Value) : today;
         if (periodTo < periodFrom)
         {
@@ -660,6 +854,37 @@ public class OperationalAssetsController : Controller
             .Where(s => s.OperationalAssetId == id)
             .OrderByDescending(s => s.EffectiveFrom)
             .ThenBy(s => s.OwnerType)
+            .ToListAsync();
+
+        var assignments = await _db.AssetAssignments
+            .AsNoTracking()
+            .Include(a => a.Driver)
+            .Include(a => a.BaseTerminal)
+            .Where(a => a.OperationalAssetId == id)
+            .OrderByDescending(a => a.ToDate == null)
+            .ThenByDescending(a => a.FromDate)
+            .ThenByDescending(a => a.Id)
+            .ToListAsync();
+        var assignmentPartyNames = await ResolvePartyNamesAsync(assignments);
+
+        var maintenanceJobs = await _db.AssetMaintenanceJobs
+            .AsNoTracking()
+            .Where(j => j.OperationalAssetId == id)
+            .OrderByDescending(j => j.StartedDate ?? j.ScheduledDate)
+            .ThenByDescending(j => j.Id)
+            .ToListAsync();
+        var meterReadings = await _db.AssetMeterReadings
+            .AsNoTracking()
+            .Where(r => r.OperationalAssetId == id)
+            .OrderByDescending(r => r.ReadingDate)
+            .ThenByDescending(r => r.Id)
+            .ToListAsync();
+        var documents = await _db.AssetDocuments
+            .AsNoTracking()
+            .Where(d => d.OperationalAssetId == id)
+            .OrderBy(d => d.ExpiryDate == null)
+            .ThenBy(d => d.ExpiryDate)
+            .ThenByDescending(d => d.Id)
             .ToListAsync();
 
         var rents = await _db.AssetRentTransactions
@@ -708,6 +933,26 @@ public class OperationalAssetsController : Controller
                 .ThenByDescending(s => s.AssetRentTransactionId)
                 .ToListAsync();
 
+        // رسیدِ حمل صفحهٔ جداگانه ندارد؛ برای اینکه ردیف خودکارِ رسید هم لینک زنده داشته باشد،
+        // شناسهٔ حملِ همان رسید خوانده می‌شود و لینک به سند حمل می‌رود.
+        var receiptIds = rents
+            .Where(r => r.InventoryTransportReceiptId.HasValue)
+            .Select(r => r.InventoryTransportReceiptId!.Value)
+            .Distinct()
+            .ToArray();
+        var receiptLegMap = receiptIds.Length == 0
+            ? new Dictionary<int, int>()
+            : await _db.InventoryTransportReceipts
+                .AsNoTracking()
+                .Where(r => receiptIds.Contains(r.Id))
+                .Select(r => new { r.Id, r.InventoryTransportLegId })
+                .ToDictionaryAsync(r => r.Id, r => r.InventoryTransportLegId);
+
+        var rentRows = rents.Select(rent => ToRentRow(rent, receiptLegMap)).ToList();
+        var expenseRows = expenses.Select(ToExpenseRow).ToList();
+        var costRows = expenseRows.Where(row => !row.IsFreightIncome).ToList();
+        var freightIncomeRows = expenseRows.Where(row => row.IsFreightIncome).ToList();
+
         var newRent = new AssetRentCreateViewModel
         {
             OperationalAssetId = asset.Id,
@@ -720,6 +965,7 @@ public class OperationalAssetsController : Controller
         };
 
         await PopulateOwnershipLookupsAsync();
+        await PopulateAssetManagementLookupsAsync();
         await PopulateRentLookupsAsync(newRent);
 
         return new OperationalAssetProfileViewModel
@@ -733,6 +979,11 @@ public class OperationalAssetsController : Controller
             CapacityMt = asset.CapacityMt,
             LocationName = asset.Location?.Name,
             TerminalName = asset.Terminal?.Name,
+            AcquisitionDate = asset.AcquisitionDate,
+            AcquisitionCostUsd = asset.AcquisitionCostUsd,
+            InServiceDate = asset.InServiceDate,
+            DisposalDate = asset.DisposalDate,
+            OperationalStatus = asset.OperationalStatus,
             MonthlyDepreciationUsd = asset.MonthlyDepreciationUsd,
             DefaultInternalRateUsd = asset.DefaultInternalRateUsd,
             DefaultExternalRateUsd = asset.DefaultExternalRateUsd,
@@ -747,14 +998,78 @@ public class OperationalAssetsController : Controller
             DirectExpensesUsd = expenses.Where(e => !IsAssetFreightIncome(e)).Sum(e => e.AmountUsd),
             DepreciationUsd = CalculateDepreciation(asset.MonthlyDepreciationUsd, periodFrom, periodTo),
             OwnershipShares = ownershipShares.Select(ToOwnershipShareRow).ToList(),
-            RentTransactions = rents.Select(ToRentRow).ToList(),
-            Expenses = expenses.Select(ToExpenseRow).ToList(),
+            Assignments = assignments.Select(a => new AssetAssignmentRowViewModel
+            {
+                Id = a.Id,
+                ResponsibleName = assignmentPartyNames.GetValueOrDefault((a.ResponsiblePartyType, a.ResponsiblePartyId), Ui("طرف #", "Party #") + a.ResponsiblePartyId),
+                Role = a.Role,
+                DriverName = a.Driver?.FullName,
+                BaseTerminalName = a.BaseTerminal?.Name,
+                FromDate = a.FromDate,
+                ToDate = a.ToDate,
+                Notes = a.Notes
+            }).ToList(),
+            MaintenanceJobs = maintenanceJobs.Select(j => new AssetMaintenanceJobRowViewModel
+            {
+                Id = j.Id,
+                JobType = j.JobType,
+                Status = j.Status,
+                Title = j.Title,
+                ScheduledDate = j.ScheduledDate,
+                StartedDate = j.StartedDate,
+                CompletedDate = j.CompletedDate,
+                DowntimeFrom = j.DowntimeFrom,
+                DowntimeTo = j.DowntimeTo,
+                ExpenseTransactionId = j.ExpenseTransactionId,
+                Notes = j.Notes
+            }).ToList(),
+            MeterReadings = meterReadings.Select(r => new AssetMeterReadingRowViewModel
+            {
+                Id = r.Id,
+                MeterType = r.MeterType,
+                ReadingDate = r.ReadingDate,
+                ReadingValue = r.ReadingValue,
+                Reference = r.Reference
+            }).ToList(),
+            Documents = documents.Select(d => new AssetDocumentRowViewModel
+            {
+                Id = d.Id,
+                DocumentType = d.DocumentType,
+                DocumentNumber = d.DocumentNumber,
+                IssueDate = d.IssueDate,
+                ExpiryDate = d.ExpiryDate,
+                OriginalFileName = d.OriginalFileName,
+                IsExpired = d.ExpiryDate.HasValue && d.ExpiryDate.Value.Date < today.Date,
+                ExpiresSoon = d.ExpiryDate.HasValue && d.ExpiryDate.Value.Date >= today.Date && d.ExpiryDate.Value.Date <= today.AddDays(30).Date,
+                Notes = d.Notes
+            }).ToList(),
+            RentTransactions = rentRows,
+            Expenses = expenseRows,
             RentShares = rentShares.Select(ToRentShareRow).ToList(),
+            ActiveOwnershipPercent = ownershipShares
+                .Where(share => IsActiveOn(share, AfghanistanBusinessClock.SystemToday))
+                .Sum(share => share.SharePercent),
+            WorkRows = BuildWorkRows(rentRows, freightIncomeRows),
+            CostRows = costRows,
+            InternalIncomeRows = BuildInternalIncomeRows(rentRows, freightIncomeRows),
+            ExternalIncomeRows = BuildExternalIncomeRows(rentRows),
             NewOwnershipShare = new AssetOwnershipShareCreateViewModel
             {
                 OperationalAssetId = asset.Id,
                 EffectiveFrom = AfghanistanBusinessClock.SystemToday
             },
+            NewAssignment = new AssetAssignmentCreateViewModel
+            {
+                OperationalAssetId = asset.Id,
+                FromDate = AfghanistanBusinessClock.SystemToday
+            },
+            NewMaintenanceJob = new AssetMaintenanceJobCreateViewModel { OperationalAssetId = asset.Id },
+            NewMeterReading = new AssetMeterReadingCreateViewModel
+            {
+                OperationalAssetId = asset.Id,
+                ReadingDate = AfghanistanBusinessClock.SystemToday
+            },
+            NewDocument = new AssetDocumentCreateViewModel { OperationalAssetId = asset.Id },
             NewRent = newRent
         };
     }
@@ -801,6 +1116,11 @@ public class OperationalAssetsController : Controller
         {
             ModelState.AddModelError(nameof(model.TerminalId), Ui("انتخاب ترمینال معتبر نیست.", "Terminal selection is invalid."));
         }
+
+        if (model.InServiceDate.HasValue && model.AcquisitionDate.HasValue && model.InServiceDate < model.AcquisitionDate)
+            ModelState.AddModelError(nameof(model.InServiceDate), Ui("تاریخ شروع کار نمی‌تواند پیش از تاریخ خرید باشد.", "In-service date cannot be before acquisition date."));
+        if (model.DisposalDate.HasValue && model.InServiceDate.HasValue && model.DisposalDate < model.InServiceDate)
+            ModelState.AddModelError(nameof(model.DisposalDate), Ui("تاریخ خروج نمی‌تواند پیش از تاریخ شروع کار باشد.", "Disposal date cannot be before in-service date."));
     }
 
     private async Task<string?> ValidateOwnershipShareAsync(AssetOwnershipShareCreateViewModel model)
@@ -989,6 +1309,7 @@ public class OperationalAssetsController : Controller
     private async Task PopulateAssetFormLookupsAsync(OperationalAssetFormViewModel model)
     {
         ViewBag.AssetTypes = EnumOptions<OperationalAssetType>(model.AssetType);
+        ViewBag.OperationalStatuses = EnumOptions<OperationalAssetStatus>(model.OperationalStatus);
         ViewBag.OwnershipModes = EnumOptions<OperationalAssetOwnershipMode>(model.OwnershipMode);
         ViewBag.Trucks = new SelectList(
             await _db.Trucks.AsNoTracking()
@@ -1026,6 +1347,30 @@ public class OperationalAssetsController : Controller
             "Id",
             "Text",
             model.TerminalId);
+    }
+
+    private async Task PopulateAssetManagementLookupsAsync()
+    {
+        var parties = new List<SelectListItem>();
+        parties.AddRange(await _db.Companies.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name)
+            .Select(x => new SelectListItem { Value = ((int)AccountingPartyType.Company) + ":" + x.Id, Text = "شرکت — " + x.Name }).ToListAsync());
+        parties.AddRange(await _db.Partners.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name)
+            .Select(x => new SelectListItem { Value = ((int)AccountingPartyType.Partner) + ":" + x.Id, Text = "شریک — " + x.Name }).ToListAsync());
+        parties.AddRange(await _db.ServiceProviders.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name)
+            .Select(x => new SelectListItem { Value = ((int)AccountingPartyType.ServiceProvider) + ":" + x.Id, Text = "شرکت خدماتی — " + x.Name }).ToListAsync());
+        parties.AddRange(await _db.Drivers.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.FullName)
+            .Select(x => new SelectListItem { Value = ((int)AccountingPartyType.Driver) + ":" + x.Id, Text = "راننده — " + x.FullName }).ToListAsync());
+        parties.AddRange(await _db.Employees.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.FullName)
+            .Select(x => new SelectListItem { Value = ((int)AccountingPartyType.Employee) + ":" + x.Id, Text = "کارمند — " + x.FullName }).ToListAsync());
+        ViewBag.ResponsibleParties = parties;
+        ViewBag.AssignmentDrivers = new SelectList(await _db.Drivers.AsNoTracking().Where(x => x.IsActive)
+            .OrderBy(x => x.FullName).Select(x => new { x.Id, Name = x.FullName }).ToListAsync(), "Id", "Name");
+        ViewBag.AssignmentTerminals = new SelectList(await _db.Terminals.AsNoTracking().Where(x => x.IsActive)
+            .OrderBy(x => x.Name).Select(x => new { x.Id, Name = x.Code + " - " + x.Name }).ToListAsync(), "Id", "Name");
+        ViewBag.MaintenanceJobTypes = EnumOptions<AssetMaintenanceJobType>();
+        ViewBag.MaintenanceStatuses = EnumOptions<AssetMaintenanceStatus>();
+        ViewBag.MeterTypes = EnumOptions<AssetMeterType>();
+        ViewBag.AssetDocumentTypes = EnumOptions<AssetDocumentType>();
     }
 
     private async Task PopulateOwnershipLookupsAsync()
@@ -1134,6 +1479,11 @@ public class OperationalAssetsController : Controller
         asset.CapacityMt = model.CapacityMt;
         asset.LocationId = model.LocationId;
         asset.TerminalId = model.TerminalId;
+        asset.AcquisitionDate = model.AcquisitionDate;
+        asset.AcquisitionCostUsd = model.AcquisitionCostUsd;
+        asset.InServiceDate = model.InServiceDate;
+        asset.DisposalDate = model.DisposalDate;
+        asset.OperationalStatus = model.OperationalStatus;
         asset.OwnershipMode = model.OwnershipMode;
         asset.MonthlyDepreciationUsd = model.MonthlyDepreciationUsd;
         asset.DefaultInternalRateUsd = model.DefaultInternalRateUsd;
@@ -1154,6 +1504,11 @@ public class OperationalAssetsController : Controller
             CapacityMt = asset.CapacityMt,
             LocationId = asset.LocationId,
             TerminalId = asset.TerminalId,
+            AcquisitionDate = asset.AcquisitionDate,
+            AcquisitionCostUsd = asset.AcquisitionCostUsd,
+            InServiceDate = asset.InServiceDate,
+            DisposalDate = asset.DisposalDate,
+            OperationalStatus = asset.OperationalStatus,
             OwnershipMode = asset.OwnershipMode,
             MonthlyDepreciationUsd = asset.MonthlyDepreciationUsd,
             DefaultInternalRateUsd = asset.DefaultInternalRateUsd,
@@ -1166,6 +1521,9 @@ public class OperationalAssetsController : Controller
     {
         model.AssetCode = model.AssetCode.Trim();
         model.Name = model.Name.Trim();
+        model.AcquisitionDate = ToUtcDate(model.AcquisitionDate);
+        model.InServiceDate = ToUtcDate(model.InServiceDate);
+        model.DisposalDate = ToUtcDate(model.DisposalDate);
         model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
     }
 
@@ -1304,13 +1662,20 @@ public class OperationalAssetsController : Controller
     }
 
     /// <summary>
-    /// بازهٔ پیش‌فرض پروندهٔ دارایی (ماه جاری کاری) که برای پوشش دادن یک تاریخ مشخص گسترده شده است،
+    /// بازهٔ پیش‌فرض پروندهٔ دارایی: دوازده ماه گذشته. بازهٔ «ماه جاری» باعث می‌شد کاربر روز اول ماه
+    /// صفحهٔ خالی ببیند و فکر کند سابقهٔ دارایی پاک شده است.
+    /// </summary>
+    private static DateTime DefaultProfilePeriodFrom()
+        => ToUtcDate(AfghanistanBusinessClock.SystemToday.AddMonths(-12));
+
+    /// <summary>
+    /// بازهٔ پیش‌فرض پروندهٔ دارایی که برای پوشش دادن یک تاریخ مشخص گسترده شده است،
     /// تا ردیف تازه‌ذخیره‌شده بعد از redirect حتماً در لیست دیده شود.
     /// </summary>
     private static (DateTime FromDate, DateTime ToDate) ResolveProfilePeriodFor(DateTime businessDate)
     {
         var today = AfghanistanBusinessClock.SystemToday;
-        var from = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var from = DefaultProfilePeriodFrom();
         var to = today;
         var target = ToUtcDate(businessDate);
         if (target < from)
@@ -1345,7 +1710,7 @@ public class OperationalAssetsController : Controller
             IsActiveNow = IsActiveOn(share, AfghanistanBusinessClock.SystemToday)
         };
 
-    private AssetRentRowViewModel ToRentRow(AssetRentTransaction rent)
+    private AssetRentRowViewModel ToRentRow(AssetRentTransaction rent, IReadOnlyDictionary<int, int> receiptLegMap)
         => new()
         {
             Id = rent.Id,
@@ -1353,6 +1718,7 @@ public class OperationalAssetsController : Controller
             UsageType = rent.UsageType,
             ChargedToType = rent.ChargedToType,
             ChargedToName = ChargedToLabel(rent),
+            Source = BuildRentSource(rent, receiptLegMap),
             ReferenceDocument = rent.ReferenceDocument,
             QuantityMt = rent.QuantityMt,
             DistanceKm = rent.DistanceKm,
@@ -1389,12 +1755,13 @@ public class OperationalAssetsController : Controller
             InventoryTransportReceiptService.TransportFreightExpenseCode,
             StringComparison.OrdinalIgnoreCase);
 
-    private static AssetExpenseRowViewModel ToExpenseRow(ExpenseTransaction expense)
+    private AssetExpenseRowViewModel ToExpenseRow(ExpenseTransaction expense)
         => new()
         {
             Id = expense.Id,
             ExpenseDate = expense.ExpenseDate,
             ExpenseTypeName = expense.ExpenseType?.NamePersian ?? expense.ExpenseType?.Name ?? "-",
+            Source = BuildExpenseSource(expense),
             ContractNumber = expense.Contract?.ContractNumber,
             ShipmentCode = expense.Shipment?.ShipmentCode,
             TransportLegLabel = BuildTransportLegLabel(expense.TransportLeg),
@@ -1404,6 +1771,224 @@ public class OperationalAssetsController : Controller
             IsFreightIncome = IsAssetFreightIncome(expense),
             Description = expense.Description
         };
+
+    // ---------------------------------------------------------------------------------------
+    // «از کجا آمده؟» — هر ردیفِ خودکار باید سندِ سازنده‌اش را با متن ساده و لینک زنده نشان دهد.
+    // رسیدِ حمل صفحهٔ مستقل ندارد، پس لینکش به حملِ همان رسید می‌رود و متن، رسید را نام می‌برد.
+    // ---------------------------------------------------------------------------------------
+    private AssetSourceLinkViewModel? BuildRentSource(AssetRentTransaction rent, IReadOnlyDictionary<int, int> receiptLegMap)
+    {
+        if (rent.LoadingRegisterId.HasValue)
+        {
+            return SourceLink(
+                Ui("بارگیری", "Loading"),
+                rent.LoadingRegisterId.Value,
+                Url?.Action("Details", "Loading", new { id = rent.LoadingRegisterId.Value }));
+        }
+
+        if (rent.TransportLegId.HasValue)
+        {
+            return SourceLink(
+                Ui("حمل", "Transport"),
+                rent.TransportLegId.Value,
+                Url?.Action("Details", "InventoryTransportLegs", new { id = rent.TransportLegId.Value }));
+        }
+
+        if (rent.InventoryTransportReceiptId.HasValue)
+        {
+            var legId = receiptLegMap.TryGetValue(rent.InventoryTransportReceiptId.Value, out var value) ? value : (int?)null;
+            return SourceLink(
+                Ui("رسید حمل", "Transport receipt"),
+                rent.InventoryTransportReceiptId.Value,
+                legId.HasValue ? Url?.Action("Details", "InventoryTransportLegs", new { id = legId.Value }) : null);
+        }
+
+        if (rent.TruckDispatchId.HasValue)
+        {
+            return SourceLink(
+                Ui("ارسال با موتر", "Truck dispatch"),
+                rent.TruckDispatchId.Value,
+                Url?.Action("Details", "Dispatch", new { id = rent.TruckDispatchId.Value }));
+        }
+
+        return null;
+    }
+
+    private AssetSourceLinkViewModel BuildExpenseSource(ExpenseTransaction expense)
+    {
+        if (expense.TruckDispatchId.HasValue)
+        {
+            return SourceLink(
+                Ui("ارسال با موتر", "Truck dispatch"),
+                expense.TruckDispatchId.Value,
+                Url?.Action("Details", "Dispatch", new { id = expense.TruckDispatchId.Value }));
+        }
+
+        if (expense.TransportLegId.HasValue)
+        {
+            return SourceLink(
+                Ui("حمل", "Transport"),
+                expense.TransportLegId.Value,
+                Url?.Action("Details", "InventoryTransportLegs", new { id = expense.TransportLegId.Value }));
+        }
+
+        if (expense.LoadingRegisterId.HasValue)
+        {
+            return SourceLink(
+                Ui("بارگیری", "Loading"),
+                expense.LoadingRegisterId.Value,
+                Url?.Action("Details", "Loading", new { id = expense.LoadingRegisterId.Value }));
+        }
+
+        return SourceLink(
+            Ui("سند مصرف", "Expense document"),
+            expense.Id,
+            Url?.Action("Details", "Expenses", new { id = expense.Id }));
+    }
+
+    private AssetSourceLinkViewModel SourceLink(string documentName, int documentId, string? url)
+        => new()
+        {
+            DocumentTypeName = documentName,
+            DocumentId = documentId,
+            Label = Ui($"ایجادشده از {documentName} #{documentId}", $"Created from {documentName} #{documentId}"),
+            Url = url
+        };
+
+    /// <summary>
+    /// «کارکرد» — یک فهرست زمانی از کارِ دارایی. کرایه‌های ثبت‌شده و کرایهٔ حملی که با همین دارایی
+    /// انجام شده هر دو یک «کار» را نشان می‌دهند، پس اگر هر دو به یک سند اشاره کنند فقط یک ردیف می‌آید.
+    /// </summary>
+    private List<AssetWorkRowViewModel> BuildWorkRows(
+        IReadOnlyList<AssetRentRowViewModel> rentRows,
+        IReadOnlyList<AssetExpenseRowViewModel> freightIncomeRows)
+    {
+        var rows = new List<AssetWorkRowViewModel>(rentRows.Count + freightIncomeRows.Count);
+        var seenSources = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var rent in rentRows)
+        {
+            if (rent.Source is not null)
+            {
+                seenSources.Add(rent.Source.Label);
+            }
+
+            var isInternal = rent.UsageType == AssetRentUsageType.InternalCompanyUse;
+            rows.Add(new AssetWorkRowViewModel
+            {
+                Date = rent.RentDate,
+                OperationTypeName = rent.Source?.DocumentTypeName ?? Ui("ثبت دستی", "Recorded by hand"),
+                Source = rent.Source,
+                ContractNumber = rent.ChargedToType is AssetRentChargedToType.PurchaseContract or AssetRentChargedToType.SalesContract
+                    ? rent.ChargedToName
+                    : null,
+                QuantityMt = rent.QuantityMt,
+                DistanceKm = rent.DistanceKm,
+                CounterpartyName = isInternal ? null : rent.ChargedToName,
+                IsInternalUse = isInternal,
+                UsageText = isInternal
+                    ? Ui("استفاده داخلی شرکت", "Company internal use")
+                    : Ui("کرایه به بیرون", "Rented out"),
+                UsageHint = isInternal
+                    ? Ui("برای عملیات خود شرکت استفاده شده است.", "Used for the company's own operation.")
+                    : null
+            });
+        }
+
+        foreach (var expense in freightIncomeRows)
+        {
+            if (expense.Source is not null && !seenSources.Add(expense.Source.Label))
+            {
+                continue;
+            }
+
+            rows.Add(new AssetWorkRowViewModel
+            {
+                Date = expense.ExpenseDate,
+                OperationTypeName = expense.Source?.DocumentTypeName ?? expense.ExpenseTypeName,
+                Source = expense.Source,
+                ContractNumber = expense.ContractNumber,
+                ShipmentCode = expense.ShipmentCode,
+                RouteText = expense.TransportLegLabel ?? expense.TruckDispatchLabel,
+                IsInternalUse = true,
+                UsageText = Ui("استفاده داخلی شرکت", "Company internal use"),
+                UsageHint = Ui("برای عملیات خود شرکت استفاده شده است.", "Used for the company's own operation.")
+            });
+        }
+
+        return rows
+            .OrderByDescending(row => row.Date)
+            .ThenByDescending(row => row.Source?.Label, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>عوایدِ استفادهٔ خود شرکت: نه طلبِ بیرونی می‌سازد و نه پرداختی دارد.</summary>
+    private List<AssetIncomeRowViewModel> BuildInternalIncomeRows(
+        IReadOnlyList<AssetRentRowViewModel> rentRows,
+        IReadOnlyList<AssetExpenseRowViewModel> freightIncomeRows)
+    {
+        var rows = rentRows
+            .Where(rent => rent.UsageType == AssetRentUsageType.InternalCompanyUse)
+            .Select(rent => new AssetIncomeRowViewModel
+            {
+                Id = rent.Id,
+                Date = rent.RentDate,
+                SourceTypeName = rent.Source is null
+                    ? Ui("ثبت دستی", "Recorded by hand")
+                    : Ui("از عملیات شرکت", "From a company operation"),
+                Source = rent.Source,
+                CounterpartyName = rent.ChargedToName,
+                AmountOriginal = rent.AmountOriginal,
+                Currency = rent.Currency,
+                AmountUsd = rent.AmountUsd,
+                StateText = OperationalAssetLabels.PostingState(rent.IsPostedToLedger, rent.PostingSkipReason, HttpContext),
+                NeedsAttention = rent.IsPostingMissing,
+                CanCancel = !rent.IsSystemGenerated,
+                Description = rent.Description
+            })
+            .ToList();
+
+        rows.AddRange(freightIncomeRows.Select(expense => new AssetIncomeRowViewModel
+        {
+            Id = expense.Id,
+            Date = expense.ExpenseDate,
+            SourceTypeName = Ui("کرایه حمل با وسیلهٔ شرکت", "Freight carried by the company's own vehicle"),
+            Source = expense.Source,
+            ContractNumber = expense.ContractNumber,
+            AmountOriginal = expense.AmountUsd,
+            Currency = SystemCurrency.BaseCurrencyCode,
+            AmountUsd = expense.AmountUsd,
+            StateText = Ui("استفاده داخلی شرکت — پرداخت بیرونی ندارد", "Company internal use — no outside payment"),
+            NeedsAttention = false,
+            CanCancel = false,
+            Description = expense.Description
+        }));
+
+        return rows.OrderByDescending(row => row.Date).ThenByDescending(row => row.Id).ToList();
+    }
+
+    /// <summary>عوایدِ کرایه دادن دارایی به بیرون: طرف حساب واقعی دارد.</summary>
+    private List<AssetIncomeRowViewModel> BuildExternalIncomeRows(IReadOnlyList<AssetRentRowViewModel> rentRows)
+        => rentRows
+            .Where(rent => rent.UsageType != AssetRentUsageType.InternalCompanyUse)
+            .Select(rent => new AssetIncomeRowViewModel
+            {
+                Id = rent.Id,
+                Date = rent.RentDate,
+                SourceTypeName = OperationalAssetLabels.UsageType(rent.UsageType, HttpContext),
+                Source = rent.Source,
+                CounterpartyName = rent.ChargedToName,
+                AmountOriginal = rent.AmountOriginal,
+                Currency = rent.Currency,
+                AmountUsd = rent.AmountUsd,
+                StateText = OperationalAssetLabels.PostingState(rent.IsPostedToLedger, rent.PostingSkipReason, HttpContext),
+                NeedsAttention = rent.IsPostingMissing,
+                CanCancel = !rent.IsSystemGenerated,
+                Description = rent.Description
+            })
+            .OrderByDescending(row => row.Date)
+            .ThenByDescending(row => row.Id)
+            .ToList();
 
     private AssetRentShareRowViewModel ToRentShareRow(AssetRentShare share)
         => new()
@@ -1493,6 +2078,63 @@ public class OperationalAssetsController : Controller
            && share.PartnerId == (model.OwnerType == AssetOwnerType.Partner ? model.PartnerId : null)
            && string.Equals(share.OwnerName ?? "", model.OwnerName ?? "", StringComparison.OrdinalIgnoreCase);
 
+    private static bool TryParsePartyKey(string? key, out AccountingPartyType partyType, out int partyId)
+    {
+        partyType = default;
+        partyId = 0;
+        var parts = key?.Split(':', 2, StringSplitOptions.TrimEntries);
+        return parts is { Length: 2 }
+            && int.TryParse(parts[0], out var typeValue)
+            && Enum.IsDefined(typeof(AccountingPartyType), typeValue)
+            && (partyType = (AccountingPartyType)typeValue) != default
+            && int.TryParse(parts[1], out partyId)
+            && partyId > 0;
+    }
+
+    private Task<bool> PartyExistsAsync(AccountingPartyType type, int id)
+        => type switch
+        {
+            AccountingPartyType.Customer => _db.Customers.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
+            AccountingPartyType.Supplier => _db.Suppliers.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
+            AccountingPartyType.ServiceProvider => _db.ServiceProviders.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
+            AccountingPartyType.Sarraf => _db.Sarrafs.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
+            AccountingPartyType.Driver => _db.Drivers.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
+            AccountingPartyType.Employee => _db.Employees.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
+            AccountingPartyType.Partner => _db.Partners.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
+            AccountingPartyType.Company => _db.Companies.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
+            _ => Task.FromResult(false)
+        };
+
+    private async Task<Dictionary<(AccountingPartyType Type, int Id), string>> ResolvePartyNamesAsync(
+        IReadOnlyCollection<AssetAssignment> assignments)
+    {
+        var result = new Dictionary<(AccountingPartyType, int), string>();
+        foreach (var group in assignments.GroupBy(a => a.ResponsiblePartyType))
+        {
+            var ids = group.Select(a => a.ResponsiblePartyId).Distinct().ToArray();
+            Dictionary<int, string> names = group.Key switch
+            {
+                AccountingPartyType.Customer => await _db.Customers.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
+                AccountingPartyType.Supplier => await _db.Suppliers.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
+                AccountingPartyType.ServiceProvider => await _db.ServiceProviders.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
+                AccountingPartyType.Sarraf => await _db.Sarrafs.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
+                AccountingPartyType.Driver => await _db.Drivers.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName),
+                AccountingPartyType.Employee => await _db.Employees.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName),
+                AccountingPartyType.Partner => await _db.Partners.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
+                AccountingPartyType.Company => await _db.Companies.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
+                _ => []
+            };
+            foreach (var item in names) result[(group.Key, item.Key)] = item.Value;
+        }
+
+        return result;
+    }
+
+    private string GetWebRootPath()
+        => string.IsNullOrWhiteSpace(_environment?.WebRootPath)
+            ? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")
+            : _environment.WebRootPath;
+
     private List<SelectListItem> EnumOptions<TEnum>(TEnum? selected = null)
         where TEnum : struct, Enum
         => Enum.GetValues<TEnum>()
@@ -1503,6 +2145,7 @@ public class OperationalAssetsController : Controller
                 {
                     OperationalAssetType assetType => OperationalAssetLabels.AssetType(assetType, HttpContext),
                     OperationalAssetOwnershipMode ownershipMode => OperationalAssetLabels.OwnershipMode(ownershipMode, HttpContext),
+                    OperationalAssetStatus status => OperationalAssetLabels.Status(status, HttpContext),
                     AssetOwnerType ownerType => OperationalAssetLabels.OwnerType(ownerType, HttpContext),
                     AssetRentUsageType usageType => OperationalAssetLabels.UsageType(usageType, HttpContext),
                     AssetRentChargedToType chargedToType => OperationalAssetLabels.ChargedToType(chargedToType, HttpContext),
