@@ -1,10 +1,10 @@
-using System.Linq.Expressions;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services.CompanyFlow;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Services.PartyStatements;
 
@@ -29,6 +29,25 @@ public sealed record PartyBalanceSnapshot(
     string? DetailsController);
 
 /// <summary>
+/// «طرف‌حساب بیرونی» یعنی کسی که واقعاً می‌تواند به شرکت بدهکار یا از شرکت طلبکار باشد:
+/// مشتری، تأمین‌کننده، شرکت خدماتی، صراف، راننده، کارمند و شریک.
+///
+/// ردیف‌های <see cref="PartyStatementPartyType.Company"/> بیرون می‌مانند. آن ردیف‌ها حساب
+/// جاریِ خودِ جوازهای شرکت‌اند (از جمله شرکت مالک سیستم) و از روی CompanyId هر سند دفتر
+/// ساخته می‌شوند، نه از یک طرف معامله. شرکت نمی‌تواند به خودش بدهکار یا از خودش طلبکار
+/// باشد، پس آوردنِ آن در «طلبات و بدهی‌ها» عدد را باد می‌کند و مدیر را گمراه می‌کند.
+///
+/// خودِ صورت‌حساب شرکت جای خودش محفوظ است: صفحهٔ Companies/Details آن را از
+/// <see cref="IPartyStatementReadService"/> می‌خواند و این فیلتر به آن کاری ندارد.
+/// </summary>
+public static class PartyBalanceSnapshotFilters
+{
+    public static IReadOnlyList<PartyBalanceSnapshot> ExternalPartiesOnly(
+        this IEnumerable<PartyBalanceSnapshot> rows)
+        => rows.Where(row => row.PartyType != PartyStatementPartyType.Company).ToList();
+}
+
+/// <summary>
 /// Bulk balance reader used by management balance reports. It shares the same
 /// direction resolver, party policies and closing formula as the official party
 /// statement, while keeping query count bounded instead of opening one statement
@@ -40,17 +59,20 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
     private readonly IPartyStatementPolicyResolver _policies;
     private readonly ICompanyFlowDirectionResolver _directions;
     private readonly ICompanyFlowBalanceService _balances;
+    private readonly IPartyDirectory _parties;
 
     public PartyBalanceReadService(
         ApplicationDbContext db,
         IPartyStatementPolicyResolver policies,
         ICompanyFlowDirectionResolver directions,
-        ICompanyFlowBalanceService balances)
+        ICompanyFlowBalanceService balances,
+        IPartyDirectory parties)
     {
         _db = db;
         _policies = policies;
         _directions = directions;
         _balances = balances;
+        _parties = parties;
     }
 
     public async Task<IReadOnlyList<PartyBalanceSnapshot>> GetBalancesAsync(
@@ -69,7 +91,9 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             await AddPartnerEventsAsync(events, filter, ct);
         }
 
-        var names = await LoadPartyNamesAsync(events, ct);
+        var names = await _parties.GetNamesAsync(
+            events.Select(e => new PartyKey(e.PartyType, e.PartyId)).Distinct().ToArray(),
+            ct);
         var from = filter.FromDate?.Date;
 
         return events
@@ -96,7 +120,7 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                 return new PartyBalanceSnapshot(
                     group.Key.PartyType,
                     group.Key.PartyId,
-                    names.GetValueOrDefault((group.Key.PartyType, group.Key.PartyId), "-"),
+                    names.GetValueOrDefault(new PartyKey(group.Key.PartyType, group.Key.PartyId), "-"),
                     summary.OpeningBalance,
                     summary.TotalReceipt,
                     summary.TotalOutflow,
@@ -104,7 +128,7 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                     summary.ClosingBalance,
                     group.Max(e => (DateTime?)e.Date),
                     policy.BalanceMeaning(summary.ClosingBalance, isEnglish: false),
-                    DetailsController(group.Key.PartyType));
+                    _parties.DetailsController(group.Key.PartyType));
             })
             .Where(row => row.OpeningBalanceUsd != 0m
                 || row.TotalReceiptUsd != 0m
@@ -144,12 +168,17 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                 l.Reference,
                 l.SourceId,
                 l.CustomerId,
+                // انتساب مشتری قرینهٔ تأمین‌کننده است: هزینه و اسناد نقدیِ بدون طرف‌حساب از راهِ
+                // قرارداد به مشتری نمی‌چسبند. رجوع: LedgerEntryOwnership.CustomerOwnedByContract.
                 EffectiveCustomerId = l.CustomerId
                     ?? (l.SupplierId == null
                         && l.ServiceProviderId == null
                         && l.DriverId == null
                         && l.EmployeeId == null
+                        && l.SourceType != LedgerEntryOwnership.ExpenseSourceType
+                        && !LedgerEntryOwnership.CashSourceTypesWithoutContractParty.Contains(l.SourceType)
                         && l.Contract != null
+                        && l.Contract.ContractType == ContractType.Sale
                             ? l.Contract.CustomerId
                             : null)
                     ?? (l.SourceType == CompanyFlowSourceTypes.Sale
@@ -164,6 +193,9 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                         // AUD-04: هزینه بدون SupplierId صریح از راهِ قرارداد به تأمین‌کننده نمی‌چسبد.
                         ?? (l.SupplierId == null
                             && l.SourceType != LedgerEntryOwnership.ExpenseSourceType
+                            // AUD-05: پرداختِ نقدیِ بدون طرف‌حساب هم از راهِ قرارداد به
+                            // تأمین‌کننده نمی‌چسبد (کرایه موتر، پرداخت هزینه، کمیسیون …).
+                            && !LedgerEntryOwnership.CashSourceTypesWithoutContractParty.Contains(l.SourceType)
                             && l.ServiceProviderId == null
                             && l.DriverId == null
                             && l.CustomerId == null
@@ -426,73 +458,6 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             }
         }
     }
-
-    private async Task<Dictionary<(PartyStatementPartyType Type, int Id), string>> LoadPartyNamesAsync(
-        IReadOnlyCollection<BalanceEvent> events,
-        CancellationToken ct)
-    {
-        var result = new Dictionary<(PartyStatementPartyType, int), string>();
-
-        // فیلتر روی خودِ موجودیت اعمال می‌شود و projection بعد از آن می‌آید. اگر روی
-        // یک IQueryable از ValueTuple فیلتر شود، EF کل tuple را مقایسه می‌کند و
-        // query ترجمه نمی‌شود؛ این خطا فقط وقتی داده وجود دارد بروز می‌کرد.
-        async Task AddAsync<TEntity>(
-            PartyStatementPartyType type,
-            IQueryable<TEntity> source,
-            Expression<Func<TEntity, int>> idSelector,
-            Expression<Func<TEntity, PartyNameRow>> projection)
-            where TEntity : class
-        {
-            var ids = events.Where(e => e.PartyType == type).Select(e => e.PartyId).Distinct().ToArray();
-            if (ids.Length == 0) return;
-
-            var predicate = Expression.Lambda<Func<TEntity, bool>>(
-                Expression.Call(
-                    typeof(Enumerable),
-                    nameof(Enumerable.Contains),
-                    [typeof(int)],
-                    Expression.Constant(ids),
-                    idSelector.Body),
-                idSelector.Parameters);
-
-            var rows = await source.AsNoTracking().Where(predicate).Select(projection).ToListAsync(ct);
-            foreach (var row in rows) result[(type, row.Id)] = row.Name;
-        }
-
-        await AddAsync(PartyStatementPartyType.Customer, _db.Customers,
-            x => x.Id, x => new PartyNameRow(x.Id, x.Name));
-        await AddAsync(PartyStatementPartyType.Supplier, _db.Suppliers,
-            x => x.Id, x => new PartyNameRow(x.Id, x.Name));
-        await AddAsync(PartyStatementPartyType.ServiceProvider, _db.ServiceProviders,
-            x => x.Id, x => new PartyNameRow(x.Id, x.Name));
-        await AddAsync(PartyStatementPartyType.Driver, _db.Drivers,
-            x => x.Id, x => new PartyNameRow(x.Id, x.FullName));
-        await AddAsync(PartyStatementPartyType.Company, _db.Companies,
-            x => x.Id, x => new PartyNameRow(x.Id, x.Name));
-        await AddAsync(PartyStatementPartyType.Sarraf, _db.Sarrafs,
-            x => x.Id, x => new PartyNameRow(x.Id, x.Name));
-        await AddAsync(PartyStatementPartyType.Employee, _db.Employees,
-            x => x.Id, x => new PartyNameRow(x.Id, x.FullName));
-        await AddAsync(PartyStatementPartyType.Partner, _db.Partners,
-            x => x.Id, x => new PartyNameRow(x.Id, x.Name));
-
-        return result;
-    }
-
-    private sealed record PartyNameRow(int Id, string Name);
-
-    private static string? DetailsController(PartyStatementPartyType type) => type switch
-    {
-        PartyStatementPartyType.Customer => "Customers",
-        PartyStatementPartyType.Supplier => "Suppliers",
-        PartyStatementPartyType.ServiceProvider => "ServiceProviders",
-        PartyStatementPartyType.Driver => "Drivers",
-        PartyStatementPartyType.Company => "Companies",
-        PartyStatementPartyType.Sarraf => "Sarrafs",
-        PartyStatementPartyType.Employee => "Employees",
-        PartyStatementPartyType.Partner => "Partners",
-        _ => null
-    };
 
     private sealed record BalanceEvent(
         PartyStatementPartyType PartyType,

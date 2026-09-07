@@ -311,6 +311,8 @@ public sealed class SalesDetailsViewModel
     public decimal ReceivableBalanceUsd { get; init; }
     public decimal OverpaymentUsd { get; init; }
     public IReadOnlyList<SalesPaymentDetailsViewModel> Payments { get; init; } = [];
+    // دریافت‌های همان مشتری که هنوز مانده تطبیق‌نشده دارند و می‌توانند روی این فروش بنشینند.
+    public IReadOnlyList<SaleApplicableReceiptViewModel> ApplicableReceipts { get; init; } = [];
     public string? Notes { get; init; }
     public int? LedgerEntryId { get; init; }
     public string? LedgerReference { get; init; }
@@ -326,12 +328,15 @@ public sealed class SalesDetailsViewModel
     public int? InventoryTransportReceiptId { get; init; }
     public string? InventoryTransportReference { get; init; }
     public string? SourcePurchaseContractNumber { get; init; }
+    public int? SourcePurchaseContractId { get; init; }
     public string? SourceTerminalName { get; init; }
     public string? SourceStorageTankCode { get; init; }
 }
 
 public sealed class SalesPaymentDetailsViewModel
 {
+    // فقط برای ردیف‌های تطبیق پر می‌شود؛ پرداختِ مستقیمِ قدیمی ردیف تطبیق ندارد.
+    public int? ApplicationId { get; init; }
     public int PaymentTransactionId { get; init; }
     public DateTime PaymentDate { get; init; }
     public decimal Amount { get; init; }

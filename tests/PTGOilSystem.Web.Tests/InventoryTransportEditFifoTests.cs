@@ -243,7 +243,7 @@ public class InventoryTransportEditFifoTests
         => new()
         {
             BatchId = batch.Id,
-            SourceTerminalId = batch.SourceTerminalId,
+            SourceTerminalId = batch.SourceTerminalId ?? 0,
             SourceStorageTankId = batch.SourceStorageTankId ?? 0,
             ProductId = batch.ProductId,
             TransportDate = batch.TransportDate,

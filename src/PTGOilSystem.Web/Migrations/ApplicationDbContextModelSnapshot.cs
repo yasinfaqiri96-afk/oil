@@ -2095,7 +2095,7 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
-                    b.Property<int>("CustomerPaymentAllocationId")
+                    b.Property<int?>("CustomerPaymentAllocationId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("JournalEntryId")
@@ -2105,6 +2105,9 @@ namespace PTGOilSystem.Web.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
+
+                    b.Property<int>("PaymentTransactionId")
+                        .HasColumnType("integer");
 
                     b.Property<int?>("ReversalOfApplicationId")
                         .HasColumnType("integer");
@@ -2140,6 +2143,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("CustomerPaymentAllocationId", "Status");
 
+                    b.HasIndex("PaymentTransactionId", "Status");
+
                     b.HasIndex("SalesTransactionId", "Status");
 
                     b.ToTable("CustomerPaymentAllocationApplications");
@@ -2173,6 +2178,15 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<int?>("DutyCashAccountId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DutyServiceProviderId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DutySettlementMode")
+                        .HasColumnType("integer");
+
                     b.Property<string>("GoodsName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -2202,6 +2216,15 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<int?>("ServiceCashAccountId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ServiceProviderId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ServiceSettlementMode")
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("TotalAfn")
                         .HasColumnType("numeric(18,4)");
 
@@ -2226,7 +2249,15 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DutyCashAccountId");
+
+                    b.HasIndex("DutyServiceProviderId");
+
                     b.HasIndex("LoadingRegisterId");
+
+                    b.HasIndex("ServiceCashAccountId");
+
+                    b.HasIndex("ServiceProviderId");
 
                     b.HasIndex("TransportLegId");
 
@@ -2947,10 +2978,19 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal?>("AppliedFxRateToUsd")
                         .HasColumnType("numeric(18,6)");
 
+                    b.Property<int?>("CashAccountId")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("ContractId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("CostResponsibility")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CounterpartyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CounterpartyType")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -2965,6 +3005,12 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasDefaultValue("USD");
+
+                    b.Property<int?>("CustomsComponentGroup")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CustomsDeclarationId")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
@@ -3004,6 +3050,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("ServiceProviderId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("SettlementMode")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("ShipmentId")
                         .HasColumnType("integer");
 
@@ -3027,6 +3076,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CashAccountId");
+
                     b.HasIndex("ContractId");
 
                     b.HasIndex("DriverId");
@@ -3046,11 +3097,17 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("ServiceProviderId");
 
+                    b.HasIndex("SettlementMode");
+
                     b.HasIndex("ShipmentId");
 
                     b.HasIndex("TransportLegId");
 
                     b.HasIndex("TruckDispatchId");
+
+                    b.HasIndex("CounterpartyType", "CounterpartyId");
+
+                    b.HasIndex("CustomsDeclarationId", "CustomsComponentGroup");
 
                     b.ToTable("ExpenseTransactions");
                 });
@@ -3902,7 +3959,7 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("SourceStorageTankId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("SourceTerminalId")
+                    b.Property<int?>("SourceTerminalId")
                         .HasColumnType("integer");
 
                     b.Property<int>("Status")
@@ -4049,7 +4106,7 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("SourceStorageTankId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("SourceTerminalId")
+                    b.Property<int?>("SourceTerminalId")
                         .HasColumnType("integer");
 
                     b.Property<int>("Status")
@@ -4172,6 +4229,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("SourceLoadingReceiptId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("SourceLoadingRegisterId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("SourcePurchaseContractId")
                         .HasColumnType("integer");
 
@@ -4197,6 +4257,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("SourceInventoryMovementId");
 
                     b.HasIndex("SourceLoadingReceiptId");
+
+                    b.HasIndex("SourceLoadingRegisterId");
 
                     b.HasIndex("SourcePurchaseContractId");
 
@@ -9040,13 +9102,18 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasOne("PTGOilSystem.Web.Models.Entities.CustomerPaymentAllocation", "CustomerPaymentAllocation")
                         .WithMany()
                         .HasForeignKey("CustomerPaymentAllocationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.JournalEntry", "JournalEntry")
                         .WithMany()
                         .HasForeignKey("JournalEntryId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.PaymentTransaction", "PaymentTransaction")
+                        .WithMany()
+                        .HasForeignKey("PaymentTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.SalesTransaction", "SalesTransaction")
                         .WithMany()
@@ -9060,14 +9127,31 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Navigation("JournalEntry");
 
+                    b.Navigation("PaymentTransaction");
+
                     b.Navigation("SalesTransaction");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.CustomsDeclaration", b =>
                 {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.CashAccount", "DutyCashAccount")
+                        .WithMany()
+                        .HasForeignKey("DutyCashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.LoadingRegister", "LoadingRegister")
                         .WithMany("CustomsDeclarations")
                         .HasForeignKey("LoadingRegisterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.CashAccount", "ServiceCashAccount")
+                        .WithMany()
+                        .HasForeignKey("ServiceCashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.ServiceProvider", "ServiceProvider")
+                        .WithMany()
+                        .HasForeignKey("ServiceProviderId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.InventoryTransportLeg", "TransportLeg")
@@ -9080,7 +9164,13 @@ namespace PTGOilSystem.Web.Migrations
                         .HasForeignKey("TruckDispatchId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("DutyCashAccount");
+
                     b.Navigation("LoadingRegister");
+
+                    b.Navigation("ServiceCashAccount");
+
+                    b.Navigation("ServiceProvider");
 
                     b.Navigation("TransportLeg");
 
@@ -9217,9 +9307,19 @@ namespace PTGOilSystem.Web.Migrations
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.ExpenseTransaction", b =>
                 {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.CashAccount", "CashAccount")
+                        .WithMany()
+                        .HasForeignKey("CashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Contract", "Contract")
                         .WithMany()
                         .HasForeignKey("ContractId");
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.CustomsDeclaration", "CustomsDeclaration")
+                        .WithMany("ExpenseTransactions")
+                        .HasForeignKey("CustomsDeclarationId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Driver", "Driver")
                         .WithMany()
@@ -9269,7 +9369,11 @@ namespace PTGOilSystem.Web.Migrations
                         .WithMany()
                         .HasForeignKey("TruckDispatchId");
 
+                    b.Navigation("CashAccount");
+
                     b.Navigation("Contract");
+
+                    b.Navigation("CustomsDeclaration");
 
                     b.Navigation("Driver");
 
@@ -9683,8 +9787,7 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Terminal", "SourceTerminal")
                         .WithMany()
                         .HasForeignKey("SourceTerminalId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Product");
 
@@ -9765,8 +9868,7 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Terminal", "SourceTerminal")
                         .WithMany()
                         .HasForeignKey("SourceTerminalId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Truck", "Truck")
                         .WithMany()
@@ -9841,6 +9943,11 @@ namespace PTGOilSystem.Web.Migrations
                         .HasForeignKey("SourceLoadingReceiptId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.LoadingRegister", "SourceLoadingRegister")
+                        .WithMany("TransportAllocations")
+                        .HasForeignKey("SourceLoadingRegisterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Contract", "SourcePurchaseContract")
                         .WithMany()
                         .HasForeignKey("SourcePurchaseContractId")
@@ -9864,6 +9971,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("SourceInventoryMovement");
 
                     b.Navigation("SourceLoadingReceipt");
+
+                    b.Navigation("SourceLoadingRegister");
 
                     b.Navigation("SourcePurchaseContract");
 
@@ -11266,6 +11375,8 @@ namespace PTGOilSystem.Web.Migrations
                 {
                     b.Navigation("Documents");
 
+                    b.Navigation("ExpenseTransactions");
+
                     b.Navigation("Items");
                 });
 
@@ -11343,6 +11454,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("ExpenseTransactions");
 
                     b.Navigation("Receipts");
+
+                    b.Navigation("TransportAllocations");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.LossEvent", b =>

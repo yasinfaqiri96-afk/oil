@@ -34,21 +34,42 @@
             <p class="ak-section-desc mb-0">@UiText.T(Context, "اکسل ← بررسی و انتخاب ← ثبت تسویه ← تخلیه گروهی", "Excel → review and select → settle → group unload")</p>
         </div>
         <div class="ak-page-actions">
-            <a asp-controller="InventoryTransportLegs" asp-action="Index" class="btn btn-light ak-secondary-action">
-                <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                <span>@UiText.T(Context, "حمل‌ها", "Transports")</span>
-            </a>
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
-            <a asp-action="GroupUnload"
-               asp-route-returnUrl="@Url.Action("Index")"
-               class="btn btn-light ak-secondary-action">
-                <i class="bi bi-box-arrow-in-down" aria-hidden="true"></i>
-                <span>@UiText.T(Context, "تخلیه گروهی", "Group unload")</span>
-            </a>
-            <button type="button" class="btn btn-light ak-secondary-action" id="tsToolsToggle" aria-expanded="false" aria-controls="tsToolsPanel">
-                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                <span>@UiText.T(Context, "اکسل و نرخ‌های گروهی", "Excel & bulk rates")</span>
-            </button>
+            <div class="dropdown">
+                <button type="button"
+                        class="btn btn-light ak-secondary-action dropdown-toggle"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                    <i class="bi bi-three-dots" aria-hidden="true"></i>
+                    <span>@UiText.T(Context, "عملیات", "Actions")</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a asp-action="Settled" class="dropdown-item">
+                            <i class="bi bi-check2-all" aria-hidden="true"></i>
+                            <span>@UiText.T(Context, "تسویه‌های ثبت‌شده", "Recorded settlements")</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a asp-action="GroupUnload"
+                           asp-route-returnUrl="@Url.Action("Index")"
+                           class="dropdown-item">
+                            <i class="bi bi-box-arrow-in-down" aria-hidden="true"></i>
+                            <span>@UiText.T(Context, "تخلیه گروهی", "Group unload")</span>
+                        </a>
+                    </li>
+                    <li>
+                        <button type="button"
+                                class="dropdown-item"
+                                id="tsToolsToggle"
+                                aria-expanded="false"
+                                aria-controls="tsToolsPanel">
+                            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                            <span>@UiText.T(Context, "ابزار", "Tools")</span>
+                        </button>
+                    </li>
+                </ul>
+            </div>
             <button type="submit" form="tsForm" class="btn btn-primary ak-primary-action" id="tsSubmitBtn" disabled>
                 <i class="bi bi-check2-circle" aria-hidden="true"></i>
                 <span>@UiText.T(Context, "ثبت تسویه", "Settle")</span>
@@ -193,7 +214,7 @@
                                     <input type="hidden" asp-for="Inputs[i].SourceId" />
                                 </td>
                                 <td class="col-name">
-                                    @await Html.PartialAsync("_OperationsListIdentity", ("bi-truck", row.VehicleNumber, row.Date.ToDisplayDate(), true))
+                                    @await Html.PartialAsync("_OperationsListIdentity", ("bi-truck", row.VehicleNumber, string.Empty, true))
                                 </td>
                                 <td>
                                     <span class="ak-label">@row.ProductName</span>
@@ -249,7 +270,7 @@
                 if (summary) {
                     summary.textContent = selectedCount > 0
                         ? (selectedCount + ' ردیف برای تسویه انتخاب شده است.')
-                        : 'برای شروع، یک یا چند ردیف را انتخاب کنید.';
+                        : '';
                 }
             }
 
@@ -325,11 +346,10 @@
                 var shortageName = inputName(index, 'ShortageMt');
                 var allowanceName = inputName(index, 'AllowanceMt');
                 var shortageRateName = inputName(index, 'ShortageRateUsd');
-                var deductionsName = inputName(index, 'OtherDeductionsUsd');
 
                 return `
                     <div class="ak-form-section" data-ts-settlement-panel data-ts-remaining="${escapeHtml(remaining)}" data-ts-kind="${escapeHtml(kind)}">
-                        <div class="ak-form-grid">
+                        <div class="ak-form-grid ak-form-grid--4">
                             <div class="ak-field">
                                 <label>تاریخ</label>
                                 <input name="${dateName}" value="${escapeHtml(rowData(mainRow, 'operation-date'))}" type="date" class="ak-input" />
@@ -338,13 +358,9 @@
                                 <label>وزن تخلیه (تن)</label>
                                 <input name="${quantityName}" value="${escapeHtml(rowData(mainRow, 'quantity'))}" type="number" step="0.0001" min="0" class="ak-input" data-ts-qty />
                             </div>
-                        </div>
-                        <div class="ak-section-title">تسویه کرایه و کسورات</div>
-                        <div class="ak-form-grid">
                             <div class="ak-field">
                                 <label>نرخ کرایه (دالر فی تن)</label>
                                 <input name="${freightRateName}" value="${escapeHtml(rowData(mainRow, 'freight-rate'))}" type="number" step="0.01" min="0" class="ak-input" data-ts-freight-rate-input />
-                                <span class="ak-note">خودکار: نرخ × بار حمل = کرایه کلی</span>
                             </div>
                             <div class="ak-field">
                                 <label>کرایه کلی (دالر)</label>
@@ -353,7 +369,6 @@
                             <div class="ak-field">
                                 <label>کسری (تن)</label>
                                 <input name="${shortageName}" value="${escapeHtml(rowData(mainRow, 'shortage'))}" type="number" step="0.0001" class="ak-input" data-ts-shortage readonly />
-                                <span class="ak-note">خودکار: باقی‌مانده منهای وزن تخلیه</span>
                             </div>
                             <div class="ak-field">
                                 <label>حواکت / مجاز (تن)</label>
@@ -362,15 +377,10 @@
                             <div class="ak-field">
                                 <label>کسری قابل مجرا (تن)</label>
                                 <div class="ak-note" data-ts-chargeable>0.0000</div>
-                                <span class="ak-note">خودکار: کسری − حواکت</span>
                             </div>
                             <div class="ak-field">
                                 <label>نرخ کسری (دالر فی تن)</label>
                                 <input name="${shortageRateName}" value="${escapeHtml(rowData(mainRow, 'shortage-rate'))}" type="number" step="0.01" min="0" class="ak-input" data-ts-shortage-rate-input />
-                            </div>
-                            <div class="ak-field">
-                                <label>کسورات دیگر (دالر)</label>
-                                <input name="${deductionsName}" value="${escapeHtml(rowData(mainRow, 'deductions'))}" type="number" step="0.01" min="0" class="ak-input" data-ts-deductions-input />
                             </div>
                             <div class="ak-field">
                                 <label>قابل پرداخت نهایی (دالر)</label>
@@ -379,15 +389,10 @@
                             <div class="ak-field">
                                 <label>طرف کرایه</label>
                                 <select name="${prefix}.FreightParty" class="ak-input" data-ts-party-input>${optionsFromTemplate('tsPartyOptionsTemplate', rowData(mainRow, 'party'))}</select>
-                                <span class="ak-note">شرکت خدماتی/راننده: طلب در حسابش ثبت می‌شود. موتر خودی: کرایه عوایدش ثبت می‌شود.</span>
                             </div>
                             <div class="ak-field" data-ts-new-driver hidden>
                                 <label>نام راننده جدید</label>
                                 <input name="${prefix}.NewDriverName" value="${escapeHtml(rowData(mainRow, 'new-driver'))}" class="ak-input" placeholder="خالی = نام خودکار از نمبر موتر" />
-                            </div>
-                            <div class="ak-field">
-                                <label>یادداشت</label>
-                                <input name="${prefix}.Notes" value="${escapeHtml(rowData(mainRow, 'notes'))}" class="ak-input" />
                             </div>
                         </div>
                     </div>`;

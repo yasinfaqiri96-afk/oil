@@ -1,7 +1,8 @@
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Models.Sales;
@@ -16,6 +17,7 @@ namespace PTGOilSystem.Web.Services;
 public sealed class InventoryTransportReceiptService
 {
     public const string ReceiptFreightExpenseCode = "TRANSPORT-RECEIPT-FREIGHT";
+    public const string OperationalAssetFreightIncomeDescriptionPrefix = "Freight income for operational asset — ";
 
     // نوع مصرف استاندارد «کرایه حمل» که از مودال «ثبت مصرف» انتخاب می‌شود.
     // وقتی کرایه با این نوع ثبت شده باشد، فرم رسید همان مبلغ را به‌عنوان «کرایه نهایی»
@@ -27,6 +29,10 @@ public sealed class InventoryTransportReceiptService
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private ILedgerPostingService? _ledgerPosting;
     private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
+    private IExpenseLedgerPoster? _expenseLedgerPoster;
+    private IExpenseLedgerPoster ExpenseLedger => _expenseLedgerPoster ??= new ExpenseLedgerPoster(Ledger);
+    // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است، پس ساختِ محلی بی‌خطر است.
+    private readonly IExpenseSettlementValidator _settlementValidator = new ExpenseSettlementValidator();
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IInventoryLineageWriter _lineage;
     private readonly IInventoryMovementWriter _movements;
@@ -126,6 +132,7 @@ public sealed class InventoryTransportReceiptService
         if (UsesUnloadFreightFlow(leg))
         {
             ValidateTruckReceiptFields(model, leg, remainingMt, modelState, keyPrefix);
+            await ValidateFreightAsync(model, leg, modelState, keyPrefix);
         }
 
         await ValidateOperationalPartyAsync(model.ServiceProviderId, model.OperationalAssetId, modelState, keyPrefix);
@@ -681,6 +688,78 @@ public sealed class InventoryTransportReceiptService
             : null;
     }
 
+    // دو قاعدهٔ کرایه که هر مسیرِ رسید/تسویه باید رعایت کند. تا پیش از این فقط فرمِ رسیدِ
+    // گروهی آن‌ها را (به‌صورت محلی) داشت و مسیرهای «تسویهٔ کرایه» بدون محافظ بودند.
+    private async Task ValidateFreightAsync(
+        InventoryTransportReceiptCreateViewModel model,
+        InventoryTransportLeg leg,
+        ModelStateDictionary modelState,
+        string keyPrefix)
+    {
+        var grossFreightUsd = model.FreightCostUsd ?? 0m;
+        if (grossFreightUsd <= 0m)
+        {
+            return;
+        }
+
+        // (۱) ضدِ دوباره‌شماری. کرایه‌ای که قبلاً با نوع مصرفِ «کرایه حمل» ثبت شده، در P&L
+        // داخل ExpenseTransactionsUsd است؛ کرایهٔ دوم روی رسید همان مبلغ را بار دیگر از
+        // راه ReceiptFreightExpenseUsd وارد می‌کند و «مصارف» دو برابر دیده می‌شود.
+        var registeredFreightUsd = await GetRegisteredFreightUsdAsync(leg.Id);
+        if (registeredFreightUsd > 0m)
+        {
+            modelState.AddModelError(
+                keyPrefix + nameof(InventoryTransportReceiptCreateViewModel.FreightCostUsd),
+                $"کرایهٔ این حمل قبلاً به‌صورت مصرف «کرایه حمل» به مبلغ {registeredFreightUsd:N2} USD ثبت شده است؛ کرایهٔ دوباره روی رسید ثبت نمی‌شود.");
+        }
+
+        // (۲) هویتِ طرفِ کرایه. همان ترتیبِ SyncReceiptFreightExpenseAsync: دارایی ملکی ⇒
+        // درآمد داخلی و بدونِ بدهی بیرونی؛ وگرنه شرکت خدماتی، وگرنه رانندهٔ همین حمل.
+        // بدون هیچ‌کدام، مبلغ در P&L می‌نشیند ولی هیچ مصرف/سطر دفتری ساخته نمی‌شود و
+        // کرایه بدهیِ کسی نمی‌گردد.
+        if (!model.OperationalAssetId.HasValue
+            && !model.ServiceProviderId.HasValue
+            && !leg.DriverId.HasValue)
+        {
+            modelState.AddModelError(
+                keyPrefix + nameof(InventoryTransportReceiptCreateViewModel.ServiceProviderId),
+                "طرف کرایه مشخص نیست. شرکت خدماتی، دارایی عملیاتی یا رانندهٔ حمل را انتخاب کنید؛ وگرنه کرایه به حساب هیچ‌کس ثبت نمی‌شود.");
+        }
+    }
+
+    /// <summary>
+    /// مجموع کرایهٔ ثبت‌شدهٔ هر حمل از مصارفِ نوع «کرایه حمل» (فقط مصارف فعال/غیرلغوشده).
+    /// تنها مالکِ این پرسش؛ فرمِ رسید (برای نمایش «کرایه نهایی») و اعتبارسنجیِ بالا هر دو
+    /// از همین‌جا می‌خوانند تا دو تعریف موازی ساخته نشود.
+    /// </summary>
+    public async Task<Dictionary<int, decimal>> GetRegisteredFreightByLegAsync(IReadOnlyCollection<int> legIds)
+    {
+        if (legIds is null || legIds.Count == 0)
+        {
+            return new Dictionary<int, decimal>();
+        }
+
+        return await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => e.TransportLegId.HasValue
+                && legIds.Contains(e.TransportLegId.Value)
+                && !e.IsCancelled
+                && e.ExpenseType != null
+                && e.ExpenseType.Code == TransportFreightExpenseCode)
+            .GroupBy(e => e.TransportLegId!.Value)
+            .Select(g => new { LegId = g.Key, AmountUsd = g.Sum(e => e.AmountUsd) })
+            .ToDictionaryAsync(x => x.LegId, x => x.AmountUsd);
+    }
+
+    public async Task<decimal> GetRegisteredFreightUsdAsync(int legId)
+        => await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => e.TransportLegId == legId
+                && !e.IsCancelled
+                && e.ExpenseType != null
+                && e.ExpenseType.Code == TransportFreightExpenseCode)
+            .SumAsync(e => (decimal?)e.AmountUsd) ?? 0m;
+
     private void ValidateTruckReceiptFields(
         InventoryTransportReceiptCreateViewModel model,
         InventoryTransportLeg leg,
@@ -770,6 +849,11 @@ public sealed class InventoryTransportReceiptService
             Description = $"Truck receipt freight for transport leg #{leg.Id}, receipt #{receipt.Id}"
         };
 
+        // PTG-P1-04 — هویت تسویه. بالاتر ثابت شد که یکی از دو طرفِ حمل‌کننده هست (وگرنه متد
+        // برگشته بود) و کرایه بدهیِ ماست ⇒ Payable روی همان طرف.
+        ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+        _settlementValidator.Validate(expense);
+
         _db.ExpenseTransactions.Add(expense);
         await _db.SaveChangesAsync();
 
@@ -780,25 +864,12 @@ public sealed class InventoryTransportReceiptService
         }
 
         // کرایه بدهیِ ما به حمل‌کننده است ⇒ همیشه Credit روی حساب همان طرف (شرکت خدماتی یا راننده).
-        Ledger.Post(new LedgerPostingRequest
+        ExpenseLedger.Post(new ExpenseLedgerRequest
         {
-            EntryDate = expense.ExpenseDate,
-            Side = LedgerSide.Credit,
-            AmountUsd = expense.AmountUsd,
-            Currency = SystemCurrency.BaseCurrencyCode,
-            SourceAmount = expense.Amount,
-            SourceCurrencyCode = expense.Currency,
-            AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-            AppliedFxRateDate = expense.ExpenseDate,
-            AppliedFxRateSource = "Base currency",
+            Expense = expense,
             Description = expense.Description ?? "Truck receipt freight",
-            SourceType = "Expense",
-            SourceId = expense.Id,
             Reference = $"TRANSPORT-RECEIPT:{receipt.Id}",
-            ContractId = expense.ContractId,
-            ShipmentId = expense.ShipmentId,
-            ServiceProviderId = expense.ServiceProviderId,
-            DriverId = expense.DriverId
+            FxRateSource = "Base currency"
         });
         await _db.SaveChangesAsync();
     }
@@ -988,7 +1059,7 @@ public sealed class InventoryTransportReceiptService
         }
 
         var expenseType = await EnsureTransportFreightExpenseTypeAsync();
-        var description = $"Freight income for operational asset — {reference}";
+        var description = $"{OperationalAssetFreightIncomeDescriptionPrefix}{reference}";
         if (await _db.ExpenseTransactions.AnyAsync(e => !e.IsCancelled
             && e.OperationalAssetId == operationalAssetId
             && e.ExpenseTypeId == expenseType.Id
@@ -1010,8 +1081,14 @@ public sealed class InventoryTransportReceiptService
             Currency = SystemCurrency.BaseCurrencyCode,
             AppliedFxRateToUsd = 1m,
             AmountUsd = amountUsd,
-            Description = description
+            Description = description,
+
+            // PTG-P1-04 — هویت تسویه. وسیلهٔ ملکیِ خودِ شرکت است: نه طرف‌حسابِ بیرونی،
+            // نه حرکتِ پول، و همان‌طور که بالای متد نوشته شده LedgerEntry هم ساخته نمی‌شود.
+            // پروفایلِ دارایی این ردیف را به‌عنوان عایدِ کرایه می‌خواند.
+            SettlementMode = ExpenseSettlementMode.NonCash
         };
+        _settlementValidator.Validate(expense);
         _db.ExpenseTransactions.Add(expense);
         await _db.SaveChangesAsync(ct);
 

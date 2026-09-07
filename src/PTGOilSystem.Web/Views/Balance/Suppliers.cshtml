@@ -1,6 +1,6 @@
 @model PTGOilSystem.Web.Models.Balance.SuppliersBalanceViewModel
 @{
-    ViewData["Title"] = UiText.T(Context,"بیلانس تأمین‌کنندگان","Supplier Balances");
+    ViewData["Title"] = UiText.T(Context,"گردش حساب تأمین‌کننده‌ها","Supplier Accounts");
     var totalSalesUsd = Model.Items.Sum(item => item.TotalSalesUsd);
     var totalExpensesUsd = Model.Items.Sum(item => item.TotalExpensesUsd);
     var totalBaseBalanceUsd = Model.Items.Sum(item => item.BaseBalanceUsd);
@@ -10,7 +10,7 @@
 
 <div class="ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context,"بیلانس تأمین‌کنندگان","Supplier Balances"), false,
+             model="@((UiText.T(Context,"گردش حساب تأمین‌کننده‌ها","Supplier Accounts"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        (string?)null, (string?)null, (string?)null))" />
 
@@ -18,7 +18,7 @@
         <vc:stat-card title="@UiText.T(Context,"تأمین‌کنندگان","Suppliers")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context,"تأمین‌کننده","suppliers")" avatar="suppliers"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context,"جمع فروش","Total Sales")" value="@totalSalesUsd.ToString("N2")" unit="USD" avatar="sales-value"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context,"جمع مصرف","Total Expenses")" value="@totalExpensesUsd.ToString("N2")" unit="USD" avatar="expenses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context,"تراز پایه","Base Balance")" value="@totalBaseBalanceUsd.ToString("N2")" unit="USD" avatar="statement"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context,"مانده","Balance")" value="@totalBaseBalanceUsd.ToString("N2")" unit="USD" avatar="statement"></vc:stat-card>
     </section>
 
     <div class="ak-list">
@@ -54,8 +54,8 @@
                         <th>@UiText.T(Context,"فعال / بسته","Active / Closed")</th>
                         <th class="ak-col-num">@UiText.T(Context,"جمع فروش","Total Sales")</th>
                         <th class="ak-col-num">@UiText.T(Context,"جمع مصرف","Total Expenses")</th>
-                        <th class="ak-col-num">Ledger</th>
-                        <th class="ak-col-num">@UiText.T(Context,"تراز پایه","Base Balance")</th>
+                        <th class="ak-col-num">@UiText.T(Context,"اسناد","Entries")</th>
+                        <th class="ak-col-num">@UiText.T(Context,"مانده","Balance")</th>
                         <th class="ak-col-actions">@UiText.T(Context,"عملیات","Operations")</th>
                     </tr>
                 </thead>
@@ -70,13 +70,13 @@
                             <td class="ak-col-num ak-num">@item.TotalSalesUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@item.TotalExpensesUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@item.RelatedLedgerCount</td>
-                            <td class="ak-col-num ak-num @(item.BaseBalanceUsd >= 0 ?"ak-num" : "ak-num")">@item.BaseBalanceUsd.ToString("N2")</td>
-                            <td class="ak-col-actions"><a asp-controller="Suppliers" asp-action="Details" asp-route-id="@item.Id">@UiText.T(Context,"جزئیات","Details")</a></td>
+                            <td class="ak-col-num ak-num @(item.BaseBalanceUsd < 0m ? "ak-number--negative" : null)">@item.BaseBalanceUsd.ToString("N2")</td>
+                            <td class="ak-col-actions"><a asp-controller="PartyStatements" asp-action="Supplier" asp-route-id="@item.Id">@UiText.T(Context,"گردش حساب","Statement")</a></td>
                         </tr>
                     }
                     @if (!Model.Items.Any())
                     {
-                        <tr><td colspan="9"><div class="ak-empty"><i class="bi bi-building"></i> @UiText.T(Context,"تأمین‌کننده‌ای برای نمایش بیلانس پیدا نشد","No suppliers found for balance view")</div></td></tr>
+                        <tr><td colspan="9"><div class="ak-empty"><i class="bi bi-building"></i> @UiText.T(Context,"تأمین‌کننده‌ای برای نمایش گردش حساب پیدا نشد","No suppliers found for this view")</div></td></tr>
                     }
                 </tbody>
             </table>

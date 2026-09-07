@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 
@@ -41,8 +41,14 @@ public sealed class InventoryLineagePnlService
             .Where(a => lotIds.Contains(a.LotId))
             .ToListAsync(ct);
 
+        // تخصیصِ مصرف به Lot برای هر مصرفِ leg-linked نوشته می‌شود — از جمله مصرفی که از
+        // اظهارنامهٔ گمرکی ساخته شده. ستون «گمرک» پایین‌تر همان مبلغ را از خودِ اظهارنامه
+        // می‌گیرد، پس اینجا کنار می‌رود تا دو بار شمرده نشود. مصرفِ لغوشده هم پول نیست و
+        // تخصیصِ نوشته‌شده‌اش باید در خواندن نادیده گرفته شود.
         var expenseAllocs = await _db.ExpenseLotAllocations.AsNoTracking()
-            .Where(a => lotIds.Contains(a.LotId))
+            .Where(a => lotIds.Contains(a.LotId)
+                && !_db.ExpenseTransactions.Any(e => e.Id == a.ExpenseTransactionId
+                    && (e.IsCancelled || e.CustomsDeclarationId != null)))
             .ToListAsync(ct);
 
         // گمرکِ مرتبط: declarationهایی که TransportLegId آن‌ها در legهای همین کشتی است.
@@ -56,6 +62,9 @@ public sealed class InventoryLineagePnlService
             .Select(id => id!.Value)
             .Distinct()
             .ToList();
+        // گمرک یک منبع دارد: خودِ اظهارنامه. CustomsDeclarationExpenseSync فقط برای گروهی
+        // مصرف می‌سازد که هویتِ تسویه‌اش انتخاب شده باشد، پس جمع‌زدن از روی مصرف‌ها گروهِ
+        // «طبقه‌بندی‌نشده» را خاموش از هزینه می‌انداخت. TotalUsd همان جمعِ کاملِ اقلام است.
         var customsUsd = legIds.Count == 0
             ? 0m
             : await _db.CustomsDeclarations.AsNoTracking()
@@ -95,8 +104,13 @@ public sealed class InventoryLineagePnlService
             .SumAsync(e => (decimal?)e.DifferenceQuantityMt, ct) ?? 0m;
 
         var allocatedExpenseIds = expenseAllocs.Select(a => a.ExpenseTransactionId).Distinct().ToHashSet();
+        // مصرفِ گمرک بالا یک بار از خودِ اظهارنامه شمرده شد؛ اینجا دوباره نمی‌آید.
         var fallbackExpenseUsd = await _db.ExpenseTransactions.AsNoTracking()
-            .Where(e => e.ShipmentId == shipmentId && !e.IsCancelled && e.AmountUsd > 0m && !allocatedExpenseIds.Contains(e.Id))
+            .Where(e => e.ShipmentId == shipmentId
+                && !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
+                && e.AmountUsd > 0m
+                && !allocatedExpenseIds.Contains(e.Id))
             .SumAsync(e => (decimal?)e.AmountUsd, ct) ?? 0m;
 
         var usedFallback = fallbackLossMt > 0m || fallbackExpenseUsd > 0m;

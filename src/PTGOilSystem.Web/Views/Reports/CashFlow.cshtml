@@ -1,21 +1,52 @@
 @model PTGOilSystem.Web.Models.Reports.CashFlowReportViewModel
 @{
-    ViewData["Title"] = UiText.T(Context, "جریان نقدی", "Cash Flow");
+    ViewData["Title"] = UiText.T(Context, "گردش پول", "Cash Movement");
 }
 
-<div class="ak-list-page">
+@*
+    چیدمان صفحه یک مسیر خطی است و کاربر از بالا به پایین یک بار می‌خواندش:
+      ۱) یک جمله: این صفحه چه چیزی را می‌شمارد،
+      ۲) چهار کارت: اول دوره، رسیدکی، بردکی، آخر دوره،
+      ۳) فیلتر و خروجی،
+      ۴) سه نمای جزئیات که با تب عوض می‌شوند تا هر بار فقط یک جدول دیده شود.
+    قبلاً هر سه جدول با هم روی صفحه بودند و تشخیصشان از هم سخت بود.
+    موتور تب همان ptg-tabs.js مشترک است؛ ARIA، کیبورد و hash را خودش می‌بندد.
+*@
+
+<div class="ak-list-page cashflow-report-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "جریان نقدی", "Cash Flow"), false,
+             model="@((UiText.T(Context, "گردش پول", "Cash Movement"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
 
-    <p class="ak-note">@UiText.T(Context, "ورودی و خروجی واقعی از روزنامچه و حساب‌های نقدی.", "Actual inflow and outflow from roznamcha and cash accounts.")</p>
+    <p class="ak-note">@UiText.T(Context, "فقط پولی که واقعاً وارد صندوق و بانک شده یا از آن خارج شده است. همه مبالغ به USD.", "Only money that actually entered or left the cash and bank accounts. All amounts in USD.")</p>
 
-    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار جریان نقدی", "Cash flow metrics")">
-            @foreach (var metric in Model.Metrics.Take(4))
-            {
-                @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
-            }
+    @if (!string.IsNullOrWhiteSpace(Model.ScopeWarning))
+    {
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            @Model.ScopeWarning
+        </div>
+    }
+
+    @if (Model.PartnerFundedCount > 0)
+    {
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-people"></i>
+            @string.Format(
+                UiText.T(Context,
+                    "{0} پرداخت به مبلغ {1} USD را شریک از جیب خودش داده است؛ از صندوق شرکت خارج نشده، پس در این صفحه شمرده نمی‌شود.",
+                    "{0} payment(s) totalling {1} USD were funded by a partner; company cash never moved, so they are not counted on this page."),
+                Model.PartnerFundedCount.ToString("N0"),
+                Model.PartnerFundedOutflowUsd.ToString("N2"))
+        </div>
+    }
+
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار گردش پول", "Cash movement metrics")">
+        @foreach (var metric in Model.Metrics.Take(4))
+        {
+            @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
+        }
     </section>
 
     <div class="ak-list">
@@ -24,11 +55,17 @@
                 ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
                 .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
             var cashFlowFilter = new AkSearchFilterModel("", null,
-                UiText.T(Context, "فیلتر جریان نقدی...", "Filter cash flow..."),
+                UiText.T(Context, "فیلتر گردش پول...", "Filter cash movement..."),
                 new List<AkFilterDefinition>
                 {
                     new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                    new("CashAccountId", UiText.T(Context, "صندوق / بانک", "Cash / Bank"), "select", CashFlowOpts(ViewBag.CashAccounts),
+                        Model.Filter.CashAccountId?.ToString()),
+                    new("CompanyId", UiText.T(Context, "شرکت", "Company"), "select", CashFlowOpts(ViewBag.Companies),
+                        Model.Filter.CompanyId?.ToString()),
+                    new("PaymentKind", UiText.T(Context, "بابت", "Purpose"), "select", CashFlowOpts(ViewBag.PaymentKinds),
+                        Model.Filter.PaymentKind.HasValue ? ((int)Model.Filter.PaymentKind.Value).ToString() : null),
                     new("ProductId", UiText.T(Context, "جنس", "Product"), "select", CashFlowOpts(ViewBag.Products),
                         Model.Filter.ProductId?.ToString()),
                     new("ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", CashFlowOpts(ViewBag.Contracts),
@@ -46,60 +83,151 @@
             </div>
         </div>
 
-        <div class="ak-table-wrap">
-            <table class="ak-table">
-                <thead>
-                    <tr>
-                        <th class="ak-col-grow">@UiText.T(Context, "گروه", "Group")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "ورودی USD", "Inflow USD")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "خروجی USD", "Outflow USD")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "خالص", "Net")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "تعداد", "Count")</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in Model.Rows)
-                    {
-                        <tr>
-                            <td class="ak-col-grow">@row.GroupName</td>
-                            <td class="ak-col-num ak-num">@row.InflowUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num">@row.OutflowUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num @(row.NetUsd >= 0 ?"ak-num" : "ak-num")">@row.NetUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num">@row.Count.ToString("N0")</td>
-                        </tr>
-                    }
-                    @if (!Model.Rows.Any())
-                    {
-                        <tr><td colspan="5"><div class="ak-empty"><i class="bi bi-cash-stack"></i> @UiText.T(Context, "حرکت نقدی پیدا نشد؛ فیلترها را تغییر دهید.", "No cash movement found; change the filters.")</div></td></tr>
-                    }
-                </tbody>
-            </table>
+        <div class="cashflow-tabs" data-section-tabs="true">
+            <div data-section-tabs-scroll="true">
+                <nav class="ptg-tabs-rail" role="tablist" aria-label="@UiText.T(Context, "نماهای گردش پول", "Cash movement views")">
+                    <a class="ptg-tab-item is-active" href="#cashflow-purpose" role="tab" aria-controls="cashflow-purpose" aria-selected="true">
+                        @UiText.T(Context, "بابت چه چیزی", "By purpose")
+                    </a>
+                    <a class="ptg-tab-item" href="#cashflow-accounts" role="tab" aria-controls="cashflow-accounts" aria-selected="false">
+                        @UiText.T(Context, "صندوق و بانک", "Cash and bank")
+                    </a>
+                    <a class="ptg-tab-item" href="#cashflow-months" role="tab" aria-controls="cashflow-months" aria-selected="false">
+                        @UiText.T(Context, "ماه به ماه", "Month by month")
+                    </a>
+                </nav>
+            </div>
         </div>
 
-        <div class="ak-table-wrap">
-            <table class="ak-table">
-                <thead>
-                    <tr>
-                        <th class="ak-col-grow">@UiText.T(Context, "حساب", "Account")</th>
-                        <th>@UiText.T(Context, "ارز", "Currency")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "ورودی", "Inflow")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "خروجی", "Outflow")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "خالص", "Net")</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in Model.AccountRows)
-                    {
+        <div id="cashflow-purpose" class="cashflow-panel" role="tabpanel" aria-label="@UiText.T(Context, "بابت چه چیزی", "By purpose")">
+            <p class="ak-section-desc">@UiText.T(Context, "پول بابت چه چیزی آمد و بابت چه چیزی رفت.", "What the money came in for, and what it went out for.")</p>
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
                         <tr>
-                            <td class="ak-col-grow">@row.CashAccountName</td>
-                            <td>@row.Currency</td>
-                            <td class="ak-col-num ak-num">@row.InflowUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num">@row.OutflowUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num @(row.NetUsd >= 0 ?"ak-num" : "ak-num")">@row.NetUsd.ToString("N2")</td>
+                            <th class="ak-col-grow">@UiText.T(Context, "بابت", "Purpose")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "رسیدکی", "Money in")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "بردکی", "Money out")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "خالص", "Net")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "تعداد", "Count")</th>
                         </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Rows)
+                        {
+                            <tr>
+                                <td class="ak-col-grow">@row.GroupName</td>
+                                <td class="ak-col-num ak-num">@row.InflowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@row.OutflowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num @(row.NetUsd < 0m ? "ak-number--negative" : null)">@row.NetUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@row.Count.ToString("N0")</td>
+                            </tr>
+                        }
+                        @if (!Model.Rows.Any())
+                        {
+                            <tr><td colspan="5"><div class="ak-empty"><i class="bi bi-cash-stack"></i> @UiText.T(Context, "گردش پولی پیدا نشد؛ فیلترها را تغییر دهید.", "No cash movement found; change the filters.")</div></td></tr>
+                        }
+                    </tbody>
+                    @if (Model.Rows.Any())
+                    {
+                        <tfoot>
+                            <tr class="ak-table-total">
+                                <td class="ak-col-grow">@UiText.T(Context, "جمع", "Total")</td>
+                                <td class="ak-col-num ak-num">@Model.TotalInflowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@Model.TotalOutflowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num @(Model.NetCashFlowUsd < 0m ? "ak-number--negative" : null)">@Model.NetCashFlowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@Model.Rows.Sum(r => r.Count).ToString("N0")</td>
+                            </tr>
+                        </tfoot>
                     }
-                </tbody>
-            </table>
+                </table>
+            </div>
+        </div>
+
+        <div id="cashflow-accounts" class="cashflow-panel" role="tabpanel" aria-label="@UiText.T(Context, "صندوق و بانک", "Cash and bank")" hidden>
+            <p class="ak-section-desc">@UiText.T(Context, "هر صندوق و بانک جداگانه. ستون ارز فقط ارز نگهداری حساب است.", "Each cash and bank account on its own. The currency column is only the account's holding currency.")</p>
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "حساب", "Account")</th>
+                            <th>@UiText.T(Context, "ارز حساب", "Account currency")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "اول دوره", "Opening")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "رسیدکی", "Money in")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "بردکی", "Money out")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "خالص", "Net")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "آخر دوره", "Closing")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.AccountRows)
+                        {
+                            <tr>
+                                <td class="ak-col-grow">@row.CashAccountName</td>
+                                <td>@row.Currency</td>
+                                <td class="ak-col-num ak-num @(row.OpeningUsd < 0m ? "ak-number--negative" : null)">@row.OpeningUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@row.InflowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@row.OutflowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num @(row.NetUsd < 0m ? "ak-number--negative" : null)">@row.NetUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num @(row.ClosingUsd < 0m ? "ak-number--negative" : null)">@row.ClosingUsd.ToString("N2")</td>
+                            </tr>
+                        }
+                        @if (!Model.AccountRows.Any())
+                        {
+                            <tr><td colspan="7"><div class="ak-empty"><i class="bi bi-bank"></i> @UiText.T(Context, "حساب نقدی‌ای در این بازه گردش نداشته است.", "No cash account moved in this range.")</div></td></tr>
+                        }
+                    </tbody>
+                    @if (Model.AccountRows.Any())
+                    {
+                        <tfoot>
+                            <tr class="ak-table-total">
+                                <td class="ak-col-grow">@UiText.T(Context, "جمع", "Total")</td>
+                                <td></td>
+                                <td class="ak-col-num ak-num @(Model.OpeningBalanceUsd < 0m ? "ak-number--negative" : null)">@Model.OpeningBalanceUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@Model.AccountRows.Sum(r => r.InflowUsd).ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@Model.AccountRows.Sum(r => r.OutflowUsd).ToString("N2")</td>
+                                <td class="ak-col-num ak-num @(Model.NetCashFlowUsd < 0m ? "ak-number--negative" : null)">@Model.NetCashFlowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num @(Model.ClosingBalanceUsd < 0m ? "ak-number--negative" : null)">@Model.ClosingBalanceUsd.ToString("N2")</td>
+                            </tr>
+                        </tfoot>
+                    }
+                </table>
+            </div>
+        </div>
+
+        <div id="cashflow-months" class="cashflow-panel" role="tabpanel" aria-label="@UiText.T(Context, "ماه به ماه", "Month by month")" hidden>
+            <p class="ak-section-desc">@UiText.T(Context, "مانده آخر هر ماه از مانده اول دوره ساخته می‌شود.", "Each month's closing builds on the opening balance.")</p>
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "ماه", "Month")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "رسیدکی", "Money in")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "بردکی", "Money out")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "خالص", "Net")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مانده پایان ماه", "Closing")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "تعداد", "Count")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.PeriodRows)
+                        {
+                            <tr>
+                                <td class="ak-col-grow ak-num">@row.Label</td>
+                                <td class="ak-col-num ak-num">@row.InflowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@row.OutflowUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num @(row.NetUsd < 0m ? "ak-number--negative" : null)">@row.NetUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num @(row.ClosingUsd < 0m ? "ak-number--negative" : null)">@row.ClosingUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num">@row.Count.ToString("N0")</td>
+                            </tr>
+                        }
+                        @if (!Model.PeriodRows.Any())
+                        {
+                            <tr><td colspan="6"><div class="ak-empty"><i class="bi bi-calendar3"></i> @UiText.T(Context, "در این بازه ماهی با گردش پول وجود ندارد.", "No month in this range has cash movement.")</div></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>

@@ -251,6 +251,30 @@ public class ExpenseBatch : BaseEntity
     public System.Collections.Generic.ICollection<ExpenseTransaction> Expenses { get; set; } = new System.Collections.Generic.List<ExpenseTransaction>();
 }
 
+/// <summary>
+/// فاز ۱ — قرارداد تسویهٔ هر رویداد هزینه‌ای. یک مصرف مالی دقیقاً یکی از این حالت‌هاست.
+/// </summary>
+public enum ExpenseSettlementMode
+{
+    /// <summary>
+    /// رکوردهای پیش از فاز ۱. هیچ‌وقت حدس زده نمی‌شوند و برای رکورد تازه پذیرفته نمی‌شوند؛
+    /// در گزارش‌ها زیر ردیف «طبقه‌بندی‌نشده» دیده می‌شوند تا هیچ پولی خاموش گم نشود.
+    /// </summary>
+    Unknown = 0,
+
+    /// <summary>بدهی واقعی به یک طرف‌حساب مشخص. طرف‌حساب اجباری است.</summary>
+    Payable = 1,
+
+    /// <summary>از صندوق/بانک پرداخت شده. حساب نقدی اجباری است و بدهی‌ای نمی‌ماند.</summary>
+    PaidImmediately = 2,
+
+    /// <summary>
+    /// بدون حرکت پول و بدون طرف‌حساب بیرونی — استهلاک، تعدیل داخلی، تخصیصِ بینِ حساب‌های خودی.
+    /// حسابِ مقابل از <see cref="ExpenseType.PayableAccountKind"/> می‌آید.
+    /// </summary>
+    NonCash = 3
+}
+
 public class ExpenseTransaction : BaseEntity, IVersionedEntity
 {
     /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
@@ -304,6 +328,50 @@ public class ExpenseTransaction : BaseEntity, IVersionedEntity
     // کمیسیون — لینک ردیابی به پرداخت/دریافت اصلیِ روزنامچه که این مصرف کمیسیونِ آن است.
     // ستون سادهٔ nullable بدون navigation/FK (backward-compatible).
     public int? RelatedPaymentTransactionId { get; set; }
+
+    // ---------------------------------------------------------------------
+    // فاز ۱ — هویت تسویه. یک مصرف مالی دقیقاً یکی از این حالت‌ها را دارد و حالتِ
+    // «نه پرداخت‌شده، نه بدهکار به کسی» دیگر ذخیره نمی‌شود. رجوع:
+    // Services/Expenses/ExpenseSettlementValidator.cs
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// وضعیت تسویهٔ این مصرف. رکوردهای پیش از فاز ۱ روی <see cref="ExpenseSettlementMode.Unknown"/>
+    /// می‌مانند و هرگز حدس زده نمی‌شوند؛ گزارش‌ها آن‌ها را جدا نشان می‌دهند.
+    /// </summary>
+    public ExpenseSettlementMode SettlementMode { get; set; } = ExpenseSettlementMode.Unknown;
+
+    /// <summary>
+    /// طرف‌حسابی که این مصرف بدهیِ ما به اوست. فقط در حالت
+    /// <see cref="ExpenseSettlementMode.Payable"/> مقدار دارد و اجباری است.
+    /// از همان <see cref="AccountingPartyType"/> دفتر کل استفاده می‌کند — طرف‌حسابِ تازه‌ای
+    /// ساخته نمی‌شود.
+    /// </summary>
+    public AccountingPartyType? CounterpartyType { get; set; }
+
+    public int? CounterpartyId { get; set; }
+
+    /// <summary>
+    /// صندوق/بانکی که این مصرف از آن پرداخت شده است. فقط در حالت
+    /// <see cref="ExpenseSettlementMode.PaidImmediately"/> مقدار دارد و اجباری است.
+    /// خودِ حرکتِ پول در <see cref="PaymentTransaction"/> ثبت می‌شود؛ این فیلد «اعلامِ سند» است.
+    /// </summary>
+    public int? CashAccountId { get; set; }
+    public CashAccount? CashAccount { get; set; }
+
+    /// <summary>
+    /// PTG-P1-04 — اظهارنامهٔ گمرکی‌ای که این مصرف از آن ساخته شده.
+    ///
+    /// پیش از این، هزینهٔ گمرک یک انبارِ مالیِ موازی بود: گزارش سود و زیان مبلغ را
+    /// مستقیم از <see cref="CustomsDeclaration.TotalUsd"/> می‌خواند، بی‌آنکه سطرِ دفتری
+    /// وجود داشته باشد. این پیوند همان مبلغ را به دفتر کل می‌آورد و در گزارش‌ها جای
+    /// خواندنِ مستقیم را می‌گیرد، پس ستونِ «گمرک» حفظ می‌شود بی‌آنکه دو بار شمرده شود.
+    /// </summary>
+    public int? CustomsDeclarationId { get; set; }
+    public CustomsDeclaration? CustomsDeclaration { get; set; }
+
+    /// <summary>کدام جنسِ اظهارنامه — تا هر گروه دقیقاً یک مصرفِ فعال داشته باشد.</summary>
+    public Services.Customs.CustomsComponentGroup? CustomsComponentGroup { get; set; }
 
     public bool IsCancelled { get; set; }
 }

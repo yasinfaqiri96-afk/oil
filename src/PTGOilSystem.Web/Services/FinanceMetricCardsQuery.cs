@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -71,6 +71,16 @@ public static class FinanceMetricCardsQuery
                 - (g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => (decimal?)p.AmountUsd) ?? 0m))
             .FirstOrDefaultAsync();
 
+        // مصرفی که «نقد پرداخت شد» ثبت شده (گمرکِ نقدی و مانند آن) هم پول را از همان
+        // صندوق بیرون برده است. بدون آن، موجودی بیشتر از واقع دیده می‌شود و با صفحهٔ
+        // جزئیات حساب نمی‌خواند. هیچ سندی ساخته نمی‌شود؛ فقط همان مبلغ کم می‌گردد.
+        var cashPaidExpensesUsd = await db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => e.CashAccountId != null
+                && !e.IsCancelled
+                && e.SettlementMode == ExpenseSettlementMode.PaidImmediately)
+            .SumAsync(e => (decimal?)e.AmountUsd) ?? 0m;
+
         var transactionCount = await db.PaymentTransactions
             .AsNoTracking()
             .CountAsync();
@@ -80,7 +90,7 @@ public static class FinanceMetricCardsQuery
             AriaLabel = string.IsNullOrWhiteSpace(ariaLabel) ? "\u0622\u0645\u0627\u0631 \u0631\u0648\u0632\u0646\u0627\u0645\u0686\u0647 \u062f\u0631\u06cc\u0627\u0641\u062a \u0648 \u067e\u0631\u062f\u0627\u062e\u062a" : ariaLabel,
             TodayReceiptUsd = todayTotals?.ReceiptUsd ?? 0m,
             TodayPaymentUsd = todayTotals?.PaymentUsd ?? 0m,
-            CashAccountsBalanceUsd = cashBalanceUsd,
+            CashAccountsBalanceUsd = cashBalanceUsd - cashPaidExpensesUsd,
             TransactionCount = transactionCount
         };
     }

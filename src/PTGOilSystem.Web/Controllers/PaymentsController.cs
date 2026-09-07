@@ -41,6 +41,9 @@ public class PaymentsController : Controller
     private readonly IFormTokenGuard _formTokens;
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private readonly ILedgerPostingService _ledger;
+    // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است.
+    private readonly Services.Expenses.IExpenseSettlementValidator _settlementValidator
+        = new Services.Expenses.ExpenseSettlementValidator();
     private readonly IPartyStatementReadService? _partyStatements;
     // مرحله ۴ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe: اگر تزریق
     // نشود یا خاموش باشد، مسیر قدیمی هیچ تغییری نمی‌کند.
@@ -772,6 +775,9 @@ public class PaymentsController : Controller
             CustomerId = payment.CustomerId,
             SupplierId = payment.SupplierId,
             ServiceProviderId = payment.ServiceProviderId,
+            // بدون این، پرداختِ کرایه به راننده در صورت‌حساب راننده دیده نمی‌شد و بدهیِ او
+            // (که از سطرِ مصرف با DriverId ساخته می‌شود) هرگز تسویه نمی‌گشت.
+            DriverId = payment.DriverId,
             EmployeeId = payment.EmployeeId,
             ShipmentId = payment.ShipmentId
         };
@@ -1154,7 +1160,10 @@ public class PaymentsController : Controller
             // تا خروجی دقیقاً همان چیزی بماند که پیش از تمرکز نوشته می‌شد (PTG-P1-03).
             AppliedCurrencyPerUsdRate = ledgerEntry?.AppliedCurrencyPerUsdRate,
             ViaSarrafGroupId = ledgerEntry?.ViaSarrafGroupId,
-            DriverId = ledgerEntry?.DriverId,
+            // راننده مثل بقیهٔ طرف‌حساب‌ها از خودِ پرداخت خوانده می‌شود، نه از سطرِ قبلی؛
+            // وگرنه تعویضِ راننده در ویرایش روی دفتر نمی‌نشست و سطرهای قدیمیِ بدون راننده
+            // (پیش از اصلاح مسیر ساخت) هرگز اصلاح نمی‌شدند.
+            DriverId = payment.DriverId,
         };
 
         ledgerEntry = ledgerEntry is null
@@ -4273,8 +4282,15 @@ public class PaymentsController : Controller
             AppliedFxRateToUsd = c.FxRateToUsd,
             AmountUsd = c.AmountUsd,
             Description = c.Description,
-            RelatedPaymentTransactionId = mainPayment.Id
+            RelatedPaymentTransactionId = mainPayment.Id,
+
+            // PTG-P1-04 — هویت تسویه. این تنها شکلِ کمیسیون است که همان‌جا از صندوق/بانک
+            // پرداخت می‌شود: چند سطر پایین‌تر یک PaymentTransaction خروجی روی همین
+            // CashAccountId ساخته می‌شود و بدهی‌ای باقی نمی‌ماند ⇒ PaidImmediately.
+            SettlementMode = ExpenseSettlementMode.PaidImmediately,
+            CashAccountId = commissionCashAccountId
         };
+        _settlementValidator.Validate(expense);
         _db.ExpenseTransactions.Add(expense);
         await _db.SaveChangesAsync();
 
@@ -4435,8 +4451,17 @@ public class PaymentsController : Controller
             Currency = c.Currency,
             AppliedFxRateToUsd = c.FxRateToUsd,
             AmountUsd = c.AmountUsd,
-            Description = $"کمیسیون صراف — {c.Description}"
+            Description = $"کمیسیون صراف — {c.Description}",
+
+            // PTG-P1-04 — هویت تسویه. صندوق دست نمی‌خورد و سطرِ بستانکارِ پایین همین متد
+            // بدهی را روی حساب صراف می‌نشاند ⇒ Payable به همان صراف. طرف‌حسابِ صراف روی
+            // ExpenseTransaction ستون اختصاصی ندارد و همین دو فیلدِ چندریختی برای همین
+            // حالت ساخته شده‌اند؛ بدهی دوباره ساخته نمی‌شود، فقط نامش صریح می‌شود.
+            SettlementMode = ExpenseSettlementMode.Payable,
+            CounterpartyType = AccountingPartyType.Sarraf,
+            CounterpartyId = sarrafId
         };
+        _settlementValidator.Validate(expense);
         _db.ExpenseTransactions.Add(expense);
         await _db.SaveChangesAsync();
 
@@ -4614,8 +4639,14 @@ public class PaymentsController : Controller
             Currency = SystemCurrency.BaseCurrencyCode,
             AppliedFxRateToUsd = 1m,
             AmountUsd = amountUsd,
-            Description = description
+            Description = description,
+
+            // PTG-P1-04 — هویت تسویه. تفاوتِ نرخ است، نه بدهی به کسی: همان‌طور که بالای
+            // متد نوشته شده هیچ PaymentTransaction نقدی ساخته نمی‌شود و طرف‌حسابِ بیرونی
+            // هم ندارد ⇒ تعدیلِ داخلی.
+            SettlementMode = ExpenseSettlementMode.NonCash
         };
+        _settlementValidator.Validate(expense);
         _db.ExpenseTransactions.Add(expense);
         await _db.SaveChangesAsync();
 

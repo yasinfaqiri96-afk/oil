@@ -1,4 +1,4 @@
-using PTGOilSystem.Web.Models.Entities;
+﻿using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Services.OperationalPeriod;
 
@@ -23,6 +23,9 @@ public static class OperationalPeriodScope
         SalesTransaction x => x.SaleDate,
         ExpenseTransaction x => x.ExpenseDate,
         PaymentTransaction x => x.PaymentDate,
+        // تراکنش معاش مستقیم وارد مانده کارمند می‌شود و هیچ LedgerEntry نمی‌سازد، پس
+        // بدون این سطر تنها سندِ مالی‌ای بود که می‌شد در ماهِ بسته ثبتش کرد.
+        EmployeeSalaryTransaction x => x.TransactionDate,
         PartnerSettlement x => x.SettlementDate,
         SupplierBalanceTransfer x => x.TransferDate,
         ContractBalanceTransfer x => x.TransferDate,
@@ -42,6 +45,7 @@ public static class OperationalPeriodScope
         SalesTransaction => "سند فروش",
         ExpenseTransaction => "سند مصرف",
         PaymentTransaction => "سند پرداخت",
+        EmployeeSalaryTransaction => "سند معاش",
         PartnerSettlement => "تسویه شریک",
         SupplierBalanceTransfer => "انتقال مانده تأمین‌کننده",
         ContractBalanceTransfer => "انتقال مانده قرارداد",

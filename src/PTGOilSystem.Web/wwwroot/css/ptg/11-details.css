@@ -38,11 +38,11 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     --ak-detail-section-gap: 24px;
     --ak-detail-header-gap: 20px;
     --ak-detail-radius: var(--ptg-radius-card, 8px);
-    --ak-detail-divider: var(--divider, #E5E7EB);
-    --ak-detail-bg: var(--background-default, #FCFCFC);
+    --ak-detail-divider: var(--divider, #E7E7E7);
+    --ak-detail-bg: var(--background-default, #F5F6FA);
     --ak-detail-surface: var(--background-paper, #FFFFFF);
-    --ak-detail-soft: var(--background-neutral, #F5F7FA);
-    --ak-detail-text: var(--text-primary, #424242);
+    --ak-detail-soft: var(--background-neutral, #F2F5FC);
+    --ak-detail-text: var(--text-primary, #3D3D3D);
     --ak-detail-muted: var(--text-secondary, #7B7B7B);
     --ak-detail-sticky-shadow: 0 -8px 20px rgba(0, 0, 0, .08);
 }
@@ -820,7 +820,7 @@ body.boltz-shell.controller-inventorytransportlegs.action-details .boltz-content
     padding: .35rem;
     overflow-x: auto;
     border: 1px solid var(--op-detail-border, #E2E6EE);
-    border-radius: 1rem;
+    border-radius: 8px;
     background: var(--ptg-surface);
     scrollbar-width: thin;
 }
@@ -829,7 +829,7 @@ body.boltz-shell.controller-inventorytransportlegs.action-details .boltz-content
     min-height: 2.35rem;
     padding: .42rem .8rem;
     border: 0 !important;
-    border-radius: .75rem !important;
+    border-radius: .8px !important;
     background: transparent !important;
     color: var(--op-detail-muted, #70798B) !important;
     font-size: .76rem;
@@ -889,7 +889,7 @@ body.boltz-shell:is(
     padding: .85rem .9rem;
     overflow: visible;
     border: 1px solid var(--op-detail-border) !important;
-    border-radius: 1rem !important;
+    border-radius: 8px !important;
     background: var(--ptg-surface) !important;
     box-shadow: none !important;
 }
@@ -932,7 +932,7 @@ body.boltz-shell:is(
     padding: 0;
     overflow: hidden;
     border: 1px solid var(--op-detail-border) !important;
-    border-radius: 1rem !important;
+    border-radius: 8px !important;
     background: var(--ptg-surface) !important;
     box-shadow: none !important;
 }
@@ -1173,7 +1173,7 @@ body.boltz-shell:is(
 ).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-note-panel, .loading-detail-empty-line) {
     padding: .75rem .85rem;
     border: 1px solid var(--op-detail-border-soft);
-    border-radius: .8rem;
+    border-radius: .8px;
     background: var(--op-detail-soft);
     color: var(--op-detail-muted);
     line-height: 1.7;
@@ -1196,7 +1196,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .customs-detail-page .detail-card {
     padding: 0;
     overflow: hidden;
-    border-radius: 1rem !important;
+    border-radius: 8px !important;
     box-shadow: none !important;
 }
 
@@ -1354,10 +1354,20 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 .ak-detail-page .ak-detail-fold-body .ak-list-row dd:not(.ak-num) { text-align: end; }
 
 /* Larger, more legible stat numbers on the contract journey page only. */
-[data-contract-journey-page] .ak-stat-card__value { font-size: clamp(26px, 2vw, 32px); }
-[data-contract-journey-page] .ak-stat-card__value--compact { font-size: clamp(22px, 1.7vw, 27px); }
-[data-contract-journey-page] .ak-stat-card__value--dense { font-size: clamp(18px, 1.4vw, 22px); }
-[data-contract-journey-page] .ak-stat-card__value--ultra { font-size: clamp(14px, 1.1vw, 17px); }
+[data-contract-journey-page] .ak-stat-card__value { font-size: clamp(20px, 1.6vw, 25px); }
+[data-contract-journey-page] .ak-stat-card__value--compact { font-size: clamp(17px, 1.35vw, 21px); }
+[data-contract-journey-page] .ak-stat-card__value--dense { font-size: clamp(14px, 1.1vw, 17px); }
+[data-contract-journey-page] .ak-stat-card__value--ultra { font-size: clamp(11px, 0.9vw, 13.5px); }
+
+/* Each tab publishes its own stat row into the facts host, which sits above the
+   tab rail: the numbers head the page and the rail introduces the lists below. */
+[data-contract-journey-page] [data-contract-journey-facts-host] {
+    display: block;
+}
+
+[data-contract-journey-page] [data-contract-journey-facts-host]:not(:empty) {
+    margin-block: 4px 0;
+}
 
 /* All list headers on the contract journey page: title at the start (right)
    and the add / primary action at the end (left) — matching the inline tabs
@@ -1524,8 +1534,8 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     min-height: 164px;
     max-height: 164px;
     padding: 14px;
-    border: 1px solid var(--ak-detail-divider, #E5E7EB);
-    border-radius: 16px;
+    border: 1px solid var(--ak-detail-divider, #E7E7E7);
+    border-radius: 8px;
     background: var(--ak-detail-surface, #fff);
 }
 
@@ -1540,7 +1550,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     border: 1px solid rgba(var(--ptg-primary-rgb, 23, 63, 115), .22);
     border-radius: 50%;
     background: var(--ak-detail-surface, #fff);
-    color: var(--ptg-primary-dark, #123258);
+    color: var(--ptg-primary-dark, #0D52AF);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1572,7 +1582,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 
 .ak-journey-step .ak-cycle-title {
     margin: 0;
-    color: var(--ptg-primary-dark, #123258);
+    color: var(--ptg-primary-dark, #0D52AF);
     font-size: 14.5px;
     font-weight: 700;
 }
@@ -1583,9 +1593,9 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     align-self: flex-start;
     gap: 4px;
     padding: 2px 9px;
-    border-radius: 999px;
+    border-radius: 8px;
     background: rgba(var(--ptg-primary-rgb, 23, 63, 115), .08);
-    color: var(--ptg-primary, #173F73);
+    color: var(--ptg-primary, #1062D0);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1629,7 +1639,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 /* The figure never shrinks and never wraps, so it always shows in full. */
 .ak-journey-step .ak-cycle-value {
     flex: 0 0 auto;
-    color: var(--ptg-primary-dark, #123258);
+    color: var(--ptg-primary-dark, #0D52AF);
     font-weight: 700;
     font-variant-numeric: tabular-nums lining-nums;
     text-align: end;
@@ -1650,17 +1660,17 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 }
 
 .ak-journey-step.is-current {
-    border-color: var(--ptg-btn-primary, #1877F2);
+    border-color: var(--ptg-btn-primary, #1062D0);
     background: rgba(var(--ptg-btn-primary-rgb, 24, 119, 242), .06);
 }
 
 .ak-journey-step.is-current .ak-journey-badge {
     background: rgba(var(--ptg-btn-primary-rgb, 24, 119, 242), .12);
-    color: var(--ptg-btn-primary, #1877F2);
+    color: var(--ptg-btn-primary, #1062D0);
 }
 
 .ak-journey-step.is-pending {
-    background: var(--ak-detail-soft, #F5F7FA);
+    background: var(--ak-detail-soft, #F2F5FC);
 }
 
 .ak-journey-step.is-pending .ak-cycle-value {
@@ -1936,7 +1946,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     min-height: 2.5rem;
     padding: 0 .75rem;
     border: 1px solid transparent;
-    border-radius: 10px;
+    border-radius: 8px;
     box-shadow: none !important;
     font-size: .875rem;
     font-weight: 700;
@@ -2129,7 +2139,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
 .operational-asset-details-page .oa-action-modal .modal-content {
     max-height: calc(100dvh - 32px);
     border: 0;
-    border-radius: 14px;
+    border-radius: 8px;
     background: var(--ak-detail-surface);
     box-shadow: var(--ptg-panel-shadow);
 }

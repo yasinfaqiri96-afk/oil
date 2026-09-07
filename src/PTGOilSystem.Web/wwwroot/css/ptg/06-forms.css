@@ -5,29 +5,29 @@
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
     --ptg-field-bg: #FFFFFF;
-    --ptg-field-border: #CFD1DE;
-    --ptg-field-muted-bg: var(--ptg-field-disabled-bg, #EEF0F5);
-    --ptg-field-height: 3.5rem;
-    --ptg-form-gap: 1.5rem;
-    --ptg-form-card-radius: 30px;
-    --ptg-form-card-pad: 2rem;
-    --ptg-btn-height: 3.4rem;
+    --ptg-field-border: #C2D0E3;
+    --ptg-field-muted-bg: var(--ptg-field-disabled-bg, #F8FAFC);
+    --ptg-field-height: var(--ak-control-height, 40px);
+    --ptg-form-gap: 16px;
+    --ptg-form-card-radius: 8px;
+    --ptg-form-card-pad: 24px;
+    --ptg-btn-height: var(--ak-control-height, 40px);
 }
 
 body.boltz-shell.app-shell-authenticated :where(.form-label, .col-form-label, .boltz-form-label),
 body.ptg-modal-document :where(.form-label, .col-form-label, .boltz-form-label) {
-    margin-bottom: .55rem;
-    color: var(--ptg-muted);
-    font-size: .88rem;
-    font-weight: 600;
-    line-height: 1.35;
+    margin-bottom: 6px;
+    color: var(--ptg-label);
+    font-size: var(--font-label);
+    font-weight: var(--weight-label);
+    line-height: var(--line-label);
 }
 
 body.boltz-shell.app-shell-authenticated :where(.field-validation-error, .validation-summary-errors, .text-danger),
 body.ptg-modal-document :where(.field-validation-error, .validation-summary-errors, .text-danger) {
     color: var(--ptg-danger) !important;
-    font-size: .78rem;
-    font-weight: 700;
+    font-size: var(--font-caption);
+    font-weight: 500;
     line-height: 1.6;
 }
 
@@ -121,9 +121,9 @@ body.boltz-shell.app-shell-authenticated :where(.ptg-section-title, .form-sectio
 body.ptg-modal-document :where(.ptg-section-title, .form-section-title) {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 1.05rem;
-    font-weight: 800;
-    line-height: 1.3;
+    font-size: var(--font-section-title);
+    font-weight: var(--weight-section-title);
+    line-height: var(--line-section-title);
 }
 
 body.boltz-shell.app-shell-authenticated :where(.ptg-section-divider),
@@ -151,28 +151,28 @@ body.ptg-modal-document :where(.ptg-form-field) {
 body.ptg-modal-document :where(.ptg-input, .ptg-select, .ptg-textarea) {
     width: 100%;
     min-height: var(--ptg-field-height);
-    padding: 0 1.25rem;
+    padding: 0 12px;
     border: 1px solid var(--ptg-field-border) !important;
     border-radius: var(--ptg-radius-input) !important;
     background-color: var(--ptg-field-bg) !important;
     color: var(--ptg-text);
-    font-size: .92rem;
-    font-weight: 650;
+    font-size: var(--font-body);
+    font-weight: 400;
     box-shadow: none !important;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.ptg-textarea),
 body.ptg-modal-document :where(.ptg-textarea) {
-    min-height: 7rem;
-    padding: 1rem 1.25rem;
+    min-height: 96px;
+    padding: 10px 12px;
     border-radius: var(--ptg-radius-md) !important;
     line-height: 1.7;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.ptg-input, .ptg-select, .ptg-textarea):focus,
 body.ptg-modal-document :where(.ptg-input, .ptg-select, .ptg-textarea):focus {
-    border-color: rgba(var(--ptg-primary-rgb), .5) !important;
-    box-shadow: var(--ptg-ring) !important;
+    border-color: var(--ptg-primary) !important;
+    box-shadow: none !important;
 }
 
 /* Action bar — one place, pill buttons aligned end */
@@ -182,8 +182,8 @@ body.ptg-modal-document :where(.ptg-form-actions) {
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
-    gap: .75rem;
-    padding-top: .25rem;
+    gap: 8px;
+    padding-top: 4px;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.ptg-btn-primary),

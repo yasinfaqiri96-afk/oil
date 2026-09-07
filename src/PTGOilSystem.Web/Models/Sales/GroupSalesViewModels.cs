@@ -83,6 +83,35 @@ public sealed class GroupSaleCreateViewModel
     public string? ReturnUrl { get; set; }
 }
 
+// یک دریافتِ مشتری که هنوز مانده تطبیق‌نشده دارد و می‌تواند روی فروش‌ها بنشیند.
+public sealed class SaleApplicableReceiptViewModel
+{
+    public int PaymentTransactionId { get; init; }
+    public DateTime PaymentDate { get; init; }
+    public decimal Amount { get; init; }
+    public decimal UnappliedAmount { get; init; }
+    public decimal UnappliedAmountUsd { get; init; }
+    public string Currency { get; init; } = "USD";
+    public string? Reference { get; init; }
+}
+
+// یک ردیفِ ثبت‌شدهٔ تطبیق: این دریافت، این مبلغ، روی این فروش.
+public sealed class SaleReceiptApplicationViewModel
+{
+    public int ApplicationId { get; init; }
+    public int PaymentTransactionId { get; init; }
+    public int SalesTransactionId { get; init; }
+    public string InvoiceNumber { get; init; } = "";
+    public DateTime PaymentDate { get; init; }
+    public DateTime AppliedAt { get; init; }
+    public decimal AppliedPaymentAmount { get; init; }
+    public string PaymentCurrencyCode { get; init; } = "USD";
+    public decimal AppliedAmountUsd { get; init; }
+    public string? Reference { get; init; }
+    // مصرفِ پیش‌دریافت با لغو تحویل آزاد می‌شود، نه با برگشتِ دستیِ تطبیق.
+    public bool IsAdvanceApplication { get; init; }
+}
+
 public sealed class GroupSaleLineViewModel
 {
     public int SalesTransactionId { get; init; }
@@ -96,6 +125,8 @@ public sealed class GroupSaleLineViewModel
     public decimal TotalInCurrency { get; init; }
     public decimal TotalUsd { get; init; }
     public bool IsCancelled { get; init; }
+    public decimal ReceivedUsd { get; init; }
+    public decimal OpenReceivableUsd { get; init; }
 }
 
 public sealed class GroupSaleDetailsViewModel
@@ -115,4 +146,11 @@ public sealed class GroupSaleDetailsViewModel
     public string? Notes { get; init; }
     public bool IsCancelled { get; init; }
     public IReadOnlyList<GroupSaleLineViewModel> Lines { get; init; } = [];
+
+    // تطبیق نقد در سطح گروه: یک دریافت روی چند ردیف فروش می‌نشیند و هر سهم ردیف واقعی دارد.
+    public int CustomerId { get; init; }
+    public decimal ReceivedUsd { get; init; }
+    public decimal OpenReceivableUsd { get; init; }
+    public IReadOnlyList<SaleReceiptApplicationViewModel> Applications { get; init; } = [];
+    public IReadOnlyList<SaleApplicableReceiptViewModel> ApplicableReceipts { get; init; } = [];
 }

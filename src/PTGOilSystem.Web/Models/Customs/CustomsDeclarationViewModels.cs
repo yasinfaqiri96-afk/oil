@@ -55,6 +55,37 @@ public sealed class CustomsDeclarationCreateViewModel
 
     public List<CustomsDeclarationItemRowViewModel> Items { get; set; } = [];
 
+    // ---------------------------------------------------------------------
+    // PTG-P1-04 — هویتِ تسویه، جدا برای دو جنسِ اظهارنامه. حقوق دولتی در گمرک نقد
+    // می‌شود و کمیشنکار اغلب بدهی می‌ماند؛ یک انتخابِ مشترک این حالتِ رایج را
+    // نمی‌توانست ثبت کند.
+    // ---------------------------------------------------------------------
+
+    [Display(Name = "تسویه حقوق دولتی")]
+    public PTGOilSystem.Web.Models.Entities.ExpenseSettlementMode DutySettlementMode { get; set; }
+        = PTGOilSystem.Web.Models.Entities.ExpenseSettlementMode.Unknown;
+
+    [Display(Name = "پرداخت حقوق دولتی از حساب")]
+    public int? DutyCashAccountId { get; set; }
+
+    [Display(Name = "حقوق دولتی بدهی به")]
+    public int? DutyServiceProviderId { get; set; }
+
+    [Display(Name = "تسویه کمیشن و خدمات")]
+    public PTGOilSystem.Web.Models.Entities.ExpenseSettlementMode ServiceSettlementMode { get; set; }
+        = PTGOilSystem.Web.Models.Entities.ExpenseSettlementMode.Unknown;
+
+    [Display(Name = "پرداخت کمیشن از حساب")]
+    public int? ServiceCashAccountId { get; set; }
+
+    [Display(Name = "کمیشن بدهی به")]
+    public int? ServiceProviderId { get; set; }
+
+    // نمایشی — جمعِ هر گروه از همان اقلامِ فرم، تا کاربر پیش از انتخابِ تسویه ببیند
+    // دربارهٔ چه مبلغی تصمیم می‌گیرد.
+    public decimal DutyTotalUsd { get; set; }
+    public decimal ServiceTotalUsd { get; set; }
+
     // Read-only display fields
     public string LoadingRegisterLabel { get; set; } = "";
     public string TransportLegLabel { get; set; } = "";
@@ -149,6 +180,8 @@ public sealed class CustomsDeclarationDetailsViewModel
     public DateTime DeclarationDate { get; init; }
     public string? WagonOrTruckNumber { get; init; }
     public string? DeclarationReference { get; init; }
+    public string? PermitNumber { get; init; }
+    public string? PermitHolderName { get; init; }
     public decimal? ConsignmentWeightMt { get; init; }
     public decimal TotalAfn { get; init; }
     public decimal TotalUsd { get; init; }

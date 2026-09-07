@@ -17,7 +17,8 @@ public sealed record InventoryTransportVehicleImportRow(
     decimal? FreightWeightMt,
     decimal? FreightAmount,
     string? CurrencyText,
-    string? RwbNo);
+    string? RwbNo,
+    DateTime? LoadedDate);
 
 /// <summary>
 /// Tolerant parser for the vehicle import sheet. Supports the real railway-expense
@@ -47,6 +48,9 @@ public static class InventoryTransportVehicleWorkbookParser
         ["کرایه", "freight", "freightamount", "کرایهمبلغ", "مبلغکرایه", "rent", "amount"];
     private static readonly string[] CurrencyAliases =
         ["ارز", "currency", "واحدپول", "واحدپولی", "پول"];
+    // تاریخ بارگیریِ همان ردیف. یک موتر می‌تواند چند سفر با تاریخ‌های متفاوت در یک فایل داشته باشد.
+    private static readonly string[] DateAliases =
+        ["تاریخ", "تاریخبارگیری", "تاریخحمل", "date", "loadingdate", "loaddate", "loadeddate", "transportdate"];
 
     private static readonly string[] WagonWords = ["واگن", "واگون", "vagon", "wagon"];
 
@@ -77,6 +81,7 @@ public static class InventoryTransportVehicleWorkbookParser
         var rateCol = MatchColumn(headerRow, workbookPart, RateAliases);
         var freightCol = MatchColumn(headerRow, workbookPart, FreightAliases);
         var currencyCol = MatchColumn(headerRow, workbookPart, CurrencyAliases);
+        var dateCol = MatchColumn(headerRow, workbookPart, DateAliases);
 
         // No explicit type column → infer from the number-column header: «نمبر موتر» ⇒ truck,
         // otherwise fall back to wagon (railway-expense format).
@@ -133,6 +138,7 @@ public static class InventoryTransportVehicleWorkbookParser
             }
 
             var reference = referenceCol is null ? null : ReadText(cells, referenceCol, workbookPart);
+            var loadedDate = dateCol is null ? null : ReadDate(cells, dateCol, workbookPart);
 
             result.Add(new InventoryTransportVehicleImportRow(
                 transportType,
@@ -141,7 +147,8 @@ public static class InventoryTransportVehicleWorkbookParser
                 calcWeight is > 0m ? calcWeight : null,
                 freight,
                 freight.HasValue ? (string.IsNullOrWhiteSpace(currencyText) ? "USD" : currencyText.Trim()) : null,
-                string.IsNullOrWhiteSpace(reference) ? null : reference.Trim()));
+                string.IsNullOrWhiteSpace(reference) ? null : reference.Trim(),
+                loadedDate));
         }
 
         return result;
@@ -255,6 +262,45 @@ public static class InventoryTransportVehicleWorkbookParser
         return decimal.TryParse(normalized, NumberStyles.Any, CultureInfo.InvariantCulture, out var value)
             ? value
             : null;
+    }
+
+    // تاریخ در اکسل یا عدد سریال است (فرمت تاریخ) یا متن. هر دو پذیرفته می‌شود.
+    private static DateTime? ReadDate(IReadOnlyDictionary<string, Cell> cells, string? column, WorkbookPart workbookPart)
+    {
+        if (column is null || !cells.TryGetValue(column, out var cell))
+        {
+            return null;
+        }
+
+        var text = ReadCellText(cell, workbookPart);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        text = text.Trim();
+        if (double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out var serial))
+        {
+            // سریال‌های معتبر اکسل؛ خارج از این بازه یعنی ستون تاریخ نیست.
+            if (serial is < 1 or > 2958465)
+            {
+                return null;
+            }
+
+            try
+            {
+                return DateTime.FromOADate(serial).Date;
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+        }
+
+        return DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            || DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.None, out parsed)
+                ? parsed.Date
+                : null;
     }
 
     private static string ReadCellText(Cell cell, WorkbookPart workbookPart)

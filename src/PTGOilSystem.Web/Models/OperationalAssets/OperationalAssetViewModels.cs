@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
@@ -283,6 +283,10 @@ public sealed class OperationalAssetProfileViewModel
     /// <summary>«کارکرد» — عملیات‌هایی که این دارایی در آن‌ها کار کرده است. بدون مبلغ.</summary>
     public IReadOnlyList<AssetWorkRowViewModel> WorkRows { get; init; } = [];
 
+    /// <summary>حمل‌های بازِ همین دارایی (بارگیری‌شده یا در راه). مستقل از بازهٔ تاریخ صفحه.</summary>
+    public IReadOnlyList<AssetOpenTransportRowViewModel> OpenTransports { get; init; } = [];
+
+
     /// <summary>«مصارف» — فقط هزینه‌های دارایی؛ ردیف‌های عایداتی از این لیست بیرون‌اند.</summary>
     public IReadOnlyList<AssetExpenseRowViewModel> CostRows { get; init; } = [];
 
@@ -463,6 +467,22 @@ public sealed class AssetRentRowViewModel
 /// لینکِ سندِ منبعِ یک ردیفِ خودکار. کاربر باید همیشه بتواند بپرسد «این رکورد از کجا آمده؟»
 /// و با یک کلیک به همان سند برود؛ <see cref="Url"/> فقط وقتی خالی است که صفحهٔ آن سند وجود ندارد.
 /// </summary>
+/// <summary>
+/// یک حملِ باز که همین حالا با این دارایی در جریان است: هنوز رسید نخورده و لغو هم نشده.
+/// برخلاف «کارکرد»، این فهرست از بازهٔ تاریخ صفحه فیلتر نمی‌شود چون پرسش کاربر «الان کجاست؟» است.
+/// </summary>
+public sealed class AssetOpenTransportRowViewModel
+{
+    public int LegId { get; init; }
+    public DateTime LoadedDate { get; init; }
+    public string StatusText { get; init; } = "";
+    public string? VehicleText { get; init; }
+    public string? RouteText { get; init; }
+    public string? ContractNumber { get; init; }
+    public decimal QuantityMt { get; init; }
+    public string? Url { get; init; }
+}
+
 public sealed class AssetSourceLinkViewModel
 {
     /// <summary>نوع سند به زبان کاربر، مثلاً «بارگیری» یا «ارسال با موتر».</summary>

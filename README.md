@@ -13,7 +13,6 @@ ASP.NET Core MVC (.NET 8) · EF Core 8 · PostgreSQL · Razor + Bootstrap 5 RTL 
 | [docs/UI-DESIGN-SYSTEM.md](docs/UI-DESIGN-SYSTEM.md) | Design System `ak-*`: توکن‌ها، کامپوننت‌ها، قواعد |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | اجرای محلی، connection string، bootstrap admin، بکاپ |
 | [docs/TESTING.md](docs/TESTING.md) | اجرای تست، baseline، شکست‌های شناخته‌شده |
-| [docs/ui-migration/UI-MIGRATION-STATUS.md](docs/ui-migration/UI-MIGRATION-STATUS.md) | تاریخچهٔ کامل مهاجرت UI به `ak-*` |
 
 قواعد کار عامل‌های AI روی این مخزن: [AGENTS.md](AGENTS.md) و [CLAUDE.md](CLAUDE.md).
 

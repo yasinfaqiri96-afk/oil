@@ -101,6 +101,8 @@ public sealed class InventoryTransferAccountingAdapter(
             return SkippedLeg(leg, 0, "PILOT_DISABLED");
         if (leg.QuantityMt <= 0m)
             return SkippedLeg(leg, 0, "INVALID_LEG_QUANTITY");
+        if (!leg.SourceTerminalId.HasValue)
+            return SkippedLeg(leg, 0, "SOURCE_TERMINAL_UNKNOWN");
 
         var slices = await _ownership.ResolveCompanyOwnershipSlicesAsync(leg, cancellationToken);
         if (slices.Count == 0)
@@ -138,13 +140,13 @@ public sealed class InventoryTransferAccountingAdapter(
                 }
 
                 var consumption = await valuation.TryConsumeAsync(
-                    slice.CompanyId, leg.ProductId, leg.SourceTerminalId, slice.QuantityMt, cancellationToken);
+                    slice.CompanyId, leg.ProductId, leg.SourceTerminalId.Value, slice.QuantityMt, cancellationToken);
                 if (!consumption.Succeeded || consumption.CostUsd <= 0m)
                 {
                     if (consumption.Succeeded)
                     {
                         await valuation.ReturnAsync(
-                            slice.CompanyId, leg.ProductId, leg.SourceTerminalId,
+                            slice.CompanyId, leg.ProductId, leg.SourceTerminalId.Value,
                             slice.QuantityMt, consumption.CostUsd, cancellationToken);
                     }
 
@@ -237,7 +239,7 @@ public sealed class InventoryTransferAccountingAdapter(
         foreach (var (slice, costUsd) in consumed)
         {
             await valuation.ReturnAsync(
-                slice.CompanyId, leg.ProductId, leg.SourceTerminalId,
+                slice.CompanyId, leg.ProductId, leg.SourceTerminalId!.Value,
                 slice.QuantityMt, costUsd, cancellationToken);
         }
     }
@@ -257,6 +259,8 @@ public sealed class InventoryTransferAccountingAdapter(
             return SkippedLeg(leg, 0, "ACCOUNTING_DISABLED");
         if (!_options.Pilots.InventoryTransfer)
             return SkippedLeg(leg, 0, "PILOT_DISABLED");
+        if (!leg.SourceTerminalId.HasValue)
+            return SkippedLeg(leg, 0, "SOURCE_TERMINAL_UNKNOWN");
 
         var slices = await _ownership.ResolveCompanyOwnershipSlicesAsync(leg, cancellationToken);
         if (slices.Count == 0)
@@ -313,7 +317,7 @@ public sealed class InventoryTransferAccountingAdapter(
                 await valuation.ReturnAsync(
                     slice.CompanyId,
                     leg.ProductId,
-                    leg.SourceTerminalId,
+                    leg.SourceTerminalId.Value,
                     slice.QuantityMt,
                     original.Lines.Sum(x => x.Debit),
                     cancellationToken);

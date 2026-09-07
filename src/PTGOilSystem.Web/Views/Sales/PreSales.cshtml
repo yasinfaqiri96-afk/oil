@@ -1,7 +1,7 @@
 @model PTGOilSystem.Web.Models.Sales.PreSaleIndexViewModel
 @using PTGOilSystem.Web.Models.Sales
 @{
-    ViewData["Title"] = "پیش‌فروش‌ها";
+    ViewData["Title"] = "فروش‌های مرحله‌ای";
     ViewData["HideSectionTabs"] = true;
 }
 
@@ -9,15 +9,15 @@
     <div>
         <header class="ak-page-header">
             <div class="ak-page-heading">
-                <span class="ak-page-icon"><i class="bi bi-calendar-check"></i></span>
+                <span class="ak-page-icon"><i class="bi bi-list-check"></i></span>
                 <div>
-                    <h1>پیش‌فروش‌ها</h1>
-                    <p>تعهد فروش؛ موجودی و درآمد فقط هنگام تحویل ثبت می‌شود.</p>
+                    <h1>فروش‌های مرحله‌ای</h1>
+                    <p>فروش‌هایی که کالا در چند تحویل داده می‌شود؛ موجودی و درآمد فقط هنگام هر تحویل ثبت می‌شود.</p>
                 </div>
             </div>
         </header>
 
-        <section class="ak-stat-grid mb-3" aria-label="آمار پیش‌فروش">
+        <section class="ak-stat-grid mb-3" aria-label="آمار فروش‌های مرحله‌ای">
             <vc:stat-card title="تعهدهای فعال" value="@Model.ActiveOrderCount.ToString("N0")" unit="سفارش" avatar="statement"></vc:stat-card>
             <vc:stat-card title="باقی‌مانده تحویل" value="@NumberDisplay.Quantity(Model.SumRemainingMt)" unit="MT" avatar="in-transit"></vc:stat-card>
             <vc:stat-card title="بسته‌شده" value="@Model.ClosedOrderCount.ToString("N0")" unit="سفارش" avatar="sold-quantity"></vc:stat-card>
@@ -28,7 +28,7 @@
             @* خروجی از همان جدول و همان محاسبهٔ تحویل‌شدهٔ صفحه خوانده می‌شود. *@
             <partial name="~/Views/Shared/_ExportMenu.cshtml"
                      model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("PreSalesExport"))" />
-            <a asp-action="PreSaleCreate" class="btn btn-success"><i class="bi bi-plus-lg"></i> ثبت پیش‌فروش</a>
+            <a asp-action="PreSaleCreate" class="btn btn-success"><i class="bi bi-plus-lg"></i> ثبت فروش مرحله‌ای</a>
             <a asp-action="Index" class="btn ak-secondary-action">بازگشت به فروش</a>
         </div>
 
@@ -36,7 +36,7 @@
             @if (Model.Items.Count == 0)
             {
                 <div class="ak-empty">
-                    <p>هنوز پیش‌فروشی ثبت نشده است.</p>
+                    <p>هنوز فروش مرحله‌ای ثبت نشده است.</p>
                 </div>
             }
             else
@@ -71,7 +71,7 @@
                                     <td class="ak-col-num text-end"><span class="ak-num">@NumberDisplay.Money(item.TotalInCurrency, item.Currency)</span></td>
                                     <td class="col-status text-center">
                                         <span class="ak-status @PreSaleOrderStatusLabels.ToBadgeClass(item.Status)">
-                                            @PreSaleOrderStatusLabels.ToPersian(item.Status)
+                                            @PreSaleOrderStatusLabels.ToDeliveryPersian(item.Status)
                                         </span>
                                     </td>
                                     <td class="ak-col-actions text-end">

@@ -86,14 +86,14 @@
     min-height: 62px;
     background: var(--ssf-card);
     border: 1px solid var(--ssf-border);
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 [data-shipment-sale-form] .ssf-stat-icon {
     flex: 0 0 auto;
     width: 34px;
     height: 34px;
-    border-radius: 999px;
+    border-radius: 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -291,7 +291,7 @@
     padding: 10px 12px;
     background: var(--ssf-blue-soft);
     border: 1px solid #E3EAFB;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 [data-shipment-sale-form] .ssf-hint-text {
@@ -387,7 +387,7 @@
 
 [data-shipment-sale-form] .ssf-table-wrap {
     border: 1px solid var(--ssf-border);
-    border-radius: 10px;
+    border-radius: 8px;
     overflow-x: auto;
 }
 

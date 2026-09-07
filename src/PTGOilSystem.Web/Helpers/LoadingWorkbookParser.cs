@@ -224,9 +224,7 @@ public static class LoadingWorkbookParser
                 workbookPart,
                 TruckReferenceAliases,
                 TruckTransportAliases,
-                QuantityAliases,
-                TruckDestinationAliases,
-                ConsigneeAliases);
+                QuantityAliases);
 
             if (headerRow is null)
             {

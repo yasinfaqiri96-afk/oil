@@ -1,6 +1,6 @@
 # UI DESIGN SYSTEM — `ak-*`
 
-> Design System فعال پروژه. مرجع مهاجرت و تاریخچه: [ui-migration/UI-MIGRATION-STATUS.md](ui-migration/UI-MIGRATION-STATUS.md).
+> Design System فعال پروژه.
 > **قاعدهٔ اول:** برای صفحهٔ جدید هیچ CSS صفحه‌ای، skin، variant یا `!important` جدید نساز. از کامپوننت‌های زیر استفاده کن.
 
 ## توکن‌ها

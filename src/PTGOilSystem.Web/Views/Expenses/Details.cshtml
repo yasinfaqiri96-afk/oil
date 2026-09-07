@@ -12,6 +12,17 @@
     var providerText = Model.ServiceProviderName ?? Model.OperationalAssetName;
     var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl });
 
+    // شرح روی کارت خلاصه می‌شود؛ متن کامل در ردیف «شرح دفتر» آکاردئون دست‌نخورده می‌ماند.
+    var descriptionText = Model.Description?.Trim();
+    if (!string.IsNullOrEmpty(descriptionText) && descriptionText.Length > 160)
+    {
+        descriptionText = descriptionText[..160].TrimEnd() + "…";
+    }
+    // مرجع دفتر به شکل «CODE-ID | شرح» ساخته می‌شود؛ در نوار وضعیت فقط بخش شناسه لازم است.
+    var ledgerReferenceShort = string.IsNullOrWhiteSpace(Model.LedgerReference)
+        ? null
+        : Model.LedgerReference.Split('|')[0].Trim();
+
     // Kebab keeps the side route only; the record's own action lives in the strip.
     ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
     {
@@ -28,14 +39,18 @@
     {
         new() { Label = T("نوع مصرف", "Expense type"), Value = Model.ExpenseTypeName },
         new() { Label = T("تاریخ", "Date"), Value = Model.ExpenseDate.ToDisplayDate(), IsNumeric = true },
-        new() { Label = T("طرف / دارایی", "Provider / asset"), Value = providerText },
-        new() { Label = T("نرخ تبدیل", "FX rate"), Value = Model.AppliedFxRateToUsd?.ToString("N6"), IsNumeric = true }
+        new() { Label = T("طرف / دارایی", "Provider / asset"), Value = providerText }
     };
 
     var linkItems = new List<AkInfoItem>
     {
         new() { Label = T("ارسال با موتر", "Truck send"), Value = Model.TruckDispatchLabel },
-        new() { Label = T("جریان حمل بار", "Cargo flow"), Value = Model.TransportLegLabel },
+        new()
+        {
+            Label = T("جریان حمل بار", "Cargo flow"),
+            Value = Model.TransportLegLabel,
+            Href = Model.TransportLegId.HasValue ? Url.Action("Details", "InventoryTransportLegs", new { id = Model.TransportLegId.Value, returnUrl = currentReturnUrl }) : null
+        },
         new()
         {
             Label = T("مصرف گروهی", "Group expense"),
@@ -76,7 +91,7 @@
 
     var activityRows = new List<AkDetailActivityRow>
     {
-        new() { Label = T("ثبت مالی", "Financial posting"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", Meta = Model.LedgerReference, Status = ledgerStatus, StatusTone = ledgerRecorded ? "success" : "warning", Href = Model.LedgerEntryId.HasValue ? Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value, returnUrl = currentReturnUrl }) : null, Icon = "bi-journal-text" },
+        new() { Label = T("ثبت مالی", "Financial posting"), Value = Model.AmountUsd.ToString("N2"), Unit = "USD", Meta = ledgerReferenceShort, Status = ledgerStatus, StatusTone = ledgerRecorded ? "success" : "warning", Href = Model.LedgerEntryId.HasValue ? Url.Action("Details", "Ledger", new { id = Model.LedgerEntryId.Value, returnUrl = currentReturnUrl }) : null, Icon = "bi-journal-text" },
         new() { Label = T("ارتباطات عملیاتی", "Operational links"), Value = relatedRecords.Count > 0 ? relatedRecords.Count.ToString("N0") : null, Meta = relatedRecords.Count > 0 ? providerText : null, Status = relatedRecords.Count > 0 ? T("متصل", "Linked") : null, StatusTone = relatedRecords.Count > 0 ? "success" : null, Icon = "bi-link-45deg" }
     };
     var timelineItems = new List<AkTimelineItem>
@@ -107,7 +122,7 @@
             new() { Title = T("اطلاعات اصلی", "Main information"), Icon = "bi-info-circle", Rows = mainItems },
             new() { Title = T("مبلغ سند", "Document amount"), Icon = "bi-cash-coin", Metrics = amountMetrics },
             new() { Title = T("ارتباطات عملیاتی", "Operational links"), Icon = "bi-link-45deg", Rows = linkItems },
-            new() { Title = T("شرح", "Description"), Icon = "bi-journal-text", Text = Model.Description, IsWide = true }
+            new() { Title = T("شرح", "Description"), Icon = "bi-journal-text", Text = descriptionText, IsWide = true }
         }
     };
 

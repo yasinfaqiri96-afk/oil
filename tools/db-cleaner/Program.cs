@@ -24,8 +24,8 @@ internal class Program
             await using var conn = new NpgsqlConnection(connString);
             await conn.OpenAsync();
 
-            // Preserve = users/auth only. Everything else (master data, contracts,
-            // accounting setup, transactions) is truncated.
+            // Preserve authentication and master/reference data. Operational,
+            // financial, audit, and idempotency data is truncated.
             var exclude = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 // --- users / auth ---
@@ -35,6 +35,25 @@ internal class Program
                 "rolepermissions",
                 "userroles",
                 "__efmigrationshistory",
+
+                // --- master / reference data ---
+                "products",
+                "currencies",
+                "units",
+                "partners",
+                "companies",
+                "suppliers",
+                "customers",
+                "serviceproviders",
+                "terminals",
+                "storagetanks",
+                "vessels",
+                "trucks",
+                "wagons",
+                "drivers",
+                "locations",
+                "expensetypes",
+                "employees",
             };
 
             var tables = new List<string>();

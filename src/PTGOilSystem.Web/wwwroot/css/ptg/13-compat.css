@@ -34,7 +34,7 @@ body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .tab-c
 }
 
 body.boltz-shell.controller-shipmentpnl.action-details .shipment-pnl-header .badge.text-bg-warning {
-    color: #424242 !important;
+    color: #3D3D3D !important;
 }
 
 /* کارت‌های آماری — طراحی تمیزتر، چپ‌چین، فاصلهٔ بیشتر، خط رنگی کنار. */
@@ -51,7 +51,7 @@ body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .summa
     text-align: start !important;
     border: 1px solid var(--ptg-border) !important;
     border-inline-start: 3px solid rgba(var(--ptg-primary-rgb), .55) !important;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
     background: var(--ptg-surface) !important;
     box-shadow: none !important;
     overflow: visible !important;
@@ -124,7 +124,7 @@ body.boltz-shell.app-shell-authenticated :where(.page-link) {
     min-width: 2.75rem;
     min-height: 2.75rem;
     border: 2px solid #E4E5EF;
-    border-radius: 999px !important;
+    border-radius: 8px !important;
     color: var(--ptg-muted);
     background: #FFFFFF;
     font-weight: 750;
@@ -325,15 +325,15 @@ body.boltz-shell.controller-contracts.action-create .contract-one-page-footer {
     margin: 0;
     padding: .8rem 1.35rem;
     border: 0;
-    border-radius: 0 0 16px 16px;
-    border-top: 1px solid #E5E7EB;
-    background: #F5F7FA;
+    border-radius: 0 0 8px 8px;
+    border-top: 1px solid #E7E7E7;
+    background: #F2F5FC;
 }
 
 body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .btn {
     min-height: 2.55rem;
     padding: .45rem 1.45rem !important;
-    border-radius: .6rem;
+    border-radius: .8px;
     font-size: .9rem;
     font-weight: 800;
     line-height: 1.1;
@@ -374,7 +374,7 @@ body.boltz-shell .loading-expense-editor .form-label {
     margin-bottom: 0;
     font-size: .76rem;
     font-weight: 800;
-    color: #424242;
+    color: #3D3D3D;
 }
 body.boltz-shell .loading-expense-editor .field-validation-error {
     min-height: 1rem;
@@ -420,7 +420,7 @@ body.boltz-shell [data-loading-expense-editor] .ak-form-grid {
 body.boltz-shell [data-loading-expense-editor] .ak-form-grid > span {
     font-size: .74rem;
     font-weight: 700;
-    color: #424242;
+    color: #3D3D3D;
 }
 
 /* The expense modal body uses .ak-modal-body (not Bootstrap's .modal-body), so
@@ -472,13 +472,13 @@ body.boltz-shell.controller-operationalassets.action-details .boltz-content .ope
     --oa-blue: #145dff;
     --oa-blue-soft: #E7F0FE;
     --oa-purple: #4f35ff;
-    --oa-text: #424242;
+    --oa-text: #3D3D3D;
     --oa-muted: #526783;
     --oa-subtle: #7b8aa0;
     --oa-border: #e7edf5;
     --oa-border-strong: #d7e5ff;
     --oa-soft: #FAFAFA;
-    --oa-field: #FCFCFC;
+    --oa-field: #F5F6FA;
     --oa-green: #009b5a;
     --oa-green-soft: #dcfce9;
     --oa-red: #f10b45;
@@ -513,9 +513,9 @@ body.boltz-shell.controller-operationalassets.action-details .boltz-content [dat
  * 4-column soft grid, rounded light inputs{
     width: 100%;
     border: 1px solid #e8edf3 !important;
-    border-radius: 18px !important;
+    border-radius: 8px !important;
     background: #ffffff !important;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 12px 30px rgba(15, 23, 42, .05) !important;
+    box-shadow: none !important;
     padding: 1.3rem 1.5rem !important;
 }
 
@@ -610,10 +610,10 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
     position: relative;
     min-height: 5rem;
     padding: 0.8rem 0.9rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #E7E7E7;
     border-radius: 9px;
     background: #ffffff;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+    box-shadow: none;
 }
 
 body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .summary-tile i {
@@ -625,8 +625,8 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 999px;
-    background: #F5F7FA;
+    border-radius: 8px;
+    background: #F2F5FC;
     font-size: 1rem;
 }
 
@@ -643,7 +643,7 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
     margin-block: 0;
     margin-inline: 0 auto;
     direction: rtl;
-    color: #424242;
+    color: #3D3D3D;
 }
 
 .contract-pricing-form .field-validation-error {

@@ -1,0 +1,180 @@
+@using PTGOilSystem.Web.Models.Reports
+@model PTGOilSystem.Web.Models.Reports.GoodsInTransitReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "بارهای در مسیر", "Goods In Transit");
+    var f = Model.Filter;
+    var t = Model.Totals;
+
+    // برچسب‌ها فقط نمایشی‌اند؛ وضعیت واقعی همان وضعیت رکورد منبع است.
+    string KindLabel(GoodsInTransitKind kind) => kind switch
+    {
+        GoodsInTransitKind.FromOrigin => UiText.T(Context, "بار در راه از مبدأ", "From origin"),
+        GoodsInTransitKind.InternalTransfer => UiText.T(Context, "حمل داخلی", "Internal transfer"),
+        _ => UiText.T(Context, "تحویل با موتر", "Truck delivery")
+    };
+
+    string StageLabel(GoodsInTransitRowViewModel row)
+        => row.IsDelayed
+            ? UiText.T(Context, "تأخیردار", "Delayed")
+            : row.Stage == GoodsInTransitStage.InTransit
+                ? UiText.T(Context, "در مسیر", "In transit")
+                : UiText.T(Context, "بارگیری‌شده", "Loaded");
+
+    // تنها رنگ معنادار این صفحه: تأخیر. بقیه خنثی می‌مانند تا جدول شلوغ نشود.
+    string? StageTone(GoodsInTransitRowViewModel row)
+        => row.IsDelayed ? "danger" : row.Stage == GoodsInTransitStage.InTransit ? null : "muted";
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "بارهای در مسیر", "Goods In Transit"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    <p class="ak-note">
+        @UiText.T(Context,
+            "هر بار که حرکت کرده ولی هنوز به مقصد نرسیده است: بار در راه از مبدأ، حمل داخلی بین مخزن‌ها و موتری که هنوز تخلیه نشده. مقدار هر ردیف، مقدار باقی‌مانده در همان لحظه است.",
+            "Every load that has departed but not yet arrived: cargo on the way from origin, internal transfers between tanks, and trucks not yet unloaded. Each row shows the quantity still on the road.")
+    </p>
+
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "خلاصه بارهای در مسیر", "Goods in transit summary")">
+        <vc:stat-card title="@UiText.T(Context, "بارهای در مسیر", "Loads in transit")"
+                      value="@t.RowCount.ToString("N0")"
+                      unit="@UiText.T(Context, "بار", "loads")"
+                      avatar="in-transit"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مقدار در مسیر", "Quantity in transit")"
+                      value="@NumberDisplay.Quantity(t.TotalQuantityMt)"
+                      unit="MT"
+                      avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تأخیردار", "Delayed")"
+                      value="@t.DelayedCount.ToString("N0")"
+                      unit="@UiText.T(Context, "بار", "loads")"
+                      avatar="losses"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "بیشترین روز در راه", "Longest on the road")"
+                      value="@t.MaxDaysOnRoad.ToString("N0")"
+                      unit="@UiText.T(Context, "روز", "days")"
+                      avatar="locations"></vc:stat-card>
+    </section>
+
+    <div class="ak-list">
+        @{
+            List<AkFilterOption> TransitOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+
+            var transitFilter = new AkSearchFilterModel("Search", f.Search,
+                UiText.T(Context, "جست‌وجوی وسیله، راننده یا مسیر...", "Search vehicle, driver or route..."),
+                new List<AkFilterDefinition>
+                {
+                    new("Kind", UiText.T(Context, "نوع بار", "Load type"), "select",
+                        new List<AkFilterOption>
+                        {
+                            new(nameof(GoodsInTransitKind.FromOrigin), KindLabel(GoodsInTransitKind.FromOrigin)),
+                            new(nameof(GoodsInTransitKind.InternalTransfer), KindLabel(GoodsInTransitKind.InternalTransfer)),
+                            new(nameof(GoodsInTransitKind.CustomerDelivery), KindLabel(GoodsInTransitKind.CustomerDelivery))
+                        }, f.Kind?.ToString()),
+                    new("DelayedOnly", UiText.T(Context, "تأخیر", "Delay"), "select",
+                        new List<AkFilterOption>
+                        {
+                            new("true", UiText.T(Context, "فقط تأخیردارها", "Delayed only"))
+                        }, f.DelayedOnly ? "true" : null),
+                    new("FromDate", UiText.T(Context, "تاریخ حرکت", "Departure date"), "daterange", null,
+                        f.FromDate?.ToString("yyyy-MM-dd"), "ToDate", f.ToDate?.ToString("yyyy-MM-dd")),
+                    new("ProductId", UiText.T(Context, "جنس", "Product"), "select", TransitOpts(ViewBag.GoodsInTransitProducts),
+                        f.ProductId?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="transitFilter" />
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("GoodsInTransitExport"))" />
+            </div>
+        </div>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th>@UiText.T(Context, "تاریخ حرکت", "Departure")</th>
+                        <th>@UiText.T(Context, "نوع بار", "Load type")</th>
+                        <th>@UiText.T(Context, "وسیله", "Vehicle")</th>
+                        <th>@UiText.T(Context, "جنس", "Product")</th>
+                        <th>@UiText.T(Context, "مسیر", "Route")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مقدار MT", "Quantity MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "روز در راه", "Days")</th>
+                        <th>@UiText.T(Context, "رسیدن تخمینی", "Expected arrival")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td>@row.DepartureDate.ToDisplayDate()</td>
+                            <td>
+                                <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((KindLabel(row.Kind), (string?)null))" />
+                            </td>
+                            <td>
+                                <a asp-controller="@row.LinkController" asp-action="@row.LinkAction" asp-route-id="@row.SourceId">@row.VehicleLabel</a>
+                                @if (!string.IsNullOrWhiteSpace(row.DriverName) || !string.IsNullOrWhiteSpace(row.CarrierName))
+                                {
+                                    <span class="ak-section-desc">@(row.DriverName ?? row.CarrierName)</span>
+                                }
+                            </td>
+                            <td>@row.ProductName</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(row.RouteText))
+                                {
+                                    @row.RouteText
+                                }
+                                else if (!string.IsNullOrWhiteSpace(row.RouteNote))
+                                {
+                                    @row.RouteNote
+                                }
+                                else
+                                {
+                                    @("—")
+                                }
+                            </td>
+                            <td class="ak-col-num ak-num">@NumberDisplay.Quantity(row.QuantityMt)</td>
+                            <td class="ak-col-num ak-num">@row.DaysOnRoad.ToString("N0")</td>
+                            <td>@(row.ExpectedArrivalDate.HasValue ? row.ExpectedArrivalDate.ToDisplayDate() : "—")</td>
+                            <td>
+                                <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((StageLabel(row), StageTone(row)))" />
+                            </td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="9">
+                                <div class="ak-empty">
+                                    <i class="bi bi-truck"></i>
+                                    @UiText.T(Context, "هیچ باری در مسیر نیست؛ یا فیلترها را تغییر دهید.", "No load is in transit; or change the filters.")
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                @if (Model.Rows.Count > 0)
+                {
+                    <tfoot>
+                        <tr>
+                            <td colspan="5">
+                                <strong>@UiText.T(Context, "جمع کل نتایج فیلترشده", "Total of filtered results")</strong>
+                            </td>
+                            <td class="ak-col-num ak-num"><strong>@NumberDisplay.Quantity(t.TotalQuantityMt)</strong></td>
+                            <td colspan="3">
+                                @UiText.T(Context, "از مبدأ", "From origin"): @t.FromOriginCount.ToString("N0") —
+                                @UiText.T(Context, "حمل داخلی", "Internal"): @t.InternalTransferCount.ToString("N0") —
+                                @UiText.T(Context, "با موتر", "Truck"): @t.CustomerDeliveryCount.ToString("N0")
+                            </td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+
+        @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
+    </div>
+</div>

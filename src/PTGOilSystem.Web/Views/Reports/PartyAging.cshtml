@@ -1,0 +1,115 @@
+@using PTGOilSystem.Web.Models.Reports
+@model PTGOilSystem.Web.Models.Reports.PartyAgingReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "سررسید طلبات و بدهی‌ها", "Receivable & Payable Aging");
+
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+
+    // برچسب‌ها فقط نمایشی‌اند؛ دسته‌بندی در کنترلر انجام شده است.
+    string BucketLabel(PartyAgingBucket bucket) => bucket switch
+    {
+        PartyAgingBucket.UpTo30 => T("تا ۳۰ روز", "Up to 30 days"),
+        PartyAgingBucket.From31To60 => T("۳۱ تا ۶۰ روز", "31-60 days"),
+        PartyAgingBucket.From61To90 => T("۶۱ تا ۹۰ روز", "61-90 days"),
+        _ => T("بیشتر از ۹۰ روز", "Over 90 days")
+    };
+
+    // تنها رنگ معنادار این صفحه: کهنگی. هرچه حساب بیشتر معطل مانده، هشدارش بیشتر است.
+    string BucketTone(PartyAgingBucket bucket) => bucket switch
+    {
+        PartyAgingBucket.UpTo30 => "is-active",
+        PartyAgingBucket.From31To60 => "is-pending",
+        _ => "is-danger"
+    };
+
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((T("سررسید طلبات و بدهی‌ها", "Receivable & Payable Aging"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       T("گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    <p class="ak-note">
+        @T("هر حساب بر اساس اینکه چند روز است هیچ حرکتی نداشته دسته‌بندی می‌شود. حسابی که مدت زیادی بی‌حرکت مانده، اول باید پیگیری شود.",
+           "Each account is grouped by how many days it has had no movement. Accounts idle the longest need follow-up first.")
+    </p>
+
+    <section class="ak-stat-grid" aria-label="@T("خلاصه سررسید", "Aging summary")">
+        @foreach (var metric in Model.Metrics.Take(4))
+        {
+            @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
+        }
+    </section>
+
+    <div class="ak-list">
+        @{
+            List<AkFilterOption> AgingOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+
+            var agingFilter = new AkSearchFilterModel("", null,
+                T("فیلتر سررسید...", "Filter aging..."),
+                new List<AkFilterDefinition>
+                {
+                    new("FromDate", T("بازه تاریخ", "Date range"), "daterange", null,
+                        Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                    new("ContractId", T("قرارداد", "Contract"), "select", AgingOpts(ViewBag.Contracts),
+                        Model.Filter.ContractId?.ToString()),
+                    new("CustomerId", T("مشتری", "Customer"), "select", AgingOpts(ViewBag.Customers),
+                        Model.Filter.CustomerId?.ToString()),
+                    new("SupplierId", T("تأمین‌کننده", "Supplier"), "select", AgingOpts(ViewBag.Suppliers),
+                        Model.Filter.SupplierId?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="agingFilter" />
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                         model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("PartyAgingExport"))" />
+            </div>
+        </div>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <caption class="ak-section-desc">@T("جزئیات هر طرف حساب", "Detail per party")</caption>
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@T("طرف حساب", "Party")</th>
+                        <th>@T("نوع", "Type")</th>
+                        <th class="ak-col-num">@T("طلب (USD)", "Receivable (USD)")</th>
+                        <th class="ak-col-num">@T("بدهی (USD)", "Payable (USD)")</th>
+                        <th>@T("آخرین حرکت", "Last movement")</th>
+                        <th class="ak-col-num">@T("روز بدون حرکت", "Days idle")</th>
+                        <th>@T("دسته", "Bucket")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">@row.PartyName</td>
+                            <td>@row.PartyTypeLabel</td>
+                            <td class="ak-col-num ak-num">@(row.ReceivableUsd > 0m ? row.ReceivableUsd.ToString("N2") : "—")</td>
+                            <td class="ak-col-num ak-num">@(row.PayableUsd > 0m ? row.PayableUsd.ToString("N2") : "—")</td>
+                            <td>@(row.LastEntryDate?.ToDisplayDate() ?? T("بدون حرکت", "No movement"))</td>
+                            <td class="ak-col-num ak-num">@(row.LastEntryDate is null ? "—" : row.DaysIdle.ToString("N0"))</td>
+                            <td><span class="ak-status @BucketTone(row.Bucket)">@BucketLabel(row.Bucket)</span></td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="ak-empty">
+                                    <i class="bi bi-people"></i>
+                                    @T("هیچ مانده‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No balance found; change the filters.")
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

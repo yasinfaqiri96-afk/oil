@@ -1,35 +1,91 @@
+@using PTGOilSystem.Web.Models.StatCards
 @model PTGOilSystem.Web.Models.Reports.CompanyFinancialOverviewViewModel
 @{
-    ViewData["Title"] = UiText.T(Context, "نمای کلی مالی", "Company Financial Overview");
+    ViewData["Title"] = UiText.T(Context, "وضعیت مالی شرکت", "Company Financial Status");
+
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+
+    // نام دری نوع طرف‌حساب. کلید همان مقدار PartyType در ردیف گزارش است و
+    // هیچ محاسبه‌ای اینجا انجام نمی‌شود.
+    string PartyTypeName(string type) => type switch
+    {
+        "Customer" => T("مشتری", "Customer"),
+        "Supplier" => T("تأمین‌کننده", "Supplier"),
+        "ServiceProvider" => T("شرکت خدماتی", "Service provider"),
+        "Sarraf" => T("صراف", "Sarraf"),
+        "Employee" => T("کارمند", "Employee"),
+        "Driver" => T("راننده", "Driver"),
+        "Partner" => T("شریک", "Partner"),
+        "Company" => T("شرکت", "Company"),
+        _ => type
+    };
+
+    // «چند روز از آخرین حرکت این حساب گذشته» — این سنِ بدهی نیست، سنِ سکوتِ حساب
+    // است و دقیقاً از روی LastEntryDate همان ردیف خوانده می‌شود.
+    (string Text, string Class) IdleBadge(DateTime? last)
+    {
+        if (last is null) return (T("بدون حرکت", "No movement"), "is-inactive");
+        var days = (int)Math.Round((Model.AsOfDate.Date - last.Value.Date).TotalDays);
+        if (days < 0) days = 0;
+        var text = string.Format(T("{0} روز", "{0} days"), days.ToString("N0"));
+        var tone = days > 60 ? "is-danger" : days > 30 ? "is-pending" : "is-active";
+        return (text, tone);
+    }
 }
 
 <div class="ak-list-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "نمای کلی مالی", "Company Financial Overview"), false,
+             model="@((T("وضعیت مالی شرکت", "Company Financial Status"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
-                       UiText.T(Context, "گزارشات", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+                       T("گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
 
-    <p class="finance-page-lead">@UiText.T(Context, "شش عدد اصلی برای دیدن وضعیت مالی؛ همه مستقیماً از فروش، مصارف، روزنامه و دفتر سیستم خوانده می‌شوند.", "Six essential figures read directly from sales, expenses, journal and ledger records.")</p>
+    @* ===== ردیف اول: جواب ===== *@
+    <section class="ak-stat-grid finance-overview-metrics" aria-label="@T("خلاصهٔ مالی", "Financial summary")">
+        @* «پول نقد فعلی» مانده صندوق و بانک در همین لحظه است و به بازهٔ فیلتر کار ندارد. *@
+        <vc:stat-card title="@T("پول نقد فعلی", "Cash on hand")"
+                      value="@StatCardFormatter.Number(Model.CashOnHandUsd, 0)"
+                      unit="USD"
+                      avatar="treasury"></vc:stat-card>
 
-    <section class="ak-stat-grid finance-overview-metrics" aria-label="@UiText.T(Context, "خلاصهٔ مالی", "Financial summary")">
-        <vc:stat-card title="@UiText.T(Context, "نقدینگی (خالص حرکت)", "Liquidity (net movement)")" value="@Model.NetCashMovementUsd.ToString("N2")" unit="USD" avatar="report-payments"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "دریافتنی مشتریان", "Customer receivables")" value="@Model.CustomerReceivableUsd.ToString("N2")" unit="USD" avatar="report-settlements"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "پرداختنی تأمین‌کنندگان", "Supplier payables")" value="@Model.SupplierPayableUsd.ToString("N2")" unit="USD" avatar="report-purchase"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "درآمد", "Revenue")" value="@Model.RevenueUsd.ToString("N2")" unit="USD" avatar="report-sales"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مصرف و ضایعات", "Expenses and losses")" value="@((Model.ExpenseUsd + Model.LossCostUsd).ToString("N2"))" unit="USD" avatar="report-inventory"></vc:stat-card>
-        @* سود فقط وقتی عدد نشان داده می‌شود که بهای تمام‌شدهٔ همهٔ فروش‌ها ثبت شده باشد؛
-           در غیر این صورت COGS نبود = سود ساختگی، پس عدد منتشر نمی‌شود. *@
-        <vc:stat-card title="@UiText.T(Context, "سود / زیان", "Profit / loss")"
-                      value="@(Model.IsProfitPublishable ? Model.NetProfitUsd.ToString("N2") : "—")"
+        <vc:stat-card title="@T("طلبات ما", "We are owed")"
+                      value="@StatCardFormatter.Number(Model.TotalReceivableUsd, 0)"
+                      unit="USD"
+                      avatar="receivables"></vc:stat-card>
+
+        <vc:stat-card title="@T("بدهی ما", "We owe")"
+                      value="@StatCardFormatter.Number(Model.TotalPayableUsd, 0)"
+                      unit="USD"
+                      avatar="payments-out"></vc:stat-card>
+
+        @* مفاد فقط وقتی عدد نشان داده می‌شود که بهای تمام‌شدهٔ همهٔ فروش‌ها ثبت شده باشد؛
+           در غیر این صورت COGS نبود = مفاد ساختگی، پس عدد منتشر نمی‌شود. *@
+        <vc:stat-card title="@T("مفاد / ضرر", "Profit / loss")"
+                      value="@(Model.IsProfitPublishable ? StatCardFormatter.Number(Model.NetProfitUsd, 0) : "—")"
                       unit="@(Model.IsProfitPublishable ? "USD" : "")"
-                      avatar="report-finance"></vc:stat-card>
+                      state="@(Model.IsProfitPublishable && Model.NetProfitUsd < 0m ? "warning" : null)"
+                      avatar="profit-loss"></vc:stat-card>
+
     </section>
 
     @if (!Model.IsProfitPublishable)
     {
         <div class="alert alert-danger" role="alert">
             <i class="bi bi-exclamation-octagon"></i>
-            @UiText.T(Context, Model.ProfitUnavailableNoteFa, Model.ProfitUnavailableNoteEn)
+            @T(Model.ProfitUnavailableNoteFa, Model.ProfitUnavailableNoteEn)
+            @* هشدار باید راه خروج نشان بدهد، نه فقط مشکل را بگوید. *@
+            <a asp-controller="Reconciliation" asp-action="Discrepancies"
+               asp-route-category="@PTGOilSystem.Web.Models.Reconciliation.ReconciliationDiscrepancyCategory.SaleWithoutCogs">
+                @T("دیدن فهرست این فروش‌ها", "See these sales")
+            </a>
+        </div>
+    }
+
+    @if (Model.WarningCount > 0)
+    {
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            @string.Format(T("{0} ثبت نیمه‌تمام دارید؛ تا تکمیل نشوند ارقام این صفحه ناقص می‌ماند.", "{0} entries are unfinished; the figures on this page stay incomplete until they are done."), Model.WarningCount.ToString("N0"))
+            <a asp-action="Warnings">@T("دیدن کارهای نیمه‌تمام", "See unfinished work")</a>
         </div>
     }
 
@@ -39,18 +95,18 @@
                 ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
                 .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
             var overviewFilter = new AkSearchFilterModel("", null,
-                UiText.T(Context, "فیلتر نمای کلی مالی...", "Filter company overview..."),
+                T("فیلتر وضعیت مالی شرکت...", "Filter company status..."),
                 new List<AkFilterDefinition>
                 {
-                    new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                    new("FromDate", T("بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
-                    new("ProductId", UiText.T(Context, "جنس", "Product"), "select", OverviewOpts(ViewBag.Products),
+                    new("ProductId", T("جنس", "Product"), "select", OverviewOpts(ViewBag.Products),
                         Model.Filter.ProductId?.ToString()),
-                    new("ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", OverviewOpts(ViewBag.Contracts),
+                    new("ContractId", T("قرارداد", "Contract"), "select", OverviewOpts(ViewBag.Contracts),
                         Model.Filter.ContractId?.ToString()),
-                    new("CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", OverviewOpts(ViewBag.Customers),
+                    new("CustomerId", T("مشتری", "Customer"), "select", OverviewOpts(ViewBag.Customers),
                         Model.Filter.CustomerId?.ToString()),
-                    new("SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), "select", OverviewOpts(ViewBag.Suppliers),
+                    new("SupplierId", T("تأمین‌کننده", "Supplier"), "select", OverviewOpts(ViewBag.Suppliers),
                         Model.Filter.SupplierId?.ToString())
                 });
         }
@@ -63,41 +119,78 @@
             </div>
         </div>
 
-        <section class="ak-form-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "قراردادهای مهم", "Key contracts"), UiText.T(Context, "قراردادهایی که بیشترین اثر مالی را دارند.", "Contracts with the largest financial impact.")))" />
-            <div class="ak-table-wrap">
-                <table class="ak-table">
-                    <thead>
-                        <tr>
-                            <th class="ak-col-grow">@UiText.T(Context, "قرارداد", "Contract")</th>
-                            <th>@UiText.T(Context, "جنس", "Product")</th>
-                            <th>@UiText.T(Context, "طرف حساب", "Counterparty")</th>
-                            <th class="ak-col-num">@UiText.T(Context, "مصرف (USD)", "Cost (USD)")</th>
-                            <th class="ak-col-num">@UiText.T(Context, "فروش (USD)", "Revenue (USD)")</th>
-                            <th class="ak-col-num">@UiText.T(Context, "سود (USD)", "Profit (USD)")</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in Model.TopContracts)
-                        {
-                            <tr>
-                                <td class="ak-col-grow"><a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-id="@row.ContractId">@row.ContractNumber</a></td>
-                                <td>@row.ProductName</td>
-                                <td>@(row.CounterpartyName ?? "-")</td>
-                                <td class="ak-col-num ak-num">@row.TotalCostUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num">@row.TotalRevenueUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num @(row.GrossMarginUsd >= 0 ?"ak-num" : "ak-num")">@row.GrossMarginUsd.ToString("N2")</td>
-                            </tr>
-                        }
-                        @if (!Model.TopContracts.Any())
-                        {
-                            <tr>
-                                <td colspan="6"><div class="ak-empty"><i class="bi bi-graph-up"></i> @UiText.T(Context, "فیلترها را تغییر دهید یا بازه تاریخ را گسترده‌تر بگیرید.", "Change the filters or widen the date range.")</div></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+        @* طلبات و بدهی‌ها کنار هم می‌مانند؛ در نمای عریض یک خط عمودی مرزشان را جدا
+           می‌کند و در موبایل که زیر هم می‌روند خط حذف می‌شود. *@
+        <div class="row g-4 company-overview-balances">
+            <div class="col-12 col-lg-6">
+                <section class="ak-form-section company-overview-balances__side company-overview-balances__side--receivable">
+                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                             model="@((T("بزرگ‌ترین طلبات", "Largest receivables"), (string?)null))" />
+                    <div class="ak-table-wrap">
+                        <table class="ak-table">
+                            <thead>
+                                <tr>
+                                    <th class="ak-col-grow">@T("طرف حساب", "Party")</th>
+                                    <th>@T("نوع", "Type")</th>
+                                    <th class="ak-col-num">@T("طلب (USD)", "Receivable (USD)")</th>
+                                    <th>@T("آخرین حرکت", "Last movement")</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.TopReceivables)
+                                {
+                                    var badge = IdleBadge(row.LastEntryDate);
+                                    <tr>
+                                        <td class="ak-col-grow">@row.PartyName</td>
+                                        <td>@PartyTypeName(row.PartyType)</td>
+                                        <td class="ak-col-num ak-num">@row.BalanceUsd.ToString("N2")</td>
+                                        <td><span class="ak-status @badge.Class">@badge.Text</span></td>
+                                    </tr>
+                                }
+                                @if (!Model.TopReceivables.Any())
+                                {
+                                    <tr><td colspan="4"><div class="ak-empty"><i class="bi bi-person-lines-fill"></i> @T("طلبی برای این بازه ثبت نشده است.", "No receivable recorded for this range.")</div></td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
-        </section>
+
+            <div class="col-12 col-lg-6">
+                <section class="ak-form-section company-overview-balances__side company-overview-balances__side--payable">
+                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                             model="@((T("بزرگ‌ترین بدهی‌ها", "Largest payables"), (string?)null))" />
+                    <div class="ak-table-wrap">
+                        <table class="ak-table">
+                            <thead>
+                                <tr>
+                                    <th class="ak-col-grow">@T("طرف حساب", "Party")</th>
+                                    <th>@T("نوع", "Type")</th>
+                                    <th class="ak-col-num">@T("بدهی (USD)", "Payable (USD)")</th>
+                                    <th>@T("آخرین حرکت", "Last movement")</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.TopPayables)
+                                {
+                                    var badge = IdleBadge(row.LastEntryDate);
+                                    <tr>
+                                        <td class="ak-col-grow">@row.PartyName</td>
+                                        <td>@PartyTypeName(row.PartyType)</td>
+                                        <td class="ak-col-num ak-num">@Math.Abs(row.BalanceUsd).ToString("N2")</td>
+                                        <td><span class="ak-status @badge.Class">@badge.Text</span></td>
+                                    </tr>
+                                }
+                                @if (!Model.TopPayables.Any())
+                                {
+                                    <tr><td colspan="4"><div class="ak-empty"><i class="bi bi-building-check"></i> @T("بدهی‌ای برای این بازه ثبت نشده است.", "No payable recorded for this range.")</div></td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
     </div>
 </div>

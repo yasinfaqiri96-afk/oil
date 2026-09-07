@@ -18,7 +18,7 @@
     min-height: 0;
     padding: .55rem .9rem;
     border: 1px solid var(--itr-border);
-    border-radius: 11px;
+    border-radius: 8px;
     background: #fff;
 }
 
@@ -163,7 +163,7 @@
 .itr-unload-dispatch-panel,
 .itr-unload-option {
     border: 1px solid var(--itr-border);
-    border-radius: 11px;
+    border-radius: 8px;
     background: #fff;
 }
 
@@ -342,7 +342,7 @@
     border-inline-start: 0;
     border-start-end-radius: 7px;
     border-end-end-radius: 7px;
-    background: #F5F7FA;
+    background: #F2F5FC;
     color: #69778c;
     font-size: .66rem;
     font-weight: 750;
@@ -358,7 +358,7 @@
     padding: .55rem .65rem .6rem;
     border: 1px solid #d5e1f0;
     border-radius: 9px;
-    background: #FCFCFC;
+    background: #F5F6FA;
 }
 
 .itr-unload-result > header {
@@ -578,9 +578,9 @@
     gap: .65rem;
     padding: .75rem 1rem;
     border-top: 1px solid var(--itr-border);
-    border-radius: 0 0 14px 14px;
+    border-radius: 0 0 8px 8px;
     background: rgba(255, 255, 255, .97);
-    box-shadow: 0 -5px 16px rgba(30, 50, 85, .05);
+    box-shadow: none;
     backdrop-filter: blur(8px);
 }
 

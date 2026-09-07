@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +14,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -237,7 +238,8 @@ public class SupplierUsdLoadingLedgerTests
                 new PartyStatementPolicyResolver(),
                 new CompanyFlowDirectionResolver(),
                 new CompanyFlowBalanceService(),
-                Options.Create(new PartyStatementOptions()))
+                Options.Create(new PartyStatementOptions()),
+                new PartyDirectory(db))
             .GetStatementAsync(
                 new PartyRef(PartyStatementPartyType.Supplier, 1),
                 new PartyStatementFilter());

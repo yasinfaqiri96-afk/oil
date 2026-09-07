@@ -39,7 +39,7 @@
 | `!important` | ۴٬۱۱۱ | **۸۸۳** |
 | خطوط کد | — | **−۳۸٬۵۴۸ خالص** |
 
-جزئیات کامل و تاریخچهٔ batchها: [ui-migration/UI-MIGRATION-STATUS.md](ui-migration/UI-MIGRATION-STATUS.md).
+جزئیات Design System فعال: [UI-DESIGN-SYSTEM.md](UI-DESIGN-SYSTEM.md).
 Backend، DB و queryها در این مهاجرت **تغییر نکردند**.
 
 ## بدهی فنی شناخته‌شده

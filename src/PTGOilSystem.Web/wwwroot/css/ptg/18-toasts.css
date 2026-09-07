@@ -31,8 +31,8 @@
     padding: .95rem 1.05rem;
     background: var(--ptg-text, #202331); /* fallback; per-type colors below */
     border: 0;
-    border-radius: var(--ptg-radius-md, 18px);
-    box-shadow: 0 18px 44px rgba(32, 35, 49, .22);
+    border-radius: var(--ptg-radius-md, 8px);
+    box-shadow: var(--shadow-dialog);
     color: #fff;
     pointer-events: auto;
     overflow: hidden;
@@ -184,7 +184,7 @@
     width: min(380px, calc(100dvi - 2rem));
     background: var(--ptg-surface, #fff);
     border: 1px solid var(--ptg-border, #ECECF2);
-    border-radius: var(--ptg-radius-lg, 24px);
+    border-radius: var(--ptg-radius-lg, 8px);
     box-shadow: var(--ptg-shadow-soft, 0 24px 60px rgba(32, 35, 49, .18));
     padding: 1.4rem 1.25rem 1.1rem;
     text-align: center;
@@ -238,7 +238,7 @@
 .ptg-confirm__btn {
     flex: 1 1 0;
     border: 0;
-    border-radius: var(--ptg-radius-button, 28px);
+    border-radius: var(--ptg-radius-button, 8px);
     padding: .55rem .9rem;
     font-size: .82rem;
     font-weight: 600;

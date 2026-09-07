@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +26,7 @@ using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -1924,7 +1925,7 @@ public class PaymentsControllerTests
     // برمی‌داشت و مانده را صفر می‌کرد.
 
     private static PartyStatementReadService BuildStatementService(ApplicationDbContext db)
-        => new(db, new PartyStatementPolicyResolver(), new CompanyFlowDirectionResolver(), new CompanyFlowBalanceService(), Options.Create(new PartyStatementOptions()));
+        => new(db, new PartyStatementPolicyResolver(), new CompanyFlowDirectionResolver(), new CompanyFlowBalanceService(), Options.Create(new PartyStatementOptions()), new PartyDirectory(db));
 
     [Fact]
     public async Task Create_Post_ViaSarraf_SingleRate_SupplierStatementShowsOnlyThePaymentRow()
@@ -2470,6 +2471,54 @@ public class PaymentsControllerTests
         => new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
+
+    [Fact]
+    public async Task Create_TruckPayment_Links_The_Driver_And_Leaves_The_Contract_Supplier_Alone()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedSupplierOpeningLedger(db);
+        await db.SaveChangesAsync();
+
+        var controller = BuildPaymentsController(db);
+
+        // کرایهٔ موتر روی قرارداد خرید ثبت می‌شود؛ طرفِ واقعیِ آن راننده است نه تأمین‌کننده.
+        var result = await controller.Create(new PaymentCreateViewModel
+        {
+            PaymentDate = new DateTime(2026, 4, 27),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.TruckPayment,
+            CashAccountId = 1,
+            DriverId = 1,
+            ContractId = 2,
+            Amount = 300m,
+            Currency = "USD",
+            Reference = "TRK-001",
+            Description = "کرایه راننده"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+
+        var payment = await db.PaymentTransactions.SingleAsync();
+        var ledger = await db.LedgerEntries.SingleAsync(l => l.SourceType == "TruckPayment" && l.SourceId == payment.Id);
+
+        // بدون DriverId روی سطر دفتر، پرداخت در صورت‌حساب راننده دیده نمی‌شد.
+        Assert.Equal(1, ledger.DriverId);
+        Assert.Null(ledger.SupplierId);
+
+        var driverStatement = await BuildStatementService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Driver, 1),
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+        Assert.Equal(300m, driverStatement.Summary.TotalOutflow);
+
+        // و همان پرداخت نباید بدهیِ تأمین‌کنندهٔ قرارداد را کم کند.
+        var supplierStatement = await BuildStatementService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, 1),
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+        Assert.DoesNotContain(supplierStatement.Rows, row => row.Reference == "TRK-001");
+    }
 
     private static void SeedReferenceData(ApplicationDbContext db)
     {

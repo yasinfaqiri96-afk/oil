@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace PTGOilSystem.Web.Models.Entities;
 
@@ -28,7 +28,15 @@ public enum LoadingExpensePartyType
     ServiceProvider = 1,
 
     /// <summary>Internal use of an owned operational asset → AssetRentTransaction (no Ledger).</summary>
-    OperationalAsset = 2
+    OperationalAsset = 2,
+
+    /// <summary>
+    /// Settled with an independent driver → ExpenseTransaction + LedgerEntry on that
+    /// driver's account. Used by transport-leg expenses, where the freight/fuel/road
+    /// cost is owed to the driver rather than to a service company. Loading expense
+    /// lines never store this value; their editor does not offer it.
+    /// </summary>
+    Driver = 3
 }
 
 /// <summary>

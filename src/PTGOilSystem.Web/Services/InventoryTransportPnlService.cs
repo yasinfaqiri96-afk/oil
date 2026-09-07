@@ -291,7 +291,17 @@ public sealed class InventoryTransportPnlService
             .Where(e => e.TransportLegId.HasValue
                 && requestedIds.Contains(e.TransportLegId.Value)
                 && !e.IsCancelled
-                && (e.ExpenseType == null || e.ExpenseType.Code != ReceiptFreightExpenseCode))
+                // PTG-P1-04 — مصرفِ گمرک ستونِ خودش را دارد؛ اگر اینجا هم شمرده شود،
+                // همان پول دو بار در هزینهٔ عملیاتی می‌نشیند.
+                && !e.CustomsDeclarationId.HasValue
+                && (e.ExpenseType == null || e.ExpenseType.Code != ReceiptFreightExpenseCode)
+                // برای دارایی ملکی، این رکورد درآمد داخلی دارایی است؛ کرایهٔ حمل قبلاً
+                // از رسید تسویه در ReceiptFreightExpenseUsd آمده و نباید دوباره مصرف شود.
+                && !(e.OperationalAssetId.HasValue
+                    && e.ExpenseType != null
+                    && e.ExpenseType.Code == InventoryTransportReceiptService.TransportFreightExpenseCode
+                    && e.Description != null
+                    && e.Description.StartsWith(InventoryTransportReceiptService.OperationalAssetFreightIncomeDescriptionPrefix)))
             .GroupBy(e => e.TransportLegId!.Value)
             .Select(g => new { LegId = g.Key, AmountUsd = g.Sum(e => e.AmountUsd) })
             .ToListAsync(ct);
@@ -310,6 +320,8 @@ public sealed class InventoryTransportPnlService
                 && !e.TransportLegId.HasValue
                 && !e.ShipmentId.HasValue
                 && e.TruckDispatchId.HasValue
+                // PTG-P1-04 — گمرک ستونِ خودش را دارد.
+                && !e.CustomsDeclarationId.HasValue
                 && e.TruckDispatch!.InventoryTransportReceipt != null
                 && requestedIds.Contains(e.TruckDispatch.InventoryTransportReceipt.InventoryTransportLegId))
             .GroupBy(e => e.TruckDispatch!.InventoryTransportReceipt!.InventoryTransportLegId)
@@ -320,9 +332,15 @@ public sealed class InventoryTransportPnlService
             builders[expense.LegId].ExpenseTransactionsUsd += expense.AmountUsd;
         }
 
+        // ستونِ «گمرک» یک منبع دارد: خودِ اظهارنامه. CustomsDeclaration.TotalUsd جمعِ همهٔ
+        // اقلامِ اظهارنامه است، ولی CustomsDeclarationExpenseSync فقط برای گروهی مصرف
+        // می‌سازد که هویتِ تسویه‌اش انتخاب شده باشد؛ پس خواندن از مصرف‌ها، گروهِ
+        // «طبقه‌بندی‌نشده» را خاموش از هزینه می‌انداخت. حلقه‌های مصرف بالاتر با فیلترِ
+        // !CustomsDeclarationId.HasValue همین مبالغ را رد می‌کنند، پس دوباره‌شماری نیست.
         var customsRows = await _db.CustomsDeclarations
             .AsNoTracking()
-            .Where(c => c.TransportLegId.HasValue && requestedIds.Contains(c.TransportLegId.Value))
+            .Where(c => c.TransportLegId.HasValue
+                && requestedIds.Contains(c.TransportLegId.Value))
             .GroupBy(c => c.TransportLegId!.Value)
             .Select(g => new { LegId = g.Key, AmountUsd = g.Sum(c => c.TotalUsd) })
             .ToListAsync(ct);
@@ -444,7 +462,10 @@ public sealed class InventoryTransportPnlService
             .Where(e => !e.IsCancelled
                 && e.ShipmentId.HasValue
                 && shipmentIds.Contains(e.ShipmentId.Value)
-                && !e.TransportLegId.HasValue)
+                && !e.TransportLegId.HasValue
+                // PTG-P1-04 — گمرک ستونِ خودش را دارد. امروز مصرفِ گمرک ShipmentId نمی‌گیرد،
+                // ولی این فیلتر صریح است تا اگر روزی گرفت، خاموش دو بار شمرده نشود.
+                && !e.CustomsDeclarationId.HasValue)
             .OrderBy(e => e.ExpenseDate)
             .ThenBy(e => e.Id)
             .ToListAsync(ct);

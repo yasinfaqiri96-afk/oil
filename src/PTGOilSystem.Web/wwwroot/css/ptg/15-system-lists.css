@@ -6,7 +6,7 @@
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
     --ptg-list-radius: 12px;
-    --ptg-list-border: #E5E7EB;
+    --ptg-list-border: #E7E7E7;
     --ptg-list-line: #EEF2F6;
     --ptg-list-head-bg: var(--ptg-table-head-bg);
     --ptg-list-text: #243B5A;
@@ -44,7 +44,7 @@ body.ptg-modal-document .ptg-client-pager-info {
     font-weight: 600;
     direction: ltr;
     unicode-bidi: plaintext;
-    font-family: "Poppins", "Vazirmatn", Tahoma, Arial, sans-serif;
+    font-family: "Poppins", "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
     font-variant-numeric: tabular-nums;
 }
 
@@ -64,7 +64,7 @@ body.ptg-modal-document .ptg-client-pager-button {
     justify-content: center;
     padding: .32rem .62rem;
     border: 1px solid #E3EAF4;
-    border-radius: .72rem;
+    border-radius: .8px;
     background: #FFFFFF;
     color: var(--ptg-list-muted);
     font-size: .74rem;
@@ -102,7 +102,7 @@ body.ptg-modal-document .ptg-client-pager-button:disabled {
         gap: .28rem !important;
         padding: 1rem .95rem !important;
         border: 1px solid var(--ptg-list-border) !important;
-        border-radius: 14px !important;
+        border-radius: 8px !important;
         background: #FFFFFF !important;
         box-shadow: none !important;
     }
@@ -318,7 +318,7 @@ body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .
 
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane > :is(.card, details) {
     margin: 0 !important;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
     box-shadow: none !important;
 }
 
@@ -366,7 +366,7 @@ body.ptg-modal-document .ak-list-card {
     border: 0;
     border-radius: var(--ptg-list-radius);
     background: #FFFFFF;
-    box-shadow: 0 4px 18px rgba(16, 35, 63, .045);
+    box-shadow: var(--ptg-panel-shadow);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card > .ak-list-toolbar,
@@ -528,7 +528,7 @@ body.ptg-modal-document .ak-list-card .ak-check {
     border: 1px solid #AFC0D5;
     border-radius: 4px;
     vertical-align: middle;
-    accent-color: #1877F2;
+    accent-color: #1062D0;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-col-actions,
@@ -647,16 +647,16 @@ body.ptg-modal-document .ak-list-card .pagination .page-link {
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item.active .page-link,
 body.ptg-modal-document .ak-list-card .pagination .page-item.active .page-link {
-    border-color: #1877F2;
-    background: #1877F2;
+    border-color: #1062D0;
+    background: #1062D0;
     color: #FFFFFF;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item:not(.active):not(.disabled) .page-link:hover,
 body.ptg-modal-document .ak-list-card .pagination .page-item:not(.active):not(.disabled) .page-link:hover {
-    border-color: rgba(24, 119, 242, .18);
+    border-color: rgba(16, 98, 208, .18);
     background: #EEF5FF;
-    color: #1877F2;
+    color: #1062D0;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item.disabled .page-link,
@@ -690,9 +690,9 @@ body.ptg-modal-document .ak-list-loading-state[hidden] {
 .ak-list-loading-spinner {
     width: 22px;
     height: 22px;
-    border: 2px solid rgba(24, 119, 242, .18);
-    border-top-color: #1877F2;
-    border-radius: 999px;
+    border: 2px solid rgba(16, 98, 208, .18);
+    border-top-color: #1062D0;
+    border-radius: 8px;
     animation: ak-list-loading-spin .75s linear infinite;
 }
 

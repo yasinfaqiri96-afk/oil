@@ -13,8 +13,13 @@
     var customerText = string.IsNullOrWhiteSpace(Model.CustomerName)
         ? T("مشتری نامشخص", "Unknown customer")
         : Model.CustomerName;
-    var ledgerRecorded = Model.LedgerEntryId.HasValue;
     var canRegisterReceipt = !Model.IsCancelled && Model.CustomerId > 0 && Model.ReceivableBalanceUsd > 0m;
+    var directApplications = Model.Payments.Where(p => p.IsAdvanceApplication == false && p.ApplicationId != null).ToList();
+    var canApplyReceipt = !Model.IsCancelled && Model.ReceivableBalanceUsd > 0m && Model.ApplicableReceipts.Count > 0;
+    var firstReceipt = Model.ApplicableReceipts.FirstOrDefault();
+    var firstReceiptSuggestion = firstReceipt is null
+        ? 0m
+        : Math.Min(firstReceipt.UnappliedAmountUsd, Model.ReceivableBalanceUsd);
     var stockSourceText = Model.StockSourceType?.ToString() switch
     {
         "Wagon" => T("واگن", "Wagon"),
@@ -69,7 +74,7 @@
 
     // زون ۳: یک کارت هویتی + یک کارت منبع. اعداد پول از این گرید بیرون کشیده شده‌اند
     // و در «صورت‌حساب» زیر می‌آیند، چون ردیف‌بندیِ عدد-کنار-برچسب خواناتر از سلول‌های هم‌وزن است.
-    // رنگ فقط روی مقادیر state‌دار (مرحله، وضعیت دفتر). هویت با وزن و اندازه برجسته می‌شود، نه با رنگ.
+    // رنگ فقط روی مقادیر state‌دار (مرحله). هویت با وزن و اندازه برجسته می‌شود، نه با رنگ.
     var summaryItems = new List<AkInfoItem>
     {
         new() { Label = T("مشتری", "Customer"), Value = customerText },
@@ -77,21 +82,26 @@
         new() { Label = T("مرحله", "Stage"), Value = stageText, Tone = "info" },
         new() { Label = T("کالا", "Product"), Value = Model.ProductName },
         new() { Label = T("شرکت / جواز", "Company / licence"), Value = Model.CompanyName },
-        new()
-        {
-            Label = T("وضعیت دفتر", "Ledger status"),
-            Value = ledgerRecorded ? T("ثبت‌شده", "Recorded") : T("در انتظار", "Pending"),
-            Tone = ledgerRecorded ? null : "warning"
-        }
+        new() { Label = T("قیمت فی تن", "Unit price / MT"), Value = $"{Model.UnitPriceInCurrency:N2} {Model.Currency}", IsNumeric = true }
     };
     // کارت منبع فقط واقعیت عملیاتی است؛ هیچ‌کدام state نیستند، پس بدون رنگ می‌مانند.
     var sourceItems = new List<AkInfoItem>
     {
         new() { Label = T("نوع منبع", "Source type"), Value = stockSourceText },
-        new() { Label = T("قرارداد خرید منبع", "Source purchase contract"), Value = Model.SourcePurchaseContractNumber },
+        new()
+        {
+            Label = T("قرارداد خرید منبع", "Source purchase contract"),
+            Value = Model.SourcePurchaseContractNumber,
+            Href = Model.SourcePurchaseContractId.HasValue ? Url.Action("Details", "Contracts", new { id = Model.SourcePurchaseContractId.Value }) : null
+        },
         new() { Label = T("ترمینال مبدأ", "Source terminal"), Value = Model.SourceTerminalName },
         new() { Label = T("مخزن مبدأ", "Source tank"), Value = Model.SourceStorageTankCode },
-        new() { Label = T("مرجع حمل", "Transport reference"), Value = Model.InventoryTransportReference },
+        new()
+        {
+            Label = T("مرجع حمل", "Transport reference"),
+            Value = Model.InventoryTransportReference,
+            Href = Model.InventoryTransportLegId.HasValue ? Url.Action("Details", "InventoryTransportLegs", new { id = Model.InventoryTransportLegId.Value, returnUrl = currentReturnUrl }) : null
+        },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
     };
 
@@ -160,7 +170,7 @@
     {
         relatedRecords.Add(new AkRelatedRecord
         {
-            TypeLabel = T("پیش‌فروش", "Pre-sale"),
+            TypeLabel = T("فروش مرحله‌ای", "Staged-delivery sale"),
             Label = $"#{Model.PreSaleOrderId.Value}",
             Href = Url.Action("PreSaleDetails", "Sales", new { id = Model.PreSaleOrderId.Value }),
             Icon = "bi-calendar-check"
@@ -312,6 +322,74 @@
         {
             <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هیچ پرداخت مستقیمی برای این فروش ثبت نشده است.", "No direct payment is linked to this sale.")" />
         }
+
+        @if (directApplications.Count > 0)
+        {
+            <div class="ak-detail-subsection">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((T("تطبیق‌های ثبت‌شده", "Recorded applications"), (string?)null))" />
+                <div class="ak-list" aria-label="@T("تطبیق‌های ثبت‌شده", "Recorded applications")">
+                    @foreach (var a in directApplications)
+                    {
+                        <div class="ak-list-row">
+                            <span class="ak-field">
+                                <strong>@T("تطبیق دریافت", "Receipt applied")</strong>
+                                <small>@a.PaymentDate.ToDisplayDate()@(!string.IsNullOrWhiteSpace(a.Reference) ? $" · {a.Reference}" : "")</small>
+                            </span>
+                            <span class="ak-num">@a.AmountUsd.ToString("N2") USD</span>
+                            <form asp-action="ReverseReceiptApplication" method="post" class="d-inline"
+                                  asp-route-applicationId="@a.ApplicationId" asp-route-returnUrl="@currentReturnUrl"
+                                  data-no-spa="true" data-ptg-confirm="true"
+                                  data-ptg-confirm-title="@T("برگشت تطبیق", "Reverse application")"
+                                  data-ptg-confirm-message="@T("این تطبیق برگشت بخورد و مانده دریافت آزاد شود؟", "Reverse this application and free the receipt balance?")">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="ak-row-menu-btn"
+                                        title="@T("برگشت تطبیق", "Reverse application")" aria-label="@T("برگشت تطبیق", "Reverse application")"><i class="bi bi-arrow-counterclockwise"></i></button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (canApplyReceipt)
+        {
+            <div class="ak-detail-subsection" id="sale-apply-receipt">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((T("تطبیق دریافت با این فروش", "Apply a receipt to this sale"), (string?)T("دریافت مشتری قبلاً ثبت شده است؛ اینجا فقط مشخص می‌شود چه مقدار از آن روی این فاکتور می‌نشیند.", "The customer receipt is already recorded; this only says how much of it lands on this invoice.")))" />
+                <form asp-action="ApplyReceipt" method="post" class="ak-form"
+                      asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" data-sale-apply-form>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="saleIds" value="@Model.Id" />
+                    <div class="ak-form-grid">
+                        <div class="ak-field">
+                            <label class="ak-label" for="sale-apply-receipt-select">@T("دریافت با مانده تطبیق‌نشده", "Receipt with unapplied balance")</label>
+                            <select id="sale-apply-receipt-select" name="paymentTransactionId" class="ak-input" data-sale-apply-receipt>
+                                @foreach (var r in Model.ApplicableReceipts)
+                                {
+                                    <option value="@r.PaymentTransactionId" data-unapplied-usd="@r.UnappliedAmountUsd.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)">
+                                        @r.PaymentDate.ToDisplayDate() — @T("مانده", "Unapplied") @r.UnappliedAmount.ToString("N2") @T("از", "of") @r.Amount.ToString("N2") @r.Currency
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div class="ak-field">
+                            <label class="ak-label" for="sale-apply-amount">@T("مبلغ تطبیق (USD)", "Applied amount (USD)")</label>
+                            <input id="sale-apply-amount" type="number" step="0.01" min="0" class="ak-input ak-num" name="amounts" dir="ltr"
+                                   data-sale-apply-amount data-open-usd="@Model.ReceivableBalanceUsd.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)"
+                                   value="@firstReceiptSuggestion.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" />
+                            <div class="form-text">
+                                @T("مانده قابل دریافت این فروش:", "Outstanding on this sale:")
+                                <span class="ak-num">@Model.ReceivableBalanceUsd.ToString("N2")</span> USD
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ak-footer-actions">
+                        <button type="submit" class="btn btn-primary ak-save">@T("ثبت تطبیق", "Save application")</button>
+                    </div>
+                </form>
+            </div>
+        }
     </section>
 
     @if (!string.IsNullOrWhiteSpace(Model.Notes))
@@ -326,3 +404,38 @@
     <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            // The suggested amount is the smaller of the receipt's unapplied balance and this
+            // invoice's outstanding. The server re-checks both caps.
+            function init() {
+                var form = document.querySelector('[data-sale-apply-form]');
+                if (!form || form.dataset.saleApplyReady === '1') { return; }
+                form.dataset.saleApplyReady = '1';
+
+                var select = form.querySelector('[data-sale-apply-receipt]');
+                var amount = form.querySelector('[data-sale-apply-amount]');
+                if (!select || !amount) { return; }
+
+                var open = parseFloat(amount.getAttribute('data-open-usd')) || 0;
+
+                function suggest() {
+                    var option = select.options[select.selectedIndex];
+                    var budget = option ? parseFloat(option.getAttribute('data-unapplied-usd')) || 0 : 0;
+                    var take = Math.min(budget, open);
+                    amount.max = take;
+                    amount.value = take > 0 ? (Math.round(take * 100) / 100).toFixed(2) : '0';
+                }
+
+                select.addEventListener('change', suggest);
+                suggest();
+            }
+
+            document.addEventListener('DOMContentLoaded', init);
+            document.addEventListener('ptg:page-ready', init);
+            init();
+        })();
+    </script>
+}

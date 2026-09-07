@@ -14,33 +14,33 @@ body.ptg-modal-document :where(.table, .ds-table) > :not(caption) > * > * {
 
 body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) thead th,
 body.ptg-modal-document :where(.table, .ds-table) thead th {
-    padding: .9rem 1rem;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--ptg-border) !important;
     background: var(--ptg-table-header) !important;
-    color: var(--ptg-muted) !important;
-    font-size: .78rem;
-    font-weight: 500 !important;
-    line-height: 1.35;
+    color: var(--ptg-label) !important;
+    font-size: var(--font-table-head);
+    font-weight: var(--weight-table-head) !important;
+    line-height: var(--line-table-head);
     white-space: nowrap;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) tbody :where(td, th),
 body.ptg-modal-document :where(.table, .ds-table) tbody :where(td, th) {
-    padding: .85rem 1rem;
+    padding: 12px;
     color: var(--ptg-text);
-    font-size: .88rem;
-    line-height: 1.55;
+    font-size: var(--font-table-cell);
+    line-height: var(--line-table-cell);
 }
 
 body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) tbody tr:hover > :where(td, th),
 body.ptg-modal-document :where(.table, .ds-table) tbody tr:hover > :where(td, th) {
-    background: #FAFAFD !important;
+    background: var(--ptg-surface-soft) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) a:not(.btn),
 body.ptg-modal-document :where(.table, .ds-table) a:not(.btn) {
     color: var(--ptg-primary);
-    font-weight: 750;
+    font-weight: 500;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.table-empty, .empty-state, .ptg-empty-state),
@@ -55,7 +55,7 @@ body.ptg-modal-document :where(.table-empty, .empty-state, .ptg-empty-state) {
 
 body.boltz-shell.app-shell-authenticated :where(.form-check-input) {
     border-color: var(--ptg-border-strong);
-    border-radius: .4rem;
+    border-radius: 3px;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.form-check-input:checked) {

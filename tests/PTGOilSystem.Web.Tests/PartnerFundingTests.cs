@@ -21,6 +21,7 @@ using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Services.PartyStatements;
 using PTGOilSystem.Web.Services.Reporting;
 using Xunit;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -188,7 +189,8 @@ public sealed class PartnerFundingTests
                 db,
                 new PartyStatementPolicyResolver(),
                 new CompanyFlowDirectionResolver(),
-                new CompanyFlowBalanceService())
+                new CompanyFlowBalanceService(),
+                new PartyDirectory(db))
             .GetBalancesAsync(new ManagementReportFilterViewModel());
 
         var a = balances.Single(r => r.PartyType == PartyStatementPartyType.Partner && r.PartyId == scenario.PartnerA);
@@ -196,6 +198,33 @@ public sealed class PartnerFundingTests
 
         Assert.Equal(40_000m, a.ClosingBalanceUsd);
         Assert.Equal(-40_000m, b.ClosingBalanceUsd);
+    }
+
+    [Fact]
+    public async Task CompanyOverview_ExcludesPartnerCapital_FromOperationalReceivablesAndPayables()
+    {
+        await using var db = CreateDb();
+        var scenario = await SeedPartnershipAsync(db);
+        var controller = new ReportsController(db);
+
+        var overview = Assert.IsType<CompanyFinancialOverviewViewModel>(
+            Assert.IsType<ViewResult>(
+                await controller.CompanyOverview(new ManagementReportFilterViewModel())).Model);
+        var balances = Assert.IsType<ReceivablesPayablesReportViewModel>(
+            Assert.IsType<ViewResult>(
+                await controller.ReceivablesPayables(new ManagementReportFilterViewModel())).Model);
+
+        Assert.DoesNotContain(overview.TopReceivables, row => row.PartyType == nameof(PartyStatementPartyType.Partner));
+        Assert.DoesNotContain(overview.TopPayables, row => row.PartyType == nameof(PartyStatementPartyType.Partner));
+        Assert.Equal(PurchaseUsd, overview.TotalPayableUsd);
+
+        var partnerRows = balances.Rows
+            .Where(row => row.PartyType == nameof(PartyStatementPartyType.Partner))
+            .ToList();
+        Assert.Equal(2, partnerRows.Count);
+        Assert.All(partnerRows, row => Assert.Equal(-60_000m, row.BalanceUsd));
+        Assert.Contains(partnerRows, row => row.PartyId == scenario.PartnerA);
+        Assert.Contains(partnerRows, row => row.PartyId == scenario.PartnerB);
     }
 
     // ————————————————— صندوق شرکت و سود/زیان —————————————————
@@ -618,7 +647,8 @@ public sealed class PartnerFundingTests
                 new PartyStatementPolicyResolver(),
                 new CompanyFlowDirectionResolver(),
                 new CompanyFlowBalanceService(),
-                Options.Create(new PartyStatementOptions()))
+                Options.Create(new PartyStatementOptions()),
+                new PartyDirectory(db))
             .GetStatementAsync(
                 new PartyRef(PartyStatementPartyType.Partner, partnerId),
                 new PartyStatementFilter { IncludeOperationalColumns = false });

@@ -1492,6 +1492,10 @@ public partial class ReconciliationService : IReconciliationService
                 .Where(e => !e.IsCancelled
                     && e.ContractId.HasValue
                     && e.AmountUsd > 0m
+                    // PTG-P1-04 — مصرفی که خودِ اظهارنامه ساخته، «دوباره‌ثبت» نیست؛ همان
+                    // اظهارنامه است که به دفتر کل رسیده. اگر اینجا شمرده شود، این گزارش
+                    // برای هر اظهارنامهٔ سالم هشدارِ کاذب می‌دهد.
+                    && !e.CustomsDeclarationId.HasValue
                     && customsExpenseTypeIds.Contains(e.ExpenseTypeId))
                 .GroupBy(e => e.ContractId!.Value)
                 .Select(g => new

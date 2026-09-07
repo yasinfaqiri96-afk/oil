@@ -1,7 +1,8 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.Expenses;
 using PTGOilSystem.Web.Services.Audit;
@@ -20,6 +21,10 @@ public sealed class ExpenseRuleEngine : IExpenseRuleEngine
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private ILedgerPostingService? _ledgerPosting;
     private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
+    private IExpenseLedgerPoster? _expenseLedgerPoster;
+    private IExpenseLedgerPoster ExpenseLedger => _expenseLedgerPoster ??= new ExpenseLedgerPoster(Ledger);
+    // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است.
+    private readonly IExpenseSettlementValidator _settlementValidator = new ExpenseSettlementValidator();
 
     public ExpenseRuleEngine(
         ApplicationDbContext db,
@@ -107,6 +112,12 @@ public sealed class ExpenseRuleEngine : IExpenseRuleEngine
                 Description = description
             };
 
+            // PTG-P1-04 — هویت تسویه. مصرفِ قاعده‌محور طرف‌حسابِ بیرونی و حساب نقدی ندارد؛
+            // دفتر کلِ جدید هم برای همین شکل سطرِ طرف نمی‌نویسد و حسابِ مقابل را از نوعِ
+            // مصرف می‌گیرد.
+            ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+            _settlementValidator.Validate(expense);
+
             _db.ExpenseTransactions.Add(expense);
             await _db.SaveChangesAsync(ct);
 
@@ -116,23 +127,13 @@ public sealed class ExpenseRuleEngine : IExpenseRuleEngine
                 await _expenseAccounting.TryPostExpenseAsync(expense, ct);
             }
 
-            var ledgerEntry = Ledger.Post(new LedgerPostingRequest
+            var ledgerEntry = ExpenseLedger.Post(new ExpenseLedgerRequest
             {
-                EntryDate = expense.ExpenseDate,
-                Side = LedgerSide.Debit,
-                AmountUsd = expense.AmountUsd,
-                Currency = SystemCurrency.BaseCurrencyCode,
-                SourceAmount = expense.Amount,
-                SourceCurrencyCode = expense.Currency,
-                AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                AppliedFxRateDate = conversion.EffectiveDate.Date,
-                AppliedFxRateSource = conversion.SourceDescription,
+                Expense = expense,
                 Description = $"ثبت هزینه Rule-Based {rule.Name}",
-                SourceType = "Expense",
-                SourceId = expense.Id,
                 Reference = BuildLedgerReference(rule, expense),
-                ContractId = expense.ContractId,
-                ShipmentId = expense.ShipmentId
+                FxRateDate = conversion.EffectiveDate.Date,
+                FxRateSource = conversion.SourceDescription
             });
             await _db.SaveChangesAsync(ct);
 

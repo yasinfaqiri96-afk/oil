@@ -11,6 +11,192 @@ namespace PTGOilSystem.Web.Tests;
 public class ReportsControllerTests
 {
     [Fact]
+    public async Task CashFlow_Reconciles_Opening_Period_And_Closing_Without_Double_Counting_Or_Partner_Cash()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Companies.Add(new Company { Id = 2, Code = "OTHER", Name = "Other" });
+        db.CashAccounts.AddRange(
+            new CashAccount { Id = 1, Code = "RUB-1", Name = "Ruble Bank", Currency = "RUB", CompanyId = 1, IsActive = true },
+            new CashAccount { Id = 2, Code = "USD-2", Name = "Other Bank", Currency = "USD", CompanyId = 2, IsActive = true });
+        db.ExpenseTypes.Add(new ExpenseType { Id = 70, Code = "CASH", Name = "Cash expense", NamePersian = "مصرف نقدی" });
+        db.ExpenseTransactions.AddRange(
+            new ExpenseTransaction
+            {
+                Id = 70,
+                ExpenseTypeId = 70,
+                ExpenseDate = new DateTime(2026, 4, 12),
+                SettlementMode = ExpenseSettlementMode.PaidImmediately,
+                CashAccountId = 1,
+                Amount = 4_500m,
+                Currency = "RUB",
+                AmountUsd = 50m
+            },
+            new ExpenseTransaction
+            {
+                Id = 71,
+                ExpenseTypeId = 70,
+                ExpenseDate = new DateTime(2026, 4, 13),
+                SettlementMode = ExpenseSettlementMode.PaidImmediately,
+                CashAccountId = 1,
+                Amount = 2_250m,
+                Currency = "RUB",
+                AmountUsd = 25m
+            });
+        db.PaymentTransactions.AddRange(
+            new PaymentTransaction
+            {
+                Id = 70,
+                PaymentDate = new DateTime(2026, 3, 31),
+                Direction = PaymentDirection.In,
+                PaymentKind = PaymentKind.ManualReceipt,
+                CashAccountId = 1,
+                Amount = 90_000m,
+                Currency = "RUB",
+                AmountUsd = 1_000m
+            },
+            new PaymentTransaction
+            {
+                Id = 71,
+                PaymentDate = new DateTime(2026, 4, 10),
+                Direction = PaymentDirection.In,
+                PaymentKind = PaymentKind.CustomerReceipt,
+                CashAccountId = 1,
+                CustomerId = 1,
+                Amount = 45_000m,
+                Currency = "RUB",
+                AmountUsd = 500m
+            },
+            new PaymentTransaction
+            {
+                Id = 72,
+                PaymentDate = new DateTime(2026, 4, 11),
+                Direction = PaymentDirection.Out,
+                PaymentKind = PaymentKind.SupplierPayment,
+                CashAccountId = 1,
+                SupplierId = 1,
+                Amount = 9_000m,
+                Currency = "RUB",
+                AmountUsd = 100m
+            },
+            new PaymentTransaction
+            {
+                Id = 73,
+                PaymentDate = new DateTime(2026, 4, 13),
+                Direction = PaymentDirection.Out,
+                PaymentKind = PaymentKind.CommissionPayment,
+                CashAccountId = 1,
+                ExpenseTransactionId = 71,
+                Amount = 2_250m,
+                Currency = "RUB",
+                AmountUsd = 25m
+            },
+            new PaymentTransaction
+            {
+                Id = 74,
+                PaymentDate = new DateTime(2026, 4, 14),
+                Direction = PaymentDirection.Out,
+                PaymentKind = PaymentKind.SupplierPayment,
+                FundingSource = PaymentFundingSource.Partner,
+                CompanyId = 1,
+                ContractId = 1,
+                SupplierId = 1,
+                Amount = 200m,
+                Currency = "USD",
+                AmountUsd = 200m
+            },
+            new PaymentTransaction
+            {
+                Id = 75,
+                PaymentDate = new DateTime(2026, 4, 14),
+                Direction = PaymentDirection.Out,
+                PaymentKind = PaymentKind.SupplierPayment,
+                FundingSource = PaymentFundingSource.Partner,
+                CompanyId = 2,
+                SupplierId = 1,
+                Amount = 300m,
+                Currency = "USD",
+                AmountUsd = 300m
+            },
+            new PaymentTransaction
+            {
+                Id = 76,
+                PaymentDate = new DateTime(2026, 4, 15),
+                Direction = PaymentDirection.In,
+                PaymentKind = PaymentKind.ManualReceipt,
+                CashAccountId = 2,
+                Amount = 999m,
+                Currency = "USD",
+                AmountUsd = 999m
+            });
+        await db.SaveChangesAsync();
+
+        var result = await new ReportsController(db).CashFlow(new ManagementReportFilterViewModel
+        {
+            FromDate = new DateTime(2026, 4, 1),
+            ToDate = new DateTime(2026, 4, 30),
+            CompanyId = 1
+        });
+
+        var model = Assert.IsType<CashFlowReportViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Equal(1_000m, model.OpeningBalanceUsd);
+        Assert.Equal(500m, model.TotalInflowUsd);
+        Assert.Equal(175m, model.TotalOutflowUsd);
+        Assert.Equal(325m, model.NetCashFlowUsd);
+        Assert.Equal(1_325m, model.ClosingBalanceUsd);
+        Assert.Equal(200m, model.PartnerFundedOutflowUsd);
+        Assert.Equal(1, model.PartnerFundedCount);
+
+        var account = Assert.Single(model.AccountRows);
+        Assert.Equal("Ruble Bank", account.CashAccountName);
+        Assert.Equal("RUB", account.Currency);
+        Assert.Equal(1_000m, account.OpeningUsd);
+        Assert.Equal(1_325m, account.ClosingUsd);
+
+        var month = Assert.Single(model.PeriodRows);
+        Assert.Equal("2026-04", month.Label);
+        Assert.Equal(1_325m, month.ClosingUsd);
+        Assert.Equal(4, month.Count);
+    }
+
+    [Fact]
+    public async Task CashFlow_CashAccount_Filter_Does_Not_Show_Outside_Partner_Funding()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.CashAccounts.Add(new CashAccount { Id = 1, Code = "CASH", Name = "Cash", Currency = "USD", CompanyId = 1, IsActive = true });
+        db.PaymentTransactions.Add(new PaymentTransaction
+        {
+            Id = 80,
+            PaymentDate = new DateTime(2026, 4, 1),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.SupplierPayment,
+            FundingSource = PaymentFundingSource.Partner,
+            CompanyId = 1,
+            ContractId = 1,
+            SupplierId = 1,
+            Amount = 200m,
+            Currency = "USD",
+            AmountUsd = 200m
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new ReportsController(db).CashFlow(new ManagementReportFilterViewModel { CashAccountId = 1 });
+        var model = Assert.IsType<CashFlowReportViewModel>(Assert.IsType<ViewResult>(result).Model);
+
+        Assert.Equal(0m, model.PartnerFundedOutflowUsd);
+        Assert.Equal(0, model.PartnerFundedCount);
+    }
+
+    [Fact]
     public async Task ContractPnl_Uses_Priced_Loading_Snapshots_And_Separates_Pending_Loadings()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -1514,6 +1700,18 @@ public class ReportsControllerTests
         Assert.Equal(600m, balances.SupplierPayableUsd);
         Assert.Equal(250m, balances.ServiceProviderPayableUsd);
         Assert.Equal(300m, balances.SarrafBalanceUsd);
+
+        // «سررسید» فقط همان مانده‌ها را دسته‌بندی می‌کند؛ هیچ رقمی نباید گم یا اضافه شود.
+        var aging = Assert.IsType<PartyAgingReportViewModel>(
+            Assert.IsType<ViewResult>(await controller.PartyAging(filter)).Model);
+        Assert.Equal(balances.TotalReceivableUsd, aging.TotalReceivableUsd);
+        Assert.Equal(balances.TotalPayableUsd, aging.TotalPayableUsd);
+        Assert.Equal(balances.Rows.Count(r => r.BalanceUsd != 0m), aging.Rows.Count);
+        Assert.All(aging.Rows, row => Assert.True(row.ReceivableUsd == 0m || row.PayableUsd == 0m));
+        // حسابی که همین دوره حرکت داشته، در کهنه‌ترین دسته نمی‌افتد.
+        Assert.All(
+            aging.Rows.Where(r => r.LastEntryDate.HasValue && r.DaysIdle <= 30),
+            row => Assert.Equal(PartyAgingBucket.UpTo30, row.Bucket));
 
         var inventory = Assert.IsType<InventoryOperationsReportViewModel>(
             Assert.IsType<ViewResult>(await controller.InventoryOperations(filter)).Model);

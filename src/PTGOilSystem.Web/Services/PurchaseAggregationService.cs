@@ -232,9 +232,13 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
             return [];
         }
 
+        // مصرفِ ساخته‌شده از اظهارنامهٔ گمرکی هم LoadingRegisterId می‌گیرد، ولی هیچ‌وقت
+        // آینهٔ فیلدهای درون‌خطیِ حمل/گدام/سایر/خط‌آهن نیست. اگر اینجا شمرده شود، وجودِ یک
+        // اظهارنامه باعث می‌شود آن مصارفِ واقعی از گزارش حذف شوند و مصرف کمتر از واقع بیاید.
         var ids = await _db.ExpenseTransactions
             .AsNoTracking()
             .Where(e => !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
                 && e.LoadingRegisterId.HasValue
                 && loadingRegisterIds.Contains(e.LoadingRegisterId.Value))
             .Select(e => e.LoadingRegisterId!.Value)

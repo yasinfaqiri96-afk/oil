@@ -96,13 +96,26 @@ else
 
             <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
 
-            <div class="ak-form-grid">
-                <span><i class="bi bi-truck-front"></i> @(Model.TruckDispatchId.HasValue ? Model.TruckDispatchLabel : (Model.TransportLegId.HasValue ? Model.TransportLegLabel : Model.LoadingRegisterLabel))</span>
-                <span><i class="bi bi-file-earmark-text"></i> @Model.ContractNumber</span>
-                <span><i class="bi bi-box-seam"></i> @Model.ProductName</span>
+            @* منبع اعلامیه فقط زمینه است، نه فیلد؛ نوار خلاصهٔ خواندنی به جای گرید فرم. *@
+            <div class="ak-summary">
+                <article class="ak-field is-wide">
+                    <span>@UiText.T(Context, "منبع", "Source")</span>
+                    <strong>@(Model.TruckDispatchId.HasValue ? Model.TruckDispatchLabel : (Model.TransportLegId.HasValue ? Model.TransportLegLabel : Model.LoadingRegisterLabel))</strong>
+                </article>
+                <article class="ak-field">
+                    <span>@UiText.T(Context, "قرارداد", "Contract")</span>
+                    <strong>@Model.ContractNumber</strong>
+                </article>
+                <article class="ak-field">
+                    <span>@UiText.T(Context, "محصول", "Product")</span>
+                    <strong>@Model.ProductName</strong>
+                </article>
                 @if (!string.IsNullOrWhiteSpace(Model.WagonNumber))
                 {
-                    <span><i class="bi bi-train-front"></i> @Model.WagonNumber</span>
+                    <article class="ak-field">
+                        <span>@UiText.T(Context, "واگن / موتر", "Wagon / truck")</span>
+                        <strong>@Model.WagonNumber</strong>
+                    </article>
                 }
             </div>
 
@@ -226,6 +239,62 @@ else
                         </button>
                     </div>
 
+                    @* PTG-P1-04 — تسویه جدا برای دو جنسِ اظهارنامه: حقوق دولتی در گمرک نقد
+                       می‌شود و کمیشنکار اغلب بدهی می‌ماند. تا وقتی انتخاب نشود، هزینه به
+                       دفتر کل نمی‌رود و در گزارش‌ها «طبقه‌بندی‌نشده» می‌ماند — حدس زده
+                       نمی‌شود. *@
+                    <div class="ak-form-grid mt-4" data-customs-settlement>
+                        <div class="ak-field">
+                            <label asp-for="DutySettlementMode" class="ak-label"></label>
+                            <select asp-for="DutySettlementMode" class="ak-input" data-customs-duty-mode>
+                                <option value="@((int)ExpenseSettlementMode.Unknown)">انتخاب نشده</option>
+                                <option value="@((int)ExpenseSettlementMode.PaidImmediately)">نقد پرداخت شد</option>
+                                <option value="@((int)ExpenseSettlementMode.Payable)">بدهی ماند</option>
+                                <option value="@((int)ExpenseSettlementMode.NonCash)">بدون حرکت پول</option>
+                            </select>
+                            <span asp-validation-for="DutySettlementMode" class="ak-field-error"></span>
+                        </div>
+                        <div class="ak-field" data-customs-duty-cash>
+                            <label asp-for="DutyCashAccountId" class="ak-label"></label>
+                            <select asp-for="DutyCashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="DutyCashAccountId" class="ak-field-error"></span>
+                        </div>
+                        <div class="ak-field" data-customs-duty-party>
+                            <label asp-for="DutyServiceProviderId" class="ak-label"></label>
+                            <select asp-for="DutyServiceProviderId" asp-items="ViewBag.CustomsBrokers" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="DutyServiceProviderId" class="ak-field-error"></span>
+                        </div>
+
+                        <div class="ak-field">
+                            <label asp-for="ServiceSettlementMode" class="ak-label"></label>
+                            <select asp-for="ServiceSettlementMode" class="ak-input" data-customs-service-mode>
+                                <option value="@((int)ExpenseSettlementMode.Unknown)">انتخاب نشده</option>
+                                <option value="@((int)ExpenseSettlementMode.Payable)">بدهی ماند</option>
+                                <option value="@((int)ExpenseSettlementMode.PaidImmediately)">نقد پرداخت شد</option>
+                                <option value="@((int)ExpenseSettlementMode.NonCash)">بدون حرکت پول</option>
+                            </select>
+                            <span asp-validation-for="ServiceSettlementMode" class="ak-field-error"></span>
+                        </div>
+                        <div class="ak-field" data-customs-service-cash>
+                            <label asp-for="ServiceCashAccountId" class="ak-label"></label>
+                            <select asp-for="ServiceCashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="ServiceCashAccountId" class="ak-field-error"></span>
+                        </div>
+                        <div class="ak-field" data-customs-service-party>
+                            <label asp-for="ServiceProviderId" class="ak-label"></label>
+                            <select asp-for="ServiceProviderId" asp-items="ViewBag.CustomsBrokers" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="ServiceProviderId" class="ak-field-error"></span>
+                        </div>
+                    </div>
+
                     <template id="customsRowTemplate">
                         <tr class="customs-item-row">
                             <td>
@@ -265,6 +334,44 @@ else
 
 @section Scripts {
 <script>
+// PTG-P1-04 — حساب نقدی فقط برای «نقد» و طرف‌حساب فقط برای «بدهی» دیده می‌شوند؛ در بقیهٔ
+// حالت‌ها هم پنهان می‌شوند و هم خالی، وگرنه سند با فیلدِ اضافه ذخیره می‌شد و اعتبارسنجِ
+// سرور ردش می‌کرد بی‌آنکه کاربر بفهمد کدام فیلد زیادی است.
+(function () {
+    var root = document.querySelector('[data-customs-settlement]');
+    if (!root) return;
+
+    var PAID = '2';
+    var PAYABLE = '1';
+
+    function bind(modeSelector, cashSelector, partySelector) {
+        var mode = root.querySelector(modeSelector);
+        var cash = root.querySelector(cashSelector);
+        var party = root.querySelector(partySelector);
+        if (!mode || !cash || !party) return;
+
+        function sync() {
+            var isPaid = mode.value === PAID;
+            var isPayable = mode.value === PAYABLE;
+            cash.classList.toggle('d-none', !isPaid);
+            party.classList.toggle('d-none', !isPayable);
+            if (!isPaid) {
+                var cashSelect = cash.querySelector('select');
+                if (cashSelect) cashSelect.value = '';
+            }
+            if (!isPayable) {
+                var partySelect = party.querySelector('select');
+                if (partySelect) partySelect.value = '';
+            }
+        }
+
+        mode.addEventListener('change', sync);
+        sync();
+    }
+
+    bind('[data-customs-duty-mode]', '[data-customs-duty-cash]', '[data-customs-duty-party]');
+    bind('[data-customs-service-mode]', '[data-customs-service-cash]', '[data-customs-service-party]');
+})();
 (function () {
     var table = document.getElementById('customsItemsTable');
     var body = document.getElementById('customsItemsBody');

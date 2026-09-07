@@ -19,7 +19,10 @@
     // Payment method controls (نقد/بانک یا از طریق صراف)
     const paymentMethodInput = document.getElementById("paymentMethodInput");
     const paymentMethodChoices = Array.from(document.querySelectorAll("[data-payment-method-choice]"));
-    const cashbankSection = document.querySelector("[data-payment-cashbank-section]");
+    // فیلدهای مسیر نقد/بانک در دو fieldset پخش شده‌اند (فیلدهای اصلی و «جزئیات بیشتر»)؛
+    // هر دو با هم نمایش/مخفی و enable/disable می‌شوند.
+    const cashbankSections = Array.from(document.querySelectorAll("[data-payment-cashbank-section]"));
+    const cashbankOnlyControls = Array.from(document.querySelectorAll("[data-cashbank-only]"));
     const sarrafSection = document.querySelector("[data-payment-sarraf-section]");
 
     // فیلدها و پنل خلاصهٔ «پرداخت از طریق صراف» (محاسبهٔ زنده، فقط نمایشی).
@@ -468,16 +471,22 @@
             choice.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
 
-        // Cash/Bank section
-        if (cashbankSection) {
+        // کنترل‌هایی که بیرون از fieldset نقد/بانک نشسته‌اند ولی فقط به همان مسیر تعلق دارند
+        // (رادیوهای FundingSource). در حالت صراف disable می‌شوند تا مثل قبل post نشوند.
+        cashbankOnlyControls.forEach(control => {
+            control.disabled = method === 1;
+        });
+
+        // Cash/Bank sections
+        cashbankSections.forEach(section => {
             if (method === 1) {
-                cashbankSection.classList.add('d-none');
-                try { cashbankSection.disabled = true; } catch (e) { cashbankSection.setAttribute('disabled', 'disabled'); }
+                section.classList.add('d-none');
+                try { section.disabled = true; } catch (e) { section.setAttribute('disabled', 'disabled'); }
             } else {
-                cashbankSection.classList.remove('d-none');
-                try { cashbankSection.disabled = false; } catch (e) { cashbankSection.removeAttribute('disabled'); }
+                section.classList.remove('d-none');
+                try { section.disabled = false; } catch (e) { section.removeAttribute('disabled'); }
             }
-        }
+        });
 
         // Sarraf section
         if (sarrafSection) {
@@ -782,6 +791,12 @@
     directionChoices.forEach(choice => {
         choice.addEventListener("click", function () {
             if (!setSelectValue(directionSelect, choice.dataset.directionValue)) {
+                return;
+            }
+
+            // در حالت صرافی، جهت سند همان جهت حواله صراف است (کلید جداگانه حذف شده).
+            if (sarrafSection && !sarrafSection.classList.contains("d-none")) {
+                applySarrafDirection(choice.dataset.directionValue, true);
                 return;
             }
 

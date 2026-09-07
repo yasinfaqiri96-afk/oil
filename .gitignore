@@ -238,3 +238,12 @@ graphify-out/
 # Reference material only; no view, CSS, JS or C# references them.
 /*_ Free Photo.html
 /*_ Free Photo_files/
+
+# Commercial Persian font packs (raw vendor dumps, ~20MB, not referenced by any CSS/View).
+/src/PTGOilSystem.Web/wwwroot/vendor/fonts/IranSansX Pro/
+/src/PTGOilSystem.Web/wwwroot/vendor/fonts/AIranianSans/
+/src/PTGOilSystem.Web/wwwroot/vendor/fonts/iransans/
+/src/PTGOilSystem.Web/wwwroot/vendor/fonts/*.zip
+
+# Runtime user uploads (real business documents, not source).
+/src/PTGOilSystem.Web/wwwroot/uploads/

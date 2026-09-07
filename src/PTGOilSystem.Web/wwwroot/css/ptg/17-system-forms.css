@@ -9,7 +9,7 @@ body.ptg-modal-document {
        (bg/soft/border/text/blue/pad و field-height/field-radius) هیچ مصرف‌کننده‌ای
        نداشت و فقط یک منبع توکن موازی در کنار 01-tokens.css به نظر می‌رسید.
        ارتفاع و گردی فیلد تنها از --ak-control-height و --ptg-radius-input می‌آید. */
-    --ptg-system-form-line: #F5F7FA;
+    --ptg-system-form-line: #F2F5FC;
     --ptg-system-form-muted: #6A7B93;
     --ptg-system-form-gap: .72rem;
 }
@@ -53,7 +53,7 @@ body.boltz-shell.app-shell-authenticated :is(.validation-summary-errors, .contra
 body.ptg-modal-document :is(.validation-summary-errors, .contract-validation-summary, .operations-validation-summary):not(:empty) {
     padding: .65rem .8rem !important;
     border: 1px solid #FFD4DC !important;
-    border-radius: 12px !important;
+    border-radius: 8px !important;
     background: #FFF7F9 !important;
 }
 
@@ -70,7 +70,7 @@ body.ptg-modal-document :is(.form-actions, .app-modal-footer) {
 body.boltz-shell:is(.action-create, .action-edit) .boltz-content .page-header,
 body.ptg-modal-document:is(.action-create, .action-edit) .page-header {
     padding: .82rem 1rem !important;
-    border-radius: 16px !important;
+    border-radius: 8px !important;
 }
 
 body.boltz-shell:is(.action-create, .action-edit) .boltz-content .page-title,
@@ -144,7 +144,7 @@ body.boltz-shell:is(.controller-accountstatements, .controller-inventory).action
     gap: 1rem !important;
     padding: 1.05rem 1.5rem !important;
     border: 0 !important;
-    border-radius: 16px !important;
+    border-radius: 8px !important;
     background: linear-gradient(135deg, var(--ptg-primary) 0%, var(--ptg-primary-dark) 100%) !important;
     color: #ffffff !important;
 }
@@ -168,7 +168,7 @@ body.boltz-shell:is(.controller-accountstatements, .controller-inventory).action
 body.boltz-shell:is(.controller-dispatch, .controller-sales, .controller-expenses, .controller-lossevents, .controller-customsdeclarations):is(.action-create, .action-edit) .contract-section-title {
     margin: 0 0 .7rem !important;
     padding: 0 0 .5rem !important;
-    border-bottom: 1px solid #E5E7EB !important;
+    border-bottom: 1px solid #E7E7E7 !important;
     color: #1f344f !important;
     font-size: .92rem !important;
     font-weight: 800 !important;
@@ -220,7 +220,7 @@ body.boltz-shell.controller-inventorytransportlegs:is(.action-create, .action-ed
 body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-index .boltz-content .page-header {
     min-height: 0 !important;
     padding: .58rem .78rem !important;
-    border-radius: 12px !important;
+    border-radius: 8px !important;
     box-shadow: none !important;
 }
 
@@ -261,7 +261,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     margin: 0 auto !important;
     padding: .65rem .65rem .55rem !important;
     border: 1px solid var(--fara-form-border) !important;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
     background: #ffffff !important;
     box-shadow: none !important;
     color: var(--fara-form-text) !important;
@@ -404,8 +404,8 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     align-items: flex-end;
     padding: .85rem 1rem;
     border: 1px solid var(--bs-border-color, #e3e7ec);
-    border-radius: 10px;
-    background: var(--bs-tertiary-bg, #F5F7FA);
+    border-radius: 8px;
+    background: var(--bs-tertiary-bg, #F2F5FC);
 }
 .inventory-transport-transfer-page .transfer-panel {
     margin-top: .5rem;
@@ -414,6 +414,6 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     margin-top: 1rem;
     padding: 1rem;
     border: 1px dashed var(--bs-border-color, #cfd6de);
-    border-radius: 10px;
-    background: var(--bs-tertiary-bg, #F5F7FA);
+    border-radius: 8px;
+    background: var(--bs-tertiary-bg, #F2F5FC);
 }

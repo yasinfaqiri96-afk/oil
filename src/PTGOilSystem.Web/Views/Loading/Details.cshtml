@@ -140,6 +140,7 @@
 
     var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl });
     var receiptAction = new AkHeaderMenuItem { Label = T("ثبت رسید", "Register receipt"), ModalTarget = "loadingReceiptModal", Icon = "bi-box-arrow-in-down" };
+    var transportAction = new AkHeaderMenuItem { Label = T("تبدیل به حمل", "Convert to transport"), Href = Url.Action("FromLoading", "Transports", new { loadingRegisterId = Model.Id }), Icon = "bi-truck" };
     var customsAction = new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" };
     var editAction = new AkHeaderMenuItem { Label = T("ویرایش", "Edit"), Href = editUrl, Icon = "bi-pencil-square" };
     var expenseAction = new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "loadingExpensesModal", Icon = "bi-receipt-cutoff" };
@@ -148,10 +149,11 @@
     // تمام عملیات صفحه در هدر جمع می‌شوند: گام بعدی واضح است، یک اکشن مستقیم
     // کنارش می‌ماند و گزینه‌های فرعی در منوی سه‌نقطه قرار می‌گیرند.
     var primaryAction = Model.CanRegisterReceipt ? receiptAction : customsAction;
-    ViewData["AkHeaderCompanionAction"] = Model.CanRegisterReceipt ? customsAction : editAction;
+    ViewData["AkHeaderCompanionAction"] = Model.CanRegisterReceipt ? transportAction : editAction;
     var headerMenu = new List<AkHeaderMenuItem>
     {
         editAction,
+        customsAction,
         expenseAction,
         lossAction,
         new() { Label = T("نمای قرارداد", "Contract journey"), Href = contractUrl, Icon = "bi-diagram-3" }

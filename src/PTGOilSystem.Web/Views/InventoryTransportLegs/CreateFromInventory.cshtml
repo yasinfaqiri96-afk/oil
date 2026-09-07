@@ -167,11 +167,13 @@
                 </table>
                 <div class="ak-empty" data-source-empty @(sources.Count > 0 ? "hidden" : null)>پس از انتخاب مبدأ، موجودی قابل حمل اینجا نمایش داده می‌شود.</div>
             </div>
-            <div class="ak-table-total">جمع انتخاب‌شده: <strong data-selected-total>0.0000</strong> MT</div>
+            @* دو عدد جدا: ظرفیتِ منابع تیک‌خورده، و سهمی که واقعاً کسر می‌شود (بعد از وارد کردن مقدار موترها). *@
+            <div class="ak-table-total">جمع انتخاب‌شده: <strong data-selected-total>0.0000</strong> MT <span class="ak-section-desc">· کسر خودکار: <strong data-selected-consumed>0.0000</strong> MT</span></div>
         </section>
 
         <section class="ak-form-section">
             <h2 class="ak-section-title"><i class="bi bi-truck"></i> تقسیم بین وسایط</h2>
+            <p class="ak-note">«تاریخ بارگیری» هر ردیف اختیاری است؛ خالی یعنی تاریخ سند. اگر یک موتر در همین سند چند سفر دارد، برای هر سفر تاریخ جدا بگذارید.</p>
             <div asp-validation-for="Vehicles" class="ak-field-error"></div>
             <div class="ak-summary" data-alloc-bar>
                 <div class="ak-field" data-alloc-item><span>مقدار انتخاب‌شده</span><strong data-alloc-selected>0.0000</strong> MT</div>
@@ -180,13 +182,14 @@
             </div>
             <div class="ak-table-wrap">
                 <table class="ak-table" data-vehicle-table>
-                    <thead><tr><th>نوع</th><th>وسیله</th><th>سیمیر/CMR</th><th>راننده</th><th>مقدار MT</th><th>حمل‌کننده</th><th>شرکت / دارایی</th><th></th></tr></thead>
+                    <thead><tr><th>نوع</th><th>تاریخ بارگیری</th><th>وسیله</th><th>سیمیر/CMR</th><th>راننده</th><th>مقدار MT</th><th>حمل‌کننده</th><th>شرکت / دارایی</th><th></th></tr></thead>
                     <tbody data-vehicle-rows>
                     @for (var i = 0; i < Model.Vehicles.Count; i++)
                     {
                         var vehicle = Model.Vehicles[i];
                         <tr data-vehicle-row data-index="@i">
                             <td><select class="ak-input" name="Vehicles[@i].TransportType" data-vehicle-type><option value="3" selected="@(vehicle.TransportType == LoadingTransportType.Truck ? "selected" : null)">موتر</option><option value="2" selected="@(vehicle.TransportType == LoadingTransportType.Wagon ? "selected" : null)">واگن</option><option value="1" selected="@(vehicle.TransportType == LoadingTransportType.Vessel ? "selected" : null)">کشتی</option></select></td>
+                            <td><input class="ak-input" type="date" name="Vehicles[@i].LoadedDate" value="@(vehicle.LoadedDate?.ToString("yyyy-MM-dd"))" title="خالی = تاریخ سند" data-vehicle-date /></td>
                             <td><input class="ak-input" type="text" maxlength="50" list="itf-truck-list" name="Vehicles[@i].TruckPlateNumberInput" value="@vehicle.TruckPlateNumberInput" placeholder="انتخاب یا تایپ نمبر پلیت" autocomplete="off" data-truck-plate /><input class="ak-input" type="text" maxlength="50" list="itf-wagon-list" name="Vehicles[@i].WagonNumberInput" value="@vehicle.WagonNumberInput" placeholder="انتخاب یا تایپ نمبر واگن" autocomplete="off" data-wagon-number /><select class="ak-input" name="Vehicles[@i].VesselId" data-vessel-id><option value="">انتخاب کشتی</option>@foreach (var item in vessels) { <option value="@item.Id" selected="@(vehicle.VesselId == item.Id ? "selected" : null)">@item.Name</option> }</select><span class="ak-section-desc" hidden data-asset-vehicle-note>وسیله از دارایی عملیاتی تعیین می‌شود</span></td>
                             <td><input class="ak-input" type="text" maxlength="100" name="Vehicles[@i].RwbNo" value="@vehicle.RwbNo" placeholder="سیمیر" data-rwb /></td>
                             <td><input class="ak-input" type="text" maxlength="200" list="itf-driver-list" name="Vehicles[@i].DriverNameInput" value="@vehicle.DriverNameInput" placeholder="انتخاب یا تایپ نام راننده" autocomplete="off" data-driver /></td>
@@ -235,6 +238,7 @@
 <template data-vehicle-template>
     <tr data-vehicle-row data-index="__index__">
         <td><select class="ak-input" name="Vehicles[__index__].TransportType" data-vehicle-type><option value="3">موتر</option><option value="2">واگن</option><option value="1">کشتی</option></select></td>
+        <td><input class="ak-input" type="date" name="Vehicles[__index__].LoadedDate" title="خالی = تاریخ سند" data-vehicle-date /></td>
         <td><input class="ak-input" type="text" maxlength="50" list="itf-truck-list" name="Vehicles[__index__].TruckPlateNumberInput" placeholder="انتخاب یا تایپ نمبر پلیت" autocomplete="off" data-truck-plate /><input class="ak-input" type="text" maxlength="50" list="itf-wagon-list" name="Vehicles[__index__].WagonNumberInput" placeholder="انتخاب یا تایپ نمبر واگن" autocomplete="off" data-wagon-number /><select class="ak-input" name="Vehicles[__index__].VesselId" data-vessel-id><option value="">انتخاب کشتی</option>@foreach (var item in vessels) { <option value="@item.Id">@item.Name</option> }</select><span class="ak-section-desc" hidden data-asset-vehicle-note>وسیله از دارایی عملیاتی تعیین می‌شود</span></td>
         <td><input class="ak-input" type="text" maxlength="100" name="Vehicles[__index__].RwbNo" placeholder="سیمیر" data-rwb /></td>
         <td><input class="ak-input" type="text" maxlength="200" list="itf-driver-list" name="Vehicles[__index__].DriverNameInput" placeholder="انتخاب یا تایپ نام راننده" autocomplete="off" data-driver /></td>

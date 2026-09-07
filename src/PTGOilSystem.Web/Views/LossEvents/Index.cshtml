@@ -96,10 +96,10 @@
                                     <i class="bi @(isSurplus ? "bi-arrow-up-circle" : "bi-arrow-down-circle")" aria-hidden="true"></i>
                                     @varianceLabel
                                 </span>
-                                <span class="col-ltr @(isSurplus ? "finance-positive" : "finance-negative")">@item.DifferenceQuantityMt.ToString("N4") MT</span>
+                                <span class="col-ltr @(isSurplus ? "finance-positive" : "finance-negative")">@NumberDisplay.Number(item.DifferenceQuantityMt, 4) MT</span>
                             </td>
                             <td>
-                                <span class="col-ltr">@item.ChargeableLossMt.ToString("N2") MT</span>
+                                <span class="col-ltr">@NumberDisplay.Number(item.ChargeableLossMt, 2) MT</span>
                             </td>
                             <td class="col-status"><span class="ak-status @(needsReview ?"is-pending" : "is-active")" title="@statusText">@statusText</span></td>
                             <td class="col-actions">

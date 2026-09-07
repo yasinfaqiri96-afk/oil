@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +15,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
 using PTGOilSystem.Web.Services.Time;
@@ -37,6 +38,9 @@ public partial class ExpensesController : Controller
     private readonly IFormTokenGuard _formTokens;
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private readonly ILedgerPostingService _ledger;
+    private readonly IExpenseLedgerPoster _expenseLedger;
+    // PTG-P1-04 — تنها مالکِ قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد».
+    private readonly IExpenseSettlementValidator _settlementValidator;
     private const int DefaultListLimit = 100;
     private const int LookupLimit = 200;
     private const string DefaultWagonRentExpenseName = "Wagon Rent";
@@ -52,7 +56,9 @@ public partial class ExpensesController : Controller
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null,
         IAfghanistanBusinessClock? businessClock = null,
         IFormTokenGuard? formTokens = null,
-        ILedgerPostingService? ledgerPosting = null)
+        ILedgerPostingService? ledgerPosting = null,
+        IExpenseLedgerPoster? expenseLedger = null,
+        IExpenseSettlementValidator? settlementValidator = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
@@ -63,6 +69,8 @@ public partial class ExpensesController : Controller
         _expenseAccounting = expenseAccounting;
         _formTokens = formTokens ?? new FormTokenGuard(db);
         _ledger = ledgerPosting ?? new LedgerPostingService(db);
+        _expenseLedger = expenseLedger ?? new ExpenseLedgerPoster(_ledger);
+        _settlementValidator = settlementValidator ?? new ExpenseSettlementValidator();
     }
 
     public ExpensesController(
@@ -87,6 +95,46 @@ public partial class ExpensesController : Controller
 
         localReturnUrl = string.Empty;
         return false;
+    }
+
+    /// <summary>
+    /// PTG-P1-04 — هویت تسویه از فرم. انتخابِ صریحِ کاربر مقدم است و نبودِ انتخاب همان
+    /// رفتارِ قبلی را نگه می‌دارد: تشخیص از طرف‌حسابِ خودِ سند.
+    ///
+    /// حالتِ «پرداخت‌شده» تنها چیزی است که فرم پیش از فاز ۱ نمی‌توانست بگوید، و حساب نقدی
+    /// فقط در همین حالت روی سند می‌نشیند تا سندِ بدهی هرگز حسابِ نقدیِ ولگرد نداشته باشد.
+    /// </summary>
+    private static void ApplyFormSettlement(ExpenseTransaction expense, ExpenseCreateViewModel model)
+    {
+        switch (model.SettlementMode)
+        {
+            case ExpenseSettlementMode.PaidImmediately:
+                expense.SettlementMode = ExpenseSettlementMode.PaidImmediately;
+                expense.CounterpartyType = null;
+                expense.CounterpartyId = null;
+                expense.CashAccountId = model.CashAccountId;
+                return;
+
+            case ExpenseSettlementMode.NonCash:
+                expense.SettlementMode = ExpenseSettlementMode.NonCash;
+                expense.CounterpartyType = null;
+                expense.CounterpartyId = null;
+                expense.CashAccountId = null;
+                return;
+
+            // Payable و «نامشخص» هر دو یعنی طرف‌حساب مرجع است: همان قاعدهٔ واحدِ
+            // ServiceProvider/Driver. اگر کاربر Payable گفت ولی طرف‌حسابی نبود،
+            // اعتبارسنج جلوی ذخیره را می‌گیرد — اینجا حدسی زده نمی‌شود.
+            default:
+                ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+                expense.CashAccountId = null;
+                if (model.SettlementMode == ExpenseSettlementMode.Payable)
+                {
+                    expense.SettlementMode = ExpenseSettlementMode.Payable;
+                }
+
+                return;
+        }
     }
 
     private async Task PopulateLookupsAsync(
@@ -224,6 +272,18 @@ public partial class ExpensesController : Controller
                 Selected = selectedTransportLegId == l.Id
             })
             .ToList();
+
+        // PTG-P1-04 — حساب‌های نقدی برای حالت «پرداخت‌شده». حسابِ انتخاب‌شدهٔ یک سندِ قدیمی
+        // حتی اگر غیرفعال شده باشد در فهرست می‌ماند، وگرنه ویرایشِ آن سند حسابش را می‌باخت.
+        var selectedCashAccountId = createModel?.CashAccountId;
+        var cashAccounts = await _db.CashAccounts
+            .AsNoTracking()
+            .Where(a => a.IsActive || (selectedCashAccountId.HasValue && a.Id == selectedCashAccountId.Value))
+            .OrderBy(a => a.Name)
+            .Select(a => new { a.Id, Label = a.Name + " (" + a.Currency + ")" })
+            .Take(LookupLimit)
+            .ToListAsync();
+        ViewBag.CashAccounts = new SelectList(cashAccounts, "Id", "Label", selectedCashAccountId);
 
         var serviceProviders = await _db.ServiceProviders
             .AsNoTracking()
@@ -448,6 +508,10 @@ public partial class ExpensesController : Controller
             query = query.Where(e => e.ServiceProviderId == filter.ServiceProviderId.Value);
         if (filter.OperationalAssetId.HasValue)
             query = query.Where(e => e.OperationalAssetId == filter.OperationalAssetId.Value);
+        // PTG-P1-04 — فیلترِ وضعیت تسویه. «طبقه‌بندی‌نشده» (Unknown) هم یک انتخابِ صریح است
+        // تا ردیف‌های پیش از فاز ۱ قابل دیدن و رسیدگی باشند، نه پنهان.
+        if (filter.SettlementMode.HasValue)
+            query = query.Where(e => e.SettlementMode == filter.SettlementMode.Value);
         if (!string.IsNullOrWhiteSpace(filter.Query))
         {
             var q = filter.Query.Trim();
@@ -474,6 +538,8 @@ public partial class ExpensesController : Controller
                 Id = e.Id,
                 ExpenseDate = e.ExpenseDate,
                 ExpenseTypeName = e.ExpenseType != null ? e.ExpenseType.NamePersian ?? e.ExpenseType.Name : string.Empty,
+                SettlementMode = e.SettlementMode,
+                CashAccountName = e.CashAccount != null ? e.CashAccount.Name : null,
                 ContractName = e.Contract != null ? e.Contract.ContractName : null,
                 ContractNumber = e.Contract != null ? e.Contract.ContractNumber : null,
                 ShipmentCode = e.Shipment != null ? e.Shipment.ShipmentCode : null,
@@ -567,25 +633,13 @@ public partial class ExpensesController : Controller
 
         expense.IsCancelled = true;
 
-        _ledger.Post(new LedgerPostingRequest
-        {
-            EntryDate = _businessClock.Today,
-            Side = ReverseSide(originalLedger.Side),
-            AmountUsd = originalLedger.AmountUsd,
-            Currency = originalLedger.Currency,
-            SourceAmount = originalLedger.SourceAmount,
-            SourceCurrencyCode = originalLedger.SourceCurrencyCode,
-            AppliedFxRateToUsd = originalLedger.AppliedFxRateToUsd,
-            AppliedFxRateDate = originalLedger.AppliedFxRateDate,
-            AppliedFxRateSource = originalLedger.AppliedFxRateSource,
-            Description = $"لغو هزینه #{expense.Id} | {originalLedger.Description}",
-            SourceType = "Expense",
-            SourceId = expense.Id,
-            Reference = (originalLedger.Reference ?? $"EXP-{expense.Id}") + "-CANCEL",
-            ContractId = originalLedger.ContractId,
-            ServiceProviderId = originalLedger.ServiceProviderId,
-            ShipmentId = originalLedger.ShipmentId
-        });
+        // برگشت از تنها مالکش می‌گذرد: همهٔ فیلدهای طرف‌حساب کپی می‌شوند (نه فقط شرکت
+        // خدماتی) و محافظِ «دو بار برگشت» هم همان‌جاست.
+        await _ledger.ReverseAsync(
+            originalLedger,
+            _businessClock.Today,
+            $"لغو هزینه #{expense.Id} | {originalLedger.Description}",
+            $"EXP-{expense.Id}");
         await _db.SaveChangesAsync();
 
         TempData["ok"] = "هزینه لغو شد.";
@@ -795,22 +849,12 @@ public partial class ExpensesController : Controller
             _db.ExpenseTransactions.Add(expense);
             await _db.SaveChangesAsync();
 
-            var ledgerEntry = _ledger.Post(new LedgerPostingRequest
+            var ledgerEntry = _expenseLedger.Post(new ExpenseLedgerRequest
             {
-                EntryDate = expense.ExpenseDate,
-                Side = LedgerSide.Debit,
-                AmountUsd = expense.AmountUsd,
-                Currency = SystemCurrency.BaseCurrencyCode,
-                SourceAmount = expense.Amount,
-                SourceCurrencyCode = expense.Currency,
-                AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                AppliedFxRateDate = conversion.EffectiveDate.Date,
-                AppliedFxRateSource = conversion.SourceDescription,
-                Description = BuildLedgerDescription(expenseType, expense),
-                SourceType = "Expense",
-                SourceId = expense.Id,
-                Reference = BuildLedgerReference(expenseType, expense),
-                ContractId = expense.ContractId
+                Expense = expense,
+                ExpenseType = expenseType,
+                FxRateDate = conversion.EffectiveDate.Date,
+                FxRateSource = conversion.SourceDescription
             });
             await _db.SaveChangesAsync();
 
@@ -1096,6 +1140,24 @@ public partial class ExpensesController : Controller
                     CostResponsibility = model.CostResponsibility
                 };
 
+                // PTG-P1-04 — هویت تسویه: انتخابِ فرم، وگرنه تشخیص از طرف‌حساب.
+                ApplyFormSettlement(expense, model);
+
+                var settlementCheck = _settlementValidator.Check(expense);
+                if (!settlementCheck.IsValid)
+                {
+                    ModelState.AddModelError(settlementCheck.MemberName ?? string.Empty, settlementCheck.Message!);
+                    if (transaction is not null)
+                    {
+                        await transaction.RollbackAsync();
+                    }
+
+                    model.Description = normalizedDescription;
+                    model.ManualExpenseTypeName = manualExpenseTypeName;
+                    await PopulateLookupsAsync(createModel: model);
+                    return View(model);
+                }
+
                 // PTG-P0-01 — توکن در همان SaveChanges (و همان Transaction) با خودِ مصرف ثبت
                 // می‌شود، پس ارسال دوم با همان توکن به Unique Index می‌خورد و هیچ سند/لجری
                 // نمی‌سازد. نبودِ توکن fail-open است و رفتار قبلی را عوض نمی‌کند.
@@ -1104,27 +1166,16 @@ public partial class ExpensesController : Controller
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
-                var ledgerReference = BuildLedgerReference(expenseType!, expense);
-                var ledgerDescription = BuildLedgerDescription(expenseType!, expense);
+                var ledgerReference = ExpenseLedgerPoster.BuildReference(expenseType!, expense);
+                var ledgerDescription = ExpenseLedgerPoster.BuildDescription(expenseType!, expense);
 
-                var ledgerEntry = _ledger.Post(new LedgerPostingRequest
+                var ledgerEntry = _expenseLedger.Post(new ExpenseLedgerRequest
                 {
-                    EntryDate = expense.ExpenseDate,
-                    Side = GetExpenseLedgerSide(expense),
-                    AmountUsd = expense.AmountUsd,
-                    Currency = SystemCurrency.BaseCurrencyCode,
-                    SourceAmount = expense.Amount,
-                    SourceCurrencyCode = expense.Currency,
-                    AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                    AppliedFxRateDate = conversion.EffectiveDate.Date,
-                    AppliedFxRateSource = conversion.SourceDescription,
+                    Expense = expense,
                     Description = ledgerDescription,
-                    SourceType = "Expense",
-                    SourceId = expense.Id,
                     Reference = ledgerReference,
-                    ContractId = expense.ContractId,
-                    ServiceProviderId = expense.ServiceProviderId,
-                    ShipmentId = expense.ShipmentId
+                    FxRateDate = conversion.EffectiveDate.Date,
+                    FxRateSource = conversion.SourceDescription
                 });
                 await _db.SaveChangesAsync();
 
@@ -1351,25 +1402,19 @@ public partial class ExpensesController : Controller
                     ImportUniqueKey = row.ImportUniqueKey
                 };
 
+                // PTG-P1-04 — هویت تسویه. فایلِ ایمپورت ستونِ طرف‌حساب و حساب نقدی ندارد.
+                ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+                _settlementValidator.Validate(expense);
+
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
-                var ledgerEntry = _ledger.Post(new LedgerPostingRequest
+                var ledgerEntry = _expenseLedger.Post(new ExpenseLedgerRequest
                 {
-                    EntryDate = expense.ExpenseDate,
-                    Side = GetExpenseLedgerSide(expense),
-                    AmountUsd = expense.AmountUsd,
-                    Currency = SystemCurrency.BaseCurrencyCode,
-                    SourceAmount = expense.Amount,
-                    SourceCurrencyCode = expense.Currency,
-                    AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                    AppliedFxRateDate = conversion.EffectiveDate.Date,
-                    AppliedFxRateSource = conversion.SourceDescription,
-                    Description = BuildLedgerDescription(expenseType, expense),
-                    SourceType = "Expense",
-                    SourceId = expense.Id,
-                    Reference = BuildLedgerReference(expenseType, expense),
-                    ContractId = expense.ContractId
+                    Expense = expense,
+                    ExpenseType = expenseType,
+                    FxRateDate = conversion.EffectiveDate.Date,
+                    FxRateSource = conversion.SourceDescription
                 });
                 await _db.SaveChangesAsync();
 
@@ -1729,6 +1774,13 @@ public partial class ExpensesController : Controller
             AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
             Description = expense.Description ?? string.Empty,
             CostResponsibility = expense.CostResponsibility,
+            // PTG-P1-04 — هویتِ تسویهٔ همین سند با فرم برمی‌گردد. ردیفِ پیش از فاز ۱ روی
+            // Unknown است و به‌عنوان «تشخیص از طرف‌حساب» به فرم می‌رود، نه به‌عنوان انتخابِ
+            // کاربر: ذخیرهٔ دوباره آن را به همان چیزی می‌برد که دفتر کل امروز می‌گوید.
+            SettlementMode = expense.SettlementMode == ExpenseSettlementMode.Unknown
+                ? null
+                : expense.SettlementMode,
+            CashAccountId = expense.CashAccountId,
             ReturnUrl = returnUrl
         };
 
@@ -2034,38 +2086,41 @@ public partial class ExpensesController : Controller
             expense.Description = normalizedDescription;
             expense.CostResponsibility = model.CostResponsibility;
 
-            var ledgerRequest = new LedgerPostingRequest
-            {
-                EntryDate = expense.ExpenseDate,
-                Side = GetExpenseLedgerSide(expense),
-                AmountUsd = expense.AmountUsd,
-                Currency = SystemCurrency.BaseCurrencyCode,
-                SourceAmount = expense.Amount,
-                SourceCurrencyCode = expense.Currency,
-                AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                AppliedFxRateDate = conversion.EffectiveDate.Date,
-                AppliedFxRateSource = conversion.SourceDescription,
-                Description = BuildLedgerDescription(expenseType, expense),
-                SourceType = "Expense",
-                SourceId = expense.Id,
-                Reference = BuildLedgerReference(expenseType, expense),
-                ContractId = expense.ContractId,
-                ServiceProviderId = expense.ServiceProviderId,
-                ShipmentId = expense.ShipmentId,
+            // PTG-P1-04 — هویت تسویه: انتخابِ فرم، وگرنه تشخیص از طرف‌حسابِ خودِ سند — که
+            // شاملِ DriverId‌ای هم می‌شود که این فرم نمایش نمی‌دهد و بالاتر دست‌کاری نشد؛
+            // وگرنه ویرایشِ توضیحِ یک مصرفِ بدهیِ‌راننده همان بدهی را پاک می‌کرد.
+            ApplyFormSettlement(expense, model);
 
-                // فیلدهایی که مسیر ویرایشِ مصرف هرگز دست نمی‌زد، عیناً از سطر موجود می‌آیند
-                // تا خروجی دقیقاً همان چیزی بماند که پیش از تمرکز نوشته می‌شد (PTG-P1-03).
-                AppliedCurrencyPerUsdRate = ledgerEntry?.AppliedCurrencyPerUsdRate,
-                ViaSarrafGroupId = ledgerEntry?.ViaSarrafGroupId,
-                CustomerId = ledgerEntry?.CustomerId,
-                SupplierId = ledgerEntry?.SupplierId,
-                DriverId = ledgerEntry?.DriverId,
-                EmployeeId = ledgerEntry?.EmployeeId,
+            var settlementCheck = _settlementValidator.Check(expense);
+            if (!settlementCheck.IsValid)
+            {
+                ModelState.AddModelError(settlementCheck.MemberName ?? string.Empty, settlementCheck.Message!);
+                if (transaction is not null)
+                {
+                    await transaction.RollbackAsync();
+                }
+
+                model.Description = normalizedDescription;
+                model.ManualExpenseTypeName = manualExpenseTypeName;
+                await PopulateLookupsAsync(createModel: model);
+                ViewData["ExpenseFormMode"] = "Edit";
+                return View("Create", model);
+            }
+
+            var ledgerRequest = new ExpenseLedgerRequest
+            {
+                Expense = expense,
+                ExpenseType = expenseType,
+                FxRateDate = conversion.EffectiveDate.Date,
+                FxRateSource = conversion.SourceDescription,
+
+                // فیلدهایی که مسیر ویرایشِ مصرف هرگز دست نمی‌زد، عیناً از سطر موجود می‌آیند.
+                CarryFrom = ledgerEntry
             };
 
             ledgerEntry = ledgerEntry is null
-                ? _ledger.Post(ledgerRequest)
-                : _ledger.Apply(ledgerEntry, ledgerRequest);
+                ? _expenseLedger.Post(ledgerRequest)
+                : _expenseLedger.Apply(ledgerEntry, ledgerRequest);
 
             await _db.SaveChangesAsync();
 
@@ -2193,6 +2248,7 @@ public partial class ExpensesController : Controller
             TransportLegLabel = expense.TransportLeg is null
                 ? null
                 : $"#{expense.TransportLeg.Id} - {expense.TransportLeg.WagonNumber ?? expense.TransportLeg.RwbNo ?? "Transport leg"}",
+            TransportLegId = expense.TransportLegId,
             ServiceProviderId = expense.ServiceProviderId,
             ServiceProviderName = expense.ServiceProvider?.Name,
             OperationalAssetId = expense.OperationalAssetId,
@@ -2213,39 +2269,6 @@ public partial class ExpensesController : Controller
             ExpenseBatchNumber = expense.ExpenseBatch?.BatchNumber
         });
     }
-
-    private static string BuildLedgerDescription(ExpenseType expenseType, ExpenseTransaction expense)
-    {
-        var baseText = $"ثبت هزینه {(expenseType.NamePersian ?? expenseType.Name)}";
-        if (string.IsNullOrWhiteSpace(expense.Description))
-        {
-            return baseText;
-        }
-
-        return $"{baseText} - {expense.Description}";
-    }
-
-    private static string BuildLedgerReference(ExpenseType expenseType, ExpenseTransaction expense)
-    {
-        var prefix = string.IsNullOrWhiteSpace(expenseType.Code)
-            ? $"EXP-{expense.Id}"
-            : $"{expenseType.Code}-{expense.Id}";
-
-        if (string.IsNullOrWhiteSpace(expense.Description))
-        {
-            return prefix;
-        }
-
-        var suffix = expense.Description.Trim();
-        var combined = $"{prefix} | {suffix}";
-        return combined.Length <= 200 ? combined : combined[..200];
-    }
-
-    private static LedgerSide GetExpenseLedgerSide(ExpenseTransaction expense)
-        => expense.ServiceProviderId.HasValue ? LedgerSide.Credit : LedgerSide.Debit;
-
-    private static LedgerSide ReverseSide(LedgerSide side)
-        => side == LedgerSide.Credit ? LedgerSide.Debit : LedgerSide.Credit;
 
     private async Task<bool> ShipmentAllowsContractAsync(int shipmentId, int? primaryContractId, int contractId)
     {
@@ -2393,25 +2416,22 @@ public partial class ExpensesController : Controller
                     CostResponsibility = model.CostResponsibility
                 };
 
+                // PTG-P1-04 — هویت تسویه. این فرم نه طرف‌حساب می‌گیرد و نه حساب نقدی، پس
+                // مصارف گمرکی همان چیزی می‌مانند که دفتر کل امروز از آن‌ها می‌سازد: بدونِ
+                // سطرِ طرف، با حسابِ مقابل از نوعِ مصرف.
+                ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+                _settlementValidator.Validate(expense);
+
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
-                var ledgerEntry = _ledger.Post(new LedgerPostingRequest
+                var ledgerEntry = _expenseLedger.Post(new ExpenseLedgerRequest
                 {
-                    EntryDate = expense.ExpenseDate,
-                    Side = LedgerSide.Debit,
-                    AmountUsd = expense.AmountUsd,
-                    Currency = SystemCurrency.BaseCurrencyCode,
-                    SourceAmount = expense.Amount,
-                    SourceCurrencyCode = expense.Currency,
-                    AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                    AppliedFxRateDate = conversion.EffectiveDate.Date,
-                    AppliedFxRateSource = conversion.SourceDescription,
+                    Expense = expense,
                     Description = $"مصارف گمرکی {expenseType.NamePersian ?? expenseType.Name} - {descriptionBase}",
-                    SourceType = "Expense",
-                    SourceId = expense.Id,
                     Reference = $"{expenseType.Code}-{expense.Id}",
-                    ContractId = expense.ContractId
+                    FxRateDate = conversion.EffectiveDate.Date,
+                    FxRateSource = conversion.SourceDescription
                 });
                 await _db.SaveChangesAsync();
                 savedCount++;
@@ -2513,7 +2533,9 @@ public partial class ExpensesController : Controller
             Id = l.Id,
             OperationLabel = "حمل از موجودی",
             VehicleKind = LegVehicleKind(l.TransportType),
-            Number = l.WagonNumber ?? l.RwbNo ?? l.TruckPlate ?? $"#{l.Id}",
+            // نمبر واقعی وسیله (واگن یا پلیت موتر) مبنا است؛ سیمیر/CMR فقط وقتی نمبر وسیله نباشد.
+            Number = l.WagonNumber ?? l.TruckPlate ?? l.RwbNo ?? $"#{l.Id}",
+            AltNumber = l.RwbNo,
             Route = BuildRoute(l.SourceName, l.DestinationName, l.RouteDescription),
             QuantityMt = l.QuantityMt,
             StatusLabel = l.Status == InventoryTransportLegStatus.InTransit ? "در راه" : "بارگیری‌شده",
@@ -2575,8 +2597,8 @@ public partial class ExpensesController : Controller
     // محاسبهٔ سهم هر عملیات سمت سرور (به ورودی کلاینت اعتماد نمی‌شود).
     // خطای rounding روی سطر آخر تصحیح می‌شود تا Σ سهم‌ها == مبلغ کل بماند.
     private static bool TryComputeShares(
-        GroupExpenseCreateViewModel model,
-        IReadOnlyList<(GroupExpenseSelectedInput Input, decimal QuantityMt)> items,
+        GroupExpenseLineInput line,
+        IReadOnlyList<(GroupExpenseSelectedInput Input, decimal QuantityMt, decimal? ManualAmount, decimal? RatePerTon)> items,
         out List<decimal> shares,
         out decimal total,
         out string? error)
@@ -2586,25 +2608,25 @@ public partial class ExpensesController : Controller
         error = null;
         var count = items.Count;
 
-        switch (model.AllocationMethod)
+        switch (line.AllocationMethod)
         {
             case ExpenseAllocationMethod.FixedPerOperation:
-                if (!model.AmountPerOperation.HasValue || model.AmountPerOperation.Value <= 0)
+                if (!line.AmountPerOperation.HasValue || line.AmountPerOperation.Value <= 0)
                 {
                     error = "مبلغ برای هر عملیات باید بزرگ‌تر از صفر باشد.";
                     return false;
                 }
-                shares = Enumerable.Repeat(Math.Round(model.AmountPerOperation.Value, 2), count).ToList();
+                shares = Enumerable.Repeat(Math.Round(line.AmountPerOperation.Value, 2), count).ToList();
                 total = shares.Sum();
                 return true;
 
             case ExpenseAllocationMethod.EqualSplit:
-                if (!model.TotalAmount.HasValue || model.TotalAmount.Value <= 0)
+                if (!line.TotalAmount.HasValue || line.TotalAmount.Value <= 0)
                 {
                     error = "مبلغ کل برای تقسیم باید بزرگ‌تر از صفر باشد.";
                     return false;
                 }
-                total = Math.Round(model.TotalAmount.Value, 2);
+                total = Math.Round(line.TotalAmount.Value, 2);
 
                 var equal = Math.Round(total / count, 2);
                 shares = Enumerable.Repeat(equal, count).ToList();
@@ -2621,7 +2643,9 @@ public partial class ExpensesController : Controller
 
             case ExpenseAllocationMethod.ByQuantity:
                 // سهم هر عملیات = نرخ فی تن × مقدار (تن) همان حمل. مثال: نرخ ۲ و حمل ۴۰ تن → سهم ۸۰.
-                if (!model.RatePerTon.HasValue || model.RatePerTon.Value <= 0)
+                // نرخ هر عملیات می‌تواند جداگانه (اکسل/دستی) داده شود؛ در نبودِ آن، نرخ مشترک خط.
+                var sharedRate = line.RatePerTon is > 0 ? line.RatePerTon.Value : (decimal?)null;
+                if (!sharedRate.HasValue && items.Any(i => i.RatePerTon is not > 0))
                 {
                     error = "نرخ فی تن باید بزرگ‌تر از صفر باشد.";
                     return false;
@@ -2631,18 +2655,19 @@ public partial class ExpensesController : Controller
                     error = "مقدار (تن) بعضی از عملیات‌های انتخاب‌شده صفر است؛ محاسبه بر اساس مقدار ممکن نیست.";
                     return false;
                 }
-                var rate = model.RatePerTon.Value;
-                shares = items.Select(i => Math.Round(rate * i.QuantityMt, 2)).ToList();
+                shares = items
+                    .Select(i => Math.Round((i.RatePerTon is > 0 ? i.RatePerTon!.Value : sharedRate!.Value) * i.QuantityMt, 2))
+                    .ToList();
                 total = shares.Sum();
                 return true;
 
             case ExpenseAllocationMethod.Manual:
-                if (items.Any(i => !i.Input.ManualAmount.HasValue || i.Input.ManualAmount.Value <= 0))
+                if (items.Any(i => !i.ManualAmount.HasValue || i.ManualAmount.Value <= 0))
                 {
                     error = "در روش دستی، مبلغ هر عملیات باید بزرگ‌تر از صفر وارد شود.";
                     return false;
                 }
-                shares = items.Select(i => Math.Round(i.Input.ManualAmount!.Value, 2)).ToList();
+                shares = items.Select(i => Math.Round(i.ManualAmount!.Value, 2)).ToList();
                 total = shares.Sum();
                 return true;
 
@@ -2691,6 +2716,46 @@ public partial class ExpensesController : Controller
         return View(model);
     }
 
+    // Reads a manual-split sheet (نمبر وسیله | مقدار مصرف) for the group-expense wizard
+    // and returns the rows as JSON. Nothing is stored; the wizard matches each number to
+    // a selected operation on the client.
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ImportGroupAmountsExcel(IFormFile? file, CancellationToken ct = default)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return Json(new { ok = false, message = "فایلی انتخاب نشده است." });
+        }
+        if (file.Length > 5 * 1024 * 1024)
+        {
+            return Json(new { ok = false, message = "حجم فایل زیاد است (حداکثر ۵ مگابایت)." });
+        }
+
+        IReadOnlyList<GroupExpenseAmountImportRow> parsed;
+        try
+        {
+            await using var workbook = await ExcelWorkbookNormalizer.OpenAsync(file, ct);
+            parsed = GroupExpenseAmountWorkbookParser.Parse(workbook.Stream);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Group expense manual amount import failed to parse.");
+            return Json(new { ok = false, message = "خواندن فایل اکسل ناموفق بود: " + ex.Message });
+        }
+
+        if (parsed.Count == 0)
+        {
+            return Json(new { ok = false, message = "در فایل هیچ ردیف معتبری (نمبر وسیله و مبلغ) یافت نشد." });
+        }
+
+        var rows = parsed
+            .Select(row => new { vehicleNumber = row.VehicleNumber, amount = row.Amount })
+            .ToList();
+
+        return Json(new { ok = true, rows });
+    }
+
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateGroup(
@@ -2699,38 +2764,81 @@ public partial class ExpensesController : Controller
     {
         model.Currency = SystemCurrency.Normalize(model.Currency);
         var description = model.Description?.Trim() ?? string.Empty;
-        var manualExpenseTypeName = model.ManualExpenseTypeName?.Trim() ?? string.Empty;
 
-        ExpenseType? expenseType = null;
-        if (model.ExpenseTypeId.HasValue && model.ExpenseTypeId.Value > 0)
+        async Task<IActionResult> BackToFormAsync()
         {
-            expenseType = await _db.ExpenseTypes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == model.ExpenseTypeId.Value && e.IsActive);
-            if (expenseType is null)
-            {
-                ModelState.AddModelError(nameof(model.ExpenseTypeId), "نوع مصرف انتخاب‌شده معتبر نیست.");
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(manualExpenseTypeName))
-        {
-            expenseType = await FindExpenseTypeByManualNameAsync(manualExpenseTypeName);
-        }
-        else
-        {
-            ModelState.AddModelError(nameof(model.ManualExpenseTypeName), "نوع مصرف را از لیست انتخاب کنید یا دستی وارد کنید.");
+            model.Description = description;
+            await PopulateGroupExpenseLookupsAsync(model);
+            ViewBag.Operations = await LoadInProgressOperationsAsync();
+            ViewBag.RegisteredGroupBatches = await LoadActiveGroupBatchesAsync();
+            return View(model);
         }
 
-        ServiceProviderEntity? serviceProvider = null;
-        if (model.ServiceProviderId.HasValue)
+        // چند مصرف در یک ثبت. فرم قدیمی (بدون Lines) همان فیلدهای اصلی را یک خط می‌کند.
+        var lines = (model.Lines ?? []).Where(l => l is not null).ToList();
+        if (lines.Count == 0)
         {
-            serviceProvider = await _db.ServiceProviders
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == model.ServiceProviderId.Value && p.IsActive);
-            if (serviceProvider is null)
+            lines.Add(new GroupExpenseLineInput
             {
-                ModelState.AddModelError(nameof(model.ServiceProviderId), "شرکت خدماتی انتخاب‌شده معتبر نیست.");
+                ExpenseTypeId = model.ExpenseTypeId,
+                ManualExpenseTypeName = model.ManualExpenseTypeName,
+                ServiceProviderId = model.ServiceProviderId,
+                AllocationMethod = model.AllocationMethod,
+                AmountPerOperation = model.AmountPerOperation,
+                TotalAmount = model.TotalAmount,
+                RatePerTon = model.RatePerTon,
+                Description = model.Description,
+                ManualAmounts = (model.Items ?? []).Select(i => i.ManualAmount).ToList()
+            });
+        }
+
+        // نوع مصرف و شرکت خدماتیِ هر خط جدا اعتبارسنجی می‌شود.
+        var lineContexts = new List<(GroupExpenseLineInput Line, ExpenseType? Type, string ManualName, ServiceProviderEntity? Provider, string Description)>();
+        for (var li = 0; li < lines.Count; li++)
+        {
+            var line = lines[li];
+            var label = lines.Count > 1 ? $"مصرف {li + 1}: " : string.Empty;
+            var manualExpenseTypeName = line.ManualExpenseTypeName?.Trim() ?? string.Empty;
+
+            ExpenseType? expenseType = null;
+            if (line.ExpenseTypeId.HasValue && line.ExpenseTypeId.Value > 0)
+            {
+                expenseType = await _db.ExpenseTypes
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(e => e.Id == line.ExpenseTypeId.Value && e.IsActive);
+                if (expenseType is null)
+                {
+                    ModelState.AddModelError(string.Empty, label + "نوع مصرف انتخاب‌شده معتبر نیست.");
+                }
             }
+            else if (!string.IsNullOrWhiteSpace(manualExpenseTypeName))
+            {
+                expenseType = await FindExpenseTypeByManualNameAsync(manualExpenseTypeName);
+            }
+            else
+            {
+                ModelState.AddModelError(string.Empty, label + "نوع مصرف را از لیست انتخاب کنید یا دستی وارد کنید.");
+            }
+
+            ServiceProviderEntity? serviceProvider = null;
+            if (line.ServiceProviderId.HasValue)
+            {
+                serviceProvider = await _db.ServiceProviders
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == line.ServiceProviderId.Value && p.IsActive);
+                if (serviceProvider is null)
+                {
+                    ModelState.AddModelError(string.Empty, label + "شرکت خدماتی انتخاب‌شده معتبر نیست.");
+                }
+            }
+
+            var lineDescription = line.Description?.Trim() ?? string.Empty;
+            if (lineDescription.Length == 0)
+            {
+                lineDescription = description;
+            }
+
+            lineContexts.Add((line, expenseType, manualExpenseTypeName, serviceProvider, lineDescription));
         }
 
         var hasActiveCurrencies = await _db.Currencies.AsNoTracking().AnyAsync(c => c.IsActive);
@@ -2773,27 +2881,65 @@ public partial class ExpensesController : Controller
             ModelState.AddModelError(string.Empty, "بعضی از عملیات‌های انتخاب‌شده دیگر در جریان نیستند. لیست را تازه کنید.");
         }
 
-        List<decimal> shares = [];
-        decimal totalAmount = 0m;
+        // مبلغ دستیِ هر خط هم‌ترتیب با Items پست می‌شود؛ در نبودِ آن، مبلغ خودِ Item مبنا است.
+        var itemOrder = (model.Items ?? []).Select(i => (i.Kind, i.Id)).ToList();
+        decimal? ManualFor(GroupExpenseLineInput line, GroupExpenseSelectedInput input)
+        {
+            if (line.ManualAmounts is { Count: > 0 })
+            {
+                var index = itemOrder.FindIndex(o => o.Kind == input.Kind && o.Id == input.Id);
+                if (index >= 0 && index < line.ManualAmounts.Count)
+                {
+                    return line.ManualAmounts[index];
+                }
+            }
+
+            return input.ManualAmount;
+        }
+
+        // نرخ فی تنِ اختصاصی هر عملیات (روش «بر اساس مقدار»)؛ هم‌ترتیب با Items پست می‌شود.
+        decimal? RateFor(GroupExpenseLineInput line, GroupExpenseSelectedInput input)
+        {
+            if (line.RatePerTonOverrides is { Count: > 0 })
+            {
+                var index = itemOrder.FindIndex(o => o.Kind == input.Kind && o.Id == input.Id);
+                if (index >= 0 && index < line.RatePerTonOverrides.Count)
+                {
+                    return line.RatePerTonOverrides[index];
+                }
+            }
+
+            return null;
+        }
+
+        var lineShares = new List<(List<decimal> Shares, decimal Total)>();
         if (ModelState.IsValid)
         {
             var resolved = selections
                 .Select(i => (Input: i, QuantityMt: i.Kind == "Leg" ? legs[i.Id].QuantityMt : dispatches[i.Id].LoadedQuantityMt))
                 .ToList();
 
-            if (!TryComputeShares(model, resolved, out shares, out totalAmount, out var shareError))
+            for (var li = 0; li < lineContexts.Count; li++)
             {
-                ModelState.AddModelError(string.Empty, shareError!);
+                var line = lineContexts[li].Line;
+                var label = lineContexts.Count > 1 ? $"مصرف {li + 1}: " : string.Empty;
+                var items = resolved
+                    .Select(r => (r.Input, r.QuantityMt, ManualAmount: ManualFor(line, r.Input), RatePerTon: RateFor(line, r.Input)))
+                    .ToList();
+
+                if (!TryComputeShares(line, items, out var shares, out var totalAmount, out var shareError))
+                {
+                    ModelState.AddModelError(string.Empty, label + shareError!);
+                    continue;
+                }
+
+                lineShares.Add((shares, totalAmount));
             }
         }
 
         if (!ModelState.IsValid)
         {
-            model.Description = description;
-            await PopulateGroupExpenseLookupsAsync(model);
-            ViewBag.Operations = await LoadInProgressOperationsAsync();
-            ViewBag.RegisteredGroupBatches = await LoadActiveGroupBatchesAsync();
-            return View(model);
+            return await BackToFormAsync();
         }
 
         CurrencyConversionResult conversion;
@@ -2807,11 +2953,7 @@ public partial class ExpensesController : Controller
         catch (BusinessRuleException ex)
         {
             ModelState.AddModelError(nameof(model.AppliedFxRateToUsd), ex.Message);
-            model.Description = description;
-            await PopulateGroupExpenseLookupsAsync(model);
-            ViewBag.Operations = await LoadInProgressOperationsAsync();
-            ViewBag.RegisteredGroupBatches = await LoadActiveGroupBatchesAsync();
-            return View(model);
+            return await BackToFormAsync();
         }
 
         IDbContextTransaction? transaction = null;
@@ -2822,128 +2964,136 @@ public partial class ExpensesController : Controller
 
         try
         {
-            if (expenseType is null)
-            {
-                expenseType = await FindExpenseTypeByManualNameAsync(manualExpenseTypeName);
-            }
-
-            if (expenseType is null)
-            {
-                expenseType = new ExpenseType
-                {
-                    Code = await BuildManualExpenseTypeCodeAsync(manualExpenseTypeName),
-                    Name = manualExpenseTypeName,
-                    NamePersian = manualExpenseTypeName,
-                    Category = "Transport",
-                    IsActive = true
-                };
-                _db.ExpenseTypes.Add(expenseType);
-                await _db.SaveChangesAsync();
-            }
-
-            var descriptionBase = string.IsNullOrWhiteSpace(description)
-                ? $"مصرف گروهی {expenseType.NamePersian ?? expenseType.Name} {DateDisplay.Date(model.ExpenseDate)}"
-                : description;
-
-            var batch = new ExpenseBatch
-            {
-                ExpenseTypeId = expenseType!.Id,
-                ServiceProviderId = serviceProvider?.Id,
-                ExpenseDate = model.ExpenseDate.Date,
-                AllocationMethod = model.AllocationMethod,
-                Currency = conversion.SourceCurrencyCode,
-                AppliedFxRateToUsd = conversion.AppliedRateToBase,
-                TotalAmount = totalAmount,
-                TotalAmountUsd = conversion.ConvertToBase(totalAmount),
-                OperationCount = selections.Count,
-                Description = descriptionBase
-            };
-
-            // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
+            // PTG-P0-01 — توکن یک‌بار برای کل ثبت؛ همهٔ خط‌ها در همین Transaction ثبت می‌شوند.
             _formTokens.Stamp(formToken, "Expense.CreateGroup", nameof(ExpenseBatch));
 
-            _db.ExpenseBatches.Add(batch);
-            await _db.SaveChangesAsync();
+            var createdBatches = new List<ExpenseBatch>();
 
-            batch.BatchNumber = $"GEXP-{batch.Id}";
-            await _db.SaveChangesAsync();
-
-            for (var i = 0; i < selections.Count; i++)
+            for (var li = 0; li < lineContexts.Count; li++)
             {
-                var selection = selections[i];
-                var isLeg = selection.Kind == "Leg";
-                var leg = isLeg ? legs[selection.Id] : null;
-                var dispatch = isLeg ? null : dispatches[selection.Id];
+                var (line, resolvedType, manualExpenseTypeName, serviceProvider, lineDescription) = lineContexts[li];
+                var shares = lineShares[li].Shares;
+                var totalAmount = lineShares[li].Total;
 
-                var opLabel = isLeg
-                    ? $"حمل از موجودی #{selection.Id}"
-                    : $"ارسال موتر #{selection.Id}";
+                var expenseType = resolvedType ?? await FindExpenseTypeByManualNameAsync(manualExpenseTypeName);
 
-                var expense = new ExpenseTransaction
+                if (expenseType is null)
+                {
+                    expenseType = new ExpenseType
+                    {
+                        Code = await BuildManualExpenseTypeCodeAsync(manualExpenseTypeName),
+                        Name = manualExpenseTypeName,
+                        NamePersian = manualExpenseTypeName,
+                        Category = "Transport",
+                        IsActive = true
+                    };
+                    _db.ExpenseTypes.Add(expenseType);
+                    await _db.SaveChangesAsync();
+                }
+
+                var descriptionBase = string.IsNullOrWhiteSpace(lineDescription)
+                    ? $"مصرف گروهی {expenseType.NamePersian ?? expenseType.Name} {DateDisplay.Date(model.ExpenseDate)}"
+                    : lineDescription;
+
+                var batch = new ExpenseBatch
                 {
                     ExpenseTypeId = expenseType.Id,
-                    ExpenseBatchId = batch.Id,
-                    ContractId = isLeg ? leg!.SourcePurchaseContractId : dispatch!.ContractId,
-                    ShipmentId = isLeg ? leg!.ShipmentId : null,
-                    TransportLegId = isLeg ? selection.Id : null,
-                    TruckDispatchId = isLeg ? null : selection.Id,
                     ServiceProviderId = serviceProvider?.Id,
                     ExpenseDate = model.ExpenseDate.Date,
-                    Amount = shares[i],
+                    AllocationMethod = line.AllocationMethod,
                     Currency = conversion.SourceCurrencyCode,
                     AppliedFxRateToUsd = conversion.AppliedRateToBase,
-                    AmountUsd = conversion.ConvertToBase(shares[i]),
-                    Description = $"{descriptionBase} | {batch.BatchNumber} — {opLabel}",
-                    CostResponsibility = model.CostResponsibility
+                    TotalAmount = totalAmount,
+                    TotalAmountUsd = conversion.ConvertToBase(totalAmount),
+                    OperationCount = selections.Count,
+                    Description = descriptionBase
                 };
 
-                _db.ExpenseTransactions.Add(expense);
+                _db.ExpenseBatches.Add(batch);
                 await _db.SaveChangesAsync();
 
-                var ledgerEntry = _ledger.Post(new LedgerPostingRequest
+                batch.BatchNumber = $"GEXP-{batch.Id}";
+                await _db.SaveChangesAsync();
+
+                for (var i = 0; i < selections.Count; i++)
                 {
-                    EntryDate = expense.ExpenseDate,
-                    Side = GetExpenseLedgerSide(expense),
-                    AmountUsd = expense.AmountUsd,
-                    Currency = SystemCurrency.BaseCurrencyCode,
-                    SourceAmount = expense.Amount,
-                    SourceCurrencyCode = expense.Currency,
-                    AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                    AppliedFxRateDate = conversion.EffectiveDate.Date,
-                    AppliedFxRateSource = conversion.SourceDescription,
-                    Description = BuildLedgerDescription(expenseType, expense),
-                    SourceType = "Expense",
-                    SourceId = expense.Id,
-                    Reference = BuildLedgerReference(expenseType, expense),
-                    ContractId = expense.ContractId,
-                    ServiceProviderId = expense.ServiceProviderId,
-                    ShipmentId = expense.ShipmentId
-                });
-                await _db.SaveChangesAsync();
-            }
+                    var selection = selections[i];
+                    var isLeg = selection.Kind == "Leg";
+                    var leg = isLeg ? legs[selection.Id] : null;
+                    var dispatch = isLeg ? null : dispatches[selection.Id];
 
-            await _audit.LogAndSaveAsync(
-                nameof(ExpenseBatch),
-                batch.Id,
-                AuditAction.Insert,
-                diff: AuditDiffFormatter.ForCreate(
-                    ("BatchNumber", batch.BatchNumber),
-                    ("ExpenseTypeId", batch.ExpenseTypeId),
-                    ("ServiceProviderId", batch.ServiceProviderId),
-                    ("ExpenseDate", batch.ExpenseDate),
-                    ("AllocationMethod", batch.AllocationMethod),
-                    ("Currency", batch.Currency),
-                    ("TotalAmount", batch.TotalAmount),
-                    ("TotalAmountUsd", batch.TotalAmountUsd),
-                    ("OperationCount", batch.OperationCount)));
+                    var opLabel = isLeg
+                        ? $"حمل از موجودی #{selection.Id}"
+                        : $"ارسال موتر #{selection.Id}";
+
+                    var expense = new ExpenseTransaction
+                    {
+                        ExpenseTypeId = expenseType.Id,
+                        ExpenseBatchId = batch.Id,
+                        ContractId = isLeg ? leg!.SourcePurchaseContractId : dispatch!.ContractId,
+                        ShipmentId = isLeg ? leg!.ShipmentId : null,
+                        TransportLegId = isLeg ? selection.Id : null,
+                        TruckDispatchId = isLeg ? null : selection.Id,
+                        ServiceProviderId = serviceProvider?.Id,
+                        ExpenseDate = model.ExpenseDate.Date,
+                        Amount = shares[i],
+                        Currency = conversion.SourceCurrencyCode,
+                        AppliedFxRateToUsd = conversion.AppliedRateToBase,
+                        AmountUsd = conversion.ConvertToBase(shares[i]),
+                        Description = $"{descriptionBase} | {batch.BatchNumber} — {opLabel}",
+                        CostResponsibility = model.CostResponsibility
+                    };
+
+                    // PTG-P1-04 — هویت تسویه: شرکت خدماتیِ انتخاب‌شده ⇒ Payable، وگرنه بدونِ
+                    // طرف‌حسابِ بیرونی.
+                    ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+                    _settlementValidator.Validate(expense);
+
+                    _db.ExpenseTransactions.Add(expense);
+                    await _db.SaveChangesAsync();
+
+                    var ledgerEntry = _expenseLedger.Post(new ExpenseLedgerRequest
+                    {
+                        Expense = expense,
+                        ExpenseType = expenseType,
+                        FxRateDate = conversion.EffectiveDate.Date,
+                        FxRateSource = conversion.SourceDescription
+                    });
+                    await _db.SaveChangesAsync();
+                }
+
+                await _audit.LogAndSaveAsync(
+                    nameof(ExpenseBatch),
+                    batch.Id,
+                    AuditAction.Insert,
+                    diff: AuditDiffFormatter.ForCreate(
+                        ("BatchNumber", batch.BatchNumber),
+                        ("ExpenseTypeId", batch.ExpenseTypeId),
+                        ("ServiceProviderId", batch.ServiceProviderId),
+                        ("ExpenseDate", batch.ExpenseDate),
+                        ("AllocationMethod", batch.AllocationMethod),
+                        ("Currency", batch.Currency),
+                        ("TotalAmount", batch.TotalAmount),
+                        ("TotalAmountUsd", batch.TotalAmountUsd),
+                        ("OperationCount", batch.OperationCount)));
+
+                createdBatches.Add(batch);
+            }
 
             if (transaction is not null)
             {
                 await transaction.CommitAsync();
             }
 
-            TempData["ok"] = $"مصرف گروهی {batch.BatchNumber} برای {selections.Count} عملیات ثبت شد.";
-            return RedirectToAction(nameof(GroupDetails), new { id = batch.Id });
+            if (createdBatches.Count == 1)
+            {
+                TempData["ok"] = $"مصرف گروهی {createdBatches[0].BatchNumber} برای {selections.Count} عملیات ثبت شد.";
+                return RedirectToAction(nameof(GroupDetails), new { id = createdBatches[0].Id });
+            }
+
+            TempData["ok"] = $"{createdBatches.Count} مصرف گروهی برای {selections.Count} عملیات ثبت شد: "
+                + string.Join("، ", createdBatches.Select(b => b.BatchNumber));
+            return RedirectToAction(nameof(CreateGroup), new { returnUrl = model.ReturnUrl });
         }
         catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
         {
@@ -2966,11 +3116,7 @@ public partial class ExpensesController : Controller
             ModelState.AddModelError(string.Empty, "ثبت مصرف گروهی انجام نشد. دوباره تلاش کنید.");
         }
 
-        model.Description = description;
-        await PopulateGroupExpenseLookupsAsync(model);
-        ViewBag.Operations = await LoadInProgressOperationsAsync();
-        ViewBag.RegisteredGroupBatches = await LoadActiveGroupBatchesAsync();
-        return View(model);
+        return await BackToFormAsync();
     }
 
     private static string AllocationMethodName(ExpenseAllocationMethod method) => method switch
@@ -3081,25 +3227,11 @@ public partial class ExpensesController : Controller
             }
 
             expense.IsCancelled = true;
-            _ledger.Post(new LedgerPostingRequest
-            {
-                EntryDate = _businessClock.Today,
-                Side = ReverseSide(originalLedger.Side),
-                AmountUsd = originalLedger.AmountUsd,
-                Currency = originalLedger.Currency,
-                SourceAmount = originalLedger.SourceAmount,
-                SourceCurrencyCode = originalLedger.SourceCurrencyCode,
-                AppliedFxRateToUsd = originalLedger.AppliedFxRateToUsd,
-                AppliedFxRateDate = originalLedger.AppliedFxRateDate,
-                AppliedFxRateSource = originalLedger.AppliedFxRateSource,
-                Description = $"لغو مصرف گروهی {batch.BatchNumber} - هزینه #{expense.Id} | {originalLedger.Description}",
-                SourceType = "Expense",
-                SourceId = expense.Id,
-                Reference = (originalLedger.Reference ?? $"EXP-{expense.Id}") + "-CANCEL",
-                ContractId = originalLedger.ContractId,
-                ServiceProviderId = originalLedger.ServiceProviderId,
-                ShipmentId = originalLedger.ShipmentId
-            });
+            await _ledger.ReverseAsync(
+                originalLedger,
+                _businessClock.Today,
+                $"لغو مصرف گروهی {batch.BatchNumber} - هزینه #{expense.Id} | {originalLedger.Description}",
+                $"EXP-{expense.Id}");
             cancelledCount++;
         }
 

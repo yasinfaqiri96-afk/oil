@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Models.Payments;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exports;
+using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Audit;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -19,6 +20,11 @@ namespace PTGOilSystem.Web.Controllers;
 public class CashAccountsController : Controller
 {
     private const int IndexPageSize = 20;
+
+    // سقفِ سطرهای گردشِ صفحهٔ جزئیات (همان ۱۰۰ سطرِ قبلی، حالا برای هر دو منبع).
+    private const int StatementRowLimit = 100;
+    private const string PaymentStatementSource = "Payment";
+    private const string ExpenseStatementSource = "Expense";
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
     private readonly IMemoryCache? _summaryCache;
@@ -210,7 +216,15 @@ public class CashAccountsController : Controller
             return NotFound();
         }
 
-        var transactions = await _db.PaymentTransactions
+        // گردشِ صندوق دو منبع دارد: رزنامچه و مصرفی که «نقد پرداخت شد» ثبت شده
+        // (گمرکِ نقدی و مانند آن). پیش از این فقط رزنامچه خوانده می‌شد، پس پرداختِ نقدیِ
+        // مصارف نه در فهرست بود و نه در مانده. هیچ سندی ساخته یا تغییر داده نمی‌شود؛
+        // فقط همان دو منبعِ موجود در یک فهرست خوانده می‌شوند.
+        //
+        // مصرفی که خودش یک PaymentTransaction مرتبط دارد (کمیسیونِ نقدی: هم سطرِ مصرف
+        // ساخته می‌شود هم خروجِ نقدیِ روزنامچه روی همان حساب) از منبعِ دوم بیرون می‌ماند،
+        // وگرنه همان یک خروجِ پول دو بار در فهرست و در مانده شمرده می‌شد.
+        var paymentRows = await _db.PaymentTransactions
             .AsNoTracking()
             .Include(p => p.Customer)
             .Include(p => p.Supplier)
@@ -220,21 +234,16 @@ public class CashAccountsController : Controller
             .Where(p => p.CashAccountId == id)
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.Id)
-            .Take(100)
-            .Select(p => new PaymentListItemViewModel
+            .Take(StatementRowLimit)
+            .Select(p => new CashAccountStatementRowViewModel
             {
                 Id = p.Id,
-                PaymentDate = p.PaymentDate,
+                Source = PaymentStatementSource,
+                EntryDate = p.PaymentDate,
                 Direction = p.Direction,
-                DirectionName = PaymentDirectionLabels.ToPersian(p.Direction),
-                PaymentKind = p.PaymentKind,
-                PaymentKindName = PaymentKindLabels.ToPersian(p.PaymentKind),
-                CashAccountName = item.Name,
-                CashAccountCurrency = item.Currency,
+                KindName = PaymentKindLabels.ToPersian(p.PaymentKind),
                 CounterpartyName = p.Customer != null ? p.Customer.Name : p.Supplier != null ? p.Supplier.Name : p.Employee != null ? p.Employee.FullName : p.Driver != null ? p.Driver.FullName : "متفرقه",
                 ContractNumber = p.Contract != null ? p.Contract.ContractNumber : null,
-                RelatedTo = p.Contract != null ? p.Contract.ContractNumber : "—",
-                Description = p.Description,
                 Amount = p.Amount,
                 Currency = p.Currency,
                 AmountUsd = p.AmountUsd,
@@ -242,12 +251,100 @@ public class CashAccountsController : Controller
                 LedgerEntryId = p.LedgerEntryId
             })
             .ToListAsync();
-        var totalIn = transactions.Where(t => t.Direction == PaymentDirection.In).Sum(t => t.Amount);
-        var totalOut = transactions.Where(t => t.Direction == PaymentDirection.Out).Sum(t => t.Amount);
-        ViewBag.PaymentTransactions = transactions;
+
+        var expenseRows = await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => e.CashAccountId == id
+                && !e.IsCancelled
+                && e.SettlementMode == ExpenseSettlementMode.PaidImmediately
+                && !_db.PaymentTransactions.Any(p => p.ExpenseTransactionId == e.Id))
+            .OrderByDescending(e => e.ExpenseDate)
+            .ThenByDescending(e => e.Id)
+            .Take(StatementRowLimit)
+            .Select(e => new CashAccountStatementRowViewModel
+            {
+                Id = e.Id,
+                Source = ExpenseStatementSource,
+                EntryDate = e.ExpenseDate,
+                // مصرفِ نقدی همیشه خروجِ پول از همین صندوق است.
+                Direction = PaymentDirection.Out,
+                KindName = e.ExpenseType != null
+                    ? (e.ExpenseType.NamePersian ?? e.ExpenseType.Name)
+                    : "مصرف نقدی",
+                CounterpartyName = e.ServiceProvider != null
+                    ? e.ServiceProvider.Name
+                    : e.Driver != null
+                        ? e.Driver.FullName
+                        : "متفرقه",
+                ContractNumber = e.Contract != null ? e.Contract.ContractNumber : null,
+                Amount = e.Amount,
+                Currency = e.Currency,
+                AmountUsd = e.AmountUsd,
+                Reference = e.Description,
+                LedgerEntryId = _db.LedgerEntries
+                    .Where(l => l.SourceType == ExpenseLedgerPoster.ExpenseSourceType && l.SourceId == e.Id)
+                    .Select(l => (int?)l.Id)
+                    .FirstOrDefault()
+            })
+            .ToListAsync();
+
+        var transactions = paymentRows
+            .Concat(expenseRows)
+            .OrderByDescending(row => row.EntryDate)
+            .ThenByDescending(row => row.Id)
+            .Take(StatementRowLimit)
+            .ToList();
+        // جمع‌ها از کلِ تراکنش‌های همین حساب خوانده می‌شوند، نه از سطرهای نمایش‌داده‌شده.
+        // مبالغِ ارزهای مختلف هم با هم جمع نمی‌شوند: اگر همهٔ اسناد به ارز خودِ حساب باشند
+        // (حالت عادی) جمعِ ارزی نشان داده می‌شود، وگرنه معادلِ دالریِ همان اسناد — تنها
+        // مقیاسی که برای همهٔ اسناد ثبت شده است.
+        var totals = await _db.PaymentTransactions
+            .AsNoTracking()
+            .Where(p => p.CashAccountId == id)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                NativeIn = g.Where(p => p.Direction == PaymentDirection.In && p.Currency == item.Currency)
+                    .Sum(p => (decimal?)p.Amount) ?? 0m,
+                NativeOut = g.Where(p => p.Direction == PaymentDirection.Out && p.Currency == item.Currency)
+                    .Sum(p => (decimal?)p.Amount) ?? 0m,
+                UsdIn = g.Where(p => p.Direction == PaymentDirection.In)
+                    .Sum(p => (decimal?)p.AmountUsd) ?? 0m,
+                UsdOut = g.Where(p => p.Direction == PaymentDirection.Out)
+                    .Sum(p => (decimal?)p.AmountUsd) ?? 0m,
+                ForeignCurrencyCount = g.Count(p => p.Currency != item.Currency)
+            })
+            .FirstOrDefaultAsync();
+
+        // همان قاعده برای مصارفِ نقدی؛ همیشه سمتِ پرداخت.
+        var expenseTotals = await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => e.CashAccountId == id
+                && !e.IsCancelled
+                && e.SettlementMode == ExpenseSettlementMode.PaidImmediately
+                && !_db.PaymentTransactions.Any(p => p.ExpenseTransactionId == e.Id))
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                NativeOut = g.Where(e => e.Currency == item.Currency)
+                    .Sum(e => (decimal?)e.Amount) ?? 0m,
+                UsdOut = g.Sum(e => (decimal?)e.AmountUsd) ?? 0m,
+                ForeignCurrencyCount = g.Count(e => e.Currency != item.Currency)
+            })
+            .FirstOrDefaultAsync();
+
+        var hasForeignCurrency = (totals?.ForeignCurrencyCount ?? 0) + (expenseTotals?.ForeignCurrencyCount ?? 0) > 0;
+        var totalIn = hasForeignCurrency ? totals?.UsdIn ?? 0m : totals?.NativeIn ?? 0m;
+        var totalOut = hasForeignCurrency
+            ? (totals?.UsdOut ?? 0m) + (expenseTotals?.UsdOut ?? 0m)
+            : (totals?.NativeOut ?? 0m) + (expenseTotals?.NativeOut ?? 0m);
+
+        ViewBag.StatementRows = transactions;
+
         ViewBag.TotalIn = totalIn;
         ViewBag.TotalOut = totalOut;
         ViewBag.ClosingBalance = totalIn - totalOut;
+        ViewBag.TotalsCurrency = hasForeignCurrency ? SystemCurrency.BaseCurrencyCode : item.Currency;
 
         return View(item);
     }

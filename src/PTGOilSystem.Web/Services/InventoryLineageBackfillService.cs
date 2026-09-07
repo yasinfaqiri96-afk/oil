@@ -60,10 +60,10 @@ public sealed class InventoryLineageBackfillService
             // برای حمل غیرکشتی، از Lot منبع FIFO مصرف می‌کنیم تا زنجیرهٔ چندمرحله‌ای درست بخواند
             // و موجودیِ مبدأ دوبار شمرده نشود. ریشه از Lot منبع به Lot مقصد منتقل می‌شود.
             InventoryLot? fromLot = null;
-            if (!isVessel)
+            if (!isVessel && leg.SourceTerminalId.HasValue)
             {
                 var srcConsume = await _writer.ConsumeFifoAsync(new LotConsumeRequest(
-                    leg.ProductId, leg.SourceTerminalId, leg.SourceStorageTankId,
+                    leg.ProductId, leg.SourceTerminalId.Value, leg.SourceStorageTankId,
                     leg.SourcePurchaseContractId, leg.QuantityMt, leg.LoadedDate), ct);
                 fromLot = srcConsume.Consumptions.Count > 0 ? srcConsume.Consumptions[0].Lot : null;
             }
@@ -76,9 +76,10 @@ public sealed class InventoryLineageBackfillService
             var rootContractId = fromLot?.RootContractId ?? leg.SourcePurchaseContractId;
             var supplierId = fromLot?.SupplierId ?? await ResolveSupplierAsync(leg.SourcePurchaseContractId, ct);
             var destTerminalId = receipt.DestinationTerminalId ?? leg.DestinationTerminalId ?? leg.SourceTerminalId;
+            if (!destTerminalId.HasValue) continue;
 
             var lot = await _writer.CreateLotAsync(new LotCreationRequest(
-                leg.ProductId, destTerminalId, receipt.DestinationStorageTankId ?? leg.DestinationStorageTankId,
+                leg.ProductId, destTerminalId.Value, receipt.DestinationStorageTankId ?? leg.DestinationStorageTankId,
                 receipt.ReceivedQuantityMt,
                 isVessel ? InventoryLotSourceType.VesselInbound : InventoryLotSourceType.TransportReceipt,
                 confidence,

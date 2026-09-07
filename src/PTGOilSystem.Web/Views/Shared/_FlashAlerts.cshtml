@@ -7,9 +7,10 @@
     var errMessage = TempData["err"] as string;
     var errorMessage = TempData["error"] as string;
     var dangerMessage = !string.IsNullOrWhiteSpace(errMessage) ? errMessage : errorMessage;
+    var warnMessage = TempData["warn"] as string;
 }
 
-@if (!string.IsNullOrWhiteSpace(okMessage) || !string.IsNullOrWhiteSpace(dangerMessage))
+@if (!string.IsNullOrWhiteSpace(okMessage) || !string.IsNullOrWhiteSpace(dangerMessage) || !string.IsNullOrWhiteSpace(warnMessage))
 {
     <div class="boltz-alert-stack" aria-live="polite" aria-relevant="additions">
         @if (!string.IsNullOrWhiteSpace(okMessage))
@@ -19,6 +20,18 @@
                 <div class="boltz-alert-body">
                     <strong class="boltz-alert-title">@T("انجام شد", "Done")</strong>
                     <div class="boltz-alert-message">@okMessage</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@T("بستن", "Close")"></button>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(warnMessage))
+        {
+            <div class="alert alert-warning alert-dismissible fade show boltz-alert" role="status" data-boltz-auto-dismiss="8000">
+                <i class="bi bi-exclamation-circle-fill boltz-alert-icon" aria-hidden="true"></i>
+                <div class="boltz-alert-body">
+                    <strong class="boltz-alert-title">@T("توجه", "Heads up")</strong>
+                    <div class="boltz-alert-message">@warnMessage</div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@T("بستن", "Close")"></button>
             </div>

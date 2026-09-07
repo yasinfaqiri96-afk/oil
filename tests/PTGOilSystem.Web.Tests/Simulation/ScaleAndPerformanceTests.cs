@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Data;
@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Services.PartyStatements;
 using PTGOilSystem.Web.Services.Reporting;
 using Xunit;
 using Xunit.Abstractions;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Tests.Simulation;
 
@@ -297,7 +298,8 @@ public sealed class ScaleAndPerformanceTests
                 new PartyStatementPolicyResolver(),
                 new CompanyFlowDirectionResolver(),
                 new CompanyFlowBalanceService(),
-                Options.Create(new PartyStatementOptions()))
+                Options.Create(new PartyStatementOptions()),
+                new PartyDirectory(db))
             .GetStatementAsync(
                 new PartyRef(partyType, partyId),
                 new PartyStatementFilter { IncludeOperationalColumns = false });

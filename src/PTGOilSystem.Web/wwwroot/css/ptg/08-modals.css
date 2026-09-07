@@ -22,14 +22,14 @@ body.ptg-modal-document :where(.modal-content) {
     border: 1px solid var(--ptg-border);
     border-radius: var(--ptg-radius-card);
     background: var(--ptg-surface);
-    box-shadow: var(--ptg-shadow-soft);
+    box-shadow: var(--shadow-dialog);
 }
 
 /* Block padding is tightened by the compact layer (41-compact.css); this rule
    owns the inline padding and the surface only, so the two never disagree. */
 body.boltz-shell.app-shell-authenticated :where(.modal-header),
 body.ptg-modal-document :where(.modal-header) {
-    padding: 1.15rem 1.4rem;
+    padding: 14px 20px;
     border-bottom: 1px solid var(--ptg-border);
     background: var(--ptg-surface);
 }
@@ -47,8 +47,8 @@ body.ptg-modal-document :where(.modal-body) {
 
 body.boltz-shell.app-shell-authenticated :where(.modal-footer),
 body.ptg-modal-document :where(.modal-footer) {
-    gap: .75rem;
-    padding: 1rem 1.4rem;
+    gap: 8px;
+    padding: 12px 20px;
     border-top: 1px solid var(--ptg-border);
     background: var(--ptg-surface);
 }

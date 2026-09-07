@@ -12,6 +12,8 @@ public sealed class GroupExpenseOperationItem
     public string OperationLabel { get; init; } = ""; // حمل / ارسال موتر
     public string VehicleKind { get; init; } = "";    // واگن / موتر
     public string Number { get; init; } = "";
+    // نمبر جایگزین (سیمیر/CMR) فقط برای تطبیق در امپورت اکسل؛ در جدول نمایش داده نمی‌شود.
+    public string? AltNumber { get; init; }
     public string Route { get; init; } = "";
     public decimal QuantityMt { get; init; }
     public string StatusLabel { get; init; } = "";
@@ -24,6 +26,37 @@ public sealed class GroupExpenseSelectedInput
     public int Id { get; set; }
     // فقط برای روش «دستی» استفاده می‌شود.
     public decimal? ManualAmount { get; set; }
+}
+
+// یک «مصرف» در فرم ثبت مصرف گروهی. چند خط می‌توانند در یک ثبت با هم بیایند؛ هر خط
+// یک ExpenseBatch جداگانه با همان عملیات‌های انتخاب‌شده می‌سازد. تاریخ، ارز، نرخ ارز و
+// «مصرف بدوش کیست» بین همهٔ خط‌ها مشترک است.
+public sealed class GroupExpenseLineInput
+{
+    public int? ExpenseTypeId { get; set; }
+
+    [StringLength(200)]
+    public string? ManualExpenseTypeName { get; set; }
+
+    public int? ServiceProviderId { get; set; }
+
+    public ExpenseAllocationMethod AllocationMethod { get; set; } = ExpenseAllocationMethod.EqualSplit;
+
+    public decimal? AmountPerOperation { get; set; }
+
+    public decimal? TotalAmount { get; set; }
+
+    public decimal? RatePerTon { get; set; }
+
+    [StringLength(1000)]
+    public string? Description { get; set; }
+
+    // فقط روش دستی: هم‌ترتیب با Items همین فرم.
+    public List<decimal?> ManualAmounts { get; set; } = [];
+
+    // فقط روش «بر اساس مقدار»: نرخ فی تنِ جداگانه برای هر عملیات، هم‌ترتیب با Items.
+    // خالی بودن یک خانه یعنی همان RatePerTon مشترک استفاده شود.
+    public List<decimal?> RatePerTonOverrides { get; set; } = [];
 }
 
 public sealed class GroupExpenseCreateViewModel
@@ -74,6 +107,9 @@ public sealed class GroupExpenseCreateViewModel
     public CostResponsibility? CostResponsibility { get; set; }
 
     public List<GroupExpenseSelectedInput> Items { get; set; } = [];
+
+    // چند مصرف در یک ثبت. اگر خالی باشد، فیلدهای بالا یک خط می‌سازند (سازگاری با فرم قبلی).
+    public List<GroupExpenseLineInput> Lines { get; set; } = [];
 
     [StringLength(1000)]
     public string? ReturnUrl { get; set; }

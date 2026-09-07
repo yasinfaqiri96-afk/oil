@@ -9,7 +9,7 @@
     var isEdit = isEditSarrafHawala || string.Equals(paymentFormMode, "Edit", StringComparison.OrdinalIgnoreCase);
     var formAction = isEditSarrafHawala ? "EditSarrafHawala" : (isEdit ? "Edit" : "Create");
     int? formRouteId = isEdit ? Model.Id : null;
-    ViewData["Title"] = isEdit ? "ویرایش سند روزنامچه مالی" : "ثبت سند روزنامچه مالی";
+    ViewData["Title"] = isEdit ? "ویرایش دریافت / پرداخت" : "ثبت دریافت / پرداخت";
     ViewData["HideSectionTabs"] = true;
     var currencies = ViewBag.Currencies as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
     var cashAccounts = (ViewBag.CashAccountCatalog as IEnumerable<dynamic>)?.ToList() ?? new List<dynamic>();
@@ -20,6 +20,9 @@
     var isViaSarraf = Model.PaymentMethod == PaymentMethod.ViaSarraf;
     var isSarrafSettlement = !isViaSarraf && (Model.PaymentKind == PaymentKind.SarrafSettlement || Model.SarrafId.HasValue);
     var submitText = isEdit ? "ذخیره تغییرات" : isViaSarraf ? "ثبت پرداخت از طریق صراف" : isSarrafSettlement ? "ثبت پرداخت به صراف" : "ثبت سند";
+    // برچسب دکمهٔ ثبت با جهت سند عوض می‌شود؛ در ویرایش و مسیرهای صراف همان متن اختصاصی می‌ماند.
+    var submitTextReceipt = isEdit || isViaSarraf || isSarrafSettlement ? submitText : "ثبت دریافت";
+    var submitTextPayment = isEdit || isViaSarraf || isSarrafSettlement ? submitText : "ثبت پرداخت";
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("Index");
     var formUrl = Url.Action(formAction, formRouteId.HasValue ? new { id = formRouteId.Value } : null);
     var directionMode = Model.Direction == PaymentDirection.In ? "in" : "out";
@@ -28,9 +31,20 @@
     ViewData["SectionTabsActionUrl"] = cancelUrl;
     ViewData["SectionTabsActionLabel"] = "بازگشت";
     ViewData["SectionTabsActionIcon"] = "bi-arrow-right";
+
+    // «جزئیات بیشتر» وقتی از ابتدا باز است که چیزی داخل آن مقدار دارد یا مسیر صراف فعال است.
+    var moreOpen = isEdit
+        || isViaSarraf
+        || isSarrafSettlement
+        || Model.CommissionEnabled
+        || Model.ContractId.HasValue
+        || Model.IsAdvancePayment == true
+        || Model.IsCustomerAdvance == true
+        || !string.IsNullOrWhiteSpace(Model.Reference)
+        || !string.IsNullOrWhiteSpace(Model.Description);
 }
 
-<div class="ak-form-page roznamcha-entry-page" dir="rtl">
+<div class="ak-form-page roznamcha-entry-page finance-entry-chortke" dir="rtl">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((ViewData["Title"] as string ?? "روزنامچه", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
@@ -38,7 +52,7 @@
     <form action="@formUrl"
           method="post"
           id="roznamchaForm"
-          class="ak-form roznamcha-form"
+          class="ak-form roznamcha-form journal-simple-form"
           data-direction-mode="@directionMode"
           data-party-balance-url="@Url.Action("PartyBalance")">
         <div>
@@ -54,274 +68,220 @@
 
             <input name="PaymentMethod" type="hidden" id="paymentMethodInput" value="@((int)Model.PaymentMethod)" />
 
-            <div class="ak-form-section journal-form-toolbar">
-            @* ===== نوع سند ===== *@
-            <section class="ak-form-group ak-form-section">
-                <h2 class="ak-form-group-title">نوع سند</h2>
-                <div id="journalDirectionGroup" class="ptg-tabs-rail" role="group" aria-label="نوع عملیات">
-                    <button type="button" class="ptg-tab-item" data-direction-choice data-direction-value="@((int)PaymentDirection.In)">
-                        <i class="bi bi-arrow-down-left"></i>
-                        <span>دریافت</span>
-                        <span class="ak-section-desc">ورود پول به حساب</span>
-                    </button>
-                    <button type="button" class="ptg-tab-item" data-direction-choice data-direction-value="@((int)PaymentDirection.Out)">
-                        <i class="bi bi-arrow-up-right"></i>
-                        <span>پرداخت</span>
-                        <span class="ak-section-desc">خروج پول از حساب</span>
-                    </button>
-                </div>
-            </section>
-
-            @* ===== روش پرداخت ===== *@
-            <section class="ak-form-group ak-form-section" id="paymentMethodGroup">
-                <h2 class="ak-form-group-title">روش پرداخت</h2>
-                <div class="ptg-tabs-rail" role="group" aria-label="روش پرداخت">
-                    <button type="button" class="ptg-tab-item @(isViaSarraf ?"is-active" : null)"
-                            data-payment-method-choice data-payment-method-value="@((int)PaymentMethod.ViaSarraf)">
-                        <i class="bi bi-currency-exchange"></i>
-                        از طریق صرافی
-                    </button>
-                    <button type="button" class="ptg-tab-item @(isViaSarraf ? null :"is-active")"
-                            data-payment-method-choice data-payment-method-value="@((int)PaymentMethod.CashBank)">
-                        <i class="bi bi-bank"></i>
-                        بانک / حواله
-                    </button>
-                </div>
-            </section>
+            @* ===== دریافت یا پرداخت ===== *@
+            <div id="journalDirectionGroup" class="ptg-tabs-rail journal-direction-segmented" role="group" aria-label="نوع عملیات">
+                <button type="button" class="ptg-tab-item" data-direction-choice data-direction-value="@((int)PaymentDirection.In)">
+                    <i class="bi bi-arrow-down-left" aria-hidden="true"></i>
+                    <span>دریافت پول</span>
+                </button>
+                <button type="button" class="ptg-tab-item" data-direction-choice data-direction-value="@((int)PaymentDirection.Out)">
+                    <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                    <span>پرداخت پول</span>
+                </button>
             </div>
 
-            <fieldset data-payment-cashbank-section class="ak-form-section journal-cashbank-section @(isViaSarraf ?"d-none" : null)" @(isViaSarraf ? "disabled" : null)>
-
-                @* ===== ردیف افقی فیلدها (مطابق طرح مرجع) ===== *@
-                <div class="ak-form-grid journal-primary-grid">
-                    <div class="ak-field">
-                        <label asp-for="PaymentDate" class="ak-label">تاریخ</label>
-                        <input asp-for="PaymentDate" class="ak-input" type="date" data-ptg-date-guard data-ptg-today="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
-                        <span asp-validation-for="PaymentDate" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field">
-                        <label asp-for="CounterpartyType" class="ak-label">نوع طرف حساب</label>
-                        <select asp-for="CounterpartyType" asp-items="ViewBag.CounterpartyTypes" class="ak-input"></select>
-                    </div>
-
-                    <div class="ak-field" data-counterparty-panel="customer sales">
-                        <label asp-for="CustomerId" class="ak-label">مشتری</label>
-                        <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="CustomerId" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field" data-counterparty-panel="supplier">
-                        <label asp-for="SupplierId" class="ak-label">تأمین‌کننده</label>
-                        <select asp-for="SupplierId" asp-items="ViewBag.Suppliers" id="supplierSelect" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="SupplierId" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field" data-counterparty-panel="serviceprovider">
-                        <label asp-for="ServiceProviderId" class="ak-label">شرکت خدماتی</label>
-                        <select asp-for="ServiceProviderId" asp-items="ViewBag.ServiceProviders" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="ServiceProviderId" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field" data-counterparty-panel="employee">
-                        <label asp-for="EmployeeId" class="ak-label">کارمند</label>
-                        <select asp-for="EmployeeId" asp-items="ViewBag.Employees" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="EmployeeId" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field" data-counterparty-panel="driver">
-                        <label asp-for="DriverId" class="ak-label">راننده</label>
-                        <select asp-for="DriverId" asp-items="ViewBag.Drivers" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="DriverId" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field" data-counterparty-panel="sarraf">
-                        <label asp-for="SarrafId" class="ak-label">صراف</label>
-                        <select asp-for="SarrafId" asp-items="ViewBag.Sarrafs" id="cashSarrafSelect" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="SarrafId" class="field-validation-error"></span>
-                    </div>
-
-                    @* پرداخت توسط شرکت یا شریک. «شریک» یعنی پول از صندوق/بانک شرکت خارج نشده
-                       و شریکِ همین قرارداد مستقیماً پرداخت کرده است. *@
-                    <div class="ak-field" id="fundingSourceField">
-                        <label class="ak-label"><i class="bi bi-wallet2"></i> پرداخت توسط</label>
-                        <div class="d-flex gap-3 align-items-center">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="FundingSource" value="1"
-                                       id="fundingSourceCompany"
-                                       checked="@(Model.FundingSource != PaymentFundingSource.Partner)" />
-                                <label class="form-check-label" for="fundingSourceCompany">شرکت</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="FundingSource" value="2"
-                                       id="fundingSourcePartner"
-                                       checked="@(Model.FundingSource == PaymentFundingSource.Partner)" />
-                                <label class="form-check-label" for="fundingSourcePartner">شریک</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="ak-field" id="paidByPartnerField">
-                        <label asp-for="PaidByPartnerId" class="ak-label"><i class="bi bi-people"></i> شریک پرداخت‌کننده</label>
-                        <select asp-for="PaidByPartnerId" id="paidByPartnerSelect" class="ak-input"
-                                asp-items="@(ViewBag.ContractPartners as List<SelectListItem>)">
-                            <option value="">انتخاب شریک</option>
-                        </select>
-                        <span asp-validation-for="PaidByPartnerId" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field" id="cashAccountField">
-                        <label asp-for="CashAccountId" class="ak-label">حساب</label>
-                        <select asp-for="CashAccountId" id="cashAccountSelect" class="ak-input">
-                            <option value="">انتخاب حساب</option>
-                            @foreach (var account in cashAccounts)
-                            {
-                                var accountId = (int)account.Id;
-                                var isSelected = Model.CashAccountId == accountId;
-                                bool isMixed = account.IsMixed;
-                                <option value="@accountId"
-                                        data-currency="@account.Currency"
-                                        data-mixed="@isMixed.ToString().ToLowerInvariant()"
-                                        data-active="@account.IsActive.ToString().ToLowerInvariant()"
-                                        selected="@(isSelected ? "selected" : null)">
-                                    @account.Name (@(isMixed ? "مختلط - همه ارزها" : account.Currency))
-                                </option>
-                            }
-                        </select>
-                        <span asp-validation-for="CashAccountId" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field">
-                        <label asp-for="Amount" class="ak-label">مبلغ</label>
-                        <input asp-for="Amount" class="ak-input ak-num" placeholder="0.00" />
-                        <span asp-validation-for="Amount" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field">
-                        <label asp-for="Currency" class="ak-label">ارز</label>
-                        <select asp-for="Currency" asp-items="currencies" id="paymentCurrency" class="ak-input">
-                            <option value=""></option>
-                        </select>
-                        <span asp-validation-for="Currency" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field" id="paymentFxDocGroup">
-                        <label asp-for="DocumentCurrencyPerUsdRate" class="ak-label">
-                            نرخ دالر به <span data-fx-currency-name>ارز</span>
-                        </label>
-                        <input asp-for="DocumentCurrencyPerUsdRate"
-                               id="paymentFxRateInput"
-                               class="ak-input ak-num"
-                               placeholder="مثال: ۷۷" />
-                        <span asp-validation-for="DocumentCurrencyPerUsdRate" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field">
-                        <label asp-for="PaymentKind" class="ak-label"><i class="bi bi-tags"></i> دسته‌بندی سند</label>
-                        <select asp-for="PaymentKind" asp-items="ViewBag.PaymentKinds" class="ak-input"></select>
-                        <span asp-validation-for="PaymentKind" class="field-validation-error"></span>
-                    </div>
-
-                    @* نشانهٔ پیش‌پرداخت/پیش‌دریافت — فقط ثبت و نمایش؛ هیچ اثری روی Ledger و مانده ندارد.
-                       پنل‌ها با همان مکانیزم data-counterparty-panel نمایش/مخفی می‌شوند و در حالت مخفی
-                       ورودی‌ها disabled می‌شوند تا مقدارشان post نشود. *@
-                    <div class="ak-toggle-field" data-counterparty-panel="supplier">
-                        <div class="form-check form-switch">
-                            <input type="checkbox" name="IsAdvancePayment" value="true" id="isAdvancePayment"
-                                   class="form-check-input" role="switch"
-                                   checked="@(Model.IsAdvancePayment == true)" />
-                            <input type="hidden" name="IsAdvancePayment" value="false" />
-                            <label for="isAdvancePayment" class="form-check-label">پیش‌پرداخت</label>
-                        </div>
-                        <span>پرداخت آزاد؛ تخصیص به قرارداد در آینده.</span>
-                    </div>
-
-                    <div class="ak-toggle-field" data-counterparty-panel="customer">
-                        <div class="form-check form-switch">
-                            <input type="checkbox" name="IsCustomerAdvance" value="true" id="isCustomerAdvance"
-                                   class="form-check-input" role="switch"
-                                   checked="@(Model.IsCustomerAdvance == true)" />
-                            <input type="hidden" name="IsCustomerAdvance" value="false" />
-                            <label for="isCustomerAdvance" class="form-check-label">پیش‌دریافت</label>
-                        </div>
-                        <span>دریافت آزاد؛ اتصال به فروش در آینده.</span>
-                    </div>
-
-                    <div class="ak-field" data-counterparty-panel="supplier customer serviceprovider officeexpense contract sales shipment driver">
-                        <label asp-for="ContractId" class="ak-label"><i class="bi bi-file-earmark-text"></i> قرارداد</label>
-                        <select asp-for="ContractId" id="contractSelect" class="ak-input">
-                            <option value=""></option>
-                            @foreach (var contract in contractCatalog)
-                            {
-                                var isSelected = Model.ContractId == contract.Id;
-                                <option value="@contract.Id"
-                                        data-supplier-id="@(contract.SupplierId?.ToString(CultureInfo.InvariantCulture) ?? "")"
-                                        data-contract-type="@contract.ContractType"
-                                        selected="@(isSelected ? "selected" : null)">
-                                    @contract.Display
-                                </option>
-                            }
-                        </select>
-                        <span asp-validation-for="ContractId" class="field-validation-error"></span>
-                    </div>
-
-                    <div class="ak-field">
-                        <label asp-for="Reference" class="ak-label">
-                            <i class="bi bi-hash"></i>
-                            @(isSarrafSettlement ? "شماره حواله مرتبط" : "شماره مرجع")
-                        </label>
-                        <input asp-for="Reference" class="ak-input" required="@isSarrafSettlement" />
-                        <span asp-validation-for="Reference" class="field-validation-error"></span>
-                    </div>
-
-                    <input id="journalCurrentTime" type="hidden" value="@currentTime" />
-                    <div class="ak-field ak-form-full d-none" id="paymentUsdNote">
-                        <small class="form-text text-muted"><i class="bi bi-info-circle"></i> پرداخت دالری است؛ نرخ تبدیل لازم نیست.</small>
+            @* ===== دو کلید حالت در یک ردیف =====
+                 روش پرداخت و «پرداخت توسط» بیرون از fieldset نقد/بانک می‌مانند تا در هر دو
+                 حالت قابل تعویض باشند؛ data-cashbank-only رادیوهای FundingSource را در حالت
+                 صراف disable می‌کند تا دقیقاً مثل قبل post نشوند. *@
+            <div class="journal-mode-bar">
+                <div class="journal-mode-item" id="paymentMethodGroup">
+                    <span class="journal-mode-label">روش پرداخت</span>
+                    <div class="ptg-tabs-rail journal-mode-rail" role="group" aria-label="روش پرداخت">
+                        <button type="button" class="ptg-tab-item @(isViaSarraf ? null :"is-active")"
+                                data-payment-method-choice data-payment-method-value="@((int)PaymentMethod.CashBank)">بانک / حواله</button>
+                        <button type="button" class="ptg-tab-item @(isViaSarraf ?"is-active" : null)"
+                                data-payment-method-choice data-payment-method-value="@((int)PaymentMethod.ViaSarraf)">صرافی</button>
                     </div>
                 </div>
 
-                <div id="journalPartyBalance" class="ak-note d-none" role="status" aria-live="polite">
-                    <span class="jpb-name"></span>
-                    <span class="jpb-state">
-                        <strong class="jpb-amount ak-num"></strong>
-                        <span class="jpb-label"></span>
-                    </span>
+                <div class="journal-mode-item" id="fundingSourceField">
+                    <span class="journal-mode-label"
+                          data-direction-label
+                          data-label-in="دریافت توسط"
+                          data-label-out="پرداخت توسط">پرداخت توسط</span>
+                    <div class="journal-mode-rail journal-funding-choices" role="group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="FundingSource" value="1"
+                                   id="fundingSourceCompany" data-cashbank-only
+                                   checked="@(Model.FundingSource != PaymentFundingSource.Partner)" />
+                            <label class="form-check-label" for="fundingSourceCompany">شرکت</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="FundingSource" value="2"
+                                   id="fundingSourcePartner" data-cashbank-only
+                                   checked="@(Model.FundingSource == PaymentFundingSource.Partner)" />
+                            <label class="form-check-label" for="fundingSourcePartner">شریک</label>
+                        </div>
+                    </div>
                 </div>
+            </div>
+
+            <fieldset data-payment-cashbank-section class="ak-form-section journal-cashbank-section journal-main-fieldset @(isViaSarraf ?"d-none" : null)" @(isViaSarraf ? "disabled" : null)>
+
+                @* ===== اطلاعات اصلی سند ===== *@
+                <section class="fte-section">
+                    <h2 class="fte-section-title">اطلاعات اصلی سند</h2>
+                    <div class="ak-form-grid journal-primary-grid">
+                        <div class="ak-field fec-span-3">
+                            <label asp-for="PaymentDate" class="ak-label">تاریخ</label>
+                            <input asp-for="PaymentDate" class="ak-input" type="date" data-ptg-date-guard data-ptg-today="@BusinessClock.Today.ToString("yyyy-MM-dd")" />
+                            <span asp-validation-for="PaymentDate" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-4">
+                            <label asp-for="PaymentKind" class="ak-label">بابت چه؟</label>
+                            <select asp-for="PaymentKind" asp-items="ViewBag.PaymentKinds" class="ak-input"></select>
+                            <span asp-validation-for="PaymentKind" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-5">
+                            <label asp-for="Amount" class="ak-label">مبلغ</label>
+                            <input asp-for="Amount" class="ak-input ak-num" placeholder="0.00" />
+                            <span asp-validation-for="Amount" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-4">
+                            <label asp-for="Currency" class="ak-label">ارز</label>
+                            <select asp-for="Currency" asp-items="currencies" id="paymentCurrency" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="Currency" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-4" id="paymentFxDocGroup">
+                            <label asp-for="DocumentCurrencyPerUsdRate" class="ak-label">
+                                نرخ دالر به <span data-fx-currency-name>ارز</span>
+                            </label>
+                            <input asp-for="DocumentCurrencyPerUsdRate"
+                                   id="paymentFxRateInput"
+                                   class="ak-input ak-num"
+                                   placeholder="مثال: ۷۷" />
+                            <span asp-validation-for="DocumentCurrencyPerUsdRate" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field ak-form-full d-none" id="paymentUsdNote">
+                            <small class="form-text text-muted"><i class="bi bi-info-circle"></i> پرداخت دالری است؛ نرخ تبدیل لازم نیست.</small>
+                        </div>
+
+                        <input id="journalCurrentTime" type="hidden" value="@currentTime" />
+                    </div>
+                </section>
+
+                @* ===== طرف حساب: اول نوع، بعد خودِ طرف حساب ===== *@
+                <section class="fte-section">
+                    <h2 class="fte-section-title">طرف حساب</h2>
+                    <div class="ak-form-grid journal-primary-grid">
+                        <div class="ak-field fec-span-3">
+                            <label asp-for="CounterpartyType" class="ak-label">نوع طرف حساب</label>
+                            <select asp-for="CounterpartyType" asp-items="ViewBag.CounterpartyTypes" class="ak-input"></select>
+                        </div>
+
+                        <div class="ak-field fec-span-5" data-counterparty-panel="customer sales">
+                            <label asp-for="CustomerId" class="ak-label">مشتری</label>
+                            <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="CustomerId" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-5" data-counterparty-panel="supplier">
+                            <label asp-for="SupplierId" class="ak-label">تأمین‌کننده</label>
+                            <select asp-for="SupplierId" asp-items="ViewBag.Suppliers" id="supplierSelect" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="SupplierId" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-5" data-counterparty-panel="serviceprovider">
+                            <label asp-for="ServiceProviderId" class="ak-label">شرکت خدماتی</label>
+                            <select asp-for="ServiceProviderId" asp-items="ViewBag.ServiceProviders" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="ServiceProviderId" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-5" data-counterparty-panel="employee">
+                            <label asp-for="EmployeeId" class="ak-label">کارمند</label>
+                            <select asp-for="EmployeeId" asp-items="ViewBag.Employees" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="EmployeeId" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-5" data-counterparty-panel="driver">
+                            <label asp-for="DriverId" class="ak-label">راننده</label>
+                            <select asp-for="DriverId" asp-items="ViewBag.Drivers" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="DriverId" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-5" data-counterparty-panel="sarraf">
+                            <label asp-for="SarrafId" class="ak-label">صراف</label>
+                            <select asp-for="SarrafId" asp-items="ViewBag.Sarrafs" id="cashSarrafSelect" class="ak-input">
+                                <option value=""></option>
+                            </select>
+                            <span asp-validation-for="SarrafId" class="field-validation-error"></span>
+                        </div>
+                    </div>
+
+                    <div id="journalPartyBalance" class="ak-note journal-party-balance d-none" role="status" aria-live="polite">
+                        <span class="jpb-head">
+                            <i class="bi bi-wallet2 jpb-icon" aria-hidden="true"></i>
+                            <span class="jpb-caption">مانده حساب</span>
+                            <span class="jpb-name"></span>
+                        </span>
+                        <span class="jpb-state">
+                            <strong class="jpb-amount ak-num"></strong>
+                            <span class="jpb-label"></span>
+                        </span>
+                    </div>
+                </section>
+
+                @* ===== حساب و منبع وجه ===== *@
+                <section class="fte-section">
+                    <h2 class="fte-section-title"
+                        data-direction-label
+                        data-label-in="حساب دریافت"
+                        data-label-out="حساب پرداخت">حساب پرداخت</h2>
+                    <div class="ak-form-grid journal-primary-grid">
+                        <div class="ak-field fec-span-5" id="cashAccountField">
+                            <label asp-for="CashAccountId" class="ak-label"
+                                   data-direction-label
+                                   data-label-in="به کدام حساب؟"
+                                   data-label-out="از کدام حساب؟">از کدام حساب؟</label>
+                            <select asp-for="CashAccountId" id="cashAccountSelect" class="ak-input">
+                                <option value="">انتخاب حساب</option>
+                                @foreach (var account in cashAccounts)
+                                {
+                                    var accountId = (int)account.Id;
+                                    var isSelected = Model.CashAccountId == accountId;
+                                    bool isMixed = account.IsMixed;
+                                    <option value="@accountId"
+                                            data-currency="@account.Currency"
+                                            data-mixed="@isMixed.ToString().ToLowerInvariant()"
+                                            data-active="@account.IsActive.ToString().ToLowerInvariant()"
+                                            selected="@(isSelected ? "selected" : null)">
+                                        @account.Name (@(isMixed ? "مختلط - همه ارزها" : account.Currency))
+                                    </option>
+                                }
+                            </select>
+                            <span asp-validation-for="CashAccountId" class="field-validation-error"></span>
+                        </div>
+
+                        <div class="ak-field fec-span-5" id="paidByPartnerField">
+                            <label asp-for="PaidByPartnerId" class="ak-label">شریک پرداخت‌کننده</label>
+                            <select asp-for="PaidByPartnerId" id="paidByPartnerSelect" class="ak-input"
+                                    asp-items="@(ViewBag.ContractPartners as List<SelectListItem>)">
+                                <option value="">انتخاب شریک</option>
+                            </select>
+                            <span asp-validation-for="PaidByPartnerId" class="field-validation-error"></span>
+                        </div>
+                    </div>
+                </section>
 
                 <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
-
-                <div id="supplierPaymentContext"
-                     class="ak-note @(Model.SupplierId.HasValue ?"" : "d-none")"
-                     role="status">
-                    <span>تأمین‌کننده: <strong data-supplier-context-name>@(selectedSupplierName ?? "—")</strong></span>
-                    <span>قرارداد: <strong data-supplier-context-contract>@(selectedContractNumber ?? "—")</strong></span>
-                    <span>ارز: <strong data-supplier-context-currency>@Model.Currency</strong></span>
-                    <span>مبلغ: <strong data-supplier-context-amount>@Model.Amount.ToString("N2", CultureInfo.InvariantCulture)</strong></span>
-                </div>
-
-                @if (isSarrafSettlement)
-                {
-
-                }
-
-                @* ===== توضیحات ===== *@
-                <div class="ak-field journal-description-field">
-                    <label asp-for="Description" class="ak-label">توضیحات</label>
-                    <textarea asp-for="Description" class="ak-input" rows="2" placeholder="شرح مختصر سند..."></textarea>
-                    <span asp-validation-for="Description" class="field-validation-error"></span>
-                </div>
 
                 @* پیوندهای اختیاری فقط برای مسیرهای ورودی موجود حفظ می‌شوند و فورم را شلوغ نمی‌کنند. *@
                 <input asp-for="SalesTransactionId" type="hidden" />
@@ -337,20 +297,11 @@
 
                 <input asp-for="SarrafDirection" type="hidden" id="sarrafDirectionInput" value="@(((int?)Model.SarrafDirection) ?? (int)SarrafSettlementDirection.Out)" />
 
-                <section class="ak-form-group ak-form-section journal-sarraf-primary-section" data-sarraf-alloc-section>
+                <section class="ak-form-group ak-form-section journal-sarraf-primary-section">
                     <h2 class="ak-form-group-title">اطلاعات پرداخت</h2>
 
-                    @* جهت: صراف پرداخت کرد (Out) یا از طرف حساب دریافت کرد (In). نوع طرف‌حساب بر اساس جهت فیلتر می‌شود. *@
-                    <div class="ptg-tabs-rail journal-sarraf-direction" role="group" aria-label="جهت حواله صراف">
-                        <button type="button" class="ptg-tab-item"
-                                data-sarraf-direction-choice data-sarraf-direction-value="@((int)SarrafSettlementDirection.Out)">
-                            صراف پرداخت کرد
-                        </button>
-                        <button type="button" class="ptg-tab-item"
-                                data-sarraf-direction-choice data-sarraf-direction-value="@((int)SarrafSettlementDirection.In)">
-                            صراف دریافت کرد
-                        </button>
-                    </div>
+                    @* جهت حواله صراف همان جهت سند است؛ کلید «دریافت پول / پرداخت پول» بالای فرم
+                         آن را تعیین می‌کند، پس اینجا کلید دوم تکراری نمایش داده نمی‌شود. *@
 
                     <div class="ak-form-grid journal-primary-grid">
                         <div class="ak-field">
@@ -463,7 +414,7 @@
                     </div>
                 </section>
 
-                <section class="ak-form-group ak-form-section">
+                <section class="ak-form-group ak-form-section" data-sarraf-alloc-section>
                     <h2 class="ak-form-group-title">تخصیص به قرارداد خرید</h2>
                     <div class="ptg-tabs-rail" role="group" aria-label="تخصیص به قرارداد">
                         <button type="button" class="ptg-tab-item" data-sarraf-alloc-choice data-sarraf-alloc-value="hold">
@@ -529,110 +480,196 @@
                 </section>
             </div>
 
-            @* ===== کمیسیون (اختیاری) — بیرون از fieldset نقد/بانک تا در حالت صراف هم POST شود ===== *@
-            <section class="ak-form-group ak-form-section journal-commission-section" data-commission-section
-                     data-main-currency="@Model.Currency">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 journal-commission-head">
-                    <h2 class="ak-form-group-title mb-0"><i class="bi bi-percent"></i> کمیسیون</h2>
-                    <div class="form-check form-switch m-0">
-                        <input asp-for="CommissionEnabled" class="form-check-input" role="switch"
-                               id="commissionEnabled" data-commission-toggle />
-                        <label class="form-check-label" for="commissionEnabled">افزودن کمیسیون</label>
-                    </div>
-                </div>
+            @* ===== جزئیات بیشتر ===== *@
+            <button type="button"
+                    class="journal-more-toggle"
+                    id="journalMoreToggle"
+                    data-more-toggle
+                    aria-controls="journalMorePanel"
+                    aria-expanded="@(moreOpen ? "true" : "false")">
+                <i class="bi @(moreOpen ? "bi-dash-lg" : "bi-plus-lg")" aria-hidden="true" data-more-icon></i>
+                <span>جزئیات بیشتر</span>
+            </button>
 
-                <div class="ak-form-grid mt-2 journal-commission-body @(Model.CommissionEnabled ? null :"d-none")" data-commission-body>
+            <div class="journal-more-panel" id="journalMorePanel" data-more-panel hidden="@(moreOpen ? null : "hidden")">
+
+                @* فیلدهای تخصصیِ مسیر بانک/حواله. همان fieldset قبلی است تا در حالت صراف
+                   disable شود و مقادیرش post نشود. *@
+                <fieldset data-payment-cashbank-section class="ak-form-section journal-extra-fieldset @(isViaSarraf ?"d-none" : null)" @(isViaSarraf ? "disabled" : null)>
+                    <h2 class="fte-section-title">اطلاعات سند تراکنش</h2>
                     <div class="ak-form-grid">
-                        <div class="ak-field">
-                            <label asp-for="CommissionType" class="ak-label">نوع کمیسیون</label>
-                            <select asp-for="CommissionType" class="ak-input" data-commission-type>
-                                <option value="">— انتخاب —</option>
-                                <option value="@((int)PaymentCommissionType.Percent)">درصدی</option>
-                                <option value="@((int)PaymentCommissionType.Fixed)">مبلغ ثابت</option>
-                            </select>
-                            <span asp-validation-for="CommissionType" class="field-validation-error"></span>
+                        <div class="ak-field fec-span-4">
+                            <label asp-for="Reference" class="ak-label">
+                                @(isSarrafSettlement ? "شماره حواله مرتبط" : "شماره مرجع")
+                            </label>
+                            <input asp-for="Reference" class="ak-input" required="@isSarrafSettlement" />
+                            <span asp-validation-for="Reference" class="field-validation-error"></span>
                         </div>
 
-                        <div class="ak-field" data-commission-percent-field>
-                            <label asp-for="CommissionPercent" class="ak-label">درصد کمیسیون (٪)</label>
-                            <input asp-for="CommissionPercent" class="ak-input ak-num"
-                                   min="0" max="100" step="0.01" placeholder="مثال: ۱" data-commission-percent />
-                            <span asp-validation-for="CommissionPercent" class="field-validation-error"></span>
-                        </div>
-
-                        <div class="ak-field" data-commission-fixed-field>
-                            <label asp-for="CommissionFixedAmount" class="ak-label">مبلغ ثابت</label>
-                            <input asp-for="CommissionFixedAmount" class="ak-input ak-num"
-                                   min="0" step="0.01" placeholder="مثال: ۵۰" data-commission-fixed />
-                            <span asp-validation-for="CommissionFixedAmount" class="field-validation-error"></span>
-                        </div>
-
-                        <div class="ak-field" data-commission-currency-field>
-                            <label asp-for="CommissionCurrency" class="ak-label">ارز کمیسیون</label>
-                            <select asp-for="CommissionCurrency" asp-items="currencies" class="ak-input" data-commission-currency>
+                        <div class="ak-field fec-span-5" data-counterparty-panel="supplier customer serviceprovider officeexpense contract sales shipment driver">
+                            <label asp-for="ContractId" class="ak-label">قرارداد</label>
+                            <select asp-for="ContractId" id="contractSelect" class="ak-input">
                                 <option value=""></option>
-                            </select>
-                        </div>
-
-                        <div class="ak-field" data-commission-rate-field>
-                            <label asp-for="CommissionPerUsdRate" class="ak-label">نرخ دالر به ارز کمیسیون</label>
-                            <input asp-for="CommissionPerUsdRate" class="ak-input ak-num"
-                                   step="0.0001" placeholder="مثال: ۷۷" />
-                            <span asp-validation-for="CommissionPerUsdRate" class="field-validation-error"></span>
-                        </div>
-
-                        <div class="ak-field" data-commission-account-field>
-                            <label asp-for="CommissionCashAccountId" class="ak-label">حساب پرداخت کمیسیون</label>
-                            <select asp-for="CommissionCashAccountId" class="ak-input">
-                                <option value="">همان حساب پرداخت اصلی</option>
-                                @foreach (var account in cashAccounts)
+                                @foreach (var contract in contractCatalog)
                                 {
-                                    var accountId = (int)account.Id;
-                                    bool isMixed = account.IsMixed;
-                                    <option value="@accountId" selected="@(Model.CommissionCashAccountId == accountId ? "selected" : null)">
-                                        @account.Name (@(isMixed ? "مختلط" : account.Currency))
+                                    var isSelected = Model.ContractId == contract.Id;
+                                    <option value="@contract.Id"
+                                            data-supplier-id="@(contract.SupplierId?.ToString(CultureInfo.InvariantCulture) ?? "")"
+                                            data-contract-type="@contract.ContractType"
+                                            selected="@(isSelected ? "selected" : null)">
+                                        @contract.Display
                                     </option>
                                 }
                             </select>
-                            <span asp-validation-for="CommissionCashAccountId" class="field-validation-error"></span>
+                            <span asp-validation-for="ContractId" class="field-validation-error"></span>
                         </div>
 
-                        <div class="ak-field ak-form-full">
-                            <label asp-for="CommissionDescription" class="ak-label">توضیح کمیسیون</label>
-                            <input asp-for="CommissionDescription" class="ak-input" placeholder="شرح کمیسیون..." />
+                        @* نشانهٔ پیش‌پرداخت/پیش‌دریافت — فقط ثبت و نمایش؛ هیچ اثری روی Ledger و مانده ندارد.
+                           پنل‌ها با همان مکانیزم data-counterparty-panel نمایش/مخفی می‌شوند و در حالت مخفی
+                           ورودی‌ها disabled می‌شوند تا مقدارشان post نشود. *@
+                        <div class="ak-toggle-field fec-span-6" data-counterparty-panel="supplier">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" name="IsAdvancePayment" value="true" id="isAdvancePayment"
+                                       class="form-check-input" role="switch"
+                                       checked="@(Model.IsAdvancePayment == true)" />
+                                <input type="hidden" name="IsAdvancePayment" value="false" />
+                                <label for="isAdvancePayment" class="form-check-label">پیش‌پرداخت</label>
+                            </div>
+                            <span>پرداخت آزاد؛ تخصیص به قرارداد در آینده.</span>
+                        </div>
+
+                        <div class="ak-toggle-field fec-span-6" data-counterparty-panel="customer">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" name="IsCustomerAdvance" value="true" id="isCustomerAdvance"
+                                       class="form-check-input" role="switch"
+                                       checked="@(Model.IsCustomerAdvance == true)" />
+                                <input type="hidden" name="IsCustomerAdvance" value="false" />
+                                <label for="isCustomerAdvance" class="form-check-label">پیش‌دریافت</label>
+                            </div>
+                            <span>دریافت آزاد؛ اتصال به فروش در آینده.</span>
+                        </div>
+
+                        <div class="ak-field ak-form-full journal-description-field">
+                            <label asp-for="Description" class="ak-label">توضیحات</label>
+                            <textarea asp-for="Description" class="ak-input" rows="2" placeholder="شرح مختصر سند..."></textarea>
+                            <span asp-validation-for="Description" class="field-validation-error"></span>
                         </div>
                     </div>
 
-                    <div class="ak-note mt-2" role="status" data-commission-summary>
-                        <span>مبلغ اصلی: <strong class="ak-num" data-commission-main>—</strong></span>
-                        <span>کمیسیون: <strong class="ak-num" data-commission-amount>—</strong></span>
-                        <span data-commission-effect></span>
+                    <div id="supplierPaymentContext"
+                         class="ak-note @(Model.SupplierId.HasValue ?"" : "d-none")"
+                         role="status">
+                        <span>تأمین‌کننده: <strong data-supplier-context-name>@(selectedSupplierName ?? "—")</strong></span>
+                        <span>قرارداد: <strong data-supplier-context-contract>@(selectedContractNumber ?? "—")</strong></span>
+                        <span>ارز: <strong data-supplier-context-currency>@Model.Currency</strong></span>
+                        <span>مبلغ: <strong data-supplier-context-amount>@Model.Amount.ToString("N2", CultureInfo.InvariantCulture)</strong></span>
+                    </div>
+                </fieldset>
+
+                @* ===== کمیسیون (اختیاری) — بیرون از fieldset نقد/بانک تا در حالت صراف هم POST شود ===== *@
+                <section class="ak-form-group ak-form-section journal-commission-section" data-commission-section
+                         data-main-currency="@Model.Currency">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 journal-commission-head">
+                        <h2 class="ak-form-group-title mb-0">کمیسیون</h2>
+                        <div class="form-check form-switch m-0">
+                            <input asp-for="CommissionEnabled" class="form-check-input" role="switch"
+                                   id="commissionEnabled" data-commission-toggle />
+                            <label class="form-check-label" for="commissionEnabled">افزودن کمیسیون</label>
+                        </div>
                     </div>
 
-                    <div class="ak-note mt-2 d-none" role="status" data-commission-sarraf-note>
-                        <span><i class="bi bi-info-circle"></i> در پرداخت از طریق صراف، کمیسیون از صندوق/بانک کم نمی‌شود؛ به حساب صراف اضافه می‌شود.</span>
+                    <div class="ak-form-grid mt-2 journal-commission-body @(Model.CommissionEnabled ? null :"d-none")" data-commission-body>
+                        <div class="ak-form-grid">
+                            <div class="ak-field">
+                                <label asp-for="CommissionType" class="ak-label">نوع کمیسیون</label>
+                                <select asp-for="CommissionType" class="ak-input" data-commission-type>
+                                    <option value="">— انتخاب —</option>
+                                    <option value="@((int)PaymentCommissionType.Percent)">درصدی</option>
+                                    <option value="@((int)PaymentCommissionType.Fixed)">مبلغ ثابت</option>
+                                </select>
+                                <span asp-validation-for="CommissionType" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="ak-field" data-commission-percent-field>
+                                <label asp-for="CommissionPercent" class="ak-label">درصد کمیسیون (٪)</label>
+                                <input asp-for="CommissionPercent" class="ak-input ak-num"
+                                       min="0" max="100" step="0.01" placeholder="مثال: ۱" data-commission-percent />
+                                <span asp-validation-for="CommissionPercent" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="ak-field" data-commission-fixed-field>
+                                <label asp-for="CommissionFixedAmount" class="ak-label">مبلغ ثابت</label>
+                                <input asp-for="CommissionFixedAmount" class="ak-input ak-num"
+                                       min="0" step="0.01" placeholder="مثال: ۵۰" data-commission-fixed />
+                                <span asp-validation-for="CommissionFixedAmount" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="ak-field" data-commission-currency-field>
+                                <label asp-for="CommissionCurrency" class="ak-label">ارز کمیسیون</label>
+                                <select asp-for="CommissionCurrency" asp-items="currencies" class="ak-input" data-commission-currency>
+                                    <option value=""></option>
+                                </select>
+                            </div>
+
+                            <div class="ak-field" data-commission-rate-field>
+                                <label asp-for="CommissionPerUsdRate" class="ak-label">نرخ دالر به ارز کمیسیون</label>
+                                <input asp-for="CommissionPerUsdRate" class="ak-input ak-num"
+                                       step="0.0001" placeholder="مثال: ۷۷" />
+                                <span asp-validation-for="CommissionPerUsdRate" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="ak-field" data-commission-account-field>
+                                <label asp-for="CommissionCashAccountId" class="ak-label">حساب پرداخت کمیسیون</label>
+                                <select asp-for="CommissionCashAccountId" class="ak-input">
+                                    <option value="">همان حساب پرداخت اصلی</option>
+                                    @foreach (var account in cashAccounts)
+                                    {
+                                        var accountId = (int)account.Id;
+                                        bool isMixed = account.IsMixed;
+                                        <option value="@accountId" selected="@(Model.CommissionCashAccountId == accountId ? "selected" : null)">
+                                            @account.Name (@(isMixed ? "مختلط" : account.Currency))
+                                        </option>
+                                    }
+                                </select>
+                                <span asp-validation-for="CommissionCashAccountId" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="ak-field ak-form-full">
+                                <label asp-for="CommissionDescription" class="ak-label">توضیح کمیسیون</label>
+                                <input asp-for="CommissionDescription" class="ak-input" placeholder="شرح کمیسیون..." />
+                            </div>
+                        </div>
+
+                        <div class="ak-note mt-2" role="status" data-commission-summary>
+                            <span>مبلغ اصلی: <strong class="ak-num" data-commission-main>—</strong></span>
+                            <span>کمیسیون: <strong class="ak-num" data-commission-amount>—</strong></span>
+                            <span data-commission-effect></span>
+                        </div>
+
+                        <div class="ak-note mt-2 d-none" role="status" data-commission-sarraf-note>
+                            <span><i class="bi bi-info-circle"></i> در پرداخت از طریق صراف، کمیسیون از صندوق/بانک کم نمی‌شود؛ به حساب صراف اضافه می‌شود.</span>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            </div>
 
             <partial name="~/Views/Shared/_ClosedPeriodOverride.cshtml" />
 
-            @* ===== نوار پایین (اقدام‌ها + مبلغ کل) ===== *@
+            @* ===== خلاصهٔ زنده پیش از ثبت ===== *@
+            <p class="journal-summary" id="journalSummary" role="status" aria-live="polite" data-journal-summary></p>
+
+            @* ===== نوار پایین ===== *@
             <div class="ak-footer-actions journal-action-bar">
                 <div class="journal-action-buttons">
                     <button type="submit"
                             id="journalSubmitButton"
-                            class="btn ak-save"
-                            data-submit-text-receipt="ثبت سند"
-                            data-submit-text-payment="@submitText">
-                        <i class="bi bi-arrow-down-left"></i>
+                            class="ak-save"
+                            data-submit-text-receipt="@submitTextReceipt"
+                            data-submit-text-payment="@submitTextPayment">
+                        <i class="bi bi-check-lg" aria-hidden="true"></i>
                         <span>@submitText</span>
                     </button>
-                    <a href="@cancelUrl" class="btn ak-cancel">انصراف</a>
-                </div>
-                <div class="ak-note journal-total">
-                    <span>مبلغ کل:</span>
-                    <strong id="journalTotalDisplay" class="ak-num">@(string.IsNullOrWhiteSpace(Model.Currency) ? "USD" : Model.Currency) @Model.Amount.ToString("N2", CultureInfo.InvariantCulture)</strong>
+                    <a href="@cancelUrl" class="ak-cancel">انصراف</a>
                 </div>
             </div>
         </div>
@@ -645,4 +682,5 @@
     <script src="~/js/roznamcha-form.js" asp-append-version="true" defer></script>
     <script src="~/js/commission-field.js" asp-append-version="true" defer></script>
     <script src="~/js/payment-funding-source.js" asp-append-version="true" defer></script>
+    <script src="~/js/roznamcha-simple-ui.js" asp-append-version="true" defer></script>
 }

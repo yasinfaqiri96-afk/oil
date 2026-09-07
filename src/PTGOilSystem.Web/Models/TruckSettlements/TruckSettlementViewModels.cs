@@ -151,3 +151,45 @@ public sealed class GroupUnloadCreateViewModel
 
     public List<GroupUnloadSelectedInput> Items { get; set; } = [];
 }
+
+// ── فهرست «تسویه‌شده‌ها» (فقط‌خواندنی) ──
+// آینهٔ لیست تسویه‌نشده‌ها برای leg/dispatch هایی که IsFreightSettled=true دارند.
+// هیچ ثبتی ندارد؛ فقط برای بازبینی و پیگیریِ اینکه کدام حمل بعد از تسویه هنوز تخلیه نشده.
+public sealed class TruckSettlementSettledRowViewModel
+{
+    public TruckSettlementSourceKind Kind { get; set; }
+    public int SourceId { get; set; }
+    public string TypeLabel { get; set; } = "";
+    public string VehicleNumber { get; set; } = "";
+    public string? DriverName { get; set; }
+    public string ProductName { get; set; } = "";
+    public string ContractNumber { get; set; } = "";
+    public string? SourceName { get; set; }
+    public string? DestinationName { get; set; }
+    public DateTime Date { get; set; }
+    public DateTime? SettledDate { get; set; }
+    public decimal QuantityMt { get; set; }
+    // باقیماندهٔ بار داخل وسیله؛ صفر یعنی بعد از تسویه تخلیه/فروش هم شده است.
+    public decimal RemainingQuantityMt { get; set; }
+    public decimal ShortageMt { get; set; }
+    public decimal FreightUsd { get; set; }
+    public string? FreightPartyName { get; set; }
+    public bool IsUnloaded { get; set; }
+}
+
+public sealed class TruckSettlementSettledIndexViewModel
+{
+    public IReadOnlyList<TruckSettlementSettledRowViewModel> Rows { get; set; } = [];
+
+    public string? Query { get; set; }
+    public TruckSettlementSourceKind? Kind { get; set; }
+
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 25;
+    public int TotalCount { get; set; }
+    public int PageCount => PageSize <= 0 ? 1 : Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
+
+    public decimal TotalFreightUsd { get; set; }
+    public decimal TotalShortageMt { get; set; }
+    public int PendingUnloadCount { get; set; }
+}

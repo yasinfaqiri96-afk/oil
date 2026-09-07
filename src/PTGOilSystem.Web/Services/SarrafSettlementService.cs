@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -203,7 +203,7 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
         CancellationToken cancellationToken = default)
     {
         var calculation = Calculate(command);
-        await ValidateReferencesAsync(command, cancellationToken);
+        await ValidateReferencesAsync(command, cancellationToken, excludeSettlementId: settlementId);
 
         var settlement = await _db.SarrafSettlements
             .Include(s => s.LedgerEntry)
@@ -353,7 +353,10 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
         }
     }
 
-    private async Task ValidateReferencesAsync(SarrafSettlementCommand command, CancellationToken cancellationToken)
+    private async Task ValidateReferencesAsync(
+        SarrafSettlementCommand command,
+        CancellationToken cancellationToken,
+        int? excludeSettlementId = null)
     {
         if (!await _db.Sarrafs.AsNoTracking().AnyAsync(s => s.Id == command.SarrafId && s.IsActive, cancellationToken))
         {
@@ -432,6 +435,20 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
             && !await _db.PaymentTransactions.AsNoTracking().AnyAsync(p => p.Id == command.PaymentTransactionId.Value, cancellationToken))
         {
             throw new InvalidOperationException("Payment transaction does not exist.");
+        }
+
+        // یک پرداخت نقدی فقط یک‌بار می‌تواند پشتوانهٔ تسویهٔ صراف باشد. حساب صراف هم خودِ
+        // پرداخت را می‌شمارد و هم تسویه را (PartyBalanceReadService.AddSarrafEventsAsync)؛
+        // اگر یک پرداخت به دو تسویه وصل شود، همان پول دو بار از بدهیِ صراف کم می‌شود.
+        if (command.PaymentTransactionId.HasValue
+            && await _db.SarrafSettlements.AsNoTracking().AnyAsync(
+                s => s.PaymentTransactionId == command.PaymentTransactionId.Value
+                    && s.Status != SarrafSettlementStatus.Cancelled
+                    && (excludeSettlementId == null || s.Id != excludeSettlementId.Value),
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "این پرداخت قبلاً به یک تسویهٔ صراف وصل شده است.");
         }
     }
 

@@ -646,7 +646,14 @@ public enum CustomerPaymentAllocationApplicationStatus
 // هم‌زمان از هر دو سمت کم می‌کند.
 public class CustomerPaymentAllocationApplication : BaseEntity
 {
-    public int CustomerPaymentAllocationId { get; set; }
+    // دریافتی که این مبلغ از آن مصرف شده است. جدول تطبیقِ نقد (cash application) باید مستقل از
+    // مسیرِ رسیدن پول، همیشه بگوید «کدام دریافت، چقدر، روی کدام فروش» نشست؛ پس این فیلد الزامی است.
+    public int PaymentTransactionId { get; set; }
+    public PaymentTransaction? PaymentTransaction { get; set; }
+
+    // فقط وقتی پر می‌شود که پول از مسیر «تخصیص پیش‌دریافت به پیش‌فروش» آمده باشد. تطبیقِ مستقیمِ
+    // یک دریافتِ عادی روی فروشِ تحویل‌شده تخصیصِ والد ندارد و این فیلد null می‌ماند.
+    public int? CustomerPaymentAllocationId { get; set; }
     public CustomerPaymentAllocation? CustomerPaymentAllocation { get; set; }
     public int SalesTransactionId { get; set; }
     public SalesTransaction? SalesTransaction { get; set; }

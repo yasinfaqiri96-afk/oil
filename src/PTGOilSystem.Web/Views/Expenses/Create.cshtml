@@ -195,7 +195,6 @@
                 <input asp-for="ShipmentId" type="hidden" data-expense-link-target="shipment" />
                 <input asp-for="TruckDispatchId" type="hidden" data-expense-link-target="truckDispatch" />
                 <input asp-for="TransportLegId" type="hidden" data-expense-link-target="transportLeg" />
-                <input asp-for="ServiceProviderId" type="hidden" data-expense-link-target="serviceProvider" />
                 <input asp-for="OperationalAssetId" type="hidden" data-expense-link-target="operationalAsset" />
 
                 <div class="ak-field">
@@ -224,6 +223,43 @@
                         <span asp-validation-for="ServiceProviderId" class="ak-field-error"></span>
                         <span asp-validation-for="OperationalAssetId" class="ak-field-error"></span>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        @* PTG-P1-04 — هویت تسویه. طرف‌حساب همان «شرکت خدماتی» بخش بالاست و اینجا تکرار
+           نمی‌شود؛ تنها چیزی که فرم پیش از این نمی‌توانست بگوید «همان‌جا از صندوق پرداخت
+           شد» بود. خالی‌گذاشتن = همان رفتار قبلی (تشخیص از طرف‌حساب). *@
+        <section class="ak-form-section expense-form-section-settlement">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@((UiText.T(Context, "وضعیت تسویه", "Settlement"), (string?)UiText.T(Context, "این مصرف بدهی می‌ماند یا همان‌جا پرداخت شد؟", "Does this expense stay a payable, or was it paid on the spot?")))" />
+            <div class="ak-form-grid" data-expense-settlement>
+                <div class="ak-field">
+                    <label asp-for="SettlementMode" class="ak-label"></label>
+                    <select asp-for="SettlementMode" class="ak-input" data-expense-settlement-mode>
+                        <option value="">@UiText.T(Context, "از طرف‌حساب تشخیص بده", "Derive from counterparty")</option>
+                        <option value="@((int)ExpenseSettlementMode.Payable)">@UiText.T(Context, "بدهی به طرف‌حساب", "Payable to counterparty")</option>
+                        <option value="@((int)ExpenseSettlementMode.PaidImmediately)">@UiText.T(Context, "پرداخت‌شده از صندوق/بانک", "Paid from cash/bank")</option>
+                        <option value="@((int)ExpenseSettlementMode.NonCash)">@UiText.T(Context, "بدون حرکت پول", "No money movement")</option>
+                    </select>
+                    <span asp-validation-for="SettlementMode" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field d-none" data-expense-settlement-counterparty>
+                    <label asp-for="ServiceProviderId" class="ak-label">طرف‌حساب</label>
+                    <select asp-for="ServiceProviderId"
+                            asp-items="ViewBag.ServiceProviders"
+                            class="ak-input"
+                            data-expense-link-target="serviceProvider">
+                        <option value="">انتخاب طرف‌حساب</option>
+                    </select>
+                    <span asp-validation-for="ServiceProviderId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field" data-expense-settlement-cash>
+                    <label asp-for="CashAccountId" class="ak-label"></label>
+                    <select asp-for="CashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input">
+                        <option value=""></option>
+                    </select>
+                    <span asp-validation-for="CashAccountId" class="ak-field-error"></span>
                 </div>
             </div>
         </section>

@@ -4,11 +4,45 @@
     var currentUrl = Context.Request.Path + Context.Request.QueryString;
     var hasAdvancedFilter = Model.FromDate.HasValue || Model.ToDate.HasValue;
     var hasAnyFilter = hasAdvancedFilter || !string.IsNullOrWhiteSpace(Model.Query);
+
+    // «اپلود اکسل گروهی» و «لغو همه» هر دو در کبابِ سربرگ می‌نشینند؛ دومی برگشت‌ناپذیر است و
+    // نباید بالای جدول دم‌دست باشد. فیلترهای فعلی از طریق query string به همان اکشن می‌روند.
+    var customsKebab = new List<AkHeaderMenuItem>
+    {
+        new()
+        {
+            Label = UiText.T(Context, "اپلود اکسل گروهی", "Import Excel"),
+            Icon = "bi-file-earmark-excel",
+            Href = Url.Action("ImportExcel", new { returnUrl = currentUrl })
+        }
+    };
+    if (Model.Items.Any())
+    {
+        customsKebab.Add(new AkHeaderMenuItem
+        {
+            Label = UiText.T(Context, "لغو همه (این لیست)", "Cancel all (this list)"),
+            Icon = "bi-trash",
+            IsDestructive = true,
+            PostUrl = Url.Action("DeleteAll", new
+            {
+                loadingRegisterId = Model.LoadingRegisterId,
+                transportLegId = Model.TransportLegId,
+                truckDispatchId = Model.TruckDispatchId,
+                q = Model.Query,
+                fromDate = Model.FromDate?.ToString("yyyy-MM-dd"),
+                toDate = Model.ToDate?.ToString("yyyy-MM-dd"),
+                returnUrl = currentUrl
+            }),
+            ConfirmTitle = UiText.T(Context, "لغو همه اعلامیه‌ها", "Cancel all declarations"),
+            ConfirmMessage = "همه اعلامیه‌های گمرکیِ همین لیست (فیلتر فعلی) لغو شوند؟ این کار برگشت‌ناپذیر است."
+        });
+    }
+    ViewData["AkHeaderKebab"] = customsKebab;
 }
 
 <div class="ak-form-page ak-list-page" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "اعلامیه‌های گمرکی", "Customs declarations"), true, UiText.T(Context, "ثبت اعلامیه", "New declaration"), "bi-plus-lg", Url.Action("Create", new { loadingRegisterId = Model.LoadingRegisterId, transportLegId = Model.TransportLegId, returnUrl = currentUrl }), (string?)null, UiText.T(Context, "اپلود اکسل گروهی", "Import Excel"), "bi-file-earmark-excel", Url.Action("ImportExcel", new { returnUrl = currentUrl })))" />
+             model="@((UiText.T(Context, "اعلامیه‌های گمرکی", "Customs declarations"), true, UiText.T(Context, "ثبت اعلامیه", "New declaration"), "bi-plus-lg", Url.Action("Create", new { loadingRegisterId = Model.LoadingRegisterId, transportLegId = Model.TransportLegId, returnUrl = currentUrl }), (string?)null, (string?)null, (string?)null, (string?)null))" />
     @{
         var statSumWeight = (decimal)(ViewBag.SumWeight ?? 0m);
         var statSumAfn = (decimal)(ViewBag.SumAfn ?? 0m);
@@ -39,24 +73,6 @@
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
         </div>
 
-        @if (Model.Items.Any())
-        {
-            <form asp-action="DeleteAll" method="post" class="mb-2 text-start" onsubmit="return confirm('همه اعلامیه‌های گمرکیِ همین لیست (فیلتر فعلی) لغو شوند؟ این کار برگشت‌ناپذیر است.');">
-                @Html.AntiForgeryToken()
-                @if (Model.LoadingRegisterId.HasValue) { <input type="hidden" name="loadingRegisterId" value="@Model.LoadingRegisterId" /> }
-                @if (Model.TransportLegId.HasValue) { <input type="hidden" name="transportLegId" value="@Model.TransportLegId" /> }
-                @if (Model.TruckDispatchId.HasValue) { <input type="hidden" name="truckDispatchId" value="@Model.TruckDispatchId" /> }
-                @if (!string.IsNullOrWhiteSpace(Model.Query)) { <input type="hidden" name="q" value="@Model.Query" /> }
-                @if (Model.FromDate.HasValue) { <input type="hidden" name="fromDate" value="@Model.FromDate.Value.ToString("yyyy-MM-dd")" /> }
-                @if (Model.ToDate.HasValue) { <input type="hidden" name="toDate" value="@Model.ToDate.Value.ToString("yyyy-MM-dd")" /> }
-                <input type="hidden" name="returnUrl" value="@currentUrl" />
-                <button type="submit" class="btn btn-light ak-secondary-action text-danger">
-                    <i class="bi bi-trash" aria-hidden="true"></i>
-                    <span>لغو همه (این لیست)</span>
-                </button>
-            </form>
-        }
-
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>
@@ -77,7 +93,7 @@
                         <tr data-href="@Url.Action("Details", new { id = item.Id })">
                             <td><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
                             <td class="col-name">
-                                @await Html.PartialAsync("_OperationsListIdentity", ("bi-file-earmark-check", item.WagonOrTruckNumber ?? "—", item.DeclarationDate.ToDisplayDate(), true))
+                                @await Html.PartialAsync("_OperationsListIdentity", ("bi-file-earmark-check", item.WagonOrTruckNumber ?? "—", string.Empty, true))
                             </td>
                             <td>
                                 <span class="col-ltr">@item.ContractNumber</span>
@@ -89,8 +105,8 @@
                             <td>
                                 <span class="col-ltr">@(string.IsNullOrWhiteSpace(item.DeclarationReference) ? "-" : item.DeclarationReference)</span>
                             </td>
-                            <td class="col-ltr">@(item.ConsignmentWeightMt?.ToString("N4") ?? "—") MT</td>
-                            <td class="col-ltr">@(item.TotalUsd > 0 ? item.TotalUsd.ToString("N2") + " USD" : item.TotalAfn.ToString("N2") + " AFN")</td>
+                            <td class="col-ltr">@NumberDisplay.Number(item.ConsignmentWeightMt, 4) MT</td>
+                            <td class="col-ltr">@(item.TotalUsd > 0 ? NumberDisplay.Money(item.TotalUsd, "USD") : NumberDisplay.Money(item.TotalAfn, "AFN"))</td>
                             <td class="col-actions">
                                 <div class="ak-row-menu">
                                     <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-light ak-secondary-action" title="جزئیات" aria-label="جزئیات"><i class="bi bi-eye" aria-hidden="true"></i></a>

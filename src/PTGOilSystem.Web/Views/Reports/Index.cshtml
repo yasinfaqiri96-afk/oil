@@ -3,113 +3,59 @@
     ViewData["Title"] = UiText.T(Context, "گزارش‌ها", "Reports");
 
     // مرکز گزارشات: فقط پیوند. هیچ محاسبه‌ای در این صفحه انجام نمی‌شود و دسته‌بندی
-    // از کنترلر می‌آید تا در تست قابل بررسی باشد.
+    // فقط از کنترلر می‌آید — این صفحه دستهٔ دوم و موازی نمی‌سازد.
 
     // نگاشت آواتار سه‌بعدی هر گزارش. کلید = "Controller|Action" همان مسیری که کنترلر
     // می‌دهد. اینجا نگهداری می‌شود تا کنترلر، مدل و منطق گزارش‌ها دست‌نخورده بماند.
     var avatarMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
-        ["Home|Index"] = "/images/stat-cards/ref-icons/reports.webp",
         ["Reports|CompanyOverview"] = "/images/stat-cards/ref-reports/rep-finance-pnl.webp",
-        ["PeriodActivity|Index"] = "/images/stat-cards/ref-reports/rep-analysis.webp",
-        ["ContractJourney|Index"] = "/images/stat-cards/ref-blue/sale-contracts.webp",
         ["Reports|ContractPnl"] = "/images/stat-cards/ref-contract/contract-profit.webp",
         ["ShipmentPnl|Index"] = "/images/stat-cards/ref-shipment/profit.webp",
-        ["Reports|VesselVoyages"] = "/images/stat-cards/ref-shipment/loaded.webp",
+        ["Reports|Warnings"] = "/images/stat-cards/ref-reconciliation/recon-operations.webp",
+
+        ["Reports|ReceivablesPayables"] = "/images/stat-cards/ref-reconciliation/recon-amount.webp",
+        ["Reports|PartyAging"] = "/images/stat-cards/ref-reconciliation/recon-documents.webp",
+        ["Reports|CashFlow"] = "/images/stat-cards/ref-blue/party-payment.webp",
+        ["Balance|Customers"] = "/images/stat-cards/ref-people/customers.webp",
+        ["Balance|Suppliers"] = "/images/stat-cards/ref-people/suppliers.webp",
+        ["Balance|Contracts"] = "/images/stat-cards/ref-reconciliation/recon-ledger.webp",
+        ["Reports|FxDifference"] = "/images/stat-cards/ref-people/exchange-rate.webp",
+        ["Expenses|Index"] = "/images/stat-cards/ref-blue/sale-expense.webp",
+
         ["Reports|InventoryOperations"] = "/images/stat-cards/ref-reports/rep-inventory.webp",
         ["Inventory|StockCard"] = "/images/stat-cards/ref-shipment/remaining.webp",
-        ["InventoryTransportLegs|Index"] = "/images/stat-cards/ref-blue/ops-transport.webp",
-        ["Reports|NegativeStock"] = "/images/stat-cards/ref-shipment/losses.webp",
-        ["Sales|Index"] = "/images/stat-cards/ref-reports/rep-sales.webp",
-        ["Sales|PreSales"] = "/images/stat-cards/ref-contracts/contracts-total.webp",
         ["Reports|SellableStock"] = "/images/stat-cards/ref-reconciliation/recon-stock.webp",
+        ["Reports|NegativeStock"] = "/images/stat-cards/ref-shipment/losses.webp",
+        ["Sales|PreSales"] = "/images/stat-cards/ref-contracts/contracts-total.webp",
         ["Reports|PreSaleDiscrepancies"] = "/images/stat-cards/ref-reconciliation/recon-documents.webp",
-        ["Reports|ReceivablesPayables"] = "/images/stat-cards/ref-reconciliation/recon-amount.webp",
-        ["Reports|CashFlow"] = "/images/stat-cards/ref-blue/party-payment.webp",
-        ["AccountStatements|Index"] = "/images/stat-cards/ref-icons/security.webp",
-        ["Balance|Contracts"] = "/images/stat-cards/ref-reconciliation/recon-ledger.webp",
-        ["Expenses|Index"] = "/images/stat-cards/ref-blue/sale-expense.webp",
+        ["Reports|GoodsInTransit"] = "/images/stat-cards/ref-blue/ops-transport.webp",
+        ["Reports|TransportVariance"] = "/images/stat-cards/ref-blue/ops-transport.webp",
         ["LossEvents|Index"] = "/images/stat-cards/ref-shipment/loss.webp",
-        ["Reports|FxDifference"] = "/images/stat-cards/ref-people/exchange-rate.webp",
-        ["CustomsDeclarations|Index"] = "/images/stat-cards/ref-icons/rules-checklist.webp",
+        ["Reports|VesselVoyages"] = "/images/stat-cards/ref-shipment/loaded.webp",
+
+        ["Reconciliation|Index"] = "/images/stat-cards/ref-reconciliation/recon-operations.webp",
         ["CustomsPermitTurnover|Index"] = "/images/stat-cards/ref-icons/documents.webp",
         ["QualityInspections|Index"] = "/images/stat-cards/ref-icons/quality.webp",
         ["Ledger|Index"] = "/images/stat-cards/ref-icons/ledger.webp",
-        ["Reconciliation|Index"] = "/images/stat-cards/ref-reconciliation/recon-operations.webp",
+        ["AccountStatements|Index"] = "/images/stat-cards/ref-icons/security.webp",
         ["AuditLogs|Index"] = "/images/stat-cards/ref-reconciliation/recon-audit.webp"
     };
     const string fallbackAvatar = "/images/stat-cards/ref-reports/rep-analysis.webp";
 
-    var managementReportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "Home|Index",
-        "Reports|CompanyOverview",
-        "PeriodActivity|Index",
-        "ContractJourney|Index",
-        "Reports|ContractPnl",
-        "ShipmentPnl|Index",
-        "Reports|VesselVoyages"
-    };
-    var inventorySalesReportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "Reports|InventoryOperations",
-        "Inventory|StockCard",
-        "InventoryTransportLegs|Index",
-        "Reports|NegativeStock",
-        "Sales|Index",
-        "Sales|PreSales",
-        "Reports|SellableStock",
-        "Reports|PreSaleDiscrepancies"
-    };
-    var financePartyReportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "Reports|ReceivablesPayables",
-        "Reports|CashFlow",
-        "AccountStatements|Index",
-        "Balance|Contracts",
-        "Expenses|Index",
-        "LossEvents|Index",
-        "Reports|FxDifference"
-    };
-
-    var allCards = Model.Groups
-        .SelectMany(g => g.Cards)
-        .Select(c => new
+    // دسته‌بندی کنترلر حفظ می‌شود؛ فقط گزارش حذف‌شده از مرکز گزارش‌ها نمایش داده نمی‌شود.
+    var tabs = Model.Groups
+        .Select((g, index) => new
         {
-            Card = c,
-            Key = $"{(string.IsNullOrEmpty(c.Controller) ? "Reports" : c.Controller)}|{c.Action}"
+            Id = $"rep-group-{index + 1}",
+            Label = UiText.T(Context, g.TitleFa, g.TitleEn),
+            Cards = g.Cards
+                .Where(c => !(string.Equals(c.Controller, "ContractJourney", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(c.Action, "Index", StringComparison.OrdinalIgnoreCase)))
+                .ToList()
         })
+        .Where(g => g.Cards.Count > 0)
         .ToList();
-
-    var tabs = new[]
-    {
-        new
-        {
-            Id = "rep-management",
-            Label = UiText.T(Context, "مدیریت و قراردادها", "Management & contracts"),
-            Cards = allCards.Where(x => managementReportKeys.Contains(x.Key)).ToList()
-        },
-        new
-        {
-            Id = "rep-inventory-sales",
-            Label = UiText.T(Context, "موجودی و فروش", "Inventory & sales"),
-            Cards = allCards.Where(x => inventorySalesReportKeys.Contains(x.Key)).ToList()
-        },
-        new
-        {
-            Id = "rep-finance-party",
-            Label = UiText.T(Context, "مالی و طرف‌حساب", "Finance & counterparties"),
-            Cards = allCards.Where(x => financePartyReportKeys.Contains(x.Key)).ToList()
-        },
-        new
-        {
-            Id = "rep-control",
-            Label = UiText.T(Context, "کنترل و انطباق", "Control & compliance"),
-            Cards = allCards.Where(x => !managementReportKeys.Contains(x.Key)
-                && !inventorySalesReportKeys.Contains(x.Key)
-                && !financePartyReportKeys.Contains(x.Key)).ToList()
-        }
-    };
 }
 
 <div class="rephub-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
@@ -117,8 +63,9 @@
              model="@((UiText.T(Context, "گزارش‌ها", "Reports"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        (string?)null, (string?)null, (string?)null))" />
-    @* دو تب درون‌صفحه‌ای. موتور تب همان ptg-tabs.js مشترک سیستم است: هر تب با
-       href="#id" پنل خودش را باز می‌کند، ARIA و کیبورد و hash را خودش می‌بندد. *@
+
+    @* موتور تب همان ptg-tabs.js مشترک سیستم است: هر تب با href="#id" پنل خودش را
+       باز می‌کند، ARIA و کیبورد و hash را خودش می‌بندد. *@
     <div class="rephub-tabs" data-section-tabs="true">
         <div data-section-tabs-scroll="true">
             <nav class="ptg-tabs-rail" role="tablist" aria-label="@UiText.T(Context, "دسته‌های گزارش", "Report groups")">
@@ -140,17 +87,18 @@
     {
         <div id="@tab.Id" class="rephub-panel" role="tabpanel" aria-label="@tab.Label" hidden="@(tab == tabs[0] ? null : "hidden")">
             <div class="rephub-grid">
-                @foreach (var entry in tab.Cards)
+                @foreach (var item in tab.Cards)
                 {
-                    var item = entry.Card;
                     var controller = string.IsNullOrEmpty(item.Controller) ? "Reports" : item.Controller;
-                    var avatar = avatarMap.TryGetValue(entry.Key, out var mapped) ? mapped : fallbackAvatar;
+                    var key = $"{controller}|{item.Action}";
+                    var avatar = avatarMap.TryGetValue(key, out var mapped) ? mapped : fallbackAvatar;
                     var optimizedAvatar = avatar.Replace("/images/stat-cards/", "/images/stat-cards/report-hub/", StringComparison.Ordinal);
                     var title = UiText.T(Context, item.TitleFa, item.TitleEn);
+                    var description = UiText.T(Context, item.DescriptionFa, item.DescriptionEn);
                     <a class="rephub-card"
                        asp-controller="@controller"
                        asp-action="@item.Action"
-                       title="@title">
+                       title="@description">
                         <span class="rephub-card-art">
                             <img src="@optimizedAvatar" alt="" aria-hidden="true" width="128" height="128" loading="eager" decoding="async" />
                         </span>

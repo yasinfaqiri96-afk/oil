@@ -1,0 +1,132 @@
+@using PTGOilSystem.Web.Helpers
+@using PTGOilSystem.Web.Models.TruckSettlements
+@model PTGOilSystem.Web.Models.TruckSettlements.TruckSettlementSettledIndexViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "تسویه‌های ثبت‌شده", "Recorded settlements");
+}
+
+@* فهرست فقط‌خواندنیِ حمل‌ها/ارسال‌هایی که کرایه‌شان تسویه شده. هیچ فرم ثبتی ندارد. *@
+<div class="ak-form-page ak-list-page ak-operations-detail ak-operations-clean-page ak-operations-settlement" data-ak-operations-detail="true" data-operations-list dir="rtl">
+    <header class="ak-page-header">
+        <div class="ak-page-heading">
+            <h1 class="ak-page-title">@UiText.T(Context, "تسویه‌های ثبت‌شده", "Recorded settlements")</h1>
+            <p class="ak-section-desc mb-0">@UiText.T(Context, "موترها و واگن‌هایی که کرایه‌شان تسویه شده است.", "Trucks and wagons whose freight has been settled.")</p>
+        </div>
+        <div class="ak-page-actions">
+            <a asp-action="Index" class="btn btn-light ak-secondary-action">
+                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                <span>@UiText.T(Context, "تسویه‌نشده‌ها", "Unsettled")</span>
+            </a>
+            <a asp-action="GroupUnload"
+               asp-route-returnUrl="@Url.Action("Settled")"
+               class="btn btn-primary ak-primary-action">
+                <i class="bi bi-box-arrow-in-down" aria-hidden="true"></i>
+                <span>@UiText.T(Context, "تخلیه گروهی", "Group unload")</span>
+            </a>
+        </div>
+    </header>
+
+    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار تسویه‌های ثبت‌شده", "Recorded settlement statistics")">
+        <vc:stat-card title="@UiText.T(Context, "ردیف‌های تسویه‌شده", "Settled rows")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "ردیف", "rows")" avatar="statement"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مجموع کرایه", "Total freight")" value="@NumberDisplay.Money(Model.TotalFreightUsd)" unit="USD" avatar="payments"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مجموع کسری", "Total shortage")" value="@NumberDisplay.Quantity(Model.TotalShortageMt)" unit="MT" avatar="losses"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "در انتظار تخلیه", "Awaiting unload")" value="@Model.PendingUnloadCount.ToString("N0")" unit="@UiText.T(Context, "ردیف", "rows")" avatar="transported"></vc:stat-card>
+    </section>
+
+    <div class="ak-list">
+        @{
+            var settledFilter = new AkSearchFilterModel("q", Model.Query,
+                UiText.T(Context, "جستجو: نمبر موتر، راننده، جنس، قرارداد، طرف کرایه، تاریخ…", "Search: plate, driver, product, contract, carrier, date…"),
+                new List<AkFilterDefinition>
+                {
+                    new("kind", UiText.T(Context, "نوع منبع", "Source type"), "select",
+                        new List<AkFilterOption>
+                        {
+                            new(((int)TruckSettlementSourceKind.Leg).ToString(), UiText.T(Context, "حمل از موجودی", "Inventory transfer")),
+                            new(((int)TruckSettlementSourceKind.Dispatch).ToString(), UiText.T(Context, "ارسال موتر", "Truck send"))
+                        },
+                        Model.Kind.HasValue ? ((int)Model.Kind.Value).ToString() : null)
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="settledFilter" />
+        </div>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th class="col-name">@UiText.T(Context, "نمبر موتر / واگن", "Vehicle No")</th>
+                        <th>@UiText.T(Context, "جنس / قرارداد", "Product / Contract")</th>
+                        <th>@UiText.T(Context, "طرف کرایه", "Freight party")</th>
+                        <th>@UiText.T(Context, "مسیر", "Route")</th>
+                        <th class="col-status">@UiText.T(Context, "نوع", "Type")</th>
+                        <th>@UiText.T(Context, "تاریخ تسویه", "Settled on")</th>
+                        <th>@UiText.T(Context, "کرایه (دالر)", "Freight (USD)")</th>
+                        <th>@UiText.T(Context, "کسری (تن)", "Shortage (MT)")</th>
+                        <th>@UiText.T(Context, "باقیمانده (تن)", "Remaining (MT)")</th>
+                        <th class="col-status">@UiText.T(Context, "وضعیت تخلیه", "Unload state")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="col-name">
+                                @if (row.Kind == TruckSettlementSourceKind.Leg)
+                                {
+                                    <a asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@row.SourceId">
+                                        @await Html.PartialAsync("_OperationsListIdentity", ("bi-truck", row.VehicleNumber, string.Empty, true))
+                                    </a>
+                                }
+                                else
+                                {
+                                    <a asp-controller="Dispatch" asp-action="Details" asp-route-id="@row.SourceId">
+                                        @await Html.PartialAsync("_OperationsListIdentity", ("bi-truck", row.VehicleNumber, string.Empty, true))
+                                    </a>
+                                }
+                            </td>
+                            <td>
+                                <span class="ak-label">@row.ProductName</span>
+                                <span class="ak-section-desc col-ltr">@row.ContractNumber</span>
+                            </td>
+                            <td>@(row.FreightPartyName ?? "-")</td>
+                            <td>
+                                <span class="ak-label">@(row.SourceName ?? "-")</span>
+                                <span class="ak-section-desc">@(row.DestinationName ?? "-")</span>
+                            </td>
+                            <td class="col-status"><span class="ak-status is-info">@row.TypeLabel</span></td>
+                            <td class="col-ltr">@(row.SettledDate.HasValue ? row.SettledDate.Value.ToString("yyyy-MM-dd") : "-")</td>
+                            <td class="col-ltr fw-bold">@NumberDisplay.Money(row.FreightUsd)</td>
+                            <td class="col-ltr">@NumberDisplay.Quantity(row.ShortageMt)</td>
+                            <td class="col-ltr">@NumberDisplay.Quantity(row.RemainingQuantityMt)</td>
+                            <td class="col-status">
+                                @if (row.IsUnloaded)
+                                {
+                                    <span class="ak-status is-active">@UiText.T(Context, "تخلیه شده", "Unloaded")</span>
+                                }
+                                else
+                                {
+                                    <span class="ak-status is-warning">@UiText.T(Context, "در انتظار تخلیه", "Awaiting unload")</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Rows.Any())
+                    {
+                        <tr>
+                            <td colspan="10">
+                                <partial name="~/Views/Shared/_EmptyState.cshtml"
+                                         model="@((UiText.T(Context, "هیچ تسویهٔ ثبت‌شده‌ای یافت نشد.", "No recorded settlements found."), (string?)UiText.T(Context, "پس از ثبت تسویه در تب تسویه‌ها، ردیف‌ها اینجا نمایش داده می‌شوند.", "Rows appear here once a settlement is recorded."), (string?)"bi-check2-all"))" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ak-list-footer">
+            <partial name="~/Views/Shared/_PagedListFooter.cshtml" />
+        </div>
+    </div>
+</div>

@@ -1,17 +1,15 @@
 @model PTGOilSystem.Web.Models.Reports.ReceivablesPayablesReportViewModel
 @{
-    ViewData["Title"] = UiText.T(Context, "بدهی‌ها و طلب‌ها", "Receivables & Payables");
+    ViewData["Title"] = UiText.T(Context, "طلبات و بدهی‌ها", "Receivables & Payables");
 }
 
 <div class="ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "بدهی‌ها و طلب‌ها", "Receivables & Payables"), false,
+             model="@((UiText.T(Context, "طلبات و بدهی‌ها", "Receivables & Payables"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
 
-    <p class="ak-note">@UiText.T(Context, "مانده مشتریان، تأمین‌کنندگان، خدماتی‌ها و صراف‌ها.", "Customer, supplier, service provider and sarraf balances.")</p>
-
-    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار بدهی و طلب", "Receivable and payable metrics")">
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار طلبات و بدهی‌ها", "Receivable and payable metrics")">
             @foreach (var metric in Model.Metrics.Take(4))
             {
                 @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
@@ -24,7 +22,7 @@
                 ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
                 .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
             var balanceFilter = new AkSearchFilterModel("", null,
-                UiText.T(Context, "فیلتر بدهی و طلب...", "Filter receivables and payables..."),
+                UiText.T(Context, "فیلتر طلبات و بدهی‌ها...", "Filter receivables and payables..."),
                 new List<AkFilterDefinition>
                 {
                     new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
@@ -50,11 +48,12 @@
                     <tr>
                         <th class="ak-col-grow">@UiText.T(Context, "طرف حساب", "Party")</th>
                         <th>@UiText.T(Context, "نوع", "Type")</th>
-                        <th>@UiText.T(Context, "شرح مانده", "Balance Kind")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Standing")</th>
                         <th class="ak-col-num">@UiText.T(Context, "اول دوره", "Opening")</th>
                         <th class="ak-col-num">@UiText.T(Context, "رسید", "Received")</th>
                         <th class="ak-col-num">@UiText.T(Context, "برد", "Given")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "گردش دوره", "Period movement")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "گردش این بازه", "Movement in range")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "تعدیل ارزی", "FX adjustment")</th>
                         <th class="ak-col-num">@UiText.T(Context, "مانده", "Balance")</th>
                         <th>@UiText.T(Context, "آخرین تاریخ", "Last Date")</th>
                     </tr>
@@ -70,13 +69,14 @@
                             <td class="ak-col-num ak-num">@row.DebitUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@row.CreditUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@row.PeriodMovementUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num @(row.BalanceUsd >= 0 ?"ak-num" : "ak-num")">@row.BalanceUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num @(row.FxAdjustmentUsd < 0m ? "ak-number--negative" : row.FxAdjustmentUsd > 0m ? "ak-number--positive" : null)">@row.FxAdjustmentUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num @(row.BalanceUsd < 0m ? "ak-number--negative" : "ak-number--positive")">@row.BalanceUsd.ToString("N2")</td>
                             <td>@(row.LastEntryDate?.ToDisplayDate() ?? "-")</td>
                         </tr>
                     }
                     @if (!Model.Rows.Any())
                     {
-                        <tr><td colspan="9"><div class="ak-empty"><i class="bi bi-people"></i> @UiText.T(Context, "مانده‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No balance found; change the filters.")</div></td></tr>
+                        <tr><td colspan="10"><div class="ak-empty"><i class="bi bi-people"></i> @UiText.T(Context, "مانده‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No balance found; change the filters.")</div></td></tr>
                     }
                 </tbody>
             </table>

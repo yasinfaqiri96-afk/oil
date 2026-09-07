@@ -372,6 +372,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.ServiceProviderId);
         modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.OperationalAssetId);
         modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.DriverId);
+        modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.SettlementMode);
+        modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => new { e.CounterpartyType, e.CounterpartyId });
+        modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.CashAccountId);
 
         ConfigureMoney<PaymentTransaction>(modelBuilder, p => p.Amount);
         ConfigureMoney<PaymentTransaction>(modelBuilder, p => p.AmountUsd);
@@ -647,6 +650,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<InventoryTransportBatch>().HasIndex(b => b.Status);
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.InventoryTransportLegId);
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourcePurchaseContractId);
+        modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourceLoadingRegisterId);
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourceLoadingReceiptId);
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourceInventoryMovementId);
         modelBuilder.Entity<InventoryTransportLegAllocation>().HasIndex(a => a.SourceTransportLegId);
@@ -1081,6 +1085,11 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(a => a.SourcePurchaseContractId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<InventoryTransportLegAllocation>()
+            .HasOne(a => a.SourceLoadingRegister)
+            .WithMany(l => l.TransportAllocations)
+            .HasForeignKey(a => a.SourceLoadingRegisterId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<InventoryTransportLegAllocation>()
             .HasOne(a => a.SourceLoadingReceipt)
             .WithMany()
             .HasForeignKey(a => a.SourceLoadingReceiptId)
@@ -1319,6 +1328,47 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(e => e.ServiceProviderId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // فاز ۱ — هویت تسویه. حساب نقدی رابطهٔ واقعی دارد؛ طرف‌حساب عمداً FK ندارد چون
+        // چندریختی است (هشت جدول Master) و همان الگوی JournalEntryLine.PartyType/PartyId است.
+        modelBuilder.Entity<ExpenseTransaction>()
+            .HasOne(e => e.CashAccount)
+            .WithMany()
+            .HasForeignKey(e => e.CashAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // فاز ۱ — پیوندِ مصرف با اظهارنامهٔ گمرکی. Cascade نیست: حذفِ اظهارنامه نباید سطرِ
+        // مالیِ ثبت‌شده را بی‌صدا ببرد؛ مسیرِ حذف خودش مصرف را لغو می‌کند.
+        modelBuilder.Entity<ExpenseTransaction>()
+            .HasOne(e => e.CustomsDeclaration)
+            .WithMany(c => c.ExpenseTransactions)
+            .HasForeignKey(e => e.CustomsDeclarationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // هر اظهارنامه حداکثر یک مصرفِ فعال per گروه دارد؛ ایندکس هم برای همین جست‌وجو است.
+        modelBuilder.Entity<ExpenseTransaction>()
+            .HasIndex(e => new { e.CustomsDeclarationId, e.CustomsComponentGroup });
+
+        modelBuilder.Entity<CustomsDeclaration>()
+            .HasOne(c => c.DutyCashAccount)
+            .WithMany()
+            .HasForeignKey(c => c.DutyCashAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CustomsDeclaration>()
+            .HasOne(c => c.ServiceCashAccount)
+            .WithMany()
+            .HasForeignKey(c => c.ServiceCashAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CustomsDeclaration>()
+            .HasOne(c => c.ServiceProvider)
+            .WithMany()
+            .HasForeignKey(c => c.ServiceProviderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CustomsDeclaration>().HasIndex(c => c.ServiceProviderId);
+        modelBuilder.Entity<CustomsDeclaration>().HasIndex(c => c.DutyServiceProviderId);
+
         modelBuilder.Entity<ExpenseTransaction>()
             .HasOne(e => e.OperationalAsset)
             .WithMany(a => a.ExpenseTransactions)
@@ -1457,6 +1507,11 @@ public class ApplicationDbContext : DbContext
 
         // مصرفِ ردیابی‌پذیرِ تخصیص روی تحویل. Restrict تا تاریخچهٔ مالی هرگز بی‌صدا حذف نشود.
         modelBuilder.Entity<CustomerPaymentAllocationApplication>()
+            .HasOne(a => a.PaymentTransaction)
+            .WithMany()
+            .HasForeignKey(a => a.PaymentTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CustomerPaymentAllocationApplication>()
             .HasOne(a => a.CustomerPaymentAllocation)
             .WithMany()
             .HasForeignKey(a => a.CustomerPaymentAllocationId)
@@ -1477,6 +1532,8 @@ public class ApplicationDbContext : DbContext
             .HasIndex(a => new { a.SalesTransactionId, a.Status });
         modelBuilder.Entity<CustomerPaymentAllocationApplication>()
             .HasIndex(a => new { a.CustomerPaymentAllocationId, a.Status });
+        modelBuilder.Entity<CustomerPaymentAllocationApplication>()
+            .HasIndex(a => new { a.PaymentTransactionId, a.Status });
 
         // بهای واقعیِ مصرف‌شدهٔ هر pool برای برگشتِ دقیقِ COGS.
         modelBuilder.Entity<SalesCostConsumption>()

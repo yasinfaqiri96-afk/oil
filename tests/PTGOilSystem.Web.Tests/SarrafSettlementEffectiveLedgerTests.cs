@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
@@ -8,6 +8,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -361,7 +362,7 @@ public sealed class SarrafSettlementEffectiveLedgerTests
             new PartyStatementFilter { CurrencyCode = "RUB", IncludeOperationalColumns = false });
 
     private static PartyStatementReadService BuildService(ApplicationDbContext db)
-        => new(db, new PartyStatementPolicyResolver(), new CompanyFlowDirectionResolver(), new CompanyFlowBalanceService(), Options.Create(new PartyStatementOptions()));
+        => new(db, new PartyStatementPolicyResolver(), new CompanyFlowDirectionResolver(), new CompanyFlowBalanceService(), Options.Create(new PartyStatementOptions()), new PartyDirectory(db));
 
     private static ApplicationDbContext CreateDb()
     {

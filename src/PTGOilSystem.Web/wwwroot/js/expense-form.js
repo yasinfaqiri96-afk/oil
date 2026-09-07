@@ -171,9 +171,44 @@
         syncExpenseTypeFields();
     }
 
+    // PTG-P1-04 — حساب نقدی فقط برای حالت «پرداخت‌شده» معنی دارد؛ در بقیهٔ حالت‌ها هم
+    // پنهان می‌شود و هم خالی، وگرنه سندِ بدهی با یک حسابِ نقدیِ ولگرد ذخیره می‌شد و
+    // اعتبارسنجِ سرور آن را رد می‌کرد بی‌آنکه کاربر بفهمد کدام فیلد اضافه است.
+    var PAID_IMMEDIATELY = "2";
+
+    function initExpenseSettlement(root) {
+        if (root.dataset.expenseSettlementReady === "true") {
+            return;
+        }
+
+        var mode = root.querySelector("[data-expense-settlement-mode]");
+        var counterpartyGroup = root.querySelector("[data-expense-settlement-counterparty]");
+        var cashGroup = root.querySelector("[data-expense-settlement-cash]");
+        if (!mode || !counterpartyGroup || !cashGroup) {
+            return;
+        }
+
+        var cashSelect = cashGroup.querySelector("select");
+
+        function syncCashVisibility() {
+            var isPaid = mode.value === PAID_IMMEDIATELY;
+            var isPayable = mode.value === "1";
+            counterpartyGroup.classList.toggle("d-none", !isPayable);
+            cashGroup.classList.toggle("d-none", !isPaid);
+            if (!isPaid && cashSelect) {
+                cashSelect.value = "";
+            }
+        }
+
+        mode.addEventListener("change", syncCashVisibility);
+        root.dataset.expenseSettlementReady = "true";
+        syncCashVisibility();
+    }
+
     function initExpenseForms() {
         document.querySelectorAll("[data-expense-type-entry]").forEach(initExpenseTypeEntry);
         document.querySelectorAll("[data-expense-operation-link]").forEach(initExpenseOperationLink);
+        document.querySelectorAll("[data-expense-settlement]").forEach(initExpenseSettlement);
     }
 
     if (document.readyState === "loading") {

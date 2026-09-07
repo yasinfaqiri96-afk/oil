@@ -67,6 +67,9 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
     public const string ExchangeDifferenceLedgerSourceType = "SupplierBalanceTransferExchangeDifference";
     public const string ExchangeDifferenceReversalLedgerSourceType = "SupplierBalanceTransferExchangeDifferenceReversal";
 
+    /// <summary>فضای‌نامِ قفلِ مشورتیِ انتقال مانده — تا با قفل‌های مشورتیِ دیگر برخورد نکند.</summary>
+    private const int SupplierBalanceTransferLockNamespace = 8421;
+
     private readonly ApplicationDbContext _db;
     private readonly ISupplierTransferableBalanceService _balances;
     private readonly AccountingOptions? _accountingOptions;
@@ -230,6 +233,19 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
 
         try
         {
+            // خواندنِ مانده در همان Transaction به‌تنهایی کافی نیست: در سطح جداسازی پیش‌فرض
+            // (READ COMMITTED) دو تراکنشِ هم‌زمان هر دو همان ماندهٔ آزاد را می‌بینند و مجموع
+            // انتقال از مانده واقعی بیشتر می‌شود. قفلِ مشورتیِ سطحِ تراکنش روی همین تأمین‌کننده،
+            // انتقال‌های هم‌زمانِ یک تأمین‌کننده را ترتیبی می‌کند و با پایان تراکنش خودکار آزاد
+            // می‌شود. فقط روی PostgreSQL معنا دارد؛ سایر Providerها (تست‌های InMemory) رد می‌شوند.
+            if (transaction is not null && _db.Database.IsNpgsql())
+            {
+                await _db.Database.ExecuteSqlRawAsync(
+                    "SELECT pg_advisory_xact_lock({0}, {1})",
+                    [SupplierBalanceTransferLockNamespace, supplier.Id],
+                    ct);
+            }
+
             // مانده داخل همین Transaction دوباره خوانده می‌شود تا ثبت هم‌زمان دو کاربر
             // نتواند بیشتر از مانده واقعی مصرف کند.
             var balance = await _balances.GetAsync(supplier.Id, ct);
@@ -514,8 +530,12 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
     }
 
     /// <summary>
-    /// سطر سود/زیان نرخ ارز — همان الگوی تسویهٔ صراف و تخصیص پیش‌پرداخت:
-    /// زیان = Debit، سود = Credit؛ در حالت برگشت سمت آن معکوس می‌شود.
+    /// سطر سود/زیان نرخ ارز — همان الگوی تخصیص پیش‌پرداخت: زیان = Debit، سود = Credit؛
+    /// در حالت برگشت سمت آن معکوس می‌شود.
+    ///
+    /// SupplierId ندارد ولی ContractId دارد و از راهِ همان قراردادِ خرید مالِ تأمین‌کننده شمرده
+    /// می‌شود؛ بدون این، سه پای انتقال روی حساب تأمین‌کننده خالصِ صفر نمی‌شدند و مانده به‌اندازهٔ
+    /// اختلاف نرخ جابه‌جا می‌شد. رجوع: <see cref="SupplierPaymentAllocationService"/>.
     /// </summary>
     private static LedgerPostingRequest BuildExchangeDifferenceLedger(
         SupplierBalanceTransfer transfer,

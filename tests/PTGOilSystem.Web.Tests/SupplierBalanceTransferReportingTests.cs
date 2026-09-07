@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Controllers;
@@ -12,6 +12,7 @@ using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -295,7 +296,8 @@ public sealed class SupplierBalanceTransferReportingTests
                 new PartyStatementPolicyResolver(),
                 new CompanyFlowDirectionResolver(),
                 new CompanyFlowBalanceService(),
-                Options.Create(new PartyStatementOptions()))
+                Options.Create(new PartyStatementOptions()),
+                new PartyDirectory(db))
             .GetStatementAsync(
                 new PartyRef(PartyStatementPartyType.Supplier, SupplierId),
                 new PartyStatementFilter { CurrencyCode = currency, IncludeOperationalColumns = false });

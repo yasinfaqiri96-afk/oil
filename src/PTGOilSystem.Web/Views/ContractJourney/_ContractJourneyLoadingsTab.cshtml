@@ -52,12 +52,6 @@
 
 <div id="journey-tab-lists" class="ak-tab-panel" dir="@Model.PageDirection">
     <section class="ak-form-section">
-        <div class="ak-section-head">
-            <div>
-                <h2 class="ak-section-title">@T("سوابق بارگیری", "Loading records")</h2>
-            </div>
-        </div>
-
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
                      model="@(("loadingsQ", (string?)Context.Request.Query["loadingsQ"].ToString(), T("جستجو در سوابق بارگیری...", "Search loading records..."), "loadingsPage"))" />

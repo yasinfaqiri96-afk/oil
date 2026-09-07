@@ -188,6 +188,59 @@ public class LoadingReceiptControllerTests
     }
 
     [Fact]
+    public async Task Create_Post_Blocks_Quantity_Already_Allocated_To_Loading_Origin_Transport()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedLoadingContext(db);
+        db.InventoryTransportLegs.Add(new InventoryTransportLeg
+        {
+            Id = 20,
+            SourcePurchaseContractId = 1,
+            ProductId = 1,
+            TransportType = LoadingTransportType.Truck,
+            LoadedDate = new DateTime(2026, 4, 24),
+            QuantityMt = 60m,
+            Status = InventoryTransportLegStatus.Loaded
+        });
+        db.InventoryTransportLegAllocations.Add(new InventoryTransportLegAllocation
+        {
+            Id = 21,
+            InventoryTransportLegId = 20,
+            SourcePurchaseContractId = 1,
+            SourceLoadingRegisterId = 1,
+            QuantityMt = 60m
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new LoadingReceiptsController(
+            db,
+            new AuditService(db),
+            NullLogger<LoadingReceiptsController>.Instance)
+        {
+            TempData = BuildTempData()
+        };
+
+        var result = await controller.Create(new LoadingReceiptCreateViewModel
+        {
+            LoadingRegisterId = 1,
+            ReceiptDate = new DateTime(2026, 4, 25),
+            TerminalId = 1,
+            StorageTankId = 1,
+            ReceivedQuantityMt = 50m,
+            ReferenceDocument = "RCPT-AFTER-TRANSPORT"
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Empty(await db.LoadingReceipts.ToListAsync());
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+    }
+
+    [Fact]
     public async Task Create_Post_Rechecks_Current_Remaining_Before_Insert()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

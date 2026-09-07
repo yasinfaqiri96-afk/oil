@@ -27,9 +27,12 @@ public partial class LoadingReceiptsController : Controller
     private const decimal QuantityPrecisionUnit = 0.0001m;
     private sealed record DirectSaleDraft(SalesTransaction Sale, CurrencyConversionResult Conversion);
     private sealed record DirectTransportResolution(int TruckId, int? DriverId, Truck? CreatedTruck, Driver? CreatedDriver);
-    private sealed record LoadingReceiptQuantitySnapshot(decimal ReceivedQuantityMt, decimal ReceiptShortageLossMt)
+    private sealed record LoadingReceiptQuantitySnapshot(
+        decimal ReceivedQuantityMt,
+        decimal ReceiptShortageLossMt,
+        decimal TransportedFromLoadingMt)
     {
-        public decimal AccountedQuantityMt => ReceivedQuantityMt + ReceiptShortageLossMt;
+        public decimal AccountedQuantityMt => ReceivedQuantityMt + ReceiptShortageLossMt + TransportedFromLoadingMt;
     }
     private sealed record BulkReceiptOpenLoading(LoadingRegister Loading, decimal AlreadyReceivedQuantityMt, decimal RemainingQuantityMt);
     private sealed record BulkReceiptQuantityAllocation(BulkReceiptOpenLoading OpenLoading, decimal QuantityMt);
@@ -1089,8 +1092,9 @@ public partial class LoadingReceiptsController : Controller
             .SumAsync(r => (decimal?)r.ReceivedQuantityMt) ?? 0m;
 
         var receiptShortageLossMt = await GetCommittedReceiptShortageQuantityMtAsync(loadingRegisterId);
+        var transportedFromLoadingMt = await GetCommittedLoadingTransportQuantityMtAsync(loadingRegisterId);
 
-        return new LoadingReceiptQuantitySnapshot(receivedQuantityMt, receiptShortageLossMt);
+        return new LoadingReceiptQuantitySnapshot(receivedQuantityMt, receiptShortageLossMt, transportedFromLoadingMt);
     }
 
     private async Task<Dictionary<int, LoadingRegister>> LockLoadingRegistersAsync(IReadOnlyCollection<int> loadingRegisterIds)
@@ -1135,6 +1139,7 @@ public partial class LoadingReceiptsController : Controller
             .ToDictionaryAsync(g => g.LoadingRegisterId, g => g.ReceivedQuantityMt);
 
         var shortageByLoadingId = await GetCommittedReceiptShortageQuantityByLoadingIdAsync(loadingRegisterIds);
+        var transportedByLoadingId = await GetCommittedLoadingTransportQuantityByLoadingIdAsync(loadingRegisterIds);
 
         return loadingRegisterIds
             .Distinct()
@@ -1142,7 +1147,33 @@ public partial class LoadingReceiptsController : Controller
                 id => id,
                 id => new LoadingReceiptQuantitySnapshot(
                     receivedByLoadingId.GetValueOrDefault(id),
-                    shortageByLoadingId.GetValueOrDefault(id)));
+                    shortageByLoadingId.GetValueOrDefault(id),
+                    transportedByLoadingId.GetValueOrDefault(id)));
+    }
+
+    private async Task<decimal> GetCommittedLoadingTransportQuantityMtAsync(int loadingRegisterId)
+    {
+        var quantities = await GetCommittedLoadingTransportQuantityByLoadingIdAsync([loadingRegisterId]);
+        return quantities.GetValueOrDefault(loadingRegisterId);
+    }
+
+    private async Task<Dictionary<int, decimal>> GetCommittedLoadingTransportQuantityByLoadingIdAsync(
+        IReadOnlyCollection<int> loadingRegisterIds)
+    {
+        if (loadingRegisterIds.Count == 0)
+        {
+            return new Dictionary<int, decimal>();
+        }
+
+        return await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .Where(a => a.SourceLoadingRegisterId.HasValue
+                && loadingRegisterIds.Contains(a.SourceLoadingRegisterId.Value)
+                && a.InventoryTransportLeg != null
+                && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+            .GroupBy(a => a.SourceLoadingRegisterId!.Value)
+            .Select(g => new { LoadingRegisterId = g.Key, QuantityMt = g.Sum(a => a.QuantityMt) })
+            .ToDictionaryAsync(x => x.LoadingRegisterId, x => x.QuantityMt);
     }
 
     private async Task<decimal> GetCommittedReceiptShortageQuantityMtAsync(int loadingRegisterId)
@@ -2179,7 +2210,7 @@ public partial class LoadingReceiptsController : Controller
                     }
 
                     var committedQuantities = committedSnapshotsByLoadingId.GetValueOrDefault(lockedLoading.Id)
-                        ?? new LoadingReceiptQuantitySnapshot(0m, 0m);
+                        ?? new LoadingReceiptQuantitySnapshot(0m, 0m, 0m);
                     var remainingQuantityMt = Math.Max(lockedLoading.LoadedQuantityMt - committedQuantities.AccountedQuantityMt, 0m);
                     if (remainingQuantityMt > 0m)
                     {

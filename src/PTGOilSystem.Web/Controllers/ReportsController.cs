@@ -8,6 +8,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Models.Payments;
 using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services;
@@ -15,6 +16,7 @@ using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using PTGOilSystem.Web.Services.Reporting;
 using PTGOilSystem.Web.Services.Time;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -26,6 +28,7 @@ public partial class ReportsController : Controller
     private readonly IProfitAndLossService _profitAndLoss;
     private readonly ISaleContractAttributionReader _saleAttribution;
     private readonly IPartyBalanceReadService _partyBalances;
+    private readonly ISupplierFxSettlementService _supplierFxSettlements;
     private readonly IStockService _stock;
     private readonly IPreSaleReservationService _preSaleReservations;
     private readonly INegativeStockAnalysisService _negativeStock;
@@ -45,7 +48,8 @@ public partial class ReportsController : Controller
         IAfghanistanBusinessClock? clock = null,
         IMemoryCache? cache = null,
         Services.Accounting.ISystemCompanyProvider? systemCompany = null,
-        ISaleContractAttributionReader? saleAttribution = null)
+        ISaleContractAttributionReader? saleAttribution = null,
+        ISupplierFxSettlementService? supplierFxSettlements = null)
     {
         _db = db;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
@@ -56,7 +60,9 @@ public partial class ReportsController : Controller
             db,
             new PartyStatementPolicyResolver(),
             new CompanyFlowDirectionResolver(),
-            new CompanyFlowBalanceService());
+            new CompanyFlowBalanceService(),
+            new PartyDirectory(db));
+        _supplierFxSettlements = supplierFxSettlements ?? new SupplierFxSettlementService(db);
         _stock = stock ?? new StockService(db);
         // یک مرجع واحد ساعت کابل برای همهٔ گزارش‌ها و خروجی‌های همین کنترلر.
         _businessClock = clock ?? new AfghanistanBusinessClock(TimeProvider.System);
@@ -106,7 +112,7 @@ public partial class ReportsController : Controller
     public async Task<IActionResult> CashFlow([FromQuery] ManagementReportFilterViewModel? filter = null)
     {
         filter ??= new ManagementReportFilterViewModel();
-        await PopulateLookupsAsync(filter, includeCustomers: true, includeSuppliers: true);
+        await PopulateLookupsAsync(filter, includeCustomers: true, includeSuppliers: true, includeCashAccounts: true);
         return View(await BuildCashFlowReportAsync(filter));
     }
 
@@ -143,82 +149,131 @@ public partial class ReportsController : Controller
         [
             new()
             {
-                TitleFa = "امروز و مدیریت",
-                TitleEn = "Today & Management",
+                TitleFa = "وضعیت شرکت",
+                TitleEn = "Company status",
                 Icon = "bi-speedometer2",
                 Cards =
                 [
                     new()
                     {
-                        Controller = "Home", Action = "Index",
-                        TitleFa = "خلاصهٔ امروز", TitleEn = "Today at a glance",
-                        DescriptionFa = "کارهای امروز، هشدارها و ارقام کلیدی در یک صفحه.",
-                        DescriptionEn = "Today's work, warnings and key figures on one page.",
-                        Icon = "bi-house-door", ToneClass = "tone-mint"
-                    },
-                    new()
-                    {
                         Action = nameof(CompanyOverview),
-                        TitleFa = "نمای کلی مالی", TitleEn = "Company Overview",
-                        DescriptionFa = "فروش، بهای تمام‌شده، مصارف و سود خالص شرکت.",
-                        DescriptionEn = "Company revenue, COGS, expenses and net profit.",
+                        TitleFa = "وضعیت مالی شرکت", TitleEn = "Company Financial Status",
+                        DescriptionFa = "پول نقد، طلبات، بدهی‌ها و مفاد شرکت در یک صفحه.",
+                        DescriptionEn = "Cash, receivables, payables and profit on one page.",
                         Icon = "bi-clipboard-data", ToneClass = "tone-mint"
                     },
                     new()
                     {
-                        Controller = "PeriodActivity", Action = "Index",
-                        TitleFa = "فعالیت دوره", TitleEn = "Period Activity",
-                        DescriptionFa = "حجم ثبت‌ها و فعالیت سیستم در هر دورهٔ مالی.",
-                        DescriptionEn = "Entry volume and system activity per fiscal period.",
-                        Icon = "bi-calendar-range", ToneClass = "tone-sky"
-                    }
-                ]
-            },
-            new()
-            {
-                TitleFa = "قراردادها و محموله‌ها",
-                TitleEn = "Contracts & Shipments",
-                Icon = "bi-file-earmark-text",
-                Cards =
-                [
-                    new()
-                    {
-                        Controller = "ContractJourney", Action = "Index",
-                        TitleFa = "مسیر قرارداد", TitleEn = "Contract Journey",
-                        DescriptionFa = "از عقد قرارداد تا بارگیری، حمل، فروش و تسویه.",
-                        DescriptionEn = "From contract to loading, transport, sale and settlement.",
-                        Icon = "bi-signpost-split", ToneClass = "tone-lavender"
-                    },
-                    new()
-                    {
                         Action = nameof(ContractPnl),
-                        TitleFa = "سود و زیان قراردادها", TitleEn = "Contract P&L",
-                        DescriptionFa = "درآمد، بهای تمام‌شده، مصارف و سود هر قرارداد.",
-                        DescriptionEn = "Revenue, COGS, expenses and profit by contract.",
+                        TitleFa = "مفاد قراردادها", TitleEn = "Contract Profit",
+                        DescriptionFa = "مصارف، فروش و مفاد هر قرارداد خرید.",
+                        DescriptionEn = "Cost, revenue and profit per purchase contract.",
                         Icon = "bi-graph-up-arrow", ToneClass = "tone-lavender"
                     },
                     new()
                     {
                         Controller = "ShipmentPnl", Action = "Index",
-                        TitleFa = "سود و زیان محموله‌ها", TitleEn = "Shipment P&L",
-                        DescriptionFa = "درآمد و هزینهٔ هر محموله به‌تفکیک.",
+                        TitleFa = "مفاد محموله‌ها", TitleEn = "Shipment Profit",
+                        DescriptionFa = "فروش و مصارف هر محموله به‌تفکیک.",
                         DescriptionEn = "Revenue and cost per shipment.",
                         Icon = "bi-truck", ToneClass = "tone-blue"
                     },
                     new()
                     {
-                        Action = nameof(VesselVoyages),
-                        TitleFa = "گزارش کشتی‌ها", TitleEn = "Vessel Voyages",
-                        DescriptionFa = "هر سفر کشتی با محصول، مقدار، Shipperها، مقصد و کرایهٔ آن.",
-                        DescriptionEn = "Each vessel voyage with product, quantity, shippers, destination and freight.",
-                        Icon = "bi-water", ToneClass = "tone-sky"
+                        Controller = "ContractJourney", Action = "Index",
+                        TitleFa = "مسیر قرارداد", TitleEn = "Contract Journey",
+                        DescriptionFa = "از عقد قرارداد تا بارگیری، حمل، فروش و تصفیه.",
+                        DescriptionEn = "From contract to loading, transport, sale and settlement.",
+                        Icon = "bi-signpost-split", ToneClass = "tone-lavender"
+                    },
+                    new()
+                    {
+                        // پیش‌تر این صفحه ساخته شده بود ولی هیچ لینکی به آن نمی‌رفت.
+                        Action = nameof(Warnings),
+                        TitleFa = "کارهای نیمه‌تمام", TitleEn = "Unfinished Work",
+                        DescriptionFa = "ثبت‌هایی که ناقص مانده‌اند و تا تکمیل نشوند ارقام را ناقص نگه می‌دارند.",
+                        DescriptionEn = "Incomplete entries that keep the figures incomplete until they are finished.",
+                        Icon = "bi-exclamation-triangle", ToneClass = "tone-rose"
                     }
                 ]
             },
             new()
             {
-                TitleFa = "موجودی و مسیر بار",
-                TitleEn = "Inventory & In-transit",
+                TitleFa = "پول، طلبات و بدهی‌ها",
+                TitleEn = "Money, Receivables & Payables",
+                Icon = "bi-wallet2",
+                Cards =
+                [
+                    new()
+                    {
+                        Action = nameof(ReceivablesPayables),
+                        TitleFa = "طلبات و بدهی‌ها", TitleEn = "Receivables & Payables",
+                        DescriptionFa = "مانده مشتری، تأمین‌کننده، شرکت خدماتی و صراف در یک جدول.",
+                        DescriptionEn = "Customer, supplier, service provider and sarraf balances in one table.",
+                        Icon = "bi-people", ToneClass = "tone-amber"
+                    },
+                    new()
+                    {
+                        Action = nameof(PartyAging),
+                        TitleFa = "سررسید طلبات و بدهی‌ها", TitleEn = "Receivable & Payable Aging",
+                        DescriptionFa = "هر حساب چند روز است بی‌حرکت مانده: تا ۳۰، ۳۱ تا ۶۰، ۶۱ تا ۹۰ و بیشتر از ۹۰ روز.",
+                        DescriptionEn = "How long each account has been idle: up to 30, 31-60, 61-90 and over 90 days.",
+                        Icon = "bi-hourglass-split", ToneClass = "tone-rose"
+                    },
+                    new()
+                    {
+                        Action = nameof(CashFlow),
+                        TitleFa = "گردش پول", TitleEn = "Cash Movement",
+                        DescriptionFa = "پول واقعی که از صندوق و بانک وارد یا خارج شده است.",
+                        DescriptionEn = "Actual cash in and out of the cash and bank accounts.",
+                        Icon = "bi-cash-stack", ToneClass = "tone-sky"
+                    },
+                    new()
+                    {
+                        Controller = "Balance", Action = "Customers",
+                        TitleFa = "گردش حساب مشتریان", TitleEn = "Customer Accounts",
+                        DescriptionFa = "فروش، مصارف و مانده هر مشتری، با لینک به گردش حساب او.",
+                        DescriptionEn = "Sales, expenses and balance per customer, linked to the statement.",
+                        Icon = "bi-person-lines-fill", ToneClass = "tone-amber"
+                    },
+                    new()
+                    {
+                        Controller = "Balance", Action = "Suppliers",
+                        TitleFa = "گردش حساب تأمین‌کننده‌ها", TitleEn = "Supplier Accounts",
+                        DescriptionFa = "خرید، پرداخت و مانده هر تأمین‌کننده، با لینک به گردش حساب او.",
+                        DescriptionEn = "Purchases, payments and balance per supplier, linked to the statement.",
+                        Icon = "bi-building-check", ToneClass = "tone-blue"
+                    },
+                    new()
+                    {
+                        Controller = "Balance", Action = "Contracts",
+                        TitleFa = "مانده قراردادها", TitleEn = "Contract Balances",
+                        DescriptionFa = "مانده هر قرارداد با مشتری و تأمین‌کنندهٔ آن.",
+                        DescriptionEn = "Balance per contract with its customer and supplier.",
+                        Icon = "bi-scales", ToneClass = "tone-blue"
+                    },
+                    new()
+                    {
+                        Action = nameof(FxDifference),
+                        TitleFa = "حساب صراف و تفاوت نرخ", TitleEn = "Sarraf & FX Difference",
+                        DescriptionFa = "مفاد و ضرر تفاوت نرخ در حواله‌های صراف، با کمیشن.",
+                        DescriptionEn = "Gain and loss on the FX rate of sarraf transfers, with commission.",
+                        Icon = "bi-currency-exchange", ToneClass = "tone-sky"
+                    },
+                    new()
+                    {
+                        Controller = "Expenses", Action = "Index",
+                        TitleFa = "مصارف", TitleEn = "Expenses",
+                        DescriptionFa = "مصارف ثبت‌شده به‌تفکیک نوع، قرارداد و تاریخ.",
+                        DescriptionEn = "Recorded expenses by type, contract and date.",
+                        Icon = "bi-receipt", ToneClass = "tone-amber"
+                    }
+                ]
+            },
+            new()
+            {
+                TitleFa = "مال، فروش و حمل",
+                TitleEn = "Stock, Sales & Transport",
                 Icon = "bi-box-seam",
                 Cards =
                 [
@@ -240,11 +295,11 @@ public partial class ReportsController : Controller
                     },
                     new()
                     {
-                        Controller = "InventoryTransportLegs", Action = "Index",
-                        TitleFa = "بار در مسیر", TitleEn = "Goods in Transit",
-                        DescriptionFa = "باری که از مخزن خارج شده اما هنوز تحویل نشده است.",
-                        DescriptionEn = "Stock that left the tank but has not been received yet.",
-                        Icon = "bi-arrow-left-right", ToneClass = "tone-blue"
+                        Action = nameof(SellableStock),
+                        TitleFa = "موجودی قابل فروش", TitleEn = "Sellable Stock",
+                        DescriptionFa = "موجودی فزیکی منهای رزرو پیش‌فروش.",
+                        DescriptionEn = "Physical stock minus active pre-sale reservation.",
+                        Icon = "bi-box-arrow-up-right", ToneClass = "tone-teal"
                     },
                     new()
                     {
@@ -253,23 +308,6 @@ public partial class ReportsController : Controller
                         DescriptionFa = "جاهایی که مانده زیر صفر رفته، با علت و سند ایجادکننده.",
                         DescriptionEn = "Scopes that went below zero, with cause and source document.",
                         Icon = "bi-exclamation-octagon", ToneClass = "tone-rose"
-                    }
-                ]
-            },
-            new()
-            {
-                TitleFa = "فروش و تعهدات",
-                TitleEn = "Sales & Commitments",
-                Icon = "bi-cart-check",
-                Cards =
-                [
-                    new()
-                    {
-                        Controller = "Sales", Action = "Index",
-                        TitleFa = "فروش‌ها", TitleEn = "Sales",
-                        DescriptionFa = "فهرست فروش‌ها با مقدار، قیمت و مشتری.",
-                        DescriptionEn = "Sales list with quantity, price and customer.",
-                        Icon = "bi-cart-check", ToneClass = "tone-amber"
                     },
                     new()
                     {
@@ -281,82 +319,24 @@ public partial class ReportsController : Controller
                     },
                     new()
                     {
-                        Action = nameof(SellableStock),
-                        TitleFa = "موجودی قابل فروش", TitleEn = "Sellable Stock",
-                        DescriptionFa = "موجودی فیزیکی منهای رزرو پیش‌فروش.",
-                        DescriptionEn = "Physical stock minus active pre-sale reservation.",
-                        Icon = "bi-box-arrow-up-right", ToneClass = "tone-teal"
-                    },
-                    new()
-                    {
                         Action = nameof(PreSaleDiscrepancies),
                         TitleFa = "ناهماهنگی‌های پیش‌فروش", TitleEn = "Pre-sale Discrepancies",
                         DescriptionFa = "تحویل بیشتر از تعهد، تعهد سررسیدشده و پیش‌پرداخت مصرف‌نشده.",
                         DescriptionEn = "Over-delivery, overdue commitments and unconsumed advances.",
                         Icon = "bi-exclamation-triangle", ToneClass = "tone-rose"
-                    }
-                ]
-            },
-            new()
-            {
-                TitleFa = "پول و طرف‌حساب‌ها",
-                TitleEn = "Money & Parties",
-                Icon = "bi-wallet2",
-                Cards =
-                [
-                    new()
-                    {
-                        Action = nameof(ReceivablesPayables),
-                        TitleFa = "طلب و بدهی", TitleEn = "Receivables & Payables",
-                        DescriptionFa = "مانده مشتریان، تأمین‌کنندگان، خدماتی‌ها و صراف‌ها.",
-                        DescriptionEn = "Customer, supplier, service provider and sarraf balances.",
-                        Icon = "bi-people", ToneClass = "tone-amber"
                     },
                     new()
                     {
-                        Action = nameof(CashFlow),
-                        TitleFa = "جریان پول", TitleEn = "Cash Flow",
-                        DescriptionFa = "پول واقعی وارد و خارج‌شده از حساب‌های نقدی.",
-                        DescriptionEn = "Actual cash in and out of the cash accounts.",
-                        Icon = "bi-cash-stack", ToneClass = "tone-sky"
-                    },
-                    new()
-                    {
-                        Controller = "AccountStatements", Action = "Index",
-                        TitleFa = "صورت‌حساب طرف‌حساب", TitleEn = "Party Statement",
-                        DescriptionFa = "اول دوره، رسید، برد و مانده هر طرف‌حساب.",
-                        DescriptionEn = "Opening, received, given and closing per party.",
-                        Icon = "bi-journal-text", ToneClass = "tone-lavender"
-                    },
-                    new()
-                    {
-                        Controller = "Balance", Action = "Contracts",
-                        TitleFa = "مانده قراردادها", TitleEn = "Contract Balances",
-                        DescriptionFa = "مانده هر قرارداد با مشتری و تأمین‌کنندهٔ آن.",
-                        DescriptionEn = "Balance per contract with its customer and supplier.",
-                        Icon = "bi-scales", ToneClass = "tone-blue"
-                    }
-                ]
-            },
-            new()
-            {
-                TitleFa = "مصارف، کسری و سود",
-                TitleEn = "Expenses, Losses & Margin",
-                Icon = "bi-receipt",
-                Cards =
-                [
-                    new()
-                    {
-                        Controller = "Expenses", Action = "Index",
-                        TitleFa = "مصارف", TitleEn = "Expenses",
-                        DescriptionFa = "مصارف ثبت‌شده به‌تفکیک نوع، قرارداد و تاریخ.",
-                        DescriptionEn = "Recorded expenses by type, contract and date.",
-                        Icon = "bi-receipt", ToneClass = "tone-amber"
+                        Action = nameof(GoodsInTransit),
+                        TitleFa = "بارهای در مسیر", TitleEn = "Goods In Transit",
+                        DescriptionFa = "هر باری که حرکت کرده و هنوز نرسیده، با مسیر، مقدار و وضعیت آن.",
+                        DescriptionEn = "Every load that has departed and not yet arrived, with route, quantity and status.",
+                        Icon = "bi-truck", ToneClass = "tone-sky"
                     },
                     new()
                     {
                         Action = nameof(TransportVariance),
-                        TitleFa = "راپور کسری و اضافه‌بار حمل", TitleEn = "Transport Shortage & Surplus",
+                        TitleFa = "کسری و اضافه‌بار حمل", TitleEn = "Transport Shortage & Surplus",
                         DescriptionFa = "تفاوت وزن بارگیری و تخلیهٔ هر حمل، با مجموع جداگانهٔ کسری و اضافه‌بار.",
                         DescriptionEn = "Loaded vs unloaded weight per transport, with separate shortage and surplus totals.",
                         Icon = "bi-truck", ToneClass = "tone-rose"
@@ -371,28 +351,30 @@ public partial class ReportsController : Controller
                     },
                     new()
                     {
-                        Action = nameof(FxDifference),
-                        TitleFa = "تفاوت نرخ ارز", TitleEn = "FX Difference",
-                        DescriptionFa = "سود و ضرر تفاوت نرخ ارز در حواله‌های صراف.",
-                        DescriptionEn = "FX gain and loss on sarraf transfers.",
-                        Icon = "bi-currency-exchange", ToneClass = "tone-sky"
+                        Action = nameof(VesselVoyages),
+                        TitleFa = "گزارش کشتی‌ها", TitleEn = "Vessel Voyages",
+                        DescriptionFa = "هر سفر کشتی با محصول، مقدار، Shipperها، مقصد و کرایهٔ آن.",
+                        DescriptionEn = "Each vessel voyage with product, quantity, shippers, destination and freight.",
+                        Icon = "bi-water", ToneClass = "tone-sky"
                     }
                 ]
             },
             new()
             {
-                TitleFa = "گمرک، اسناد و کیفیت",
-                TitleEn = "Customs, Documents & Quality",
+                TitleFa = "کنترول و اسناد",
+                TitleEn = "Control & Documents",
                 Icon = "bi-shield-check",
                 Cards =
                 [
                     new()
                     {
-                        Controller = "CustomsDeclarations", Action = "Index",
-                        TitleFa = "اظهارنامه‌های گمرکی", TitleEn = "Customs Declarations",
-                        DescriptionFa = "اظهارنامه‌ها، محصولات و مصارف گمرکی هر محموله.",
-                        DescriptionEn = "Declarations, products and customs costs per shipment.",
-                        Icon = "bi-file-earmark-check", ToneClass = "tone-teal"
+                        // Summary فقط endpoint‌ـی JSON برای شمارنده‌های AJAX است و صفحه ندارد؛
+                        // ورودی کاربر باید Index باشد.
+                        Controller = "Reconciliation", Action = "Index",
+                        TitleFa = "بررسی ناهماهنگی‌ها", TitleEn = "Reconciliation",
+                        DescriptionFa = "مواردی که بین عملیات، موجودی و حساب‌ها جور نیستند.",
+                        DescriptionEn = "Items where operations, stock and accounts disagree.",
+                        Icon = "bi-clipboard-check", ToneClass = "tone-rose"
                     },
                     new()
                     {
@@ -409,33 +391,24 @@ public partial class ReportsController : Controller
                         DescriptionFa = "نتیجهٔ آزمایش هر بار: در انتظار، قبول یا رد.",
                         DescriptionEn = "Inspection result per load: pending, accepted or rejected.",
                         Icon = "bi-clipboard-check", ToneClass = "tone-mint"
-                    }
-                ]
-            },
-            new()
-            {
-                TitleFa = "حساب‌داری و تاریخچه",
-                TitleEn = "Accounting & History",
-                Icon = "bi-journal-text",
-                Cards =
-                [
+                    },
                     new()
                     {
                         Controller = "Ledger", Action = "Index",
                         TitleFa = "دفتر کل", TitleEn = "Ledger",
-                        DescriptionFa = "تمام اسناد مالی ثبت‌شده با منبع و مبلغ.",
-                        DescriptionEn = "All posted financial entries with source and amount.",
+                        DescriptionFa = "تمام اسناد مالی ثبت‌شده با منبع و مبلغ. مخصوص حسابدار.",
+                        DescriptionEn = "All posted financial entries with source and amount. For the accountant.",
                         Icon = "bi-journals", ToneClass = "tone-lavender"
                     },
                     new()
                     {
-                        // Summary فقط endpoint‌ـی JSON برای شمارنده‌های AJAX است و صفحه ندارد؛
-                        // ورودی کاربر باید Index باشد.
-                        Controller = "Reconciliation", Action = "Index",
-                        TitleFa = "بررسی ناهماهنگی‌ها", TitleEn = "Reconciliation",
-                        DescriptionFa = "مواردی که بین عملیات، موجودی و حساب‌ها جور نیستند.",
-                        DescriptionEn = "Items where operations, stock and accounts disagree.",
-                        Icon = "bi-clipboard-check", ToneClass = "tone-rose"
+                        // این صفحه صورت‌حساب طرف‌حساب نیست؛ اسناد Opening و Adjustment ارزی است.
+                        // نام کارت با محتوای واقعی صفحه یکی شد تا با «گردش حساب» اشتباه نشود.
+                        Controller = "AccountStatements", Action = "Index",
+                        TitleFa = "اسناد اول دوره و اصلاح ارزی", TitleEn = "Opening & FX Adjustment Documents",
+                        DescriptionFa = "ثبت مانده اول دوره و اصلاح ارزی. مخصوص حسابدار.",
+                        DescriptionEn = "Opening balance and FX adjustment entries. For the accountant.",
+                        Icon = "bi-journal-text", ToneClass = "tone-lavender"
                     },
                     new()
                     {
@@ -468,8 +441,32 @@ public partial class ReportsController : Controller
         var balances = await BuildReceivablesPayablesReportAsync(filter);
         var warnings = await BuildReportsWarningsAsync();
 
+        // مانده واقعی صندوق و بانک از همان مرجعی خوانده می‌شود که صفحهٔ دفتر کل و
+        // حساب‌های نقدی می‌خوانند؛ محاسبهٔ موازی ساخته نمی‌شود.
+        var cashCards = await FinanceMetricCardsQuery.BuildAsync(_db, _cache, businessClock: _businessClock);
+
         var topContracts = pnl.PurchaseRows
             .OrderByDescending(r => Math.Abs(r.GrossMarginUsd))
+            .Take(5)
+            .ToList();
+
+        // طلب و بدهی از همان ردیف‌های گزارش «طلبات و بدهی‌ها» می‌آید؛ علامت مانده
+        // همان قرارداد نمایشی سیستم است: مثبت = شرکت طلبکار، منفی = شرکت بدهکار.
+        //
+        // حساب شریک همچنان در گزارش کامل «طلبات و بدهی‌ها» و صورت‌حساب
+        // شریک می‌ماند، اما ماندهٔ سهم/سرمایه نباید با طلب و بدهی عملیاتی شرکت
+        // در کارت‌های مدیریتی یکجا شود. هیچ ردیف Ledger یا محاسبهٔ شریک حذف نمی‌شود.
+        var operationalPartyBalances = balances.Rows
+            .Where(r => r.PartyType != nameof(PartyStatementPartyType.Partner))
+            .ToList();
+        var topReceivables = operationalPartyBalances
+            .Where(r => r.BalanceUsd > 0m)
+            .OrderByDescending(r => r.BalanceUsd)
+            .Take(5)
+            .ToList();
+        var topPayables = operationalPartyBalances
+            .Where(r => r.BalanceUsd < 0m)
+            .OrderBy(r => r.BalanceUsd)
             .Take(5)
             .ToList();
 
@@ -479,13 +476,27 @@ public partial class ReportsController : Controller
         var isProfitPublishable = companyPnl.Sales.UncostedSaleCount == 0
             && companyPnl.Sales.Confidence == PnlConfidence.Verified;
 
+        // ── مصارفی که در ExpenseTransaction نیستند و تا حالا از سود شرکت می‌افتادند ──
+        // مصارفِ درون‌خطیِ بارگیری (حمل/گدام/سایر/خط‌آهن) روی خودِ LoadingRegister ذخیره
+        // می‌شوند و برای سطرهای «بدون طرف‌حساب» هیچ ExpenseTransaction نمی‌سازند؛ ارزشِ
+        // ضایعاتِ قابلِ شارژ هم هیچ‌وقت سطرِ مصرف ندارد. هر دو از همان ردیف‌هایی خوانده
+        // می‌شوند که صفحهٔ «مفاد قراردادها» می‌سازد (pnl.PurchaseRows) تا دو صفحه یک عدد
+        // بدهند و هیچ فرمول موازی ساخته نشود. این‌ها با مصارفِ ثبت‌شده همپوشانی ندارند،
+        // پس دوباره‌شماری نمی‌شود.
+        var loadingOperationalCostUsd = pnl.PurchaseRows.Sum(r =>
+            r.TransportCostUsd + r.WarehouseCostUsd + r.OtherCostUsd + r.RailwayCostUsd);
+        var lossCostUsd = pnl.PurchaseRows.Sum(r => r.LossCostUsd);
+        var unvaluedLossCount = pnl.PurchaseRows.Sum(r => r.UnvaluedLossCount);
+
         return new CompanyFinancialOverviewViewModel
         {
             Filter = filter,
             RevenueUsd = revenueUsd,
             PurchaseCostUsd = cogsUsd,
             ExpenseUsd = expenseUsd,
-            LossCostUsd = 0m,
+            LoadingOperationalCostUsd = loadingOperationalCostUsd,
+            LossCostUsd = lossCostUsd,
+            UnvaluedLossCount = unvaluedLossCount,
             ExchangeGainUsd = companyPnl.ExchangeGainUsd,
             ExchangeLossUsd = companyPnl.ExchangeLossUsd,
             NetCashMovementUsd = cashInUsd - cashOutUsd,
@@ -496,11 +507,19 @@ public partial class ReportsController : Controller
             UncostedSaleCount = companyPnl.Sales.UncostedSaleCount,
             PnlConfidence = companyPnl.Sales.Confidence,
             TopContracts = topContracts,
+            CashOnHandUsd = cashCards.CashAccountsBalanceUsd,
+            TopReceivables = topReceivables,
+            TopPayables = topPayables,
+            TotalReceivableUsd = operationalPartyBalances.Where(r => r.BalanceUsd > 0m).Sum(r => r.BalanceUsd),
+            TotalPayableUsd = -operationalPartyBalances.Where(r => r.BalanceUsd < 0m).Sum(r => r.BalanceUsd),
+            AsOfDate = _businessClock.Today,
             Metrics =
             [
                 new() { Label = "فروش کل", Value = Money(revenueUsd), Detail = "Sales revenue", Icon = "bi-cart-check", ToneClass = "finance-positive" },
                 new() { Label = "بهای تمام‌شده فروش", Value = Money(cogsUsd), Detail = "Realised COGS", Icon = "bi-box-arrow-in-down", ToneClass = "" },
                 new() { Label = "مصارف", Value = Money(expenseUsd), Detail = "Official expenses", Icon = "bi-receipt", ToneClass = "finance-negative" },
+                new() { Label = "مصارف بارگیری", Value = Money(loadingOperationalCostUsd), Detail = "Loading transport / warehouse / railway / other", Icon = "bi-truck", ToneClass = "finance-negative" },
+                new() { Label = "ارزش ضایعات", Value = Money(lossCostUsd), Detail = unvaluedLossCount > 0 ? $"{unvaluedLossCount:N0} loss event(s) cannot be valued" : "Chargeable loss valued at purchase price", Icon = "bi-droplet-half", ToneClass = "finance-negative" },
                 new() { Label = "سود خالص", Value = isProfitPublishable ? Money(companyPnl.NetProfitUsd) : "—", Detail = isProfitPublishable ? "Net profit" : $"COGS incomplete — {companyPnl.Sales.UncostedSaleCount:N0} sale(s) need COGS", Icon = "bi-graph-up-arrow", ToneClass = !isProfitPublishable ? "" : companyPnl.NetProfitUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = "حرکت نقدی", Value = Money(cashInUsd - cashOutUsd), Detail = "Payment inflow - outflow", Icon = "bi-cash-stack", ToneClass = cashInUsd - cashOutUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = "مغایرت‌ها", Value = warnings.TotalIssueCount.ToString("N0"), Detail = "Open warnings", Icon = "bi-exclamation-triangle", ToneClass = warnings.TotalIssueCount == 0 ? "finance-positive" : "finance-negative" }
@@ -508,65 +527,341 @@ public partial class ReportsController : Controller
         };
     }
 
+    /// <summary>
+    /// گردشِ صندوق و بانک. دقیقاً همان دو منبعی خوانده می‌شود که صفحهٔ
+    /// «حساب‌های نقدی» می‌خواند:
+    /// <list type="number">
+    ///   <item>روزنامچه (<see cref="PaymentTransaction"/>)، به‌جز پرداختی که شریک از جیب خودش
+    ///   داده (<see cref="PaymentFundingSource.Partner"/>). آن پول اصلاً وارد یا خارجِ صندوقِ شرکت
+    ///   نشده و <c>CashAccountId</c> هم ندارد؛ جدا و فقط برای اطلاع نشان داده می‌شود.</item>
+    ///   <item>مصرفی که «نقد پرداخت شد» ثبت شده و سندِ روزنامچه ندارد. اگر همان مصرف
+    ///   یک <see cref="PaymentTransaction"/> مرتبط داشته باشد (کمیسیونِ نقدی)، حرکتِ پول از
+    ///   منبعِ ۱ شمرده می‌شود و اینجا کنار می‌رود تا دو بار شمرده نشود.</item>
+    /// </list>
+    /// هیچ سندی ساخته یا تغییر داده نمی‌شود و هیچ منطقِ دفتری عوض نمی‌شود؛ فقط خواندن است.
+    /// </summary>
     private async Task<CashFlowReportViewModel> BuildCashFlowReportAsync(ManagementReportFilterViewModel filter)
     {
-        var payments = await ApplyPaymentFilters(_db.PaymentTransactions.AsNoTracking(), filter)
-            .Select(p => new
+        // مصرفِ نقدی نه مشتری/تأمین‌کننده دارد و نه «بابتِ پرداخت»؛ با این
+        // فیلترها هیچ سطرِ مصرفی مطابقت نمی‌کند، پس کنار می‌رود و کاربر در هشدار می‌بیند.
+        var includeCashExpenses = !filter.CustomerId.HasValue
+            && !filter.SupplierId.HasValue
+            && !filter.PaymentKind.HasValue;
+
+        // فیلترهای غیرتاریخی برای ماندهٔ اول دوره هم لازم‌اند، پس تاریخ جدا اعمال می‌شود.
+        var undated = new ManagementReportFilterViewModel
+        {
+            ProductId = filter.ProductId,
+            ContractId = filter.ContractId,
+            CustomerId = filter.CustomerId,
+            SupplierId = filter.SupplierId,
+            CashAccountId = filter.CashAccountId,
+            CompanyId = filter.CompanyId,
+            PaymentKind = filter.PaymentKind
+        };
+
+        var companyPayments = ApplyPaymentFilters(
+            _db.PaymentTransactions.AsNoTracking().Where(p => p.FundingSource != PaymentFundingSource.Partner),
+            undated);
+
+        var cashExpenses = includeCashExpenses
+            ? ApplyCashExpenseFilters(_db.ExpenseTransactions.AsNoTracking(), undated)
+            : _db.ExpenseTransactions.AsNoTracking().Where(e => false);
+
+        var fromDate = filter.FromDate?.Date;
+        var toDate = filter.ToDate?.Date;
+
+        var periodPayments = companyPayments;
+        if (fromDate.HasValue) periodPayments = periodPayments.Where(p => p.PaymentDate >= fromDate.Value);
+        if (toDate.HasValue) periodPayments = periodPayments.Where(p => p.PaymentDate <= toDate.Value);
+
+        var periodExpenses = cashExpenses;
+        if (fromDate.HasValue) periodExpenses = periodExpenses.Where(e => e.ExpenseDate >= fromDate.Value);
+        if (toDate.HasValue) periodExpenses = periodExpenses.Where(e => e.ExpenseDate <= toDate.Value);
+
+        // ---- «بابت»: تجمیع در دیتابیس، نام‌گذاری در حافظه ----
+        var paymentGroups = await periodPayments
+            .GroupBy(p => new { p.PaymentKind, p.Direction })
+            .Select(g => new
             {
-                p.PaymentKind,
-                p.Direction,
-                p.AmountUsd,
-                CashAccountName = p.CashAccount != null ? p.CashAccount.Name : "-",
-                p.Currency
+                g.Key.PaymentKind,
+                g.Key.Direction,
+                AmountUsd = g.Sum(p => p.AmountUsd),
+                Count = g.Count()
             })
             .ToListAsync();
 
-        var rows = payments
-            .GroupBy(p => CashFlowGroupName(p.PaymentKind, p.Direction))
+        var expenseGroups = await periodExpenses
+            .GroupBy(e => e.ExpenseType != null ? (e.ExpenseType.NamePersian ?? e.ExpenseType.Name) : "")
+            .Select(g => new { TypeName = g.Key, AmountUsd = g.Sum(e => e.AmountUsd), Count = g.Count() })
+            .ToListAsync();
+
+        var rows = paymentGroups
+            .GroupBy(g => CashFlowGroupName(g.PaymentKind, g.Direction))
             .Select(g => new CashFlowReportRowViewModel
             {
                 GroupName = g.Key,
-                InflowUsd = g.Where(p => p.Direction == PaymentDirection.In).Sum(p => p.AmountUsd),
-                OutflowUsd = g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => p.AmountUsd),
-                Count = g.Count()
+                InflowUsd = g.Where(x => x.Direction == PaymentDirection.In).Sum(x => x.AmountUsd),
+                OutflowUsd = g.Where(x => x.Direction == PaymentDirection.Out).Sum(x => x.AmountUsd),
+                Count = g.Sum(x => x.Count)
+            })
+            .Concat(expenseGroups.Select(g => new CashFlowReportRowViewModel
+            {
+                GroupName = string.IsNullOrWhiteSpace(g.TypeName)
+                    ? CashExpenseGroupLabel
+                    : $"{CashExpenseGroupLabel} \u2014 {g.TypeName}",
+                OutflowUsd = g.AmountUsd,
+                Count = g.Count
+            }))
+            .OrderByDescending(r => Math.Abs(r.NetUsd))
+            .ToList();
+
+        // ---- تفکیک حساب. کلیدِ گروه شناسهٔ حساب است نه نام، پس دو
+        // حسابِ هم‌نام روی هم نمی‌افتند؛ ارز هم از خودِ حساب می‌آید نه از ارزِ سند.
+        var paymentByAccount = await periodPayments
+            .GroupBy(p => p.CashAccountId)
+            .Select(g => new
+            {
+                CashAccountId = g.Key,
+                InflowUsd = g.Sum(p => p.Direction == PaymentDirection.In ? p.AmountUsd : 0m),
+                OutflowUsd = g.Sum(p => p.Direction == PaymentDirection.Out ? p.AmountUsd : 0m)
+            })
+            .ToListAsync();
+
+        var expenseByAccount = await periodExpenses
+            .GroupBy(e => e.CashAccountId)
+            .Select(g => new { CashAccountId = g.Key, OutflowUsd = g.Sum(e => e.AmountUsd) })
+            .ToListAsync();
+
+        // ---- ماندهٔ اول دوره: همان دو منبع، فقط پیش از شروعِ بازه ----
+        var openingByAccount = new Dictionary<int, decimal>();
+        var openingNoAccountUsd = 0m;
+        if (fromDate.HasValue)
+        {
+            var openingPayments = await companyPayments
+                .Where(p => p.PaymentDate < fromDate.Value)
+                .GroupBy(p => p.CashAccountId)
+                .Select(g => new
+                {
+                    CashAccountId = g.Key,
+                    NetUsd = g.Sum(p => p.Direction == PaymentDirection.In ? p.AmountUsd : -p.AmountUsd)
+                })
+                .ToListAsync();
+
+            var openingExpenses = await cashExpenses
+                .Where(e => e.ExpenseDate < fromDate.Value)
+                .GroupBy(e => e.CashAccountId)
+                .Select(g => new { CashAccountId = g.Key, NetUsd = -g.Sum(e => e.AmountUsd) })
+                .ToListAsync();
+
+            foreach (var opening in openingPayments.Concat(openingExpenses))
+            {
+                if (opening.CashAccountId is int openingAccountId)
+                {
+                    openingByAccount[openingAccountId] =
+                        openingByAccount.GetValueOrDefault(openingAccountId) + opening.NetUsd;
+                }
+                else
+                {
+                    openingNoAccountUsd += opening.NetUsd;
+                }
+            }
+        }
+
+        var accountIds = paymentByAccount.Select(a => a.CashAccountId)
+            .Concat(expenseByAccount.Select(a => a.CashAccountId))
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Concat(openingByAccount.Keys)
+            .Distinct()
+            .ToList();
+
+        var accountMeta = (await _db.CashAccounts
+                .AsNoTracking()
+                .Where(a => accountIds.Contains(a.Id))
+                .Select(a => new { a.Id, a.Name, a.Currency })
+                .ToListAsync())
+            .ToDictionary(a => a.Id);
+
+        var accountKeys = accountIds.Select(id => (int?)id).ToList();
+        if (paymentByAccount.Any(a => a.CashAccountId is null)
+            || expenseByAccount.Any(a => a.CashAccountId is null)
+            || openingNoAccountUsd != 0m)
+        {
+            accountKeys.Add(null);
+        }
+
+        var accountRows = accountKeys
+            .Select(key => new CashFlowAccountRowViewModel
+            {
+                CashAccountName = key is int nameId && accountMeta.TryGetValue(nameId, out var named)
+                    ? named.Name
+                    : UnlinkedCashAccountLabel,
+                Currency = key is int currencyId && accountMeta.TryGetValue(currencyId, out var priced)
+                    ? priced.Currency
+                    : "-",
+                OpeningUsd = key is int openingId ? openingByAccount.GetValueOrDefault(openingId) : openingNoAccountUsd,
+                InflowUsd = paymentByAccount.Where(a => a.CashAccountId == key).Sum(a => a.InflowUsd),
+                OutflowUsd = paymentByAccount.Where(a => a.CashAccountId == key).Sum(a => a.OutflowUsd)
+                    + expenseByAccount.Where(a => a.CashAccountId == key).Sum(a => a.OutflowUsd)
             })
             .OrderByDescending(r => Math.Abs(r.NetUsd))
             .ToList();
 
-        var accountRows = payments
-            .GroupBy(p => new { p.CashAccountName, p.Currency })
-            .Select(g => new CashFlowAccountRowViewModel
+        // ---- روندِ ماهانه ----
+        var paymentMonths = await periodPayments
+            .GroupBy(p => new { p.PaymentDate.Year, p.PaymentDate.Month })
+            .Select(g => new
             {
-                CashAccountName = g.Key.CashAccountName,
-                Currency = g.Key.Currency,
-                InflowUsd = g.Where(p => p.Direction == PaymentDirection.In).Sum(p => p.AmountUsd),
-                OutflowUsd = g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => p.AmountUsd)
+                g.Key.Year,
+                g.Key.Month,
+                InflowUsd = g.Sum(p => p.Direction == PaymentDirection.In ? p.AmountUsd : 0m),
+                OutflowUsd = g.Sum(p => p.Direction == PaymentDirection.Out ? p.AmountUsd : 0m),
+                Count = g.Count()
             })
-            .OrderByDescending(r => Math.Abs(r.NetUsd))
+            .ToListAsync();
+
+        var expenseMonths = await periodExpenses
+            .GroupBy(e => new { e.ExpenseDate.Year, e.ExpenseDate.Month })
+            .Select(g => new
+            {
+                g.Key.Year,
+                g.Key.Month,
+                InflowUsd = 0m,
+                OutflowUsd = g.Sum(e => e.AmountUsd),
+                Count = g.Count()
+            })
+            .ToListAsync();
+
+        var openingBalanceUsd = openingByAccount.Values.Sum() + openingNoAccountUsd;
+
+        var monthGroups = paymentMonths.Concat(expenseMonths)
+            .GroupBy(m => new { m.Year, m.Month })
+            .OrderBy(g => g.Key.Year)
+            .ThenBy(g => g.Key.Month)
             .ToList();
+
+        var periodRows = new List<CashFlowPeriodRowViewModel>(monthGroups.Count);
+        var runningUsd = openingBalanceUsd;
+        foreach (var monthGroup in monthGroups)
+        {
+            var monthInflowUsd = monthGroup.Sum(m => m.InflowUsd);
+            var monthOutflowUsd = monthGroup.Sum(m => m.OutflowUsd);
+            runningUsd += monthInflowUsd - monthOutflowUsd;
+            periodRows.Add(new CashFlowPeriodRowViewModel
+            {
+                Year = monthGroup.Key.Year,
+                Month = monthGroup.Key.Month,
+                InflowUsd = monthInflowUsd,
+                OutflowUsd = monthOutflowUsd,
+                Count = monthGroup.Sum(m => m.Count),
+                ClosingUsd = runningUsd
+            });
+        }
+
+        // ---- پرداختِ شریک. خارج از صندوق است و برای یک حسابِ نقدیِ مشخص نمایش داده
+        // نمی‌شود. در نمای شرکت، مالکیت از CompanyId اثبات‌شده یا قرارداد همان پرداخت
+        // خوانده می‌شود تا پرداخت شریکِ شرکت‌های دیگر وارد این scope نشود. ----
+        var partnerFundedFilter = new ManagementReportFilterViewModel
+        {
+            FromDate = filter.FromDate,
+            ToDate = filter.ToDate,
+            ProductId = filter.ProductId,
+            ContractId = filter.ContractId,
+            CustomerId = filter.CustomerId,
+            SupplierId = filter.SupplierId,
+            PaymentKind = filter.PaymentKind
+        };
+
+        var partnerFundedQuery = ApplyPaymentFilters(
+            _db.PaymentTransactions.AsNoTracking().Where(p => p.FundingSource == PaymentFundingSource.Partner),
+            partnerFundedFilter);
+
+        if (filter.CompanyId.HasValue)
+        {
+            var companyId = filter.CompanyId.Value;
+            partnerFundedQuery = partnerFundedQuery.Where(p => p.CompanyId == companyId
+                || (p.CompanyId == null && p.Contract != null && p.Contract.CompanyId == companyId));
+        }
+
+        var partnerFunded = filter.CashAccountId.HasValue
+            ? null
+            : await partnerFundedQuery
+                .GroupBy(_ => 1)
+                .Select(g => new { AmountUsd = g.Sum(p => p.AmountUsd), Count = g.Count() })
+                .FirstOrDefaultAsync();
 
         var totalInflowUsd = rows.Sum(r => r.InflowUsd);
         var totalOutflowUsd = rows.Sum(r => r.OutflowUsd);
         var netCashFlowUsd = totalInflowUsd - totalOutflowUsd;
+        var closingBalanceUsd = openingBalanceUsd + netCashFlowUsd;
+
+        var scopeNotes = new List<string>();
+        if (filter.ContractId.HasValue || filter.ProductId.HasValue)
+        {
+            scopeNotes.Add("فیلترِ قرارداد/جنس فقط گردشِ متصل به قرارداد را نگه می‌دارد؛ معاش، دریافت دستی و مصرفِ عمومی در این نما نیستند.");
+        }
+
+        if (!includeCashExpenses)
+        {
+            scopeNotes.Add("با فیلترِ مشتری، تأمین‌کننده یا بابتِ پرداخت، مصرفِ نقدی قابل انتساب نیست و در این نما شمرده نشده است.");
+        }
+
+        var partnerFundedUsd = partnerFunded?.AmountUsd ?? 0m;
+        var partnerFundedCount = partnerFunded?.Count ?? 0;
+
+        // چهار کارت، به ترتیبِ همان جمله‌ای که کاربر می‌خواند:
+        // «اول دوره این‌قدر داشتیم، این‌قدر آمد، این‌قدر رفت، آخر دوره این‌قدر ماند.»
+        // خالص، تعداد حساب‌ها و پرداختِ شریک از کارت‌ها برداشته شد؛ خالص در جمعِ
+        // جدول‌ها، تعداد حساب‌ها در جدولِ تفکیک حساب و پرداختِ شریک در هشدارِ بالای
+        // صفحه دیده می‌شود، پس ردیف کارت‌ها یک سطر تمیز می‌ماند.
+        var metrics = new List<ReportMetricViewModel>
+        {
+            new() { Label = "مانده اول دوره", Value = Money(openingBalanceUsd), Detail = fromDate.HasValue ? "Opening balance" : "From the beginning", Icon = "bi-hourglass-top", ToneClass = openingBalanceUsd >= 0m ? "finance-positive" : "finance-negative" },
+            new() { Label = "رسیدکی", Value = Money(totalInflowUsd), Detail = "Money in", Icon = "bi-arrow-down-circle", ToneClass = "finance-positive" },
+            new() { Label = "بردکی", Value = Money(totalOutflowUsd), Detail = "Money out", Icon = "bi-arrow-up-circle", ToneClass = "finance-negative" },
+            new() { Label = "مانده آخر دوره", Value = Money(closingBalanceUsd), Detail = "Opening + In - Out", Icon = "bi-hourglass-bottom", ToneClass = closingBalanceUsd >= 0m ? "finance-positive" : "finance-negative" }
+        };
 
         return new CashFlowReportViewModel
         {
             Filter = filter,
             Rows = rows,
             AccountRows = accountRows,
-            Metrics =
-            [
-                new() { Label = "ورودی نقدی", Value = Money(totalInflowUsd), Detail = "Receipts", Icon = "bi-arrow-down-circle", ToneClass = "finance-positive" },
-                new() { Label = "خروجی نقدی", Value = Money(totalOutflowUsd), Detail = "Payments", Icon = "bi-arrow-up-circle", ToneClass = "finance-negative" },
-                new() { Label = "خالص جریان نقدی", Value = Money(netCashFlowUsd), Detail = "In - Out", Icon = "bi-cash-stack", ToneClass = netCashFlowUsd >= 0m ? "finance-positive" : "finance-negative" },
-                new() { Label = "حساب‌های درگیر", Value = accountRows.Count.ToString("N0"), Detail = "Cash / Bank", Icon = "bi-bank", ToneClass = "" }
-            ]
+            PeriodRows = periodRows,
+            OpeningBalanceUsd = openingBalanceUsd,
+            PartnerFundedOutflowUsd = partnerFundedUsd,
+            PartnerFundedCount = partnerFundedCount,
+            ScopeWarning = scopeNotes.Count == 0 ? null : string.Join(" ", scopeNotes),
+            Metrics = metrics
         };
     }
 
     private async Task<ReceivablesPayablesReportViewModel> BuildReceivablesPayablesReportAsync(ManagementReportFilterViewModel filter)
     {
-        var balanceRows = await _partyBalances.GetBalancesAsync(filter);
+        // «طلبات و بدهی‌ها» فقط طرف‌حساب بیرونی را می‌شمارد؛ حساب جاریِ خودِ جوازها
+        // طرف معامله نیست. رجوع: PartyBalanceSnapshotFilters.ExternalPartiesOnly.
+        var balanceRows = (await _partyBalances.GetBalancesAsync(filter)).ExternalPartiesOnly();
+        var supplierIds = balanceRows
+            .Where(row => row.PartyType == PartyStatementPartyType.Supplier)
+            .Select(row => row.PartyId)
+            .Distinct()
+            .ToArray();
+        var cancellationToken = HttpContext?.RequestAborted ?? CancellationToken.None;
+        var fxSettlements = await _supplierFxSettlements.GetManyAsync(
+            supplierIds,
+            filter.ContractId,
+            filter.ToDate,
+            cancellationToken);
+
+        // در نمای همهٔ قراردادها، تعدیل ثبت‌شدهٔ SupplierFxDifference از قبل داخل ماندهٔ
+        // رسمی است؛ فقط بخشِ ثبت‌نشده را به‌صورت read-only اصلاح می‌کنیم تا دوباره‌شماری نشود.
+        // در فیلتر یک قرارداد، سطر شناسایی عمداً ContractId ندارد و در ماندهٔ خام هم نیست؛
+        // بنابراین کل تفاوت همان قرارداد باید در ستون تعدیل گزارش دیده شود.
+        var recognizedFxEffects = filter.ContractId.HasValue
+            ? new Dictionary<int, decimal>()
+            : await LoadRecognizedSupplierFxEffectsAsync(supplierIds, filter.ToDate, cancellationToken);
+        var policies = new PartyStatementPolicyResolver();
         var rows = balanceRows.Select(balance => new ReceivablePayableRowViewModel
         {
             PartyType = balance.PartyType.ToString(),
@@ -578,29 +873,82 @@ public partial class ReportsController : Controller
             // convention: Debit = received, Credit = given.
             DebitUsd = balance.TotalReceiptUsd,
             CreditUsd = balance.TotalOutflowUsd,
+            FxAdjustmentUsd = balance.PartyType == PartyStatementPartyType.Supplier
+                && fxSettlements.TryGetValue(balance.PartyId, out var fx)
+                ? decimal.Round(
+                    -(fx.RealizedFxDifferenceUsd + recognizedFxEffects.GetValueOrDefault(balance.PartyId)),
+                    4,
+                    MidpointRounding.AwayFromZero)
+                : 0m,
             LastEntryDate = balance.LastEntryDate,
-            BalanceKind = balance.BalanceMeaning,
+            BalanceKind = balance.PartyType == PartyStatementPartyType.Supplier
+                && fxSettlements.TryGetValue(balance.PartyId, out var supplierFx)
+                    ? policies.Resolve(balance.PartyType).BalanceMeaning(
+                        balance.ClosingBalanceUsd + decimal.Round(
+                            -(supplierFx.RealizedFxDifferenceUsd
+                                + recognizedFxEffects.GetValueOrDefault(balance.PartyId)),
+                            4,
+                            MidpointRounding.AwayFromZero),
+                        isEnglish: false)
+                    : balance.BalanceMeaning,
             DetailsController = balance.DetailsController
         }).ToList();
 
+        // تاریخ مبنای «راکد بودن» حساب: انتهای بازهٔ فیلتر، وگرنه امروز.
+        var asOfDate = filter.ToDate?.Date ?? _businessClock.Today;
         var model = new ReceivablesPayablesReportViewModel
         {
             Filter = filter,
-            Rows = rows
+            Rows = rows,
+            AsOfDate = asOfDate
         };
 
         return new ReceivablesPayablesReportViewModel
         {
             Filter = filter,
             Rows = rows,
+            AsOfDate = asOfDate,
             Metrics =
             [
-                new() { Label = "طلب مشتریان", Value = Money(model.CustomerReceivableUsd), Detail = "Customer receivable", Icon = "bi-person-lines-fill", ToneClass = "finance-positive" },
-                new() { Label = "بدهی تأمین‌کنندگان", Value = Money(model.SupplierPayableUsd), Detail = "Supplier payable", Icon = "bi-building-check", ToneClass = "finance-negative" },
-                new() { Label = "بدهی خدماتی", Value = Money(model.ServiceProviderPayableUsd), Detail = "Service providers", Icon = "bi-building-gear", ToneClass = "finance-negative" },
-                new() { Label = "صراف‌ها", Value = Money(model.SarrafBalanceUsd), Detail = "Official statement balance", Icon = "bi-currency-exchange", ToneClass = model.SarrafBalanceUsd >= 0m ? "finance-positive" : "finance-negative" }
+                new() { Label = "مجموع طلبات", Value = Money(model.TotalReceivableUsd), Detail = "Total receivables", Icon = "bi-arrow-down-circle", ToneClass = "finance-positive" },
+                new() { Label = "مجموع بدهی‌ها", Value = Money(model.TotalPayableUsd), Detail = "Total payables", Icon = "bi-arrow-up-circle", ToneClass = "finance-negative" },
+                new() { Label = "خالص وضعیت", Value = Money(model.NetBalanceUsd), Detail = "Net position", Icon = "bi-graph-up-arrow", ToneClass = model.NetBalanceUsd >= 0m ? "finance-positive" : "finance-negative" },
+                new() { Label = $"طلبات راکد بیش از {ReceivablesPayablesReportViewModel.StaleAfterDays} روز", Value = Money(model.StaleReceivableUsd), Detail = "Idle receivables", Icon = "bi-exclamation-triangle", ToneClass = "finance-negative" }
             ]
         };
+    }
+
+    private async Task<Dictionary<int, decimal>> LoadRecognizedSupplierFxEffectsAsync(
+        IReadOnlyCollection<int> supplierIds,
+        DateTime? toDate,
+        CancellationToken ct)
+    {
+        if (supplierIds.Count == 0)
+        {
+            return [];
+        }
+
+        var query = _db.LedgerEntries.AsNoTracking()
+            .Where(l => l.SupplierId.HasValue
+                && supplierIds.Contains(l.SupplierId.Value)
+                && l.SourceType == SupplierFxRecognitionService.PartyLedgerSourceType);
+
+        if (toDate.HasValue)
+        {
+            var end = toDate.Value.Date.AddDays(1);
+            query = query.Where(l => l.EntryDate < end);
+        }
+
+        var rows = await query
+            .Select(l => new { SupplierId = l.SupplierId!.Value, l.Side, l.AmountUsd })
+            .ToListAsync(ct);
+
+        return rows
+            .GroupBy(row => row.SupplierId)
+            // ماندهٔ گزارش برای طرف‌حساب: Debit/برد مثبت و Credit/رسید منفی است.
+            .ToDictionary(
+                group => group.Key,
+                group => group.Sum(row => row.Side == LedgerSide.Debit ? row.AmountUsd : -row.AmountUsd));
     }
 
     private async Task<InventoryOperationsReportViewModel> BuildInventoryOperationsReportAsync(ManagementReportFilterViewModel filter)
@@ -796,13 +1144,28 @@ public partial class ReportsController : Controller
                 && l.LoadingRegister != null
                 && !l.LoadingRegister.LoadingPriceUsd.HasValue);
 
+        // PTG-P1-04 — ردیف‌های «طبقه‌بندی‌نشده». هویتِ تسویه‌شان هیچ‌وقت حدس زده نمی‌شود،
+        // پس باید دیده شوند تا کسی برایشان تصمیم بگیرد — نه اینکه خاموش در گزارش‌ها بمانند.
+        var unclassifiedExpenses = await _db.ExpenseTransactions
+            .AsNoTracking()
+            .CountAsync(e => !e.IsCancelled && e.SettlementMode == ExpenseSettlementMode.Unknown);
+
+        // اظهارنامهٔ گمرکی‌ای که هنوز به دفتر کل نرسیده: مبلغش در گزارش‌ها هست، ولی سطرِ
+        // مالی ندارد و در حساب هیچ طرف‌حسابی دیده نمی‌شود.
+        var customsWithoutSettlement = await _db.CustomsDeclarations
+            .AsNoTracking()
+            .CountAsync(c => c.TotalUsd > 0m
+                && !c.ExpenseTransactions.Any(e => !e.IsCancelled));
+
         var items = new List<ReportsWarningItemViewModel>
         {
-            new() { Title = "فروش بدون ledger", Description = "فروش‌های قطعی که رکورد دفتر کل متناظر ندارند.", Count = salesWithoutLedger, Severity = "danger", Controller = "Reconciliation", Action = "MissingLedger" },
-            new() { Title = "مصرف بدون ledger", Description = "مصارف ثبت‌شده که در دفتر کل نیامده‌اند.", Count = expensesWithoutLedger, Severity = "danger", Controller = "Reconciliation", Action = "MissingLedger" },
-            new() { Title = "پرداخت بدون ledger", Description = "دریافت/پرداخت‌هایی که سند دفتر کل ندارند.", Count = paymentsWithoutLedger, Severity = "warning", Controller = "Reconciliation", Action = "MissingLedger" },
-            new() { Title = "تسویه صراف بدون ledger", Description = "تسویه‌های ثبت‌شده صراف که ledger تأمین‌کننده ندارند.", Count = sarrafWithoutLedger, Severity = "warning", Controller = "Reconciliation", Action = "MissingLedger" },
-            new() { Title = "ضایعات بدون قیمت", Description = "ضایعات قابل شارژ که قیمت بارگیری برای ارزش‌گذاری ندارند.", Count = unvaluedLosses, Severity = "warning", Controller = "Reports", Action = "ContractPnl" }
+            new() { Title = "فروش بدون سند دفتر", Description = "فروش‌های قطعی که سند دفتر کل ندارند.", Count = salesWithoutLedger, Severity = "danger", Controller = "Reconciliation", Action = "MissingLedger" },
+            new() { Title = "مصارف بدون سند دفتر", Description = "مصارف ثبت‌شده که در دفتر کل نیامده‌اند.", Count = expensesWithoutLedger, Severity = "danger", Controller = "Reconciliation", Action = "MissingLedger" },
+            new() { Title = "رسیدکی و بردکی بدون سند دفتر", Description = "دریافت و پرداخت‌هایی که سند دفتر کل ندارند.", Count = paymentsWithoutLedger, Severity = "warning", Controller = "Reconciliation", Action = "MissingLedger" },
+            new() { Title = "تصفیهٔ صراف بدون سند دفتر", Description = "تصفیه‌های ثبت‌شدهٔ صراف که سند تأمین‌کننده ندارند.", Count = sarrafWithoutLedger, Severity = "warning", Controller = "Reconciliation", Action = "MissingLedger" },
+            new() { Title = "ضایعات بدون قیمت", Description = "ضایعات قابل شارژ که قیمت بارگیری برای ارزش‌گذاری ندارند.", Count = unvaluedLosses, Severity = "warning", Controller = "Reports", Action = "ContractPnl" },
+            new() { Title = "مصارف با تسویهٔ طبقه‌بندی‌نشده", Description = "مصرف‌هایی که معلوم نیست بدهی مانده‌اند یا پرداخت شده‌اند. حدس زده نمی‌شوند و باید یک‌یک مشخص شوند.", Count = unclassifiedExpenses, Severity = "warning", Controller = "Expenses", Action = "Index" },
+            new() { Title = "گمرک بدون تسویه", Description = "اظهارنامه‌های گمرکی که وضعیت تسویه‌شان انتخاب نشده، پس هزینه‌شان به دفتر کل نرسیده است.", Count = customsWithoutSettlement, Severity = "warning", Controller = "CustomsDeclarations", Action = "Index" }
         };
 
         items = items.Where(i => i.Count > 0).ToList();
@@ -812,9 +1175,9 @@ public partial class ReportsController : Controller
             Items = items,
             Metrics =
             [
-                new() { Label = "کل موارد باز", Value = items.Sum(i => i.Count).ToString("N0"), Detail = "Open issues", Icon = "bi-exclamation-triangle", ToneClass = items.Any() ? "finance-negative" : "finance-positive" },
-                new() { Label = "ledger", Value = (salesWithoutLedger + expensesWithoutLedger + paymentsWithoutLedger + sarrafWithoutLedger).ToString("N0"), Detail = "Ledger issues", Icon = "bi-journal-x", ToneClass = salesWithoutLedger + expensesWithoutLedger + paymentsWithoutLedger + sarrafWithoutLedger > 0 ? "finance-negative" : "finance-positive" },
-                new() { Label = "P&L", Value = unvaluedLosses.ToString("N0"), Detail = "Unvalued losses", Icon = "bi-graph-up", ToneClass = unvaluedLosses > 0 ? "finance-negative" : "finance-positive" }
+                new() { Label = "کل کارهای نیمه‌تمام", Value = items.Sum(i => i.Count).ToString("N0"), Detail = "Open items", Icon = "bi-exclamation-triangle", ToneClass = items.Any() ? "finance-negative" : "finance-positive" },
+                new() { Label = "بدون سند دفتر", Value = (salesWithoutLedger + expensesWithoutLedger + paymentsWithoutLedger + sarrafWithoutLedger).ToString("N0"), Detail = "Ledger issues", Icon = "bi-journal-x", ToneClass = salesWithoutLedger + expensesWithoutLedger + paymentsWithoutLedger + sarrafWithoutLedger > 0 ? "finance-negative" : "finance-positive" },
+                new() { Label = "ضایعات بدون قیمت", Value = unvaluedLosses.ToString("N0"), Detail = "Unvalued losses", Icon = "bi-graph-up", ToneClass = unvaluedLosses > 0 ? "finance-negative" : "finance-positive" }
             ]
         };
     }
@@ -1069,14 +1432,9 @@ public partial class ReportsController : Controller
                     e.Description,
                     e.ExpenseType != null ? e.ExpenseType.Code : null,
                     e.ExpenseType != null ? e.ExpenseType.Name : null,
-                    e.ExpenseType != null ? e.ExpenseType.NamePersian : null))
+                    e.ExpenseType != null ? e.ExpenseType.NamePersian : null,
+                    e.CustomsDeclarationId))
                 .ToListAsync();
-
-        var generalExpenseByContract = purchaseIds.Count == 0
-            ? new Dictionary<int, decimal>()
-            : expenseRows
-                .GroupBy(e => e.ContractId)
-                .ToDictionary(g => g.Key, g => g.Sum(e => e.AmountUsd));
 
         var contractsWithOfficialWagonRent = expenseRows
             .Where(e => ExpenseClassification.IsWagonRent(
@@ -1118,6 +1476,7 @@ public partial class ReportsController : Controller
 
         // Customs totals per purchase contract via loading registers
         Dictionary<int, decimal> customsByContract = new();
+        var countedCustomsDeclarationIds = new HashSet<int>();
         if (purchaseIds.Count > 0)
         {
             var lrMap = await _db.LoadingRegisters.AsNoTracking()
@@ -1141,25 +1500,49 @@ public partial class ReportsController : Controller
                     .Where(cd =>
                         (cd.LoadingRegisterId.HasValue && lrIdList.Contains(cd.LoadingRegisterId.Value))
                         || (cd.TransportLegId.HasValue && legIdList.Contains(cd.TransportLegId.Value)))
-                    .Select(cd => new { cd.LoadingRegisterId, cd.TransportLegId, cd.TotalUsd })
+                    .Select(cd => new { cd.Id, cd.LoadingRegisterId, cd.TransportLegId, cd.TotalUsd })
                     .ToListAsync();
 
                 foreach (var row in customsRows)
                 {
-                    if (row.LoadingRegisterId.HasValue
-                        && lrIdToContract.TryGetValue(row.LoadingRegisterId.Value, out var loadingContractId))
-                    {
-                        customsByContract[loadingContractId] = customsByContract.GetValueOrDefault(loadingContractId) + row.TotalUsd;
-                    }
-
+                    // یک اظهارنامه فقط یک بار شمرده می‌شود. ترتیب اولویت همان ترتیبِ
+                    // CustomsDeclarationExpenseSync.ResolveContractIdAsync است (اول مسیر
+                    // حمل، بعد بارگیری) تا ستون «گمرک» و ContractId مصرفِ ساخته‌شده از
+                    // همان اظهارنامه به یک قرارداد اشاره کنند.
+                    int? attributedContractId = null;
                     if (row.TransportLegId.HasValue
                         && legIdToContract.TryGetValue(row.TransportLegId.Value, out var transportContractId))
                     {
-                        customsByContract[transportContractId] = customsByContract.GetValueOrDefault(transportContractId) + row.TotalUsd;
+                        attributedContractId = transportContractId;
                     }
+                    else if (row.LoadingRegisterId.HasValue
+                        && lrIdToContract.TryGetValue(row.LoadingRegisterId.Value, out var loadingContractId))
+                    {
+                        attributedContractId = loadingContractId;
+                    }
+
+                    if (attributedContractId is null)
+                    {
+                        continue;
+                    }
+
+                    customsByContract[attributedContractId.Value] =
+                        customsByContract.GetValueOrDefault(attributedContractId.Value) + row.TotalUsd;
+                    countedCustomsDeclarationIds.Add(row.Id);
                 }
             }
         }
+
+        // ستون «مصارف عمومی» نباید همان پولی را دوباره بشمارد که ستون «گمرک» شمرده است.
+        // هر اظهارنامه از راه CustomsDeclarationExpenseSync یک ExpenseTransaction با همان
+        // ContractId می‌سازد؛ پس مصرفِ اظهارنامه‌هایی که بالا شمرده شدند اینجا کنار می‌رود.
+        var generalExpenseByContract = purchaseIds.Count == 0
+            ? new Dictionary<int, decimal>()
+            : expenseRows
+                .Where(e => !e.CustomsDeclarationId.HasValue
+                    || !countedCustomsDeclarationIds.Contains(e.CustomsDeclarationId.Value))
+                .GroupBy(e => e.ContractId)
+                .ToDictionary(g => g.Key, g => g.Sum(e => e.AmountUsd));
 
         var purchaseRows = purchaseContracts.Select(c =>
         {
@@ -1340,7 +1723,8 @@ public partial class ReportsController : Controller
         ManagementReportFilterViewModel filter,
         bool includeCustomers = false,
         bool includeSuppliers = false,
-        bool includeInventory = false)
+        bool includeInventory = false,
+        bool includeCashAccounts = false)
     {
         var productLookups = await GetCachedLookupAsync(
             "reports:lookups:products:v1",
@@ -1446,6 +1830,44 @@ public partial class ReportsController : Controller
                 "Display",
                 filter.StorageTankId);
         }
+
+        if (includeCashAccounts)
+        {
+            var cashAccountLookups = await GetCachedLookupAsync(
+                "reports:lookups:cash-accounts:v1",
+                () => _db.CashAccounts.AsNoTracking()
+                    .Where(a => a.IsActive)
+                    .OrderBy(a => a.Name)
+                    .Select(a => new LookupOption(a.Id, a.Name))
+                    .ToListAsync());
+            ViewBag.CashAccounts = new SelectList(
+                cashAccountLookups,
+                "Id",
+                "Name",
+                filter.CashAccountId);
+
+            var companyLookups = await GetCachedLookupAsync(
+                "reports:lookups:companies:v1",
+                () => _db.Companies.AsNoTracking()
+                    .Where(c => c.IsActive)
+                    .OrderBy(c => c.Name)
+                    .Select(c => new LookupOption(c.Id, c.NamePersian ?? c.Name))
+                    .ToListAsync());
+            ViewBag.Companies = new SelectList(
+                companyLookups,
+                "Id",
+                "Name",
+                filter.CompanyId);
+
+            ViewBag.PaymentKinds = new SelectList(
+                Enum.GetValues<PaymentKind>()
+                    .Select(kind => new LookupOption((int)kind, PaymentKindLabels.ToPersian(kind)))
+                    .OrderBy(kind => kind.Name)
+                    .ToList(),
+                "Id",
+                "Name",
+                filter.PaymentKind.HasValue ? (int)filter.PaymentKind.Value : null);
+        }
     }
 
     private static string Money(decimal value) => $"{value:N2} USD";
@@ -1460,6 +1882,43 @@ public partial class ReportsController : Controller
         if (filter.CustomerId.HasValue) query = query.Where(p => p.CustomerId == filter.CustomerId.Value);
         if (filter.SupplierId.HasValue) query = query.Where(p => p.SupplierId == filter.SupplierId.Value);
         if (filter.ProductId.HasValue) query = query.Where(p => p.Contract != null && p.Contract.ProductId == filter.ProductId.Value);
+        if (filter.CashAccountId.HasValue) query = query.Where(p => p.CashAccountId == filter.CashAccountId.Value);
+        if (filter.PaymentKind.HasValue) query = query.Where(p => p.PaymentKind == filter.PaymentKind.Value);
+
+        // شرکت از روی صاحبِ صندوق/بانک تفکیک می‌شود، نه از PaymentTransaction.CompanyId که
+        // برای رکوردهای مبهم عمداً null مانده و فیلترِ مستقیم روی آن پول را خاموش گم می‌کند.
+        if (filter.CompanyId.HasValue)
+        {
+            query = query.Where(p => p.CashAccount != null && p.CashAccount.CompanyId == filter.CompanyId.Value);
+        }
+
+        return query;
+    }
+
+    /// <summary>عنوانِ گروهِ مصرفِ نقدی در ستون «بابت».</summary>
+    private const string CashExpenseGroupLabel = "مصرف نقدی";
+
+    /// <summary>سطرِ پرداختی که صندوق/بانکِ معتبر ندارد. مغایرت است، پس پنهان نمی‌شود.</summary>
+    private const string UnlinkedCashAccountLabel = "بدون حساب نقدی";
+
+    /// <summary>
+    /// مصرفی که از صندوق/بانک پرداخت شده و حرکتِ پولش در روزنامچه سند ندارد.
+    /// مصرفِ لغوشده و مصرفی که <see cref="PaymentTransaction"/> مرتبط دارد (کمیسیونِ نقدی)
+    /// بیرون می‌ماند تا همان خروجِ پول دو بار شمرده نشود.
+    /// </summary>
+    private IQueryable<ExpenseTransaction> ApplyCashExpenseFilters(
+        IQueryable<ExpenseTransaction> query,
+        ManagementReportFilterViewModel filter)
+    {
+        query = query.Where(e => e.SettlementMode == ExpenseSettlementMode.PaidImmediately
+            && !e.IsCancelled
+            && e.CashAccountId != null
+            && !_db.PaymentTransactions.Any(p => p.ExpenseTransactionId == e.Id));
+
+        if (filter.ContractId.HasValue) query = query.Where(e => e.ContractId == filter.ContractId.Value);
+        if (filter.ProductId.HasValue) query = query.Where(e => e.Contract != null && e.Contract.ProductId == filter.ProductId.Value);
+        if (filter.CashAccountId.HasValue) query = query.Where(e => e.CashAccountId == filter.CashAccountId.Value);
+        if (filter.CompanyId.HasValue) query = query.Where(e => e.CashAccount != null && e.CashAccount.CompanyId == filter.CompanyId.Value);
 
         return query;
     }
@@ -1590,6 +2049,7 @@ public partial class ReportsController : Controller
         string? Description,
         string? ExpenseTypeCode,
         string? ExpenseTypeName,
-        string? ExpenseTypeNamePersian);
+        string? ExpenseTypeNamePersian,
+        int? CustomsDeclarationId);
 
 }

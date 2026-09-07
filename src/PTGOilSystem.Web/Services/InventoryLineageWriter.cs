@@ -168,6 +168,7 @@ public sealed class InventoryLineageWriter : IInventoryLineageWriter
     public async Task OnLegLoadedAsync(InventoryTransportLeg leg, IReadOnlyList<InventoryMovement> outboundMovements, CancellationToken ct = default)
     {
         if (!Enabled) return;
+        if (!leg.SourceTerminalId.HasValue) return;
 
         // اگر قبلاً برای این leg حرکت نسب‌نامه‌ای ساخته شده، دوباره نساز (idempotent).
         var exists = await _db.InventoryLotMovements.AnyAsync(
@@ -175,7 +176,7 @@ public sealed class InventoryLineageWriter : IInventoryLineageWriter
         if (exists) return;
 
         var consume = await ConsumeFifoAsync(new LotConsumeRequest(
-            leg.ProductId, leg.SourceTerminalId, leg.SourceStorageTankId,
+            leg.ProductId, leg.SourceTerminalId.Value, leg.SourceStorageTankId,
             leg.SourcePurchaseContractId, leg.QuantityMt, leg.LoadedDate), ct);
 
         var sources = consume.Consumptions.ToList();
@@ -183,7 +184,7 @@ public sealed class InventoryLineageWriter : IInventoryLineageWriter
         {
             var isRootVesselLoad = leg.TransportType == LoadingTransportType.Vessel && leg.ShipmentId.HasValue;
             var fallbackLot = await CreateLotAsync(new LotCreationRequest(
-                leg.ProductId, leg.SourceTerminalId, leg.SourceStorageTankId, consume.Shortfall,
+                leg.ProductId, leg.SourceTerminalId.Value, leg.SourceStorageTankId, consume.Shortfall,
                 isRootVesselLoad ? InventoryLotSourceType.VesselInbound : InventoryLotSourceType.LegacyOpening,
                 isRootVesselLoad ? LineageConfidence.Verified : LineageConfidence.NeedsReview,
                 RootShipmentId: leg.ShipmentId, RootContractId: leg.SourcePurchaseContractId,
@@ -292,7 +293,8 @@ public sealed class InventoryLineageWriter : IInventoryLineageWriter
             .OrderBy(m => m.Id)
             .ToListAsync(ct);
 
-        var destTerminalId = receipt.DestinationTerminalId ?? leg.DestinationTerminalId ?? leg.SourceTerminalId;
+        var destTerminalId = receipt.DestinationTerminalId ?? leg.DestinationTerminalId ?? leg.SourceTerminalId
+            ?? throw new InvalidOperationException("Transport receipt destination terminal is required for inventory lineage.");
         if (movements.Count == 0)
         {
             await CreateLotAsync(new LotCreationRequest(
@@ -624,7 +626,8 @@ public sealed class InventoryLineageWriter : IInventoryLineageWriter
     private async Task<int> EnsureDirectSaleLotAsync(InventoryTransportLeg leg, SalesTransaction sale, CancellationToken ct)
     {
         var lot = await CreateLotAsync(new LotCreationRequest(
-            leg.ProductId, leg.DestinationTerminalId ?? leg.SourceTerminalId, leg.DestinationStorageTankId,
+            leg.ProductId, leg.DestinationTerminalId ?? leg.SourceTerminalId
+                ?? throw new InvalidOperationException("Transport destination terminal is required for direct-sale lineage."), leg.DestinationStorageTankId,
             sale.QuantityMt, InventoryLotSourceType.DirectReceipt, LineageConfidence.Estimated,
             RootShipmentId: leg.ShipmentId, RootContractId: leg.SourcePurchaseContractId,
             SourceReferenceType: LegRef, SourceReferenceId: leg.Id,

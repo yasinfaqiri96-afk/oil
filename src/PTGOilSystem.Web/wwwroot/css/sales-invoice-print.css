@@ -32,7 +32,7 @@
 }
 
 :root {
-    --invoice-font: "Poppins", "Vazirmatn", "Segoe UI", Tahoma, Arial, sans-serif;
+    --invoice-font: "Poppins", "IRANSans", "Vazirmatn", "Segoe UI", Tahoma, Arial, sans-serif;
 
     --invoice-page-width: 210mm;
     --invoice-page-height: 297mm;

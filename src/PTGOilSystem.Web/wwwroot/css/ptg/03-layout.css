@@ -56,7 +56,7 @@ body.boltz-shell.app-shell-authenticated .ptg-app::-webkit-scrollbar-track {
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-app::-webkit-scrollbar-thumb {
-    border-radius: 999px;
+    border-radius: 8px;
     background: rgba(143, 145, 165, .42);
 }
 
@@ -119,7 +119,7 @@ body.boltz-shell.app-shell-authenticated .boltz-topbar-search {
     min-height: 3.75rem;
     padding: 0 1.45rem;
     border: 0 !important;
-    border-radius: 999px !important;
+    border-radius: 8px !important;
     background: var(--ptg-surface) !important;
     box-shadow: none !important;
     overflow: hidden;
@@ -150,7 +150,7 @@ body.boltz-shell.app-shell-authenticated .boltz-language-toggle {
     width: 3.75rem;
     height: 3.75rem;
     border: 2px solid #E4E5EF !important;
-    border-radius: 999px !important;
+    border-radius: 8px !important;
     background: var(--ptg-surface) !important;
     color: var(--ptg-muted) !important;
     box-shadow: none !important;
@@ -175,10 +175,11 @@ body.boltz-shell.app-shell-authenticated .ptg-page {
     min-width: 0;
 }
 
+/* The page body carries the shared working surface (72-surfaces.css paints it
+   white, the Chortke way). Layout only sets rhythm here; the forced transparent
+   background that used to live in this rule would have outranked that surface. */
 body.boltz-shell.app-shell-authenticated .ptg-page-body {
     gap: var(--ptg-space-gap);
-    padding: 0;
-    background: transparent !important;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-footer {
@@ -267,9 +268,9 @@ body.ptg-search-open .ptg-search-backdrop { opacity: 1; }
     z-index: 1;
     width: min(92vw, 40rem);
     padding: 1rem;
-    border-radius: 14px;
+    border-radius: 8px;
     background: var(--background-paper);
-    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, .28);
+    box-shadow: var(--shadow-dialog);
     transform: translateY(-10px) scale(.98);
     opacity: 0;
     transition: transform 180ms cubic-bezier(.4, 0, .2, 1), opacity 180ms ease;
@@ -284,7 +285,7 @@ body.ptg-search-open .ptg-search-panel { transform: none; opacity: 1; }
     height: 3.25rem;
     margin: 0;
     padding: 0 1rem;
-    border-radius: 10px;
+    border-radius: 8px;
     background: rgba(var(--grey-500-rgb), .1);
 }
 
@@ -344,7 +345,7 @@ body.ptg-account-open .ptg-account-backdrop { opacity: 1; }
     width: 360px;
     max-width: 100dvi;
     background: var(--background-paper);
-    box-shadow: 16px 0 44px -12px rgba(0, 0, 0, .22);
+    box-shadow: 16px 0 32px -12px rgba(16, 24, 40, .16);
     transform: translateX(-100%);
     transition: transform 220ms cubic-bezier(.4, 0, .2, 1);
     will-change: transform;
@@ -390,7 +391,7 @@ body.ptg-account-open .ptg-account-drawer {
     align-items: center;
     justify-content: center;
     border: 0;
-    border-radius: 999px;
+    border-radius: 8px;
     background: transparent;
     color: var(--text-secondary);
     font-size: 1.05rem;
@@ -423,7 +424,7 @@ body.ptg-account-open .ptg-account-drawer {
     min-height: 6rem;
     flex: 0 0 auto;
     box-sizing: border-box;
-    border-radius: 999px;
+    border-radius: 8px;
     padding: 3px;
     background:
         linear-gradient(var(--background-paper), var(--background-paper)) padding-box,
@@ -440,7 +441,7 @@ body.ptg-account-open .ptg-account-drawer {
 .ptg-account-avatar img {
     width: 100%;
     height: 100%;
-    border-radius: 999px;
+    border-radius: 8px;
     object-fit: cover;
     display: block;
 }
@@ -478,7 +479,7 @@ body.ptg-account-open .ptg-account-drawer {
     height: 2.5rem;
     padding: 2px;
     border: 0;
-    border-radius: 999px;
+    border-radius: 8px;
     /* رینگ گرادیانی ملایم دور آواتار (padding-box سفید + border-box گرادیان). */
     background:
         linear-gradient(var(--background-paper), var(--background-paper)) padding-box,
@@ -493,7 +494,7 @@ body.ptg-account-open .ptg-account-drawer {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 999px;
+    border-radius: 8px;
     display: block;
 }
 
@@ -513,7 +514,7 @@ body.ptg-account-open .ptg-account-drawer {
     align-items: center;
     justify-content: center;
     border: 1px dashed rgba(var(--grey-500-rgb), .4);
-    border-radius: 999px;
+    border-radius: 8px;
     background: transparent;
     color: var(--text-secondary);
     font-size: .95rem;
@@ -553,7 +554,7 @@ body.ptg-account-open .ptg-account-drawer {
     align-items: center;
     gap: 1rem;
     padding: .65rem .75rem;
-    border-radius: 10px;
+    border-radius: 8px;
     color: var(--text-secondary);
     font-size: .9375rem;
     font-weight: 500;
@@ -617,7 +618,7 @@ body.ptg-account-open .ptg-account-drawer {
     width: 100%;
     min-height: 3rem;
     border: 0;
-    border-radius: 12px;
+    border-radius: 8px;
     background: rgba(var(--error-rgb), .08);
     color: var(--ptg-danger);
     font-size: .9375rem;

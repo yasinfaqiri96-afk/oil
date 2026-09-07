@@ -130,17 +130,37 @@
         ? Model.Pnl.ShortageQuantityMt
         : Model.DestinationReceipts.Sum(item => item.ShortageQuantityMt);
 
+    // ریز مصارف این حمل به‌جز گمرک — همان اجزایی که P&L در OperationalExpensesUsd جمع می‌کند:
+    // مصارف مستقیم + مصارف مسیر موتر + سهم مصارف مشترک محموله + کرایه رسید مقصد.
+    var receiptFreightCode = PTGOilSystem.Web.Services.InventoryTransportReceiptService.ReceiptFreightExpenseCode;
+    var transportFreightCode = PTGOilSystem.Web.Services.InventoryTransportReceiptService.TransportFreightExpenseCode;
+    var operationalAssetFreightIncomePrefix = PTGOilSystem.Web.Services.InventoryTransportReceiptService.OperationalAssetFreightIncomeDescriptionPrefix;
+    var directExpenseRows = Model.Expenses
+        .Where(item => !string.Equals(item.ExpenseTypeCode, receiptFreightCode, StringComparison.OrdinalIgnoreCase)
+            && !(item.OperationalAssetName != null
+                && string.Equals(item.ExpenseTypeCode, transportFreightCode, StringComparison.OrdinalIgnoreCase)
+                && item.Description?.StartsWith(operationalAssetFreightIncomePrefix, StringComparison.Ordinal) == true))
+        .ToList();
+    var freightReceiptRows = Model.DestinationReceipts
+        .Where(item => (item.FreightCostUsd ?? 0m) != 0m || (item.ShortageChargeUsd ?? 0m) != 0m)
+        .ToList();
+    var expensesExceptCustomsUsd = Model.Pnl.OperationalExpensesUsd - Model.Pnl.CustomsUsd;
+    var hasExpenseBreakdown = directExpenseRows.Count > 0
+        || Model.DispatchExpenses.Count > 0
+        || freightReceiptRows.Count > 0
+        || Model.Pnl.SharedShipmentExpensesUsd != 0m;
+
     // مصارف: همان برچسب‌های موجود در Journey؛ هیچ محاسبه‌ای بازتعریف نشده.
     var costMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("کرایه رسید مقصد", "Destination freight"), Value = U(Model.Pnl.ReceiptFreightExpenseUsd), Unit = "USD", Avatar = "flow-truck" },
+        new() { Title = T("مصارف", "Expenses"), Value = U(expensesExceptCustomsUsd), Unit = "USD", Avatar = "flow-truck",
+                ModalTarget = hasExpenseBreakdown ? "legExpenseBreakdownModal" : null },
         new() { Title = T("گمرک", "Customs"), Value = U(Model.Pnl.CustomsUsd), Unit = "USD", Avatar = "flow-docs-plus" },
         new() { Title = T("مجموع مصارف", "Total expenses"), Value = U(Model.Pnl.OperationalExpensesUsd), Unit = "USD", State = "accent", Avatar = "flow-calculator" }
     };
 
     var cargoMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("محصول", "Product"), Value = Model.ProductName, Avatar = "flow-drop" },
         new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = Q(Model.QuantityMt), Unit = "MT", Avatar = "flow-weight-mt" },
         new() { Title = T("تحویل‌شده", "Received"), Value = Q(Model.Pnl.ReceivedQuantityMt), Unit = "MT", Avatar = "flow-stock-in" },
         new() { Title = T("کسری", "Shortage"), Value = Q(shortageQuantity), Unit = "MT", State = shortageQuantity > 0m ? "warning" : null, Avatar = "flow-warning" },
@@ -430,6 +450,88 @@
         </div>
     }
 
+    @if (hasExpenseBreakdown)
+    {
+        @* ریز مصارف پشت عدد کارت «مصارف عملیاتی»؛ فقط خواندنی و بدون هیچ محاسبهٔ تازه. *@
+        <div class="modal fade" id="legExpenseBreakdownModal" tabindex="-1" aria-labelledby="legExpenseBreakdownModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content ak-modal-content">
+                    <div class="ak-modal-head">
+                        <h2 class="modal-title" id="legExpenseBreakdownModalLabel">@T("مصارف این حمل (بدون گمرک)", "Transport expenses (excl. customs)") — @documentNumber</h2>
+                        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
+                    </div>
+                    <div class="ak-modal-body">
+                        <div class="ak-table-wrap">
+                            <table class="ak-table">
+                                <thead>
+                                    <tr>
+                                        <th>@T("تاریخ", "Date")</th>
+                                        <th class="col-name">@T("مصرف", "Expense")</th>
+                                        <th>@T("طرف / مرجع", "Party / reference")</th>
+                                        <th class="col-ltr">@T("مبلغ (USD)", "Amount (USD)")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in directExpenseRows)
+                                    {
+                                        <tr>
+                                            <td class="ak-num">@item.ExpenseDate.ToDisplayDate()</td>
+                                            <td class="col-name">
+                                                <a href="@Url.Action("Details", "Expenses", new { id = item.Id, returnUrl = currentPageReturnUrl })">@item.ExpenseTypeName</a>
+                                            </td>
+                                            <td>@(item.ServiceProviderName ?? item.OperationalAssetName ?? item.DriverName ?? "-")</td>
+                                            <td class="ak-num col-ltr">@U(item.AmountUsd)</td>
+                                        </tr>
+                                    }
+                                    @foreach (var item in Model.DispatchExpenses)
+                                    {
+                                        <tr>
+                                            <td class="ak-num">@item.ExpenseDate.ToDisplayDate()</td>
+                                            <td class="col-name">
+                                                <a href="@Url.Action("Details", "Expenses", new { id = item.Id, returnUrl = currentPageReturnUrl })">@item.ExpenseTypeName</a>
+                                            </td>
+                                            <td>@(item.ServiceProviderName ?? item.OperationalAssetName ?? item.DriverName ?? "-")</td>
+                                            <td class="ak-num col-ltr">@U(item.AmountUsd)</td>
+                                        </tr>
+                                    }
+                                    @foreach (var item in freightReceiptRows)
+                                    {
+                                        var freightNetUsd = (item.FreightCostUsd ?? 0m) - (item.ShortageChargeUsd ?? 0m);
+                                        <tr>
+                                            <td class="ak-num">@item.ReceiptDate.ToDisplayDate()</td>
+                                            <td class="col-name">
+                                                <span>@T("کرایه رسید مقصد", "Destination freight")</span>
+                                            </td>
+                                            <td>@(item.ServiceProviderName ?? item.OperationalAssetName ?? item.DriverName ?? "-")</td>
+                                            <td class="ak-num col-ltr">@U(freightNetUsd)</td>
+                                        </tr>
+                                    }
+                                    @if (Model.Pnl.SharedShipmentExpensesUsd != 0m)
+                                    {
+                                        <tr>
+                                            <td class="ak-num">-</td>
+                                            <td class="col-name">
+                                                <span>@T("سهم مصارف مشترک محموله", "Shared shipment expenses")</span>
+                                            </td>
+                                            <td>@(Model.ShipmentCode ?? "-")</td>
+                                            <td class="ak-num col-ltr">@U(Model.Pnl.SharedShipmentExpensesUsd)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th colspan="3">@T("مجموع مصارف بدون گمرک", "Total excl. customs")</th>
+                                        <th class="ak-num col-ltr">@U(expensesExceptCustomsUsd)</th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     @if (canSimpleFreightSettlement)
     {
         <div class="modal fade no-print" id="freightSettlementModal" tabindex="-1" aria-labelledby="freightSettlementModalLabel" aria-hidden="true">
@@ -459,6 +561,17 @@
                                     <label class="form-label" for="freightTotal">@T("مبلغ کل (USD)", "Total amount (USD)")</label>
                                     <input id="freightTotal" class="ak-input ak-num" type="number" name="FreightCostUsd" min="0" step="0.0001" inputmode="decimal" />
                                 </div>
+                                @* طرفِ کرایه: حمل بدون شرکت خدماتی/دارایی ملکی باید راننده داشته باشد،
+                                   وگرنه سرویس رسید کرایه را به حساب هیچ‌کس ثبت نمی‌کند. *@
+                                @if (ViewBag.Drivers is SelectList freightDrivers)
+                                {
+                                    <div class="ak-field">
+                                        <label class="form-label" for="freightDriverId">@T("راننده (طرف کرایه)", "Driver (freight party)")</label>
+                                        <select id="freightDriverId" class="ak-input" name="DriverId" asp-items="freightDrivers">
+                                            <option value="">@T("انتخاب راننده", "Select driver")</option>
+                                        </select>
+                                    </div>
+                                }
                                 <div class="ak-field ak-field-full">
                                     <label class="form-label" for="freightNotes">@T("یادداشت", "Notes")</label>
                                     <textarea id="freightNotes" class="ak-input" name="Notes" rows="2" maxlength="500"></textarea>

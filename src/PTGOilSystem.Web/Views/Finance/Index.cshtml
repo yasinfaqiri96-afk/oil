@@ -2,45 +2,92 @@
     ViewData["Title"] = UiText.T(Context, "مالی", "Finance");
 
     // هاب مالی به سبک هاب گزارش‌ها: فقط لینک‌های ثابت، بدون محاسبه.
+    // هر کارت با همان قاعدهٔ دسترسیِ سایدبار فیلتر می‌شود، تا کاربر کارتی را نبیند
+    // که بعد از کلیک به خطای دسترسی می‌رسد.
+    bool CanOpen(string controller)
+        => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, controller);
+
     var groups = new[]
     {
         new
         {
-            TitleFa = "روزنامه و حساب‌ها",
-            TitleEn = "Journal & Accounts",
+            TitleFa = "پول: رسید و پرداخت",
+            TitleEn = "Money: Receipts & Payments",
             Items = new[]
             {
-                new { Controller = "Payments", Action = "Index", TitleFa = "روزنامه و اسناد", TitleEn = "Journal & Documents", DescriptionFa = "ثبت دریافت‌ها، پرداخت‌ها و اسناد روزنامچه.", DescriptionEn = "Record receipts, payments and journal documents.", Icon = "bi-journal-text" },
-                new { Controller = "Ledger", Action = "Index", TitleFa = "حساب‌ها و دفتر کل", TitleEn = "Accounts & General Ledger", DescriptionFa = "دفتر کل و گردش حساب‌ها.", DescriptionEn = "General ledger and account movements.", Icon = "bi-bank" },
-                new { Controller = "ChartOfAccounts", Action = "Index", TitleFa = "سرفصل حساب‌ها", TitleEn = "Chart of Accounts", DescriptionFa = "ساختار سرفصل‌های حساب‌داری.", DescriptionEn = "Accounting chart-of-accounts structure.", Icon = "bi-diagram-3" },
-                new { Controller = "CashAccounts", Action = "Index", TitleFa = "حساب‌های نقد/بانک", TitleEn = "Cash & Bank Accounts", DescriptionFa = "صندوق‌ها و حساب‌های بانکی.", DescriptionEn = "Cash boxes and bank accounts.", Icon = "bi-cash-coin" }
+                new { Controller = "Payments", Action = "Index", TitleFa = "روزنامچه (رسید و پرداخت)", TitleEn = "Journal (Receipts & Payments)", DescriptionFa = "ثبت پولی که گرفته‌اید و پولی که داده‌اید.", DescriptionEn = "Record money received and money paid.", Icon = "bi-journal-text", Show = true },
+                new { Controller = "CashAccounts", Action = "Index", TitleFa = "صندوق و بانک", TitleEn = "Cash & Bank", DescriptionFa = "حساب‌های نقده و بانکی شرکت با مانده هرکدام.", DescriptionEn = "Company cash and bank accounts with each balance.", Icon = "bi-cash-coin", Show = true },
+                new { Controller = "SarrafSettlements", Action = "Index", TitleFa = "تسویه صراف", TitleEn = "Sarraf Settlement", DescriptionFa = "حواله‌های صراف و تصفیهٔ حساب او.", DescriptionEn = "Sarraf transfers and settling his account.", Icon = "bi-currency-exchange", Show = true },
+                new { Controller = "ThreeWaySettlement", Action = "Index", TitleFa = "تسویه سه‌طرفه", TitleEn = "Three-way Settlement", DescriptionFa = "تصفیه بین مشتری، صراف و تأمین‌کننده در یک سند.", DescriptionEn = "Settle customer, sarraf and supplier in one document.", Icon = "bi-arrow-left-right", Show = true }
             }
         },
         new
         {
-            TitleFa = "تسویه و آشتی‌گری",
-            TitleEn = "Settlement & Reconciliation",
+            TitleFa = "حساب طرف‌ها",
+            TitleEn = "Party Accounts",
             Items = new[]
             {
-                new { Controller = "Reconciliation", Action = "Index", TitleFa = "آشتی‌گری", TitleEn = "Reconciliation", DescriptionFa = "بررسی و اصلاح مغایرت‌های مالی.", DescriptionEn = "Review and fix financial discrepancies.", Icon = "bi-shuffle" },
-                new { Controller = "ThreeWaySettlement", Action = "Index", TitleFa = "تسویه سه‌طرفه", TitleEn = "Three-way Settlement", DescriptionFa = "تسویه میان مشتری، صراف و تأمین‌کننده.", DescriptionEn = "Settle between customer, sarraf and supplier.", Icon = "bi-arrow-left-right" },
-                new { Controller = "ContractBalanceTransfers", Action = "Index", TitleFa = "انتقال مانده قرارداد", TitleEn = "Balance Transfers", DescriptionFa = "انتقال کنترل‌شدهٔ مانده بین قراردادها.", DescriptionEn = "Controlled balance transfer between contracts.", Icon = "bi-arrow-repeat" }
+                new { Controller = "AccountStatements", Action = "Index", TitleFa = "گردش حساب", TitleEn = "Account Statement", DescriptionFa = "هر رسید و پرداخت یک حساب، به ترتیب تاریخ.", DescriptionEn = "Every receipt and payment of an account, by date.", Icon = "bi-list-columns-reverse", Show = true },
+                new { Controller = "Balance", Action = "Customers", TitleFa = "مانده مشتریان", TitleEn = "Customer Balances", DescriptionFa = "هر مشتری چقدر طلب دارد یا چقدر بدهکار است.", DescriptionEn = "What each customer is owed or owes.", Icon = "bi-people", Show = true },
+                new { Controller = "Balance", Action = "Suppliers", TitleFa = "مانده تأمین‌کننده‌ها", TitleEn = "Supplier Balances", DescriptionFa = "خرید، پرداخت و مانده هر تأمین‌کننده.", DescriptionEn = "Purchases, payments and balance per supplier.", Icon = "bi-briefcase", Show = true },
+                new { Controller = "Balance", Action = "Contracts", TitleFa = "مانده قراردادها", TitleEn = "Contract Balances", DescriptionFa = "مانده هر قرارداد با مشتری و تأمین‌کنندهٔ آن.", DescriptionEn = "Balance per contract with its customer and supplier.", Icon = "bi-scales", Show = true },
+                new { Controller = "ContractBalanceTransfers", Action = "Index", TitleFa = "انتقال مانده قرارداد", TitleEn = "Balance Transfer", DescriptionFa = "بردن مانده از یک قرارداد به قرارداد دیگر.", DescriptionEn = "Move a balance from one contract to another.", Icon = "bi-arrow-repeat", Show = true }
             }
         },
         new
         {
-            TitleFa = "سال مالی",
-            TitleEn = "Fiscal Year",
+            TitleFa = "مصارف و نرخ‌ها",
+            TitleEn = "Expenses & Rates",
             Items = new[]
             {
-                new { Controller = "FiscalYears", Action = "Index", TitleFa = "سال مالی و بستن سال", TitleEn = "Fiscal Year & Closing", DescriptionFa = "مدیریت سال مالی و مراحل بستن سال.", DescriptionEn = "Manage fiscal year and year-end closing.", Icon = "bi-calendar-check" }
+                new { Controller = "Expenses", Action = "Index", TitleFa = "مصارف", TitleEn = "Expenses", DescriptionFa = "تمام مصرف‌های ثبت‌شده به تفکیک نوع، قرارداد و تاریخ.", DescriptionEn = "All recorded expenses by type, contract and date.", Icon = "bi-receipt", Show = true },
+                new { Controller = "ExpenseTypes", Action = "Index", TitleFa = "انواع مصرف", TitleEn = "Expense Types", DescriptionFa = "نام و دسته‌بندی مصرف‌ها.", DescriptionEn = "Expense names and categories.", Icon = "bi-tags", Show = true },
+                new { Controller = "ExpenseRules", Action = "Index", TitleFa = "قواعد مصرف", TitleEn = "Expense Rules", DescriptionFa = "قاعده‌هایی که مصرف را خودکار تقسیم می‌کنند.", DescriptionEn = "Rules that split expenses automatically.", Icon = "bi-sliders", Show = true },
+                new { Controller = "DailyFxRates", Action = "Index", TitleFa = "نرخ ارز روزانه", TitleEn = "Daily FX Rates", DescriptionFa = "نرخ روزانهٔ ارز که تمام ارقام مالی بر اساس آن حساب می‌شود.", DescriptionEn = "Daily currency rate behind every financial figure.", Icon = "bi-currency-dollar", Show = true },
+                new { Controller = "PlattsRates", Action = "Index", TitleFa = "قیمت پلاتس", TitleEn = "Platts Prices", DescriptionFa = "قیمت مرجع پلاتس برای قراردادهای نرخ‌شناور.", DescriptionEn = "Platts reference price for floating-price contracts.", Icon = "bi-graph-up", Show = true }
+            }
+        },
+        new
+        {
+            TitleFa = "گزارش‌های مالی",
+            TitleEn = "Financial Reports",
+            Items = new[]
+            {
+                new { Controller = "Reports", Action = "CompanyOverview", TitleFa = "وضعیت مالی شرکت", TitleEn = "Company Financial Status", DescriptionFa = "عاید، مصرف، مفاد و ضرر شرکت در یک صفحه.", DescriptionEn = "Company revenue, cost, profit and loss on one page.", Icon = "bi-bar-chart", Show = true },
+                new { Controller = "Reports", Action = "ReceivablesPayables", TitleFa = "طلبات و بدهی‌ها", TitleEn = "Receivables & Payables", DescriptionFa = "مانده تمام طرف‌حساب‌ها در یک جدول.", DescriptionEn = "Balance of every party in one table.", Icon = "bi-people", Show = true },
+                new { Controller = "Reports", Action = "PartyAging", TitleFa = "سررسید طلبات و بدهی‌ها", TitleEn = "Receivable & Payable Aging", DescriptionFa = "کدام حساب چند روز است بی‌حرکت مانده و اول باید پیگیری شود.", DescriptionEn = "Which account has been idle longest and needs follow-up first.", Icon = "bi-hourglass-split", Show = true },
+                new { Controller = "Reports", Action = "CashFlow", TitleFa = "گردش پول", TitleEn = "Cash Movement", DescriptionFa = "پول واقعی که از صندوق و بانک وارد یا خارج شده است.", DescriptionEn = "Actual cash in and out of cash and bank accounts.", Icon = "bi-cash-stack", Show = true },
+                new { Controller = "Reports", Action = "FxDifference", TitleFa = "حساب صراف و تفاوت نرخ", TitleEn = "Sarraf & FX Difference", DescriptionFa = "مفاد و ضرر تفاوت نرخ در حواله‌های صراف، با کمیشن.", DescriptionEn = "Gain and loss on sarraf transfer rates, with commission.", Icon = "bi-currency-exchange", Show = true }
+            }
+        },
+        new
+        {
+            TitleFa = "کنترل و بستن سال",
+            TitleEn = "Control & Year-end",
+            Items = new[]
+            {
+                new { Controller = "Reconciliation", Action = "Index", TitleFa = "بررسی ناهماهنگی‌ها", TitleEn = "Reconciliation", DescriptionFa = "پیدا کردن و درست کردن ناهماهنگی‌های مالی.", DescriptionEn = "Find and fix financial discrepancies.", Icon = "bi-shuffle", Show = true },
+                new { Controller = "Ledger", Action = "Index", TitleFa = "دفتر حساب‌ها", TitleEn = "Ledger", DescriptionFa = "تمام حرکت‌های ثبت‌شدهٔ هر حساب.", DescriptionEn = "Every recorded movement of each account.", Icon = "bi-bank", Show = true },
+                new { Controller = "ChartOfAccounts", Action = "Index", TitleFa = "سرفصل حساب‌ها", TitleEn = "Chart of Accounts", DescriptionFa = "ساختار سرفصل‌های حساب‌داری.", DescriptionEn = "Accounting chart-of-accounts structure.", Icon = "bi-diagram-3", Show = true },
+                new { Controller = "FiscalYears", Action = "Index", TitleFa = "سال مالی و بستن سال", TitleEn = "Fiscal Year & Closing", DescriptionFa = "مدیریت سال مالی و مراحل بستن سال.", DescriptionEn = "Manage the fiscal year and the closing steps.", Icon = "bi-calendar-check", Show = true },
+                new { Controller = "OperationalPeriodLocks", Action = "Index", TitleFa = "قفل کردن دوره", TitleEn = "Period Lock", DescriptionFa = "بستن یک دوره تا ثبت‌های گذشته تغییر نکند.", DescriptionEn = "Lock a period so past entries cannot change.", Icon = "bi-lock", Show = true }
             }
         }
     };
+
+    var visibleGroups = groups
+        .Select(g => new
+        {
+            g.TitleFa,
+            g.TitleEn,
+            Items = g.Items.Where(i => i.Show && CanOpen(i.Controller)).ToArray()
+        })
+        .Where(g => g.Items.Length > 0)
+        .ToArray();
 }
 
 <div class="akrep-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
-    @foreach (var group in groups)
+    @foreach (var group in visibleGroups)
     {
         <section class="akrep-group" aria-label="@UiText.T(Context, group.TitleFa, group.TitleEn)">
             <h2 class="akrep-group-title">@UiText.T(Context, group.TitleFa, group.TitleEn)</h2>

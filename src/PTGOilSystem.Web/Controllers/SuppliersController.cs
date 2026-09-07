@@ -14,6 +14,7 @@ using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.DeleteSafety;
 using PTGOilSystem.Web.Services.PartyStatements;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -28,6 +29,10 @@ public partial class SuppliersController : Controller
     private readonly IPartyBalanceReadService _partyBalances;
     // موتور واحد «مانده قابل انتقال». nullable است تا سازنده‌های موجود و تست‌ها دست‌نخورده بمانند.
     private readonly ISupplierTransferableBalanceService? _transferableBalances;
+    // تفکیکِ «بدهی واقعی» از «تفاوت نرخ» روی حساب ارزی. مثل بالا nullable است.
+    private readonly ISupplierFxSettlementService? _fxSettlements;
+    // ثبتِ همان تفاوت نرخ در دفتر — فقط از اکشن صریحِ کاربر صدا زده می‌شود.
+    private readonly ISupplierFxRecognitionService? _fxRecognition;
 
     public SuppliersController(
         ApplicationDbContext db,
@@ -36,7 +41,9 @@ public partial class SuppliersController : Controller
         IPurchaseAggregationService? purchaseAggregation = null,
         IPartyStatementReadService? partyStatements = null,
         ISupplierTransferableBalanceService? transferableBalances = null,
-        IPartyBalanceReadService? partyBalances = null)
+        IPartyBalanceReadService? partyBalances = null,
+        ISupplierFxSettlementService? fxSettlements = null,
+        ISupplierFxRecognitionService? fxRecognition = null)
     {
         _db = db;
         _audit = audit;
@@ -44,11 +51,14 @@ public partial class SuppliersController : Controller
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
         _partyStatements = partyStatements;
         _transferableBalances = transferableBalances;
+        _fxSettlements = fxSettlements;
+        _fxRecognition = fxRecognition;
         _partyBalances = partyBalances ?? new PartyBalanceReadService(
             db,
             new PartyStatementPolicyResolver(),
             new CompanyFlowDirectionResolver(),
-            new CompanyFlowBalanceService());
+            new CompanyFlowBalanceService(),
+            new PartyDirectory(db));
     }
 
     public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -132,6 +142,17 @@ public partial class SuppliersController : Controller
         if (transferable is not null)
         {
             ViewData["SupplierTransferableBalance"] = transferable;
+        }
+
+        // تفکیک تفاوت نرخ از بدهی واقعی روی حساب ارزی. فقط خواندنی؛ اگر سرویس تزریق
+        // نشده باشد یا حساب ارزی نباشد، صفحه دقیقاً مثل قبل رندر می‌شود.
+        if (_fxSettlements is not null)
+        {
+            var fx = await _fxSettlements.GetAsync(id, HttpContext?.RequestAborted ?? CancellationToken.None);
+            if (fx.HasForeignCurrencyDebt)
+            {
+                ViewData["SupplierFxSettlement"] = fx;
+            }
         }
 
         return View(item);
@@ -265,6 +286,56 @@ public partial class SuppliersController : Controller
         TempData["ok"] = "تأمین‌کننده حذف شد.";
         return RedirectToAction(nameof(Index));
     }
+
+    /// <summary>
+    /// شناسایی تفاوت نرخِ حساب ارزی: عددی که <see cref="ISupplierFxSettlementService"/> حساب
+    /// کرده در دفتر ثبت می‌شود تا مانده حساب، پیش‌پرداخت آزاد و سود و زیان خودشان درست شوند.
+    /// اجرای دوباره امن است — ثبت قبلیِ همین تأمین‌کننده اول برداشته می‌شود.
+    /// </summary>
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RecognizeFxDifference(int id, string? returnUrl = null)
+    {
+        if (_fxRecognition is null)
+        {
+            TempData["err"] = "سرویس شناسایی تفاوت نرخ در دسترس نیست.";
+            return RedirectToDetails(id, returnUrl);
+        }
+
+        if (!await _db.Suppliers.AnyAsync(x => x.Id == id))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var result = await _fxRecognition.RecognizeAsync(
+                id,
+                User.Identity?.Name,
+                HttpContext?.RequestAborted ?? CancellationToken.None);
+
+            TempData["ok"] = result.PostedAnything
+                ? (result.RecognizedUsd > 0m
+                    ? $"ضرر تفاوت نرخ {Math.Abs(result.RecognizedUsd):N2} USD ثبت شد."
+                    : $"سود تفاوت نرخ {Math.Abs(result.RecognizedUsd):N2} USD ثبت شد.")
+                : "تفاوت نرخی برای شناسایی وجود ندارد.";
+        }
+        catch (Services.OperationalPeriod.OperationalPeriodLockedException ex)
+        {
+            TempData["err"] = ex.Message;
+        }
+        catch (Services.Expenses.ExpenseSettlementValidationException ex)
+        {
+            TempData["err"] = ex.Message;
+        }
+
+        return RedirectToDetails(id, returnUrl);
+    }
+
+    private IActionResult RedirectToDetails(int id, string? returnUrl)
+        => !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
+            ? Redirect(returnUrl)
+            : RedirectToAction(nameof(Details), new { id });
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]

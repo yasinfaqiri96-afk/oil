@@ -178,10 +178,26 @@
                                     <span class="ptg-td-flow-label">@metric.Title</span>
                                 </dt>
                                 <dd class="@(string.IsNullOrWhiteSpace(metric.Unit) ? null : "ak-num")">
-                                    <bdi>@metric.Value</bdi>
-                                    @if (!string.IsNullOrWhiteSpace(metric.Unit))
+                                    @* A metric that owns a breakdown opens it from the number itself; without
+                                       a target the markup stays exactly as before. *@
+                                    @if (!string.IsNullOrWhiteSpace(metric.ModalTarget))
                                     {
-                                        <small>@metric.Unit</small>
+                                        <button type="button" class="ptg-td-flow-trigger"
+                                                data-bs-toggle="modal" data-bs-target="#@metric.ModalTarget">
+                                            <bdi>@metric.Value</bdi>
+                                            @if (!string.IsNullOrWhiteSpace(metric.Unit))
+                                            {
+                                                <small>@metric.Unit</small>
+                                            }
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <bdi>@metric.Value</bdi>
+                                        @if (!string.IsNullOrWhiteSpace(metric.Unit))
+                                        {
+                                            <small>@metric.Unit</small>
+                                        }
                                     }
                                 </dd>
                             </div>

@@ -10,6 +10,7 @@ using System.Text.Json.Serialization;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.Loading;
 using PTGOilSystem.Web.Models.LossEvents;
@@ -30,6 +31,10 @@ public partial class LoadingController : Controller
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private ILedgerPostingService? _ledgerPosting;
     private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
+    private IExpenseLedgerPoster? _expenseLedgerPoster;
+    private IExpenseLedgerPoster ExpenseLedger => _expenseLedgerPoster ??= new ExpenseLedgerPoster(Ledger);
+    // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است.
+    private readonly IExpenseSettlementValidator _settlementValidator = new ExpenseSettlementValidator();
     private readonly IAuditService _audit;
     private readonly ILogger<LoadingController> _logger;
     private readonly IPricingService _pricing;
@@ -2135,7 +2140,15 @@ public partial class LoadingController : Controller
         var receiptShortageLossMt = lossItems
             .Where(l => l.Stage == LossEventStage.ReceiptShortage)
             .Sum(l => l.DifferenceQuantityMt > 0m ? l.DifferenceQuantityMt : Math.Max(l.ChargeableLossMt, 0m));
-        var remainingToReceiveMt = Math.Max(loading.LoadedQuantityMt - totalReceivedQuantityMt - receiptShortageLossMt, 0m);
+        var transportedFromLoadingMt = await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .Where(a => a.SourceLoadingRegisterId == loading.Id
+                && a.InventoryTransportLeg != null
+                && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+            .SumAsync(a => (decimal?)a.QuantityMt) ?? 0m;
+        var remainingToReceiveMt = Math.Max(
+            loading.LoadedQuantityMt - totalReceivedQuantityMt - receiptShortageLossMt - transportedFromLoadingMt,
+            0m);
         var currentPageReturnUrl = HttpContext?.Request is { } request
             ? $"{request.Path}{request.QueryString}"
             : Url?.Action(nameof(Details), new { id = loading.Id }) ?? $"/Loading/Details/{loading.Id}";
@@ -3482,10 +3495,18 @@ public partial class LoadingController : Controller
                 AmountUsd = line.AmountUsd,
                 Description = description
             };
+
+            // PTG-P1-04 — هویت تسویه. سطرِ بارگیری با نوعِ طرفِ ServiceProvider به اینجا
+            // می‌رسد و مستندِ خودِ enum می‌گوید «با یک شرکت خدماتیِ بیرونی تسویه می‌شود»
+            // ⇒ بدهی به همان شرکت. (سطرِ None هیچ ExpenseTransaction نمی‌سازد و سطرِ
+            // OperationalAsset به AssetRentTransaction می‌رود، نه به این مسیر.)
+            ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+            _settlementValidator.Validate(expense);
+
             _db.ExpenseTransactions.Add(expense);
             await _db.SaveChangesAsync();
 
-            var ledger = Ledger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
+            var ledger = ExpenseLedger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
             await _db.SaveChangesAsync();
 
             // مرحله ۵ — Dual-write داخل همان Transaction قدیمی.
@@ -3535,8 +3556,8 @@ public partial class LoadingController : Controller
 
         var serviceExpenseRequest = BuildLoadingServiceExpenseLedger(expenseType, expense, loading);
         existingLedger = existingLedger is null
-            ? Ledger.Post(serviceExpenseRequest)
-            : Ledger.Apply(existingLedger, serviceExpenseRequest);
+            ? ExpenseLedger.Post(serviceExpenseRequest)
+            : ExpenseLedger.Apply(existingLedger, serviceExpenseRequest);
 
         await _audit.LogAsync(
             nameof(ExpenseTransaction),
@@ -3746,10 +3767,15 @@ public partial class LoadingController : Controller
                     Description = description
                 };
 
+                // PTG-P1-04 — هویت تسویه: بالاتر ثابت شد شرکت خدماتی هست (وگرنه continue
+                // شده بود) ⇒ بدهی به همان شرکت.
+                ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+                _settlementValidator.Validate(expense);
+
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
-                var newLedger = Ledger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
+                var newLedger = ExpenseLedger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
                 await _db.SaveChangesAsync();
 
                 // مرحله ۵ — Dual-write داخل همان Transaction قدیمی.
@@ -3800,8 +3826,8 @@ public partial class LoadingController : Controller
 
             var serviceExpenseRequest = BuildLoadingServiceExpenseLedger(expenseType, existing, loading);
             ledger = ledger is null
-                ? Ledger.Post(serviceExpenseRequest)
-                : Ledger.Apply(ledger, serviceExpenseRequest);
+                ? ExpenseLedger.Post(serviceExpenseRequest)
+                : ExpenseLedger.Apply(ledger, serviceExpenseRequest);
 
             await _audit.LogAsync(
                 nameof(ExpenseTransaction),
@@ -4148,6 +4174,10 @@ public partial class LoadingController : Controller
                 Description = BuildLoadingServiceExpenseDescription(loading, component, provider.Name)
             };
 
+            // PTG-P1-04 — هویت تسویه: شرکتِ لوجستیکِ همین بارگیری ⇒ بدهی به او.
+            ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+            _settlementValidator.Validate(expense);
+
             _db.ExpenseTransactions.Add(expense);
             expenses.Add((expense, expenseType, loading));
         }
@@ -4157,7 +4187,7 @@ public partial class LoadingController : Controller
         var ledgers = new List<LedgerEntry>(expenses.Count);
         foreach (var (expense, expenseType, loading) in expenses)
         {
-            var ledger = Ledger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
+            var ledger = ExpenseLedger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
             ledgers.Add(ledger);
         }
 
@@ -4375,25 +4405,11 @@ public partial class LoadingController : Controller
         expense.IsCancelled = true;
         if (originalLedger is not null)
         {
-            Ledger.Post(new LedgerPostingRequest
-            {
-                EntryDate = _businessClock.Today,
-                Side = ReverseSide(originalLedger.Side),
-                AmountUsd = originalLedger.AmountUsd,
-                Currency = originalLedger.Currency,
-                SourceAmount = originalLedger.SourceAmount,
-                SourceCurrencyCode = originalLedger.SourceCurrencyCode,
-                AppliedFxRateToUsd = originalLedger.AppliedFxRateToUsd,
-                AppliedFxRateDate = originalLedger.AppliedFxRateDate,
-                AppliedFxRateSource = originalLedger.AppliedFxRateSource,
-                Description = $"لغو مصرف بارگیری #{expense.LoadingRegisterId} | {originalLedger.Description}",
-                SourceType = "Expense",
-                SourceId = expense.Id,
-                Reference = (originalLedger.Reference ?? $"EXP-{expense.Id}") + "-CANCEL",
-                ContractId = originalLedger.ContractId,
-                ServiceProviderId = originalLedger.ServiceProviderId,
-                ShipmentId = originalLedger.ShipmentId
-            });
+            await Ledger.ReverseAsync(
+                originalLedger,
+                _businessClock.Today,
+                $"لغو مصرف بارگیری #{expense.LoadingRegisterId} | {originalLedger.Description}",
+                $"EXP-{expense.Id}");
         }
 
         await _audit.LogAsync(
@@ -4406,28 +4422,17 @@ public partial class LoadingController : Controller
 
     // PTG-P1-03 — یک سازنده برای سطرِ «مصرف خدماتی بارگیری». همان فیلدها، همان مقادیر؛
     // فقط دیگر خودش سطر نمی‌سازد و از مسیر متمرکز عبور می‌کند.
-    private static LedgerPostingRequest BuildLoadingServiceExpenseLedger(
+    private static ExpenseLedgerRequest BuildLoadingServiceExpenseLedger(
         ExpenseType expenseType,
         ExpenseTransaction expense,
         LoadingRegister loading)
         => new()
         {
-            EntryDate = expense.ExpenseDate,
-            Side = LedgerSide.Credit,
-            AmountUsd = expense.AmountUsd,
-            Currency = SystemCurrency.BaseCurrencyCode,
-            SourceAmount = expense.Amount,
-            SourceCurrencyCode = expense.Currency,
-            AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-            AppliedFxRateDate = ToUtcDate(loading.LoadingDate),
-            AppliedFxRateSource = "USD base currency",
+            Expense = expense,
             Description = $"ثبت مصرف خدماتی بارگیری - {expenseType.NamePersian ?? expenseType.Name} - {expense.Description}",
-            SourceType = "Expense",
-            SourceId = expense.Id,
             Reference = BuildLoadingServiceExpenseReference(expenseType, expense),
-            ContractId = expense.ContractId,
-            ServiceProviderId = expense.ServiceProviderId,
-            ShipmentId = expense.ShipmentId,
+            FxRateDate = ToUtcDate(loading.LoadingDate),
+            FxRateSource = "USD base currency"
         };
 
     private static string BuildLoadingServiceExpenseReference(ExpenseType expenseType, ExpenseTransaction expense)
@@ -4461,9 +4466,6 @@ public partial class LoadingController : Controller
             new(LoadingWagonRentExpenseCode, "Loading Wagon Rent", "کرایه واگون بارگیری", "Transport", model.RailwayExpenseUsd ?? 0m),
             new(LoadingOtherExpenseCode, "Loading Other Service Expense", "سایر مصارف خدماتی بارگیری", "Other", model.OtherExpenseUsd ?? 0m)
         ];
-
-    private static LedgerSide ReverseSide(LedgerSide side)
-        => side == LedgerSide.Credit ? LedgerSide.Debit : LedgerSide.Credit;
 
     private sealed record LoadingServiceExpenseComponent(
         string Code,

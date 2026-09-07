@@ -16,12 +16,22 @@
     var shipmentContractMapJson = System.Text.Json.JsonSerializer.Serialize(ViewData["ShipmentContractMap"] ?? Array.Empty<object>());
     var pageTitle = isEdit ? UiText.T(Context, "ویرایش فاکتور فروش", "Edit Sales Invoice") : UiText.T(Context, "ثبت فاکتور فروش", "New Sales Invoice");
     var submitLabel = isEdit ? UiText.T(Context, "ذخیره تغییرات", "Save changes") : UiText.T(Context, "ذخیره و ثبت", "Save & submit");
+    // انتخاب نوع تحویل فقط در ثبتِ فروشِ تازه معنی دارد؛ در ویرایش و در فروشِ جایگزین نه.
+    var showDeliveryModeChoice = !isEdit && !Model.CorrectedFromSaleId.HasValue;
+    var fullDeliveryUrl = Url.Action("Create", new { returnUrl = Model.ReturnUrl }) ?? "#";
+    var stagedDeliveryUrl = Url.Action("PreSaleCreate") ?? "#";
 }
 
 <div class="page-stack ak-form-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((pageTitle, false, (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)cancelUrl))" />
+
+    @if (showDeliveryModeChoice)
+    {
+        <partial name="~/Views/Sales/_SaleDeliveryModeChoice.cshtml"
+                 model="@(("full", fullDeliveryUrl, stagedDeliveryUrl))" />
+    }
 
     <form asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@(isEdit ? editId : null)" method="post"
           class="ak-form"

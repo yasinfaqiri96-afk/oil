@@ -42,14 +42,18 @@
             : notRecorded;
 
     var endingRubAbs = endingRub.HasValue ? Math.Abs(endingRub.Value) : (decimal?)null;
-    var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
-        ?? (endingUsd > 0 ? "شرکت به تأمین‌کننده بدهکار است" : endingUsd < 0 ? "شرکت از تأمین‌کننده طلبکار است" : "حساب تسویه است");
+    // معنی/رنگ باید از علامتِ همان ارزی بیاید که کارت نشان می‌دهد: در نمایش روبلی از
+    // مانده روبل، در غیر آن از مانده دالر. وگرنه حسابِ روبلیِ بدهکار می‌تواند «اضافه‌پرداخت»
+    // دیده شود، چون نرخ روز پرداخت با نرخ روز بارگیری فرق دارد.
+    var balanceSignSource = isRubView && endingRub.HasValue ? endingRub.Value : endingUsd;
+    var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context), isRubView)
+        ?? (balanceSignSource > 0 ? "شرکت به تأمین‌کننده بدهکار است" : balanceSignSource < 0 ? "شرکت از تأمین‌کننده طلبکار است" : "حساب تسویه است");
     // رنگ باید از همان علامتی بیاید که متن معنی از آن ساخته شده: صورت‌حساب رسمی مثبت را
     // «طلبکار» می‌داند (سبز). فقط وقتی صورت‌حساب نیست، علامتِ مدل خودِ صفحه (مثبت = قابل
     // پرداخت به تأمین‌کننده = سرخ) به کار می‌رود.
     var balanceTone = officialSummary is not null
-        ? officialSummary.ClosingBalanceTone
-        : endingUsd > 0 ? "danger" : endingUsd < 0 ? "success" : null;
+        ? officialSummary.ClosingBalanceToneFor(isRubView)
+        : balanceSignSource > 0 ? "danger" : balanceSignSource < 0 ? "success" : null;
 
     // خلاصه و قراردادها در یک تب واحد نمایش داده می‌شوند. کلیدهای قدیمیِ قرارداد/پرداخت
     // همچنان به همین تب می‌رسند تا لینک‌های ذخیره‌شده و returnUrlها معتبر بمانند.
@@ -117,6 +121,12 @@
         as PTGOilSystem.Web.Models.Suppliers.SupplierTransferableBalanceCardViewModel;
     var freePrepaymentUsd = transferableBalance?.TransferableTotalUsd ?? Model.AdvanceFreeUsd;
 
+    // تفکیک تفاوت نرخ از بدهی واقعی. وقتی بدهی به ارز غیرپایه ایجاد شده و با نرخ دیگری
+    // تسویه شده، جمعِ دالریِ تاریخی نه بدهی است نه طلب؛ بخشی از آن تفاوت نرخ است.
+    var fxSettlement = ViewData["SupplierFxSettlement"]
+        as PTGOilSystem.Web.Services.SupplierFxSettlement;
+    var hasFxSplit = fxSettlement is not null && fxSettlement.RealizedFxDifferenceUsd != 0m;
+
     var supplierKpis = new List<AkKpiItem>
     {
         new() { Title = "مانده حساب", Value = supplierBalanceKpi.Value, Unit = supplierBalanceKpi.Unit, Avatar = "receivables" },
@@ -143,8 +153,24 @@
         {
             new() { Label = "پیش‌پرداخت آزاد", Value = NumberDisplay.Money(freePrepaymentUsd, "USD"), IsNumeric = true },
             new() { Label = "قرارداد فعال", Value = Model.ActivePurchaseContractsCount.ToString("N0"), IsNumeric = true },
-            new() { Label = "آخرین پرداخت", Value = Model.LastPaymentDate.HasValue ? Model.LastPaymentDate.Value.ToDisplayDate() : null }
-        },
+            new() { Label = "آخرین پرداخت", Value = Model.LastPaymentDate.HasValue ? Model.LastPaymentDate.Value.ToDisplayDate() : null },
+            hasFxSplit
+                ? new AkInfoItem
+                {
+                    Label = fxSettlement!.RealizedFxDifferenceUsd > 0m ? "ضرر تفاوت نرخ" : "سود تفاوت نرخ",
+                    Value = NumberDisplay.Money(Math.Abs(fxSettlement.RealizedFxDifferenceUsd), "USD"),
+                    IsNumeric = true
+                }
+                : null,
+            hasFxSplit
+                ? new AkInfoItem
+                {
+                    Label = "بدهی واقعی پس از تفاوت نرخ",
+                    Value = NumberDisplay.Money(Math.Abs(fxSettlement!.AdjustedBalanceUsd), "USD"),
+                    IsNumeric = true
+                }
+                : null
+        }.Where(f => f is not null).Select(f => f!).ToList(),
         Identity = new List<AkInfoItem>
         {
             new() { Label = "کد", Value = string.IsNullOrWhiteSpace(Model.Code) ? notRecorded : Model.Code },
@@ -176,6 +202,50 @@
         <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)supplierKpis)" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkPartyAccountCard.cshtml" model="@supplierAccountCard" />
+
+        @* تفاوت نرخ حساب ارزی — فقط وقتی بدهی به ارز غیرپایه با نرخِ دیگری تسویه شده است. *@
+        @if (hasFxSplit)
+        {
+            <section id="supplier-fx-difference" class="ak-form-section ak-detail-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@(("تفاوت نرخ حساب ارزی", (string?)null))" />
+                <div class="ak-table-wrap">
+                    <table class="ak-table ak-detail-table">
+                        <thead>
+                            <tr>
+                                <th class="ak-col-grow">ارز</th>
+                                <th class="ak-col-num">مانده به ارز حساب</th>
+                                <th class="ak-col-num">جمع دالری تاریخی</th>
+                                <th class="ak-col-num">تفاوت نرخ USD</th>
+                                <th class="ak-col-num">بدهی واقعی USD</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in fxSettlement!.Currencies)
+                            {
+                                <tr>
+                                    <td class="ak-col-grow">@row.CurrencyCode</td>
+                                    <td class="ak-col-num">@NumberDisplay.Money(row.OutstandingSourceAmount, row.CurrencyCode)</td>
+                                    <td class="ak-col-num">@NumberDisplay.Money(row.HistoricalNetUsd, "USD")</td>
+                                    <td class="ak-col-num">@(row.RealizedFxDifferenceUsd > 0m ? "ضرر " : row.RealizedFxDifferenceUsd < 0m ? "سود " : "")@NumberDisplay.Money(Math.Abs(row.RealizedFxDifferenceUsd), "USD")</td>
+                                    <td class="ak-col-num">@NumberDisplay.Money(row.OutstandingBookUsd, "USD")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p>
+                    بدهی به @string.Join("، ", fxSettlement.Currencies.Select(c => c.CurrencyCode))
+                    ایجاد شده و با نرخِ متفاوتی تسویه شده است. تا وقتی این تفاوت شناسایی نشود،
+                    جمع دالریِ حساب نه بدهی است نه طلب.
+                </p>
+                <form asp-action="RecognizeFxDifference" asp-route-id="@Model.SupplierId" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@supplierReturnUrl" />
+                    <button type="submit" class="ak-btn">ثبت تفاوت نرخ در دفتر</button>
+                </form>
+            </section>
+        }
     </div>
 
     @* ===== ادامهٔ تب خلاصه و قراردادها: قراردادها + پرداخت‌ها =====

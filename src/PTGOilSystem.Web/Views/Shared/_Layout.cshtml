@@ -150,10 +150,14 @@
     var journalControllers = new[] { "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation" };
     var accountControllers = new[] { "ChartOfAccounts", "CashAccounts", "AccountStatements", "Ledger", "Sarrafs" };
     var fiscalYearControllers = new[] { "FiscalYears", "AccountingReadiness", "ClosingChecklist", "TrialClose", "FinalClose", "ReopenFiscalYear" };
+    // این دو صفحه در هیچ بخش دیگر سایدبار خانه ندارند و فقط از هاب مالی باز می‌شوند؛
+    // اینجا می‌آیند تا هنگام باز بودنشان آیتم «مالی» هایلایت بماند.
+    var financeOnlyControllers = new[] { "OperationalPeriodLocks", "PlattsRates" };
     // ناوبری مالی بدون Reports است تا آیتم گزارش‌ها جدا هایلایت شود.
     var financeNavControllers = journalControllers
         .Concat(accountControllers)
         .Concat(fiscalYearControllers)
+        .Concat(financeOnlyControllers)
         .Append("Finance")
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
@@ -374,6 +378,8 @@
     @if (!isLoginPage && renderShellChrome)
     {
         <link rel="stylesheet" href="~/vendor/fonts/vazirmatn/vazirmatn.css" asp-append-version="true" />
+        <link rel="stylesheet" href="~/vendor/fonts/iransans/iransans.css" asp-append-version="true" />
+
     }
     <link rel="icon" type="image/x-icon" href="~/favicon-v3.ico" asp-append-version="true" />
     <link rel="shortcut icon" type="image/x-icon" href="~/favicon-v3.ico" asp-append-version="true" />
@@ -489,7 +495,7 @@
                 <div class="boltz-sidebar-scroll">
                     <a class="boltz-brand boltz-brand-logo-only" asp-controller="Home" asp-action="Index">
                         <span class="boltz-brand-mark">
-                            <img class="boltz-brand-logo" src="~/images/white-sidebar.png" asp-append-version="true" alt="Saddiqi Group" width="1248" height="364" decoding="async" />
+                            <img class="boltz-brand-logo" src="~/images/logo1-sidebar.png" asp-append-version="true" alt="Saddiqi Group" width="512" height="165" decoding="async" />
                         </span>
                     </a>
 

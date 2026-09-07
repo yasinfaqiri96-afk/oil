@@ -139,6 +139,9 @@ public sealed class AkKpiItem
     /// <summary>Stat-card state: "warning", "empty", "loading".</summary>
     public string? State { get; init; }
 
+    /// <summary>Optional Bootstrap modal id; the figure renders as a button that opens it.</summary>
+    public string? ModalTarget { get; init; }
+
     /// <summary>
     /// Tone class for the linear metric row (<c>_DetailOverview</c>). Only the
     /// meaning-bearing states get a colour; "empty"/"loading" stay neutral so a

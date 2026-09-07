@@ -46,10 +46,10 @@
                         <small class="ak-field-error">رسید مستقیمِ دارای باقیمانده وجود ندارد.</small>
                     }
                 </div>
-                <div class="ak-field" data-source-panel="@((int)TransportStartSourceKind.ActiveTransport)">
-                    <label asp-for="TransportLegId">حمل در جریان</label>
+                <div class="ak-field is-full" data-source-panel="@((int)TransportStartSourceKind.ActiveTransport)">
+                    <label asp-for="TransportLegId">حمل در جریان (اختیاری)</label>
                     <select asp-for="TransportLegId" class="ak-input">
-                        <option value="">انتخاب کنید</option>
+                        <option value="">همه حمل‌های در جریان (انتخاب در فرم بعدی)</option>
                         @foreach (var item in Model.ActiveTransports)
                         {
                             <option value="@item.Id">@item.Label — @item.AvailableQuantityMt.ToString("N4") MT باقیمانده</option>

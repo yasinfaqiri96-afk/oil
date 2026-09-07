@@ -274,7 +274,7 @@ public sealed class AkDetailV2StructureTests
         var contract = css[start..end];
         Assert.Equal(2, Count(contract, primarySelector));
         Assert.Contains("border-color: transparent", contract);
-        Assert.Contains("border-radius: 16px", contract);
+        Assert.Contains("border-radius: 8px", contract);
         Assert.Contains("background: var(--background-paper, #fff)", contract);
         Assert.Contains("box-shadow: var(--ptg-panel-shadow)", contract);
         Assert.Contains("@media print", contract);

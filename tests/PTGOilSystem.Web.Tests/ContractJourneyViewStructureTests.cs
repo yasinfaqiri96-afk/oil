@@ -1332,7 +1332,7 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("قرارداد خرید", mainCardSource);
         Assert.DoesNotContain("نگاه سریع", view);
         Assert.Contains("[data-loading-details] > .ak-detail-header .ak-kebab-toggle", detailCss);
-        Assert.Contains("background: #1877f2 !important;", detailCss);
+        Assert.Contains("background: #1062D0 !important;", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(1) .ak-stat-card__value", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(2) .ak-stat-card__value", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(3) .ak-stat-card__value", detailCss);
@@ -1358,7 +1358,9 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("type=\"text\" maxlength=\"1000\"", row);
         Assert.Contains("provider.hidden = !isProvider;", script);
         Assert.Contains("asset.hidden = !isAsset;", script);
-        Assert.Contains("noParty.hidden = isProvider || isAsset;", script);
+        // ویرایشگر مشترک است: ردیف مصارفِ حمل گزینهٔ «راننده» هم دارد، پس «بدون طرف حساب»
+        // وقتی پنهان می‌شود که هیچ‌کدام از سه انتخاب فعال نباشد.
+        Assert.Contains("noParty.hidden = isProvider || isAsset || isDriver;", script);
         Assert.DoesNotContain("provider.style.display", script);
         Assert.DoesNotContain("asset.style.display", script);
         Assert.Contains("[data-loading-expense-editor] .loading-expense-table", css);

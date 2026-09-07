@@ -2,9 +2,9 @@
  * 45-akaunting.css — Akaunting 3.1.21 skin (Design Audit PTG FA).
  *
  * Loads LAST. Re-shapes the shared shell + primitives onto the Akaunting
- * visual language: flat near-white canvas (#FCFCFC), two-layer lilac sidebar
+ * visual language: flat near-white canvas (#F5F6FA), two-layer lilac sidebar
  * (56px icon rail + 224px menu panel), quiet editorial typography, navy
- * navigation (#173F73), olive-green primary action (#1877f2), 1px dividers
+ * navigation (#1062D0), olive-green primary action (#1062D0), 1px dividers
  * instead of cards/shadows, and depth only on Dropdown/Tooltip/Modal.
  *
  * All colors/sizes come from 01-tokens.css. No new hex outside tokens except
@@ -17,7 +17,7 @@
 
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
-    font-family: "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
     font-size: 14px;
     line-height: 20px;
     background: var(--ptg-bg) !important;
@@ -226,16 +226,16 @@ body.ptg-modal-document :is(.ak-primary-action, .ak-secondary-action.is-primary)
 
 body.boltz-shell.app-shell-authenticated :is(.btn-secondary, .btn-info),
 body.ptg-modal-document :is(.btn-secondary, .btn-info) {
-    background-color: var(--primary-main) !important;
-    border-color: var(--primary-main) !important;
-    color: #FFFFFF !important;
+    background-color: var(--ptg-surface) !important;
+    border-color: var(--ptg-field-border) !important;
+    color: var(--ptg-text) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :is(.btn-secondary, .btn-info):is(:hover, :focus, :active),
 body.ptg-modal-document :is(.btn-secondary, .btn-info):is(:hover, :focus, :active) {
-    background-color: var(--primary-dark) !important;
-    border-color: var(--primary-dark) !important;
-    color: #FFFFFF !important;
+    background-color: var(--ptg-surface-soft) !important;
+    border-color: var(--ptg-field-border-hover) !important;
+    color: var(--ptg-text) !important;
 }
 
 body.boltz-shell.app-shell-authenticated .btn-danger,
@@ -577,7 +577,7 @@ html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
     color: var(--ptg-muted);
     background: transparent;
     border: 0;
-    border-radius: 999px;
+    border-radius: 8px;
     font-size: 18px;
     font-weight: 400;
     line-height: 1;
@@ -635,7 +635,7 @@ html[dir="rtl"] .ak-filter-input { padding: 12px 118px 0 0; }
     color: var(--primary-main);
     background: transparent;
     border: 0;
-    border-radius: 999px;
+    border-radius: 8px;
     cursor: pointer;
     font-size: 18px;
     line-height: 1;
@@ -658,7 +658,7 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
     background: #fff;
     border: 1px solid var(--divider);
     border-radius: 6px;
-    box-shadow: 0 12px 28px -8px rgba(24, 24, 40, 0.18), 0 4px 10px -4px rgba(24, 24, 40, 0.12);
+    box-shadow: var(--shadow-dropdown);
     list-style: none;
 }
 .ak-filter-popover[hidden] { display: none; }

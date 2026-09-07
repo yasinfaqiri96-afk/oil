@@ -61,8 +61,9 @@
                     <tr>
                         <th><input type="checkbox" class="ak-check" data-ops-select-all aria-label="@UiText.T(Context,"انتخاب همه","Select all")" /></th>
                         <th class="col-name">@UiText.T(Context,"نوع مصرف","Expense Type")</th>
-                        <th>@UiText.T(Context,"قرارداد / مرجع","Contract / Reference")</th>
+                        <th>@UiText.T(Context,"مرجع","Reference")</th>
                         <th>@UiText.T(Context, "شرکت / دارایی", "Provider / Asset")</th>
+                        <th class="col-status">@UiText.T(Context, "تسویه", "Settlement")</th>
                         <th>@UiText.T(Context,"مبلغ","Amount")</th>
                         <th class="col-status">@UiText.T(Context,"ارز","Currency")</th>
                         <th class="col-actions">@UiText.T(Context,"عملیات","Action")</th>
@@ -75,26 +76,45 @@
                         <tr data-href="@Url.Action("Details", new { id = item.Id })">
                             <td><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
                             <td class="col-name">
-                                @await Html.PartialAsync("_OperationsListIdentity", ("bi-receipt", item.ExpenseTypeName, item.ExpenseDate.ToDisplayDate(), false))
+                                <div><span class="ak-name">@item.ExpenseTypeName</span></div>
                             </td>
                             <td>
-                                <span>@(string.IsNullOrWhiteSpace(item.ContractDisplayLabel) ? "-" : item.ContractDisplayLabel)</span>
                                 @{
                                     var expenseRef = item.ShipmentCode ?? item.TruckDispatchLabel ?? item.TransportLegLabel;
                                 }
-                                @if (!string.IsNullOrWhiteSpace(expenseRef))
-                                {
-                                    <span class="ak-section-desc">@expenseRef</span>
-                                }
+                                <span>@(string.IsNullOrWhiteSpace(expenseRef) ? "-" : expenseRef)</span>
                             </td>
                             <td>
                                 <span>@(item.ServiceProviderName ?? item.OperationalAssetName ?? "-")</span>
                             </td>
+                            @* PTG-P1-04 — وضعیت تسویه. ردیفِ «طبقه‌بندی‌نشده» هشدار می‌گیرد
+                               تا ردیف‌های پیش از فاز ۱ دیده شوند، نه اینکه خاموش رد شوند. *@
+                            <td class="col-status">
+                                @switch (item.SettlementMode)
+                                {
+                                    case ExpenseSettlementMode.Payable:
+                                        <span class="ak-status is-warning">@UiText.T(Context, "بدهی", "Payable")</span>
+                                        break;
+                                    case ExpenseSettlementMode.PaidImmediately:
+                                        <span class="ak-status is-success">@UiText.T(Context, "پرداخت‌شده", "Paid")</span>
+                                        @if (!string.IsNullOrWhiteSpace(item.CashAccountName))
+                                        {
+                                            <span class="ak-section-desc">@item.CashAccountName</span>
+                                        }
+                                        break;
+                                    case ExpenseSettlementMode.NonCash:
+                                        <span class="ak-status is-info">@UiText.T(Context, "بدون حرکت پول", "No cash")</span>
+                                        break;
+                                    default:
+                                        <span class="ak-status is-danger">@UiText.T(Context, "طبقه‌بندی‌نشده", "Unclassified")</span>
+                                        break;
+                                }
+                            </td>
                             <td>
-                                <span class="col-ltr">@item.AmountUsd.ToString("N2") USD</span>
+                                <span class="col-ltr">@NumberDisplay.Money(item.AmountUsd, "USD")</span>
                                 @if (!string.Equals(item.Currency, "USD", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    <span class="ak-section-desc col-ltr">@item.Amount.ToString("N2") @item.Currency</span>
+                                    <span class="ak-section-desc col-ltr">@NumberDisplay.Money(item.Amount) @item.Currency</span>
                                 }
                             </td>
                             <td class="col-status"><span class="ak-status is-info">@item.Currency</span></td>
@@ -108,7 +128,7 @@
                     @if (!Model.Items.Any())
                     {
                         <tr>
-                            <td colspan="7">
+                            <td colspan="8">
                                 <div class="ak-empty">
                                     <i class="bi bi-cash-stack"></i>
                                     @UiText.T(Context,"هیچ مصرفی برای فیلتر انتخابی یافت نشد","No expenses found for the selected filter")

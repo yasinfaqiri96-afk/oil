@@ -2,5 +2,8 @@
 
 <div>
     <span class="ak-name @(Model.IsLtr ?"col-ltr" : null)">@Model.Primary</span>
-    <span class="ak-section-desc">@Model.Secondary</span>
+    @if (!string.IsNullOrWhiteSpace(Model.Secondary))
+    {
+        <span class="ak-section-desc">@Model.Secondary</span>
+    }
 </div>

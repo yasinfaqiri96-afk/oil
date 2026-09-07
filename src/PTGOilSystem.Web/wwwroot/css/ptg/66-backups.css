@@ -1,11 +1,11 @@
 /* =========================================================================
    صفحهٔ پشتیبان‌گیری.
    همهٔ قاعده‌ها زیر .bk-page قفل‌اند تا هیچ صفحهٔ دیگری تحت تأثیر قرار نگیرد.
-   کارت سفید، پس‌زمینهٔ روشن، سایهٔ بسیار نرم، شعاع یکدست، رنگ اصلی #1877F2.
+   کارت سفید، پس‌زمینهٔ روشن، سایهٔ بسیار نرم، شعاع یکدست، رنگ اصلی #1062D0.
    ========================================================================= */
 
 .bk-page {
-    --bk-primary: #1877F2;
+    --bk-primary: #1062D0;
     --bk-success: var(--ptg-success);
     --bk-success-strong: #5C8A44;
     --bk-surface: #ffffff;
@@ -67,7 +67,7 @@
     gap: 6px;
     align-self: flex-start;
     padding: 3px 10px;
-    border-radius: 999px;
+    border-radius: 8px;
     font-size: .75rem;
     font-weight: 600;
     line-height: 1.6;
@@ -101,7 +101,7 @@
     --_fg: #fff;
     --_bg-h: #1467d6;
     --_bd: var(--bk-primary);
-    --_sh: rgba(24, 119, 242, .28);
+    --_sh: rgba(16, 98, 208, .28);
 
     padding: 9px 18px;
     font-weight: 600;
@@ -139,7 +139,7 @@
 .bk-page .btn.bk-ghost {
     background: var(--bk-surface);
     border: 1px solid var(--bk-border);
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 8px 14px;
     font-weight: 500;
     display: inline-flex;
@@ -294,7 +294,7 @@
 }
 
 .bk-page .bk-accordion .accordion-button:focus {
-    box-shadow: 0 0 0 3px rgba(24, 119, 242, .15);
+    box-shadow: 0 0 0 3px rgba(16, 98, 208, .15);
 }
 
 .bk-page .bk-accordion-badge { margin-inline-start: auto; }
@@ -331,7 +331,7 @@
 .bk-page .bk-input {
     width: 100%;
     border: 1px solid var(--bk-border);
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 8px 12px;
     font-size: .875rem;
     background: #fff;
@@ -341,7 +341,7 @@
 .bk-page .bk-input:focus {
     outline: none;
     border-color: var(--bk-primary);
-    box-shadow: 0 0 0 3px rgba(24, 119, 242, .15);
+    box-shadow: 0 0 0 3px rgba(16, 98, 208, .15);
 }
 
 .bk-page .bk-switch {
@@ -350,7 +350,7 @@
     justify-content: space-between;
     gap: 12px;
     border: 1px solid var(--bk-border);
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 10px 14px;
     margin: 0;
     font-size: .875rem;
@@ -367,7 +367,7 @@
 }
 
 .bk-page .bk-alert {
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: .8125rem;
     padding: 10px 14px;
 }
@@ -407,7 +407,7 @@
 #backup-error-modal .bk-error-text {
     background: #fafbfd;
     border: 1px solid #e6eaf0;
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 12px 14px;
     font-size: .8125rem;
     line-height: 1.7;

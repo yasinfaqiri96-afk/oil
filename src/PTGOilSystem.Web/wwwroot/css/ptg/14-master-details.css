@@ -82,7 +82,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.part
     .supplier-tab-summary
 ) {
     padding: .72rem .78rem;
-    border-radius: .78rem !important;
+    border-radius: .8px !important;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
@@ -203,7 +203,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.part
     margin: 0;
     padding: .75rem;
     border: 1px solid var(--md-detail-border);
-    border-radius: .78rem;
+    border-radius: .8px;
     background: #fff;
 }
 
@@ -254,7 +254,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     --party-panel-line: #ecf1f6;
     --party-panel-soft: #f6f8fc;
     --party-panel-muted: #7B7B7B;
-    --party-panel-text: #424242;
+    --party-panel-text: #3D3D3D;
     --party-panel-accent: #1554c8;
     --party-panel-shadow: 0 14px 34px rgba(15, 23, 42, .06);
     gap: 1rem;
@@ -269,7 +269,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     position: relative;
     overflow: hidden;
     border: 1px solid var(--party-panel-border) !important;
-    border-radius: 1.35rem !important;
+    border-radius: 8px !important;
     background:
         linear-gradient(180deg, var(--party-panel-accent) 0, var(--party-panel-accent) 4.2rem, #ffffff 4.2rem, #ffffff 100%) !important;
     box-shadow: var(--party-panel-shadow) !important;
@@ -308,7 +308,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
 ) :is(.party-hero-actions, .sarraf-profile-actions) .btn {
     min-height: 2.45rem;
     padding-inline: 1rem;
-    border-radius: .9rem;
+    border-radius: .8px;
     box-shadow: none;
 }
 
@@ -330,7 +330,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
 ) :is(.party-hero-avatar, .sarraf-profile-avatar) {
     width: 3.35rem;
     height: 3.35rem;
-    border-radius: 1rem;
+    border-radius: 8px;
     background: #ebf3ff;
     color: var(--party-panel-accent);
     font-size: 1.35rem;
@@ -370,7 +370,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     min-width: min(100%, 16rem);
     padding: .9rem 1rem;
     border: 1px solid var(--party-panel-line);
-    border-radius: 1rem;
+    border-radius: 8px;
     background: var(--party-panel-soft);
     align-items: flex-start;
     text-align: start;
@@ -417,7 +417,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     min-height: 0;
     padding: .95rem 1rem !important;
     border: 1px solid var(--party-panel-line);
-    border-radius: 1rem !important;
+    border-radius: 8px !important;
     background: var(--party-panel-soft) !important;
     box-shadow: none !important;
 }
@@ -463,7 +463,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     .sarraf-details-page
 ) :is(.party-section, .sarraf-recent-card, .sarraf-statement-card, .party-collapse, .sarraf-collapse, .party-today, .sarraf-today-card, .supplier-contract-card) {
     border: 1px solid var(--party-panel-border) !important;
-    border-radius: 1.2rem !important;
+    border-radius: 8px !important;
     background: #ffffff !important;
     box-shadow: var(--party-panel-shadow) !important;
 }
@@ -537,7 +537,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     margin-bottom: 1rem;
     padding: .9rem 1rem;
     border: 1px solid var(--party-panel-line);
-    border-radius: 1rem;
+    border-radius: 8px;
     background: var(--party-panel-soft);
 }
 
@@ -571,7 +571,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     .sarraf-details-page
 ) .table-responsive {
     border: 1px solid var(--party-panel-line);
-    border-radius: 1rem;
+    border-radius: 8px;
     background: #ffffff;
 }
 
@@ -593,7 +593,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
 ) :is(.ds-table, .supplier-statement-table, .supplier-statement-ledger) thead th {
     padding: .8rem .75rem;
     border-bottom: 1px solid var(--party-panel-line);
-    background: #F5F7FA;
+    background: #F2F5FC;
     color: #7B7B7B;
     font-size: .73rem;
     font-weight: 780;
@@ -679,9 +679,9 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     --pp-cover-b: #33608f;
     --pp-cover-c: #4176ac;
     --pp-cover-d: #2c527e;
-    --pp-card-border: #e5e7eb;
+    --pp-card-border: #E7E7E7;
     --pp-card-shadow: 0 0 2px rgba(158, 158, 158, .2), 0 12px 24px -4px rgba(158, 158, 158, .12);
-    --pp-text: #424242;
+    --pp-text: #3D3D3D;
     --pp-muted: #7B7B7B;
     --pp-strip-h: 48px;
 }

@@ -4,6 +4,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.CompanyFlow;
+using PTGOilSystem.Web.Services.Parties;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.PartyStatements;
@@ -19,6 +20,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
     private readonly ICompanyFlowBalanceService _balanceService;
     private readonly PartyStatementOptions _options;
     private readonly IAfghanistanBusinessClock _businessClock;
+    private readonly IPartyDirectory _parties;
 
     public PartyStatementReadService(
         ApplicationDbContext db,
@@ -26,6 +28,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         ICompanyFlowDirectionResolver flowResolver,
         ICompanyFlowBalanceService balanceService,
         IOptions<PartyStatementOptions> options,
+        IPartyDirectory parties,
         IAfghanistanBusinessClock? businessClock = null)
     {
         _db = db;
@@ -33,6 +36,7 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         _flowResolver = flowResolver;
         _balanceService = balanceService;
         _options = options.Value;
+        _parties = parties;
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
     }
 
@@ -175,7 +179,13 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 OpeningBalanceRub = openingRub,
                 TotalReceiptRub = totalReceiptRub,
                 TotalOutflowRub = totalOutflowRub,
-                ClosingBalanceRub = closingRub
+                ClosingBalanceRub = closingRub,
+                ClosingBalanceRubMeaning = closingRub.HasValue
+                    ? policy.BalanceMeaning(closingRub.Value, isEnglish: false)
+                    : string.Empty,
+                ClosingBalanceRubMeaningEn = closingRub.HasValue
+                    ? policy.BalanceMeaning(closingRub.Value, isEnglish: true)
+                    : string.Empty
             },
             ColumnOptions = ResolveColumns(periodRows, filter),
             Rows = resultRows,
@@ -515,6 +525,9 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
 
         query = party.PartyType switch
         {
+            // انتساب مشتری هم مثل تأمین‌کننده از تعریف مرکزی می‌آید: هزینه و اسناد نقدیِ
+            // بدون طرف‌حساب از راهِ قرارداد به مشتری نمی‌چسبند.
+            // رجوع: LedgerEntryOwnership.CustomerOwnedByContract.
             PartyStatementPartyType.Customer => query.Where(l =>
                 l.CustomerId == party.PartyId
                 || (l.CustomerId == null
@@ -522,7 +535,10 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                     && l.ServiceProviderId == null
                     && l.DriverId == null
                     && l.EmployeeId == null
+                    && l.SourceType != LedgerEntryOwnership.ExpenseSourceType
+                    && !LedgerEntryOwnership.CashSourceTypesWithoutContractParty.Contains(l.SourceType)
                     && l.Contract != null
+                    && l.Contract.ContractType == ContractType.Sale
                     && l.Contract.CustomerId == party.PartyId)
                 || (l.SourceType == "Sale" && _db.SalesTransactions.Any(s => s.Id == l.SourceId && s.CustomerId == party.PartyId))),
             // انتساب تأمین‌کننده از تعریف مرکزی می‌آید تا اسنادِ متعلق به طرف‌حسابِ دیگر
@@ -1074,43 +1090,8 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
         }
     }
 
-    private async Task<PartyStatementPartyInfo?> LoadPartyInfoAsync(PartyRef party, CancellationToken ct)
-        => party.PartyType switch
-        {
-            PartyStatementPartyType.Customer => await _db.Customers.AsNoTracking()
-                .Where(x => x.Id == party.PartyId)
-                .Select(x => new PartyStatementPartyInfo { Id = x.Id, Name = x.NamePersian ?? x.Name, Code = x.Code, Phone = x.Phone, Address = x.Address })
-                .FirstOrDefaultAsync(ct),
-            PartyStatementPartyType.Supplier => await _db.Suppliers.AsNoTracking()
-                .Where(x => x.Id == party.PartyId)
-                .Select(x => new PartyStatementPartyInfo { Id = x.Id, Name = x.NamePersian ?? x.Name, Code = x.Code, Phone = x.Phone, Address = x.Address })
-                .FirstOrDefaultAsync(ct),
-            PartyStatementPartyType.ServiceProvider => await _db.ServiceProviders.AsNoTracking()
-                .Where(x => x.Id == party.PartyId)
-                .Select(x => new PartyStatementPartyInfo { Id = x.Id, Name = x.Name, Code = x.Code, Phone = x.Phone, Email = x.Email, Address = x.Address })
-                .FirstOrDefaultAsync(ct),
-            PartyStatementPartyType.Sarraf => await _db.Sarrafs.AsNoTracking()
-                .Where(x => x.Id == party.PartyId)
-                .Select(x => new PartyStatementPartyInfo { Id = x.Id, Name = x.Name, Code = null, Phone = x.PhoneNumber, Address = x.Address })
-                .FirstOrDefaultAsync(ct),
-            PartyStatementPartyType.Employee => await _db.Employees.AsNoTracking()
-                .Where(x => x.Id == party.PartyId)
-                .Select(x => new PartyStatementPartyInfo { Id = x.Id, Name = x.FullName, Code = x.EmployeeCode, Phone = x.Phone, Email = x.Email, Address = x.Address })
-                .FirstOrDefaultAsync(ct),
-            PartyStatementPartyType.Partner => await _db.Partners.AsNoTracking()
-                .Where(x => x.Id == party.PartyId)
-                .Select(x => new PartyStatementPartyInfo { Id = x.Id, Name = x.NamePersian ?? x.Name, Code = x.Code, Phone = x.Phone, Email = x.Email, Address = x.Address })
-                .FirstOrDefaultAsync(ct),
-            PartyStatementPartyType.Driver => await _db.Drivers.AsNoTracking()
-                .Where(x => x.Id == party.PartyId)
-                .Select(x => new PartyStatementPartyInfo { Id = x.Id, Name = x.FullName, Code = x.LicenseNumber, Phone = x.Phone, Address = x.Address })
-                .FirstOrDefaultAsync(ct),
-            PartyStatementPartyType.Company => await _db.Companies.AsNoTracking()
-                .Where(x => x.Id == party.PartyId)
-                .Select(x => new PartyStatementPartyInfo { Id = x.Id, Name = x.NamePersian ?? x.Name, Code = x.Code, Address = x.Address })
-                .FirstOrDefaultAsync(ct),
-            _ => null
-        };
+    private Task<PartyStatementPartyInfo?> LoadPartyInfoAsync(PartyRef party, CancellationToken ct)
+        => _parties.GetProfileAsync(new PartyKey(party.PartyType, party.PartyId), ct);
 
     private async Task<PartyStatementCompanyInfo> LoadCompanyInfoAsync(
         PartyRef party,

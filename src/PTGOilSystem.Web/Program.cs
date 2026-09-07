@@ -167,8 +167,11 @@ builder.Services.AddScoped<IContractBalanceTransferService, ContractBalanceTrans
 builder.Services.AddScoped<ISupplierPaymentAllocationService, SupplierPaymentAllocationService>();
 // موتور واحد «مانده قابل انتقال تأمین‌کننده» — منبع اصلی انتقال طلب به قرارداد.
 builder.Services.AddScoped<ISupplierTransferableBalanceService, SupplierTransferableBalanceService>();
+builder.Services.AddScoped<ISupplierFxSettlementService, SupplierFxSettlementService>();
+builder.Services.AddScoped<ISupplierFxRecognitionService, SupplierFxRecognitionService>();
 builder.Services.AddScoped<ISupplierBalanceTransferService, SupplierBalanceTransferService>();
 builder.Services.AddScoped<ICustomerPaymentAllocationService, CustomerPaymentAllocationService>();
+builder.Services.AddScoped<ICustomerReceiptApplicationService, CustomerReceiptApplicationService>();
 builder.Services.AddScoped<IViaSarrafContractAssignmentService, ViaSarrafContractAssignmentService>();
 builder.Services.AddScoped<IViaSarrafLegacyGroupingService, ViaSarrafLegacyGroupingService>();
 builder.Services.AddScoped<IPaymentCorrectionService, PaymentCorrectionService>();
@@ -181,6 +184,12 @@ builder.Services.AddSingleton<PTGOilSystem.Web.Services.CompanyFlow.ICompanyFlow
     PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowDirectionResolver>();
 builder.Services.AddSingleton<PTGOilSystem.Web.Services.CompanyFlow.ICompanyFlowBalanceService,
     PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowBalanceService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Expenses.IExpenseLedgerPoster,
+    PTGOilSystem.Web.Services.Expenses.ExpenseLedgerPoster>();
+builder.Services.AddSingleton<PTGOilSystem.Web.Services.Expenses.IExpenseSettlementValidator,
+    PTGOilSystem.Web.Services.Expenses.ExpenseSettlementValidator>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.Parties.IPartyDirectory,
+    PTGOilSystem.Web.Services.Parties.PartyDirectory>();
 builder.Services.AddSingleton<PTGOilSystem.Web.Services.PartyStatements.IPartyStatementPolicyResolver,
     PTGOilSystem.Web.Services.PartyStatements.PartyStatementPolicyResolver>();
 builder.Services.AddScoped<PTGOilSystem.Web.Services.PartyStatements.IPartyStatementReadService,

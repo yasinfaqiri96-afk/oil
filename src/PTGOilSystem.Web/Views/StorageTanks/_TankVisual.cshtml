@@ -1,0 +1,74 @@
+@using System.Globalization
+@model decimal
+@{
+    // Flat vector of a vertical storage tank. The fill level is data driven:
+    // the liquid body and the sight glass are sized from the tank fill percent.
+    // Colours live in 09-pages.css so the markup carries no inline style.
+    var percent = Math.Max(0m, Math.Min(100m, Model));
+
+    string N(decimal value) => Math.Round(value, 2).ToString(CultureInfo.InvariantCulture);
+
+    const decimal bodyTop = 33m;
+    const decimal bodyBottom = 126m;
+    var liquidHeight = (bodyBottom - bodyTop) * percent / 100m;
+    var liquidTop = bodyBottom - liquidHeight;
+
+    const decimal gaugeTop = 59m;
+    const decimal gaugeBottom = 105m;
+    var gaugeHeight = (gaugeBottom - gaugeTop) * percent / 100m;
+    var gaugeFillTop = gaugeBottom - gaugeHeight;
+}
+<svg class="tankviz" viewBox="0 0 120 148" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+    <ellipse class="tankviz-ground" cx="60" cy="138" rx="42" ry="6" />
+
+    <path class="tankviz-pipe" d="M16 62 V118 q0 8 8 8 h6" />
+    <circle class="tankviz-valve" cx="16" cy="60" r="3.5" />
+
+    <g class="tankviz-stairs">
+        <path class="tankviz-stair" d="M96 126 L111 70" />
+        <g class="tankviz-steps">
+            <line x1="96" y1="119" x2="102" y2="119" />
+            <line x1="98" y1="109" x2="104" y2="109" />
+            <line x1="101" y1="99" x2="107" y2="99" />
+            <line x1="104" y1="89" x2="110" y2="89" />
+            <line x1="106" y1="79" x2="112" y2="79" />
+        </g>
+        <path class="tankviz-rail" d="M100 122 L115 66" />
+    </g>
+
+    <rect class="tankviz-body" x="26" y="32" width="68" height="95" rx="2" />
+
+    @if (liquidHeight > 0m)
+    {
+        <rect class="tankviz-liquid" x="27" y="@N(liquidTop)" width="66" height="@N(liquidHeight)" rx="1" />
+        <rect class="tankviz-liquid-top" x="27" y="@N(liquidTop)" width="66" height="2" />
+    }
+
+    <g class="tankviz-plates">
+        <line x1="27" y1="56" x2="93" y2="56" />
+        <line x1="27" y1="80" x2="93" y2="80" />
+        <line x1="27" y1="104" x2="93" y2="104" />
+    </g>
+
+    <rect class="tankviz-gauge-track" x="53" y="56" width="14" height="52" rx="7" />
+    @if (gaugeHeight > 0m)
+    {
+        <rect class="tankviz-gauge-fill" x="56" y="@N(gaugeFillTop)" width="8" height="@N(gaugeHeight)" rx="4" />
+    }
+
+    <rect class="tankviz-base" x="22" y="125" width="76" height="8" rx="2" />
+
+    <ellipse class="tankviz-cap" cx="60" cy="32" rx="34" ry="8" />
+
+    <g class="tankviz-posts">
+        <line x1="30" y1="28" x2="30" y2="20" />
+        <line x1="45" y1="24" x2="45" y2="16" />
+        <line x1="60" y1="23" x2="60" y2="15" />
+        <line x1="75" y1="24" x2="75" y2="16" />
+        <line x1="90" y1="28" x2="90" y2="20" />
+    </g>
+    <ellipse class="tankviz-railing" cx="60" cy="21" rx="31" ry="7" />
+
+    <rect class="tankviz-nozzle" x="55" y="8" width="10" height="13" rx="2" />
+    <rect class="tankviz-nozzle-cap" x="51" y="5" width="18" height="5" rx="2" />
+</svg>

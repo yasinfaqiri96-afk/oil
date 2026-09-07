@@ -17,6 +17,11 @@ public partial class ReportsController
 {
     private const int DiscrepancyPageSize = 50;
 
+    // سرویس هر فراخوانی را روی ۲۰۰ ردیف می‌بندد؛ خروجی همان اندازه را صفحه‌به‌صفحه
+    // برمی‌دارد تا هیچ ردیفی خاموش جا نماند، با سقفی که فایل را غیرقابل‌استفاده نکند.
+    private const int DiscrepancyExportPageSize = 200;
+    private const int DiscrepancyExportMaxRows = 5000;
+
     [EnableRateLimiting(RateLimitPolicies.HeavyReport)]
     public async Task<IActionResult> SellableStock(
         [FromQuery] ManagementReportFilterViewModel? filter = null,
@@ -101,7 +106,19 @@ public partial class ReportsController
         filter ??= new ManagementReportFilterViewModel();
         // Export همان دستهٔ انتخاب‌شده را کامل می‌گیرد (بدون Paging صفحه) اما با همان
         // Service و همان فیلترها؛ هیچ فرمول جداگانه‌ای ساخته نمی‌شود.
-        var rows = await _preSaleReservations.GetDiscrepanciesAsync(filter, kind, 0, 200, ct);
+        // سرویس هر بار حداکثر یک صفحه می‌دهد، پس خروجی صفحه‌به‌صفحه کامل می‌شود؛
+        // در غیر این صورت هر گزارشی با بیش از یک صفحه مغایرت، خاموش ناقص صادر می‌شد.
+        var rows = new List<PreSaleDiscrepancyRow>();
+        for (var skip = 0; skip < DiscrepancyExportMaxRows; skip += DiscrepancyExportPageSize)
+        {
+            var batch = await _preSaleReservations.GetDiscrepanciesAsync(
+                filter, kind, skip, DiscrepancyExportPageSize, ct);
+            rows.AddRange(batch);
+            if (batch.Count < DiscrepancyExportPageSize)
+            {
+                break;
+            }
+        }
 
         return TabularExportSupport.File(this, format, new TabularExportDocument
         {

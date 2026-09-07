@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Auth.LoginViewModel
+﻿@model PTGOilSystem.Web.Models.Auth.LoginViewModel
 @{
     var requestedLanguage = Context.Request.Cookies["ptg-ui-lang"] ?? "fa";
     var isEn = string.Equals(requestedLanguage, "en", StringComparison.OrdinalIgnoreCase);
@@ -10,6 +10,7 @@
 @section Styles {
     <link rel="stylesheet" href="@(isEn ? Url.Content("~/vendor/bootstrap/css/bootstrap.min.css") : Url.Content("~/vendor/bootstrap/css/bootstrap.rtl.min.css"))" />
     <link rel="stylesheet" href="~/vendor/fonts/vazirmatn/vazirmatn.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/vendor/fonts/iransans/iransans.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/90-auth-login.css" asp-append-version="true" />
 }
 

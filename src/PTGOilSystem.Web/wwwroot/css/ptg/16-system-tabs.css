@@ -2,27 +2,36 @@
  * Canonical tabs — the single source of truth for every tab rail
  * in the system (section rails, details rails, modal documents).
  *
- * Flat Akaunting rail: no card, no capsule, no fill, no shadow.
- * Text only, 14px, 2px active underline sitting on the hairline.
+ * Chortke rail (panel.chortke.app - .tabs-content-page .header-tabs-content-page):
+ * a 52px white strip, top corners rounded, closed by a 2px #E0E0E0 hairline.
+ * Text only, 16px/400, dark grey idle ink; the selected tab turns brand blue
+ * and grows a 3px blue bar the width of its own label, softly shadowed.
  *
  * Nothing else may restyle .ptg-tabs-rail / .ptg-tab-item.
  * This file loads last on purpose (see _Layout / _ModalLayout).
  * ============================================================= */
 
 :root {
-    --ptg-tabs-font-size: 14px;
-    --ptg-tabs-text-color: #424242;
-    --ptg-tabs-active-color: #173F73;
-    --ptg-tabs-border-color: #E5E7EB;
-    --ptg-tabs-horizontal-padding: 16px;
-    --ptg-tabs-bottom-padding: 8px;
-    --ptg-tabs-top-padding: 10px;
-    --ptg-tabs-indicator-height: 2px;
-    --ptg-tabs-transition-duration: 180ms;
-    --ptg-tabs-focus-color: rgba(23, 63, 115, .25);
-    --ptg-tabs-hover-indicator: rgba(23, 63, 115, .35);
+    --ptg-tabs-font-size: 16px;
+    --ptg-tabs-text-color: #333333;
+    --ptg-tabs-active-color: var(--primary-main, #1062D0);
+    --ptg-tabs-border-color: #E0E0E0;
+    --ptg-tabs-border-width: 2px;
+    /* Chortke spaces tabs with margins, not padding, so the indicator ends up
+       exactly as wide as the label it belongs to. */
+    --ptg-tabs-item-gap: 32px;
+    --ptg-tabs-item-height: 25px;
+    --ptg-tabs-rail-height: 52px;
+    --ptg-tabs-rail-radius: 12px;
+    --ptg-tabs-rail-bg: var(--background-paper, #FFFFFF);
+    --ptg-tabs-indicator-height: 3px;
+    --ptg-tabs-indicator-shadow: 0 3px 6px rgba(0, 0, 0, .086);
+    --ptg-tabs-transition-duration: 300ms;
+    --ptg-tabs-focus-color: rgba(16, 98, 208, .25);
+    --ptg-tabs-hover-indicator: rgba(16, 98, 208, .35);
 
-    /* Rhythm: title -> rail -> content. */
+    /* Rhythm: title -> rail -> content. Chortke butts a white panel against the
+       rail; our tab bodies are loose sections, so they keep a gap instead. */
     --ptg-tabs-space-above: 20px;
     --ptg-tabs-space-below: 16px;
 
@@ -53,16 +62,18 @@
 .ptg-tabs-rail {
     position: relative;
     display: flex;
-    align-items: stretch;
+    align-items: center;
     flex-wrap: nowrap;          /* never wrap to a second line */
-    gap: 0;                     /* spacing comes from tab padding only */
+    gap: 0;                     /* spacing comes from the tab margins only */
     width: 100%;
     min-width: 0;
+    min-height: var(--ptg-tabs-rail-height);
     margin: var(--ptg-tabs-space-above) 0 var(--ptg-tabs-space-below);
     padding: 0;
     border: 0;
-    border-bottom: 1px solid var(--ptg-tabs-border-color);
-    background: transparent;    /* inherits the page background */
+    border-bottom: var(--ptg-tabs-border-width) solid var(--ptg-tabs-border-color);
+    border-radius: var(--ptg-tabs-rail-radius) var(--ptg-tabs-rail-radius) 0 0;
+    background: var(--ptg-tabs-rail-bg);
     list-style: none;
     overflow-x: auto;
     overflow-y: hidden;
@@ -99,11 +110,18 @@
     overflow: visible;
     margin-block: 0;
     border-bottom: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 [data-section-tabs-scroll] {
+    display: flex;
+    align-items: center;
+    min-height: var(--ptg-tabs-rail-height);
     margin: var(--ptg-tabs-space-above) 0 var(--ptg-tabs-space-below);
-    border-bottom: 1px solid var(--ptg-tabs-border-color);
+    border-bottom: var(--ptg-tabs-border-width) solid var(--ptg-tabs-border-color);
+    border-radius: var(--ptg-tabs-rail-radius) var(--ptg-tabs-rail-radius) 0 0;
+    background: var(--ptg-tabs-rail-bg);
 }
 
 /* ---- Tab ---------------------------------------------------------- */
@@ -115,8 +133,9 @@
     justify-content: center;
     gap: 6px;
     flex: 0 0 auto;             /* size to content, never stretch */
-    margin: 0;
-    padding: var(--ptg-tabs-top-padding) var(--ptg-tabs-horizontal-padding) var(--ptg-tabs-bottom-padding);
+    min-height: var(--ptg-tabs-item-height);
+    margin: 0 var(--ptg-tabs-item-gap);
+    padding: 0;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -124,7 +143,7 @@
     font-family: inherit;
     font-size: var(--ptg-tabs-font-size);
     font-weight: 400;
-    line-height: 1.5;
+    line-height: var(--ptg-tabs-item-height);
     text-decoration: none;
     white-space: nowrap;
     cursor: pointer;
@@ -140,12 +159,14 @@
 .ptg-tab-item::after {
     position: absolute;
     inset-inline: 0;
-    bottom: -1px;               /* sit on the rail hairline, not above it */
+    /* The bar hangs below the label and lands on the rail hairline, covering it
+       for the width of the active tab - the Chortke placement. */
+    bottom: calc(-1 * ((var(--ptg-tabs-rail-height) - var(--ptg-tabs-item-height)) / 2));
     height: var(--ptg-tabs-indicator-height);
-    border-radius: 1px 1px 0 0;
+    border-radius: 1px;
     background: transparent;
     content: "";
-    transition: background-color var(--ptg-tabs-transition-duration) ease;
+    transition: all var(--ptg-tabs-transition-duration) ease;
     pointer-events: none;
 }
 
@@ -174,7 +195,7 @@
 .ptg-tabs-rail .ptg-tab-item[aria-selected="true"],
 .ptg-tabs-rail .ptg-tab-item[aria-current="page"] {
     color: var(--ptg-tabs-active-color);
-    font-weight: 600;
+    font-weight: 400;
 }
 
 .ptg-tab-item.is-active::after,
@@ -182,10 +203,11 @@
 .ptg-tab-item[aria-selected="true"]::after,
 .ptg-tab-item[aria-current="page"]::after {
     background: var(--ptg-tabs-active-color);
+    box-shadow: var(--ptg-tabs-indicator-shadow);
 }
 
-/* Reserve the bold metrics up front so promoting a tab to active does not
-   reflow the rail (the classic 400 -> 600 width jump). */
+/* The active tab keeps the idle weight, so there is no width to reserve; the
+   hidden mirror stays at 400 and adds nothing. */
 .ptg-tab-item > span:not(.ptg-tab-badge):not(.ak-status) {
     display: inline-block;
 }
@@ -195,7 +217,7 @@
     height: 0;
     overflow: hidden;
     visibility: hidden;
-    font-weight: 600;
+    font-weight: 400;
     content: attr(data-tab-label);
     pointer-events: none;
 }
@@ -244,7 +266,7 @@
     padding: 0 5px;
     border: 0;
     border-radius: 9px;
-    background: #F1F1F4;
+    background: var(--ptg-surface-soft, #F8F9FC);
     color: #6B6B76;
     font-size: 11px;
     font-weight: 500;
@@ -379,7 +401,12 @@
 
 @media (max-width: 767.98px) {
     :root {
-        --ptg-tabs-horizontal-padding: 12px;
+        --ptg-tabs-font-size: 12px;
+        --ptg-tabs-item-gap: 8px;
+        --ptg-tabs-item-height: 22px;
+        --ptg-tabs-rail-height: 44px;
+        --ptg-tabs-indicator-height: 2px;
+        --ptg-tabs-rail-radius: 8px;
         --ptg-tabs-space-above: 16px;
     }
 }

@@ -33,12 +33,6 @@
 
 <div id="journey-tab-lists" class="ak-tab-panel">
     <section class="ak-form-section">
-        <div class="ak-section-head">
-            <div>
-                <h2 class="ak-section-title">@T("نقل و انتقالات", "Transfers")</h2>
-            </div>
-        </div>
-
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
                      model="@(("dispatchQ", (string?)Context.Request.Query["dispatchQ"].ToString(), T("جستجو در نقل و انتقالات...", "Search transfers..."), "dispatchPage"))" />

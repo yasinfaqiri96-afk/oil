@@ -289,24 +289,24 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
     inline-size: 100%;
     block-size: 8px;
     border: 0;
-    border-radius: 999px;
+    border-radius: 8px;
     background: var(--ptg-surface-soft);
     appearance: none;
     -webkit-appearance: none;
 }
 
 .ak-party-settled-bar::-webkit-progress-bar {
-    border-radius: 999px;
+    border-radius: 8px;
     background: var(--ptg-surface-soft);
 }
 
 .ak-party-settled-bar::-webkit-progress-value {
-    border-radius: 999px;
+    border-radius: 8px;
     background: var(--primary-main);
 }
 
 .ak-party-settled-bar::-moz-progress-bar {
-    border-radius: 999px;
+    border-radius: 8px;
     background: var(--primary-main);
 }
 

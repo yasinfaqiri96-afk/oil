@@ -42,7 +42,7 @@
                                 <span class="ak-label">@(item.ProductName ?? "-")</span>
                                 <span class="ak-section-desc">@UiText.T(Context,"مسیر","Route"): @(string.IsNullOrWhiteSpace(route) ? "-" : route)</span>
                             </td>
-                            <td class="col-ltr">@item.QuantityMt.ToString("N2") MT</td>
+                            <td class="col-ltr">@NumberDisplay.Quantity(item.QuantityMt) MT</td>
                             <td>
                                 <span class="ak-label">@UiText.T(Context,"حمل","Transport") @item.RelatedTransportLegCount · @UiText.T(Context,"فروش","Sales") @item.RelatedSalesCount</span>
                                 <span class="ak-section-desc">@UiText.T(Context,"مصرف","Expense") @item.RelatedExpensesCount</span>

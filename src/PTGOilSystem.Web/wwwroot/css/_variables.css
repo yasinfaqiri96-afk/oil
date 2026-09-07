@@ -22,10 +22,10 @@
     --ptg-info-soft: rgba(63, 140, 255, 0.1);
 
     /* === Colors - Text === */
-    --ptg-text: #424242;
+    --ptg-text: #3D3D3D;
     --ptg-text-muted: #7B7B7B;
     --ptg-text-soft: #9aa3b7;
-    --ptg-text-dark: #424242;
+    --ptg-text-dark: #3D3D3D;
 
     /* === Colors - Background === */
     --ptg-bg: #f6f6f6;
@@ -66,9 +66,9 @@
     --ptg-space-xl: 2rem;
 
     /* === Typography === */
-    --ptg-font-family: "Poppins", "Vazirmatn", Tahoma, Arial, sans-serif;
+    --ptg-font-family: "Poppins", "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
     --ptg-font-family-en: "Poppins", sans-serif;
-    --ptg-font-family-fa: "Vazirmatn", Tahoma, Arial, sans-serif;
+    --ptg-font-family-fa: "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
 
     --ptg-font-size-xs: 0.72rem;
     --ptg-font-size-sm: 0.82rem;

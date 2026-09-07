@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -25,18 +25,132 @@ public partial class CustomsDeclarationsController : Controller
         new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".jpg", ".jpeg", ".png", ".webp" };
 
     private readonly IAfghanistanBusinessClock _businessClock;
+    // مرحله ۵ — Dual-write اختیاری به دفتر کل جدید. null-safe: در نبودش مسیر قدیمی تغییری نمی‌کند.
+    private readonly Services.Accounting.IExpenseAccountingAdapter? _expenseAccounting;
 
     public CustomsDeclarationsController(
         ApplicationDbContext db,
         ILogger<CustomsDeclarationsController> logger,
         IWebHostEnvironment environment,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
         _logger = logger;
         _environment = environment;
+        _expenseAccounting = expenseAccounting;
+    }
+
+    /// <summary>
+    /// PTG-P1-04 — فهرست‌های هویتِ تسویه. حسابِ نقدی یا کمیشنکارِ یک سندِ قدیمی حتی اگر
+    /// غیرفعال شده باشد در فهرست می‌ماند، وگرنه ویرایشِ آن سند انتخابش را می‌باخت.
+    ///
+    /// طرف‌حساب از شرکت‌های خدماتی ثبت‌شده می‌آید و نوعِ طرف‌حسابِ تازه‌ای ساخته نمی‌شود.
+    /// </summary>
+    private async Task PopulateSettlementLookupsAsync(CustomsDeclarationCreateViewModel model)
+    {
+        var selectedCashIds = new[] { model.DutyCashAccountId, model.ServiceCashAccountId }
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+        var cashAccounts = await _db.CashAccounts
+            .AsNoTracking()
+            .Where(a => a.IsActive || selectedCashIds.Contains(a.Id))
+            .OrderBy(a => a.Name)
+            .Select(a => new { a.Id, Label = a.Name + " (" + a.Currency + ")" })
+            .ToListAsync();
+        ViewBag.CashAccounts = new SelectList(cashAccounts, "Id", "Label");
+
+        var selectedProviderIds = new[] { model.DutyServiceProviderId, model.ServiceProviderId }
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+        var serviceProviders = await _db.ServiceProviders
+            .AsNoTracking()
+            .Where(p => p.IsActive || selectedProviderIds.Contains(p.Id))
+            .OrderBy(p => p.Name)
+            .Select(p => new { p.Id, p.Name })
+            .ToListAsync();
+        ViewBag.CustomsBrokers = new SelectList(serviceProviders, "Id", "Name");
+
+        var (dutyUsd, serviceUsd) = Services.Customs.CustomsDeclarationExpenseSync.SplitUsd(
+            model.Items
+                .Where(i => i.Amount > 0)
+                .Select(i =>
+                {
+                    var (_, amountUsd) = ConvertItemAmounts(i.Currency, i.Amount, i.Rate);
+                    return new CustomsDeclarationItem
+                    {
+                        ComponentType = i.ComponentType,
+                        AmountUsd = amountUsd
+                    };
+                })
+                .ToList());
+        model.DutyTotalUsd = dutyUsd;
+        model.ServiceTotalUsd = serviceUsd;
+    }
+
+    /// <summary>
+    /// PTG-P1-04 — همان قاعدهٔ اعتبارسنجِ مصرف، ولی پیش از ساختنِ سند: حالتِ «نقد» حساب
+    /// نقدی می‌خواهد و حالتِ «بدهی» طرف‌حساب. گروهی که مبلغ ندارد اصلاً تسویه لازم ندارد.
+    /// </summary>
+    private void ValidateSettlementSelection(CustomsDeclarationCreateViewModel model)
+    {
+        var (dutyUsd, serviceUsd) = Services.Customs.CustomsDeclarationExpenseSync.SplitUsd(
+            model.Items
+                .Where(i => i.Amount > 0)
+                .Select(i =>
+                {
+                    var (_, amountUsd) = ConvertItemAmounts(i.Currency, i.Amount, i.Rate);
+                    return new CustomsDeclarationItem
+                    {
+                        ComponentType = i.ComponentType,
+                        AmountUsd = amountUsd
+                    };
+                })
+                .ToList());
+
+        Check(
+            dutyUsd,
+            model.DutySettlementMode,
+            model.DutyCashAccountId,
+            model.DutyServiceProviderId,
+            nameof(model.DutyCashAccountId),
+            nameof(model.DutyServiceProviderId));
+
+        Check(
+            serviceUsd,
+            model.ServiceSettlementMode,
+            model.ServiceCashAccountId,
+            model.ServiceProviderId,
+            nameof(model.ServiceCashAccountId),
+            nameof(model.ServiceProviderId));
+
+        void Check(
+            decimal amountUsd,
+            ExpenseSettlementMode mode,
+            int? cashAccountId,
+            int? providerId,
+            string cashField,
+            string partyField)
+        {
+            if (amountUsd <= 0m)
+            {
+                return;
+            }
+
+            if (mode == ExpenseSettlementMode.PaidImmediately && cashAccountId is not > 0)
+            {
+                ModelState.AddModelError(cashField, "مصرفِ پرداخت‌شده باید حساب نقدی (صندوق یا بانک) داشته باشد.");
+            }
+
+            if (mode == ExpenseSettlementMode.Payable && providerId is not > 0)
+            {
+                ModelState.AddModelError(partyField, "مصرفِ پرداخت‌نشده باید طرف‌حساب مشخص داشته باشد تا به‌عنوان بدهی دیده شود.");
+            }
+        }
     }
 
     private bool TryGetLocalReturnUrl(string? returnUrl, out string local)
@@ -231,6 +345,8 @@ public partial class CustomsDeclarationsController : Controller
             DeclarationDate = cd.DeclarationDate,
             WagonOrTruckNumber = cd.WagonOrTruckNumber,
             DeclarationReference = cd.DeclarationReference,
+            PermitNumber = cd.PermitNumber,
+            PermitHolderName = cd.PermitHolderName,
             ConsignmentWeightMt = cd.ConsignmentWeightMt,
             TotalAfn = cd.TotalAfn,
             TotalUsd = cd.TotalUsd,
@@ -428,6 +544,7 @@ public partial class CustomsDeclarationsController : Controller
                 Items = BuildDefaultItemRows()
             };
             PopulateTransportLegSource(transportModel, leg);
+            await PopulateSettlementLookupsAsync(transportModel);
             return View(transportModel);
         }
 
@@ -444,6 +561,7 @@ public partial class CustomsDeclarationsController : Controller
                 Items = BuildDefaultItemRows()
             };
             PopulateTruckDispatchSource(dispatchModel, dispatch);
+            await PopulateSettlementLookupsAsync(dispatchModel);
             return View(dispatchModel);
         }
 
@@ -482,6 +600,7 @@ public partial class CustomsDeclarationsController : Controller
             }).ToList()
         };
 
+        await PopulateSettlementLookupsAsync(model);
         return View(model);
     }
 
@@ -518,6 +637,9 @@ public partial class CustomsDeclarationsController : Controller
             ModelState.AddModelError(string.Empty, "ارسال با موتر مورد نظر وجود ندارد.");
         }
 
+        // PTG-P1-04 — هویتِ تسویه پیش از ساختنِ سند بررسی می‌شود.
+        ValidateSettlementSelection(model);
+
         if (!ModelState.IsValid)
         {
             if (lr != null)
@@ -543,6 +665,7 @@ public partial class CustomsDeclarationsController : Controller
             }
 
             model.ReturnUrl = TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl) ? localReturnUrl : null;
+            await PopulateSettlementLookupsAsync(model);
             return View(model);
         }
 
@@ -585,6 +708,23 @@ public partial class CustomsDeclarationsController : Controller
             RatePerMtAfn = weight > 0 ? totalAfn / weight : null,
             RatePerMtUsd = weight > 0 && totalUsd > 0 ? totalUsd / weight : null,
             Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim(),
+
+            // PTG-P1-04 — هویتِ تسویه per گروه، همان‌طور که کاربر در فرم گفت.
+            DutySettlementMode = model.DutySettlementMode,
+            DutyCashAccountId = model.DutySettlementMode == ExpenseSettlementMode.PaidImmediately
+                ? model.DutyCashAccountId
+                : null,
+            DutyServiceProviderId = model.DutySettlementMode == ExpenseSettlementMode.Payable
+                ? model.DutyServiceProviderId
+                : null,
+            ServiceSettlementMode = model.ServiceSettlementMode,
+            ServiceCashAccountId = model.ServiceSettlementMode == ExpenseSettlementMode.PaidImmediately
+                ? model.ServiceCashAccountId
+                : null,
+            ServiceProviderId = model.ServiceSettlementMode == ExpenseSettlementMode.Payable
+                ? model.ServiceProviderId
+                : null,
+
             Items = activeItems.Select(i => new CustomsDeclarationItem
             {
                 ComponentType = i.Row.ComponentType,
@@ -597,6 +737,10 @@ public partial class CustomsDeclarationsController : Controller
 
         _db.CustomsDeclarations.Add(cd);
         await _db.SaveChangesAsync();
+
+        // PTG-P1-04 — هزینهٔ گمرک از همین‌جا به دفتر کل می‌رسد و گزارش‌ها دیگر مبلغ را
+        // مستقیم از اظهارنامه نمی‌خوانند.
+        await Services.Customs.CustomsDeclarationExpenseSync.SyncAsync(_db, cd, _expenseAccounting);
 
         TempData["ok"] = $"اعلامیه گمرکی برای واگن/موتر «{cd.WagonOrTruckNumber ?? "—"}» ثبت شد.";
 
@@ -641,6 +785,13 @@ public partial class CustomsDeclarationsController : Controller
             Route = cd.Route,
             ConsignmentWeightMt = cd.ConsignmentWeightMt,
             Notes = cd.Notes,
+            // PTG-P1-04 — هویتِ تسویهٔ همین اظهارنامه با فرم برمی‌گردد.
+            DutySettlementMode = cd.DutySettlementMode,
+            DutyCashAccountId = cd.DutyCashAccountId,
+            DutyServiceProviderId = cd.DutyServiceProviderId,
+            ServiceSettlementMode = cd.ServiceSettlementMode,
+            ServiceCashAccountId = cd.ServiceCashAccountId,
+            ServiceProviderId = cd.ServiceProviderId,
             ReturnUrl = TryGetLocalReturnUrl(returnUrl, out var localReturnUrl) ? localReturnUrl : null,
             Items = cd.Items
                 .OrderBy(i => i.ComponentType)
@@ -652,6 +803,8 @@ public partial class CustomsDeclarationsController : Controller
         {
             model.Items = BuildDefaultItemRows();
         }
+
+        await PopulateSettlementLookupsAsync(model);
 
         if (cd.LoadingRegister is not null)
         {
@@ -710,6 +863,9 @@ public partial class CustomsDeclarationsController : Controller
             ? await LoadTruckDispatchSourceAsync(cd.TruckDispatchId.Value)
             : null;
 
+        // PTG-P1-04 — هویتِ تسویه پیش از ذخیره بررسی می‌شود.
+        ValidateSettlementSelection(model);
+
         if (!ModelState.IsValid)
         {
             if (lr != null)
@@ -736,6 +892,7 @@ public partial class CustomsDeclarationsController : Controller
             }
 
             model.ReturnUrl = TryGetLocalReturnUrl(model.ReturnUrl, out var invalidReturnUrl) ? invalidReturnUrl : null;
+            await PopulateSettlementLookupsAsync(model);
             return View("Create", model);
         }
 
@@ -766,6 +923,24 @@ public partial class CustomsDeclarationsController : Controller
         cd.RatePerMtAfn = weight > 0 ? totalAfn / weight : null;
         cd.RatePerMtUsd = weight > 0 && totalUsd > 0 ? totalUsd / weight : null;
         cd.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+
+        // PTG-P1-04 — هویتِ تسویه per گروه. حسابِ نقدی و طرف‌حساب فقط در حالتِ خودشان
+        // می‌مانند تا سندِ بدهی حسابِ نقدیِ ولگرد و سندِ نقدی طرف‌حسابِ ولگرد نداشته باشد.
+        cd.DutySettlementMode = model.DutySettlementMode;
+        cd.DutyCashAccountId = model.DutySettlementMode == ExpenseSettlementMode.PaidImmediately
+            ? model.DutyCashAccountId
+            : null;
+        cd.DutyServiceProviderId = model.DutySettlementMode == ExpenseSettlementMode.Payable
+            ? model.DutyServiceProviderId
+            : null;
+        cd.ServiceSettlementMode = model.ServiceSettlementMode;
+        cd.ServiceCashAccountId = model.ServiceSettlementMode == ExpenseSettlementMode.PaidImmediately
+            ? model.ServiceCashAccountId
+            : null;
+        cd.ServiceProviderId = model.ServiceSettlementMode == ExpenseSettlementMode.Payable
+            ? model.ServiceProviderId
+            : null;
+
         cd.UpdatedAtUtc = DateTime.UtcNow;
 
         // اقلام قبلی حذف و با اقلام جدید جایگزین می‌شوند (ساده و بدون وابستگی به Ledger).
@@ -781,6 +956,10 @@ public partial class CustomsDeclarationsController : Controller
         }).ToList();
 
         await _db.SaveChangesAsync();
+
+        // PTG-P1-04 — همگام‌سازیِ idempotent: مبلغِ هر گروه دوباره حساب می‌شود، مصرفِ
+        // موجود به‌روز می‌شود و گروهی که مبلغش صفر شده لغو می‌گردد.
+        await Services.Customs.CustomsDeclarationExpenseSync.SyncAsync(_db, cd, _expenseAccounting);
 
         TempData["ok"] = $"اعلامیه گمرکی «{cd.WagonOrTruckNumber ?? "—"}» ویرایش شد.";
 
@@ -801,6 +980,13 @@ public partial class CustomsDeclarationsController : Controller
         int? lrId = cd.LoadingRegisterId;
         int? legId = cd.TransportLegId;
         int? dispatchId = cd.TruckDispatchId;
+
+        // PTG-P1-04 — اظهارنامه دیگر «صرفاً گزارشی» نیست: سطرِ مالی ساخته است. پس پیش از
+        // حذف، همان مصرف‌ها لغو و سطرهای دفترشان برداشته می‌شوند، وگرنه FK جلوی حذف را
+        // می‌گرفت و هزینه‌ای بی‌سند در P&L می‌ماند.
+        await Services.Customs.CustomsDeclarationExpenseSync.CancelByDeclarationIdAsync(
+            _db, cd.Id, _expenseAccounting);
+
         _db.CustomsDeclarations.Remove(cd);
         await _db.SaveChangesAsync();
         TempData["ok"] = "اعلامیه گمرکی حذف شد.";
@@ -810,7 +996,9 @@ public partial class CustomsDeclarationsController : Controller
     }
 
     // POST: /CustomsDeclarations/DeleteAll — لغو همه: فقط اعلامیه‌های مطابق فیلتر فعلیِ لیست را حذف می‌کند.
-    // هیچ Ledger/Stock/Payment لمس نمی‌شود (اعلامیه‌های گمرکی صرفاً نمایشی/گزارشی‌اند).
+    // PTG-P1-04 — این یادداشت قبلاً می‌گفت «هیچ Ledger لمس نمی‌شود، اظهارنامه صرفاً گزارشی است».
+    // دیگر درست نیست: اظهارنامه از راه ExpenseTransaction سطرِ دفتر می‌سازد، پس حذف باید همان
+    // مصرف‌ها را هم لغو کند. Stock و Payment همچنان لمس نمی‌شوند.
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteAll(
@@ -874,6 +1062,13 @@ public partial class CustomsDeclarationsController : Controller
         }
         else
         {
+            // PTG-P1-04 — مصرف و سطرِ دفترِ هر اظهارنامه پیش از حذف لغو می‌شود.
+            foreach (var declaration in toDelete)
+            {
+                await Services.Customs.CustomsDeclarationExpenseSync.CancelByDeclarationIdAsync(
+                    _db, declaration.Id, _expenseAccounting);
+            }
+
             _db.CustomsDeclarations.RemoveRange(toDelete);
             await _db.SaveChangesAsync();
             TempData["ok"] = $"{toDelete.Count} اعلامیه گمرکی لغو شد.";

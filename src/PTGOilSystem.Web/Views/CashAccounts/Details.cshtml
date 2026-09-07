@@ -1,14 +1,16 @@
-@model PTGOilSystem.Web.Models.Entities.CashAccount
+﻿@model PTGOilSystem.Web.Models.Entities.CashAccount
 @using PTGOilSystem.Web.Models.Payments
 @using PTGOilSystem.Web.Models.Shared
 @{
-    var transactions = ViewBag.PaymentTransactions as IReadOnlyList<PaymentListItemViewModel> ?? Array.Empty<PaymentListItemViewModel>();
+    var transactions = ViewBag.StatementRows as IReadOnlyList<CashAccountStatementRowViewModel> ?? Array.Empty<CashAccountStatementRowViewModel>();
     object? totalInObject = ViewBag.TotalIn;
     object? totalOutObject = ViewBag.TotalOut;
     object? closingBalanceObject = ViewBag.ClosingBalance;
     var totalIn = totalInObject is decimal totalInValue ? totalInValue : 0m;
     var totalOut = totalOutObject is decimal totalOutValue ? totalOutValue : 0m;
     var closingBalance = closingBalanceObject is decimal closingBalanceValue ? closingBalanceValue : 0m;
+    // واحدِ جمع‌ها: ارزِ خودِ حساب، یا دالر وقتی اسنادِ ارزِ دیگری هم روی همین حساب ثبت شده باشد.
+    var totalsCurrency = ViewBag.TotalsCurrency as string ?? Model.Currency;
     ViewData["Title"] = $"حساب {Model.Code}";
     ViewData["HideSectionTabs"] = true;
 
@@ -59,10 +61,10 @@
     <section id="account-ledger" class="ak-form-section ak-detail-section" hidden="@(activeAccountTab != "ledger")">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("گزارش صندوق/بانک", (string?)null))" />
         <div class="ak-stat-grid" aria-label="گزارش صندوق یا بانک">
-            <vc:stat-card title="مانده آغاز" value="0.00" unit="@Model.Currency" avatar="treasury"></vc:stat-card>
-            <vc:stat-card title="دریافت‌ها" value="@totalIn.ToString("N2")" unit="@Model.Currency" avatar="receipts"></vc:stat-card>
-            <vc:stat-card title="پرداخت‌ها" value="@totalOut.ToString("N2")" unit="@Model.Currency" avatar="payments-out"></vc:stat-card>
-            <vc:stat-card title="مانده پایان" value="@closingBalance.ToString("N2")" unit="@Model.Currency" avatar="statement"></vc:stat-card>
+            <vc:stat-card title="مانده آغاز" value="0.00" unit="@totalsCurrency" avatar="treasury"></vc:stat-card>
+            <vc:stat-card title="دریافت‌ها" value="@totalIn.ToString("N2")" unit="@totalsCurrency" avatar="receipts"></vc:stat-card>
+            <vc:stat-card title="پرداخت‌ها" value="@totalOut.ToString("N2")" unit="@totalsCurrency" avatar="payments-out"></vc:stat-card>
+            <vc:stat-card title="مانده پایان" value="@closingBalance.ToString("N2")" unit="@totalsCurrency" avatar="statement"></vc:stat-card>
         </div>
 
         <div class="ak-table-wrap">
@@ -83,13 +85,14 @@
                     @foreach (var row in transactions)
                     {
                         <tr>
-                            <td>@row.PaymentDate.ToDisplayDate()</td>
-                            <td><span class="ak-status @(row.Direction == PaymentDirection.In ?"is-active" : "")">@row.PaymentKindName</span></td>
+                            <td>@row.EntryDate.ToDisplayDate()</td>
+                            <td><span class="ak-status @(row.Direction == PaymentDirection.In ?"is-active" : "")">@row.KindName</span></td>
                             <td class="ak-col-grow">@row.CounterpartyName</td>
                             <td class="ak-col-priority-2">@(row.ContractNumber ?? "—")</td>
                             <td class="ak-col-num ak-num">@row.Amount.ToString("N2") @row.Currency</td>
                             <td class="ak-col-num ak-num ak-col-priority-2">@row.AmountUsd.ToString("N2")</td>
-                            <td><a asp-controller="Payments" asp-action="Details" asp-route-id="@row.Id">@(row.Reference ?? $"#{row.Id}")</a></td>
+                            @* مرجعِ سطر به سندِ خودش می‌رود: رزنامچه یا مصرفِ نقدی. *@
+                            <td><a asp-controller="@(row.Source == "Expense" ? "Expenses" : "Payments")" asp-action="Details" asp-route-id="@row.Id">@(string.IsNullOrWhiteSpace(row.Reference) ? $"#{row.Id}" : row.Reference)</a></td>
                             <td class="ak-col-priority-3">
                                 @if (row.LedgerEntryId.HasValue)
                                 {
@@ -105,7 +108,7 @@
                     @if (!transactions.Any())
                     {
                         <tr>
-                            <td colspan="8"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-bank"></i> دریافت‌ها و پرداخت‌های رزنامچه برای این صندوق/بانک اینجا دیده می‌شود.</div></td>
+                            <td colspan="8"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-bank"></i> دریافت‌ها و پرداخت‌های رزنامچه و مصارفِ نقدیِ این صندوق/بانک اینجا دیده می‌شود.</div></td>
                         </tr>
                     }
                 </tbody>

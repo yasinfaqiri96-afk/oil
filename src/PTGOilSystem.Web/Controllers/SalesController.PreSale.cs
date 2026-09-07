@@ -191,8 +191,8 @@ public partial class SalesController
         return TabularExportSupport.File(this, format, new TabularExportDocument
         {
             FileNameStem = "PTG_PreSale_Commitments",
-            TitleFa = "تعهدات پیش‌فروش",
-            TitleEn = "Pre-sale Commitments",
+            TitleFa = "فروش‌های مرحله‌ای",
+            TitleEn = "Staged-delivery Sales",
             KnownRowCount = rows.Count,
             ForceLandscape = true,
             Filters = TabularExportSupport.FilterSummary(
@@ -296,7 +296,7 @@ public partial class SalesController
 
         if (model.OrderDate == default)
         {
-            ModelState.AddModelError(nameof(model.OrderDate), "تاریخ پیش‌فروش الزامی است.");
+            ModelState.AddModelError(nameof(model.OrderDate), "تاریخ فروش الزامی است.");
         }
 
         if (model.ExpectedDeliveryFrom.HasValue && model.ExpectedDeliveryTo.HasValue
@@ -370,7 +370,7 @@ public partial class SalesController
                 ("TotalUsd", order.TotalUsd),
                 ("Status", order.Status)));
 
-        TempData["ok"] = $"پیش‌فروش {order.OrderNumber} ثبت شد. موجودی و درآمد فقط هنگام تحویل ثبت می‌شود.";
+        TempData["ok"] = $"فروش مرحله‌ای {order.OrderNumber} ثبت شد. موجودی و درآمد فقط هنگام هر تحویل ثبت می‌شود.";
 
         if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
         {
@@ -599,12 +599,12 @@ public partial class SalesController
         try
         {
             var locked = await LockPreSaleOrderAsync(order.Id)
-                ?? throw new BusinessRuleException("PRESALE_NOT_FOUND", "پیش‌فروش یافت نشد.");
+                ?? throw new BusinessRuleException("PRESALE_NOT_FOUND", "فروش مرحله‌ای یافت نشد.");
 
             if (locked.Status is PreSaleOrderStatus.Cancelled or PreSaleOrderStatus.Closed)
             {
                 throw new BusinessRuleException(
-                    "PRESALE_CLOSED", "این پیش‌فروش بسته یا لغو شده است و تحویل جدید نمی‌پذیرد.");
+                    "PRESALE_CLOSED", "این فروش بسته یا لغو شده است و تحویل جدید نمی‌پذیرد.");
             }
 
             var deliveredMt = await GetDeliveredMtAsync(locked.Id);
@@ -633,7 +633,7 @@ public partial class SalesController
             {
                 throw new BusinessRuleException(
                     "PRESALE_OVER_DELIVERY",
-                    $"مقدار تحویل بیشتر از مانده پیش‌فروش است. مانده: {remainingMt:N4} تن.");
+                    $"مقدار تحویل بیشتر از مانده فروش است. مانده: {remainingMt:N4} تن.");
             }
 
             // قیمت قفل‌شدهٔ تعهد؛ نرخ ارز مطابق همان روال فروشِ سیستم در تاریخ تحویل حل می‌شود.
@@ -684,7 +684,7 @@ public partial class SalesController
             {
                 throw new BusinessRuleException(
                     "PRESALE_OVER_DELIVERY",
-                    $"مقدار این منبع ({sale.QuantityMt:N4} تن) از مانده پیش‌فروش ({remainingMt:N4} تن) بیشتر است.");
+                    $"مقدار این منبع ({sale.QuantityMt:N4} تن) از مانده فروش ({remainingMt:N4} تن) بیشتر است.");
             }
 
             locked.Status = ResolveStatus(locked, deliveredMt + sale.QuantityMt);
@@ -747,7 +747,7 @@ public partial class SalesController
         if (sourceProductId.Value != productId)
         {
             throw new BusinessRuleException(
-                "PRESALE_SOURCE_PRODUCT_MISMATCH", "کالای منبع انتخاب‌شده با کالای پیش‌فروش یکی نیست.");
+                "PRESALE_SOURCE_PRODUCT_MISMATCH", "کالای منبع انتخاب‌شده با کالای فروش یکی نیست.");
         }
     }
 
@@ -797,7 +797,7 @@ public partial class SalesController
 
         if (await _db.SalesTransactions.AnyAsync(s => s.PreSaleOrderId == id && !s.IsCancelled))
         {
-            TempData["err"] = "این پیش‌فروش تحویل معتبر دارد؛ ابتدا تحویل‌ها را لغو کنید.";
+            TempData["err"] = "این فروش تحویل معتبر دارد؛ ابتدا تحویل‌ها را لغو کنید.";
             return RedirectToAction(nameof(PreSaleDetails), new { id });
         }
 
@@ -810,7 +810,7 @@ public partial class SalesController
             nameof(PreSaleOrder), order.Id, AuditAction.Update,
             diff: AuditDiffFormatter.ForCreate(("Status", order.Status), ("CancelReason", order.CancelReason)));
 
-        TempData["ok"] = "پیش‌فروش لغو شد.";
+        TempData["ok"] = "فروش مرحله‌ای لغو شد.";
         return RedirectToAction(nameof(PreSaleDetails), new { id });
     }
 
@@ -827,14 +827,14 @@ public partial class SalesController
         var delivered = await GetDeliveredMtAsync(id);
         if (delivered + QtyEpsilon < order.QuantityMt)
         {
-            TempData["err"] = "تا کامل‌نشدن تحویل، بستن پیش‌فروش ممکن نیست.";
+            TempData["err"] = "تا کامل‌نشدن تحویل، بستن فروش مرحله‌ای ممکن نیست.";
             return RedirectToAction(nameof(PreSaleDetails), new { id });
         }
 
         order.Status = PreSaleOrderStatus.Closed;
         await _db.SaveChangesAsync();
 
-        TempData["ok"] = "پیش‌فروش بسته شد.";
+        TempData["ok"] = "فروش مرحله‌ای بسته شد.";
         return RedirectToAction(nameof(PreSaleDetails), new { id });
     }
 
@@ -897,7 +897,7 @@ public partial class SalesController
 
             TempData["ok"] = settled > 0
                 ? $"{allocation.AllocatedPaymentAmount:N2} {allocation.PaymentCurrencyCode} تخصیص یافت و طلبِ {settled} تحویلِ قبلی تسویه شد."
-                : $"{allocation.AllocatedPaymentAmount:N2} {allocation.PaymentCurrencyCode} به این پیش‌فروش تخصیص یافت.";
+                : $"{allocation.AllocatedPaymentAmount:N2} {allocation.PaymentCurrencyCode} به این فروش تخصیص یافت.";
         }
         catch (BusinessRuleException ex)
         {

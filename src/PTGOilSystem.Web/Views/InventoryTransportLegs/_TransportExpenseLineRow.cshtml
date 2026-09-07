@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupExpenseModalRow
+﻿@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupExpenseModalRow
 @using System.Globalization
 @using System.Linq
 @using Microsoft.AspNetCore.Mvc.Rendering
@@ -7,6 +7,7 @@
     var typeItems = (ViewBag.ExpenseTypes as SelectList)?.ToList() ?? new List<SelectListItem>();
     var providerOptions = ViewBag.ServiceProviders as SelectList;
     var assetOptions = ViewBag.OperationalAssets as SelectList;
+    var driverOptions = ViewBag.Drivers as SelectList;
 
     string Name(string field) => $"Lines[{token}].{field}";
     string Num(decimal? value) => value.HasValue && value.Value != 0m ? value.Value.ToString(CultureInfo.InvariantCulture) : "";
@@ -20,9 +21,11 @@
     var partyValue = ((int)Model.PartyType).ToString();
     var providerValue = Model.ServiceProviderId?.ToString() ?? "";
     var assetValue = Model.OperationalAssetId?.ToString() ?? "";
+    var driverValue = Model.DriverId?.ToString() ?? "";
     var isPerMt = Model.CalculationMode == PTGOilSystem.Web.Models.Entities.LoadingExpenseCalculationMode.PerMetricTon;
     var isProvider = Model.PartyType == PTGOilSystem.Web.Models.Entities.LoadingExpensePartyType.ServiceProvider;
     var isAsset = Model.PartyType == PTGOilSystem.Web.Models.Entities.LoadingExpensePartyType.OperationalAsset;
+    var isDriver = Model.PartyType == PTGOilSystem.Web.Models.Entities.LoadingExpensePartyType.Driver;
     var isNone = Model.PartyType == PTGOilSystem.Web.Models.Entities.LoadingExpensePartyType.None;
 }
 <div class="ak-form-grid" data-expense-row>
@@ -76,6 +79,7 @@
             <option value="0" selected="@(partyValue == "0" ? "selected" : null)">بدون طرف حساب</option>
             <option value="1" selected="@(partyValue == "1" ? "selected" : null)">شرکت خدماتی</option>
             <option value="2" selected="@(partyValue == "2" ? "selected" : null)">دارایی / موتر ملکی</option>
+            <option value="3" selected="@(partyValue == "3" ? "selected" : null)">راننده</option>
         </select>
     </div>
 
@@ -101,6 +105,17 @@
                 foreach (var o in assetOptions)
                 {
                     <option value="@o.Value" selected="@(o.Value == assetValue ? "selected" : null)">@o.Text</option>
+                }
+            }
+        </select>
+        <select name="@Name("DriverId")" class="ak-input" data-row-driver aria-label="انتخاب راننده"
+                @(isDriver ? null : "disabled") hidden="@(isDriver ? null : "hidden")">
+            <option value="">انتخاب راننده</option>
+            @if (driverOptions != null)
+            {
+                foreach (var o in driverOptions)
+                {
+                    <option value="@o.Value" selected="@(o.Value == driverValue ? "selected" : null)">@o.Text</option>
                 }
             }
         </select>

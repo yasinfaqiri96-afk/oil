@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -7,6 +7,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -264,6 +265,123 @@ public sealed class LedgerReversalNeutralityTests
         Assert.Equal(-400m, summary.ClosingBalance);
     }
 
+    // ===================== ۶) برگشتِ اسنادی که جهتشان از سمت حسابداری خوانده می‌شود
+
+    // این سه سند SourceType «قطعی» ندارند، پس جهتشان از Debit/Credit خوانده می‌شود و سطرِ
+    // برگشتشان از قبل سمتِ معکوس دارد. وارونه‌کردنِ دوبارهٔ جهت، برگشت را هم‌جهتِ سند اصلی
+    // می‌کرد و مانده را به‌جای صفر، دو برابر نشان می‌داد.
+
+    [Fact]
+    public async Task AssetRent_PlusItsReversal_LeavesServiceProviderBalanceUnchanged()
+    {
+        await using var db = CreateDb();
+        var provider = new ServiceProvider { Name = "Crane owner" };
+        db.Add(provider);
+        await db.SaveChangesAsync();
+
+        var rent = new LedgerEntry
+        {
+            EntryDate = DocumentDate,
+            Side = LedgerSide.Credit,
+            AmountUsd = 100m,
+            Currency = "USD",
+            ServiceProviderId = provider.Id,
+            SourceType = AssetRentLedgerFactory.LedgerSourceType,
+            SourceId = 7,
+            Reference = "RENT-7",
+            Description = "Asset rent"
+        };
+        db.LedgerEntries.AddRange(rent, Reversal(rent, "RENT-7"));
+        await db.SaveChangesAsync();
+
+        var summary = await SummaryAsync(db, PartyStatementPartyType.ServiceProvider, provider.Id);
+
+        Assert.Equal(100m, summary.TotalReceipt);
+        Assert.Equal(100m, summary.TotalOutflow);
+        Assert.Equal(0m, summary.ClosingBalance);
+    }
+
+    [Fact]
+    public async Task SupplierPaymentAllocation_PlusItsReversal_LeavesSupplierBalanceUnchanged()
+    {
+        await using var db = CreateDb();
+        var (supplier, contract) = await SeedPurchaseAsync(db);
+
+        db.LedgerEntries.AddRange(
+            new LedgerEntry
+            {
+                EntryDate = DocumentDate,
+                Side = LedgerSide.Credit,
+                AmountUsd = 100m,
+                Currency = "USD",
+                SupplierId = supplier.Id,
+                ContractId = contract.Id,
+                SourceType = SupplierPaymentAllocationService.LedgerSourceType,
+                SourceId = 3,
+                Reference = "ALLOC-3",
+                Description = "Allocation"
+            },
+            // سطر برگشت: همان مبلغ، سمت معکوس، SourceType اختصاصیِ برگشت.
+            new LedgerEntry
+            {
+                EntryDate = ReversalDate,
+                Side = LedgerSide.Debit,
+                AmountUsd = 100m,
+                Currency = "USD",
+                SupplierId = supplier.Id,
+                ContractId = contract.Id,
+                SourceType = SupplierPaymentAllocationService.ReversalLedgerSourceType,
+                SourceId = 3,
+                Reference = "ALLOC-3",
+                Description = "Allocation reversal"
+            });
+        await db.SaveChangesAsync();
+
+        var summary = await SupplierSummaryAsync(db, supplier.Id);
+
+        Assert.Equal(0m, summary.ClosingBalance);
+    }
+
+    [Fact]
+    public async Task ThreeWaySettlement_PlusItsCancellation_LeavesSupplierBalanceUnchanged()
+    {
+        await using var db = CreateDb();
+        var (supplier, contract) = await SeedPurchaseAsync(db);
+
+        db.LedgerEntries.AddRange(
+            new LedgerEntry
+            {
+                EntryDate = DocumentDate,
+                Side = LedgerSide.Debit,
+                AmountUsd = 250m,
+                Currency = "USD",
+                SupplierId = supplier.Id,
+                ContractId = contract.Id,
+                SourceType = CompanyFlowSourceTypes.ThreeWaySettlement,
+                SourceId = 9,
+                Reference = "TWS-9",
+                Description = "Three-way settlement"
+            },
+            new LedgerEntry
+            {
+                EntryDate = ReversalDate,
+                Side = LedgerSide.Credit,
+                AmountUsd = 250m,
+                Currency = "USD",
+                SupplierId = supplier.Id,
+                ContractId = contract.Id,
+                SourceType = CompanyFlowSourceTypes.ThreeWaySettlementCancellation,
+                SourceId = 9,
+                Reference = "TWS-9",
+                Description = "Three-way settlement cancellation"
+            });
+        await db.SaveChangesAsync();
+
+        var summary = await SupplierSummaryAsync(db, supplier.Id);
+
+        Assert.Equal(0m, summary.ClosingBalance);
+    }
+
     // ==================================================================== کمک‌کننده‌ها
 
     private static LedgerEntry Reversal(LedgerEntry original, string fallbackReference)
@@ -328,7 +446,8 @@ public sealed class LedgerReversalNeutralityTests
             new PartyStatementPolicyResolver(),
             new CompanyFlowDirectionResolver(),
             new CompanyFlowBalanceService(),
-            Options.Create(new PartyStatementOptions()));
+            Options.Create(new PartyStatementOptions()),
+            new PartyDirectory(db));
 
     private static ApplicationDbContext CreateDb()
     {

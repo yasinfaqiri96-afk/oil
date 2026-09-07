@@ -17,7 +17,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     --dash-green: var(--ptg-chart-positive, #22C55E);
     --dash-amber: var(--ptg-chart-warning, #F5A524);
     --dash-red: var(--ptg-chart-negative, #F4511E);
-    --dash-blue: var(--primary-main, #173F73);
+    --dash-blue: var(--primary-main, #1062D0);
     --dash-card-radius: var(--radius-card, 8px);
     --dash-card-border: 0;
     /* The dashboard card is the reference for the system-wide panel treatment;
@@ -169,7 +169,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-chart-axis-label,
 .dash-chart-x-label {
     fill: var(--text-secondary);
-    font-family: "Vazirmatn", system-ui, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     font-size: 8.5px;
     letter-spacing: -0.02em;
 }
@@ -229,14 +229,14 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-donut-center-label {
     fill: var(--text-secondary);
-    font-family: "Vazirmatn", system-ui, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     font-size: 13px;
     text-anchor: middle;
 }
 
 .dash-donut-center-total {
     fill: var(--text-primary);
-    font-family: "Vazirmatn", system-ui, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     font-size: 30px;
     font-weight: 700;
     text-anchor: middle;
@@ -459,23 +459,23 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     inline-size: 100%;
     block-size: 10px;
     border: 0;
-    border-radius: 999px;
+    border-radius: 8px;
     overflow: hidden;
     background: var(--ptg-draft-soft);
 }
 
 .dash-progress::-webkit-progress-bar {
-    border-radius: 999px;
+    border-radius: 8px;
     background: var(--ptg-draft-soft);
 }
 
 .dash-progress::-webkit-progress-value {
-    border-radius: 999px;
+    border-radius: 8px;
     background: var(--ptg-btn-primary);
 }
 
 .dash-progress::-moz-progress-bar {
-    border-radius: 999px;
+    border-radius: 8px;
     background: var(--ptg-btn-primary);
 }
 

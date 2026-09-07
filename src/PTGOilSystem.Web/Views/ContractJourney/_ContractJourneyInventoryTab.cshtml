@@ -31,12 +31,6 @@
 
 <div id="journey-tab-lists" class="ak-tab-panel">
     <section class="ak-form-section">
-        <div class="ak-section-head">
-            <div>
-                <h2 class="ak-section-title">@T("وضعیت موجودی", "Inventory status")</h2>
-            </div>
-        </div>
-
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
                      model="@(("inventoryQ", (string?)Context.Request.Query["inventoryQ"].ToString(), T("جستجو در وضعیت موجودی...", "Search inventory status..."), "inventoryPage"))" />

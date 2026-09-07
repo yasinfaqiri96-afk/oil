@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Dispatch;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Models.LossEvents;
@@ -31,6 +32,10 @@ public partial class DispatchController : Controller
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private ILedgerPostingService? _ledgerPosting;
     private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
+    private IExpenseLedgerPoster? _expenseLedgerPoster;
+    private IExpenseLedgerPoster ExpenseLedger => _expenseLedgerPoster ??= new ExpenseLedgerPoster(Ledger);
+    // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است.
+    private readonly IExpenseSettlementValidator _settlementValidator = new ExpenseSettlementValidator();
     private readonly IStockService _stock;
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly IAuditService _audit;
@@ -1182,6 +1187,10 @@ public partial class DispatchController : Controller
             : null;
         try
         {
+            // رسیدهای زنجیره‌ای که با همین لغو برمی‌گردند؛ سطر مصرفِ دارایی‌شان بعد از
+            // SaveChanges همگام می‌شود (همان جایی که مصرفِ خود دیسپچ همگام می‌شود).
+            var cancelledChainReceipts = new List<InventoryTransportReceipt>();
+
             // Dispatchهای ساخته‌شده از انتقال وسیله→وسیله فقط Projection سازگاری‌اند. لغوشان
             // باید دقیقاً همان نگهبان زنجیره را اجرا کند و همهٔ رسیدهای همراهِ همان child را برگرداند.
             if (dispatch.InventoryTransportReceiptId.HasValue)
@@ -1207,6 +1216,8 @@ public partial class DispatchController : Controller
                     {
                         chainReceipt.InventoryTransportLeg.Status = InventoryTransportLegStatus.InTransit;
                     }
+
+                    cancelledChainReceipts.Add(chainReceipt);
                 }
             }
 
@@ -1247,7 +1258,13 @@ public partial class DispatchController : Controller
             }
 
             await _db.SaveChangesAsync();
-            await new AssetUsageChargeService(_db).SyncOperationAsync(dispatch);
+            var usageWriter = new AssetUsageChargeService(_db);
+            await usageWriter.SyncOperationAsync(dispatch);
+            foreach (var chainReceipt in cancelledChainReceipts.Where(r => r.InventoryTransportLeg is not null))
+            {
+                await usageWriter.SyncOperationAsync(chainReceipt, chainReceipt.InventoryTransportLeg!);
+            }
+
             if (transaction is not null)
             {
                 await transaction.CommitAsync();
@@ -2831,6 +2848,12 @@ public partial class DispatchController : Controller
                     AmountUsd = amountUsd,
                     Description = description
                 };
+
+                // PTG-P1-04 — هویت تسویه از همان انتخابِ سطر می‌آید: شرکت خدماتی ⇒ بدهی به او؛
+                // موترِ ملکی (دارایی عملیاتی) یا بدونِ طرف ⇒ نه بدهیِ بیرونی، نه حرکتِ پول.
+                ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+                _settlementValidator.Validate(expense);
+
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
 
@@ -2840,23 +2863,12 @@ public partial class DispatchController : Controller
                     await _expenseAccounting.TryPostExpenseAsync(expense);
                 }
 
-                var ledgerEntry = Ledger.Post(new LedgerPostingRequest
+                var ledgerEntry = ExpenseLedger.Post(new ExpenseLedgerRequest
                 {
-                    EntryDate = expense.ExpenseDate,
-                    Side = provider is not null ? LedgerSide.Credit : LedgerSide.Debit,
-                    AmountUsd = expense.AmountUsd,
-                    Currency = SystemCurrency.BaseCurrencyCode,
-                    SourceAmount = expense.Amount,
-                    SourceCurrencyCode = expense.Currency,
-                    AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                    AppliedFxRateDate = expense.ExpenseDate,
-                    AppliedFxRateSource = "Base currency",
+                    Expense = expense,
                     Description = $"ثبت هزینه {(expenseType.NamePersian ?? expenseType.Name)}",
-                    SourceType = "Expense",
-                    SourceId = expense.Id,
                     Reference = $"TRUCK-DISPATCH:{expense.TruckDispatchId}-{expense.Id}",
-                    ContractId = expense.ContractId,
-                    ServiceProviderId = expense.ServiceProviderId
+                    FxRateSource = "Base currency"
                 });
                 await _db.SaveChangesAsync();
 
@@ -3139,9 +3151,11 @@ public partial class DispatchController : Controller
             })
             .ToListAsync();
 
+        // مصرفی که از اظهارنامهٔ گمرکی ساخته شده در بخش «گمرکات» بالا آمده است؛ اگر اینجا
+        // هم بیاید همان مبلغ دو بار دیده می‌شود (یک بار گمرک، یک بار مصارف عملیاتی).
         var expenses = await _db.ExpenseTransactions
             .AsNoTracking()
-            .Where(e => e.TruckDispatchId == id && !e.IsCancelled)
+            .Where(e => e.TruckDispatchId == id && !e.IsCancelled && !e.CustomsDeclarationId.HasValue)
             .OrderByDescending(e => e.ExpenseDate)
             .ThenByDescending(e => e.Id)
             .Select(e => new DispatchExpenseItemViewModel

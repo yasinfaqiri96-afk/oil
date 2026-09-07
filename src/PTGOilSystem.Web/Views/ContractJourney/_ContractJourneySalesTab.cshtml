@@ -11,12 +11,6 @@
 
 <div id="journey-tab-lists" class="ak-tab-panel">
     <section class="ak-form-section">
-        <div class="ak-section-head">
-            <div>
-                <h2 class="ak-section-title">@T("فاکتورهای فروش", "Sales invoices")</h2>
-            </div>
-        </div>
-
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
                      model="@(("salesQ", (string?)Context.Request.Query["salesQ"].ToString(), T("جستجو در فاکتورهای فروش...", "Search sales invoices..."), "salesPage"))" />

@@ -839,6 +839,23 @@ public sealed class InventoryTransportBatchService
         }
 
         await _db.SaveChangesAsync(ct);
+
+        // legها و رسیدهای تخلیهٔ کشتی هم مثل بقیهٔ اسناد مصرفِ دارایی دارند؛ بعد از Cancelled
+        // شدن sync می‌شوند تا IsReversed درست بنشیند.
+        var vesselUsageWriter = new AssetUsageChargeService(_db);
+        var vesselLegById = vesselLegs.ToDictionary(l => l.Id);
+        foreach (var vesselLeg in vesselLegs)
+        {
+            await vesselUsageWriter.SyncOperationAsync(vesselLeg, ct);
+        }
+
+        foreach (var receipt in vesselReceipts)
+        {
+            if (vesselLegById.TryGetValue(receipt.InventoryTransportLegId, out var receiptLeg))
+            {
+                await vesselUsageWriter.SyncOperationAsync(receipt, receiptLeg, ct);
+            }
+        }
     }
 
     /// <summary>
@@ -1113,7 +1130,7 @@ public sealed class InventoryTransportBatchService
                 OperationalAssetId = vehicle.Input.CarrierType == CarrierType.OperationalAsset
                     ? vehicle.Input.OperationalAssetId
                     : null,
-                LoadedDate = model.TransportDate.Date,
+                LoadedDate = vehicle.LoadedDate,
                 QuantityMt = vehicle.Input.QuantityMt,
                 CapacityMt = vehicle.CapacityMt,
                 FreightAmount = vehicle.Input.FreightAmount.GetValueOrDefault() > 0m
@@ -1176,7 +1193,7 @@ public sealed class InventoryTransportBatchService
                 ShipmentId = batch.Legs.Select(l => l.ShipmentId).Distinct().Count() == 1
                     ? batch.Legs.First().ShipmentId
                     : null,
-                SourceTerminalId = batch.SourceTerminalId,
+                SourceTerminalId = batch.SourceTerminalId ?? 0,
                 SourceStorageTankId = batch.SourceStorageTankId ?? 0,
                 ProductId = batch.ProductId,
                 TransportDate = batch.TransportDate,
@@ -1275,7 +1292,8 @@ public sealed class InventoryTransportBatchService
                     {
                         ProductId = batch.ProductId,
                         ContractId = allocation.SourcePurchaseContractId,
-                        TerminalId = location.Item1,
+                        TerminalId = location.Item1
+                            ?? throw Rule("INVENTORY_TRANSPORT_TERMINAL_REQUIRED", "ترمینال مبدأ برای حمل از موجودی الزامی است."),
                         StorageTankId = location.Item2,
                         MovementDate = batch.TransportDate,
                         QuantityMt = allocation.QuantityMt,
@@ -1691,6 +1709,8 @@ public sealed class InventoryTransportBatchService
         for (var i = 0; i < vehicles.Count; i++)
         {
             var vehicle = vehicles[i];
+            // تاریخ بارگیریِ همین ردیف؛ خالی یعنی تاریخ سند. مبنای کلید تکراری و LoadedDate حمل.
+            var vehicleDate = (vehicle.LoadedDate ?? model.TransportDate).Date;
             decimal capacity;
             string? wagonNumber = null;
             string vehicleKey;
@@ -1729,7 +1749,7 @@ public sealed class InventoryTransportBatchService
                         ?? 0m
                     : truck!.MaxLoadMt.GetValueOrDefault();
                 wagonNumber = assetCanBeVehicle ? selectedAsset!.AssetCode : null;
-                vehicleKey = assetCanBeVehicle ? $"A:{selectedAsset!.Id}" : $"T:{truck!.Id}";
+                vehicleKey = assetCanBeVehicle ? $"A:{selectedAsset!.Id}@{vehicleDate:yyyy-MM-dd}" : $"T:{truck!.Id}@{vehicleDate:yyyy-MM-dd}";
             }
             else if (vehicle.TransportType == LoadingTransportType.Wagon)
             {
@@ -1749,7 +1769,7 @@ public sealed class InventoryTransportBatchService
                         ?? 0m
                     : wagon!.CapacityMt.GetValueOrDefault();
                 wagonNumber = wagon?.WagonNumber ?? selectedAsset?.AssetCode;
-                vehicleKey = assetCanBeVehicle ? $"A:{selectedAsset!.Id}" : $"W:{wagon!.Id}";
+                vehicleKey = assetCanBeVehicle ? $"A:{selectedAsset!.Id}@{vehicleDate:yyyy-MM-dd}" : $"W:{wagon!.Id}@{vehicleDate:yyyy-MM-dd}";
             }
             else if (vehicle.TransportType == LoadingTransportType.Vessel)
             {
@@ -1768,7 +1788,7 @@ public sealed class InventoryTransportBatchService
                 }
                 capacity = PositiveCapacity(vehicle.CapacityMt) ?? 0m;
                 wagonNumber = null;
-                vehicleKey = $"V:{vessel.Id}";
+                vehicleKey = $"V:{vessel.Id}@{vehicleDate:yyyy-MM-dd}";
             }
             else
             {
@@ -1777,7 +1797,7 @@ public sealed class InventoryTransportBatchService
 
             if (!seenVehicles.Add(vehicleKey))
             {
-                throw Rule("INVENTORY_TRANSPORT_VEHICLE_DUPLICATE", "یک موتر یا واگن در این سند تکرار شده است.");
+                throw Rule("INVENTORY_TRANSPORT_VEHICLE_DUPLICATE", $"ردیف {i + 1}: همین وسیله در تاریخ {vehicleDate:yyyy-MM-dd} بیش از یک بار آمده است. برای سفر دوم، تاریخ بارگیری آن ردیف را تغییر دهید.");
             }
             // Capacity is optional: when master data has a positive capacity we still
             // guard against overloading, but a missing/unknown capacity no longer blocks.
@@ -1864,7 +1884,7 @@ public sealed class InventoryTransportBatchService
                 throw Rule("INVENTORY_TRANSPORT_LEG_TOTAL", $"جمع سهم منابع ردیف {i + 1} باید برابر مقدار همان وسیله باشد.");
             }
 
-            preparedVehicles.Add(new PreparedVehicle(vehicle, allocations, capacity, wagonNumber));
+            preparedVehicles.Add(new PreparedVehicle(vehicle, allocations, capacity, wagonNumber, vehicleDate));
         }
 
         var selectedTotal = selected.Sum(s => s.QuantityMt.GetValueOrDefault());
@@ -2074,7 +2094,8 @@ public sealed class InventoryTransportBatchService
         InventoryTransportVehicleInput Input,
         IReadOnlyList<InventoryTransportVehicleAllocationInput> Allocations,
         decimal CapacityMt,
-        string? WagonNumber);
+        string? WagonNumber,
+        DateTime LoadedDate);
 }
 
 // نتیجهٔ استنتاج کشتی: یا کشتیِ مشخص، یا مبهم (به چند کشتی وصل می‌شود)، یا هیچ‌کدام (منبعِ غیرکشتی).

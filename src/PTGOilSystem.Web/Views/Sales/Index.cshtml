@@ -52,7 +52,7 @@
         <div class="ak-list-toolbar">
             <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="salesFilter" />
             <a asp-action="PreSales" class="btn ak-secondary-action">
-                <i class="bi bi-calendar-check"></i> @UiText.T(Context, "پیش‌فروش‌ها", "Pre-sales")
+                <i class="bi bi-list-check"></i> @UiText.T(Context, "فروش‌های مرحله‌ای", "Staged-delivery sales")
             </a>
         </div>
 
@@ -64,7 +64,9 @@
                         <th class="col-name">@UiText.T(Context, "فاکتور", "Invoice")</th>
                         <th>@UiText.T(Context, "مشتری / شرکت", "Customer / Company")</th>
                         <th>@UiText.T(Context, "قرارداد / محصول", "Contract / Product")</th>
-                        <th>@UiText.T(Context, "مقدار / جمع", "Quantity / Total")</th>
+                        <th>@UiText.T(Context, "مقدار", "Quantity")</th>
+                        <th>@UiText.T(Context, "قیمت فی تن", "Unit price / MT")</th>
+                        <th>@UiText.T(Context, "مجموع", "Total")</th>
                         <th class="col-status">@UiText.T(Context, "وضعیت", "Status")</th>
                         <th class="col-actions">@UiText.T(Context, "عملیات", "Action")</th>
                     </tr>
@@ -76,7 +78,7 @@
                         <tr data-href="@Url.Action("Details", new { id = item.Id, returnUrl })">
                             <td><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
                             <td class="col-name">
-                                @await Html.PartialAsync("_OperationsListIdentity", ("bi-receipt", item.InvoiceNumber, item.SaleDate.ToDisplayDate(), true))
+                                <div><span class="ak-name col-ltr">@item.InvoiceNumber</span></div>
                             </td>
                             <td>
                                 <span>@item.CustomerName</span>
@@ -96,8 +98,13 @@
                                 }
                             </td>
                             <td>
-                                <span class="col-ltr">@item.TotalInCurrency.ToString("N2") @item.Currency</span>
-                                <span class="ak-section-desc col-ltr">@NumberDisplay.Quantity(item.QuantityMt) MT</span>
+                                <span class="col-ltr">@NumberDisplay.Quantity(item.QuantityMt) MT</span>
+                            </td>
+                            <td>
+                                <span class="col-ltr">@NumberDisplay.Money(item.UnitPriceInCurrency) @item.Currency</span>
+                            </td>
+                            <td>
+                                <span class="col-ltr">@NumberDisplay.Money(item.TotalInCurrency) @item.Currency</span>
                             </td>
                             <td class="col-status"><span class="ak-status is-info">@SaleStageLabels.ToPersian(item.SaleStage)</span></td>
                             <td class="col-actions">
@@ -110,7 +117,7 @@
                     @if (!items.Any())
                     {
                     <tr>
-                            <td colspan="7">
+                            <td colspan="9">
                                 <div class="ak-empty">
                                     <i class="bi bi-receipt"></i>
                                     هیچ فاکتور فروشی یافت نشد

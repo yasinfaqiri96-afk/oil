@@ -111,7 +111,7 @@ public sealed class TransportWorkflowViewStructureTests
         var roleRules = ReadRepoFile("src/PTGOilSystem.Web/Security/RoleAccessRules.cs");
 
         Assert.Contains("[Authorize(Policy = AuthPolicies.ManageData)]", controller);
-        Assert.Equal(4, Count(controller, "[ValidateAntiForgeryToken]"));
+        Assert.Equal(8, Count(controller, "[ValidateAntiForgeryToken]"));
         Assert.Contains("Transports", roleRules);
     }
 

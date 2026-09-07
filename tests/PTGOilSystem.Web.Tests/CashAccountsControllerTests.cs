@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.Payments;
 using PTGOilSystem.Web.Services;
 using Xunit;
 
@@ -12,6 +13,99 @@ namespace PTGOilSystem.Web.Tests;
 
 public class CashAccountsControllerTests
 {
+    [Fact]
+    public async Task Details_Includes_Unposted_Cash_Expenses_And_Does_Not_Double_Count_Linked_Expenses()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        db.CashAccounts.Add(new CashAccount
+        {
+            Id = 1,
+            Code = "CASH-USD",
+            Name = "Main Cash",
+            AccountType = CashAccountType.Cash,
+            Currency = "USD",
+            IsActive = true
+        });
+        db.ExpenseTypes.Add(new ExpenseType { Id = 1, Code = "OPS", Name = "Operations" });
+        db.ExpenseTransactions.AddRange(
+            new ExpenseTransaction
+            {
+                Id = 1,
+                ExpenseTypeId = 1,
+                ExpenseDate = new DateTime(2026, 4, 2),
+                SettlementMode = ExpenseSettlementMode.PaidImmediately,
+                CashAccountId = 1,
+                Amount = 30m,
+                Currency = "USD",
+                AmountUsd = 30m,
+                Description = "Cash customs fee"
+            },
+            new ExpenseTransaction
+            {
+                Id = 2,
+                ExpenseTypeId = 1,
+                ExpenseDate = new DateTime(2026, 4, 3),
+                SettlementMode = ExpenseSettlementMode.PaidImmediately,
+                CashAccountId = 1,
+                Amount = 20m,
+                Currency = "USD",
+                AmountUsd = 20m,
+                Description = "Linked commission"
+            },
+            new ExpenseTransaction
+            {
+                Id = 3,
+                ExpenseTypeId = 1,
+                ExpenseDate = new DateTime(2026, 4, 4),
+                SettlementMode = ExpenseSettlementMode.PaidImmediately,
+                CashAccountId = 1,
+                Amount = 100m,
+                Currency = "USD",
+                AmountUsd = 100m,
+                IsCancelled = true
+            });
+        db.PaymentTransactions.AddRange(
+            new PaymentTransaction
+            {
+                Id = 1,
+                PaymentDate = new DateTime(2026, 4, 1),
+                Direction = PaymentDirection.In,
+                PaymentKind = PaymentKind.ManualReceipt,
+                CashAccountId = 1,
+                Amount = 100m,
+                Currency = "USD",
+                AmountUsd = 100m
+            },
+            new PaymentTransaction
+            {
+                Id = 2,
+                PaymentDate = new DateTime(2026, 4, 3),
+                Direction = PaymentDirection.Out,
+                PaymentKind = PaymentKind.CommissionPayment,
+                CashAccountId = 1,
+                ExpenseTransactionId = 2,
+                Amount = 20m,
+                Currency = "USD",
+                AmountUsd = 20m
+            });
+        await db.SaveChangesAsync();
+
+        var result = await BuildController(db).Details(1);
+
+        Assert.IsType<ViewResult>(result);
+        var rows = Assert.IsAssignableFrom<IReadOnlyList<CashAccountStatementRowViewModel>>(
+            Assert.IsType<ViewResult>(result).ViewData["StatementRows"]);
+        Assert.Equal(3, rows.Count);
+        Assert.Single(rows, row => row.Source == "Expense" && row.Id == 1);
+        Assert.DoesNotContain(rows, row => row.Source == "Expense" && row.Id == 2);
+        Assert.Equal(100m, Assert.IsType<decimal>(Assert.IsType<ViewResult>(result).ViewData["TotalIn"]));
+        Assert.Equal(50m, Assert.IsType<decimal>(Assert.IsType<ViewResult>(result).ViewData["TotalOut"]));
+        Assert.Equal(50m, Assert.IsType<decimal>(Assert.IsType<ViewResult>(result).ViewData["ClosingBalance"]));
+        Assert.Equal("USD", Assert.IsType<string>(Assert.IsType<ViewResult>(result).ViewData["TotalsCurrency"]));
+    }
+
     [Fact]
     public async Task Create_Persists_Cash_Account_And_Audits()
     {

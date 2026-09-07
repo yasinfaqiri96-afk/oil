@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.OperationalAssets.OperationalAssetProfileViewModel
+﻿@model PTGOilSystem.Web.Models.OperationalAssets.OperationalAssetProfileViewModel
 @using PTGOilSystem.Web.Models.Shared
 @{
     ViewData["Title"] = Model.Name;
@@ -97,6 +97,7 @@
         },
         "work" => new List<AkKpiItem>
         {
+            new() { Title = UiText.T(Context, "حمل‌های در جریان", "Open transports"), Value = Model.OpenTransports.Count.ToString("N0"), Unit = UiText.T(Context, "حمل", "transports"), Avatar = "in-transit" },
             new() { Title = UiText.T(Context, "عملیات این بازه", "Operations this period"), Value = Model.WorkRows.Count.ToString("N0"), Unit = UiText.T(Context, "مورد", "records"), Avatar = "transported" },
             new() { Title = UiText.T(Context, "مقدار جابه‌جاشده", "Quantity handled"), Value = workQuantityMt.ToString("N2"), Unit = "MT", Avatar = "flow-weight-mt" },
             new() { Title = UiText.T(Context, "استفاده داخلی شرکت", "Company internal use"), Value = internalWorkCount.ToString("N0"), Unit = UiText.T(Context, "مورد", "records"), Avatar = "equipment" }
@@ -288,6 +289,57 @@
             </div>
 
             <div class="tab-pane fade @(activeAssetTab == "work" ? "show active" : "")" id="asset-work" role="tabpanel" hidden="@(activeAssetTab != "work")">
+                @* حمل‌های باز مستقل از بازهٔ تاریخ صفحه‌اند: پرسش کاربر «این دارایی الان کجاست؟» است. *@
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "حمل‌های در جریان", "Open transports"), (string?)UiText.T(Context, "حمل‌هایی که این دارایی هنوز در آن‌ها است (رسید نخورده و لغو نشده).", "Transports this asset is still on (not received, not cancelled).")))" />
+
+                <div class="ak-table-wrap">
+                    <table class="ak-table ak-detail-table">
+                        <thead>
+                            <tr>
+                                <th>@UiText.T(Context, "تاریخ بارگیری", "Loaded")</th>
+                                <th>@UiText.T(Context, "سند حمل", "Transport")</th>
+                                <th>@UiText.T(Context, "وسیله", "Vehicle")</th>
+                                <th>@UiText.T(Context, "مسیر", "Route")</th>
+                                <th>@UiText.T(Context, "قرارداد", "Contract")</th>
+                                <th class="text-end">@UiText.T(Context, "مقدار", "Quantity")</th>
+                                <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.OpenTransports)
+                        {
+                            <tr>
+                                <td>@row.LoadedDate.ToDisplayDate()</td>
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(row.Url))
+                                    {
+                                        <span dir="ltr">#@row.LegId</span>
+                                    }
+                                    else
+                                    {
+                                        <a href="@row.Url" dir="ltr">#@row.LegId</a>
+                                    }
+                                </td>
+                                <td dir="ltr">@(row.VehicleText ?? "-")</td>
+                                <td>@(row.RouteText ?? "-")</td>
+                                <td>@(row.ContractNumber ?? "-")</td>
+                                <td class="text-end">@NumberDisplay.Quantity(row.QuantityMt) MT</td>
+                                <td><span class="ak-status is-blue">@row.StatusText</span></td>
+                            </tr>
+                        }
+                        @if (!Model.OpenTransports.Any())
+                        {
+                            <tr>
+                                <td colspan="7">
+                                    <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@UiText.T(Context, "این دارایی الان در هیچ حمل بازی نیست.", "This asset is not on any open transport right now.")" />
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+
                 <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                          model="@((UiText.T(Context, "کارکرد دارایی", "Asset work"), (string?)null))" />
 

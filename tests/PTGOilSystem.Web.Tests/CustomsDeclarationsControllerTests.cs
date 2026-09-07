@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,29 @@ public class CustomsDeclarationsControllerTests
         SeedReferenceData(db);
         SeedPurchaseContract(db);
         SeedTransportLeg(db);
+        db.CashAccounts.Add(new CashAccount
+        {
+            Id = 20,
+            Code = "CASH-USD",
+            Name = "Main Cash",
+            Currency = "USD",
+            IsActive = true
+        });
+        db.ServiceProviders.AddRange(
+            new ServiceProvider
+            {
+                Id = 20,
+                Name = "General Logistics Company",
+                ProviderType = ServiceProviderType.TransportCompany,
+                IsActive = true
+            },
+            new ServiceProvider
+            {
+                Id = 21,
+                Name = "Customs Broker",
+                ProviderType = ServiceProviderType.CustomsBroker,
+                IsActive = true
+            });
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -42,6 +66,13 @@ public class CustomsDeclarationsControllerTests
         Assert.Equal("WGN-10", model.WagonOrTruckNumber);
         Assert.Equal(19.5m, model.ConsignmentWeightMt);
         Assert.Equal("/InventoryTransportLegs/Details/10", model.ReturnUrl);
+
+        var cashAccounts = Assert.IsType<SelectList>(controller.ViewData["CashAccounts"]);
+        Assert.Contains(cashAccounts, item => item.Value == "20" && item.Text.Contains("Main Cash"));
+
+        var serviceProviders = Assert.IsType<SelectList>(controller.ViewData["CustomsBrokers"]);
+        Assert.Contains(serviceProviders, item => item.Value == "20" && item.Text == "General Logistics Company");
+        Assert.Contains(serviceProviders, item => item.Value == "21" && item.Text == "Customs Broker");
     }
 
     [Fact]

@@ -12,7 +12,7 @@ body.boltz-shell.app-shell-authenticated :where(.btn, .ptg-btn),
 body.ptg-modal-document :where(.btn, .ptg-btn) {
     --_bg: #FFFFFF;                                  /* default = reference "White" */
     --_fg: var(--text-primary);
-    --_bg-h: #F5F7FA;
+    --_bg-h: #F2F5FC;
     --_bd: rgba(var(--grey-500-rgb), .32);
     --_sh: rgba(var(--grey-500-rgb), .30);
     display: inline-flex;
@@ -22,7 +22,7 @@ body.ptg-modal-document :where(.btn, .ptg-btn) {
     min-height: 2.25rem;
     padding: .4rem .95rem;
     border: 1px solid var(--_bd) !important;
-    border-radius: var(--ptg-radius-button, 13px) !important;
+    border-radius: var(--ptg-radius-button, 8px) !important;
     background: var(--_bg) !important;
     color: var(--_fg) !important;
     font-size: .8125rem;
@@ -82,7 +82,7 @@ body.ptg-modal-document :where(.btn-danger, .ptg-btn-danger) {
 
 body.boltz-shell.app-shell-authenticated :where(.btn-dark, .btn-black),
 body.ptg-modal-document :where(.btn-dark, .btn-black) {
-    --_bg: #000000; --_fg: #FFFFFF; --_bg-h: #424242;
+    --_bg: #000000; --_fg: #FFFFFF; --_bg-h: #3D3D3D;
     --_bd: transparent; --_sh: rgba(0, 0, 0, .4);
 }
 

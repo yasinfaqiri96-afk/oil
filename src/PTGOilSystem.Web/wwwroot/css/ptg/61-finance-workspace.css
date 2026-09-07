@@ -95,7 +95,7 @@ body.is-finance-workspace .cash-account-create-dialog .cash-account-status-field
     min-height: 48px;
     padding: 10px 12px;
     border: 1px solid #E3EAF3;
-    border-radius: 10px;
+    border-radius: 8px;
     background: #FAFCFF;
 }
 
@@ -214,23 +214,6 @@ body.is-finance-workspace #journalDirectionGroup [data-direction-value="2"]::aft
     background: #c62828;
 }
 
-/* Keep the journal submit label on one line, including longer Sarraf labels. */
-body.is-finance-workspace #journalSubmitButton {
-    width: auto;
-    min-width: 132px;
-    padding-inline: 20px;
-    white-space: nowrap;
-    flex-shrink: 0;
-    color: #ffffff;
-    background: #15803d;
-}
-
-body.is-finance-workspace #journalSubmitButton:hover,
-body.is-finance-workspace #journalSubmitButton:focus-visible {
-    color: #ffffff;
-    background: #166534;
-}
-
 /* Journal list stays visually open: rows are separated by spacing and hover,
    not by a dark rule under every record. Keep the header divider unchanged. */
 body.is-finance-workspace .finance-workspace-page .payments-table > tbody > tr > td {
@@ -245,313 +228,822 @@ body.is-finance-workspace .finance-workspace-page .payments-table .ak-note {
     background: transparent;
 }
 
-/* Roznamcha: receipt is green and payment is red. */
-body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-value="1"] {
-    color: #166534;
-    background-color: #ecfdf3;
+/* ===================================================================
+   Payments/Create + Payments/Edit — فرم «ثبت دریافت / پرداخت».
+
+   Chortke-accurate skin. Every value below was read from the live
+   Chortke panel bundle (panel.chortke.app, assets/index-*.css and
+   assets/index-*.js — MUI theme object, styled components and app CSS),
+   not estimated from a screenshot:
+
+     typography.fontFamily .......... "IRANSansFaNum", -apple-system, …
+     palette.primary.main ........... #1062D0   primary.light  #E8F1FF
+     palette.success.main ........... #24AF22   success.light  #E7F5E9
+     palette.error.main ............. #CB0B0B   warning.main   #D68000
+     palette.text ................... #3D3D3D / #6F6F6F / #AEAEAE
+     shape.borderRadius ............. 8
+     control container .............. height 40px, 1px solid #C2D0E3, radius 6
+     control focus/open ............. border #1062D0; disabled bg #F8FAFC
+     label .......................... 14px / 600 / #4F4F4F      (.label-input)
+     segmented control .............. .tab-pages  37px rail, pad 4, bg #F7F7F7,
+                                      radius 6; item 29px, radius 4, pad 2px 20px,
+                                      idle #AEAEAE, active white chip + #1062D0
+     page canvas .................... #F5F6FA                   (.title-product)
+     working surface ................ #FFFFFF, radius 8   (.content-inputs-page)
+     table head / soft surface ...... #F2F5FC                    (.title-table)
+     hairlines ...................... #E7E7E7 / #F1F3F7
+     primary submit ................. 46px, pad 12px 24px, #1062D0, radius 8
+                                                          (.wrap-btns-input)
+
+   Presentation only — every id, name, binding and JS hook of the form is
+   untouched. All rules are scoped to `.finance-entry-chortke` (the page
+   root of this single view), so no shared component, layout or other page
+   can be reached from here.
+   =================================================================== */
+
+/* The IRANSans faces themselves are declared once, app-wide, in
+   /vendor/fonts/iransans/iransans.css (loaded from _Layout). */
+.finance-entry-chortke {
+    /* Same family Chortke uses (IRANSans 5.5 web); it is now the system font
+       too, so this only pins the stack for the form. */
+    --chk-font: "IRANSans", "Vazirmatn",
+                -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, sans-serif;
+
+    --chk-primary: #1062D0;
+    --chk-primary-hover: #0D52AF;
+    --chk-primary-light: #E8F1FF;
+
+    --chk-canvas: #F5F6FA;
+    --chk-surface: #FFFFFF;
+    --chk-surface-soft: #F2F5FC;
+    --chk-rail: #F7F7F7;
+    --chk-disabled-bg: #F8FAFC;
+
+    --chk-border: #C2D0E3;
+    --chk-border-strong: #ABBACC;
+    --chk-border-soft: #E7E7E7;
+    --chk-border-row: #F1F3F7;
+
+    --chk-title: #1A1919;
+    --chk-text: #3D3D3D;
+    --chk-label: #4F4F4F;
+    --chk-text-secondary: #6F6F6F;
+    --chk-text-muted: #AEAEAE;
+
+    --chk-success: #24AF22;
+    --chk-success-light: #E7F5E9;
+    --chk-danger: #CB0B0B;
+    --chk-danger-light: #FFEAF0;
+    --chk-warning: #D68000;
+
+    --chk-control-h: 40px;
+    --chk-compact-h: 34px;
+    --chk-button-h: 46px;
+    --chk-radius-control: 6px;
+    --chk-radius-surface: 8px;
+
+    --chk-col-gap: 12px;
+    --chk-row-gap: 16px;
+    --chk-section-gap: 24px;
+
+    font-family: var(--chk-font);
+    color: var(--chk-text);
 }
 
-body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-value="2"] {
-    color: #b42318;
-    background-color: #fff1f0;
+.finance-entry-chortke button,
+.finance-entry-chortke input,
+.finance-entry-chortke select,
+.finance-entry-chortke textarea {
+    font-family: inherit;
 }
 
-body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-value="1"].is-active {
-    color: #ffffff;
-    background-color: #15803d;
-}
+/* ---- Canvas + working surface ------------------------------------- */
 
-body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-value="2"].is-active {
-    color: #ffffff;
-    background-color: #c62828;
-}
-
-body.controller-payments.action-create #roznamchaForm #journalDirectionGroup [data-direction-choice].is-active .ak-section-desc {
-    color: rgba(255, 255, 255, .88);
-}
-
-/* Roznamcha submit: fit long labels without wrapping. */
-body.controller-payments.action-create #roznamchaForm #journalSubmitButton {
-    width: auto;
-    min-width: 132px;
-    padding-inline: 20px;
-    flex-shrink: 0;
-    white-space: nowrap;
-    color: #ffffff;
-    background-color: #15803d;
-}
-
-body.controller-payments.action-create #roznamchaForm #journalSubmitButton:hover,
-body.controller-payments.action-create #roznamchaForm #journalSubmitButton:focus-visible {
-    color: #ffffff;
-    background-color: #166534;
-}
-
-/* Payments/Create only: a wide, compact RTL workspace. */
-body.controller-payments.action-create .ptg-page > .boltz-content-body:has(#roznamchaForm) {
+body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-content-body:has(#roznamchaForm) {
     width: 100%;
-    max-width: max(1464px, var(--layout-content-max));
-    max-inline-size: max(1464px, var(--layout-content-max));
-    padding-inline: clamp(12px, 1.4vw, 24px);
+    max-width: 100%;
+    max-inline-size: 100%;
+    padding-inline: clamp(12px, 1.6vw, 28px);
+    background: #F5F6FA;
 }
 
-body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaForm) {
+.finance-entry-chortke:has(> #roznamchaForm) {
     width: 100%;
     padding-inline: 0;
 }
 
-body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaForm) > .ak-page-header,
-body.controller-payments.action-create .roznamcha-entry-page:has(> #roznamchaForm) > #roznamchaForm {
-    width: min(100%, max(1400px, var(--layout-content-max)));
-    max-width: max(1400px, var(--layout-content-max));
+.finance-entry-chortke:has(> #roznamchaForm) > .ak-page-header,
+.finance-entry-chortke:has(> #roznamchaForm) > #roznamchaForm {
+    width: min(100%, 1080px);
+    max-width: 1080px;
     margin-inline: auto;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-form-toolbar {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-    margin: 0 0 16px;
+.finance-entry-chortke > .ak-page-header {
+    margin-block-end: 12px;
+    padding-block-end: 0;
+    border-block-end: 0;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-form-toolbar > .ak-form-section {
-    min-width: 0;
-    margin: 0;
-    padding: 0;
+.finance-entry-chortke > .ak-page-header .ak-page-title {
+    color: var(--chk-title);
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+/* One flat white working surface — Chortke has no nested cards. */
+.finance-entry-chortke #roznamchaForm > div {
+    padding: 24px;
     border: 0;
+    border-radius: var(--chk-radius-surface);
+    background: var(--chk-surface);
 }
 
-body.controller-payments.action-create #roznamchaForm .ak-form-section {
-    margin-block-end: 16px;
+/* ---- Section rhythm: whitespace + one hairline, no cards ----------- */
+
+.finance-entry-chortke #roznamchaForm .fte-section {
+    margin: 0 0 var(--chk-section-gap);
 }
 
-body.controller-payments.action-create #roznamchaForm .ak-form-section + .ak-form-section {
-    padding-block-start: 12px;
-    border-block-start-color: var(--divider);
+.finance-entry-chortke #roznamchaForm .fte-section + .fte-section {
+    padding-block-start: var(--chk-section-gap);
+    border-block-start: 1px solid var(--chk-border-soft);
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-form-toolbar > .ak-form-section + .ak-form-section {
-    padding-block-start: 0;
-    border: 0;
-}
-
-body.controller-payments.action-create #roznamchaForm .ak-form-group-title {
-    margin: 0 0 8px;
-    color: var(--ptg-text);
-    font-size: 13px;
+.finance-entry-chortke #roznamchaForm .fte-section-title,
+.finance-entry-chortke #roznamchaForm .ak-form-group-title {
+    margin: 0 0 14px;
+    color: var(--chk-title);
+    font-size: 16px;
     font-weight: 600;
-    line-height: 1.45;
+    line-height: 25px;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-form-toolbar .ptg-tabs-rail {
-    min-height: 40px;
-    margin: 0;
-}
-
-body.controller-payments.action-create #roznamchaForm .journal-form-toolbar .ptg-tab-item {
-    min-height: 40px;
-    padding: 7px 12px 8px;
-    border-radius: 8px 8px 0 0;
-}
-
-body.controller-payments.action-create #roznamchaForm #journalDirectionGroup .ak-section-desc {
-    margin: 0;
-    font-size: 11px;
-}
-
-body.controller-payments.action-create #roznamchaForm .journal-cashbank-section {
-    min-width: 0;
-    margin: 0 0 16px;
+.finance-entry-chortke #roznamchaForm .ak-form-section {
+    margin: 0 0 var(--chk-section-gap);
     padding: 0;
     border: 0;
 }
 
-body.controller-payments.action-create #roznamchaForm .ak-form-grid {
-    column-gap: 16px;
-    row-gap: 12px;
+.finance-entry-chortke #roznamchaForm .journal-cashbank-section,
+.finance-entry-chortke #roznamchaForm .journal-extra-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-cashbank-section .fte-section:last-of-type {
+    margin-block-end: 0;
+}
+
+/* ---- Content-aware 12-column grid --------------------------------- */
+
+.finance-entry-chortke #roznamchaForm .ak-form-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--chk-col-gap);
+    row-gap: var(--chk-row-gap);
     align-items: start;
 }
 
 /* Flatten redundant Razor wrappers so fields use the full parent grid. */
-body.controller-payments.action-create #roznamchaForm .ak-form-grid > .ak-form-grid {
+.finance-entry-chortke #roznamchaForm .ak-form-grid > .ak-form-grid {
     display: contents;
 }
 
-body.controller-payments.action-create #roznamchaForm .ak-form-grid .ak-form-full,
-body.controller-payments.action-create #roznamchaForm .ak-form-grid .ak-col-full {
+.finance-entry-chortke #roznamchaForm .ak-form-grid .ak-field,
+.finance-entry-chortke #roznamchaForm .ak-form-grid .ak-toggle-field {
+    grid-column: span 4;
+}
+
+.finance-entry-chortke #roznamchaForm .fec-span-3 { grid-column: span 3; }
+.finance-entry-chortke #roznamchaForm .fec-span-4 { grid-column: span 4; }
+.finance-entry-chortke #roznamchaForm .fec-span-5 { grid-column: span 5; }
+.finance-entry-chortke #roznamchaForm .fec-span-6 { grid-column: span 6; }
+
+.finance-entry-chortke #roznamchaForm .ak-form-grid .ak-form-full,
+.finance-entry-chortke #roznamchaForm .ak-form-grid .ak-col-full {
     grid-column: 1 / -1;
 }
 
-body.controller-payments.action-create #roznamchaForm .ak-field {
-    gap: 4px;
+/* ---- Label + control ---------------------------------------------- */
+
+.finance-entry-chortke #roznamchaForm .ak-field {
+    gap: 6px;
 }
 
-body.controller-payments.action-create #roznamchaForm .ak-label {
-    min-height: 18px;
-    font-size: 12.5px;
-    line-height: 18px;
+.finance-entry-chortke #roznamchaForm .ak-label {
+    min-height: 20px;
+    color: var(--chk-label);
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 20px;
 }
 
-body.controller-payments.action-create #roznamchaForm .ak-input {
-    height: 40px;
-    min-height: 40px;
-    padding-inline: 11px;
-    border-radius: 7px;
+.finance-entry-chortke #roznamchaForm .ak-label > i {
+    color: var(--chk-text-secondary);
+    font-size: 16px;
+    font-weight: 400;
 }
 
-body.controller-payments.action-create #roznamchaForm textarea.ak-input {
-    height: 56px;
-    min-height: 56px;
-    padding-block: 8px;
+.finance-entry-chortke #roznamchaForm .ak-input {
+    height: var(--chk-control-h);
+    min-height: var(--chk-control-h);
+    padding-inline: 10px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-surface);
+    color: var(--chk-text);
+    box-shadow: none;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: border-color 150ms ease;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-description-field {
-    width: 100%;
-    margin-block: 12px 0;
+.finance-entry-chortke #roznamchaForm .ak-input:hover:not(:focus):not(:disabled) {
+    border-color: var(--chk-border-strong);
 }
 
-body.controller-payments.action-create #roznamchaForm .ak-form-alert,
-body.controller-payments.action-create #roznamchaForm .journal-cashbank-section > .ak-note {
-    margin-block: 10px;
+.finance-entry-chortke #roznamchaForm .ak-input:focus,
+.finance-entry-chortke #roznamchaForm .ak-input:focus-visible {
+    border-color: var(--chk-primary);
+    outline: none;
+    box-shadow: none;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-sarraf-section > .ak-form-section {
-    margin-block-end: 16px;
+.finance-entry-chortke #roznamchaForm .ak-input:disabled,
+.finance-entry-chortke #roznamchaForm .ak-input.is-readonly {
+    border-color: var(--chk-border);
+    background: var(--chk-disabled-bg);
+    color: var(--chk-text-muted);
+    opacity: .7;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-sarraf-primary-section > .ptg-tabs-rail {
-    margin-block-end: 12px;
+.finance-entry-chortke #roznamchaForm textarea.ak-input {
+    height: 88px;
+    min-height: 88px;
+    padding-block: 9px;
+    line-height: 1.85;
+    resize: vertical;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-sarraf-direction {
+.finance-entry-chortke #roznamchaForm .ak-input::placeholder {
+    color: var(--chk-text-muted);
+}
+
+.finance-entry-chortke #roznamchaForm .form-text,
+.finance-entry-chortke #roznamchaForm small.text-muted {
+    color: var(--chk-text-secondary);
+    font-size: 12px;
+    line-height: 1.75;
+}
+
+.finance-entry-chortke #roznamchaForm .field-validation-error {
+    color: var(--chk-danger);
+    font-size: 12px;
+    line-height: 1.75;
+}
+
+.finance-entry-chortke #roznamchaForm .ak-input.input-validation-error {
+    border-color: var(--chk-danger);
+}
+
+/* ---- Segmented control: Chortke .tab-pages ------------------------- */
+
+.finance-entry-chortke #roznamchaForm .journal-direction-segmented {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    width: min(100%, 320px);
+    height: 37px;
+    min-height: 37px;
+    margin: 0 0 20px;
+    padding: 4px;
+    overflow: visible;
+    border: 0;
+    border-radius: 6px;
+    background: var(--chk-rail);
+}
+
+.finance-entry-chortke #roznamchaForm .journal-direction-segmented .ptg-tab-item {
+    justify-content: center;
+    gap: 6px;
+    height: 29px;
+    min-height: 29px;
+    margin: 0;
+    padding: 2px 20px;
+    border: 0;
+    border-radius: 4px;
+    color: var(--chk-text-muted);
+    background: transparent;
+    font-size: 14px;
+    font-weight: 400;
+    transition: color .15s ease, background-color .15s ease;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-direction-segmented .ptg-tab-item::after {
+    display: none;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-direction-segmented .ptg-tab-item:hover {
+    color: var(--chk-text-secondary);
+    background: transparent;
+}
+
+/* Active side is a white chip; the semantic colour lives in the text only. */
+.finance-entry-chortke #roznamchaForm .journal-direction-segmented .ptg-tab-item.is-active {
+    background: var(--chk-surface);
+    font-weight: 600;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-direction-segmented [data-direction-value="1"].is-active {
+    color: var(--chk-success);
+}
+
+.finance-entry-chortke #roznamchaForm .journal-direction-segmented [data-direction-value="2"].is-active {
+    color: var(--chk-danger);
+}
+
+/* ---- Method / funding chips --------------------------------------- */
+
+.finance-entry-chortke #roznamchaForm .journal-mode-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+    margin: 0 0 var(--chk-section-gap);
+    padding: 0;
+    border: 0;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-mode-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-mode-label {
+    color: var(--chk-label);
+    font-size: 13.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-mode-rail,
+.finance-entry-chortke #roznamchaForm .journal-funding-choices {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     width: fit-content;
     max-width: 100%;
-    min-height: 34px;
+    min-height: var(--chk-compact-h);
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-sarraf-direction > .ptg-tab-item {
-    min-height: 34px;
-    padding: 5px 10px 7px;
-    font-size: 12.5px;
+.finance-entry-chortke #roznamchaForm .journal-mode-rail .ptg-tab-item,
+.finance-entry-chortke #roznamchaForm .journal-funding-choices .form-check-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: var(--chk-compact-h);
+    margin: 0;
+    padding: 4px 14px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-control);
+    color: var(--chk-text-secondary);
+    background: var(--chk-surface);
+    cursor: pointer;
+    font-size: 13.5px;
+    font-weight: 400;
+    white-space: nowrap;
+    transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-mode-rail .ptg-tab-item::after {
+    display: none;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-mode-rail .ptg-tab-item:hover,
+.finance-entry-chortke #roznamchaForm .journal-funding-choices .form-check-label:hover {
+    border-color: var(--chk-border-strong);
+    color: var(--chk-text);
+    background: var(--chk-surface);
+}
+
+.finance-entry-chortke #roznamchaForm .journal-mode-rail .ptg-tab-item.is-active,
+.finance-entry-chortke #roznamchaForm .journal-funding-choices .form-check-input:checked + .form-check-label {
+    border-color: var(--chk-primary);
+    color: var(--chk-primary);
+    background: var(--chk-primary-light);
+    font-weight: 600;
+}
+
+/* Funded-by keeps its radio inputs (and their binding); only the chrome changes. */
+.finance-entry-chortke #roznamchaForm .journal-funding-choices .form-check {
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-funding-choices .form-check-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-funding-choices .form-check-input:focus-visible + .form-check-label {
+    outline: 2px solid var(--chk-primary);
+    outline-offset: 2px;
+}
+
+/* Sarraf mode disables funded-by; show that instead of leaving it looking clickable. */
+.finance-entry-chortke #roznamchaForm .journal-funding-choices .form-check-input:disabled + .form-check-label {
+    cursor: default;
+    background: var(--chk-disabled-bg);
+    color: var(--chk-text-muted);
+    opacity: .7;
+}
+
+/* ---- Info banner / notes ------------------------------------------ */
+
+.finance-entry-chortke #roznamchaForm .ak-note {
+    padding: 10px 12px;
+    border: 0;
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-primary-light);
+    color: var(--chk-text);
+    font-size: 13px;
+    line-height: 1.85;
+}
+
+.finance-entry-chortke #roznamchaForm .ak-note i {
+    color: var(--chk-primary);
+    font-size: 16px;
+}
+
+.finance-entry-chortke #roznamchaForm .ak-note strong {
+    color: var(--chk-title);
+    font-weight: 600;
+}
+
+.finance-entry-chortke #roznamchaForm .ak-form-alert {
+    margin-block: 0 var(--chk-section-gap);
+    padding: 10px 12px;
+    border: 0;
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-danger-light);
+    color: var(--chk-danger);
+    font-size: 13px;
+    line-height: 1.85;
+}
+
+.finance-entry-chortke #roznamchaForm .ak-form-alert:empty {
+    display: none;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-party-balance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-block: var(--chk-row-gap) 0;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-cashbank-section > .ak-note,
+.finance-entry-chortke #roznamchaForm .journal-extra-fieldset > .ak-note {
+    margin-block: var(--chk-row-gap) 0;
+}
+
+/* ---- Compact switches / checkboxes -------------------------------- */
+
+.finance-entry-chortke #roznamchaForm .ak-toggle-field {
+    min-height: var(--chk-control-h);
+    padding: 6px 10px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-surface);
+    color: var(--chk-text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.finance-entry-chortke #roznamchaForm .ak-toggle-field .form-check-label {
+    color: var(--chk-text);
+    font-size: 13.5px;
+    font-weight: 400;
+}
+
+.finance-entry-chortke #roznamchaForm .form-switch .form-check-input {
+    width: 32px;
+    height: 18px;
+    margin-block-start: 0;
+    border-color: var(--chk-border);
+}
+
+.finance-entry-chortke #roznamchaForm .form-switch .form-check-input:checked {
+    border-color: var(--chk-primary);
+    background-color: var(--chk-primary);
+}
+
+.finance-entry-chortke #roznamchaForm .form-switch .form-check-input:focus {
+    border-color: var(--chk-primary);
+    box-shadow: none;
+}
+
+/* ---- Progressive disclosure --------------------------------------- */
+
+.finance-entry-chortke #roznamchaForm .journal-more-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 var(--chk-section-gap);
+    padding: 0;
+    border: 0;
+    color: var(--chk-primary);
+    background: transparent;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-more-toggle i {
+    font-size: 14px;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-more-toggle:hover,
+.finance-entry-chortke #roznamchaForm .journal-more-toggle:focus-visible {
+    color: var(--chk-primary-hover);
+    text-decoration: underline;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-more-panel {
+    margin-block-end: var(--chk-section-gap);
+    padding-block-start: var(--chk-section-gap);
+    border-block-start: 1px solid var(--chk-border-soft);
+}
+
+.finance-entry-chortke #roznamchaForm .journal-more-panel > .ak-form-section:last-child {
+    margin-block-end: 0;
+}
+
+/* ---- Sarraf route ------------------------------------------------- */
+
+.finance-entry-chortke #roznamchaForm .journal-sarraf-section > .ak-form-section {
+    margin-block-end: var(--chk-section-gap);
+}
+
+.finance-entry-chortke #roznamchaForm .journal-sarraf-section > .ak-form-section + .ak-form-section {
+    padding-block-start: var(--chk-section-gap);
+    border-block-start: 1px solid var(--chk-border-soft);
+}
+
+.finance-entry-chortke #roznamchaForm .journal-sarraf-primary-section > .ptg-tabs-rail {
+    margin-block-end: 14px;
+}
+
+/* Contract-allocation choice: compact selectable options, not big cards. */
+.finance-entry-chortke #roznamchaForm [data-sarraf-alloc-section] > .ptg-tabs-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--chk-col-gap);
+    width: 100%;
+    margin: 0 0 var(--chk-row-gap);
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+}
+
+.finance-entry-chortke #roznamchaForm [data-sarraf-alloc-section] > .ptg-tabs-rail .ptg-tab-item {
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: var(--chk-control-h);
+    margin: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-control);
+    color: var(--chk-text-secondary);
+    background: var(--chk-surface);
+    font-size: 13.5px;
+    font-weight: 400;
+    white-space: normal;
+    text-align: start;
+}
+
+.finance-entry-chortke #roznamchaForm [data-sarraf-alloc-section] > .ptg-tabs-rail .ptg-tab-item::after {
+    display: none;
+}
+
+.finance-entry-chortke #roznamchaForm [data-sarraf-alloc-section] > .ptg-tabs-rail .ptg-tab-item:hover {
+    border-color: var(--chk-border-strong);
+    color: var(--chk-text);
+    background: var(--chk-surface);
+}
+
+.finance-entry-chortke #roznamchaForm [data-sarraf-alloc-section] > .ptg-tabs-rail .ptg-tab-item.is-active {
+    border-color: var(--chk-primary);
+    color: var(--chk-primary);
+    background: var(--chk-primary-light);
+    font-weight: 600;
 }
 
 /* Keep Sarraf amounts, rates and USD previews directly under their RTL labels. */
-body.controller-payments.action-create #roznamchaForm .journal-sarraf-primary-section input.ak-num,
-body.controller-payments.action-create #roznamchaForm .journal-sarraf-primary-section #sarrafCurrency,
-body.controller-payments.action-create #roznamchaForm [data-sarraf-summary] .ak-field > .ak-num,
-body.controller-payments.action-create #roznamchaForm [data-sarraf-summary] .ak-field > .text-muted {
+.finance-entry-chortke #roznamchaForm .journal-sarraf-primary-section input.ak-num,
+.finance-entry-chortke #roznamchaForm .journal-sarraf-primary-section #sarrafCurrency,
+.finance-entry-chortke #roznamchaForm [data-sarraf-summary] .ak-field > .ak-num,
+.finance-entry-chortke #roznamchaForm [data-sarraf-summary] .ak-field > .text-muted {
     width: 100%;
     text-align: right;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-commission-section {
-    margin: 0 0 16px;
+.finance-entry-chortke #roznamchaForm [data-sarraf-summary] .ak-field > .ak-num {
+    color: var(--chk-title);
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Commission --------------------------------------------------- */
+
+.finance-entry-chortke #roznamchaForm .journal-commission-section {
+    margin: 0 0 var(--chk-section-gap);
     padding: 0;
-    border-block: 1px solid var(--divider);
+    border-block: 1px solid var(--chk-border-soft);
+    border-inline: 0;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-commission-head {
-    min-height: 44px;
-    padding-block: 7px;
+.finance-entry-chortke #roznamchaForm .journal-commission-head {
+    min-height: 48px;
+    padding-block: 8px;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-commission-head .ak-form-group-title {
+.finance-entry-chortke #roznamchaForm .journal-commission-head .ak-form-group-title {
     margin: 0;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-commission-body {
+.finance-entry-chortke #roznamchaForm .journal-commission-body {
     margin-block-start: 0 !important;
-    padding-block: 12px;
-    border-block-start: 1px solid var(--divider);
+    padding-block: 16px;
+    border-block-start: 1px solid var(--chk-border-soft);
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-commission-body > [data-commission-summary],
-body.controller-payments.action-create #roznamchaForm .journal-commission-body > [data-commission-sarraf-note] {
+.finance-entry-chortke #roznamchaForm .journal-commission-body > [data-commission-summary],
+.finance-entry-chortke #roznamchaForm .journal-commission-body > [data-commission-sarraf-note] {
     grid-column: 1 / -1;
     margin-block-start: 0 !important;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-action-bar {
+/* ---- Live summary + action footer --------------------------------- */
+
+.finance-entry-chortke #roznamchaForm .journal-summary {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-surface-soft);
+    color: var(--chk-text);
+    font-size: 13.5px;
+    line-height: 1.85;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-summary.is-incomplete {
+    color: var(--chk-text-secondary);
+}
+
+.finance-entry-chortke #roznamchaForm .journal-summary:empty,
+.finance-entry-chortke #roznamchaForm .journal-summary[hidden] {
+    display: none;
+}
+
+.finance-entry-chortke #roznamchaForm .journal-action-bar {
     position: sticky;
     bottom: 0;
     z-index: 12;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-height: 60px;
+    justify-content: flex-start;
+    gap: 12px;
+    min-height: 70px;
     margin: 0;
-    padding: 9px 0;
-    border-block-start: 1px solid var(--divider);
-    background: rgba(255, 255, 255, .96);
-    box-shadow: 0 -8px 18px rgba(31, 42, 68, .045);
-    backdrop-filter: blur(8px);
+    padding: 12px 0 0;
+    border-block-start: 1px solid var(--chk-border-soft);
+    background: var(--chk-surface);
+    box-shadow: none;
+    backdrop-filter: none;
 }
 
-body.controller-payments.action-create #roznamchaForm .journal-action-buttons {
+.finance-entry-chortke #roznamchaForm .journal-action-buttons {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
 }
 
-body.controller-payments.action-create #roznamchaForm #journalSubmitButton {
-    min-height: 40px;
-    border-radius: 7px;
-}
-
-body.controller-payments.action-create #roznamchaForm .journal-total {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
+.finance-entry-chortke #roznamchaForm .ak-save {
+    gap: 10px;
+    width: auto;
+    min-width: 160px;
+    min-height: var(--chk-button-h);
+    padding: 12px 24px;
     border: 0;
-    background: transparent;
-    white-space: nowrap;
+    border-radius: var(--chk-radius-surface);
+    background: var(--chk-primary);
+    color: #ffffff;
+    box-shadow: none;
+    font-size: 14px;
+    font-weight: 500;
 }
 
-@media (min-width: 1200px) {
-    body.controller-payments.action-create #roznamchaForm .ak-form-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
+.finance-entry-chortke #roznamchaForm .ak-save:hover,
+.finance-entry-chortke #roznamchaForm .ak-save:focus-visible {
+    background: var(--chk-primary-hover);
+    color: #ffffff;
 }
 
-@media (min-width: 992px) and (max-width: 1199.98px) {
-    body.controller-payments.action-create #roznamchaForm .ak-form-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
+.finance-entry-chortke #roznamchaForm .ak-cancel {
+    min-height: var(--chk-button-h);
+    padding: 12px 20px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-surface);
+    color: var(--chk-text-secondary);
+    background: var(--chk-surface);
+    font-size: 14px;
+    font-weight: 400;
 }
 
-@media (min-width: 768px) and (max-width: 991.98px) {
-    body.controller-payments.action-create #roznamchaForm .ak-form-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+.finance-entry-chortke #roznamchaForm .ak-cancel:hover,
+.finance-entry-chortke #roznamchaForm .ak-cancel:focus-visible {
+    border-color: var(--chk-border-strong);
+    color: var(--chk-text);
+    background: var(--chk-surface);
+}
+
+/* ---- Responsive --------------------------------------------------- */
+
+@media (max-width: 991.98px) {
+    .finance-entry-chortke #roznamchaForm .ak-form-grid .ak-field,
+    .finance-entry-chortke #roznamchaForm .ak-form-grid .ak-toggle-field,
+    .finance-entry-chortke #roznamchaForm .fec-span-3,
+    .finance-entry-chortke #roznamchaForm .fec-span-4,
+    .finance-entry-chortke #roznamchaForm .fec-span-5,
+    .finance-entry-chortke #roznamchaForm .fec-span-6 {
+        grid-column: span 6;
     }
 }
 
 @media (max-width: 767.98px) {
-    body.controller-payments.action-create .ptg-page > .boltz-content-body:has(#roznamchaForm) {
+    body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-content-body:has(#roznamchaForm) {
         padding-inline: 8px;
     }
 
-    body.controller-payments.action-create #roznamchaForm .journal-form-toolbar,
-    body.controller-payments.action-create #roznamchaForm .ak-form-grid {
-        grid-template-columns: minmax(0, 1fr);
+    .finance-entry-chortke #roznamchaForm > div {
+        padding: 16px;
     }
 
-    body.controller-payments.action-create #roznamchaForm .journal-action-bar {
+    .finance-entry-chortke #roznamchaForm .journal-action-bar {
         position: static;
         align-items: stretch;
         flex-direction: column-reverse;
     }
 
-    body.controller-payments.action-create #roznamchaForm .journal-action-buttons,
-    body.controller-payments.action-create #roznamchaForm #journalSubmitButton {
+    .finance-entry-chortke #roznamchaForm .journal-action-buttons {
+        align-items: stretch;
+        flex-direction: column;
         width: 100%;
     }
 
-    body.controller-payments.action-create #roznamchaForm .journal-action-buttons {
-        align-items: stretch;
-        flex-direction: column;
+    .finance-entry-chortke #roznamchaForm .ak-save,
+    .finance-entry-chortke #roznamchaForm .ak-cancel {
+        width: 100%;
+    }
+
+    .finance-entry-chortke #roznamchaForm [data-sarraf-alloc-section] > .ptg-tabs-rail {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .finance-entry-chortke #roznamchaForm .ak-form-grid .ak-field,
+    .finance-entry-chortke #roznamchaForm .ak-form-grid .ak-toggle-field,
+    .finance-entry-chortke #roznamchaForm .fec-span-3,
+    .finance-entry-chortke #roznamchaForm .fec-span-4,
+    .finance-entry-chortke #roznamchaForm .fec-span-5,
+    .finance-entry-chortke #roznamchaForm .fec-span-6 {
+        grid-column: 1 / -1;
+    }
+
+    .finance-entry-chortke #roznamchaForm .journal-direction-segmented {
+        width: 100%;
     }
 }
 
@@ -567,6 +1059,31 @@ body.is-finance-workspace .finance-page-lead {
    other stat row; only the spacing below it is finance-specific. */
 body.is-finance-workspace .finance-overview-metrics {
     margin-block-end: 24px;
+}
+
+/* Company Financial Status: largest receivables and payables sit side by side.
+   On wide screens a deep-navy rule marks the boundary between "we are owed"
+   and "we owe"; on stacked mobile the columns follow one another with no rule. */
+@media (min-width: 992px) {
+    body.is-finance-workspace .company-overview-balances > .col-12.col-lg-6:first-child {
+        border-inline-end: 2px solid var(--primary-main);
+    }
+}
+
+/* The two section titles carry the only colour in this row: green for what the
+   company is owed, red for what it owes. Numbers and rows stay neutral so the
+   table keeps reading as one list. Each title is centred over its own card so
+   the pair reads as two balanced halves instead of two right-aligned lists. */
+body.is-finance-workspace .company-overview-balances__side .ak-section-head {
+    text-align: center;
+}
+
+body.is-finance-workspace .company-overview-balances__side--receivable .ak-section-title {
+    color: var(--success-main);
+}
+
+body.is-finance-workspace .company-overview-balances__side--payable .ak-section-title {
+    color: var(--error-main);
 }
 
 body.is-finance-workspace .finance-report-header,
@@ -1347,4 +1864,106 @@ body.is-finance-workspace .rephub-card-title {
     body.is-finance-workspace .rephub-card {
         transition: none;
     }
+}
+
+/* روزنامچه — کارت مانده طرف حساب: یک خط خوانا (چه کسی / چقدر / یعنی چه).
+   طبقه‌بندی رنگ همان قرارداد سبز و سرخ فرم است. کلاس‌های tone را JS ست می‌کند. */
+#roznamchaForm #journalPartyBalance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 6px;
+    background: #F2F5FC;
+}
+
+#roznamchaForm #journalPartyBalance .jpb-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+#roznamchaForm #journalPartyBalance .jpb-icon,
+#roznamchaForm #journalPartyBalance .jpb-caption {
+    font-size: 12px;
+    color: #6F6F6F;
+}
+
+#roznamchaForm #journalPartyBalance .jpb-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 600;
+    color: #3D3D3D;
+}
+
+#roznamchaForm #journalPartyBalance .jpb-state {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+#roznamchaForm #journalPartyBalance .jpb-amount {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    color: #1A1919;
+}
+
+#roznamchaForm #journalPartyBalance .jpb-label {
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: #FFFFFF;
+    color: #6F6F6F;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+#roznamchaForm #journalPartyBalance.is-positive .jpb-amount {
+    color: #24AF22;
+}
+
+#roznamchaForm #journalPartyBalance.is-positive .jpb-label {
+    background: #E7F5E9;
+    color: #24AF22;
+}
+
+#roznamchaForm #journalPartyBalance.is-negative .jpb-amount {
+    color: #CB0B0B;
+}
+
+#roznamchaForm #journalPartyBalance.is-negative .jpb-label {
+    background: #FFEAF0;
+    color: #CB0B0B;
+}
+
+@media (max-width: 640px) {
+    #roznamchaForm #journalPartyBalance {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* گردش پول — سه نمای جزئیات با تب عوض می‌شوند، پس هر بار فقط یک جدول روی
+   صفحه است. فقط فاصله‌گذاری؛ خودِ ریل و جدول همان کامپوننت مشترک‌اند. */
+.cashflow-report-page .cashflow-tabs {
+    margin-block: 20px 0;
+}
+
+.cashflow-report-page .cashflow-panel {
+    margin-block-start: 16px;
+}
+
+.cashflow-report-page .cashflow-panel > .ak-section-desc {
+    margin: 0 0 12px;
+    font-size: 13px;
 }

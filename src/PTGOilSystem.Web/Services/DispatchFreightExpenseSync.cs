@@ -1,6 +1,7 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 
 namespace PTGOilSystem.Web.Services;
@@ -12,6 +13,10 @@ namespace PTGOilSystem.Web.Services;
 public static class DispatchFreightExpenseSync
 {
     public const string DispatchFreightExpenseCode = "TRUCK-DISPATCH-FREIGHT";
+
+    // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است، پس یک نمونهٔ
+    // static برای این کلاسِ static کافی است.
+    private static readonly IExpenseSettlementValidator SettlementValidator = new ExpenseSettlementValidator();
 
     // مرحله ۵ — Dual-write اختیاری. کلاس static است، پس Adapter به‌جای تزریق، پارامتر اختیاری
     // است؛ اگر پاس داده نشود مسیر قدیمی هیچ تغییری نمی‌کند.
@@ -90,6 +95,11 @@ public static class DispatchFreightExpenseSync
                 Description = description
             };
 
+            // PTG-P1-04 — هویت تسویه. بالاتر ثابت شد یکی از دو طرفِ حمل‌کننده هست (وگرنه
+            // متد برگشته بود) و کرایه بدهیِ ماست ⇒ Payable روی همان طرف.
+            ExpenseLedgerPoster.ApplyCounterpartySettlement(primaryExpense);
+            SettlementValidator.Validate(primaryExpense);
+
             db.ExpenseTransactions.Add(primaryExpense);
             await db.SaveChangesAsync();
         }
@@ -108,6 +118,12 @@ public static class DispatchFreightExpenseSync
             primaryExpense.AmountUsd = amountUsd;
             primaryExpense.Description = description;
             primaryExpense.UpdatedAtUtc = DateTime.UtcNow;
+
+            // PTG-P1-04 — همین مسیر همین حالا ServiceProviderId و DriverId را بازنویسی کرد
+            // (ارسال می‌تواند از شرکت خدماتی به موتروان یا برعکس عوض شود)، پس هویت تسویه هم
+            // باید با همان‌ها هم‌گام شود، وگرنه بدهی روی طرفِ قبلی جا می‌ماند.
+            ExpenseLedgerPoster.ApplyCounterpartySettlement(primaryExpense);
+            SettlementValidator.Validate(primaryExpense);
             await db.SaveChangesAsync();
         }
 
@@ -188,37 +204,18 @@ public static class DispatchFreightExpenseSync
             .OrderByDescending(l => l.Id)
             .FirstOrDefaultAsync();
 
-        var request = new LedgerPostingRequest
+        var request = new ExpenseLedgerRequest
         {
-            SourceType = "Expense",
-            SourceId = expense.Id,
-            EntryDate = expense.ExpenseDate,
-            // کرایه بدهیِ ما به حمل‌کننده است ⇒ Credit روی حساب همان طرف (شرکت خدماتی یا راننده).
-            Side = LedgerSide.Credit,
-            AmountUsd = expense.AmountUsd,
-            Currency = SystemCurrency.BaseCurrencyCode,
-            SourceAmount = expense.Amount,
-            SourceCurrencyCode = expense.Currency,
-            AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-            AppliedFxRateDate = expense.ExpenseDate,
-            AppliedFxRateSource = "Base currency",
+            Expense = expense,
             Description = expense.Description ?? "Truck dispatch freight",
             Reference = $"TRUCK-DISPATCH:{expense.TruckDispatchId}",
-            ContractId = expense.ContractId,
-            ShipmentId = expense.ShipmentId,
-            ServiceProviderId = expense.ServiceProviderId,
-            DriverId = expense.DriverId,
+            FxRateSource = "Base currency",
 
-            // فیلدهایی که این هماهنگ‌سازی هرگز دست نمی‌زد، عیناً از سطر موجود می‌آیند
-            // تا خروجی دقیقاً همان چیزی بماند که پیش از تمرکز نوشته می‌شد (PTG-P1-03).
-            AppliedCurrencyPerUsdRate = ledger?.AppliedCurrencyPerUsdRate,
-            ViaSarrafGroupId = ledger?.ViaSarrafGroupId,
-            CustomerId = ledger?.CustomerId,
-            SupplierId = ledger?.SupplierId,
-            EmployeeId = ledger?.EmployeeId,
+            // فیلدهایی که این هماهنگ‌سازی هرگز دست نمی‌زد، عیناً از سطر موجود می‌آیند.
+            CarryFrom = ledger
         };
 
-        var posting = new LedgerPostingService(db);
+        var posting = new ExpenseLedgerPoster(new LedgerPostingService(db));
         if (ledger is null)
         {
             posting.Post(request);

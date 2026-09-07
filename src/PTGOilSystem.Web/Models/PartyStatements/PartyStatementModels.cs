@@ -105,6 +105,23 @@ public sealed class PartyStatementSummary
     public decimal? TotalOutflowRub { get; init; }
     public decimal? ClosingBalanceRub { get; init; }
     public decimal? ClosingBalanceRubAbsolute => ClosingBalanceRub.HasValue ? Math.Abs(ClosingBalanceRub.Value) : null;
+
+    // معنی/رنگِ مانده در نمایش روبلی. حسابِ روبلی می‌تواند بدهکار باشد در حالی که همان
+    // مانده به دالر طلبکار در می‌آید (نرخ روز پرداخت با نرخ روز بارگیری فرق دارد)، پس
+    // متن و رنگ باید از علامتِ همان ارزی بیاید که نمایش داده می‌شود.
+    public string ClosingBalanceRubMeaning { get; init; } = string.Empty;
+    public string ClosingBalanceRubMeaningEn { get; init; } = string.Empty;
+
+    public string ClosingBalanceMeaningFor(bool isEnglish, bool isRub)
+        => isRub && ClosingBalanceRub.HasValue
+            ? (isEnglish ? ClosingBalanceRubMeaningEn : ClosingBalanceRubMeaning)
+            : ClosingBalanceMeaningFor(isEnglish);
+
+    public string? ClosingBalanceToneFor(bool isRub)
+    {
+        var value = isRub && ClosingBalanceRub.HasValue ? ClosingBalanceRub.Value : ClosingBalance;
+        return value > 0m ? "success" : value < 0m ? "danger" : null;
+    }
 }
 
 public sealed class PartyStatementRow

@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -147,7 +147,7 @@ public class BackupsPageStructureTests
     [Fact]
     public void The_Page_Stylesheet_Is_Scoped_And_Uses_The_Product_Primary_Colour()
     {
-        Assert.Contains("--bk-primary: #1877F2", Styles, StringComparison.Ordinal);
+        Assert.Contains("--bk-primary: #1062D0", Styles, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", Styles, StringComparison.Ordinal);
         Assert.Contains("66-backups.css", Layout, StringComparison.Ordinal);
 
@@ -225,7 +225,7 @@ public class BackupsPageStructureTests
     [Fact]
     public void The_Create_Button_Stays_Blue_And_The_Save_Button_Is_Green()
     {
-        Assert.Contains("--bk-primary: #1877F2", Styles, StringComparison.Ordinal);
+        Assert.Contains("--bk-primary: #1062D0", Styles, StringComparison.Ordinal);
         Assert.Contains("--bk-success: var(--ptg-success)", Styles, StringComparison.Ordinal);
         Assert.Contains(".bk-page .btn.bk-primary.bk-success", Styles, StringComparison.Ordinal);
 

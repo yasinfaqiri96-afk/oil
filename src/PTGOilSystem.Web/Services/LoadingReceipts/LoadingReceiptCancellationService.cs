@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Accounting;
@@ -213,19 +213,28 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
 
         // مرحله ۲ — اجرای لغو.
         var cancelled = new List<int>(ids.Count);
+        var cancelledDispatches = new List<TruckDispatch>();
         foreach (var receiptId in ids)
         {
             var receipt = receipts[receiptId];
-            await CancelSingleAsync(receipt, normalizedReason, actorUserId, ct);
+            cancelledDispatches.AddRange(await CancelSingleAsync(receipt, normalizedReason, actorUserId, ct));
             cancelled.Add(receipt.Id);
         }
 
         await _db.SaveChangesAsync(ct);
 
+        // دیسپچ‌های لغوشده سطر مصرفِ دارایی دارند؛ بعد از ذخیره sync می‌شوند تا کارکردِ
+        // باطل‌شده در پروندهٔ دارایی نماند (همان قاعدهٔ لغو دیسپچ در DispatchController).
+        var usageWriter = new AssetUsageChargeService(_db);
+        foreach (var dispatch in cancelledDispatches)
+        {
+            await usageWriter.SyncOperationAsync(dispatch, ct);
+        }
+
         return new LoadingReceiptCancellationResult(cancelled, Array.Empty<LoadingReceiptCancellationBlocker>());
     }
 
-    private async Task CancelSingleAsync(
+    private async Task<IReadOnlyList<TruckDispatch>> CancelSingleAsync(
         LoadingReceipt receipt,
         string reason,
         int? actorUserId,
@@ -327,6 +336,8 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
                 ("CancelledDispatches", null, dispatches.Count),
                 ("CancelledLossEvents", null, losses.Count)),
             ct: ct);
+
+        return dispatches;
     }
 
     private async Task CancelDirectSaleAsync(

@@ -65,7 +65,8 @@
     {
         new() { Label = T("قرارداد", "Contract"), Value = Model.ContractNumber },
         new() { Label = T("محصول", "Product"), Value = Model.ProductName },
-        new() { Label = T("تاریخ اعلامیه", "Declaration date"), Value = Model.DeclarationDate.ToDisplayDate(), IsNumeric = true },
+        new() { Label = T("نمبر جواز", "Permit number"), Value = Model.PermitNumber, IsNumeric = true },
+        new() { Label = T("صاحب جواز", "Permit holder"), Value = Model.PermitHolderName },
         new() { Label = T("واگن / موتر", "Wagon / truck"), Value = Model.WagonOrTruckNumber, IsNumeric = true },
         new() { Label = T("شماره مرجع", "Reference"), Value = Model.DeclarationReference, IsNumeric = true },
         new() { Label = T("شماره واگن بارگیری", "Loading wagon"), Value = Model.WagonNumber, IsNumeric = true }

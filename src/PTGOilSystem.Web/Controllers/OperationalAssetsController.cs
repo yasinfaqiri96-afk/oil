@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Models.OperationalAssets;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Parties;
 using System.Text.Json;
 using PTGOilSystem.Web.Services.Time;
 
@@ -32,6 +33,7 @@ public class OperationalAssetsController : Controller
     private readonly IAssetRentPostingService _rentPosting;
     private readonly IAfghanistanBusinessClock _businessClock;
     private readonly IWebHostEnvironment? _environment;
+    private readonly IPartyDirectory _parties;
 
     [ActivatorUtilitiesConstructor]
     public OperationalAssetsController(
@@ -40,13 +42,15 @@ public class OperationalAssetsController : Controller
         IAssetRentPostingService? rentPosting = null,
         Services.Accounting.IAssetRentAccountingAdapter? rentAccounting = null,
         IAfghanistanBusinessClock? businessClock = null,
-        IWebHostEnvironment? environment = null)
+        IWebHostEnvironment? environment = null,
+        IPartyDirectory? parties = null)
     {
         _db = db;
         _currencyConversion = currencyConversion;
         _rentPosting = rentPosting ?? new AssetRentPostingService(db, rentAccounting);
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _environment = environment;
+        _parties = parties ?? new PartyDirectory(db);
     }
 
     public OperationalAssetsController(ApplicationDbContext db)
@@ -865,7 +869,10 @@ public class OperationalAssetsController : Controller
             .ThenByDescending(a => a.FromDate)
             .ThenByDescending(a => a.Id)
             .ToListAsync();
-        var assignmentPartyNames = await ResolvePartyNamesAsync(assignments);
+        var assignmentPartyNames = await _parties.GetNamesAsync(assignments
+            .Select(a => new PartyKey(PartyTypeMap.ToStatement(a.ResponsiblePartyType), a.ResponsiblePartyId))
+            .Distinct()
+            .ToArray());
 
         var maintenanceJobs = await _db.AssetMaintenanceJobs
             .AsNoTracking()
@@ -917,6 +924,23 @@ public class OperationalAssetsController : Controller
                 && e.ExpenseDate <= periodTo)
             .OrderByDescending(e => e.ExpenseDate)
             .ThenByDescending(e => e.Id)
+            .ToListAsync();
+
+        // «الان در کدام حمل است؟» — حمل‌های بازِ همین دارایی، مستقل از بازهٔ تاریخ صفحه.
+        // حملِ لغوشده و حملی که رسید خورده دیگر «در جریان» نیست و اینجا نمی‌آید.
+        var openLegs = await _db.InventoryTransportLegs
+            .AsNoTracking()
+            .Include(l => l.SourcePurchaseContract)
+            .Include(l => l.SourceTerminal)
+            .Include(l => l.DestinationTerminal)
+            .Include(l => l.DestinationLocation)
+            .Include(l => l.Truck)
+            .Include(l => l.Wagon)
+            .Where(l => l.OperationalAssetId == id
+                && l.Status != InventoryTransportLegStatus.Cancelled
+                && l.Status != InventoryTransportLegStatus.Received)
+            .OrderByDescending(l => l.LoadedDate)
+            .ThenByDescending(l => l.Id)
             .ToListAsync();
 
         var rentIds = rents.Select(r => r.Id).ToArray();
@@ -1001,7 +1025,9 @@ public class OperationalAssetsController : Controller
             Assignments = assignments.Select(a => new AssetAssignmentRowViewModel
             {
                 Id = a.Id,
-                ResponsibleName = assignmentPartyNames.GetValueOrDefault((a.ResponsiblePartyType, a.ResponsiblePartyId), Ui("طرف #", "Party #") + a.ResponsiblePartyId),
+                ResponsibleName = assignmentPartyNames.GetValueOrDefault(
+                    new PartyKey(PartyTypeMap.ToStatement(a.ResponsiblePartyType), a.ResponsiblePartyId),
+                    Ui("طرف #", "Party #") + a.ResponsiblePartyId),
                 Role = a.Role,
                 DriverName = a.Driver?.FullName,
                 BaseTerminalName = a.BaseTerminal?.Name,
@@ -1049,6 +1075,7 @@ public class OperationalAssetsController : Controller
             ActiveOwnershipPercent = ownershipShares
                 .Where(share => IsActiveOn(share, AfghanistanBusinessClock.SystemToday))
                 .Sum(share => share.SharePercent),
+            OpenTransports = openLegs.Select(ToOpenTransportRow).ToList(),
             WorkRows = BuildWorkRows(rentRows, freightIncomeRows),
             CostRows = costRows,
             InternalIncomeRows = BuildInternalIncomeRows(rentRows, freightIncomeRows),
@@ -1846,6 +1873,40 @@ public class OperationalAssetsController : Controller
             Url?.Action("Details", "Expenses", new { id = expense.Id }));
     }
 
+    private AssetOpenTransportRowViewModel ToOpenTransportRow(InventoryTransportLeg leg)
+        => new()
+        {
+            LegId = leg.Id,
+            LoadedDate = leg.LoadedDate,
+            StatusText = OpenLegStatusText(leg.Status),
+            VehicleText = FirstNonEmpty(leg.Truck?.PlateNumber, leg.Wagon?.WagonNumber, leg.WagonNumber, leg.RwbNo),
+            RouteText = BuildOpenLegRouteText(leg),
+            ContractNumber = leg.SourcePurchaseContract?.ContractNumber,
+            QuantityMt = leg.QuantityMt,
+            Url = Url?.Action("Details", "InventoryTransportLegs", new { id = leg.Id })
+        };
+
+    private string OpenLegStatusText(InventoryTransportLegStatus status)
+        => status switch
+        {
+            InventoryTransportLegStatus.Draft => Ui("پیش‌نویس", "Draft"),
+            InventoryTransportLegStatus.Loaded => Ui("بارگیری‌شده", "Loaded"),
+            InventoryTransportLegStatus.InTransit => Ui("در راه", "In transit"),
+            _ => status.ToString()
+        };
+
+    private static string? BuildOpenLegRouteText(InventoryTransportLeg leg)
+    {
+        var from = leg.SourceTerminal?.Name;
+        var to = FirstNonEmpty(leg.DestinationTerminal?.Name, leg.DestinationLocation?.Name);
+        if (string.IsNullOrWhiteSpace(from) && string.IsNullOrWhiteSpace(to))
+        {
+            return null;
+        }
+
+        return $"{from ?? "-"} ← {to ?? "-"}";
+    }
+
     private AssetSourceLinkViewModel SourceLink(string documentName, int documentId, string? url)
         => new()
         {
@@ -2104,31 +2165,6 @@ public class OperationalAssetsController : Controller
             AccountingPartyType.Company => _db.Companies.AsNoTracking().AnyAsync(x => x.Id == id && x.IsActive),
             _ => Task.FromResult(false)
         };
-
-    private async Task<Dictionary<(AccountingPartyType Type, int Id), string>> ResolvePartyNamesAsync(
-        IReadOnlyCollection<AssetAssignment> assignments)
-    {
-        var result = new Dictionary<(AccountingPartyType, int), string>();
-        foreach (var group in assignments.GroupBy(a => a.ResponsiblePartyType))
-        {
-            var ids = group.Select(a => a.ResponsiblePartyId).Distinct().ToArray();
-            Dictionary<int, string> names = group.Key switch
-            {
-                AccountingPartyType.Customer => await _db.Customers.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
-                AccountingPartyType.Supplier => await _db.Suppliers.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
-                AccountingPartyType.ServiceProvider => await _db.ServiceProviders.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
-                AccountingPartyType.Sarraf => await _db.Sarrafs.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
-                AccountingPartyType.Driver => await _db.Drivers.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName),
-                AccountingPartyType.Employee => await _db.Employees.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName),
-                AccountingPartyType.Partner => await _db.Partners.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
-                AccountingPartyType.Company => await _db.Companies.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name),
-                _ => []
-            };
-            foreach (var item in names) result[(group.Key, item.Key)] = item.Value;
-        }
-
-        return result;
-    }
 
     private string GetWebRootPath()
         => string.IsNullOrWhiteSpace(_environment?.WebRootPath)

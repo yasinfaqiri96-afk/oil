@@ -10,7 +10,7 @@
        so sub-pixel widths cannot round the fourth track away), which caps the
        row at four. Grids that hold fewer cards still span the full width —
        auto-fit collapses the tracks they do not use. */
-    --ak-stat-gap: clamp(18px, 2.2vw, 32px);
+    --ak-stat-gap: clamp(12px, 1.4vw, 20px);
     --ak-stat-col: calc((100% - 3 * var(--ak-stat-gap)) / 4 - 0.5px);
 
     display: grid;
@@ -26,12 +26,12 @@
 }
 
 /* Section heading above each card grid (RTL, right-aligned) */
-.ak-stat-section { margin-block: 26px 0; }
+.ak-stat-section { margin-block: 18px 0; }
 .ak-stat-section:first-child { margin-top: 4px; }
 .ak-stat-section__title {
-    margin: 0 0 16px;
-    font-family: "Vazirmatn", system-ui, sans-serif;
-    font-size: 15px;
+    margin: 0 0 10px;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
+    font-size: 13.5px;
     font-weight: 600;
     color: #1F2A37;
     text-align: right;
@@ -61,9 +61,9 @@
     min-width: 0;
     /* Proportions come from the reference sheets; the card is sized by ratio so a
        narrow column and a wide one keep the same illustration-to-copy balance. */
-    aspect-ratio: 2.6;
-    max-height: 175px;
-    padding: clamp(11px, 1.1vw, 16px);
+    aspect-ratio: 3.4;
+    max-height: 112px;
+    padding: clamp(8px, 0.8vw, 12px);
     box-sizing: border-box;
 
     background: #FFFFFF;
@@ -71,7 +71,7 @@
     border-radius: 18px;
     box-shadow: 0 4px 14px rgba(31, 41, 55, 0.045);
 
-    font-family: "Vazirmatn", system-ui, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     transition: box-shadow .18s ease, border-color .18s ease;
 }
 
@@ -104,9 +104,9 @@
     max-width: 100%;
     margin: 0;
     padding: 0;
-    font-size: clamp(11.5px, 0.95vw, 14px);
+    font-size: clamp(10.5px, 0.85vw, 12.5px);
     font-weight: 600;
-    line-height: 1.25;
+    line-height: 1.2;
     color: var(--ak-stat-title);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -121,7 +121,7 @@
     margin-top: 0;
     overflow: hidden;
     text-overflow: clip;
-    font-size: clamp(21px, 2vw, 29px);
+    font-size: clamp(17px, 1.5vw, 23px);
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.025em;
@@ -135,17 +135,17 @@
 /* Keep the complete prepared value visible. Long N2/N4 strings retain Latin,
    tabular digits and shrink only as much as their shared card needs. */
 .ak-stat-card__value--compact {
-    font-size: clamp(17px, 1.6vw, 24px);
+    font-size: clamp(14px, 1.25vw, 19px);
     letter-spacing: -0.035em;
 }
 
 .ak-stat-card__value--dense {
-    font-size: clamp(14px, 1.3vw, 19px);
+    font-size: clamp(12px, 1.05vw, 15.5px);
     letter-spacing: -0.04em;
 }
 
 .ak-stat-card__value--ultra {
-    font-size: clamp(11px, 1vw, 15px);
+    font-size: clamp(9.5px, 0.85vw, 12.5px);
     letter-spacing: -0.045em;
 }
 
@@ -154,9 +154,9 @@
     max-width: 100%;
     margin-top: 0;
     overflow: visible;
-    font-size: clamp(10px, 0.82vw, 12px);
+    font-size: clamp(9px, 0.72vw, 10.5px);
     font-weight: 500;
-    line-height: 1.25;
+    line-height: 1.2;
     color: var(--ak-stat-unit);
     white-space: normal;
     overflow-wrap: anywhere;
@@ -171,16 +171,16 @@
     align-self: flex-start;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: clamp(10px, 0.82vw, 12px);
+    gap: 5px;
+    font-size: clamp(9px, 0.72vw, 10.5px);
     font-weight: 600;
     line-height: 1;
     direction: ltr;            /* "↑ +8.4%" reads left-to-right */
 }
 
 .ak-stat-card__trend-arrow {
-    width: clamp(14px, 1.15vw, 17px);
-    height: clamp(14px, 1.15vw, 17px);
+    width: clamp(12px, 0.95vw, 14px);
+    height: clamp(12px, 0.95vw, 14px);
     flex: none;
     padding: 3px;
     border-radius: 50%;
@@ -240,9 +240,9 @@
     background-size: 400% 100%;
     animation: ak-stat-shimmer 1.4s ease infinite;
 }
-.ak-stat-card__skeleton--title { width: 46%;  height: 13px; margin-bottom: 12px; }
-.ak-stat-card__skeleton--value { width: 60%;  height: 30px; margin-bottom: 12px; }
-.ak-stat-card__skeleton--unit  { width: 34%;  height: 12px; }
+.ak-stat-card__skeleton--title { width: 46%;  height: 11px; margin-bottom: 8px; }
+.ak-stat-card__skeleton--value { width: 60%;  height: 22px; margin-bottom: 8px; }
+.ak-stat-card__skeleton--unit  { width: 34%;  height: 10px; }
 .ak-stat-card__visual--skeleton {
     background: #EEF1F3;
     animation: ak-stat-shimmer 1.4s ease infinite;
@@ -278,10 +278,10 @@
         /* Copy takes the wider share once the card narrows — the illustration
            is the part that can lose space without losing meaning. */
         grid-template-columns: minmax(0, 58%) minmax(0, 42%);
-        aspect-ratio: 2.1;
-        min-height: 78px;
-        max-height: 128px;
-        padding: 8px 9px;
+        aspect-ratio: 2.6;
+        min-height: 62px;
+        max-height: 96px;
+        padding: 7px 8px;
         border-radius: 14px;
     }
 
@@ -303,8 +303,8 @@
 
     .ak-stat-card {
         grid-template-columns: minmax(0, 63%) minmax(0, 37%);
-        aspect-ratio: 1.95;
-        padding: 7px;
+        aspect-ratio: 2.3;
+        padding: 6px 7px;
         border-radius: 12px;
     }
 }

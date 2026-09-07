@@ -1,6 +1,6 @@
 @model PTGOilSystem.Web.Models.Reports.FxDifferenceReportViewModel
 @{
-    ViewData["Title"] = UiText.T(Context, "گزارش سود و ضرر تفاوت نرخ ارز", "FX Gain / Loss Report");
+    ViewData["Title"] = UiText.T(Context, "حساب صراف و تفاوت نرخ", "Sarraf & FX Difference");
     var f = Model.Filter;
     var t = Model.Totals;
 
@@ -22,7 +22,7 @@
 
 <div class="ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "گزارش سود و ضرر تفاوت نرخ ارز", "FX Gain / Loss Report"), false,
+             model="@((UiText.T(Context, "حساب صراف و تفاوت نرخ", "Sarraf & FX Difference"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
 
@@ -141,7 +141,7 @@
                         <th class="ak-col-num">@UiText.T(Context, "قبول تأمین‌کننده USD", "Supplier accepted USD")</th>
                         <th class="ak-col-num">@UiText.T(Context, "تفاوت USD", "Difference USD")</th>
                         <th>@UiText.T(Context, "نتیجه", "Result")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "سود USD", "Gain USD")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مفاد USD", "Gain USD")</th>
                         <th class="ak-col-num">@UiText.T(Context, "ضرر USD", "Loss USD")</th>
                         <th class="ak-col-num">@UiText.T(Context, "کمیشن USD", "Commission USD")</th>
                         <th>@UiText.T(Context, "وضعیت کمیشن", "Commission status")</th>

@@ -64,8 +64,40 @@ public class CustomsDeclaration : BaseEntity
 
     [MaxLength(1000)] public string? Notes { get; set; }
 
+    // ---------------------------------------------------------------------
+    // PTG-P1-04 — هویتِ تسویه، جدا برای دو جنسِ اظهارنامه.
+    //
+    // یک اظهارنامه یک مبلغ نیست: حقوقِ دولتی همان‌جا نقد می‌شود و کمیشنکار اغلب بدهی
+    // می‌ماند. اگر هویتِ تسویه یکی بود، همین حالتِ رایج قابل ثبت نمی‌شد و ناچار یکی از
+    // دو طرف دروغ می‌شد. تفکیکِ اجزا در Services/Customs/CustomsComponentGroupMap.cs.
+    //
+    // هر گروه به یک ExpenseTransaction جدا می‌رسد و از همان ExpenseLedgerPoster عبور
+    // می‌کند؛ لایهٔ مالیِ تازه‌ای ساخته نمی‌شود.
+    // ---------------------------------------------------------------------
+
+    /// <summary>حقوق دولتی: نقد از صندوق، یا بدهی به کسی که از جیب خود پرداخته.</summary>
+    public ExpenseSettlementMode DutySettlementMode { get; set; } = ExpenseSettlementMode.Unknown;
+    public int? DutyCashAccountId { get; set; }
+    public CashAccount? DutyCashAccount { get; set; }
+
+    /// <summary>
+    /// طرف‌حسابِ حقوق دولتی وقتی شرکت خودش نپرداخته — معمولاً همان کمیشنکار.
+    /// دولت طرف‌حسابِ ماندگار نیست، پس نوعِ طرف‌حسابِ تازه‌ای ساخته نمی‌شود.
+    /// </summary>
+    public int? DutyServiceProviderId { get; set; }
+
+    /// <summary>کمیشن و خدمات: بدهی به کمیشنکار/شرکتِ خدماتی، یا نقد.</summary>
+    public ExpenseSettlementMode ServiceSettlementMode { get; set; } = ExpenseSettlementMode.Unknown;
+    public int? ServiceCashAccountId { get; set; }
+    public CashAccount? ServiceCashAccount { get; set; }
+    public int? ServiceProviderId { get; set; }
+    public ServiceProvider? ServiceProvider { get; set; }
+
     public ICollection<CustomsDeclarationItem> Items { get; set; } = new List<CustomsDeclarationItem>();
     public ICollection<CustomsDeclarationDocument> Documents { get; set; } = new List<CustomsDeclarationDocument>();
+
+    /// <summary>مصرف‌هایی که از همین اظهارنامه ساخته شده‌اند (حداکثر یکی per گروه).</summary>
+    public ICollection<ExpenseTransaction> ExpenseTransactions { get; set; } = new List<ExpenseTransaction>();
 }
 
 // Uploaded supporting documents for a customs declaration (payment receipt,

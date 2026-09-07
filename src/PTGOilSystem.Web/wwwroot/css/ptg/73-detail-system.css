@@ -284,7 +284,7 @@
    =================================================================== */
 body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .ak-detail-page .ak-detail-section:not(.ak-detail-section .ak-detail-section):not(.modal .ak-detail-section) {
     border-color: transparent;
-    border-radius: 16px;
+    border-radius: 8px;
     background: var(--background-paper, #fff);
     box-shadow: var(--ptg-panel-shadow);
 }
@@ -375,6 +375,32 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding: var(--ak-detail-card-padding);
     border-style: solid;
     border-width: 1px;
+}
+
+/* Truck-settlement row panel. The panel lives in a `td` of the list table, so
+   anything that refuses to shrink there widens the table and hands
+   `.ak-table-wrap` a horizontal scrollbar. Tighter gutters plus controls that
+   are allowed to shrink keep the four fields per row inside the list width. */
+[data-ts-settlement-panel] .ak-form-grid {
+    column-gap: 12px;
+    row-gap: 16px;
+}
+
+[data-ts-settlement-panel] .ak-input,
+[data-ts-settlement-panel] .ak-note,
+[data-ts-settlement-panel] .ak-num {
+    min-width: 0;
+    max-width: 100%;
+}
+
+[data-ts-settlement-panel] .ak-field > label {
+    overflow-wrap: anywhere;
+}
+
+/* The panel row spans the whole table; the list padding already provides the
+   outer gutter, so the cell keeps only a slim inline padding. */
+.ak-operations-settlement [data-ts-panel] > td {
+    padding-inline: 12px;
 }
 
 .ak-operations-detail .ak-operations-tab-fact {
@@ -595,7 +621,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     inline-size: 42px;
     block-size: 42px;
     flex: 0 0 42px;
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--ptg-primary-soft);
     color: var(--ptg-primary);
     font-size: 20px;
@@ -642,7 +668,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     margin: 0;
     padding: 15px 17px;
     border: 1px solid var(--ak-linear-border);
-    border-radius: 14px;
+    border-radius: 8px;
     background: var(--background-paper, #fff);
     box-shadow: none;
 }
@@ -752,7 +778,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding: 8px 9px;
     padding-right: calc(var(--ak-metric-visual) + var(--ak-metric-inset) + 5px);
     border: 1px solid var(--ak-linear-border);
-    border-radius: 16px;
+    border-radius: 8px;
     background: var(--ptg-surface-soft);
     overflow: hidden;
 }
@@ -1156,7 +1182,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     gap: 0;
     padding: 14px 18px;
     border: 1px solid var(--ak-linear-border);
-    border-radius: 14px;
+    border-radius: 8px;
     background: var(--background-paper, #fff);
 }
 
@@ -1181,7 +1207,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     margin: 0;
     padding: 12px 14px;
     border: 1px solid var(--ak-linear-border);
-    border-radius: 14px;
+    border-radius: 8px;
     background: var(--background-paper, #fff);
 }
 
@@ -1288,7 +1314,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     gap: 6px;
     padding: 5px 11px;
     border: 1px solid var(--ak-linear-border);
-    border-radius: 999px;
+    border-radius: 8px;
     background: var(--background-paper, #fff);
     color: var(--ptg-text);
     font-size: 12px;
@@ -1385,7 +1411,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .ak-linear-detail .ak-detail-technical {
     padding: 10px 12px;
     border: 1px solid var(--ak-linear-border);
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--ptg-surface-soft);
 }
 
@@ -1684,16 +1710,16 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 /* Loading keeps secondary actions in one clearly visible blue overflow menu. */
 [data-loading-details] > .ak-detail-header .ak-kebab-toggle {
-    border-color: #1877f2 !important;
-    background: #1877f2 !important;
+    border-color: #1062D0 !important;
+    background: #1062D0 !important;
     color: var(--ptg-primary-contrast) !important;
 }
 
 [data-loading-details] > .ak-detail-header .ak-kebab-toggle:hover,
 [data-loading-details] > .ak-detail-header .ak-kebab-toggle:focus-visible,
 [data-loading-details] > .ak-detail-header .ak-kebab-toggle.show {
-    border-color: #1877f2 !important;
-    background: #1877f2 !important;
+    border-color: #1062D0 !important;
+    background: #1062D0 !important;
     color: var(--ptg-primary-contrast) !important;
 }
 
@@ -1754,7 +1780,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
    extra weight — the accent stays quiet next to the money figures. */
 .ak-operations-clean-page .ak-summary-card .ak-info-value:is(.is-info, .is-success, .is-warning, .is-danger) {
     padding: 2px 9px;
-    border-radius: 999px;
+    border-radius: 8px;
     font-size: 13px;
     line-height: 1.7;
 }
@@ -2205,7 +2231,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     inline-size: 28px;
     block-size: 28px;
     border-radius: 50%;
-    background: var(--background-neutral, #F5F7FA);
+    background: var(--background-neutral, #F2F5FC);
     color: var(--ptg-muted);
     font-size: 13px;
     font-weight: 600;
@@ -2374,6 +2400,26 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     font-size: 15px;
     font-weight: 700;
     line-height: 1.35;
+}
+
+/* A metric that opens a breakdown: the number itself is the trigger, so it keeps
+   the dd typography and only gains an affordance on hover/focus. */
+.ptg-record-detail .ptg-td-flow-trigger {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+}
+
+.ptg-record-detail .ptg-td-flow-trigger:hover,
+.ptg-record-detail .ptg-td-flow-trigger:focus-visible {
+    text-decoration-style: solid;
+    color: var(--ptg-primary);
 }
 
 .ptg-record-detail .ptg-td-flow-node dd small {

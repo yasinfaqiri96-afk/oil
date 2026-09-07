@@ -5,13 +5,13 @@
 
 .boltz-invoice-page {
     color: #969ba0;
-    font-family: var(--app-font, "Vazirmatn", "Poppins", sans-serif);
+    font-family: var(--app-font, "IRANSans", "Vazirmatn", "Poppins", sans-serif);
 }
 
 .boltz-invoice-breadcrumb {
     align-items: center;
     background: #fff;
-    border-radius: 16px;
+    border-radius: 8px;
     display: flex;
     gap: .6rem;
     margin-bottom: 1.875rem;
@@ -40,7 +40,7 @@
 .boltz-invoice-card {
     background: #fff;
     border: 0;
-    border-radius: 28px;
+    border-radius: 8px;
     box-shadow: 0 5px 5px rgba(82, 63, 105, .05);
     overflow: hidden;
 }
@@ -271,7 +271,7 @@
 }
 
 .boltz-invoice-page .btn {
-    border-radius: 12px;
+    border-radius: 8px;
 }
 
 @media (max-width: 992px) {

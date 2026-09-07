@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
@@ -22,6 +22,10 @@ public interface ITransportWorkflowService
 
     Task<InventoryTransportLeg> StartFromReceiptAsync(
         StartTransportFromReceiptCommand command,
+        CancellationToken ct = default);
+
+    Task<InventoryTransportLeg> StartFromLoadingAsync(
+        StartTransportFromLoadingCommand command,
         CancellationToken ct = default);
 
     Task<ContinueToVehicleResult> ContinueToVehicleAsync(
@@ -67,12 +71,35 @@ public sealed record StartTransportFromReceiptCommand
     public string? Notes { get; init; }
 }
 
+public sealed record StartTransportFromLoadingCommand
+{
+    public required int LoadingRegisterId { get; init; }
+    public required decimal QuantityMt { get; init; }
+    public required LoadingTransportType TransportType { get; init; }
+    public int? TruckId { get; init; }
+    public int? WagonId { get; init; }
+    public int? VesselId { get; init; }
+    public int? DriverId { get; init; }
+    public int? ServiceProviderId { get; init; }
+    public required DateTime TransportDate { get; init; }
+    public string? Reference { get; init; }
+    public string? Notes { get; init; }
+}
+
 public sealed record SettleTransportFreightCommand
 {
     public required int TransportLegId { get; init; }
     public required DateTime SettlementDate { get; init; }
     public decimal? FreightRateUsdPerMt { get; init; }
     public decimal? FreightCostUsd { get; init; }
+
+    /// <summary>
+    /// رانندهٔ طرفِ کرایه، وقتی حمل شرکت خدماتی/دارایی ملکی ندارد. روی خودِ حمل ثبت
+    /// می‌شود تا سرویس رسید همان قاعدهٔ همیشگیِ «شرکت خدماتی، وگرنه راننده» را ببیند و
+    /// بدهیِ کرایه روی حساب همان راننده بنشیند.
+    /// </summary>
+    public int? DriverId { get; init; }
+
     public string? Notes { get; init; }
 }
 
@@ -105,6 +132,155 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         string? formToken,
         CancellationToken ct = default)
         => _inventoryStarts.CreateAsync(model, formToken, ct);
+
+    public async Task<InventoryTransportLeg> StartFromLoadingAsync(
+        StartTransportFromLoadingCommand command,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.QuantityMt <= 0m)
+        {
+            throw Rule("TRANSPORT_LOADING_QTY_INVALID", "مقدار حمل باید بزرگ‌تر از صفر باشد.");
+        }
+        if (command.TransportDate == default)
+        {
+            throw Rule("TRANSPORT_LOADING_DATE_REQUIRED", "تاریخ حمل الزامی است.");
+        }
+
+        await ValidateVehicleAsync(
+            command.TransportType,
+            command.TruckId,
+            command.WagonId,
+            command.VesselId,
+            command.DriverId,
+            command.ServiceProviderId,
+            ct);
+
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+            : null;
+
+        try
+        {
+            LoadingRegister? loading;
+            if (_db.Database.IsRelational()
+                && string.Equals(_db.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
+            {
+                loading = await _db.LoadingRegisters
+                    .FromSqlInterpolated($@"SELECT * FROM ""LoadingRegisters"" WHERE ""Id"" = {command.LoadingRegisterId} FOR UPDATE")
+                    .SingleOrDefaultAsync(ct);
+            }
+            else
+            {
+                loading = await _db.LoadingRegisters.SingleOrDefaultAsync(l => l.Id == command.LoadingRegisterId, ct);
+            }
+
+            if (loading is null)
+            {
+                throw Rule("TRANSPORT_LOADING_NOT_FOUND", "بارگیری انتخاب‌شده پیدا نشد.");
+            }
+
+            var receivedMt = await _db.LoadingReceipts
+                .AsNoTracking()
+                .Where(r => r.LoadingRegisterId == loading.Id && !r.IsCancelled)
+                .SumAsync(r => (decimal?)r.ReceivedQuantityMt, ct) ?? 0m;
+            var shortageMt = await _db.LossEvents
+                .AsNoTracking()
+                .Where(e => (e.LoadingRegisterId == loading.Id
+                        || e.LoadingReceiptId.HasValue
+                            && e.LoadingReceipt != null
+                            && e.LoadingReceipt.LoadingRegisterId == loading.Id)
+                    && e.Stage == LossEventStage.ReceiptShortage
+                    && !e.IsCancelled)
+                .SumAsync(e => (decimal?)(e.DifferenceQuantityMt > 0m
+                    ? e.DifferenceQuantityMt
+                    : e.ChargeableLossMt > 0m ? e.ChargeableLossMt : 0m), ct) ?? 0m;
+            var transportedMt = await _db.InventoryTransportLegAllocations
+                .AsNoTracking()
+                .Where(a => a.SourceLoadingRegisterId == loading.Id
+                    && a.InventoryTransportLeg != null
+                    && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+                .SumAsync(a => (decimal?)a.QuantityMt, ct) ?? 0m;
+            var availableMt = Math.Max(loading.LoadedQuantityMt - receivedMt - shortageMt - transportedMt, 0m);
+            if (command.QuantityMt > availableMt + Epsilon)
+            {
+                throw Rule(
+                    "TRANSPORT_LOADING_INSUFFICIENT",
+                    $"مقدار درخواستی از باقیماندهٔ بارگیری ({availableMt:N4} MT) بیشتر است.");
+            }
+
+            var groupKey = $"ITG:{Guid.NewGuid():N}";
+            var batch = new InventoryTransportBatch
+            {
+                BatchNumber = $"ITB-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}".ToUpperInvariant(),
+                SourceTerminalId = null,
+                SourceStorageTankId = null,
+                ProductId = loading.ProductId,
+                TotalQuantityMt = command.QuantityMt,
+                TransportDate = command.TransportDate.Date,
+                Status = InventoryTransportBatchStatus.Loaded,
+                TransportGroupKey = groupKey,
+                Notes = Normalize(command.Notes)
+            };
+            var reference = Normalize(command.Reference) ?? loading.RwbNo ?? loading.BillOfLadingNumber;
+            var leg = new InventoryTransportLeg
+            {
+                InventoryTransportBatch = batch,
+                TransportGroupKey = groupKey,
+                SourcePurchaseContractId = loading.ContractId,
+                ProductId = loading.ProductId,
+                SourceTerminalId = null,
+                SourceStorageTankId = null,
+                TransportType = command.TransportType,
+                TruckId = command.TransportType == LoadingTransportType.Truck ? command.TruckId : null,
+                WagonId = command.TransportType == LoadingTransportType.Wagon ? command.WagonId : null,
+                VesselId = command.TransportType == LoadingTransportType.Vessel ? command.VesselId : null,
+                DriverId = command.TransportType == LoadingTransportType.Truck ? command.DriverId : null,
+                ServiceProviderId = command.ServiceProviderId,
+                CarrierType = CarrierType.ServiceProvider,
+                LoadedDate = command.TransportDate.Date,
+                QuantityMt = command.QuantityMt,
+                Status = InventoryTransportLegStatus.Loaded,
+                RwbNo = reference,
+                BillOfLadingNumber = loading.BillOfLadingNumber,
+                RouteDescription = loading.RouteDescription,
+                PurchaseUnitCostUsd = loading.LoadingPriceUsd,
+                Notes = Normalize(command.Notes)
+            };
+            var carrierParty = await new AssetUsageChargeService(_db).ResolveCarrierPartyAsync(
+                leg.ServiceProviderId,
+                leg.DriverId,
+                leg.OperationalAssetId,
+                leg.LoadedDate,
+                ct);
+            leg.CarrierPartyType = carrierParty?.PartyType;
+            leg.CarrierPartyId = carrierParty?.PartyId;
+            leg.Allocations.Add(new InventoryTransportLegAllocation
+            {
+                SourceLoadingRegisterId = loading.Id,
+                SourcePurchaseContractId = loading.ContractId,
+                QuantityMt = decimal.Round(command.QuantityMt, 4, MidpointRounding.AwayFromZero)
+            });
+            batch.Legs.Add(leg);
+            _db.InventoryTransportBatches.Add(batch);
+            await _db.SaveChangesAsync(ct);
+            await new AssetUsageChargeService(_db).SyncOperationAsync(leg, ct);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(ct);
+            }
+            return leg;
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(ct);
+            }
+            throw;
+        }
+    }
 
     public async Task<InventoryTransportLeg> StartFromReceiptAsync(
         StartTransportFromReceiptCommand command,
@@ -328,6 +504,21 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
                 throw Rule("TRANSPORT_FREIGHT_ALREADY_SETTLED", "کرایهٔ این حمل قبلاً تسویه شده است.");
             }
 
+            // طرفِ کرایه: اگر کاربر راننده انتخاب کرده و حمل شرکت خدماتی/دارایی ملکی ندارد،
+            // همان راننده روی حمل ثبت می‌شود — دقیقاً همان کاری که مسیر تسویهٔ تفصیلی
+            // (TruckSettlementsController) می‌کند، تا دو قاعدهٔ موازی ساخته نشود.
+            if (command.DriverId is > 0
+                && !leg.ServiceProviderId.HasValue
+                && !leg.OperationalAssetId.HasValue)
+            {
+                if (!await _db.Drivers.AnyAsync(d => d.Id == command.DriverId.Value && d.IsActive, ct))
+                {
+                    throw Rule("TRANSPORT_FREIGHT_DRIVER_INVALID", "راننده معتبر یا فعال نیست.");
+                }
+
+                leg.DriverId = command.DriverId;
+            }
+
             var model = new InventoryTransportReceiptCreateViewModel
             {
                 InventoryTransportLegId = leg.Id,
@@ -394,29 +585,46 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         => _chain.CancelVehicleTransferAsync(sourceReceiptIds, ct);
 
     private async Task ValidateVehicleAsync(StartTransportFromReceiptCommand command, CancellationToken ct)
+        => await ValidateVehicleAsync(
+            command.TransportType,
+            command.TruckId,
+            command.WagonId,
+            command.VesselId,
+            command.DriverId,
+            command.ServiceProviderId,
+            ct);
+
+    private async Task ValidateVehicleAsync(
+        LoadingTransportType transportType,
+        int? truckId,
+        int? wagonId,
+        int? vesselId,
+        int? driverId,
+        int? serviceProviderId,
+        CancellationToken ct)
     {
-        switch (command.TransportType)
+        switch (transportType)
         {
-            case LoadingTransportType.Truck when command.TruckId.HasValue
-                && await _db.Trucks.AsNoTracking().AnyAsync(t => t.Id == command.TruckId && t.IsActive, ct):
+            case LoadingTransportType.Truck when truckId.HasValue
+                && await _db.Trucks.AsNoTracking().AnyAsync(t => t.Id == truckId && t.IsActive, ct):
                 break;
-            case LoadingTransportType.Wagon when command.WagonId.HasValue
-                && await _db.Wagons.AsNoTracking().AnyAsync(w => w.Id == command.WagonId && w.IsActive, ct):
+            case LoadingTransportType.Wagon when wagonId.HasValue
+                && await _db.Wagons.AsNoTracking().AnyAsync(w => w.Id == wagonId && w.IsActive, ct):
                 break;
-            case LoadingTransportType.Vessel when command.VesselId.HasValue
-                && await _db.Vessels.AsNoTracking().AnyAsync(v => v.Id == command.VesselId && v.IsActive, ct):
+            case LoadingTransportType.Vessel when vesselId.HasValue
+                && await _db.Vessels.AsNoTracking().AnyAsync(v => v.Id == vesselId && v.IsActive, ct):
                 break;
             default:
                 throw Rule("TRANSPORT_RECEIPT_VEHICLE_INVALID", "وسیلهٔ مقصد معتبر و فعال نیست.");
         }
 
-        if (command.DriverId.HasValue
-            && !await _db.Drivers.AsNoTracking().AnyAsync(d => d.Id == command.DriverId && d.IsActive, ct))
+        if (driverId.HasValue
+            && !await _db.Drivers.AsNoTracking().AnyAsync(d => d.Id == driverId && d.IsActive, ct))
         {
             throw Rule("TRANSPORT_RECEIPT_DRIVER_INVALID", "راننده انتخاب‌شده معتبر و فعال نیست.");
         }
-        if (command.ServiceProviderId.HasValue
-            && !await _db.ServiceProviders.AsNoTracking().AnyAsync(p => p.Id == command.ServiceProviderId && p.IsActive, ct))
+        if (serviceProviderId.HasValue
+            && !await _db.ServiceProviders.AsNoTracking().AnyAsync(p => p.Id == serviceProviderId && p.IsActive, ct))
         {
             throw Rule("TRANSPORT_RECEIPT_PROVIDER_INVALID", "شرکت خدماتی انتخاب‌شده معتبر و فعال نیست.");
         }

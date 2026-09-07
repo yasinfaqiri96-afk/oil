@@ -3,12 +3,14 @@
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
 
-    ViewData["Title"] = $"پیش‌فروش {Model.OrderNumber}";
+    ViewData["Title"] = $"فروش مرحله‌ای {Model.OrderNumber}";
     ViewData["HideSectionTabs"] = true;
 
     var backUrl = Url.Action("PreSales", "Sales") ?? "/Sales/PreSales";
     var currentReturnUrl = Context.Request.Path + Context.Request.QueryString;
-    var statusText = PreSaleOrderStatusLabels.ToPersian(Model.Status);
+    // وضعیت به زبانِ کاربر: تحویل نشده / تحویل جزئی / تحویل کامل.
+    var statusText = T(PreSaleOrderStatusLabels.ToDeliveryPersian(Model.Status),
+                       PreSaleOrderStatusLabels.ToDeliveryEnglish(Model.Status));
     // The hero pill uses the four canonical states of the detail header, so the
     // status reads the same here as on every other Operations detail page.
     var statusState = Model.Status switch
@@ -31,23 +33,23 @@
     {
         presaleKebab.Add(new AkHeaderMenuItem
         {
-            Label = T("بستن پیش‌فروش", "Close pre-sale"),
+            Label = T("بستن فروش مرحله‌ای", "Close staged sale"),
             PostUrl = Url.Action("PreSaleClose", new { id = Model.Id }),
             Icon = "bi-check2-circle",
-            ConfirmTitle = T("بستن پیش‌فروش", "Close pre-sale"),
-            ConfirmMessage = T("این پیش‌فروش بسته شود؟", "Close this pre-sale?")
+            ConfirmTitle = T("بستن فروش مرحله‌ای", "Close staged sale"),
+            ConfirmMessage = T("این فروش مرحله‌ای بسته شود؟", "Close this staged sale?")
         });
     }
     if (Model.CanDeliver && Model.DeliveredMt <= 0m)
     {
         presaleKebab.Add(new AkHeaderMenuItem
         {
-            Label = T("لغو پیش‌فروش", "Cancel pre-sale"),
+            Label = T("لغو فروش مرحله‌ای", "Cancel staged sale"),
             PostUrl = Url.Action("PreSaleCancel", new { id = Model.Id }),
             Icon = "bi-x-circle",
             IsDestructive = true,
-            ConfirmTitle = T("لغو پیش‌فروش", "Cancel pre-sale"),
-            ConfirmMessage = T("این پیش‌فروش لغو شود؟", "Cancel this pre-sale?")
+            ConfirmTitle = T("لغو فروش مرحله‌ای", "Cancel staged sale"),
+            ConfirmMessage = T("این فروش مرحله‌ای لغو شود؟", "Cancel this staged sale?")
         });
     }
     ViewData["AkHeaderKebab"] = presaleKebab;
@@ -71,6 +73,7 @@
 
     var overviewItems = new List<AkInfoItem>
     {
+        new() { Label = T("وضعیت تحویل", "Delivery status"), Value = statusText },
         new() { Label = T("مبلغ کل", "Total amount"), Value = Model.TotalInCurrency.ToString("N2"), Unit = Model.Currency, IsNumeric = true },
         new() { Label = T("ارزش تحویل‌شده", "Delivered value"), Value = Model.DeliveredValueUsd.ToString("N2"), Unit = "USD", IsNumeric = true },
         new() { Label = T("پیش‌دریافت تخصیص‌یافته", "Advance allocated"), Value = Model.ReceivedUsd.ToString("N2"), Unit = "USD", IsNumeric = true },
@@ -132,8 +135,8 @@
 <div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
-           Title = $"{T("پیش‌فروش", "Pre-sale")} {Model.OrderNumber}",
-           Eyebrow = T("پیش‌فروش", "Pre-sale"),
+           Title = $"{T("فروش مرحله‌ای", "Staged sale")} {Model.OrderNumber}",
+           Eyebrow = T("فروش با تحویل مرحله‌ای", "Staged-delivery sale"),
            Meta = $"{Model.CustomerName} · {Model.ProductName} · {Model.OrderDate.ToDisplayDate()}",
            Icon = "bi-calendar-check",
            Status = statusText,
@@ -141,7 +144,7 @@
            Items = identityItems
        }; }
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@(($"{T("پیش‌فروش", "Pre-sale")} {Model.OrderNumber}", false,
+             model="@(($"{T("فروش مرحله‌ای", "Staged sale")} {Model.OrderNumber}", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                         T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
@@ -157,12 +160,12 @@
     {
         @* موقتی: تا زمان پیاده‌سازی رزرو موجودی. *@
         <div class="alert alert-warning">
-            این پیش‌فروش هنوز موجودی را رزرو نمی‌کند و مقدار آن از موجودی قابل فروش سایر عملیات کم نمی‌شود.
+            این فروش مرحله‌ای هنوز موجودی را رزرو نمی‌کند و مقدار آن از موجودی قابل فروش سایر عملیات کم نمی‌شود.
         </div>
     }
 
     <partial name="~/Views/Shared/Partials/_DetailOverview.cshtml"
-             model="@(new AkDetailOverviewModel { AriaLabel = T("نمای اصلی پیش‌فروش", "Pre-sale overview"), Metrics = kpis, Facts = overviewItems })" />
+             model="@(new AkDetailOverviewModel { AriaLabel = T("نمای اصلی فروش مرحله‌ای", "Staged sale overview"), Metrics = kpis, Facts = overviewItems })" />
 
     <partial name="~/Views/Shared/Partials/_DetailActivityList.cshtml" model="@((IReadOnlyList<AkDetailActivityRow>)activityRows)" />
 
@@ -273,7 +276,7 @@
                             <label class="ak-label">مقدار این تحویل (تن)</label>
                             <input type="number" step="0.0001" name="QuantityMt" class="ak-input" data-presale-qty />
                             <div class="form-text">
-                                مانده پیش‌فروش: <span class="ak-num">@Model.RemainingMt.ToString("N4")</span> تن —
+                                مانده تحویل‌نشده: <span class="ak-num">@Model.RemainingMt.ToString("N4")</span> تن —
                                 مانده پس از تحویل: <span class="ak-num" data-presale-after>@Model.RemainingMt.ToString("N4")</span> تن
                             </div>
                         </div>
@@ -297,7 +300,7 @@
         </header>
         @if (Model.Payments.Count == 0)
         {
-            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هیچ دریافتی به این پیش‌فروش تخصیص نیافته است.", "No receipt is allocated to this pre-sale.")" />
+            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هیچ دریافتی به این فروش تخصیص نیافته است.", "No receipt is allocated to this sale.")" />
         }
         else
         {
@@ -367,7 +370,7 @@
                             <input type="number" step="0.01" name="amount" class="ak-input" data-presale-alloc-amount
                                    value="@Model.AllocatablePayments[0].AllocatableAmount.ToString("0.####")" />
                             <div class="form-text">
-                                مانده مالی تخصیص‌نیافتهٔ این پیش‌فروش: <span class="ak-num">@Model.UnallocatedOrderUsd.ToString("N2")</span> USD
+                                مانده مالی تخصیص‌نیافتهٔ این فروش: <span class="ak-num">@Model.UnallocatedOrderUsd.ToString("N2")</span> USD
                             </div>
                         </div>
                         <div class="ak-field">
@@ -376,7 +379,7 @@
                         </div>
                     </div>
                     <div class="ak-footer-actions">
-                        <button type="submit" class="btn btn-primary ak-save">تخصیص به این پیش‌فروش</button>
+                        <button type="submit" class="btn btn-primary ak-save">تخصیص به این فروش</button>
                     </div>
                 </form>
             </div>

@@ -5,6 +5,8 @@
     const PARTY_NONE = "0";
     const PARTY_PROVIDER = "1";
     const PARTY_ASSET = "2";
+    // فقط ویرایشگر مصارفِ حمل این گزینه را دارد؛ ردیف‌های بارگیری select راننده ندارند.
+    const PARTY_DRIVER = "3";
 
     function parseNumber(input) {
         if (!input) {
@@ -104,6 +106,8 @@
         const summaryNone = root.querySelector("[data-summary-none]");
         const summaryProvider = root.querySelector("[data-summary-provider]");
         const summaryAsset = root.querySelector("[data-summary-asset]");
+        // فقط ویرایشگر مصارفِ حمل این کاشی را دارد؛ در بارگیری null می‌ماند و نادیده گرفته می‌شود.
+        const summaryDriver = root.querySelector("[data-summary-driver]");
         const summaryTotal = root.querySelector("[data-summary-total]");
 
         function initExpenseTypeEntry(row) {
@@ -179,6 +183,7 @@
             const party = row.querySelector("[data-row-party]");
             const provider = row.querySelector("[data-row-provider]");
             const asset = row.querySelector("[data-row-asset]");
+            const driver = row.querySelector("[data-row-driver]");
             const noParty = row.querySelector("[data-row-noparty]");
             if (!party) {
                 return;
@@ -186,6 +191,7 @@
 
             const isProvider = party.value === PARTY_PROVIDER;
             const isAsset = party.value === PARTY_ASSET;
+            const isDriver = party.value === PARTY_DRIVER;
 
             if (provider) {
                 provider.disabled = !isProvider;
@@ -201,8 +207,15 @@
                     asset.value = "";
                 }
             }
+            if (driver) {
+                driver.disabled = !isDriver;
+                driver.hidden = !isDriver;
+                if (!isDriver) {
+                    driver.value = "";
+                }
+            }
             if (noParty) {
-                noParty.hidden = isProvider || isAsset;
+                noParty.hidden = isProvider || isAsset || isDriver;
             }
         }
 
@@ -211,6 +224,8 @@
             let none = 0;
             let provider = 0;
             let asset = 0;
+            // بدهیِ راننده هم مثل شرکت خدماتی طرف‌حساب دارد، پس در خلاصه کنار آن شمرده می‌شود.
+            let driverTotal = 0;
 
             rows.forEach((row) => {
                 const amount = parseNumber(row.querySelector("[data-row-amount]"));
@@ -219,16 +234,19 @@
                     provider += amount;
                 } else if (party === PARTY_ASSET) {
                     asset += amount;
+                } else if (party === PARTY_DRIVER) {
+                    driverTotal += amount;
                 } else {
                     none += amount;
                 }
             });
 
-            const grand = none + provider + asset;
+            const grand = none + provider + asset + driverTotal;
 
             if (summaryCount) summaryCount.textContent = rows.length.toString();
             if (summaryNone) summaryNone.textContent = formatMoney(none);
             if (summaryProvider) summaryProvider.textContent = formatMoney(provider);
+            if (summaryDriver) summaryDriver.textContent = formatMoney(driverTotal);
             if (summaryAsset) summaryAsset.textContent = formatMoney(asset);
             if (summaryTotal) summaryTotal.textContent = formatMoney(grand);
             if (emptyNote) emptyNote.classList.toggle("d-none", rows.length > 0);

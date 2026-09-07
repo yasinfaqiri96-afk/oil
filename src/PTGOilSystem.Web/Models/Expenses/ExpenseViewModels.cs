@@ -71,6 +71,23 @@ public sealed class ExpenseCreateViewModel
     [Display(Name = "مصرف بدوش کیست")]
     public PTGOilSystem.Web.Models.Entities.CostResponsibility? CostResponsibility { get; set; }
 
+    // ---------------------------------------------------------------------
+    // PTG-P1-04 — هویت تسویه. تا پیش از این، فرم راهی برای گفتنِ «این مصرف همان‌جا از
+    // صندوق پرداخت شد» نداشت و هر مصرفِ بی‌طرف‌حساب ناچار «بدون حرکت پول» ثبت می‌شد.
+    // طرف‌حساب همان انتخابِ «شرکت خدماتی» بالاست و فیلدِ تازه‌ای برای آن ساخته نمی‌شود
+    // تا دو راهِ گفتنِ یک چیز به‌وجود نیاید.
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// خالی یعنی «خودت از طرف‌حساب تشخیص بده» — رفتارِ همهٔ فرم‌های موجود. مقدارِ صریح
+    /// فقط وقتی می‌آید که کاربر در فرم انتخاب کرده باشد.
+    /// </summary>
+    [Display(Name = "وضعیت تسویه")]
+    public PTGOilSystem.Web.Models.Entities.ExpenseSettlementMode? SettlementMode { get; set; }
+
+    [Display(Name = "پرداخت از حساب")]
+    public int? CashAccountId { get; set; }
+
     [StringLength(1000)]
     public string? ReturnUrl { get; set; }
 }
@@ -199,6 +216,10 @@ public sealed class ExpenseIndexFilterViewModel
     [Display(Name = "Operational Asset")]
     public int? OperationalAssetId { get; set; }
 
+    // PTG-P1-04 — «طبقه‌بندی‌نشده» هم یک انتخاب است، پس ردیف‌های پیش از فاز ۱ گم نمی‌شوند.
+    [Display(Name = "وضعیت تسویه")]
+    public PTGOilSystem.Web.Models.Entities.ExpenseSettlementMode? SettlementMode { get; set; }
+
     [Display(Name = "جست‌وجو در شرح / مرجع")]
     [StringLength(1000)]
     public string? Query { get; set; }
@@ -232,6 +253,10 @@ public sealed class ExpenseListItemViewModel
     public decimal? AppliedFxRateToUsd { get; init; }
     public decimal AmountUsd { get; init; }
     public string Description { get; init; } = string.Empty;
+
+    // PTG-P1-04 — وضعیت تسویه. Unknown یعنی ردیفِ پیش از فاز ۱ که هرگز حدس زده نشده.
+    public PTGOilSystem.Web.Models.Entities.ExpenseSettlementMode SettlementMode { get; init; }
+    public string? CashAccountName { get; init; }
 }
 
 public sealed class ExpenseIndexViewModel
@@ -254,6 +279,7 @@ public sealed class ExpenseDetailsViewModel
     public string? ShipmentCode { get; init; }
     public string? TruckDispatchLabel { get; init; }
     public string? TransportLegLabel { get; init; }
+    public int? TransportLegId { get; init; }
     public int? ServiceProviderId { get; init; }
     public string? ServiceProviderName { get; init; }
     public int? OperationalAssetId { get; init; }

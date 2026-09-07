@@ -205,6 +205,10 @@ public sealed class InventoryTransportVehicleInput
     [MaxLength(200)] public string? DriverNameInput { get; set; }
     public decimal QuantityMt { get; set; }
     public decimal? CapacityMt { get; set; }
+    // تاریخ بارگیریِ همین ردیف. خالی = تاریخ سند. یک موتر می‌تواند در یک سند چند سفر
+    // با تاریخ‌های متفاوت داشته باشد؛ تکراری فقط وقتی است که موتر و تاریخ هر دو یکی باشند.
+    [DataType(DataType.Date)]
+    public DateTime? LoadedDate { get; set; }
     public CarrierType CarrierType { get; set; } = CarrierType.ServiceProvider;
     public int? ServiceProviderId { get; set; }
     public int? OperationalAssetId { get; set; }
@@ -548,6 +552,10 @@ public sealed class InventoryTransportGroupExpenseCreateViewModel
     [Display(Name = "Operational Asset")]
     public int? OperationalAssetId { get; set; }
 
+    // موتروانِ مستقل به‌عنوان طرفِ مصرف — همان قاعدهٔ ExpenseLedgerPoster.HasCounterparty.
+    [Display(Name = "راننده")]
+    public int? DriverId { get; set; }
+
     [Display(Name = "تاریخ مصرف")]
     [DataType(DataType.Date)]
     public DateTime ExpenseDate { get; set; } = AfghanistanBusinessClock.SystemToday;
@@ -617,6 +625,10 @@ public sealed class InventoryTransportGroupExpenseModalRow
     public LoadingExpensePartyType PartyType { get; set; } = LoadingExpensePartyType.None;
     public int? ServiceProviderId { get; set; }
     public int? OperationalAssetId { get; set; }
+    // موتروانِ مستقل به‌عنوان طرفِ مصرف. مصرفِ حمل معمولاً بدهی به همان راننده است، نه به
+    // شرکت خدماتی؛ بدون این انتخاب سطرِ دفتر بی‌طرف‌حساب می‌ماند و از «طلبات و بدهی‌ها»
+    // بیرون می‌افتد. رجوع: ExpenseLedgerPoster.HasCounterparty.
+    public int? DriverId { get; set; }
     [StringLength(1000)]
     public string? Notes { get; set; }
     // فقط وقتی برای همین نوع مصرف قبلاً مصرف فعال هست، ساخت دوبارهٔ آن نیاز به انتخاب صریح دارد.
@@ -648,6 +660,7 @@ public sealed class InventoryTransportFlowExpenseItemViewModel
     public string ExpenseTypeName { get; set; } = "";
     public string? ServiceProviderName { get; set; }
     public string? OperationalAssetName { get; set; }
+    public string? DriverName { get; set; }
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "USD";
     public decimal AmountUsd { get; set; }
@@ -720,6 +733,9 @@ public sealed class InventoryTransportLegDetailsViewModel
     public int? OutboundInventoryMovementId { get; set; }
     public string? OutboundReferenceDocument { get; set; }
     public IReadOnlyList<InventoryTransportLegExpenseItemViewModel> Expenses { get; set; } = [];
+    // مصارفی که مستقیم به این حمل وصل نیستند ولی از مسیر دیسپچِ موترِ ساخته‌شده از رسید همین حمل
+    // به آن تعلق می‌گیرند — همان مجموعه‌ای که P&L در ExpenseTransactionsUsd می‌شمارد.
+    public IReadOnlyList<InventoryTransportLegExpenseItemViewModel> DispatchExpenses { get; set; } = [];
     public IReadOnlyList<InventoryTransportLegCustomsItemViewModel> CustomsDeclarations { get; set; } = [];
     public IReadOnlyList<InventoryTransportLegLossItemViewModel> Losses { get; set; } = [];
     public InventoryTransportReceiptSummaryViewModel? DestinationReceipt { get; set; }
@@ -792,8 +808,10 @@ public sealed class InventoryTransportLegExpenseItemViewModel
     public int Id { get; set; }
     public DateTime ExpenseDate { get; set; }
     public string ExpenseTypeName { get; set; } = "";
+    public string? ExpenseTypeCode { get; set; }
     public string? ServiceProviderName { get; set; }
     public string? OperationalAssetName { get; set; }
+    public string? DriverName { get; set; }
     public decimal AmountUsd { get; set; }
     public string? Description { get; set; }
 }
@@ -994,6 +1012,9 @@ public sealed class InventoryTransportReceiptSummaryViewModel
     public decimal? FreightPayableUsd { get; set; }
     public string? ServiceProviderName { get; set; }
     public string? OperationalAssetName { get; set; }
+    // طرفِ کرایه وقتی نه شرکت خدماتی است نه دارایی ملکی: رانندهٔ همان حمل — همان قاعده‌ای
+    // که InventoryTransportReceiptService.SyncReceiptFreightExpenseAsync برای بدهی به کار می‌برد.
+    public string? DriverName { get; set; }
     public string? DestinationTerminalName { get; set; }
     public string? DestinationTankCode { get; set; }
     public int? InventoryMovementId { get; set; }

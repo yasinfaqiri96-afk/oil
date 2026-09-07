@@ -858,6 +858,38 @@ public partial class SalesController
             })
             .ToDictionaryAsync(x => x.SaleId);
 
+        // تطبیقِ نقد: هر ردیف می‌داند چه مقدار از دریافت‌ها روی خودش نشسته و چه مقدار باز مانده.
+        var applications = await LoadReceiptApplicationsAsync(saleIds);
+        var appliedBySale = applications
+            .GroupBy(a => a.SalesTransactionId)
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.AppliedAmountUsd));
+        var legacyBySale = await _db.PaymentTransactions
+            .AsNoTracking()
+            .Where(p => p.SalesTransactionId != null
+                && saleIds.Contains(p.SalesTransactionId!.Value)
+                && !_db.CustomerPaymentAllocationApplications.Any(a =>
+                    a.PaymentTransactionId == p.Id
+                    && a.SalesTransactionId == p.SalesTransactionId
+                    && a.Status == CustomerPaymentAllocationApplicationStatus.Active))
+            .GroupBy(p => p.SalesTransactionId!.Value)
+            .Select(g => new
+            {
+                SaleId = g.Key,
+                Usd = g.Sum(p => p.Direction == PaymentDirection.In ? p.AmountUsd : -p.AmountUsd)
+            })
+            .ToDictionaryAsync(x => x.SaleId, x => x.Usd);
+
+        decimal ReceivedUsdOf(int saleId)
+            => decimal.Round(
+                (appliedBySale.TryGetValue(saleId, out var applied) ? applied : 0m)
+                    + (legacyBySale.TryGetValue(saleId, out var legacy) ? legacy : 0m),
+                4,
+                MidpointRounding.AwayFromZero);
+
+        var applicableReceipts = batch.IsCancelled
+            ? []
+            : await LoadApplicableReceiptsAsync(batch.CustomerId);
+
         var vm = new GroupSaleDetailsViewModel
         {
             Id = batch.Id,
@@ -908,9 +940,22 @@ public partial class SalesController
                     QuantityMt = l.QuantityMt,
                     TotalInCurrency = l.TotalInCurrency,
                     TotalUsd = l.TotalUsd,
-                    IsCancelled = l.IsCancelled
+                    IsCancelled = l.IsCancelled,
+                    ReceivedUsd = l.IsCancelled ? 0m : ReceivedUsdOf(l.Id),
+                    OpenReceivableUsd = l.IsCancelled
+                        ? 0m
+                        : Math.Max(decimal.Round(l.TotalUsd - ReceivedUsdOf(l.Id), 4, MidpointRounding.AwayFromZero), 0m)
                 };
-            }).ToList()
+            }).ToList(),
+            CustomerId = batch.CustomerId,
+            ReceivedUsd = decimal.Round(
+                lines.Where(l => !l.IsCancelled).Sum(l => ReceivedUsdOf(l.Id)), 4, MidpointRounding.AwayFromZero),
+            OpenReceivableUsd = Math.Max(decimal.Round(
+                lines.Where(l => !l.IsCancelled).Sum(l => l.TotalUsd - ReceivedUsdOf(l.Id)),
+                4,
+                MidpointRounding.AwayFromZero), 0m),
+            Applications = applications,
+            ApplicableReceipts = applicableReceipts
         };
 
         return View(vm);

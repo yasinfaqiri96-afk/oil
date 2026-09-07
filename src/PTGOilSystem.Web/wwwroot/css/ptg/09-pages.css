@@ -54,6 +54,38 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.alert, .info-not
     box-shadow: none;
 }
 
+/* Semantic alerts read as calm tinted notes, not Bootstrap's saturated blocks:
+   very light semantic background + semantic ink, one hairline, no elevation. */
+body.boltz-shell.app-shell-authenticated .boltz-content :where(.alert-info, .alert-primary) {
+    border-color: var(--ptg-accent-blue-soft);
+    background: var(--ptg-info-soft);
+    color: var(--ptg-info-text);
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content :where(.alert-success) {
+    border-color: var(--ptg-success-soft);
+    background: var(--ptg-success-soft);
+    color: var(--ptg-success-text);
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content :where(.alert-warning) {
+    border-color: var(--ptg-warning-soft);
+    background: var(--ptg-warning-soft);
+    color: var(--ptg-warning-text);
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content :where(.alert-danger) {
+    border-color: var(--ptg-danger-soft);
+    background: var(--ptg-danger-soft);
+    color: var(--ptg-danger-text);
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content :where(.alert-secondary, .alert-light, .alert-dark) {
+    border-color: var(--ptg-border);
+    background: var(--ptg-surface-soft);
+    color: var(--ptg-text);
+}
+
 body.boltz-shell.app-shell-authenticated .boltz-content :where(.warning-note) {
     background: var(--ptg-warning-soft) !important;
     color: #8A5A00;
@@ -68,62 +100,221 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
     font-weight: 700;
 }
 
-.storage-tank-card {
+/* ── Storage tanks index: illustrated cards ─────────────────────────────── */
+
+.storage-tank-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto 1fr auto;
-    min-height: 15rem;
-    overflow: hidden;
-    direction: ltr;
-    border: 1px solid var(--tank-card-border);
-    border-radius: 1rem;
-    background: #fff;
-    box-shadow: var(--tank-card-shadow);
-    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: var(--ptg-space-gap, 12px);
+    align-items: stretch;
 }
 
-.storage-tank-card:hover {
-    border-color: #d3dfec;
-    box-shadow: 0 .55rem 1.35rem rgba(15, 23, 42, .075);
-    transform: translateY(-1px);
+.storage-tank-card {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    background: var(--background-paper);
+    box-shadow: var(--ptg-panel-shadow);
+    transition: border-color 190ms ease, box-shadow 190ms ease, transform 190ms ease;
+}
+
+.storage-tank-card:hover,
+.storage-tank-card:focus-within {
+    border-color: #D3DFEC;
+    box-shadow: none;
+    transform: translateY(-2px);
 }
 
 .storage-tank-card.is-normal {
-    --tank-accent: #1877f2;
-    --tank-accent-rgb: 18, 184, 179;
-    --tank-soft: #edf5ff;
-    --tank-action: #1877f2;
+    --tank-metal: #E9EEF4;
+    --tank-metal-dark: #CBD5E1;
+    --tank-steel: var(--primary-main);
+    --tank-rail: var(--warning-main);
+    --tank-liquid: #BCD8F8;
+    --tank-liquid-top: #7FB2F0;
+    --tank-gauge: var(--ptg-btn-primary);
 }
 
 .storage-tank-card.is-muted {
-    --tank-accent: #7B7B7B;
-    --tank-accent-rgb: 100, 116, 139;
-    --tank-soft: #F5F7FA;
-    --tank-action: #5B5B5B;
+    --tank-metal: #F1F3F6;
+    --tank-metal-dark: #DDE1E7;
+    --tank-steel: #7B8794;
+    --tank-rail: #B9BFC7;
+    --tank-liquid: #E4E7EB;
+    --tank-liquid-top: #C8CDD4;
+    --tank-gauge: #9AA2AC;
+}
+
+.storage-tank-card-main {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    padding: 10px 12px 6px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.storage-tank-card-main:hover,
+.storage-tank-card-main:focus-visible {
+    color: inherit;
+    text-decoration: none;
+}
+
+.storage-tank-visual {
+    display: grid;
+    place-items: center;
+    position: relative;
+    min-block-size: 228px;
+    padding: 6px 12px 2px;
+    border-radius: 8px;
+    background: linear-gradient(145deg, var(--background-neutral), var(--background-paper));
+    overflow: hidden;
+}
+
+.storage-tank-image {
+    display: block;
+    inline-size: min(100%, 250px);
+    block-size: 220px;
+    max-inline-size: 100%;
+    object-fit: contain;
+}
+
+.storage-tank-fill-badge {
+    position: absolute;
+    inset-block-start: 10px;
+    inset-inline-start: 10px;
+    min-inline-size: 48px;
+    padding: 4px 9px;
+    border-radius: 8px;
+    background: var(--primary-main);
+    color: var(--background-paper);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: var(--ptg-panel-shadow);
+}
+
+.tankviz-ground { fill: rgba(15, 23, 42, .07); }
+.tankviz-body { fill: var(--tank-metal); }
+.tankviz-liquid { fill: var(--tank-liquid); }
+.tankviz-liquid-top { fill: var(--tank-liquid-top); }
+.tankviz-base,
+.tankviz-valve,
+.tankviz-nozzle-cap { fill: var(--tank-steel); }
+.tankviz-nozzle { fill: var(--tank-metal-dark); }
+.tankviz-gauge-fill { fill: var(--tank-gauge); }
+
+.tankviz-plates line {
+    stroke: var(--tank-metal-dark);
+    stroke-width: 1;
+}
+
+.tankviz-gauge-track {
+    fill: #FFFFFF;
+    stroke: var(--tank-metal-dark);
+    stroke-width: 1.5;
+}
+
+.tankviz-cap {
+    fill: var(--tank-metal-dark);
+    stroke: var(--tank-steel);
+    stroke-width: 2;
+}
+
+.tankviz-pipe,
+.tankviz-stair,
+.tankviz-rail,
+.tankviz-railing {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.tankviz-pipe { stroke: var(--tank-steel); stroke-width: 2.5; }
+.tankviz-stair { stroke: var(--tank-steel); stroke-width: 2; }
+.tankviz-rail,
+.tankviz-railing { stroke: var(--tank-rail); stroke-width: 2; }
+
+.tankviz-steps line {
+    stroke: var(--tank-steel);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+}
+
+.tankviz-posts line {
+    stroke: var(--tank-steel);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.storage-tank-card-body {
+    display: grid;
+    align-content: start;
+    gap: 4px;
+}
+
+.storage-tank-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.storage-tank-card-head .ak-name {
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.storage-tank-card-facts {
+    display: grid;
+    margin-block-start: 0;
+}
+
+.storage-tank-fact {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.storage-tank-fact-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.storage-tank-fact-value {
+    font-size: 14.5px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
 }
 
 .storage-tank-card-actions {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: .4rem .5rem;
-    min-height: 2.75rem;
-    padding: .45rem .85rem;
-    border-top: 1px solid var(--tank-card-line);
-    background: #FCFCFC;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 2.5rem;
+    padding: 4px 8px 4px 14px;
+    border-top: 1px solid var(--divider);
+    color: var(--text-secondary);
+    font-size: 13px;
 }
 
-/* Column count is fully governed by the auto-fill grid above, so cards stay a
-   consistent narrow width and reflow on every screen without breaking. */
-
-@media (max-width: 720px) {
+@media (prefers-reduced-motion: reduce) {
 
     .storage-tank-card {
-        min-height: 0;
+        transition: none;
     }
 
-    .storage-tank-card-actions {
-        flex-wrap: wrap;
+    .storage-tank-card:hover,
+    .storage-tank-card:focus-within {
+        transform: none;
     }
 
 }
@@ -162,7 +353,7 @@ body.boltz-shell.controller-payments.action-hub .ds-card .btn {
     padding: .3rem .8rem !important;
     background: #f5a800 !important;
     border-color: #f5a800 !important;
-    color: #424242 !important;
+    color: #3D3D3D !important;
     font-weight: 700 !important;
 }
 
@@ -170,7 +361,7 @@ body.boltz-shell.controller-payments.action-hub .ds-card .btn:hover,
 body.boltz-shell.controller-payments.action-hub .ds-card .btn:focus {
     background: #e09600 !important;
     border-color: #e09600 !important;
-    color: #424242 !important;
+    color: #3D3D3D !important;
 }
 
 /* هدر صفحه فشرده‌تر */

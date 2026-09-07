@@ -1,0 +1,250 @@
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.InventoryTransport
+@model TransportBulkFromLoadingViewModel
+@{
+    ViewData["Title"] = "تبدیل گروهی بارگیری به حمل";
+    ViewData["HideSectionTabs"] = true;
+    var backUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Model.ReturnUrl : Url.Action("Index", "Loading");
+    var requestedCount = (int)(ViewBag.BulkRequestedCount ?? 0);
+
+    // نام وسیله از همان SelectListهای فرم خوانده می‌شود تا خلاصهٔ ردیف بدون کوئری اضافه ساخته شود.
+    string? OptionText(object? source, int? id)
+    {
+        if (id is null) { return null; }
+        var items = source as IEnumerable<SelectListItem>;
+        return items?.FirstOrDefault(i => i.Value == id.Value.ToString())?.Text;
+    }
+
+    string TypeLabel(LoadingTransportType type) => type switch
+    {
+        LoadingTransportType.Vessel => "کشتی",
+        LoadingTransportType.Wagon => "واگن",
+        _ => "موتر"
+    };
+}
+
+<main class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("تبدیل گروهی بارگیری به حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", backUrl))" />
+    <form asp-action="BulkFromLoading" method="post" class="ak-form" data-submit-lock data-no-spa>
+        @Html.AntiForgeryToken()
+        <input asp-for="ReturnUrl" type="hidden" />
+        <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تاریخ حمل", (string?)"همین تاریخ برای تمام حمل‌های ساخته‌شده ثبت می‌شود."))" />
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label asp-for="TransportDate">تاریخ <b>*</b></label>
+                    <input asp-for="TransportDate" type="date" class="ak-input" />
+                </div>
+            </div>
+        </section>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("بارگیری‌های انتخاب‌شده", (string?)"وسیلهٔ هر ردیف از خود بارگیری خوانده می‌شود؛ فقط در صورت نیاز «تغییر وسیله» را باز کنید."))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-check"><input type="checkbox" class="ak-check" data-bulk-select-all aria-label="انتخاب همه" /></th>
+                            <th class="ak-col-grow">بارگیری</th>
+                            <th class="text-end">باقیمانده</th>
+                            <th class="text-end">مقدار حمل</th>
+                            <th>وسیله</th>
+                            <th class="ak-col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @for (var i = 0; i < Model.Rows.Count; i++)
+                    {
+                        var row = Model.Rows[i];
+                        var vehicleName = row.TransportType switch
+                        {
+                            LoadingTransportType.Vessel => OptionText(ViewBag.Vessels, row.VesselId),
+                            LoadingTransportType.Wagon => OptionText(ViewBag.Wagons, row.WagonId),
+                            _ => OptionText(ViewBag.Trucks, row.TruckId)
+                        };
+                        var needsVehicle = string.IsNullOrWhiteSpace(vehicleName);
+                        <tr data-bulk-row>
+                            <td class="ak-col-check">
+                                <input asp-for="Rows[i].Selected" class="ak-check" data-bulk-row-select />
+                                <input asp-for="Rows[i].LoadingRegisterId" type="hidden" />
+                                <input asp-for="Rows[i].LoadingLabel" type="hidden" />
+                                <input asp-for="Rows[i].Reference" type="hidden" />
+                                <input asp-for="Rows[i].AvailableQuantityMt" type="hidden" />
+                            </td>
+                            <td class="ak-col-grow">
+                                <span class="ak-name">@row.LoadingLabel</span>
+                                <span class="ak-section-desc">@row.ProductName</span>
+                            </td>
+                            <td class="ak-num text-end">@row.AvailableQuantityMt.ToString("N4") MT</td>
+                            <td class="text-end">
+                                <input asp-for="Rows[i].QuantityMt" class="ak-input ak-input-compact ak-num"
+                                       type="number" min="0.0001" max="@row.AvailableQuantityMt" step="0.0001"
+                                       aria-label="مقدار حمل" data-bulk-quantity />
+                            </td>
+                            <td>
+                                <span class="ak-name" data-bulk-vehicle-summary>@TypeLabel(row.TransportType)@(needsVehicle ? "" : " — " + vehicleName)</span>
+                                @if (needsVehicle)
+                                {
+                                    <span class="ak-status is-warning">وسیله انتخاب نشده</span>
+                                }
+                            </td>
+                            <td class="ak-col-actions">
+                                <button type="button" class="btn btn-light btn-sm ak-secondary-action"
+                                        data-bulk-toggle aria-expanded="@(needsVehicle ? "true" : "false")">
+                                    <i class="bi bi-pencil" aria-hidden="true"></i> تغییر وسیله
+                                </button>
+                            </td>
+                        </tr>
+                        <tr data-bulk-editor hidden="@(needsVehicle ? null : "hidden")">
+                            <td colspan="6">
+                                <div class="ak-form-grid">
+                                    <div class="ak-field">
+                                        <label asp-for="Rows[i].TransportType">نوع وسیله</label>
+                                        <select asp-for="Rows[i].TransportType" class="ak-input" data-bulk-type>
+                                            <option value="3">موتر</option>
+                                            <option value="2">واگن</option>
+                                            <option value="1">کشتی</option>
+                                        </select>
+                                    </div>
+                                    <div class="ak-field" data-bulk-vehicle="3">
+                                        <label asp-for="Rows[i].TruckId">موتر</label>
+                                        <select asp-for="Rows[i].TruckId" asp-items="ViewBag.Trucks" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
+                                    </div>
+                                    <div class="ak-field" data-bulk-vehicle="2">
+                                        <label asp-for="Rows[i].WagonId">واگن</label>
+                                        <select asp-for="Rows[i].WagonId" asp-items="ViewBag.Wagons" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
+                                    </div>
+                                    <div class="ak-field" data-bulk-vehicle="1">
+                                        <label asp-for="Rows[i].VesselId">کشتی</label>
+                                        <select asp-for="Rows[i].VesselId" asp-items="ViewBag.Vessels" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
+                                    </div>
+                                    <div class="ak-field" data-bulk-driver>
+                                        <label asp-for="Rows[i].DriverId">راننده</label>
+                                        <select asp-for="Rows[i].DriverId" asp-items="ViewBag.Drivers" class="ak-input"><option value="">بدون انتخاب</option></select>
+                                    </div>
+                                    <div class="ak-field">
+                                        <label asp-for="Rows[i].ServiceProviderId">شرکت خدماتی</label>
+                                        <select asp-for="Rows[i].ServiceProviderId" asp-items="ViewBag.ServiceProviders" class="ak-input" data-bulk-provider><option value="">بدون انتخاب</option></select>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6">
+                                <div class="ak-empty">
+                                    <i class="bi bi-truck"></i>
+                                    @if (requestedCount > 0)
+                                    {
+                                        <span>@requestedCount بارگیری انتخاب شد اما هیچ‌کدام باقیماندهٔ قابل تبدیل ندارند (رسید، کسری یا حمل قبلی کل مقدار را مصرف کرده است).</span>
+                                    }
+                                    else
+                                    {
+                                        <span>هیچ بارگیری‌ای انتخاب نشده است؛ از لیست بارگیری ردیف‌ها را تیک بزنید.</span>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="ak-footer-actions">
+            <a href="@backUrl" class="btn btn-light ak-secondary-action">انصراف</a>
+            <button type="submit" class="btn btn-primary ak-primary-action" data-submit-button data-bulk-submit disabled>
+                تبدیل به حمل (<span data-bulk-count>0</span>)
+            </button>
+        </div>
+    </form>
+</main>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            var rows = Array.prototype.slice.call(document.querySelectorAll('[data-bulk-row]'));
+            var selectAll = document.querySelector('[data-bulk-select-all]');
+            var submit = document.querySelector('[data-bulk-submit]');
+            var counter = document.querySelector('[data-bulk-count]');
+
+            function editorOf(row) { return row.nextElementSibling; }
+
+            function typeLabel(value) {
+                return value === '1' ? 'کشتی' : (value === '2' ? 'واگن' : 'موتر');
+            }
+
+            function syncRow(row) {
+                var editor = editorOf(row);
+                var check = row.querySelector('[data-bulk-row-select]');
+                var type = editor.querySelector('[data-bulk-type]');
+                var value = type.value;
+                var on = check.checked;
+                var activeSelect = null;
+
+                editor.querySelectorAll('[data-bulk-vehicle]').forEach(function (field) {
+                    var active = field.getAttribute('data-bulk-vehicle') === value;
+                    field.hidden = !active;
+                    var select = field.querySelector('[data-bulk-vehicle-select]');
+                    select.disabled = !active || !on;
+                    if (active) { activeSelect = select; }
+                });
+
+                editor.querySelectorAll('[data-bulk-driver]').forEach(function (field) {
+                    var active = value === '3';
+                    field.hidden = !active;
+                    field.querySelectorAll('select').forEach(function (c) { c.disabled = !active || !on; });
+                });
+
+                row.querySelectorAll('[data-bulk-quantity]').forEach(function (c) { c.disabled = !on; });
+                type.disabled = !on;
+                editor.querySelectorAll('[data-bulk-provider]').forEach(function (c) { c.disabled = !on; });
+
+                var name = activeSelect && activeSelect.value
+                    ? activeSelect.options[activeSelect.selectedIndex].text
+                    : '';
+                var summary = row.querySelector('[data-bulk-vehicle-summary]');
+                summary.textContent = typeLabel(value) + (name ? ' — ' + name : '');
+                row.classList.toggle('is-selected', on);
+            }
+
+            function syncAll() {
+                rows.forEach(syncRow);
+                var count = rows.filter(function (r) { return r.querySelector('[data-bulk-row-select]').checked; }).length;
+                if (submit) { submit.disabled = count === 0; }
+                if (counter) { counter.textContent = count; }
+                if (selectAll) {
+                    selectAll.checked = rows.length > 0 && count === rows.length;
+                    selectAll.indeterminate = count > 0 && count < rows.length;
+                }
+            }
+
+            rows.forEach(function (row) {
+                var editor = editorOf(row);
+                row.querySelector('[data-bulk-row-select]').addEventListener('change', syncAll);
+                editor.addEventListener('change', function () { syncRow(row); });
+                row.querySelector('[data-bulk-toggle]').addEventListener('click', function (e) {
+                    var open = editor.hidden;
+                    editor.hidden = !open;
+                    e.currentTarget.setAttribute('aria-expanded', open ? 'true' : 'false');
+                });
+            });
+
+            if (selectAll) {
+                selectAll.addEventListener('change', function () {
+                    rows.forEach(function (row) { row.querySelector('[data-bulk-row-select]').checked = selectAll.checked; });
+                    syncAll();
+                });
+            }
+
+            syncAll();
+        })();
+    </script>
+}

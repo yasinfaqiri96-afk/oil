@@ -17,6 +17,25 @@ public static class PreSaleOrderStatusLabels
         _ => status.ToString()
     };
 
+    // وضعیت تحویل به زبانِ کاربر. فقط از روی همان Status خوانده می‌شود؛ هیچ محاسبهٔ جدیدی ندارد.
+    public static string ToDeliveryPersian(PreSaleOrderStatus status) => status switch
+    {
+        PreSaleOrderStatus.PartiallyDelivered => "تحویل جزئی",
+        PreSaleOrderStatus.FullyDelivered => "تحویل کامل",
+        PreSaleOrderStatus.Closed => "بسته‌شده",
+        PreSaleOrderStatus.Cancelled => "لغوشده",
+        _ => "تحویل نشده"
+    };
+
+    public static string ToDeliveryEnglish(PreSaleOrderStatus status) => status switch
+    {
+        PreSaleOrderStatus.PartiallyDelivered => "Partially delivered",
+        PreSaleOrderStatus.FullyDelivered => "Fully delivered",
+        PreSaleOrderStatus.Closed => "Closed",
+        PreSaleOrderStatus.Cancelled => "Cancelled",
+        _ => "Not delivered"
+    };
+
     public static string ToBadgeClass(PreSaleOrderStatus status) => status switch
     {
         PreSaleOrderStatus.FullyDelivered => "is-success",
@@ -54,7 +73,7 @@ public sealed class PreSaleCreateViewModel
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "قیمت هر تن باید بزرگ‌تر از صفر باشد.")]
     public decimal UnitPriceInCurrency { get; set; }
 
-    [Display(Name = "تاریخ پیش‌فروش")]
+    [Display(Name = "تاریخ فروش")]
     [DataType(DataType.Date)]
     public DateTime OrderDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 

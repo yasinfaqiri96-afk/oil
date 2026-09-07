@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -239,9 +239,12 @@ public partial class ShipmentPnlController : Controller
             }
         }
 
+        // مصرفِ گمرک پایین‌تر از خودِ اظهارنامه شمرده می‌شود؛ اینجا کنار می‌رود تا شمارنده
+        // با ردیف‌های صفحهٔ جزئیات یکی بماند و یک اظهارنامه دو بار شمرده نشود.
         var expenseRows = await _db.ExpenseTransactions
             .AsNoTracking()
             .Where(e => !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
                 && (e.ExpenseType == null || e.ExpenseType.Code != InventoryTransportReceiptService.ReceiptFreightExpenseCode)
                 && ((e.ShipmentId.HasValue && shipmentIds.Contains(e.ShipmentId.Value))
                     || (e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value))
@@ -1407,7 +1410,8 @@ public partial class ShipmentPnlController : Controller
             .ToList();
 
         var outboundByScope = activeInventoryLegs
-            .GroupBy(l => new { ContractId = l.SourcePurchaseContractId, l.ProductId, TerminalId = l.SourceTerminalId, StorageTankId = l.SourceStorageTankId })
+            .Where(l => l.SourceTerminalId.HasValue)
+            .GroupBy(l => new { ContractId = l.SourcePurchaseContractId, l.ProductId, TerminalId = l.SourceTerminalId!.Value, StorageTankId = l.SourceStorageTankId })
             .ToDictionary(group => group.Key, group => group.Sum(l => l.QuantityMt));
         var salesOutRows = await _db.InventoryMovements
             .AsNoTracking()
@@ -1845,7 +1849,11 @@ public partial class ShipmentPnlController : Controller
             // کرایهٔ رسیدِ حمل جداگانه به‌عنوان «کرایه رسید حمل» از legPnl.ReceiptFreightExpenseUsd افزوده می‌شود
             // (بالاتر). این نوع مصرف (TRANSPORT-RECEIPT-FREIGHT) با TransportLegId هم ثبت می‌شود؛ اگر اینجا هم
             // شمرده شود کرایهٔ حمل دوبار حساب می‌شود. مثل InventoryTransportPnlService این نوع را کنار می‌گذاریم.
+            // گمرک پایین‌تر یک بار از خودِ CustomsDeclaration.TotalUsd افزوده می‌شود. مصرفی که
+            // CustomsDeclarationExpenseSync از همان اظهارنامه ساخته اگر اینجا هم بیاید، همان پول
+            // دو بار در «مصارف عملیاتی» می‌نشیند و ردیفش هم دوبار در جدول دیده می‌شود.
             .Where(e => !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
                 && (e.ExpenseType == null || e.ExpenseType.Code != InventoryTransportReceiptService.ReceiptFreightExpenseCode)
                 && ((e.ShipmentId.HasValue && shipmentIdList.Contains(e.ShipmentId.Value))
                     || (e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value))

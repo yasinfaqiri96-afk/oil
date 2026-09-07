@@ -12,6 +12,9 @@
     var liveTotal = activeLines.Sum(l => l.TotalInCurrency);
     var liveTotalUsd = activeLines.Sum(l => l.TotalUsd);
     var cancelledCount = Model.Lines.Count - activeLines.Count;
+    var openLines = activeLines.Where(l => l.OpenReceivableUsd > 0m).ToList();
+    var canApplyReceipt = !Model.IsCancelled && Model.ApplicableReceipts.Count > 0 && openLines.Count > 0;
+    var firstReceipt = Model.ApplicableReceipts.FirstOrDefault();
 
     ViewData["AkHeaderStatus"] = Model.IsCancelled ? T("لغو شده", "Cancelled") : T("فعال", "Active");
     ViewData["AkHeaderStatusState"] = Model.IsCancelled ? "is-danger" : "is-active";
@@ -42,7 +45,8 @@
         new() { Title = T("مقدار فعال", "Active quantity"), Value = liveQty.ToString("N3"), Unit = T("تن", "MT"), Avatar = "sold-quantity" },
         new() { Title = T("مبلغ فعال", "Active amount"), Value = liveTotal.ToString("N2"), Unit = Model.Currency, Avatar = "sales-value" },
         new() { Title = T("معادل دالر", "USD equivalent"), Value = liveTotalUsd.ToString("N2"), Unit = "USD", Avatar = "receipts" },
-        new() { Title = T("ردیف فعال", "Active lines"), Value = activeLines.Count.ToString("N0"), Unit = T("از", "of") + " " + Model.Lines.Count.ToString("N0"), Avatar = "analysis", State = cancelledCount > 0 ? "warning" : null }
+        new() { Title = T("ردیف فعال", "Active lines"), Value = activeLines.Count.ToString("N0"), Unit = T("از", "of") + " " + Model.Lines.Count.ToString("N0"), Avatar = "analysis", State = cancelledCount > 0 ? "warning" : null },
+        new() { Title = T("مانده قابل دریافت", "Outstanding receivable"), Value = Model.OpenReceivableUsd.ToString("N2"), Unit = "USD", Avatar = "flow-invoice-check", State = Model.OpenReceivableUsd > 0m ? "warning" : null }
     };
 
     var identityItems = new List<AkInfoItem>
@@ -74,6 +78,16 @@
             StatusTone = cancelledCount > 0 ? "warning" : "success",
             Href = "#group-sale-lines",
             Icon = "bi-list-ul"
+        },
+        new()
+        {
+            Label = T("تطبیق دریافت", "Receipt application"),
+            Value = $"{Model.ReceivedUsd:N2} USD",
+            Meta = T("از", "of") + $" {liveTotalUsd:N2} USD",
+            Status = Model.OpenReceivableUsd > 0m ? T("باز", "Open") : T("تصفیه", "Settled"),
+            StatusTone = Model.OpenReceivableUsd > 0m ? "warning" : "success",
+            Href = "#group-sale-receipts",
+            Icon = "bi-cash-coin"
         }
     };
 
@@ -123,6 +137,8 @@
                         <th class="ak-col-num">@T("مقدار (تن)", "Quantity (MT)")</th>
                         <th class="ak-col-num">@T("مبلغ", "Amount")</th>
                         <th class="ak-col-num">@T("معادل USD", "USD")</th>
+                        <th class="ak-col-num">@T("دریافت‌شده", "Received")</th>
+                        <th class="ak-col-num">@T("مانده", "Outstanding")</th>
                         <th>@T("وضعیت", "Status")</th>
                         <th class="ak-col-actions"></th>
                     </tr>
@@ -141,6 +157,8 @@
                             <td class="ak-col-num ak-num">@l.QuantityMt.ToString("N3")</td>
                             <td class="ak-col-num ak-num">@l.TotalInCurrency.ToString("N2") @Model.Currency</td>
                             <td class="ak-col-num ak-num">@l.TotalUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num">@l.ReceivedUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num">@l.OpenReceivableUsd.ToString("N2")</td>
                             <td>
                                 <span class="ak-status @(l.IsCancelled ? "is-inactive" : "is-active")">
                                     @(l.IsCancelled ? T("لغو شده", "Cancelled") : T("فعال", "Active"))
@@ -159,6 +177,8 @@
                         <td class="ak-col-num ak-num">@liveQty.ToString("N3")</td>
                         <td class="ak-col-num ak-num">@liveTotal.ToString("N2") @Model.Currency</td>
                         <td class="ak-col-num ak-num">@liveTotalUsd.ToString("N2")</td>
+                        <td class="ak-col-num ak-num">@Model.ReceivedUsd.ToString("N2")</td>
+                        <td class="ak-col-num ak-num">@Model.OpenReceivableUsd.ToString("N2")</td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>
@@ -166,6 +186,193 @@
         </div>
     </section>
 
+    <section class="ak-form-section ak-detail-section" id="group-sale-receipts">
+        <header class="ak-section-head ak-detail-section-header">
+            <h2 class="ak-section-title">@T("تطبیق دریافت", "Receipt application")</h2>
+            <span class="ak-status @(Model.OpenReceivableUsd > 0m ? "is-warning" : "is-active")">
+                @Model.ReceivedUsd.ToString("N2") / @liveTotalUsd.ToString("N2") USD
+            </span>
+        </header>
+
+        @if (Model.Applications.Count == 0)
+        {
+            <partial name="~/Views/Shared/Partials/_DetailEmptyState.cshtml" model="@T("هیچ دریافتی روی ردیف‌های این فروش گروهی تطبیق نشده است.", "No receipt is applied to the lines of this group sale.")" />
+        }
+        else
+        {
+            <div class="ak-table-wrap">
+                <table class="ak-table ak-detail-table">
+                    <thead>
+                        <tr>
+                            <th>@T("تاریخ دریافت", "Payment date")</th>
+                            <th>@T("تاریخ تطبیق", "Applied on")</th>
+                            <th>@T("فاکتور", "Invoice")</th>
+                            <th class="ak-col-num">@T("مبلغ", "Amount")</th>
+                            <th class="ak-col-num">@T("معادل USD", "USD")</th>
+                            <th class="ak-col-grow">@T("مرجع", "Reference")</th>
+                            <th class="ak-col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in Model.Applications)
+                        {
+                            <tr>
+                                <td>@a.PaymentDate.ToDisplayDate()</td>
+                                <td>@a.AppliedAt.ToDisplayDate()</td>
+                                <td class="ak-num">@a.InvoiceNumber</td>
+                                <td class="ak-col-num ak-num">@a.AppliedPaymentAmount.ToString("N2") @a.PaymentCurrencyCode</td>
+                                <td class="ak-col-num ak-num">@a.AppliedAmountUsd.ToString("N2")</td>
+                                <td class="ak-col-grow">@a.Reference</td>
+                                <td class="ak-col-actions">
+                                    @if (!a.IsAdvanceApplication)
+                                    {
+                                        <form asp-action="ReverseReceiptApplication" method="post" class="d-inline"
+                                              asp-route-applicationId="@a.ApplicationId" asp-route-returnUrl="@currentReturnUrl"
+                                              data-no-spa="true" data-ptg-confirm="true"
+                                              data-ptg-confirm-title="@T("برگشت تطبیق", "Reverse application")"
+                                              data-ptg-confirm-message="@T("این تطبیق برگشت بخورد و مانده دریافت آزاد شود؟", "Reverse this application and free the receipt balance?")">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="ak-row-menu-btn"
+                                                    title="@T("برگشت تطبیق", "Reverse application")" aria-label="@T("برگشت تطبیق", "Reverse application")"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (canApplyReceipt)
+        {
+            <div class="ak-detail-subsection" id="group-sale-apply-receipt">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((T("تطبیق یک دریافت روی ردیف‌ها", "Apply one receipt across the lines"), (string?)T("مبلغ به‌صورت پیش‌فرض از قدیمی‌ترین ردیف باز پر می‌شود و قابل ویرایش است.", "Amounts are pre-filled from the oldest open line and stay editable.")))" />
+                <form asp-action="ApplyReceipt" method="post" class="ak-form"
+                      asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" data-group-apply-form>
+                    @Html.AntiForgeryToken()
+                    <div class="ak-form-grid">
+                        <div class="ak-field">
+                            <label class="ak-label" for="group-apply-receipt">@T("دریافت با مانده تطبیق‌نشده", "Receipt with unapplied balance")</label>
+                            <select id="group-apply-receipt" name="paymentTransactionId" class="ak-input" data-group-apply-receipt>
+                                @foreach (var r in Model.ApplicableReceipts)
+                                {
+                                    <option value="@r.PaymentTransactionId" data-unapplied-usd="@r.UnappliedAmountUsd.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)">
+                                        @r.PaymentDate.ToDisplayDate() — @T("مانده", "Unapplied") @r.UnappliedAmount.ToString("N2") @T("از", "of") @r.Amount.ToString("N2") @r.Currency
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div class="ak-field">
+                            <label class="ak-label">@T("مانده قابل تطبیق", "Applicable balance")</label>
+                            <p class="ak-num" dir="ltr" data-group-apply-available>@((firstReceipt?.UnappliedAmountUsd ?? 0m).ToString("N2")) USD</p>
+                            <div class="form-text">
+                                @T("مانده قابل دریافت این فروش گروهی:", "Outstanding on this group sale:")
+                                <span class="ak-num">@Model.OpenReceivableUsd.ToString("N2")</span> USD
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ak-table-wrap">
+                        <table class="ak-table ak-detail-table">
+                            <thead>
+                                <tr>
+                                    <th>@T("فاکتور", "Invoice")</th>
+                                    <th class="ak-col-grow">@T("کالا", "Product")</th>
+                                    <th class="ak-col-num">@T("ارزش فروش", "Sale value")</th>
+                                    <th class="ak-col-num">@T("مانده", "Outstanding")</th>
+                                    <th class="ak-col-num">@T("تطبیق (USD)", "Apply (USD)")</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var l in openLines)
+                                {
+                                    <tr>
+                                        <td class="ak-num">@l.InvoiceNumber</td>
+                                        <td class="ak-col-grow">@l.ProductName</td>
+                                        <td class="ak-col-num ak-num">@l.TotalUsd.ToString("N2")</td>
+                                        <td class="ak-col-num ak-num" data-group-apply-open="@l.OpenReceivableUsd.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)">@l.OpenReceivableUsd.ToString("N2")</td>
+                                        <td class="ak-col-num">
+                                            <input type="hidden" name="saleIds" value="@l.SalesTransactionId" />
+                                            <input type="number" step="0.01" min="0" class="ak-input ak-num" name="amounts"
+                                                   data-group-apply-amount value="0" dir="ltr" aria-label="@T("مبلغ تطبیق", "Applied amount")" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="4" class="ak-table-total">@T("مجموع تطبیق", "Application total")</td>
+                                    <td class="ak-col-num ak-num" data-group-apply-total>0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div class="ak-footer-actions">
+                        <button type="submit" class="btn btn-primary ak-save">@T("ثبت تطبیق", "Save application")</button>
+                    </div>
+                </form>
+            </div>
+        }
+    </section>
+
     <partial name="~/Views/Shared/Partials/_DetailSecondary.cshtml"
              model="@(new AkDetailSecondaryModel { Technical = advancedItems })" />
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            // FIFO pre-fill: the receipt balance flows into the oldest open line first. The server
+            // re-checks this rule and every cap, so this only speeds up data entry.
+            function init() {
+                var form = document.querySelector('[data-group-apply-form]');
+                if (!form || form.dataset.groupApplyReady === '1') { return; }
+                form.dataset.groupApplyReady = '1';
+
+                var select = form.querySelector('[data-group-apply-receipt]');
+                var available = form.querySelector('[data-group-apply-available]');
+                var totalCell = form.querySelector('[data-group-apply-total]');
+                var rows = Array.prototype.slice.call(form.querySelectorAll('[data-group-apply-amount]'));
+
+                function round2(value) { return Math.round(value * 100) / 100; }
+
+                function currentBudget() {
+                    var option = select && select.options[select.selectedIndex];
+                    return option ? parseFloat(option.getAttribute('data-unapplied-usd')) || 0 : 0;
+                }
+
+                function refreshTotal() {
+                    var sum = 0;
+                    rows.forEach(function (input) { sum += parseFloat(input.value) || 0; });
+                    if (totalCell) { totalCell.textContent = round2(sum).toFixed(2); }
+                }
+
+                function distribute() {
+                    var budget = currentBudget();
+                    if (available) { available.textContent = budget.toFixed(2) + ' USD'; }
+                    rows.forEach(function (input) {
+                        var openCell = input.closest('tr').querySelector('[data-group-apply-open]');
+                        var open = openCell ? parseFloat(openCell.getAttribute('data-group-apply-open')) || 0 : 0;
+                        var take = Math.min(open, budget);
+                        if (take < 0) { take = 0; }
+                        input.value = take > 0 ? round2(take).toFixed(2) : '0';
+                        input.max = open;
+                        budget = round2(budget - take);
+                    });
+                    refreshTotal();
+                }
+
+                if (select) { select.addEventListener('change', distribute); }
+                rows.forEach(function (input) { input.addEventListener('input', refreshTotal); });
+                distribute();
+            }
+
+            document.addEventListener('DOMContentLoaded', init);
+            document.addEventListener('ptg:page-ready', init);
+            init();
+        })();
+    </script>
+}

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -601,6 +601,8 @@ public class InventoryTransportReceiptsControllerTests
         await SeedReferenceDataAsync(db);
         var leg = await SeedLoadedLegAsync(db, quantityMt: 50m);
         leg.TransportType = LoadingTransportType.Truck;
+        // کرایه باید طرف‌حساب داشته باشد وگرنه سرویس آن را رد می‌کند؛ اینجا موتروانِ مستقل.
+        leg.DriverId = 1;
         await db.SaveChangesAsync();
         var controller = BuildController(db);
 
@@ -637,6 +639,7 @@ public class InventoryTransportReceiptsControllerTests
         await SeedReferenceDataAsync(db);
         var leg = await SeedLoadedLegAsync(db, quantityMt: 50m);
         leg.TransportType = LoadingTransportType.Truck;
+        leg.DriverId = 1;
         await db.SaveChangesAsync();
         var controller = BuildController(db);
 
@@ -837,6 +840,90 @@ public class InventoryTransportReceiptsControllerTests
             ControllerContext = new ControllerContext { HttpContext = httpContext },
             TempData = new TempDataDictionary(httpContext, new InMemoryTempDataProvider())
         };
+    }
+
+    // کرایه بدون طرف‌حساب یعنی مبلغی که در P&L می‌نشیند ولی بدهیِ هیچ‌کس نمی‌شود:
+    // SyncReceiptFreightExpenseAsync بدون شرکت خدماتی/دارایی/راننده هیچ مصرف و سطر دفتری
+    // نمی‌سازد. اعتبارسنجی باید جلوی همان حالت را بگیرد.
+    [Fact]
+    public async Task Create_Rejects_Freight_When_No_Freight_Party_Is_Known()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedLegAsync(db, quantityMt: 50m);
+        leg.TransportType = LoadingTransportType.Truck;
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new InventoryTransportReceiptCreateViewModel
+        {
+            InventoryTransportLegId = leg.Id,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            ReceiptDate = new DateTime(2026, 5, 5),
+            ReceivedQuantityMt = 48m,
+            ShortageQuantityMt = 2m,
+            DestinationTerminalId = 2,
+            DestinationStorageTankId = 2,
+            FreightRateUsdPerMt = 20m
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Empty(await db.InventoryTransportReceipts.ToListAsync());
+    }
+
+    // کرایه‌ای که قبلاً با نوع مصرفِ «کرایه حمل» ثبت شده در P&L داخل ExpenseTransactionsUsd
+    // است؛ کرایهٔ دوم روی رسید همان مبلغ را از راه ReceiptFreightExpenseUsd دوباره می‌آورد.
+    [Fact]
+    public async Task Create_Rejects_Freight_When_The_Leg_Already_Has_A_Registered_Freight_Expense()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        var leg = await SeedLoadedLegAsync(db, quantityMt: 50m);
+        leg.TransportType = LoadingTransportType.Truck;
+        leg.DriverId = 1;
+
+        db.ExpenseTypes.Add(new ExpenseType
+        {
+            Id = 900,
+            Code = InventoryTransportReceiptService.TransportFreightExpenseCode,
+            Name = "Transport freight",
+            NamePersian = "کرایه حمل",
+            IsActive = true
+        });
+        db.ExpenseTransactions.Add(new ExpenseTransaction
+        {
+            Id = 900,
+            ExpenseTypeId = 900,
+            TransportLegId = leg.Id,
+            DriverId = 1,
+            ExpenseDate = new DateTime(2026, 5, 4),
+            Amount = 1000m,
+            Currency = "USD",
+            AppliedFxRateToUsd = 1m,
+            AmountUsd = 1000m,
+            SettlementMode = ExpenseSettlementMode.Payable,
+            CounterpartyType = AccountingPartyType.Driver,
+            CounterpartyId = 1
+        });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new InventoryTransportReceiptCreateViewModel
+        {
+            InventoryTransportLegId = leg.Id,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            ReceiptDate = new DateTime(2026, 5, 5),
+            ReceivedQuantityMt = 48m,
+            ShortageQuantityMt = 2m,
+            DestinationTerminalId = 2,
+            DestinationStorageTankId = 2,
+            FreightRateUsdPerMt = 20m
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Empty(await db.InventoryTransportReceipts.ToListAsync());
     }
 
     private static async Task SeedReferenceDataAsync(ApplicationDbContext db)

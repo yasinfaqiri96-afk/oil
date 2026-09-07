@@ -196,33 +196,37 @@
 
                 <div class="ak-form-section">
                     <h2 class="ak-section-title">روش تقسیم مبلغ</h2>
-                    <div class="ak-form-grid" id="methodGroup">
-                        <label class="ak-field">
+                    <div class="ak-alloc-methods" id="methodGroup" role="radiogroup" aria-label="روش تقسیم مبلغ">
+                        <label class="ak-alloc-method">
                             <input type="radio" name="AllocationMethod" value="2" checked="@(Model.AllocationMethod == PTGOilSystem.Web.Models.Entities.ExpenseAllocationMethod.EqualSplit)" />
-                            <span class="ak-note">
+                            <span class="ak-alloc-method-body">
+                                <i class="bi bi-columns-gap" aria-hidden="true"></i>
                                 <strong>مساوی</strong>
-                                <small>تقسیم مساوی بین همه عملیات‌ها</small>
+                                <small>تقسیم مساوی بین عملیات‌ها</small>
                             </span>
                         </label>
-                        <label class="ak-field">
+                        <label class="ak-alloc-method">
                             <input type="radio" name="AllocationMethod" value="3" checked="@(Model.AllocationMethod == PTGOilSystem.Web.Models.Entities.ExpenseAllocationMethod.ByQuantity)" />
-                            <span class="ak-note">
+                            <span class="ak-alloc-method-body">
+                                <i class="bi bi-box-seam" aria-hidden="true"></i>
                                 <strong>بر اساس مقدار</strong>
-                                <small>نرخ فی تن × مقدار هر حمل (مثال: نرخ ۲ و حمل ۴۰ تن → ۸۰)</small>
+                                <small>نرخ فی تن × مقدار هر حمل</small>
                             </span>
                         </label>
-                        <label class="ak-field">
+                        <label class="ak-alloc-method">
                             <input type="radio" name="AllocationMethod" value="1" checked="@(Model.AllocationMethod == PTGOilSystem.Web.Models.Entities.ExpenseAllocationMethod.FixedPerOperation)" />
-                            <span class="ak-note">
-                                <strong>مبلغ برای هر عملیات</strong>
-                                <small>یک مبلغ ثابت برای هر عملیات انتخاب شده</small>
+                            <span class="ak-alloc-method-body">
+                                <i class="bi bi-cash-stack" aria-hidden="true"></i>
+                                <strong>مبلغ ثابت</strong>
+                                <small>یک مبلغ برای هر عملیات</small>
                             </span>
                         </label>
-                        <label class="ak-field">
+                        <label class="ak-alloc-method">
                             <input type="radio" name="AllocationMethod" value="4" checked="@(Model.AllocationMethod == PTGOilSystem.Web.Models.Entities.ExpenseAllocationMethod.Manual)" />
-                            <span class="ak-note">
+                            <span class="ak-alloc-method-body">
+                                <i class="bi bi-pencil-square" aria-hidden="true"></i>
                                 <strong>دستی</strong>
-                                <small>تعیین مبلغ برای هر عملیات به صورت دستی</small>
+                                <small>مبلغ هر عملیات جداگانه</small>
                             </span>
                         </label>
                     </div>
@@ -250,10 +254,57 @@
                             </div>
                             <small class="ak-note">سهم هر عملیات = نرخ × مقدار (تن) همان حمل</small>
                         </div>
-                        <div class="ak-note" id="manualHint" hidden>
-                            <i class="bi bi-info-circle"></i>
-                            مبلغ هر عملیات را در مرحله «بررسی و ثبت» وارد می‌کنید.
+                        <div class="ak-manual-import" id="rateHint" hidden data-manual-import-url="@Url.Action("ImportGroupAmountsExcel")">
+                            <p class="ak-note mb-0">
+                                <i class="bi bi-info-circle"></i>
+                                برای نرخ متفاوت هر حمل، فایل اکسل (نمبر وسیله + نرخ فی تن) را اپلود کنید؛ نرخ هر حمل در وزن همان حمل ضرب می‌شود. حمل‌های بدون نرخ اختصاصی، نرخ بالا را می‌گیرند.
+                            </p>
+                            <div class="ak-manual-import-actions">
+                                <input type="file" id="rateFile" accept=".xlsx,.xls" hidden />
+                                <button type="button" class="btn btn-success btn-sm" id="btnRateImport">
+                                    <i class="bi bi-file-earmark-excel"></i> اپلود اکسل نرخ‌ها
+                                </button>
+                                <span class="ak-manual-import-status" id="rateImportStatus" hidden></span>
+                            </div>
                         </div>
+                        <div class="ak-manual-import" id="manualHint" hidden data-manual-import-url="@Url.Action("ImportGroupAmountsExcel")">
+                            <p class="ak-note mb-0">
+                                <i class="bi bi-info-circle"></i>
+                                مبلغ هر عملیات را در مرحله «بررسی و ثبت» وارد کنید، یا فایل اکسل (نمبر وسیله + مقدار مصرف) را اپلود کنید.
+                            </p>
+                            <div class="ak-manual-import-actions">
+                                <input type="file" id="manualAmountFile" accept=".xlsx,.xls" hidden />
+                                <button type="button" class="btn btn-success btn-sm" id="btnManualImport">
+                                    <i class="bi bi-file-earmark-excel"></i> اپلود اکسل مبالغ
+                                </button>
+                                <span class="ak-manual-import-status" id="manualImportStatus" hidden></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ak-form-section">
+                    <h2 class="ak-section-title">مصارف این ثبت</h2>
+                    <div class="ak-lines-bar">
+                        <button type="button" class="btn ak-secondary-action btn-sm" id="btnAddLine">
+                            <i class="bi bi-plus-lg"></i> افزودن این مصرف به لیست
+                        </button>
+                        <span class="ak-note mb-0">چند مصرف (کرایه، تخلیه، گمرک…) را با همین عملیات‌ها در یک ثبت اضافه کنید؛ برای هر مصرف یک رکورد گروهی جدا ساخته می‌شود.</span>
+                    </div>
+                    <div class="ak-table-wrap" id="linesWrap" hidden>
+                        <table class="ak-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>نوع مصرف</th>
+                                    <th>پرداخت شونده</th>
+                                    <th>روش تقسیم</th>
+                                    <th class="ak-num">مبلغ کل</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="linesBody"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -268,22 +319,11 @@
                     <div class="ak-table-wrap">
                         <table class="ak-table">
                             <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>عملیات</th>
-                                    <th>نوع وسیله</th>
-                                    <th>شماره</th>
-                                    <th>مسیر</th>
-                                    <th>مقدار (تن)</th>
-                                    <th>سهم مصرف</th>
-                                </tr>
+                                <tr id="previewHead"></tr>
                             </thead>
                             <tbody id="previewBody"></tbody>
                             <tfoot>
-                                <tr>
-                                    <td colspan="6" class="ak-table-total">مبلغ مجموع</td>
-                                    <td class="ak-num"><span id="previewTotal">0.00</span> <span data-cur-tag>USD</span></td>
-                                </tr>
+                                <tr id="previewFoot"></tr>
                             </tfoot>
                         </table>
                     </div>
@@ -384,6 +424,7 @@
     op = o.OperationLabel,
     vehicle = o.VehicleKind,
     number = o.Number,
+    alt = o.AltNumber,
     route = o.Route,
     qty = o.QuantityMt,
     status = o.StatusLabel,
@@ -404,7 +445,8 @@
             step: 1,
             page: 1,
             pageSize: 10,
-            selected: new Map(), // key kind:id -> { op, manualAmount }
+            selected: new Map(), // key kind:id -> { op, manualAmount, manualRate }
+            lines: [],           // مصارف افزوده‌شده به این ثبت
             filtered: ops.slice()
         };
 
@@ -415,7 +457,7 @@
         // ---------- پیش‌انتخاب بعد از خطای اعتبارسنجی ----------
         preselected.forEach(function (s) {
             var found = ops.find(function (o) { return o.kind === s.kind && o.id === s.id; });
-            if (found) state.selected.set(key(found), { op: found, manualAmount: s.manualAmount || null });
+            if (found) state.selected.set(key(found), { op: found, manualAmount: s.manualAmount || null, manualRate: null });
         });
 
         // ---------- فیلترها ----------
@@ -527,12 +569,12 @@
         function toggle(o) {
             var k = key(o);
             if (state.selected.has(k)) state.selected.delete(k);
-            else state.selected.set(k, { op: o, manualAmount: null });
+            else state.selected.set(k, { op: o, manualAmount: null, manualRate: null });
             renderTable();
         }
 
         $('chkAll').addEventListener('change', function () {
-            if (this.checked) state.filtered.forEach(function (o) { if (!state.selected.has(key(o))) state.selected.set(key(o), { op: o, manualAmount: null }); });
+            if (this.checked) state.filtered.forEach(function (o) { if (!state.selected.has(key(o))) state.selected.set(key(o), { op: o, manualAmount: null, manualRate: null }); });
             else state.filtered.forEach(function (o) { state.selected.delete(key(o)); });
             renderTable();
         });
@@ -571,6 +613,7 @@
             $('perOpField').hidden = m !== 1;
             $('totalField').hidden = m !== 2;
             $('rateField').hidden = m !== 3;
+            $('rateHint').hidden = m !== 3;
             $('manualHint').hidden = m !== 4;
         }
         document.querySelectorAll('#methodGroup input').forEach(function (r) { r.addEventListener('change', syncMethodFields); });
@@ -581,59 +624,173 @@
         }
         if (curSel) { curSel.addEventListener('change', syncCurrencyTags); syncCurrencyTags(); }
 
-        // ---------- پیش‌نمایش ----------
-        function computeShares() {
-            var items = Array.from(state.selected.values());
-            var m = currentMethod();
-            var n = items.length;
-            if (n === 0) return { shares: [], total: 0 };
+        // ---------- مصارف افزوده‌شده ----------
+        var methodNames = { 1: 'مبلغ ثابت هر عملیات', 2: 'تقسیم مساوی', 3: 'بر اساس مقدار', 4: 'دستی' };
 
-            var shares = [];
-            var total = 0;
-
-            if (m === 1) {
-                var per = parseFloat(document.getElementById('AmountPerOperation').value) || 0;
-                shares = items.map(function () { return per; });
-                total = per * n;
-            } else if (m === 4) {
-                shares = items.map(function (s) { return parseFloat(s.manualAmount) || 0; });
-                total = shares.reduce(function (a, b) { return a + b; }, 0);
-            } else if (m === 3) {
-                // نرخ فی تن × مقدار هر حمل
-                var rate = parseFloat(document.getElementById('RatePerTon').value) || 0;
-                shares = items.map(function (s) { return Math.round(rate * Number(s.op.qty) * 100) / 100; });
-                total = shares.reduce(function (a, b) { return a + b; }, 0);
-            } else {
-                total = parseFloat(document.getElementById('TotalAmount').value) || 0;
-                var eq = Math.round(total / n * 100) / 100;
-                shares = items.map(function () { return eq; });
-                var sum = shares.reduce(function (a, b) { return a + b; }, 0);
-                if (shares.length) shares[shares.length - 1] = Math.round((shares[shares.length - 1] + total - sum) * 100) / 100;
-            }
-            return { shares: shares, total: total };
+        function esc(text) {
+            return String(text == null ? '' : text)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
+        // فیلدهای فعلیِ «مشخصات مصرف» + «روش تقسیم» را به یک خط مصرف تبدیل می‌کند.
+        function readCurrentLine() {
+            var provider = document.querySelector('#gexpForm [name="ServiceProviderId"]');
+            var descEl = document.querySelector('#gexpForm [name="Description"]');
+            var m = currentMethod();
+            var line = {
+                typeName: $('ManualExpenseTypeName').value.trim(),
+                providerId: provider ? provider.value : '',
+                providerName: provider && provider.selectedIndex >= 0 ? provider.options[provider.selectedIndex].text : '',
+                method: m,
+                perOp: parseFloat(document.getElementById('AmountPerOperation').value) || 0,
+                total: parseFloat(document.getElementById('TotalAmount').value) || 0,
+                rate: parseFloat(document.getElementById('RatePerTon').value) || 0,
+                desc: descEl ? descEl.value.trim() : '',
+                manual: {},
+                rates: {}
+            };
+            if (m === 4) {
+                state.selected.forEach(function (s) { line.manual[key(s.op)] = parseFloat(s.manualAmount) || 0; });
+            }
+            if (m === 3) {
+                state.selected.forEach(function (s) {
+                    var r = parseFloat(s.manualRate);
+                    if (r > 0) { line.rates[key(s.op)] = r; }
+                });
+            }
+            return line;
+        }
+
+        function validateLine(line) {
+            if (!line.typeName) return 'نوع مصرف را وارد کنید.';
+            if (line.method === 1 && !(line.perOp > 0)) return 'مبلغ برای هر عملیات را وارد کنید.';
+            if (line.method === 2 && !(line.total > 0)) return 'مبلغ کل برای تقسیم را وارد کنید.';
+            if (line.method === 3 && !(line.rate > 0)) {
+                var missingRate = Array.from(state.selected.values()).some(function (s) {
+                    return !(parseFloat(line.rates[key(s.op)]) > 0);
+                });
+                if (missingRate) return 'نرخ فی تن را وارد کنید یا برای همه حمل‌ها نرخ اختصاصی بدهید.';
+            }
+            if (line.method === 4) {
+                var bad = Array.from(state.selected.values()).some(function (s) {
+                    return !(parseFloat(line.manual[key(s.op)]) > 0);
+                });
+                if (bad) return 'در روش دستی، مبلغ همه عملیات‌ها باید بزرگ‌تر از صفر باشد.';
+            }
+            return null;
+        }
+
+        function clearLineFields() {
+            $('ManualExpenseTypeName').value = '';
+            document.getElementById('AmountPerOperation').value = '';
+            document.getElementById('TotalAmount').value = '';
+            document.getElementById('RatePerTon').value = '';
+            var descEl = document.querySelector('#gexpForm [name="Description"]');
+            if (descEl) descEl.value = '';
+            state.selected.forEach(function (s) { s.manualAmount = null; s.manualRate = null; });
+        }
+
+        function addCurrentLine() {
+            if (state.selected.size === 0) { alert('حداقل یک عملیات را انتخاب کنید.'); return false; }
+            var line = readCurrentLine();
+            var err = validateLine(line);
+            if (err) { alert(err); return false; }
+            state.lines.push(line);
+            renderLines();
+            clearLineFields();
+            return true;
+        }
+
+        function lineSharesFor(line) {
+            var items = Array.from(state.selected.values());
+            var n = items.length;
+            if (n === 0) return [];
+            if (line.method === 1) return items.map(function () { return line.perOp; });
+            if (line.method === 3) return items.map(function (s) {
+                var rate = parseFloat(line.rates[key(s.op)]);
+                if (!(rate > 0)) rate = line.rate;
+                return Math.round(rate * Number(s.op.qty) * 100) / 100;
+            });
+            if (line.method === 4) return items.map(function (s) { return parseFloat(line.manual[key(s.op)]) || 0; });
+            var equal = Math.round(line.total / n * 100) / 100;
+            var shares = items.map(function () { return equal; });
+            var sum = shares.reduce(function (a, b) { return a + b; }, 0);
+            shares[n - 1] = Math.round((shares[n - 1] + line.total - sum) * 100) / 100;
+            return shares;
+        }
+
+        function lineTotal(line) {
+            return lineSharesFor(line).reduce(function (a, b) { return a + b; }, 0);
+        }
+
+        function renderLines() {
+            var body = $('linesBody');
+            $('linesWrap').hidden = state.lines.length === 0;
+            body.innerHTML = '';
+            state.lines.forEach(function (line, index) {
+                var tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td>' + (index + 1) + '</td>' +
+                    '<td>' + esc(line.typeName) + '</td>' +
+                    '<td>' + esc(line.providerId ? line.providerName : '—') + '</td>' +
+                    '<td>' + methodNames[line.method] + '</td>' +
+                    '<td class="ak-num">' + fmt(lineTotal(line)) + '</td>' +
+                    '<td><button type="button" class="btn btn-sm btn-light ak-danger-action" data-remove-line="' + index + '">' +
+                    '<i class="bi bi-x-lg"></i></button></td>';
+                body.appendChild(tr);
+            });
+            body.querySelectorAll('[data-remove-line]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    state.lines.splice(parseInt(this.dataset.removeLine, 10), 1);
+                    renderLines();
+                    if (state.step === 3) renderPreview();
+                    syncItemsInputs();
+                });
+            });
+            syncItemsInputs();
+        }
+
+        // ---------- پیش‌نمایش ----------
         function renderPreview() {
             var items = Array.from(state.selected.values());
-            var m = currentMethod();
-            var result = computeShares();
-            var body = $('previewBody');
-            body.innerHTML = '';
+            var lines = state.lines;
+            var shares = lines.map(lineSharesFor);
+            var multi = lines.length > 1;
 
-            var methodNames = { 1: 'مبلغ برای هر عملیات', 2: 'تقسیم مساوی', 3: 'بر اساس مقدار', 4: 'دستی' };
             $('previewMeta').innerHTML =
-                '<span><b>روش تقسیم:</b> ' + methodNames[m] + '</span>' +
-                (m === 3 ? '<span><b>نرخ فی تن:</b> ' + fmt(parseFloat(document.getElementById('RatePerTon').value) || 0) + '</span>' : '') +
+                '<span><b>تعداد مصرف:</b> ' + lines.length + '</span>' +
                 '<span><b>تعداد عملیات:</b> ' + items.length + '</span>';
 
+            $('previewHead').innerHTML =
+                '<th>#</th><th>عملیات</th><th>نوع وسیله</th><th>شماره</th><th>مسیر</th><th>مقدار (تن)</th>' +
+                lines.map(function (line) {
+                    return '<th class="ak-num">' + esc(line.typeName) + '</th>';
+                }).join('') +
+                (multi ? '<th class="ak-num">جمع ردیف</th>' : '');
+
+            var body = $('previewBody');
+            body.innerHTML = '';
             items.forEach(function (s, i) {
+                var rowTotal = 0;
+                var cells = lines.map(function (line, l) {
+                    var value = shares[l][i] || 0;
+                    rowTotal += value;
+                    if (line.method === 4) {
+                        return '<td><input type="number" step="0.01" min="0" class="ak-input" data-manual-amount' +
+                            ' data-line="' + l + '" data-key="' + esc(key(s.op)) + '"' +
+                            ' value="' + (line.manual[key(s.op)] || '') + '" placeholder="0.00"></td>';
+                    }
+                    if (line.method === 3) {
+                        // نرخ هر حمل قابل ویرایش است؛ سهم = نرخ × مقدار همان حمل.
+                        return '<td><input type="number" step="0.01" min="0" class="ak-input" data-line-rate' +
+                            ' data-line="' + l + '" data-key="' + esc(key(s.op)) + '"' +
+                            ' value="' + (line.rates[key(s.op)] || '') + '" placeholder="' + fmt(line.rate) + '">' +
+                            '<small class="ak-note d-block">= ' + fmt(value) + '</small></td>';
+                    }
+                    return '<td class="ak-num">' + fmt(value) + '</td>';
+                }).join('');
+
                 var tr = document.createElement('tr');
-                var shareCell;
-                if (m === 4) {
-                    shareCell = '<td><input type="number" step="0.01" min="0" class="ak-input" data-manual-amount data-i="' + i + '" value="' + (s.manualAmount || '') + '" placeholder="0.00"></td>';
-                } else {
-                    shareCell = '<td class="ak-num">' + fmt(result.shares[i] || 0) + '</td>';
-                }
                 tr.innerHTML =
                     '<td>' + (i + 1) + '</td>' +
                     '<td>' + s.op.op + '</td>' +
@@ -641,22 +798,48 @@
                     '<td class="ak-num">' + s.op.number + '</td>' +
                     '<td>' + s.op.route + '</td>' +
                     '<td class="ak-num">' + fmtQty(s.op.qty) + '</td>' +
-                    shareCell;
+                    cells +
+                    (multi ? '<td class="ak-num">' + fmt(rowTotal) + '</td>' : '');
                 body.appendChild(tr);
             });
 
-            body.querySelectorAll('[data-manual-amount]').forEach(function (inp) {
-                inp.addEventListener('input', function () {
-                    var i = parseInt(this.dataset.i, 10);
-                    var items2 = Array.from(state.selected.values());
-                    if (items2[i]) items2[i].manualAmount = this.value;
-                    $('previewTotal').textContent = fmt(computeShares().total);
-                    syncItemsInputs();
+            renderPreviewFoot();
+
+            body.querySelectorAll('[data-manual-amount]').forEach(function (input) {
+                input.addEventListener('input', function () {
+                    var line = state.lines[parseInt(this.dataset.line, 10)];
+                    if (!line) return;
+                    line.manual[this.dataset.key] = this.value;
+                    renderPreviewFoot();
+                    renderLines();
                 });
             });
 
-            $('previewTotal').textContent = fmt(result.total);
+            body.querySelectorAll('[data-line-rate]').forEach(function (input) {
+                input.addEventListener('change', function () {
+                    var line = state.lines[parseInt(this.dataset.line, 10)];
+                    if (!line) return;
+                    var rate = parseFloat(this.value);
+                    if (rate > 0) { line.rates[this.dataset.key] = rate; }
+                    else { delete line.rates[this.dataset.key]; }
+                    renderPreview();
+                    renderLines();
+                });
+            });
+
             syncItemsInputs();
+        }
+
+        function renderPreviewFoot() {
+            var lines = state.lines;
+            var multi = lines.length > 1;
+            var totals = lines.map(lineTotal);
+            var grand = totals.reduce(function (a, b) { return a + b; }, 0);
+            var currency = (curSel && curSel.value) || 'USD';
+            $('previewFoot').innerHTML =
+                '<td colspan="6" class="ak-table-total">مبلغ مجموع</td>' +
+                totals.map(function (t) { return '<td class="ak-num">' + fmt(t) + '</td>'; }).join('') +
+                (multi ? '<td class="ak-num">' + fmt(grand) + ' ' + esc(currency) + '</td>' : '');
         }
 
         // ---------- ویزارد ----------
@@ -692,8 +875,6 @@
         }
 
         function validateStep2() {
-            var expType = document.getElementById('ManualExpenseTypeName');
-            if (!expType.value.trim()) { alert('نوع مصرف را وارد کنید.'); return false; }
             // ارز غیر دالری → نرخ تبدیل الزامی (فیلد مخفیِ technical باید پر شده باشد)
             var cur = (curSel && curSel.value) || 'USD';
             if (cur !== 'USD') {
@@ -703,18 +884,18 @@
                     return false;
                 }
             }
-            var m = currentMethod();
-            if (m === 1 && !(parseFloat(document.getElementById('AmountPerOperation').value) > 0)) {
-                alert('مبلغ برای هر عملیات را وارد کنید.'); return false;
+            // مصرفِ پرشده ولی افزوده‌نشده هم به لیست می‌رود تا چیزی از قلم نیفتد.
+            if ($('ManualExpenseTypeName').value.trim() || state.lines.length === 0) {
+                if (!addCurrentLine()) return false;
             }
-            if (m === 2 && !(parseFloat(document.getElementById('TotalAmount').value) > 0)) {
-                alert('مبلغ کل برای تقسیم را وارد کنید.'); return false;
-            }
-            if (m === 3 && !(parseFloat(document.getElementById('RatePerTon').value) > 0)) {
-                alert('نرخ فی تن را وارد کنید.'); return false;
+            if (state.lines.length === 0) {
+                alert('حداقل یک مصرف به لیست اضافه کنید.');
+                return false;
             }
             return true;
         }
+
+        $('btnAddLine').addEventListener('click', function () { addCurrentLine(); });
 
         document.querySelectorAll('[data-step-btn]').forEach(function (b) {
             b.addEventListener('click', function () { goStep(parseInt(this.dataset.stepBtn, 10)); });
@@ -726,22 +907,42 @@
         // همیشه قبل از submit ساخته شده باشند؛ حتی اگر اسکریپت دیگری submit را
         // زودتر (capture) بگیرد، فیلدها از قبل داخل فرم هستند.
         function syncItemsInputs() {
-            var m = currentMethod();
             var container = document.getElementById('gexpItemsContainer');
             container.innerHTML = '';
-            var i = 0;
-            state.selected.forEach(function (s) {
-                var mk = function (name, value) {
-                    var inp = document.createElement('input');
-                    inp.type = 'hidden';
-                    inp.name = 'Items[' + i + '].' + name;
-                    inp.value = value;
-                    container.appendChild(inp);
-                };
-                mk('Kind', s.op.kind);
-                mk('Id', s.op.id);
-                if (m === 4 && s.manualAmount) mk('ManualAmount', s.manualAmount);
-                i++;
+            function mk(name, value) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                container.appendChild(input);
+            }
+
+            var items = Array.from(state.selected.values());
+            items.forEach(function (s, i) {
+                mk('Items[' + i + '].Kind', s.op.kind);
+                mk('Items[' + i + '].Id', s.op.id);
+            });
+
+            state.lines.forEach(function (line, l) {
+                var prefix = 'Lines[' + l + '].';
+                mk(prefix + 'ManualExpenseTypeName', line.typeName);
+                if (line.providerId) mk(prefix + 'ServiceProviderId', line.providerId);
+                mk(prefix + 'AllocationMethod', line.method);
+                if (line.method === 1) mk(prefix + 'AmountPerOperation', line.perOp);
+                if (line.method === 2) mk(prefix + 'TotalAmount', line.total);
+                if (line.method === 3) {
+                    if (line.rate > 0) mk(prefix + 'RatePerTon', line.rate);
+                    items.forEach(function (s, i) {
+                        var rate = parseFloat(line.rates[key(s.op)]);
+                        mk(prefix + 'RatePerTonOverrides[' + i + ']', rate > 0 ? rate : '');
+                    });
+                }
+                if (line.desc) mk(prefix + 'Description', line.desc);
+                if (line.method === 4) {
+                    items.forEach(function (s, i) {
+                        mk(prefix + 'ManualAmounts[' + i + ']', parseFloat(line.manual[key(s.op)]) || 0);
+                    });
+                }
             });
         }
 
@@ -754,15 +955,6 @@
                 return;
             }
             if (!validateStep2()) { e.preventDefault(); return; }
-            var m = currentMethod();
-            if (m === 4) {
-                var bad = Array.from(state.selected.values()).some(function (s) { return !(parseFloat(s.manualAmount) > 0); });
-                if (bad) {
-                    e.preventDefault();
-                    alert('در روش دستی، مبلغ همه عملیات‌ها باید بزرگ‌تر از صفر باشد.');
-                    return;
-                }
-            }
             syncItemsInputs();
 
             // قفلِ سادهٔ ضدِ دابل‌کلیک. اگر ناوبری انجام نشد (خطای شبکه/سرور)،
@@ -781,8 +973,88 @@
             }
         });
 
+        // ---------- اپلود اکسل (نمبر وسیله + مقدار) برای مبالغ دستی و نرخ هر حمل ----------
+        function setupExcelImport(options) {
+            var box = $(options.boxId);
+            var input = $(options.fileId);
+            var btn = $(options.btnId);
+            var status = $(options.statusId);
+            var url = box ? box.getAttribute('data-manual-import-url') : '';
+            if (!box || !input || !btn || !url) { return; }
+
+            function normNumber(v) {
+                return String(v == null ? '' : v).toLowerCase().replace(/[^0-9a-z؀-ۿ]/g, '');
+            }
+            function say(text, isError) {
+                status.hidden = false;
+                status.textContent = text;
+                status.classList.toggle('is-error', !!isError);
+            }
+
+            // هر ردیف فایل با نمبر واقعی وسیله (و در نبود آن، سیمیر) تطبیق می‌شود؛
+            // عملیاتِ انتخاب‌نشده در صورت وجود در لیست، انتخاب می‌شود.
+            function applyRows(rows) {
+                var matched = 0, added = 0, skipped = 0;
+                rows.forEach(function (r) {
+                    var n = normNumber(r.vehicleNumber);
+                    var amount = parseFloat(r.amount);
+                    if (!n || !(amount > 0)) { skipped++; return; }
+                    var targets = ops.filter(function (o) { return normNumber(o.number) === n; });
+                    if (targets.length === 0) {
+                        targets = ops.filter(function (o) { return o.alt && normNumber(o.alt) === n; });
+                    }
+                    if (targets.length === 0) { skipped++; return; }
+                    targets.forEach(function (o) {
+                        var k = key(o);
+                        if (!state.selected.has(k)) { state.selected.set(k, { op: o, manualAmount: null, manualRate: null }); added++; }
+                        state.selected.get(k)[options.field] = String(amount);
+                        matched++;
+                    });
+                });
+                return { matched: matched, added: added, skipped: skipped };
+            }
+
+            btn.addEventListener('click', function () { input.value = ''; input.click(); });
+
+            input.addEventListener('change', function () {
+                var file = input.files && input.files[0];
+                if (!file) { return; }
+                var fd = new FormData();
+                fd.append('file', file);
+                var token = document.querySelector('#gexpForm input[name="__RequestVerificationToken"]');
+                if (token) { fd.append('__RequestVerificationToken', token.value); }
+                btn.disabled = true;
+                say('در حال خواندن فایل…', false);
+                fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) { say((data && data.message) || 'خواندن فایل ناموفق بود.', true); return; }
+                        var result = applyRows(data.rows || []);
+                        if (result.matched === 0) { say('هیچ نمبر وسیله‌ای در فایل با عملیات‌های موجود مطابقت نداشت.', true); return; }
+                        renderTable();
+                        if (state.step === 3) { renderPreview(); } else { syncItemsInputs(); }
+                        say(options.label + ' برای ' + result.matched + ' عملیات ثبت شد'
+                            + (result.added ? ' — ' + result.added + ' عملیات به انتخاب افزوده شد' : '')
+                            + (result.skipped ? ' — ' + result.skipped + ' ردیف بدون تطابق' : '')
+                            + ' — برای ثبت، «افزودن این مصرف به لیست» را بزنید.', false);
+                    })
+                    .catch(function () { say('خطا در ارتباط با سرور.', true); })
+                    .then(function () { btn.disabled = false; });
+            });
+        }
+
+        setupExcelImport({
+            boxId: 'manualHint', fileId: 'manualAmountFile', btnId: 'btnManualImport',
+            statusId: 'manualImportStatus', field: 'manualAmount', label: 'مبلغ'
+        });
+        setupExcelImport({
+            boxId: 'rateHint', fileId: 'rateFile', btnId: 'btnRateImport',
+            statusId: 'rateImportStatus', field: 'manualRate', label: 'نرخ فی تن'
+        });
+
         // شروع
         syncMethodFields();
+        renderLines();
         renderTable();
         goStep(1);
     })();

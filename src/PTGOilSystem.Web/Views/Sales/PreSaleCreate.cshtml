@@ -1,18 +1,20 @@
 @model PTGOilSystem.Web.Models.Sales.PreSaleCreateViewModel
 @{
-    ViewData["Title"] = "ثبت پیش‌فروش";
+    ViewData["Title"] = "ثبت فروش با تحویل مرحله‌ای";
     ViewData["HideSectionTabs"] = true;
     var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl);
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("PreSales");
+    var fullDeliveryUrl = Url.Action("Create", new { returnUrl = Model.ReturnUrl }) ?? "#";
+    var stagedDeliveryUrl = Url.Action("PreSaleCreate") ?? "#";
 }
 
 <div class="page-stack ak-form-page">
     <header class="ak-page-header">
         <div class="ak-page-heading">
-            <span class="ak-page-icon"><i class="bi bi-calendar-plus"></i></span>
+            <span class="ak-page-icon"><i class="bi bi-list-check"></i></span>
             <div>
-                <h1>ثبت پیش‌فروش</h1>
-                <p>فقط تعهد فروش ثبت می‌شود: نه موجودی کم می‌شود، نه درآمد یا بهای تمام‌شده.</p>
+                <h1>ثبت فروش با تحویل مرحله‌ای</h1>
+                <p>مقدار و قیمتِ کل همین‌جا ثبت می‌شود؛ موجودی و درآمد فقط هنگام هر تحویل ثبت می‌گردد.</p>
             </div>
         </div>
         <div class="ak-page-actions">
@@ -20,13 +22,16 @@
         </div>
     </header>
 
+    <partial name="~/Views/Sales/_SaleDeliveryModeChoice.cshtml"
+             model="@(("staged", fullDeliveryUrl, stagedDeliveryUrl))" />
+
     <form asp-action="PreSaleCreate" method="post" class="ak-form">
         @Html.AntiForgeryToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
 
-        <section class="ak-form-section" aria-label="اطلاعات پیش‌فروش">
-            <h2 class="ak-section-title">اطلاعات پیش‌فروش</h2>
+        <section class="ak-form-section" aria-label="اطلاعات فروش">
+            <h2 class="ak-section-title">اطلاعات فروش</h2>
             <div class="ak-form-grid">
                 <div class="ak-field">
                     <label asp-for="CustomerId" class="ak-label">مشتری <span class="ak-req">*</span></label>
@@ -63,7 +68,7 @@
                     <span asp-validation-for="AppliedFxRateToUsd" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
-                    <label asp-for="OrderDate" class="ak-label">تاریخ پیش‌فروش <span class="ak-req">*</span></label>
+                    <label asp-for="OrderDate" class="ak-label">تاریخ فروش <span class="ak-req">*</span></label>
                     <input asp-for="OrderDate" type="date" class="ak-input" />
                     <span asp-validation-for="OrderDate" class="ak-field-error"></span>
                 </div>
@@ -102,7 +107,7 @@
 
         <div class="ak-footer-actions">
             <a href="@cancelUrl" class="btn ak-secondary-action">انصراف</a>
-            <button type="submit" class="btn btn-primary">ذخیره پیش‌فروش</button>
+            <button type="submit" class="btn btn-primary">ذخیره فروش</button>
         </div>
     </form>
 </div>

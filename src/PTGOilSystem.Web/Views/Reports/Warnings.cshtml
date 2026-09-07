@@ -1,17 +1,17 @@
 @model PTGOilSystem.Web.Models.Reports.ReportsWarningsViewModel
 @{
-    ViewData["Title"] = UiText.T(Context, "مغایرت‌ها", "Reconciliation & Warnings");
+    ViewData["Title"] = UiText.T(Context, "کارهای نیمه‌تمام", "Unfinished Work");
 }
 
 <div class="ak-form-page" dir="rtl">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "مغایرت‌ها", "Reconciliation & Warnings"), false,
+             model="@((UiText.T(Context, "کارهای نیمه‌تمام", "Unfinished Work"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
 
-    <p class="ak-note">@UiText.T(Context, "مواردی که برای کنترل دفتر کل، قیمت‌گذاری یا اسناد نیاز به بررسی دارند.", "Items that need ledger, valuation or document review.")</p>
+    <p class="ak-note">@UiText.T(Context, "ثبت‌هایی که ناقص مانده‌اند. تا تکمیل نشوند، ارقام مالی شرکت ناقص می‌ماند.", "Entries that are still incomplete. Until they are finished, the company figures stay incomplete.")</p>
 
-    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار مغایرت‌ها", "Warning metrics")">
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار کارهای نیمه‌تمام", "Unfinished work metrics")">
             @foreach (var metric in Model.Metrics.Take(4))
             {
                 @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
@@ -23,7 +23,7 @@
             <table class="ak-table">
                 <thead>
                     <tr>
-                        <th class="ak-col-grow">@UiText.T(Context, "مورد", "Issue")</th>
+                        <th class="ak-col-grow">@UiText.T(Context, "کار", "Item")</th>
                         <th>@UiText.T(Context, "شرح", "Description")</th>
                         <th class="ak-col-num">@UiText.T(Context, "تعداد", "Count")</th>
                         <th class="ak-col-actions">@UiText.T(Context, "عملیات", "Action")</th>

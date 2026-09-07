@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupExpenseModalViewModel
+﻿@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupExpenseModalViewModel
 @using Microsoft.AspNetCore.Mvc.ViewFeatures
 @{
     var isModal = ViewData["IsExpenseModal"] as bool? == true;
@@ -27,7 +27,8 @@
                         — @exp.ExpenseTypeName
                         — @exp.ExpenseDate.ToString("yyyy-MM-dd")
                         — @exp.AmountUsd.ToString("N2") USD
-                        @if (!string.IsNullOrWhiteSpace(exp.ServiceProviderName)) { <text> — @exp.ServiceProviderName</text> }
+                        @{ var expParty = exp.ServiceProviderName ?? exp.OperationalAssetName ?? exp.DriverName; }
+                        @if (!string.IsNullOrWhiteSpace(expParty)) { <text> — @expParty</text> }
                         else if (!string.IsNullOrWhiteSpace(exp.OperationalAssetName)) { <text> — @exp.OperationalAssetName</text> }
                         <form asp-controller="Expenses" asp-action="Cancel" method="post" class="d-inline ms-1"
                               onsubmit="return confirm('این مصرف لغو شود؟ سند معکوس در لجر ثبت می‌شود.');">
@@ -96,6 +97,7 @@
             <span class="summary-tile"><span class="summary-tile-label">بدون طرف:</span> <strong class="ak-num" data-summary-none>0.00 USD</strong></span>
             <span class="summary-tile"><span class="summary-tile-label">خدماتی:</span> <strong class="ak-num" data-summary-provider>0.00 USD</strong></span>
             <span class="summary-tile"><span class="summary-tile-label">دارایی:</span> <strong class="ak-num" data-summary-asset>0.00 USD</strong></span>
+            <span class="summary-tile"><span class="summary-tile-label">راننده:</span> <strong class="ak-num" data-summary-driver>0.00 USD</strong></span>
             <span class="summary-tile"><span class="summary-tile-label">مجموع کل:</span> <strong class="ak-num" data-summary-total>0.00 USD</strong></span>
         </div>
 

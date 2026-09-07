@@ -230,6 +230,7 @@ public sealed class SalesAccountingAdapter(
                 {
                     db.CustomerPaymentAllocationApplications.Add(new CustomerPaymentAllocationApplication
                     {
+                        PaymentTransactionId = item.PaymentTransactionId,
                         CustomerPaymentAllocationId = item.AllocationId,
                         SalesTransactionId = sale.Id,
                         AppliedAt = sale.SaleDate.Date,
@@ -258,6 +259,7 @@ public sealed class SalesAccountingAdapter(
 
     private sealed record AdvancePlanItem(
         int AllocationId,
+        int PaymentTransactionId,
         decimal AppliedAmountUsd,
         decimal AppliedPaymentAmount,
         string PaymentCurrencyCode);
@@ -301,6 +303,7 @@ public sealed class SalesAccountingAdapter(
             .Select(x => new
             {
                 x.Id,
+                x.PaymentTransactionId,
                 x.AllocatedAmountUsd,
                 x.PaymentCurrencyCode,
                 x.PaymentFxRateToUsd,
@@ -329,7 +332,8 @@ public sealed class SalesAccountingAdapter(
                 ? decimal.Round(take / allocation.PaymentFxRateToUsd, 4, MidpointRounding.AwayFromZero)
                 : take;
 
-            plan.Add(new AdvancePlanItem(allocation.Id, take, paymentAmount, allocation.PaymentCurrencyCode));
+            plan.Add(new AdvancePlanItem(
+                allocation.Id, allocation.PaymentTransactionId, take, paymentAmount, allocation.PaymentCurrencyCode));
             remaining -= take;
         }
 
@@ -784,6 +788,7 @@ public sealed class SalesAccountingAdapter(
 
             var application = new CustomerPaymentAllocationApplication
             {
+                PaymentTransactionId = allocation.PaymentTransactionId,
                 CustomerPaymentAllocationId = allocation.Id,
                 SalesTransactionId = delivery.Id,
                 AppliedAt = AfghanistanBusinessClock.SystemToday,

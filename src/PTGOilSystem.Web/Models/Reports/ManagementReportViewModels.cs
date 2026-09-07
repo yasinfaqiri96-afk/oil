@@ -39,7 +39,22 @@ public sealed class CompanyFinancialOverviewViewModel
     public decimal RevenueUsd { get; init; }
     public decimal PurchaseCostUsd { get; init; }
     public decimal ExpenseUsd { get; init; }
+
+    /// <summary>
+    /// مصارفِ درون‌خطیِ بارگیری (حمل، گدام، سایر، خط‌آهن). این‌ها روی خودِ
+    /// <c>LoadingRegister</c> ذخیره می‌شوند و برای سطرهای بدون طرف‌حساب هیچ
+    /// <c>ExpenseTransaction</c> نمی‌سازند، پس در <see cref="ExpenseUsd"/> نیستند و
+    /// جمعشان با آن همپوشانی ندارد.
+    /// </summary>
+    public decimal LoadingOperationalCostUsd { get; init; }
+
+    /// <summary>
+    /// ارزش دالریِ ضایعاتِ قابل شارژ. سطرِ مصرف ندارد و در <see cref="ExpenseUsd"/> نمی‌آید.
+    /// </summary>
     public decimal LossCostUsd { get; init; }
+
+    /// <summary>ضایعاتی که قیمت بارگیری ندارند و ارزششان محاسبه‌نشدنی است.</summary>
+    public int UnvaluedLossCount { get; init; }
     public decimal ExchangeGainUsd { get; init; }
     public decimal ExchangeLossUsd { get; init; }
     public decimal NetCashMovementUsd { get; init; }
@@ -51,11 +66,40 @@ public sealed class CompanyFinancialOverviewViewModel
     public PnlConfidence PnlConfidence { get; init; } = PnlConfidence.NeedsReview;
     public IReadOnlyList<ReportMetricViewModel> Metrics { get; init; } = [];
     public IReadOnlyList<ContractPnlRowViewModel> TopContracts { get; init; } = [];
+
+    /// <summary>
+    /// مانده واقعی صندوق و بانک در همین لحظه — مستقل از بازهٔ فیلتر صفحه.
+    /// این با <see cref="NetCashMovementUsd"/> یکی نیست: آن یکی «چقدر پول در این
+    /// بازه وارد و خارج شد» است، این یکی «چقدر پول همین حالا داریم».
+    /// </summary>
+    public decimal CashOnHandUsd { get; init; }
+
+    /// <summary>بزرگ‌ترین طلبات شرکت (مانده مثبت) در بازهٔ فیلترشده.</summary>
+    public IReadOnlyList<ReceivablePayableRowViewModel> TopReceivables { get; init; } = [];
+
+    /// <summary>بزرگ‌ترین بدهی‌های شرکت (مانده منفی) در بازهٔ فیلترشده.</summary>
+    public IReadOnlyList<ReceivablePayableRowViewModel> TopPayables { get; init; } = [];
+
+    /// <summary>جمع بدهی شرکت به تأمین‌کننده، شرکت خدماتی و هر طرف‌حساب دیگر با مانده منفی.</summary>
+    public decimal TotalPayableUsd { get; init; }
+
+    /// <summary>جمع طلبات شرکت از همهٔ طرف‌حساب‌ها با مانده مثبت.</summary>
+    public decimal TotalReceivableUsd { get; init; }
+
+    /// <summary>
+    /// شمار کارهایی که برای کامل‌شدن ارقام باید انجام شوند: موارد باز صفحهٔ
+    /// «کارهای نیمه‌تمام» به‌علاوهٔ فروش‌های بدون بهای تمام‌شده.
+    /// </summary>
+    public int ActionNeededCount => WarningCount + UncostedSaleCount;
+
+    /// <summary>تاریخ کاری کابل هنگام ساخت صفحه؛ مبنای «چند روز از آخرین حرکت حساب».</summary>
+    public DateTime AsOfDate { get; init; }
+
     public decimal GrossProfitUsd => PnlMath.GrossProfit(RevenueUsd, PurchaseCostUsd);
     public decimal NetProfitUsd => PnlMath.NetProfit(
         RevenueUsd,
         PurchaseCostUsd,
-        ExpenseUsd + LossCostUsd,
+        ExpenseUsd + LoadingOperationalCostUsd + LossCostUsd,
         ExchangeGainUsd,
         ExchangeLossUsd);
 
@@ -86,10 +130,34 @@ public sealed class CashFlowReportRowViewModel
 public sealed class CashFlowAccountRowViewModel
 {
     public string CashAccountName { get; init; } = "";
+
+    /// <summary>
+    /// ارزِ خودِ حساب (<c>CashAccount.Currency</c>)، نه ارزِ سند. همهٔ مبالغِ این ردیف USD اند؛
+    /// این ستون فقط می‌گوید حساب به کدام ارز نگهداری می‌شود.
+    /// </summary>
     public string Currency { get; init; } = "";
+
+    /// <summary>مانده‌ی همین حساب پیش از شروعِ بازه (USD).</summary>
+    public decimal OpeningUsd { get; init; }
     public decimal InflowUsd { get; init; }
     public decimal OutflowUsd { get; init; }
     public decimal NetUsd => InflowUsd - OutflowUsd;
+    public decimal ClosingUsd => OpeningUsd + NetUsd;
+}
+
+/// <summary>یک ماهِ تقویمی از گردش پول — برای دیدنِ روند، نه فقط جمعِ کلِ دوره.</summary>
+public sealed class CashFlowPeriodRowViewModel
+{
+    public int Year { get; init; }
+    public int Month { get; init; }
+    public string Label => $"{Year:0000}-{Month:00}";
+    public decimal InflowUsd { get; init; }
+    public decimal OutflowUsd { get; init; }
+    public decimal NetUsd => InflowUsd - OutflowUsd;
+
+    /// <summary>مانده‌ی پایانِ همین ماه = مانده‌ی اول دوره + گردشِ تجمعی تا این ماه.</summary>
+    public decimal ClosingUsd { get; init; }
+    public int Count { get; init; }
 }
 
 public sealed class CashFlowReportViewModel
@@ -98,9 +166,27 @@ public sealed class CashFlowReportViewModel
     public IReadOnlyList<ReportMetricViewModel> Metrics { get; init; } = [];
     public IReadOnlyList<CashFlowReportRowViewModel> Rows { get; init; } = [];
     public IReadOnlyList<CashFlowAccountRowViewModel> AccountRows { get; init; } = [];
+    public IReadOnlyList<CashFlowPeriodRowViewModel> PeriodRows { get; init; } = [];
+
+    /// <summary>
+    /// مانده‌ی صندوق و بانک پیش از شروعِ بازه. از همان دو منبعِ گردش خوانده می‌شود، فقط با
+    /// تاریخِ کوچک‌تر از «از تاریخ». بدونِ «از تاریخ» صفر است، چون گزارش از آغاز شروع می‌شود.
+    /// </summary>
+    public decimal OpeningBalanceUsd { get; init; }
     public decimal TotalInflowUsd => Rows.Sum(r => r.InflowUsd);
     public decimal TotalOutflowUsd => Rows.Sum(r => r.OutflowUsd);
     public decimal NetCashFlowUsd => TotalInflowUsd - TotalOutflowUsd;
+    public decimal ClosingBalanceUsd => OpeningBalanceUsd + NetCashFlowUsd;
+
+    /// <summary>
+    /// پرداختی که شریک از جیب خودش داده. از صندوق/بانکِ شرکت خارج نشده، پس در جمع‌های بالا
+    /// نیست؛ جدا نشان داده می‌شود تا خاموش گم نشود.
+    /// </summary>
+    public decimal PartnerFundedOutflowUsd { get; init; }
+    public int PartnerFundedCount { get; init; }
+
+    /// <summary>اگر فیلترِ فعال بخشی از گردش را بی‌صدا کنار می‌گذارد، متنِ هشدار.</summary>
+    public string? ScopeWarning { get; init; }
 }
 
 public sealed class ReceivablePayableRowViewModel
@@ -112,7 +198,12 @@ public sealed class ReceivablePayableRowViewModel
     public decimal DebitUsd { get; init; }
     public decimal CreditUsd { get; init; }
     public decimal PeriodMovementUsd => CreditUsd - DebitUsd;
-    public decimal BalanceUsd => OpeningBalanceUsd + PeriodMovementUsd;
+    /// <summary>
+    /// اصلاح فقط‌خواندنیِ تفاوت نرخِ ثبت‌نشده برای حساب تأمین‌کننده. این مقدار قرارداد،
+    /// پرداخت یا دفتر را تغییر نمی‌دهد و اگر سند تفاوت نرخ قبلاً ثبت شده باشد صفر می‌شود.
+    /// </summary>
+    public decimal FxAdjustmentUsd { get; init; }
+    public decimal BalanceUsd => OpeningBalanceUsd + PeriodMovementUsd + FxAdjustmentUsd;
     public string BalanceKind { get; init; } = "";
     public DateTime? LastEntryDate { get; init; }
     public string? DetailsController { get; init; }
@@ -129,6 +220,31 @@ public sealed class ReceivablesPayablesReportViewModel
     public decimal SupplierPayableUsd => -Rows.Where(r => r.PartyType == "Supplier" && r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
     public decimal ServiceProviderPayableUsd => -Rows.Where(r => r.PartyType == "ServiceProvider" && r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
     public decimal SarrafBalanceUsd => Rows.Where(r => r.PartyType == "Sarraf").Sum(r => r.BalanceUsd);
+
+    /// <summary>حسابی که بیش از این تعداد روز حرکتی نداشته «راکد» شمرده می‌شود.</summary>
+    public const int StaleAfterDays = 60;
+
+    /// <summary>تاریخ مبنای گزارش؛ سنِ سکوتِ هر حساب نسبت به همین تاریخ سنجیده می‌شود.</summary>
+    public DateTime AsOfDate { get; init; } = DateTime.Today;
+
+    /// <summary>جمع مانده‌های مثبت همهٔ طرف‌حساب‌ها — آنچه شرکت طلبکار است.</summary>
+    public decimal TotalReceivableUsd => Rows.Where(r => r.BalanceUsd > 0m).Sum(r => r.BalanceUsd);
+
+    /// <summary>جمع مانده‌های منفی همهٔ طرف‌حساب‌ها — آنچه شرکت بدهکار است (مثبت نمایش می‌شود).</summary>
+    public decimal TotalPayableUsd => -Rows.Where(r => r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
+
+    /// <summary>خالص وضعیت: طلب منهای بدهی. مثبت یعنی شرکت در مجموع طلبکار است.</summary>
+    public decimal NetBalanceUsd => TotalReceivableUsd - TotalPayableUsd;
+
+    /// <summary>
+    /// طلبی که حسابش بیش از <see cref="StaleAfterDays"/> روز حرکتی نداشته (یا هیچ حرکتی ندارد).
+    /// این عدد فقط از همین ردیف‌ها خوانده می‌شود و هیچ مانده‌ای را دوباره محاسبه نمی‌کند.
+    /// </summary>
+    public decimal StaleReceivableUsd => Rows
+        .Where(r => r.BalanceUsd > 0m
+            && (r.LastEntryDate is null
+                || (AsOfDate.Date - r.LastEntryDate.Value.Date).TotalDays > StaleAfterDays))
+        .Sum(r => r.BalanceUsd);
 }
 
 public sealed class InventoryOperationsRowViewModel
@@ -190,6 +306,18 @@ public sealed class ManagementReportFilterViewModel
     public int? SupplierId { get; set; }
     public int? TerminalId { get; set; }
     public int? StorageTankId { get; set; }
+
+    /// <summary>صندوق/بانکِ مشخص. فقط گزارش‌های نقدی به آن نگاه می‌کنند.</summary>
+    public int? CashAccountId { get; set; }
+
+    /// <summary>
+    /// شرکتِ صاحبِ صندوق/بانک. تفکیک از روی <c>CashAccount.CompanyId</c> انجام می‌شود، نه از
+    /// <c>PaymentTransaction.CompanyId</c> که برای رکوردهای مبهم عمداً null مانده است.
+    /// </summary>
+    public int? CompanyId { get; set; }
+
+    /// <summary>بابتِ پرداخت. فقط گزارش‌های نقدی به آن نگاه می‌کنند.</summary>
+    public PaymentKind? PaymentKind { get; set; }
 }
 
 public sealed class ContractPnlRowViewModel

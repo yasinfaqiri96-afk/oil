@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -107,7 +108,7 @@ public sealed class PartyStatementReadServiceTests
         var direction = new CompanyFlowDirectionResolver();
         var balance = new CompanyFlowBalanceService();
         var policies = new PartyStatementPolicyResolver();
-        var bulk = new PartyBalanceReadService(db, policies, direction, balance);
+        var bulk = new PartyBalanceReadService(db, policies, direction, balance, new PartyDirectory(db));
         var reportRow = Assert.Single(await bulk.GetBalancesAsync(filter));
         var statement = await BuildService(db).GetStatementAsync(
             new PartyRef(PartyStatementPartyType.Customer, customer.Id),
@@ -1600,7 +1601,8 @@ public sealed class PartyStatementReadServiceTests
             new PartyStatementPolicyResolver(),
             new CompanyFlowDirectionResolver(),
             new CompanyFlowBalanceService(),
-            Options.Create(new PartyStatementOptions()));
+            Options.Create(new PartyStatementOptions()),
+            new PartyDirectory(db));
 
     private static ApplicationDbContext CreateDb()
     {

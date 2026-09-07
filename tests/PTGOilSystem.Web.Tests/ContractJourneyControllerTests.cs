@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Controllers;
@@ -2339,7 +2339,8 @@ public class ContractJourneyControllerTests
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<ContractJourneyDetailsViewModel>(view.Model);
         Assert.Equal(125m, model.LoadingRailwayExpenseUsd);
-        Assert.Equal(150m, model.MiniPnl.TraceableExpensesUsd);
+        // کرایهٔ واگونِ لغوشده پول نیست، پس در جمع مصارف نمی‌آید؛ فقط همان ۱۲۵ درون‌خطی می‌ماند.
+        Assert.Equal(125m, model.MiniPnl.TraceableExpensesUsd);
     }
 
     [Fact]

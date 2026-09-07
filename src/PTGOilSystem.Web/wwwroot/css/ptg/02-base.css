@@ -11,8 +11,8 @@ body.ptg-modal-document {
     margin: 0;
     background: var(--ptg-bg) !important;
     color: var(--ptg-text);
-    font-family: "Poppins", "Vazirmatn", Tahoma, Arial, sans-serif;
-    font-size: 14px;
+    font-family: "IRANSans", "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
+    font-size: var(--font-body, 14px);
     letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -20,13 +20,13 @@ body.ptg-modal-document {
 
 body.boltz-shell.app-shell-authenticated.boltz-rtl,
 body.ptg-modal-document.boltz-rtl {
-    font-family: "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
 }
 
 body.boltz-shell.app-shell-authenticated :where(h1, h2, h3, h4, h5, h6),
 body.ptg-modal-document :where(h1, h2, h3, h4, h5, h6) {
     color: var(--ptg-text);
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0;
 }
 
@@ -76,7 +76,7 @@ body.boltz-shell.app-shell-authenticated :where(code, kbd, samp),
 body.ptg-modal-document :where(code, kbd, samp) {
     padding: .12rem .5rem;
     border: 1px solid var(--ptg-border);
-    border-radius: .75rem;
+    border-radius: 4px;
     background: var(--ptg-surface-soft);
     color: var(--ptg-text);
     font-size: .86em;

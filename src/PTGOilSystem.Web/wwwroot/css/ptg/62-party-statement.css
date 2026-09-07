@@ -4,9 +4,9 @@
     color: var(--ptg-text, #172033);
     background: var(--ptg-surface, #fff);
     border: 1px solid var(--statement-line);
-    border-radius: var(--ptg-radius-lg, 12px);
+    border-radius: var(--ptg-radius-lg, 8px);
     overflow: hidden;
-    font-family: Vazirmatn, sans-serif;
+    font-family: IRANSans, Vazirmatn, sans-serif;
 }
 
 .statement-screen-header {

@@ -64,7 +64,10 @@ public sealed class PartyBalanceTool : IAssistantTool
             ToDate = AssistantToolArgs.GetDate(arguments, "to_date"),
         };
 
-        var snapshots = await _balances.GetBalancesAsync(filter, cancellationToken);
+        // همان تعریفِ گزارش «طلبات و بدهی‌ها»: فقط طرف‌حساب بیرونی. حساب جاریِ خودِ
+        // جوازها طرف معامله نیست و اگر بیاید، بزرگ‌ترین مانده می‌شود و جواب دستیار را
+        // خراب می‌کند. رجوع: PartyBalanceSnapshotFilters.ExternalPartiesOnly.
+        var snapshots = (await _balances.GetBalancesAsync(filter, cancellationToken)).ExternalPartiesOnly();
         if (snapshots.Count == 0)
         {
             return "برای این فیلتر هیچ مانده‌ای ثبت نشده است.";

@@ -249,6 +249,12 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
                     $"مبلغ مصرف‌شده از مانده قابل تخصیص بیشتر است. مانده فعلی: {allocatableAmount:N2} {paymentCurrency}.");
             }
 
+            // PTG-P1-05 — خواندنِ مانده و نوشتنِ تخصیص باید نسبت به همان پرداخت ترتیبی باشد.
+            // بدون این، دو درخواستِ هم‌زمان هر دو همان ماندهٔ آزاد را می‌بینند و مجموع تخصیص از
+            // خودِ پرداخت بیشتر می‌شود. نشانهٔ نسخهٔ همان پرداخت جلو برده می‌شود، پس دومین
+            // تراکنش با DbUpdateConcurrencyException رد می‌شود و چیزی ثبت نمی‌گردد.
+            _db.Entry(payment).Property(p => p.Version).IsModified = true;
+
             var allocation = new SupplierPaymentAllocation
             {
                 PaymentTransactionId = payment.Id,
@@ -458,9 +464,15 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
     }
 
     /// <summary>
-    /// سطر سود/زیان تسعیر تخصیص — بدون طرف‌حساب تا روی صورت‌حساب تأمین‌کننده ننشیند و
-    /// به‌عنوان اثر P&L شناخته شود. دقیقاً همان قرارداد علامت‌گذاری SarrafSettlement:
-    /// زیان = Debit، سود = Credit؛ در حالت برگشت، سمت آن معکوس می‌شود.
+    /// سطر سود/زیان تسعیر تخصیص — زیان = Debit، سود = Credit؛ در حالت برگشت سمت معکوس می‌شود.
+    ///
+    /// <b>SupplierId ندارد ولی ContractId دارد، و این عمدی است.</b> ارزش تاریخی (Credit) و ارزش
+    /// روز تخصیص (Debit) با هم برابر نیستند؛ اگر سطر سوم روی حساب تأمین‌کننده ننشیند، تخصیص
+    /// به‌اندازهٔ همان اختلاف مانده او را جابه‌جا می‌کند، در حالی‌که هیچ پولی رد و بدل نشده است.
+    /// چون قرارداد، قراردادِ خریدِ همان تأمین‌کننده است، <see cref="PartyStatements.LedgerEntryOwnership"/>
+    /// این سطر را هم مالِ او می‌شمارد و هر سه پا روی حساب تأمین‌کننده خالصِ صفر می‌شوند —
+    /// دقیقاً همان فرضی که <c>SupplierTransferableBalanceService</c> روی آن حساب می‌کند.
+    /// اثر P&L از خودِ SourceType خوانده می‌شود، نه از نداشتنِ طرف‌حساب.
     /// </summary>
     private static LedgerPostingRequest BuildExchangeDifferenceLedger(
         SupplierPaymentAllocation allocation,

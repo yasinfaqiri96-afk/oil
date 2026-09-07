@@ -416,6 +416,11 @@ public class TruckSettlementsControllerTests
         Assert.Null(income.ServiceProviderId);
         Assert.Empty(await db.LedgerEntries.ToListAsync());
         Assert.Empty(await db.InventoryMovements.ToListAsync());
+
+        var pnl = (await new InventoryTransportPnlService(db).BuildForLegsAsync([leg.Id]))[leg.Id];
+        Assert.Equal(0m, pnl.ExpenseTransactionsUsd);
+        Assert.Equal(100m, pnl.ReceiptFreightExpenseUsd);
+        Assert.Equal(100m, pnl.OperationalExpensesUsd);
     }
 
     [Fact]

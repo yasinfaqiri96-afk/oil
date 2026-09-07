@@ -731,7 +731,7 @@ public partial class ContractJourneyController : Controller
                 .Include(s => s.Contract)
                 .Include(s => s.Customer)
                 .AsNoTracking()
-                .Where(s => saleIds.Contains(s.Id))
+                .Where(s => saleIds.Contains(s.Id) && !s.IsCancelled)
                 .ToDictionaryAsync(s => s.Id);
 
         var inventoryMovementItems = new List<ContractJourneyInventoryMovementItemViewModel>();
@@ -1261,15 +1261,20 @@ public partial class ContractJourneyController : Controller
         }
 
         var expenseStorageRentUsd = expenses
-            .Where(IsStorageRentExpense)
+            .Where(e => !e.IsCancelled && IsStorageRentExpense(e))
             .Sum(e => e.AmountUsd);
         var expenseTransportFreightUsd = expenses
-            .Where(IsTransportFreightExpense)
+            .Where(e => !e.IsCancelled && IsTransportFreightExpense(e))
             .Sum(e => e.AmountUsd);
         var hasOfficialWagonRentExpense = expenses.Any(e =>
             !e.IsCancelled && ExpenseClassification.IsWagonRentExpense(e));
+        // مصرفِ لغوشده پول نیست، و مصرفِ ساخته‌شده از اظهارنامهٔ گمرکی در همین ردیف‌ها
+        // به‌شکل inventoryTransportCustomsTotalByLegId جدا شمرده می‌شود؛ اگر اینجا هم بیاید
+        // ستون «مصرف حمل» و ستون «گمرک» یک پول را دو بار روی همان فروش می‌نشانند.
         var inventoryTransportExpenseGroups = expenses
-            .Where(e => e.TransportLegId.HasValue
+            .Where(e => !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
+                && e.TransportLegId.HasValue
                 && inventoryTransportLegById.ContainsKey(e.TransportLegId.Value))
             .GroupBy(e => e.TransportLegId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
@@ -1300,7 +1305,10 @@ public partial class ContractJourneyController : Controller
             .ThenByDescending(l => l.TransportLegId)
             .ToList();
 
+        // مصرفِ لغوشده پول نیست: بعد از لغو مصرف گروهی/تکی نباید در تب مصارف قرارداد
+        // بماند (جمع‌های همین صفحه هم آن را نمی‌شمارند).
         var expenseItems = expenses
+            .Where(e => !e.IsCancelled)
             .Select(e =>
             {
                 var transportLeg = e.TransportLegId.HasValue
@@ -1448,7 +1456,14 @@ public partial class ContractJourneyController : Controller
             .Select(EnrichSaleCost)
             .ToList();
         var saleIdSet = saleItems.Select(s => s.SalesTransactionId).ToHashSet();
-        var totalExpensesUsd = expenses.Sum(e => e.AmountUsd);
+        // مصرفِ لغوشده پول نیست و در هیچ جمعی نمی‌آید.
+        var totalExpensesUsd = expenses.Where(e => !e.IsCancelled).Sum(e => e.AmountUsd);
+        // مصرفی که از اظهارنامهٔ گمرکی ساخته شده، پایین‌تر یک بار به‌شکل
+        // customsDeclarationTotalUsd شمرده می‌شود؛ پس در جمعِ مصارفِ قابل‌ردیابی
+        // دوباره نمی‌آید. رجوع: CustomsDeclarationExpenseSync.
+        var nonCustomsExpensesUsd = expenses
+            .Where(e => !e.IsCancelled && !e.CustomsDeclarationId.HasValue)
+            .Sum(e => e.AmountUsd);
         var expenseBreakdowns = expenseItems
             .GroupBy(e => string.IsNullOrWhiteSpace(e.ExpenseTypeName) ? "نامشخص" : e.ExpenseTypeName)
             .OrderByDescending(g => g.Sum(e => e.AmountUsd))
@@ -1879,7 +1894,7 @@ public partial class ContractJourneyController : Controller
         var traceablePurchaseCostUsd = purchaseAgg.TraceablePurchaseCostUsd;
         var weightedAveragePurchasePriceUsd = purchaseAgg.WeightedAveragePurchasePriceUsd;
         var traceableOperationalCostUsd =
-            totalExpensesUsd +
+            nonCustomsExpensesUsd +
             loadingOperationalExpenseUsd +
             customsDeclarationTotalUsd +
             traceableLossCostUsd;
@@ -3275,6 +3290,7 @@ public partial class ContractJourneyController : Controller
                 e.LoadingRegisterId,
                 e.TransportLegId,
                 e.IsCancelled,
+                e.CustomsDeclarationId,
                 ExpenseTypeCode = e.ExpenseType != null ? e.ExpenseType.Code : null,
                 ExpenseTypeName = e.ExpenseType != null ? e.ExpenseType.Name : null,
                 ExpenseTypeNamePersian = e.ExpenseType != null ? e.ExpenseType.NamePersian : null,
@@ -3282,9 +3298,17 @@ public partial class ContractJourneyController : Controller
             })
             .ToListAsync();
         var expenseIdSet = expenseRows.Select(e => e.Id).ToHashSet();
-        var totalExpensesUsd = expenseRows.Sum(e => e.AmountUsd) + shipmentSharedExpenseUsd;
+        // مصرفِ لغوشده پول نیست و در هیچ جمعی نمی‌آید.
+        var totalExpensesUsd = expenseRows.Where(e => !e.IsCancelled).Sum(e => e.AmountUsd) + shipmentSharedExpenseUsd;
+        // مصرفی که از اظهارنامهٔ گمرکی ساخته شده، پایین‌تر یک بار به‌شکل جمع اظهارنامه‌ها
+        // شمرده می‌شود؛ پس در جمعِ مصارفِ قابل‌ردیابی دوباره نمی‌آید.
+        var nonCustomsExpensesUsd = expenseRows
+            .Where(e => !e.IsCancelled && !e.CustomsDeclarationId.HasValue)
+            .Sum(e => e.AmountUsd) + shipmentSharedExpenseUsd;
         var inventoryTransportExpenseTotalUsd = expenseRows
-            .Where(e => e.TransportLegId.HasValue && inventoryTransportLegIds.Contains(e.TransportLegId.Value))
+            .Where(e => !e.IsCancelled
+                && e.TransportLegId.HasValue
+                && inventoryTransportLegIds.Contains(e.TransportLegId.Value))
             .Sum(e => e.AmountUsd);
 
         static string ExpenseText(string? code, string? name, string? namePersian, string? description)
@@ -3318,11 +3342,13 @@ public partial class ContractJourneyController : Controller
                 "دیمیرج");
 
         var expenseStorageRentUsd = expenseRows
-            .Where(e => IsStorageRentExpense(ExpenseText(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description)))
+            .Where(e => !e.IsCancelled
+                && IsStorageRentExpense(ExpenseText(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description)))
             .Sum(e => e.AmountUsd);
         var expenseTransportFreightUsd = expenseRows
-            .Where(e => ExpenseClassification.IsWagonRent(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description)
-                || IsTransportFreightExpense(ExpenseText(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description)))
+            .Where(e => !e.IsCancelled
+                && (ExpenseClassification.IsWagonRent(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description)
+                    || IsTransportFreightExpense(ExpenseText(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description))))
             .Sum(e => e.AmountUsd);
         var hasOfficialWagonRentExpense = expenseRows.Any(e =>
             !e.IsCancelled && ExpenseClassification.IsWagonRent(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description));
@@ -3577,7 +3603,7 @@ public partial class ContractJourneyController : Controller
             ? decimal.Round(shipmentLossValuationMt * purchaseAgg.WeightedAveragePurchasePriceUsd!.Value, 4, MidpointRounding.AwayFromZero)
             : 0m;
         var traceableOperationalCostUsd =
-            totalExpensesUsd +
+            nonCustomsExpensesUsd +
             loadingOperationalExpenseUsd +
             customsDeclarations.Sum(c => c.TotalUsd) +
             ResolveTraceableLossCostUsd() +
@@ -4106,9 +4132,12 @@ public partial class ContractJourneyController : Controller
                     AmountUsd = g.Sum(s => s.AmountUsd)
                 });
 
+        // مصرفِ ساخته‌شده از اظهارنامهٔ گمرکی کنار می‌رود، چون همان مبلغ پایین‌تر در
+        // CustomsUsd شمرده می‌شود و TotalOperationalCostUsd هر دو را جمع می‌کند.
         var expenseRows = await _db.ExpenseTransactions
             .AsNoTracking()
             .Where(e => !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
                 && ((e.ShipmentId.HasValue && shipmentIds.Contains(e.ShipmentId.Value))
                     || (e.TransportLegId.HasValue && scenarioLegIds.Contains(e.TransportLegId.Value))))
             .Select(e => new
@@ -4302,7 +4331,7 @@ public partial class ContractJourneyController : Controller
         var sales = await _db.SalesTransactions
             .Include(s => s.Customer)
             .AsNoTracking()
-            .Where(s => s.ContractId == contract.Id)
+            .Where(s => s.ContractId == contract.Id && !s.IsCancelled)
             .OrderByDescending(s => s.SaleDate)
             .ThenByDescending(s => s.Id)
             .ToListAsync();
@@ -4347,7 +4376,7 @@ public partial class ContractJourneyController : Controller
         var expenses = await _db.ExpenseTransactions
             .Include(e => e.ExpenseType)
             .AsNoTracking()
-            .Where(e => e.ContractId == contract.Id)
+            .Where(e => e.ContractId == contract.Id && !e.IsCancelled)
             .OrderByDescending(e => e.ExpenseDate)
             .ThenByDescending(e => e.Id)
             .ToListAsync();
@@ -5433,9 +5462,13 @@ public partial class ContractJourneyController : Controller
             return [];
         }
 
+        // مصرفِ ساخته‌شده از اظهارنامهٔ گمرکی هم LoadingRegisterId می‌گیرد، ولی آینهٔ فیلدهای
+        // درون‌خطیِ حمل/گدام/سایر/خط‌آهن نیست؛ اگر اینجا شمرده شود آن مصارف واقعی حذف
+        // می‌شوند و مصرف کمتر از واقع می‌آید. رجوع: PurchaseAggregationService.
         var ids = await _db.ExpenseTransactions
             .AsNoTracking()
             .Where(e => !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
                 && e.LoadingRegisterId.HasValue
                 && loadingIds.Contains(e.LoadingRegisterId.Value))
             .Select(e => e.LoadingRegisterId!.Value)

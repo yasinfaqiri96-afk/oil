@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -745,7 +745,14 @@ public partial class TruckSettlementsController : Controller
                 && d.Status != DispatchStatus.Cancelled
                 && !d.IsFreightSettled
                 && d.SalesTransactionId == null
-                && !_db.DeliveryReceipts.Any(r => r.TruckDispatchId == d.Id))
+                && !_db.DeliveryReceipts.Any(r => r.TruckDispatchId == d.Id)
+                // دیسپچِ ساخته‌شده از انتقال وسیله→وسیله فقط رکورد سازگاری است؛ خودِ آن بار
+                // به‌صورت «مرحلهٔ فرزند» در همین لیست ردیف دارد. بدون این شرط یک موتر دو بار
+                // (یک بار حمل، یک بار دیسپچ) شمرده و تسویه می‌شد، و پس از لغو انتقال هم
+                // ردیف دیسپچ در لیست/کارت‌ها می‌ماند.
+                && !(d.InventoryTransportReceiptId != null
+                    && _db.InventoryTransportLegAllocations.Any(a =>
+                        a.SourceTransportReceiptId == d.InventoryTransportReceiptId)))
             .Select(d => new
             {
                 d.Id,

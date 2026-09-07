@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -372,6 +372,14 @@ public sealed class TransportChainService : ITransportChainService
         // سهم‌های فرزند حذف فیزیکی نمی‌شوند: تاریخچه باید قابل ردیابی بماند و مصرفِ والد
         // از رسیدهای فعال حساب می‌شود، نه از سهم‌های فرزند. پس لغوِ مرحله کافی است.
         await _db.SaveChangesAsync(ct);
+
+        // سطر مصرفِ دارایی مرحلهٔ لغوشده برگشتی می‌شود (همان قاعدهٔ لغو سند حمل).
+        var usageWriter = new AssetUsageChargeService(_db);
+        foreach (var childLeg in cancelled)
+        {
+            await usageWriter.SyncOperationAsync(childLeg, ct);
+        }
+
         return cancelled;
     }
 

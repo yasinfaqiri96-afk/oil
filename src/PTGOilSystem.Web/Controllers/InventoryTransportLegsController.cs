@@ -11,6 +11,7 @@ using System.Text;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Security;
@@ -33,6 +34,10 @@ public partial class InventoryTransportLegsController : Controller
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private ILedgerPostingService? _ledgerPosting;
     private ILedgerPostingService Ledger => _ledgerPosting ??= new LedgerPostingService(_db);
+    private IExpenseLedgerPoster? _expenseLedgerPoster;
+    private IExpenseLedgerPoster ExpenseLedger => _expenseLedgerPoster ??= new ExpenseLedgerPoster(Ledger);
+    // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است.
+    private readonly IExpenseSettlementValidator _settlementValidator = new ExpenseSettlementValidator();
     private readonly IStockService _stock;
     private readonly InventoryTransportLegLoadService _legLoad;
     private readonly InventoryTransportBatchService _batchTransport;
@@ -335,11 +340,33 @@ public partial class InventoryTransportLegsController : Controller
         await PopulateIndexLookupsAsync();
 
         // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
-        ViewBag.SumQuantity = await query.SumAsync(l => l.QuantityMt);
+        // حمل لغوشده بار واقعی روی وسیله ندارد، پس از کارت‌ها کنار می‌رود — مگر کاربر خودش
+        // فیلتر «لغوشده» را انتخاب کرده باشد که در آن حالت کارت باید همان لیست را بشمارد.
+        var cancelledOnly = filter.Status == InventoryTransportLegStatus.Cancelled
+            || string.Equals(filter.WorkflowState?.Trim(), "cancelled", StringComparison.OrdinalIgnoreCase);
+        var statQuery = cancelledOnly
+            ? query
+            : query.Where(l => l.Status != InventoryTransportLegStatus.Cancelled);
+
+        // انتقال وسیله→وسیله یک مرحلهٔ فرزند با همان بار می‌سازد؛ اگر مقدار فرزند هم جمع شود
+        // یک بارِ فیزیکی دو بار شمرده می‌شود. سهمی که از حمل والد آمده از جمع کم می‌شود.
+        var statLegIds = await statQuery.Select(l => l.Id).ToListAsync();
+        var grossQuantity = statLegIds.Count == 0
+            ? 0m
+            : await statQuery.SumAsync(l => (decimal?)l.QuantityMt) ?? 0m;
+        var carriedOverQuantity = statLegIds.Count == 0
+            ? 0m
+            : await _db.InventoryTransportLegAllocations
+                .AsNoTracking()
+                .Where(a => a.SourceTransportLegId != null && statLegIds.Contains(a.InventoryTransportLegId))
+                .SumAsync(a => (decimal?)a.QuantityMt) ?? 0m;
+
+        ViewBag.TotalLegCount = statLegIds.Count;
+        ViewBag.SumQuantity = decimal.Round(grossQuantity - carriedOverQuantity, 4, MidpointRounding.AwayFromZero);
         ViewBag.ActiveCount = await query.CountAsync(l =>
             l.Status != InventoryTransportLegStatus.Cancelled
             && l.Status != InventoryTransportLegStatus.Received);
-        ViewBag.PostedCount = await query.CountAsync(l => l.OutboundInventoryMovementId != null);
+        ViewBag.PostedCount = await statQuery.CountAsync(l => l.OutboundInventoryMovementId != null);
 
         return View(new InventoryTransportLegIndexViewModel
         {
@@ -411,6 +438,22 @@ public partial class InventoryTransportLegsController : Controller
         ViewBag.ReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true
             ? returnUrl
             : null;
+
+        // مودالِ سادهٔ تسویهٔ کرایه وقتی حمل شرکت خدماتی/دارایی ملکی ندارد باید بتواند
+        // رانندهٔ طرفِ کرایه را بگیرد؛ وگرنه کرایه بدهیِ هیچ‌کس نمی‌شود.
+        if (model is not null
+            && !model.ServiceProviderId.HasValue
+            && !model.OperationalAssetId.HasValue)
+        {
+            ViewBag.Drivers = new SelectList(
+                await _db.Drivers.AsNoTracking()
+                    .Where(d => d.IsActive || (model.DriverId.HasValue && d.Id == model.DriverId.Value))
+                    .OrderBy(d => d.FullName)
+                    .Select(d => new { d.Id, Text = d.FullName })
+                    .ToListAsync(),
+                "Id", "Text", model.DriverId);
+        }
+
         return model is null ? NotFound() : View(model);
     }
 
@@ -556,6 +599,7 @@ public partial class InventoryTransportLegsController : Controller
                 TempData["ok"] = model.SubmissionMode == InventoryTransportSubmissionMode.Loaded
                     ? $"سند {batch.BatchNumber} ثبت شد و خروجی موجودی برای هر سهم ساخته شد."
                     : $"پیش‌نویس {batch.BatchNumber} بدون تغییر موجودی ثبت شد.";
+                await WarnOnOverlappingOpenLegsAsync(batch);
                 // بعد از ثبت، مستقیم به جزئیات اولین حمل ساخته‌شده برو (صفحهٔ جریان نمایش داده نمی‌شود).
                 var firstLegId = batch.Legs.OrderBy(l => l.Id).Select(l => l.Id).FirstOrDefault();
                 return firstLegId > 0
@@ -729,7 +773,7 @@ public partial class InventoryTransportLegsController : Controller
             ActiveStep = 4,
             ShipmentId = shipmentIds.Count == 1 ? shipmentIds[0] : null,
             ShipmentLocked = shipmentIds.Count == 1 && shipmentIds[0].HasValue,
-            SourceTerminalId = batch.SourceTerminalId,
+            SourceTerminalId = batch.SourceTerminalId ?? 0,
             SourceStorageTankId = batch.SourceStorageTankId ?? 0,
             ProductId = batch.ProductId,
             TransportDate = batch.TransportDate,
@@ -759,6 +803,9 @@ public partial class InventoryTransportLegsController : Controller
                     DriverNameInput = l.Driver?.FullName,
                     QuantityMt = l.QuantityMt,
                     CapacityMt = l.CapacityMt,
+                    // تاریخ بارگیریِ خودِ حمل برمی‌گردد تا ویرایش پیش‌نویس، سفرهای چندروزهٔ
+                    // یک وسیله را به تاریخ سند برنگرداند (که تکراری‌شان می‌کرد).
+                    LoadedDate = l.LoadedDate,
                     CarrierType = l.CarrierType ?? CarrierType.ServiceProvider,
                     ServiceProviderId = l.ServiceProviderId,
                     OperationalAssetId = l.OperationalAssetId,
@@ -848,10 +895,59 @@ public partial class InventoryTransportLegsController : Controller
             freightWeightMt = row.FreightWeightMt,
             freightAmount = row.FreightAmount,
             freightCurrencyId = MatchCurrency(row.CurrencyText),
-            rwbNo = row.RwbNo
+            rwbNo = row.RwbNo,
+            loadedDate = row.LoadedDate?.ToString("yyyy-MM-dd")
         }).ToList();
 
         return Json(new { ok = true, vehicles });
+    }
+
+    // یک موتر می‌تواند چند سفر پشت‌سرهم داشته باشد، پس ثبت بسته نمی‌شود؛ ولی اگر سفر قبلیِ
+    // همان وسیله هنوز تخلیه نشده باشد کاربر باید بداند، چون در «حمل‌های در جریان» دوبار می‌آید.
+    // فقط هشدار است و هیچ ثبتی را برنمی‌گرداند.
+    private async Task WarnOnOverlappingOpenLegsAsync(InventoryTransportBatch batch)
+    {
+        try
+        {
+            var legIds = batch.Legs.Select(leg => leg.Id).ToList();
+            var truckIds = batch.Legs.Where(leg => leg.TruckId.HasValue).Select(leg => leg.TruckId!.Value).Distinct().ToList();
+            var wagonIds = batch.Legs.Where(leg => leg.WagonId.HasValue).Select(leg => leg.WagonId!.Value).Distinct().ToList();
+            if (truckIds.Count == 0 && wagonIds.Count == 0)
+            {
+                return;
+            }
+
+            var open = await _db.InventoryTransportLegs
+                .AsNoTracking()
+                .Where(leg => !legIds.Contains(leg.Id)
+                    && (leg.Status == InventoryTransportLegStatus.Loaded
+                        || leg.Status == InventoryTransportLegStatus.InTransit)
+                    && ((leg.TruckId != null && truckIds.Contains(leg.TruckId.Value))
+                        || (leg.WagonId != null && wagonIds.Contains(leg.WagonId.Value))))
+                .Select(leg => leg.Truck != null ? leg.Truck.PlateNumber : leg.WagonNumber)
+                .ToListAsync();
+
+            var names = open
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (names.Count == 0)
+            {
+                return;
+            }
+
+            var shown = string.Join("، ", names.Take(8));
+            var more = names.Count > 8 ? $" و {names.Count - 8} مورد دیگر" : string.Empty;
+            TempData["warn"] = $"این وسایط سفر تخلیه‌نشدهٔ قبلی هم دارند: {shown}{more}. "
+                + "تا رسید آن سفرها ثبت نشود، در «حمل‌های در جریان» بیش از یک بار دیده می‌شوند.";
+        }
+        catch (Exception ex)
+        {
+            // هشدار نمایشی است؛ خطای آن نباید ثبتِ موفق را خراب کند.
+            _logger.LogWarning(ex, "Overlapping open-leg warning could not be built.");
+        }
     }
 
     private static string GetCreateFromInventoryErrorKey(string code)
@@ -1119,6 +1215,10 @@ public partial class InventoryTransportLegsController : Controller
             return View(model);
         }
 
+        // دارایی قبلی پیش از تغییر نگه داشته می‌شود: اگر عوض شود، سطر مصرفِ دارایی قبلی
+        // باید برگشتی شود وگرنه کارکردِ باطل روی پروندهٔ آن دارایی می‌ماند.
+        var previousOperationalAssetId = leg.OperationalAssetId;
+
         leg.ShipmentId = model.ShipmentId;
         leg.SourcePurchaseContractId = model.SourcePurchaseContractId;
         leg.ProductId = model.ProductId;
@@ -1142,7 +1242,27 @@ public partial class InventoryTransportLegsController : Controller
         leg.Notes = model.Notes;
         leg.UpdatedAtUtc = DateTime.UtcNow;
 
+        // حاملِ حمل با همان قاعده‌ای که سرویس‌های ثبت حمل استفاده می‌کنند دوباره حل می‌شود
+        // تا ویرایش، leg را با شناسهٔ حاملِ کهنه رها نکند.
+        var usageWriter = new AssetUsageChargeService(_db);
+        var carrierParty = await usageWriter.ResolveCarrierPartyAsync(
+            leg.ServiceProviderId,
+            leg.DriverId,
+            leg.OperationalAssetId,
+            leg.LoadedDate);
+        leg.CarrierPartyType = carrierParty?.PartyType;
+        leg.CarrierPartyId = carrierParty?.PartyId;
+
         await _db.SaveChangesAsync();
+
+        // دارایی عوض شده: سطرهای مصرفِ قبلیِ همین leg برگشتی می‌شوند و بعد سطر دارایی جدید
+        // ساخته/به‌روز می‌شود (Sync خودش IsReversed را از وضعیت leg می‌گیرد).
+        if (previousOperationalAssetId != leg.OperationalAssetId && previousOperationalAssetId is > 0)
+        {
+            await usageWriter.MarkLegUsagesReversedAsync(new[] { leg.Id });
+        }
+
+        await usageWriter.SyncOperationAsync(leg);
 
         TempData["ok"] = "Transport leg draft was updated.";
         return RedirectToAction(nameof(Details), new { id = leg.Id });
@@ -1722,25 +1842,10 @@ public partial class InventoryTransportLegsController : Controller
         }
     }
 
-    // مجموع کرایهٔ ثبت‌شدهٔ هر حمل از مصارف نوع «کرایه حمل» (فقط مصارف فعال/غیرلغوشده).
-    private async Task<Dictionary<int, decimal>> GetRegisteredFreightByLegAsync(IReadOnlyCollection<int> legIds)
-    {
-        if (legIds.Count == 0)
-        {
-            return new Dictionary<int, decimal>();
-        }
-
-        return await _db.ExpenseTransactions
-            .AsNoTracking()
-            .Where(e => e.TransportLegId.HasValue
-                && legIds.Contains(e.TransportLegId.Value)
-                && !e.IsCancelled
-                && e.ExpenseType != null
-                && e.ExpenseType.Code == InventoryTransportReceiptService.TransportFreightExpenseCode)
-            .GroupBy(e => e.TransportLegId!.Value)
-            .Select(g => new { LegId = g.Key, AmountUsd = g.Sum(e => e.AmountUsd) })
-            .ToDictionaryAsync(x => x.LegId, x => x.AmountUsd);
-    }
+    // مجموع کرایهٔ ثبت‌شدهٔ هر حمل از مصارف نوع «کرایه حمل». قاعده در سرویس رسید است تا
+    // فرم و اعتبارسنجیِ ضدِ دوباره‌شماری دقیقاً یک تعریف داشته باشند.
+    private Task<Dictionary<int, decimal>> GetRegisteredFreightByLegAsync(IReadOnlyCollection<int> legIds)
+        => _receiptService.GetRegisteredFreightByLegAsync(legIds);
 
     // ── انتقال گروهی از حمل‌های در جریان (واگن → موتر) ──
     // فرم مرحله‌ای: انتخاب کشتی → انتخاب واگن‌های در جریان → افزودن موترها → تقسیم مقدار → پیش‌نمایش/ثبت.
@@ -2164,6 +2269,19 @@ public partial class InventoryTransportLegsController : Controller
 
             await _db.SaveChangesAsync();
 
+            // سطر مصرفِ دارایی همان اسنادی که اینجا لغو شدند برگشتی می‌شود؛ وگرنه کارکردِ
+            // باطل‌شده در پروندهٔ دارایی و محاسبهٔ کرایه/استهلاک باقی می‌ماند.
+            var usageWriter = new AssetUsageChargeService(_db);
+            await usageWriter.SyncOperationAsync(receipt, leg);
+            foreach (var companion in companions.Where(c => c.InventoryTransportLeg is not null))
+            {
+                await usageWriter.SyncOperationAsync(companion, companion.InventoryTransportLeg!);
+            }
+            foreach (var dispatch in dispatches)
+            {
+                await usageWriter.SyncOperationAsync(dispatch);
+            }
+
             await _audit.LogAndSaveAsync(
                 nameof(InventoryTransportReceipt),
                 receipt.Id,
@@ -2562,9 +2680,23 @@ public partial class InventoryTransportLegsController : Controller
             }
         }
 
-        if (model.ServiceProviderId.HasValue && model.OperationalAssetId.HasValue)
+        Driver? expenseDriver = null;
+        if (model.DriverId.HasValue)
         {
-            ModelState.AddModelError(nameof(model.OperationalAssetId), "Select either a service provider or an operational asset, not both.");
+            expenseDriver = await _db.Drivers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == model.DriverId.Value && d.IsActive);
+            if (expenseDriver is null)
+            {
+                ModelState.AddModelError(nameof(model.DriverId), "راننده معتبر یا فعال نیست.");
+            }
+        }
+
+        // هر مصرف دقیقاً یک طرف‌حساب دارد؛ ExpenseLedgerPoster نمی‌تواند از دو طرفِ همزمان
+        // هویت تسویه بسازد.
+        if (new[] { model.ServiceProviderId.HasValue, model.OperationalAssetId.HasValue, model.DriverId.HasValue }.Count(x => x) > 1)
+        {
+            ModelState.AddModelError(nameof(model.OperationalAssetId), "فقط یکی از شرکت خدماتی، دارایی عملیاتی یا راننده را انتخاب کنید.");
         }
 
         if (string.IsNullOrWhiteSpace(model.Description))
@@ -2653,6 +2785,7 @@ public partial class InventoryTransportLegsController : Controller
                     TransportLegId = leg.Id,
                     ServiceProviderId = serviceProvider?.Id,
                     OperationalAssetId = operationalAsset?.Id,
+                    DriverId = expenseDriver?.Id,
                     ExpenseDate = model.ExpenseDate.Date,
                     Amount = sourceAmounts[i],
                     Currency = conversion.SourceCurrencyCode,
@@ -2660,6 +2793,11 @@ public partial class InventoryTransportLegsController : Controller
                     AmountUsd = usdAmounts[i],
                     Description = BuildGroupExpenseDescription(model, leg, normalizedGroupKey, conversion, amountUsd, sharePercent)
                 };
+
+                // PTG-P1-04 — هویت تسویه: شرکت خدماتی ⇒ بدهی به او؛ دارایی عملیاتیِ ملکی یا
+                // بدونِ طرف ⇒ نه بدهیِ بیرونی، نه حرکتِ پول.
+                ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+                _settlementValidator.Validate(expense);
 
                 _db.ExpenseTransactions.Add(expense);
                 await _db.SaveChangesAsync();
@@ -2670,24 +2808,12 @@ public partial class InventoryTransportLegsController : Controller
                     await _expenseAccounting.TryPostExpenseAsync(expense);
                 }
 
-                var ledgerEntry = Ledger.Post(new LedgerPostingRequest
+                var ledgerEntry = ExpenseLedger.Post(new ExpenseLedgerRequest
                 {
-                    EntryDate = expense.ExpenseDate,
-                    Side = serviceProvider is not null ? LedgerSide.Credit : LedgerSide.Debit,
-                    AmountUsd = expense.AmountUsd,
-                    Currency = SystemCurrency.BaseCurrencyCode,
-                    SourceAmount = expense.Amount,
-                    SourceCurrencyCode = expense.Currency,
-                    AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                    AppliedFxRateDate = conversion.EffectiveDate.Date,
-                    AppliedFxRateSource = conversion.SourceDescription,
-                    Description = BuildLedgerDescription(expenseType, expense),
-                    SourceType = "Expense",
-                    SourceId = expense.Id,
-                    Reference = BuildLedgerReference(expenseType, expense),
-                    ContractId = expense.ContractId,
-                    ShipmentId = expense.ShipmentId,
-                    ServiceProviderId = expense.ServiceProviderId
+                    Expense = expense,
+                    ExpenseType = expenseType,
+                    FxRateDate = conversion.EffectiveDate.Date,
+                    FxRateSource = conversion.SourceDescription
                 });
                 await _db.SaveChangesAsync();
 
@@ -2702,6 +2828,7 @@ public partial class InventoryTransportLegsController : Controller
                         ("TransportLegId", expense.TransportLegId),
                         ("ServiceProviderId", expense.ServiceProviderId),
                         ("OperationalAssetId", expense.OperationalAssetId),
+                        ("DriverId", expense.DriverId),
                         ("ExpenseDate", expense.ExpenseDate),
                         ("Amount", expense.Amount),
                         ("Currency", expense.Currency),
@@ -2854,7 +2981,7 @@ public partial class InventoryTransportLegsController : Controller
                 .ToListAsync()).ToHashSet();
 
         // اعتبارسنجی ردیف‌ها + resolve نوع مصرف/طرف‌حساب.
-        var prepared = new List<(InventoryTransportGroupExpenseModalRow Row, ExpenseType Type, PTGOilSystem.Web.Models.Entities.ServiceProvider? Provider, OperationalAsset? Asset)>();
+        var prepared = new List<(InventoryTransportGroupExpenseModalRow Row, ExpenseType Type, PTGOilSystem.Web.Models.Entities.ServiceProvider? Provider, OperationalAsset? Asset, Driver? Driver)>();
         for (var i = 0; i < model.Lines.Count; i++)
         {
             var row = model.Lines[i];
@@ -2894,6 +3021,7 @@ public partial class InventoryTransportLegsController : Controller
 
             PTGOilSystem.Web.Models.Entities.ServiceProvider? provider = null;
             OperationalAsset? asset = null;
+            Driver? driver = null;
             if (row.PartyType == LoadingExpensePartyType.ServiceProvider)
             {
                 if (!row.ServiceProviderId.HasValue)
@@ -2924,6 +3052,22 @@ public partial class InventoryTransportLegsController : Controller
                     }
                 }
             }
+            else if (row.PartyType == LoadingExpensePartyType.Driver)
+            {
+                // موتروانِ مستقل؛ همان طرف‌حسابی که ExpenseLedgerPoster برای کرایهٔ رسید هم می‌شناسد.
+                if (!row.DriverId.HasValue)
+                {
+                    ModelState.AddModelError(prefix + nameof(row.DriverId), "راننده را انتخاب کنید.");
+                }
+                else
+                {
+                    driver = await _db.Drivers.AsNoTracking().FirstOrDefaultAsync(d => d.Id == row.DriverId.Value && d.IsActive);
+                    if (driver is null)
+                    {
+                        ModelState.AddModelError(prefix + nameof(row.DriverId), "راننده معتبر یا فعال نیست.");
+                    }
+                }
+            }
 
             // جلوگیری از تکرار: اگر نوع مصرف قبلاً برای این گروه ثبت شده و کاربر تیک «مصرف جدید» را نزده.
             if (type is not null && existingTypeIds.Contains(type.Id) && !row.AllowDuplicate)
@@ -2934,7 +3078,7 @@ public partial class InventoryTransportLegsController : Controller
 
             if (type is not null)
             {
-                prepared.Add((row, type, provider, asset));
+                prepared.Add((row, type, provider, asset, driver));
             }
         }
 
@@ -2960,7 +3104,7 @@ public partial class InventoryTransportLegsController : Controller
         {
             transaction = await BeginTransactionIfSupportedAsync();
 
-            foreach (var (row, type, provider, asset) in prepared)
+            foreach (var (row, type, provider, asset, driver) in prepared)
             {
                 // نوع مصرف دستیِ تازه را در صورت نبود بساز (مثل مسیر موجود).
                 var expenseType = type;
@@ -2999,6 +3143,7 @@ public partial class InventoryTransportLegsController : Controller
                         TransportLegId = leg.Id,
                         ServiceProviderId = provider?.Id,
                         OperationalAssetId = asset?.Id,
+                        DriverId = driver?.Id,
                         ExpenseDate = _businessClock.Today,
                         Amount = legAmount,
                         Currency = SystemCurrency.BaseCurrencyCode,
@@ -3006,6 +3151,11 @@ public partial class InventoryTransportLegsController : Controller
                         AmountUsd = legAmount,
                         Description = BuildModalExpenseDescription(row, leg, normalizedGroupKey, amountUsd, sharePercent)
                     };
+
+                    // PTG-P1-04 — هویت تسویه از همان انتخابِ سطرِ مودال می‌آید.
+                    ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+                    _settlementValidator.Validate(expense);
+
                     _db.ExpenseTransactions.Add(expense);
                     await _db.SaveChangesAsync();
 
@@ -3015,24 +3165,11 @@ public partial class InventoryTransportLegsController : Controller
                         await _expenseAccounting.TryPostExpenseAsync(expense);
                     }
 
-                    var ledgerEntry = Ledger.Post(new LedgerPostingRequest
+                    var ledgerEntry = ExpenseLedger.Post(new ExpenseLedgerRequest
                     {
-                        EntryDate = expense.ExpenseDate,
-                        Side = provider is not null ? LedgerSide.Credit : LedgerSide.Debit,
-                        AmountUsd = expense.AmountUsd,
-                        Currency = SystemCurrency.BaseCurrencyCode,
-                        SourceAmount = expense.Amount,
-                        SourceCurrencyCode = expense.Currency,
-                        AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
-                        AppliedFxRateDate = expense.ExpenseDate,
-                        AppliedFxRateSource = "Base currency",
-                        Description = BuildLedgerDescription(expenseType, expense),
-                        SourceType = "Expense",
-                        SourceId = expense.Id,
-                        Reference = BuildLedgerReference(expenseType, expense),
-                        ContractId = expense.ContractId,
-                        ShipmentId = expense.ShipmentId,
-                        ServiceProviderId = expense.ServiceProviderId
+                        Expense = expense,
+                        ExpenseType = expenseType,
+                        FxRateSource = "Base currency"
                     });
                     await _db.SaveChangesAsync();
 
@@ -3046,6 +3183,7 @@ public partial class InventoryTransportLegsController : Controller
                             ("TransportLegId", expense.TransportLegId),
                             ("ServiceProviderId", expense.ServiceProviderId),
                             ("OperationalAssetId", expense.OperationalAssetId),
+                            ("DriverId", expense.DriverId),
                             ("AmountUsd", expense.AmountUsd),
                             ("GroupKey", normalizedGroupKey),
                             ("LedgerReference", ledgerEntry.Reference)));
@@ -3153,6 +3291,7 @@ public partial class InventoryTransportLegsController : Controller
                 ExpenseTypeName = e.ExpenseType != null ? (e.ExpenseType.NamePersian ?? e.ExpenseType.Name) : "",
                 ServiceProviderName = e.ServiceProvider != null ? e.ServiceProvider.Name : null,
                 OperationalAssetName = e.OperationalAsset != null ? e.OperationalAsset.Name : null,
+                DriverName = e.Driver != null ? e.Driver.FullName : null,
                 Amount = e.Amount,
                 Currency = e.Currency,
                 AmountUsd = e.AmountUsd,
@@ -3213,6 +3352,13 @@ public partial class InventoryTransportLegsController : Controller
                 .Where(a => a.IsActive)
                 .OrderBy(a => a.AssetCode).ThenBy(a => a.Name)
                 .Select(a => new { a.Id, Text = a.AssetCode + " - " + a.Name })
+                .ToListAsync(),
+            "Id", "Text");
+        ViewBag.Drivers = new SelectList(
+            await _db.Drivers.AsNoTracking()
+                .Where(d => d.IsActive)
+                .OrderBy(d => d.FullName)
+                .Select(d => new { d.Id, Text = d.FullName })
                 .ToListAsync(),
             "Id", "Text");
     }
@@ -3411,8 +3557,37 @@ public partial class InventoryTransportLegsController : Controller
                 Id = e.Id,
                 ExpenseDate = e.ExpenseDate,
                 ExpenseTypeName = e.ExpenseType != null ? (e.ExpenseType.NamePersian ?? e.ExpenseType.Name) : "",
+                ExpenseTypeCode = e.ExpenseType != null ? e.ExpenseType.Code : null,
                 ServiceProviderName = e.ServiceProvider != null ? e.ServiceProvider.Name : null,
                 OperationalAssetName = e.OperationalAsset != null ? e.OperationalAsset.Name : null,
+                DriverName = e.Driver != null ? e.Driver.FullName : null,
+                AmountUsd = e.AmountUsd,
+                Description = e.Description
+            })
+            .ToListAsync();
+
+        // همان فیلترِ InventoryTransportPnlService: مصرفِ دیسپچِ موتری که از رسید همین حمل ساخته شده
+        // و به حمل/محموله وصل نیست. فقط برای نمایش ریز مصارف خوانده می‌شود.
+        model.DispatchExpenses = await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Include(e => e.ExpenseType)
+            .Where(e => !e.IsCancelled
+                && !e.TransportLegId.HasValue
+                && !e.ShipmentId.HasValue
+                && e.TruckDispatchId.HasValue
+                && e.TruckDispatch!.InventoryTransportReceipt != null
+                && e.TruckDispatch.InventoryTransportReceipt.InventoryTransportLegId == id)
+            .OrderByDescending(e => e.ExpenseDate)
+            .ThenByDescending(e => e.Id)
+            .Select(e => new InventoryTransportLegExpenseItemViewModel
+            {
+                Id = e.Id,
+                ExpenseDate = e.ExpenseDate,
+                ExpenseTypeName = e.ExpenseType != null ? (e.ExpenseType.NamePersian ?? e.ExpenseType.Name) : "",
+                ExpenseTypeCode = e.ExpenseType != null ? e.ExpenseType.Code : null,
+                ServiceProviderName = e.ServiceProvider != null ? e.ServiceProvider.Name : null,
+                OperationalAssetName = e.OperationalAsset != null ? e.OperationalAsset.Name : null,
+                DriverName = e.Driver != null ? e.Driver.FullName : null,
                 AmountUsd = e.AmountUsd,
                 Description = e.Description
             })
@@ -3478,6 +3653,9 @@ public partial class InventoryTransportLegsController : Controller
                 FreightPayableUsd = r.FreightPayableUsd,
                 ServiceProviderName = r.ServiceProvider != null ? r.ServiceProvider.Name : null,
                 OperationalAssetName = r.OperationalAsset != null ? r.OperationalAsset.Name : null,
+                DriverName = r.InventoryTransportLeg != null && r.InventoryTransportLeg.Driver != null
+                    ? r.InventoryTransportLeg.Driver.FullName
+                    : null,
                 DestinationTerminalName = r.DestinationTerminal != null ? r.DestinationTerminal.Name : null,
                 DestinationTankCode = StorageTankDisplay.BuildOptional(r.DestinationStorageTank),
                 InventoryMovementId = r.InventoryMovementId,
@@ -3677,6 +3855,7 @@ public partial class InventoryTransportLegsController : Controller
                     ExpenseTypeName = e.ExpenseType != null ? e.ExpenseType.NamePersian ?? e.ExpenseType.Name : "",
                     ServiceProviderName = e.ServiceProvider != null ? e.ServiceProvider.Name : null,
                     OperationalAssetName = e.OperationalAsset != null ? e.OperationalAsset.Name : null,
+                    DriverName = e.Driver != null ? e.Driver.FullName : null,
                     Amount = e.Amount,
                     Currency = e.Currency,
                     AmountUsd = e.AmountUsd,
@@ -4013,6 +4192,7 @@ public partial class InventoryTransportLegsController : Controller
                     ExpenseTypeName = e.ExpenseType != null ? e.ExpenseType.NamePersian ?? e.ExpenseType.Name : "",
                     ServiceProviderName = e.ServiceProvider != null ? e.ServiceProvider.Name : null,
                     OperationalAssetName = e.OperationalAsset != null ? e.OperationalAsset.Name : null,
+                    DriverName = e.Driver != null ? e.Driver.FullName : null,
                     Amount = e.Amount,
                     Currency = e.Currency,
                     AmountUsd = e.AmountUsd,
@@ -4994,32 +5174,6 @@ public partial class InventoryTransportLegsController : Controller
         return description.Length <= 1000 ? description : description[..1000];
     }
 
-    private static string BuildLedgerDescription(ExpenseType expenseType, ExpenseTransaction expense)
-    {
-        var baseText = $"ثبت هزینه {(expenseType.NamePersian ?? expenseType.Name)}";
-        if (string.IsNullOrWhiteSpace(expense.Description))
-        {
-            return baseText;
-        }
-
-        return $"{baseText} - {expense.Description}";
-    }
-
-    private static string BuildLedgerReference(ExpenseType expenseType, ExpenseTransaction expense)
-    {
-        var prefix = string.IsNullOrWhiteSpace(expenseType.Code)
-            ? $"EXP-{expense.Id}"
-            : $"{expenseType.Code}-{expense.Id}";
-
-        if (string.IsNullOrWhiteSpace(expense.Description))
-        {
-            return prefix;
-        }
-
-        var combined = $"{prefix} | {expense.Description.Trim()}";
-        return combined.Length <= 200 ? combined : combined[..200];
-    }
-
     // پیشوند ITG: تا در SQL بشود ارزان پیش‌فیلتر کرد و از کلیدهای heuristic قدیمی (SHIP/VEH/BL/RWB/LEG) متمایز بماند.
 
 
@@ -5277,6 +5431,16 @@ public partial class InventoryTransportLegsController : Controller
             .ToListAsync();
 
         ViewBag.OperationalAssets = new SelectList(operationalAssets, "Id", "Text", model.OperationalAssetId);
+
+        var drivers = await _db.Drivers
+            .AsNoTracking()
+            .Where(d => d.IsActive || (model.DriverId.HasValue && d.Id == model.DriverId.Value))
+            .OrderBy(d => model.DriverId.HasValue && d.Id == model.DriverId.Value ? 0 : 1)
+            .ThenBy(d => d.FullName)
+            .Select(d => new { d.Id, Text = d.FullName })
+            .ToListAsync();
+
+        ViewBag.Drivers = new SelectList(drivers, "Id", "Text", model.DriverId);
 
         var currencyCodes = await _db.Currencies
             .AsNoTracking()
@@ -5657,6 +5821,7 @@ public partial class InventoryTransportLegsController : Controller
         model.ExpenseDate = model.ExpenseDate == default ? AfghanistanBusinessClock.SystemToday : model.ExpenseDate.Date;
         model.ServiceProviderId = NormalizePositiveInt(model.ServiceProviderId);
         model.OperationalAssetId = NormalizePositiveInt(model.OperationalAssetId);
+        model.DriverId = NormalizePositiveInt(model.DriverId);
 
         if (SystemCurrency.IsBaseCurrency(model.Currency))
         {
@@ -5678,7 +5843,23 @@ public partial class InventoryTransportLegsController : Controller
             line.ManualExpenseTypeName = NormalizeString(line.ManualExpenseTypeName);
             line.ServiceProviderId = NormalizePositiveInt(line.ServiceProviderId);
             line.OperationalAssetId = NormalizePositiveInt(line.OperationalAssetId);
+            line.DriverId = NormalizePositiveInt(line.DriverId);
             line.Notes = NormalizeString(line.Notes);
+
+            // هر ردیف دقیقاً یک طرف‌حساب دارد؛ انتخاب‌های غیرفعالِ فرم پاک می‌شوند تا
+            // هویتِ تسویه (ExpenseLedgerPoster) از دو فیلدِ همزمان ساخته نشود.
+            if (line.PartyType != LoadingExpensePartyType.ServiceProvider)
+            {
+                line.ServiceProviderId = null;
+            }
+            if (line.PartyType != LoadingExpensePartyType.OperationalAsset)
+            {
+                line.OperationalAssetId = null;
+            }
+            if (line.PartyType != LoadingExpensePartyType.Driver)
+            {
+                line.DriverId = null;
+            }
         }
     }
 
@@ -5717,7 +5898,7 @@ public partial class InventoryTransportLegsController : Controller
             ShipmentId = leg.ShipmentId,
             SourcePurchaseContractId = leg.SourcePurchaseContractId,
             ProductId = leg.ProductId,
-            SourceTerminalId = leg.SourceTerminalId,
+            SourceTerminalId = leg.SourceTerminalId ?? 0,
             SourceStorageTankId = leg.SourceStorageTankId,
             DestinationTerminalId = leg.DestinationTerminalId,
             DestinationStorageTankId = leg.DestinationStorageTankId,

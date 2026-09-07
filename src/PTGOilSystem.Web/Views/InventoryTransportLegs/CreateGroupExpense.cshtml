@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupExpenseCreateViewModel
+﻿@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupExpenseCreateViewModel
 @{
     ViewData["Title"] = "ثبت مصرف حمل";
     ViewData["LoadingCreateAssets"] = true;
@@ -7,7 +7,7 @@
     var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl);
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("Journey", new { groupKey = Model.GroupKey });
     var expenseTypeNames = ViewBag.ExpenseTypeNames as IEnumerable<string> ?? Array.Empty<string>();
-    var expensePartyType = Model.OperationalAssetId.HasValue ? "operational-asset" : Model.ServiceProviderId.HasValue ? "service-provider" : "";
+    var expensePartyType = Model.OperationalAssetId.HasValue ? "operational-asset" : Model.ServiceProviderId.HasValue ? "service-provider" : Model.DriverId.HasValue ? "driver" : "";
 }
 
 <div class="page-stack ak-form-page ak-group-operation-page">
@@ -43,9 +43,10 @@
                 <div class="ak-field">
                     <label class="ak-label">نوع مسئول مصرف</label>
                     <select class="ak-input" data-expense-party-type>
-                        <option value="" selected="@(expensePartyType == "" ? "selected" : null)">بدون شرکت خدماتی / دارایی</option>
+                        <option value="" selected="@(expensePartyType == "" ? "selected" : null)">بدون طرف حساب</option>
                         <option value="service-provider" selected="@(expensePartyType == "service-provider" ? "selected" : null)">شرکت خدماتی بیرونی</option>
                         <option value="operational-asset" selected="@(expensePartyType == "operational-asset" ? "selected" : null)">دارایی عملیاتی شرکت</option>
+                        <option value="driver" selected="@(expensePartyType == "driver" ? "selected" : null)">راننده</option>
                     </select>
                 </div>
                 <div class="ak-field @(expensePartyType =="service-provider" ? null : "d-none")" data-expense-party-field="service-provider">
@@ -57,6 +58,11 @@
                     <label asp-for="OperationalAssetId" class="ak-label">@UiText.T(Context, "دارایی عملیاتی", "Operational Asset")</label>
                     <select asp-for="OperationalAssetId" asp-items="ViewBag.OperationalAssets" class="ak-input" disabled="@(expensePartyType == "operational-asset" ? null : "disabled")"><option value="">@UiText.T(Context, "انتخاب دارایی عملیاتی", "Select operational asset")</option></select>
                     <span asp-validation-for="OperationalAssetId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field @(expensePartyType =="driver" ? null : "d-none")" data-expense-party-field="driver">
+                    <label asp-for="DriverId" class="ak-label"></label>
+                    <select asp-for="DriverId" asp-items="ViewBag.Drivers" class="ak-input" disabled="@(expensePartyType == "driver" ? null : "disabled")"><option value="">@UiText.T(Context, "انتخاب راننده", "Select driver")</option></select>
+                    <span asp-validation-for="DriverId" class="ak-field-error"></span>
                 </div>
             </div>
         </section>

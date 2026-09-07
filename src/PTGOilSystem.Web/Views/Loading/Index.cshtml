@@ -5,6 +5,14 @@
     var currentUrl = Context.Request.Path + Context.Request.QueryString;
     var hasAdvancedFilter = Model.FromDate.HasValue || Model.ToDate.HasValue;
     var hasAnyFilter = Model.ContractId.HasValue || Model.ProductId.HasValue || Model.WithoutReceipt || !string.IsNullOrWhiteSpace(Model.Query) || Model.FromDate.HasValue || Model.ToDate.HasValue;
+    // تبدیل گروهی کنار «ثبت بارگیری» می‌نشیند؛ idها را اسکریپت پایین صفحه اضافه می‌کند.
+    ViewData["AkHeaderCompanionAction"] = new AkHeaderMenuItem
+    {
+        Label = UiText.T(Context, "تبدیل گروهی", "Bulk convert"),
+        AccessibleLabel = UiText.T(Context, "تبدیل گروهی بارگیری به حمل", "Bulk convert loadings to transport"),
+        Href = Url.Action("BulkFromLoading", "Transports", new { returnUrl = currentUrl }),
+        Icon = "bi-truck"
+    };
 }
 
 <div class="ak-list-page" data-operations-list>
@@ -115,7 +123,7 @@
                             vehicleDetail = vehicleDetail[(separatorIndex + 1)..].Trim();
                         }
                         <tr data-href="@Url.Action("Details", new { id = item.Id, returnUrl = currentUrl })">
-                            <td class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
+                            <td class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-row-select value="@item.Id" aria-label="@UiText.T(Context,"انتخاب ردیف","Select row")" /></td>
                             <td class="ak-col-grow">
                                 <a asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@currentUrl" class="ak-name">@item.ContractDisplayLabel</a>
                             </td>
@@ -130,7 +138,7 @@
                                 <span class="ak-num">@NumberDisplay.Quantity(item.LoadedQuantityMt) MT</span>
                             </td>
                             <td>
-                                <span class="ak-num">@(item.LoadingValueUsd.HasValue ? item.LoadingValueUsd.Value.ToString("N2") + " USD" : "-")</span>
+                                <span class="ak-num">@(item.LoadingValueUsd.HasValue ? NumberDisplay.Money(item.LoadingValueUsd.Value, "USD") : "-")</span>
                             </td>
                             <td>
                                 <span class="ak-status @(item.IsPricePending ?"is-inactive" : "is-active")">@(item.IsPricePending ? UiText.T(Context,"نرخ معطل","Price pending") : UiText.T(Context,"تکمیل","Complete"))</span>
@@ -190,6 +198,39 @@
                     window.location.href = row.getAttribute('data-href');
                 });
             });
+
+            // تبدیل گروهی: لینک هدر تا وقتی ردیفی انتخاب نشده غیرفعال است و idها به آن اضافه می‌شود.
+            var bulkLink = document.querySelector('.ak-page-actions a[href*="BulkFromLoading"]');
+            if (bulkLink) {
+                // شنوندهٔ SPA در فاز capture لینک را می‌برد؛ بدون این، بدون idها باز می‌شد.
+                bulkLink.setAttribute('data-no-spa', '');
+                var baseHref = bulkLink.getAttribute('href');
+                var checks = Array.prototype.slice.call(document.querySelectorAll('[data-ops-row-select]'));
+
+                function selectedIds() {
+                    return checks.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+                }
+
+                function syncBulk() {
+                    var count = selectedIds().length;
+                    bulkLink.classList.toggle('disabled', count === 0);
+                    bulkLink.setAttribute('aria-disabled', count === 0 ? 'true' : 'false');
+                }
+
+                document.addEventListener('change', function (e) {
+                    if (e.target.matches('[data-ops-row-select], [data-ops-select-all]')) { syncBulk(); }
+                });
+
+                bulkLink.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    var ids = selectedIds();
+                    if (ids.length === 0) return;
+                    window.location.href = baseHref
+                        + ids.map(function (id) { return '&ids=' + encodeURIComponent(id); }).join('');
+                });
+
+                syncBulk();
+            }
         })();
     </script>
 }

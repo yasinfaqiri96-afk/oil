@@ -1,0 +1,121 @@
+@using PTGOilSystem.Web.Models.InventoryTransport
+@model TransportContinueCancelViewModel
+@{
+    ViewData["Title"] = "لغو گروهی انتقال‌ها";
+    ViewData["HideSectionTabs"] = true;
+    var cancellableCount = Model.Rows.Count(r => r.BlockReason is null);
+}
+
+<main class="ak-form-page" dir="rtl" data-transport-cancel-page>
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("لغو گروهی انتقال‌ها", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))" />
+
+    <form asp-action="CancelContinued" method="post" class="ak-form" data-submit-lock>
+        @* همان محافظ ضدتکراری بقیهٔ مسیرهای حمل: ارسال دوم دوباره لغو نمی‌کند. *@
+        @Html.FormToken()
+        @Html.AntiForgeryToken()
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("انتقال‌های ساخته‌شده از حمل در جریان", (string?)"حمل‌های انتخاب‌شده با هم لغو می‌شوند و باقیماندهٔ حمل‌های مبدأ آزاد می‌شود."))" />
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <button type="button" class="btn btn-light ak-secondary-action" data-select-all>انتخاب همه</button>
+                <button type="button" class="btn btn-light ak-secondary-action" data-clear-all>لغو انتخاب همه</button>
+            </div>
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" class="ak-check" data-select-toggle aria-label="انتخاب همه" /></th>
+                            <th>حمل</th>
+                            <th>محصول</th>
+                            <th>از حمل</th>
+                            <th class="text-end">مقدار</th>
+                            <th>تاریخ</th>
+                            <th>وضعیت لغو</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr data-cancel-row>
+                            <td>
+                                @if (row.BlockReason is null)
+                                {
+                                    <input type="checkbox" name="legIds" value="@row.LegId" class="ak-check" data-cancel-check />
+                                }
+                            </td>
+                            <td><strong>@row.Label</strong></td>
+                            <td>@row.ProductName</td>
+                            <td>@row.SourceLabel</td>
+                            <td class="ak-num text-end">@row.QuantityMt.ToString("N4") MT</td>
+                            <td>@row.TransferDate.ToString("yyyy-MM-dd")</td>
+                            <td>
+                                @if (row.BlockReason is null)
+                                {
+                                    <span>قابل لغو</span>
+                                }
+                                else
+                                {
+                                    <span class="ak-field-error">@row.BlockReason</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr><td colspan="7"><div class="ak-empty">انتقالی از «حمل در جریان» ثبت نشده است.</div></td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="ak-footer-actions">
+            <a asp-controller="InventoryTransportLegs" asp-action="Index" class="btn btn-light ak-secondary-action">بازگشت</a>
+            <button type="submit" class="btn btn-danger ak-primary-action" data-submit-button
+                    data-confirm-cancel
+                    disabled="@(cancellableCount == 0 ? "disabled" : null)">
+                لغو انتقال‌های انتخاب‌شده
+            </button>
+        </div>
+    </form>
+</main>
+
+@section Scripts {
+    <script>
+        (function () {
+            var page = document.querySelector('[data-transport-cancel-page]');
+            if (!page) return;
+            var checks = Array.prototype.slice.call(page.querySelectorAll('[data-cancel-check]'));
+
+            function setAll(checked) {
+                checks.forEach(function (check) { check.checked = checked; });
+                var toggle = page.querySelector('[data-select-toggle]');
+                if (toggle) toggle.checked = checked;
+            }
+
+            var selectAll = page.querySelector('[data-select-all]');
+            if (selectAll) selectAll.addEventListener('click', function () { setAll(true); });
+            var clearAll = page.querySelector('[data-clear-all]');
+            if (clearAll) clearAll.addEventListener('click', function () { setAll(false); });
+            var toggle = page.querySelector('[data-select-toggle]');
+            if (toggle) toggle.addEventListener('change', function () { setAll(toggle.checked); });
+
+            // لغو برگشت‌ناپذیر است: بدون تأیید صریح ارسال نمی‌شود.
+            var submitButton = page.querySelector('[data-confirm-cancel]');
+            if (!submitButton) return;
+            submitButton.addEventListener('click', function (event) {
+                var selected = checks.filter(function (check) { return check.checked; }).length;
+                if (selected === 0) {
+                    event.preventDefault();
+                    window.alert('هیچ حملی انتخاب نشده است.');
+                    return;
+                }
+                if (!window.confirm(selected + ' انتقال لغو می‌شود و باقیماندهٔ حمل‌های مبدأ آزاد می‌گردد. ادامه می‌دهید؟')) {
+                    event.preventDefault();
+                }
+            });
+        })();
+    </script>
+}

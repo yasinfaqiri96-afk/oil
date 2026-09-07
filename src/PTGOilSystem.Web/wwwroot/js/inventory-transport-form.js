@@ -313,7 +313,16 @@
                 if (Math.abs(number(allocationsBySource[source.id]) - source.quantity) > tolerance) allocationValid = false;
             });
 
-            form.querySelector("[data-selected-total]").textContent = fixed(selectedTotal);
+            // زیر جدولِ منابع دو عدد جدا نشان داده می‌شود: ظرفیتِ تیک‌خورده (بلافاصله پس از انتخاب)
+            // و سهمِ واقعاً کسرشده که تا وارد نشدن مقدار موترها صفر می‌ماند. selectedTotal همان
+            // کسرشده است و مبنای «تفاوت»/اجازهٔ ثبت می‌ماند؛ دست‌نخورده.
+            var pooledAvailable = pooledRows().reduce(function (sum, row) {
+                return sum + number(row.dataset.available);
+            }, 0);
+            var selectedTotalNode = form.querySelector("[data-selected-total]");
+            if (selectedTotalNode) selectedTotalNode.textContent = fixed(pooledAvailable);
+            var selectedConsumedNode = form.querySelector("[data-selected-consumed]");
+            if (selectedConsumedNode) selectedConsumedNode.textContent = fixed(selectedTotal);
             form.querySelector("[data-summary-source]").textContent = fixed(selectedTotal) + " MT";
             form.querySelector("[data-summary-vehicles]").textContent = fixed(vehicleTotal) + " MT";
             var differenceNode = form.querySelector("[data-summary-difference]");
@@ -573,6 +582,9 @@
                 else row.querySelector("[data-wagon-number]").value = vehicleNumber;
                 var rwbInput = row.querySelector("[data-rwb]");
                 if (rwbInput && item.rwbNo != null) rwbInput.value = String(item.rwbNo);
+                // تاریخ بارگیریِ همان ردیف از ستون «تاریخ» فایل؛ خالی یعنی تاریخ سند.
+                var dateInput = row.querySelector("[data-vehicle-date]");
+                if (dateInput) dateInput.value = item.loadedDate ? String(item.loadedDate) : "";
                 row.querySelector("[data-vehicle-quantity]").value = item.quantityMt != null ? item.quantityMt : "";
                 var weightInput = row.querySelector("[data-freight-weight]");
                 if (weightInput) weightInput.value = item.freightWeightMt != null ? item.freightWeightMt : "";

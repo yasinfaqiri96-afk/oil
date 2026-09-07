@@ -1,0 +1,34 @@
+@*
+    انتخاب نوع تحویلِ فروش. هر گزینه فقط فرمِ خودش را باز می‌کند: «تحویل کامل» همان
+    فرمِ فاکتور فروش و «تحویل مرحله‌ای» همان فرمِ تعهدِ فروش با تحویل‌های چندباره.
+    اینجا هیچ منطق مالی، موجودی یا محاسبه‌ای نیست؛ فقط مسیر کاربر.
+    Model: (Mode, FullUrl, StagedUrl) — Mode = "full" | "staged".
+*@
+@model (string Mode, string FullUrl, string StagedUrl)
+@{
+    var isStaged = string.Equals(Model.Mode, "staged", StringComparison.OrdinalIgnoreCase);
+    var modeGroupLabel = UiText.T(Context, "نوع تحویل فروش", "Sale delivery type");
+}
+<section class="ak-form-section" aria-label="@modeGroupLabel">
+    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+             model="@((modeGroupLabel, (string?)UiText.T(Context, "کالا یک‌جا تحویل می‌شود یا در چند مرحله؟", "Is the product delivered at once or in several stages?")))" />
+    <div class="ak-choice-grid ak-choice-grid--2" role="group" aria-label="@modeGroupLabel">
+        <a href="@Model.FullUrl"
+           class="ak-choice @(isStaged ? null : "is-selected")"
+           aria-current="@(isStaged ? null : "page")">
+            <i class="bi bi-box-seam" aria-hidden="true"></i>
+            <span>@UiText.T(Context, "فروش با تحویل کامل", "Full-delivery sale")</span>
+        </a>
+        <a href="@Model.StagedUrl"
+           class="ak-choice @(isStaged ? "is-selected" : null)"
+           aria-current="@(isStaged ? "page" : null)">
+            <i class="bi bi-list-check" aria-hidden="true"></i>
+            <span>@UiText.T(Context, "فروش با تحویل مرحله‌ای", "Staged-delivery sale")</span>
+        </a>
+    </div>
+    <p class="ak-note">
+        @(isStaged
+            ? UiText.T(Context, "مقدار و قیمتِ کل یک‌بار ثبت می‌شود؛ تحویل اول، دوم، سوم و … بعداً در همین سند ثبت می‌شوند. موجودی و درآمد فقط هنگام هر تحویل ثبت می‌شود.", "The total quantity and price are recorded once; the first, second, third … delivery is then recorded on the same document. Inventory and revenue are posted only on each delivery.")
+            : UiText.T(Context, "کل مقدار همین حالا تحویل می‌شود و یک فاکتور فروش ثبت می‌گردد.", "The full quantity is delivered now and a single sales invoice is recorded."))
+    </p>
+</section>

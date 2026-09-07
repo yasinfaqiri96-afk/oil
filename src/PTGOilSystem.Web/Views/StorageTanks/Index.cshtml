@@ -57,71 +57,58 @@
     <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="storageTanksFilter" />
 
     <div class="ak-list">
-        <div class="ak-table-wrap">
-            <table class="ak-table" aria-label="@UiText.T(Context, "لیست مخازن", "Storage Tanks List")">
-                <thead>
-                    <tr>
-                        <th class="ak-col-check"><input type="checkbox" class="ak-check" aria-label="@UiText.T(Context, "انتخاب همه", "Select all")" /></th>
-                        <th class="ak-col-grow">@UiText.T(Context, "مخزن", "Tank")</th>
-                        <th>@UiText.T(Context, "ترمینال", "Terminal")</th>
-                        <th>@UiText.T(Context, "جنس", "Product")</th>
-                        <th>@UiText.T(Context, "ظرفیت", "Capacity")</th>
-                        <th>@UiText.T(Context, "موجودی دفتری", "Book stock")</th>
-                        <th>@UiText.T(Context, "پر بودن", "Fill")</th>
-                        <th>@UiText.T(Context, "قراردادها", "Contracts")</th>
-                        <th class="ak-col-spacer"></th>
-                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
-                        <th class="ak-col-actions"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Model.Items)
-                    {
-                        var percent = Math.Max(0m, Math.Min(100m, item.FillPercent));
-                        var unitText = string.IsNullOrWhiteSpace(item.UnitOfMeasure) ? "MT" : item.UnitOfMeasure.Trim();
-                        <tr data-href="@Url.Action("Details", new { id = item.Id })">
-                            <td class="ak-col-check"><input type="checkbox" class="ak-check" aria-label="@UiText.T(Context, "انتخاب", "Select")" /></td>
-                            <td class="ak-col-grow"><a asp-action="Details" asp-route-id="@item.Id" class="ak-name">@item.DisplayName</a></td>
-                            <td>@(string.IsNullOrWhiteSpace(item.TerminalName) ? "-" : item.TerminalName)</td>
-                            <td>@(string.IsNullOrWhiteSpace(item.ProductName) ? "-" : item.ProductName)</td>
-                            <td class="ak-num">@FormatQuantity(item.CapacityMt) @unitText</td>
-                            <td class="ak-num">@FormatQuantity(item.CurrentQuantityMt) @unitText</td>
-                            <td class="ak-num">@percent.ToString("N0")%</td>
-                            <td class="ak-num">@item.ContractCount.ToString("N0")</td>
-                            <td class="ak-col-spacer"></td>
-                            <td>
-                                <span class="ak-status @(item.IsActive ?"is-active" : "is-inactive")">
+        <div class="storage-tank-grid">
+            @foreach (var item in Model.Items)
+            {
+                var percent = Math.Max(0m, Math.Min(100m, item.FillPercent));
+                var unitText = string.IsNullOrWhiteSpace(item.UnitOfMeasure) ? "MT" : item.UnitOfMeasure.Trim();
+                <article class="storage-tank-card @(item.IsActive ? "is-normal" : "is-muted")">
+                    <a class="storage-tank-card-main" asp-action="Details" asp-route-id="@item.Id">
+                        <span class="storage-tank-visual">
+                            <img class="storage-tank-image" src="~/images/storage-tank-card.webp" alt="" aria-hidden="true" />
+                            <span class="storage-tank-fill-badge ak-num" aria-label="@UiText.T(Context, "فیصدی پرشدن", "Fill percentage"): @percent.ToString("N0")%">
+                                <bdi>@percent.ToString("N0")%</bdi>
+                            </span>
+                        </span>
+                        <span class="storage-tank-card-body">
+                            <span class="storage-tank-card-head">
+                                <span class="ak-name">@item.DisplayName</span>
+                                <span class="ak-status @(item.IsActive ? "is-active" : "is-inactive")">
                                     @(item.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))
                                 </span>
-                            </td>
-                            <td class="ak-col-actions">
-                                <div class="dropdown ak-row-menu">
-                                    <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@UiText.T(Context, "عملیات", "Actions")">
-                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><a class="dropdown-item" asp-action="Details" asp-route-id="@item.Id"><i class="bi bi-eye" aria-hidden="true"></i>@UiText.T(Context, "جزئیات", "Details")</a></li>
-                                        <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil" aria-hidden="true"></i>@UiText.T(Context, "ویرایش مخزن", "Edit tank")</a></li>
-                                        @if (item.ContractCount > 0)
-                                        {
-                                            <li><a class="dropdown-item" asp-action="SettleFinal" asp-route-id="@item.Id"><i class="bi bi-cash-coin" aria-hidden="true"></i>@UiText.T(Context, "تسویه نهایی مخزن", "Final tank settlement")</a></li>
-                                        }
-                                    </ul>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                    @if (!Model.Items.Any())
-                    {
-                        <tr>
-                            <td colspan="11">
-                                <div class="ak-empty"><i class="bi bi-bounding-box" aria-hidden="true"></i>@UiText.T(Context, "مخازنی یافت نشد", "No tanks found")</div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                            </span>
+                            <span class="storage-tank-card-facts">
+                                <span class="storage-tank-fact">
+                                    <span class="storage-tank-fact-label">@UiText.T(Context, "موجودی فعلی", "Current stock")</span>
+                                    <span class="storage-tank-fact-value ak-num"><bdi>@FormatQuantity(item.CurrentQuantityMt) @unitText</bdi></span>
+                                </span>
+                            </span>
+                        </span>
+                    </a>
+                    <div class="storage-tank-card-actions">
+                        <span class="ak-muted">@UiText.T(Context, "قراردادها", "Contracts"): <bdi>@item.ContractCount.ToString("N0")</bdi></span>
+                        <div class="dropdown ak-row-menu">
+                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@UiText.T(Context, "عملیات", "Actions")">
+                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" asp-action="Details" asp-route-id="@item.Id"><i class="bi bi-eye" aria-hidden="true"></i>@UiText.T(Context, "جزئیات", "Details")</a></li>
+                                <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil" aria-hidden="true"></i>@UiText.T(Context, "ویرایش مخزن", "Edit tank")</a></li>
+                                @if (item.ContractCount > 0)
+                                {
+                                    <li><a class="dropdown-item" asp-action="SettleFinal" asp-route-id="@item.Id"><i class="bi bi-cash-coin" aria-hidden="true"></i>@UiText.T(Context, "تسویه نهایی مخزن", "Final tank settlement")</a></li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </article>
+            }
         </div>
+
+        @if (!Model.Items.Any())
+        {
+            <div class="ak-empty"><i class="bi bi-bounding-box" aria-hidden="true"></i>@UiText.T(Context, "مخازنی یافت نشد", "No tanks found")</div>
+        }
 
         <div class="ak-pager">@await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))</div>
     </div>

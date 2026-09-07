@@ -83,7 +83,8 @@ public sealed class InventoryTransportLegLoadService
         {
             ProductId = leg.ProductId,
             ContractId = leg.SourcePurchaseContractId,
-            TerminalId = leg.SourceTerminalId,
+            TerminalId = leg.SourceTerminalId
+                ?? throw new BusinessRuleException("TRANSPORT_LEG_TERMINAL_MISSING", "Source terminal was not found."),
             StorageTankId = leg.SourceStorageTankId,
             MovementDate = leg.LoadedDate,
             QuantityMt = leg.QuantityMt,
@@ -97,7 +98,8 @@ public sealed class InventoryTransportLegLoadService
         {
             ProductId = leg.ProductId,
             ContractId = leg.SourcePurchaseContractId,
-            TerminalId = leg.SourceTerminalId,
+            TerminalId = leg.SourceTerminalId
+                ?? throw new BusinessRuleException("TRANSPORT_LEG_TERMINAL_MISSING", "Source terminal was not found."),
             StorageTankId = leg.SourceStorageTankId,
             Direction = MovementDirection.Out,
             MovementDate = leg.LoadedDate,
@@ -135,7 +137,8 @@ public sealed class InventoryTransportLegLoadService
             throw new BusinessRuleException("TRANSPORT_LEG_PRODUCT_MISSING", "Product was not found.");
         }
 
-        if (!await _db.Terminals.AsNoTracking().AnyAsync(t => t.Id == leg.SourceTerminalId))
+        if (!leg.SourceTerminalId.HasValue
+            || !await _db.Terminals.AsNoTracking().AnyAsync(t => t.Id == leg.SourceTerminalId.Value))
         {
             throw new BusinessRuleException("TRANSPORT_LEG_TERMINAL_MISSING", "Source terminal was not found.");
         }

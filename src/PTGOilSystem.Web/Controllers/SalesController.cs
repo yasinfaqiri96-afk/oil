@@ -2101,9 +2101,15 @@ public partial class SalesController : Controller
             .OrderByDescending(l => l.Id)
             .FirstOrDefaultAsync();
 
+        // پرداختی که ردیف تطبیقِ فعال روی همین فروش دارد از این‌جا کنار گذاشته می‌شود تا مبلغش
+        // یک‌بار از مسیر تطبیق شمرده شود، نه دوبار.
         var directPayments = await _db.PaymentTransactions
             .AsNoTracking()
-            .Where(p => p.SalesTransactionId == sale.Id)
+            .Where(p => p.SalesTransactionId == sale.Id
+                && !_db.CustomerPaymentAllocationApplications.Any(a =>
+                    a.PaymentTransactionId == p.Id
+                    && a.SalesTransactionId == sale.Id
+                    && a.Status == CustomerPaymentAllocationApplicationStatus.Active))
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.Id)
             .Select(p => new SalesPaymentDetailsViewModel
@@ -2119,6 +2125,8 @@ public partial class SalesController : Controller
             })
             .ToListAsync();
 
+        // ردیف‌های تطبیقِ نقد: هم مصرفِ پیش‌دریافت (والد دارد) و هم تطبیقِ مستقیمِ یک دریافت
+        // روی این فروش (والد ندارد) — هر دو یک معنی دارند: این مبلغ روی همین فروش نشسته است.
         var appliedAdvances = await _db.CustomerPaymentAllocationApplications
             .AsNoTracking()
             .Where(a => a.SalesTransactionId == sale.Id
@@ -2127,14 +2135,15 @@ public partial class SalesController : Controller
             .ThenByDescending(a => a.Id)
             .Select(a => new SalesPaymentDetailsViewModel
             {
-                PaymentTransactionId = a.CustomerPaymentAllocation!.PaymentTransactionId,
-                PaymentDate = a.CustomerPaymentAllocation.PaymentTransaction!.PaymentDate,
+                ApplicationId = a.Id,
+                PaymentTransactionId = a.PaymentTransactionId,
+                PaymentDate = a.PaymentTransaction!.PaymentDate,
                 Amount = a.AppliedPaymentAmount,
                 Currency = a.PaymentCurrencyCode,
                 AmountUsd = a.AppliedAmountUsd,
-                Reference = a.CustomerPaymentAllocation.PaymentTransaction.Reference,
+                Reference = a.PaymentTransaction.Reference,
                 IsIncoming = true,
-                IsAdvanceApplication = true
+                IsAdvanceApplication = a.CustomerPaymentAllocationId != null
             })
             .ToListAsync();
 
@@ -2153,6 +2162,11 @@ public partial class SalesController : Controller
             4,
             MidpointRounding.AwayFromZero);
 
+        // دریافت‌های آزادِ همین مشتری، تا مانده این فروش بدون ساختن ساختار موازی تطبیق شود.
+        var applicableReceipts = sale.IsCancelled || openReceivableUsd <= 0m || sale.CustomerId <= 0
+            ? []
+            : await LoadApplicableReceiptsAsync(sale.CustomerId, sale.Id);
+
         var stockOutMovements = await _db.InventoryMovements
             .Include(m => m.Contract)
             .Include(m => m.Terminal)
@@ -2165,6 +2179,11 @@ public partial class SalesController : Controller
         var stockOutContractNumbers = stockOutMovements
             .Select(m => m.Contract?.ContractNumber ?? (m.ContractId.HasValue ? $"#{m.ContractId}" : null))
             .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Distinct()
+            .ToList();
+        var stockOutContractIds = stockOutMovements
+            .Where(m => m.ContractId.HasValue)
+            .Select(m => m.ContractId!.Value)
             .Distinct()
             .ToList();
 
@@ -2229,6 +2248,7 @@ public partial class SalesController : Controller
             TotalUsd = sale.TotalUsd,
             ReceivedUsd = receivedUsd,
             ReceivableBalanceUsd = sale.IsCancelled ? 0m : Math.Max(openReceivableUsd, 0m),
+            ApplicableReceipts = applicableReceipts,
             OverpaymentUsd = sale.IsCancelled ? 0m : Math.Max(-openReceivableUsd, 0m),
             Payments = payments,
             Notes = sale.Notes,
@@ -2253,6 +2273,11 @@ public partial class SalesController : Controller
                 ? string.Join(", ", stockOutContractNumbers)
                 : receiptAllocation?.SourcePurchaseContract?.DisplayLabel
                     ?? inventoryTransportReceipt?.InventoryTransportLeg?.SourcePurchaseContract?.DisplayLabel,
+            // پیوند فقط وقتی معنا دارد که منبع یک قرارداد مشخص باشد؛ چند قراردادی بدون لینک می‌ماند.
+            SourcePurchaseContractId = stockOutContractIds.Count > 0
+                ? (stockOutContractIds.Count == 1 ? stockOutContractIds[0] : null)
+                : receiptAllocation?.SourcePurchaseContractId
+                    ?? inventoryTransportReceipt?.InventoryTransportLeg?.SourcePurchaseContractId,
             SourceTerminalName = stockOutMovement?.Terminal?.Name
                 ?? receiptAllocation?.Terminal?.Name
                 ?? inventoryTransportReceipt?.InventoryTransportLeg?.SourceTerminal?.Name,

@@ -224,6 +224,7 @@ public class LoadingRegister : BaseEntity, IVersionedEntity, ICanonicalSearchabl
     public CostResponsibility? FreightCostResponsibility { get; set; }
     [MaxLength(1000)] public string? Notes { get; set; }
     public ICollection<LoadingReceipt> Receipts { get; set; } = new List<LoadingReceipt>();
+    public ICollection<InventoryTransportLegAllocation> TransportAllocations { get; set; } = new List<InventoryTransportLegAllocation>();
     public ICollection<CustomsDeclaration> CustomsDeclarations { get; set; } = new List<CustomsDeclaration>();
     public ICollection<ExpenseTransaction> ExpenseTransactions { get; set; } = new List<ExpenseTransaction>();
     public ICollection<AssetRentTransaction> AssetRentTransactions { get; set; } = new List<AssetRentTransaction>();
@@ -318,7 +319,7 @@ public class InventoryTransportLeg : BaseEntity, IVersionedEntity
     public Contract? SourcePurchaseContract { get; set; }
     public int ProductId { get; set; }
     public Product? Product { get; set; }
-    public int SourceTerminalId { get; set; }
+    public int? SourceTerminalId { get; set; }
     public Terminal? SourceTerminal { get; set; }
     public int? SourceStorageTankId { get; set; }
     public StorageTank? SourceStorageTank { get; set; }
@@ -372,7 +373,7 @@ public class InventoryTransportLeg : BaseEntity, IVersionedEntity
 public class InventoryTransportBatch : BaseEntity
 {
     [Required, MaxLength(64)] public string BatchNumber { get; set; } = "";
-    public int SourceTerminalId { get; set; }
+    public int? SourceTerminalId { get; set; }
     public Terminal? SourceTerminal { get; set; }
     // اختیاری شد: حملِ مستقیم از بار روی کشتی مخزنِ مبدأ ندارد (تخلیه بدون توقف در مخزن).
     public int? SourceStorageTankId { get; set; }
@@ -389,7 +390,7 @@ public class InventoryTransportBatch : BaseEntity
 
 // یک «سهم منبع» از بار یک مرحلهٔ حمل: چه مقدار، از کدام قرارداد خرید، و از کجا آمده.
 //
-// منبع دو نوع است و همیشه فقط یکی از آن‌ها پر است:
+// منبع می‌تواند موجودی، حمل والد، رسید مستقیم یا خودِ بارگیری باشد:
 //   • منبع موجودی  → SourceInventoryMovementId (مخزن → وسیله؛ خروجی موجودی ساخته می‌شود)
 //   • منبع وسیله   → SourceTransportLegId      (وسیله → وسیله؛ هیچ حرکت موجودی ساخته نمی‌شود)
 //
@@ -402,6 +403,8 @@ public class InventoryTransportLegAllocation : BaseEntity
     public InventoryTransportLeg? InventoryTransportLeg { get; set; }
     public int SourcePurchaseContractId { get; set; }
     public Contract? SourcePurchaseContract { get; set; }
+    public int? SourceLoadingRegisterId { get; set; }
+    public LoadingRegister? SourceLoadingRegister { get; set; }
     public int? SourceLoadingReceiptId { get; set; }
     public LoadingReceipt? SourceLoadingReceipt { get; set; }
     // برای سهم‌هایی که منبعشان وسیله است null می‌ماند؛ کالا مرز مخزن را رد نکرده تا سندی داشته باشد.

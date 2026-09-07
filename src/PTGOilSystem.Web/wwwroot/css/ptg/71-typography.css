@@ -372,7 +372,7 @@
        below mirror 52-stat-card.css; they exist here only because this layer loads
        later and a flat caption size would otherwise overwrite the component. */
     body.boltz-shell.app-shell-authenticated .ak-stat-card__value {
-        font-size: clamp(21px, 2vw, 29px);
+        font-size: clamp(17px, 1.5vw, 23px);
         font-weight: 800;
         line-height: 1;
         letter-spacing: -0.025em;
@@ -380,21 +380,21 @@
     }
 
     body.boltz-shell.app-shell-authenticated .ak-stat-card__title {
-        font-size: clamp(11.5px, 0.95vw, 14px);
+        font-size: clamp(10.5px, 0.85vw, 12.5px);
         font-weight: 600;
-        line-height: 1.25;
+        line-height: 1.2;
     }
 
     body.boltz-shell.app-shell-authenticated .ak-stat-card__unit,
     body.boltz-shell.app-shell-authenticated .ak-stat-card__trend {
-        font-size: clamp(10px, 0.82vw, 12px);
+        font-size: clamp(9px, 0.72vw, 10.5px);
         font-weight: 500;
-        line-height: 1.25;
+        line-height: 1.2;
     }
 
-    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--compact { font-size: clamp(17px, 1.6vw, 24px); letter-spacing: -0.035em; }
-    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(14px, 1.3vw, 19px); letter-spacing: -0.04em; }
-    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(11px, 1vw, 15px); letter-spacing: -0.045em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--compact { font-size: clamp(14px, 1.25vw, 19px); letter-spacing: -0.035em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(12px, 1.05vw, 15.5px); letter-spacing: -0.04em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(9.5px, 0.85vw, 12.5px); letter-spacing: -0.045em; }
 
     /* Tablets keep four cards on one row and phones show two, so the card box is
        a fraction of a narrow page. The type steps down with it — mirrors the
@@ -442,7 +442,7 @@
         block-size: auto;
         padding: 0 12px !important;
         border: 0 !important;
-        border-radius: 999px !important;
+        border-radius: 8px !important;
         background: var(--ptg-draft-soft);
         color: var(--ptg-draft-text);
         font-size: var(--font-status) !important;

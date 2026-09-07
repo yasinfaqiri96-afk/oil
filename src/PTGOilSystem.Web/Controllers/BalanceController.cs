@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +11,7 @@ using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Services.Parties;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -28,7 +29,8 @@ public partial class BalanceController : Controller
             db,
             new PartyStatementPolicyResolver(),
             new CompanyFlowDirectionResolver(),
-            new CompanyFlowBalanceService());
+            new CompanyFlowBalanceService(),
+            new PartyDirectory(db));
     }
 
     public IActionResult Index()
@@ -324,9 +326,10 @@ public partial class BalanceController : Controller
             salesSummary[allocatedSale.Key] = salesSummary.GetValueOrDefault(allocatedSale.Key) + allocatedSale.Value;
         }
 
+        // مصرفِ لغوشده پول نیست؛ اگر شمرده شود ستون «مصارف» و مانده اشتباه می‌شود.
         var expensesQuery = _db.ExpenseTransactions
             .AsNoTracking()
-            .Where(e => e.ContractId.HasValue && contractIds.Contains(e.ContractId.Value));
+            .Where(e => !e.IsCancelled && e.ContractId.HasValue && contractIds.Contains(e.ContractId.Value));
         if (filter.FromDate.HasValue) expensesQuery = expensesQuery.Where(e => e.ExpenseDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) expensesQuery = expensesQuery.Where(e => e.ExpenseDate <= filter.ToDate.Value);
         var expensesSummary = contractIds.Count == 0
@@ -515,7 +518,8 @@ public partial class BalanceController : Controller
             : await (
                 from e in _db.ExpenseTransactions.AsNoTracking()
                 join c in filteredContractsQuery on e.ContractId equals c.Id
-                where (!filter.FromDate.HasValue || e.ExpenseDate >= filter.FromDate.Value)
+                where !e.IsCancelled
+                    && (!filter.FromDate.HasValue || e.ExpenseDate >= filter.FromDate.Value)
                     && (!filter.ToDate.HasValue || e.ExpenseDate <= filter.ToDate.Value)
                 group e by c.CustomerId!.Value into g
                 select new
@@ -696,7 +700,8 @@ public partial class BalanceController : Controller
             : await (
                 from e in _db.ExpenseTransactions.AsNoTracking()
                 join c in filteredContractsQuery on e.ContractId equals c.Id
-                where (!filter.FromDate.HasValue || e.ExpenseDate >= filter.FromDate.Value)
+                where !e.IsCancelled
+                    && (!filter.FromDate.HasValue || e.ExpenseDate >= filter.FromDate.Value)
                     && (!filter.ToDate.HasValue || e.ExpenseDate <= filter.ToDate.Value)
                 group e by c.SupplierId!.Value into g
                 select new

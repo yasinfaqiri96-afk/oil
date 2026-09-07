@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -83,18 +83,18 @@ public class ShellViewStructureTests
     }
 
     [Fact]
-    public void Sidebar_Uses_Slightly_Brighter_Navy_Surfaces_Without_Changing_State_Colors()
+    public void Sidebar_Uses_Light_Chortke_Surfaces_Without_Changing_State_Colors()
     {
         var tokensCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/01-tokens.css");
         var sidebarCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/04-sidebar.css");
 
-        Assert.Contains("--ptg-sidebar-panel: #1A467D", tokensCss);
-        Assert.Contains("--ptg-sidebar-rail: #14355F", tokensCss);
-        Assert.Contains("--ptg-sidebar-panel: #173D6A", tokensCss);
-        Assert.Contains("--ptg-sidebar-rail: #113057", tokensCss);
-        Assert.Contains("--ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.10)", tokensCss);
-        Assert.Contains("--ptg-sidebar-active-bg: rgba(255, 255, 255, 0.14)", tokensCss);
-        Assert.Contains("--ptg-sidebar-danger: #FF9A9A", tokensCss);
+        Assert.Contains("--ptg-sidebar-panel: #FFFFFF", tokensCss);
+        Assert.Contains("--ptg-sidebar-rail: #FFFFFF", tokensCss);
+        Assert.Contains("--ptg-sidebar-panel: #1E1E27", tokensCss);
+        Assert.Contains("--ptg-sidebar-rail: #16161D", tokensCss);
+        Assert.Contains("--ptg-sidebar-hover-bg: #F5F6FA", tokensCss);
+        Assert.Contains("--ptg-sidebar-active-bg: #E8F1FF", tokensCss);
+        Assert.Contains("--ptg-sidebar-danger: #CB0B0B", tokensCss);
         Assert.Contains("background: var(--ptg-sidebar-panel)", sidebarCss);
         Assert.Contains("background: var(--ptg-sidebar-rail)", sidebarCss);
     }
@@ -207,15 +207,15 @@ public class ShellViewStructureTests
             "Modal tabs must use the same final skin.");
 
         // Akaunting tab tokens. These are the contract every rail renders against.
-        Assert.Contains("--ptg-tabs-font-size: 14px", tabsCss);
-        Assert.Contains("--ptg-tabs-text-color: #424242", tabsCss);
-        Assert.Contains("--ptg-tabs-active-color: #173F73", tabsCss);
-        Assert.Contains("--ptg-tabs-border-color: #E5E7EB", tabsCss);
+        Assert.Contains("--ptg-tabs-font-size: var(--font-body, 14px)", tabsCss);
+        Assert.Contains("--ptg-tabs-text-color: var(--text-secondary, #6F6F6F)", tabsCss);
+        Assert.Contains("--ptg-tabs-active-color: var(--primary-main, #1062D0)", tabsCss);
+        Assert.Contains("--ptg-tabs-border-color: var(--divider, #E7E7E7)", tabsCss);
         Assert.Contains("--ptg-tabs-horizontal-padding: 16px", tabsCss);
         Assert.Contains("--ptg-tabs-bottom-padding: 8px", tabsCss);
         Assert.Contains("--ptg-tabs-indicator-height: 2px", tabsCss);
         Assert.Contains("--ptg-tabs-transition-duration: 180ms", tabsCss);
-        Assert.Contains("--ptg-tabs-focus-color: rgba(23, 63, 115, .25)", tabsCss);
+        Assert.Contains("--ptg-tabs-focus-color: rgba(16, 98, 208, .25)", tabsCss);
         Assert.Contains("border-bottom: 1px solid var(--ptg-tabs-border-color)", tabsCss);
 
         // Flat rail: spacing comes from tab padding, never from a gap, and the
@@ -454,7 +454,7 @@ public class ShellViewStructureTests
         Assert.Contains("ptg-list-entity-cell", tables);
         Assert.Contains("ptg-list-row-avatar", components);
         Assert.Contains("width: 28px", components);
-        Assert.Contains("background: #173F73", components);
+        Assert.Contains("background: #1062D0", components);
         Assert.Contains("class=\"ptg-person-avatar\"", personCell);
 
         foreach (var module in modules)
@@ -653,6 +653,7 @@ public class ShellViewStructureTests
         var expenseDetails = ReadRepoFile("src/PTGOilSystem.Web/Views/Expenses/Details.cshtml");
         var inventoryOperations = ReadRepoFile("src/PTGOilSystem.Web/Views/Reports/InventoryOperations.cshtml");
         var reports = ReadRepoFile("src/PTGOilSystem.Web/Views/Reports/Index.cshtml");
+        var reportsController = ReadRepoFile("src/PTGOilSystem.Web/Controllers/ReportsController.cs");
         var migration = ReadRepoFile("src/PTGOilSystem.Web/Migrations/20260808120000_NormalizeRblCurrencyReferenceToRub.cs");
 
         Assert.DoesNotContain("data-search-open", layout);
@@ -673,8 +674,13 @@ public class ShellViewStructureTests
         Assert.Contains("customerId = Model.CustomerId", salesDetails);
         Assert.Contains("\"Details\", \"Ledger\"", expenseDetails);
         Assert.Contains("Url.Action(warning.Action, warning.Controller, warning.RouteValues)", inventoryOperations);
-        Assert.Contains("مدیریت و قراردادها", reports);
-        Assert.Contains("کنترل و انطباق", reports);
+        // مرکز گزارشات فقط یک دسته‌بندی دارد و آن در کنترلر است؛ صفحه دستهٔ موازی
+        // نمی‌سازد، وگرنه هر گزارش تازه می‌تواند از تب‌ها بیفتد.
+        Assert.Contains("Model.Groups", reports);
+        Assert.DoesNotContain("managementReportKeys", reports);
+        Assert.DoesNotContain("financePartyReportKeys", reports);
+        Assert.Contains("وضعیت شرکت", reportsController);
+        Assert.Contains("کنترول و اسناد", reportsController);
 
         Assert.Contains("UPDATE \"Currencies\"", migration);
         Assert.Contains("SET \"Code\" = 'RUB'", migration);

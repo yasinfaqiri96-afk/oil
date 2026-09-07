@@ -11,36 +11,36 @@
 
 :root {
     /* ---- Akaunting canonical palette (extracted from presets.js 3.1.21) ---- */
-    --primary-lighter: #DCE2F9;   /* Lilac 900 — sidebar icon rail */
+    --primary-lighter: #E8F1FF;   /* Lilac 900 — sidebar icon rail */
     --primary-light: #7779A2;     /* Profit series / soft purple */
-    --primary-main: #173F73;      /* Navy 500 — nav, tabs, focus, links; the
+    --primary-main: #1062D0;      /* Navy 500 — nav, tabs, focus, links; the
                                      same deep navy the sidebar panel carries,
                                      so accents and shell read as one colour */
-    --primary-dark: #123258;      /* Navy 700 — hover */
-    --primary-darker: #0D2440;
+    --primary-dark: #0D52AF;      /* Navy 700 — hover */
+    --primary-darker: #0A428C;
     --primary-contrast: #FFFFFF;
-    --primary-main-rgb: 23, 63, 115;
+    --primary-main-rgb: 16, 98, 208;
 
-    --text-primary: #424242;      /* Black 500 — text, titles, numbers */
-    --text-secondary: #666B75;    /* Readable muted text on the near-white canvas */
-    --text-disabled: #9E9E9E;
+    --text-primary: #3D3D3D;      /* Black 500 — text, titles, numbers */
+    --text-secondary: #6F6F6F;    /* Readable muted text on the near-white canvas */
+    --text-disabled: #AEAEAE;
 
-    --background-default: #FCFCFC; /* Body */
+    --background-default: #F5F6FA; /* Body */
     --background-paper: #FFFFFF;   /* Overlay surfaces (dropdown/modal) */
     --background-paper-rgb: 255, 255, 255;
-    --background-neutral: #F5F7FA; /* Lilac 100 — soft rows / hover */
-    --divider: #E5E7EB;            /* Gray 200 — dividers, table borders */
+    --background-neutral: #F2F5FC; /* Lilac 100 — soft rows / hover */
+    --divider: #E7E7E7;            /* Gray 200 — dividers, table borders */
     --grey-500-rgb: 158, 158, 158;
 
     /* ---- Akaunting status colors ---- */
-    --error-main: #CC0000;
-    --error-rgb: 204, 0, 0;
-    --warning-main: #F59E0B;
-    --warning-rgb: 245, 158, 11;
-    --success-main: #6EA152;      /* Green 500 — successful operation */
-    --success-rgb: 110, 161, 82;
-    --info-main: #006EA6;
-    --info-rgb: 0, 110, 166;
+    --error-main: #CB0B0B;
+    --error-rgb: 203, 11, 11;
+    --warning-main: #D68000;
+    --warning-rgb: 214, 128, 0;
+    --success-main: #24AF22;      /* Green 500 — successful operation */
+    --success-rgb: 36, 175, 34;
+    --info-main: #1062D0;
+    --info-rgb: 16, 98, 208;
 
     /* ---- Dashboard & Data Visualization Tokens ---- */
     --ptg-chart-positive: #22C55E;
@@ -79,25 +79,25 @@
     --ptg-sidebar-monogram-bg: rgba(255, 255, 255, 0.10);
     --ptg-sidebar-plate: #F4F5FA;     /* soft light plate under the dark logo */
     --ptg-sidebar-plate-border: rgba(42, 45, 69, 0.06); /* faint edge so the plate never floats */
-    --ptg-surface-tint: #F2F4FC;      /* soft lilac tint for chips / bulk bar */
-    --ptg-table-head-bg: #F4F6FB;     /* list/table header band — soft, low-contrast strip */
+    --ptg-surface-tint: #F2F5FC;      /* soft lilac tint for chips / bulk bar */
+    --ptg-table-head-bg: #F2F5FC;     /* list/table header band — soft, low-contrast strip */
     --ptg-sidebar-rail-width: var(--layout-sidebar-mini);
     --ptg-sidebar-menu-width: var(--layout-sidebar);
 
     /* ---- Radius (Phase 2: Standardized Enterprise Radii) ---- */
-    --radius-base: 8px;        /* input / select / textarea / control */
-    --radius-input: 8px;       /* form controls */
+    --radius-base: 6px;        /* input / select / textarea / control */
+    --radius-input: 6px;       /* form controls */
     --radius-card: 8px;        /* panels, stat cards, containers */
     --radius-card-16: 8px;     /* flat: former big card radius collapses to 8 */
     --radius-table: 8px;       /* table wrapper / table card frame */
-    --radius-btn: 12px;        /* primary / secondary action buttons */
-    --radius-chip: 12px;       /* filter chips, status badges */
+    --radius-btn: 8px;        /* primary / secondary action buttons */
+    --radius-chip: 6px;       /* filter chips, status badges */
     --radius-pill: 999px;      /* round status badges */
 
     /* ---- Shadows — flat content; depth only for overlay components ---- */
     --shadow-card: none;
-    --shadow-dialog: 0 20px 25px -5px rgba(0, 0, 0, .10), 0 8px 10px -6px rgba(0, 0, 0, .10);
-    --shadow-dropdown: 0 20px 25px -5px rgba(0, 0, 0, .08), 0 8px 10px -6px rgba(0, 0, 0, .08);
+    --shadow-dialog: 0 10px 30px rgba(16, 24, 40, .10);
+    --shadow-dropdown: 0 6px 18px rgba(16, 24, 40, .08);
 
     /* ---- Layout metrics ---- */
     --layout-sidebar: 224px;        /* expanded desktop sidebar */
@@ -123,32 +123,32 @@
     --ptg-motion-normal: 190ms;
 
     /* ---- Shared typography scale — readable office ERP (Vazirmatn) ---- */
-    --font-page-title: 30px;    --line-page-title: 1.25; --weight-page-title: 600;
-    --font-section-title: 19px; --line-section-title: 1.4; --weight-section-title: 600;
-    --font-card-title: 17px;    --line-card-title: 1.45; --weight-card-title: 600;
-    --font-body: 15px;          --line-body: 1.65; --weight-body: 400;
-    --font-label: 14px;         --line-label: 1.5; --weight-label: 600;
-    --font-table-head: 13px;    --line-table-head: 1.45; --weight-table-head: 500;
-    --font-table-cell: 15px;    --line-table-cell: 1.55; --weight-table-cell: 400;
+    --font-page-title: 22px;    --line-page-title: 1.5; --weight-page-title: 500;
+    --font-section-title: 16px; --line-section-title: 1.5; --weight-section-title: 600;
+    --font-card-title: 15px;    --line-card-title: 1.5; --weight-card-title: 600;
+    --font-body: 14px;          --line-body: 1.6; --weight-body: 400;
+    --font-label: 13px;         --line-label: 1.5; --weight-label: 600;
+    --font-table-head: 13px;    --line-table-head: 1.45; --weight-table-head: 600;
+    --font-table-cell: 13.5px;  --line-table-cell: 1.55; --weight-table-cell: 400;
     /* اعداد بلند و پرتکرار: کمی کوچک‌تر و سبک‌تر تا صفحه شلوغ نشود،
        با tabular-nums خوانایی و هم‌ترازی ستون‌ها حفظ می‌شود. */
-    --font-number: 14.5px;      --line-number: 1.5; --weight-number: 500;
-    --font-kpi: 26px;           --line-kpi: 1.2; --weight-kpi: 600;
-    --font-caption: 13px;       --line-caption: 1.5; --weight-caption: 500;
-    --font-button: 14px;        --line-button: 1.5; --weight-button: 600;
-    --font-status: 13px;        --line-status: 1; --weight-status: 600;
+    --font-number: 13.5px;      --line-number: 1.5; --weight-number: 500;
+    --font-kpi: 22px;           --line-kpi: 1.25; --weight-kpi: 600;
+    --font-caption: 12px;       --line-caption: 1.5; --weight-caption: 500;
+    --font-button: 13.5px;      --line-button: 1.5; --weight-button: 500;
+    --font-status: 12px;        --line-status: 1; --weight-status: 600;
 
     /* Legacy aliases remain stable while resolving to the shared scale. */
-    --font-h1: var(--font-page-title); --lh-h1: 38px; --fw-h1: var(--weight-page-title);
-    --font-h2: 20px; --lh-h2: 28px; --fw-h2: 600;
-    --font-h3: 18px; --lh-h3: 26px; --fw-h3: 600;
+    --font-h1: var(--font-page-title); --lh-h1: 33px; --fw-h1: var(--weight-page-title);
+    --font-h2: 18px; --lh-h2: 26px; --fw-h2: 600;
+    --font-h3: 16px; --lh-h3: 24px; --fw-h3: 600;
     --font-h4: var(--font-card-title); --lh-h4: 25px; --fw-h4: var(--weight-card-title);
-    --font-h5: 16px; --lh-h5: 24px; --fw-h5: 600;
+    --font-h5: 15px; --lh-h5: 22px; --fw-h5: 600;
     --font-h6: var(--font-label); --lh-h6: 21px; --fw-h6: var(--weight-label);
     --font-body1: var(--font-body); --lh-body1: 25px;
     --font-body2: var(--font-label); --lh-body2: 21px;
     --lh-caption: 20px;
-    --lh-button: 21px; --fw-button: var(--weight-button);
+    --lh-button: 20px; --fw-button: var(--weight-button);
 
     /* ---- Legacy app-* aliases (retargeted to Akaunting) ---- */
     --app-bg: var(--background-default);
@@ -171,18 +171,18 @@
     --ptg-surface: var(--background-default);
     --ptg-surface-soft: var(--background-neutral);
     --ptg-soft-section: var(--background-neutral);
-    --ptg-table-header: transparent;
+    --ptg-table-header: var(--ptg-table-head-bg);
     --ptg-border: var(--divider);
-    --ptg-border-strong: #CFD1DE;   /* cool lavender-gray — field borders */
-    --ptg-input-border: #CFD1DE;
+    --ptg-border-strong: #ABBACC;   /* cool lavender-gray — field borders */
+    --ptg-input-border: #C2D0E3;
     /* ---- Form-field surfaces — calibrated to the reference kit ----
        canvas #FCFCFC (off-white)  ·  field fill #FFFFFF (pure white)
        borders = cool lavender-gray  ·  disabled = soft cool gray-blue. */
     --ptg-field-bg: #FFFFFF;
-    --ptg-field-border: #CFD1DE;
-    --ptg-field-border-hover: #BCBFD2;
-    --ptg-field-disabled-bg: #EEF0F5;
-    --ptg-field-placeholder: #9AA0B5;
+    --ptg-field-border: #C2D0E3;
+    --ptg-field-border-hover: #ABBACC;
+    --ptg-field-disabled-bg: #F8FAFC;
+    --ptg-field-placeholder: #AEAEAE;
     --ptg-field-focus-ring: rgba(var(--primary-main-rgb), .12);
 
     /* ---- Create/Edit form column — constrained, start-aligned ---- */
@@ -192,35 +192,36 @@
     --ak-form-section-gap: 48px;
     --ptg-text: var(--text-primary);
     --ptg-muted: var(--text-secondary);
+    --ptg-label: #4F4F4F;   /* Chortke .label-input ink */
     --ptg-light: var(--text-disabled);
     --ptg-primary: var(--primary-main);
     --ptg-primary-dark: var(--primary-dark);
-    --ptg-primary-soft: rgba(23, 63, 115, 0.08);
-    --ptg-primary-tint: #EEEEF3;    /* Purple 100 */
+    --ptg-primary-soft: rgba(16, 98, 208, 0.08);
+    --ptg-primary-tint: #E8F1FF;    /* Purple 100 */
     --ptg-primary-contrast: var(--primary-contrast);
     /* Action buttons — Akaunting olive green. */
-    --ptg-btn-primary: #1877f2;
-    --ptg-btn-primary-dark: #0b5ed7;
-    --ptg-btn-primary-rgb: 24, 119, 242;
-    --ptg-btn-primary-tint: #E7F0FE;
+    --ptg-btn-primary: #1062D0;
+    --ptg-btn-primary-dark: #0D52AF;
+    --ptg-btn-primary-rgb: 16, 98, 208;
+    --ptg-btn-primary-tint: #E8F1FF;
 
     /* دکمهٔ ثانویه/خنثی (Akaunting «Connect Your Bank»): خاکستری نرم، بدون بوردر. */
-    --ptg-btn-quiet: #F1F2F4;
-    --ptg-btn-quiet-hover: #E6E8EB;
-    --ptg-btn-quiet-text: #6C757D;
+    --ptg-btn-quiet: #F7F7F7;
+    --ptg-btn-quiet-hover: #ECECEC;
+    --ptg-btn-quiet-text: #4F4F4F;
     --ptg-accent-blue: var(--info-main);
-    --ptg-accent-blue-soft: #E6F1F6;
+    --ptg-accent-blue-soft: #E8F1FF;
     --ptg-danger: var(--error-main);
-    --ptg-danger-soft: #FAE6E6;
-    --ptg-danger-text: #B80000;
+    --ptg-danger-soft: #FFEAF0;
+    --ptg-danger-text: #B00A0A;
     --ptg-warning: var(--warning-main);
-    --ptg-warning-soft: #FEF5E7;
-    --ptg-warning-text: #B87708;
+    --ptg-warning-soft: #FDF1E3;
+    --ptg-warning-text: #A66300;
     --ptg-success: var(--success-main);
-    --ptg-success-soft: #F1F6EE;
-    --ptg-success-text: #63914A;
-    --ptg-info-soft: #E6F1F6;
-    --ptg-info-text: #006395;
+    --ptg-success-soft: #E7F5E9;
+    --ptg-success-text: #1E8F1D;
+    --ptg-info-soft: #E8F1FF;
+    --ptg-info-text: #0D52AF;
     --ptg-viewed-soft: #EEEEF3;
     --ptg-viewed-text: #4D4F7D;
     --ptg-draft-soft: #ECECEC;
@@ -233,14 +234,14 @@
     --ptg-chart-grid: #E5E7EB;
 
     --ptg-radius-card: var(--radius-card-16);
-    --ptg-radius-input: 8px;
-    --ptg-radius-button: 13px;
-    --ptg-radius-badge: 12px;
+    --ptg-radius-input: 6px;
+    --ptg-radius-button: 8px;
+    --ptg-radius-badge: 6px;
     --ptg-radius-avatar: 9999px;
-    --ptg-radius-sm: 6px;
-    --ptg-radius-md: 8px;
-    --ptg-radius-lg: 12px;
-    --ptg-radius-xl: 12px;
+    --ptg-radius-sm: 4px;
+    --ptg-radius-md: 6px;
+    --ptg-radius-lg: 8px;
+    --ptg-radius-xl: 10px;
 
     /* ---- Spacing (4px scale) ---- */
     --ptg-space-page: 16px;
@@ -259,14 +260,14 @@
        read the same token, so the two can never drift apart. */
     --ptg-panel-shadow: 0 1px 3px rgba(16, 24, 40, 0.04), 0 10px 28px rgba(16, 24, 40, 0.06);
 
-    --ptg-ring: 0 0 0 1px var(--primary-main), 0 0 0 4px rgba(23, 63, 115, 0.14);
+    --ptg-ring: 0 0 0 1px var(--primary-main), 0 0 0 3px rgba(16, 98, 208, 0.12);
 
     --ptg-sidebar-width: var(--layout-sidebar);
     --ptg-mini-sidebar: var(--layout-sidebar-mini);
     --ptg-topbar-height: var(--layout-header);
 
     --ptg-primary-rgb: var(--primary-main-rgb);
-    --ptg-primary-dark-rgb: 18, 50, 88;
+    --ptg-primary-dark-rgb: 13, 82, 175;
     --ptg-accent-blue-rgb: var(--info-rgb);
     --ptg-danger-rgb: var(--error-rgb);
     --ptg-success-rgb: var(--success-rgb);
@@ -295,23 +296,23 @@
     /* ---- Shared ak-* form component tokens (date picker / segmented / chip) ----
        Single source for the three shared field components. Field surface tokens
        reuse the calibrated --ptg-field-* above; component-specific values below. */
-    --ak-control-height: 42px;
+    --ak-control-height: 40px;
     --ak-control-bg: var(--ptg-field-bg);
     --ak-control-border: var(--ptg-field-border);
     --ak-control-border-focus: var(--primary-main);
-    --ak-control-radius: 8px;
+    --ak-control-radius: 6px;
     --ak-control-text: var(--ptg-text);
     --ak-control-placeholder: var(--ptg-field-placeholder);
 
     /* Date picker popup */
     --ak-date-panel-bg: #FFFFFF;
-    --ak-date-panel-border: #E4E5EB;
+    --ak-date-panel-border: #E7E7E7;
     --ak-date-panel-radius: 8px;
-    --ak-date-panel-shadow: 0 8px 22px rgba(28, 37, 46, 0.08);
+    --ak-date-panel-shadow: 0 6px 18px rgba(16, 24, 40, 0.08);
     --ak-date-weekday: #777777;
     --ak-date-day-text: #555555;
     --ak-date-muted: #D1D2D8;
-    --ak-date-hover-bg: #F1F1F6;
+    --ak-date-hover-bg: #F5F6FA;
     --ak-date-selected-bg: var(--primary-main);
     --ak-date-selected-text: #FFFFFF;
     --ak-date-motion-duration: 140ms;
@@ -320,24 +321,24 @@
     --ak-segment-height: 32px;
     --ak-segment-radius: 6px;
     --ak-segment-padding-inline: 11px;
-    --ak-segment-off-bg: #ECECEC;
-    --ak-segment-off-text: #666666;
-    --ak-segment-no-bg: #E10600;
+    --ak-segment-off-bg: #F7F7F7;
+    --ak-segment-off-text: #6F6F6F;
+    --ak-segment-no-bg: var(--error-main);
     --ak-segment-no-text: #FFFFFF;
     --ak-segment-yes-bg: var(--success-main);
     --ak-segment-yes-text: #FFFFFF;
 
     /* Selected chip */
     --ak-selection-chip-bg: var(--primary-main);
-    --ak-selection-chip-bg-hover: #4D507C;
+    --ak-selection-chip-bg-hover: #0D52AF;
     --ak-selection-chip-text: #FFFFFF;
     --ak-selection-chip-remove: rgba(255, 255, 255, 0.74);
     --ak-selection-chip-height: 27px;
     --ak-selection-chip-radius: 4px;
     --ak-selection-chip-padding-inline: 10px;
     --ak-selection-chip-gap: 5px;
-    --ak-selection-chip-muted-bg: #E6E7EE;
-    --ak-selection-chip-muted-text: #6B6F7B;
+    --ak-selection-chip-muted-bg: #F2F5FC;
+    --ak-selection-chip-muted-text: #6F6F6F;
 }
 
 /* Dark-mode calibration for the shared components. */
@@ -362,7 +363,7 @@ body.ptg-modal-document {
        Inside a panel, separation still comes from 1px dividers and whitespace.
        The panel itself is lifted off the page by --ptg-panel-shadow (see
        72-surfaces.css), not by an outline. */
-    --ptg-bg: #FCFCFC;
+    --ptg-bg: #F5F6FA;
     --ptg-shadow-card: none;
     --boltz-bg: var(--ptg-bg);
     --boltz-surface: var(--ptg-surface);
@@ -442,9 +443,20 @@ body.ptg-modal-document {
 
     /* Sidebar lifts a few points above the darker content canvas (#16161D)
        so the edge stays legible in dark mode; hue stays in the indigo family. */
-    --ptg-sidebar-panel: #173D6A;
-    --ptg-sidebar-rail: #113057;
-    --ptg-sidebar-plate: #EDEEF5;
+    --ptg-sidebar-panel: #1E1E27;
+    --ptg-sidebar-rail: #16161D;
+    --ptg-sidebar-ink: #B7B7C2;
+    --ptg-sidebar-icon: #B7B7C2;
+    --ptg-sidebar-ink-strong: #FFFFFF;
+    --ptg-sidebar-accent: #5B94E3;
+    --ptg-sidebar-line: rgba(255, 255, 255, 0.14);
+    --ptg-sidebar-sub-ink: #9E9E9E;
+    --ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.06);
+    --ptg-sidebar-active-bg: rgba(91, 148, 227, 0.16);
+    --ptg-sidebar-danger: #FF9A9A;
+    --ptg-sidebar-danger-bg: rgba(255, 120, 120, 0.12);
+    --ptg-sidebar-plate: #1E1E27;
+    --ptg-sidebar-plate-border: rgba(255, 255, 255, 0.10);
 }
 
 /* Keep the dark shell dark — beats the body-level light near-white override. */
