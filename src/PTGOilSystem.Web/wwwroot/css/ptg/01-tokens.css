@@ -17,7 +17,6 @@
                                      same deep navy the sidebar panel carries,
                                      so accents and shell read as one colour */
     --primary-dark: #0D52AF;      /* Navy 700 — hover */
-    --primary-darker: #0A428C;
     --primary-contrast: #FFFFFF;
     --primary-main-rgb: 16, 98, 208;
 
@@ -46,9 +45,6 @@
     --ptg-chart-positive: #22C55E;
     --ptg-chart-warning: #F5A524;
     --ptg-chart-negative: #F4511E;
-    --ptg-chart-neutral: #7779A2;
-    --ptg-chart-incoming: #8BB475;
-    --ptg-chart-outgoing: #FB7185;
 
     /* ---- Accounting Flow Tokens (Phase 3: Neutral Accounting Semantics) ---- */
     --ptg-flow-debit-color: #1D4ED8;
@@ -89,8 +85,8 @@
     --radius-input: 6px;       /* form controls */
     --radius-card: 8px;        /* panels, stat cards, containers */
     --radius-card-16: 8px;     /* flat: former big card radius collapses to 8 */
-    --radius-table: 8px;       /* table wrapper / table card frame */
-    --radius-btn: 8px;        /* primary / secondary action buttons */
+    --radius-table: 12px;      /* table wrapper / table card frame (Chortke .data-table) */
+    --radius-btn: 6px;        /* primary / secondary action buttons (Chortke) */
     --radius-chip: 6px;       /* filter chips, status badges */
     --radius-pill: 999px;      /* round status badges */
 
@@ -106,9 +102,7 @@
     --layout-rail: var(--layout-sidebar-mini);
     --layout-shell-gap: 0px;
     --layout-nav-mobile: 304px;
-    --layout-header: 56px;
-    --layout-header-mobile: 52px;
-    --layout-header-blur: 0px;
+    --layout-header: 64px;
     --layout-transition: 150ms ease-out;
     --layout-content-max: 1200px;
     --layout-form-max: 860px;
@@ -118,24 +112,29 @@
     --layout-gutter-compact: 24px;
     --layout-gutter-mobile: 16px;
 
+    /* ---- Page working surface (72-surfaces.css paints it) ---- */
+    --ptg-page-surface-padding: 24px;
+    --ptg-page-surface-radius: var(--radius-card);
+
     /* ---- Akaunting motion ---- */
     --ptg-motion-fast: 140ms;
-    --ptg-motion-normal: 190ms;
 
     /* ---- Shared typography scale — readable office ERP (Vazirmatn) ---- */
-    --font-page-title: 22px;    --line-page-title: 1.5; --weight-page-title: 500;
+    --font-page-title: 24px;    --line-page-title: 1.5; --weight-page-title: 500;
     --font-section-title: 16px; --line-section-title: 1.5; --weight-section-title: 600;
     --font-card-title: 15px;    --line-card-title: 1.5; --weight-card-title: 600;
     --font-body: 14px;          --line-body: 1.6; --weight-body: 400;
-    --font-label: 13px;         --line-label: 1.5; --weight-label: 600;
-    --font-table-head: 13px;    --line-table-head: 1.45; --weight-table-head: 600;
-    --font-table-cell: 13.5px;  --line-table-cell: 1.55; --weight-table-cell: 400;
-    /* اعداد بلند و پرتکرار: کمی کوچک‌تر و سبک‌تر تا صفحه شلوغ نشود،
-       با tabular-nums خوانایی و هم‌ترازی ستون‌ها حفظ می‌شود. */
-    --font-number: 13.5px;      --line-number: 1.5; --weight-number: 500;
-    --font-kpi: 22px;           --line-kpi: 1.25; --weight-kpi: 600;
+    /* لیبل فرم: چرتکه 14px/20px با وزن عادی — لیبل بولد ریز صفحه را شلوغ نشان می‌دهد. */
+    --font-label: 14px;         --line-label: 1.43; --weight-label: 400;
+    /* هدر جدول: چرتکه 14px/700 با رنگ کم‌کنتراست تا داده جلوتر بنشیند. */
+    --font-table-head: 14px;    --line-table-head: 1.5; --weight-table-head: 700;
+    --font-table-cell: 14px;    --line-table-cell: 1.5; --weight-table-cell: 400;
+    /* چرتکه مقیاس تایپ را عمداً کم‌تنوع نگه می‌دارد: 24 / 16 / 14 (+11 ریزنوشته).
+       اعداد هم‌اندازه متن بدنه‌اند و خوانایی از tabular-nums می‌آید، نه از ریز کردن. */
+    --font-number: 14px;        --line-number: 1.5; --weight-number: 500;
+    --font-kpi: 24px;           --line-kpi: 1.25; --weight-kpi: 600;
     --font-caption: 12px;       --line-caption: 1.5; --weight-caption: 500;
-    --font-button: 13.5px;      --line-button: 1.5; --weight-button: 500;
+    --font-button: 14px;        --line-button: 1.43; --weight-button: 500;
     --font-status: 12px;        --line-status: 1; --weight-status: 600;
 
     /* Legacy aliases remain stable while resolving to the shared scale. */
@@ -152,19 +151,12 @@
 
     /* ---- Legacy app-* aliases (retargeted to Akaunting) ---- */
     --app-bg: var(--background-default);
-    --app-surface: var(--background-default);
-    --app-surface-soft: var(--background-neutral);
     --app-border: var(--divider);
     --app-text: var(--text-primary);
     --app-text-muted: var(--text-secondary);
-    --app-text-light: var(--text-disabled);
     --app-primary: var(--primary-main);
     --app-primary-hover: var(--primary-dark);
-    --app-success: var(--success-main);
     --app-danger: var(--error-main);
-    --app-warning: var(--warning-main);
-    --app-shadow: var(--shadow-card);
-    --app-radius: var(--radius-card-16);
 
     /* ---- Legacy ptg-* aliases (retargeted to Akaunting) ---- */
     --ptg-bg: var(--background-default);
@@ -172,27 +164,29 @@
     --ptg-surface-soft: var(--background-neutral);
     --ptg-soft-section: var(--background-neutral);
     --ptg-table-header: var(--ptg-table-head-bg);
+    /* هدر جدول کم‌کنتراست + hover بسیار روشن ردیف — همان مقادیر چرتکه. */
+    --ptg-table-head-ink: #7E8C9E;
+    --ptg-table-row-hover: #F7F9FD;
+    --ptg-table-row-line: #E8E8E8;
     --ptg-border: var(--divider);
     --ptg-border-strong: #ABBACC;   /* cool lavender-gray — field borders */
-    --ptg-input-border: #C2D0E3;
+    --ptg-input-border: #CBD5E1;
     /* ---- Form-field surfaces — calibrated to the reference kit ----
        canvas #FCFCFC (off-white)  ·  field fill #FFFFFF (pure white)
        borders = cool lavender-gray  ·  disabled = soft cool gray-blue. */
     --ptg-field-bg: #FFFFFF;
-    --ptg-field-border: #C2D0E3;
+    --ptg-field-border: #CBD5E1;        /* Chortke control border */
     --ptg-field-border-hover: #ABBACC;
-    --ptg-field-disabled-bg: #F8FAFC;
+    --ptg-field-disabled-bg: var(--background-neutral); /* Chortke filled/readonly field */
     --ptg-field-placeholder: #AEAEAE;
     --ptg-field-focus-ring: rgba(var(--primary-main-rgb), .12);
 
     /* ---- Create/Edit form column — constrained, start-aligned ---- */
     --ak-form-content-max: var(--layout-form-max);
     --ak-form-content-wide-max: var(--layout-form-wide-max);
-    --ak-form-page-gutter: 0px;
-    --ak-form-section-gap: 48px;
     --ptg-text: var(--text-primary);
     --ptg-muted: var(--text-secondary);
-    --ptg-label: #4F4F4F;   /* Chortke .label-input ink */
+    --ptg-label: #2B2B2B;   /* Chortke form-label ink */
     --ptg-light: var(--text-disabled);
     --ptg-primary: var(--primary-main);
     --ptg-primary-dark: var(--primary-dark);
@@ -228,14 +222,10 @@
     --ptg-draft-text: #3B3B3B;
 
     /* ---- Chart series (Akaunting) ---- */
-    --ptg-chart-incoming: #8BB475;
-    --ptg-chart-outgoing: #FB7185;
-    --ptg-chart-profit: #7779A2;
-    --ptg-chart-grid: #E5E7EB;
 
     --ptg-radius-card: var(--radius-card-16);
     --ptg-radius-input: 6px;
-    --ptg-radius-button: 8px;
+    --ptg-radius-button: var(--radius-btn);
     --ptg-radius-badge: 6px;
     --ptg-radius-avatar: 9999px;
     --ptg-radius-sm: 4px;
@@ -267,22 +257,11 @@
     --ptg-topbar-height: var(--layout-header);
 
     --ptg-primary-rgb: var(--primary-main-rgb);
-    --ptg-primary-dark-rgb: 13, 82, 175;
-    --ptg-accent-blue-rgb: var(--info-rgb);
     --ptg-danger-rgb: var(--error-rgb);
     --ptg-success-rgb: var(--success-rgb);
     --ptg-warning-rgb: var(--warning-rgb);
 
     --radius-card: var(--ptg-radius-card);
-    --radius-input: var(--ptg-radius-input);
-    --radius-button: var(--ptg-radius-button);
-    --radius-badge: var(--ptg-radius-badge);
-    --radius-avatar: var(--ptg-radius-avatar);
-    --space-page: var(--ptg-space-page);
-    --space-card: var(--ptg-space-card);
-    --space-gap: var(--ptg-space-gap);
-    --space-gap-lg: var(--ptg-space-gap-lg);
-    --space-field: var(--ptg-space-field);
 
     --bs-primary: var(--ptg-primary);
     --bs-primary-rgb: var(--ptg-primary-rgb);
@@ -330,13 +309,11 @@
 
     /* Selected chip */
     --ak-selection-chip-bg: var(--primary-main);
-    --ak-selection-chip-bg-hover: #0D52AF;
     --ak-selection-chip-text: #FFFFFF;
     --ak-selection-chip-remove: rgba(255, 255, 255, 0.74);
     --ak-selection-chip-height: 27px;
     --ak-selection-chip-radius: 4px;
     --ak-selection-chip-padding-inline: 10px;
-    --ak-selection-chip-gap: 5px;
     --ak-selection-chip-muted-bg: #F2F5FC;
     --ak-selection-chip-muted-text: #6F6F6F;
 }
@@ -366,7 +343,6 @@ body.ptg-modal-document {
     --ptg-bg: #F5F6FA;
     --ptg-shadow-card: none;
     --boltz-bg: var(--ptg-bg);
-    --boltz-surface: var(--ptg-surface);
     --boltz-surface-soft: var(--ptg-surface-soft);
     --boltz-border: var(--ptg-border);
     --boltz-text: var(--ptg-text);
@@ -375,43 +351,10 @@ body.ptg-modal-document {
     --boltz-primary-dark: var(--ptg-primary-dark);
     --boltz-primary-soft: var(--ptg-primary-soft);
     --boltz-success: var(--ptg-success);
-    --boltz-danger: var(--ptg-danger);
-    --boltz-warning: var(--ptg-warning);
     --boltz-shadow: var(--ptg-shadow-soft);
     --boltz-shadow-card: var(--ptg-shadow-card);
-    --boltz-radius-xl: var(--ptg-radius-xl);
-    --boltz-radius-lg: var(--ptg-radius-lg);
-    --boltz-radius-md: var(--ptg-radius-md);
     --boltz-sidebar-width: var(--ptg-sidebar-width);
 
-    --ds-bg: var(--ptg-bg);
-    --ds-surface: var(--ptg-surface);
-    --ds-surface-soft: var(--ptg-surface-soft);
-    --ds-border: var(--ptg-border);
-    --ds-border-strong: var(--ptg-border-strong);
-    --ds-blue: var(--ptg-primary);
-    --ds-blue-strong: var(--ptg-primary-dark);
-    --ds-blue-soft: var(--ptg-primary-soft);
-    --ds-success: var(--ptg-success);
-    --ds-success-soft: var(--ptg-success-soft);
-    --ds-danger: var(--ptg-danger);
-    --ds-danger-soft: var(--ptg-danger-soft);
-    --ds-warning: var(--ptg-warning);
-    --ds-warning-soft: var(--ptg-warning-soft);
-    --ds-info: var(--ptg-accent-blue);
-    --ds-info-soft: var(--ptg-accent-blue-soft);
-    --ds-accent: var(--ptg-accent-blue);
-    --ds-accent-soft: var(--ptg-accent-blue-soft);
-    --ds-slate-950: var(--text-primary);
-    --ds-slate-700: #4D4F7D;
-    --ds-slate-600: var(--text-secondary);
-    --ds-slate-500: var(--text-disabled);
-    --ds-radius-sm: var(--ptg-radius-input);
-    --ds-radius-md: var(--ptg-radius-md);
-    --ds-radius-lg: var(--ptg-radius-card);
-    --ds-shadow-sm: none;
-    --ds-shadow-md: none;
-    --ds-focus-ring: var(--ptg-ring);
 }
 
 /* ---- Dark mode ---- */

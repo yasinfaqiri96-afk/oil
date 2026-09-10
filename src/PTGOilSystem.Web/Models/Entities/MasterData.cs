@@ -77,6 +77,22 @@ public class Company : BaseEntity, ICanonicalSearchable
     /// </summary>
     public bool IsSystemOwner { get; set; }
 
+    /// <summary>
+    /// شریکی که دفترِ این شرکت، دفترِ شخصیِ اوست — یعنی وقتی این شرکت پولِ یک قراردادِ
+    /// شراکتی را می‌پردازد، آن پول سرمایه‌گذاریِ همین شریک است، نه پولِ یک طرفِ سوم.
+    ///
+    /// چرا این ستون لازم شد: پیش از این تنها نشانهٔ «کدام شریک پرداخت کرد»
+    /// <see cref="PaymentTransaction.FundingSource"/> = <see cref="PaymentFundingSource.Partner"/>
+    /// به‌همراه <see cref="PaymentTransaction.PaidByPartnerId"/> بود. مالکِ شرکت که هم‌زمان
+    /// شریکِ قرارداد است پول را از صندوقِ شرکتِ خودش می‌دهد، پس آن پرداخت
+    /// <see cref="PaymentFundingSource.Company"/> ثبت می‌شود و در صورت‌حساب شراکت صفر
+    /// می‌شد. این ستون همان رابطه را صریح و قطعی می‌کند؛ هیچ‌جا از روی نام حدس زده نمی‌شود.
+    ///
+    /// خالی یعنی شرکتِ مستقل — رفتار دقیقاً همان چیزی است که تا امروز بوده.
+    /// </summary>
+    public int? OwnerPartnerId { get; set; }
+    public Partner? OwnerPartner { get; set; }
+
     /// <summary>شکلِ canonical برای جستجو. متنِ نمایشی دست‌نخورده می‌ماند.</summary>
     [MaxLength(600)] public string? SearchKey { get; set; }
 

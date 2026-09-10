@@ -29,7 +29,14 @@ public enum PaymentAccountingEventKind
     SarrafCashPayment = 5,
     // Stage 5 — settle a liability an expense accrued.
     ExpensePayment = 6,
-    CommissionPayment = 7
+    CommissionPayment = 7,
+
+    /// <summary>
+    /// A carrier or other service provider is paid. Settles the same payable that
+    /// <see cref="ExpenseAccountingAdapter"/> credited when their expense was accrued, so it is
+    /// gated on the same ExpensePayment pilot even though the legacy kind is a different one.
+    /// </summary>
+    ServiceProviderPayment = 8
 }
 
 public sealed record PaymentAccountingResult(
@@ -70,6 +77,20 @@ public interface IPaymentAccountingAdapter
 ///   ExpensePayment     Dr &lt;expense payable&gt;    Cr Cash/Bank
 ///   CommissionPayment  Dr &lt;expense payable&gt;    Cr Cash/Bank
 ///
+/// A service provider's own payment settles the payable their expense accrued, so it resolves its
+/// debit exactly like the two above — from the linked expense when the legacy row names one, and
+/// otherwise from that party type's control account, never from the description:
+///   ServiceProviderPayment  Dr &lt;service provider payable&gt;  Cr Cash/Bank
+///
+/// Partner-funded and partner-held money never touches the company's cash. When
+/// <see cref="PaymentTransaction.FundingSource"/> is Partner, the cash side of every mapping above
+/// is replaced by the partner current control account carrying PartyType Partner and the paying
+/// partner's id — one substitution, applied to whichever mapping the payment resolved to:
+///   partner pays a bill      Dr &lt;payable&gt;          Cr Partner Current (his contribution)
+///   partner holds a receipt  Dr Partner Current    Cr Accounts Receivable (he owes it back)
+/// The customer is settled and the supplier is paid exactly as if the company had done it; only
+/// who financed it differs, and that is what the partner current account records.
+///
 /// The cash line always carries CashAccountId; the party line always carries PartyType/PartyId
 /// plus the contract/shipment dimensions when the legacy payment supplies them.
 ///
@@ -93,8 +114,11 @@ public sealed class PaymentAccountingAdapter(
     public const string SourceModule = "Payment";
     public const string SourceEntityType = nameof(PaymentTransaction);
 
-    /// <summary>پرداختِ تأمین‌شده توسط شریک هنوز mapping دوطرفهٔ اثبات‌شده ندارد.</summary>
+    /// <summary>پرداختِ شریک بدون اینکه بگوید کدام شریک — طرفِ سند اثبات‌شدنی نیست.</summary>
     public const string PartnerFundedSkipReason = "PARTNER_FUNDED_PAYMENT_UNSUPPORTED";
+
+    /// <summary>حساب جاری شرکا هنوز در تنظیمات این شرکت تعریف نشده است.</summary>
+    public const string PartnerCurrentMissingSkipReason = "PARTNER_CURRENT_ACCOUNT_NOT_CONFIGURED";
     private const int MaxRevisions = 100;
 
     private readonly AccountingOptions _options = options.Value;
@@ -105,12 +129,10 @@ public sealed class PaymentAccountingAdapter(
     {
         ArgumentNullException.ThrowIfNull(payment);
 
-        // پرداختی که شریک از جیب خودش داده هیچ‌کدام از mappingهای این Adapter را ندارد: نه
-        // صندوق/بانک شرکت را بستانکار می‌کند و نه حساب سرمایهٔ شریک هنوز در Chart of Accounts وجود
-        // دارد. تا وقتی آن حساب تعریف نشده، عمداً skip می‌شود تا سند نادرست ساخته نشود — دقیقاً
-        // همان الگوی PARTNER_LEDGER_UNSUPPORTED در AssetRentPostingPolicy. دفتر قدیمی و ردیابیِ
-        // پرداخت شریک بدون این Adapter کامل کار می‌کنند.
-        if (payment.FundingSource == PaymentFundingSource.Partner)
+        // پرداختِ شریک حالا mapping دارد (حساب جاری شرکا)، ولی فقط وقتی خودِ سطر می‌گوید کدام
+        // شریک پرداخته. بدون آن، هویتِ طرفِ سند اثبات‌شدنی نیست و مثل قبل عمداً Skip می‌شود تا
+        // سندِ بی‌طرف ساخته نشود. دفتر قدیمی و ردیابیِ پرداخت شریک بدون این Adapter کامل کار می‌کنند.
+        if (payment.FundingSource == PaymentFundingSource.Partner && !payment.PaidByPartnerId.HasValue)
         {
             LogOutcome(payment, null, 0, 0m, PaymentPostingStatus.Skipped, PartnerFundedSkipReason);
             return new PaymentAccountingResult(
@@ -305,6 +327,7 @@ public sealed class PaymentAccountingAdapter(
             PaymentKind.SarrafSettlement => PaymentAccountingEventKind.SarrafCashPayment,
             PaymentKind.ExpensePayment => PaymentAccountingEventKind.ExpensePayment,
             PaymentKind.CommissionPayment => PaymentAccountingEventKind.CommissionPayment,
+            PaymentKind.ServiceProviderPayment => PaymentAccountingEventKind.ServiceProviderPayment,
             _ => null
         };
 
@@ -318,6 +341,8 @@ public sealed class PaymentAccountingAdapter(
             PaymentAccountingEventKind.SarrafCashPayment => _options.Pilots.SarrafPayment,
             PaymentAccountingEventKind.ExpensePayment => _options.Pilots.ExpensePayment,
             PaymentAccountingEventKind.CommissionPayment => _options.Pilots.CommissionPayment,
+            // Settles the very payable ExpenseAccountingAdapter accrued, so it rides the same flag.
+            PaymentAccountingEventKind.ServiceProviderPayment => _options.Pilots.ExpensePayment,
             _ => false
         };
 
@@ -330,14 +355,37 @@ public sealed class PaymentAccountingAdapter(
         AccountingPartyType? PartyType,
         int? PartyId);
 
+    /// <summary>
+    /// The side of a payment that is not the party being settled: normally the company's
+    /// cash/bank control account, and the partner current account when the money came from — or
+    /// stayed with — a partner instead of the company's own till.
+    /// </summary>
+    private sealed record FundingSide(
+        int AccountId,
+        AccountingPartyType? PartyType,
+        int? PartyId,
+        int? CashAccountId);
+
+    private static FundingSide ResolveFundingSide(PaymentTransaction payment, AccountingSettings settings)
+        => payment.FundingSource == PaymentFundingSource.Partner
+            ? new FundingSide(
+                settings.PartnerCurrentAccountId!.Value,
+                AccountingPartyType.Partner,
+                payment.PaidByPartnerId!.Value,
+                CashAccountId: null)
+            : new FundingSide(
+                settings.CashBankControlAccountId,
+                PartyType: null,
+                PartyId: null,
+                payment.CashAccountId);
+
     private static AccountingPostLine[] BuildLines(
         PaymentTransaction payment,
         PaymentAccountingEventKind eventKind,
         AccountingSettings settings,
         ExpenseSettlement? settlement)
     {
-        if (eventKind is PaymentAccountingEventKind.ExpensePayment
-            or PaymentAccountingEventKind.CommissionPayment)
+        if (IsPayableSettlement(eventKind))
         {
             return BuildSettlementLines(payment, settings, settlement!);
         }
@@ -359,16 +407,20 @@ public sealed class PaymentAccountingAdapter(
 
         var rate = payment.AppliedFxRateToUsd!.Value;
         var cashIsDebit = IsCashInflow(eventKind);
+        var funding = ResolveFundingSide(payment, settings);
 
         var cashLine = new AccountingPostLine(
-            settings.CashBankControlAccountId,
+            funding.AccountId,
             Debit: cashIsDebit ? payment.AmountUsd : 0m,
             Credit: cashIsDebit ? 0m : payment.AmountUsd,
             payment.Currency,
             payment.Amount,
             rate,
-            CashAccountId: payment.CashAccountId,
-            Description: BuildCashLineDescription(eventKind));
+            funding.PartyType,
+            funding.PartyId,
+            ContractId: payment.ContractId,
+            CashAccountId: funding.CashAccountId,
+            Description: BuildCashLineDescription(eventKind, funding));
 
         var partyLine = new AccountingPostLine(
             partyAccountId,
@@ -393,6 +445,7 @@ public sealed class PaymentAccountingAdapter(
         ExpenseSettlement settlement)
     {
         var rate = payment.AppliedFxRateToUsd!.Value;
+        var funding = ResolveFundingSide(payment, settings);
 
         return
         [
@@ -409,20 +462,34 @@ public sealed class PaymentAccountingAdapter(
                 ShipmentId: payment.ShipmentId,
                 Description: "Expense liability settled"),
             new AccountingPostLine(
-                settings.CashBankControlAccountId,
+                funding.AccountId,
                 Debit: 0m,
                 Credit: payment.AmountUsd,
                 payment.Currency,
                 payment.Amount,
                 rate,
-                CashAccountId: payment.CashAccountId,
-                Description: "Cash paid")
+                funding.PartyType,
+                funding.PartyId,
+                ContractId: payment.ContractId,
+                CashAccountId: funding.CashAccountId,
+                Description: funding.PartyType is null
+                    ? "Cash paid"
+                    : "Paid by partner")
         ];
     }
 
     private static bool IsCashInflow(PaymentAccountingEventKind eventKind)
         => eventKind is PaymentAccountingEventKind.CustomerReceipt
             or PaymentAccountingEventKind.CustomerAdvance;
+
+    /// <summary>
+    /// Kinds whose debit is a payable resolved from what accrued it, rather than a party account
+    /// chosen from the payment itself.
+    /// </summary>
+    private static bool IsPayableSettlement(PaymentAccountingEventKind eventKind)
+        => eventKind is PaymentAccountingEventKind.ExpensePayment
+            or PaymentAccountingEventKind.CommissionPayment
+            or PaymentAccountingEventKind.ServiceProviderPayment;
 
     // Every non-inflow kind, including the expense settlements, moves cash out.
     private static PaymentDirection ExpectedDirection(PaymentAccountingEventKind eventKind)
@@ -456,13 +523,17 @@ public sealed class PaymentAccountingAdapter(
                 PaymentAccountingEventKind.SupplierPayment or PaymentAccountingEventKind.SupplierPrepayment
                     => payment.SupplierId.HasValue,
                 PaymentAccountingEventKind.SarrafCashPayment => payment.SarrafId.HasValue,
+                PaymentAccountingEventKind.ServiceProviderPayment => payment.ServiceProviderId.HasValue,
                 _ => false
             };
             if (!partyIsPresent)
                 return (0, "PARTY_MISSING", null);
         }
 
-        if (payment.CashAccountId is null or <= 0)
+        // A partner-financed payment legitimately has no cash account — no company till moved —
+        // so the cash-account gates apply only to company-financed money.
+        var partnerFinanced = payment.FundingSource == PaymentFundingSource.Partner;
+        if (!partnerFinanced && payment.CashAccountId is null or <= 0)
             return (0, "CASH_ACCOUNT_MISSING", null);
         if (payment.Amount <= 0m || payment.AmountUsd <= 0m)
             return (0, "INVALID_PAYMENT_AMOUNT", null);
@@ -505,6 +576,11 @@ public sealed class PaymentAccountingAdapter(
         if (validAccountCount != configuredAccountIds.Length)
             return (companyId.Value, "ACCOUNTING_SETTINGS_INVALID_ACCOUNTS", null);
 
+        // Partner money is booked against the partner current control account, so the mapping
+        // simply does not exist until that account is configured.
+        if (partnerFinanced && settings.PartnerCurrentAccountId is null or <= 0)
+            return (companyId.Value, PartnerCurrentMissingSkipReason, null);
+
         ExpenseSettlement? settlement = null;
         if (isExpenseSettlement)
         {
@@ -526,6 +602,13 @@ public sealed class PaymentAccountingAdapter(
 
             var (partyType, partyId) = ExpenseAccountingAdapter.ResolveParty(expense);
             settlement = new ExpenseSettlement(payableAccountId.Value, partyType, partyId);
+        }
+        else if (eventKind == PaymentAccountingEventKind.ServiceProviderPayment)
+        {
+            settlement = await ResolveServiceProviderSettlementAsync(
+                payment, companyId.Value, settings, cancellationToken);
+            if (settlement is null)
+                return (companyId.Value, "EXPENSE_PAYABLE_KIND_NOT_SET", null);
         }
 
         // The cash account must belong to the journal company when it declares an owner;
@@ -552,6 +635,46 @@ public sealed class PaymentAccountingAdapter(
         return (companyId.Value, null, settlement);
     }
 
+    /// <summary>
+    /// The payable a service provider's payment settles.
+    ///
+    /// The legacy row rarely names the expense it pays — one payment usually clears a batch of
+    /// them — so the account is resolved in two provable steps and never from the description:
+    /// the linked expense's configured payable kind when the row does name one, otherwise that
+    /// party type's own control account. A service provider is a carrier, and Freight Payable is
+    /// the carrier control account in a chart that keeps one payable per party type, which is the
+    /// same account <see cref="ExpenseAccountingAdapter"/> credited when their expense accrued and
+    /// <see cref="ShortageChargeAccountingAdapter"/> debits when they owe for a shortage.
+    /// </summary>
+    private async Task<ExpenseSettlement?> ResolveServiceProviderSettlementAsync(
+        PaymentTransaction payment,
+        int companyId,
+        AccountingSettings settings,
+        CancellationToken cancellationToken)
+    {
+        var party = (AccountingPartyType.ServiceProvider, payment.ServiceProviderId);
+
+        var linkedExpenseId = payment.ExpenseTransactionId ?? payment.RelatedExpenseTransactionId;
+        if (linkedExpenseId.HasValue)
+        {
+            var expense = await db.ExpenseTransactions
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == linkedExpenseId.Value, cancellationToken);
+            if (expense is null)
+                return null;
+
+            var linkedPayableAccountId = await expenseAccounting.ResolvePayableAccountIdAsync(
+                expense, companyId, cancellationToken);
+            return linkedPayableAccountId is null
+                ? null
+                : new ExpenseSettlement(linkedPayableAccountId.Value, party.Item1, party.ServiceProviderId);
+        }
+
+        return settings.FreightPayableAccountId <= 0
+            ? null
+            : new ExpenseSettlement(settings.FreightPayableAccountId, party.Item1, party.ServiceProviderId);
+    }
+
     private async Task<JournalEntry?> FindJournalAsync(
         int companyId,
         string sourceEventId,
@@ -570,8 +693,16 @@ public sealed class PaymentAccountingAdapter(
         PaymentAccountingEventKind eventKind)
         => $"{eventKind} #{payment.Id} on {payment.PaymentDate:yyyy-MM-dd}";
 
-    private static string BuildCashLineDescription(PaymentAccountingEventKind eventKind)
-        => IsCashInflow(eventKind) ? "Cash received" : "Cash paid";
+    private static string BuildCashLineDescription(
+        PaymentAccountingEventKind eventKind,
+        FundingSide funding)
+    {
+        if (funding.PartyType is null)
+            return IsCashInflow(eventKind) ? "Cash received" : "Cash paid";
+
+        // No company cash moved: the partner either paid the bill or kept the money.
+        return IsCashInflow(eventKind) ? "Proceeds held by partner" : "Paid by partner";
+    }
 
     private static string BuildPartyLineDescription(PaymentAccountingEventKind eventKind)
         => eventKind switch
@@ -581,6 +712,7 @@ public sealed class PaymentAccountingAdapter(
             PaymentAccountingEventKind.SupplierPayment => "Supplier payable settled",
             PaymentAccountingEventKind.SupplierPrepayment => "Supplier prepayment made",
             PaymentAccountingEventKind.SarrafCashPayment => "Sarraf payable settled",
+            PaymentAccountingEventKind.ServiceProviderPayment => "Service provider payable settled",
             _ => "Payment party movement"
         };
 

@@ -743,6 +743,9 @@ public sealed class InventoryTransportLegDetailsViewModel
     public IReadOnlyList<InventoryTransportReceiptSummaryViewModel> DestinationReceipts { get; set; } = [];
     public InventoryTransportLegPnlSummaryViewModel Pnl { get; set; } = new();
     public IReadOnlyList<InventoryTransportChainItemViewModel> Chain { get; set; } = [];
+    // انتقال وسیله‌به‌وسیله: بار این حمل از کدام وسیله‌ها گرفته شده و به کدام وسیله‌ها داده شده.
+    public IReadOnlyList<InventoryTransportChainLinkViewModel> ChainSources { get; set; } = [];
+    public IReadOnlyList<InventoryTransportChainLinkViewModel> ChainTargets { get; set; } = [];
     public string SourceContractsLabel { get; set; } = "";
     public int? CompatibilityDispatchId { get; set; }
     public int? InventoryTransportBatchId { get; set; }
@@ -753,6 +756,16 @@ public sealed class InventoryTransportLegDetailsViewModel
     // چرا ویرایش/لغو بسته است — همان فهرست عملیات پایین‌دستی، برای نمایش در tooltip.
     public string? DocumentLockReason { get; set; }
     public string? Notes { get; set; }
+}
+
+/// <summary>یک یال انتقال وسیله‌به‌وسیله: وسیلهٔ طرف مقابل و مقدار همان انتقال.</summary>
+public sealed class InventoryTransportChainLinkViewModel
+{
+    public int LegId { get; set; }
+    public LoadingTransportType TransportType { get; set; }
+    public string VehicleLabel { get; set; } = "";
+    public decimal QuantityMt { get; set; }
+    public DateTime LoadedDate { get; set; }
 }
 
 public sealed class InventoryTransportChainItemViewModel

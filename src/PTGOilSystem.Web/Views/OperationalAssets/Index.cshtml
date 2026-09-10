@@ -1,7 +1,6 @@
 @model PTGOilSystem.Web.Models.OperationalAssets.OperationalAssetIndexViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "دارایی‌های عملیاتی", "Operational Assets");
-    ViewData["ContentBodyClass"] = "boltz-content-body-wide";
     ViewData["HideSectionTabs"] = true;
 
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";

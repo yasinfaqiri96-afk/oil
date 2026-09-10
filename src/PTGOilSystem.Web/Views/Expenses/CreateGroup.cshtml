@@ -286,10 +286,9 @@
                 <div class="ak-form-section">
                     <h2 class="ak-section-title">مصارف این ثبت</h2>
                     <div class="ak-lines-bar">
-                        <button type="button" class="btn ak-secondary-action btn-sm" id="btnAddLine">
+                        <button type="button" class="btn ak-primary-action btn-sm" id="btnAddLine">
                             <i class="bi bi-plus-lg"></i> افزودن این مصرف به لیست
                         </button>
-                        <span class="ak-note mb-0">چند مصرف (کرایه، تخلیه، گمرک…) را با همین عملیات‌ها در یک ثبت اضافه کنید؛ برای هر مصرف یک رکورد گروهی جدا ساخته می‌شود.</span>
                     </div>
                     <div class="ak-table-wrap" id="linesWrap" hidden>
                         <table class="ak-table">
@@ -326,10 +325,6 @@
                                 <tr id="previewFoot"></tr>
                             </tfoot>
                         </table>
-                    </div>
-                    <div class="ak-note">
-                        <i class="bi bi-shield-check"></i>
-                        برای هر عملیات یک سهم جداگانه با سند حسابداری خودش ثبت می‌شود؛ همه سهم‌ها زیر یک رکورد اصلی گروهی قرار می‌گیرند.
                     </div>
                 </div>
             </div>
@@ -838,15 +833,15 @@
             var currency = (curSel && curSel.value) || 'USD';
             $('previewFoot').innerHTML =
                 '<td colspan="6" class="ak-table-total">مبلغ مجموع</td>' +
-                totals.map(function (t) { return '<td class="ak-num">' + fmt(t) + '</td>'; }).join('') +
-                (multi ? '<td class="ak-num">' + fmt(grand) + ' ' + esc(currency) + '</td>' : '');
+                totals.map(function (t) { return '<td class="ak-num ak-table-total-value">' + fmt(t) + '</td>'; }).join('') +
+                (multi ? '<td class="ak-num ak-table-total-value">' + fmt(grand) + ' ' + esc(currency) + '</td>' : '');
         }
 
         // ---------- ویزارد ----------
         var notes = {
             1: 'در مرحله بعد، مشخصات مصرف و روش تقسیم را تعیین خواهید کرد.',
-            2: 'در مرحله بعد، پیش‌نمایش توزیع مبلغ را مشاهده و ثبت نهایی را انجام خواهید داد.',
-            3: 'با ثبت نهایی، برای هر عملیات یک سهم جداگانه همراه سند حسابداری ایجاد می‌شود.'
+            2: '',
+            3: ''
         };
 
         function goStep(n) {

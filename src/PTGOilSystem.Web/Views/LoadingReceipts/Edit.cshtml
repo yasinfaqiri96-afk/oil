@@ -4,7 +4,6 @@
     var detailsUrl = Url.Action("Details", "LoadingReceipts", new { id = Model.Id, returnUrl }) ?? $"/LoadingReceipts/Details/{Model.Id}";
     var backUrl = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : detailsUrl;
     ViewData["Title"] = UiText.T(Context, "ویرایش رسید بارگیری", "Edit Loading Receipt");
-    ViewData["ContentBodyClass"] = "boltz-content-body";
     ViewData["HideSectionTabs"] = true;
 }
 

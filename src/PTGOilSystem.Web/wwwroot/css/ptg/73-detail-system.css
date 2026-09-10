@@ -30,7 +30,7 @@
     border: 1px solid var(--ak-detail-divider, var(--ptg-border));
     border-radius: var(--ak-detail-radius, var(--ptg-radius-card));
     background: var(--ak-detail-surface, var(--ptg-surface));
-    box-shadow: var(--ptg-shadow-soft, none);
+    box-shadow: var(--ptg-shadow-soft);
 }
 
 .ak-detail-page .ak-summary-card > .ak-section-head {
@@ -160,7 +160,7 @@
     gap: 12px;
     padding: 12px var(--ak-detail-card-padding);
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.6;
     cursor: pointer;
@@ -181,7 +181,7 @@
     border-inline-end: 1.5px solid currentColor;
     border-block-end: 1.5px solid currentColor;
     transform: rotate(-45deg);
-    transition: transform var(--ptg-motion-fast, 140ms) ease-out;
+    transition: transform var(--ptg-motion-fast) ease-out;
 }
 
 .ak-detail-page .ak-detail-advanced[open] > .ak-detail-advanced-summary::after {
@@ -215,7 +215,7 @@
     margin: 0;
     padding: 10px 0;
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.7;
 }
 
@@ -285,7 +285,7 @@
 body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .ak-detail-page .ak-detail-section:not(.ak-detail-section .ak-detail-section):not(.modal .ak-detail-section) {
     border-color: transparent;
     border-radius: 8px;
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
     box-shadow: var(--ptg-panel-shadow);
 }
 
@@ -309,7 +309,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     --ak-detail-row-gap: 7px;
     --ak-detail-col-gap: 16px;
     --ak-operations-panel-radius: 16px;
-    --ak-operations-panel-surface: var(--background-paper, #fff);
+    --ak-operations-panel-surface: var(--background-paper);
     --ak-operations-panel-shadow: var(--ptg-panel-shadow);
 }
 
@@ -410,7 +410,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     gap: 12px;
     margin: 0 0 8px;
     padding: 6px 10px;
-    border-inline-start: 3px solid var(--ptg-warning, #d97706);
+    border-inline-start: 3px solid var(--ptg-warning);
     background: var(--ak-detail-soft, var(--ptg-surface-soft));
     color: var(--ak-detail-muted, var(--ptg-muted));
     font-size: 12px;
@@ -446,7 +446,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 :root[data-theme="dark"] .ak-operations-detail.ak-operations-settlement > .ak-list,
 [data-bs-theme="dark"] .ak-operations-detail.ak-operations-settlement > .ak-list {
     border-color: transparent;
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
     box-shadow: var(--ptg-panel-shadow);
 }
 
@@ -509,7 +509,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     inset-inline-end: -9px;
     top: 50%;
     z-index: 2;
-    color: var(--ptg-text-muted, #64748B);
+    color: var(--ptg-text-muted);
     transform: translate(50%, -50%);
 }
 
@@ -520,14 +520,14 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     gap: 10px;
     min-height: 76px;
     padding: 12px;
-    border: 1px solid var(--ptg-border, #E2E8F0);
+    border: 1px solid var(--ptg-border);
     border-radius: 8px;
-    background: var(--ptg-surface, #FFFFFF);
+    background: var(--ptg-surface);
 }
 
 .transport-chain-step.is-current .transport-chain-node {
-    border-color: var(--ptg-primary, #C2410C);
-    box-shadow: inset 3px 0 0 var(--ptg-primary, #C2410C);
+    border-color: var(--ptg-primary);
+    box-shadow: inset 3px 0 0 var(--ptg-primary);
 }
 
 .transport-chain-icon {
@@ -536,8 +536,8 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    color: var(--ptg-primary, #C2410C);
-    background: var(--ptg-primary-soft, #FFF7ED);
+    color: var(--ptg-primary);
+    background: var(--ptg-primary-soft);
 }
 
 .transport-chain-node div:nth-child(2) {
@@ -552,7 +552,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .transport-chain-node span,
 .transport-chain-quantity small,
 .transport-chain-parent {
-    color: var(--ptg-text-muted, #64748B);
+    color: var(--ptg-text-muted);
     font-size: 12px;
 }
 
@@ -669,7 +669,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding: 15px 17px;
     border: 1px solid var(--ak-linear-border);
     border-radius: 8px;
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
     box-shadow: none;
 }
 
@@ -713,7 +713,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 
 .ak-linear-detail .ak-detail-vehicle strong {
     color: var(--ptg-text);
-    font-size: 15px;
+    font-size: 16px;
 }
 
 .ak-linear-detail .ak-detail-vehicle span {
@@ -902,12 +902,12 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 
 /* Facts read as a dense reference block under the cards, not as tall rows. */
 .ak-linear-detail .ak-detail-overview-content > .ak-info-grid .ak-info-label {
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 1.4;
 }
 
 .ak-linear-detail .ak-detail-overview-content > .ak-info-grid .ak-info-value {
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.45;
 }
 
@@ -976,7 +976,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .ak-linear-detail .ak-detail-activity-label strong,
 .ak-linear-detail .ak-detail-activity-value {
     color: var(--ptg-text);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .ak-linear-detail .ak-detail-activity-value small,
@@ -1183,7 +1183,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding: 14px 18px;
     border: 1px solid var(--ak-linear-border);
     border-radius: 8px;
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
 }
 
 .ak-detail-reference-layout > .ak-detail-identity-header .ak-info-cell {
@@ -1208,7 +1208,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding: 12px 14px;
     border: 1px solid var(--ak-linear-border);
     border-radius: 8px;
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
 }
 
 .ak-detail-reference-layout > :is(.ak-detail-activity, .ak-detail-secondary, .ak-detail-actions-panel) h2 {
@@ -1297,7 +1297,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     gap: 22px;
     padding-block: 0;
     color: var(--ptg-text);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 /* Related records are chips, not a run-on sentence of links: each one is a
@@ -1315,7 +1315,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding: 5px 11px;
     border: 1px solid var(--ak-linear-border);
     border-radius: 8px;
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
     color: var(--ptg-text);
     font-size: 12px;
     font-weight: 600;
@@ -1375,7 +1375,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding-block: 5px;
     border-block-start: 1px solid var(--ak-linear-border);
     color: var(--ptg-text);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .ak-linear-detail .ak-detail-history-item:first-child {
@@ -1685,7 +1685,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 }
 
 body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 650;
     line-height: 1.35;
 }
@@ -1705,7 +1705,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     min-height: 34px;
     padding: 5px 10px;
     border-radius: var(--ptg-radius-md);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 /* Loading keeps secondary actions in one clearly visible blue overflow menu. */
@@ -1759,7 +1759,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 .ak-operations-clean-page .ak-summary-card .ak-info-label {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     letter-spacing: .01em;
 }
@@ -1767,7 +1767,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ak-operations-clean-page .ak-summary-card .ak-info-value {
     justify-content: flex-end;
     text-align: end;
-    font-size: 14.5px;
+    font-size: 14px;
     font-weight: 700;
 }
 
@@ -1781,7 +1781,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ak-operations-clean-page .ak-summary-card .ak-info-value:is(.is-info, .is-success, .is-warning, .is-danger) {
     padding: 2px 9px;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.7;
 }
 
@@ -1852,7 +1852,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     margin-inline-start: auto;
     justify-content: flex-end;
     text-align: end;
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.6;
 }
 
@@ -1906,7 +1906,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 /* Notes read as a quiet aside, never as another data card. */
 .ak-operations-clean-page .ak-note {
-    border-radius: var(--ptg-radius-input, 8px);
+    border-radius: var(--ptg-radius-input);
 }
 
 /* Record rows carry two facts per cell (date + party, figure + reference). As
@@ -2027,7 +2027,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     padding: var(--ptg-td-pad);
     border: 1px solid var(--ptg-td-border);
     border-radius: var(--ptg-td-radius);
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
 }
 
 .ptg-record-detail .ptg-td-strip-facts {
@@ -2055,20 +2055,20 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-strip-cell dt {
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
 }
 
 .ptg-record-detail .ptg-td-strip-cell dd {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.4;
 }
 
 .ptg-record-detail .ptg-td-strip-cell dd.is-code {
-    font-size: 17px;
+    font-size: 16px;
     letter-spacing: .2px;
 }
 
@@ -2100,7 +2100,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     padding: var(--ptg-td-pad);
     border: 1px solid var(--ptg-td-border);
     border-radius: var(--ptg-td-radius);
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
 }
 
 .ptg-record-detail .ptg-td-card-head {
@@ -2109,7 +2109,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     gap: 8px;
     margin: 0 0 6px;
     color: var(--ptg-text);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
 }
 
@@ -2148,7 +2148,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     margin: 0;
     min-width: 0;
     color: var(--ptg-text);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     text-align: start;
 }
@@ -2177,12 +2177,12 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-route-node span {
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .ptg-record-detail .ptg-td-route-node strong {
     color: var(--ptg-text);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
 }
 
@@ -2231,9 +2231,9 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     inline-size: 28px;
     block-size: 28px;
     border-radius: 50%;
-    background: var(--background-neutral, #F2F5FC);
+    background: var(--background-neutral);
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -2241,12 +2241,12 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ptg-record-detail .ptg-td-step.is-done .ptg-td-step-mark,
 .ptg-record-detail .ptg-td-step.is-current .ptg-td-step-mark {
     background: var(--ptg-primary);
-    color: var(--primary-contrast, #fff);
+    color: var(--primary-contrast);
 }
 
 .ptg-record-detail .ptg-td-step-label {
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     text-align: center;
 }
@@ -2288,12 +2288,12 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-meta-cell span {
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .ptg-record-detail .ptg-td-meta-cell strong {
     color: var(--ptg-text);
-    font-size: 14.5px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -2397,7 +2397,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ptg-record-detail .ptg-td-flow-node dd {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1.35;
 }
@@ -2480,7 +2480,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ptg-record-detail .ptg-td-note p {
     margin: 4px 0 0;
     color: var(--ptg-text);
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.75;
 }
 
@@ -2488,7 +2488,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ptg-record-detail .ptg-td-more {
     border: 1px solid var(--ptg-td-border);
     border-radius: var(--ptg-td-radius);
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
 }
 
 .ptg-record-detail .ptg-td-more > summary {
@@ -2509,7 +2509,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 .ptg-record-detail .ptg-td-more > summary i {
-    font-size: 13px;
+    font-size: 14px;
     transition: transform 190ms ease-out;
 }
 

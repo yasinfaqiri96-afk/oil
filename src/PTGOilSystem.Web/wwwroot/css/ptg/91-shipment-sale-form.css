@@ -7,7 +7,6 @@
  */
 
 [data-shipment-sale-form] {
-    --ssf-page-bg: #F1F3F7;
     --ssf-card: #FFFFFF;
     --ssf-border: #E6E8EE;
     --ssf-border-soft: #EEF0F4;
@@ -27,7 +26,7 @@
 
     display: block;
     color: var(--ssf-ink);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 [data-shipment-sale-form] .ssf-shell {
@@ -55,7 +54,7 @@
 
 [data-shipment-sale-form] .ssf-subtitle {
     margin: 4px 0 0;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 20px;
     color: var(--ssf-muted);
 }
@@ -68,7 +67,7 @@
 [data-shipment-sale-form] .ssf-alert {
     margin: 0;
     border-radius: var(--ssf-radius-ctl);
-    font-size: 12.5px;
+    font-size: 12px;
 }
 
 /* ---------- 2. کارت‌های آماری ---------- */
@@ -97,7 +96,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 15px;
+    font-size: 16px;
     background: #F1F3F7;
     color: var(--ssf-muted);
 }
@@ -125,13 +124,13 @@
 }
 
 [data-shipment-sale-form] .ssf-stat-label {
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 16px;
     color: var(--ssf-muted);
 }
 
 [data-shipment-sale-form] .ssf-stat-value {
-    font-size: 15px;
+    font-size: 16px;
     line-height: 22px;
     font-weight: 700;
     color: var(--ssf-ink);
@@ -160,7 +159,7 @@
 
 [data-shipment-sale-form] .ssf-section-title {
     margin: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 20px;
     font-weight: 700;
     color: var(--ssf-ink);
@@ -187,7 +186,7 @@
 }
 
 [data-shipment-sale-form] .ssf-label {
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 16px;
     color: var(--ssf-muted);
     text-align: center;
@@ -208,7 +207,7 @@
     border: 1px solid var(--ssf-border);
     border-radius: var(--ssf-radius-ctl);
     font-family: inherit;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 22px;
     transition: border-color 140ms ease-out, box-shadow 140ms ease-out;
 }
@@ -272,7 +271,7 @@
 }
 
 [data-shipment-sale-form] .ssf-field-error {
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 16px;
     color: #D93025;
 }
@@ -317,7 +316,7 @@
     background: var(--ssf-card);
     color: var(--ssf-ink-soft);
     font-family: inherit;
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 500;
     text-decoration: none;
     cursor: pointer;
@@ -394,7 +393,7 @@
 [data-shipment-sale-form] .ssf-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12.5px;
+    font-size: 12px;
 }
 
 [data-shipment-sale-form] .ssf-table th,
@@ -415,7 +414,7 @@
     background: #FAFBFC;
     color: var(--ssf-muted);
     font-weight: 500;
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 [data-shipment-sale-form] .ssf-table tbody td {
@@ -477,7 +476,7 @@
 
 [data-shipment-sale-form] .ssf-summary-row dd {
     margin: 0;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--ssf-ink);
     white-space: nowrap;

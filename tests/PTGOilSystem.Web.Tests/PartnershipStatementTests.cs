@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.PartyStatements;
@@ -97,12 +97,17 @@ public sealed class PartnershipStatementTests
 
             Assert.Equal(50m, fawad.SharePercent);
             Assert.Equal(50m, yusuf.SharePercent);
-            Assert.Equal(fawad.ProfitShareUsd, yusuf.ProfitShareUsd);
 
-            // سهم هر شریک دقیقاً از مفاد دفتری قرارداد می‌آید، نه از پرداخت شرکا.
-            var expectedShare = decimal.Round(contract.BookProfitUsd * 0.5m, 2, MidpointRounding.AwayFromZero);
-            Assert.Equal(expectedShare, fawad.ProfitShareUsd);
-            Assert.Equal(expectedShare, yusuf.ProfitShareUsd);
+            // مفادی که به سِنت بخش‌پذیر نیست، دو سهمِ دقیقاً برابر نمی‌دهد. قبلاً هر دو سهم
+            // جداگانه بالا گِرد می‌شدند و جمعشان یک سِنت از خودِ مفاد بیشتر می‌شد؛ حالا باقیمانده
+            // به‌صورت قطعی به یک شریک می‌رسد. پس شرطِ درست «برابری» نیست، «حداکثر یک سِنت فاصله
+            // و جمعِ دقیق» است — همان چیزی که ژورنالِ تخصیص سود هم ثبت می‌کند.
+            Assert.True(Math.Abs(fawad.ProfitShareUsd - yusuf.ProfitShareUsd) <= 0.01m);
+            Assert.Equal(contract.BookProfitUsd, fawad.ProfitShareUsd + yusuf.ProfitShareUsd);
+
+            var halfShare = decimal.Round(contract.BookProfitUsd * 0.5m, 2, MidpointRounding.AwayFromZero);
+            Assert.True(Math.Abs(halfShare - fawad.ProfitShareUsd) <= 0.01m);
+            Assert.True(Math.Abs(halfShare - yusuf.ProfitShareUsd) <= 0.01m);
             Assert.Equal(
                 decimal.Round(contract.SalesUsd - contract.PurchaseCostUsd - contract.OperationalExpenseUsd, 2,
                     MidpointRounding.AwayFromZero),
@@ -122,17 +127,19 @@ public sealed class PartnershipStatementTests
 
         Assert.Equal(s.FawadId, statement.DebtorPartnerId);
         Assert.Equal(s.YusufId, statement.CreditorPartnerId);
-        Assert.Equal(414_561.45m, statement.AmountDueUsd);
+        Assert.Equal(414_561.46m, statement.AmountDueUsd);
         Assert.Equal(414_563.45m, statement.CreditorClaimUsd);
 
         var fawad = statement.Totals.Single(t => t.PartnerId == s.FawadId);
         var yusuf = statement.Totals.Single(t => t.PartnerId == s.YusufId);
-        Assert.Equal(-414_561.45m, fawad.NetPositionUsd);
+        Assert.Equal(-414_561.46m, fawad.NetPositionUsd);
         Assert.Equal(414_563.45m, yusuf.NetPositionUsd);
 
         // جمع مانده دو شریک صفر نیست و نباید به‌زور صفر شود: اختلافِ «پرداخت شرکا» با
         // «خرید + مصارف دفتری» به‌صورت باقیماندهٔ تطبیق‌نشده صریح گزارش می‌شود.
-        Assert.Equal(2.00m, statement.UnreconciledResidualUsd);
+        // ۱٫۹۹ و نه ۲٫۰۰: باقیمانده فقط اختلافِ «پرداخت شرکا» با «خرید + مصارف دفتری» است.
+        // یک سِنتِ اضافیِ قبلی از گِردکردنِ جداگانهٔ سهم‌ها می‌آمد و ربطی به تطبیق نداشت.
+        Assert.Equal(1.99m, statement.UnreconciledResidualUsd);
         Assert.Equal(
             statement.UnreconciledResidualUsd,
             decimal.Round(fawad.NetPositionUsd + yusuf.NetPositionUsd, 2, MidpointRounding.AwayFromZero));
@@ -147,7 +154,7 @@ public sealed class PartnershipStatementTests
         var s = await SeedAsync(db);
 
         var before = await BuildAsync(db, s);
-        Assert.Equal(414_561.45m, before.AmountDueUsd);
+        Assert.Equal(414_561.46m, before.AmountDueUsd);
 
         db.PartnerSettlements.Add(new PartnerSettlement
         {
@@ -162,7 +169,7 @@ public sealed class PartnershipStatementTests
         await db.SaveChangesAsync();
 
         var after = await BuildAsync(db, s);
-        Assert.Equal(314_561.45m, after.AmountDueUsd);
+        Assert.Equal(314_561.46m, after.AmountDueUsd);
         Assert.Equal(s.FawadId, after.DebtorPartnerId);
         Assert.Equal(100_000m, after.Totals.Single(t => t.PartnerId == s.FawadId).SettlementsPaidUsd);
         Assert.Equal(100_000m, after.Totals.Single(t => t.PartnerId == s.YusufId).SettlementsReceivedUsd);
@@ -192,7 +199,7 @@ public sealed class PartnershipStatementTests
         var statement = await BuildAsync(db, s);
         Assert.Single(statement.Settlements);
         Assert.True(statement.Settlements[0].IsReversed);
-        Assert.Equal(414_561.45m, statement.AmountDueUsd);
+        Assert.Equal(414_561.46m, statement.AmountDueUsd);
     }
 
     // ————————————————— H: P&L قرارداد دست‌نخورده —————————————————
@@ -262,7 +269,7 @@ public sealed class PartnershipStatementTests
         var c17 = statement.Contracts.Single(c => c.ContractId == s.Contract17Id);
 
         Assert.Equal(1_031_871.00m, c17.SalesUsd);
-        Assert.Equal(414_561.45m, statement.AmountDueUsd);
+        Assert.Equal(414_561.46m, statement.AmountDueUsd);
     }
 
     // ————————————————— J: پرداخت شریک مصرف نشود —————————————————
@@ -328,7 +335,7 @@ public sealed class PartnershipStatementTests
         Assert.Equal(371_575.00m, PartnerOf(c16, s.FawadId).FundingUsd);
         Assert.Equal(400_730.00m, c16.TotalPartnerFundingUsd);
         Assert.Equal(50_000.01m, c16.PaymentToBookDifferenceUsd);
-        Assert.Equal(50_002.00m, after.UnreconciledResidualUsd);
+        Assert.Equal(50_001.99m, after.UnreconciledResidualUsd);
     }
 
     [Fact]
@@ -385,7 +392,7 @@ public sealed class PartnershipStatementTests
         Assert.Single(statement.Contracts);
         Assert.Equal(s.YusufId, statement.DebtorPartnerId);
         Assert.Equal(370_165.49m, statement.AmountDueUsd);
-        Assert.Equal(370_165.51m, statement.CreditorClaimUsd);
+        Assert.Equal(370_165.50m, statement.CreditorClaimUsd);
     }
 
     // ————————————————— helpers —————————————————

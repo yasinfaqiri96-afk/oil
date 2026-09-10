@@ -51,6 +51,17 @@ public class AccountingSettings : BaseEntity
     public int RetainedEarningsAccountId { get; set; }
     public Account? RetainedEarningsAccount { get; set; }
 
+    /// <summary>
+    /// حساب کنترلیِ جاریِ شرکا (۳۳۰۰). یک حساب برای همهٔ شرکا؛ هویتِ شریک از
+    /// <see cref="JournalEntryLine.PartyType"/> = Partner و <see cref="JournalEntryLine.PartyId"/>
+    /// می‌آید، نه از حسابِ جداگانه به‌ازای هر شریک.
+    ///
+    /// Nullable است چون شرکت‌هایی که تنظیماتشان پیش از این حساب ساخته شده بود آن را ندارند و
+    /// Adapterها در آن حالت با دلیلِ صریح Skip می‌کنند به‌جای اینکه سند نادرست بسازند.
+    /// </summary>
+    public int? PartnerCurrentAccountId { get; set; }
+    public Account? PartnerCurrentAccount { get; set; }
+
     public int? FixedAssetAccountId { get; set; }
     public Account? FixedAssetAccount { get; set; }
     public int? AccumulatedDepreciationAccountId { get; set; }

@@ -9,7 +9,6 @@
     var isEditMode = Model.BatchId.HasValue;
     var pageTitle = isEditMode ? "ویرایش حمل از موجودی مخزن" : "ثبت حمل از موجودی مخزن";
     ViewData["Title"] = pageTitle;
-    ViewData["ContentBodyClass"] = "boltz-content-body-fluid";
     ViewData["HideSectionTabs"] = true;
 
     var terminals = ViewBag.InventoryTransportTerminals as IReadOnlyList<InventoryTransportLookupOption> ?? Array.Empty<InventoryTransportLookupOption>();

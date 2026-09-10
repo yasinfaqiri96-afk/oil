@@ -83,10 +83,28 @@
 }
 
 .ak-primary-action,
+/* چرتکه در هر صفحه فقط یک دکمه پررنگ دارد؛ کنش‌های ثانویه لینک آبی بدون قاب‌اند.
+   ‏.btn-light بوت‌استرپ اینجا خنثی می‌شود تا نوار کنش شلوغ به نظر نرسد. */
 .ak-secondary-action {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+}
+
+.ak-page-actions > .ak-secondary-action,
+.ak-page-actions .ak-kebab-toggle {
+    border-color: transparent;
+    background: transparent;
+    color: var(--ptg-primary);
+    box-shadow: none;
+}
+
+.ak-page-actions > .ak-secondary-action:hover,
+.ak-page-actions > .ak-secondary-action:focus-visible,
+.ak-page-actions .ak-kebab-toggle:hover,
+.ak-page-actions .ak-kebab-toggle:focus-visible {
+    background: var(--ptg-primary-soft);
+    color: var(--ptg-primary-dark);
 }
 
 /* ============================================================= *
@@ -152,6 +170,11 @@
     overflow-x: auto;
 }
 
+/* جدول تک‌ردیفی داخل فرم: اسکرول داخلی ندارد، فقط خودِ صفحه اسکرول می‌شود. */
+.ak-table-wrap--flush {
+    overflow: visible;
+}
+
 .ak-table {
     width: 100%;
     border-collapse: collapse;
@@ -162,11 +185,12 @@
     font-size: var(--font-table-head);
     line-height: var(--line-table-head);
     font-weight: var(--weight-table-head);
-    color: var(--ptg-label);
+    color: var(--ptg-table-head-ink);
     background: var(--ptg-table-head-bg);
     text-align: start;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--divider);
+    /* هدر بلندتر از ردیف داده (چرتکه: 52.5px در برابر 45.5px)، با گاتر افقی 10px. */
+    padding: 15px 10px;
+    border-bottom: 1px solid var(--ptg-table-row-line);
     white-space: nowrap;
 }
 
@@ -176,10 +200,11 @@
    that must stay on one line re-assert it right below, at the same weight. */
 .ak-table > tbody > tr > td {
     font-size: var(--font-table-cell);
-    line-height: 20px;
+    line-height: 21px;
     color: var(--ptg-text);
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--divider);
+    /* ارتفاع ردیف 45px مطابق چرتکه: 12 + 21 + 12 = 45. */
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--ptg-table-row-line);
     vertical-align: middle;
     white-space: normal;
 }
@@ -206,11 +231,11 @@
 
 .ak-table > tbody > tr[data-href] {
     cursor: pointer;
-    transition: background-color var(--ptg-motion-fast, 150ms) ease-out;
+    transition: background-color var(--ptg-motion-fast) ease-out;
 }
 
 .ak-table > tbody > tr:hover > td {
-    background: #F7F8FA;
+    background: var(--ptg-table-row-hover);
 }
 
 /* Invisible gutter between the identity/meta group and the value + status +
@@ -242,7 +267,7 @@
    callout with a navy rule and must not be reused for this. */
 .ak-table .ak-cell-note {
     margin-top: 2px;
-    color: var(--ptg-muted, #6b6f7b);
+    color: var(--ptg-muted);
     font-size: 12px;
     line-height: 1.5;
 }
@@ -337,7 +362,7 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
 .ak-check {
     width: 15px;
     height: 15px;
-    accent-color: var(--ptg-input-border, #c9ccd6);
+    accent-color: var(--ptg-input-border);
     cursor: pointer;
     vertical-align: middle;
 }
@@ -375,7 +400,7 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
 
 .ptg-person-avatar > .bi,
 .ptg-list-row-avatar > .bi {
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1;
 }
 
@@ -394,7 +419,7 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
 
 .ptg-person-name {
     min-width: 0;
-    color: var(--ptg-text, #3D3D3D);
+    color: var(--ptg-text);
     font-size: 14px;
     font-weight: 400;
     line-height: 20px;
@@ -405,7 +430,7 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
    (never link-blue, never bold); underline shows on hover/focus only. */
 a.ptg-person-name:hover,
 a.ptg-person-name:focus-visible {
-    color: var(--ptg-text, #3D3D3D);
+    color: var(--ptg-text);
     text-decoration: underline;
 }
 
@@ -417,9 +442,9 @@ a.ptg-person-name:focus-visible {
     width: auto;
     height: 22px;
     padding-inline: 10px;
-    border-radius: var(--radius-pill, 8px);
-    background: var(--primary-lighter, #DCE2F9);
-    color: var(--primary-main, #1062D0);
+    border-radius: var(--radius-pill);
+    background: var(--primary-lighter);
+    color: var(--primary-main);
     font-size: 12px;
     font-weight: 400;
     line-height: 16px;
@@ -456,7 +481,7 @@ a.ptg-person-name:focus-visible {
     line-height: 16px;
     font-weight: 500;
     padding: 4px 10px;
-    border-radius: var(--ptg-radius-badge, 8px);
+    border-radius: var(--ptg-radius-badge);
 }
 
 .ak-status.is-active {
@@ -465,21 +490,21 @@ a.ptg-person-name:focus-visible {
 }
 
 .ak-status.is-inactive {
-    background: var(--ptg-draft-soft, #eceff3);
-    color: var(--ptg-draft-text, #6b7280);
+    background: var(--ptg-draft-soft);
+    color: var(--ptg-draft-text);
 }
 
 /* Phase 3: Neutral accounting flow states for Debit / Credit */
 .ak-status.ak-flow-debit {
-    background: var(--ptg-flow-debit-bg, #EFF6FF);
-    color: var(--ptg-flow-debit-color, #1D4ED8);
-    border: 1px solid var(--ptg-flow-debit-border, #BFDBFE);
+    background: var(--ptg-flow-debit-bg);
+    color: var(--ptg-flow-debit-color);
+    border: 1px solid var(--ptg-flow-debit-border);
 }
 
 .ak-status.ak-flow-credit {
-    background: var(--ptg-flow-credit-bg, #ECFDF5);
-    color: var(--ptg-flow-credit-color, #047857);
-    border: 1px solid var(--ptg-flow-credit-border, #A7F3D0);
+    background: var(--ptg-flow-credit-bg);
+    color: var(--ptg-flow-credit-color);
+    border: 1px solid var(--ptg-flow-credit-border);
 }
 
 /* عدد + کپسول واحد: در سطرهای پرعدد، واحدِ پول/محصول را از رقم جدا و رنگی می‌کند. */
@@ -500,13 +525,13 @@ a.ptg-person-name:focus-visible {
     font-size: .72em;
     font-weight: 700;
     letter-spacing: -.01em;
-    color: var(--ptg-draft-text, #6b7280);
+    color: var(--ptg-draft-text);
 }
 
 .ak-unit--usd { color: var(--ptg-success-text); }
 .ak-unit--rub { color: var(--ptg-info-text); }
 .ak-unit--mt  { color: var(--ptg-warning-text); }
-.ak-unit--muted { color: var(--ptg-draft-text, #6b7280); }
+.ak-unit--muted { color: var(--ptg-draft-text); }
 
 /* Compact key/value list for administrative detail pages. */
 .ak-list {
@@ -553,7 +578,7 @@ a.ak-list-row {
     text-align: start;
     text-decoration: none;
     cursor: pointer;
-    transition: background-color var(--ptg-motion-fast, 140ms) ease-out;
+    transition: background-color var(--ptg-motion-fast) ease-out;
 }
 
 button.ak-list-row:last-child,
@@ -587,7 +612,7 @@ a.ak-list-row:focus-visible {
 
 .ak-list-row > span.ak-field > small {
     color: var(--ptg-muted);
-    font-size: 12.5px;
+    font-size: 12px;
 }
 
 .ak-list-row > span.ak-num {
@@ -598,7 +623,7 @@ a.ak-list-row:focus-visible {
 
 .ak-list-row dt {
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
 }
 
@@ -620,10 +645,10 @@ a.ak-list-row:focus-visible {
     height: 32px;
     border: 0;
     background: transparent;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     color: var(--ptg-muted);
     cursor: pointer;
-    transition: background-color var(--ptg-motion-fast, 150ms) ease-out;
+    transition: background-color var(--ptg-motion-fast) ease-out;
 }
 
 .ak-row-menu-btn:hover,
@@ -648,7 +673,7 @@ a.ak-list-row:focus-visible {
 [data-operations-list] .ak-table > tbody > tr > td .ak-row-menu {
     opacity: 0;
     visibility: hidden;
-    transition: opacity var(--ptg-motion-fast, 150ms) ease-out;
+    transition: opacity var(--ptg-motion-fast) ease-out;
 }
 
 [data-operations-list] .ak-table > tbody > tr:hover > td .ak-row-menu,
@@ -687,7 +712,7 @@ a.ak-list-row:focus-visible {
     overflow: hidden;
     background: #FFFFFF;
     border: 1px solid #E8E9F0;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     box-shadow: none;
     opacity: 0;
     visibility: hidden;
@@ -728,7 +753,7 @@ a.ak-list-row:focus-visible {
     height: 34px;
     padding: 0;
     border: 0;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: transparent;
     color: #42465F;
     cursor: pointer;
@@ -753,7 +778,7 @@ a.ak-list-row:focus-visible {
 /* Delete stays neutral until hovered, then a soft red (never bold/dark). */
 .ak-row-action.is-danger:hover {
     background: rgba(184, 0, 0, 0.06);
-    color: var(--ptg-danger-text, #B80000);
+    color: var(--ptg-danger-text);
 }
 
 /* ============================================================= *
@@ -776,10 +801,10 @@ a.ak-list-row:focus-visible {
     z-index: 5;
     display: flex;
     align-items: center;
-    height: var(--ak-control-height, 40px);
-    min-height: var(--ak-control-height, 42px);
+    height: var(--ak-control-height);
+    min-height: var(--ak-control-height);
     padding-inline: 40px;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: #F2F4FC;
     overflow: hidden;
     opacity: 0;
@@ -800,7 +825,7 @@ a.ak-list-row:focus-visible {
 .ak-selection-count {
     margin-inline-end: 22px;
     color: #5C586C;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 18px;
     white-space: nowrap;
@@ -821,7 +846,7 @@ a.ak-list-row:focus-visible {
     background: transparent;
     color: #5C586C;
     font: inherit;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 400;
     cursor: pointer;
 }
@@ -849,6 +874,23 @@ a.ak-list-row:focus-visible {
     justify-content: flex-end;
 }
 
+/* چرتکه صفحه‌بندی و شمارش نتیجه را *بالای* جدول می‌گذارد، نه پایین آن.
+   با order روی همان markup موجود جابه‌جا می‌شود؛ هیچ ویویی تغییر نمی‌کند. */
+.ak-list > .ak-pager,
+.ak-list-card > .ak-pager {
+    order: -1;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    padding-top: 0;
+    padding-bottom: 12px;
+}
+
+.ak-list > .ak-pager > .ak-list-result-count,
+.ak-list-card > .ak-pager > .ak-list-result-count {
+    margin-inline-start: auto;
+}
+
 /* نوار پایین لیست: انتخابگر تعداد سطر + صفحه‌بندی */
 .ak-pager-bar {
     display: flex;
@@ -871,7 +913,7 @@ a.ak-list-row:focus-visible {
 }
 
 .ak-page-size-label {
-    color: var(--ptg-list-muted, #6B7A90);
+    color: var(--ptg-list-muted);
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
@@ -886,18 +928,38 @@ a.ak-list-row:focus-visible {
     font-weight: 600;
 }
 
-/* Empty state */
+/* Empty state — چرتکه: یک خط خاکستری با آیکون درون‌خطی، بدون بلوک بزرگ. */
 .ak-empty {
-    padding: 48px 12px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px 12px;
     color: var(--ptg-muted);
+    font-size: var(--font-body);
+    line-height: var(--line-body);
 }
 
 .ak-empty i {
-    display: block;
-    font-size: 28px;
-    margin-bottom: 8px;
-    color: var(--ptg-input-border, #c9ccd6);
+    font-size: 16px;
+    color: var(--ptg-light);
+}
+
+.ak-empty-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.ak-empty-sub {
+    color: var(--ptg-light);
+    font-size: var(--font-caption);
+}
+
+/* متن حالت خالی در چرتکه آرام و بدون تأکید است. */
+.ak-empty :is(strong, .ak-empty-title) {
+    font-weight: 400;
 }
 
 @media (max-width: 640px) {
@@ -906,7 +968,7 @@ a.ak-list-row:focus-visible {
     }
 
     .ak-page-title {
-        font-size: 1.125rem;
+        font-size: 16px;
     }
 
     .ak-list-row {
@@ -992,6 +1054,42 @@ a.ak-list-row:focus-visible {
     padding-block: 20px;
 }
 
+/* خلاصهٔ انتهای فرم فروش: فقط دو عدد نهایی، درشت و شاخص. */
+.ak-summary-hero {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, max-content));
+    gap: 12px 40px;
+    margin: 0;
+    padding-block: 4px;
+}
+
+.ak-summary-hero > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ak-summary-hero dt {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ptg-muted);
+}
+
+.ak-summary-hero dd {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--primary-main);
+    font-variant-numeric: tabular-nums;
+}
+
+.ak-summary-hero__unit {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ptg-muted);
+}
+
 .ak-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
@@ -1026,7 +1124,7 @@ a.ak-list-row:focus-visible {
 }
 
 .ak-summary > article.ak-field > strong {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 500;
     line-height: 1.45;
     color: var(--ptg-text);
@@ -1047,6 +1145,14 @@ a.ak-list-row:focus-visible {
 
 .ak-table-total {
     font-weight: 600;
+    background: var(--ptg-surface-subtle, #f7f8fa);
+}
+
+/* ارقام ردیف مجموع باید از ارقام بدنه جدول درشت‌تر و متمایز باشند. */
+.ak-table-total-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ptg-btn-primary);
     background: var(--ptg-surface-subtle, #f7f8fa);
 }
 
@@ -1085,7 +1191,6 @@ a.ak-list-row:focus-visible {
 .ak-section-head {
     margin: 0 0 20px;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--divider);
 }
 
 .ak-section-title {
@@ -1172,7 +1277,7 @@ a.ak-list-row:focus-visible {
     border-inline-start: 3px solid var(--primary-main);
     background: var(--ptg-surface-subtle, #f7f8fa);
     color: var(--ptg-text);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.65;
 }
 
@@ -1189,13 +1294,62 @@ a.ak-list-row:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* دو گزینهٔ نوع تحویل فروش: عرض کمتر، چسبیده به ابتدای ردیف. */
+.ak-choice-grid--compact {
+    grid-template-columns: repeat(2, minmax(0, 14rem));
+    justify-content: start;
+}
+
+/* موجودی مخزن، زیر همان فیلد مخزن: یک خط جمع‌وجور، بدون کارت جدا. */
+.ak-stock-chip {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    margin-block: 6px 0;
+    padding: 2px 8px;
+    border: 1px solid var(--ptg-field-border);
+    border-radius: var(--ptg-radius-sm, 6px);
+    background: var(--ptg-surface-subtle, #f7f8fa);
+    font-size: 12px;
+    color: var(--ptg-muted);
+    width: fit-content;
+}
+
+.ak-stock-chip strong {
+    font-size: 13px;
+    color: var(--ptg-text);
+}
+
+/* هر قلمِ خلاصه (موجودی/ظرفیت/پرشدگی/قابل فروش) با جداکنندهٔ باریک. */
+.ak-stock-chip__item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.ak-stock-chip__item + .ak-stock-chip__item {
+    padding-inline-start: 8px;
+    border-inline-start: 1px solid var(--ptg-field-border);
+}
+
+.ak-stock-chip.is-warning {
+    border-color: #e2c58a;
+    background: #fdf6e6;
+    color: #a56b00;
+}
+
+.ak-stock-chip.is-warning strong {
+    color: #a56b00;
+}
+
 .ak-choice {
     text-decoration: none;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: var(--ak-control-height, 42px);
+    min-height: var(--ak-control-height);
     padding: 8px 12px;
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--ptg-radius-md);
@@ -1208,7 +1362,7 @@ a.ak-list-row:focus-visible {
 }
 
 .ak-choice i {
-    font-size: 15px;
+    font-size: 16px;
     color: var(--ptg-muted);
 }
 
@@ -1235,7 +1389,7 @@ a.ak-list-row:focus-visible {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: var(--ak-control-height, 42px);
+    min-height: var(--ak-control-height);
     padding: 8px 12px;
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--ptg-radius-md);
@@ -1273,7 +1427,7 @@ label.ak-toggle-field {
 
 .ak-input {
     width: 100%;
-    height: var(--ak-control-height, 42px);
+    height: var(--ak-control-height);
     padding: 0 12px;
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--ptg-radius-md);
@@ -1344,7 +1498,7 @@ select.ak-input {
     height: 6px;
     overflow: hidden;
     margin-top: 8px;
-    border-radius: var(--radius-pill, 8px);
+    border-radius: var(--radius-pill);
     background: var(--ptg-surface-subtle, #f0f1f4);
 }
 
@@ -1383,8 +1537,8 @@ select.ak-input {
    و آبیِ روشنِ نوار سهم. جای دیگری استفاده نمی‌شوند. */
 .sf-detail .sf-summary-card {
     --sf-row-icon-size: 34px;
-    --sf-row-icon-bg: var(--ptg-surface-soft, #F2F5FC);
-    --sf-row-icon-fg: var(--ptg-muted, #7B7B7B);
+    --sf-row-icon-bg: var(--ptg-surface-soft);
+    --sf-row-icon-fg: var(--ptg-muted);
     --sf-amount-negative: #E5484D;
     --sf-amount-positive: #2FA84F;
 }
@@ -1413,10 +1567,10 @@ select.ak-input {
     place-items: center;
     inline-size: var(--sf-row-icon-size);
     block-size: var(--sf-row-icon-size);
-    border-radius: var(--ptg-radius-lg, 8px);
+    border-radius: var(--ptg-radius-lg);
     background: var(--sf-row-icon-bg);
     color: var(--sf-row-icon-fg);
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1;
 }
 
@@ -1450,8 +1604,8 @@ select.ak-input {
     margin-inline: -12px;
     padding-inline: 12px;
     border-bottom: 0;
-    border-radius: var(--ptg-radius-lg, 8px);
-    background: var(--ptg-surface-soft, #F2F5FC);
+    border-radius: var(--ptg-radius-lg);
+    background: var(--ptg-surface-soft);
 }
 
 /* ردیف منبع بار یک بلوک تمام‌عرض است (سر ردیف + نوار سهم)، نه یک جفت
@@ -1538,7 +1692,7 @@ select.ak-input {
 }
 
 .ak-toggle-field .form-check-label {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--ptg-text);
     cursor: pointer;
@@ -1581,7 +1735,7 @@ select.ak-input {
 .ak-save {
     width: 84px;
     padding: 6px 12px;
-    border-radius: var(--radius-btn, 8px);
+    border-radius: var(--radius-btn);
     background: #1062D0;
     color: #fff;
 }
@@ -1615,10 +1769,10 @@ select.ak-input {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    min-height: var(--ak-control-height, 40px);
+    min-height: var(--ak-control-height);
     padding: 6px 14px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: var(--ptg-radius-md, 8px);
+    border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
     font: inherit;
@@ -1670,7 +1824,7 @@ select.ak-input {
     min-height: 80px;
     padding: 12px;
     border: 1px dashed var(--ptg-input-border);
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: var(--ptg-surface);
     color: var(--ptg-muted);
     font-size: 14px;
@@ -1698,7 +1852,7 @@ select.ak-input {
     width: 48px;
     height: 48px;
     margin-inline-end: 10px;
-    border-radius: var(--radius-pill, 8px);
+    border-radius: var(--radius-pill);
     object-fit: cover;
 }
 
@@ -1730,7 +1884,7 @@ select.ak-input {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: var(--ak-control-height, 42px);
+    min-height: var(--ak-control-height);
     padding: 8px 0;
     border-bottom: 1px solid var(--divider);
     color: var(--ptg-text);
@@ -1802,7 +1956,7 @@ select.ak-input {
 
 .ak-modal-title {
     margin: 0;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1.3;
     font-weight: 600;
     color: var(--ptg-text);
@@ -1810,7 +1964,7 @@ select.ak-input {
 
 .ak-modal-subtitle {
     margin: 4px 0 0;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
@@ -1918,10 +2072,10 @@ select.ak-input {
 
 .ak-entity-input {
     width: 100%;
-    height: var(--ak-control-height, 42px);
+    height: var(--ak-control-height);
     padding: 0 38px 0 12px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
     font-size: 14px;
@@ -1978,7 +2132,7 @@ select.ak-input {
     border-radius: var(--ak-selection-chip-radius);
     background: var(--ak-selection-chip-bg);
     color: var(--ak-selection-chip-text);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1;
 }
 
@@ -2000,7 +2154,7 @@ select.ak-input {
     border-radius: 3px;
     background: transparent;
     color: var(--ak-selection-chip-remove);
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1;
     cursor: pointer;
 }
@@ -2038,7 +2192,7 @@ select.ak-input {
     width: 100%;
     overflow: hidden;
     border: 1px solid #E7E7E7;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: var(--ptg-surface);
     box-shadow: var(--shadow-dropdown);
     opacity: 0;
@@ -2093,10 +2247,10 @@ select.ak-input {
     width: 38px;
     height: 38px;
     border: 1px solid #E7E7E7;
-    border-radius: var(--radius-pill, 8px);
+    border-radius: var(--radius-pill);
     background: #F5F6FA;
     color: var(--primary-main);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
 }
 
@@ -2142,7 +2296,7 @@ select.ak-input {
     display: flex;
     align-items: center;
     width: 100%;
-    min-height: var(--ak-control-height, 42px);
+    min-height: var(--ak-control-height);
     padding: 8px 12px;
     border: 0;
     border-top: 1px solid #E7E7E7;
@@ -2191,7 +2345,7 @@ select.ak-input {
     overflow-y: auto;
     padding: 6px;
     border: 1px solid #E7E7E7;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: var(--ptg-surface);
     box-shadow: var(--shadow-dropdown);
 }
@@ -2207,7 +2361,7 @@ select.ak-input {
     gap: 8px;
     min-height: 38px;
     padding: 7px 9px;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     color: var(--ptg-text);
     font-size: 14px;
     cursor: pointer;
@@ -2253,7 +2407,7 @@ select.ak-input {
 [data-loading-date-overlay] .loading-date-picker {
     width: min(316px, 100%);
     overflow: hidden;
-    border-radius: var(--radius-btn, 8px);
+    border-radius: var(--radius-btn);
     background: var(--ptg-surface);
     box-shadow: var(--shadow-dialog);
 }
@@ -2340,7 +2494,7 @@ select.ak-input {
 .loading-date-day {
     width: 40px;
     height: 40px;
-    border-radius: var(--radius-pill, 8px);
+    border-radius: var(--radius-pill);
     color: var(--ptg-text);
 }
 
@@ -2358,7 +2512,7 @@ select.ak-input {
 
 .loading-date-year-option {
     min-height: 44px;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
 }
 
 [data-loading-logistics-pair] {
@@ -2491,17 +2645,8 @@ select.ak-input {
 
 /* ============================================================= *
  * Party profile pages (Suppliers/Customers/Sarrafs/… Details)
- * Flat, account-first. No hero, no avatar card{
-    margin-top: 8px;
-}
-
-.ak-party-page > section.ak-form-section,
-.ak-party-page .ptg-tabs-rail ~ section.ak-form-section {
-    margin-top: 20px;
-}
-
-/* Flat finance summary — replaces decorative KPI/metric cards.
-   Real numbers only, LTR tabular, no colored card, no fake sparkline. */
+ * Flat, account-first. No hero, no avatar card
+ * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 .ak-summary-list {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -2514,12 +2659,12 @@ select.ak-input {
     flex-direction: column;
     gap: 2px;
     padding: 10px 0;
-    border-bottom: 1px solid var(--divider, #ececf1);
+    border-bottom: 1px solid var(--divider);
 }
 
 .ak-summary-list dt {
     font-size: 12px;
-    color: var(--ptg-muted, #6b6f7b);
+    color: var(--ptg-muted);
     font-weight: 400;
 }
 
@@ -2543,36 +2688,34 @@ select.ak-input {
     flex-direction: column;
     gap: 6px;
     padding: 16px;
-    border: 1px solid var(--divider, #ececf1);
-    border-radius: var(--radius-base, 8px);
-    background: var(--ptg-surface, #fff);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-base);
+    background: var(--ptg-surface);
     text-decoration: none;
     color: inherit;
     transition: border-color 140ms ease, background 140ms ease;
 }
 
 .ak-hub-tile:hover {
-    border-color: var(--primary-main, #1062D0);
-    background: var(--ptg-surface-soft, #f7f8fb);
+    border-color: var(--primary-main);
+    background: var(--ptg-surface-soft);
 }
 
 .ak-hub-tile-title {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 500;
-    color: var(--ptg-text, #3D3D3D);
+    color: var(--ptg-text);
 }
 
 .ak-hub-tile-desc {
     font-size: 12px;
-    color: var(--ptg-muted, #6b6f7b);
+    color: var(--ptg-muted);
     line-height: 1.6;
 }
 
-/* Reports overview — flat Akaunting-like report directory. */
-.controller-reports.action-index .boltz-content-body {
-    background: #F5F6FA;
-}
-
+/* Reports overview — flat Akaunting-like report directory.
+   The page surface itself is owned by 72-surfaces.css; this page must not
+   repaint it. */
 .ak-reports-page {
     inline-size: 100%;
     max-inline-size: 100%;
@@ -2589,7 +2732,7 @@ select.ak-input {
 .ak-reports-title {
     margin: 0;
     color: #252a30;
-    font-size: var(--font-h1, 36px);
+    font-size: var(--font-h1);
     font-weight: var(--fw-h1, 300);
     line-height: var(--lh-h1, 40px);
 }
@@ -2652,7 +2795,7 @@ select.ak-input {
     display: block;
     overflow: hidden;
     color: #252a30;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 500;
     line-height: 22px;
     margin-block-end: 5px;
@@ -2664,7 +2807,7 @@ select.ak-input {
     display: -webkit-box;
     overflow: hidden;
     color: #8a8d98;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 20px;
     -webkit-box-orient: vertical;
@@ -2716,13 +2859,13 @@ select.ak-input {
 
 /* Nested payment lines under a contract row — quiet, indented. */
 .ak-table tr.ak-subrow > td {
-    background: var(--ptg-surface-soft, #f7f8fb);
-    color: var(--ptg-muted, #6b6f7b);
-    font-size: 13px;
+    background: var(--ptg-surface-soft);
+    color: var(--ptg-muted);
+    font-size: 14px;
 }
 
 .ak-table tr.ak-row-muted > td {
-    color: var(--ptg-muted, #9aa0ab);
+    color: var(--ptg-muted);
 }
 
 /* =============================================================
@@ -2821,7 +2964,7 @@ select.ak-input {
     padding-inline: var(--ak-segment-padding-inline);
     background: var(--ak-segment-off-bg);
     color: var(--ak-segment-off-text);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1;
     white-space: nowrap;
@@ -3025,7 +3168,7 @@ select.ak-input {
     width: 32px;
     height: 32px;
     border: 0;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: transparent;
     color: var(--ptg-muted);
     cursor: pointer;
@@ -3069,11 +3212,11 @@ select.ak-input {
     width: 100%;
     aspect-ratio: 1;
     border: 0;
-    border-radius: var(--radius-pill, 8px);
+    border-radius: var(--radius-pill);
     background: transparent;
     color: var(--ak-date-day-text);
     font: inherit;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     transition: background-color 110ms ease, color 110ms ease;
 }
@@ -3100,11 +3243,11 @@ select.ak-input {
 .ak-date-year {
     padding: 9px 0;
     border: 0;
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: transparent;
     color: var(--ak-date-day-text);
     font: inherit;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     transition: background-color 110ms ease, color 110ms ease;
 }
@@ -3125,7 +3268,6 @@ select.ak-input {
 
 .ak-group-operation-page {
     --ak-form-content-wide-max: var(--layout-content-max);
-    --ak-form-page-gutter: 0px;
 }
 
 .ak-group-operation-page:has(> form.ak-form) > form.ak-form,
@@ -3145,8 +3287,8 @@ select.ak-input {
 .ak-group-wizard-page > form.ak-form {
     overflow: hidden;
     border: 1px solid var(--divider);
-    border-radius: var(--radius-btn, 8px);
-    background: var(--background-paper, #fff);
+    border-radius: var(--radius-btn);
+    background: var(--background-paper);
 }
 
 .ak-group-wizard-page > form.ak-form > :is(.ak-page-header, .ptg-wizard-steps, [data-step-panel], footer) {
@@ -3190,16 +3332,16 @@ select.ak-input {
 .ak-group-wizard-main > .ak-form-section {
     padding: 18px;
     border: 1px solid var(--divider);
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: #fff;
 }
 
 .ak-group-wizard-summary {
     position: sticky;
-    top: calc(var(--ptg-topbar-height, 64px) + 16px);
+    top: calc(var(--ptg-topbar-height) + 16px);
     padding: 16px;
     border: 1px solid var(--divider);
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: #fff;
 }
 
@@ -3220,7 +3362,7 @@ select.ak-input {
 }
 
 .ak-group-wizard-summary .ak-list-row strong {
-    color: var(--ptg-primary, #1976d2);
+    color: var(--ptg-primary);
 }
 
 .ak-group-wizard-page > form.ak-form > footer.ak-form-section {
@@ -3248,12 +3390,9 @@ select.ak-input {
 }
 
 @media (max-width: 575.98px) {
-    .ak-group-operation-page {
-        --ak-form-page-gutter: 8px;
-    }
 
     .ak-group-wizard-page > form.ak-form {
-        border-radius: var(--radius-base, 8px);
+        border-radius: var(--radius-base);
     }
 
     .ak-group-wizard-page > form.ak-form > .ak-page-header,
@@ -3328,7 +3467,7 @@ select.ak-input {
 [data-sales-create-form] [data-sales-line-items]:has([data-sales-product]:focus),
 [data-sales-create-form] [data-sales-line-items]:has(.ak-entity-combobox[data-open="true"]) {
     position: relative;
-    z-index: var(--ptg-z-dropdown, 1000);
+    z-index: var(--ptg-z-dropdown);
     overflow: visible;
 }
 
@@ -3343,7 +3482,6 @@ select.ak-input {
 /* Page shell: the wide PageFrame is the table canvas. */
 .ak-form-page:has(> form[data-loading-create-form]) {
     --ak-form-content-wide-max: var(--layout-content-max);
-    --ak-form-page-gutter: 0px;
 }
 
 .ak-form-page:has(> form[data-loading-create-form]) > form.ak-form,
@@ -3362,14 +3500,14 @@ select.ak-input {
     gap: 6px;
     margin: 0 0 16px;
     padding: 6px 10px;
-    border-radius: var(--ptg-radius-md, 8px);
-    font-size: 12.5px;
+    border-radius: var(--ptg-radius-md);
+    font-size: 12px;
     line-height: 1.35;
 }
 
 .loading-import-workbook .loading-pricing-notice > i {
     flex: none;
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .loading-import-workbook .loading-pricing-notice > strong {
@@ -3404,7 +3542,7 @@ select.ak-input {
     align-items: center;
     width: fit-content;
     max-width: 100%;
-    height: var(--ak-control-height, 42px);
+    height: var(--ak-control-height);
     margin: 0;
     padding-block: 0;
     padding-inline-end: 12px;
@@ -3454,8 +3592,8 @@ select.ak-input {
     min-width: 0;
     height: 36px;
     padding: 0 8px;
-    border-radius: var(--ptg-radius-sm, 6px);
-    font-size: 13px;
+    border-radius: var(--ptg-radius-sm);
+    font-size: 14px;
 }
 
 .loading-import-workbook .ak-table td [data-loading-logistics-pair] {
@@ -3543,10 +3681,10 @@ select.ak-input {
 
 /* Soft error state for a preview row (client-side heuristic only). */
 .loading-import-workbook .ak-table > tbody > tr.lic-row-error > td {
-    background: var(--ptg-danger-soft, #FEF4F4);
+    background: var(--ptg-danger-soft);
 }
 .loading-import-workbook .ak-table > tbody > tr.lic-row-error > td:first-child {
-    box-shadow: inset 3px 0 0 var(--ptg-danger-text, #C0392B);
+    box-shadow: inset 3px 0 0 var(--ptg-danger-text);
 }
 
 /* Rows filtered out / off the current preview page. */
@@ -3569,7 +3707,7 @@ select.ak-input {
     gap: 16px;
     /* counts stay at the start; actions and filters travel together at the end */
     margin-inline-end: auto;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--ptg-muted);
 }
 
@@ -3591,7 +3729,7 @@ select.ak-input {
 }
 
 .loading-import-workbook .lic-count-err strong {
-    color: var(--ptg-danger-text, #C0392B);
+    color: var(--ptg-danger-text);
 }
 
 .loading-import-workbook .lic-toolbar-controls {
@@ -3606,16 +3744,16 @@ select.ak-input {
     margin: 0 0 12px;
     padding: 8px 12px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: #F7F8FA;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--ptg-text);
 }
 
 .loading-import-workbook .lic-import-note.is-error {
-    border-color: var(--ptg-danger-text, #C0392B);
-    background: var(--ptg-danger-soft, #FEF4F4);
-    color: var(--ptg-danger-text, #C0392B);
+    border-color: var(--ptg-danger-text);
+    background: var(--ptg-danger-soft);
+    color: var(--ptg-danger-text);
 }
 
 .loading-import-workbook .lic-import-note.is-clickable {
@@ -3624,8 +3762,8 @@ select.ak-input {
 
 /* Field that came from Excel with a problem: same error border as the rest of the form. */
 .loading-import-workbook .ak-table .lic-input-error {
-    border-color: var(--ptg-danger-text, #C0392B);
-    background: var(--ptg-danger-soft, #FEF4F4);
+    border-color: var(--ptg-danger-text);
+    background: var(--ptg-danger-soft);
 }
 
 /* Same height/radius as .ak-btn so the whole toolbar row sits on one baseline. */
@@ -3635,10 +3773,10 @@ select.ak-input {
     height: 36px;
     padding: 0 10px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: var(--ptg-radius-md, 8px);
+    border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 13.5px;
+    font-size: 14px;
 }
 
 .loading-import-workbook .lic-search {
@@ -3660,7 +3798,7 @@ select.ak-input {
     justify-content: center;
     gap: 14px;
     margin-top: 14px;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--ptg-muted);
 }
 
@@ -3672,10 +3810,10 @@ select.ak-input {
     height: 34px;
     padding: 0 14px;
     border: 1px solid var(--ptg-field-border);
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
 }
 
@@ -3696,14 +3834,14 @@ select.ak-input {
     margin-bottom: 12px;
     padding: 12px 14px;
     border: 1px solid color-mix(in srgb, var(--primary-main) 28%, var(--divider));
-    border-radius: var(--ptg-radius-md, 8px);
+    border-radius: var(--ptg-radius-md);
     background: color-mix(in srgb, var(--primary-main) 7%, var(--ptg-surface));
     color: var(--ptg-text);
 }
 
 .loading-import-workbook .loading-operation-status.is-error {
-    border-color: color-mix(in srgb, var(--error-main, #dc3545) 45%, var(--divider));
-    background: color-mix(in srgb, var(--error-main, #dc3545) 8%, var(--ptg-surface));
+    border-color: color-mix(in srgb, var(--error-main) 45%, var(--divider));
+    background: color-mix(in srgb, var(--error-main) 8%, var(--ptg-surface));
 }
 
 .loading-import-workbook .loading-operation-status > div {
@@ -3713,7 +3851,7 @@ select.ak-input {
 
 .loading-import-workbook .loading-operation-status span:not(.spinner-border) {
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 /* ---- Sticky action footer. ---- */
@@ -3730,7 +3868,7 @@ select.ak-input {
 
 .loading-import-workbook .lic-footer-count {
     margin-inline-end: auto;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--ptg-muted);
 }
 
@@ -3740,7 +3878,7 @@ select.ak-input {
 }
 
 .loading-import-workbook .lic-footer-count .lic-count-err strong {
-    color: var(--ptg-danger-text, #C0392B);
+    color: var(--ptg-danger-text);
 }
 
 @media (max-width: 640px) {
@@ -3788,8 +3926,8 @@ select.ak-input {
 [data-inv-transport-form] [data-vehicle-table] td .ak-input {
     height: 38px;
     padding: 0 10px;
-    border-radius: var(--radius-base, 8px);
-    font-size: 13px;
+    border-radius: var(--radius-base);
+    font-size: 14px;
     min-width: 118px;
 }
 
@@ -3848,7 +3986,7 @@ select.ak-input {
     top: 0;
     z-index: 1;
     background: var(--ptg-surface-subtle, #FAFAFC);
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -3872,16 +4010,16 @@ select.ak-input {
     width: fit-content;
     max-width: 100%;
     overflow-x: auto;
-    border: 1px solid var(--ptg-border, #E2E8F0);
-    border-radius: var(--radius-base, 8px);
+    border: 1px solid var(--ptg-border);
+    border-radius: var(--radius-base);
     background: var(--ptg-surface-subtle, #F8FAFC);
 }
 
 .ak-list-state-nav a {
     padding: 7px 12px;
-    border-radius: var(--radius-base, 8px);
-    color: var(--ptg-text-muted, #64748B);
-    font-size: 13px;
+    border-radius: var(--radius-base);
+    color: var(--ptg-text-muted);
+    font-size: 14px;
     font-weight: 600;
     text-decoration: none;
     white-space: nowrap;
@@ -3889,9 +4027,9 @@ select.ak-input {
 
 .ak-list-state-nav a:is(:hover, :focus-visible),
 .ak-list-state-nav a.is-active {
-    color: var(--ptg-primary, #C2410C);
-    background: var(--ptg-surface, #FFFFFF);
-    box-shadow: 0 0 0 1px var(--ptg-border, #E2E8F0);
+    color: var(--ptg-primary);
+    background: var(--ptg-surface);
+    box-shadow: 0 0 0 1px var(--ptg-border);
 }
 
 /* انتخاب منبع در «ثبت حمل»: این سه گزینه نقش دکمهٔ اصلی فرم را دارند، پس کمی پایین‌تر
@@ -3921,10 +4059,10 @@ select.ak-input {
     gap: 10px;
     min-height: 60px;
     padding: 14px 18px;
-    border: 1px solid var(--ptg-border, #E2E8F0);
-    border-radius: var(--radius-btn, 8px);
-    background: var(--ptg-surface, #FFFFFF);
-    color: var(--ptg-text, #1E293B);
+    border: 1px solid var(--ptg-border);
+    border-radius: var(--radius-btn);
+    background: var(--ptg-surface);
+    color: var(--ptg-text);
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
@@ -3935,14 +4073,14 @@ select.ak-input {
 }
 
 .ak-segmented-option input:checked + span {
-    border-color: var(--ptg-primary, #C2410C);
-    box-shadow: 0 0 0 1px var(--ptg-primary, #C2410C);
-    color: var(--ptg-primary, #C2410C);
-    background: var(--ptg-primary-soft, #FFF7ED);
+    border-color: var(--ptg-primary);
+    box-shadow: 0 0 0 1px var(--ptg-primary);
+    color: var(--ptg-primary);
+    background: var(--ptg-primary-soft);
 }
 
 .ak-segmented-option input:focus-visible + span {
-    outline: 2px solid var(--ptg-primary, #C2410C);
+    outline: 2px solid var(--ptg-primary);
     outline-offset: 2px;
 }
 
@@ -4019,23 +4157,23 @@ select.ak-input {
     justify-content: center;
     width: 30px;
     height: 30px;
-    border-radius: var(--ptg-radius-sm, 6px);
+    border-radius: var(--ptg-radius-sm);
     background: var(--ptg-surface-subtle, #f7f8fa);
     color: var(--ptg-muted);
-    font-size: 15px;
+    font-size: 16px;
     transition: background-color 150ms ease, color 150ms ease;
 }
 
 .ak-alloc-method-body > strong {
     color: var(--ptg-text);
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.3;
 }
 
 .ak-alloc-method-body > small {
     color: var(--ptg-muted);
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 1.4;
 }
 
@@ -4103,7 +4241,7 @@ select.ak-input {
 }
 
 .ak-manual-import-status.is-error {
-    color: var(--error-main, #d32f2f);
+    color: var(--error-main);
 }
 
 /* Added-expenses bar in the group expense wizard (step 2). */

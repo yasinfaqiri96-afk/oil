@@ -170,7 +170,7 @@ body.boltz-shell.app-shell-authenticated .summary-tile {
 }
 
 body.boltz-shell.app-shell-authenticated .summary-tile-label {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 300;
     color: var(--ptg-muted);
 }
@@ -260,8 +260,8 @@ body.boltz-shell.app-shell-authenticated :is(.form-control, .form-select),
 body.ptg-modal-document :is(.form-control, .form-select) {
     /* هم‌ارتفاع با .ak-input؛ بدون این، فرم‌هایی که هر دو کلاس را کنار هم دارند
        اختلاف ارتفاع می‌گرفتند. textarea از همان قاعدهٔ ak مستثنا می‌ماند. */
-    min-height: var(--ak-control-height, 42px);
-    background-color: var(--ptg-field-bg, #FFFFFF);
+    min-height: var(--ak-control-height);
+    background-color: var(--ptg-field-bg);
     border: 1px solid var(--ptg-input-border);
     border-radius: var(--ptg-radius-input);
     color: var(--ptg-text);
@@ -286,7 +286,7 @@ body.ptg-modal-document :is(.form-control, .form-select)::placeholder {
 
 body.boltz-shell.app-shell-authenticated :is(.form-control, .form-select):disabled,
 body.ptg-modal-document :is(.form-control, .form-select):disabled {
-    background-color: var(--ptg-field-muted-bg, #F2F2F4);
+    background-color: var(--ptg-field-muted-bg);
     color: var(--ptg-muted);
 }
 
@@ -307,7 +307,7 @@ body.ptg-modal-document :is(.form-label, label.control-label) {
 body.boltz-shell.app-shell-authenticated :is(.field-validation-error, .text-danger),
 body.ptg-modal-document :is(.field-validation-error, .text-danger) {
     color: var(--ptg-danger) !important;
-    font-size: 13px;
+    font-size: 14px;
 }
 
 /* ============================================================= *
@@ -331,11 +331,6 @@ body.ptg-modal-document .table {
  * with !important) overrode the canonical skin and forced every rail back to
  * a 500 weight. Do not restyle tabs from this layer.
  * ============================================================= */
-
-body.boltz-shell.app-shell-authenticated,
-body.ptg-modal-document {
-    --ptg-list-toolbar-bg: transparent;
-}
 
 body.boltz-shell.app-shell-authenticated :is(.badge, .status-badge):is(.bg-success, .text-bg-success, .badge-success, .is-success),
 body.ptg-modal-document :is(.badge, .status-badge):is(.bg-success, .text-bg-success, .badge-success, .is-success) {
@@ -407,7 +402,7 @@ body.ptg-modal-document .dropdown-item:is(:hover, :focus, .active) {
 body.boltz-shell.app-shell-authenticated .tooltip .tooltip-inner {
     padding: 4px 8px;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 14px;
     background: var(--background-paper);
     color: var(--ptg-text);
     border: 1px solid var(--divider);
@@ -516,7 +511,7 @@ body.boltz-shell.app-shell-authenticated .ref-dashboard .ref-kpi-label {
    options. At rest the bar keeps 20; while the popover is open the host joins
    the dropdown tier and drops back the moment it closes. */
 .ak-filter-host:has(.ak-filter-popover:not([hidden])) {
-    z-index: var(--ptg-z-dropdown, 1000);
+    z-index: var(--ptg-z-dropdown);
 }
 
 .ak-filter {
@@ -578,7 +573,7 @@ html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
     background: transparent;
     border: 0;
     border-radius: 8px;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 400;
     line-height: 1;
     text-align: center;
@@ -637,7 +632,7 @@ html[dir="rtl"] .ak-filter-input { padding: 12px 118px 0 0; }
     border: 0;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1;
 }
 html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 84px; }
@@ -715,7 +710,7 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
     border: 0;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1;
 }
 html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }

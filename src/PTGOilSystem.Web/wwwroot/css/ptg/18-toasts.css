@@ -7,7 +7,7 @@
 /* ---------- Toast host (top-center, away from sidebar/edges) ---------- */
 .ptg-toast-host {
     position: fixed;
-    top: calc(var(--ptg-topbar-height, 4rem) + 1rem);
+    top: calc(var(--ptg-topbar-height) + 1rem);
     left: 50%;
     right: auto;
     transform: translateX(-50%);
@@ -29,9 +29,9 @@
     align-items: center;
     gap: .85rem;
     padding: .95rem 1.05rem;
-    background: var(--ptg-text, #202331); /* fallback; per-type colors below */
+    background: var(--ptg-text); /* fallback; per-type colors below */
     border: 0;
-    border-radius: var(--ptg-radius-md, 8px);
+    border-radius: var(--ptg-radius-md);
     box-shadow: var(--shadow-dialog);
     color: #fff;
     pointer-events: auto;
@@ -42,7 +42,7 @@
        بقیهٔ نرم‌افزار یک ریتم داشته باشد. fallbackها برای حالتی است که این
        فایل بدون 40-motion لود شود. */
     transition-property: opacity, transform, margin, max-height;
-    transition-duration: var(--ptg-motion-enter, 200ms);
+    transition-duration: var(--ptg-motion-enter);
     transition-timing-function: var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
@@ -60,7 +60,7 @@
     padding-bottom: 0;
     /* خروج کوتاه‌تر از ورود: پیام باید سریع راه را باز کند، نه با ناز برود.
        ۱۵۰ms خیلی زیر safety-net چهارصد میلی‌ثانیه‌ای ptg-toasts.js است. */
-    transition-duration: var(--ptg-motion-base, 150ms);
+    transition-duration: var(--ptg-motion-base);
 }
 
 .ptg-toast__icon {
@@ -86,14 +86,14 @@
 }
 
 .ptg-toast__title {
-    font-size: .92rem;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1.3;
     color: #fff;
 }
 
 .ptg-toast__message {
-    font-size: .84rem;
+    font-size: 14px;
     line-height: 1.5;
     color: rgba(255, 255, 255, .92);
     word-break: break-word;
@@ -106,11 +106,11 @@
     color: rgba(255, 255, 255, .8);
     cursor: pointer;
     padding: .2rem;
-    font-size: .8rem;
+    font-size: 12px;
     line-height: 1;
     border-radius: 8px;
     transition-property: color, background;
-    transition-duration: var(--ptg-motion-fast, 120ms);
+    transition-duration: var(--ptg-motion-fast);
     transition-timing-function: var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
@@ -142,12 +142,12 @@
 }
 
 /* ---------- Type colors (solid filled background, white content) ---------- */
-.ptg-toast--success { background: var(--ptg-success, #25C07A); }
-.ptg-toast--error   { background: var(--ptg-danger, #FF4D57); }
-.ptg-toast--info    { background: var(--ptg-accent-blue, #55C3F1); }
+.ptg-toast--success { background: var(--ptg-success); }
+.ptg-toast--error   { background: var(--ptg-danger); }
+.ptg-toast--info    { background: var(--ptg-accent-blue); }
 
 /* Warning amber is light -> use dark content for readable contrast */
-.ptg-toast--warning { background: var(--ptg-warning, #F7B340); color: #2a1d00; }
+.ptg-toast--warning { background: var(--ptg-warning); color: #2a1d00; }
 .ptg-toast--warning .ptg-toast__icon { background: rgba(0, 0, 0, .14); color: #2a1d00; }
 .ptg-toast--warning .ptg-toast__title { color: #2a1d00; }
 .ptg-toast--warning .ptg-toast__message { color: rgba(42, 29, 0, .85); }
@@ -174,7 +174,7 @@
     background: rgba(32, 35, 49, .42);
     backdrop-filter: blur(2px);
     opacity: 0;
-    transition: opacity var(--ptg-motion-base, 150ms) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
+    transition: opacity var(--ptg-motion-base) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .ptg-confirm.is-open .ptg-confirm__backdrop { opacity: 1; }
@@ -182,9 +182,9 @@
 .ptg-confirm__panel {
     position: relative;
     width: min(380px, calc(100dvi - 2rem));
-    background: var(--ptg-surface, #fff);
-    border: 1px solid var(--ptg-border, #ECECF2);
-    border-radius: var(--ptg-radius-lg, 8px);
+    background: var(--ptg-surface);
+    border: 1px solid var(--ptg-border);
+    border-radius: var(--ptg-radius-lg);
     box-shadow: var(--ptg-shadow-soft, 0 24px 60px rgba(32, 35, 49, .18));
     padding: 1.4rem 1.25rem 1.1rem;
     text-align: center;
@@ -193,8 +193,8 @@
        ptg-toasts.js با همان عدد پنل را hidden می‌کند. */
     transform: translateY(4px) scale(.985);
     opacity: 0;
-    transition: transform var(--ptg-motion-base, 150ms) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1)),
-                opacity var(--ptg-motion-base, 150ms) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
+    transition: transform var(--ptg-motion-base) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1)),
+                opacity var(--ptg-motion-base) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .ptg-confirm.is-open .ptg-confirm__panel {
@@ -211,21 +211,21 @@
     border-radius: 50%;
     font-size: 1.25rem;
     background: var(--ptg-danger-soft, rgba(255, 77, 87, .12));
-    color: var(--ptg-danger, #FF4D57);
+    color: var(--ptg-danger);
     margin-bottom: .6rem;
 }
 
 .ptg-confirm__title {
-    font-size: .98rem;
+    font-size: 16px;
     font-weight: 700;
     margin: 0 0 .35rem;
-    color: var(--ptg-text, #202331);
+    color: var(--ptg-text);
 }
 
 .ptg-confirm__message {
-    font-size: .82rem;
+    font-size: 14px;
     line-height: 1.6;
-    color: var(--ptg-muted, #8F91A5);
+    color: var(--ptg-muted);
     margin: 0 0 1.1rem;
 }
 
@@ -238,26 +238,26 @@
 .ptg-confirm__btn {
     flex: 1 1 0;
     border: 0;
-    border-radius: var(--ptg-radius-button, 8px);
+    border-radius: var(--ptg-radius-button);
     padding: .55rem .9rem;
-    font-size: .82rem;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition-property: filter, background;
-    transition-duration: var(--ptg-motion-fast, 120ms);
+    transition-duration: var(--ptg-motion-fast);
     transition-timing-function: var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .ptg-confirm__btn--ghost {
-    background: var(--ptg-soft-section, #F7F8FB);
-    color: var(--ptg-text, #202331);
-    border: 1px solid var(--ptg-border, #ECECF2);
+    background: var(--ptg-soft-section);
+    color: var(--ptg-text);
+    border: 1px solid var(--ptg-border);
 }
 
-.ptg-confirm__btn--ghost:hover { background: var(--ptg-border, #ECECF2); }
+.ptg-confirm__btn--ghost:hover { background: var(--ptg-border); }
 
 .ptg-confirm__btn--danger {
-    background: var(--ptg-danger, #FF4D57);
+    background: var(--ptg-danger);
     color: #fff;
 }
 

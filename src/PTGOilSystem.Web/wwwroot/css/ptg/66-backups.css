@@ -68,7 +68,7 @@
     align-self: flex-start;
     padding: 3px 10px;
     border-radius: 8px;
-    font-size: .75rem;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1.6;
     white-space: nowrap;
@@ -173,7 +173,7 @@
 
 .bk-page .bk-panel-head h2 {
     margin: 0;
-    font-size: .9375rem;
+    font-size: 16px;
     font-weight: 600;
 }
 
@@ -209,7 +209,7 @@
 }
 
 .bk-page .bk-table > thead > tr > th {
-    font-size: .75rem;
+    font-size: 12px;
     font-weight: 600;
     color: var(--bk-muted);
     background: #fafbfd;
@@ -219,7 +219,7 @@
 
 .bk-page .bk-table > tbody > tr > td {
     padding: 10px 14px;
-    font-size: .8125rem;
+    font-size: 14px;
     border-bottom: 1px solid #f1f3f6;
     vertical-align: middle;
 }
@@ -258,7 +258,7 @@
     gap: 8px;
     padding: 28px 12px;
     color: var(--bk-muted);
-    font-size: .8125rem;
+    font-size: 14px;
     white-space: normal;
 }
 
@@ -281,7 +281,7 @@
     background: var(--bk-surface);
     box-shadow: none;
     font-weight: 600;
-    font-size: .9375rem;
+    font-size: 16px;
     padding: 14px 16px;
     display: flex;
     align-items: center;
@@ -323,7 +323,7 @@
 .bk-page .bk-field--full { grid-column: 1 / -1; }
 
 .bk-page .bk-label {
-    font-size: .8125rem;
+    font-size: 14px;
     font-weight: 500;
     color: var(--bk-muted);
 }
@@ -333,7 +333,7 @@
     border: 1px solid var(--bk-border);
     border-radius: 8px;
     padding: 8px 12px;
-    font-size: .875rem;
+    font-size: 14px;
     background: #fff;
     color: var(--bk-text);
 }
@@ -353,7 +353,7 @@
     border-radius: 8px;
     padding: 10px 14px;
     margin: 0;
-    font-size: .875rem;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
 }
@@ -368,7 +368,7 @@
 
 .bk-page .bk-alert {
     border-radius: 8px;
-    font-size: .8125rem;
+    font-size: 14px;
     padding: 10px 14px;
 }
 
@@ -383,7 +383,7 @@
 }
 
 .bk-page .bk-facts dt {
-    font-size: .75rem;
+    font-size: 12px;
     font-weight: 500;
     color: var(--bk-muted);
     margin-bottom: 4px;
@@ -391,14 +391,14 @@
 
 .bk-page .bk-facts dd {
     margin: 0;
-    font-size: .875rem;
+    font-size: 14px;
     font-weight: 500;
     overflow-wrap: anywhere;
 }
 
 /* ---- Error modal ---- */
 #backup-error-modal .bk-error-subject {
-    font-size: .8125rem;
+    font-size: 14px;
     color: #6b7787;
     margin-bottom: 10px;
     overflow-wrap: anywhere;
@@ -409,7 +409,7 @@
     border: 1px solid #e6eaf0;
     border-radius: 8px;
     padding: 12px 14px;
-    font-size: .8125rem;
+    font-size: 14px;
     line-height: 1.7;
     white-space: pre-wrap;
     overflow-wrap: anywhere;

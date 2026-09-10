@@ -187,6 +187,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("InventoryLossAccountId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("PartnerCurrentAccountId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("RetainedEarningsAccountId")
                         .HasColumnType("integer");
 
@@ -258,6 +261,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("InventoryInTransitAccountId");
 
                     b.HasIndex("InventoryLossAccountId");
+
+                    b.HasIndex("PartnerCurrentAccountId");
 
                     b.HasIndex("RetainedEarningsAccountId");
 
@@ -1420,6 +1425,9 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<int?>("OwnerPartnerId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SearchKey")
                         .HasMaxLength(600)
                         .HasColumnType("character varying(600)");
@@ -1438,6 +1446,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("IsSystemOwner")
                         .IsUnique()
                         .HasFilter("\"IsSystemOwner\" = true");
+
+                    b.HasIndex("OwnerPartnerId");
 
                     b.HasIndex("SearchKey");
 
@@ -8606,6 +8616,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "PartnerCurrentAccount")
+                        .WithMany()
+                        .HasForeignKey("PartnerCurrentAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "RetainedEarningsAccount")
                         .WithMany()
                         .HasForeignKey("RetainedEarningsAccountId")
@@ -8671,6 +8686,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("InventoryInTransitAccount");
 
                     b.Navigation("InventoryLossAccount");
+
+                    b.Navigation("PartnerCurrentAccount");
 
                     b.Navigation("RetainedEarningsAccount");
 
@@ -8947,6 +8964,16 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Company", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Partner", "OwnerPartner")
+                        .WithMany()
+                        .HasForeignKey("OwnerPartnerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("OwnerPartner");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Contract", b =>

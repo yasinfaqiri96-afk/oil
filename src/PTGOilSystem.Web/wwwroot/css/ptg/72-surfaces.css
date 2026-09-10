@@ -86,9 +86,9 @@ body.boltz-shell.app-shell-authenticated .modal .ptg-form-section {
 
 body.boltz-shell.app-shell-authenticated .ptg-page-frame,
 body.ptg-modal-document .ptg-modal-body-shell {
-    padding: var(--ptg-page-surface-padding, 24px);
-    border-radius: var(--ptg-page-surface-radius, 8px);
-    background: var(--background-paper, #FFFFFF);
+    padding: var(--ptg-page-surface-padding);
+    border-radius: var(--ptg-page-surface-radius);
+    background: var(--background-paper);
 }
 
 /* A modal document fills its own window, so its surface has no canvas around it
@@ -102,7 +102,16 @@ body.ptg-modal-document .ptg-modal-body-shell {
 body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-content-body:has(#roznamchaForm) {
     padding: 0 clamp(12px, 1.6vw, 28px);
     border-radius: 0;
-    background: var(--ptg-bg, #F5F6FA);
+    background: var(--ptg-bg);
+}
+
+/* Phones give the gutter back to the form (moved here from
+   61-finance-workspace.css: this file loads last and owns the surface box, so
+   the override has to live next to the rule it overrides). */
+@media (max-width: 767.98px) {
+    body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-content-body:has(#roznamchaForm) {
+        padding: 0 8px;
+    }
 }
 
 /* Phones give the gutter back to the content: the surface keeps its colour but

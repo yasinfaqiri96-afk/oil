@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -119,24 +120,52 @@ public class CompaniesController : Controller
     {
         var item = await _db.Companies.FirstOrDefaultAsync(x => x.Id == id);
         if (item == null) return NotFound();
+        await PopulateOwnerPartnersAsync();
         return View(item);
+    }
+
+    /// <summary>
+    /// فهرست شرکا برای انتخابِ «مالکِ دفترِ این شرکت». هیچ انتخابی خودکار یا از روی نام
+    /// انجام نمی‌شود؛ این پیوند تصمیمِ صریحِ کاربر است. رجوع: <see cref="Company.OwnerPartnerId"/>.
+    /// </summary>
+    private async Task PopulateOwnerPartnersAsync()
+    {
+        ViewBag.OwnerPartners = await _db.Partners
+            .AsNoTracking()
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.Name)
+            .Select(p => new SelectListItem { Value = p.Id.ToString(), Text = p.Name })
+            .ToListAsync();
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, [Bind("Id,Code,Name,NamePersian,Country,Address,IsActive,Notes")] Company model)
+    public async Task<IActionResult> Edit(int id, [Bind("Id,Code,Name,NamePersian,Country,Address,IsActive,Notes,OwnerPartnerId")] Company model)
     {
         if (id != model.Id) return BadRequest();
         Normalize(model);
-        if (!ModelState.IsValid) return View(model);
+        if (!ModelState.IsValid)
+        {
+            await PopulateOwnerPartnersAsync();
+            return View(model);
+        }
         var existing = await _db.Companies.FirstOrDefaultAsync(x => x.Id == id);
         if (existing == null) return NotFound();
         if (existing.Code != model.Code && await _db.Companies.AnyAsync(p => p.Code == model.Code))
         {
             ModelState.AddModelError(nameof(model.Code), "این کد قبلاً ثبت شده است.");
+            await PopulateOwnerPartnersAsync();
+            return View(model);
+        }
+        if (model.OwnerPartnerId.HasValue
+            && !await _db.Partners.AnyAsync(p => p.Id == model.OwnerPartnerId.Value))
+        {
+            ModelState.AddModelError(nameof(model.OwnerPartnerId), "شریک انتخاب‌شده پیدا نشد.");
+            await PopulateOwnerPartnersAsync();
             return View(model);
         }
         var diff = AuditDiffFormatter.ForUpdate(
+            ("OwnerPartnerId", existing.OwnerPartnerId, model.OwnerPartnerId),
             ("Code", existing.Code, model.Code),
             ("Name", existing.Name, model.Name),
             ("NamePersian", existing.NamePersian, model.NamePersian),
@@ -151,6 +180,7 @@ public class CompaniesController : Controller
         existing.Address = model.Address;
         existing.IsActive = model.IsActive;
         existing.Notes = model.Notes;
+        existing.OwnerPartnerId = model.OwnerPartnerId;
         await _db.SaveChangesAsync();
         await _audit.LogAndSaveAsync(nameof(Company), existing.Id, AuditAction.Update, diff: diff);
         TempData["ok"] = "ویرایش با موفقیت انجام شد.";

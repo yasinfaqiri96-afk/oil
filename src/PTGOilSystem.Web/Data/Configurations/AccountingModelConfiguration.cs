@@ -103,6 +103,8 @@ public static class AccountingModelConfiguration
             .HasForeignKey(x => x.CurrentYearProfitLossAccountId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(x => x.RetainedEarningsAccount).WithMany()
             .HasForeignKey(x => x.RetainedEarningsAccountId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.PartnerCurrentAccount).WithMany()
+            .HasForeignKey(x => x.PartnerCurrentAccountId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(x => x.FixedAssetAccount).WithMany()
             .HasForeignKey(x => x.FixedAssetAccountId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(x => x.AccumulatedDepreciationAccount).WithMany()

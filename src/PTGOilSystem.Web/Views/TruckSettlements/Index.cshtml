@@ -35,6 +35,13 @@
         </div>
         <div class="ak-page-actions">
             <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+            @* «تخلیه گروهی» از منوی عملیات بیرون آمد و کنار همان دکمه نشست. *@
+            <a asp-action="GroupUnload"
+               asp-route-returnUrl="@Url.Action("Index")"
+               class="btn btn-light ak-secondary-action">
+                <i class="bi bi-box-arrow-in-down" aria-hidden="true"></i>
+                <span>@UiText.T(Context, "تخلیه گروهی", "Group unload")</span>
+            </a>
             <div class="dropdown">
                 <button type="button"
                         class="btn btn-light ak-secondary-action dropdown-toggle"
@@ -48,14 +55,6 @@
                         <a asp-action="Settled" class="dropdown-item">
                             <i class="bi bi-check2-all" aria-hidden="true"></i>
                             <span>@UiText.T(Context, "تسویه‌های ثبت‌شده", "Recorded settlements")</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a asp-action="GroupUnload"
-                           asp-route-returnUrl="@Url.Action("Index")"
-                           class="dropdown-item">
-                            <i class="bi bi-box-arrow-in-down" aria-hidden="true"></i>
-                            <span>@UiText.T(Context, "تخلیه گروهی", "Group unload")</span>
                         </a>
                     </li>
                     <li>

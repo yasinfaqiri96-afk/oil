@@ -50,6 +50,7 @@ public sealed class PartyStatementViewComponent : ViewComponent
             IsEmbedded = true,
             SupplierView = model.SupplierView,
             HasContractRows = model.HasContractRows,
+            HasExpenseSummary = model.HasExpenseSummary,
             ContractGrouping = model.ContractGrouping,
             ContractOptions = model.ContractOptions,
             CompanyOptions = model.CompanyOptions,

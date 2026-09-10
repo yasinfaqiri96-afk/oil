@@ -93,6 +93,7 @@ public partial class SalesController : Controller
 
     private sealed record LookupOption(int Id, string Name);
     private sealed record TankLookupOption(int Id, string Display);
+    private sealed record TankTerminalOption(int Id, int TerminalId);
     private sealed record CurrencyLookupOption(string Code);
     private sealed record TerminalStockAllocation(int ContractId, decimal QuantityMt);
 
@@ -315,6 +316,54 @@ public partial class SalesController : Controller
             })
             .ToList();
 
+        // «فروش در مسیر»: به‌جای انتخاب خشکِ محموله، خودِ بارهای در راه فهرست می‌شوند.
+        // فقط نمایش است؛ مقدارِ ثبت‌شده همان ShipmentId قبلی می‌ماند.
+        var inTransitRows = await _db.InventoryTransportLegs
+            .AsNoTracking()
+            .Where(l => l.ShipmentId != null
+                && (l.Status == InventoryTransportLegStatus.Loaded
+                    || l.Status == InventoryTransportLegStatus.InTransit))
+            .GroupBy(l => l.ShipmentId!.Value)
+            .Select(g => new
+            {
+                ShipmentId = g.Key,
+                QuantityMt = g.Sum(x => x.QuantityMt),
+                LegCount = g.Count()
+            })
+            .ToListAsync();
+
+        var shipmentCodeById = shipments
+            .ToDictionary(s => s.Id, s => s.ShipmentCode);
+        var inTransitItems = inTransitRows
+            .OrderByDescending(row => row.QuantityMt)
+            .Select(row =>
+            {
+                shipmentCodeById.TryGetValue(row.ShipmentId, out var code);
+                var label = string.IsNullOrWhiteSpace(code) ? $"Shipment #{row.ShipmentId}" : code;
+                return new SelectListItem
+                {
+                    Value = row.ShipmentId.ToString(),
+                    Text = $"{label} — {row.QuantityMt:N3} MT در راه — {row.LegCount} حمل",
+                    Selected = createModel?.ShipmentId == row.ShipmentId
+                };
+            })
+            .ToList();
+
+        // سندی که از قبل محموله دارد ولی آن بار دیگر در راه نیست، انتخابش را از دست ندهد.
+        if (createModel?.ShipmentId is int currentShipmentId
+            && !inTransitItems.Any(item => item.Value == currentShipmentId.ToString()))
+        {
+            shipmentCodeById.TryGetValue(currentShipmentId, out var currentCode);
+            inTransitItems.Insert(0, new SelectListItem
+            {
+                Value = currentShipmentId.ToString(),
+                Text = string.IsNullOrWhiteSpace(currentCode) ? $"Shipment #{currentShipmentId}" : currentCode,
+                Selected = true
+            });
+        }
+
+        ViewBag.InTransitStocks = inTransitItems;
+
         var terminalLookups = await GetCachedLookupAsync(
             "sales:lookups:terminals:v1",
             () => _db.Terminals
@@ -341,6 +390,17 @@ public partial class SalesController : Controller
             "Id",
             "Display",
             createModel?.SourceStorageTankId);
+
+        // نگاشت «مخزن ← ترمینال»: فرم فروش فقط مخزن را می‌پرسد و ترمینال مبدا از همین نگاشت پر می‌شود.
+        var tankTerminalLookups = await GetCachedLookupAsync(
+            "sales:lookups:storage-tank-terminals:v1",
+            () => _db.StorageTanks
+                .AsNoTracking()
+                .Select(t => new TankTerminalOption(t.Id, t.TerminalId))
+                .ToListAsync());
+        ViewBag.SourceTankTerminalMap = tankTerminalLookups
+            .Select(t => new { tankId = t.Id, terminalId = t.TerminalId })
+            .ToList();
 
         int? selectedProductId = createModel is not null && createModel.ProductId > 0
             ? createModel.ProductId
@@ -2793,16 +2853,17 @@ public partial class SalesController : Controller
 
     private static List<SelectListItem> GetSaleStageItems(SaleStage selectedStage)
     {
+        // فرم فقط دو انتخاب دارد: «فروش از مخزن» و «فروش در مسیر».
+        // مرزی/بعد از گمرک از فهرست برداشته شدند اما مقدارشان در enum و در رکوردهای قدیمی دست‌نخورده است؛
+        // اگر سندی با همان مرحله باز شود، همان گزینه برای حفظ داده به فهرست برمی‌گردد.
         var stages = new List<SaleStage>
         {
-            SaleStage.InTransit,
-            SaleStage.Border,
-            SaleStage.AfterCustoms,
-            SaleStage.TerminalStock
+            SaleStage.TerminalStock,
+            SaleStage.InTransit
         };
-        if (selectedStage == SaleStage.PreSale)
+        if (!stages.Contains(selectedStage))
         {
-            stages.Insert(0, SaleStage.PreSale);
+            stages.Insert(0, selectedStage);
         }
 
         return stages.Select(stage => new SelectListItem

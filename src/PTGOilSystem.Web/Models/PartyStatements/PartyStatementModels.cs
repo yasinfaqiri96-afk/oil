@@ -65,11 +65,32 @@ public sealed class PartyStatementPolicy
     public string OutflowMeaning(bool isEnglish) => isEnglish ? OutflowMeaningEn : OutflowMeaningFa;
 
     /// <summary>
+    /// جملهٔ «مثبت یعنی چه» وقتی فاعلِ جمله شرکت نیست. فقط حساب شریک از این استفاده
+    /// می‌کند: آنجا عدد ماندهٔ شراکت است، نه طلب و بدهیِ شرکت از یک طرفِ معامله.
+    /// خالی یعنی همان جملهٔ استاندارد از دید شرکت.
+    /// </summary>
+    public CompanyFlowTextKey? PositiveBalanceKeyOverride { get; init; }
+
+    public CompanyFlowTextKey? NegativeBalanceKeyOverride { get; init; }
+
+    /// <summary>
     /// معنی علامت بیلانس — علامت و منطقش مستقل از زبان است و فقط متن ترجمه می‌شود.
     /// همیشه از منبع مرکزی <see cref="CompanyFlowText"/> می‌آید.
     /// </summary>
     public string BalanceMeaning(decimal balance, bool isEnglish = false)
-        => CompanyFlowText.BalanceMeaning(balance, CompanyFlowAccountKind.PartyAccount, isEnglish);
+    {
+        if (balance > 0m && PositiveBalanceKeyOverride.HasValue)
+        {
+            return CompanyFlowText.Get(PositiveBalanceKeyOverride.Value, isEnglish);
+        }
+
+        if (balance < 0m && NegativeBalanceKeyOverride.HasValue)
+        {
+            return CompanyFlowText.Get(NegativeBalanceKeyOverride.Value, isEnglish);
+        }
+
+        return CompanyFlowText.BalanceMeaning(balance, CompanyFlowAccountKind.PartyAccount, isEnglish);
+    }
 }
 
 public sealed class PartyStatementSummary
@@ -165,6 +186,12 @@ public sealed class PartyStatementRow
     public string SourceType { get; set; } = string.Empty;
     public int SourceId { get; set; }
     public long PostingSequence { get; set; }
+
+    /// <summary>
+    /// برچسب دستهٔ نمایشی سطر (برای مصرف: نام نوع مصرف). فقط در نمای «خلاصه» برای
+    /// گروه‌بندی نمایشی به کار می‌رود و روی هیچ مبلغ، جهت یا مانده‌ای اثر ندارد.
+    /// </summary>
+    public string? CategoryLabel { get; set; }
     public int? ContractId { get; set; }
     public string? ContractNumber { get; set; }
     public bool IsOpeningBalance { get; set; }
@@ -292,9 +319,10 @@ public sealed class PartyStatementViewModel
 
     public bool ShowSupplierViewTabs => ShowContractViewTabs;
 
-    // تب‌های خلاصه/جزئیات فقط برای تأمین‌کننده و شریک، و فقط وقتی در این دوره دست‌کم یک
-    // سند به قرارداد وصل باشد. بقیهٔ طرف‌حساب‌ها (مشتری، شرکت، خدماتی، صراف، راننده،
-    // کارمند) حتی با ContractId هم تب نمی‌بینند و همیشه گردش حساب می‌بینند.
+    // تب خلاصهٔ «قراردادها» فقط برای تأمین‌کننده و شریک، و فقط وقتی در این دوره دست‌کم یک
+    // سند به قرارداد وصل باشد. بقیهٔ طرف‌حساب‌ها حتی با ContractId هم این تب را نمی‌بینند؛
+    // مشتری، شرکت و شرکت خدماتی خلاصهٔ نوع سند دارند (HasExpenseSummary) و صراف، راننده و
+    // کارمند همیشه گردش حساب می‌بینند.
     public bool ShowContractViewTabs => SupportsContractSummary(PartyType) && HasContractRows;
 
     // فقط تأمین‌کننده و شریک نمای «خلاصهٔ قراردادها» دارند. گروه‌بندی صرفاً نمایشی است
@@ -311,6 +339,17 @@ public sealed class PartyStatementViewModel
 
     // نمای خلاصه: گروه‌بندی نمایشیِ همان سطرهای مالی؛ بدون محاسبهٔ مالی جدید.
     public SupplierContractStatementViewModel? ContractGrouping { get; init; }
+
+    /// <summary>
+    /// شرکت خدماتی، شرکت و مشتری: سطرهای این دوره در نمای «خلاصه» بر اساس نوع سند/مصرف جمع شده‌اند.
+    /// گروه‌بندی صرفاً نمایشی است؛ جمع دوره و بیلانس تغییر نمی‌کند.
+    /// </summary>
+    public bool HasExpenseSummary { get; init; }
+
+    // تب «خلاصه/جزئیات» برای شرکت خدماتی، مستقل از خلاصهٔ قراردادها.
+    public bool ShowExpenseSummaryTabs => HasExpenseSummary;
+
+    public bool ShowViewTabs => ShowContractViewTabs || ShowExpenseSummaryTabs;
 }
 
 // خلاصهٔ نمای «قراردادها» — گروه‌بندیِ نمایشی روی Rows موجود. جمع‌ها عیناً برابر نمای خطی‌اند.

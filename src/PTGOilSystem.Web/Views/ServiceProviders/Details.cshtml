@@ -142,41 +142,99 @@
         // جدول‌های بلند پیش‌فرض ۱۰ مورد اخیر را نشان می‌دهند؛ شمارش سرصفحه روی کل داده می‌ماند.
         var expensesShown = DetailListPreview.Take(Context.Request, "provider-expenses", Model.Expenses);
         var providerPaymentsShown = DetailListPreview.Take(Context.Request, "provider-payments", Model.Payments);
+
+        // مصارف پیش‌فرض «خلاصه» دیده می‌شوند: هر نوع مصرف یک سطر، تا لیستِ دانه‌دانهٔ
+        // مصارف هر حمل صفحه را شلوغ نکند. گروه‌بندی کاملاً نمایشی است؛ همان مبالغ
+        // سطرهای موجود جمع می‌شوند و کارت‌ها/سرصفحه‌ها روی کل داده می‌مانند.
+        var expensesDetailed = DetailSummaryView.IsDetailed(Context.Request, "provider-expenses");
+        var expenseGroups = Model.Expenses
+            .GroupBy(e => e.ExpenseTypeName)
+            .Select(g => new
+            {
+                TypeName = g.Key,
+                Count = g.Count(),
+                FirstDate = g.Min(x => x.ExpenseDate),
+                LastDate = g.Max(x => x.ExpenseDate),
+                AmountUsd = g.Sum(x => x.AmountUsd)
+            })
+            .OrderByDescending(g => g.AmountUsd)
+            .ToList();
     }
     <section id="provider-documents" class="ak-form-section ak-detail-section" hidden="@(!showDocuments)">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "مصارف و کرایه‌ها", "Expenses & Charges"), $"{Model.Expenses.Count:N0}"))" />
+        @if (Model.Expenses.Any())
+        {
+            <nav class="statement-view-tabs no-print" aria-label="@UiText.T(Context, "نوع نمایش مصارف", "Expense view")">
+                <a class="statement-view-tab @(expensesDetailed ? null : "is-active")" href="@DetailSummaryView.Url(Context.Request, null)">@UiText.T(Context, "خلاصه مصارف", "Expense summary")</a>
+                <a class="statement-view-tab @(expensesDetailed ? "is-active" : null)" href="@DetailSummaryView.Url(Context.Request, "provider-expenses")">@UiText.T(Context, "جزئیات اسناد", "Document details")</a>
+            </nav>
+        }
         <div class="ak-table-wrap">
-            <table class="ak-table ak-detail-table">
-                <thead>
-                    <tr>
-                        <th>@UiText.T(Context, "تاریخ", "Date")</th>
-                        <th>@UiText.T(Context, "نوع مصرف", "Type")</th>
-                        <th class="ak-col-grow">@UiText.T(Context, "سند / قرارداد مرتبط", "Linked document")</th>
-                        <th>@UiText.T(Context, "شرح", "Description")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "مبلغ USD", "Amount USD")</th>
-                        <th class="ak-col-actions">@UiText.T(Context, "سند", "Doc")</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var row in expensesShown)
-                {
-                    <tr>
-                        <td>@row.ExpenseDate.ToDisplayDate()</td>
-                        <td>@row.ExpenseTypeName</td>
-                        <td class="ak-col-grow">@ExpenseRef(row)</td>
-                        <td>@(row.Description ?? "-")</td>
-                        <td class="ak-col-num ak-num">@row.AmountUsd.ToString("N2")</td>
-                        <td class="ak-col-actions"><a asp-controller="Expenses" asp-action="Details" asp-route-id="@row.Id">@UiText.T(Context, "مشاهده", "View")</a></td>
-                    </tr>
-                }
-                @if (!Model.Expenses.Any())
-                {
-                    <tr><td colspan="6"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-receipt"></i> @UiText.T(Context, "مصرف یا کرایه‌ای به این شرکت خدماتی وصل نیست.", "No expense is linked to this provider.")</div></td></tr>
-                }
-                </tbody>
-            </table>
+            @if (expensesDetailed)
+            {
+                <table class="ak-table ak-detail-table">
+                    <thead>
+                        <tr>
+                            <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                            <th>@UiText.T(Context, "نوع مصرف", "Type")</th>
+                            <th class="ak-col-grow">@UiText.T(Context, "سند / قرارداد مرتبط", "Linked document")</th>
+                            <th>@UiText.T(Context, "شرح", "Description")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مبلغ USD", "Amount USD")</th>
+                            <th class="ak-col-actions">@UiText.T(Context, "سند", "Doc")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in expensesShown)
+                    {
+                        <tr>
+                            <td>@row.ExpenseDate.ToDisplayDate()</td>
+                            <td>@row.ExpenseTypeName</td>
+                            <td class="ak-col-grow">@ExpenseRef(row)</td>
+                            <td>@(row.Description ?? "-")</td>
+                            <td class="ak-col-num ak-num">@row.AmountUsd.ToString("N2")</td>
+                            <td class="ak-col-actions"><a asp-controller="Expenses" asp-action="Details" asp-route-id="@row.Id">@UiText.T(Context, "مشاهده", "View")</a></td>
+                        </tr>
+                    }
+                    @if (!Model.Expenses.Any())
+                    {
+                        <tr><td colspan="6"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-receipt"></i> @UiText.T(Context, "مصرف یا کرایه‌ای به این شرکت خدماتی وصل نیست.", "No expense is linked to this provider.")</div></td></tr>
+                    }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <table class="ak-table ak-detail-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "نوع مصرف", "Type")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "تعداد سند", "Documents")</th>
+                            <th>@UiText.T(Context, "بازه تاریخ", "Date range")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مبلغ USD", "Amount USD")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var g in expenseGroups)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">@g.TypeName</td>
+                            <td class="ak-col-num ak-num">@g.Count.ToString("N0")</td>
+                            <td>@(g.FirstDate.Date == g.LastDate.Date ? g.LastDate.ToDisplayDate() : $"{g.FirstDate.ToDisplayDate()} – {g.LastDate.ToDisplayDate()}")</td>
+                            <td class="ak-col-num ak-num">@g.AmountUsd.ToString("N2")</td>
+                        </tr>
+                    }
+                    @if (!Model.Expenses.Any())
+                    {
+                        <tr><td colspan="4"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-receipt"></i> @UiText.T(Context, "مصرف یا کرایه‌ای به این شرکت خدماتی وصل نیست.", "No expense is linked to this provider.")</div></td></tr>
+                    }
+                    </tbody>
+                </table>
+            }
         </div>
-        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("provider-expenses", expensesShown.Count, Model.Expenses.Count))" />
+        @if (expensesDetailed)
+        {
+            <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("provider-expenses", expensesShown.Count, Model.Expenses.Count))" />
+        }
 
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "پرداخت‌ها", "Payments"), $"{Model.Payments.Count:N0}"))" />
         <div class="ak-table-wrap">
@@ -197,7 +255,10 @@
                     <tr>
                         <td>@row.PaymentDate.ToDisplayDate()</td>
                         <td>@row.PaymentKindName</td>
-                        <td class="ak-col-grow">@row.CashAccountName</td>
+                        @*  پرداخت شریک از صندوق شرکت نرفته؛ به‌جای حساب نقدی نام همان شریک نشان داده می‌شود. *@
+                        <td class="ak-col-grow">@(row.FundingSource == PaymentFundingSource.Partner
+                            ? UiText.T(Context, $"شریک: {(string.IsNullOrWhiteSpace(row.PaidByPartnerName) ? "نامشخص" : row.PaidByPartnerName)}", $"Partner: {(string.IsNullOrWhiteSpace(row.PaidByPartnerName) ? "Unspecified" : row.PaidByPartnerName)}")
+                            : row.CashAccountName)</td>
                         <td>@(row.Reference ?? row.ContractNumber ?? "-")</td>
                         <td class="ak-col-num ak-num">@row.AmountUsd.ToString("N2")</td>
                         <td class="ak-col-actions"><a asp-controller="Payments" asp-action="Details" asp-route-id="@row.Id">@UiText.T(Context, "مشاهده", "View")</a></td>

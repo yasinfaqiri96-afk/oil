@@ -1,22 +1,58 @@
+@using PTGOilSystem.Web.Models.StatCards
 @model PTGOilSystem.Web.Models.Reports.ContractPnlReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context,"مفاد قراردادها","Contract Profit");
-    var marginPct = Model.TotalSalesRevenueUsd > 0
-        ? Math.Round((Model.TotalGrossMarginUsd / Model.TotalSalesRevenueUsd) * 100m, 1)
-        : 0m;
+
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+
+    // برچسب و لحن وضعیت قرارداد، دقیقاً مثل صفحهٔ «قراردادها» تا یک وضعیت در دو صفحه
+    // دو اسم نداشته باشد.
+    string StatusText(ContractStatus status) => status switch
+    {
+        ContractStatus.Draft => T("جدید", "New"),
+        ContractStatus.Active => T("فعال", "Active"),
+        ContractStatus.Closed => T("در حال اجرا", "In progress"),
+        ContractStatus.Cancelled => T("منقضی شده", "Expired"),
+        _ => status.ToString()
+    };
+
+    string StatusTone(ContractStatus status) => status switch
+    {
+        ContractStatus.Active => "is-active",
+        ContractStatus.Draft => "is-pending",
+        ContractStatus.Cancelled => "is-inactive",
+        _ => string.Empty
+    };
+
+    // عدد پولی جدول: بدون عدد یعنی «ثبت نشده»، نه صفر.
+    string Money(decimal value) => value != 0m ? value.ToString("N2") : "—";
 }
 
 <div class="ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context,"مفاد قراردادها","Contract Profit"), false,
+             model="@((T("مفاد قراردادها","Contract Profit"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
-                       UiText.T(Context,"گزارش‌ها","Reports"), "bi-arrow-right", Url.Action("Index")))" />
+                       T("گزارش‌ها","Reports"), "bi-arrow-right", Url.Action("Index")))" />
 
-    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار مفاد قراردادها", "Contract profit metrics")">
-        <vc:stat-card title="@UiText.T(Context, "درآمد فروش", "Sales Revenue")" value="@Model.TotalSalesRevenueUsd.ToString("N2")" unit="USD" avatar="report-sales"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "بهای تمام‌شدهٔ فروش", "Cost of Goods Sold")" value="@Model.TotalRealisedSalesCostUsd.ToString("N2")" unit="USD" avatar="report-purchase"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مفاد ناخالص فروش", "Gross Profit on Sales")" value="@Model.TotalGrossMarginUsd.ToString("N2")" unit="USD" avatar="report-finance"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "فیصدی مفاد", "Profit Margin")" value="@marginPct.ToString("N1")" unit="%" avatar="report-analysis"></vc:stat-card>
+    @* کارت‌ها همان چیزی را جمع می‌زنند که جدول پایین نشان می‌دهد (قراردادهای خرید و فروش
+       مستقیم از آن‌ها). پیش از این کارت‌ها از قراردادهای «فروش» خوانده می‌شدند که در این
+       صفحه اصلاً فهرست نمی‌شوند — به همین دلیل صفر می‌ماندند. *@
+    <section class="ak-stat-grid" aria-label="@T("آمار مفاد قراردادها", "Contract profit metrics")">
+        <vc:stat-card title="@T("جمع مصارف قراردادها", "Total contract cost")"
+                      value="@StatCardFormatter.Number(Model.TotalPurchaseCostUsd, 0)"
+                      unit="USD" avatar="report-purchase"></vc:stat-card>
+        <vc:stat-card title="@T("درآمد فروش", "Sales revenue")"
+                      value="@StatCardFormatter.Number(Model.TotalDirectSaleRevenueUsd, 0)"
+                      unit="USD" avatar="report-sales"></vc:stat-card>
+        <vc:stat-card title="@T("مفاد ناخالص", "Gross profit")"
+                      value="@StatCardFormatter.Number(Model.TotalDirectSaleGrossMarginUsd, 0)"
+                      unit="USD"
+                      state="@(Model.TotalDirectSaleGrossMarginUsd < 0m ? "warning" : null)"
+                      avatar="report-finance"></vc:stat-card>
+        <vc:stat-card title="@T("فیصدی مفاد", "Profit margin")"
+                      value="@StatCardFormatter.Number(Model.DirectSaleMarginPercent, 1)"
+                      unit="@(Model.DirectSaleMarginPercent.HasValue ? "%" : "")"
+                      avatar="report-analysis"></vc:stat-card>
     </section>
 
     <div class="ak-list">
@@ -25,16 +61,16 @@
                 ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
                 .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
             var pnlFilter = new AkSearchFilterModel("", null,
-                UiText.T(Context, "فیلتر مفاد قراردادها...", "Filter contract profit..."),
+                T("فیلتر مفاد قراردادها...", "Filter contract profit..."),
                 new List<AkFilterDefinition>
                 {
-                    new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                    new("Filter.FromDate", T("بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
-                    new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", PnlOpts(ViewBag.Products),
+                    new("Filter.ProductId", T("جنس", "Product"), "select", PnlOpts(ViewBag.Products),
                         Model.Filter.ProductId?.ToString()),
-                    new("Filter.SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), "select", PnlOpts(ViewBag.Suppliers),
+                    new("Filter.SupplierId", T("تأمین‌کننده", "Supplier"), "select", PnlOpts(ViewBag.Suppliers),
                         Model.Filter.SupplierId?.ToString()),
-                    new("Filter.CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", PnlOpts(ViewBag.Customers),
+                    new("Filter.CustomerId", T("مشتری", "Customer"), "select", PnlOpts(ViewBag.Customers),
                         Model.Filter.CustomerId?.ToString())
                 });
         }
@@ -46,84 +82,56 @@
         </div>
 
         <section class="ak-form-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context,"قراردادهای خرید — تحلیل مصرف","Purchase Contracts — Cost Analysis"), (string?)null))" />
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((T("قراردادهای خرید — مصرف و مفاد","Purchase Contracts — Cost and Profit"), (string?)null))" />
             <div class="ak-table-wrap">
                 <table class="ak-table">
                     <thead>
                         <tr>
-                            <th class="ak-col-grow">@UiText.T(Context,"قرارداد","Contract")</th>
-                            <th>@UiText.T(Context,"تأمین‌کننده","Supplier")</th>
-                            <th>@UiText.T(Context,"وضعیت","Status")</th>
-                            <th class="ak-col-num">@UiText.T(Context,"بارگیری MT","Loaded MT")</th>
-                            <th class="ak-col-num">@UiText.T(Context,"ارزش خرید (USD)","Purchase (USD)")</th>
-                            <th class="ak-col-num">@UiText.T(Context,"جمع مصارف","Total Cost")</th>
-                            <th class="ak-col-num">@UiText.T(Context,"درآمد (USD)","Revenue (USD)")</th>
-                            <th class="ak-col-num">@UiText.T(Context,"مفاد (USD)","Profit (USD)")</th>
+                            <th class="ak-col-grow">@T("قرارداد","Contract")</th>
+                            <th class="ak-col-w-sm">@T("تأمین‌کننده","Supplier")</th>
+                            <th class="ak-col-w-md">@T("وضعیت","Status")</th>
+                            <th class="ak-col-num">@T("بارگیری MT","Loaded MT")</th>
+                            <th class="ak-col-num">@T("جمع مصارف (USD)","Total cost (USD)")</th>
+                            <th class="ak-col-num">@T("درآمد (USD)","Revenue (USD)")</th>
+                            <th class="ak-col-num">@T("مفاد (USD)","Profit (USD)")</th>
+                            <th class="ak-col-num">@T("فیصدی","Margin")</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (!Model.PurchaseRows.Any())
                         {
-                            <tr><td colspan="8"><div class="ak-empty"><i class="bi bi-file-earmark-x"></i> @UiText.T(Context,"قراردادی یافت نشد.","No contracts found.")</div></td></tr>
+                            <tr><td colspan="8"><div class="ak-empty"><i class="bi bi-file-earmark-x"></i> @T("قراردادی یافت نشد.","No contracts found.")</div></td></tr>
                         }
                         @foreach (var row in Model.PurchaseRows)
                         {
                             <tr>
                                 <td class="ak-col-grow">
                                     <a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-id="@row.ContractId">@row.DisplayLabel</a>
-                                    <small class="d-block text-muted">@row.ProductName</small>
-                                    @if (row.HasPendingTankSettlement)
+                                    <div class="ak-cell-note">@row.ProductName</div>
+                                </td>
+                                <td class="ak-col-w-sm">@(row.CounterpartyName ?? "—")</td>
+                                @* همهٔ نشانه‌ها یک‌جا کنار وضعیت می‌نشینند تا ستون‌های عددی فقط عدد باشند. *@
+                                <td class="ak-col-w-md">
+                                    @{
+                                        var flags = new List<string>();
+                                        if (row.HasPendingTankSettlement) { flags.Add(T("موقت", "provisional")); }
+                                        if (row.TotalLoadedMt > 0m && row.TotalSoldMt < row.TotalLoadedMt) { flags.Add(T("فروش ناتمام", "partly sold")); }
+                                        if (row.NeedsReview || row.UnvaluedLossCount > 0) { flags.Add(T("نیازمند بررسی", "needs review")); }
+                                    }
+                                    <span class="ak-status @StatusTone(row.Status)">@StatusText(row.Status)</span>
+                                    @if (flags.Count > 0)
                                     {
-                                        <span class="ak-status">@UiText.T(Context, "موقت", "Provisional")</span>
+                                        <div class="ak-cell-note">@string.Join(UiText.IsEn(Context) ? ", " : "، ", flags)</div>
                                     }
                                 </td>
-                                <td>@(row.CounterpartyName ?? "—")</td>
-                                <td><span class="ak-status">@row.Status</span></td>
                                 <td class="ak-col-num ak-num">@NumberDisplay.Quantity(row.TotalLoadedMt)</td>
-                                <td class="ak-col-num ak-num">@(row.PurchaseValueUsd > 0 ? row.PurchaseValueUsd.ToString("N2") : "—")</td>
-                                <td class="ak-col-num ak-num fw-bold">@row.TotalCostUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num">@(row.TotalRevenueUsd > 0 ? row.TotalRevenueUsd.ToString("N2") : "—")</td>
+                                <td class="ak-col-num ak-num fw-bold">@Money(row.TotalCostUsd)</td>
+                                <td class="ak-col-num ak-num">@Money(row.TotalRevenueUsd)</td>
                                 <td class="ak-col-num ak-num @(row.GrossMarginUsd < 0m ? "ak-number--negative" : null)">
-                                    @(row.TotalRevenueUsd > 0 ? row.GrossMarginUsd.ToString("N2") : "—")
-                                    @if (row.TotalLoadedMt > 0m && row.TotalSoldMt < row.TotalLoadedMt)
-                                    {
-                                        <span class="ak-status is-pending">@UiText.T(Context, "فروش ناتمام", "Partly sold")</span>
-                                    }
-                                    @if (row.DirectSaleQuantityMismatchCount > 0)
-                                    {
-                                        <span class="ak-status">@UiText.T(Context, "کنترل مقدار", "Qty review")</span>
-                                    }
+                                    @(row.TotalRevenueUsd > 0m ? row.GrossMarginUsd.ToString("N2") : "—")
                                 </td>
-                            </tr>
-                            <tr class="ak-row-muted">
-                                <td colspan="8">
-                                    <details class="ak-advanced m-0">
-                                        <summary class="ak-advanced-summary">@UiText.T(Context, "جزئیات مقدار و مصارف", "Quantity and cost details")</summary>
-                                        <div class="ak-advanced-body">
-                                            <dl class="ak-summary-list">
-                                                <div><dt>@UiText.T(Context,"مقدار قرارداد (MT)","Contract quantity (MT)")</dt><dd class="ak-num">@NumberDisplay.Quantity(row.ContractQuantityMt)</dd></div>
-                                                <div><dt>@UiText.T(Context,"فروش مستقیم (MT)","Direct sales (MT)")</dt><dd class="ak-num">@(row.TotalSoldMt > 0 ? NumberDisplay.Quantity(row.TotalSoldMt) : "—")</dd></div>
-                                                <div><dt>@UiText.T(Context,"حمل (USD)","Transport (USD)")</dt><dd class="ak-num">@(row.TransportCostUsd > 0 ? row.TransportCostUsd.ToString("N2") : "—")</dd></div>
-                                                <div><dt>@UiText.T(Context,"گدام (USD)","Warehouse (USD)")</dt><dd class="ak-num">@(row.WarehouseCostUsd > 0 ? row.WarehouseCostUsd.ToString("N2") : "—")</dd></div>
-                                                <div><dt>@UiText.T(Context,"خط آهن (USD)","Railway (USD)")</dt><dd class="ak-num">@(row.RailwayCostUsd > 0 ? row.RailwayCostUsd.ToString("N2") : "—")</dd></div>
-                                                <div><dt>@UiText.T(Context,"گمرک (USD)","Customs (USD)")</dt><dd class="ak-num">@(row.CustomsCostUsd > 0 ? row.CustomsCostUsd.ToString("N2") : "—")</dd></div>
-                                                <div><dt>@UiText.T(Context,"مصارف عمومی (USD)","General expenses (USD)")</dt><dd class="ak-num">@(row.GeneralExpenseCostUsd > 0 ? row.GeneralExpenseCostUsd.ToString("N2") : "—")</dd></div>
-                                                <div><dt>@UiText.T(Context,"سایر (USD)","Other (USD)")</dt><dd class="ak-num">@(row.OtherCostUsd > 0 ? row.OtherCostUsd.ToString("N2") : "—")</dd></div>
-                                                <div>
-                                                    <dt>@UiText.T(Context,"کسری (USD)","Loss cost (USD)")</dt>
-                                                    <dd class="ak-num">
-                                                        @(row.LossCostUsd > 0 ? row.LossCostUsd.ToString("N2") : "—")
-                                                        @if (row.UnvaluedLossCount > 0)
-                                                        {
-                                                            <span class="ak-status">@row.UnvaluedLossCount @UiText.T(Context, "بدون قیمت", "unvalued")</span>
-                                                        }
-                                                    </dd>
-                                                </div>
-                                                <div><dt>@UiText.T(Context,"کسری صراف (USD)","Sarraf shortfall (USD)")</dt><dd class="ak-num">@(row.SarrafSupplierShortfallUsd > 0 ? row.SarrafSupplierShortfallUsd.ToString("N2") : "—")</dd></div>
-                                                <div><dt>@UiText.T(Context,"خالص تفاوت نرخ (USD)","Net FX (USD)")</dt><dd class="ak-num @(row.NetExchangeDifferenceUsd < 0m ? "ak-number--negative" : null)">@(row.NetExchangeDifferenceUsd != 0 ? row.NetExchangeDifferenceUsd.ToString("N2") : "—")</dd></div>
-                                            </dl>
-                                        </div>
-                                    </details>
+                                <td class="ak-col-num ak-num @(row.MarginPercent < 0m ? "ak-number--negative" : null)">
+                                    @(row.MarginPercent.HasValue ? row.MarginPercent.Value.ToString("N1") + "%" : "—")
                                 </td>
                             </tr>
                         }
@@ -132,12 +140,12 @@
                     {
                         <tfoot>
                             <tr>
-                                <td colspan="3" class="fw-bold">@UiText.T(Context,"مجموع","Total")</td>
+                                <td colspan="3" class="fw-bold">@T("مجموع","Total")</td>
                                 <td class="ak-col-num ak-num fw-bold">@NumberDisplay.Quantity(Model.PurchaseRows.Sum(r => r.TotalLoadedMt))</td>
-                                <td class="ak-col-num ak-num fw-bold">@Model.PurchaseRows.Sum(r => r.PurchaseValueUsd).ToString("N2")</td>
                                 <td class="ak-col-num ak-num fw-bold">@Model.TotalPurchaseCostUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num">@Model.TotalDirectSaleRevenueUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num @(Model.PurchaseRows.Sum(r => r.GrossMarginUsd) < 0m ? "ak-number--negative" : null)">@Model.PurchaseRows.Sum(r => r.GrossMarginUsd).ToString("N2")</td>
+                                <td class="ak-col-num ak-num fw-bold">@Model.TotalDirectSaleRevenueUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num fw-bold @(Model.TotalDirectSaleGrossMarginUsd < 0m ? "ak-number--negative" : null)">@Model.TotalDirectSaleGrossMarginUsd.ToString("N2")</td>
+                                <td class="ak-col-num ak-num fw-bold @(Model.DirectSaleMarginPercent < 0m ? "ak-number--negative" : null)">@(Model.DirectSaleMarginPercent.HasValue ? Model.DirectSaleMarginPercent.Value.ToString("N1") + "%" : "—")</td>
                             </tr>
                         </tfoot>
                     }

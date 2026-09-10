@@ -377,7 +377,10 @@ public partial class SalesController
             return Redirect(localReturnUrl);
         }
 
-        return RedirectToAction(nameof(PreSaleDetails), new { id = order.Id });
+        // منبعِ انتخاب‌شده ذخیره نشده؛ فقط برای پیش‌انتخاب در فرم «ثبت تحویل» منتقل می‌شود.
+        return RedirectToAction(
+            nameof(PreSaleDetails),
+            new { id = order.Id, sourceTank = model.PreferredSourceStorageTankId });
     }
 
     // ---------- جزئیات ----------
@@ -961,5 +964,12 @@ public partial class SalesController
             await _db.Currencies.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Code)
                 .Select(c => new { c.Code }).ToListAsync(),
             "Code", "Code", model.Currency);
+
+        // مخزن‌ها فقط برای انتخابِ منبعِ پیشنهادیِ تحویل‌ها؛ روی تعهد ذخیره نمی‌شوند.
+        var tankOptions = await StorageTankDisplay.LoadOptionsAsync(
+            _db.StorageTanks.AsNoTracking().OrderBy(t => t.DisplayName ?? t.TankCode));
+        ViewBag.SourceStorageTanks = new SelectList(
+            tankOptions.Select(t => new { t.Id, t.Display }).ToList(),
+            "Id", "Display", model.PreferredSourceStorageTankId);
     }
 }

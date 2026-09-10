@@ -12,7 +12,7 @@
 <section class="ak-form-section" aria-label="@modeGroupLabel">
     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
              model="@((modeGroupLabel, (string?)UiText.T(Context, "کالا یک‌جا تحویل می‌شود یا در چند مرحله؟", "Is the product delivered at once or in several stages?")))" />
-    <div class="ak-choice-grid ak-choice-grid--2" role="group" aria-label="@modeGroupLabel">
+    <div class="ak-choice-grid ak-choice-grid--2 ak-choice-grid--compact" role="group" aria-label="@modeGroupLabel">
         <a href="@Model.FullUrl"
            class="ak-choice @(isStaged ? null : "is-selected")"
            aria-current="@(isStaged ? null : "page")">

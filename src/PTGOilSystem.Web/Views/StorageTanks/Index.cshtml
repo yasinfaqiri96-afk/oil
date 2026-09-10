@@ -62,13 +62,28 @@
             {
                 var percent = Math.Max(0m, Math.Min(100m, item.FillPercent));
                 var unitText = string.IsNullOrWhiteSpace(item.UnitOfMeasure) ? "MT" : item.UnitOfMeasure.Trim();
+                // Liquid level drawn over the tank photo. The constants below are the
+                // shell interior measured on images/storage-tank-card.webp (1254x1254):
+                // side walls, the front floor line and the ellipse the cylinder shows
+                // at that camera angle. Level rides between the floor and the shoulder.
+                const decimal tankFloorY = 1000m;
+                const decimal tankShoulderY = 290m;
+                var levelY = tankFloorY - (tankFloorY - tankShoulderY) * percent / 100m;
+                var levelYText = Math.Round(levelY, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 <article class="storage-tank-card @(item.IsActive ? "is-normal" : "is-muted")">
                     <a class="storage-tank-card-main" asp-action="Details" asp-route-id="@item.Id">
                         <span class="storage-tank-visual">
-                            <img class="storage-tank-image" src="~/images/storage-tank-card.webp" alt="" aria-hidden="true" />
-                            <span class="storage-tank-fill-badge ak-num" aria-label="@UiText.T(Context, "فیصدی پرشدن", "Fill percentage"): @percent.ToString("N0")%">
-                                <bdi>@percent.ToString("N0")%</bdi>
-                            </span>
+                            <img class="storage-tank-image" src="~/images/storage-tank-card.webp" asp-append-version="true" alt="" aria-hidden="true" />
+                            @if (percent > 0m)
+                            {
+                                <svg class="storage-tank-level" viewBox="0 0 1254 1254" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+                                    <g class="storage-tank-level-body">
+                                        <path d="M238 @levelYText H1022 V1000 A392 45 0 0 1 238 1000 Z" />
+                                        <ellipse cx="630" cy="@levelYText" rx="392" ry="45" />
+                                    </g>
+                                    <path class="storage-tank-level-gloss" d="M238 @levelYText A392 45 0 0 1 1022 @levelYText" />
+                                </svg>
+                            }
                         </span>
                         <span class="storage-tank-card-body">
                             <span class="storage-tank-card-head">
@@ -81,6 +96,10 @@
                                 <span class="storage-tank-fact">
                                     <span class="storage-tank-fact-label">@UiText.T(Context, "موجودی فعلی", "Current stock")</span>
                                     <span class="storage-tank-fact-value ak-num"><bdi>@FormatQuantity(item.CurrentQuantityMt) @unitText</bdi></span>
+                                </span>
+                                <span class="storage-tank-fact">
+                                    <span class="storage-tank-fact-label">@UiText.T(Context, "فیصدی پرشدن", "Fill percentage")</span>
+                                    <span class="storage-tank-fact-value ak-num"><bdi>@percent.ToString("N0")%</bdi></span>
                                 </span>
                             </span>
                         </span>

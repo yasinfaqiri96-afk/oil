@@ -2,9 +2,12 @@
    quick-access rail. Scoped entirely under .dashboard-ref. */
 
 /* Dashboard uses a wider canvas than the default 1200px page frame.
-   Scoped to the dashboard route so no other page is affected. */
+   Scoped to the dashboard route so no other page is affected. Read against the
+   shared token the same way the party pages do (70-page-frame.css), so the
+   large-monitor ladder can never leave the dashboard narrower than a
+   regular page. */
 body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-frame {
-    max-inline-size: min(1440px, 100%);
+    max-inline-size: max(1440px, var(--layout-content-max));
 }
 .dashboard-page.dashboard-ref {
     display: grid;
@@ -14,11 +17,10 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     margin-inline: 0;
     color: var(--text-primary);
 
-    --dash-green: var(--ptg-chart-positive, #22C55E);
-    --dash-amber: var(--ptg-chart-warning, #F5A524);
-    --dash-red: var(--ptg-chart-negative, #F4511E);
-    --dash-blue: var(--primary-main, #1062D0);
-    --dash-card-radius: var(--radius-card, 8px);
+    --dash-green: var(--ptg-chart-positive);
+    --dash-amber: var(--ptg-chart-warning);
+    --dash-red: var(--ptg-chart-negative);
+    --dash-card-radius: var(--radius-card);
     --dash-card-border: 0;
     /* The dashboard card is the reference for the system-wide panel treatment;
        both now read the same token (01-tokens.css / 72-surfaces.css). */
@@ -56,7 +58,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     padding: 15px 18px;
     border: var(--dash-card-border);
     border-radius: var(--dash-card-radius);
-    background: var(--background-paper, #fff);
+    background: var(--background-paper);
     box-shadow: var(--dash-card-shadow);
 }
 
@@ -230,7 +232,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-donut-center-label {
     fill: var(--text-secondary);
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     text-anchor: middle;
 }
 
@@ -333,7 +335,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     border-radius: 50%;
     color: var(--ptg-btn-primary);
     background: var(--ptg-btn-primary-tint);
-    font-size: 15px;
+    font-size: 16px;
 }
 
 .dash-activity-copy {
@@ -358,7 +360,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-activity-copy span,
 .dash-activity-time {
     color: var(--text-secondary);
-    font-size: 10.5px;
+    font-size: 11px;
 }
 
 .dash-activity-time {
@@ -447,7 +449,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-flow-sub {
     margin: 0;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .dash-flow-state {
@@ -489,7 +491,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dashboard-ref .ak-status {
     flex: 0 0 auto;
     padding: 3px 8px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 650;
     white-space: nowrap;
 }
@@ -502,7 +504,7 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
 .dash-flow-state .ak-status {
     min-height: 19px !important;
     padding: 0 7px !important;
-    font-size: 9.5px !important;
+    font-size: 11px !important;
     font-weight: 600 !important;
     line-height: 1.5 !important;
 }

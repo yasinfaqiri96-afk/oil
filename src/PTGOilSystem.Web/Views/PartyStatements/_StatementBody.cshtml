@@ -230,11 +230,15 @@
         <div class="statement-summary-item is-current"><small>بیلانس فعلی</small><strong>@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</strong><span>@currency</span></div>
     </section>
 
-    @if (Model.ShowContractViewTabs)
+    @if (Model.ShowViewTabs)
     {
-        @* پیش‌فرض «خلاصه قراردادها» است؛ جزئیات فقط با انتخاب کاربر باز می‌شود. *@
+        @* پیش‌فرض «خلاصه» است؛ جزئیات فقط با انتخاب کاربر باز می‌شود. شرکت خدماتی و
+           شرکت خلاصه‌شان بر اساس نوع سند/مصرف است، نه قرارداد. *@
+        var summaryTabLabel = Model.ShowContractViewTabs
+            ? "خلاصه قراردادها"
+            : s.Party.PartyType == PartyStatementPartyType.ServiceProvider ? "خلاصه مصارف" : "خلاصه اسناد";
         <nav class="statement-view-tabs no-print" aria-label="نوع نمایش">
-            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Contracts ? "is-active" : null)" href="@StatementViewUrl(SupplierStatementView.Contracts)">خلاصه قراردادها</a>
+            <a class="statement-view-tab @(Model.SupplierView == SupplierStatementView.Contracts ? "is-active" : null)" href="@StatementViewUrl(SupplierStatementView.Contracts)">@summaryTabLabel</a>
             <a class="statement-view-tab @(Model.SupplierView is SupplierStatementView.Ledger or SupplierStatementView.Loadings ? "is-active" : null)" href="@StatementViewUrl(SupplierStatementView.Ledger)">جزئیات تراکنش‌ها</a>
         </nav>
     }
@@ -301,7 +305,24 @@
                     <tfoot><tr><th colspan="@leadColumns">جمع دوره</th><th class="statement-money statement-receipt">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</th><th class="statement-money statement-outflow">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</th><th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th></tr></tfoot>
                 </table>
             </div>
-            @if (!Model.IsPrintMode && Model.ShowContractViewTabs)
+            @if (!Model.IsPrintMode && Model.ShowExpenseSummaryTabs)
+            {
+                @* خلاصهٔ شرکت خدماتی/شرکت: اسناد هم‌نوع در یک سطر جمع شده‌اند. جمع دوره و
+                   بیلانس در هر دو نما یکی است. *@
+                <p class="statement-note no-print">
+                    @if (Model.SupplierView == SupplierStatementView.Contracts)
+                    {
+                        <span>اسناد هم‌نوع در یک سطر جمع شده‌اند.</span>
+                        <a href="@StatementViewUrl(SupplierStatementView.Ledger)">مشاهده تک‌تک اسناد</a>
+                    }
+                    else
+                    {
+                        <span>همه اسناد به‌صورت جداگانه نمایش داده می‌شوند.</span>
+                        <a href="@StatementViewUrl(SupplierStatementView.Contracts)">نمایش خلاصه</a>
+                    }
+                </p>
+            }
+            else if (!Model.IsPrintMode && Model.ShowContractViewTabs)
             {
                 @* نمای فشرده: بارگیری/فروش‌های هر قرارداد در یک سطر جمع شده‌اند. لینک زیر
                    همان سطرهای خام را بدون هیچ تغییر در جمع‌ها باز می‌کند. *@

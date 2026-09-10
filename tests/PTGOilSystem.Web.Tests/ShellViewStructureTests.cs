@@ -503,7 +503,12 @@ public class ShellViewStructureTests
         Assert.Contains("window.PTG.setListCardLoading", listScript);
         Assert.Contains("--ptg-list-radius: 12px", listStyles);
         Assert.Contains(".ak-list-card", listStyles);
-        Assert.Contains("height: 54px", listStyles);
+        // چگالی ردیف دیگر در لایه لیست تکرار نمی‌شود؛ تنها منبع آن 50-ak-components.css
+        // است (چرتکه: 12 + 21 + 12 = ارتفاع ردیف 45px) تا دو لایه با هم نجنگند.
+        Assert.DoesNotContain("height: 54px", listStyles);
+        Assert.Contains(
+            "padding: 12px 10px",
+            ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css"));
         Assert.Contains(".ak-list-footer", listStyles);
         Assert.Contains(".ak-list-loading-state", listStyles);
         Assert.Contains("ak-list-result-count", operationsFooter);

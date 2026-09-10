@@ -24,6 +24,9 @@ public interface IAccountingJournalNumberGenerator
     string ForInventoryLoss(int companyId, int lossEventId);
     string ForInventoryLossReversal(int companyId, int lossEventId);
     string ForShortageCharge(int companyId, int transportReceiptId);
+
+    /// <summary>تخصیص سود قرارداد شراکتی به حساب جاری شرکا.</summary>
+    string ForProfitAllocation(int companyId, int contractId);
     string ForSarrafSettlement(int companyId, int settlementId, int revision);
     string ForSarrafSettlementReversal(int companyId, int settlementId, int revision);
     string ForThreeWaySettlement(int companyId, int settlementId);
@@ -31,6 +34,7 @@ public interface IAccountingJournalNumberGenerator
     string ForTransportLegLoad(int companyId, int transportLegId);
     string ForTransportLegLoadReversal(int companyId, int transportLegId);
     string ForTransportReceipt(int companyId, int transportReceiptId);
+    string ForTransportInventoryReceipt(int companyId, int transportReceiptId);
     string ForAssetRent(int companyId, int assetRentTransactionId);
     string ForAssetRentReversal(int companyId, int assetRentTransactionId);
 }
@@ -224,6 +228,9 @@ public sealed class AccountingJournalNumberGenerator : IAccountingJournalNumberG
     public string ForShortageCharge(int companyId, int transportReceiptId)
         => $"SHT-{ValidateKey(companyId, transportReceiptId, nameof(transportReceiptId))}";
 
+    public string ForProfitAllocation(int companyId, int contractId)
+        => $"PALLOC-{ValidateKey(companyId, contractId, nameof(contractId))}";
+
     // A sarraf settlement can be edited after posting, so its number carries a revision the same
     // way a repriced purchase does: each edit reverses the previous revision and posts the next.
     public string ForSarrafSettlement(int companyId, int settlementId, int revision)
@@ -249,6 +256,12 @@ public sealed class AccountingJournalNumberGenerator : IAccountingJournalNumberG
 
     public string ForTransportReceipt(int companyId, int transportReceiptId)
         => $"TRR-{ValidateKey(companyId, transportReceiptId, nameof(transportReceiptId))}";
+
+    // رسیدِ حملی که کالای خریداری‌شده را وارد موجودی می‌کند. شمارهٔ آن عمداً از
+    // ForInventoryReceipt (که کلیدش LoadingReceipt است) جداست: شناسهٔ این دو جدول مستقل‌اند و
+    // یک پیشوندِ مشترک می‌توانست دو رویدادِ متفاوت را زیر یک شماره ببرد.
+    public string ForTransportInventoryReceipt(int companyId, int transportReceiptId)
+        => $"TINV-{ValidateKey(companyId, transportReceiptId, nameof(transportReceiptId))}";
 
     public string ForAssetRent(int companyId, int assetRentTransactionId)
         => $"ART-{ValidateKey(companyId, assetRentTransactionId, nameof(assetRentTransactionId))}";

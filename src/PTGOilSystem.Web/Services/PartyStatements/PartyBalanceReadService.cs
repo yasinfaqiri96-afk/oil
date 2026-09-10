@@ -61,18 +61,23 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
     private readonly ICompanyFlowBalanceService _balances;
     private readonly IPartyDirectory _parties;
 
+    /// <summary>تنها منبعِ ماندهٔ شریک. این گزارش فرمول جداگانه‌ای برای شریک ندارد.</summary>
+    private readonly IPartnershipStatementService _partnerships;
+
     public PartyBalanceReadService(
         ApplicationDbContext db,
         IPartyStatementPolicyResolver policies,
         ICompanyFlowDirectionResolver directions,
         ICompanyFlowBalanceService balances,
-        IPartyDirectory parties)
+        IPartyDirectory parties,
+        IPartnershipStatementService? partnerships = null)
     {
         _db = db;
         _policies = policies;
         _directions = directions;
         _balances = balances;
         _parties = parties;
+        _partnerships = partnerships ?? new PartnershipStatementService(db);
     }
 
     public async Task<IReadOnlyList<PartyBalanceSnapshot>> GetBalancesAsync(
@@ -206,14 +211,21 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                                 : null),
                 l.ServiceProviderId,
                 l.DriverId,
-                EffectiveCompanyId = l.Contract != null
-                    ? (int?)l.Contract.CompanyId
-                    : l.SourceType == CompanyFlowSourceTypes.Sale
-                        ? _db.SalesTransactions
-                            .Where(s => s.Id == l.SourceId)
-                            .Select(s => s.CompanyId)
-                            .FirstOrDefault()
-                        : null
+                // حساب جاریِ جواز. پرداختی که شریک از جیب خودش داده صندوق شرکت را حرکت
+                // نداده، پس خروجِ پولِ شرکت نیست و اینجا شمرده نمی‌شود — وگرنه همان خرج
+                // یک بار به‌عنوان مصرف و یک بار به‌عنوان پرداختِ شرکت دو بار می‌آید.
+                // رجوع: PartyStatementReadService، شاخهٔ Company.
+                EffectiveCompanyId = _db.PaymentTransactions.Any(p =>
+                        p.LedgerEntryId == l.Id && p.FundingSource == PaymentFundingSource.Partner)
+                    ? null
+                    : l.Contract != null
+                        ? (int?)l.Contract.CompanyId
+                        : l.SourceType == CompanyFlowSourceTypes.Sale
+                            ? _db.SalesTransactions
+                                .Where(s => s.Id == l.SourceId)
+                                .Select(s => s.CompanyId)
+                                .FirstOrDefault()
+                            : null
             })
             .ToListAsync(ct);
 
@@ -366,95 +378,79 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
         }
     }
 
+    /// <summary>
+    /// ماندهٔ شریک — از همان <see cref="IPartnershipStatementService"/> که پروفایل شریک و
+    /// صورت‌حساب شراکت می‌خوانند. این گزارش فرمول جداگانه‌ای برای شریک ندارد.
+    ///
+    /// پیش از این همین متد سهمِ درصدیِ هر سطرِ لجرِ قرارداد را می‌گرفت. آن محاسبه نه
+    /// <see cref="Contract.SaleProceedsHolderPartnerId"/> را می‌شناخت و نه
+    /// <see cref="PartnerSettlement"/> را، پس ماندهٔ همین شریک اینجا با پروفایل او
+    /// دقیقاً به اندازهٔ کلِ عایدِ فروشِ نزد یک شریک فرق می‌کرد.
+    ///
+    /// اثرِ هر ردیف (<see cref="PartnerAccountEntry.EffectUsd"/>) خودش جزءِ فرمول مانده است:
+    /// مثبت = شریک ارزشی آورده (برد)، منفی = ارزشی به او رسیده (رسید). بیلانسِ حسابِ
+    /// طرف‌حساب «اول دوره + Σبرد − Σرسید» است، پس ماندهٔ نهایی همان
+    /// <see cref="PartnerAccountStatement.NetPositionUsd"/> در می‌آید:
+    /// مثبت = شریک طلبکار، منفی = شریک بدهکار.
+    /// </summary>
     private async Task AddPartnerEventsAsync(
         List<BalanceEvent> target,
         ManagementReportFilterViewModel filter,
         CancellationToken ct)
     {
-        var shares = _db.ContractPartners.AsNoTracking().AsQueryable();
+        // فقط قراردادهایی که واقعاً شراکتی‌اند. دامنه با صورت‌حساب شراکت یکی است.
+        var membershipQuery = _db.ContractPartners
+            .AsNoTracking()
+            .Where(cp => cp.Contract != null
+                && cp.Contract.OwnershipType == ContractOwnershipType.Partnership);
         if (filter.ContractId.HasValue)
         {
-            shares = shares.Where(s => s.ContractId == filter.ContractId.Value);
+            membershipQuery = membershipQuery.Where(cp => cp.ContractId == filter.ContractId.Value);
         }
-        var shareRows = await shares
-            .Select(s => new { s.ContractId, s.PartnerId, s.SharePercent, s.EffectiveFrom, s.EffectiveTo })
+
+        var partnerIds = await membershipQuery
+            .Select(cp => cp.PartnerId)
+            .Distinct()
             .ToListAsync(ct);
-        if (shareRows.Count == 0)
+        if (partnerIds.Count == 0)
         {
             return;
         }
 
-        // PTG-P0-03 — سهم در «تاریخ همان سند» اعمال می‌شود، نه درصدِ امروز.
-        var shareHistory = ContractPartnerShareHistory.FromSlices(shareRows.Select(s =>
-            new ContractPartnerShareSlice(s.ContractId, s.PartnerId, s.SharePercent, s.EffectiveFrom, s.EffectiveTo)));
+        int[]? contractIds = filter.ContractId.HasValue ? [filter.ContractId.Value] : null;
+        var toDate = filter.ToDate?.Date;
+        // ردیفِ بی‌تاریخ فقط سهمِ مفادِ قراردادی است که هنوز فروشی ندارد. به ابتدای
+        // دوره نسبت داده می‌شود تا هیچ‌وقت خاموش از جمع حذف نشود.
+        var undatedFallback = filter.FromDate?.Date ?? DateTime.MinValue;
 
-        var contractIds = shareRows.Select(s => s.ContractId).Distinct().ToArray();
-        var saleMap = await _db.SalesTransactions.AsNoTracking()
-            .Where(s => s.ContractId.HasValue && contractIds.Contains(s.ContractId.Value))
-            .Select(s => new { s.Id, ContractId = s.ContractId!.Value })
-            .ToDictionaryAsync(s => s.Id, s => s.ContractId, ct);
-        var saleIds = saleMap.Keys.ToArray();
-        var query = _db.LedgerEntries.AsNoTracking()
-            .Where(l => (l.ContractId.HasValue && contractIds.Contains(l.ContractId.Value))
-                || (l.SourceType == CompanyFlowSourceTypes.Sale && saleIds.Contains(l.SourceId)))
-            .WhereEffectiveSarrafSettlementLegs(_db);
-        if (filter.ToDate.HasValue)
+        foreach (var partnerId in partnerIds)
         {
-            var end = filter.ToDate.Value.Date.AddDays(1);
-            query = query.Where(l => l.EntryDate < end);
-        }
-        var ledgerRows = await query
-            .Select(l => new { l.Id, l.ContractId, l.SourceId, l.EntryDate, l.Side, l.AmountUsd, l.SourceType, l.Reference })
-            .ToListAsync(ct);
-
-        // پرداخت‌های روزنامچه دیگر کورکورانه بین شرکا تقسیم نمی‌شوند: پرداختِ شرکت پولِ شریک
-        // نیست و اصلاً وارد صورت‌حساب او نمی‌شود، و پرداختِ شریک کامل به خودِ همان شریک می‌رسد.
-        // رویدادهای اقتصادی (بارگیری، مصرف، فروش) دقیقاً مثل قبل بر SharePercent تقسیم می‌شوند.
-        var funding = await PartnerFundingReader.LoadLedgerMapAsync(db: _db, contractIds, ct);
-
-        foreach (var row in ledgerRows)
-        {
-            var contractId = row.ContractId
-                ?? (row.SourceType == CompanyFlowSourceTypes.Sale
-                    && saleMap.TryGetValue(row.SourceId, out var saleContractId)
-                        ? saleContractId
-                        : (int?)null);
-            if (!contractId.HasValue)
+            var statement = await _partnerships.BuildForPartnerAsync(partnerId, contractIds, ct);
+            if (statement is null)
             {
                 continue;
             }
 
-            if (funding.PaymentLedgerEntryIds.Contains(row.Id))
+            foreach (var entry in statement.Entries)
             {
-                if (funding.PartnerByPaymentLedgerEntryId.TryGetValue(row.Id, out var payerPartnerId))
+                if (toDate.HasValue && entry.Date.HasValue && entry.Date.Value.Date > toDate.Value)
                 {
-                    AddLedgerEvent(
-                        target,
-                        payerPartnerId,
-                        PartyStatementPartyType.Partner,
-                        CompanyFlowPartyRole.Partner,
-                        row.EntryDate,
-                        row.Side,
-                        decimal.Round(row.AmountUsd, 2, MidpointRounding.AwayFromZero),
-                        row.SourceType,
-                        row.Reference);
+                    continue;
                 }
 
-                continue;
-            }
+                if (entry.EffectUsd == 0m)
+                {
+                    continue;
+                }
 
-            foreach (var (sharePartnerId, sharePercent) in shareHistory.SharesOn(contractId.Value, row.EntryDate))
-            {
-                AddLedgerEvent(
-                    target,
-                    sharePartnerId,
+                target.Add(new BalanceEvent(
                     PartyStatementPartyType.Partner,
-                    CompanyFlowPartyRole.Partner,
-                    row.EntryDate,
-                    row.Side,
-                    decimal.Round(row.AmountUsd * sharePercent / 100m, 2, MidpointRounding.AwayFromZero),
-                    row.SourceType,
-                    row.Reference);
+                    partnerId,
+                    entry.Date?.Date ?? undatedFallback,
+                    entry.EffectUsd < 0m
+                        ? CompanyFlowDirection.Receipt
+                        : CompanyFlowDirection.Outflow,
+                    Math.Abs(entry.EffectUsd)));
             }
         }
     }

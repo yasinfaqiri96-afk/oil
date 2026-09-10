@@ -99,13 +99,16 @@ public sealed class PartyStatementPolicyResolver : IPartyStatementPolicyResolver
                 "Partner Share Statement",
                 "اطلاعات شریک",
                 "Partner Information",
-                receiptMeaning: "سهم شریک از ارزشی که شرکت دریافت کرده",
-                receiptMeaningEn: "Partner share of the value the company received",
-                outflowMeaning: "سهم شریک از ارزشی که شرکت داده",
-                outflowMeaningEn: "Partner share of the value the company gave",
+                receiptMeaning: "آنچه به شریک رسیده: عاید فروشِ نزد او و تسویه‌ای که گرفته",
+                receiptMeaningEn: "Value received by the partner: sale proceeds held and settlements received",
+                outflowMeaning: "آنچه شریک آورده: سرمایه‌گذاری، سهم مفاد و تسویه‌ای که پرداخته",
+                outflowMeaningEn: "Value brought by the partner: funding, profit share and settlements paid",
                 accountTypeFa: "حساب سهم و سرمایه شریک",
                 accountTypeEn: "Partner share and capital account",
-                supportsOperationalColumns: true),
+                supportsOperationalColumns: true,
+                // ماندهٔ شریک، طلب/بدهیِ شرکت از یک طرفِ معامله نیست؛ ماندهٔ شراکت است.
+                positiveBalanceKey: CompanyFlowTextKey.PartnerCreditorBalance,
+                negativeBalanceKey: CompanyFlowTextKey.PartnerDebtorBalance),
             [PartyStatementPartyType.Driver] = Build(
                 PartyStatementPartyType.Driver,
                 CompanyFlowPartyRole.Driver,
@@ -153,9 +156,13 @@ public sealed class PartyStatementPolicyResolver : IPartyStatementPolicyResolver
         string outflowMeaningEn,
         string accountTypeFa,
         string accountTypeEn,
-        bool supportsOperationalColumns = false)
+        bool supportsOperationalColumns = false,
+        CompanyFlowTextKey? positiveBalanceKey = null,
+        CompanyFlowTextKey? negativeBalanceKey = null)
         => new()
         {
+            PositiveBalanceKeyOverride = positiveBalanceKey,
+            NegativeBalanceKeyOverride = negativeBalanceKey,
             PartyType = type,
             FlowRole = flowRole,
             StatementTitleFa = titleFa,

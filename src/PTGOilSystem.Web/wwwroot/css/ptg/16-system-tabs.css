@@ -14,7 +14,7 @@
 :root {
     --ptg-tabs-font-size: 16px;
     --ptg-tabs-text-color: #333333;
-    --ptg-tabs-active-color: var(--primary-main, #1062D0);
+    --ptg-tabs-active-color: var(--primary-main);
     --ptg-tabs-border-color: #E0E0E0;
     --ptg-tabs-border-width: 2px;
     /* Chortke spaces tabs with margins, not padding, so the indicator ends up
@@ -23,7 +23,7 @@
     --ptg-tabs-item-height: 25px;
     --ptg-tabs-rail-height: 52px;
     --ptg-tabs-rail-radius: 12px;
-    --ptg-tabs-rail-bg: var(--background-paper, #FFFFFF);
+    --ptg-tabs-rail-bg: var(--background-paper);
     --ptg-tabs-indicator-height: 3px;
     --ptg-tabs-indicator-shadow: 0 3px 6px rgba(0, 0, 0, .086);
     --ptg-tabs-transition-duration: 300ms;
@@ -36,11 +36,6 @@
     --ptg-tabs-space-below: 16px;
 
     /* Back-compat aliases; older rules still reference these names. */
-    --ptg-tabs-ink: var(--ptg-tabs-active-color);
-    --ptg-tabs-muted: var(--ptg-tabs-text-color);
-    --ptg-tabs-active: var(--ptg-tabs-active-color);
-    --ptg-tabs-border: var(--ptg-tabs-border-color);
-    --ptg-tabs-underline: var(--ptg-tabs-indicator-height);
 }
 
 /* ---- Scroll shell ------------------------------------------------ */
@@ -265,8 +260,8 @@
     height: 18px;
     padding: 0 5px;
     border: 0;
-    border-radius: 9px;
-    background: var(--ptg-surface-soft, #F8F9FC);
+    border-radius: var(--radius-card);
+    background: var(--ptg-surface-soft);
     color: #6B6B76;
     font-size: 11px;
     font-weight: 500;

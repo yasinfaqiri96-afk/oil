@@ -6,72 +6,107 @@
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("PreSales");
     var fullDeliveryUrl = Url.Action("Create", new { returnUrl = Model.ReturnUrl }) ?? "#";
     var stagedDeliveryUrl = Url.Action("PreSaleCreate") ?? "#";
+    var baseCurrencyCode = PTGOilSystem.Web.Services.SystemCurrency.BaseCurrencyCode;
+    var displayCurrencyCode = string.IsNullOrWhiteSpace(Model.Currency) ? baseCurrencyCode : Model.Currency;
+    var showFxRateField = !string.Equals(Model.Currency, baseCurrencyCode, StringComparison.OrdinalIgnoreCase);
 }
 
 <div class="page-stack ak-form-page">
-    <header class="ak-page-header">
-        <div class="ak-page-heading">
-            <span class="ak-page-icon"><i class="bi bi-list-check"></i></span>
-            <div>
-                <h1>ثبت فروش با تحویل مرحله‌ای</h1>
-                <p>مقدار و قیمتِ کل همین‌جا ثبت می‌شود؛ موجودی و درآمد فقط هنگام هر تحویل ثبت می‌گردد.</p>
-            </div>
-        </div>
-        <div class="ak-page-actions">
-            <a href="@cancelUrl" class="btn ak-secondary-action">بازگشت</a>
-        </div>
-    </header>
+    @* همان هدر و همان دکمه‌های پایین فرمِ «تحویل کامل»، برای یکدستی دو فرم. *@
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("ثبت فروش با تحویل مرحله‌ای", false, (string?)null, (string?)null, (string?)null, (string?)null,
+                       "بازگشت", "bi-arrow-right", (string?)cancelUrl))" />
 
     <partial name="~/Views/Sales/_SaleDeliveryModeChoice.cshtml"
              model="@(("staged", fullDeliveryUrl, stagedDeliveryUrl))" />
 
-    <form asp-action="PreSaleCreate" method="post" class="ak-form">
+    <form asp-action="PreSaleCreate" method="post" class="ak-form" data-presale-create-form>
         @Html.AntiForgeryToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert"></div>
 
         <section class="ak-form-section" aria-label="اطلاعات فروش">
-            <h2 class="ak-section-title">اطلاعات فروش</h2>
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("اطلاعات فروش", (string?)"مشخصات خریدار و سند تعهد فروش را وارد کنید."))" />
             <div class="ak-form-grid">
                 <div class="ak-field">
-                    <label asp-for="CustomerId" class="ak-label">مشتری <span class="ak-req">*</span></label>
+                    <label asp-for="CustomerId" class="ak-label">خریدار <span class="ak-req">*</span></label>
                     <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                        <option value="">انتخاب مشتری</option>
+                        <option value="">انتخاب خریدار</option>
                     </select>
                     <span asp-validation-for="CustomerId" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="ProductId" class="ak-label">کالا <span class="ak-req">*</span></label>
-                    <select asp-for="ProductId" asp-items="ViewBag.Products" class="ak-input">
-                        <option value="">انتخاب کالا</option>
-                    </select>
-                    <span asp-validation-for="ProductId" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="QuantityMt" class="ak-label">مقدار کل (تن) <span class="ak-req">*</span></label>
-                    <input asp-for="QuantityMt" class="ak-input" />
-                    <span asp-validation-for="QuantityMt" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="Currency" class="ak-label">ارز <span class="ak-req">*</span></label>
-                    <select asp-for="Currency" asp-items="ViewBag.Currencies" class="ak-input"><option value=""></option></select>
-                    <span asp-validation-for="Currency" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="UnitPriceInCurrency" class="ak-label">قیمت هر تن <span class="ak-req">*</span></label>
-                    <input asp-for="UnitPriceInCurrency" class="ak-input" />
-                    <span asp-validation-for="UnitPriceInCurrency" class="ak-field-error"></span>
-                </div>
-                <div class="ak-field">
-                    <label asp-for="AppliedFxRateToUsd" class="ak-label">نرخ تبدیل به USD</label>
-                    <input asp-for="AppliedFxRateToUsd" class="ak-input" />
-                    <span asp-validation-for="AppliedFxRateToUsd" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
                     <label asp-for="OrderDate" class="ak-label">تاریخ فروش <span class="ak-req">*</span></label>
                     <input asp-for="OrderDate" type="date" class="ak-input" />
                     <span asp-validation-for="OrderDate" class="ak-field-error"></span>
                 </div>
+                <div class="ak-field">
+                    <label asp-for="Currency" class="ak-label">ارز <span class="ak-req">*</span></label>
+                    <select asp-for="Currency" asp-items="ViewBag.Currencies" class="ak-input" data-presale-currency><option value=""></option></select>
+                    <span asp-validation-for="Currency" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field" data-presale-fx-field @(showFxRateField ? null : "hidden")>
+                    <label asp-for="AppliedFxRateToUsd" class="ak-label">نرخ تبدیل به USD</label>
+                    <input asp-for="AppliedFxRateToUsd" class="ak-input" />
+                    <span asp-validation-for="AppliedFxRateToUsd" class="ak-field-error"></span>
+                </div>
+            </div>
+        </section>
+
+        @* منبع روی خودِ تعهد ذخیره نمی‌شود؛ فقط در فرم «ثبت تحویل» پیش‌انتخاب می‌شود. *@
+        <section class="ak-form-section" aria-label="منبع موجودی">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("منبع موجودی", (string?)"موجودی همین حالا کم نمی‌شود؛ کسر در هر تحویل و از همین منبع انجام می‌گیرد."))" />
+            <div class="ak-form-grid">
+                <div class="ak-field ak-col-full">
+                    <label asp-for="PreferredSourceStorageTankId" class="ak-label">مخزن منبع تحویل‌ها</label>
+                    <select asp-for="PreferredSourceStorageTankId" asp-items="ViewBag.SourceStorageTanks" class="ak-input">
+                        <option value="">بعداً هنگام هر تحویل انتخاب می‌شود</option>
+                    </select>
+                    <div class="form-text">این انتخاب در فرم «ثبت تحویل جدید» به‌عنوان منبع پیش‌فرض باز می‌گردد؛ هر تحویل می‌تواند منبع دیگری داشته باشد.</div>
+                    <span asp-validation-for="PreferredSourceStorageTankId" class="ak-field-error"></span>
+                </div>
+            </div>
+        </section>
+
+        <section class="ak-form-section" aria-label="اقلام فروش">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("اقلام فروش", (string?)"این تعهد یک قلم دارد؛ قیمت در همین لحظه قفل می‌شود."))" />
+            @* واحد همیشه MT است و ارز در سربرگ ستون آمده؛ داخل ردیف تکرار نمی‌شوند. *@
+            <div class="ak-table-wrap ak-table-wrap--flush">
+                <table class="ak-table">
+                    <thead><tr><th>محصول <span class="ak-req">*</span></th><th class="ak-col-num">مقدار کل (MT) <span class="ak-req">*</span></th><th class="ak-col-num">قیمت واحد (@displayCurrencyCode) <span class="ak-req">*</span></th><th class="ak-col-num">مبلغ کل (@displayCurrencyCode)</th></tr></thead>
+                    <tbody><tr>
+                        <td><select asp-for="ProductId" asp-items="ViewBag.Products" class="ak-input"><option value="">انتخاب محصول</option></select><span asp-validation-for="ProductId" class="ak-field-error"></span></td>
+                        <td class="ak-col-num"><input asp-for="QuantityMt" class="ak-input text-end" data-presale-quantity /><span asp-validation-for="QuantityMt" class="ak-field-error"></span></td>
+                        <td class="ak-col-num"><input asp-for="UnitPriceInCurrency" class="ak-input text-end" data-presale-unit-price /><span asp-validation-for="UnitPriceInCurrency" class="ak-field-error"></span></td>
+                        <td class="ak-col-num"><strong data-presale-total-value>0.00</strong></td>
+                    </tr></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="ak-form-section" aria-live="polite" aria-label="مرور نهایی فروش">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("مرور نهایی فروش", (string?)"پیش از ثبت، شرایط فروش را بررسی کنید."))" />
+            <dl class="ak-summary-hero">
+                <div>
+                    <dt>مقدار فروش</dt>
+                    <dd class="ak-num"><span data-presale-summary-qty>0.000</span> <span class="ak-summary-hero__unit">MT</span></dd>
+                </div>
+                <div>
+                    <dt>مبلغ کل فاکتور</dt>
+                    <dd class="ak-num"><span data-presale-summary-amount>0.00</span> <span class="ak-summary-hero__unit" data-presale-summary-unit>@displayCurrencyCode</span></dd>
+                </div>
+            </dl>
+        </section>
+
+        <details class="ak-advanced"@(!ViewData.ModelState.IsValid ? " open" : "")>
+            <summary class="ak-advanced-summary">
+                <span><i class="bi bi-sliders2" aria-hidden="true"></i>گزینه‌های بیشتر</span>
+            </summary>
+            <div class="ak-form-grid">
                 <div class="ak-field">
                     <label asp-for="ExpectedDeliveryFrom" class="ak-label">تحویل از تاریخ</label>
                     <input asp-for="ExpectedDeliveryFrom" type="date" class="ak-input" />
@@ -82,14 +117,6 @@
                     <input asp-for="ExpectedDeliveryTo" type="date" class="ak-input" />
                     <span asp-validation-for="ExpectedDeliveryTo" class="ak-field-error"></span>
                 </div>
-            </div>
-        </section>
-
-        <details class="ak-advanced"@(!ViewData.ModelState.IsValid ? " open" : "")>
-            <summary class="ak-advanced-summary">
-                <span><i class="bi bi-sliders2" aria-hidden="true"></i>گزینه‌های بیشتر</span>
-            </summary>
-            <div class="ak-form-grid">
                 <div class="ak-field">
                     <label asp-for="ReferenceNumber" class="ak-label">شماره مرجع</label>
                     <input asp-for="ReferenceNumber" class="ak-input" />
@@ -98,16 +125,14 @@
                     <label asp-for="PaymentTerms" class="ak-label">شرایط پرداخت</label>
                     <input asp-for="PaymentTerms" class="ak-input" />
                 </div>
-                <div class="ak-field">
+                <div class="ak-field ak-col-full">
                     <label asp-for="Notes" class="ak-label">توضیحات</label>
-                    <textarea asp-for="Notes" class="ak-input" rows="2"></textarea>
+                    <textarea asp-for="Notes" class="ak-input" rows="3"></textarea>
                 </div>
             </div>
         </details>
 
-        <div class="ak-footer-actions">
-            <a href="@cancelUrl" class="btn ak-secondary-action">انصراف</a>
-            <button type="submit" class="btn btn-primary">ذخیره فروش</button>
-        </div>
+        <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                 model="@(("ذخیره و ثبت", cancelUrl ?? "#", "انصراف"))" />
     </form>
 </div>

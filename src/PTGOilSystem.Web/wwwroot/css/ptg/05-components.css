@@ -22,10 +22,10 @@ body.ptg-modal-document :where(.btn, .ptg-btn) {
     min-height: 2.25rem;
     padding: .4rem .95rem;
     border: 1px solid var(--_bd) !important;
-    border-radius: var(--ptg-radius-button, 8px) !important;
+    border-radius: var(--ptg-radius-button) !important;
     background: var(--_bg) !important;
     color: var(--_fg) !important;
-    font-size: .8125rem;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1.15;
     letter-spacing: 0;
@@ -131,7 +131,7 @@ body.boltz-shell.app-shell-authenticated :where(.btn-sm),
 body.ptg-modal-document :where(.btn-sm) {
     min-height: 1.9rem;
     padding: .3rem .7rem;
-    font-size: .75rem;
+    font-size: 12px;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.card-header, .card-footer),
@@ -151,7 +151,7 @@ body.ptg-modal-document .ptg-card-head{
 
 body.boltz-shell.app-shell-authenticated :where(.page-eyebrow, .ptg-page-kicker) {
     color: var(--ptg-muted);
-    font-size: .78rem;
+    font-size: 12px;
     font-weight: 750;
     letter-spacing: 0;
 }

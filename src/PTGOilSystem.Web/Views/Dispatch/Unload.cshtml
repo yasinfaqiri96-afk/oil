@@ -1,7 +1,6 @@
 @model PTGOilSystem.Web.Models.Dispatch.DispatchUnloadViewModel
 @{
     ViewData["Title"] = "ثبت تخلیه موتر";
-    ViewData["ContentBodyClass"] = "boltz-content-body-fluid";
     ViewData["HideSectionTabs"] = true;
     string T(string fa, string en) => UiText.T(Context, fa, en);
     var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl);

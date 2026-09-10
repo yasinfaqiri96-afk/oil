@@ -2482,6 +2482,12 @@ public partial class ExpensesController : Controller
         return string.IsNullOrWhiteSpace(fallback) ? "-" : fallback.Trim();
     }
 
+    // دیسپچ موترِ ساخته‌شده روی رسیدِ «ادامهٔ حمل» فقط رکورد سازگاری است و همان عملیات
+    // به‌صورت «حمل از موجودی» (حمل فرزند) در لیست هست؛ نمایش هر دو یعنی عملیات تکراری و
+    // چسبیدن مصرف به حمل والد.
+    private IQueryable<int> ContinuedTransferReceiptIds()
+        => TransportChainProjection.ContinuedTransferReceiptIds(_db);
+
     private async Task<List<GroupExpenseOperationItem>> LoadInProgressOperationsAsync()
     {
         var legs = await _db.InventoryTransportLegs
@@ -2508,9 +2514,13 @@ public partial class ExpensesController : Controller
             })
             .ToListAsync();
 
+        var continuedReceiptIds = ContinuedTransferReceiptIds();
+
         var dispatches = await _db.TruckDispatches
             .AsNoTracking()
-            .Where(d => d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
+            .Where(d => (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
+                        && !(d.InventoryTransportReceiptId != null
+                             && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)))
             .OrderByDescending(d => d.DispatchDate)
             .ThenByDescending(d => d.Id)
             .Select(d => new
@@ -2870,10 +2880,14 @@ public partial class ExpensesController : Controller
                             || l.Status == InventoryTransportLegStatus.InTransit))
             .ToDictionaryAsync(l => l.Id);
 
+        var continuedReceiptIds = ContinuedTransferReceiptIds();
+
         var dispatches = await _db.TruckDispatches
             .AsNoTracking()
             .Where(d => dispatchIds.Contains(d.Id)
-                        && (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit))
+                        && (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
+                        && !(d.InventoryTransportReceiptId != null
+                             && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)))
             .ToDictionaryAsync(d => d.Id);
 
         if (legs.Count != legIds.Count || dispatches.Count != dispatchIds.Count)

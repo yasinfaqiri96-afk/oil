@@ -2,7 +2,6 @@
 @{
     var isEdit = ViewData["IsEdit"] as bool? ?? false;
     ViewData["Title"] = isEdit ? "ویرایش ارسال با موتر" : "ارسال مستقیم از مخزن با موتر";
-    ViewData["ContentBodyClass"] = "boltz-content-body";
     ViewData["HideSectionTabs"] = true;
     ViewData["LoadingCreateAssets"] = true;
     var editId = ViewData["EditId"] as int?;

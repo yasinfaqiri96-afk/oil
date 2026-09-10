@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -45,6 +45,7 @@ public sealed class InventoryTransportReceiptService
     private readonly Accounting.ISalesAccountingAdapter? _salesAccounting;
     private readonly Accounting.IShortageChargeAccountingAdapter? _shortageAccounting;
     private readonly Accounting.IInventoryTransferAccountingAdapter? _transferAccounting;
+    private readonly Accounting.IPurchaseAccountingAdapter? _purchaseAccounting;
 
     public InventoryTransportReceiptService(
         ApplicationDbContext db,
@@ -54,6 +55,7 @@ public sealed class InventoryTransportReceiptService
         Accounting.ISalesAccountingAdapter? salesAccounting = null,
         Accounting.IShortageChargeAccountingAdapter? shortageAccounting = null,
         Accounting.IInventoryTransferAccountingAdapter? transferAccounting = null,
+        Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null,
         IInventoryMovementWriter? movements = null,
         ITransportQuantityService? quantities = null,
         ITransportSourceAllocationService? sourceAllocations = null)
@@ -68,6 +70,7 @@ public sealed class InventoryTransportReceiptService
         _salesAccounting = salesAccounting;
         _shortageAccounting = shortageAccounting;
         _transferAccounting = transferAccounting;
+        _purchaseAccounting = purchaseAccounting;
     }
 
     public async Task<InventoryTransportLeg?> LoadLegAsync(int id, bool tracking)
@@ -382,6 +385,14 @@ public sealed class InventoryTransportReceiptService
         if (_transferAccounting is not null)
         {
             await _transferAccounting.TryPostReceiptAsync(receipt);
+        }
+
+        // همان رسید، وقتی منبعش خرید است نه ترمینال: حملی که سهم‌هایش از بارگیری خرید می‌آید
+        // LoadingReceipt ندارد، پس ورودش به موجودی را همین آداپتر ثبت می‌کند. دو آداپتر روی یک
+        // رسید همپوشانی ندارند — هرکدام نبودِ منبعِ دیگری را Skip می‌کند.
+        if (_purchaseAccounting is not null)
+        {
+            await _purchaseAccounting.TryPostTransportReceiptAsync(receipt);
         }
 
         // فقط وقتی باقیمانده حمل صفر شد، حمل «تکمیل» می‌شود؛ در تخلیهٔ جزئی حمل باز می‌ماند تا باقیمانده هم رسید بگیرد.

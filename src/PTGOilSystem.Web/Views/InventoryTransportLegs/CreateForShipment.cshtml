@@ -2,7 +2,6 @@
 @model PTGOilSystem.Web.Models.InventoryTransport.ShipmentTransportCreateViewModel
 @{
     ViewData["Title"] = "صفحه قدیمی انتقال گروهی";
-    ViewData["ContentBodyClass"] = "boltz-content-body-fluid";
     ViewData["HideSectionTabs"] = true;
     string T(string fa, string en) => UiText.T(Context, fa, en);
     var sourceTerminals = ViewBag.SourceTerminals as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());

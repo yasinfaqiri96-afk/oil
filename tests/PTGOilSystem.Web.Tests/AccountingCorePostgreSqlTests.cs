@@ -337,10 +337,16 @@ public sealed class AccountingCorePostgreSqlTests(AccountingPostgreSqlFixture fi
         await seeder.SeedAsync();
         await seeder.SeedAsync();
 
-        Assert.Equal(26, await db.Accounts.CountAsync(x => x.CompanyId == company.Id));
+        // ۲۷ = ۲۶ حساب استاندارد + حساب جاری شرکا (۳۳۰۰).
+        Assert.Equal(27, await db.Accounts.CountAsync(x => x.CompanyId == company.Id));
         Assert.Equal(1, await db.AccountingSettings.CountAsync(x => x.CompanyId == company.Id));
 
         var settings = await db.AccountingSettings.SingleAsync(x => x.CompanyId == company.Id);
+
+        // اجرای دوم نه حساب دوباره می‌سازد و نه ارجاعِ پرشده را عوض می‌کند.
+        var partnerCurrent = await db.Accounts.SingleAsync(
+            x => x.CompanyId == company.Id && x.Code == "3300");
+        Assert.Equal(partnerCurrent.Id, settings.PartnerCurrentAccountId);
         var employeePayable = await db.Accounts.SingleAsync(x => x.Id == settings.EmployeePayableAccountId);
         var accruedPayable = await db.Accounts.SingleAsync(x => x.Id == settings.AccruedExpenseAccountId);
         Assert.Equal("2500", employeePayable.Code);

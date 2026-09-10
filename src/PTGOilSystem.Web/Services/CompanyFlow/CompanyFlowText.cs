@@ -22,6 +22,8 @@ public enum CompanyFlowTextKey
     PeriodTotal,
     PositiveBalance,
     NegativeBalance,
+    PartnerCreditorBalance,
+    PartnerDebtorBalance,
     SettledBalance,
     CashPositiveBalance,
     CashNegativeBalance,
@@ -64,6 +66,15 @@ public static class CompanyFlowText
             [CompanyFlowTextKey.NegativeBalance] =
                 ("شرکت به طرف‌حساب بدهکار است",
                  "The company owes the counterparty"),
+            // حساب شریک طرفِ معاملهٔ شرکت نیست؛ سرمایه و سهمِ اوست. پس فاعلِ جمله خودِ شریک
+            // است: مثبت یعنی شراکت به او بدهکار است. عدد همان NetPositionUsd صورت‌حساب
+            // شراکت است و در همهٔ صفحات یک علامت دارد.
+            [CompanyFlowTextKey.PartnerCreditorBalance] =
+                ("شریک از شراکت طلبکار است",
+                 "The partner is owed by the partnership"),
+            [CompanyFlowTextKey.PartnerDebtorBalance] =
+                ("شریک به شراکت بدهکار است",
+                 "The partner owes the partnership"),
             [CompanyFlowTextKey.SettledBalance] = ("حساب تسویه است", "Account is settled"),
             [CompanyFlowTextKey.CashPositiveBalance] = ("موجودی مثبت حساب", "Positive account balance"),
             [CompanyFlowTextKey.CashNegativeBalance] = ("کسری حساب نقدی", "Cash account shortfall"),

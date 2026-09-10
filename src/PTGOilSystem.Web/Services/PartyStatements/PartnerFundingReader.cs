@@ -19,7 +19,13 @@ public sealed record PartnerFundingPaymentRow(
     decimal AmountUsd,
     string? Reference,
     string? Description,
-    int? LedgerEntryId);
+    int? LedgerEntryId,
+    /// <summary>
+    /// پول از صندوقِ شرکتی خارج شده که دفترش دفترِ شخصیِ همین شریک است
+    /// (<see cref="Company.OwnerPartnerId"/>)، نه از جیبِ شخصیِ او.
+    /// فقط برای برچسب و ردیابی است؛ ریاضیِ سرمایه‌گذاری با پرداختِ مستقیم یکی است.
+    /// </summary>
+    bool ViaOwnedCompany = false);
 
 /// <summary>
 /// نگاشتِ سطرهای لجرِ برخاسته از روزنامچه، برای قراردادهای موردنظر.
@@ -46,6 +52,19 @@ public sealed record PartnerFundingLedgerMap(
 /// بیلانس مدیریتی، پروفایل شریک) و هر سه باید دقیقاً یک تعریف از «پرداخت واقعی شریک» داشته
 /// باشند. این کلاس فقط می‌خواند؛ هیچ سندی نمی‌سازد و هیچ جهت/علامتی تعریف نمی‌کند —
 /// جهت همچنان از <see cref="CompanyFlow.ICompanyFlowDirectionResolver"/> می‌آید.
+///
+/// دو راهِ قطعی برای «پولِ شریک» شناخته می‌شود و هیچ راهِ سومی (نام، حدس، تطبیقِ متنی) وجود ندارد:
+///
+///   ۱) <see cref="PaymentFundingSource.Partner"/> با <see cref="PaymentTransaction.PaidByPartnerId"/> —
+///      شریک از جیبِ خودش داده و صندوقِ شرکت اصلاً حرکت نکرده است.
+///
+///   ۲) <see cref="PaymentFundingSource.Company"/> از شرکتی که
+///      <see cref="Company.OwnerPartnerId"/> دارد و همان شریک عضوِ همین قراردادِ شراکتی است —
+///      مالکِ شرکت پول را از دفترِ خودش داده، پس سرمایه‌گذاریِ اوست. هر سه شرط لازم است:
+///      پرداخت به همین قرارداد بچسبد، قرارداد
+///      <see cref="ContractOwnershipType.Partnership"/> باشد، و شریکِ مالک واقعاً در
+///      <see cref="ContractPartner"/> همان قرارداد باشد. پرداختِ عمومیِ شرکت، سربار، یا
+///      پرداختِ قراردادِ دیگر هیچ‌وقت از این در رد نمی‌شود.
 /// </summary>
 public static class PartnerFundingReader
 {
@@ -67,25 +86,24 @@ public static class PartnerFundingReader
         }
 
         var ids = contractIds.Distinct().ToArray();
-        var rows = await db.PaymentTransactions
-            .AsNoTracking()
-            .Where(p => p.LedgerEntryId != null
-                && ((p.ContractId != null && ids.Contains(p.ContractId!.Value))
-                    || (p.SalesTransaction != null
-                        && p.SalesTransaction.ContractId != null
-                        && ids.Contains(p.SalesTransaction.ContractId!.Value))))
-            .Select(p => new
-            {
-                LedgerEntryId = p.LedgerEntryId!.Value,
-                p.FundingSource,
-                p.PaidByPartnerId
-            })
-            .ToListAsync(ct);
+        var rows = await LoadScopedPaymentsAsync(db, ids, requireLedgerEntry: true, toDate: null, ct);
+        if (rows.Count == 0)
+        {
+            return PartnerFundingLedgerMap.Empty;
+        }
 
-        var all = rows.Select(r => r.LedgerEntryId).ToHashSet();
-        var byPartner = rows
-            .Where(r => r.FundingSource == PaymentFundingSource.Partner && r.PaidByPartnerId != null)
-            .ToDictionary(r => r.LedgerEntryId, r => r.PaidByPartnerId!.Value);
+        var context = await FundingContext.LoadAsync(db, ids, rows, ct);
+
+        var all = rows.Select(r => r.LedgerEntryId!.Value).ToHashSet();
+        var byPartner = new Dictionary<int, int>();
+        foreach (var row in rows)
+        {
+            var partnerId = context.ResolveFundingPartnerId(row);
+            if (partnerId.HasValue)
+            {
+                byPartner[row.LedgerEntryId!.Value] = partnerId.Value;
+            }
+        }
 
         return new PartnerFundingLedgerMap(all, byPartner);
     }
@@ -109,21 +127,66 @@ public static class PartnerFundingReader
         }
 
         var ids = contractIds.Distinct().ToArray();
-        // دامنه دقیقاً همان چیزی است که پروفایل شریک نشان می‌دهد: پرداختِ مستقیمِ قرارداد و
-        // پرداختی که از راه یک فروشِ همان قرارداد ثبت شده. پیش‌تر فقط ContractId خوانده می‌شد
-        // و پرداخت شریک روی فروش، در جدول دیده می‌شد ولی در «پرداخت واقعی» شمرده نمی‌شد.
+        var rows = await LoadScopedPaymentsAsync(db, ids, requireLedgerEntry: false, toDate, ct);
+        if (rows.Count == 0)
+        {
+            return [];
+        }
+
+        var context = await FundingContext.LoadAsync(db, ids, rows, ct);
+
+        var result = new List<PartnerFundingPaymentRow>();
+        foreach (var row in rows)
+        {
+            var payerId = context.ResolveFundingPartnerId(row);
+            if (!payerId.HasValue || (partnerId.HasValue && payerId.Value != partnerId.Value))
+            {
+                continue;
+            }
+
+            result.Add(new PartnerFundingPaymentRow(
+                row.PaymentId,
+                payerId.Value,
+                row.ContractId,
+                row.PaymentDate,
+                row.Direction,
+                row.PaymentKind,
+                row.Amount,
+                row.Currency,
+                row.AmountUsd,
+                row.Reference,
+                row.Description,
+                row.LedgerEntryId,
+                ViaOwnedCompany: row.FundingSource != PaymentFundingSource.Partner));
+        }
+
+        return result
+            .OrderBy(r => r.PaymentDate)
+            .ThenBy(r => r.PaymentId)
+            .ToList();
+    }
+
+    /// <summary>
+    /// دامنه دقیقاً همان چیزی است که پروفایل شریک نشان می‌دهد: پرداختِ مستقیمِ قرارداد و
+    /// پرداختی که از راه یک فروشِ همان قرارداد ثبت شده.
+    /// </summary>
+    private static async Task<List<ScopedPaymentRow>> LoadScopedPaymentsAsync(
+        ApplicationDbContext db,
+        IReadOnlyCollection<int> ids,
+        bool requireLedgerEntry,
+        DateTime? toDate,
+        CancellationToken ct)
+    {
         var query = db.PaymentTransactions
             .AsNoTracking()
-            .Where(p => p.FundingSource == PaymentFundingSource.Partner
-                && p.PaidByPartnerId != null
-                && ((p.ContractId != null && ids.Contains(p.ContractId!.Value))
-                    || (p.SalesTransaction != null
-                        && p.SalesTransaction.ContractId != null
-                        && ids.Contains(p.SalesTransaction.ContractId!.Value))));
+            .Where(p => (p.ContractId != null && ids.Contains(p.ContractId!.Value))
+                || (p.SalesTransaction != null
+                    && p.SalesTransaction.ContractId != null
+                    && ids.Contains(p.SalesTransaction.ContractId!.Value)));
 
-        if (partnerId.HasValue)
+        if (requireLedgerEntry)
         {
-            query = query.Where(p => p.PaidByPartnerId == partnerId.Value);
+            query = query.Where(p => p.LedgerEntryId != null);
         }
 
         if (toDate.HasValue)
@@ -135,10 +198,13 @@ public static class PartnerFundingReader
         return await query
             .OrderBy(p => p.PaymentDate)
             .ThenBy(p => p.Id)
-            .Select(p => new PartnerFundingPaymentRow(
+            .Select(p => new ScopedPaymentRow(
                 p.Id,
-                p.PaidByPartnerId!.Value,
+                p.LedgerEntryId,
                 p.ContractId != null ? p.ContractId!.Value : p.SalesTransaction!.ContractId!.Value,
+                p.FundingSource,
+                p.PaidByPartnerId,
+                p.CompanyId,
                 p.PaymentDate,
                 p.Direction,
                 p.PaymentKind,
@@ -146,8 +212,127 @@ public static class PartnerFundingReader
                 p.Currency,
                 p.AmountUsd,
                 p.Reference,
-                p.Description,
-                p.LedgerEntryId))
+                p.Description))
             .ToListAsync(ct);
+    }
+
+    private sealed record ScopedPaymentRow(
+        int PaymentId,
+        int? LedgerEntryId,
+        int ContractId,
+        PaymentFundingSource FundingSource,
+        int? PaidByPartnerId,
+        int? PayerCompanyId,
+        DateTime PaymentDate,
+        PaymentDirection Direction,
+        PaymentKind PaymentKind,
+        decimal Amount,
+        string Currency,
+        decimal AmountUsd,
+        string? Reference,
+        string? Description);
+
+    /// <summary>
+    /// حقایقی که برای تصمیمِ «این پول مالِ کدام شریک است» لازم‌اند. همه از دیتابیس خوانده
+    /// می‌شوند و هیچ‌کدام از روی نام یا ترتیب حدس زده نمی‌شوند.
+    /// </summary>
+    private sealed class FundingContext
+    {
+        private readonly HashSet<int> _partnershipContractIds = [];
+        private readonly Dictionary<int, int> _contractCompanyId = [];
+        private readonly Dictionary<int, int> _companyOwnerPartnerId = [];
+        private readonly HashSet<(int ContractId, int PartnerId)> _members = [];
+
+        public static async Task<FundingContext> LoadAsync(
+            ApplicationDbContext db,
+            IReadOnlyCollection<int> contractIds,
+            IReadOnlyCollection<ScopedPaymentRow> rows,
+            CancellationToken ct)
+        {
+            var context = new FundingContext();
+
+            var contracts = await db.Contracts
+                .AsNoTracking()
+                .Where(c => contractIds.Contains(c.Id))
+                .Select(c => new { c.Id, c.CompanyId, c.OwnershipType })
+                .ToListAsync(ct);
+            foreach (var contract in contracts)
+            {
+                context._contractCompanyId[contract.Id] = contract.CompanyId;
+                if (contract.OwnershipType == ContractOwnershipType.Partnership)
+                {
+                    context._partnershipContractIds.Add(contract.Id);
+                }
+            }
+
+            var members = await db.ContractPartners
+                .AsNoTracking()
+                .Where(cp => contractIds.Contains(cp.ContractId))
+                .Select(cp => new { cp.ContractId, cp.PartnerId })
+                .Distinct()
+                .ToListAsync(ct);
+            foreach (var member in members)
+            {
+                context._members.Add((member.ContractId, member.PartnerId));
+            }
+
+            // شرکتِ پرداخت‌کننده: یا خودِ سند گفته کدام شرکت، یا شرکتِ همان قرارداد.
+            var companyIds = rows
+                .Select(r => r.PayerCompanyId)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Concat(contracts.Select(c => c.CompanyId))
+                .Distinct()
+                .ToArray();
+            if (companyIds.Length > 0)
+            {
+                var owners = await db.Companies
+                    .AsNoTracking()
+                    .Where(c => companyIds.Contains(c.Id) && c.OwnerPartnerId != null)
+                    .Select(c => new { c.Id, OwnerPartnerId = c.OwnerPartnerId!.Value })
+                    .ToListAsync(ct);
+                foreach (var owner in owners)
+                {
+                    context._companyOwnerPartnerId[owner.Id] = owner.OwnerPartnerId;
+                }
+            }
+
+            return context;
+        }
+
+        /// <summary>
+        /// شریکی که این پرداخت سرمایه‌گذاریِ اوست، یا null اگر پولِ هیچ شریکی نیست.
+        /// </summary>
+        public int? ResolveFundingPartnerId(ScopedPaymentRow row)
+        {
+            if (row.FundingSource == PaymentFundingSource.Partner)
+            {
+                // پرداختِ مستقیمِ شریک. عضویت شرط است تا پرداختِ یک شریک روی قراردادی که
+                // عضوش نیست، به حساب شراکت همان قرارداد ننشیند.
+                return row.PaidByPartnerId.HasValue
+                    && _members.Contains((row.ContractId, row.PaidByPartnerId.Value))
+                        ? row.PaidByPartnerId
+                        : null;
+            }
+
+            // پرداختِ شرکت. فقط اگر قرارداد شراکتی باشد و شرکتِ پرداخت‌کننده مالکِ شریکی
+            // داشته باشد که خودش عضوِ همین قرارداد است.
+            if (!_partnershipContractIds.Contains(row.ContractId))
+            {
+                return null;
+            }
+
+            var companyId = row.PayerCompanyId
+                ?? (_contractCompanyId.TryGetValue(row.ContractId, out var contractCompanyId)
+                    ? contractCompanyId
+                    : (int?)null);
+            if (!companyId.HasValue
+                || !_companyOwnerPartnerId.TryGetValue(companyId.Value, out var ownerPartnerId))
+            {
+                return null;
+            }
+
+            return _members.Contains((row.ContractId, ownerPartnerId)) ? ownerPartnerId : null;
+        }
     }
 }

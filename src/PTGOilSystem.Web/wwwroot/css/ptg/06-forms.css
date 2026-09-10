@@ -6,12 +6,11 @@ body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
     --ptg-field-bg: #FFFFFF;
     --ptg-field-border: #C2D0E3;
-    --ptg-field-muted-bg: var(--ptg-field-disabled-bg, #F8FAFC);
-    --ptg-field-height: var(--ak-control-height, 40px);
+    --ptg-field-muted-bg: var(--ptg-field-disabled-bg);
+    --ptg-field-height: var(--ak-control-height);
     --ptg-form-gap: 16px;
-    --ptg-form-card-radius: 8px;
+    --ptg-form-card-radius: 10px;  /* Chortke rounded-[10px] */
     --ptg-form-card-pad: 24px;
-    --ptg-btn-height: var(--ak-control-height, 40px);
 }
 
 body.boltz-shell.app-shell-authenticated :where(.form-label, .col-form-label, .boltz-form-label),

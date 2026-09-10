@@ -423,12 +423,28 @@ public sealed class PartyStatementReadServiceTests
         await using var db = CreateDb();
         var partner = new Partner { Code = "PAR-1", Name = "Partner One" };
         var company = new Company { Code = "CO", Name = "Company" };
-        db.AddRange(partner, company);
+        var product = new Product { Code = "DZ", Name = "Diesel" };
+        db.AddRange(partner, company, product);
         await db.SaveChangesAsync();
-        var contract = new Contract { ContractNumber = "PC-1", ContractType = ContractType.Purchase, CompanyId = company.Id };
+        var contract = new Contract
+        {
+            ContractNumber = "PC-1",
+            ContractType = ContractType.Purchase,
+            CompanyId = company.Id,
+            ProductId = product.Id,
+            OwnershipType = ContractOwnershipType.Partnership
+        };
         db.Contracts.Add(contract);
         await db.SaveChangesAsync();
         db.ContractPartners.Add(new ContractPartner { ContractId = contract.Id, PartnerId = partner.Id, SharePercent = 25m });
+        db.LoadingRegisters.Add(new LoadingRegister
+        {
+            ContractId = contract.Id,
+            ProductId = product.Id,
+            LoadingDate = new DateTime(2026, 8, 1),
+            LoadedQuantityMt = 1m,
+            LoadingPriceUsd = 200m
+        });
         db.LedgerEntries.Add(new LedgerEntry { EntryDate = new DateTime(2026, 8, 1), Side = LedgerSide.Credit, AmountUsd = 200m, Currency = "USD", ContractId = contract.Id, SourceType = "Loading", SourceId = 1, Description = "Purchase share" });
         await db.SaveChangesAsync();
 
@@ -436,7 +452,8 @@ public sealed class PartyStatementReadServiceTests
             new PartyRef(PartyStatementPartyType.Partner, partner.Id),
             new PartyStatementFilter { IncludeOperationalColumns = false });
 
-        // سهم ۲۵٪ از سند ۲۰۰ = ۵۰؛ سند بارگیری (Credit دفتر) در ستون بدهکار می‌نشیند.
+        // خرید ۲۰۰ بدون فروش یعنی ضررِ دفتری ۲۰۰؛ سهم ۲۵٪ این شریک = ۵۰ و در ستون
+        // «رسید» می‌نشیند (ارزشی که به او رسیده). هزینه فقط یک بار شمرده می‌شود.
         Assert.Equal(50m, statement.Summary.TotalReceipt);
         Assert.Equal(0m, statement.Summary.TotalOutflow);
         Assert.Equal(-50m, statement.Summary.ClosingBalance);
@@ -573,12 +590,26 @@ public sealed class PartyStatementReadServiceTests
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<PartyStatementViewModel>(view.Model);
         // خلاصهٔ قراردادها فقط برای تأمین‌کننده و شریک است؛ مشتری حتی با ContractId هم
-        // همیشه گردش حساب می‌بیند. سطرهای مالی دست‌نخورده باقی می‌مانند.
-        Assert.Equal(SupplierStatementView.Ledger, model.SupplierView);
+        // گروه‌بندی قراردادی نمی‌گیرد. خلاصهٔ پیش‌فرض مشتری بر اساس نوع سند است و صرفاً
+        // نمایشی: دو سند فروش در یک سطر جمع می‌شوند و مجموع مبلغ تغییر نمی‌کند.
         Assert.False(model.ShowContractViewTabs);
         Assert.Null(model.ContractGrouping);
-        Assert.Equal(2, model.Statement.Rows.Count(r => !r.IsOpeningBalance));
-        Assert.Equal(new[] { 40m, 60m }, model.Statement.Rows.Select(r => r.OutflowBase!.Value));
+        Assert.True(model.HasExpenseSummary);
+        Assert.Equal(SupplierStatementView.Contracts, model.SupplierView);
+        var summaryRow = Assert.Single(model.Statement.Rows.Where(r => !r.IsOpeningBalance));
+        Assert.Equal(100m, summaryRow.OutflowBase);
+
+        // نمای جزئیات همان سطرهای خام را بدون هیچ تغییر مالی نشان می‌دهد.
+        var detailResult = await controller.Customer(
+            1,
+            new PartyStatementFilter { IncludeOperationalColumns = false },
+            view: SupplierStatementView.Ledger);
+        var detailModel = Assert.IsType<PartyStatementViewModel>(
+            Assert.IsType<ViewResult>(detailResult).Model);
+        Assert.Equal(SupplierStatementView.Ledger, detailModel.SupplierView);
+        Assert.Null(detailModel.ContractGrouping);
+        Assert.Equal(2, detailModel.Statement.Rows.Count(r => !r.IsOpeningBalance));
+        Assert.Equal(new[] { 40m, 60m }, detailModel.Statement.Rows.Select(r => r.OutflowBase!.Value));
     }
 
     [Fact]
@@ -1182,13 +1213,44 @@ public sealed class PartyStatementReadServiceTests
         var product = new Product { Code = "DZ", Name = "Diesel", NamePersian = "دیزل" };
         db.AddRange(company, supplier, partner, product);
         await db.SaveChangesAsync();
-        var contract = new Contract { ContractNumber = "P-PT", ContractType = ContractType.Purchase, CompanyId = company.Id, SupplierId = supplier.Id, ProductId = product.Id, QuantityMt = 100m };
+        var contract = new Contract { ContractNumber = "P-PT", ContractType = ContractType.Purchase, CompanyId = company.Id, SupplierId = supplier.Id, ProductId = product.Id, QuantityMt = 100m, OwnershipType = ContractOwnershipType.Partnership };
         db.Add(contract);
         await db.SaveChangesAsync();
         db.ContractPartners.Add(new ContractPartner { ContractId = contract.Id, PartnerId = partner.Id, SharePercent = 40m });
+        db.LoadingRegisters.Add(new LoadingRegister
+        {
+            ContractId = contract.Id,
+            ProductId = product.Id,
+            LoadingDate = new DateTime(2026, 5, 1),
+            LoadedQuantityMt = 100m,
+            LoadingPriceUsd = 10m
+        });
         db.LedgerEntries.AddRange(
             SupplierEntry(contract.Id, supplier.Id, 1_000m, "USD", 1_000m, 1m, 1),
-            new LedgerEntry { EntryDate = new DateTime(2026, 5, 6), Side = LedgerSide.Debit, AmountUsd = 500m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "SupplierPayment", SourceId = 6, Description = "payment" });
+            new LedgerEntry { EntryDate = new DateTime(2026, 5, 6), Side = LedgerSide.Debit, AmountUsd = 200m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "SupplierPayment", SourceId = 6, Description = "payment" });
+        await db.SaveChangesAsync();
+
+        // پرداخت دیگر بر درصد تقسیم نمی‌شود: ۲۰۰ را خودِ همین شریک داده، پس کاملاً مالِ اوست.
+        var payment = new PaymentTransaction
+        {
+            PaymentDate = new DateTime(2026, 5, 6),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.SupplierPayment,
+            ContractId = contract.Id,
+            SupplierId = supplier.Id,
+            Amount = 200m,
+            Currency = "USD",
+            AmountUsd = 200m,
+            FundingSource = PaymentFundingSource.Partner,
+            PaidByPartnerId = partner.Id,
+            Description = "payment"
+        };
+        db.PaymentTransactions.Add(payment);
+        await db.SaveChangesAsync();
+        payment.LedgerEntryId = await db.LedgerEntries
+            .Where(l => l.SourceType == "SupplierPayment")
+            .Select(l => l.Id)
+            .FirstAsync();
         await db.SaveChangesAsync();
 
         var controller = NewStatementsController(db);
@@ -1199,7 +1261,8 @@ public sealed class PartyStatementReadServiceTests
         var row = Assert.Single(grouping.Rows);
         Assert.Equal(contract.Id, row.ContractId);
         Assert.Equal(40m, row.SharePercent);
-        // سهم اقتصادی و پرداخت واقعیِ شریک همان ۴۰٪ همان اسناد است — بدون فرمول تازه.
+        // سهم اقتصادی ۴۰٪ از ضررِ دفتری ۱٬۰۰۰ = ۴۰۰ (رسید)، و سرمایه‌گذاری واقعی
+        // خودِ شریک ۲۰۰ (برد) — بدون فرمول تازه و بدون تقسیمِ پرداخت.
         Assert.Equal(400m, row.Receipt);
         Assert.Equal(200m, row.Outflow);
         Assert.Equal(model.Statement.Summary.ClosingBalance, grouping.ClosingBalance);

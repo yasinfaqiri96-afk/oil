@@ -515,6 +515,17 @@ public sealed class PartnerFundingTests
             new ContractPartner { ContractId = contract.Id, PartnerId = partnerA.Id, SharePercent = 50m },
             new ContractPartner { ContractId = contract.Id, PartnerId = partnerB.Id, SharePercent = 50m });
 
+        // خریدِ دفتریِ همان قرارداد. ماندهٔ شریک از «فروش − خرید − مصارف» ساخته می‌شود،
+        // پس خرید باید همان‌جایی باشد که سرویسِ تجمیع خرید می‌خواند، نه فقط یک سطر لجر.
+        db.LoadingRegisters.Add(new LoadingRegister
+        {
+            ContractId = contract.Id,
+            ProductId = product.Id,
+            LoadingDate = new DateTime(2026, 8, 1),
+            LoadedQuantityMt = 1_000m,
+            LoadingPriceUsd = PurchaseUsd / 1_000m
+        });
+
         // رویدادهای اقتصادی — همان‌هایی که امروز هم بر SharePercent تقسیم می‌شوند.
         db.LedgerEntries.Add(new LedgerEntry
         {

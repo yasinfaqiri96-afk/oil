@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
@@ -157,6 +157,9 @@ public sealed class ServiceProviderPaymentRowViewModel
     public DateTime PaymentDate { get; init; }
     public string PaymentKindName { get; init; } = string.Empty;
     public string CashAccountName { get; init; } = string.Empty;
+    // پرداختِ شریک صندوق شرکت را حرکت نمی‌دهد؛ ستون «حساب» باید نام همان شریک را نشان دهد.
+    public PaymentFundingSource FundingSource { get; init; } = PaymentFundingSource.Company;
+    public string? PaidByPartnerName { get; init; }
     public string? ContractNumber { get; init; }
     public decimal AmountUsd { get; init; }
     public string? Reference { get; init; }

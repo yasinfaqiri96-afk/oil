@@ -97,6 +97,11 @@ public sealed class PreSaleCreateViewModel
     [StringLength(1000)]
     public string? Notes { get; set; }
 
+    // منبعِ پیشنهادیِ کسر موجودی. روی تعهد ذخیره نمی‌شود؛ فقط در فرم «ثبت تحویل»
+    // به‌عنوان انتخاب پیش‌فرض باز می‌گردد تا کاربر دوباره دنبال مخزن نگردد.
+    [Display(Name = "منبع موجودی برای تحویل‌ها")]
+    public int? PreferredSourceStorageTankId { get; set; }
+
     [StringLength(1000)]
     public string? ReturnUrl { get; set; }
 }

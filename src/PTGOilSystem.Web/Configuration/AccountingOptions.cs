@@ -66,4 +66,8 @@ public sealed class AccountingPilotOptions
     // already posted from the loading side, so posting them here as well would double-count the
     // same money. Enabling this flag must not change that.
     public bool AssetRent { get; set; }
+
+    // تخصیص سودِ قرارداد شراکتی به حساب جاری شرکا. به Sale و Cogs وابسته است — تا وقتی بهای
+    // تمام‌شده ثبت نشده باشد، «سود دفتری» عددِ نهایی نیست و تخصیصش زودهنگام است.
+    public bool PartnershipProfitAllocation { get; set; }
 }

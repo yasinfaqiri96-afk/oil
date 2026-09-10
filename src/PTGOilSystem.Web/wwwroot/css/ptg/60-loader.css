@@ -33,11 +33,11 @@
    inset-inline-start در RTL به right و در LTR به left نگاشت می‌شود. */
 @media (min-width: 1200px) {
     body.app-shell-authenticated .ptg-loader {
-        inset-inline-start: var(--layout-sidebar, 304px);
+        inset-inline-start: var(--layout-sidebar);
     }
 
     body.app-shell-authenticated.is-sidebar-collapsed .ptg-loader {
-        inset-inline-start: var(--layout-sidebar-mini, 56px);
+        inset-inline-start: var(--layout-sidebar-mini);
     }
 }
 
@@ -229,7 +229,7 @@
     height: 100%;
     transform: scaleX(0);
     transform-origin: left center;
-    background: linear-gradient(90deg, var(--ptg-loader-red, #E2232A), var(--ptg-loader-green, #14915D));
+    background: linear-gradient(90deg, var(--ptg-loader-red), var(--ptg-loader-green));
     box-shadow: 0 0 8px rgba(226, 35, 42, .35);
     will-change: transform;
 }

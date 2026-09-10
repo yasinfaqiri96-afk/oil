@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -289,6 +289,7 @@ public class ServiceProvidersController : Controller
         var payments = await _db.PaymentTransactions
             .AsNoTracking()
             .Include(p => p.CashAccount)
+            .Include(p => p.PaidByPartner)
             .Include(p => p.Contract)
             .Where(p => p.ServiceProviderId == id)
             .OrderByDescending(p => p.PaymentDate)
@@ -381,6 +382,8 @@ public class ServiceProvidersController : Controller
             CashAccountName = payment.CashAccount is null
                 ? "-"
                 : $"{payment.CashAccount.Code} - {payment.CashAccount.Name}",
+            FundingSource = payment.FundingSource,
+            PaidByPartnerName = payment.PaidByPartner?.Name,
             ContractNumber = payment.Contract?.ContractNumber,
             AmountUsd = payment.AmountUsd,
             Reference = payment.Reference

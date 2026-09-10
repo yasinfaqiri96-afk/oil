@@ -37,6 +37,16 @@ public interface IPurchaseAccountingAdapter
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Same movement as <see cref="TryPostInventoryReceiptAsync"/> for the transport-leg flow:
+    /// a leg whose shares come from purchase loadings has no LoadingReceipt, and its arrival at
+    /// the destination terminal is recorded as an <see cref="InventoryTransportReceipt"/>.
+    /// Legs sourced from a terminal (a real transfer) are left to the transfer adapter.
+    /// </summary>
+    Task<PurchaseAccountingResult> TryPostTransportReceiptAsync(
+        InventoryTransportReceipt receipt,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reverses every posted revision of a loading's purchase, for when the legacy loading is
     /// cancelled. Idempotent: revisions already reversed are left alone.
     /// </summary>
@@ -87,6 +97,11 @@ public sealed class PurchaseAccountingAdapter(
     public const string SourceModule = "Purchase";
     public const string PurchaseSourceEntityType = nameof(LoadingRegister);
     public const string ReceiptSourceEntityType = nameof(LoadingReceipt);
+    public const string TransportReceiptSourceEntityType = nameof(InventoryTransportReceipt);
+
+    // Quantities are stored to four decimals, so anything under half of the last place is the
+    // same figure written twice, not a real remainder.
+    private const decimal QuantityTolerance = 0.0001m;
 
     private readonly AccountingOptions _options = options.Value;
 
@@ -509,6 +524,233 @@ public sealed class PurchaseAccountingAdapter(
         }
     }
 
+    /// <summary>
+    /// The transport-leg twin of <see cref="TryPostInventoryReceiptAsync"/>.
+    ///
+    /// Goods bought on a purchase contract reach a terminal one of two ways. The classic path
+    /// writes a LoadingReceipt, which the method above posts. The transport path allocates the
+    /// same loadings to an <see cref="InventoryTransportLeg"/> and records the arrival as an
+    /// <see cref="InventoryTransportReceipt"/>; nothing posted that arrival, so the goods stayed
+    /// in 1310 for ever and the destination pool was never filled - which is exactly why a sale
+    /// out of that pool could not be costed.
+    ///
+    ///   Dr Inventory (received x loading unit cost)
+    ///   Dr Inventory Loss (shortage x loading unit cost)
+    ///   Cr Inventory In Transit
+    ///
+    /// Same accounts, same unit cost and the same shortage treatment the transfer adapter
+    /// documents, so a leg costs the same whichever half of the system records its arrival. A
+    /// leg sourced from a terminal has no purchase allocation and is skipped here: that one is a
+    /// real transfer and belongs to <see cref="IInventoryTransferAccountingAdapter"/>.
+    /// </summary>
+    public async Task<PurchaseAccountingResult> TryPostTransportReceiptAsync(
+        InventoryTransportReceipt receipt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+
+        if (!_options.Enabled)
+            return Skipped(receipt.Id, "ACCOUNTING_DISABLED");
+        if (!_options.Pilots.InventoryReceipt)
+            return Skipped(receipt.Id, "PILOT_DISABLED");
+        if (receipt.IsCancelled)
+            return Skipped(receipt.Id, "RECEIPT_CANCELLED");
+        if (receipt.ReceiptDestination != InventoryTransportReceiptDestination.ToInventory)
+            return Skipped(receipt.Id, "RECEIPT_DESTINATION_NOT_INVENTORY");
+        if (receipt.ReceivedQuantityMt <= 0m)
+            return Skipped(receipt.Id, "INVALID_RECEIPT_QUANTITY");
+        if (receipt.ShortageQuantityMt < 0m)
+            return Skipped(receipt.Id, "INVALID_SHORTAGE_QUANTITY");
+        if (!receipt.DestinationTerminalId.HasValue)
+            return Skipped(receipt.Id, "DESTINATION_TERMINAL_UNKNOWN");
+
+        var leg = await db.InventoryTransportLegs
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == receipt.InventoryTransportLegId, cancellationToken);
+        if (leg is null)
+            return Skipped(receipt.Id, "TRANSPORT_LEG_NOT_FOUND");
+
+        // Only shares that came from a purchase loading are this adapter's business. A leg with
+        // none of them is a terminal-to-terminal transfer and is deliberately left alone.
+        var allocations = await db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .Where(x => x.InventoryTransportLegId == leg.Id && x.SourceLoadingRegisterId != null)
+            .OrderBy(x => x.Id)
+            .Select(x => new { LoadingRegisterId = x.SourceLoadingRegisterId!.Value, x.QuantityMt })
+            .ToListAsync(cancellationToken);
+        if (allocations.Count == 0)
+            return Skipped(receipt.Id, "NO_PURCHASE_SOURCE_ALLOCATION");
+        if (allocations.Any(x => x.QuantityMt <= 0m))
+            return Skipped(receipt.Id, "INVALID_ALLOCATION_QUANTITY");
+
+        // A leg can be unloaded in several receipts; together they may never take more out of
+        // transit than the leg carried.
+        var receiptQuantityMt = receipt.ReceivedQuantityMt + receipt.ShortageQuantityMt;
+        var allocatedQuantityMt = allocations.Sum(x => x.QuantityMt);
+        var alreadyReceiptedMt = await db.InventoryTransportReceipts
+            .AsNoTracking()
+            .Where(x => x.InventoryTransportLegId == leg.Id
+                && x.Id != receipt.Id
+                && !x.IsCancelled
+                && x.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory)
+            .SumAsync(x => (decimal?)(x.ReceivedQuantityMt + x.ShortageQuantityMt), cancellationToken) ?? 0m;
+        if (alreadyReceiptedMt + receiptQuantityMt > allocatedQuantityMt + QuantityTolerance)
+            return Skipped(receipt.Id, "RECEIPT_EXCEEDS_IN_TRANSIT");
+
+        var loadingIds = allocations.Select(x => x.LoadingRegisterId).Distinct().ToList();
+        var loadings = await db.LoadingRegisters
+            .AsNoTracking()
+            .Where(x => loadingIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        if (loadings.Count != loadingIds.Count)
+            return Skipped(receipt.Id, "LOADING_NOT_FOUND");
+
+        // Every share is valued at its own loading's unit cost - the same effective price the
+        // purchase posting used, so what leaves 1310 is what went into it.
+        var contextByLoading = new Dictionary<int, PurchaseContext>(loadings.Count);
+        foreach (var loading in loadings)
+        {
+            var context = await ResolvePurchaseContextAsync(loading, cancellationToken);
+            if (context.SkipReason is not null)
+                return Skipped(receipt.Id, context.SkipReason);
+            contextByLoading[loading.Id] = context;
+        }
+
+        var companyIds = contextByLoading.Values.Select(x => x.CompanyId!.Value).Distinct().ToList();
+        if (companyIds.Count != 1)
+            return Skipped(receipt.Id, "MULTI_COMPANY_LEG_UNSUPPORTED");
+        var companyId = companyIds[0];
+
+        // Goods can only leave in-transit once the purchase that put them there is posted.
+        foreach (var loadingId in loadingIds)
+        {
+            var purchaseIsPosted = await db.JournalEntries.AsNoTracking().AnyAsync(
+                x => x.CompanyId == companyId
+                    && x.SourceModule == SourceModule
+                    && x.SourceEntityType == PurchaseSourceEntityType
+                    && x.SourceEntityId == loadingId
+                    && x.Status == JournalEntryStatus.Posted
+                    && !x.IsReversal,
+                cancellationToken);
+            if (!purchaseIsPosted)
+                return Skipped(receipt.Id, "PURCHASE_NOT_POSTED");
+        }
+
+        var sourceEventId = BuildTransportReceiptSourceEventId(receipt.Id);
+        var existing = await FindJournalAsync(companyId, sourceEventId, cancellationToken);
+        if (existing is not null)
+        {
+            LogOutcome(receipt.Id, "TransportInventoryReceipt", companyId, existing.Lines.Sum(x => x.Debit),
+                existing.Lines.Sum(x => x.Debit), PaymentPostingStatus.Duplicate, "DUPLICATE_SOURCE_EVENT");
+            return new PurchaseAccountingResult(
+                PaymentPostingStatus.Duplicate, existing, "DUPLICATE_SOURCE_EVENT");
+        }
+
+        // This receipt's share of every allocation, in the same proportion the allocations hold.
+        var shares = InventoryTransportLegOwnershipResolver.ProportionalSplit(
+            receiptQuantityMt,
+            allocations.Select(x => x.QuantityMt).ToList());
+        var totalCostUsd = 0m;
+        for (var index = 0; index < allocations.Count; index++)
+        {
+            var unitPrice = contextByLoading[allocations[index].LoadingRegisterId].EffectivePrice!.Value;
+            totalCostUsd += decimal.Round(shares[index] * unitPrice, 4, MidpointRounding.AwayFromZero);
+        }
+        if (totalCostUsd <= 0m)
+            return Skipped(receipt.Id, "INVALID_RECEIPT_AMOUNT");
+
+        // The shortage never reached the tank, so its cost cannot go into the destination pool;
+        // it comes out of 1310 into 5400, which is where the shortage charge credits its
+        // recovery. Stage 8's InventoryLoss adapter skips ReceiptShortage for this same reason,
+        // so nothing here is counted twice.
+        var shortageCostUsd = decimal.Round(
+            totalCostUsd * (receipt.ShortageQuantityMt / receiptQuantityMt),
+            4,
+            MidpointRounding.AwayFromZero);
+        var inventoryCostUsd = totalCostUsd - shortageCostUsd;
+        if (inventoryCostUsd <= 0m)
+            return Skipped(receipt.Id, "INVALID_RECEIPT_AMOUNT");
+
+        var settings = await db.AccountingSettings
+            .AsNoTracking()
+            .SingleAsync(x => x.CompanyId == companyId, cancellationToken);
+
+        var lines = new List<AccountingPostLine>
+        {
+            new(
+                settings.InventoryAccountId,
+                Debit: inventoryCostUsd,
+                Credit: 0m,
+                SystemCurrency.BaseCurrencyCode,
+                inventoryCostUsd,
+                1m,
+                ContractId: leg.SourcePurchaseContractId,
+                TankId: receipt.DestinationStorageTankId,
+                ProductId: leg.ProductId,
+                Description: "Goods received into inventory")
+        };
+        if (shortageCostUsd > 0m)
+        {
+            lines.Add(new AccountingPostLine(
+                settings.InventoryLossAccountId,
+                Debit: shortageCostUsd,
+                Credit: 0m,
+                SystemCurrency.BaseCurrencyCode,
+                shortageCostUsd,
+                1m,
+                ContractId: leg.SourcePurchaseContractId,
+                ProductId: leg.ProductId,
+                Description: "Transit shortage written off on receipt"));
+        }
+        lines.Add(new AccountingPostLine(
+            settings.InventoryInTransitAccountId,
+            Debit: 0m,
+            Credit: totalCostUsd,
+            SystemCurrency.BaseCurrencyCode,
+            totalCostUsd,
+            1m,
+            ContractId: leg.SourcePurchaseContractId,
+            ProductId: leg.ProductId,
+            Description: "Goods left in transit"));
+
+        var request = new AccountingPostRequest(
+            companyId,
+            journalNumberGenerator.ForTransportInventoryReceipt(companyId, receipt.Id),
+            receipt.ReceiptDate.Date,
+            receipt.ReceiptDate.Date,
+            receipt.ReceiptDate.Date,
+            SourceModule,
+            lines,
+            SourceEventId: sourceEventId,
+            SourceEntityType: TransportReceiptSourceEntityType,
+            SourceEntityId: receipt.Id,
+            Description: $"Transport inventory receipt #{receipt.Id} on {receipt.ReceiptDate:yyyy-MM-dd}");
+
+        try
+        {
+            var journal = await postingService.PostAsync(request, cancellationToken);
+
+            // The journal records the money; the pool records the money and the tonnes, which is
+            // what a later sale needs to know a unit cost. Both move together or neither does.
+            await valuation.ApplyReceiptAsync(
+                companyId,
+                leg.ProductId,
+                receipt.DestinationTerminalId.Value,
+                receipt.ReceivedQuantityMt,
+                inventoryCostUsd,
+                cancellationToken);
+
+            LogOutcome(receipt.Id, "TransportInventoryReceipt", companyId, totalCostUsd,
+                journal.Lines.Sum(x => x.Debit), PaymentPostingStatus.Posted, null);
+            return new PurchaseAccountingResult(PaymentPostingStatus.Posted, journal, null);
+        }
+        catch (Exception exception)
+        {
+            LogFailure(receipt.Id, "TransportInventoryReceipt", exception);
+            throw;
+        }
+    }
+
     public async Task<PurchaseAccountingResult> TryPostPurchaseReversalAsync(
         LoadingRegister loading,
         CancellationToken cancellationToken = default)
@@ -664,6 +906,11 @@ public sealed class PurchaseAccountingAdapter(
 
     public static string BuildReceiptSourceEventId(int loadingReceiptId)
         => $"InventoryReceipt:{loadingReceiptId}:Created";
+
+    // LoadingReceipt and InventoryTransportReceipt have independent identity sequences, so the
+    // two arrival events must never share a source event id.
+    public static string BuildTransportReceiptSourceEventId(int transportReceiptId)
+        => $"TransportInventoryReceipt:{transportReceiptId}:Created";
 
     private sealed record PurchaseContext(
         int? CompanyId,

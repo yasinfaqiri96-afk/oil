@@ -6,7 +6,6 @@
     var returnUrl = Model.ReturnUrl;
     var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl);
     ViewData["Title"] = UiText.T(Context, "ثبت کسری / ضایعات", "Record Loss Event");
-    ViewData["ContentBodyClass"] = "boltz-content-body";
     ViewData["HideSectionTabs"] = true;
     ViewData["LoadingCreateAssets"] = true;
     var cancelUrl = hasLocalReturnUrl ? returnUrl : Url.Action("Index");

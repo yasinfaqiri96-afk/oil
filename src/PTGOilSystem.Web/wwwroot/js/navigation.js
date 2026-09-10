@@ -97,21 +97,6 @@
             }, { passive: true });
         }
 
-        // Minimal header: toggle a translucent-blur state once the page
-        // scrolls under the sticky topbar. The scroll container is .ptg-app
-        // (not window); it persists across SPA nav, so bind once.
-        if (window.PTG.topbarScrollReady !== true) {
-            var scroller = document.querySelector(".ptg-app");
-            if (scroller) {
-                window.PTG.topbarScrollReady = true;
-                var applyScrolled = function () {
-                    document.body.classList.toggle("is-topbar-scrolled", scroller.scrollTop > 4);
-                };
-                scroller.addEventListener("scroll", applyScrolled, { passive: true });
-                applyScrolled();
-            }
-        }
-
         syncSidebarToggleState();
         document.body.dataset.shellReady = "true";
     }

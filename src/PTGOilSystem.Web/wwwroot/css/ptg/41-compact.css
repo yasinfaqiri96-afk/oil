@@ -16,22 +16,8 @@ body.ptg-modal-document :where(.table, .ds-table) tbody :where(td, th) {
     line-height: 1.35;
 }
 
-/* ---- Buttons: slimmer padding{
-    padding-block: .32rem;
-    padding-inline: .7rem;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.form-label, .col-form-label),
-body.ptg-modal-document :where(.form-label, .col-form-label) {
-    margin-bottom: .25rem;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.mb-3, .form-group),
-body.ptg-modal-document :where(.mb-3, .form-group) {
-    margin-bottom: .6rem !important;
-}
-
-/* ---- Cards: tighter shared card bodies ---- */
+/* ---- Buttons: slimmer padding
+ * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated :where(.ptg-card, .ds-card, .kpi-card, .card) > :where(.card-body),
 body.ptg-modal-document :where(.ptg-card, .ds-card, .kpi-card, .card) > :where(.card-body) {
     padding: .75rem .85rem;

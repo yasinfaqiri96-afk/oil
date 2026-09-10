@@ -5,19 +5,16 @@
 
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
-    --ptg-list-radius: 12px;
-    --ptg-list-border: #E7E7E7;
-    --ptg-list-line: #EEF2F6;
+    /* این لایه رنگ و متریک مستقل ندارد؛ همه چیز از توکن‌های سراسری می‌آید تا
+       دو منبع حقیقت و جنگ !important بین لایه‌ها به وجود نیاید. */
+    --ptg-list-radius: 12px;            /* برابر با --radius-table */
+    --ptg-list-border: var(--ptg-border);
+    --ptg-list-line: var(--ptg-table-row-line);
     --ptg-list-head-bg: var(--ptg-table-head-bg);
-    --ptg-list-text: #243B5A;
-    --ptg-list-muted: #637793;
-    --ptg-list-soft: #8B9AB0;
+    --ptg-list-muted: var(--ptg-table-head-ink);
+    --ptg-list-soft: var(--ptg-light);
     --ptg-list-blue: var(--ptg-primary-dark);
     --ptg-list-blue-bg: var(--ptg-primary-tint);
-    --ptg-list-green: #07966A;
-    --ptg-list-green-bg: #ECFAF4;
-    --ptg-list-red: #DF1F4B;
-    --ptg-list-red-bg: #FFF2F5;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ptg-client-pager,
@@ -31,7 +28,7 @@ body.ptg-modal-document .ptg-client-pager {
     border-top: 1px solid var(--ptg-list-line);
     background: #FFFFFF;
     color: var(--ptg-list-muted);
-    font-size: .75rem;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1.4;
 }
@@ -40,7 +37,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ptg-client-pager-info,
 body.ptg-modal-document .ptg-client-pager-info {
     margin-inline-end: auto;
     color: var(--ptg-list-soft);
-    font-size: .74rem;
+    font-size: 12px;
     font-weight: 600;
     direction: ltr;
     unicode-bidi: plaintext;
@@ -64,10 +61,10 @@ body.ptg-modal-document .ptg-client-pager-button {
     justify-content: center;
     padding: .32rem .62rem;
     border: 1px solid #E3EAF4;
-    border-radius: .8px;
+    border-radius: var(--radius-btn);
     background: #FFFFFF;
     color: var(--ptg-list-muted);
-    font-size: .74rem;
+    font-size: 12px;
     font-weight: 700;
     line-height: 1;
     box-shadow: none;
@@ -112,13 +109,13 @@ body.ptg-modal-document .ptg-client-pager-button:disabled {
         height: auto !important;
         padding: .42rem 0 !important;
         border-bottom: 1px solid var(--ptg-list-line) !important;
-        font-size: .8rem !important;
+        font-size: 12px !important;
     }
 
     body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table, .ds-table) tbody :is(td, th)::before,
     body.ptg-modal-document table:is(.table.is-responsive-table, .ds-table) tbody :is(td, th)::before {
         color: var(--ptg-list-muted) !important;
-        font-size: .72rem !important;
+        font-size: 12px !important;
         font-weight: 700 !important;
     }
 
@@ -226,10 +223,8 @@ body.ptg-modal-document :is(.app-table-card, .card.app-table-card) table:is(.tab
     background-color: var(--ptg-list-head-bg) !important;
     box-shadow: none !important;
     color: var(--ptg-list-muted) !important;
-    height: 38px !important;
-    padding: .55rem 1rem !important;
+    /* متریک هدر از 07-tables.css می‌آید؛ اینجا فقط باند رنگی تثبیت می‌شود. */
     border-bottom: 0 !important;
-    font-weight: 500 !important;
 }
 
 /* OA: connect the section-tabs strip + filter bar into one white panel.
@@ -262,19 +257,8 @@ body.boltz-shell.app-shell-authenticated:is(.controller-partners, .controller-co
     row-gap: 1rem !important;
 }
 
-/* filter bar = BOTTOM of the panel: flat top, no top divider{
-    margin-top: 0 !important;
-    border-top: 0 !important;
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
-    box-shadow: none !important;
-}
-
-/* ─── Base Definitions (تعاریف پایه) index: merge the section-tabs strip + filter
-   bar into ONE white panel — byte-for-byte the same treatment as the People /
-   Parties block above, just scoped to the foundation controllers. Every base-data
-   tab (definitions + resources) now shows a single unified toolbar instead of a
-   scattered header + tabs + filter. ─────────────────────────────────────────── */
+/* filter bar = BOTTOM of the panel: flat top, no top divider
+ * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated:is(.controller-products, .controller-units, .controller-currencies, .controller-dailyfxrates, .controller-locations, .controller-expensetypes, .controller-expenserules, .controller-terminals, .controller-storagetanks, .controller-trucks, .controller-wagons, .controller-drivers, .controller-vessels).action-index .boltz-content {
     row-gap: 0 !important;
 }
@@ -284,24 +268,8 @@ body.boltz-shell.app-shell-authenticated:is(.controller-products, .controller-un
     padding-top: 0 !important;
 }
 
-/* filter bar = BOTTOM of the panel: flat top, no top divider{
-    margin-top: 0 !important;
-    border-top: 0 !important;
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
-    box-shadow: none !important;
-}
-
-/* ─── Collapsible advanced filters inside the unified toolbar ─────────────────
-   The extra filter <select>s are hidden by default and revealed by the «فیلترها»
-   toggle button (Bootstrap collapse). When open they wrap onto a full-width row
-   under the search/apply line{
-    width: 100%;
-    flex-basis: 100%;
-}
-
-/* Force every list/table header row (field-title row) to the design-system head
-   band — catch-all, beats per-table/per-controller overrides. Display-only. */
+/* filter bar = BOTTOM of the panel: flat top, no top divider
+ * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated .boltz-content table thead th,
 body.boltz-shell.app-shell-authenticated .boltz-content table thead tr,
 body.boltz-shell.app-shell-authenticated table thead th,
@@ -325,25 +293,15 @@ body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane > :is(.card, details) > .card-header {
     min-height: 44px !important;
     padding: .5rem .75rem !important;
-    font-size: .84rem !important;
+    font-size: 14px !important;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane > .card > .card-body {
     padding: .6rem .75rem !important;
 }
 
-body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane table.ds-table thead th {
-    height: 38px !important;
-    padding: .45rem .55rem !important;
-    font-size: .72rem !important;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane table.ds-table tbody :is(td, th) {
-    height: 44px !important;
-    padding: .45rem .55rem !important;
-    font-size: .8rem !important;
-    line-height: 1.35 !important;
-}
+/* متریک جدول این صفحه هم از مقیاس مشترک می‌آید — نسخه فشرده اختصاصی حذف شد
+   تا چگالی جدول‌ها در کل سیستم یکسان بماند. */
 
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane details > summary.card-header {
     cursor: pointer;
@@ -383,7 +341,7 @@ body.ptg-modal-document .ak-list-card > .ak-list-toolbar {
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-host,
 body.ptg-modal-document .ak-list-card .ak-filter-host {
-    min-height: var(--ak-control-height, 42px);
+    min-height: var(--ak-control-height);
     margin: 0;
 }
 
@@ -396,7 +354,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card:has(.ak-fi
 body.ptg-modal-document .ak-list-card:has(.ak-filter-popover:not([hidden])),
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card > .ak-list-toolbar:has(.ak-filter-popover:not([hidden])),
 body.ptg-modal-document .ak-list-card > .ak-list-toolbar:has(.ak-filter-popover:not([hidden])) {
-    z-index: var(--ptg-z-dropdown, 1000);
+    z-index: var(--ptg-z-dropdown);
 }
 
 /* Same underline bar the detail-page tabs use (contract journey → loadings),
@@ -404,7 +362,7 @@ body.ptg-modal-document .ak-list-card > .ak-list-toolbar:has(.ak-filter-popover:
    height/offsets below stay list-card specific. */
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter,
 body.ptg-modal-document .ak-list-card .ak-filter {
-    min-height: var(--ak-control-height, 42px);
+    min-height: var(--ak-control-height);
     border: 0;
     border-bottom: 1px solid var(--divider);
     border-radius: 0;
@@ -464,33 +422,18 @@ body.ptg-modal-document .ak-list-card .ak-table {
     background: #FFFFFF;
 }
 
+/* اندازه، وزن، رنگ و padding هدر و سلول در 50-ak-components.css تعریف شده است.
+   اینجا فقط چیزی می‌ماند که مختصِ کارت لیست است: پس‌زمینه سفید ردیف و انتقال نرم. */
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > thead > tr,
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > thead > tr > th,
 body.ptg-modal-document .ak-list-card .ak-table > thead > tr,
 body.ptg-modal-document .ak-list-card .ak-table > thead > tr > th {
-    background: #F7F9FC !important;
-    background-color: #F7F9FC !important;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > thead > tr > th,
-body.ptg-modal-document .ak-list-card .ak-table > thead > tr > th {
-    height: 44px !important;
-    padding: 10px 16px !important;
-    border-bottom: 1px solid var(--ptg-list-line) !important;
-    color: var(--ptg-list-muted) !important;
-    font-size: 12px;
-    font-weight: 600 !important;
-    line-height: 1.35;
-    vertical-align: middle;
+    background: var(--ptg-table-head-bg);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr > td,
 body.ptg-modal-document .ak-list-card .ak-table > tbody > tr > td {
-    height: 54px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--ptg-list-line);
     background: #FFFFFF;
-    color: var(--ptg-list-text);
     vertical-align: middle;
     transition: background-color 140ms ease, color 140ms ease;
 }
@@ -504,12 +447,12 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr:focus-within > td,
 body.ptg-modal-document .ak-list-card .ak-table > tbody > tr:hover > td,
 body.ptg-modal-document .ak-list-card .ak-table > tbody > tr:focus-within > td {
-    background: #F7FAFF;
+    background: var(--ptg-table-row-hover);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr.is-selected > td,
 body.ptg-modal-document .ak-list-card .ak-table > tbody > tr.is-selected > td {
-    background: #EEF5FF;
+    background: var(--ptg-primary-tint);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-col-check,
@@ -542,7 +485,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status
 body.ptg-modal-document .ak-list-card .ak-status {
     min-height: 22px;
     padding: 3px 9px;
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 600;
     line-height: 16px;
 }
@@ -677,7 +620,7 @@ body.ptg-modal-document .ak-list-loading-state {
     border-radius: inherit;
     background: rgba(255, 255, 255, .88);
     color: var(--ptg-list-muted);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     backdrop-filter: blur(1px);
 }

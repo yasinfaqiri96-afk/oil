@@ -31,7 +31,7 @@
 .ak-stat-section__title {
     margin: 0 0 10px;
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 600;
     color: #1F2A37;
     text-align: right;
@@ -68,16 +68,17 @@
 
     background: #FFFFFF;
     border: 1px solid var(--ak-stat-border);
-    border-radius: 18px;
-    box-shadow: 0 4px 14px rgba(31, 41, 55, 0.045);
+    /* چرتکه: کارت تخت، بدون سایه؛ عمق فقط برای لایه‌های شناور. */
+    border-radius: var(--ptg-radius-xl);
+    box-shadow: none;
 
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     transition: box-shadow .18s ease, border-color .18s ease;
 }
 
 .ak-stat-card:hover {
-    border-color: #E2E7EC;
-    box-shadow: 0 6px 18px rgba(31, 41, 55, 0.06);
+    border-color: var(--ptg-field-border);
+    box-shadow: none;
 }
 
 /* ---- Text block: physically fixed on the left ----------------------- */
@@ -104,9 +105,9 @@
     max-width: 100%;
     margin: 0;
     padding: 0;
-    font-size: clamp(10.5px, 0.85vw, 12.5px);
-    font-weight: 600;
-    line-height: 1.2;
+    font-size: var(--font-caption);
+    font-weight: var(--weight-caption);
+    line-height: var(--line-caption);
     color: var(--ak-stat-title);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -121,8 +122,8 @@
     margin-top: 0;
     overflow: hidden;
     text-overflow: clip;
-    font-size: clamp(17px, 1.5vw, 23px);
-    font-weight: 800;
+    font-size: var(--font-kpi);
+    font-weight: var(--weight-kpi);
     line-height: 1;
     letter-spacing: -0.025em;
     color: var(--ak-stat-fg);
@@ -154,7 +155,7 @@
     max-width: 100%;
     margin-top: 0;
     overflow: visible;
-    font-size: clamp(9px, 0.72vw, 10.5px);
+    font-size: 11px;
     font-weight: 500;
     line-height: 1.2;
     color: var(--ak-stat-unit);
@@ -282,7 +283,7 @@
         min-height: 62px;
         max-height: 96px;
         padding: 7px 8px;
-        border-radius: 14px;
+        border-radius: var(--ptg-radius-xl);
     }
 
     .ak-stat-card__title { font-size: clamp(9.5px, 1.05vw, 12px); }

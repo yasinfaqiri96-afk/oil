@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
@@ -279,6 +279,15 @@ public interface IPartnershipStatementService
         int partnerId,
         IReadOnlyCollection<int>? contractIds = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// یک قرارداد شراکتی و سهم همهٔ اعضایش — همان ارقامی که صورت‌حساب دونفره و پروفایل شریک
+    /// نشان می‌دهند، بدون اینکه لازم باشد جفتِ شرکا از قبل معلوم باشد. ثبتِ تخصیص سود در دفتر
+    /// کل از همین می‌خواند تا عددِ ژورنال و عددِ صورت‌حساب از یک محاسبه بیایند.
+    /// </summary>
+    Task<PartnershipContractStatement?> BuildForContractAsync(
+        int contractId,
+        CancellationToken ct = default);
 }
 
 /// <summary>
@@ -483,6 +492,38 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
     /// <see cref="PartnershipPartnerTotals.NetPositionUsd"/> می‌سازد. برای همین عددِ پروفایل
     /// و عددِ صورت‌حساب شراکت هرگز از هم جدا نمی‌شوند.
     /// </summary>
+    public async Task<PartnershipContractStatement?> BuildForContractAsync(
+        int contractId,
+        CancellationToken ct = default)
+    {
+        if (contractId <= 0)
+        {
+            return null;
+        }
+
+        // همان مسیرِ ساختِ صورت‌حساب، فقط با دامنهٔ یک قرارداد. هیچ محاسبهٔ موازی‌ای اینجا نیست.
+        var links = await LoadMemberLinksAsync(cp => cp.ContractId == contractId, ct);
+        if (links.Count == 0)
+        {
+            return null;
+        }
+
+        var memberIds = links.Select(l => l.PartnerId).Distinct().ToList();
+        var nameById = (await _db.Partners
+                .AsNoTracking()
+                .Where(p => memberIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.Name })
+                .ToListAsync(ct))
+            .ToDictionary(p => p.Id, p => p.Name);
+
+        var statements = await BuildContractStatementsAsync(
+            links.GroupBy(l => l.ContractId).ToList(),
+            nameById,
+            ct);
+
+        return statements.SingleOrDefault();
+    }
+
     public async Task<PartnerAccountStatement?> BuildForPartnerAsync(
         int partnerId,
         IReadOnlyCollection<int>? contractIds = null,
@@ -1086,12 +1127,11 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
             }
         }
 
-        foreach (var key in result.Keys.ToList())
-        {
-            result[key] = Round(result[key]);
-        }
-
-        return result;
+        // گِردکردنِ جداگانهٔ هر سهم، یک سِنت جا می‌گذاشت: دو سهمِ ۵۰٪ از ۹۷٬۱۸۱٫۰۱ هرکدام
+        // ۴۸٬۵۹۰٫۵۰۵ می‌شد و هر دو به ۴۸٬۵۹۰٫۵۱ گِرد می‌شدند، یعنی جمعِ سهم‌ها یک سِنت از خودِ
+        // سود بیشتر. حالا باقیمانده به‌صورت قطعی به یک شریک می‌رسد و همان تقسیم عیناً در
+        // ژورنالِ تخصیص سود هم ثبت می‌شود.
+        return PartnerProfitAllocationPolicy.Settle(result);
     }
 
     private static DateTime ResolvePeriodStart(IReadOnlyList<DateTime> boundaries, DateTime date)

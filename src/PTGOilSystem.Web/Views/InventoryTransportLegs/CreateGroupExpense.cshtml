@@ -2,7 +2,6 @@
 @{
     ViewData["Title"] = "ثبت مصرف حمل";
     ViewData["LoadingCreateAssets"] = true;
-    ViewData["ContentBodyClass"] = "boltz-content-body";
     ViewData["HideSectionTabs"] = true;
     var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl);
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("Journey", new { groupKey = Model.GroupKey });

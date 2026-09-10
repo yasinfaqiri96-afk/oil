@@ -222,43 +222,6 @@
         .Where(item => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller))
         .ToList();
 
-    bool IsSidebarItemActive(string controller, string action, string? routeKey, string[] activeControllers)
-    {
-        var controllerIsActive = activeControllers.Any(itemController => string.Equals(currentController, itemController, StringComparison.OrdinalIgnoreCase));
-        if (!controllerIsActive)
-        {
-            return false;
-        }
-
-        if (activeControllers.Length > 1)
-        {
-            return true;
-        }
-
-        if (!string.Equals(currentAction, action, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(routeKey))
-        {
-            return true;
-        }
-
-        var activeTab = Context.Request.Query["activeTab"].ToString();
-        if (string.IsNullOrWhiteSpace(activeTab) && string.Equals(routeKey, "Daily", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return string.Equals(activeTab, routeKey, StringComparison.OrdinalIgnoreCase);
-    }
-
-    List<(string Controller, string Action, string Label, string Icon, string? RouteKey, string[] ActiveControllers)> PickSidebarItems(params string[] controllers)
-        => primarySidebarItems
-            .Where(item => controllers.Any(controller => string.Equals(item.Controller, controller, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
     // ===== Two-rail Akaunting navigation model =====
     // Top-level nodes; some expand into an inline submenu (accordion).
     var emptyChildren = Array.Empty<(string Controller, string Action, string Label, string Icon)>();
@@ -495,7 +458,7 @@
                 <div class="boltz-sidebar-scroll">
                     <a class="boltz-brand boltz-brand-logo-only" asp-controller="Home" asp-action="Index">
                         <span class="boltz-brand-mark">
-                            <img class="boltz-brand-logo" src="~/images/logo1-sidebar.png" asp-append-version="true" alt="Saddiqi Group" width="512" height="165" decoding="async" />
+                            <img class="boltz-brand-logo" src="~/images/logo1-sidebar-white.png" asp-append-version="true" alt="Saddiqi Group" width="512" height="165" decoding="async" />
                         </span>
                     </a>
 

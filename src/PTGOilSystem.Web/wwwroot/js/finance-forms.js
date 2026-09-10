@@ -11,6 +11,7 @@ initializeAccountStatementForm();
 initializeExpenseCreateForm();
 initializePaymentCreateForm();
 initializeSalesCreateForm();
+initializePreSaleCreateForm();
 initializeOperationConditionalForms();
 initializeOperationalAssetRentQuickForms();
 initializeGenericCurrencyFxGroups();
@@ -98,6 +99,11 @@ var shipmentContractMap = parseJsonDataAttribute(form, "data-sales-shipment-cont
 var shipmentById = new Map(shipmentContractMap.map(function (item) {
 return [String(item.shipmentId), item];
 }));
+// نگاشت مخزن ← ترمینال: فرم فروش فیلد ترمینال ندارد و مقدارش از مخزن گرفته می‌شود.
+var tankTerminalMap = parseJsonDataAttribute(form, "data-sales-tank-terminal-map");
+var terminalByTankId = new Map(tankTerminalMap.map(function (item) {
+return [String(item.tankId), String(item.terminalId)];
+}));
 
 var stageSelect = form.querySelector("[data-sales-stage]");
 var companySelect = form.querySelector("[data-sales-company]");
@@ -116,6 +122,8 @@ var totalValue = form.querySelector("[data-sales-total-value]");
 var saleDateInput = form.querySelector("[data-sales-date]");
 var stockAlert = form.querySelector("[data-sales-stock-alert]");
 var stockAlertValue = form.querySelector("[data-sales-stock-alert-value]");
+var stockMessage = form.querySelector("[data-sales-stock-message]");
+var summaryBaseRow = form.querySelector("[data-sales-summary-base-row]");
 var saveSummaryList = form.querySelector("[data-sales-save-summary-list]");
 var saveSummaryWarning = form.querySelector("[data-sales-save-summary-warning]");
 var summaryQty = form.querySelector("[data-sales-summary-qty]");
@@ -180,7 +188,8 @@ return element.matches(".ak-field, .ak-col-full")
 : element.closest(".ak-field, .ak-col-full, .ak-form-section[data-sales-stage-scope]");
 }
 function selectedOptionText(select) {
-if (!select || select.selectedIndex < 0) return "";
+// ترمینال مبدا در فرم فروش یک input مخفی است، نه select؛ پس نبودِ options باید بی‌خطر باشد.
+if (!select || !select.options || select.selectedIndex < 0) return "";
 return String(select.options[select.selectedIndex].text || "").trim();
 }
 function wrapperScopes(wrapper) {
@@ -279,7 +288,7 @@ if (rate <= 0) return null;
 return quantity * unitPrice * rate;
 }
 function refreshSaveSummary() {
-if (!saveSummaryList) return;
+// خلاصهٔ انتهای فرم فقط دو عدد دارد؛ فهرست خطی اختیاری است.
 if (saveSummaryWarning) {
 saveSummaryWarning.hidden = true;
 saveSummaryWarning.textContent = "";
@@ -304,7 +313,8 @@ lines.push(text("فروش مستقیم از مخزن", "Direct tank sale"));
 }
 if (stageName === "terminal" && sourceTankSelect && sourceTankSelect.value) {
 var sourceParts = [];
-if (sourceTerminalSelect && sourceTerminalSelect.value) sourceParts.push(selectedOptionText(sourceTerminalSelect));
+var sourceTerminalText = sourceTerminalSelect && sourceTerminalSelect.value ? selectedOptionText(sourceTerminalSelect) : "";
+if (sourceTerminalText) sourceParts.push(sourceTerminalText);
 sourceParts.push(selectedOptionText(sourceTankSelect));
 lines.push(text("منبع: ", "Source: ") + sourceParts.join(" / "));
 if (sourceContractSelect && sourceContractSelect.value) {
@@ -338,6 +348,7 @@ amountLine += " · " + formatMoney(usdTotal) + " " + baseCurrency;
 }
 lines.push(amountLine);
 }
+if (saveSummaryList) {
 saveSummaryList.replaceChildren();
 lines.forEach(function (line) {
 var item = document.createElement("li");
@@ -345,21 +356,43 @@ item.textContent = line;
 saveSummaryList.appendChild(item);
 });
 }
+}
 function refreshFxRateVisibility() {
 var needsFxRate = normalizeCurrency(currencySelect && currencySelect.value) !== baseCurrency;
 if (fxRateField) setConditionalGroupVisible(fxRateField, needsFxRate, false);
+// معادلِ ارز پایه فقط وقتی معنی دارد که ارز فاکتور با ارز پایه فرق کند.
+if (summaryBaseRow) summaryBaseRow.hidden = !needsFxRate;
 if (!needsFxRate && fxRateInput) fxRateInput.value = "";
 }
 function refreshTotal() {
 if (!totalValue) return;
 var quantity = parseDecimal(quantityInput && quantityInput.value);
 var unitPrice = parseDecimal(unitPriceInput && unitPriceInput.value);
-var currency = normalizeCurrency(currencySelect && currencySelect.value) || baseCurrency;
-totalValue.textContent = formatMoney(quantity * unitPrice) + " " + currency;
+// واحد پول در سربرگ ستون آمده؛ داخل سلول تکرار نمی‌شود.
+totalValue.textContent = formatMoney(quantity * unitPrice);
 refreshSaveSummary();
 }
 function hideStockAlert() {
 if (stockAlert) stockAlert.hidden = true;
+}
+function stockChipItems() {
+return stockAlert ? stockAlert.querySelectorAll(".ak-stock-chip__item") : [];
+}
+// یا پیام نشان داده می‌شود یا خلاصهٔ عددیِ مخزن؛ هر دو با هم نه.
+function showStockMessage(message) {
+if (stockMessage) {
+stockMessage.hidden = false;
+stockMessage.textContent = message;
+}
+stockChipItems().forEach(function (item) { item.hidden = true; });
+}
+function showStockNumbers(result) {
+if (stockMessage) {
+stockMessage.hidden = true;
+stockMessage.textContent = "";
+}
+stockChipItems().forEach(function (item) { item.hidden = false; });
+if (stockAlertValue) stockAlertValue.textContent = formatQuantity(result.availableMt) + " MT";
 }
 function refreshStockAlert() {
 if (!stockAlert || !stockAlertValue || currentStageName() !== "terminal") {
@@ -371,8 +404,21 @@ var companyId = companySelect && companySelect.value;
 var sourcePurchaseContractId = sourceContractSelect && sourceContractSelect.value;
 var sourceTerminalId = sourceTerminalSelect && sourceTerminalSelect.value;
 var sourceStorageTankId = sourceTankSelect && sourceTankSelect.value;
-if (!productId || !companyId || !sourceTerminalId || !sourceStorageTankId) {
+if (!sourceStorageTankId) {
 hideStockAlert();
+return;
+}
+// مخزن انتخاب شده ولی هنوز چیزی برای پرس‌وجو کم است: به‌جای پنهان‌شدنِ بی‌صدا، دلیل را بگو.
+var missing = [];
+if (!companyId) missing.push(text("شرکت", "company"));
+if (!productId) missing.push(text("محصول", "product"));
+if (missing.length || !sourceTerminalId) {
+stockAlert.hidden = false;
+stockAlert.classList.remove("is-warning");
+showStockMessage(missing.length
+? text("برای نمایش موجودی، " + missing.join(" و ") + " را انتخاب کنید.",
+"Select " + missing.join(" and ") + " to see the stock.")
+: text("ترمینال این مخزن پیدا نشد.", "This tank has no terminal."));
 return;
 }
 var balanceUrl = form.getAttribute("data-sales-stock-balance-url");
@@ -384,7 +430,7 @@ if (stockRequestController) stockRequestController.abort();
 stockRequestController = new AbortController();
 stockAlert.hidden = false;
 stockAlert.classList.remove("is-warning");
-stockAlertValue.textContent = "در حال بررسی موجودی...";
+showStockMessage(text("در حال بررسی موجودی...", "Checking stock..."));
 var url = new URL(balanceUrl, window.location.origin);
 url.searchParams.set("productId", productId);
 url.searchParams.set("companyId", companyId);
@@ -400,14 +446,14 @@ return response.json();
 }).then(function (result) {
 if (!result.ok) {
 stockAlert.classList.add("is-warning");
-stockAlertValue.textContent = result.message || "موجودی قابل نمایش نیست";
+showStockMessage(result.message || text("موجودی قابل نمایش نیست", "Stock is not available"));
 return;
 }
-stockAlertValue.textContent = formatQuantity(result.availableMt) + " MT";
+showStockNumbers(result);
 }).catch(function (error) {
 if (error.name === "AbortError") return;
 stockAlert.classList.add("is-warning");
-stockAlertValue.textContent = "موجودی دریافت نشد";
+showStockMessage(text("موجودی دریافت نشد", "Could not load stock"));
 });
 }
 function hideHint() {
@@ -472,8 +518,15 @@ lastStageValue = nextValue;
 refreshStage();
 refreshStageHelp();
 }
+function syncSourceTerminalFromTank() {
+if (!sourceTerminalSelect || !sourceTankSelect || !terminalByTankId.size) return;
+var terminalId = terminalByTankId.get(String(sourceTankSelect.value || ""));
+sourceTerminalSelect.value = terminalId || "";
+}
 if (stageSelect) stageSelect.addEventListener("change", handleStageChange);
 if (shipmentSelect) shipmentSelect.addEventListener("change", updateShipmentContext);
+// قبل از بقیهٔ شنونده‌های تغییر مخزن ثبت می‌شود تا موجودی با ترمینالِ درست خوانده شود.
+if (sourceTankSelect) sourceTankSelect.addEventListener("change", syncSourceTerminalFromTank);
 [companySelect, productSelect, sourceTerminalSelect, sourceTankSelect, saleDateInput].forEach(function (input) {
 if (input) input.addEventListener("change", refreshStockAlert);
 });
@@ -493,12 +546,55 @@ if (currencySelect) currencySelect.addEventListener("change", function () {
 refreshFxRateVisibility();
 refreshTotal();
 });
+syncSourceTerminalFromTank();
 refreshStage();
 refreshFxRateVisibility();
 refreshTotal();
 refreshStageHelp();
 if (sourceContractSelect && sourceContractSelect.value) loadSuggestedPrice();
 form.dataset.salesReady = "true";
+}
+function initializePreSaleCreateForm() {
+// فرم «فروش با تحویل مرحله‌ای»: فقط جمعِ نمایشی؛ هیچ محاسبهٔ سروری اینجا نیست.
+var form = document.querySelector("[data-presale-create-form]");
+if (!form || form.dataset.presaleReady === "true") return;
+var quantityInput = form.querySelector("[data-presale-quantity]");
+var unitPriceInput = form.querySelector("[data-presale-unit-price]");
+var currencySelect = form.querySelector("[data-presale-currency]");
+var fxField = form.querySelector("[data-presale-fx-field]");
+var totalValue = form.querySelector("[data-presale-total-value]");
+var summaryQty = form.querySelector("[data-presale-summary-qty]");
+var summaryAmount = form.querySelector("[data-presale-summary-amount]");
+var summaryUnit = form.querySelector("[data-presale-summary-unit]");
+function toNumber(value) {
+var normalized = String(value || "")
+.replace(/[۰-۹]/g, function (char) { return String("۰۱۲۳۴۵۶۷۸۹".indexOf(char)); })
+.replace(/[٠-٩]/g, function (char) { return String("٠١٢٣٤٥٦٧٨٩".indexOf(char)); })
+.replace(/,/g, "")
+.trim();
+var parsed = normalized ? Number(normalized) : 0;
+return Number.isFinite(parsed) ? parsed : 0;
+}
+function refresh() {
+var quantity = toNumber(quantityInput && quantityInput.value);
+var unitPrice = toNumber(unitPriceInput && unitPriceInput.value);
+var total = quantity * unitPrice;
+var currency = normalizeCurrency(currencySelect && currencySelect.value) || "USD";
+var money = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(total);
+if (totalValue) totalValue.textContent = money;
+if (summaryQty) {
+summaryQty.textContent = new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(quantity);
+}
+if (summaryAmount) summaryAmount.textContent = money;
+if (summaryUnit) summaryUnit.textContent = currency;
+if (fxField) fxField.hidden = currency === "USD";
+}
+[quantityInput, unitPriceInput].forEach(function (input) {
+if (input) input.addEventListener("input", refresh);
+});
+if (currencySelect) currencySelect.addEventListener("change", refresh);
+refresh();
+form.dataset.presaleReady = "true";
 }
 function initializeOperationConditionalForms() {
 document.querySelectorAll("form").forEach(function (form) {

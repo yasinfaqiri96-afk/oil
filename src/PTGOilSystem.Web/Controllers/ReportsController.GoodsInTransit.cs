@@ -404,9 +404,15 @@ public partial class ReportsController
         DateTime today,
         CancellationToken cancellationToken)
     {
+        // دیسپچ سازگاریِ «ادامهٔ حمل» همان بارِ مرحلهٔ فرزند است؛ اگر اینجا هم بیاید، یک بار
+        // دو ردیف می‌شود و در جمعِ مقدار دوبار شمرده می‌شود.
+        var continuedReceiptIds = TransportChainProjection.ContinuedTransferReceiptIds(_db);
+
         var query = _db.TruckDispatches
             .AsNoTracking()
-            .Where(d => d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit);
+            .Where(d => (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
+                && !(d.InventoryTransportReceiptId != null
+                    && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)));
 
         if (filter.FromDate.HasValue)
         {

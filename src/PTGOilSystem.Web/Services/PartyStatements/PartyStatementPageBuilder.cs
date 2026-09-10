@@ -37,9 +37,20 @@ public sealed class PartyStatementPageBuilder
         // اگر هیچ سندِ این دوره به قرارداد وصل نباشد، «خلاصه قراردادها» بی‌معنا است و
         // فقط یک ردیفِ «بدون قرارداد» می‌شود؛ در این حالت صفحه همان گردش حساب ساده است.
         var showsContracts = UsesContractSummary(partyType) && HasContractRows(statement);
-        if (!showsContracts)
+        // شرکت خدماتی قرارداد را گروه نمی‌کند؛ خلاصه‌اش جمعِ اسناد هم‌نوع (نوع مصرف) است.
+        var showsExpenseSummary = !showsContracts
+            && UsesExpenseSummary(partyType)
+            && ServiceProviderExpenseSummaryBuilder.HasGroupableRows(statement);
+        if (!showsContracts && !showsExpenseSummary)
         {
             view = SupplierStatementView.Ledger;
+        }
+
+        if (showsExpenseSummary && view == SupplierStatementView.Contracts)
+        {
+            // خلاصه: اسناد هم‌نوع در یک سطر جمع می‌شوند. جمع دوره و بیلانس از همان
+            // Summary می‌آید و تغییر نمی‌کند.
+            statement = WithRows(statement, ServiceProviderExpenseSummaryBuilder.Build(statement));
         }
 
         SupplierContractStatementViewModel? grouping = null;
@@ -61,6 +72,7 @@ public sealed class PartyStatementPageBuilder
             IsPrintMode = print,
             SupplierView = view,
             HasContractRows = showsContracts,
+            HasExpenseSummary = showsExpenseSummary,
             ContractGrouping = grouping,
             ContractOptions = options.Contracts,
             CompanyOptions = options.Companies,
@@ -226,13 +238,23 @@ public sealed class PartyStatementPageBuilder
     public static bool UsesContractSummary(PartyStatementPartyType partyType)
         => PartyStatementViewModel.SupportsContractSummary(partyType);
 
+    // شرکت خدماتی، شرکت و مشتری نمای «خلاصه» دارند، اما بر اساس نوع سند/مصرف — نه قرارداد.
+    // صورت‌حساب این‌ها پرحجم است و دانه‌دانه خوانا نبود؛ اسناد هم‌نوع در یک سطر جمع می‌شوند.
+    // خروجی‌های Excel/PDF عمداً همان جزئیات را می‌دهند و از این نما تأثیر نمی‌گیرند.
+    public static bool UsesExpenseSummary(PartyStatementPartyType partyType)
+        => partyType is PartyStatementPartyType.ServiceProvider
+            or PartyStatementPartyType.Company
+            or PartyStatementPartyType.Customer;
+
     // نمای مؤثر: اگر کاربر چیزی انتخاب نکرده باشد، پیش‌فرضِ همان نوع طرف‌حساب.
     public static SupplierStatementView ResolveView(
         PartyStatementPartyType partyType,
         SupplierStatementView? requested)
         => UsesContractSummary(partyType)
             ? requested ?? PartyStatementViewModel.DefaultViewFor(partyType)
-            : SupplierStatementView.Ledger;
+            : UsesExpenseSummary(partyType)
+                ? requested ?? SupplierStatementView.Contracts
+                : SupplierStatementView.Ledger;
 
     public static bool NeedsOperationalColumns(SupplierStatementView view)
         => view == SupplierStatementView.Loadings;

@@ -23,7 +23,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.summary-strip > 
 
 body.boltz-shell.app-shell-authenticated :where(.summary-tile-label, .ds-summary-label, .ptg-kpi-label) {
     color: var(--ptg-muted);
-    font-size: .82rem;
+    font-size: 14px;
     font-weight: 650;
 }
 
@@ -105,25 +105,32 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
 .storage-tank-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-    gap: var(--ptg-space-gap, 12px);
+    gap: var(--ptg-space-gap);
     align-items: stretch;
 }
 
 .storage-tank-card {
+    position: relative;
     display: grid;
     grid-template-rows: 1fr auto;
-    border: 1px solid var(--divider);
+    border: 0;
     border-radius: 8px;
     background: var(--background-paper);
     box-shadow: var(--ptg-panel-shadow);
-    transition: border-color 190ms ease, box-shadow 190ms ease, transform 190ms ease;
+    transition: box-shadow 190ms ease, transform 190ms ease;
 }
 
 .storage-tank-card:hover,
 .storage-tank-card:focus-within {
-    border-color: #D3DFEC;
-    box-shadow: none;
+    box-shadow: var(--shadow-dialog);
     transform: translateY(-2px);
+}
+
+/* The row menu opens inside the card, and the grid siblings after it paint on
+   top, so the card below clipped the open list. Lift the card to the dropdown
+   tier only while its own menu is open; it drops back on close. */
+.storage-tank-card:has(.dropdown-menu.show) {
+    z-index: var(--ptg-z-dropdown);
 }
 
 .storage-tank-card.is-normal {
@@ -168,11 +175,15 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
     min-block-size: 228px;
     padding: 6px 12px 2px;
     border-radius: 8px;
-    background: linear-gradient(145deg, var(--background-neutral), var(--background-paper));
+    background: transparent;
     overflow: hidden;
 }
 
-.storage-tank-image {
+/* Photo and level overlay share one grid cell, so the SVG lines up with the
+   tank in the picture: same box, same square aspect, both centred. */
+.storage-tank-image,
+.storage-tank-level {
+    grid-area: 1 / 1;
     display: block;
     inline-size: min(100%, 250px);
     block-size: 220px;
@@ -180,22 +191,26 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
     object-fit: contain;
 }
 
-.storage-tank-fill-badge {
-    position: absolute;
-    inset-block-start: 10px;
-    inset-inline-start: 10px;
-    min-inline-size: 48px;
-    padding: 4px 9px;
-    border-radius: 8px;
-    background: var(--primary-main);
-    color: var(--background-paper);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.25;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-    box-shadow: var(--ptg-panel-shadow);
+.storage-tank-level {
+    pointer-events: none;
 }
+
+/* Multiplied over the photo so the shell's own seams, highlights and shadow
+   still read through the liquid instead of being painted over. */
+.storage-tank-level-body {
+    fill: var(--tank-liquid);
+    fill-opacity: .82;
+    mix-blend-mode: multiply;
+}
+
+.storage-tank-level-gloss {
+    fill: none;
+    stroke: #FFFFFF;
+    stroke-width: 10;
+    stroke-opacity: .5;
+    stroke-linecap: round;
+}
+
 
 .tankviz-ground { fill: rgba(15, 23, 42, .07); }
 .tankviz-body { fill: var(--tank-metal); }
@@ -265,7 +280,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
 
 .storage-tank-card-head .ak-name {
     overflow: hidden;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -285,11 +300,11 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
 
 .storage-tank-fact-label {
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .storage-tank-fact-value {
-    font-size: 14.5px;
+    font-size: 14px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
 }
@@ -303,7 +318,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
     padding: 4px 8px 4px 14px;
     border-top: 1px solid var(--divider);
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -323,7 +338,7 @@ body.boltz-shell.controller-payments:is(.action-create, .action-edit) .field-val
     display: block;
     min-height: 0;
     color: #d84b4b;
-    font-size: .72rem;
+    font-size: 12px;
     font-weight: 650;
     line-height: 1.4;
 }
@@ -338,13 +353,13 @@ body.boltz-shell.controller-payments.action-hub .ds-card .card-body {
 }
 
 body.boltz-shell.controller-payments.action-hub .ds-card h2 {
-    font-size: .82rem;
+    font-size: 14px;
     margin-bottom: .2rem !important;
 }
 
 body.boltz-shell.controller-payments.action-hub .ds-card p.small {
     margin-bottom: .5rem !important;
-    font-size: .72rem;
+    font-size: 12px;
     line-height: 1.3;
 }
 
@@ -367,7 +382,7 @@ body.boltz-shell.controller-payments.action-hub .ds-card .btn:focus {
 /* هدر صفحه فشرده‌تر */
 body.boltz-shell.controller-payments.action-hub .page-subtitle {
     margin-bottom: .15rem;
-    font-size: .8rem;
+    font-size: 12px;
 }
 
 body.boltz-shell.controller-payments.action-hub .page-header {

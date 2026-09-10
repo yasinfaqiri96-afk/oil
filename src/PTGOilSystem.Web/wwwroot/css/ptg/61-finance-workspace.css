@@ -21,7 +21,7 @@ body.is-finance-workspace .cash-account-create-dialog .ak-modal-head {
 
 body.is-finance-workspace .cash-account-create-dialog .ak-modal-title {
     color: #1F344F;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 750;
 }
 
@@ -67,14 +67,14 @@ body.is-finance-workspace .cash-account-create-dialog .cash-account-form-section
 
 body.is-finance-workspace .cash-account-create-dialog .ak-section-title {
     color: #1F344F;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 750;
 }
 
 body.is-finance-workspace .cash-account-create-dialog .ak-section-desc {
     margin-top: 5px;
     color: #6A7B93;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.65;
 }
 
@@ -115,7 +115,7 @@ body.is-finance-workspace .cash-account-create-dialog .cash-account-status-field
 
 body.is-finance-workspace .cash-account-create-dialog .cash-account-status-field .form-check-label {
     color: #1F344F;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
 }
 
@@ -274,7 +274,6 @@ body.is-finance-workspace .finance-workspace-page .payments-table .ak-note {
     --chk-primary-hover: #0D52AF;
     --chk-primary-light: #E8F1FF;
 
-    --chk-canvas: #F5F6FA;
     --chk-surface: #FFFFFF;
     --chk-surface-soft: #F2F5FC;
     --chk-rail: #F7F7F7;
@@ -283,7 +282,6 @@ body.is-finance-workspace .finance-workspace-page .payments-table .ak-note {
     --chk-border: #C2D0E3;
     --chk-border-strong: #ABBACC;
     --chk-border-soft: #E7E7E7;
-    --chk-border-row: #F1F3F7;
 
     --chk-title: #1A1919;
     --chk-text: #3D3D3D;
@@ -292,10 +290,8 @@ body.is-finance-workspace .finance-workspace-page .payments-table .ak-note {
     --chk-text-muted: #AEAEAE;
 
     --chk-success: #24AF22;
-    --chk-success-light: #E7F5E9;
     --chk-danger: #CB0B0B;
     --chk-danger-light: #FFEAF0;
-    --chk-warning: #D68000;
 
     --chk-control-h: 40px;
     --chk-compact-h: 34px;
@@ -321,11 +317,12 @@ body.is-finance-workspace .finance-workspace-page .payments-table .ak-note {
 /* ---- Canvas + working surface ------------------------------------- */
 
 body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-content-body:has(#roznamchaForm) {
+    /* Width only. The canvas colour and the page gutter for this route are
+       owned by 72-surfaces.css, which loads last; repeating them here left two
+       rules fighting over the same box. */
     width: 100%;
     max-width: 100%;
     max-inline-size: 100%;
-    padding-inline: clamp(12px, 1.6vw, 28px);
-    background: #F5F6FA;
 }
 
 .finance-entry-chortke:has(> #roznamchaForm) {
@@ -437,7 +434,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
 .finance-entry-chortke #roznamchaForm .ak-label {
     min-height: 20px;
     color: var(--chk-label);
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 20px;
 }
@@ -587,7 +584,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
 
 .finance-entry-chortke #roznamchaForm .journal-mode-label {
     color: var(--chk-label);
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -622,7 +619,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
     color: var(--chk-text-secondary);
     background: var(--chk-surface);
     cursor: pointer;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 400;
     white-space: nowrap;
     transition: color .15s ease, background-color .15s ease, border-color .15s ease;
@@ -684,7 +681,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
     border-radius: var(--chk-radius-control);
     background: var(--chk-primary-light);
     color: var(--chk-text);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.85;
 }
 
@@ -705,7 +702,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
     border-radius: var(--chk-radius-control);
     background: var(--chk-danger-light);
     color: var(--chk-danger);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.85;
 }
 
@@ -742,7 +739,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
 
 .finance-entry-chortke #roznamchaForm .ak-toggle-field .form-check-label {
     color: var(--chk-text);
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 400;
 }
 
@@ -774,7 +771,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
     border: 0;
     color: var(--chk-primary);
     background: transparent;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 400;
 }
 
@@ -836,7 +833,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
     border-radius: var(--chk-radius-control);
     color: var(--chk-text-secondary);
     background: var(--chk-surface);
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 400;
     white-space: normal;
     text-align: start;
@@ -870,7 +867,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
 
 .finance-entry-chortke #roznamchaForm [data-sarraf-summary] .ak-field > .ak-num {
     color: var(--chk-title);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -913,7 +910,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
     border-radius: var(--chk-radius-control);
     background: var(--chk-surface-soft);
     color: var(--chk-text);
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.85;
 }
 
@@ -1002,10 +999,6 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
 }
 
 @media (max-width: 767.98px) {
-    body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-content-body:has(#roznamchaForm) {
-        padding-inline: 8px;
-    }
-
     .finance-entry-chortke #roznamchaForm > div {
         padding: 16px;
     }
@@ -1137,7 +1130,7 @@ body.is-finance-workspace .finance-report-link-icon {
     border: 1px solid var(--divider);
     border-radius: 8px;
     color: var(--primary-main);
-    font-size: 17px;
+    font-size: 16px;
 }
 
 body.is-finance-workspace .finance-report-link-copy {
@@ -1146,7 +1139,7 @@ body.is-finance-workspace .finance-report-link-copy {
 }
 
 body.is-finance-workspace .finance-report-link-copy strong {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
 }
 
@@ -1250,7 +1243,7 @@ body.is-finance-workspace .finance-action-group > a:hover {
 }
 
 body.is-finance-workspace .finance-action-group > a strong {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -1277,7 +1270,7 @@ body.is-finance-workspace .finance-more-actions {
 body.is-finance-workspace .finance-more-actions summary {
     cursor: pointer;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 body.is-finance-workspace .finance-more-actions[open] {
@@ -1351,7 +1344,7 @@ body.is-finance-workspace .finance-close-steps strong {
 body.is-finance-workspace .finance-close-steps small {
     overflow: hidden;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1403,7 +1396,7 @@ body.is-finance-workspace .finance-fiscal-facts dt {
 body.is-finance-workspace .finance-fiscal-facts dd {
     margin: 4px 0 0;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -1433,7 +1426,7 @@ body.is-finance-workspace .finance-fiscal-details > summary {
     padding: 14px 0;
     cursor: pointer;
     color: var(--primary-main);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -1661,7 +1654,7 @@ body.is-finance-workspace .akrep-group:last-child {
 body.is-finance-workspace .akrep-group-title {
     margin: 0;
     padding-block-end: 14px;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 500;
     color: var(--text-primary);
     border-block-end: 1px solid var(--divider);
@@ -1727,7 +1720,7 @@ body.is-finance-workspace .akrep-item:focus-visible .akrep-copy strong {
 }
 
 body.is-finance-workspace .akrep-copy small {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.6;
     color: var(--text-secondary);
 }
@@ -1911,7 +1904,7 @@ body.is-finance-workspace .rephub-card-title {
 #roznamchaForm #journalPartyBalance .jpb-amount {
     direction: ltr;
     unicode-bidi: isolate;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.2;
     font-variant-numeric: tabular-nums;
@@ -1965,5 +1958,5 @@ body.is-finance-workspace .rephub-card-title {
 
 .cashflow-report-page .cashflow-panel > .ak-section-desc {
     margin: 0 0 12px;
-    font-size: 13px;
+    font-size: 14px;
 }

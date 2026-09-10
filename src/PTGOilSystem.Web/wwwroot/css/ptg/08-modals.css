@@ -83,7 +83,7 @@ body.boltz-shell.app-shell-authenticated :where(.modal-backdrop.show) {
     display: block;
     margin-top: .38rem;
     color: #788395;
-    font-size: .73rem;
+    font-size: 12px;
     line-height: 1.7;
 }
 

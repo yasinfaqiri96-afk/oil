@@ -14,9 +14,6 @@
     var chartSales = JsonSerializer.Serialize(Model.MarketSalesSeries);
     var chartExpenses = JsonSerializer.Serialize(Model.MarketExpenseSeries);
 
-    // Compact USD like the reference: "$5306.85k".
-    string CompactUsd(decimal v) => "$" + (v / 1000m).ToString("0.##", CultureInfo.InvariantCulture) + "k";
-
     // ترکیب فروش — سه حلقه هم‌مرکز.
     var mixSegments = new[]
     {

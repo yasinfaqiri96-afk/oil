@@ -893,6 +893,12 @@ public partial class DispatchController : Controller
 
         query = query.Where(d => d.Status != DispatchStatus.Cancelled);
 
+        // رکوردهای سازگاریِ ادامهٔ حمل ارسال مستقل نیستند؛ همان عملیات در فهرست حمل‌های در
+        // جریان دیده می‌شود. صفحهٔ جزئیاتشان از خودِ حملِ والد در دسترس می‌ماند.
+        var continuedReceiptIds = TransportChainProjection.ContinuedTransferReceiptIds(_db);
+        query = query.Where(d => !(d.InventoryTransportReceiptId != null
+            && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)));
+
         if (filter.TruckId.HasValue) query = query.Where(d => d.TruckId == filter.TruckId.Value);
         if (filter.ProductId.HasValue) query = query.Where(d => d.ProductId == filter.ProductId.Value);
         if (filter.ContractId.HasValue) query = query.Where(d => d.ContractId == filter.ContractId.Value);
@@ -1521,6 +1527,14 @@ public partial class DispatchController : Controller
             return NotFound();
         }
 
+        // رکورد سازگاریِ ادامهٔ حمل بارِ مستقل ندارد؛ تخلیه‌اش سند موجودی موازیِ رسیدِ مرحلهٔ
+        // فرزند می‌سازد. تخلیه فقط از مسیر همان مرحلهٔ فرزند انجام می‌شود.
+        if (await TransportChainProjection.IsContinuationProjectionAsync(_db, dispatch))
+        {
+            TempData["err"] = "این ارسال رکورد سازگاریِ ادامهٔ حمل است؛ تخلیه را از خودِ حملِ در جریان ثبت کنید.";
+            return RedirectToAction(nameof(Details), new { id, returnUrl });
+        }
+
         var deliveryReceipt = await _db.DeliveryReceipts
             .AsNoTracking()
             .Where(r => r.TruckDispatchId == id)
@@ -1601,6 +1615,11 @@ public partial class DispatchController : Controller
         if (dispatch.SalesTransactionId.HasValue)
         {
             ModelState.AddModelError(string.Empty, "این دیسپچ به فروش مستقیم وصل است؛ تخلیه به مخزن برای آن مجاز نیست.");
+        }
+
+        if (await TransportChainProjection.IsContinuationProjectionAsync(_db, dispatch))
+        {
+            ModelState.AddModelError(string.Empty, "این ارسال رکورد سازگاریِ ادامهٔ حمل است؛ تخلیه را از خودِ حملِ در جریان ثبت کنید.");
         }
 
         // اگر تخلیه جزئی از فرم جدید «رسید/تسویه/تخلیه وسایط» ثبت شده باشد، مسیر قدیمی

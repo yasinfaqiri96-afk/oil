@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
 
@@ -35,15 +35,18 @@ public sealed class FinancialReportsViewStructureTests
     }
 
     [Fact]
-    public void ContractPnl_Uses_Compact_Purchase_Summary_And_Preserves_Cost_Details()
+    public void ContractPnl_Renders_One_Row_Per_Contract_And_Links_Cost_Details()
     {
         var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Reports/ContractPnl.cshtml");
 
-        Assert.Contains("<details class=\"ak-advanced m-0\">", view);
-        Assert.Contains("row.TransportCostUsd", view);
-        Assert.Contains("row.WarehouseCostUsd", view);
-        Assert.Contains("row.SarrafSupplierShortfallUsd", view);
-        Assert.Contains("row.NetExchangeDifferenceUsd", view);
+        // هر قرارداد فقط یک ردیف دارد؛ ریز مصارف در صفحهٔ خود قرارداد دیده می‌شود.
+        Assert.DoesNotContain("<details class=\"ak-advanced m-0\">", view);
+        Assert.DoesNotContain("ak-row-muted", view);
+        Assert.Contains("asp-controller=\"ContractJourney\"", view);
+        // کارت‌ها باید همان دامنه‌ای را جمع بزنند که جدول نشان می‌دهد، نه قراردادهای فروش.
+        Assert.Contains("Model.TotalDirectSaleRevenueUsd", view);
+        Assert.Contains("Model.TotalDirectSaleGrossMarginUsd", view);
+        Assert.DoesNotContain("Model.TotalSalesRevenueUsd", view);
         Assert.DoesNotContain("Model.SaleRows", view);
         Assert.DoesNotContain("قراردادهای فروش", view);
         Assert.DoesNotContain("class=\"ak-note\"", view);

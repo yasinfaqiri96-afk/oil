@@ -9,7 +9,6 @@
     --ptg-primary: #f7b340;
     --ptg-primary-dark: #d9941f;
     --ptg-primary-soft: rgba(247, 179, 64, 0.16);
-    --ptg-primary-border: rgba(247, 179, 64, 0.32);
 
     /* === Colors - Semantic === */
     --ptg-success: #0fbd4f;
@@ -29,20 +28,16 @@
 
     /* === Colors - Background === */
     --ptg-bg: #f6f6f6;
-    --ptg-bg-soft: #f8f8f8;
     --ptg-surface: #ffffff;
     --ptg-surface-soft: #f7f8fb;
     --ptg-surface-muted: #f2f4f8;
 
     /* === Colors - Border === */
     --ptg-border: #e8ebf2;
-    --ptg-border-light: #eeeeee;
     --ptg-border-strong: #d8dee7;
-    --ptg-border-muted: rgba(226, 232, 240, 0.72);
 
     /* === Colors - Special === */
     --ptg-shadow-color: rgba(82, 63, 105, 0.05);
-    --ptg-overlay: rgba(0, 0, 0, 0.5);
 
     /* === Shadows === */
     --ptg-shadow-sm: 0 5px 5px var(--ptg-shadow-color);
@@ -51,83 +46,35 @@
     --ptg-shadow-card: var(--ptg-shadow-sm);
 
     /* === Border Radius === */
-    --ptg-radius-xs: 0.5rem;
     --ptg-radius-sm: 0.875rem;
     --ptg-radius-md: 1.125rem;
     --ptg-radius-lg: 1.5rem;
     --ptg-radius-xl: 1.75rem;
-    --ptg-radius-full: 999px;
 
     /* === Spacing === */
-    --ptg-space-xs: 0.25rem;
-    --ptg-space-sm: 0.5rem;
-    --ptg-space-md: 1rem;
-    --ptg-space-lg: 1.5rem;
-    --ptg-space-xl: 2rem;
 
     /* === Typography === */
-    --ptg-font-family: "Poppins", "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
-    --ptg-font-family-en: "Poppins", sans-serif;
-    --ptg-font-family-fa: "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
 
-    --ptg-font-size-xs: 0.72rem;
-    --ptg-font-size-sm: 0.82rem;
-    --ptg-font-size-base: 1rem;
-    --ptg-font-size-lg: 1.125rem;
-    --ptg-font-size-xl: 1.32rem;
-    --ptg-font-size-2xl: 1.5rem;
 
-    --ptg-font-weight-normal: 400;
-    --ptg-font-weight-medium: 600;
-    --ptg-font-weight-bold: 700;
-    --ptg-font-weight-extrabold: 800;
-    --ptg-font-weight-black: 900;
 
-    --ptg-line-height-tight: 1.2;
-    --ptg-line-height-normal: 1.5;
-    --ptg-line-height-relaxed: 1.75;
 
     /* === Layout === */
     --ptg-sidebar-width: 12.75rem;
     --ptg-sidebar-collapsed: 4.5rem;
     --ptg-topbar-height: 4.5rem;
-    --ptg-content-max: 100%;
 
     /* === Transitions === */
-    --ptg-transition-fast: 0.15s ease;
-    --ptg-transition-base: 0.18s ease;
-    --ptg-transition-slow: 0.28s ease;
 
     /* === Z-Index === */
     --ptg-z-dropdown: 1000;
-    --ptg-z-sticky: 1020;
-    --ptg-z-fixed: 1030;
-    --ptg-z-modal-backdrop: 1040;
-    --ptg-z-modal: 1050;
-    --ptg-z-popover: 1060;
-    --ptg-z-tooltip: 1070;
-    --ptg-z-loader: 9999;
 }
 
 /* === Journey/Contract Specific Colors === */
-:root {
-    --journey-blue: #0277bd;
-    --journey-blue-deep: #1155d8;
-    --journey-cyan: #20c7df;
-    --journey-cyan-soft: #e4fbff;
-    --journey-orange: #ff8a00;
-    --journey-orange-deep: #ef5b00;
-    --journey-ink: #071b4f;
-    --journey-purple: #8a0062;
-    --journey-card-shadow: 0 12px 24px rgba(7, 27, 79, 0.12);
-    --journey-card-border: rgba(2, 119, 189, 0.18);
-}
 
 /* === Backward Compatibility (Legacy Variable Names) === */
 :root {
     /* Boltz aliases */
     --boltz-bg: var(--ptg-bg);
-    --boltz-surface: var(--ptg-surface);
     --boltz-border: var(--ptg-border);
     --boltz-text: var(--ptg-text);
     --boltz-text-muted: var(--ptg-text-muted);
@@ -135,26 +82,15 @@
     --boltz-primary-dark: var(--ptg-primary-dark);
     --boltz-primary-soft: var(--ptg-primary-soft);
     --boltz-success: var(--ptg-success);
-    --boltz-danger: var(--ptg-danger);
-    --boltz-warning: var(--ptg-warning);
-    --boltz-info: var(--ptg-info);
     --boltz-shadow-card: var(--ptg-shadow-card);
-    --boltz-radius-sm: var(--ptg-radius-sm);
-    --boltz-radius-md: var(--ptg-radius-md);
-    --boltz-radius-lg: var(--ptg-radius-lg);
     --boltz-sidebar-width: var(--ptg-sidebar-width);
 
     /* App aliases */
     --app-bg: var(--ptg-bg);
-    --app-surface: var(--ptg-surface);
     --app-border: var(--ptg-border);
     --app-text: var(--ptg-text);
     --app-text-muted: var(--ptg-text-muted);
     --app-primary: var(--ptg-primary);
     --app-primary-hover: var(--ptg-primary-dark);
-    --app-success: var(--ptg-success);
     --app-danger: var(--ptg-danger);
-    --app-warning: var(--ptg-warning);
-    --app-shadow: var(--ptg-shadow-md);
-    --app-radius: var(--ptg-radius-xl);
 }

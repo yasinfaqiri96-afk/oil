@@ -5,7 +5,6 @@
     var returnUrl = Model.ReturnUrl;
     var cancelUrl = returnUrl ?? Url.Action("Details", new { id = lossEventId }) ?? "#";
     ViewData["Title"] = "Edit Loss Event";
-    ViewData["ContentBodyClass"] = "boltz-content-body";
     ViewData["HideSectionTabs"] = true;
 }
 

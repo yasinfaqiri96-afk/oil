@@ -37,6 +37,10 @@ public sealed class AccountingChartSeeder(
         new("2510", "Accrued Expenses Payable", AccountType.Liability, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("3100", "Current Year Profit/Loss", AccountType.Equity, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("3200", "Retained Earnings", AccountType.Equity, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
+        // جاریِ شرکا: یک حسابِ کنترلی، هویتِ شریک روی سطر (PartyType=Partner). مانده‌اش دوطرفه
+        // است — بستانکار یعنی شراکت به شریک بدهکار است، بدهکار یعنی شریک به شراکت. طبقهٔ
+        // Equity است چون هم آوردهٔ شریک و هم سهمِ سودش را نگه می‌دارد، نه یک بدهی تجاری.
+        new("3300", "Partner Current Account", AccountType.Equity, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("4100", "Sales Revenue", AccountType.Revenue, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("4200", "Exchange Gain", AccountType.Revenue, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
         new("4300", "Asset Rental Revenue", AccountType.Revenue, NormalBalance.Credit, MonetaryTreatment.NonMonetary),
@@ -63,6 +67,54 @@ public sealed class AccountingChartSeeder(
 
         foreach (var companyId in companyIds)
             await SeedCompanyAsync(companyId, cancellationToken);
+
+        await EnsurePartnerCurrentAccountAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// حساب ۳۳۰۰ بعد از ساخته‌شدنِ تنظیماتِ شرکت‌های موجود به Chart اضافه شد، پس
+    /// <see cref="SeedCompanyAsync"/> — که فقط شرکتِ بدونِ تنظیمات را می‌سازد — هرگز به آن‌ها
+    /// نمی‌رسد. این گذر همان یک حساب و همان یک ارجاع را برایشان کامل می‌کند و بس: هیچ حساب
+    /// دیگری را نمی‌سازد و هیچ ارجاعِ پرشده‌ای را بازنویسی نمی‌کند.
+    /// </summary>
+    private async Task EnsurePartnerCurrentAccountAsync(CancellationToken cancellationToken)
+    {
+        var pending = await db.AccountingSettings
+            .Where(x => x.PartnerCurrentAccountId == null)
+            .ToListAsync(cancellationToken);
+        if (pending.Count == 0)
+            return;
+
+        var seed = DefaultAccounts.Single(x => x.Code == "3300");
+        foreach (var settings in pending)
+        {
+            var account = await db.Accounts
+                .SingleOrDefaultAsync(
+                    x => x.CompanyId == settings.CompanyId && x.Code == seed.Code,
+                    cancellationToken);
+
+            if (account is null)
+            {
+                account = new Account
+                {
+                    CompanyId = settings.CompanyId,
+                    Code = seed.Code,
+                    Name = seed.Name,
+                    AccountType = seed.AccountType,
+                    NormalBalance = seed.NormalBalance,
+                    IsControlAccount = true,
+                    AllowManualPosting = false,
+                    IsActive = true,
+                    MonetaryTreatment = seed.MonetaryTreatment
+                };
+                db.Accounts.Add(account);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            settings.PartnerCurrentAccountId = account.Id;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SeedCompanyAsync(int companyId, CancellationToken cancellationToken)
@@ -129,6 +181,7 @@ public sealed class AccountingChartSeeder(
                 AccruedExpenseAccountId = accountsByCode["2510"].Id,
                 CurrentYearProfitLossAccountId = accountsByCode["3100"].Id,
                 RetainedEarningsAccountId = accountsByCode["3200"].Id,
+                PartnerCurrentAccountId = accountsByCode["3300"].Id,
                 SalesRevenueAccountId = accountsByCode["4100"].Id,
                 ExchangeGainAccountId = accountsByCode["4200"].Id,
                 AssetRentalRevenueAccountId = accountsByCode["4300"].Id,

@@ -239,7 +239,8 @@
             <div class="ak-detail-subsection" id="presale-delivery">
                 <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                          model="@((T("ثبت تحویل جدید", "Record a delivery"), (string?)null))" />
-                <form asp-action="PreSaleDeliver" method="post" class="ak-form" data-presale-delivery-form>
+                <form asp-action="PreSaleDeliver" method="post" class="ak-form" data-presale-delivery-form
+                      data-presale-preferred-tank="@Context.Request.Query["sourceTank"]">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="PreSaleOrderId" value="@Model.Id" />
                     <input type="hidden" name="Kind" value="TerminalStock" data-presale-kind />
@@ -429,6 +430,18 @@
 
             source.addEventListener('change', apply);
             qty.addEventListener('input', preview);
+
+            // مخزنِ انتخاب‌شده در فرم «ثبت فروش با تحویل مرحله‌ای» به‌عنوان منبعِ پیش‌فرض باز می‌گردد.
+            var preferredTank = form.getAttribute('data-presale-preferred-tank');
+            if (preferredTank && !source.value) {
+                var match = Array.prototype.find.call(source.options, function (option) {
+                    return option.getAttribute('data-tank') === preferredTank;
+                });
+                if (match) {
+                    source.value = match.value;
+                    apply();
+                }
+            }
         })();
 
         (function () {

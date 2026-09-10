@@ -152,10 +152,16 @@ public partial class SalesController
 
     private async Task<List<GroupSaleSourceItem>> LoadSellableTruckDispatchesAsync()
     {
+        // دیسپچ سازگاریِ «ادامهٔ حمل» بارِ خودش را ندارد؛ همان بار به‌صورت مرحلهٔ فرزند در
+        // LoadSellableLegsAsync می‌آید. نگه‌داشتنش یعنی یک بار دو بار قابل فروش دیده شود.
+        var continuedReceiptIds = TransportChainProjection.ContinuedTransferReceiptIds(_db);
+
         var dispatches = await _db.TruckDispatches
             .AsNoTracking()
             .Where(d => (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
-                        && d.SalesTransactionId == null)
+                        && d.SalesTransactionId == null
+                        && !(d.InventoryTransportReceiptId != null
+                            && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)))
             .OrderByDescending(d => d.DispatchDate)
             .Select(d => new
             {
@@ -649,6 +655,13 @@ public partial class SalesController
         if (dispatch.Status is not (DispatchStatus.Loaded or DispatchStatus.InTransit))
         {
             throw new BusinessRuleException("GROUP_SALE_DISPATCH_NOT_IN_TRANSIT", $"موتر #{dispatch.Id} دیگر در جریان نیست.");
+        }
+
+        if (await TransportChainProjection.IsContinuationProjectionAsync(_db, dispatch))
+        {
+            throw new BusinessRuleException(
+                "GROUP_SALE_DISPATCH_CHAIN_PROJECTION",
+                $"موتر #{dispatch.Id} رکورد سازگاریِ ادامهٔ حمل است؛ فروش را از خودِ حملِ در جریان ثبت کنید.");
         }
 
         var sourceContract = dispatch.Contract

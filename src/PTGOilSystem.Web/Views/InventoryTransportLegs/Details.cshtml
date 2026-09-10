@@ -81,7 +81,8 @@
         new() { Label = T("قرارداد", "Contract"), Value = contractLabel, IsNumeric = true },
         new() { Label = T("محصول", "Product"), Value = Model.ProductName },
         new() { Label = T("مقدار", "Quantity"), Value = $"{Q(Model.QuantityMt)} MT", IsNumeric = true },
-        new() { Label = T("تاریخ", "Date"), Value = Model.LoadedDate.ToDisplayDate(), IsNumeric = true }
+        new() { Label = T("تاریخ", "Date"), Value = Model.LoadedDate.ToDisplayDate(), IsNumeric = true },
+        new() { Label = T("راننده", "Driver"), Value = Model.DriverName }
     };
 
     // کارت اطلاعات اصلی: هویت وسیله و متصدی، همان فیلدهای قبلی صفحه.
@@ -299,6 +300,43 @@
     // «ویرایش» در نوار اقدامات سریع دیده می‌شود، پس در kebab تکرار نمی‌شود.
     ViewData["AkHeaderOverflowActions"] = overflowActions;
 
+    // انتقال وسیله‌به‌وسیله باید در خودِ صفحه دیده شود، نه فقط در تایم‌لاین «موارد بیشتر»:
+    // بار این حمل از کدام وسیله گرفته شده و به کدام وسیله تحویل داده شده، با مقدار همان انتقال.
+    string ChainVehicleText(PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportChainLinkViewModel link)
+    {
+        var kind = link.TransportType switch
+        {
+            LoadingTransportType.Truck => T("موتر", "Truck"),
+            LoadingTransportType.Wagon => T("واگن", "Wagon"),
+            LoadingTransportType.Vessel => T("کشتی", "Vessel"),
+            _ => T("وسیله", "Vehicle")
+        };
+        return $"{kind} {link.VehicleLabel} · TR-{link.LegId:0000} · {Q(link.QuantityMt)} MT";
+    }
+
+    var routeFooter = new List<AkInfoItem>
+    {
+        new() { Label = T("رسیدن تخمینی", "Expected arrival"), Value = Model.ExpectedArrivalDate?.ToDisplayDate(), IsNumeric = true }
+    };
+    foreach (var link in Model.ChainSources)
+    {
+        routeFooter.Add(new AkInfoItem
+        {
+            Label = T("تحویل‌گرفته از وسیله", "Received from vehicle"),
+            Value = ChainVehicleText(link),
+            Href = Url.Action("Details", new { id = link.LegId, returnUrl = currentPageReturnUrl })
+        });
+    }
+    foreach (var link in Model.ChainTargets)
+    {
+        routeFooter.Add(new AkInfoItem
+        {
+            Label = T("تحویل‌داده به وسیله", "Handed to vehicle"),
+            Value = ChainVehicleText(link),
+            Href = Url.Action("Details", new { id = link.LegId, returnUrl = currentPageReturnUrl })
+        });
+    }
+
     var cardsModel = new AkDetailCardsModel
     {
         Code = documentNumber,
@@ -326,11 +364,7 @@
                     new() { Label = T("مقصد", "Destination"), Value = destinationLabel }
                 },
                 Steps = routeSteps,
-                Footer = new List<AkInfoItem>
-                {
-                    new() { Label = T("تاریخ حرکت", "Departure date"), Value = Model.LoadedDate.ToDisplayDate(), IsNumeric = true },
-                    new() { Label = T("رسیدن تخمینی", "Expected arrival"), Value = Model.ExpectedArrivalDate?.ToDisplayDate(), IsNumeric = true }
-                },
+                Footer = routeFooter,
                 Text = Model.RouteDescription
             },
             new()

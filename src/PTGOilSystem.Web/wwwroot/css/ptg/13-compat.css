@@ -57,12 +57,12 @@ body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .summa
     overflow: visible !important;
 }
 body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .summary-strip.ds-detail-facts .summary-tile .summary-tile-label {
-    font-size: .7rem !important;
+    font-size: 11px !important;
     line-height: 1.25 !important;
     color: var(--ptg-muted) !important;
 }
 body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .summary-strip.ds-detail-facts .summary-tile .summary-tile-value {
-    font-size: 1.02rem !important;
+    font-size: 16px !important;
     font-weight: 750 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -94,7 +94,7 @@ body.boltz-shell.controller-cashaccounts.action-details #account-ledger .summary
 }
 
 body.boltz-shell.controller-cashaccounts.action-details #account-ledger .summary-strip.ds-detail-facts .summary-tile .summary-tile-label {
-    font-size: .8rem !important;
+    font-size: 12px !important;
     line-height: 1.3 !important;
 }
 
@@ -121,20 +121,23 @@ body.boltz-shell.app-shell-authenticated :where(.page-link) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    border: 2px solid #E4E5EF;
-    border-radius: 8px !important;
+    /* چرتکه: مربع کوچک 32px، بوردر مویی، عدد فعال آبی روی سفید. */
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--ptg-field-border);
+    border-radius: var(--radius-btn) !important;
     color: var(--ptg-muted);
     background: #FFFFFF;
-    font-weight: 750;
+    font-size: var(--font-body);
+    font-weight: 500;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.page-item.active .page-link) {
     border-color: var(--ptg-primary);
-    background: var(--ptg-primary);
-    color: #FFFFFF;
-    box-shadow: 0 14px 28px rgba(var(--ptg-primary-rgb), .18);
+    background: #FFFFFF;
+    color: var(--ptg-primary);
+    box-shadow: none;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.page-item.disabled .page-link) {
@@ -144,96 +147,8 @@ body.boltz-shell.app-shell-authenticated :where(.page-item.disabled .page-link) 
 
 /*
  * Report KPI rows still appear in several Razor views. Their old grid rules
- * lived in legacy CSS{
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)) !important;
-    gap: var(--ptg-space-gap) !important;
-    width: 100%;
-    margin-inline: 0 !important;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row > [class*="col-"] {
-    width: auto !important;
-    max-width: none !important;
-    padding: 0 !important;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row > .kpi-card {
-    min-height: 6rem;
-    border: 1px solid var(--ptg-border);
-    border-radius: var(--ptg-radius-card);
-    background: var(--ptg-surface);
-    box-shadow: var(--ptg-shadow-card);
-    overflow: hidden;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row > .kpi-card .kpi-content {
-    display: grid;
-    grid-template-columns: 2.75rem minmax(0, 1fr);
-    align-items: center;
-    gap: .8rem;
-    min-height: 6rem;
-    padding: 1rem;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row .kpi-icon-wrap {
-    display: inline-grid;
-    width: 2.75rem;
-    height: 2.75rem;
-    place-items: center;
-    border-radius: var(--ptg-radius-md);
-    color: var(--ptg-primary);
-    background: var(--ptg-primary-soft);
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row :where(.kpi-meta, .kpi-label, .kpi-value, .kpi-value-sub) {
-    min-width: 0;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row .kpi-label {
-    margin: 0 0 .25rem;
-    color: var(--ptg-muted);
-    font-size: .76rem;
-    font-weight: 700;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row .kpi-value {
-    color: var(--ptg-text);
-    font-size: 1.08rem;
-    font-weight: 850;
-    line-height: 1.3;
-    font-variant-numeric: tabular-nums;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row .kpi-value-sub {
-    margin-top: .2rem;
-    color: var(--ptg-muted);
-    font-size: .76rem;
-    line-height: 1.45;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row > .kpi-card-accent {
-    border-color: rgba(var(--ptg-success-rgb), .2);
-    background: var(--ptg-success-soft);
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row > .kpi-card-accent .kpi-icon-wrap,
-body.boltz-shell.app-shell-authenticated .boltz-content .ptg-kpi-row > .kpi-card-accent .kpi-value {
-    color: var(--ptg-success);
-}
-
-@media (max-width: 767.98px) {
-
-    body.boltz-shell.app-shell-authenticated :where(.ds-card) {
-        padding: 1rem;
-    }
-}
-
-body.boltz-shell.controller-customsdeclarations #customsItemsTable .rate-input {
-    max-width: 8.75rem;
-}
-
-/* Global topbar: compact rounded shell for the authenticated app header. */
+ * lived in legacy CSS
+ * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated .ptg-main {
     background: transparent !important;
 }
@@ -333,8 +248,8 @@ body.boltz-shell.controller-contracts.action-create .contract-one-page-footer {
 body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .btn {
     min-height: 2.55rem;
     padding: .45rem 1.45rem !important;
-    border-radius: .8px;
-    font-size: .9rem;
+    border-radius: var(--radius-btn);
+    font-size: 14px;
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: .01em;
@@ -372,14 +287,14 @@ body.boltz-shell .loading-expense-form .validation-summary-valid {
 }
 body.boltz-shell .loading-expense-editor .form-label {
     margin-bottom: 0;
-    font-size: .76rem;
+    font-size: 12px;
     font-weight: 800;
     color: #3D3D3D;
 }
 body.boltz-shell .loading-expense-editor .field-validation-error {
     min-height: 1rem;
     color: #b91c1c;
-    font-size: .7rem;
+    font-size: 11px;
     line-height: 1.35;
 }
 body.boltz-shell .loading-expense-actions {
@@ -392,7 +307,7 @@ body.boltz-shell .loading-expense-editor.is-modal {
     gap: .78rem;
 }
 body.boltz-shell .loading-expense-editor.is-modal .form-section-title {
-    font-size: .84rem;
+    font-size: 14px;
     font-weight: 850;
 }
 body.boltz-shell .loading-expense-editor.is-modal .loading-expense-actions {
@@ -418,7 +333,7 @@ body.boltz-shell [data-loading-expense-editor] .ak-form-grid {
     align-items: end;
 }
 body.boltz-shell [data-loading-expense-editor] .ak-form-grid > span {
-    font-size: .74rem;
+    font-size: 12px;
     font-weight: 700;
     color: #3D3D3D;
 }
@@ -440,13 +355,13 @@ body.boltz-shell [data-loading-expense-remote-modal] .ak-modal-body {
 .boltz-shell .section-title-row h2 {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 1rem;
+    font-size: 16px;
     font-weight: 700;
 }
 .boltz-shell .section-title-row p {
     margin: 0;
     color: var(--ptg-muted);
-    font-size: .82rem;
+    font-size: 14px;
     line-height: 1.8;
 }
 @media (max-width: 767.98px) {
@@ -469,60 +384,20 @@ body.boltz-shell.app-shell-authenticated:is(.controller-operationalassets, .cont
  * ========================================================================== */
 /* operational-assets-reference-redesign:start */
 body.boltz-shell.controller-operationalassets.action-details .boltz-content .operational-assets-reference-page {
-    --oa-blue: #145dff;
-    --oa-blue-soft: #E7F0FE;
-    --oa-purple: #4f35ff;
-    --oa-text: #3D3D3D;
-    --oa-muted: #526783;
-    --oa-subtle: #7b8aa0;
-    --oa-border: #e7edf5;
-    --oa-border-strong: #d7e5ff;
-    --oa-soft: #FAFAFA;
-    --oa-field: #F5F6FA;
-    --oa-green: #009b5a;
-    --oa-green-soft: #dcfce9;
-    --oa-red: #f10b45;
-    --oa-red-soft: #fff1f4;
-    --oa-shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 10px 26px rgba(15, 23, 42, .035);
     inline-size: 100%;
     max-inline-size: 100%;
     margin-inline: 0;
     gap: 1.5rem;
 }
 
-/* Reopen button: hidden by default{
-    display: none;
-}
-
-/* Collapsed state: hide form, show reopen button{
-    grid-template-columns: auto 1fr;
-}
-body.boltz-shell.controller-operationalassets.action-details .boltz-content [data-oa-rent-party-field][hidden] {
-    display: none !important;
-}
-
-body.boltz-shell.controller-operationalassets.action-details .boltz-content [data-oa-customer-field].is-disabled {
-    opacity: .55;
-}
-
-/* operational-assets-reference-redesign:end */
+/* Reopen button: hidden by default
+ * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 
 /* ============================================================================
  * Clean registration form ("اطلاعات محصول"-style). Used by the Operational
  * Asset create/edit form and the Asset Use/Rent form. Label-above-field,
- * 4-column soft grid, rounded light inputs{
-    width: 100%;
-    border: 1px solid #e8edf3 !important;
-    border-radius: 8px !important;
-    background: #ffffff !important;
-    box-shadow: none !important;
-    padding: 1.3rem 1.5rem !important;
-}
-
-/* Inventory movements (حرکت‌های موجودی) table: the "مقدار (MT)" column had the
- * header end-aligned while the value sat offset (accent pill padding), so title
- * and number looked unaligned/scattered. Center that column so the heading and
- * its value stack directly under each other with consistent spacing. */
+ * 4-column soft grid, rounded light inputs
+ * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated.controller-inventory.action-index .boltz-content .app-table-card table > thead th:nth-child(7),
 body.boltz-shell.app-shell-authenticated.controller-inventory.action-index .boltz-content .app-table-card table > tbody td:nth-child(7) {
     text-align: center !important;
@@ -547,10 +422,10 @@ body.boltz-shell.app-shell-authenticated.controller-reconciliation.action-roznam
     gap: .15rem;
 }
 body.boltz-shell.app-shell-authenticated.controller-reconciliation.action-roznamcha .boltz-content .summary-tile .summary-tile-label {
-    font-size: .74rem;
+    font-size: 12px;
 }
 body.boltz-shell.app-shell-authenticated.controller-reconciliation.action-roznamcha .boltz-content .summary-tile .summary-tile-value {
-    font-size: 1.05rem;
+    font-size: 16px;
     line-height: 1.15;
 }
 
@@ -602,16 +477,12 @@ body.boltz-shell .role-detail-section-list {
  * پس این قواعد هیچ‌وقت اعمال نمی‌شدند و فقط با لایهٔ ak تداخل ایجاد می‌کردند.
  * منبع فعلی استایل این صفحه: 50-ak-components.css (.loading-import-workbook / .ak-*).
  */
-body.boltz-shell:is(.controller-expenses, .controller-lossevents, .controller-inventorytransportlegs):is(.action-create{
-    padding: .6rem 1.1rem !important;
-}
-
 body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .summary-tile {
     position: relative;
     min-height: 5rem;
     padding: 0.8rem 0.9rem;
     border: 1px solid #E7E7E7;
-    border-radius: 9px;
+    border-radius: var(--radius-card);
     background: #ffffff;
     box-shadow: none;
 }
@@ -627,7 +498,7 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
     justify-content: center;
     border-radius: 8px;
     background: #F2F5FC;
-    font-size: 1rem;
+    font-size: 16px;
 }
 
 /* =====================================================================
@@ -647,6 +518,6 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
 }
 
 .contract-pricing-form .field-validation-error {
-    font-size: .72rem;
+    font-size: 12px;
     color: #dc2626;
 }

@@ -182,6 +182,24 @@ public sealed class CompanyFlowTextTests
             Assert.False(string.IsNullOrWhiteSpace(policy.AccountType(isEnglish: true)));
 
             // علامت بیلانس در هر دو زبان یک معنی دارد و از منبع مرکزی می‌آید.
+            //
+            // حساب شریک تنها استثناست و عمدی است: آنجا فاعلِ جمله خودِ شریک است، نه شرکت
+            // (مثبت = شریک از شراکت طلبکار). متن باز هم از همان کاتالوگ مرکزی می‌آید و با
+            // زبان علامتش عوض نمی‌شود. رجوع: PartyStatementPolicy.PositiveBalanceKeyOverride.
+            if (partyType == PartyStatementPartyType.Partner)
+            {
+                Assert.Equal(
+                    CompanyFlowText.Get(CompanyFlowTextKey.PartnerCreditorBalance, isEnglish: true),
+                    policy.BalanceMeaning(1m, isEnglish: true));
+                Assert.Equal(
+                    CompanyFlowText.Get(CompanyFlowTextKey.PartnerDebtorBalance, isEnglish: false),
+                    policy.BalanceMeaning(-1m, isEnglish: false));
+                Assert.Equal(
+                    CompanyFlowText.BalanceMeaning(0m, CompanyFlowAccountKind.PartyAccount, isEnglish: false),
+                    policy.BalanceMeaning(0m, isEnglish: false));
+                continue;
+            }
+
             Assert.Equal(
                 CompanyFlowText.BalanceMeaning(1m, CompanyFlowAccountKind.PartyAccount, isEnglish: true),
                 policy.BalanceMeaning(1m, isEnglish: true));

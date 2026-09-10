@@ -3732,6 +3732,8 @@ public partial class InventoryTransportLegsController : Controller
             MidpointRounding.AwayFromZero);
 
         model.Chain = await BuildConnectedTransportChainAsync(id);
+        model.ChainSources = await BuildChainLinksAsync(id, incoming: true);
+        model.ChainTargets = await BuildChainLinksAsync(id, incoming: false);
         var sourceContracts = await _db.InventoryTransportLegAllocations.AsNoTracking()
             .Where(a => a.InventoryTransportLegId == id && a.SourcePurchaseContract != null)
             .Select(a => a.SourcePurchaseContract!.ContractName + " — " + a.SourcePurchaseContract.ContractNumber)
@@ -3745,6 +3747,58 @@ public partial class InventoryTransportLegsController : Controller
         };
 
         return model;
+    }
+
+    // یال‌های انتقال وسیله‌به‌وسیله برای صفحهٔ جزئیات: incoming = وسیله‌هایی که بارشان را
+    // داخل این حمل تخلیه کرده‌اند، وگرنه وسیله‌هایی که این حمل بارش را به آن‌ها داده است.
+    // مقدار همان سهم ثبت‌شدهٔ انتقال است؛ هیچ مقداری اینجا دوباره محاسبه نمی‌شود.
+    private async Task<IReadOnlyList<InventoryTransportChainLinkViewModel>> BuildChainLinksAsync(int legId, bool incoming)
+    {
+        var edges = await _db.InventoryTransportLegAllocations.AsNoTracking()
+            .Where(a => a.SourceTransportLegId != null
+                && (incoming ? a.InventoryTransportLegId == legId : a.SourceTransportLegId.Value == legId))
+            .Select(a => new
+            {
+                OtherLegId = incoming ? a.SourceTransportLegId!.Value : a.InventoryTransportLegId,
+                a.QuantityMt
+            })
+            .ToListAsync();
+
+        if (edges.Count == 0)
+        {
+            return [];
+        }
+
+        var otherIds = edges.Select(e => e.OtherLegId).Distinct().ToList();
+        var others = await _db.InventoryTransportLegs.AsNoTracking()
+            .Where(l => otherIds.Contains(l.Id) && l.Status != InventoryTransportLegStatus.Cancelled)
+            .Select(l => new
+            {
+                l.Id,
+                l.TransportType,
+                Vehicle = l.Truck != null ? l.Truck.PlateNumber
+                    : l.Wagon != null ? l.Wagon.WagonNumber
+                    : l.Vessel != null ? l.Vessel.Name
+                    : l.WagonNumber,
+                l.LoadedDate
+            })
+            .ToListAsync();
+
+        return others
+            .Select(other => new InventoryTransportChainLinkViewModel
+            {
+                LegId = other.Id,
+                TransportType = other.TransportType,
+                VehicleLabel = string.IsNullOrWhiteSpace(other.Vehicle) ? $"#{other.Id}" : other.Vehicle!,
+                QuantityMt = decimal.Round(
+                    edges.Where(e => e.OtherLegId == other.Id).Sum(e => e.QuantityMt),
+                    4,
+                    MidpointRounding.AwayFromZero),
+                LoadedDate = other.LoadedDate
+            })
+            .OrderBy(item => item.LoadedDate)
+            .ThenBy(item => item.LegId)
+            .ToList();
     }
 
     private async Task<IReadOnlyList<InventoryTransportChainItemViewModel>> BuildConnectedTransportChainAsync(int selectedLegId)

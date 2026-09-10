@@ -253,7 +253,7 @@ public class DashboardService : IDashboardService
                 (SELECT COALESCE(SUM("AmountUsd"), 0) FROM "ExpenseTransactions" WHERE NOT "IsCancelled" AND "ExpenseDate" >= {monthStartUtc} AND "ExpenseDate" < {tomorrowUtc}) AS "MonthExpensesUsd",
                 (SELECT COUNT(*)::int FROM "Sarrafs" WHERE "IsActive") AS "ActiveSarrafCount",
                 (SELECT COUNT(*)::int FROM "LoadingRegisters" WHERE "LoadingDate" >= {todayUtc} AND "LoadingDate" < {tomorrowUtc}) AS "TodayLoadingCount",
-                (SELECT COUNT(*)::int FROM "TruckDispatches" WHERE "Status" <> {(int)DispatchStatus.Cancelled} AND "DispatchDate" >= {todayUtc} AND "DispatchDate" < {tomorrowUtc}) AS "TodayDispatchCount",
+                (SELECT COUNT(*)::int FROM "TruckDispatches" d WHERE d."Status" <> {(int)DispatchStatus.Cancelled} AND d."DispatchDate" >= {todayUtc} AND d."DispatchDate" < {tomorrowUtc} AND NOT EXISTS (SELECT 1 FROM "InventoryTransportLegAllocations" a WHERE a."SourceTransportReceiptId" = d."InventoryTransportReceiptId")) AS "TodayDispatchCount",
                 (SELECT COUNT(*)::int FROM "LoadingRegisters" l WHERE NOT EXISTS (SELECT 1 FROM "LoadingReceipts" r WHERE r."LoadingRegisterId" = l."Id" AND NOT r."IsCancelled")) AS "LoadingsWithoutReceiptCount",
                 (SELECT COUNT(*)::int FROM "LoadingReceipts" r WHERE NOT r."IsCancelled" AND NOT EXISTS (SELECT 1 FROM "LoadingReceiptAllocations" a WHERE a."LoadingReceiptId" = r."Id")) AS "ReceiptsWithoutAllocationCount",
                 (SELECT COUNT(*)::int FROM "LoadingRegisters" l WHERE NOT EXISTS (SELECT 1 FROM "CustomsDeclarations" c WHERE c."LoadingRegisterId" = l."Id")) AS "LoadingsWithoutCustomsCount",
@@ -318,8 +318,11 @@ public class DashboardService : IDashboardService
 
         vm.TodayLoadingCount = await _db.LoadingRegisters.AsNoTracking()
             .CountAsync(l => l.LoadingDate >= todayUtc && l.LoadingDate < tomorrowUtc, ct);
+        // رکورد سازگاریِ ادامهٔ حمل ارسال مستقل نیست؛ شمردنش آمار ارسال را متورم می‌کند.
+        var continuedReceiptIds = TransportChainProjection.ContinuedTransferReceiptIds(_db);
         vm.TodayDispatchCount = await _db.TruckDispatches.AsNoTracking()
-            .CountAsync(d => d.Status != DispatchStatus.Cancelled && d.DispatchDate >= todayUtc && d.DispatchDate < tomorrowUtc, ct);
+            .CountAsync(d => d.Status != DispatchStatus.Cancelled && d.DispatchDate >= todayUtc && d.DispatchDate < tomorrowUtc
+                && !(d.InventoryTransportReceiptId != null && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)), ct);
 
         vm.LoadingsWithoutReceiptCount = await _db.LoadingRegisters.AsNoTracking()
             .CountAsync(l => !_db.LoadingReceipts.Any(r => r.LoadingRegisterId == l.Id && !r.IsCancelled), ct);
@@ -373,8 +376,10 @@ public class DashboardService : IDashboardService
         vm.LoadingReceiptCount = await _db.LoadingReceipts.AsNoTracking().CountAsync(r => !r.IsCancelled, ct);
         vm.SalesCount = await _db.SalesTransactions.AsNoTracking().CountAsync(s => !s.IsCancelled, ct);
         vm.ShipmentCount = await _db.Shipments.AsNoTracking().CountAsync(ct);
+        var recentContinuedReceiptIds = TransportChainProjection.ContinuedTransferReceiptIds(_db);
         vm.RecentDispatchCount = await _db.TruckDispatches.AsNoTracking()
-            .CountAsync(d => d.Status != DispatchStatus.Cancelled && d.DispatchDate >= recentDispatchFromUtc, ct);
+            .CountAsync(d => d.Status != DispatchStatus.Cancelled && d.DispatchDate >= recentDispatchFromUtc
+                && !(d.InventoryTransportReceiptId != null && recentContinuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)), ct);
 
         vm.TotalSalesUsd = await _db.SalesTransactions.AsNoTracking()
             .Where(s => !s.IsCancelled)
@@ -432,7 +437,7 @@ public class DashboardService : IDashboardService
                 (SELECT COUNT(*)::int FROM "LoadingReceipts" WHERE NOT "IsCancelled") AS "LoadingReceiptCount",
                 (SELECT COUNT(*)::int FROM "SalesTransactions" WHERE NOT "IsCancelled") AS "SalesCount",
                 (SELECT COUNT(*)::int FROM "Shipments") AS "ShipmentCount",
-                (SELECT COUNT(*)::int FROM "TruckDispatches" WHERE "Status" <> {(int)DispatchStatus.Cancelled} AND "DispatchDate" >= {recentDispatchFromUtc}) AS "RecentDispatchCount",
+                (SELECT COUNT(*)::int FROM "TruckDispatches" d WHERE d."Status" <> {(int)DispatchStatus.Cancelled} AND d."DispatchDate" >= {recentDispatchFromUtc} AND NOT EXISTS (SELECT 1 FROM "InventoryTransportLegAllocations" a WHERE a."SourceTransportReceiptId" = d."InventoryTransportReceiptId")) AS "RecentDispatchCount",
                 (SELECT COALESCE(SUM("TotalUsd"), 0) FROM "SalesTransactions" WHERE NOT "IsCancelled") AS "TotalSalesUsd",
                 (SELECT COALESCE(SUM("AmountUsd"), 0) FROM "ExpenseTransactions" WHERE NOT "IsCancelled") AS "TotalExpensesUsd",
                 (SELECT COALESCE(SUM("LoadedQuantityMt" * "LoadingPriceUsd"), 0) FROM "LoadingRegisters" WHERE "LoadingPriceUsd" IS NOT NULL AND "LoadingPriceUsd" > 0) AS "PurchaseReserveUsd",
@@ -685,8 +690,10 @@ public class DashboardService : IDashboardService
             .Take(DashboardRowLimit)
             .ToListAsync(ct);
 
+        var activityContinuedReceiptIds = TransportChainProjection.ContinuedTransferReceiptIds(_db);
         var dispatches = await _db.TruckDispatches.AsNoTracking()
-            .Where(d => d.Status != DispatchStatus.Cancelled)
+            .Where(d => d.Status != DispatchStatus.Cancelled
+                && !(d.InventoryTransportReceiptId != null && activityContinuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)))
             .OrderByDescending(d => d.DispatchDate)
             .ThenByDescending(d => d.Id)
             .Select(d => new

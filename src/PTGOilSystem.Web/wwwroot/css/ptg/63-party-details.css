@@ -11,9 +11,6 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page {
     --ak-detail-header-gap: 14px;
     --ptg-tabs-space-above: 0;
     --ptg-tabs-space-below: 2px;
-    --ptg-tabs-horizontal-padding: 13px;
-    --ptg-tabs-top-padding: 8px;
-    --ptg-tabs-bottom-padding: 7px;
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 16px;
     row-gap: 14px;
@@ -47,7 +44,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detai
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page > .ak-page-actions .btn {
     min-height: 34px;
     padding: 6px 10px;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.25;
     white-space: nowrap;
 }
@@ -95,7 +92,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-secti
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-section-title {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 650;
 }
 
@@ -112,7 +109,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-list-
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-list-row dt {
-    font-size: 12.5px;
+    font-size: 12px;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-list-row dd {
@@ -122,11 +119,11 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-list-
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detail-table > thead > tr > th {
     height: 38px;
     padding: 8px 10px;
-    font-size: 12.5px;
+    font-size: 12px;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detail-table > tbody > tr > td {
-    min-height: var(--ak-control-height, 42px);
+    min-height: var(--ak-control-height);
     padding: 9px 10px;
 }
 
@@ -238,7 +235,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 .ak-party-switch-option {
     padding: 3px 10px;
     border-radius: 6px;
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1.6;
     color: var(--ptg-muted);
@@ -269,7 +266,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
     align-items: baseline;
     gap: 6px;
     margin: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.55;
     color: var(--ptg-text);
@@ -312,7 +309,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 
 .ak-party-settled-caption {
     margin: 0;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
@@ -347,7 +344,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 }
 
 .ak-party-meta-cell dt {
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     line-height: 1.5;
     color: var(--ptg-muted);
@@ -359,7 +356,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 /* One line per value; the full text stays available in the native tooltip. */
 .ak-party-meta-cell dd {
     margin: 0;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.55;
     color: var(--ptg-text);
@@ -490,7 +487,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-trans
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-group-name {
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 650;
     color: var(--ptg-text);
 }
@@ -500,7 +497,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-trans
     align-items: baseline;
     flex-wrap: wrap;
     gap: 2px 14px;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--ptg-muted);
 }
 
@@ -519,14 +516,14 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-trans
     align-items: baseline;
     justify-content: space-between;
     gap: 14px;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
 
 /* A quiet rate reads as reference data, never as one of the money columns. */
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-rate {
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--ptg-muted);
 }
@@ -540,7 +537,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-secti
     margin-block-start: 12px;
     padding-block-start: 10px;
     border-block-start: 1px solid var(--divider);
-    font-size: 12.5px;
+    font-size: 12px;
 }
 
 /* Contract row → payment lines disclosure. Matches .ak-row-menu-btn, the
@@ -557,7 +554,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-t
     background: transparent;
     color: var(--ptg-muted);
     cursor: pointer;
-    transition: background-color var(--ptg-motion-fast, 150ms) ease-out;
+    transition: background-color var(--ptg-motion-fast) ease-out;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle:hover,
@@ -568,7 +565,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-t
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle .bi {
     font-size: 12px;
-    transition: transform var(--ptg-motion-fast, 150ms) ease-out;
+    transition: transform var(--ptg-motion-fast) ease-out;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle.is-open .bi {
@@ -616,11 +613,11 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-subro
     align-items: baseline;
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--ptg-text-muted, #64748b);
+    color: var(--ptg-text-muted);
 }
 
 .ak-more-link a {
-    color: var(--ptg-primary, #2563eb);
+    color: var(--ptg-primary);
     font-weight: 700;
     text-decoration: none;
 }
@@ -641,7 +638,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detai
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: var(--ak-control-height, 42px);
+    height: var(--ak-control-height);
     padding-inline: 14px;
     white-space: nowrap;
 }

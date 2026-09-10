@@ -6,244 +6,8 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content .masterda
     overflow: hidden;
 }
 
-/* Truck, wagon{
-    grid-template-columns: 15rem minmax(0, 1fr);
-    align-items: start;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content .transport-info-card h2{
-    margin: 0 0 .55rem;
-    font-size: .9rem;
-    font-weight: 800;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content .transport-info-grid {
-    padding: 0;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content .transport-info-grid .is-wide {
-    grid-column: 1 / -1;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) .tab-pane.show.active {
-    display: grid;
-    gap: .75rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-journal,
-    .supplier-overview-focus,
-    .supplier-overview-right-column,
-    .customer-ledger-panel,
-    .customer-tab-summary,
-    .supplier-statement-focus
-) {
-    display: grid;
-    gap: .65rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-focus-grid,
-    .customer-focus-grid
-) {
-    display: grid;
-    grid-template-columns: minmax(17rem, 1.15fr) minmax(19rem, 1fr);
-    gap: .65rem;
-    align-items: start;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-stat-grid,
-    .customer-stat-grid,
-    .supplier-tab-summary-grid,
-    .customer-summary-grid
-) {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .55rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-journal-shot-grid,
-    .customer-mini-grid
-) {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
-    gap: .55rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-info-card,
-    .customer-info-card,
-    .supplier-overview-stat-card,
-    .supplier-journal-shot,
-    .customer-stat-card,
-    .customer-mini-card,
-    .supplier-tab-summary
-) {
-    padding: .72rem .78rem;
-    border-radius: .8px !important;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-stat-card,
-    .supplier-journal-shot,
-    .customer-stat-card,
-    .customer-mini-card
-) {
-    display: grid;
-    align-content: start;
-    gap: .35rem;
-    min-height: 5.7rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-stat-card,
-    .supplier-journal-shot,
-    .customer-stat-card,
-    .customer-mini-card
-) header {
-    color: var(--md-detail-muted);
-    font-size: .68rem;
-    font-weight: 750;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-stat-card,
-    .supplier-journal-shot,
-    .customer-stat-card,
-    .customer-mini-card
-) > div {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: .28rem .45rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-stat-card,
-    .supplier-journal-shot,
-    .customer-stat-card,
-    .customer-mini-card
-) strong {
-    color: var(--md-detail-text);
-    font-size: .88rem;
-    line-height: 1.4;
-    overflow-wrap: anywhere;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-stat-card,
-    .supplier-journal-shot,
-    .customer-stat-card,
-    .customer-mini-card
-) span {
-    grid-column: 2;
-    color: var(--md-detail-muted);
-    font-size: .64rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-focus-title,
-    .supplier-overview-info-title,
-    .customer-section-title
-) {
-    display: flex;
-    align-items: center;
-    gap: .45rem;
-    color: var(--md-detail-text);
-    font-size: .82rem;
-    font-weight: 800;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-info-list,
-    .customer-info-list
-) {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: .45rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-info-list,
-    .customer-info-list
-) > div {
-    display: grid;
-    grid-template-columns: minmax(5.5rem, .8fr) minmax(0, 1.2fr);
-    gap: .5rem;
-    padding: .48rem .15rem;
-    border-bottom: 1px solid #edf0f4;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-info-list,
-    .customer-info-list
-) span {
-    color: var(--md-detail-muted);
-    font-size: .68rem;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-overview-info-list,
-    .customer-info-list
-) strong {
-    color: var(--md-detail-text);
-    font-size: .74rem;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-    .supplier-journal-section,
-    .customer-section,
-    .supplier-statement-focus,
-    .supplier-tab-summary
-) {
-    margin: 0;
-    padding: .75rem;
-    border: 1px solid var(--md-detail-border);
-    border-radius: .8px;
-    background: #fff;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) .table-responsive {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-}
-
-body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) table.table {
-    width: 100%;
-    min-width: 42rem;
-    margin: 0;
-}
-
-@media (max-width: 991.98px) {
-    body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(.supplier-overview-focus-grid, .customer-focus-grid) {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-}
-
-@media (max-width: 767.98px) {
-    body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.party-detail-page, .people-parties-page) :is(
-        .supplier-overview-stat-grid,
-        .customer-stat-grid,
-        .supplier-tab-summary-grid,
-        .customer-summary-grid,
-        .supplier-overview-info-list,
-        .customer-info-list
-    ) {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-}
-
-/* ===================================================================
-   Party profile pages redesign
-   Supplier / Customer / Service Provider / Sarraf
-   =================================================================== */
+/* Truck, wagon
+ * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     .supplier-details-page,
     .customer-details-page,
@@ -308,7 +72,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
 ) :is(.party-hero-actions, .sarraf-profile-actions) .btn {
     min-height: 2.45rem;
     padding-inline: 1rem;
-    border-radius: .8px;
+    border-radius: var(--radius-btn);
     box-shadow: none;
 }
 
@@ -358,7 +122,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     gap: .45rem .8rem;
     margin-top: .45rem;
     color: var(--party-panel-muted);
-    font-size: .8rem;
+    font-size: 12px;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
@@ -395,7 +159,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     .sarraf-details-page
 ) :is(.party-hero-balance-label, .sarraf-balance-label) {
     color: var(--party-panel-muted);
-    font-size: .78rem;
+    font-size: 12px;
     line-height: 1.6;
 }
 
@@ -429,7 +193,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     .sarraf-details-page .sarraf-stat-title
 ) {
     color: var(--party-panel-muted);
-    font-size: .76rem;
+    font-size: 12px;
     font-weight: 750;
 }
 
@@ -452,7 +216,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     .sarraf-details-page .sarraf-stat-note
 ) {
     color: #8b95a7;
-    font-size: .72rem;
+    font-size: 12px;
     line-height: 1.55;
 }
 
@@ -508,7 +272,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
 ) :is(.party-card-head h2, .sarraf-card-head h2) {
     margin: 0;
     color: var(--party-panel-text);
-    font-size: .98rem;
+    font-size: 16px;
     font-weight: 820;
 }
 
@@ -519,7 +283,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     .sarraf-details-page
 ) :is(.party-link, .sarraf-link) {
     color: var(--party-panel-accent);
-    font-size: .76rem;
+    font-size: 12px;
     font-weight: 760;
     text-decoration: none;
 }
@@ -560,7 +324,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
 ) :is(.supplier-filter-bar, .party-filter-bar) label {
     margin-bottom: .25rem;
     color: var(--party-panel-muted);
-    font-size: .74rem;
+    font-size: 12px;
     font-weight: 750;
 }
 
@@ -595,7 +359,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     border-bottom: 1px solid var(--party-panel-line);
     background: #F2F5FC;
     color: #7B7B7B;
-    font-size: .73rem;
+    font-size: 12px;
     font-weight: 780;
     white-space: nowrap;
 }
@@ -609,7 +373,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     padding: .78rem .75rem;
     border-top: 1px solid var(--party-panel-line);
     vertical-align: middle;
-    font-size: .78rem;
+    font-size: 12px;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
@@ -623,7 +387,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
     padding: .95rem 1rem;
     border-bottom: 1px solid var(--party-panel-line);
     color: var(--party-panel-text);
-    font-size: .86rem;
+    font-size: 14px;
     font-weight: 800;
 }
 
@@ -674,14 +438,3 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(
    + کارت‌های KPI با همان دیزاین کارت‌های آماری داشبورد/مالی (آیکون‌های
    سه‌بعدی آبی از party-icon-pack.webp — شبکهٔ ۸×۶). نمایشی-فقط.
    ===================================================================== */
-:root {
-    --pp-cover-a: #274c78;
-    --pp-cover-b: #33608f;
-    --pp-cover-c: #4176ac;
-    --pp-cover-d: #2c527e;
-    --pp-card-border: #E7E7E7;
-    --pp-card-shadow: 0 0 2px rgba(158, 158, 158, .2), 0 12px 24px -4px rgba(158, 158, 158, .12);
-    --pp-text: #3D3D3D;
-    --pp-muted: #7B7B7B;
-    --pp-strip-h: 48px;
-}

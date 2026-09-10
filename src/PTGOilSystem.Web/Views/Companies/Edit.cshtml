@@ -54,6 +54,15 @@
                     <textarea asp-for="Notes" class="ak-input" rows="2"></textarea>
                     <span asp-validation-for="Notes" class="ak-field-error"></span>
                 </div>
+                <div class="ak-field">
+                    <label asp-for="OwnerPartnerId" class="ak-label">مالک دفتر (شریک)</label>
+                    <select asp-for="OwnerPartnerId" class="ak-input"
+                            asp-items="@((List<SelectListItem>)(ViewBag.OwnerPartners ?? new List<SelectListItem>()))">
+                        <option value="">— شرکت مستقل —</option>
+                    </select>
+                    <small class="ak-help">اگر دفتر این شرکت، دفتر شخصی یکی از شرکاست، همان شریک را انتخاب کنید. پرداخت این شرکت روی قرارداد شراکتی، سرمایه‌گذاری همان شریک شمرده می‌شود.</small>
+                    <span asp-validation-for="OwnerPartnerId" class="ak-field-error"></span>
+                </div>
                 <div class="ak-toggle-field">
                     <div class="form-check form-switch">
                         <input asp-for="IsActive" class="form-check-input" role="switch" />

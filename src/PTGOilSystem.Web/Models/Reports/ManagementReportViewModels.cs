@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.Reporting;
@@ -405,6 +405,15 @@ public sealed class ContractPnlReportViewModel
     public decimal TotalExchangeLossUsd => PurchaseRows.Sum(r => r.ExchangeLossUsd);
     public decimal TotalNetExchangeDifferenceUsd => TotalExchangeLossUsd - TotalExchangeGainUsd;
     public decimal TotalDirectSaleRevenueUsd => PurchaseRows.Sum(r => r.TotalRevenueUsd);
+    /// <summary>
+    /// مفاد ناخالصِ همان چیزی که جدول قراردادهای خرید نشان می‌دهد: درآمد فروش مستقیمِ این
+    /// قراردادها منهای جمع مصارفشان. هیچ عدد تازه‌ای ساخته نمی‌شود — همان جمعِ ستون‌های جدول.
+    /// </summary>
+    public decimal TotalDirectSaleGrossMarginUsd => PnlMath.GrossProfit(TotalDirectSaleRevenueUsd, TotalPurchaseCostUsd);
+    /// <summary>فیصدی مفاد نسبت به درآمد. بدون درآمد، فیصدی معنا ندارد و null می‌ماند.</summary>
+    public decimal? DirectSaleMarginPercent => TotalDirectSaleRevenueUsd > 0m
+        ? Math.Round((TotalDirectSaleGrossMarginUsd / TotalDirectSaleRevenueUsd) * 100m, 1, MidpointRounding.AwayFromZero)
+        : null;
     public decimal TotalSalesRevenueUsd => SaleRows.Sum(r => r.TotalRevenueUsd);
     public decimal TotalRealisedSalesCostUsd => SaleRows.Sum(r => r.TotalCostUsd);
     public decimal TotalGrossMarginUsd => PnlMath.GrossProfit(TotalSalesRevenueUsd, TotalRealisedSalesCostUsd);

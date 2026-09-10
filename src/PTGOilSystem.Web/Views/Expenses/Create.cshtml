@@ -7,7 +7,6 @@
     ViewData["Title"] = isEdit ? "ویرایش مصرف" : "ثبت مصرف";
     ViewData["LoadingCreateAssets"] = true;
     ViewData["ExpenseFormAssets"] = true;
-    ViewData["ContentBodyClass"] = "boltz-content-body";
     ViewData["HideSectionTabs"] = true;
     var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl);
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("Index");

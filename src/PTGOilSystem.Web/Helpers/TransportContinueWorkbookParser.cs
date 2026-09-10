@@ -11,7 +11,8 @@ namespace PTGOilSystem.Web.Helpers;
 public sealed record TransportContinueImportRow(
     string SourceVehicleNumber,
     string TargetVehicleNumber,
-    decimal QuantityMt);
+    decimal QuantityMt,
+    string? MergeGroup = null);
 
 /// <summary>
 /// Parser مدارا برای شیتِ انتقال وسیله‌به‌وسیله. ستون‌ها با نام هدر پیدا می‌شوند
@@ -27,6 +28,11 @@ public static class TransportContinueWorkbookParser
     private static readonly string[] TargetAliases =
         ["نمبروسیلهجدید", "وسیلهجدید", "نمبرجدید", "وسیلهمقصد", "نمبرمقصد", "مقصد", "حملجدید", "نمبرحملجدید",
          "newvehicle", "newvehiclenumber", "new", "tovehicle", "to", "target", "targetvehicle", "destination"];
+
+    // ستون اختیاری: ردیف‌های هم‌مقصد فقط وقتی ادغام می‌شوند که این مقدار یکسان و ناخالی باشد.
+    private static readonly string[] MergeGroupAliases =
+        ["گروه", "گروهادغام", "ادغام", "نوبت", "شمارهنوبت", "سفر", "شمارهسفر",
+         "group", "mergegroup", "merge", "trip", "tripno", "batch"];
 
     private static readonly string[] QuantityAliases =
         ["وزن", "وزنسیمیر", "وزنسمیر", "وزنخالص", "مقدار", "مقدارmt", "مقدارانتقال", "وزنانتقال",
@@ -52,6 +58,7 @@ public static class TransportContinueWorkbookParser
         var sourceCol = MatchColumn(headerRow, workbookPart, SourceAliases) ?? "A";
         var targetCol = MatchColumn(headerRow, workbookPart, TargetAliases) ?? "B";
         var quantityCol = MatchColumn(headerRow, workbookPart, QuantityAliases) ?? "C";
+        var mergeGroupCol = MatchColumn(headerRow, workbookPart, MergeGroupAliases);
 
         var headerIndex = headerRow?.RowIndex?.Value ?? 0;
         var result = new List<TransportContinueImportRow>();
@@ -62,6 +69,7 @@ public static class TransportContinueWorkbookParser
             var source = ReadText(cells, sourceCol, workbookPart);
             var target = ReadText(cells, targetCol, workbookPart);
             var quantity = ReadDecimal(cells, quantityCol, workbookPart) ?? 0m;
+            var mergeGroup = ReadText(cells, mergeGroupCol, workbookPart);
 
             // یک ردیف حداقل باید وسیلهٔ قبلی و مقدار مثبت داشته باشد.
             if (string.IsNullOrWhiteSpace(source) || quantity <= 0m)
@@ -72,7 +80,8 @@ public static class TransportContinueWorkbookParser
             result.Add(new TransportContinueImportRow(
                 source.Trim(),
                 (target ?? string.Empty).Trim(),
-                quantity));
+                quantity,
+                string.IsNullOrWhiteSpace(mergeGroup) ? null : mergeGroup.Trim()));
         }
 
         return result;

@@ -14,10 +14,10 @@ body.ptg-modal-document :where(.table, .ds-table) > :not(caption) > * > * {
 
 body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) thead th,
 body.ptg-modal-document :where(.table, .ds-table) thead th {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--ptg-border) !important;
+    padding: 15px 10px;
+    border-bottom: 1px solid var(--ptg-table-row-line) !important;
     background: var(--ptg-table-header) !important;
-    color: var(--ptg-label) !important;
+    color: var(--ptg-table-head-ink) !important;
     font-size: var(--font-table-head);
     font-weight: var(--weight-table-head) !important;
     line-height: var(--line-table-head);
@@ -26,7 +26,7 @@ body.ptg-modal-document :where(.table, .ds-table) thead th {
 
 body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) tbody :where(td, th),
 body.ptg-modal-document :where(.table, .ds-table) tbody :where(td, th) {
-    padding: 12px;
+    padding: 12px 10px;
     color: var(--ptg-text);
     font-size: var(--font-table-cell);
     line-height: var(--line-table-cell);
@@ -34,7 +34,7 @@ body.ptg-modal-document :where(.table, .ds-table) tbody :where(td, th) {
 
 body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) tbody tr:hover > :where(td, th),
 body.ptg-modal-document :where(.table, .ds-table) tbody tr:hover > :where(td, th) {
-    background: var(--ptg-surface-soft) !important;
+    background: var(--ptg-table-row-hover) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) a:not(.btn),

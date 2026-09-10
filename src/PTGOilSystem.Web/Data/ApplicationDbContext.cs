@@ -518,6 +518,13 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Company>().HasIndex(c => c.IsSystemOwner)
             .IsUnique()
             .HasFilter("\"IsSystemOwner\" = true");
+        // مالکِ شخصیِ دفترِ شرکت. Restrict چون حذفِ شریک نباید شرکت را بی‌صاحب کند.
+        modelBuilder.Entity<Company>()
+            .HasOne(c => c.OwnerPartner)
+            .WithMany()
+            .HasForeignKey(c => c.OwnerPartnerId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Company>().HasIndex(c => c.OwnerPartnerId);
         modelBuilder.Entity<ServiceProviderEntity>().HasIndex(p => p.Code);
         modelBuilder.Entity<ServiceProviderEntity>().HasIndex(p => new { p.IsActive, p.Name });
         modelBuilder.Entity<OperationalAsset>().HasIndex(a => a.AssetCode).IsUnique();

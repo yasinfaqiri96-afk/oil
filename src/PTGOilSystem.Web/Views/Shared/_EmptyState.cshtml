@@ -1,12 +1,15 @@
 @model (string Title, string? Subtitle, string? IconClass)
 @{
-    var iconClass = string.IsNullOrWhiteSpace(Model.IconClass) ? "bi-inbox" : Model.IconClass;
+    @* چرتکه حالت خالی را یک خط خاکستری با آیکون درون‌خطی نشان می‌دهد. *@
+    var iconClass = string.IsNullOrWhiteSpace(Model.IconClass) ? "bi-info-circle" : Model.IconClass;
 }
 <div class="ak-empty">
     <i class="bi @iconClass" aria-hidden="true"></i>
-    <strong>@Model.Title</strong>
-    @if (!string.IsNullOrWhiteSpace(Model.Subtitle))
-    {
-        <div>@Model.Subtitle</div>
-    }
+    <span class="ak-empty-copy">
+        <span class="ak-empty-title">@Model.Title</span>
+        @if (!string.IsNullOrWhiteSpace(Model.Subtitle))
+        {
+            <span class="ak-empty-sub">@Model.Subtitle</span>
+        }
+    </span>
 </div>

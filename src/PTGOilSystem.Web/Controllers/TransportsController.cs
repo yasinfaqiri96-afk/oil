@@ -405,7 +405,7 @@ public sealed class TransportsController : Controller
             {
                 ModelState.AddModelError(
                     nameof(model.Sources),
-                    $"وسیلهٔ مقصد برای «{source.Label}» مشخص نیست.");
+                    $"وسیلهٔ مقصد برای «{DescribeSource(source)}» مشخص نیست.");
             }
         }
 
@@ -780,7 +780,8 @@ public sealed class TransportsController : Controller
                 quantityMt = quantity,
                 remainingMt = leg.RemainingQuantityMt,
                 targetKey,
-                targetVehicleNumber
+                targetVehicleNumber,
+                mergeGroup = row.MergeGroup
             });
         }
 
@@ -993,6 +994,7 @@ public sealed class TransportsController : Controller
                 Selected = selected,
                 TargetKey = input?.TargetKey,
                 TargetVehicleNumber = input?.TargetVehicleNumber,
+                MergeGroup = input?.MergeGroup,
                 QuantityMt = input?.QuantityMt > 0m
                     ? Math.Min(input.QuantityMt, row.RemainingQuantityMt)
                     : selected ? row.RemainingQuantityMt : 0m
@@ -1141,15 +1143,18 @@ public sealed class TransportsController : Controller
         return resolved;
     }
 
-    // ردیف‌هایی که به یک وسیلهٔ مقصد می‌روند در یک حملِ مقصد ادغام می‌شوند.
+    // ادغام دیگر خودکار بر پایهٔ نمبر وسیله نیست: یک نمبر می‌تواند چند سفر جدا داشته باشد.
+    // ردیف‌ها فقط وقتی در یک حملِ مقصد ادغام می‌شوند که وسیلهٔ مقصدشان یکی باشد و
+    // «گروه ادغام» یکسانِ ناخالی داشته باشند، یا هر دو از وسیلهٔ پیش‌فرضِ فرم استفاده کنند.
     private static List<TransportTargetGroup> BuildTargetGroups(
         IReadOnlyList<TransportContinueSourceInput> selectedSources,
         TransportContinueViewModel model,
         IReadOnlyDictionary<string, int> newPlateTrucks)
     {
         var groups = new List<TransportTargetGroup>();
-        foreach (var source in selectedSources)
+        for (var index = 0; index < selectedSources.Count; index++)
         {
+            var source = selectedSources[index];
             LoadingTransportType transportType;
             int vehicleId;
 
@@ -1164,19 +1169,46 @@ public sealed class TransportsController : Controller
             {
                 throw new BusinessRuleException(
                     "TRANSPORT_CONTINUE_TARGET_MISSING",
-                    $"وسیلهٔ مقصد برای «{source.Label}» مشخص نیست.");
+                    $"وسیلهٔ مقصد برای «{DescribeSource(source)}» مشخص نیست.");
             }
 
-            var group = groups.FirstOrDefault(g => g.TransportType == transportType && g.VehicleId == vehicleId);
+            var mergeKey = BuildMergeKey(source, index);
+            var group = groups.FirstOrDefault(g => g.TransportType == transportType
+                && g.VehicleId == vehicleId
+                && g.MergeKey == mergeKey);
             if (group is null)
             {
-                group = new TransportTargetGroup(transportType, vehicleId);
+                group = new TransportTargetGroup(transportType, vehicleId, mergeKey);
                 groups.Add(group);
             }
             group.Sources.Add(new ContinueToVehicleSource(source.LegId, source.QuantityMt));
         }
         return groups;
     }
+
+    // خالی بودنِ گروه یعنی «ادغام نکن»؛ کلید یکتای ردیف ساخته می‌شود. ردیف‌هایی که وسیلهٔ
+    // مقصدِ ردیفی ندارند و از وسیلهٔ پیش‌فرضِ فرم استفاده می‌کنند مثل قبل با هم ادغام می‌شوند.
+    private static string BuildMergeKey(TransportContinueSourceInput source, int index)
+    {
+        if (!string.IsNullOrWhiteSpace(source.MergeGroup))
+        {
+            return "g:" + source.MergeGroup.Trim().ToLowerInvariant();
+        }
+        if (string.IsNullOrWhiteSpace(source.TargetKey) && string.IsNullOrWhiteSpace(source.TargetVehicleNumber))
+        {
+            return "default";
+        }
+        return "row:" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    // برچسبِ ردیف در فرم پست نمی‌شود؛ برای پیام خطا از نمبر وسیله یا شمارهٔ حمل استفاده می‌کنیم
+    // تا کاربر بداند کدام ردیف مقصد ندارد.
+    private static string DescribeSource(TransportContinueSourceInput source)
+        => !string.IsNullOrWhiteSpace(source.Label)
+            ? source.Label
+            : !string.IsNullOrWhiteSpace(source.VehicleNumber)
+                ? $"وسیله {source.VehicleNumber}"
+                : $"حمل #{source.LegId}";
 
     private static string NormalizeVehicleNumber(string? value)
         => new((value ?? string.Empty).Trim().ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
@@ -1237,10 +1269,11 @@ public sealed class TransportsController : Controller
     private sealed record TargetVehicleRow(string Key, string Label, string Group, string Number);
 
     /// <summary>حمل‌های مبدأیی که به یک وسیلهٔ مقصد مشترک می‌روند (= یک حمل مقصد).</summary>
-    private sealed class TransportTargetGroup(LoadingTransportType transportType, int vehicleId)
+    private sealed class TransportTargetGroup(LoadingTransportType transportType, int vehicleId, string mergeKey)
     {
         public LoadingTransportType TransportType { get; } = transportType;
         public int VehicleId { get; } = vehicleId;
+        public string MergeKey { get; } = mergeKey;
         public List<ContinueToVehicleSource> Sources { get; } = [];
     }
 }

@@ -13,7 +13,7 @@
         Mode = "external",
         AcceptExtensions = ".xlsx,.xls",
         Title = "امپورت حمل‌ها از اکسل",
-        Description = "ستون‌های «نمبر وسیله قبلی | نمبر وسیله جدید | وزن» خوانده می‌شود و ردیف‌های جدول پر می‌گردد.",
+        Description = "ستون‌های «نمبر وسیله قبلی | نمبر وسیله جدید | وزن» و در صورت وجود «گروه ادغام» خوانده می‌شود و ردیف‌های جدول پر می‌گردد.",
         StartButtonText = "خواندن و پر کردن جدول",
         SuccessTitle = "ردیف‌ها از فایل خوانده شد",
         CreatedLabel = "ردیف واردشده",
@@ -35,7 +35,7 @@
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
 
         <section class="ak-form-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("بارهای مبدأ", (string?)"حمل‌های موردنظر را انتخاب کنید و برای هرکدام وسیلهٔ مقصد را مشخص کنید؛ ردیف‌های هم‌مقصد در یک حمل ادغام می‌شوند."))" />
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("بارهای مبدأ", (string?)"حمل‌های موردنظر را انتخاب کنید و برای هرکدام وسیلهٔ مقصد را مشخص کنید؛ هر ردیف یک حملِ مقصد جدا می‌سازد، مگر اینکه چند ردیف وسیلهٔ مقصد و «گروه ادغام» یکسان داشته باشند."))" />
 
             <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                 <button type="button" class="btn btn-light ak-secondary-action" data-select-all>انتخاب همه</button>
@@ -59,7 +59,7 @@
                     <strong dir="ltr" class="ak-num" data-summary-quantity>0.0000 MT</strong>
                 </div>
                 <div>
-                    <span class="text-muted small d-block">وسیله مقصد</span>
+                    <span class="text-muted small d-block">حمل مقصد</span>
                     <strong dir="ltr" data-summary-targets>0</strong>
                 </div>
                 <div class="ms-auto text-muted small" data-summary-hint></div>
@@ -75,6 +75,7 @@
                             <th class="text-end">باقیمانده</th>
                             <th class="text-end">مقدار انتقال</th>
                             <th>وسیله مقصد</th>
+                            <th>گروه ادغام</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -105,11 +106,13 @@
                                 @* موترِ جدید: نمبر می‌ماند و هنگام ثبت در داده‌های پایه ساخته می‌شود. *@
                                 <input asp-for="Sources[i].TargetVehicleNumber" class="ak-input mt-1" data-source-target-number placeholder="نمبر موتر جدید" hidden="@(hasManualTarget ? null : "hidden")" />
                             </td>
+                            @* خالی = حملِ مقصدِ جدا؛ مقدار یکسان در چند ردیفِ هم‌مقصد = ادغام در یک حمل. *@
+                            <td><input asp-for="Sources[i].MergeGroup" class="ak-input" data-source-merge placeholder="بدون ادغام" /></td>
                         </tr>
                     }
                     @if (Model.Sources.Count == 0)
                     {
-                        <tr><td colspan="6"><div class="ak-empty">حمل در جریانِ دارای باقیمانده وجود ندارد.</div></td></tr>
+                        <tr><td colspan="7"><div class="ak-empty">حمل در جریانِ دارای باقیمانده وجود ندارد.</div></td></tr>
                     }
                     </tbody>
                 </table>
@@ -185,6 +188,16 @@
                 return manual ? 'plate:' + manual : '';
             }
 
+            // کلید حملِ مقصد = وسیله + گروه ادغام؛ گروهِ خالی یعنی این ردیف حمل جدا می‌سازد،
+            // پس شمارندهٔ بالای فرم دقیقاً همان تعداد حملی را نشان می‌دهد که سرور می‌سازد.
+            function legKeyOf(row, index) {
+                var target = targetOf(row);
+                if (!target) return '';
+                var merge = row.querySelector('[data-source-merge]');
+                var group = merge ? normalize(merge.value) : '';
+                return group ? target + '|g:' + group : target + '|r:' + index;
+            }
+
             function isManualMode(row) {
                 var target = row.querySelector('[data-source-target]');
                 return !!target && target.value === manualValue;
@@ -202,10 +215,12 @@
                 var quantity = row.querySelector('[data-source-quantity]');
                 var target = row.querySelector('[data-source-target]');
                 var targetNumber = row.querySelector('[data-source-target-number]');
+                var merge = row.querySelector('[data-source-merge]');
                 if (!check || !quantity) return;
                 quantity.disabled = !check.checked;
                 if (target) target.disabled = !check.checked;
                 if (targetNumber) targetNumber.disabled = !check.checked;
+                if (merge) merge.disabled = !check.checked;
                 syncTargetMode(row);
             }
 
@@ -214,13 +229,13 @@
                 var total = 0;
                 var targets = {};
                 var missingTarget = 0;
-                rows.forEach(function (row) {
+                rows.forEach(function (row, index) {
                     var check = row.querySelector('[data-source-check]');
                     if (!check || !check.checked) return;
                     count += 1;
                     var quantity = row.querySelector('[data-source-quantity]');
                     total += parseFloat(quantity && quantity.value) || 0;
-                    var key = targetOf(row);
+                    var key = legKeyOf(row, index);
                     if (key) targets[key] = true;
                     else missingTarget += 1;
                 });
@@ -235,7 +250,7 @@
                         ? 'هیچ حملی انتخاب نشده است.'
                         : missingTarget > 0
                             ? missingTarget + ' ردیف بدون وسیلهٔ مقصد است؛ وسیلهٔ پیش‌فرض پایین فرم استفاده می‌شود.'
-                            : 'هر ردیف وسیلهٔ مقصد خودش را دارد.';
+                            : 'هر ردیف وسیلهٔ مقصد خودش را دارد؛ ردیف‌های با «گروه ادغام» یکسان در یک حمل ادغام می‌شوند.';
                 }
                 // بلوک وسیلهٔ پیش‌فرض فقط وقتی لازم است دیده شود.
                 if (defaultTargetBlock) defaultTargetBlock.hidden = missingTarget === 0;
@@ -263,6 +278,8 @@
                     });
                 }
                 if (targetNumber) targetNumber.addEventListener('input', refreshSummary);
+                var merge = row.querySelector('[data-source-merge]');
+                if (merge) merge.addEventListener('input', refreshSummary);
                 syncRow(row);
             });
 
@@ -316,11 +333,13 @@
                     var quantity = row.querySelector('[data-source-quantity]');
                     var target = row.querySelector('[data-source-target]');
                     var targetNumber = row.querySelector('[data-source-target-number]');
+                    var merge = row.querySelector('[data-source-merge]');
                     if (check) check.checked = true;
                     syncRow(row);
                     if (quantity) quantity.value = item.quantityMt;
                     if (target) target.value = item.targetKey || (item.targetVehicleNumber ? manualValue : '');
                     if (targetNumber) targetNumber.value = item.targetVehicleNumber || '';
+                    if (merge) merge.value = item.mergeGroup || '';
                     syncTargetMode(row);
                     applied += 1;
                 });

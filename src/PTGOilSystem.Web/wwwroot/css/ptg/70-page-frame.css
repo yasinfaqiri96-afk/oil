@@ -42,7 +42,6 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame {
     max-inline-size: var(--layout-content-max);
     min-inline-size: 0;
     margin-inline: auto;
-    padding-inline: 0;
 }
 
 /* Group sale/expense are wide operational workspaces with ten-column source
@@ -140,7 +139,7 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> :is(.ak-list-page
 
 body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content)))) > [data-section-tabs-strip] {
     order: -1;
-    margin-block-end: var(--ptg-tabs-space-below, 16px);
+    margin-block-end: var(--ptg-tabs-space-below);
 }
 
 /* The page root used to absorb the intrinsic width of its own content; now

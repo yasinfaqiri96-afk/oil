@@ -37,13 +37,12 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     --ak-detail-padding-x: 0px;
     --ak-detail-section-gap: 24px;
     --ak-detail-header-gap: 20px;
-    --ak-detail-radius: var(--ptg-radius-card, 8px);
-    --ak-detail-divider: var(--divider, #E7E7E7);
-    --ak-detail-bg: var(--background-default, #F5F6FA);
-    --ak-detail-surface: var(--background-paper, #FFFFFF);
-    --ak-detail-soft: var(--background-neutral, #F2F5FC);
-    --ak-detail-text: var(--text-primary, #3D3D3D);
-    --ak-detail-muted: var(--text-secondary, #7B7B7B);
+    --ak-detail-radius: var(--ptg-radius-card);
+    --ak-detail-divider: var(--divider);
+    --ak-detail-surface: var(--background-paper);
+    --ak-detail-soft: var(--background-neutral);
+    --ak-detail-text: var(--text-primary);
+    --ak-detail-muted: var(--text-secondary);
     --ak-detail-sticky-shadow: 0 -8px 20px rgba(0, 0, 0, .08);
 }
 
@@ -102,7 +101,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     border: 0;
     background: transparent;
     color: var(--ak-detail-muted);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.7;
 }
 
@@ -184,7 +183,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     direction: ltr;
     unicode-bidi: isolate;
     color: var(--ptg-primary);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
     font-variant-numeric: tabular-nums lining-nums;
 }
@@ -258,7 +257,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     padding: 11px 12px;
     background: var(--ak-detail-soft);
     color: var(--ak-detail-muted);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 730;
     vertical-align: middle;
 }
@@ -340,7 +339,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     }
 
     :where(.ak-detail-page) :where(.ak-detail-summary) :where(.ak-num, dd, strong, .summary-tile-value) {
-        font-size: 17px;
+        font-size: 16px;
     }
 
     .action-details .ak-detail-page :where(.ak-detail-title) {
@@ -424,7 +423,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     border-radius: 50%;
     background: var(--ak-detail-surface);
     color: var(--ak-detail-muted);
-    font-size: 13px;
+    font-size: 14px;
 }
 
 :where(.ak-detail-page) :where(.ak-timeline-item.is-current) :where(.ak-timeline-dot) {
@@ -517,7 +516,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
 
 :where(.ak-detail-page) :where(.ak-related-label) {
     overflow: hidden;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 650;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -546,7 +545,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     min-height: 34px;
     padding: 5px 10px;
     border: 1px solid var(--ak-detail-divider);
-    border-radius: var(--ptg-radius-input, 8px);
+    border-radius: var(--ptg-radius-input);
     background: var(--ak-detail-surface);
     font-size: 12px;
     line-height: 1;
@@ -819,7 +818,7 @@ body.boltz-shell.controller-inventorytransportlegs.action-details .boltz-content
     gap: .25rem;
     padding: .35rem;
     overflow-x: auto;
-    border: 1px solid var(--op-detail-border, #E2E6EE);
+    border: 1px solid var(--op-detail-border);
     border-radius: 8px;
     background: var(--ptg-surface);
     scrollbar-width: thin;
@@ -829,10 +828,10 @@ body.boltz-shell.controller-inventorytransportlegs.action-details .boltz-content
     min-height: 2.35rem;
     padding: .42rem .8rem;
     border: 0 !important;
-    border-radius: .8px !important;
+    border-radius: var(--radius-btn) !important;
     background: transparent !important;
-    color: var(--op-detail-muted, #70798B) !important;
-    font-size: .76rem;
+    color: var(--op-detail-muted) !important;
+    font-size: 12px;
     font-weight: 740;
     white-space: nowrap;
     box-shadow: none !important;
@@ -967,7 +966,7 @@ body.boltz-shell:is(
 ).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-simple-card, .loading-detail-record-card) > header h2 {
     margin: 0;
     color: var(--op-detail-text);
-    font-size: .92rem;
+    font-size: 14px;
     font-weight: 780;
     line-height: 1.45;
     overflow-wrap: anywhere;
@@ -1041,7 +1040,7 @@ body.boltz-shell:is(
     .controller-sales
 ).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) dt {
     color: var(--op-detail-muted);
-    font-size: .73rem;
+    font-size: 12px;
     font-weight: 670;
     line-height: 1.55;
 }
@@ -1056,7 +1055,7 @@ body.boltz-shell:is(
     .controller-sales
 ).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) dd {
     color: var(--op-detail-text);
-    font-size: .82rem;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.55;
     text-align: end;
@@ -1145,7 +1144,7 @@ body.boltz-shell:is(
     .controller-sales
 ).action-details .boltz-content .loading-details-simple-page .loading-detail-record-row span {
     color: var(--op-detail-muted);
-    font-size: .72rem;
+    font-size: 12px;
 }
 
 body.boltz-shell:is(
@@ -1158,7 +1157,7 @@ body.boltz-shell:is(
     .controller-sales
 ).action-details .boltz-content .loading-details-simple-page .loading-detail-record-row strong {
     color: var(--op-detail-text);
-    font-size: .82rem;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -1173,7 +1172,7 @@ body.boltz-shell:is(
 ).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-note-panel, .loading-detail-empty-line) {
     padding: .75rem .85rem;
     border: 1px solid var(--op-detail-border-soft);
-    border-radius: .8px;
+    border-radius: var(--radius-btn);
     background: var(--op-detail-soft);
     color: var(--op-detail-muted);
     line-height: 1.7;
@@ -1205,7 +1204,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     padding: .75rem 1rem;
     border-bottom: 1px solid var(--ptg-border);
     background: var(--ptg-surface-soft) !important;
-    font-size: .9rem;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -1305,7 +1304,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 .ak-detail-page .ak-detail-essentials dd {
     margin: 0;
     color: var(--ak-detail-text);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 650;
 }
 
@@ -1322,7 +1321,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     gap: 8px;
     padding: 11px 16px;
     color: var(--ak-detail-text);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
 }
 .ak-detail-page .ak-detail-fold > summary::-webkit-details-marker { display: none; }
@@ -1472,13 +1471,13 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 
 .ak-journey-section .ak-section-head .ak-section-title {
     margin: 0;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.4;
 }
 
 .ak-journey-section .ak-section-head .ak-section-subtitle {
     margin: 1px 0 0;
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 1.4;
 }
 
@@ -1534,9 +1533,9 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     min-height: 164px;
     max-height: 164px;
     padding: 14px;
-    border: 1px solid var(--ak-detail-divider, #E7E7E7);
+    border: 1px solid var(--ak-detail-divider);
     border-radius: 8px;
-    background: var(--ak-detail-surface, #fff);
+    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step-num {
@@ -1547,10 +1546,10 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     place-items: center;
     width: 21px;
     height: 21px;
-    border: 1px solid rgba(var(--ptg-primary-rgb, 23, 63, 115), .22);
+    border: 1px solid rgba(var(--ptg-primary-rgb), .22);
     border-radius: 50%;
-    background: var(--ak-detail-surface, #fff);
-    color: var(--ptg-primary-dark, #0D52AF);
+    background: var(--ak-detail-surface);
+    color: var(--ptg-primary-dark);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1582,8 +1581,8 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 
 .ak-journey-step .ak-cycle-title {
     margin: 0;
-    color: var(--ptg-primary-dark, #0D52AF);
-    font-size: 14.5px;
+    color: var(--ptg-primary-dark);
+    font-size: 14px;
     font-weight: 700;
 }
 
@@ -1594,8 +1593,8 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     gap: 4px;
     padding: 2px 9px;
     border-radius: 8px;
-    background: rgba(var(--ptg-primary-rgb, 23, 63, 115), .08);
-    color: var(--ptg-primary, #1062D0);
+    background: rgba(var(--ptg-primary-rgb), .08);
+    color: var(--ptg-primary);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1609,7 +1608,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     justify-content: space-between;
     gap: 10px;
     padding: 5px 0;
-    border-top: 1px dashed rgba(var(--ptg-primary-rgb, 23, 63, 115), .12);
+    border-top: 1px dashed rgba(var(--ptg-primary-rgb), .12);
 }
 
 .ak-journey-step .ak-cycle-row:first-of-type {
@@ -1630,7 +1629,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
-    color: var(--ak-detail-muted, #7B7B7B);
+    color: var(--ak-detail-muted);
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1639,7 +1638,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 /* The figure never shrinks and never wraps, so it always shows in full. */
 .ak-journey-step .ak-cycle-value {
     flex: 0 0 auto;
-    color: var(--ptg-primary-dark, #0D52AF);
+    color: var(--ptg-primary-dark);
     font-weight: 700;
     font-variant-numeric: tabular-nums lining-nums;
     text-align: end;
@@ -1649,84 +1648,84 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 /* ---- stage states ---- */
 .ak-journey-step.is-done,
 .ak-journey-step.is-gain {
-    border-color: rgba(var(--ptg-success-rgb, 139, 180, 117), .32);
-    background: rgba(var(--ptg-success-rgb, 139, 180, 117), .05);
+    border-color: rgba(var(--ptg-success-rgb), .32);
+    background: rgba(var(--ptg-success-rgb), .05);
 }
 
 .ak-journey-step.is-done .ak-journey-badge,
 .ak-journey-step.is-gain .ak-journey-badge {
-    background: rgba(var(--ptg-success-rgb, 139, 180, 117), .14);
-    color: var(--ptg-success-text, #63914A);
+    background: rgba(var(--ptg-success-rgb), .14);
+    color: var(--ptg-success-text);
 }
 
 .ak-journey-step.is-current {
-    border-color: var(--ptg-btn-primary, #1062D0);
-    background: rgba(var(--ptg-btn-primary-rgb, 24, 119, 242), .06);
+    border-color: var(--ptg-btn-primary);
+    background: rgba(var(--ptg-btn-primary-rgb), .06);
 }
 
 .ak-journey-step.is-current .ak-journey-badge {
-    background: rgba(var(--ptg-btn-primary-rgb, 24, 119, 242), .12);
-    color: var(--ptg-btn-primary, #1062D0);
+    background: rgba(var(--ptg-btn-primary-rgb), .12);
+    color: var(--ptg-btn-primary);
 }
 
 .ak-journey-step.is-pending {
-    background: var(--ak-detail-soft, #F2F5FC);
+    background: var(--ak-detail-soft);
 }
 
 .ak-journey-step.is-pending .ak-cycle-value {
-    color: var(--ak-detail-muted, #7B7B7B);
+    color: var(--ak-detail-muted);
 }
 
 .ak-journey-step.is-pending .ak-journey-badge {
     background: rgba(0, 0, 0, .05);
-    color: var(--ak-detail-muted, #7B7B7B);
+    color: var(--ak-detail-muted);
 }
 
 .ak-journey-step.is-warn {
-    border-color: rgba(var(--ptg-warning-rgb, 245, 176, 65), .40);
-    background: rgba(var(--ptg-warning-rgb, 245, 176, 65), .07);
+    border-color: rgba(var(--ptg-warning-rgb), .40);
+    background: rgba(var(--ptg-warning-rgb), .07);
 }
 
 .ak-journey-step.is-warn .ak-journey-badge {
-    background: rgba(var(--ptg-warning-rgb, 245, 176, 65), .16);
-    color: var(--ptg-warning-text, #B87708);
+    background: rgba(var(--ptg-warning-rgb), .16);
+    color: var(--ptg-warning-text);
 }
 
 .ak-journey-step.is-loss {
-    border-color: rgba(var(--ptg-danger-rgb, 204, 0, 0), .28);
-    background: rgba(var(--ptg-danger-rgb, 204, 0, 0), .045);
+    border-color: rgba(var(--ptg-danger-rgb), .28);
+    background: rgba(var(--ptg-danger-rgb), .045);
 }
 
 .ak-journey-step.is-loss .ak-journey-badge {
-    background: rgba(var(--ptg-danger-rgb, 204, 0, 0), .12);
-    color: var(--ptg-danger-text, #B80000);
+    background: rgba(var(--ptg-danger-rgb), .12);
+    color: var(--ptg-danger-text);
 }
 
 .ak-journey-step.is-loss .ak-cycle-row:first-of-type .ak-cycle-value {
-    color: var(--ptg-danger-text, #B80000);
+    color: var(--ptg-danger-text);
 }
 
 .ak-journey-step.is-gain .ak-cycle-row:first-of-type .ak-cycle-value {
-    color: var(--ptg-success-text, #63914A);
+    color: var(--ptg-success-text);
 }
 
 /* ---- figure tone per stage ----
    The three stages that carry a verdict colour both of their figures: losses
    amber, the payable balance red, and the P&L card follows its own result. */
 .ak-journey-step.ak-journey-step--5 .ak-cycle-value {
-    color: var(--ptg-warning-text, #B87708);
+    color: var(--ptg-warning-text);
 }
 
 .ak-journey-step.ak-journey-step--6 .ak-cycle-row:last-of-type .ak-cycle-value {
-    color: var(--ptg-danger-text, #B80000);
+    color: var(--ptg-danger-text);
 }
 
 .ak-journey-step.ak-journey-step--7.is-gain .ak-cycle-value {
-    color: var(--ptg-success-text, #63914A);
+    color: var(--ptg-success-text);
 }
 
 .ak-journey-step.ak-journey-step--7.is-loss .ak-cycle-value {
-    color: var(--ptg-danger-text, #B80000);
+    color: var(--ptg-danger-text);
 }
 
 /* ---- connectors ----
@@ -1736,7 +1735,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 .ak-journey-arrow {
     position: absolute;
     top: 50%;
-    width: var(--ak-journey-gap, 58px);
+    width: var(--ak-journey-gap);
     height: 12px;
     transform: translateY(-50%);
     pointer-events: none;
@@ -1759,8 +1758,8 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     transform: translateY(-50%);
     background-image: repeating-linear-gradient(
         to right,
-        var(--ak-journey-link, #9BB1D8) 0 var(--ak-journey-dash, 5px),
-        transparent var(--ak-journey-dash, 5px) calc(var(--ak-journey-dash, 5px) * 2));
+        var(--ak-journey-link) 0 var(--ak-journey-dash),
+        transparent var(--ak-journey-dash) calc(var(--ak-journey-dash) * 2));
 }
 
 /* triangle head — sized by borders, direction set per stage below */
@@ -1774,37 +1773,37 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 /* row one runs forward: head at the far end of the gap */
 .ak-journey-step--1 .ak-journey-arrow,
 .ak-journey-step--2 .ak-journey-arrow {
-    inset-inline-end: calc(-1 * var(--ak-journey-gap, 58px));
+    inset-inline-end: calc(-1 * var(--ak-journey-gap));
 }
 
 .ak-journey-step--1 .ak-journey-arrow::before,
 .ak-journey-step--2 .ak-journey-arrow::before {
-    inset-inline: 0 var(--ak-journey-head, 9px);
+    inset-inline: 0 var(--ak-journey-head);
 }
 
 .ak-journey-step--1 .ak-journey-arrow::after,
 .ak-journey-step--2 .ak-journey-arrow::after {
     inset-inline-end: 0;
     border-block: 5px solid transparent;
-    border-inline-start: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
+    border-inline-start: var(--ak-journey-head) solid var(--ak-journey-link);
 }
 
 /* row two runs back the other way */
 .ak-journey-step--4 .ak-journey-arrow,
 .ak-journey-step--5 .ak-journey-arrow {
-    inset-inline-start: calc(-1 * var(--ak-journey-gap, 58px));
+    inset-inline-start: calc(-1 * var(--ak-journey-gap));
 }
 
 .ak-journey-step--4 .ak-journey-arrow::before,
 .ak-journey-step--5 .ak-journey-arrow::before {
-    inset-inline: var(--ak-journey-head, 9px) 0;
+    inset-inline: var(--ak-journey-head) 0;
 }
 
 .ak-journey-step--4 .ak-journey-arrow::after,
 .ak-journey-step--5 .ak-journey-arrow::after {
     inset-inline-start: 0;
     border-block: 5px solid transparent;
-    border-inline-end: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
+    border-inline-end: var(--ak-journey-head) solid var(--ak-journey-link);
 }
 
 /* Cards 3 and 6 hand the path straight down to the row below. The centring
@@ -1814,10 +1813,10 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 .ak-journey-step--6 .ak-journey-arrow {
     top: auto;
     right: auto;
-    bottom: calc(-1 * var(--ak-journey-row-gap, 46px));
+    bottom: calc(-1 * var(--ak-journey-row-gap));
     left: 50%;
     width: 12px;
-    height: var(--ak-journey-row-gap, 46px);
+    height: var(--ak-journey-row-gap);
     transform: translateX(-50%);
 }
 
@@ -1825,15 +1824,15 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 .ak-journey-step--6 .ak-journey-arrow::before {
     top: 0;
     right: auto;
-    bottom: var(--ak-journey-head, 9px);
+    bottom: var(--ak-journey-head);
     left: 50%;
     width: 2px;
     height: auto;
     transform: translateX(-50%);
     background-image: repeating-linear-gradient(
         to bottom,
-        var(--ak-journey-link, #9BB1D8) 0 var(--ak-journey-dash, 5px),
-        transparent var(--ak-journey-dash, 5px) calc(var(--ak-journey-dash, 5px) * 2));
+        var(--ak-journey-link) 0 var(--ak-journey-dash),
+        transparent var(--ak-journey-dash) calc(var(--ak-journey-dash) * 2));
 }
 
 .ak-journey-step--3 .ak-journey-arrow::after,
@@ -1843,7 +1842,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     bottom: 0;
     left: 50%;
     border-inline: 5px solid transparent;
-    border-top: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
+    border-top: var(--ak-journey-head) solid var(--ak-journey-link);
     transform: translateX(-50%);
 }
 
@@ -1863,7 +1862,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 
     .ak-journey-step .ak-cycle-label,
     .ak-journey-step .ak-cycle-value {
-        font-size: 12.5px;
+        font-size: 12px;
     }
 }
 
@@ -1903,15 +1902,15 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     .ak-journey-step .ak-journey-arrow::before {
         top: 0;
         right: auto;
-        bottom: var(--ak-journey-head, 9px);
+        bottom: var(--ak-journey-head);
         left: 50%;
         width: 2px;
         height: auto;
         transform: translateX(-50%);
         background-image: repeating-linear-gradient(
             to bottom,
-            var(--ak-journey-link, #9BB1D8) 0 var(--ak-journey-dash, 5px),
-            transparent var(--ak-journey-dash, 5px) calc(var(--ak-journey-dash, 5px) * 2));
+            var(--ak-journey-link) 0 var(--ak-journey-dash),
+            transparent var(--ak-journey-dash) calc(var(--ak-journey-dash) * 2));
     }
 
     .ak-journey-step .ak-journey-arrow::after {
@@ -1921,7 +1920,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
         left: 50%;
         border: 0;
         border-inline: 5px solid transparent;
-        border-top: var(--ak-journey-head, 9px) solid var(--ak-journey-link, #9BB1D8);
+        border-top: var(--ak-journey-head) solid var(--ak-journey-link);
         transform: translateX(-50%);
     }
 }
@@ -1948,7 +1947,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     border: 1px solid transparent;
     border-radius: 8px;
     box-shadow: none !important;
-    font-size: .875rem;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1;
     font-variant-numeric: tabular-nums lining-nums;
@@ -2032,7 +2031,7 @@ body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-ta
     display: inline-flex;
     gap: 6px;
     align-items: center;
-    height: var(--ak-control-height, 42px);
+    height: var(--ak-control-height);
     padding-inline: 14px;
     white-space: nowrap;
 }
@@ -2111,7 +2110,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
 .operational-asset-details-page .oa-warning-line {
     margin: 0 0 12px;
     padding-inline-start: 10px;
-    border-inline-start: 2px solid var(--ptg-danger-text, #C70036);
+    border-inline-start: 2px solid var(--ptg-danger-text);
     color: var(--ak-detail-muted);
     font-size: 12px;
     line-height: 1.7;
