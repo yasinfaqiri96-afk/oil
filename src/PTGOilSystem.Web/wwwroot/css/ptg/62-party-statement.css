@@ -6,7 +6,7 @@
     border: 1px solid var(--statement-line);
     border-radius: var(--ptg-radius-lg);
     overflow: hidden;
-    font-family: IRANSans, Vazirmatn, sans-serif;
+    font-family: Vazirmatn, IRANSans, sans-serif;
 }
 
 .statement-screen-header {

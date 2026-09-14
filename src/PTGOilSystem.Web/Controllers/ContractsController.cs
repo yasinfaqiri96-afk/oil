@@ -460,6 +460,7 @@ public partial class ContractsController : Controller
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id);
         if (item == null) return NotFound();
+        if (RedirectIfContractClosed(id, item.Status) is { } closedRedirect) return closedRedirect;
 
         var model = BuildFormModel(item);
         EnsurePartnerRows(model);
@@ -486,6 +487,7 @@ public partial class ContractsController : Controller
             .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id);
         if (existing == null) return NotFound();
+        if (RedirectIfContractClosed(id, existing.Status) is { } closedRedirect) return closedRedirect;
 
         HydrateSummaryFields(model, existing);
 
@@ -496,6 +498,12 @@ public partial class ContractsController : Controller
         await ValidateOwnershipAsync(model);
         ValidatePricingModel(model);
         ValidateRubSettlementModel(model);
+        if (model.Status == ContractStatus.Closed)
+        {
+            ModelState.AddModelError(
+                nameof(model.Status),
+                "برای بستن قرارداد از گزینهٔ «بستن قرارداد» در صفحهٔ جزئیات استفاده کنید تا موارد باز کنترل شود.");
+        }
 
         if (!ModelState.IsValid)
         {
@@ -753,6 +761,7 @@ public partial class ContractsController : Controller
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == id);
         if (contract is null) return NotFound();
+        if (RedirectIfContractClosed(id, contract.Status) is { } closedRedirect) return closedRedirect;
 
         var model = new EditPricingViewModel
         {

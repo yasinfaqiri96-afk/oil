@@ -512,7 +512,10 @@ public partial class ReportsController : Controller
             TopPayables = topPayables,
             TotalReceivableUsd = operationalPartyBalances.Where(r => r.BalanceUsd > 0m).Sum(r => r.BalanceUsd),
             TotalPayableUsd = -operationalPartyBalances.Where(r => r.BalanceUsd < 0m).Sum(r => r.BalanceUsd),
-            AsOfDate = _businessClock.Today,
+            // تاریخ مرجعِ «روز بدون حرکت» باید همان تاریخی باشد که ردیف‌های طلب و بدهی
+            // با آن ساخته شده‌اند (filter.ToDate یا امروز)، وگرنه یک طرف‌حساب در این صفحه
+            // و در «سررسید طلبات و بدهی‌ها» دو عدد روز متفاوت نشان می‌دهد.
+            AsOfDate = balances.AsOfDate,
             Metrics =
             [
                 new() { Label = "فروش کل", Value = Money(revenueUsd), Detail = "Sales revenue", Icon = "bi-cart-check", ToneClass = "finance-positive" },

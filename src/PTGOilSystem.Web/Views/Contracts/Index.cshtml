@@ -18,7 +18,7 @@
         {
             ContractStatus.Draft => T("\u062c\u062f\u06cc\u062f", "New"),
             ContractStatus.Active => T("\u0641\u0639\u0627\u0644", "Active"),
-            ContractStatus.Closed => T("\u062f\u0631 \u062d\u0627\u0644 \u0627\u062c\u0631\u0627", "In progress"),
+            ContractStatus.Closed => T("\u0628\u0633\u062a\u0647\u200c\u0634\u062f\u0647", "Closed"),
             ContractStatus.Cancelled => T("\u0645\u0646\u0642\u0636\u06cc \u0634\u062f\u0647", "Expired"),
             _ => contract.Status.ToString()
         };
@@ -89,7 +89,7 @@
                     {
                         new("Draft", T("\u062c\u062f\u06cc\u062f", "New")),
                         new("Active", T("\u0641\u0639\u0627\u0644", "Active")),
-                        new("Closed", T("\u062f\u0631 \u062d\u0627\u0644 \u0627\u062c\u0631\u0627", "In progress")),
+                        new("Closed", T("\u0628\u0633\u062a\u0647\u200c\u0634\u062f\u0647", "Closed")),
                         new("Cancelled", T("\u0645\u0646\u0642\u0636\u06cc \u0634\u062f\u0647", "Expired"))
                     }, statusFilter?.ToString())
             });

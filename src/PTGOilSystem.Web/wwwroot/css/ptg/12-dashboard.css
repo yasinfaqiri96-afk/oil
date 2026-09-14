@@ -171,7 +171,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-chart-axis-label,
 .dash-chart-x-label {
     fill: var(--text-secondary);
-    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
     font-size: 8.5px;
     letter-spacing: -0.02em;
 }
@@ -231,14 +231,14 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-donut-center-label {
     fill: var(--text-secondary);
-    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
     font-size: 14px;
     text-anchor: middle;
 }
 
 .dash-donut-center-total {
     fill: var(--text-primary);
-    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
     font-size: 30px;
     font-weight: 700;
     text-anchor: middle;

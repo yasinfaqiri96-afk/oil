@@ -22,7 +22,31 @@
     var allocatedPayments = Model.Payments.Where(p => p.SaleId.HasValue).ToList();
     var unallocatedPayments = Model.Payments.Where(p => !p.SaleId.HasValue).ToList();
     // جدول‌های بلند پیش‌فرض ۱۰ مورد اخیر را نشان می‌دهند؛ شمارش سرصفحه روی کل داده می‌ماند.
-    var salesShown = DetailListPreview.Take(Context.Request, "customer-sales", Model.Sales);
+    // فروش‌ها پیش‌فرض به تفکیک قرارداد + محصول خلاصه می‌شوند؛ هر حمل با دکمهٔ جزئیات باز می‌شود.
+    // جمع‌ها فقط نمایشی و از ردیف‌های غیرلغوشده است؛ هیچ مبلغی دوباره محاسبه نمی‌شود.
+    var saleGroups = Model.Sales
+        .GroupBy(s => new { s.ContractId, s.ContractNumber, s.Product })
+        .Select(g =>
+        {
+            var items = g.OrderByDescending(s => s.SaleDate).ThenByDescending(s => s.SaleId).ToList();
+            var active = items.Where(s => !s.IsCancelled).ToList();
+            return new
+            {
+                g.Key.ContractNumber,
+                g.Key.Product,
+                Items = items,
+                ActiveCount = active.Count,
+                FirstDate = items.Min(s => s.SaleDate),
+                LastDate = items.Max(s => s.SaleDate),
+                QuantityMt = active.Sum(s => s.QuantityMt),
+                TotalUsd = active.Sum(s => s.TotalUsd),
+                ReceivedUsd = active.Sum(s => s.ReceivedUsd),
+                ReceivableUsd = active.Sum(s => s.ReceivableUsd)
+            };
+        })
+        .OrderByDescending(g => g.LastDate)
+        .ToList();
+    var saleGroupsShown = DetailListPreview.Take(Context.Request, "customer-sales", saleGroups);
     var allocatedShown = DetailListPreview.Take(Context.Request, "customer-allocated", allocatedPayments);
     var unallocatedShown = DetailListPreview.Take(Context.Request, "customer-unallocated", unallocatedPayments);
     var customerContractsShown = DetailListPreview.Take(Context.Request, "customer-contracts", Model.Contracts);
@@ -127,11 +151,11 @@
             <table class="ak-table ak-detail-table">
                 <thead>
                     <tr>
-                        <th class="ak-col-grow">فاکتور</th>
-                        <th>قرارداد</th>
+                        <th class="ak-col-actions no-print"><span class="visually-hidden">جزئیات</span></th>
+                        <th class="ak-col-grow">قرارداد</th>
                         <th>محصول</th>
-                        <th>واگن / موتر</th>
-                        <th>تاریخ</th>
+                        <th class="ak-col-num">تعداد حمل</th>
+                        <th>بازهٔ تاریخ</th>
                         <th class="ak-col-num">مقدار MT</th>
                         <th class="ak-col-num">ارزش USD</th>
                         <th class="ak-col-num">دریافت USD</th>
@@ -140,19 +164,59 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var s in salesShown)
+                @for (var gi = 0; gi < saleGroupsShown.Count; gi++)
                 {
-                    <tr class="@(s.IsCancelled ?"ak-row-muted" : "")">
-                        <td class="ak-col-grow"><a class="ak-name" asp-controller="Sales" asp-action="Details" asp-route-id="@s.SaleId">@s.InvoiceNumber</a></td>
-                        <td>@(s.ContractNumber ?? "-")</td>
-                        <td>@s.Product</td>
-                        <td>@(string.IsNullOrWhiteSpace(s.TransportReference) ? "-" : s.TransportReference)</td>
-                        <td>@s.SaleDate.ToDisplayDate()</td>
-                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(s.QuantityMt)</td>
-                        <td class="ak-col-num ak-num">@s.TotalUsd.ToString("N2")</td>
-                        <td class="ak-col-num ak-num">@s.ReceivedUsd.ToString("N2")</td>
-                        <td class="ak-col-num ak-num @(s.ReceivableUsd > 0 ?"ak-num" : s.ReceivableUsd < 0 ? "ak-num" : "")">@s.ReceivableUsd.ToString("N2")</td>
-                        <td><span class="ak-status @(s.IsCancelled ?"is-inactive" : s.ReceivableUsd <= 0 ? "" : "is-active")">@(s.IsCancelled ? "لغوشده" : s.ReceivableUsd <= 0 ? "تسویه" : "باز")</span></td>
+                    var g = saleGroupsShown[gi];
+                    var groupDetailId = $"customer-sale-group-{gi}";
+                    var groupCancelled = g.ActiveCount == 0;
+                    <tr class="@(groupCancelled ? "ak-row-muted" : "")">
+                        <td class="ak-col-actions no-print">
+                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="collapse" data-bs-target="#@groupDetailId" aria-expanded="false" aria-controls="@groupDetailId" title="جزئیات">
+                                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                            </button>
+                        </td>
+                        <td class="ak-col-grow"><span class="ak-name">@(g.ContractNumber ?? "بدون قرارداد")</span></td>
+                        <td>@g.Product</td>
+                        <td class="ak-col-num ak-num">@g.Items.Count.ToString("N0")</td>
+                        <td>@(g.FirstDate.Date == g.LastDate.Date ? g.LastDate.ToDisplayDate() : $"{g.FirstDate.ToDisplayDate()} – {g.LastDate.ToDisplayDate()}")</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(g.QuantityMt)</td>
+                        <td class="ak-col-num ak-num">@g.TotalUsd.ToString("N2")</td>
+                        <td class="ak-col-num ak-num">@g.ReceivedUsd.ToString("N2")</td>
+                        <td class="ak-col-num ak-num">@g.ReceivableUsd.ToString("N2")</td>
+                        <td><span class="ak-status @(groupCancelled ? "is-inactive" : g.ReceivableUsd <= 0 ? "" : "is-active")">@(groupCancelled ? "لغوشده" : g.ReceivableUsd <= 0 ? "تسویه" : "باز")</span></td>
+                    </tr>
+                    <tr class="collapse" id="@groupDetailId">
+                        <td colspan="10">
+                            <table class="ak-table ak-detail-table">
+                                <thead>
+                                    <tr>
+                                        <th class="ak-col-grow">فاکتور</th>
+                                        <th>واگن / موتر</th>
+                                        <th>تاریخ</th>
+                                        <th class="ak-col-num">مقدار MT</th>
+                                        <th class="ak-col-num">ارزش USD</th>
+                                        <th class="ak-col-num">دریافت USD</th>
+                                        <th class="ak-col-num">مانده USD</th>
+                                        <th>وضعیت</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var s in g.Items)
+                                {
+                                    <tr class="@(s.IsCancelled ? "ak-row-muted" : "")">
+                                        <td class="ak-col-grow"><a class="ak-name" asp-controller="Sales" asp-action="Details" asp-route-id="@s.SaleId">@s.InvoiceNumber</a></td>
+                                        <td>@(string.IsNullOrWhiteSpace(s.TransportReference) ? "-" : s.TransportReference)</td>
+                                        <td>@s.SaleDate.ToDisplayDate()</td>
+                                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(s.QuantityMt)</td>
+                                        <td class="ak-col-num ak-num">@s.TotalUsd.ToString("N2")</td>
+                                        <td class="ak-col-num ak-num">@s.ReceivedUsd.ToString("N2")</td>
+                                        <td class="ak-col-num ak-num">@s.ReceivableUsd.ToString("N2")</td>
+                                        <td><span class="ak-status @(s.IsCancelled ? "is-inactive" : s.ReceivableUsd <= 0 ? "" : "is-active")">@(s.IsCancelled ? "لغوشده" : s.ReceivableUsd <= 0 ? "تسویه" : "باز")</span></td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </td>
                     </tr>
                 }
                 @if (!Model.Sales.Any())
@@ -162,7 +226,7 @@
                 </tbody>
             </table>
         </div>
-        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("customer-sales", salesShown.Count, Model.Sales.Count))" />
+        <partial name="~/Views/Shared/Partials/_DetailMoreLink.cshtml" model="@(("customer-sales", saleGroupsShown.Count, saleGroups.Count))" />
 
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("دریافت‌های تخصیص‌یافته به فروش", $"{allocatedPayments.Count:N0} مورد"))" />
         <div class="ak-table-wrap">

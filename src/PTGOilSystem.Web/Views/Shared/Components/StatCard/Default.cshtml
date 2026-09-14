@@ -71,7 +71,7 @@
         <div class="ak-stat-card__visual @(Model.IsWarning ? "ak-stat-card__visual--warning" : "")">
             @if (!string.IsNullOrWhiteSpace(avatarPath))
             {
-                <img class="ak-stat-card__image" src="@avatarPath" asp-append-version="true" alt="" loading="lazy" decoding="async" />
+                <img class="ak-stat-card__image" src="@avatarPath" asp-append-version="true" alt="" aria-hidden="true" width="128" height="128" loading="lazy" decoding="async" />
             }
             @* Unknown/missing avatars intentionally leave a transparent visual area. *@
         </div>

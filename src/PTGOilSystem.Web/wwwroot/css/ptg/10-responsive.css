@@ -53,12 +53,16 @@
 @media (max-width: 767.98px) {
     body.boltz-shell.app-shell-authenticated,
     body.ptg-modal-document {
-        --ptg-radius-card: 22px;
-        --ptg-radius-input: 20px;
-        --ptg-radius-button: 13px;
-        --ptg-radius-lg: 22px;
-        --ptg-radius-xl: 24px;
-        --ptg-field-height: 3rem;
+        /* Mobile keeps the same enterprise component geometry. The previous
+           20-24px override created a second, rounded design system only on
+           phones and changed every card/input after a resize. */
+        --ptg-radius-card: var(--radius-card);
+        --ptg-radius-input: var(--radius-input);
+        --ptg-radius-button: var(--radius-btn);
+        --ptg-radius-lg: 8px;
+        --ptg-radius-xl: 10px;
+        --ptg-field-height: 44px;
+        --ak-control-height: 44px;
         --ptg-space-gap: 1rem;
         --ptg-space-card: 1rem;
     }

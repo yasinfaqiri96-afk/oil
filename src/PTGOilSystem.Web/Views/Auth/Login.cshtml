@@ -21,13 +21,13 @@
             <img class="ptg-login-ribbon" src="~/images/auth/login-art.jpeg" asp-append-version="true" alt="" aria-hidden="true" width="1920" height="1920" />
         </section>
 
-        <main class="ptg-login-panel">
+        <section class="ptg-login-panel" aria-labelledby="ptg-login-title">
             <form asp-action="Login" method="post" class="ptg-login-form" novalidate>
                 @Html.AntiForgeryToken()
                 <input asp-for="ReturnUrl" type="hidden" />
 
                 <header class="ptg-login-heading">
-                    <h1 class="ptg-login-title">Welcome!</h1>
+                    <h1 class="ptg-login-title" id="ptg-login-title">Welcome!</h1>
                     <p class="ptg-login-subtitle">Sign in to your Account</p>
                 </header>
 
@@ -65,7 +65,7 @@
                 <span class="ptg-login-help"
                       title="Contact your system administrator to restore access.">Unable to login?</span>
             </form>
-        </main>
+        </section>
     </div>
 </div>
 

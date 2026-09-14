@@ -73,7 +73,7 @@
                 <article class="storage-tank-card @(item.IsActive ? "is-normal" : "is-muted")">
                     <a class="storage-tank-card-main" asp-action="Details" asp-route-id="@item.Id">
                         <span class="storage-tank-visual">
-                            <img class="storage-tank-image" src="~/images/storage-tank-card.webp" asp-append-version="true" alt="" aria-hidden="true" />
+                            <img class="storage-tank-image" src="~/images/storage-tank-card.webp" asp-append-version="true" alt="" aria-hidden="true" width="250" height="220" loading="lazy" decoding="async" />
                             @if (percent > 0m)
                             {
                                 <svg class="storage-tank-level" viewBox="0 0 1254 1254" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">

@@ -2,6 +2,8 @@
 @model PTGOilSystem.Web.Models.ContractJourney.ContractJourneySalesTabViewModel
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
+    // قرارداد بسته فقط قابل مشاهده است؛ صدور فاکتور و ثبت دریافت پنهان می‌شود.
+    var contractIsClosed = ViewData["ContractIsClosed"] is true;
     string UnitMt() => T("تن", "MT");
     string UnitUsd() => T("دالر", "USD");
     string ReturnUrl(string tab)
@@ -14,22 +16,25 @@
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
                      model="@(("salesQ", (string?)Context.Request.Query["salesQ"].ToString(), T("جستجو در فاکتورهای فروش...", "Search sales invoices..."), "salesPage"))" />
-            <div class="ak-list-toolbar-actions no-print">
-                @if (Model.IsPurchaseContract)
-                {
-                    <a asp-controller="Sales" asp-action="Create" asp-route-sourcePurchaseContractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="btn btn-primary ak-primary-action">
-                        <i class="bi bi-receipt"></i>
-                        <span>@T("صدور فاکتور جدید", "Issue invoice")</span>
-                    </a>
-                }
-                else
-                {
-                    <a asp-controller="Sales" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="btn btn-primary ak-primary-action">
-                        <i class="bi bi-receipt"></i>
-                        <span>@T("صدور فاکتور جدید", "Issue invoice")</span>
-                    </a>
-                }
-            </div>
+            @if (!contractIsClosed)
+            {
+                <div class="ak-list-toolbar-actions no-print">
+                    @if (Model.IsPurchaseContract)
+                    {
+                        <a asp-controller="Sales" asp-action="Create" asp-route-sourcePurchaseContractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="btn btn-primary ak-primary-action">
+                            <i class="bi bi-receipt"></i>
+                            <span>@T("صدور فاکتور جدید", "Issue invoice")</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <a asp-controller="Sales" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="btn btn-primary ak-primary-action">
+                            <i class="bi bi-receipt"></i>
+                            <span>@T("صدور فاکتور جدید", "Issue invoice")</span>
+                        </a>
+                    }
+                </div>
+            }
         </div>
 
         <div class="ak-table-wrap">
@@ -64,7 +69,10 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a asp-controller="Sales" asp-action="Details" asp-route-id="@item.SalesTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
-                                    <li><a asp-controller="Payments" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-salesTransactionId="@item.SalesTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="dropdown-item"><i class="bi bi-cash-coin"></i> @T("دریافت", "Receive")</a></li>
+                                    @if (!contractIsClosed)
+                                    {
+                                        <li><a asp-controller="Payments" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-salesTransactionId="@item.SalesTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Sales)" class="dropdown-item"><i class="bi bi-cash-coin"></i> @T("دریافت", "Receive")</a></li>
+                                    }
                                 </ul>
                             </div>
                         </td>

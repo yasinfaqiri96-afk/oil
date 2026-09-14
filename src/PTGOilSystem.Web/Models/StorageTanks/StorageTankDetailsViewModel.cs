@@ -141,6 +141,8 @@ public sealed class StorageTankMovementRowViewModel
     public int? StorageTankId { get; init; }
     public string? ReferenceDocument { get; init; }
     public string SourceName { get; init; } = "";
+    // شماره و نوع وسیلهٔ ورودی («واگن: 1234») برای ستون «از کجا».
+    public string? SourceTransport { get; init; }
     public string DestinationName { get; init; } = "";
     public string MovementContext { get; init; } = "";
     public string? Notes { get; init; }

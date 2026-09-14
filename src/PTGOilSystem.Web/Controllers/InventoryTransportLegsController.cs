@@ -591,6 +591,8 @@ public partial class InventoryTransportLegsController : Controller
                 "توکن فورم موجود نیست. صفحه را تازه کنید و دوباره ثبت نمایید.");
         }
 
+        ApplyVehicleTextProblems(model);
+
         if (ModelState.IsValid)
         {
             try
@@ -616,6 +618,11 @@ public partial class InventoryTransportLegsController : Controller
                 ModelState.AddModelError(
                     string.Empty,
                     "ساختار دیتابیس حمل گروهی آماده نیست. Migration مربوط به InventoryTransportBatches باید اجرا شود.");
+            }
+            catch (Exception ex) when (TryDescribeInventoryTransportDatabaseError(ex, out var databaseMessage))
+            {
+                _logger.LogWarning(ex, "Inventory transport batch create was rejected by the database.");
+                ModelState.AddModelError(string.Empty, databaseMessage);
             }
         }
 
@@ -703,6 +710,8 @@ public partial class InventoryTransportLegsController : Controller
             }
         }
 
+        ApplyVehicleTextProblems(model);
+
         if (ModelState.IsValid)
         {
             try
@@ -719,6 +728,11 @@ public partial class InventoryTransportLegsController : Controller
             catch (BusinessRuleException ex)
             {
                 ModelState.AddModelError(GetCreateFromInventoryErrorKey(ex.Code), ex.Message);
+            }
+            catch (Exception ex) when (TryDescribeInventoryTransportDatabaseError(ex, out var databaseMessage))
+            {
+                _logger.LogWarning(ex, "Inventory transport batch edit was rejected by the database.");
+                ModelState.AddModelError(string.Empty, databaseMessage);
             }
         }
 
@@ -1012,6 +1026,78 @@ public partial class InventoryTransportLegsController : Controller
         }
 
         return Math.Clamp(requestedStep, 1, 4);
+    }
+
+    // پیام پیش‌فرض MaxLength انگلیسی است و نمی‌گوید کدام ردیف جدول وسایط مشکل دارد؛ کاراکتر
+    // نامرئیِ اکسل هم اصلاً در ModelState دیده نمی‌شود. هر دو اینجا به پیام فارسیِ ردیف‌دار تبدیل
+    // می‌شوند تا فرم با همان داده‌ها برگردد و کاربر بداند چه چیزی را چگونه اصلاح کند.
+    private void ApplyVehicleTextProblems(InventoryTransportFromInventoryViewModel model)
+    {
+        foreach (var problem in InventoryTransportBatchService.FindVehicleTextProblems(model))
+        {
+            ModelState.Remove(problem.FieldKey);
+            var key = problem.FieldKey == nameof(InventoryTransportFromInventoryViewModel.Notes)
+                ? nameof(InventoryTransportFromInventoryViewModel.Notes)
+                : nameof(InventoryTransportFromInventoryViewModel.Vehicles);
+            ModelState.AddModelError(key, problem.Message);
+        }
+    }
+
+    // خطای دیتابیس در فرم حمل از موجودی به پیامی ترجمه می‌شود که بگوید مشکل چیست و چه باید کرد.
+    // بدون این، فیلتر سراسری فقط «با قواعد دیتابیس سازگار نیست» نشان می‌داد و فرمِ پُرشده هم از دست
+    // می‌رفت. کد PostgreSQL در انتهای پیام می‌ماند تا پشتیبانی بدون لاگ هم علت را بشناسد.
+    private static bool TryDescribeInventoryTransportDatabaseError(Exception exception, out string message)
+    {
+        message = string.Empty;
+        PostgresException? postgres = null;
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException found)
+            {
+                postgres = found;
+                break;
+            }
+        }
+
+        if (postgres is null || postgres.SqlState is "42P01" or "42703")
+        {
+            return false;
+        }
+
+        var text = postgres.SqlState switch
+        {
+            "22021" or "22P05" =>
+                "یکی از متن‌های فرم (نمبر وسیله، نام راننده، سیمیر یا یادداشت) کاراکتر نامرئی یا غیرمجاز دارد و در دیتابیس ذخیره نمی‌شود. "
+                + "این کاراکترها معمولاً از کپی یا فایل اکسل می‌آیند: خانه‌های مشکوک را پاک و دوباره تایپ کنید، یا در اکسل ستون را با =CLEAN() پاک و دوباره وارد نمایید.",
+            "22001" =>
+                "یکی از متن‌های فرم از حد مجاز طولانی‌تر است. نمبر پلیت و نمبر واگن حداکثر ۵۰ حرف، سیمیر و بارنامه ۱۰۰ حرف و نام راننده ۲۰۰ حرف است؛ متن اضافه را کوتاه کنید.",
+            "22003" =>
+                "یکی از اعداد (مقدار MT یا کرایه) بیش از حد بزرگ است. مقدار را به تن (MT) و بدون ارقام اضافه وارد کنید.",
+            "23505" => postgres.ConstraintName switch
+            {
+                "IX_Trucks_PlateNumber" =>
+                    "این نمبر پلیت همین حالا در داده‌های پایه ثبت شده است. صفحه را تازه کنید و موتر را از فهرست پلیت‌ها انتخاب نمایید.",
+                "IX_Wagons_WagonNumber" =>
+                    "این نمبر واگن همین حالا در داده‌های پایه ثبت شده است. صفحه را تازه کنید و واگن را از فهرست انتخاب نمایید.",
+                _ =>
+                    "بخشی از این اطلاعات تکراری است و قبلاً ثبت شده است. صفحه را تازه کنید و پیش از ثبت دوباره، فهرست حمل‌ها را بررسی نمایید."
+            },
+            "23503" =>
+                "یکی از گزینه‌های انتخاب‌شده (مخزن، شرکت حمل، دارایی، راننده یا ارز) دیگر در سیستم وجود ندارد. صفحه را تازه کنید و دوباره انتخاب نمایید.",
+            "23502" =>
+                "یک خانهٔ الزامی خالی مانده است. نوع وسیله، مقدار MT و حمل‌کنندهٔ هر ردیف را پر کنید.",
+            "23514" when postgres.MessageText.Contains("fiscal", StringComparison.OrdinalIgnoreCase) =>
+                "تاریخ بارگیری در دورهٔ مالیِ باز قرار ندارد. تاریخ سند یا تاریخ بارگیری ردیف‌ها را اصلاح کنید، یا از مدیر سیستم بخواهید دورهٔ مالی را باز کند.",
+            "23514" =>
+                "این ثبت یکی از قواعد کنترلی دیتابیس را نقض می‌کند. مقدار، تاریخ و حمل‌کنندهٔ ردیف‌ها را بررسی کنید.",
+            "40001" or "40P01" =>
+                "هم‌زمان کاربر دیگری روی همین موجودی ثبت انجام داد. چند ثانیه صبر کنید و دوباره «ثبت» را بزنید؛ اطلاعات فرم حفظ شده است.",
+            _ =>
+                "ثبت به‌خاطر خطای دیتابیس انجام نشد. اطلاعات ردیف‌ها را بررسی کنید و دوباره تلاش نمایید؛ اگر تکرار شد، کد زیر را به پشتیبانی بدهید."
+        };
+
+        message = $"{text} (کد خطا: {postgres.SqlState})";
+        return true;
     }
 
     private static bool IsInventoryTransportSchemaUnavailable(Exception exception)

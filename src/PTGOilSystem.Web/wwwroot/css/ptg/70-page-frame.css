@@ -44,6 +44,14 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame {
     margin-inline: auto;
 }
 
+/* Any page root, including a legacy bridge not yet carrying an ak-* marker,
+   may shrink inside the shared grid. Wide content must scroll in its local
+   table/tab wrapper, never widen the whole document. */
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > * {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
 /* Group sale/expense are wide operational workspaces with ten-column source
    tables and a live summary rail. Match their actual page marker instead of
    route state, then release both constraints that can narrow the workspace:

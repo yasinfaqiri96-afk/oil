@@ -131,7 +131,10 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                     summary.TotalOutflow,
                     summary.NetMovement,
                     summary.ClosingBalance,
-                    group.Max(e => (DateTime?)e.Date),
+                    // فقط ردیف‌های دارای تاریخ واقعی: تاریخِ جایگزینِ ردیفِ بی‌تاریخ نباید
+                    // «آخرین حرکت» شود. اگر هیچ ردیفِ تاریخ‌داری نباشد، نتیجه null است
+                    // یعنی «بدون حرکت» — نه ۰۰۰۱/۰۱/۰۱.
+                    group.Where(e => e.IsDateKnown).Max(e => (DateTime?)e.Date),
                     policy.BalanceMeaning(summary.ClosingBalance, isEnglish: false),
                     _parties.DetailsController(group.Key.PartyType));
             })
@@ -450,15 +453,21 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                     entry.EffectUsd < 0m
                         ? CompanyFlowDirection.Receipt
                         : CompanyFlowDirection.Outflow,
-                    Math.Abs(entry.EffectUsd)));
+                    Math.Abs(entry.EffectUsd),
+                    IsDateKnown: entry.Date.HasValue));
             }
         }
     }
 
+    /// <param name="IsDateKnown">
+    /// نادرست فقط برای ردیفِ بی‌تاریخ (سهمِ مفادِ قراردادی که هنوز فروشی ندارد). تاریخِ
+    /// جایگزین برای جای‌دادنِ مبلغ در دوره لازم است، ولی «آخرین حرکت» نباید از آن ساخته شود.
+    /// </param>
     private sealed record BalanceEvent(
         PartyStatementPartyType PartyType,
         int PartyId,
         DateTime Date,
         CompanyFlowDirection Direction,
-        decimal AmountUsd);
+        decimal AmountUsd,
+        bool IsDateKnown = true);
 }

@@ -1,0 +1,159 @@
+@model PTGOilSystem.Web.Models.Accounting.AccountingMappingPageViewModel
+@using PTGOilSystem.Web.Models.Accounting
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
+@{
+    ViewData["Title"] = UiText.T(Context, "مپ حساب‌های عملیاتی", "Operational Account Mapping");
+    var canManage = (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.ManageData)).Succeeded;
+
+    string AccountTypeLabel(AccountType type) => type switch
+    {
+        AccountType.Asset => UiText.T(Context, "دارایی", "Asset"),
+        AccountType.Liability => UiText.T(Context, "بدهی", "Liability"),
+        AccountType.Equity => UiText.T(Context, "سرمایه", "Equity"),
+        AccountType.Revenue => UiText.T(Context, "درآمد", "Revenue"),
+        AccountType.Expense => UiText.T(Context, "مصرف", "Expense"),
+        _ => "-"
+    };
+
+    string IssueLabel(AccountingMappingIssue issue) => issue switch
+    {
+        AccountingMappingIssue.None => UiText.T(Context, "درست", "OK"),
+        AccountingMappingIssue.NotMapped => UiText.T(Context, "تعیین نشده", "Not mapped"),
+        AccountingMappingIssue.Missing => UiText.T(Context, "حساب پیدا نشد", "Account missing"),
+        AccountingMappingIssue.WrongCompany => UiText.T(Context, "حساب شرکت دیگر", "Other company's account"),
+        AccountingMappingIssue.Inactive => UiText.T(Context, "حساب غیرفعال", "Inactive account"),
+        AccountingMappingIssue.WrongType => UiText.T(Context, "نوع حساب نادرست", "Wrong account type"),
+        AccountingMappingIssue.Duplicate => UiText.T(Context, "تکراری در چند نقش", "Used by several roles"),
+        _ => "-"
+    };
+}
+
+<div class="ak-list-page finance-workspace-page chart-of-accounts-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "مپ حساب‌های عملیاتی", "Operational Account Mapping"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "سرفصل حساب‌ها", "Chart of Accounts"), "bi-arrow-right", Url.Action("Index", "ChartOfAccounts")))" />
+
+    <p class="finance-page-lead">
+        @UiText.T(Context,
+            "کاربر فقط مشتری، تأمین‌کننده و صندوق را انتخاب می‌کند؛ سند حسابداری خودکار روی سرفصل‌های زیر زده می‌شود و طرف حساب یا صندوق روی سطر سند ثبت می‌شود. برای حساب تازه، اول آن را در سرفصل حساب‌ها بسازید و بعد اینجا انتخاب کنید.",
+            "Users only pick the customer, supplier and till; journals are posted automatically to the accounts below, with the party or till recorded on the journal line. To use a new account, create it in the chart of accounts first, then select it here.")
+        @if (Model.FunctionalCurrencyCode is not null)
+        {
+            <span>@UiText.T(Context, "ارز عملیاتی:", "Functional currency:") <bdi class="ak-num">@Model.FunctionalCurrencyCode</bdi></span>
+        }
+    </p>
+
+    <section class="ak-list" aria-label="@UiText.T(Context, "نقش‌های حسابداری", "Accounting roles")">
+        @if (Model.OwnerCompanyId is null)
+        {
+            <div class="ak-empty coa-empty">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                <strong>@UiText.T(Context, "شرکت مالک سیستم تعیین نشده است", "The system owner company is not configured")</strong>
+                <span>@UiText.T(Context, "تا وقتی شرکت مالک تعیین نشود، مپ حساب‌ها قابل نمایش نیست.", "Until an owner company is configured, the mapping cannot be shown.")</span>
+            </div>
+        }
+        else if (!Model.SettingsExist)
+        {
+            <div class="ak-empty coa-empty">
+                <i class="bi bi-gear" aria-hidden="true"></i>
+                <strong>@UiText.T(Context, "تنظیمات حسابداری هنوز ساخته نشده است", "Accounting settings have not been created yet")</strong>
+                <span>@UiText.T(Context, "سرفصل‌های پیش‌فرض و این مپ با اجرای Backfill حسابداری (--accounting-backfill) ساخته می‌شوند.", "The default accounts and this mapping are created by the accounting backfill (--accounting-backfill).")</span>
+            </div>
+        }
+        else
+        {
+            <div class="ak-table-wrap">
+                <table class="ak-table coa-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "نقش و کاربرد در عملیات", "Role and where it is used")</th>
+                            <th>@UiText.T(Context, "نوع لازم", "Required type")</th>
+                            <th>@UiText.T(Context, "سرفصل فعلی", "Current account")</th>
+                            <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                            @if (canManage)
+                            {
+                                <th class="no-print">@UiText.T(Context, "تغییر سرفصل", "Change account")</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var section in Model.Rows.GroupBy(r => (r.Section, r.SectionEn)))
+                        {
+                            <tr class="coa-root-row">
+                                <th colspan="@(canManage ? 5 : 4)" scope="rowgroup">@UiText.T(Context, section.Key.Section, section.Key.SectionEn)</th>
+                            </tr>
+                            @foreach (var row in section)
+                            {
+                                <tr>
+                                    <td class="ak-col-grow">
+                                        <strong>@UiText.T(Context, row.Label, row.LabelEn)</strong>
+                                        <div class="text-muted small">@UiText.T(Context, row.Usage, row.UsageEn)</div>
+                                    </td>
+                                    <td>@AccountTypeLabel(row.ExpectedType)</td>
+                                    <td>
+                                        @if (row.AccountCode is not null)
+                                        {
+                                            <span class="coa-parent-code ak-num">@row.AccountCode</span>
+                                            <span class="coa-parent-name">@row.AccountName</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="ak-status @(row.Issue == AccountingMappingIssue.None ? "is-active" : "is-inactive")">@IssueLabel(row.Issue)</span>
+                                    </td>
+                                    @if (canManage)
+                                    {
+                                        <td class="no-print">
+                                            @if (row.IsLocked)
+                                            {
+                                                <span class="text-muted" title="@UiText.T(Context, "حساب فعلی سند ثبت‌شده دارد؛ تغییر آن ماندهٔ قبلی را جدا می‌کند.", "The current account has posted journals; changing it would split the existing balance.")">
+                                                    <i class="bi bi-lock" aria-hidden="true"></i>
+                                                    @UiText.T(Context, "قفل (دارای سند)", "Locked (has journals)")
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <form method="post" asp-action="Mapping" class="d-flex gap-2 align-items-center">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="role" value="@row.Key" />
+                                                    <select name="accountId" class="ak-input" required
+                                                            aria-label="@UiText.T(Context, "سرفصل برای ", "Account for ")@UiText.T(Context, row.Label, row.LabelEn)">
+                                                        @if (row.AccountId is null || row.Options.All(o => o.Id != row.AccountId))
+                                                        {
+                                                            <option value="">@UiText.T(Context, "— انتخاب کنید —", "— Select —")</option>
+                                                        }
+                                                        @foreach (var option in row.Options)
+                                                        {
+                                                            <option value="@option.Id" selected="@(option.Id == row.AccountId)">@option.Code - @option.Name</option>
+                                                        }
+                                                    </select>
+                                                    <button type="submit" class="btn btn-sm btn-primary">@UiText.T(Context, "ذخیره", "Save")</button>
+                                                </form>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="coa-list-footer">
+                <span>
+                    @UiText.T(Context,
+                        "نوع بدهیِ هر مصرف (پرداختنی، کرایه، کمیسیون یا معوق) از تعاریف پایه › انواع مصارف تعیین می‌شود.",
+                        "Each expense's payable kind (payable, freight, commission or accrued) is set under Base definitions › Expense types.")
+                    <a asp-controller="ExpenseTypes" asp-action="Index">@UiText.T(Context, "انواع مصارف", "Expense types")</a>
+                </span>
+            </footer>
+        }
+    </section>
+</div>

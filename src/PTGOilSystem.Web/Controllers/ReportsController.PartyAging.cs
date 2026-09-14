@@ -64,7 +64,8 @@ public partial class ReportsController
                 TabularExportCell.Number(r.ReceivableUsd),
                 TabularExportCell.Number(r.PayableUsd),
                 TabularExportCell.Date(r.LastEntryDate),
-                TabularExportCell.Integer(r.DaysIdle),
+                // حسابِ بدون حرکت عددِ روز ندارد؛ همان خانهٔ خالیِ صفحه، نه ۰.
+                TabularExportCell.Integer(r.LastEntryDate is null ? null : r.DaysIdle),
                 TabularExportCell.Text(PartyAgingBucketLabel(r.Bucket))
             ])),
             Totals = new TabularExportRow(

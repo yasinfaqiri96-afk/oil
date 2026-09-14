@@ -2,6 +2,8 @@
 @model PTGOilSystem.Web.Models.ContractJourney.ContractJourneyLoadingsTabViewModel
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
+    // قرارداد بسته فقط قابل مشاهده است؛ دکمه‌های ثبت/ویرایش پنهان می‌شوند (قفل نهایی در SaveChanges است).
+    var contractIsClosed = ViewData["ContractIsClosed"] is true;
     string TextOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
     string RubStatusText(ContractJourneyLoadingItemViewModel item)
     {
@@ -55,12 +57,15 @@
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
                      model="@(("loadingsQ", (string?)Context.Request.Query["loadingsQ"].ToString(), T("جستجو در سوابق بارگیری...", "Search loading records..."), "loadingsPage"))" />
-            <div class="ak-list-toolbar-actions no-print">
-                <a asp-controller="Loading" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-lockContract="true" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="btn btn-primary ak-primary-action">
-                    <i class="bi bi-train-freight-front"></i>
-                    <span>@T("ثبت بارگیری جدید", "New loading")</span>
-                </a>
-            </div>
+            @if (!contractIsClosed)
+            {
+                <div class="ak-list-toolbar-actions no-print">
+                    <a asp-controller="Loading" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-lockContract="true" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="btn btn-primary ak-primary-action">
+                        <i class="bi bi-train-freight-front"></i>
+                        <span>@T("ثبت بارگیری جدید", "New loading")</span>
+                    </a>
+                </div>
+            }
         </div>
 
         <div class="ak-table-wrap">
@@ -108,7 +113,10 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a asp-controller="Loading" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
-                                    <li><a asp-controller="Loading" asp-action="Edit" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                    @if (!contractIsClosed)
+                                    {
+                                        <li><a asp-controller="Loading" asp-action="Edit" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                    }
                                 </ul>
                             </div>
                         </td>

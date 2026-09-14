@@ -8,6 +8,7 @@ using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services.Assistant.Tools;
 
@@ -24,15 +25,18 @@ public sealed class OpenContractsTool : IAssistantTool
     private readonly ApplicationDbContext _db;
     private readonly IPurchaseAggregationService _purchases;
     private readonly AssistantOptions _options;
+    private readonly IAfghanistanBusinessClock _businessClock;
 
     public OpenContractsTool(
         ApplicationDbContext db,
         IPurchaseAggregationService purchases,
-        IOptions<AssistantOptions> options)
+        IOptions<AssistantOptions> options,
+        IAfghanistanBusinessClock businessClock)
     {
         _db = db;
         _purchases = purchases;
         _options = options.Value;
+        _businessClock = businessClock;
     }
 
     public string Name => "get_open_contracts";
@@ -103,7 +107,8 @@ public sealed class OpenContractsTool : IAssistantTool
             .Select(group => new { ContractId = group.Key, LastDate = group.Max(register => register.LoadingDate), Count = group.Count() })
             .ToDictionaryAsync(row => row.ContractId, cancellationToken);
 
-        var today = DateTime.Today;
+        // همان «امروزِ کاری» کابل که گزارش‌ها استفاده می‌کنند، نه ساعت محلی سرور.
+        var today = _businessClock.Today.Date;
         var rows = new List<(int Id, string Number, string Party, decimal Quantity, decimal Loaded, decimal Remaining, DateTime? Last, int Count, int IdleDays)>();
 
         foreach (var contract in contracts)

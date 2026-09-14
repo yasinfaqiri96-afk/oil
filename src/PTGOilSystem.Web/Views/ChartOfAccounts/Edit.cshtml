@@ -1,0 +1,88 @@
+@model PTGOilSystem.Web.Models.Accounting.ChartOfAccountsEditForm
+@{
+    ViewData["Title"] = UiText.T(Context, "ویرایش سرفصل حساب", "Edit Account");
+    var structureDisabled = Model.StructureLocked ? "disabled" : null;
+}
+
+<div class="ak-list-page finance-workspace-page chart-of-accounts-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "ویرایش سرفصل حساب", "Edit Account"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "بازگشت به فهرست", "Back to list"), "bi-arrow-right", Url.Action("Index", "ChartOfAccounts")))" />
+
+    <section class="ak-list" aria-label="@UiText.T(Context, "فرم سرفصل حساب", "Account form")">
+        <form method="post" asp-action="Edit" asp-route-id="@Model.Id" class="coa-form">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            @if (Model.StructureLocked)
+            {
+                <div class="alert alert-info" role="note">
+                    @UiText.T(Context,
+                        "این حساب در اسناد، تنظیمات حسابداری یا نقش کنترلی استفاده شده است؛ کد، نوع، مانده طبیعی و طبقه‌بندی پولی قابل تغییر نیست.",
+                        "This account is used in journal entries, accounting settings or as a control account; code, type, normal balance and monetary treatment cannot be changed.")
+                </div>
+            }
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="ParentAccountId">@UiText.T(Context, "حساب والد", "Parent account")</label>
+                    <select asp-for="ParentAccountId" class="ak-input" asp-items="ViewBag.ParentAccounts">
+                        <option value="">@UiText.T(Context, "— حساب اصلی —", "— Root account —")</option>
+                    </select>
+                    <span asp-validation-for="ParentAccountId" class="text-danger"></span>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="Code">@UiText.T(Context, "کد حساب", "Code")</label>
+                    <input asp-for="Code" class="ak-input" autocomplete="off" disabled="@structureDisabled" />
+                    <span asp-validation-for="Code" class="text-danger"></span>
+                </div>
+
+                <div class="col-md-8">
+                    <label class="form-label" asp-for="Name">@UiText.T(Context, "نام حساب", "Account name")</label>
+                    <input asp-for="Name" class="ak-input" autocomplete="off" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="AccountType">@UiText.T(Context, "نوع حساب", "Account type")</label>
+                    <select asp-for="AccountType" class="ak-input" asp-items="ViewBag.AccountTypes" disabled="@structureDisabled"></select>
+                    <span asp-validation-for="AccountType" class="text-danger"></span>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="NormalBalance">@UiText.T(Context, "مانده طبیعی", "Normal balance")</label>
+                    <select asp-for="NormalBalance" class="ak-input" asp-items="ViewBag.NormalBalances" disabled="@structureDisabled"></select>
+                    <span asp-validation-for="NormalBalance" class="text-danger"></span>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="MonetaryTreatment">@UiText.T(Context, "طبقه‌بندی پولی", "Monetary treatment")</label>
+                    <select asp-for="MonetaryTreatment" class="ak-input" asp-items="ViewBag.MonetaryTreatments" disabled="@structureDisabled"></select>
+                    <span asp-validation-for="MonetaryTreatment" class="text-danger"></span>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check">
+                        <input asp-for="IsActive" class="form-check-input" disabled="@(Model.IsSettingsAccount ? "disabled" : null)" />
+                        <label class="form-check-label" asp-for="IsActive">@UiText.T(Context, "فعال", "Active")</label>
+                    </div>
+                    @if (Model.IsSettingsAccount)
+                    {
+                        <small class="text-muted">@UiText.T(Context, "این حساب در تنظیمات حسابداری استفاده شده و باید فعال بماند.", "This account is used in accounting settings and must stay active.")</small>
+                    }
+                </div>
+            </div>
+
+            <div class="coa-toolbar-actions mt-3">
+                <button type="submit" class="btn btn-primary">@UiText.T(Context, "ذخیره تغییرات", "Save changes")</button>
+                <a class="btn btn-light" asp-action="Index">@UiText.T(Context, "انصراف", "Cancel")</a>
+            </div>
+        </form>
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

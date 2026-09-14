@@ -95,6 +95,7 @@ builder.Services.AddScoped<IAccountingBackfillService, AccountingBackfillService
 builder.Services.AddScoped<IPartnershipProfitAllocationAdapter, PartnershipProfitAllocationAdapter>();
 builder.Services.AddScoped<IPartnerCurrentReconciliationService, PartnerCurrentReconciliationService>();
 builder.Services.AddScoped<IChartOfAccountsReadService, ChartOfAccountsReadService>();
+builder.Services.AddScoped<IAccountingMappingService, AccountingMappingService>();
 builder.Services.AddScoped<IAccountingJournalNumberGenerator, AccountingJournalNumberGenerator>();
 builder.Services.AddScoped<IContractBalanceTransferAccountingAdapter, ContractBalanceTransferAccountingAdapter>();
 builder.Services.AddScoped<ISupplierPaymentAllocationAccountingAdapter, SupplierPaymentAllocationAccountingAdapter>();

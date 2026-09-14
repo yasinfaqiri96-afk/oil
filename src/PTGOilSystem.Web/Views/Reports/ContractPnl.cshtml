@@ -11,7 +11,7 @@
     {
         ContractStatus.Draft => T("جدید", "New"),
         ContractStatus.Active => T("فعال", "Active"),
-        ContractStatus.Closed => T("در حال اجرا", "In progress"),
+        ContractStatus.Closed => T("بسته‌شده", "Closed"),
         ContractStatus.Cancelled => T("منقضی شده", "Expired"),
         _ => status.ToString()
     };
@@ -136,19 +136,6 @@
                             </tr>
                         }
                     </tbody>
-                    @if (Model.PurchaseRows.Any())
-                    {
-                        <tfoot>
-                            <tr>
-                                <td colspan="3" class="fw-bold">@T("مجموع","Total")</td>
-                                <td class="ak-col-num ak-num fw-bold">@NumberDisplay.Quantity(Model.PurchaseRows.Sum(r => r.TotalLoadedMt))</td>
-                                <td class="ak-col-num ak-num fw-bold">@Model.TotalPurchaseCostUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num fw-bold">@Model.TotalDirectSaleRevenueUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num fw-bold @(Model.TotalDirectSaleGrossMarginUsd < 0m ? "ak-number--negative" : null)">@Model.TotalDirectSaleGrossMarginUsd.ToString("N2")</td>
-                                <td class="ak-col-num ak-num fw-bold @(Model.DirectSaleMarginPercent < 0m ? "ak-number--negative" : null)">@(Model.DirectSaleMarginPercent.HasValue ? Model.DirectSaleMarginPercent.Value.ToString("N1") + "%" : "—")</td>
-                            </tr>
-                        </tfoot>
-                    }
                 </table>
             </div>
         </section>

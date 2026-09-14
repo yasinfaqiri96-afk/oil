@@ -6,6 +6,9 @@
     ViewData["Title"] = "انتقال به وسیله دیگر";
     ViewData["HideSectionTabs"] = true;
     var targetVehicles = ViewBag.TargetVehicles as List<TransportTargetVehicleOption> ?? [];
+    var targetVehiclesByKey = targetVehicles
+        .GroupBy(v => v.Key)
+        .ToDictionary(g => g.Key, g => g.First());
     var excelImportOptions = new ExcelImportComponentOptions
     {
         InputId = "transportContinueExcelFile",
@@ -83,6 +86,10 @@
                     {
                         var source = Model.Sources[i];
                         var hasManualTarget = !string.IsNullOrWhiteSpace(source.TargetVehicleNumber);
+                        var presetTarget = !string.IsNullOrWhiteSpace(source.TargetKey)
+                            && targetVehiclesByKey.TryGetValue(source.TargetKey!, out var presetMatch)
+                            ? presetMatch
+                            : null;
                         <tr data-source-row data-leg-id="@source.LegId">
                             <td><input asp-for="Sources[i].Selected" class="ak-check" data-source-check /><input asp-for="Sources[i].LegId" type="hidden" /></td>
                             <td><strong>@source.Label</strong><input asp-for="Sources[i].VehicleNumber" type="hidden" /></td>
@@ -90,16 +97,13 @@
                             <td class="ak-num text-end" dir="ltr">@source.RemainingQuantityMt.ToString("N4")<input asp-for="Sources[i].RemainingQuantityMt" type="hidden" /></td>
                             <td class="text-end"><input asp-for="Sources[i].QuantityMt" class="ak-input ak-num" type="number" min="0" max="@source.RemainingQuantityMt" step="0.0001" data-source-quantity /></td>
                             <td>
+                                @* فهرست وسیله‌ها یک‌بار در <template> پایین جدول است و هنگام باز کردن همین
+                                   select کپی می‌شود؛ در غیر این صورت هر ردیف کل فهرست را تکرار می‌کرد. *@
                                 <select asp-for="Sources[i].TargetKey" class="ak-input" data-source-target>
                                     <option value="">— وسیله پیش‌فرض —</option>
-                                    @foreach (var group in targetVehicles.GroupBy(v => v.Group))
+                                    @if (presetTarget is not null)
                                     {
-                                        <optgroup label="@group.Key">
-                                            @foreach (var vehicle in group)
-                                            {
-                                                <option value="@vehicle.Key">@vehicle.Label</option>
-                                            }
-                                        </optgroup>
+                                        <option value="@presetTarget.Key" data-preset-option>@presetTarget.Label</option>
                                     }
                                     <option value="__new__">＋ وسیله جدید (نمبر دستی)</option>
                                 </select>
@@ -117,6 +121,19 @@
                     </tbody>
                 </table>
             </div>
+
+            @* منبع مشترک گزینه‌های «وسیله مقصد»: محتوای <template> غیرفعال است و در ارسال فرم نقشی ندارد. *@
+            <template data-target-vehicle-options>
+                @foreach (var group in targetVehicles.GroupBy(v => v.Group))
+                {
+                    <optgroup label="@group.Key">
+                        @foreach (var vehicle in group)
+                        {
+                            <option value="@vehicle.Key">@vehicle.Label</option>
+                        }
+                    </optgroup>
+                }
+            </template>
         </section>
 
         <section class="ak-form-section">
@@ -173,6 +190,21 @@
             var summaryTargets = page.querySelector('[data-summary-targets]');
             var summaryHint = page.querySelector('[data-summary-hint]');
             var defaultTargetBlock = page.querySelector('[data-default-target-block]');
+            var targetOptionsTemplate = page.querySelector('[data-target-vehicle-options]');
+
+            // فهرست کامل وسیله‌ها فقط برای همان select‌ای ساخته می‌شود که کاربر بازش می‌کند.
+            // مقدارِ انتخاب‌شده پیش و پس از پر شدن یکی است، پس ارسال فرم تغییر نمی‌کند.
+            function hydrateTarget(select) {
+                if (!select || select.dataset.optionsReady === '1') return;
+                select.dataset.optionsReady = '1';
+                if (!targetOptionsTemplate) return;
+                var current = select.value;
+                var manualOption = select.querySelector('option[value="' + manualValue + '"]');
+                var preset = select.querySelector('option[data-preset-option]');
+                select.insertBefore(targetOptionsTemplate.content.cloneNode(true), manualOption);
+                if (preset) preset.remove();
+                select.value = current;
+            }
 
             function normalize(value) {
                 return (value || '').toString().trim().toLowerCase().replace(/[^a-z0-9؀-ۿ]/g, '');
@@ -270,6 +302,9 @@
                 });
                 quantity.addEventListener('input', refreshSummary);
                 if (target) {
+                    ['pointerdown', 'focus', 'touchstart'].forEach(function (eventName) {
+                        target.addEventListener(eventName, function () { hydrateTarget(target); });
+                    });
                     target.addEventListener('change', function () {
                         if (target.value !== manualValue && targetNumber) targetNumber.value = '';
                         syncTargetMode(row);
@@ -337,7 +372,10 @@
                     if (check) check.checked = true;
                     syncRow(row);
                     if (quantity) quantity.value = item.quantityMt;
-                    if (target) target.value = item.targetKey || (item.targetVehicleNumber ? manualValue : '');
+                    if (target) {
+                        hydrateTarget(target);
+                        target.value = item.targetKey || (item.targetVehicleNumber ? manualValue : '');
+                    }
                     if (targetNumber) targetNumber.value = item.targetVehicleNumber || '';
                     if (merge) merge.value = item.mergeGroup || '';
                     syncTargetMode(row);

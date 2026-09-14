@@ -161,7 +161,7 @@
     border-radius: 1px;
     background: transparent;
     content: "";
-    transition: all var(--ptg-tabs-transition-duration) ease;
+    transition: background-color var(--ptg-tabs-transition-duration) ease;
     pointer-events: none;
 }
 

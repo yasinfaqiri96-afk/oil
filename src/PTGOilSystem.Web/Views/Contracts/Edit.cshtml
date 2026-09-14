@@ -59,7 +59,7 @@
                         <select asp-for="Status" class="ak-input">
                             <option value="0">@UiText.T(Context,"پیش‌نویس","Draft")</option>
                             <option value="1">@UiText.T(Context,"فعال","Active")</option>
-                            <option value="2">بسته‌شده</option>
+                            @* «بسته‌شده» فقط از گزینهٔ «بستن قرارداد» در صفحهٔ جزئیات، پس از کنترل موارد باز. *@
                             <option value="3">لغوشده</option>
                         </select>
                     </div>

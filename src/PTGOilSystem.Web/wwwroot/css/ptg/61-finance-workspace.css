@@ -266,7 +266,7 @@ body.is-finance-workspace .finance-workspace-page .payments-table .ak-note {
 .finance-entry-chortke {
     /* Same family Chortke uses (IRANSans 5.5 web); it is now the system font
        too, so this only pins the stack for the form. */
-    --chk-font: "IRANSans", "Vazirmatn",
+    --chk-font: "Vazirmatn", "IRANSans",
                 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                 "Helvetica Neue", Arial, sans-serif;
 

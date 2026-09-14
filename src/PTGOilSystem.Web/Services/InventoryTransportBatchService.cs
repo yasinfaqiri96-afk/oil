@@ -1436,12 +1436,90 @@ public sealed class InventoryTransportBatchService
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
+    public sealed record VehicleTextProblem(string FieldKey, string Message);
+
+    // متن‌های جدول وسایط پیش از رسیدن به دیتابیس سنجیده می‌شوند. PostgreSQL کاراکتر 0x00 را
+    // نمی‌پذیرد و ستون‌ها طول محدود دارند؛ بدون این سنجش کاربر فقط پیام کلیِ «قواعد دیتابیس»
+    // را می‌دید و نمی‌دانست کدام ردیف و کدام خانه را اصلاح کند. شمارهٔ ردیف همان ترتیب جدول فرم است
+    // و حداکثر طول‌ها با MaxLength همان ViewModel یکی است.
+    public static IReadOnlyList<VehicleTextProblem> FindVehicleTextProblems(InventoryTransportFromInventoryViewModel model)
+    {
+        var problems = new List<VehicleTextProblem>();
+        var vehicles = model.Vehicles ?? [];
+        for (var i = 0; i < vehicles.Count; i++)
+        {
+            var vehicle = vehicles[i];
+            var row = i + 1;
+            CheckText(problems, $"Vehicles[{i}].{nameof(vehicle.TruckPlateNumberInput)}", row, "نمبر پلیت موتر", vehicle.TruckPlateNumberInput, 50, singleLine: true);
+            CheckText(problems, $"Vehicles[{i}].{nameof(vehicle.WagonNumberInput)}", row, "نمبر واگن", vehicle.WagonNumberInput, 50, singleLine: true);
+            CheckText(problems, $"Vehicles[{i}].{nameof(vehicle.DriverNameInput)}", row, "نام راننده", vehicle.DriverNameInput, 200, singleLine: true);
+            CheckText(problems, $"Vehicles[{i}].{nameof(vehicle.RwbNo)}", row, "سیمیر/CMR", vehicle.RwbNo, 100, singleLine: true);
+            CheckText(problems, $"Vehicles[{i}].{nameof(vehicle.BillOfLadingNumber)}", row, "بارنامه", vehicle.BillOfLadingNumber, 100, singleLine: true);
+        }
+
+        CheckText(problems, nameof(model.Notes), null, "یادداشت", model.Notes, 1000, singleLine: false);
+        return problems;
+    }
+
+    private static void CheckText(
+        List<VehicleTextProblem> problems,
+        string fieldKey,
+        int? row,
+        string label,
+        string? value,
+        int maxLength,
+        bool singleLine)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return;
+        }
+
+        var place = row is null ? $"خانهٔ «{label}»" : $"ردیف {row}، خانهٔ «{label}»";
+        // خط جدید در یادداشتِ چندخطی مجاز است؛ فقط 0x00 است که دیتابیس هیچ‌جا نمی‌پذیرد.
+        var hasInvalidCharacter = singleLine ? value.Any(char.IsControl) : value.Contains('\0');
+        if (hasInvalidCharacter)
+        {
+            problems.Add(new VehicleTextProblem(
+                fieldKey,
+                $"{place}: مقدار «{PreviewText(value)}» کاراکتر نامرئی یا غیرمجاز دارد (معمولاً از کپی یا فایل اکسل می‌آید). "
+                + "متن این خانه را پاک و دوباره تایپ کنید؛ یا در اکسل همان ستون را با تابع =CLEAN() پاک و «Paste Values» کنید و فایل را دوباره وارد نمایید."));
+            return;
+        }
+
+        var length = value.Trim().Length;
+        if (length > maxLength)
+        {
+            problems.Add(new VehicleTextProblem(
+                fieldKey,
+                $"{place}: {length} حرف دارد ولی حداکثر {maxLength} حرف مجاز است. "
+                + (row is null
+                    ? "متن را کوتاه کنید."
+                    : "فقط خودِ نمبر یا نام را بنویسید و توضیح اضافه را در «یادداشت» بگذارید؛ اگر از اکسل آمده، همان سلول را در فایل کوتاه کنید.")));
+        }
+    }
+
+    private static string PreviewText(string value)
+    {
+        var visible = new string(value.Where(c => !char.IsControl(c)).ToArray()).Trim();
+        return visible.Length <= 20 ? visible : visible[..20] + "…";
+    }
+
     // Turns a typed truck/wagon number into a base-data record: reuses an existing active row
     // by number, otherwise creates a new profile in Trucks/Wagons, then binds it to the vehicle.
     private async Task ResolveTypedVehiclesAsync(
         InventoryTransportFromInventoryViewModel model,
         CancellationToken ct)
     {
+        // خط دوم دفاع برای callerهایی که از فرم نمی‌آیند؛ کنترلر همین سنجش را ردیف‌به‌ردیف نشان می‌دهد.
+        var textProblems = FindVehicleTextProblems(model);
+        if (textProblems.Count > 0)
+        {
+            var shown = string.Join(" ", textProblems.Take(5).Select(p => p.Message));
+            var more = textProblems.Count > 5 ? $" و {textProblems.Count - 5} مورد دیگر." : string.Empty;
+            throw Rule("INVENTORY_TRANSPORT_VEHICLE_TEXT_INVALID", shown + more);
+        }
+
         var vehicles = (model.Vehicles ?? []).Where(v => v.QuantityMt > 0m).ToList();
         var createdTrucks = new List<(InventoryTransportVehicleInput Vehicle, Truck Truck)>();
         var createdWagons = new List<(InventoryTransportVehicleInput Vehicle, Wagon Wagon)>();

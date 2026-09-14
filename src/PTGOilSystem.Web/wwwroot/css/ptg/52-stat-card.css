@@ -30,7 +30,7 @@
 .ak-stat-section:first-child { margin-top: 4px; }
 .ak-stat-section__title {
     margin: 0 0 10px;
-    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: #1F2A37;
@@ -72,7 +72,7 @@
     border-radius: var(--ptg-radius-xl);
     box-shadow: none;
 
-    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
     transition: box-shadow .18s ease, border-color .18s ease;
 }
 

@@ -11,7 +11,7 @@ body.ptg-modal-document {
     margin: 0;
     background: var(--ptg-bg) !important;
     color: var(--ptg-text);
-    font-family: "IRANSans", "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
     font-size: var(--font-body);
     letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
@@ -20,7 +20,30 @@ body.ptg-modal-document {
 
 body.boltz-shell.app-shell-authenticated.boltz-rtl,
 body.ptg-modal-document.boltz-rtl {
-    font-family: "IRANSans", "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
+}
+
+/* Keyboard users bypass the persistent sidebar and topbar without adding
+   visible chrome for pointer users. */
+.ptg-skip-link {
+    position: fixed;
+    inset-block-start: 8px;
+    inset-inline-start: 8px;
+    z-index: 1100;
+    max-inline-size: calc(100dvi - 16px);
+    padding: 10px 14px;
+    border-radius: var(--ptg-radius-button);
+    background: var(--background-paper);
+    color: var(--primary-main);
+    box-shadow: var(--shadow-dialog);
+    font-weight: 600;
+    transform: translateY(calc(-100% - 12px));
+    transition: transform var(--ptg-motion-fast) ease-out;
+}
+
+.ptg-skip-link:focus-visible {
+    color: var(--primary-dark);
+    transform: translateY(0);
 }
 
 body.boltz-shell.app-shell-authenticated :where(h1, h2, h3, h4, h5, h6),

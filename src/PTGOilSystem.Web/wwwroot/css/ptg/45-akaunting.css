@@ -17,7 +17,7 @@
 
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
-    font-family: "IRANSans", "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
     font-size: 14px;
     line-height: 20px;
     background: var(--ptg-bg) !important;

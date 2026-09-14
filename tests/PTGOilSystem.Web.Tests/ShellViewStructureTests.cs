@@ -693,6 +693,57 @@ public class ShellViewStructureTests
         Assert.DoesNotContain("LedgerEntries", migration);
     }
 
+    [Fact]
+    public void Shared_Shell_Enforces_Accessible_Responsive_Component_Contracts()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var baseCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/02-base.css");
+        var responsiveCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/10-responsive.css");
+        var tabsCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/16-system-tabs.css");
+        var componentsCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+        var typographyCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/71-typography.css");
+
+        Assert.Contains("class=\"ptg-skip-link\"", layout);
+        Assert.Contains("id=\"ptg-main-content\" tabindex=\"-1\"", layout);
+        Assert.Contains(".ptg-skip-link:focus-visible", baseCss);
+        Assert.Contains("\"Vazirmatn\", \"IRANSans\"", baseCss);
+
+        Assert.Contains("--ptg-radius-card: var(--radius-card)", responsiveCss);
+        Assert.DoesNotContain("--ptg-radius-card: 22px", responsiveCss);
+        Assert.Contains("--ak-control-height: 44px", responsiveCss);
+        Assert.Contains("@media (hover: none), (pointer: coarse)", componentsCss);
+        Assert.Contains("overscroll-behavior-x: contain", componentsCss);
+        Assert.Contains("min-height: 44px", componentsCss);
+        Assert.Contains("font-size: 16px !important", typographyCss);
+        Assert.DoesNotContain("transition: all", tabsCss);
+
+        Assert.False(RepoFileExists("src/PTGOilSystem.Web/wwwroot/js/global-search.js"));
+        Assert.False(RepoFileExists("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml.css"));
+    }
+
+    [Fact]
+    public void Razor_Images_Reserve_Layout_Space()
+    {
+        var viewsRoot = GetRepoPath("src/PTGOilSystem.Web/Views");
+        var imagePattern = new System.Text.RegularExpressions.Regex(
+            @"<img\b[^>]*>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            | System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        foreach (var viewPath in Directory.GetFiles(viewsRoot, "*.cshtml", SearchOption.AllDirectories))
+        {
+            var view = File.ReadAllText(viewPath);
+
+            foreach (System.Text.RegularExpressions.Match image in imagePattern.Matches(view))
+            {
+                Assert.True(
+                    image.Value.Contains("width=", StringComparison.OrdinalIgnoreCase)
+                    && image.Value.Contains("height=", StringComparison.OrdinalIgnoreCase),
+                    $"Image in '{Path.GetRelativePath(viewsRoot, viewPath)}' must reserve width and height: {image.Value}");
+            }
+        }
+    }
+
     private static string ReadPtgCss()
     {
         var ptgRoot = GetRepoPath("src/PTGOilSystem.Web/wwwroot/css/ptg");
@@ -706,6 +757,9 @@ public class ShellViewStructureTests
 
     private static string ReadRepoFile(string relativePath)
         => File.ReadAllText(GetRepoPath(relativePath));
+
+    private static bool RepoFileExists(string relativePath)
+        => File.Exists(GetRepoPath(relativePath));
 
     /// <summary>Reads a `--token: NNNpx;` custom property out of a CSS file.</summary>
     private static int ReadPixelToken(string css, string token)

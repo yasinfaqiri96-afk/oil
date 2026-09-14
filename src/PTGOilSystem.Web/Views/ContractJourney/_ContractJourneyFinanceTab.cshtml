@@ -4,6 +4,8 @@
 @model PTGOilSystem.Web.Models.ContractJourney.ContractJourneyFinanceTabViewModel
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
+    // قرارداد بسته فقط قابل مشاهده است؛ ثبت/ویرایش پرداخت و تسویهٔ صراف پنهان می‌شود.
+    var contractIsClosed = ViewData["ContractIsClosed"] is true;
     string UnitUsd() => T("دالر", "USD");
     string LocalizeDisplay(string? value)
     {
@@ -58,19 +60,25 @@
             <partial name="_ContractJourneyListFilter"
                      model="@(("paymentsQ", (string?)Context.Request.Query["paymentsQ"].ToString(), T("جستجو در پرداخت‌ها...", "Search payments..."), "paymentsPage"))" />
             <div class="ak-list-toolbar-actions no-print">
-                <a asp-controller="Payments" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Finance)" class="btn btn-primary ak-primary-action">
-                    <i class="bi bi-cash-stack"></i>
-                    <span>@T("ثبت پرداخت جدید", "Create payment")</span>
-                </a>
+                @if (!contractIsClosed)
+                {
+                    <a asp-controller="Payments" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Finance)" class="btn btn-primary ak-primary-action">
+                        <i class="bi bi-cash-stack"></i>
+                        <span>@T("ثبت پرداخت جدید", "Create payment")</span>
+                    </a>
+                }
                 <div class="dropdown ak-row-menu">
                     <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
                         <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a href="@Model.SarrafSettlementCreateUrl" class="dropdown-item"><i class="bi bi-currency-exchange"></i> @T("تسویه صراف", "Sarraf settlement")</a></li>
-                        @* انتقال مانده تأمین‌کننده اکنون از «مانده قابل انتقال» در جزئیات تأمین‌کننده انجام
-                           می‌شود. مسیر قدیمی قرارداد‌به‌قرارداد فقط‌خواندنی شده و سوابق آن باقی است. *@
-                        <li><hr class="dropdown-divider" /></li>
+                        @if (!contractIsClosed)
+                        {
+                            <li><a href="@Model.SarrafSettlementCreateUrl" class="dropdown-item"><i class="bi bi-currency-exchange"></i> @T("تسویه صراف", "Sarraf settlement")</a></li>
+                            @* انتقال مانده تأمین‌کننده اکنون از «مانده قابل انتقال» در جزئیات تأمین‌کننده انجام
+                               می‌شود. مسیر قدیمی قرارداد‌به‌قرارداد فقط‌خواندنی شده و سوابق آن باقی است. *@
+                            <li><hr class="dropdown-divider" /></li>
+                        }
                         <li><a href="@Model.AccountStatementUrl" class="dropdown-item"><i class="bi bi-journal-text"></i> @T("دفتر حساب قرارداد", "Contract statement")</a></li>
                         <li><a asp-controller="ContractBalanceTransfers" asp-action="Index" asp-route-contractId="@Model.ContractId" class="dropdown-item"><i class="bi bi-list-check"></i> @T("انتقالات مانده این قرارداد", "This contract balance transfers")</a></li>
                         <li><a href="@Model.SarrafSettlementIndexUrl" class="dropdown-item"><i class="bi bi-list-check"></i> @T("همه تسویه‌ها", "All settlements")</a></li>
@@ -122,7 +130,10 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a asp-controller="Payments" asp-action="Details" asp-route-id="@item.PaymentTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Finance)" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
-                                    <li><a asp-controller="Payments" asp-action="Edit" asp-route-id="@item.PaymentTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Finance)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                    @if (!contractIsClosed)
+                                    {
+                                        <li><a asp-controller="Payments" asp-action="Edit" asp-route-id="@item.PaymentTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Finance)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                    }
                                 </ul>
                             </div>
                         </td>

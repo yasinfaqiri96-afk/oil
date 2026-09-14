@@ -160,10 +160,41 @@
         new() { Title = T("مجموع مصارف", "Total expenses"), Value = U(Model.Pnl.OperationalExpensesUsd), Unit = "USD", State = "accent", Avatar = "flow-calculator" }
     };
 
+    // «تحویل‌شده» پشت عدد: هر رسید مقصد کجا نشسته — مخزن، فروش مستقیم یا
+    // دیسپچ مستقیم — و باری که به وسیلهٔ دیگری داده شده در کدام حمل ادامه یافته است.
+    // فقط خواندنی؛ هیچ مقداری اینجا دوباره محاسبه نمی‌شود.
+    var receivedReceiptRows = Model.DestinationReceipts
+        .OrderBy(item => item.ReceiptDate)
+        .ThenBy(item => item.Id)
+        .ToList();
+    var hasReceivedBreakdown = receivedReceiptRows.Count > 0 || Model.ChainTargets.Count > 0;
+    string ReceivedDestinationKind(InventoryTransportReceiptDestination destination) => destination switch
+    {
+        InventoryTransportReceiptDestination.ToInventory => T("ورود به موجودی", "Into inventory"),
+        InventoryTransportReceiptDestination.DirectSale => T("فروش مستقیم", "Direct sale"),
+        InventoryTransportReceiptDestination.DirectDispatch => T("حمل مستقیم", "Direct dispatch"),
+        InventoryTransportReceiptDestination.Mixed => T("ترکیبی", "Mixed"),
+        _ => T("مقصد", "Destination")
+    };
+    string ReceivedPlaceText(PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportReceiptSummaryViewModel item)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(item.DestinationTerminalName))
+        {
+            parts.Add(item.DestinationTerminalName!);
+        }
+        if (!string.IsNullOrWhiteSpace(item.DestinationTankCode))
+        {
+            parts.Add(T("مخزن", "Tank") + " " + item.DestinationTankCode);
+        }
+        return parts.Count == 0 ? "-" : string.Join(" — ", parts);
+    }
+
     var cargoMetrics = new List<AkKpiItem>
     {
         new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = Q(Model.QuantityMt), Unit = "MT", Avatar = "flow-weight-mt" },
-        new() { Title = T("تحویل‌شده", "Received"), Value = Q(Model.Pnl.ReceivedQuantityMt), Unit = "MT", Avatar = "flow-stock-in" },
+        new() { Title = T("تحویل‌شده", "Received"), Value = Q(Model.Pnl.ReceivedQuantityMt), Unit = "MT", Avatar = "flow-stock-in",
+                ModalTarget = hasReceivedBreakdown ? "legReceivedBreakdownModal" : null },
         new() { Title = T("کسری", "Shortage"), Value = Q(shortageQuantity), Unit = "MT", State = shortageQuantity > 0m ? "warning" : null, Avatar = "flow-warning" },
         new() { Title = T("باقی‌مانده", "Remaining"), Value = Q(Model.RemainingQuantityMt), Unit = "MT", Avatar = "flow-tank-gauge" }
     };
@@ -560,6 +591,110 @@
                                 </tfoot>
                             </table>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (hasReceivedBreakdown)
+    {
+        @* سرنوشت بارِ تحویل‌شده پشت عدد کارت «محموله و وزن»: هر رسید کجا تخلیه شده و
+           باری که به وسیلهٔ دیگری داده شده در کدام حمل ادامه یافته است. فقط خواندنی. *@
+        <div class="modal fade" id="legReceivedBreakdownModal" tabindex="-1" aria-labelledby="legReceivedBreakdownModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content ak-modal-content">
+                    <div class="ak-modal-head">
+                        <h2 class="modal-title" id="legReceivedBreakdownModalLabel">@T("مقصد بار تحویل‌شده", "Where the received load went") — @documentNumber</h2>
+                        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
+                    </div>
+                    <div class="ak-modal-body">
+                        @if (receivedReceiptRows.Count > 0)
+                        {
+                            <div class="ak-table-wrap">
+                                <table class="ak-table">
+                                    <thead>
+                                        <tr>
+                                            <th>@T("تاریخ", "Date")</th>
+                                            <th>@T("نوع تحویل", "Delivery type")</th>
+                                            <th class="col-name">@T("محل / مرجع", "Place / reference")</th>
+                                            <th class="col-ltr">@T("مقدار (MT)", "Quantity (MT)")</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in receivedReceiptRows)
+                                        {
+                                            <tr>
+                                                <td class="ak-num">@item.ReceiptDate.ToDisplayDate()</td>
+                                                <td>@ReceivedDestinationKind(item.ReceiptDestination)</td>
+                                                <td class="col-name">
+                                                    <span class="d-block">@ReceivedPlaceText(item)</span>
+                                                    @if (item.SalesTransactionId.HasValue)
+                                                    {
+                                                        <a class="d-block" href="@Url.Action("Details", "Sales", new { id = item.SalesTransactionId.Value, returnUrl = currentPageReturnUrl })">
+                                                            @T("فروش", "Sale") @(string.IsNullOrWhiteSpace(item.SaleInvoiceNumber) ? $"#{item.SalesTransactionId.Value}" : item.SaleInvoiceNumber)
+                                                        </a>
+                                                    }
+                                                    @if (item.FirstDirectTruckDispatchId.HasValue)
+                                                    {
+                                                        <a class="d-block" href="@Url.Action("Details", "Dispatch", new { id = item.FirstDirectTruckDispatchId.Value, returnUrl = currentPageReturnUrl })">
+                                                            DSP-@item.FirstDirectTruckDispatchId.Value.ToString("0000")
+                                                            @if (item.DirectTruckDispatchCount > 1)
+                                                            {
+                                                                <small>@($"+{item.DirectTruckDispatchCount - 1}") @T("مورد دیگر", "more")</small>
+                                                            }
+                                                        </a>
+                                                    }
+                                                </td>
+                                                <td class="ak-num col-ltr">@Q(item.ReceivedQuantityMt)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <th colspan="3">@T("مجموع تحویل‌شده", "Total received")</th>
+                                            <th class="ak-num col-ltr">@Q(Model.Pnl.ReceivedQuantityMt)</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="ak-empty ak-detail-empty-state"><span>@T("هنوز رسید مقصدی برای این حمل ثبت نشده است.", "No destination receipt recorded for this transport yet.")</span></div>
+                        }
+
+                        @if (Model.ChainTargets.Count > 0)
+                        {
+                            <div class="ak-section-head mt-4">
+                                <h3 class="ak-section-title">@T("انتقال به وسیلهٔ دیگر", "Handed to another vehicle")</h3>
+                                <p class="ak-section-desc">@T("این مقدار در همین حمل تخلیه نشده؛ در حمل زیر ادامه یافته است.", "This quantity was not unloaded here; it continued on the transport below.")</p>
+                            </div>
+                            <div class="ak-table-wrap">
+                                <table class="ak-table">
+                                    <thead>
+                                        <tr>
+                                            <th>@T("تاریخ بارگیری", "Loaded date")</th>
+                                            <th class="col-name">@T("حمل مقصد", "Destination transport")</th>
+                                            <th class="col-ltr">@T("مقدار (MT)", "Quantity (MT)")</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var link in Model.ChainTargets)
+                                        {
+                                            <tr>
+                                                <td class="ak-num">@link.LoadedDate.ToDisplayDate()</td>
+                                                <td class="col-name">
+                                                    <a href="@Url.Action("Details", new { id = link.LegId, returnUrl = currentPageReturnUrl })">TR-@link.LegId.ToString("0000")</a>
+                                                    <span class="d-block">@link.VehicleLabel</span>
+                                                </td>
+                                                <td class="ak-num col-ltr">@Q(link.QuantityMt)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
                     </div>
                 </div>
             </div>

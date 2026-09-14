@@ -1,7 +1,11 @@
 @model PTGOilSystem.Web.Models.Accounting.ChartOfAccountsIndexViewModel
 @using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
 @{
     ViewData["Title"] = UiText.T(Context, "سرفصل حساب‌ها", "Chart of Accounts");
+    var canManage = (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.ManageData)).Succeeded;
 
     string AccountTypeLabel(AccountType type) => type switch
     {
@@ -31,6 +35,7 @@
         @UiText.T(Context,
             "حساب‌های هسته حسابداری جدید را به تفکیک شرکت ببینید؛ حساب‌های زیرمجموعه همراه با والد خود مشخص شده‌اند.",
             "Review the new accounting-core accounts by company, with each child clearly linked to its parent.")
+        <a asp-action="Mapping">@UiText.T(Context, "مپ حساب‌های عملیاتی (صندوق، مشتری، فروش، موجودی…)", "Operational account mapping (cash, customers, sales, inventory…)")</a>
     </p>
 
     <section class="ak-list" aria-label="@UiText.T(Context, "فهرست سرفصل حساب‌ها", "Chart of accounts list")">
@@ -87,6 +92,10 @@
                             <th>@UiText.T(Context, "مانده طبیعی", "Normal balance")</th>
                             <th>@UiText.T(Context, "حساب والد", "Parent account")</th>
                             <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                            @if (canManage)
+                            {
+                                <th class="ak-col-actions no-print"><span class="visually-hidden">@UiText.T(Context, "عملیات", "Actions")</span></th>
+                            }
                         </tr>
                     </thead>
                     <tbody>
@@ -121,6 +130,15 @@
                                         @(account.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))
                                     </span>
                                 </td>
+                                @if (canManage)
+                                {
+                                    <td class="ak-col-actions no-print">
+                                        <a class="btn btn-sm btn-light" asp-action="Edit" asp-route-id="@account.Id" title="@UiText.T(Context, "ویرایش", "Edit")">
+                                            <i class="bi bi-pencil" aria-hidden="true"></i>
+                                            <span>@UiText.T(Context, "ویرایش", "Edit")</span>
+                                        </a>
+                                    </td>
+                                }
                             </tr>
                         }
                     </tbody>

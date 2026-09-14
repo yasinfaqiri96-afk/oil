@@ -36,7 +36,7 @@
     table-layout: auto;
     border-collapse: collapse;
     background: #FFFFFF;
-    font-family: "IRANSans", "Vazirmatn", "Poppins", Tahoma, Arial, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
     font-variant-numeric: tabular-nums;
 }
 

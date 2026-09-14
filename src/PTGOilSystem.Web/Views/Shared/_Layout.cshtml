@@ -433,6 +433,10 @@
       data-sidebar-style="full"
       data-sidebar-position="fixed"
       data-header-position="fixed">
+    @if (isAuthenticated && renderShellChrome)
+    {
+        <a class="ptg-skip-link" href="#ptg-main-content">@T("رفتن به محتوای اصلی", "Skip to main content")</a>
+    }
     @if (renderShellChrome)
     {
         <partial name="Partials/_PageLoader" />
@@ -592,7 +596,7 @@
                 </header>
                 }
 
-                <main class="boltz-content ptg-page">
+                <main class="boltz-content ptg-page" id="ptg-main-content" tabindex="-1">
                     @await Html.PartialAsync("_ToastNotifications")
 
                     @* Shared PageFrame: page-top cards, summary, tabs, header, form
@@ -673,7 +677,7 @@
                 <div class="ptg-account-scroll">
                     <div class="ptg-account-head">
                         <span class="ptg-account-avatar">
-                            <img src="~/images/user.webp" alt="@T("پروفایل", "Profile")" />
+                            <img src="~/images/user.webp" alt="@T("پروفایل", "Profile")" width="96" height="96" decoding="async" />
                         </span>
                         <strong class="ptg-account-name" id="ptgAccountName">@accountName</strong>
                         @if (!string.IsNullOrWhiteSpace(accountEmail))

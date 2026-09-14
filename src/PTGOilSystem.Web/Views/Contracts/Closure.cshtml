@@ -1,0 +1,141 @@
+@model PTGOilSystem.Web.Models.Contracts.ContractClosureViewModel
+@using PTGOilSystem.Web.Services.ContractClosure
+@{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    var title = Model.IsReopen ? T("بازگشایی قرارداد", "Reopen contract") : T("بستن قرارداد", "Close contract");
+    ViewData["Title"] = title;
+    ViewData["HideSectionTabs"] = true;
+    var detailsUrl = Url.Action("Details", "Contracts", new { id = Model.ContractId }) ?? "/Contracts";
+    var cancelUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Model.ReturnUrl : detailsUrl;
+    var formAction = Model.IsReopen ? "Reopen" : "Close";
+
+    string KindLabel(ContractClosureBlockerKind kind) => kind switch
+    {
+        ContractClosureBlockerKind.Status => T("وضعیت", "Status"),
+        ContractClosureBlockerKind.Transport => T("حمل", "Transport"),
+        ContractClosureBlockerKind.Delivery => T("تحویل", "Delivery"),
+        ContractClosureBlockerKind.Stock => T("موجودی", "Stock"),
+        ContractClosureBlockerKind.Expense => T("مصارف", "Expenses"),
+        ContractClosureBlockerKind.Payment => T("پرداخت", "Payment"),
+        ContractClosureBlockerKind.Balance => T("مانده حساب", "Balance"),
+        ContractClosureBlockerKind.StagedDelivery => T("فروش مرحله‌ای", "Staged delivery"),
+        _ => kind.ToString()
+    };
+
+    string HistoryActionLabel(string action) => action == ContractClosureService.ReopenAuditAction
+        ? T("بازگشایی", "Reopened")
+        : T("بستن", "Closed");
+}
+
+<div class="ak-list-page">
+    <header class="ak-page-header">
+        <div class="ak-page-heading">
+            <span class="ak-page-icon"><i class="bi @(Model.IsReopen ? "bi-unlock" : "bi-lock")"></i></span>
+            <div>
+                <h1>@title</h1>
+                <p><bdi>@Model.ContractLabel</bdi> · @T("وضعیت فعلی", "Current status"): @Model.StatusName</p>
+            </div>
+        </div>
+        <a href="@cancelUrl" class="btn btn-light ak-secondary-action" aria-label="@T("بازگشت", "Back")"><i class="bi bi-x-lg"></i></a>
+    </header>
+
+    @if (Model.IsReopen)
+    {
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            @T("با بازگشایی، ثبت و ویرایش عملیات این قرارداد دوباره ممکن می‌شود. دلیل بازگشایی اجباری است و با نام شما در لاگ سیستم ثبت می‌شود.",
+               "Reopening allows recording and editing this contract's operations again. A reason is required and is logged under your name.")
+        </div>
+    }
+    else if (Model.Blockers.Count > 0)
+    {
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            @T("این قرارداد هنوز موارد باز دارد و تا تکمیل آن‌ها قابل بستن نیست:",
+               "This contract still has open items and cannot be closed until they are settled:")
+        </div>
+
+        <div class="ak-table-wrap mb-3">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th>@T("بخش", "Area")</th>
+                        <th>@T("مورد باز", "Open item")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var blocker in Model.Blockers)
+                {
+                    <tr>
+                        <td><span class="ak-status is-inactive">@KindLabel(blocker.Kind)</span></td>
+                        <td>@blocker.Message</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info" role="status">
+            <i class="bi bi-check-circle"></i>
+            @T("هیچ حمل، تحویل، موجودی، فروش مرحله‌ای، مصرف، پرداخت یا ماندهٔ بازی برای این قرارداد باقی نمانده است. پس از بستن، قرارداد فقط قابل مشاهده است و ثبت عملیات جدید قفل می‌شود.",
+               "No open transport, delivery, stock, staged delivery, expense, payment or balance remains. After closing, the contract is read-only and new operations are locked.")
+        </div>
+    }
+
+    @if (Model.CanSubmit)
+    {
+        <form method="post" asp-controller="Contracts" asp-action="@formAction" asp-route-id="@Model.ContractId" class="card card-body mb-3"
+              data-ptg-confirm="true"
+              data-ptg-confirm-title="@title"
+              data-ptg-confirm-message="@(Model.IsReopen ? T("قرارداد بازگشایی شود؟", "Reopen this contract?") : T("قرارداد بسته شود؟ پس از بستن فقط قابل مشاهده است.", "Close this contract? It becomes read-only."))">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+            <div class="ak-field">
+                <label class="ak-label" for="closureReason">
+                    @(Model.IsReopen ? T("دلیل بازگشایی", "Reopen reason") : T("یادداشت بستن (اختیاری)", "Closing note (optional)"))
+                    @if (Model.IsReopen)
+                    {
+                        <span class="ak-req">*</span>
+                    }
+                </label>
+                <textarea id="closureReason" name="reason" class="ak-input" rows="3" maxlength="400" required="@Model.IsReopen"></textarea>
+            </div>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <a href="@cancelUrl" class="btn btn-light">@T("انصراف", "Cancel")</a>
+                <button type="submit" class="btn @(Model.IsReopen ? "btn-warning" : "btn-danger")">
+                    <i class="bi @(Model.IsReopen ? "bi-unlock" : "bi-lock")"></i> @title
+                </button>
+            </div>
+        </form>
+    }
+
+    @if (Model.History.Count > 0)
+    {
+        <h2 class="ak-section-title">@T("تاریخچهٔ بستن و بازگشایی", "Close / reopen history")</h2>
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th>@T("زمان (UTC)", "Time (UTC)")</th>
+                        <th>@T("عملیات", "Action")</th>
+                        <th>@T("کاربر", "User")</th>
+                        <th>@T("شرح", "Description")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.History)
+                {
+                    <tr>
+                        <td><span class="ak-num">@row.ActionAtUtc.ToString("yyyy-MM-dd HH:mm")</span></td>
+                        <td>@HistoryActionLabel(row.Action)</td>
+                        <td><bdi>@(string.IsNullOrWhiteSpace(row.ActorUsername) ? "-" : row.ActorUsername)</bdi></td>
+                        <td>@(row.Description ?? "-")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

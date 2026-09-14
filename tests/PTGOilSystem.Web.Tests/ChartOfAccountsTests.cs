@@ -115,6 +115,104 @@ public class ChartOfAccountsTests
     }
 
     [Fact]
+    public async Task Edit_Post_UpdatesNameParentAndStructure_WhenAccountUnused()
+    {
+        await using var db = NewDb();
+        db.Companies.Add(NewCompany(OwnerCompanyId, "OWNER", isOwner: true));
+        db.Accounts.AddRange(
+            NewAccount(1, OwnerCompanyId, "1100", "Cash"),
+            NewAccount(2, OwnerCompanyId, "1110", "Old name"));
+        await db.SaveChangesAsync();
+
+        var controller = NewController(db);
+        var form = new ChartOfAccountsEditForm
+        {
+            Code = "1120", Name = "New name", ParentAccountId = 1,
+            AccountType = AccountType.Expense, NormalBalance = NormalBalance.Debit, IsActive = false
+        };
+
+        var result = await controller.Edit(2, form);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var account = await db.Accounts.SingleAsync(a => a.Id == 2);
+        Assert.Equal("1120", account.Code);
+        Assert.Equal("New name", account.Name);
+        Assert.Equal(1, account.ParentAccountId);
+        Assert.Equal(AccountType.Expense, account.AccountType);
+        Assert.False(account.IsActive);
+    }
+
+    [Fact]
+    public async Task Edit_Post_ControlAccount_KeepsStructureLocked()
+    {
+        await using var db = NewDb();
+        db.Companies.Add(NewCompany(OwnerCompanyId, "OWNER", isOwner: true));
+        var control = NewAccount(1, OwnerCompanyId, "1200", "Accounts Receivable");
+        control.IsControlAccount = true;
+        db.Accounts.Add(control);
+        await db.SaveChangesAsync();
+
+        var controller = NewController(db);
+        var form = new ChartOfAccountsEditForm
+        {
+            Code = "9999", Name = "AR renamed", AccountType = AccountType.Revenue,
+            NormalBalance = NormalBalance.Credit, IsActive = true
+        };
+
+        var result = await controller.Edit(1, form);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var account = await db.Accounts.SingleAsync(a => a.Id == 1);
+        Assert.Equal("AR renamed", account.Name);
+        Assert.Equal("1200", account.Code);
+        Assert.Equal(AccountType.Asset, account.AccountType);
+        Assert.Equal(NormalBalance.Debit, account.NormalBalance);
+    }
+
+    [Fact]
+    public async Task Edit_Post_RejectsDescendantAsParent()
+    {
+        await using var db = NewDb();
+        db.Companies.Add(NewCompany(OwnerCompanyId, "OWNER", isOwner: true));
+        var root = NewAccount(1, OwnerCompanyId, "1100", "Root");
+        db.Accounts.AddRange(root, NewAccount(2, OwnerCompanyId, "1110", "Child", root));
+        await db.SaveChangesAsync();
+
+        var controller = NewController(db);
+        var form = new ChartOfAccountsEditForm { Code = "1100", Name = "Root", ParentAccountId = 2, IsActive = true };
+
+        var result = await controller.Edit(1, form);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey(nameof(ChartOfAccountsEditForm.ParentAccountId)));
+        Assert.Null((await db.Accounts.SingleAsync(a => a.Id == 1)).ParentAccountId);
+    }
+
+    [Fact]
+    public async Task Edit_Post_RejectsDuplicateCode_AndForeignAccount()
+    {
+        await using var db = NewDb();
+        db.Companies.AddRange(
+            NewCompany(OwnerCompanyId, "OWNER", isOwner: true),
+            NewCompany(OtherCompanyId, "OTHER", isOwner: false));
+        db.Accounts.AddRange(
+            NewAccount(1, OwnerCompanyId, "1100", "Cash"),
+            NewAccount(2, OwnerCompanyId, "1110", "Bank"),
+            NewAccount(3, OtherCompanyId, "1100", "Foreign"));
+        await db.SaveChangesAsync();
+
+        var controller = NewController(db);
+
+        var duplicate = await controller.Edit(2, new ChartOfAccountsEditForm { Code = "1100", Name = "Bank", IsActive = true });
+        Assert.IsType<ViewResult>(duplicate);
+        Assert.True(controller.ModelState.ContainsKey(nameof(ChartOfAccountsEditForm.Code)));
+
+        var foreign = await NewController(db).Edit(3, new ChartOfAccountsEditForm { Code = "1100", Name = "Hijack", IsActive = true });
+        Assert.IsType<NotFoundResult>(foreign);
+        Assert.Equal("Foreign", (await db.Accounts.SingleAsync(a => a.Id == 3)).Name);
+    }
+
+    [Fact]
     public void Implementation_IsOwnerScoped_AndHasNoCompanySelectionUi()
     {
         var service = ReadRepoFile("src/PTGOilSystem.Web/Services/Accounting/ChartOfAccountsReadService.cs");

@@ -314,16 +314,37 @@
         ? $"{Model.PricingFinalUnitPriceUsd.Value:N2} {UnitUsd()}/{UnitMt()}"
         : T("در انتظار نرخ", "Pending price");
     ViewData["AkHeaderContext"] = $"{partnerLabel}: {partnerName} · {T("جنس", "Product")}: {TextOrDash(Model.ProductName)} · {T("قیمت هر تن", "Unit price")}: {headerUnitPriceText}";
+    // قرارداد بسته فقط قابل مشاهده است: عملیات ثبت/ویرایش از منو برداشته می‌شوند.
+    var contractIsClosed = ViewData["ContractIsClosed"] is true;
+    var isAdminUser = (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.AdminOnly)).Succeeded;
+    var closureReturnUrl = Context.Request.Path + Context.Request.QueryString;
     var headerKebabItems = new List<PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem>
     {
-        new() { Label = T("دفتر حساب قرارداد", "Contract statement"), Href = contractStatementUrl, Icon = "bi-journal-text" },
-        new() { Label = T("انتقال از موجودی", "Inventory transfer"), Href = inventoryTransferUrl, Icon = "bi-truck-front" },
-        new() { Label = T("قیمت‌گذاری قرارداد", "Contract pricing"), Href = contractPricingUrl, Icon = "bi-tag" },
-        new() { Label = T("ویرایش قرارداد", "Edit contract"), Href = contractEditUrl, Icon = "bi-pencil-square" }
+        new() { Label = T("دفتر حساب قرارداد", "Contract statement"), Href = contractStatementUrl, Icon = "bi-journal-text" }
     };
+    if (!contractIsClosed)
+    {
+        headerKebabItems.Add(new() { Label = T("انتقال از موجودی", "Inventory transfer"), Href = inventoryTransferUrl, Icon = "bi-truck-front" });
+        headerKebabItems.Add(new() { Label = T("قیمت‌گذاری قرارداد", "Contract pricing"), Href = contractPricingUrl, Icon = "bi-tag" });
+        headerKebabItems.Add(new() { Label = T("ویرایش قرارداد", "Edit contract"), Href = contractEditUrl, Icon = "bi-pencil-square" });
+        headerKebabItems.Add(new()
+        {
+            Label = T("بستن قرارداد", "Close contract"),
+            Href = Url.Action("Close", "Contracts", new { id = Model.ContractId, returnUrl = closureReturnUrl }),
+            Icon = "bi-lock"
+        });
+    }
+    else if (isAdminUser)
+    {
+        headerKebabItems.Add(new()
+        {
+            Label = T("بازگشایی قرارداد", "Reopen contract"),
+            Href = Url.Action("Reopen", "Contracts", new { id = Model.ContractId, returnUrl = closureReturnUrl }),
+            Icon = "bi-unlock"
+        });
+    }
     // «حذف گروهی بارگیری» فقط برای ادمین و فقط روی قرارداد خرید معنا دارد (بارگیری مالِ خرید است).
-    if (Model.IsPurchaseContract
-        && (await AuthorizationService.AuthorizeAsync(User, AuthPolicies.AdminOnly)).Succeeded)
+    if (Model.IsPurchaseContract && !contractIsClosed && isAdminUser)
     {
         headerKebabItems.Add(new PTGOilSystem.Web.Models.Shared.AkHeaderMenuItem
         {
@@ -710,6 +731,15 @@
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)contractsListBackUrl))" />
 
+    @if (contractIsClosed)
+    {
+        <div class="alert alert-info no-print" role="status" data-contract-closed-notice>
+            <i class="bi bi-lock" aria-hidden="true"></i>
+            @T("این قرارداد بسته شده است و فقط قابل مشاهده است؛ ثبت، ویرایش یا حذف عملیات روی آن قفل است.",
+               "This contract is closed and read-only; recording, editing or deleting its operations is locked.")
+        </div>
+    }
+
     <div data-contract-journey-facts-host>
         @switch (activeTab)
         {
@@ -1061,12 +1091,15 @@
                     <div class="ak-list-toolbar">
                         <partial name="_ContractJourneyListFilter"
                                  model="@(("transportLegsQ", (string?)transportLegsSearch, T("جستجو در جریان حمل بار...", "Search cargo flow..."), "transportLegPage"))" />
-                        <div class="ak-list-toolbar-actions no-print">
-                            <a asp-controller="InventoryTransportLegs" asp-action="Create" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.InventoryTransport)" class="btn btn-primary ak-primary-action">
-                                <i class="bi bi-train-front"></i>
-                                <span>@T("انتقال تکی از موجودی", "Single inventory transfer")</span>
-                            </a>
-                        </div>
+                        @if (!contractIsClosed)
+                        {
+                            <div class="ak-list-toolbar-actions no-print">
+                                <a asp-controller="InventoryTransportLegs" asp-action="Create" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.InventoryTransport)" class="btn btn-primary ak-primary-action">
+                                    <i class="bi bi-train-front"></i>
+                                    <span>@T("انتقال تکی از موجودی", "Single inventory transfer")</span>
+                                </a>
+                            </div>
+                        }
                     </div>
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
@@ -1151,21 +1184,24 @@
                     <div class="ak-list-toolbar">
                         <partial name="_ContractJourneyListFilter"
                                  model="@(("expensesQ", (string?)expensesSearch, T("جستجو در مصارف...", "Search expenses..."), "expensesPage"))" />
-                        <div class="ak-list-toolbar-actions no-print">
-                            <a asp-controller="Expenses" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="btn btn-primary ak-primary-action">
-                                <i class="bi bi-wallet2"></i>
-                                <span>@T("ثبت مصرف", "New expense")</span>
-                            </a>
-                            <div class="dropdown ak-row-menu">
-                                <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
-                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <li><a class="dropdown-item" asp-controller="Expenses" asp-action="CreateWagonRent" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"><i class="bi bi-train-front"></i> @T("ثبت کرایه واگون", "Wagon rent")</a></li>
-                                    <li><a class="dropdown-item" asp-controller="Expenses" asp-action="CustomsBatch" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"><i class="bi bi-file-earmark-spreadsheet"></i> @T("مصارف گمرکی", "Customs expenses")</a></li>
-                                </ul>
+                        @if (!contractIsClosed)
+                        {
+                            <div class="ak-list-toolbar-actions no-print">
+                                <a asp-controller="Expenses" asp-action="Create" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="btn btn-primary ak-primary-action">
+                                    <i class="bi bi-wallet2"></i>
+                                    <span>@T("ثبت مصرف", "New expense")</span>
+                                </a>
+                                <div class="dropdown ak-row-menu">
+                                    <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
+                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" asp-controller="Expenses" asp-action="CreateWagonRent" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"><i class="bi bi-train-front"></i> @T("ثبت کرایه واگون", "Wagon rent")</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Expenses" asp-action="CustomsBatch" asp-route-contractId="@Model.ContractId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"><i class="bi bi-file-earmark-spreadsheet"></i> @T("مصارف گمرکی", "Customs expenses")</a></li>
+                                    </ul>
+                                </div>
                             </div>
-                        </div>
+                        }
                     </div>
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
@@ -1222,7 +1258,10 @@
                                                             </button>
                                                             <ul class="dropdown-menu dropdown-menu-end">
                                                                 <li><a asp-controller="Expenses" asp-action="Details" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
-                                                                <li><a asp-controller="Expenses" asp-action="Edit" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                                                @if (!contractIsClosed)
+                                                                {
+                                                                    <li><a asp-controller="Expenses" asp-action="Edit" asp-route-id="@item.ExpenseTransactionId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                                                }
                                                             </ul>
                                                         </div>
                                                     </td>
@@ -1328,16 +1367,19 @@
                     <div class="ak-list-toolbar">
                         <partial name="_ContractJourneyListFilter"
                                  model="@(("lossesQ", (string?)lossesSearch, T("جستجو در کسری و ضایعات...", "Search losses and wastage..."), "lossesPage"))" />
-                        <div class="ak-list-toolbar-actions no-print">
-                            <a asp-controller="LossEvents"
-                               asp-action="Create"
-                               asp-route-contractId="@Model.ContractId"
-                               asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"
-                               class="btn btn-primary ak-primary-action">
-                                <i class="bi bi-dash-circle"></i>
-                                <span>@T("ثبت کسری جدید", "New loss")</span>
-                            </a>
-                        </div>
+                        @if (!contractIsClosed)
+                        {
+                            <div class="ak-list-toolbar-actions no-print">
+                                <a asp-controller="LossEvents"
+                                   asp-action="Create"
+                                   asp-route-contractId="@Model.ContractId"
+                                   asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"
+                                   class="btn btn-primary ak-primary-action">
+                                    <i class="bi bi-dash-circle"></i>
+                                    <span>@T("ثبت کسری جدید", "New loss")</span>
+                                </a>
+                            </div>
+                        }
                     </div>
                     <div class="ak-table-wrap">
                         <table class="ak-table ak-detail-table">
@@ -1386,15 +1428,18 @@
                                                 </button>
                                                 <ul class="dropdown-menu dropdown-menu-end">
                                                     <li><a asp-controller="LossEvents" asp-action="Details" asp-route-id="@item.LossEventId" asp-route-returnUrl="@ReturnUrl(LossesPresentationTab)" class="dropdown-item"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
-                                                    <li>
-                                                        <a asp-controller="LossEvents"
-                                                           asp-action="Edit"
-                                                           asp-route-id="@item.LossEventId"
-                                                           asp-route-returnUrl="@ReturnUrl(LossesPresentationTab)"
-                                                           class="dropdown-item">
-                                                            <i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")
-                                                        </a>
-                                                    </li>
+                                                    @if (!contractIsClosed)
+                                                    {
+                                                        <li>
+                                                            <a asp-controller="LossEvents"
+                                                               asp-action="Edit"
+                                                               asp-route-id="@item.LossEventId"
+                                                               asp-route-returnUrl="@ReturnUrl(LossesPresentationTab)"
+                                                               class="dropdown-item">
+                                                                <i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")
+                                                            </a>
+                                                        </li>
+                                                    }
                                                 </ul>
                                             </div>
                                         }

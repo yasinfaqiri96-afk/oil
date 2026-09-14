@@ -236,8 +236,39 @@ public static class InventoryTransportVehicleWorkbookParser
             return null;
         }
 
-        var value = ReadCellText(cell, workbookPart);
+        var value = CleanText(ReadCellText(cell, workbookPart));
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim().Trim('"');
+    }
+
+    // سلول اکسل گاهی کاراکتر کنترلیِ نامرئی دارد (0x00، Tab یا خط جدید داخل سلول). دیده نمی‌شود
+    // ولی PostgreSQL آن را رد می‌کند و ثبت فرم با پیام کلیِ دیتابیس شکست می‌خورد. کاراکتر کنترلی
+    // به فاصله تبدیل و فاصله‌های پشت‌سرهم یکی می‌شوند. نیم‌فاصله (U+200C) کنترلی نیست و می‌ماند.
+    internal static string CleanText(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new System.Text.StringBuilder(value.Length);
+        var previousWasSpace = false;
+        foreach (var character in value)
+        {
+            if (char.IsControl(character) || character == ' ')
+            {
+                if (!previousWasSpace)
+                {
+                    builder.Append(' ');
+                }
+                previousWasSpace = true;
+                continue;
+            }
+
+            builder.Append(character);
+            previousWasSpace = false;
+        }
+
+        return builder.ToString().Trim();
     }
 
     private static decimal? ReadDecimal(IReadOnlyDictionary<string, Cell> cells, string? column, WorkbookPart workbookPart)

@@ -238,6 +238,7 @@ public class StorageTanksController : Controller
                     StorageTankId = m.StorageTankId,
                     ReferenceDocument = m.ReferenceDocument,
                     SourceName = movementContext.SourceName,
+                    SourceTransport = movementContext.SourceTransport,
                     DestinationName = movementContext.DestinationName,
                     MovementContext = movementContext.Context,
                     Notes = m.Notes
@@ -874,6 +875,12 @@ public class StorageTanksController : Controller
             .Include(m => m.LoadingReceipt)
                 .ThenInclude(r => r!.LoadingRegister)
                     .ThenInclude(l => l!.OriginLocation)
+            .Include(m => m.LoadingReceipt)
+                .ThenInclude(r => r!.LoadingRegister)
+                    .ThenInclude(l => l!.Vessel)
+            .Include(m => m.LoadingReceipt)
+                .ThenInclude(r => r!.LoadingRegister)
+                    .ThenInclude(l => l!.Truck)
             .Include(m => m.SalesTransaction)
                 .ThenInclude(s => s!.Customer)
             .Include(m => m.SalesTransaction)
@@ -907,6 +914,9 @@ public class StorageTanksController : Controller
                 .Include(l => l.DestinationTerminal)
                 .Include(l => l.DestinationStorageTank)
                 .Include(l => l.DestinationLocation)
+                .Include(l => l.Truck)
+                .Include(l => l.Wagon)
+                .Include(l => l.Vessel)
                 .Where(l => transportLegIds.Contains(l.Id))
                 .ToDictionaryAsync(l => l.Id);
 
@@ -920,6 +930,12 @@ public class StorageTanksController : Controller
                     .ThenInclude(l => l!.SourceTerminal)
                 .Include(r => r.InventoryTransportLeg)
                     .ThenInclude(l => l!.SourceStorageTank)
+                .Include(r => r.InventoryTransportLeg)
+                    .ThenInclude(l => l!.Truck)
+                .Include(r => r.InventoryTransportLeg)
+                    .ThenInclude(l => l!.Wagon)
+                .Include(r => r.InventoryTransportLeg)
+                    .ThenInclude(l => l!.Vessel)
                 .Where(r => transportReceiptIds.Contains(r.Id))
                 .ToDictionaryAsync(r => r.Id);
 
@@ -950,7 +966,12 @@ public class StorageTanksController : Controller
             return new MovementContext(
                 source,
                 currentTankName,
-                $"رسید بارگیری #{movement.LoadingReceipt.Id}");
+                $"رسید بارگیری #{movement.LoadingReceipt.Id}",
+                BuildTransportSummary(
+                    loading.TransportType,
+                    loading.Vessel?.Name,
+                    loading.Truck?.PlateNumber,
+                    FirstNonEmptyOrNull(loading.WagonNumber, loading.RwbNo)));
         }
 
         if (movement.SalesTransaction is { } sale)
@@ -991,7 +1012,12 @@ public class StorageTanksController : Controller
             return new MovementContext(
                 source,
                 currentTankName,
-                $"رسید برگشتی دیسپچ #{unloadDispatch.Id}");
+                $"رسید برگشتی دیسپچ #{unloadDispatch.Id}",
+                BuildTransportSummary(
+                    LoadingTransportType.Truck,
+                    vesselName: null,
+                    truckPlateNumber: unloadDispatch.Truck?.PlateNumber,
+                    wagonNumber: null));
         }
 
         if (ParseReferenceId(movement.ReferenceDocument, "TRANSPORT-LEG:") is { } legId
@@ -1000,7 +1026,8 @@ public class StorageTanksController : Controller
             return new MovementContext(
                 BuildTankLocation(leg.SourceTerminal?.Name, StorageTankDisplay.BuildOptional(leg.SourceStorageTank)),
                 ResolveTransportLegDestination(leg),
-                $"انتقال موجودی #{leg.Id}");
+                $"انتقال موجودی #{leg.Id}",
+                BuildTransportLegSummary(leg));
         }
 
         if (ParseReferenceId(movement.ReferenceDocument, "TRANSPORT-RECEIPT:") is { } receiptId
@@ -1013,7 +1040,8 @@ public class StorageTanksController : Controller
             return new MovementContext(
                 source,
                 BuildTankLocation(receipt.DestinationTerminal?.Name, StorageTankDisplay.BuildOptional(receipt.DestinationStorageTank)),
-                $"رسید انتقال #{receipt.Id}");
+                $"رسید انتقال #{receipt.Id}",
+                receipt.InventoryTransportLeg is null ? null : BuildTransportLegSummary(receipt.InventoryTransportLeg));
         }
 
         if ((movement.ReferenceDocument ?? string.Empty).StartsWith("LOSS-", StringComparison.OrdinalIgnoreCase))
@@ -1062,5 +1090,37 @@ public class StorageTanksController : Controller
     private static string FirstNonEmpty(params string?[] values)
         => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "-";
 
-    private sealed record MovementContext(string SourceName, string DestinationName, string Context);
+    private static string? FirstNonEmptyOrNull(params string?[] values)
+        => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+
+    // شماره وسیلهٔ یک پایهٔ انتقال موجودی (واگن ثبت‌شده یا شماره دستی واگن/RWB).
+    private static string? BuildTransportLegSummary(InventoryTransportLeg leg)
+        => BuildTransportSummary(
+            leg.TransportType,
+            leg.Vessel?.Name,
+            leg.Truck?.PlateNumber,
+            FirstNonEmptyOrNull(leg.Wagon?.WagonNumber, leg.WagonNumber, leg.RwbNo));
+
+    // شماره وسیله و نوع آن («واگن: 1234») برای نمایش در ستون «از کجا».
+    private static string? BuildTransportSummary(
+        LoadingTransportType transportType,
+        string? vesselName,
+        string? truckPlateNumber,
+        string? wagonNumber)
+        => transportType switch
+        {
+            LoadingTransportType.Vessel when !string.IsNullOrWhiteSpace(vesselName) => $"کشتی: {vesselName.Trim()}",
+            LoadingTransportType.Wagon when !string.IsNullOrWhiteSpace(wagonNumber) => $"واگن: {wagonNumber.Trim()}",
+            LoadingTransportType.Truck when !string.IsNullOrWhiteSpace(truckPlateNumber) => $"موتر: {truckPlateNumber.Trim()}",
+            _ when !string.IsNullOrWhiteSpace(vesselName) => $"کشتی: {vesselName.Trim()}",
+            _ when !string.IsNullOrWhiteSpace(wagonNumber) => $"واگن: {wagonNumber.Trim()}",
+            _ when !string.IsNullOrWhiteSpace(truckPlateNumber) => $"موتر: {truckPlateNumber.Trim()}",
+            _ => null
+        };
+
+    private sealed record MovementContext(
+        string SourceName,
+        string DestinationName,
+        string Context,
+        string? SourceTransport = null);
 }

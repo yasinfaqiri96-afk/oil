@@ -13,7 +13,7 @@
             <label class="ak-upload">
                 @if (!string.IsNullOrWhiteSpace(Model.PhotoPath))
                 {
-                    <img class="ak-upload-preview" src="@Model.PhotoPath" alt="@Model.FullName" decoding="async" />
+                    <img class="ak-upload-preview" src="@Model.PhotoPath" alt="@Model.FullName" width="48" height="48" loading="lazy" decoding="async" />
                 }
                 <span>@UiText.T(Context, "فایل عکس را اینجا انتخاب کنید", "Choose a photo to upload")</span>
                 <input asp-for="PhotoFile" type="file" accept="image/jpeg,image/png,image/webp" />

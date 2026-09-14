@@ -356,7 +356,17 @@
                                                     <strong class="ak-num">@movement.QuantityMt.ToString("N4")</strong>
                                                     <small>@unitText</small>
                                                 </td>
-                                                <td>@movement.SourceName</td>
+                                                <td>
+                                                    @if (!string.IsNullOrWhiteSpace(movement.SourceTransport))
+                                                    {
+                                                        <span class="ak-name d-block"><bdi>@movement.SourceTransport</bdi></span>
+                                                        <span class="ak-section-desc d-block">@movement.SourceName</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="ak-name d-block">@movement.SourceName</span>
+                                                    }
+                                                </td>
                                                 <td>@movement.DestinationName</td>
                                             </tr>
                                         }

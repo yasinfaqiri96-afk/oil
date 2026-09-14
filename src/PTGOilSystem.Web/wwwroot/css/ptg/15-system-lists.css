@@ -41,7 +41,7 @@ body.ptg-modal-document .ptg-client-pager-info {
     font-weight: 600;
     direction: ltr;
     unicode-bidi: plaintext;
-    font-family: "Poppins", "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
+    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
     font-variant-numeric: tabular-nums;
 }
 

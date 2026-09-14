@@ -27,6 +27,8 @@ public class AuthLoginViewStructureTests
         Assert.Contains("class=\"ptg-login-card\"", view);
         Assert.Contains("class=\"ptg-login-art\"", view);
         Assert.Contains("class=\"ptg-login-panel\"", view);
+        Assert.Contains("aria-labelledby=\"ptg-login-title\"", view);
+        Assert.DoesNotContain("<main class=\"ptg-login-panel\"", view);
         Assert.Contains("class=\"ptg-login-form\"", view);
         Assert.Contains("class=\"ptg-login-submit\"", view);
         Assert.DoesNotContain("<figcaption", view);

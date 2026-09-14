@@ -168,6 +168,8 @@
 .ak-table-wrap {
     width: 100%;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* جدول تک‌ردیفی داخل فرم: اسکرول داخلی ندارد، فقط خودِ صفحه اسکرول می‌شود. */
@@ -1928,6 +1930,33 @@ select.ak-input {
     .ak-form-grid {
         grid-template-columns: minmax(0, 1fr);
         row-gap: 20px;
+    }
+}
+
+/* Touch devices cannot reveal hover-only row actions. Keep the same actions,
+   but expose their existing hit targets and make compact controls tappable. */
+@media (hover: none), (pointer: coarse) {
+    .ak-table tbody tr .ak-row-actions {
+        height: 44px;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(-50%);
+        transition: none;
+    }
+
+    .ak-row-menu-btn,
+    .ak-row-action {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .ak-footer-actions :where(.ak-save, .ak-cancel),
+    .ak-btn,
+    .ak-form-secondary-action {
+        min-height: 44px;
     }
 }
 

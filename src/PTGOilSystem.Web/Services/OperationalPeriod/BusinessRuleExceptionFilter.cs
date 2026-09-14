@@ -68,6 +68,7 @@ public sealed class BusinessRuleExceptionFilter(ILogger<BusinessRuleExceptionFil
     internal static string? Translate(Exception exception) => exception switch
     {
         OperationalPeriodLockedException locked => locked.Message,
+        ContractClosure.ContractClosedException closed => closed.Message,
         DbUpdateConcurrencyException => ConcurrencyMessage,
         DbUpdateException { InnerException: PostgresException } => DatabaseRuleMessage,
         PostgresException => DatabaseRuleMessage,

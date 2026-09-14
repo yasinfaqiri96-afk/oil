@@ -2475,6 +2475,112 @@ public class ApplicationDbContext : DbContext
         ApplyCanonicalSearchKeys();
         NormalizeDateTimePropertiesToUtc();
         EnforceOperationalPeriodLock();
+        EnforceClosedContractLock();
+    }
+
+    /// <summary>
+    /// بستن/بازگشایی قرارداد — فقط <c>ContractClosureService</c> پس از کنترل‌های پیش از بستن
+    /// (یا گرفتن دلیل بازگشایی) آن را روشن می‌کند. دامنه: همین DbContext و همان یک ذخیره.
+    /// </summary>
+    internal bool ContractStatusTransitionApproved { get; set; }
+
+    /// <summary>
+    /// پشتوانهٔ نهاییِ قفلِ قرارداد بسته، هم‌الگوی <see cref="EnforceOperationalPeriodLock"/>:
+    /// هیچ کنترلر، سرویس یا ایمپورتی نمی‌تواند روی قرارداد بسته سند ثبت، ویرایش یا حذف کند،
+    /// و وضعیت «بسته» جز از مسیر سرویس بستن/بازگشایی عوض نمی‌شود.
+    ///
+    /// ردیف‌های تازهٔ خودِ قرارداد (Seed/ایمپورت) و تغییرِ صرفاً فنی (SearchKey، Version، مهر زمان)
+    /// عمداً بیرون از قفل‌اند. تا وقتی ذخیره به قراردادی اشاره نکند، هیچ کوئری‌ای زده نمی‌شود.
+    /// </summary>
+    private void EnforceClosedContractLock()
+    {
+        var referencedContractIds = new HashSet<int>();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            {
+                continue;
+            }
+
+            if (entry.Entity is Contract contract)
+            {
+                if (ContractStatusTransitionApproved || entry.State == EntityState.Added)
+                {
+                    continue;
+                }
+
+                var originalStatus = (ContractStatus)entry.Property(nameof(Contract.Status)).OriginalValue!;
+                if (originalStatus == ContractStatus.Closed
+                    && (entry.State == EntityState.Deleted || Services.ContractClosure.ContractClosureScope.HasBusinessChange(entry)))
+                {
+                    throw new Services.ContractClosure.ContractClosedException(
+                        Services.ContractClosure.ContractClosureScope.BuildLockedMessage(contract.DisplayLabel),
+                        contract.Id);
+                }
+
+                if (entry.State == EntityState.Modified
+                    && originalStatus != ContractStatus.Closed
+                    && contract.Status == ContractStatus.Closed)
+                {
+                    throw new Services.ContractClosure.ContractClosedException(
+                        Services.ContractClosure.ContractClosureScope.DirectStatusChangeMessage,
+                        contract.Id);
+                }
+
+                continue;
+            }
+
+            if (!Services.ContractClosure.ContractClosureScope.Covers(entry.Entity))
+            {
+                continue;
+            }
+
+            if (entry.State == EntityState.Modified
+                && !Services.ContractClosure.ContractClosureScope.HasBusinessChange(entry))
+            {
+                continue;
+            }
+
+            foreach (var propertyName in Services.ContractClosure.ContractClosureScope.ContractKeyProperties)
+            {
+                if (entry.Metadata.FindProperty(propertyName) is null)
+                {
+                    continue;
+                }
+
+                var property = entry.Property(propertyName);
+                if (entry.State != EntityState.Deleted && property.CurrentValue is int currentId && currentId > 0)
+                {
+                    referencedContractIds.Add(currentId);
+                }
+
+                // جابه‌جا کردنِ سند از قرارداد بسته به قرارداد دیگر هم ویرایشِ قرارداد بسته است.
+                if (entry.State != EntityState.Added && property.OriginalValue is int originalId && originalId > 0)
+                {
+                    referencedContractIds.Add(originalId);
+                }
+            }
+        }
+
+        if (referencedContractIds.Count == 0)
+        {
+            return;
+        }
+
+        var closedContract = Contracts
+            .AsNoTracking()
+            .Where(c => referencedContractIds.Contains(c.Id) && c.Status == ContractStatus.Closed)
+            .Select(c => new { c.Id, c.ContractName, c.ContractNumber })
+            .FirstOrDefault();
+
+        if (closedContract is not null)
+        {
+            throw new Services.ContractClosure.ContractClosedException(
+                Services.ContractClosure.ContractClosureScope.BuildLockedMessage(
+                    Contract.BuildDisplayLabel(closedContract.ContractName, closedContract.ContractNumber)),
+                closedContract.Id);
+        }
     }
 
     /// <summary>

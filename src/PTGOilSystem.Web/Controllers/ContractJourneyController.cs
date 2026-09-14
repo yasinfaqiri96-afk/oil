@@ -162,7 +162,10 @@ public partial class ContractJourneyController : Controller
             return NotFound();
         }
 
-        var needsSummaryContext = activeTab == ContractJourneyTabs.Details.Summary || !isTabFragmentRequest;
+        // قرارداد بسته فقط قابل مشاهده است؛ نمای جزئیات از این برای منوی عملیات و نوار اطلاع استفاده می‌کند.
+        ViewData["ContractIsClosed"] = contract.Status == ContractStatus.Closed;
+
+        var needsSummaryContext =activeTab == ContractJourneyTabs.Details.Summary || !isTabFragmentRequest;
         var (hasMixedLoadingPrices, loadingsValueUsd) = needsSummaryContext
             ? await LoadLoadingPriceSpreadAsync(_db, contract.Id)
             : (false, 0m);
