@@ -1,0 +1,76 @@
+/*
+ * IRANSans 5.5 (web, Latin numerals) — the Persian/Dari face of the system.
+ *
+ * Same family the Chortke accounting panel serves; the licensed copy ships with
+ * the project's own IRANSansX Pro package (LICENSE-IRANSans-5.5.pdf next to this
+ * file). The non-FaNum cut is used on purpose, so digits stay Latin exactly as
+ * they were under Vazirmatn.
+ *
+ * Weight mapping — IRANSans 5.5 has no DemiBold (600) and no ExtraBold (800),
+ * so the two gaps are folded into the neighbouring real weight rather than left
+ * to the browser (which would jump 600 straight to Bold and turn most of the UI
+ * heavy). Ranges keep the scale monotonic and every step on real glyphs:
+ *
+ *     100–250  UltraLight
+ *     300      Light
+ *     400      Regular
+ *     500–600  Medium      (the design system's 500 and 600 land here)
+ *     700–800  Bold        (its 700 and 800 land here)
+ *     900      Black
+ *
+ * Vazirmatn stays loaded as the fallback in every font stack.
+ */
+
+@font-face {
+    font-family: "IRANSans";
+    font-style: normal;
+    font-weight: 100 250;
+    font-display: swap;
+    src: url("./files/iransans-200.woff2") format("woff2"),
+         url("./files/iransans-200.woff") format("woff");
+}
+
+@font-face {
+    font-family: "IRANSans";
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url("./files/iransans-300.woff2") format("woff2"),
+         url("./files/iransans-300.woff") format("woff");
+}
+
+@font-face {
+    font-family: "IRANSans";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("./files/iransans-400.woff2") format("woff2"),
+         url("./files/iransans-400.woff") format("woff");
+}
+
+@font-face {
+    font-family: "IRANSans";
+    font-style: normal;
+    font-weight: 500 600;
+    font-display: swap;
+    src: url("./files/iransans-500.woff2") format("woff2"),
+         url("./files/iransans-500.woff") format("woff");
+}
+
+@font-face {
+    font-family: "IRANSans";
+    font-style: normal;
+    font-weight: 700 800;
+    font-display: swap;
+    src: url("./files/iransans-700.woff2") format("woff2"),
+         url("./files/iransans-700.woff") format("woff");
+}
+
+@font-face {
+    font-family: "IRANSans";
+    font-style: normal;
+    font-weight: 900;
+    font-display: swap;
+    src: url("./files/iransans-900.woff2") format("woff2"),
+         url("./files/iransans-900.woff") format("woff");
+}

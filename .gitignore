@@ -240,9 +240,9 @@ graphify-out/
 /*_ Free Photo_files/
 
 # Commercial Persian font packs (raw vendor dumps, ~20MB, not referenced by any CSS/View).
+# The iransans/ webfont subset IS tracked: site.css and the PTG token layer load it.
 /src/PTGOilSystem.Web/wwwroot/vendor/fonts/IranSansX Pro/
 /src/PTGOilSystem.Web/wwwroot/vendor/fonts/AIranianSans/
-/src/PTGOilSystem.Web/wwwroot/vendor/fonts/iransans/
 /src/PTGOilSystem.Web/wwwroot/vendor/fonts/*.zip
 
 # Runtime user uploads (real business documents, not source).
