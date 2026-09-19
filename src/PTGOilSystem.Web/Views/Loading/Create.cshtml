@@ -1,4 +1,4 @@
-@using Microsoft.AspNetCore.Mvc.Rendering
+﻿@using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Loading
 @using PTGOilSystem.Web.Models.ExcelImport
@@ -241,8 +241,6 @@
         </section>
 
         <section class="ak-form-section" aria-label="سطرهای بارگیری">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@(("سطرهای بارگیری", (string?)"برای هر وسیله یا سند حمل یک ردیف ثبت کنید."))" />
             <div class="lic-table-toolbar" data-lic-toolbar>
                 <div class="lic-toolbar-counts">
                     <span>کل ردیف‌ها: <strong data-lic-count-total>0</strong></span>

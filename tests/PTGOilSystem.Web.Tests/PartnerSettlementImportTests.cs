@@ -404,10 +404,17 @@ public sealed class PartnerSettlementImportTests
                 return candidate;
             }
 
+            // فایل مرجع به docs/exel منتقل شده است؛ همان‌جا هم جست‌وجو می‌شود.
+            var docsCandidate = Path.Combine(directory.FullName, "docs", "exel", "Payment.xlsx");
+            if (File.Exists(docsCandidate))
+            {
+                return docsCandidate;
+            }
+
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException("Payment.xlsx در ریشهٔ مخزن پیدا نشد.");
+        throw new FileNotFoundException("Payment.xlsx نه در ریشهٔ مخزن پیدا شد و نه در docs/exel.");
     }
 
     private static IReadOnlyList<PlannedSettlement> PlanFor(IReadOnlyList<SettlementSourceRow> rows)

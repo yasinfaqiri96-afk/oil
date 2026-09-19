@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Diagnostics;
+using PTGOilSystem.Web.Infrastructure.Api;
 using PTGOilSystem.Web.Infrastructure.ModelBinding;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Middleware;
@@ -379,7 +380,8 @@ builder.Services.AddRateLimiter(options =>
 
     options.OnRejected = async (context, cancellationToken) =>
     {
-        var isLoginRequest = context.HttpContext.Request.Path.StartsWithSegments("/Auth/Login");
+        var isLoginRequest = context.HttpContext.Request.Path.StartsWithSegments("/Auth/Login")
+            || context.HttpContext.Request.Path.StartsWithSegments("/api/mobile/v1/auth/login");
         if (isLoginRequest)
         {
             context.HttpContext.Response.Headers.CacheControl = "no-store, no-cache";
@@ -424,6 +426,17 @@ builder.Services.AddRateLimiter(options =>
                 ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        // API موبایل پاسخ ProblemDetails می‌گیرد؛ متن ساده فقط برای صفحات وب می‌ماند.
+        if (ApiRequest.IsApi(context.HttpContext))
+        {
+            await ApiProblem.WriteAsync(
+                context.HttpContext,
+                StatusCodes.Status429TooManyRequests,
+                ApiErrorCodes.RateLimited,
+                ApiProblem.RateLimitedMessage);
+            return;
+        }
+
         context.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
         await context.HttpContext.Response.WriteAsync(
             isLoginRequest
@@ -445,32 +458,10 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
-    {
-        options.Cookie.Name = "PTGOilSystem.Auth";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.LoginPath = "/Auth/Login";
-        options.AccessDeniedPath = "/Auth/AccessDenied";
-        options.SlidingExpiration = true;
-        options.ExpireTimeSpan = TimeSpan.FromHours(12);
-    });
-
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy(AuthPolicies.ManageData,
-        policy => policy.RequireAssertion(context => RoleAccessRules.CanManageData(context.User)));
-    options.AddPolicy(AuthPolicies.AdminOnly,
-        policy => policy.RequireAssertion(context => RoleAccessRules.CanManageUsers(context.User)));
-    // پشتیبان‌گیری بالاترین سطح است: مدیریت کاربران به‌تنهایی کافی نیست.
-    options.AddPolicy(AuthPolicies.BackupAdmin,
-        policy => policy.RequireAssertion(context => RoleAccessRules.CanManageBackups(context.User)));
-    // بستن دورهٔ مالی گزارش‌های امضاشدهٔ گذشته را قفل می‌کند؛ همان سطحِ پشتیبان‌گیری.
-    options.AddPolicy(AuthPolicies.OperationalPeriodAdmin,
-        policy => policy.RequireAssertion(context => RoleAccessRules.CanManageOperationalPeriodLock(context.User)));
-});
+// کوکی وب (همان تنظیمات قبلی، طرح پیش‌فرض) + JWT Bearer فقط برای /api/mobile.
+// تنظیمات کامل و سیاست‌ها: Security/AuthenticationSetup.cs
+builder.Services.AddPtgAuthentication(builder.Configuration, builder.Environment);
+builder.Services.AddPtgMobileApi();
 
 // ---- MVC --------------------------------------------------------------------
 builder.Services.AddControllersWithViews(options =>
@@ -604,6 +595,8 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// فقط /api: خطا و پاسخ خالیِ 401/403/404 به ProblemDetails؛ صفحات وب دست نمی‌خورند.
+app.UseMiddleware<ApiErrorMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
 // پس از UseAuthentication تا تفکیک بر اساس کاربر واردشده انجام شود، نه فقط IP.

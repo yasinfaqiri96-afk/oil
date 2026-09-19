@@ -95,12 +95,7 @@ html.ptg-vt-active {
     --ptg-motion-enter: 0s;
     --ptg-motion-step: 0s;
     --ptg-motion-rise: 0px;
-}
-
-/* ── 3) تغییر تب / پنل جزئیات (ptg-tabs.js همزمان به پنل و عناصر
-       data-ak-tab می‌دهد تا همهٔ بخش‌های تب با هم ظاهر شوند) ─────────────── */
-.ptg-tab-enter,
-.ptg-panel-enter {
+}.ptg-tab-enter{
     animation: ptg-fade-in var(--ptg-motion-base) var(--ptg-motion-ease);
 }
 
@@ -150,14 +145,7 @@ body.boltz-shell .dropdown-menu.show {
 @media (prefers-reduced-motion: no-preference) {
 
     /* ── 7-a) سربرگ، نوار ابزار و نوار خلاصهٔ صفحه ──────────────────────── */
-    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
-        .ak-page-header,
-        .ak-page-title,
-        .ak-list-toolbar,
-        .ak-detail-toolbar,
-        .ak-reports-header,
-        .summary-strip
-    ) {
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(.ak-page-header, .ak-page-title, .ak-list-toolbar, .ak-detail-toolbar, .summary-strip) {
         animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
@@ -187,12 +175,7 @@ body.boltz-shell .dropdown-menu.show {
     }
 
     /* ── 7-c) کارت‌ها و بخش‌های اطلاعاتی ────────────────────────────────── */
-    body.boltz-shell.app-shell-authenticated main.boltz-content :is(
-        .dash-card,
-        .ak-detail-section,
-        .ak-hub-tile,
-        .ak-report-row
-    ) {
+    body.boltz-shell.app-shell-authenticated main.boltz-content :is(.dash-card, .ak-detail-section, .ak-hub-tile) {
         animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease) backwards;
     }
 
@@ -325,12 +308,10 @@ body.boltz-shell .dropdown-menu.show {
 }
 
 /* ── 6) کاهش حرکت (تنظیمات سیستم کاربر) ─────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-    body.boltz-shell.app-shell-authenticated main.boltz-content,
+@media (prefers-reduced-motion: reduce) {body.boltz-shell.app-shell-authenticated main.boltz-content,
     main.boltz-content.ptg-page-reveal,
     .ptg-tab-enter,
-    .ptg-panel-enter,
-    body.boltz-shell .dropdown-menu.show {
+    body.boltz-shell .dropdown-menu.show{
         animation: none !important;
     }
 

@@ -6,10 +6,6 @@
     body.boltz-shell.app-shell-authenticated .boltz-content {
         padding-inline: 0;
     }
-
-    body.boltz-shell.app-shell-authenticated .boltz-content :where(.ptg-split-layout, .split-layout, .loading-reference-layout, .operations-split-layout) {
-        grid-template-columns: 1fr;
-    }
 }
 
 @media (max-width: 991.98px) {
@@ -18,7 +14,7 @@
     }
 
     body.boltz-shell.app-shell-authenticated .ptg-sidebar {
-        bottom: 0 !important;
+        bottom: 0;
     }
 
     /*
@@ -26,9 +22,9 @@
      * properties put the RTL drawer on the left and leave part of it visible.
      */
     body.boltz-shell.app-shell-authenticated.boltz-rtl .ptg-sidebar {
-        right: 0 !important;
-        left: auto !important;
-        transform: translateX(100%) !important;
+        right: 0;
+        left: auto;
+        transform: translateX(100%);
     }
 
     body.boltz-shell.app-shell-authenticated.boltz-ltr .ptg-sidebar {
@@ -42,10 +38,10 @@
     }
 
     body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-scroll {
-        height: 100% !important;
+        height: 100%;
     }
 
-    body.boltz-shell.app-shell-authenticated .boltz-content :where(.summary-strip, .ptg-summary-strip, .ds-detail-facts) {
+    body.boltz-shell.app-shell-authenticated .boltz-content :where(.summary-strip, .ptg-summary-strip) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
@@ -77,11 +73,11 @@
         --bs-gutter-y: .85rem;
     }
 
-    body.boltz-shell.app-shell-authenticated .boltz-content :where(.summary-strip, .ptg-summary-strip, .ds-detail-facts) {
+    body.boltz-shell.app-shell-authenticated .boltz-content :where(.summary-strip, .ptg-summary-strip) {
         grid-template-columns: 1fr;
     }
 
-    body.boltz-shell.app-shell-authenticated :where(.card-footer, .form-actions, .ptg-action-bar, .modal-footer) {
+    body.boltz-shell.app-shell-authenticated :where(.form-actions, .modal-footer) {
         flex-wrap: wrap;
     }
 }

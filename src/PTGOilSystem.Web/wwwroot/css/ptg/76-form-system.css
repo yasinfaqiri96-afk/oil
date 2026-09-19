@@ -1,0 +1,981 @@
+/* =====================================================================
+   76-form-system.css — THE form design system of the whole application.
+
+   Reference: Payments/Create + Payments/Edit («ثبت دریافت / پرداخت»).
+   Every value in this file was the page-scoped skin of that one form
+   (formerly `.finance-entry-chortke #roznamchaForm …` in
+   61-finance-workspace.css). It is promoted here unchanged and
+   re-scoped to the universal Create/Edit shape:
+
+       .ak-form-page  >  form.ak-form
+
+   so every form in the system renders from one set of rules instead of
+   each page re-styling the same primitives. The numbers live in
+   01-tokens.css as `--chk-*`; nothing here hard-codes a colour.
+
+   Loads after every ak-/page layer, so it has the last word on form
+   primitives. Rules deleted when this file was introduced:
+     - the whole Chortke block of 61-finance-workspace.css
+     - the old 860px column, 2-column grid, 52px section rhythm,
+       hidden section heads, 84px submit and text-link cancel of
+       50-ak-components.css
+   Detail/Index pages also use .ak-form-page but carry no form.ak-form,
+   so `:has(> form.ak-form)` keeps them out of this layer entirely.
+   ===================================================================== */
+
+/* ---- Page column + working surface --------------------------------
+   Width comes from --ak-form-content-max (01-tokens.css → 1080px), so the
+   contexts that need a different canvas — modals, the page frame, the two
+   workbook pages — keep overriding that one token as they always did.
+   There is no second «wide» width any more: one form width, one design. */
+
+.ak-form-page:has(> form.ak-form),
+.ak-form-page:has(> .ak-form-page-content) {
+    inline-size: 100%;
+    padding-inline: 0;
+}
+
+.ak-form-page-content {
+    display: block;
+}
+
+.ak-form-page:has(> form.ak-form) > .ak-page-header,
+.ak-form-page:has(> form.ak-form) > form.ak-form,
+.ak-form-page-content {
+    inline-size: min(100%, var(--ak-form-content-max));
+    max-inline-size: 100%;
+    margin-inline: auto;
+}
+
+.ak-form-page:has(> form.ak-form) > .ak-page-header,
+.ak-form-page-content > .ak-page-header {
+    margin-block-end: 12px;
+    padding-block-end: 0;
+    border-block-end: 0;
+}
+
+.ak-form-page:has(> form.ak-form) > .ak-page-header .ak-page-title,
+.ak-form-page-content > .ak-page-header .ak-page-title {
+    color: var(--chk-title);
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+/* One flat surface per form — the system has no nested cards. */
+form.ak-form {
+    display: block;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    padding: var(--chk-surface-pad);
+    border: 0;
+    border-radius: var(--chk-radius-surface);
+    background: var(--chk-surface);
+    color: var(--chk-text);
+    font-family: var(--chk-font);
+}
+
+form.ak-form button,
+form.ak-form input,
+form.ak-form select,
+form.ak-form textarea {
+    font-family: inherit;
+}
+
+/* Inside a dialog the dialog IS the surface — a second white card within it
+   would only double the padding and the rounding. */
+body.ptg-modal-document form.ak-form,
+.ptg-modal-body-shell form.ak-form,
+.modal form.ak-form {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+/* ---- Section rhythm: whitespace + one hairline, no cards ----------- */
+
+form.ak-form .ak-form-section,
+form.ak-form .fte-section,
+form.ak-form .ak-form-group {
+    min-width: 0;
+    margin: 0 0 var(--chk-section-gap);
+    padding: 0;
+    border: 0;
+}
+
+form.ak-form .ak-form-section + .ak-form-section,
+form.ak-form .fte-section + .fte-section,
+form.ak-form .ak-form-group + .ak-form-group {
+    padding-block-start: var(--chk-section-gap);
+    border-block-start: 1px solid var(--chk-border-soft);
+}
+
+form.ak-form > *:last-child,
+form.ak-form .ak-form-section:last-child,
+form.ak-form .fte-section:last-of-type {
+    margin-block-end: 0;
+}
+
+/* Section titles are part of the system — every form shows them. */
+form.ak-form .ak-section-head {
+    display: block;
+    margin: 0 0 14px;
+    padding: 0;
+    border: 0;
+}
+
+form.ak-form .fte-section-title,
+form.ak-form .ak-form-group-title,
+form.ak-form .ak-section-title {
+    margin: 0 0 14px;
+    color: var(--chk-title);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 25px;
+}
+
+form.ak-form .ak-section-head > .ak-section-title {
+    margin: 0;
+}
+
+form.ak-form .ak-section-desc {
+    margin: 4px 0 0;
+    color: var(--chk-text-secondary);
+    font-size: 12px;
+    line-height: 1.75;
+}
+
+/* ---- Content-aware 12-column grid --------------------------------- */
+
+form.ak-form .ak-form-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--chk-col-gap);
+    row-gap: var(--chk-row-gap);
+    align-items: start;
+}
+
+/* Flatten redundant Razor wrappers so fields use the full parent grid. */
+form.ak-form .ak-form-grid > .ak-form-grid {
+    display: contents;
+}
+
+form.ak-form .ak-form-grid .ak-field,
+form.ak-form .ak-form-grid .ak-toggle-field,
+form.ak-form .ak-form-grid > label {
+    grid-column: span 4;
+}
+form.ak-form .fec-span-3 { grid-column: span 3; }
+form.ak-form .fec-span-4 { grid-column: span 4; }
+form.ak-form .fec-span-5 { grid-column: span 5; }
+form.ak-form .fec-span-6 { grid-column: span 6; }
+form.ak-form .fec-span-8 { grid-column: span 8; }
+
+form.ak-form .ak-form-grid .ak-form-full,
+form.ak-form .ak-form-grid .ak-col-full {
+    grid-column: 1 / -1;
+}
+
+/* Opt-in densities keep working on the same 12-column canvas. */
+form.ak-form .ak-form-grid--3 > .ak-field,
+form.ak-form .ak-form-grid--3 > label { grid-column: span 4; }
+form.ak-form .ak-form-grid--4 > .ak-field,
+form.ak-form .ak-form-grid--4 > label { grid-column: span 3; }
+form.ak-form .ak-form-grid--6 > .ak-field,
+form.ak-form .ak-form-grid--6 > label { grid-column: span 2; }
+
+form.ak-form .ak-form-grid--5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+form.ak-form .ak-form-grid--5 > .ak-field,
+form.ak-form .ak-form-grid--5 > .ak-toggle-field,
+form.ak-form .ak-form-grid--5 > label {
+    grid-column: span 1;
+}
+
+/* ---- Label + control ---------------------------------------------- */
+
+form.ak-form .ak-field,
+form.ak-form .ak-form-grid > label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+form.ak-form .ak-label,
+form.ak-form .ak-form-grid > label > span:first-child {
+    display: block;
+    min-height: 20px;
+    margin: 0;
+    color: var(--chk-label);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+form.ak-form .ak-label > i {
+    color: var(--chk-text-secondary);
+    font-size: 16px;
+    font-weight: 400;
+}
+
+form.ak-form .ak-label .ak-req {
+    margin-inline-start: 2px;
+    color: var(--chk-danger);
+}
+
+form.ak-form .ak-input {
+    width: 100%;
+    height: var(--chk-control-h);
+    min-height: var(--chk-control-h);
+    padding-inline: 10px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-surface);
+    color: var(--chk-text);
+    box-shadow: none;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: border-color 150ms ease;
+}
+
+form.ak-form .ak-input:hover:not(:focus):not(:disabled) {
+    border-color: var(--chk-border-strong);
+}
+
+form.ak-form .ak-input:focus,
+form.ak-form .ak-input:focus-visible {
+    border-color: var(--chk-primary);
+    outline: none;
+    box-shadow: none;
+}
+
+form.ak-form .ak-input:disabled,
+form.ak-form .ak-input.is-readonly {
+    border-color: var(--chk-border);
+    background: var(--chk-disabled-bg);
+    color: var(--chk-text-muted);
+    opacity: .7;
+}
+
+form.ak-form select.ak-input {
+    cursor: pointer;
+}
+
+form.ak-form textarea.ak-input {
+    height: 88px;
+    min-height: 88px;
+    padding-block: 9px;
+    line-height: 1.85;
+    resize: vertical;
+}
+
+form.ak-form .ak-input::placeholder {
+    color: var(--chk-text-muted);
+}
+
+form.ak-form .form-text,
+form.ak-form small.text-muted,
+form.ak-form .field-note {
+    color: var(--chk-text-secondary);
+    font-size: 12px;
+    line-height: 1.75;
+}
+
+form.ak-form .field-validation-error,
+form.ak-form .ak-field-error {
+    color: var(--chk-danger);
+    font-size: 12px;
+    line-height: 1.75;
+}
+
+form.ak-form .ak-input.input-validation-error {
+    border-color: var(--chk-danger);
+}
+
+/* ---- Notes / alerts ----------------------------------------------- */
+
+form.ak-form .ak-note {
+    margin: 0;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-primary-light);
+    color: var(--chk-text);
+    font-size: 14px;
+    line-height: 1.85;
+}
+
+form.ak-form .ak-note i {
+    color: var(--chk-primary);
+    font-size: 16px;
+}
+
+form.ak-form .ak-note strong {
+    color: var(--chk-title);
+    font-weight: 600;
+}
+
+form.ak-form .ak-form-alert {
+    margin-block: 0 var(--chk-section-gap);
+    padding: 10px 12px;
+    border: 0;
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-danger-light);
+    color: var(--chk-danger);
+    font-size: 14px;
+    line-height: 1.85;
+}
+
+form.ak-form .ak-form-alert:empty,
+form.ak-form .ak-form-alert.validation-summary-valid {
+    display: none;
+}
+
+form.ak-form .ak-form-section > .ak-note,
+form.ak-form .fte-section > .ak-note,
+form.ak-form fieldset > .ak-note {
+    margin-block: var(--chk-row-gap) 0;
+}
+
+/* ---- Switches / checkbox tiles ------------------------------------ */
+
+form.ak-form .ak-toggle-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: var(--chk-control-h);
+    padding: 6px 10px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-surface);
+    color: var(--chk-text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+form.ak-form .ak-toggle-field .form-check-label {
+    color: var(--chk-text);
+    font-size: 14px;
+    font-weight: 400;
+}
+
+form.ak-form .form-switch .form-check-input {
+    width: 32px;
+    height: 18px;
+    margin-block-start: 0;
+    border-color: var(--chk-border);
+}
+
+form.ak-form .form-switch .form-check-input:checked {
+    border-color: var(--chk-primary);
+    background-color: var(--chk-primary);
+}
+
+form.ak-form .form-switch .form-check-input:focus {
+    border-color: var(--chk-primary);
+    box-shadow: none;
+}
+
+/* ---- Segmented control (two-way document switch) ------------------ */
+
+form.ak-form .journal-direction-segmented {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    width: min(100%, 320px);
+    height: 37px;
+    min-height: 37px;
+    margin: 0 0 20px;
+    padding: 4px;
+    overflow: visible;
+    border: 0;
+    border-radius: 6px;
+    background: var(--chk-rail);
+}
+
+form.ak-form .journal-direction-segmented .ptg-tab-item {
+    justify-content: center;
+    gap: 6px;
+    height: 29px;
+    min-height: 29px;
+    margin: 0;
+    padding: 2px 20px;
+    border: 0;
+    border-radius: 4px;
+    color: var(--chk-text-muted);
+    background: transparent;
+    font-size: 14px;
+    font-weight: 400;
+    transition: color .15s ease, background-color .15s ease;
+}
+
+form.ak-form .journal-direction-segmented .ptg-tab-item::after {
+    display: none;
+}
+
+form.ak-form .journal-direction-segmented .ptg-tab-item:hover {
+    color: var(--chk-text-secondary);
+    background: transparent;
+}
+
+/* Active side is a white chip; the semantic colour lives in the text only. */
+form.ak-form .journal-direction-segmented .ptg-tab-item.is-active {
+    background: var(--chk-surface);
+    font-weight: 600;
+}
+
+form.ak-form .journal-direction-segmented [data-direction-value="1"].is-active {
+    color: var(--chk-success);
+}
+
+form.ak-form .journal-direction-segmented [data-direction-value="2"].is-active {
+    color: var(--chk-danger);
+}
+
+/* ---- Choice chips: mode bar + any in-form option group ------------ */
+
+form.ak-form .journal-mode-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+    margin: 0 0 var(--chk-section-gap);
+    padding: 0;
+    border: 0;
+}
+
+form.ak-form .journal-mode-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+form.ak-form .journal-mode-label {
+    color: var(--chk-label);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+form.ak-form .journal-mode-rail,
+form.ak-form .journal-funding-choices,
+form.ak-form div.ptg-tabs-rail[role="group"]:not(.journal-direction-segmented) {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: fit-content;
+    max-width: 100%;
+    min-height: var(--chk-compact-h);
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+form.ak-form .journal-mode-rail .ptg-tab-item,
+form.ak-form div.ptg-tabs-rail[role="group"]:not(.journal-direction-segmented) .ptg-tab-item,
+form.ak-form .journal-funding-choices .form-check-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: var(--chk-compact-h);
+    margin: 0;
+    padding: 4px 14px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-control);
+    color: var(--chk-text-secondary);
+    background: var(--chk-surface);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 400;
+    white-space: nowrap;
+    transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+}
+
+form.ak-form .journal-mode-rail .ptg-tab-item::after,
+form.ak-form div.ptg-tabs-rail[role="group"] .ptg-tab-item::after {
+    display: none;
+}
+
+form.ak-form .journal-mode-rail .ptg-tab-item:hover,
+form.ak-form div.ptg-tabs-rail[role="group"]:not(.journal-direction-segmented) .ptg-tab-item:hover,
+form.ak-form .journal-funding-choices .form-check-label:hover {
+    border-color: var(--chk-border-strong);
+    color: var(--chk-text);
+    background: var(--chk-surface);
+}
+
+form.ak-form .journal-mode-rail .ptg-tab-item.is-active,
+form.ak-form div.ptg-tabs-rail[role="group"]:not(.journal-direction-segmented) .ptg-tab-item.is-active,
+form.ak-form .journal-funding-choices .form-check-input:checked + .form-check-label {
+    border-color: var(--chk-primary);
+    color: var(--chk-primary);
+    background: var(--chk-primary-light);
+    font-weight: 600;
+}
+
+/* Radio-backed chips keep their inputs (and their binding); only the chrome changes. */
+form.ak-form .journal-funding-choices .form-check {
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+form.ak-form .journal-funding-choices .form-check-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+form.ak-form .journal-funding-choices .form-check-input:focus-visible + .form-check-label {
+    outline: 2px solid var(--chk-primary);
+    outline-offset: 2px;
+}
+
+form.ak-form .journal-funding-choices .form-check-input:disabled + .form-check-label {
+    cursor: default;
+    background: var(--chk-disabled-bg);
+    color: var(--chk-text-muted);
+    opacity: .7;
+}
+
+/* Single-choice tiles (delivery mode, loss capture, contract allocation):
+   selectable options on the field grid, never oversized cards. */
+form.ak-form .ak-choice-grid,
+form.ak-form [data-sarraf-alloc-section] > .ptg-tabs-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--chk-col-gap);
+    width: 100%;
+    margin: 0 0 var(--chk-row-gap);
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+}
+
+form.ak-form .ak-choice-grid--compact {
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, max-content));
+}
+
+form.ak-form [data-sarraf-alloc-section] > .ptg-tabs-rail .ptg-tab-item,
+form.ak-form .ak-choice-grid > label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: var(--chk-control-h);
+    margin: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-control);
+    color: var(--chk-text-secondary);
+    background: var(--chk-surface);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 400;
+    white-space: normal;
+    text-align: start;
+}
+
+form.ak-form [data-sarraf-alloc-section] > .ptg-tabs-rail .ptg-tab-item::after {
+    display: none;
+}
+
+form.ak-form [data-sarraf-alloc-section] > .ptg-tabs-rail .ptg-tab-item:hover,
+form.ak-form .ak-choice-grid > label:hover {
+    border-color: var(--chk-border-strong);
+    color: var(--chk-text);
+    background: var(--chk-surface);
+}
+
+form.ak-form [data-sarraf-alloc-section] > .ptg-tabs-rail .ptg-tab-item.is-active,
+form.ak-form .ak-choice-grid > label:has(input:checked) {
+    border-color: var(--chk-primary);
+    color: var(--chk-primary);
+    background: var(--chk-primary-light);
+    font-weight: 600;
+}
+
+/* ---- Progressive disclosure --------------------------------------- */
+
+form.ak-form .journal-more-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 var(--chk-section-gap);
+    padding: 0;
+    border: 0;
+    color: var(--chk-primary);
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+form.ak-form .journal-more-toggle i {
+    font-size: 14px;
+}
+
+form.ak-form .journal-more-toggle:hover,
+form.ak-form .journal-more-toggle:focus-visible {
+    color: var(--chk-primary-hover);
+    text-decoration: underline;
+}
+
+form.ak-form .journal-more-panel {
+    margin-block-end: var(--chk-section-gap);
+    padding-block-start: var(--chk-section-gap);
+    border-block-start: 1px solid var(--chk-border-soft);
+}
+
+form.ak-form .journal-more-panel > .ak-form-section:last-child {
+    margin-block-end: 0;
+}
+
+/* ---- Party balance strip ------------------------------------------ */
+
+form.ak-form .journal-party-balance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    margin-block: var(--chk-row-gap) 0;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-surface-soft);
+}
+
+form.ak-form .journal-party-balance .jpb-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+form.ak-form .journal-party-balance .jpb-icon,
+form.ak-form .journal-party-balance .jpb-caption {
+    color: var(--chk-text-secondary);
+    font-size: 12px;
+}
+
+form.ak-form .journal-party-balance .jpb-name {
+    overflow: hidden;
+    color: var(--chk-text);
+    font-size: 14px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+form.ak-form .journal-party-balance .jpb-state {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+form.ak-form .journal-party-balance .jpb-amount {
+    direction: ltr;
+    unicode-bidi: isolate;
+    color: var(--chk-title);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+form.ak-form .journal-party-balance .jpb-label {
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--chk-surface);
+    color: var(--chk-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+form.ak-form .journal-party-balance.is-positive .jpb-amount {
+    color: var(--chk-success);
+}
+
+form.ak-form .journal-party-balance.is-positive .jpb-label {
+    background: var(--chk-success-light);
+    color: var(--chk-success);
+}
+
+form.ak-form .journal-party-balance.is-negative .jpb-amount {
+    color: var(--chk-danger);
+}
+
+form.ak-form .journal-party-balance.is-negative .jpb-label {
+    background: var(--chk-danger-light);
+    color: var(--chk-danger);
+}
+
+/* ---- Sarraf route (same primitives, page-specific markup) --------- */
+
+form.ak-form .journal-sarraf-section > .ak-form-section {
+    margin-block-end: var(--chk-section-gap);
+}
+
+form.ak-form .journal-sarraf-section > .ak-form-section + .ak-form-section {
+    padding-block-start: var(--chk-section-gap);
+    border-block-start: 1px solid var(--chk-border-soft);
+}
+
+form.ak-form .journal-sarraf-primary-section > .ptg-tabs-rail {
+    margin-block-end: 14px;
+}
+
+/* Keep amounts, rates and previews directly under their RTL labels. */
+form.ak-form .journal-sarraf-primary-section input.ak-num,
+form.ak-form .journal-sarraf-primary-section #sarrafCurrency,
+form.ak-form [data-sarraf-summary] .ak-field > .ak-num,
+form.ak-form [data-sarraf-summary] .ak-field > .text-muted {
+    width: 100%;
+    text-align: right;
+}
+
+form.ak-form [data-sarraf-summary] .ak-field > .ak-num {
+    color: var(--chk-title);
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Inline switch-headed section (commission pattern) ------------ */
+
+form.ak-form .journal-commission-section {
+    margin: 0 0 var(--chk-section-gap);
+    padding: 0;
+    border-block: 1px solid var(--chk-border-soft);
+    border-inline: 0;
+}
+
+form.ak-form .journal-commission-head {
+    min-height: 48px;
+    padding-block: 8px;
+}
+
+form.ak-form .journal-commission-head .ak-form-group-title {
+    margin: 0;
+}
+
+form.ak-form .journal-commission-body {
+    margin-block-start: 0;
+    padding-block: 16px;
+    border-block-start: 1px solid var(--chk-border-soft);
+}
+
+form.ak-form .journal-commission-body > [data-commission-summary],
+form.ak-form .journal-commission-body > [data-commission-sarraf-note] {
+    grid-column: 1 / -1;
+    margin-block-start: 0;
+}
+
+/* ---- Live summary + action footer --------------------------------- */
+
+form.ak-form .journal-summary,
+form.ak-form .ak-form-live-summary {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-radius: var(--chk-radius-control);
+    background: var(--chk-surface-soft);
+    color: var(--chk-text);
+    font-size: 14px;
+    line-height: 1.85;
+}
+
+form.ak-form .journal-summary.is-incomplete {
+    color: var(--chk-text-secondary);
+}
+
+form.ak-form .journal-summary:empty,
+form.ak-form .journal-summary[hidden] {
+    display: none;
+}
+
+form.ak-form .ak-footer-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    min-height: 70px;
+    margin: 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--chk-border-soft);
+    background: var(--chk-surface);
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+form.ak-form .journal-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+form.ak-form .ak-footer-actions .ak-save {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: auto;
+    min-width: 160px;
+    min-height: var(--chk-button-h);
+    padding: 12px 24px;
+    border: 0;
+    border-radius: var(--chk-radius-surface);
+    background: var(--chk-primary);
+    color: var(--ptg-field-bg);
+    box-shadow: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+form.ak-form .ak-footer-actions .ak-save:hover,
+form.ak-form .ak-footer-actions .ak-save:focus-visible {
+    background: var(--chk-primary-hover);
+    color: var(--ptg-field-bg);
+}
+
+form.ak-form .ak-footer-actions .ak-cancel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--chk-button-h);
+    padding: 12px 20px;
+    border: 1px solid var(--chk-border);
+    border-radius: var(--chk-radius-surface);
+    color: var(--chk-text-secondary);
+    background: var(--chk-surface);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 400;
+    text-decoration: none;
+}
+
+form.ak-form .ak-footer-actions .ak-cancel:hover,
+form.ak-form .ak-footer-actions .ak-cancel:focus-visible {
+    border-color: var(--chk-border-strong);
+    color: var(--chk-text);
+    background: var(--chk-surface);
+}
+
+/* ---- Forms that carry a line-item table --------------------------- */
+
+form.ak-form .ak-table-wrap,
+form.ak-form .ak-table {
+    max-width: 100%;
+}
+
+form.ak-form .ak-table .ak-input {
+    height: var(--chk-compact-h);
+    min-height: var(--chk-compact-h);
+}
+
+/* ---- Responsive --------------------------------------------------- */
+
+@media (max-width: 991.98px) {
+    form.ak-form .ak-form-grid .ak-field,
+    form.ak-form .ak-form-grid .ak-toggle-field,
+    form.ak-form .ak-form-grid > label,
+    form.ak-form .fec-span-1,
+    form.ak-form .fec-span-2,
+    form.ak-form .fec-span-3,
+    form.ak-form .fec-span-4,
+    form.ak-form .fec-span-5,
+    form.ak-form .fec-span-6,
+    form.ak-form .fec-span-7,
+    form.ak-form .fec-span-8,
+    form.ak-form .ak-form-grid--3 > .ak-field,
+    form.ak-form .ak-form-grid--4 > .ak-field,
+    form.ak-form .ak-form-grid--6 > .ak-field {
+        grid-column: span 6;
+    }
+
+    form.ak-form .ak-form-grid--5 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    form.ak-form {
+        padding: 16px;
+    }
+
+    form.ak-form .ak-footer-actions {
+        position: static;
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    form.ak-form .journal-action-buttons {
+        align-items: stretch;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    form.ak-form .ak-footer-actions .ak-save,
+    form.ak-form .ak-footer-actions .ak-cancel {
+        width: 100%;
+    }
+
+    form.ak-form .ak-choice-grid,
+    form.ak-form [data-sarraf-alloc-section] > .ptg-tabs-rail {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    form.ak-form .journal-party-balance {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 575.98px) {
+    form.ak-form .ak-form-grid .ak-field,
+    form.ak-form .ak-form-grid .ak-toggle-field,
+    form.ak-form .ak-form-grid > label,
+    form.ak-form .fec-span-1,
+    form.ak-form .fec-span-2,
+    form.ak-form .fec-span-3,
+    form.ak-form .fec-span-4,
+    form.ak-form .fec-span-5,
+    form.ak-form .fec-span-6,
+    form.ak-form .fec-span-7,
+    form.ak-form .fec-span-8,
+    form.ak-form .ak-form-grid--3 > .ak-field,
+    form.ak-form .ak-form-grid--4 > .ak-field,
+    form.ak-form .ak-form-grid--5 > .ak-field,
+    form.ak-form .ak-form-grid--6 > .ak-field {
+        grid-column: 1 / -1;
+    }
+
+    form.ak-form .ak-form-grid--5 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    form.ak-form .journal-direction-segmented {
+        width: 100%;
+    }
+}

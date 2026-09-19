@@ -14,7 +14,7 @@ body.boltz-shell.app-shell-authenticated .ptg-page {
 /* Large desktop monitors: the shared 1200px cap leaves most of a 1440p/4K
    screen empty. Escalate the token itself in steps so every consumer that
    already reads it — PageFrame, the detail shell (--ak-detail-max-width) and
-   the wide form canvases (--ak-form-content-wide-max) — grows together.
+   the form canvas (--ak-form-content-max) — grows together.
    Below 1600px nothing changes, so laptop/tablet/mobile stay as they are. */
 @media (min-width: 1600px) {
     body.boltz-shell.app-shell-authenticated {
@@ -66,7 +66,7 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame:has(> .ak-group-operati
    inherited wide-form token, so changing only PageFrame/width leaves the form
    itself at 1200px. Release that inner logical-size constraint as well. */
 body.boltz-shell.app-shell-authenticated .ptg-page-frame > .ak-group-operation-page--wide {
-    --ak-form-content-wide-max: 100%;
+    --ak-form-content-max: 100%;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-page-frame > .ak-group-operation-page--wide > form.ak-form {
@@ -166,24 +166,11 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .a
     order: -4;
 }
 
-body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content))) > :is(.finance-page-lead, .ak-note, .ak-page-lead) {
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :is(.ak-list-page, .ak-form-page):has(> .ak-page-header:not(.ak-detail-header)):has(> .ak-stat-grid):not(:has(> :is(form.ak-form, .ak-form-page-content))) > :is(.finance-page-lead, .ak-note) {
     order: -3;
 }
 
-body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(
-    .ak-list-page,
-    .ak-form-page,
-    .ak-detail-page,
-    .dashboard-page,
-    .reports-page,
-    .journal-page,
-    .receipt-create-page,
-    .operations-reference-page,
-    .loading-reference-page,
-    .expense-reference-page,
-    .contract-details-page,
-    .bk-page
-) {
+body.boltz-shell.app-shell-authenticated .ptg-page-frame > :where(.ak-list-page, .ak-form-page, .ak-detail-page, .dashboard-page, .journal-page, .contract-details-page, .bk-page) {
     inline-size: 100%;
     max-inline-size: 100%;
     min-inline-size: 0;

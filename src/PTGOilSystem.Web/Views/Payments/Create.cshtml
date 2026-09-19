@@ -1,4 +1,4 @@
-﻿@model PTGOilSystem.Web.Models.Payments.PaymentCreateViewModel
+@model PTGOilSystem.Web.Models.Payments.PaymentCreateViewModel
 @using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Payments
@@ -44,7 +44,7 @@
         || !string.IsNullOrWhiteSpace(Model.Description);
 }
 
-<div class="ak-form-page roznamcha-entry-page finance-entry-chortke" dir="rtl">
+<div class="ak-form-page roznamcha-entry-page" dir="rtl">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((ViewData["Title"] as string ?? "روزنامچه", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
@@ -578,7 +578,7 @@
                         </div>
                     </div>
 
-                    <div class="ak-form-grid mt-2 journal-commission-body @(Model.CommissionEnabled ? null :"d-none")" data-commission-body>
+                    <div class="ak-form-grid journal-commission-body @(Model.CommissionEnabled ? null :"d-none")" data-commission-body>
                         <div class="ak-form-grid">
                             <div class="ak-field">
                                 <label asp-for="CommissionType" class="ak-label">نوع کمیسیون</label>
@@ -640,13 +640,13 @@
                             </div>
                         </div>
 
-                        <div class="ak-note mt-2" role="status" data-commission-summary>
+                        <div class="ak-note" role="status" data-commission-summary>
                             <span>مبلغ اصلی: <strong class="ak-num" data-commission-main>—</strong></span>
                             <span>کمیسیون: <strong class="ak-num" data-commission-amount>—</strong></span>
                             <span data-commission-effect></span>
                         </div>
 
-                        <div class="ak-note mt-2 d-none" role="status" data-commission-sarraf-note>
+                        <div class="ak-note d-none" role="status" data-commission-sarraf-note>
                             <span><i class="bi bi-info-circle"></i> در پرداخت از طریق صراف، کمیسیون از صندوق/بانک کم نمی‌شود؛ به حساب صراف اضافه می‌شود.</span>
                         </div>
                     </div>

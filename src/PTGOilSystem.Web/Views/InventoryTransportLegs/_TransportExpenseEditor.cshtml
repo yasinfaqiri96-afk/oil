@@ -1,4 +1,4 @@
-﻿@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupExpenseModalViewModel
+@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportGroupExpenseModalViewModel
 @using Microsoft.AspNetCore.Mvc.ViewFeatures
 @{
     var isModal = ViewData["IsExpenseModal"] as bool? == true;
@@ -105,7 +105,7 @@
         {
             var existingExpenseTotal = Model.ExistingExpenses.Sum(e => e.Amount);
             <section class="ak-form-section ak-field" data-expense-alloc data-alloc-base="@existingExpenseTotal.ToString(System.Globalization.CultureInfo.InvariantCulture)">
-                <h2 class="form-section-title mb-2">تقسیم مصرف نظر به قرارداد</h2>
+                <h2 class="ak-form-group-title mb-2">تقسیم مصرف نظر به قرارداد</h2>
                 <div class="ak-table-wrap">
                     <table class="ak-table align-middle mb-0">
                         <thead>

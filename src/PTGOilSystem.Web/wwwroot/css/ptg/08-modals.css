@@ -108,11 +108,10 @@ body.boltz-shell.app-shell-authenticated.ptg-modal-document {
 }
 
 /* The dialog is already the constrained reading column, so the page-level form
-   cap (--ak-form-content-max, 50-ak-components.css) would leave a dead band
+   cap (--ak-form-content-max, 76-form-system.css) would leave a dead band
    beside every form. Release both canvases inside the modal document only. */
 body.ptg-modal-document {
     --ak-form-content-max: 100%;
-    --ak-form-content-wide-max: 100%;
 }
 
 body.ptg-modal-document .ptg-modal-body-shell {

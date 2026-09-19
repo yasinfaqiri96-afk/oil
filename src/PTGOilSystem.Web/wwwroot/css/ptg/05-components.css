@@ -8,8 +8,8 @@
    700 weight, distinct semantic colours, subtle colour-matched
    shadow. Geometry is shared by the common button contract.
    ================================================================ */
-body.boltz-shell.app-shell-authenticated :where(.btn, .ptg-btn),
-body.ptg-modal-document :where(.btn, .ptg-btn) {
+body.boltz-shell.app-shell-authenticated :where(.btn),
+body.ptg-modal-document :where(.btn) {
     --_bg: #FFFFFF;                                  /* default = reference "White" */
     --_fg: var(--text-primary);
     --_bg-h: #F2F5FC;
@@ -33,13 +33,13 @@ body.ptg-modal-document :where(.btn, .ptg-btn) {
     transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease, transform .12s ease;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.btn, .ptg-btn):active,
-body.ptg-modal-document :where(.btn, .ptg-btn):active { transform: translateY(1px); }
+body.boltz-shell.app-shell-authenticated :where(.btn):active,
+body.ptg-modal-document :where(.btn):active { transform: translateY(1px); }
 
-body.boltz-shell.app-shell-authenticated :where(.btn, .ptg-btn):disabled,
-body.boltz-shell.app-shell-authenticated :where(.btn, .ptg-btn).disabled,
-body.ptg-modal-document :where(.btn, .ptg-btn):disabled,
-body.ptg-modal-document :where(.btn, .ptg-btn).disabled {
+body.boltz-shell.app-shell-authenticated :where(.btn):disabled,
+body.boltz-shell.app-shell-authenticated :where(.btn).disabled,
+body.ptg-modal-document :where(.btn):disabled,
+body.ptg-modal-document :where(.btn).disabled {
     opacity: .5;
     box-shadow: none !important;
     cursor: not-allowed;
@@ -74,8 +74,8 @@ body.boltz-shell.app-shell-authenticated :where(.btn-warning):focus-visible,
 body.ptg-modal-document :where(.btn-warning):hover,
 body.ptg-modal-document :where(.btn-warning):focus-visible { --_fg: #FFFFFF; }
 
-body.boltz-shell.app-shell-authenticated :where(.btn-danger, .ptg-btn-danger),
-body.ptg-modal-document :where(.btn-danger, .ptg-btn-danger) {
+body.boltz-shell.app-shell-authenticated :where(.btn-danger),
+body.ptg-modal-document :where(.btn-danger) {
     --_bg: var(--error-main); --_fg: #FFFFFF; --_bg-h: #B71D18;
     --_bd: transparent; --_sh: rgba(var(--error-rgb), .48);
 }
@@ -91,40 +91,8 @@ body.ptg-modal-document :where(.btn-default) {
     --_bg: var(--text-primary); --_fg: #FFFFFF; --_bg-h: #454F5B;
     --_bd: transparent; --_sh: rgba(28, 37, 46, .4);
 }
-
-/* ---- Neutral / cancel / outline / light / white = خاکستری نرم بدون بوردر (Akaunting) - */
-body.boltz-shell.app-shell-authenticated :where(.btn-white, .btn-light, .btn-outline-primary, .btn-outline-secondary, .btn-outline-danger, .ptg-btn-soft, .ptg-btn-secondary, .ak-secondary-action:not(.is-primary):not(.ak-primary-action)),
-body.ptg-modal-document :where(.btn-white, .btn-light, .btn-outline-primary, .btn-outline-secondary, .btn-outline-danger, .ptg-btn-soft, .ptg-btn-secondary, .ak-secondary-action:not(.is-primary):not(.ak-primary-action)) {
-    --_bg: var(--ptg-btn-quiet); --_fg: var(--ptg-btn-quiet-text); --_bg-h: var(--ptg-btn-quiet-hover);
-    --_bd: transparent; --_sh: rgba(var(--grey-500-rgb), .18);
-}
-body.boltz-shell.app-shell-authenticated :where(.btn-white, .btn-light, .btn-outline-primary, .btn-outline-secondary, .btn-outline-danger, .ptg-btn-soft, .ptg-btn-secondary, .ak-secondary-action:not(.is-primary):not(.ak-primary-action)):hover,
-body.ptg-modal-document :where(.btn-white, .btn-light, .btn-outline-primary, .btn-outline-secondary, .btn-outline-danger, .ptg-btn-soft, .ptg-btn-secondary, .ak-secondary-action:not(.is-primary):not(.ak-primary-action)):hover {
-    border-color: transparent !important;
-}
 body.boltz-shell.app-shell-authenticated :where(.btn-outline-danger),
 body.ptg-modal-document :where(.btn-outline-danger) { --_fg: var(--error-main); }
-
-/* ---- Export menu ----
-   The Excel/PDF export control (Views/Shared/_ExportMenu.cshtml) carries
-   .btn-light .ak-secondary-action, so it takes the shared quiet-grey neutral
-   tokens declared above — the same grey every cancel/secondary button in the
-   system uses. No colour override here on purpose. */
-
-/* Header primary CTA (not a .btn element) */
-body.boltz-shell.app-shell-authenticated .boltz-topbar-primary {
-    border: 1px solid transparent;
-    border-radius: 8px;
-    background: var(--primary-main);
-    color: #FFFFFF;
-    box-shadow: 0 6px 14px -8px rgba(var(--primary-main-rgb), .48);
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-topbar-primary:hover,
-body.boltz-shell.app-shell-authenticated .boltz-topbar-primary:focus {
-    background: var(--primary-dark);
-    color: #FFFFFF;
-}
 
 /* ---- Compact size --------------------------------------------- */
 body.boltz-shell.app-shell-authenticated :where(.btn-sm),
@@ -134,53 +102,37 @@ body.ptg-modal-document :where(.btn-sm) {
     font-size: 12px;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.card-header, .card-footer),
-body.ptg-modal-document :where(.card-header, .card-footer) {
+body.boltz-shell.app-shell-authenticated :where(.card-header),
+body.ptg-modal-document :where(.card-header) {
     border-color: var(--ptg-border) !important;
     background: var(--ptg-surface) !important;
 }
 
-body.boltz-shell.app-shell-authenticated .ptg-card-head,
-body.ptg-modal-document .ptg-card-head{
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: .7rem;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.page-eyebrow, .ptg-page-kicker) {
-    color: var(--ptg-muted);
-    font-size: 12px;
-    font-weight: 750;
-    letter-spacing: 0;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.badge.bg-primary, .status-badge-info, .status-badge.is-info, .ptg-badge) {
+body.boltz-shell.app-shell-authenticated :where(.badge.bg-primary, .status-badge-info, .status-badge.is-info) {
     background: var(--ptg-primary-soft) !important;
     color: var(--ptg-primary-dark) !important;
     border-color: rgba(var(--ptg-primary-rgb), .18) !important;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.badge.bg-success, .status-badge-success, .status-badge.is-success, .ptg-badge.is-success) {
+body.boltz-shell.app-shell-authenticated :where(.badge.bg-success, .status-badge-success, .status-badge.is-success) {
     background: var(--ptg-success-soft) !important;
     color: var(--ptg-primary-dark) !important;
     border-color: rgba(var(--ptg-success-rgb), .2) !important;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.badge.bg-warning, .status-badge-warning, .status-badge.is-warning, .ptg-badge.is-warning) {
+body.boltz-shell.app-shell-authenticated :where(.badge.bg-warning, .status-badge-warning, .status-badge.is-warning) {
     background: var(--ptg-warning-soft) !important;
     color: #A66E00 !important;
     border-color: rgba(var(--ptg-warning-rgb), .24) !important;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.badge.bg-danger, .status-badge-danger, .status-badge.is-danger, .ptg-badge.is-danger) {
+body.boltz-shell.app-shell-authenticated :where(.badge.bg-danger, .status-badge-danger, .status-badge.is-danger) {
     background: var(--ptg-danger-soft) !important;
     color: var(--ptg-danger) !important;
     border-color: rgba(var(--ptg-danger-rgb), .22) !important;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.badge.bg-secondary, .status-badge-neutral, .status-badge.is-muted, .ptg-badge.is-muted) {
+body.boltz-shell.app-shell-authenticated :where(.badge.bg-secondary, .status-badge-neutral, .status-badge.is-muted) {
     background: #F0F1F6 !important;
     color: var(--ptg-muted) !important;
     border-color: #E3E5EE !important;

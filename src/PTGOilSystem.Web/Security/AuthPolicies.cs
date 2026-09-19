@@ -16,4 +16,10 @@ public static class AuthPolicies
     /// Permission صریح ManageOperationalPeriodLock.
     /// </summary>
     public const string OperationalPeriodAdmin = nameof(OperationalPeriodAdmin);
+
+    /// <summary>
+    /// Mashal Mobile — فقط JWT Bearer. کوکی مرورگر روی <c>/api/mobile</c> پذیرفته نمی‌شود؛ نقش و
+    /// ناوبری همان کاربر و همان <see cref="RoleAccessRules"/> وب است.
+    /// </summary>
+    public const string MobileApi = nameof(MobileApi);
 }

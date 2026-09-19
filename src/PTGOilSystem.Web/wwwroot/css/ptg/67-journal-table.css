@@ -13,7 +13,7 @@
     margin-block-start: 12px;
     border: 1px solid #EEF1F5;
     border-radius: 8px;
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     box-shadow: var(--ptg-panel-shadow);
     overflow: hidden;
 }
@@ -23,7 +23,7 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    scrollbar-color: #CBD5E1 transparent;
+    scrollbar-color: var(--ptg-field-border) transparent;
 }
 
 .ak-journal-page .ak-journal-table {
@@ -35,8 +35,8 @@
        نه از درصدِ حدسی؛ فضای آزاد را ستون «نام» (col با width:100%) می‌گیرد. */
     table-layout: auto;
     border-collapse: collapse;
-    background: #FFFFFF;
-    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
+    background: var(--ptg-field-bg);
+    font-family: "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
     font-variant-numeric: tabular-nums;
 }
 
@@ -55,7 +55,7 @@
 
 /* ---- بدنه: سطر فشرده، بدون zebra، بدون خط عمودی ---- */
 .ak-journal-page .ak-journal-table > tbody > tr {
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     transition: background-color .12s ease;
 }
 
@@ -285,5 +285,5 @@
     display: block;
     margin-block-end: 8px;
     font-size: 22px;
-    color: #CBD5E1;
+    color: var(--ptg-field-border);
 }

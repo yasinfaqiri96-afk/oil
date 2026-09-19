@@ -154,6 +154,7 @@ public class UserService : IUserService
             throw new BusinessRuleException("USER_PASSWORD_UNCHANGED", "رمز عبور جدید باید با رمز عبور فعلی متفاوت باشد.");
 
         user.PasswordHash = HashPassword(newPassword);
+        await RevokeMobileSessionsAsync(user.Id, ct);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -169,7 +170,26 @@ public class UserService : IUserService
             throw new BusinessRuleException("USER_NOT_FOUND", "کاربر موردنظر یافت نشد.");
 
         user.PasswordHash = HashPassword(newPassword);
+        await RevokeMobileSessionsAsync(user.Id, ct);
         await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// تغییر یا بازنشانی رمز همهٔ نشست‌های موبایلِ همان کاربر را در همان ذخیره باطل می‌کند.
+    /// نشست کوکیِ وب مثل قبل دست نمی‌خورد.
+    /// </summary>
+    private async Task RevokeMobileSessionsAsync(int userId, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var activeTokens = await _db.MobileRefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAtUtc == null)
+            .ToListAsync(ct);
+
+        foreach (var token in activeTokens)
+        {
+            token.RevokedAtUtc = now;
+            token.RevokedReason = MobileRefreshTokenRevocationReasons.PasswordChanged;
+        }
     }
 
     private static void ValidateNewPassword(string password)

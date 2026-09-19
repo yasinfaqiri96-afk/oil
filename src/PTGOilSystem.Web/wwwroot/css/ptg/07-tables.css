@@ -1,19 +1,19 @@
 
 
-body.boltz-shell.app-shell-authenticated :where(.table, .ds-table),
-body.ptg-modal-document :where(.table, .ds-table) {
+body.boltz-shell.app-shell-authenticated :where(.table),
+body.ptg-modal-document :where(.table) {
     margin-bottom: 0;
     color: var(--ptg-text);
     vertical-align: middle;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) > :not(caption) > * > *,
-body.ptg-modal-document :where(.table, .ds-table) > :not(caption) > * > * {
+body.boltz-shell.app-shell-authenticated :where(.table) > :not(caption) > * > *,
+body.ptg-modal-document :where(.table) > :not(caption) > * > * {
     border-color: var(--ptg-border);
 }
 
-body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) thead th,
-body.ptg-modal-document :where(.table, .ds-table) thead th {
+body.boltz-shell.app-shell-authenticated :where(.table) thead th,
+body.ptg-modal-document :where(.table) thead th {
     padding: 15px 10px;
     border-bottom: 1px solid var(--ptg-table-row-line) !important;
     background: var(--ptg-table-header) !important;
@@ -24,27 +24,27 @@ body.ptg-modal-document :where(.table, .ds-table) thead th {
     white-space: nowrap;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) tbody :where(td, th),
-body.ptg-modal-document :where(.table, .ds-table) tbody :where(td, th) {
+body.boltz-shell.app-shell-authenticated :where(.table) tbody :where(td, th),
+body.ptg-modal-document :where(.table) tbody :where(td, th) {
     padding: 12px 10px;
     color: var(--ptg-text);
     font-size: var(--font-table-cell);
     line-height: var(--line-table-cell);
 }
 
-body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) tbody tr:hover > :where(td, th),
-body.ptg-modal-document :where(.table, .ds-table) tbody tr:hover > :where(td, th) {
+body.boltz-shell.app-shell-authenticated :where(.table) tbody tr:hover > :where(td, th),
+body.ptg-modal-document :where(.table) tbody tr:hover > :where(td, th) {
     background: var(--ptg-table-row-hover) !important;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) a:not(.btn),
-body.ptg-modal-document :where(.table, .ds-table) a:not(.btn) {
+body.boltz-shell.app-shell-authenticated :where(.table) a:not(.btn),
+body.ptg-modal-document :where(.table) a:not(.btn) {
     color: var(--ptg-primary);
     font-weight: 500;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.table-empty, .empty-state, .ptg-empty-state),
-body.ptg-modal-document :where(.table-empty, .empty-state, .ptg-empty-state) {
+body.boltz-shell.app-shell-authenticated :where(.table-empty, .empty-state),
+body.ptg-modal-document :where(.table-empty, .empty-state) {
     padding: 2rem;
     border: 1px dashed var(--ptg-border-strong);
     border-radius: var(--ptg-radius-card);

@@ -95,7 +95,7 @@ body {
 .invoice-actions button {
     border: 1px solid #c8d0dd;
     border-radius: 6px;
-    background: #fff;
+    background: var(--ptg-field-bg);
     color: #16264b;
     padding: 8px 14px;
     font: var(--fw-semibold) 13px var(--invoice-font);
@@ -106,7 +106,7 @@ body {
 .invoice-actions button {
     border-color: #16264b;
     background: #16264b;
-    color: #fff;
+    color: var(--ptg-field-bg);
 }
 
 .invoice-shell {
@@ -452,7 +452,7 @@ body {
     html,
     body {
         width: var(--invoice-page-width);
-        background: #fff;
+        background: var(--ptg-field-bg);
     }
 
     .invoice-actions {

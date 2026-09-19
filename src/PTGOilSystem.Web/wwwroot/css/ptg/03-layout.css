@@ -79,7 +79,7 @@ body.boltz-shell.app-shell-authenticated .ptg-main {
    هم کنترل شود؛ در غیر این صورت بعضی صفحات به محتوای بعدی می‌چسبند. */
 body.boltz-shell.app-shell-authenticated .ptg-page > .boltz-content-body,
 body.boltz-shell.app-shell-authenticated .boltz-content-body > :first-child {
-    margin-top: 0 !important;
+    margin-top: 0;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-topbar {
@@ -87,75 +87,17 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar {
     top: 0;
     z-index: 20;
     min-height: var(--ptg-topbar-height);
-    padding: 0 !important;
-    border: 0 !important;
-    border-radius: 0 !important;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
     /* چرتکه: نوار بالا همیشه یکدست #FEFEFE، بدون سایه و بدون blur هنگام اسکرول. */
-    background: #FEFEFE !important;
-    box-shadow: none !important;
+    background: #FEFEFE;
+    box-shadow: none;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-topbar-start,
 body.boltz-shell.app-shell-authenticated .boltz-topbar-end {
     gap: .9rem;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-topbar-search {
-    display: flex;
-    align-items: center;
-    gap: .8rem;
-    width: min(100%, 38rem);
-    min-height: 3.75rem;
-    padding: 0 1.45rem;
-    border: 0 !important;
-    border-radius: 8px !important;
-    background: var(--ptg-surface) !important;
-    box-shadow: none !important;
-    overflow: hidden;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-topbar-search i {
-    width: auto !important;
-    height: auto !important;
-    flex: 0 0 auto !important;
-    margin: 0 !important;
-    color: var(--ptg-muted);
-    background: transparent !important;
-    font-size: 1.25rem !important;
-}
-
-body.boltz-shell.app-shell-authenticated.boltz-rtl .boltz-topbar-search{
-    direction: rtl !important;
-    text-align: right !important;
-}
-
-body.boltz-shell.app-shell-authenticated.boltz-ltr .boltz-topbar-search{
-    direction: ltr !important;
-    text-align: left !important;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-icon-button,
-body.boltz-shell.app-shell-authenticated .boltz-language-toggle {
-    width: 3.75rem;
-    height: 3.75rem;
-    border: 2px solid #E4E5EF !important;
-    border-radius: 8px !important;
-    background: var(--ptg-surface) !important;
-    color: var(--ptg-muted) !important;
-    box-shadow: none !important;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-icon-button:hover,
-body.boltz-shell.app-shell-authenticated .boltz-language-toggle:hover {
-    border-color: rgba(var(--ptg-primary-rgb), .35) !important;
-    color: var(--ptg-primary) !important;
-}
-
-/* ظاهر همبرگر با بقیهٔ کنترل‌های هدر در 74-header-controls.css یکی شده است. */
-
-body.boltz-shell.app-shell-authenticated .boltz-icon-badge,
-body.boltz-shell.app-shell-authenticated .boltz-language-toggle [data-current-language-label] {
-    background: var(--ptg-primary) !important;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-page {
@@ -177,7 +119,7 @@ body.boltz-shell.app-shell-authenticated .boltz-footer {
 
 @media (min-width: 1200px) {
     body.boltz-shell.app-shell-authenticated .ptg-app {
-        grid-template-columns: var(--ptg-sidebar-width) minmax(0, 1fr) !important;
+        grid-template-columns: var(--ptg-sidebar-width) minmax(0, 1fr);
     }
 
     body.boltz-shell.app-shell-authenticated .ptg-sidebar {
@@ -222,35 +164,9 @@ body.boltz-shell.app-shell-authenticated .boltz-footer {
            اصلی باید تک‌ستونه شود؛ در غیر این صورت گرید همچنان ستون سایدبار را
            رزرو می‌کند و محتوا در فضای باقیمانده فشرده و کنارِ فضای خالی می‌افتد
            (دلیل «dead space» افقی در RTL روی موبایل). */
-        grid-template-columns: minmax(0, 1fr) !important;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
-
-/* ماشهٔ جستجوی هدر با بقیهٔ کنترل‌ها در 74-header-controls.css یکسان شده است. */
-
-/* ============================================================
-   Search dialog (opened by the trigger / Ctrl+K)
-   ============================================================ */
-.ptg-search-dialog {
-    position: fixed;
-    inset: 0;
-    z-index: 1100;
-    display: grid;
-    justify-items: center;
-    align-items: start;
-    padding-top: 12vh;
-}
-
-.ptg-search-backdrop {
-    position: fixed;
-    inset: 0;
-    border: 0;
-    background: rgba(28, 37, 46, .32);
-    opacity: 0;
-    transition: opacity 160ms ease;
-}
-
-body.ptg-search-open .ptg-search-backdrop { opacity: 1; }
 
 .ptg-search-panel {
     position: relative;
@@ -266,49 +182,6 @@ body.ptg-search-open .ptg-search-backdrop { opacity: 1; }
 }
 
 body.ptg-search-open .ptg-search-panel { transform: none; opacity: 1; }
-
-.ptg-search-field {
-    display: flex;
-    align-items: center;
-    gap: .7rem;
-    height: 3.25rem;
-    margin: 0;
-    padding: 0 1rem;
-    border-radius: 8px;
-    background: rgba(var(--grey-500-rgb), .1);
-}
-
-.ptg-search-field i { color: var(--text-disabled); font-size: 1.25rem; }
-
-.ptg-search-input {
-    flex: 1 1 auto;
-    min-width: 0;
-    height: 100%;
-    border: 0;
-    outline: none;
-    background: transparent;
-    color: var(--text-primary);
-    font-family: inherit;
-    font-size: 16px;
-}
-
-.ptg-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-.ptg-search-esc {
-    flex: 0 0 auto;
-    padding: .1rem .45rem;
-    border-radius: 6px;
-    background: var(--background-paper);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
-    color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.ptg-search-hint {
-    margin: .7rem .25rem 0;
-    color: var(--text-disabled);
-    font-size: 12px;
-}
 
 /* ============================================================
    Account drawer — full-height panel from the content edge (left/RTL)
@@ -452,85 +325,6 @@ body.ptg-account-open .ptg-account-drawer {
     font-size: 14px;
 }
 
-.ptg-account-switch {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    margin-bottom: 1.1rem;
-}
-
-.ptg-account-switch-avatar {
-    position: relative;
-    display: inline-grid;
-    place-items: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    padding: 2px;
-    border: 0;
-    border-radius: 8px;
-    /* رینگ گرادیانی ملایم دور آواتار (padding-box سفید + border-box گرادیان). */
-    background:
-        linear-gradient(var(--background-paper), var(--background-paper)) padding-box,
-        linear-gradient(150deg, rgba(var(--grey-500-rgb), .5), rgba(var(--primary-main-rgb), .3)) border-box;
-    /* سایه‌ی نرم برای حس شناور/۳بعدی مطابق مرجع. */
-    box-shadow: 0 5px 14px -4px rgba(var(--grey-500-rgb), .55);
-    cursor: pointer;
-    transition: transform var(--layout-transition), box-shadow var(--layout-transition), background var(--layout-transition);
-}
-
-.ptg-account-switch-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 8px;
-    display: block;
-}
-
-.ptg-account-switch-avatar.is-active {
-    background:
-        linear-gradient(var(--background-paper), var(--background-paper)) padding-box,
-        linear-gradient(150deg, var(--primary-light), var(--primary-main)) border-box;
-    box-shadow: 0 6px 16px -4px rgba(var(--primary-main-rgb), .5);
-}
-
-.ptg-account-switch-avatar:hover { transform: translateY(-2px); }
-
-.ptg-account-switch-add {
-    width: 2.5rem;
-    height: 2.5rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px dashed rgba(var(--grey-500-rgb), .4);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 16px;
-    cursor: pointer;
-    box-shadow: 0 4px 12px -5px rgba(var(--grey-500-rgb), .5);
-    transition: background-color var(--layout-transition), color var(--layout-transition), border-color var(--layout-transition), transform var(--layout-transition);
-}
-
-.ptg-account-switch-add:hover { transform: translateY(-2px); }
-
-.ptg-account-switch-add:hover,
-.ptg-account-switch-add:focus-visible {
-    background: rgba(var(--grey-500-rgb), .08);
-    color: var(--text-primary);
-    border-color: rgba(var(--grey-500-rgb), .6);
-    outline: none;
-}
-
-.ptg-account-divider {
-    width: 100%;
-    height: 0;
-    margin: 0 0 .85rem;
-    border: 0;
-    border-top: 1px dashed var(--divider);
-    opacity: 1;
-}
-
 .ptg-account-links {
     display: flex;
     flex-direction: column;
@@ -571,22 +365,6 @@ body.ptg-account-open .ptg-account-drawer {
 }
 
 .ptg-account-link-label { flex: 1 1 auto; min-width: 0; }
-
-.ptg-account-link-badge {
-    flex: 0 0 auto;
-    min-width: 1.5rem;
-    height: 1.5rem;
-    padding: 0 .4rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background: var(--ptg-danger-soft);
-    color: var(--ptg-danger);
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-}
 
 .ptg-account-link:hover,
 .ptg-account-link:focus-visible {
@@ -631,11 +409,9 @@ body.ptg-search-open .ptg-app { overflow: hidden !important; }
     .ptg-account-drawer { width: 100dvi; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .ptg-account-drawer,
+@media (prefers-reduced-motion: reduce) {.ptg-account-drawer,
     .ptg-account-backdrop,
-    .ptg-search-panel,
-    .ptg-search-backdrop { transition-duration: 1ms !important; }
+    .ptg-search-panel{ transition-duration: 1ms !important; }
 }
 
 @media (max-width: 767.98px) {
@@ -650,17 +426,5 @@ body.ptg-search-open .ptg-app { overflow: hidden !important; }
 
     body.boltz-shell.app-shell-authenticated .boltz-topbar-start {
         flex: 1 1 100%;
-    }
-
-    body.boltz-shell.app-shell-authenticated .boltz-topbar-search {
-        min-height: 3.1rem;
-        flex-basis: 100%;
-        padding-inline: 1rem;
-    }
-
-    body.boltz-shell.app-shell-authenticated .boltz-icon-button,
-    body.boltz-shell.app-shell-authenticated .boltz-language-toggle {
-        width: 3.1rem;
-        height: 3.1rem;
     }
 }

@@ -123,31 +123,8 @@ public class AuthController : Controller
         }
 
         var roleName = ResolveRoleName(user.Role?.Name);
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, user.Id.ToString(CultureInfo.InvariantCulture)),
-            new(ClaimTypes.Name, user.FullName),
-            new(AppClaimTypes.Username, user.Username),
-            new(ClaimTypes.Role, roleName),
-        };
-
-        if (!string.IsNullOrWhiteSpace(user.Email))
-            claims.Add(new Claim(ClaimTypes.Email, user.Email));
-
-        foreach (var navigationKey in RoleAccessRules.ResolveNavigationForRole(user.Role))
-        {
-            claims.Add(new Claim(AppClaimTypes.AllowedNavigation, navigationKey));
-        }
-
-        if (RoleAccessRules.RoleCanManageData(user.Role))
-        {
-            claims.Add(new Claim(AppClaimTypes.Permission, AppPermissions.ManageData));
-        }
-
-        if (RoleAccessRules.RoleCanManageUsers(user.Role))
-        {
-            claims.Add(new Claim(AppClaimTypes.Permission, AppPermissions.ManageUsers));
-        }
+        // همان ادعاهایی که API موبایل برای Bearer می‌سازد — یک منبع، بدون سامانهٔ دسترسی موازی.
+        var claims = UserClaimsFactory.Build(user);
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));

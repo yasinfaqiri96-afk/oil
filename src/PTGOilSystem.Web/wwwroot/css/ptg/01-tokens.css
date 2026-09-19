@@ -105,8 +105,6 @@
     --layout-header: 64px;
     --layout-transition: 150ms ease-out;
     --layout-content-max: 1200px;
-    --layout-form-max: 860px;
-    --layout-form-wide-max: 1080px;
     --layout-gutter-desktop: 40px;
     --layout-gutter-laptop: 32px;
     --layout-gutter-compact: 24px;
@@ -182,8 +180,8 @@
     --ptg-field-focus-ring: rgba(var(--primary-main-rgb), .12);
 
     /* ---- Create/Edit form column — constrained, start-aligned ---- */
-    --ak-form-content-max: var(--layout-form-max);
-    --ak-form-content-wide-max: var(--layout-form-wide-max);
+    /* One form width for the whole system (see 76-form-system.css). */
+    --ak-form-content-max: var(--chk-form-width);
     --ptg-text: var(--text-primary);
     --ptg-muted: var(--text-secondary);
     --ptg-label: #2B2B2B;   /* Chortke form-label ink */
@@ -272,10 +270,62 @@
     --bs-warning: var(--ptg-warning);
     --bs-warning-rgb: var(--ptg-warning-rgb);
 
+    /* ================================================================
+       Form design system (`--chk-*`) — SINGLE SOURCE OF TRUTH.
+
+       These are the values of the reference form (Payments/Create,
+       «ثبت دریافت / پرداخت»), promoted out of that one page so every
+       Create/Edit form in the system renders from the same numbers.
+       Consumed only by 76-form-system.css; never redeclare them in a
+       page-scoped file.
+       ================================================================ */
+    --chk-font: "IRANSans", "Vazirmatn",
+                -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, sans-serif;
+
+    --chk-primary: #1062D0;
+    --chk-primary-hover: #0D52AF;
+    --chk-primary-light: #E8F1FF;
+
+    --chk-surface: #FFFFFF;
+    --chk-surface-soft: #F2F5FC;
+    --chk-rail: #F7F7F7;
+    --chk-disabled-bg: #F8FAFC;
+
+    --chk-border: #C2D0E3;
+    --chk-border-strong: #ABBACC;
+    --chk-border-soft: #E7E7E7;
+
+    --chk-title: #1A1919;
+    --chk-text: #3D3D3D;
+    --chk-label: #4F4F4F;
+    --chk-text-secondary: #6F6F6F;
+    --chk-text-muted: #AEAEAE;
+
+    --chk-success: #24AF22;
+    --chk-success-light: #E7F5E9;
+    --chk-danger: #CB0B0B;
+    --chk-danger-light: #FFEAF0;
+
+    --chk-control-h: 40px;
+    --chk-compact-h: 34px;
+    --chk-button-h: 46px;
+    --chk-radius-control: 6px;
+    --chk-radius-surface: 8px;
+
+    --chk-col-gap: 12px;
+    --chk-row-gap: 16px;
+    --chk-section-gap: 24px;
+    --chk-surface-pad: 24px;
+    --chk-form-width: 1080px;
+
     /* ---- Shared ak-* form component tokens (date picker / segmented / chip) ----
        Single source for the three shared field components. Field surface tokens
        reuse the calibrated --ptg-field-* above; component-specific values below. */
-    --ak-control-height: 40px;
+    --ak-control-height: var(--chk-control-h);
+    /* ارتفاع فشرده — همان مقدار فرم مرجع «ثبت دریافت / پرداخت»؛ برای کنترل‌های
+       نوار ابزار و پاورقی لیست‌ها که نباید هم‌قد فیلد اصلی فرم باشند. */
+    --ak-control-compact-height: var(--chk-compact-h);
     --ak-control-bg: var(--ptg-field-bg);
     --ak-control-border: var(--ptg-field-border);
     --ak-control-border-focus: var(--primary-main);
@@ -373,6 +423,31 @@ body.ptg-modal-document {
     /* Shadows carry the panel separation in dark mode too, so they need more
        weight than the light-theme pair to stay readable on the dark canvas. */
     --ptg-panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(0, 0, 0, 0.34);
+
+    /* Form design system in dark mode — same roles, dark surfaces. */
+    --chk-primary: #5B94E3;
+    --chk-primary-hover: #7DAEEB;
+    --chk-primary-light: rgba(91, 148, 227, 0.16);
+
+    --chk-surface: #1E1E27;
+    --chk-surface-soft: #26262F;
+    --chk-rail: #16161D;
+    --chk-disabled-bg: #26262F;
+
+    --chk-border: rgba(158, 158, 168, 0.28);
+    --chk-border-strong: rgba(158, 158, 168, 0.42);
+    --chk-border-soft: rgba(158, 158, 168, 0.20);
+
+    --chk-title: #FFFFFF;
+    --chk-text: #E4E4EA;
+    --chk-label: #B7B7C2;
+    --chk-text-secondary: #B7B7C2;
+    --chk-text-muted: #6F6F7A;
+
+    --chk-success: #5FD65C;
+    --chk-success-light: rgba(95, 214, 92, 0.16);
+    --chk-danger: #FF9A9A;
+    --chk-danger-light: rgba(255, 120, 120, 0.14);
 
     /* field fill lifts above the darker canvas, mirroring the light theme */
     --ptg-field-bg: #1E1E27;

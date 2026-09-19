@@ -99,46 +99,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     margin: 4px 0 0;
     color: var(--text-secondary);
     font-size: 12px;
-}
-
-.dash-trend-totals {
-    display: flex;
-    flex-direction: row-reverse;
-    align-items: flex-start;
-    gap: 24px;
-}
-
-.dash-total {
-    display: flex;
-    flex-direction: row-reverse;
-    align-items: baseline;
-    gap: 8px;
-    text-align: end;
-}
-
-.dash-total-value {
-    font-size: 22px;
-    font-weight: 800;
-    direction: ltr;
-    line-height: 1;
-    letter-spacing: -0.01em;
-}
-
-.dash-total-value--green {
-    color: var(--text-primary);
-}
-
-.dash-total-label {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.dash-dot {
+}.dash-dot {
     inline-size: 9px;
     block-size: 9px;
     border-radius: 50%;
@@ -171,8 +132,9 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-chart-axis-label,
 .dash-chart-x-label {
     fill: var(--text-secondary);
-    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
-    font-size: 8.5px;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
+    /* برچسب محورها زیر ۱۰px روی نمایشگر کوچک خوانا نبود. */
+    font-size: 10px;
     letter-spacing: -0.02em;
 }
 
@@ -231,14 +193,14 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-donut-center-label {
     fill: var(--text-secondary);
-    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     font-size: 14px;
     text-anchor: middle;
 }
 
 .dash-donut-center-total {
     fill: var(--text-primary);
-    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     font-size: 30px;
     font-weight: 700;
     text-anchor: middle;
@@ -302,73 +264,14 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-card-head .dash-more:hover,
 .dash-card-head .dash-more:focus-visible {
     opacity: .72;
-}
-
-/* Recent activity */
-.dash-activity-list,
-.dash-flow {
+}.dash-flow{
     display: grid;
     margin: 0;
     padding: 0;
     list-style: none;
-}
-
-.dash-activity-row {
-    display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 10px;
-    min-block-size: 61px;
-    padding-block: 9px;
-}
-
-.dash-activity-row + .dash-activity-row,
-.dash-flow-row + .dash-flow-row {
+}.dash-flow-row + .dash-flow-row{
     border-block-start: 1px solid var(--ptg-border);
-}
-
-.dash-row-icon {
-    display: grid;
-    place-items: center;
-    inline-size: 34px;
-    block-size: 34px;
-    border-radius: 50%;
-    color: var(--ptg-btn-primary);
-    background: var(--ptg-btn-primary-tint);
-    font-size: 16px;
-}
-
-.dash-activity-copy {
-    display: grid;
-    gap: 3px;
-    min-inline-size: 0;
-}
-
-.dash-activity-copy strong,
-.dash-activity-copy span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.dash-activity-copy strong {
-    color: var(--text-primary);
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.dash-activity-copy span,
-.dash-activity-time {
-    color: var(--text-secondary);
-    font-size: 11px;
-}
-
-.dash-activity-time {
-    direction: ltr;
-    white-space: nowrap;
-}
-
-/* In-progress flow */
+}/* In-progress flow */
 .dash-flow-row {
     display: grid;
     grid-template-columns: 38px minmax(80px, .62fr) minmax(150px, 1.38fr) minmax(96px, auto);
@@ -425,10 +328,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 /* A touch more air on the capsule side than the plain column gap. */
 .dash-flow-progress {
     padding-inline-end: 6px;
-}
-
-.dash-flow-name,
-.dash-flow-sub {
+}.dash-flow-name{
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -445,13 +345,6 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-flow-name:focus-visible {
     color: var(--ptg-btn-primary);
 }
-
-.dash-flow-sub {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 11px;
-}
-
 .dash-flow-state {
     justify-items: end;
 }
@@ -590,13 +483,6 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
     .dash-trend-head {
         flex-direction: column;
     }
-
-    .dash-trend-totals {
-        inline-size: 100%;
-        justify-content: space-between;
-        gap: 16px;
-    }
-
     .dash-flow-card {
         grid-column: 1;
     }

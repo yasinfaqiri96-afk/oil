@@ -59,29 +59,26 @@
 
     @if (isPickerTab)
     {
-        <form method="get" class="ak-form ak-form-section">
-            <div>
-                <section class="form-section pt-0 ptg-form-section">
-                    <h2 class="form-section-title">انتخاب قرارداد</h2>
-                    <p class="form-section-text">با انتخاب قرارداد، نمای کامل و ساده همان قرارداد باز می‌شود.</p>
-                    <div class="ak-form-grid align-items-end">
-                        <div class="ak-field ak-col-full">
-                            <label class="ak-label">قرارداد</label>
-                            <select name="contractId" class="ak-input" asp-items="ViewBag.Contracts">
-                                <option value="">یک قرارداد را انتخاب کنید...</option>
-                            </select>
-                        </div>
-                        <div class="ak-field">
-                            <div class="ak-footer-actions">
-                                <button type="submit" class="btn ak-primary-action ptg-btn ptg-btn-primary">
-                                    <i class="bi bi-arrow-left-circle"></i>
-                                    نمایش مسیر
-                                </button>
-                                <a asp-action="Index" asp-route-tab="@PTGOilSystem.Web.Models.ContractJourney.ContractJourneyTabs.Index.Recent" class="btn ak-secondary-action">قراردادهای اخیر</a>
-                            </div>
-                        </div>
+        <form method="get" class="ak-form">
+            <section class="ak-form-section">
+                <h2 class="ak-form-group-title">انتخاب قرارداد</h2>
+                <div class="ak-form-grid">
+                    <div class="ak-field ak-col-full">
+                        <label class="ak-label">قرارداد</label>
+                        <select name="contractId" class="ak-input" asp-items="ViewBag.Contracts">
+                            <option value="">یک قرارداد را انتخاب کنید...</option>
+                        </select>
                     </div>
-                </section>
+                </div>
+                <div class="ak-note">با انتخاب قرارداد، نمای کامل و ساده همان قرارداد باز می‌شود.</div>
+            </section>
+
+            <div class="ak-footer-actions">
+                <button type="submit" class="ak-save">
+                    <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                    <span>نمایش مسیر</span>
+                </button>
+                <a asp-action="Index" asp-route-tab="@PTGOilSystem.Web.Models.ContractJourney.ContractJourneyTabs.Index.Recent" class="ak-cancel">قراردادهای اخیر</a>
             </div>
         </form>
     }

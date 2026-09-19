@@ -315,8 +315,8 @@
     <title>@title - PTG Oil System</title>
     @if (!isLoginPage && renderShellChrome)
     {
-        <link rel="preload" href="~/vendor/fonts/vazirmatn/files/vazirmatn-400.woff2" asp-append-version="true" as="font" type="font/woff2" crossorigin="anonymous" />
-        <link rel="preload" href="~/vendor/fonts/vazirmatn/files/vazirmatn-700.woff2" asp-append-version="true" as="font" type="font/woff2" crossorigin="anonymous" />
+        <link rel="preload" href="~/vendor/fonts/iransans/files/iransans-400.woff2" asp-append-version="true" as="font" type="font/woff2" crossorigin="anonymous" />
+        <link rel="preload" href="~/vendor/fonts/iransans/files/iransans-700.woff2" asp-append-version="true" as="font" type="font/woff2" crossorigin="anonymous" />
         <link rel="preload" href="~/css/boltz-shell.css" as="style" asp-append-version="true" />
     }
     @if (!isLoginPage && renderShellChrome)
@@ -353,69 +353,90 @@
     <link rel="icon" type="image/png" sizes="512x512" href="~/android-chrome-v3-512x512.png" asp-append-version="true" />
     @if (!isLoginPage)
     {
-        @if (renderShellChrome)
+        @* در Development هر لایه جدا می‌آید تا دیباگ ساده بماند؛ در بقیهٔ محیط‌ها
+           همان فایل‌ها با همان ترتیب در یک باندل (ساخته‌شده در build) سرو می‌شوند. *@
+        @if (HostEnvironment.IsDevelopment())
         {
-            <link rel="stylesheet" href="~/css/_variables.css" asp-append-version="true" />
-            <link rel="stylesheet" href="~/css/_utilities.css" asp-append-version="true" />
-            <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-            <link rel="stylesheet" href="~/css/boltz-shell.css" asp-append-version="true" />
+            @if (renderShellChrome)
+            {
+                <link rel="stylesheet" href="~/css/_variables.css" asp-append-version="true" />
+                <link rel="stylesheet" href="~/css/_utilities.css" asp-append-version="true" />
+                <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+                <link rel="stylesheet" href="~/css/boltz-shell.css" asp-append-version="true" />
+            }
+            @if (renderShellChrome)
+            {
+            <link rel="stylesheet" href="~/css/ptg/01-tokens.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/02-base.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/03-layout.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/04-sidebar.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/05-components.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/06-forms.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/07-tables.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/08-modals.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/09-pages.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/10-responsive.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/11-details.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/12-dashboard.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/13-compat.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/14-master-details.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/15-system-lists.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/17-system-forms.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/18-toasts.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/40-motion.css" asp-append-version="true" />
+            }
         }
-        @if (renderShellChrome)
+        else if (renderShellChrome)
         {
-        <link rel="stylesheet" href="~/css/ptg/01-tokens.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/02-base.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/03-layout.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/04-sidebar.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/05-components.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/06-forms.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/07-tables.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/08-modals.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/09-pages.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/10-responsive.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/11-details.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/12-dashboard.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/13-compat.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/14-master-details.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/15-system-lists.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/17-system-forms.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/18-toasts.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/40-motion.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg-core.bundle.css" asp-append-version="true" />
         }
     }
     @await RenderSectionAsync("Styles", required: false)
     @if (isAuthenticated && renderShellChrome)
     {
-        <link rel="stylesheet" href="~/css/ptg/63-party-details.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/16-system-tabs.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/41-compact.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/45-akaunting.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/50-ak-components.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/65-excel-import.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/52-stat-card.css" asp-append-version="true" />
-        @* The authenticated shell survives SPA/Back navigation. Keep this scoped
-           stylesheet in that persistent shell so finance pages never arrive
-           before their CSS; every rule is guarded by body.is-finance-workspace. *@
-        <link rel="stylesheet" href="~/css/ptg/61-finance-workspace.css" asp-append-version="true" />
-        @* جدول رزنامچه — هر قاعده زیر .ak-journal-page قفل است. مثل ۶۱ در همین
-           پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
-        <link rel="stylesheet" href="~/css/ptg/67-journal-table.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/70-page-frame.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/ptg/71-typography.css" asp-append-version="true" />
-        @* سطح مشترک پنل‌ها — بدون بوردر، با سایهٔ نرم داشبورد. باید بعد از همهٔ
-           لایه‌هایی بیاید که پنل تعریف می‌کنند تا ترتیب منبع کار کند. *@
-        <link rel="stylesheet" href="~/css/ptg/72-surfaces.css" asp-append-version="true" />
-        @* سیستم کامپوننت مشترک صفحات جزئیات — همهٔ قواعد زیر .ak-detail-page قفل‌اند.
-           بعد از ۱۱ و ۵۰ می‌آید تا ریتم مشترک خانوادهٔ Details حرف آخر را بزند. *@
-        <link rel="stylesheet" href="~/css/ptg/73-detail-system.css" asp-append-version="true" />
-        @* کنترل‌های نوار هدر — یک زبان بصری واحد برای همبرگر، جستجو، زبان و
-           حساب کاربری. بعد از 03/13 می‌آید تا اندازه و حالت‌ها یکدست بماند. *@
-        <link rel="stylesheet" href="~/css/ptg/74-header-controls.css" asp-append-version="true" />
-        @* صفحهٔ پشتیبان‌گیری — هر قاعده زیر .bk-page قفل است. مثل ۶۱ و ۶۴ در همین
-           پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
-        <link rel="stylesheet" href="~/css/ptg/66-backups.css" asp-append-version="true" />
-        @* راهنمای هوشمند — همهٔ قواعد زیر .ptg-assistant قفل‌اند. مثل ۶۱ و ۶۴ در همین
-           پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
-        <link rel="stylesheet" href="~/css/ptg/80-assistant.css" asp-append-version="true" />
+        @if (HostEnvironment.IsDevelopment())
+        {
+            <link rel="stylesheet" href="~/css/ptg/63-party-details.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/16-system-tabs.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/41-compact.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/45-akaunting.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/50-ak-components.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/65-excel-import.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/52-stat-card.css" asp-append-version="true" />
+            @* The authenticated shell survives SPA/Back navigation. Keep this scoped
+               stylesheet in that persistent shell so finance pages never arrive
+               before their CSS; every rule is guarded by body.is-finance-workspace. *@
+            <link rel="stylesheet" href="~/css/ptg/61-finance-workspace.css" asp-append-version="true" />
+            @* جدول رزنامچه — هر قاعده زیر .ak-journal-page قفل است. مثل ۶۱ در همین
+               پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
+            <link rel="stylesheet" href="~/css/ptg/67-journal-table.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/70-page-frame.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/css/ptg/71-typography.css" asp-append-version="true" />
+            @* سطح مشترک پنل‌ها — بدون بوردر، با سایهٔ نرم داشبورد. باید بعد از همهٔ
+               لایه‌هایی بیاید که پنل تعریف می‌کنند تا ترتیب منبع کار کند. *@
+            <link rel="stylesheet" href="~/css/ptg/72-surfaces.css" asp-append-version="true" />
+            @* سیستم کامپوننت مشترک صفحات جزئیات — همهٔ قواعد زیر .ak-detail-page قفل‌اند.
+               بعد از ۱۱ و ۵۰ می‌آید تا ریتم مشترک خانوادهٔ Details حرف آخر را بزند. *@
+            <link rel="stylesheet" href="~/css/ptg/73-detail-system.css" asp-append-version="true" />
+            @* کنترل‌های نوار هدر — یک زبان بصری واحد برای همبرگر، جستجو، زبان و
+               حساب کاربری. بعد از 03/13 می‌آید تا اندازه و حالت‌ها یکدست بماند. *@
+            <link rel="stylesheet" href="~/css/ptg/74-header-controls.css" asp-append-version="true" />
+            @* سیستم دیزاین فرم‌ها — مرجع: فرم «ثبت دریافت / پرداخت». همهٔ قواعد زیر
+               .ak-form-page > form.ak-form قفل‌اند و آخرین حرف را روی primitive های
+               فرم می‌زنند، پس باید بعد از ۵۰ و همهٔ لایه‌های صفحه‌ای بیاید. *@
+            <link rel="stylesheet" href="~/css/ptg/76-form-system.css" asp-append-version="true" />
+            @* صفحهٔ پشتیبان‌گیری — هر قاعده زیر .bk-page قفل است. مثل ۶۱ و ۶۴ در همین
+               پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
+            <link rel="stylesheet" href="~/css/ptg/66-backups.css" asp-append-version="true" />
+            @* راهنمای هوشمند — همهٔ قواعد زیر .ptg-assistant قفل‌اند. مثل ۶۱ و ۶۴ در همین
+               پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
+            <link rel="stylesheet" href="~/css/ptg/80-assistant.css" asp-append-version="true" />
+        }
+        else
+        {
+            @* همان فهرست بالا، با همان ترتیب، در یک باندل. *@
+            <link rel="stylesheet" href="~/css/ptg-app.bundle.css" asp-append-version="true" />
+        }
     }
     @* لودر برند صدیقی — استایل و رفتار در فایل‌های مستقل (60-loader.css / ptg-loader.js) *@
     @if (renderShellChrome)

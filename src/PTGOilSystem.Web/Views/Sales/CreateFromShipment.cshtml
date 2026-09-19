@@ -6,13 +6,6 @@
     var baseCurrency = PTGOilSystem.Web.Services.SystemCurrency.BaseCurrencyCode;
 }
 
-@section Styles {
-    @* data-ptg-page-asset لازم است: ناوبری SPA فقط استایل‌های نشان‌دار را به صفحهٔ جدید منتقل می‌کند؛
-       بدون آن، صفحه در ورود SPA بدون CSS و فقط بعد از Refresh درست دیده می‌شود. *@
-    <link rel="stylesheet" href="~/css/ptg/91-shipment-sale-form.css" asp-append-version="true"
-          data-ptg-page-asset="shipment-sale-form" />
-}
-
 <partial name="~/Views/Shared/Components/Ak/_ShipmentSaleForm.cshtml" model="Model" />
 
 @section Scripts {

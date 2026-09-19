@@ -6,7 +6,7 @@
     border: 1px solid var(--statement-line);
     border-radius: var(--ptg-radius-lg);
     overflow: hidden;
-    font-family: Vazirmatn, IRANSans, sans-serif;
+    font-family: IRANSans, Vazirmatn, sans-serif;
 }
 
 .statement-screen-header {
@@ -60,7 +60,7 @@
 .statement-identity-line span + span::before {
     content: "·";
     margin-inline-end: 10px;
-    color: #cbd5e1;
+    color: var(--ptg-field-border);
 }
 
 .statement-actions {
@@ -226,18 +226,16 @@
 @page statement-wide { size: A4 landscape; margin: 9mm; }
 
 @media print {
-    body { background: #fff !important; }
-    .no-print,
+    body { background: var(--ptg-field-bg) !important; }.no-print,
     .sidebar,
     .topbar,
-    .app-footer,
-    .section-tabs { display: none !important; }
+    .section-tabs{ display: none !important; }
     .statement-document { page: statement-normal; border: 0; border-radius: 0; overflow: visible; }
     .statement-document.is-landscape { page: statement-wide; }
     .statement-print-header { display: block; padding: 0 0 5mm; border-bottom: 1px solid #b8c0cc; }
     .statement-heading h1 { font-size: 10.5pt; }
     .statement-identity-line { font-size: 9pt; }
-    .statement-summary { border: 1px solid #cbd5e1; break-inside: avoid; }
+    .statement-summary { border: 1px solid var(--ptg-field-border); break-inside: avoid; }
     .statement-summary-item { padding: 8px 10px; }
     .statement-summary-item strong { font-size: 12pt; }
     .statement-table { min-width: 0; font-size: 8.5pt; }
@@ -246,7 +244,7 @@
     .statement-table tr { break-inside: avoid; }
     .statement-table th,
     .statement-table td { padding: 5px 6px; }
-    .statement-print-footer { display: flex; justify-content: space-between; margin-top: 5mm; padding-top: 3mm; border-top: 1px solid #cbd5e1; color: #64748b; font-size: 7.5pt; }
+    .statement-print-footer { display: flex; justify-content: space-between; margin-top: 5mm; padding-top: 3mm; border-top: 1px solid var(--ptg-field-border); color: #64748b; font-size: 7.5pt; }
 }
 
 /* سربرگ بلوک جزئیات قرارداد: عنوان در یک سو، خروجی‌های همان قرارداد در سوی دیگر. */

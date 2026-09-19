@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using PTGOilSystem.Web.Infrastructure.Api;
 
 namespace PTGOilSystem.Web.Security;
 
@@ -11,6 +12,28 @@ public sealed class RoleNavigationAuthorizationFilter : IAsyncActionFilter
         if (user.Identity?.IsAuthenticated != true)
         {
             await next();
+            return;
+        }
+
+        // API صفحهٔ ناوبری نیست: کلید از [ApiNavigation] خوانده می‌شود (نه از نام کنترلر) و با همان
+        // RoleAccessRules وب سنجیده می‌شود. ردّ دسترسی 403 JSON است، نه Redirect به صفحهٔ HTML.
+        // API بدون کلید صریح رد می‌شود.
+        if (ApiRequest.IsApi(context.HttpContext))
+        {
+            var apiNavigation = context.ActionDescriptor.EndpointMetadata
+                .OfType<ApiNavigationAttribute>()
+                .LastOrDefault();
+            if (apiNavigation is not null && RoleAccessRules.CanAccessNavigation(user, apiNavigation.NavigationKey))
+            {
+                await next();
+                return;
+            }
+
+            context.Result = ApiProblem.Result(
+                context.HttpContext,
+                StatusCodes.Status403Forbidden,
+                ApiErrorCodes.Forbidden,
+                ApiProblem.ForbiddenMessage);
             return;
         }
 

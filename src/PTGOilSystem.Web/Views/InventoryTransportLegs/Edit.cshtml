@@ -27,7 +27,7 @@
         </div>
     </div>
 
-    <form asp-action="Edit" asp-route-id="@Model.Id" method="post" class="ak-form-section" data-inventory-transport-leg-form>
+    <form asp-action="Edit" asp-route-id="@Model.Id" method="post" class="ak-form" data-inventory-transport-leg-form>
         @Html.AntiForgeryToken()
         <input asp-for="Id" type="hidden" />
         <input asp-for="Version" type="hidden" />

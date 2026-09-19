@@ -37,7 +37,8 @@ public sealed class DevAutoSignInMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!_env.IsDevelopment())
+        // API هرگز به‌طور ضمنی وارد نمی‌شود؛ فقط مسیر صریح احراز هویت API (Bearer) معتبر است.
+        if (!_env.IsDevelopment() || PTGOilSystem.Web.Infrastructure.Api.ApiRequest.IsApi(context))
         {
             await _next(context);
             return;

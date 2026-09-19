@@ -23,28 +23,7 @@
 
 .ak-stat-grid > * {
     min-width: 0;
-}
-
-/* Section heading above each card grid (RTL, right-aligned) */
-.ak-stat-section { margin-block: 18px 0; }
-.ak-stat-section:first-child { margin-top: 4px; }
-.ak-stat-section__title {
-    margin: 0 0 10px;
-    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    color: #1F2A37;
-    text-align: right;
-    direction: rtl;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-}
-.ak-stat-section__title .bi { color: #159A68; font-size: 1.05em; }
-:root[data-theme="dark"] .ak-stat-section__title { color: #E5E9EE; }
-
-/* ---- Card surface --------------------------------------------------- */
+}/* ---- Card surface --------------------------------------------------- */
 .ak-stat-card {
     --ak-stat-fg: #1B2437;
     --ak-stat-title: #4E5968;
@@ -66,13 +45,13 @@
     padding: clamp(8px, 0.8vw, 12px);
     box-sizing: border-box;
 
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     border: 1px solid var(--ak-stat-border);
     /* چرتکه: کارت تخت، بدون سایه؛ عمق فقط برای لایه‌های شناور. */
     border-radius: var(--ptg-radius-xl);
     box-shadow: none;
 
-    font-family: "Vazirmatn", "IRANSans", system-ui, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     transition: box-shadow .18s ease, border-color .18s ease;
 }
 
@@ -286,13 +265,15 @@
         border-radius: var(--ptg-radius-xl);
     }
 
-    .ak-stat-card__title { font-size: clamp(9.5px, 1.05vw, 12px); }
+    /* کف اندازه‌ها خوانا بماند: زیر ۱۱px عنوان و زیر ۱۰px واحد/روند روی
+       نمایشگر کوچک عملاً ناخوانا می‌شد (اندازه‌گیری: ۸.۵px تا ۹.۵px). */
+    .ak-stat-card__title { font-size: clamp(11px, 1.05vw, 12px); }
     .ak-stat-card__value { font-size: clamp(13px, 1.75vw, 20px); }
     .ak-stat-card__value--compact { font-size: clamp(12px, 1.5vw, 17px); }
-    .ak-stat-card__value--dense { font-size: clamp(10.5px, 1.25vw, 14px); }
-    .ak-stat-card__value--ultra { font-size: clamp(9px, 1vw, 11px); }
+    .ak-stat-card__value--dense { font-size: clamp(11px, 1.25vw, 14px); }
+    .ak-stat-card__value--ultra { font-size: clamp(11px, 1vw, 11px); }
     .ak-stat-card__unit,
-    .ak-stat-card__trend { font-size: clamp(8.5px, 0.92vw, 10.5px); }
+    .ak-stat-card__trend { font-size: clamp(10px, 0.92vw, 10.5px); }
     .ak-stat-card__trend { gap: 4px; }
     .ak-stat-card__trend-arrow { width: 13px; height: 13px; padding: 2px; }
 }

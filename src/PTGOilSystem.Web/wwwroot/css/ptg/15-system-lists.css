@@ -26,7 +26,7 @@ body.ptg-modal-document .ptg-client-pager {
     gap: .38rem;
     padding: .68rem .95rem .78rem;
     border-top: 1px solid var(--ptg-list-line);
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     color: var(--ptg-list-muted);
     font-size: 12px;
     font-weight: 600;
@@ -41,7 +41,7 @@ body.ptg-modal-document .ptg-client-pager-info {
     font-weight: 600;
     direction: ltr;
     unicode-bidi: plaintext;
-    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
     font-variant-numeric: tabular-nums;
 }
 
@@ -62,7 +62,7 @@ body.ptg-modal-document .ptg-client-pager-button {
     padding: .32rem .62rem;
     border: 1px solid #E3EAF4;
     border-radius: var(--radius-btn);
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     color: var(--ptg-list-muted);
     font-size: 12px;
     font-weight: 700;
@@ -94,40 +94,40 @@ body.ptg-modal-document .ptg-client-pager-button:disabled {
 }
 
 @media (max-width: 767.98px) {
-    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table, .ds-table) tbody tr,
-    body.ptg-modal-document table:is(.table.is-responsive-table, .ds-table) tbody tr {
+    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody tr,
+    body.ptg-modal-document table:is(.table.is-responsive-table) tbody tr {
         gap: .28rem !important;
         padding: 1rem .95rem !important;
         border: 1px solid var(--ptg-list-border) !important;
         border-radius: 8px !important;
-        background: #FFFFFF !important;
+        background: var(--ptg-field-bg) !important;
         box-shadow: none !important;
     }
 
-    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table, .ds-table) tbody :is(td, th),
-    body.ptg-modal-document table:is(.table.is-responsive-table, .ds-table) tbody :is(td, th) {
+    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody :is(td, th),
+    body.ptg-modal-document table:is(.table.is-responsive-table) tbody :is(td, th) {
         height: auto !important;
         padding: .42rem 0 !important;
         border-bottom: 1px solid var(--ptg-list-line) !important;
         font-size: 12px !important;
     }
 
-    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table, .ds-table) tbody :is(td, th)::before,
-    body.ptg-modal-document table:is(.table.is-responsive-table, .ds-table) tbody :is(td, th)::before {
+    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody :is(td, th)::before,
+    body.ptg-modal-document table:is(.table.is-responsive-table) tbody :is(td, th)::before {
         color: var(--ptg-list-muted) !important;
         font-size: 12px !important;
         font-weight: 700 !important;
     }
 
-    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table, .ds-table) tbody :is(.action-cell, .table-actions),
-    body.ptg-modal-document table:is(.table.is-responsive-table, .ds-table) tbody :is(.action-cell, .table-actions) {
+    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody :is(.action-cell, .table-actions),
+    body.ptg-modal-document table:is(.table.is-responsive-table) tbody :is(.action-cell, .table-actions) {
         display: flex !important;
         flex-wrap: wrap !important;
         gap: .35rem !important;
     }
 
-    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table, .ds-table) tbody :is(.action-cell, .table-actions) > :is(.btn, form, .d-inline),
-    body.ptg-modal-document table:is(.table.is-responsive-table, .ds-table) tbody :is(.action-cell, .table-actions) > :is(.btn, form, .d-inline) {
+    body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody :is(.action-cell, .table-actions) > :is(.btn, form, .d-inline),
+    body.ptg-modal-document table:is(.table.is-responsive-table) tbody :is(.action-cell, .table-actions) > :is(.btn, form, .d-inline) {
         width: auto !important;
         flex: 0 0 auto !important;
     }
@@ -143,100 +143,16 @@ body.ptg-modal-document .ptg-client-pager-button:disabled {
         width: 100%;
         margin-inline-end: 0;
     }
-}
-
-/* Supplier profile detail tabs contain wide operational ledgers. Keep those
-   tables scrollable instead of squeezing or clipping columns inside tab panes. */
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page :is(.tab-content, .tab-pane) {
-    min-width: 0;
-    max-width: 100%;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page .table-responsive {
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: #CBD5E1 transparent;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page .table-responsive > table {
-    width: max-content !important;
-    min-width: 100% !important;
-    table-layout: fixed !important;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page .table-responsive > table :is(th, td) {
-    white-space: nowrap;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page :is(#supplier-contracts, #supplier-payments, #supplier-sarraf, #supplier-statement) .table-responsive > table {
-    min-width: 74rem !important;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page #supplier-contracts > .table-responsive > table {
-    min-width: 92rem !important;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page #supplier-payments > .table-responsive > table,
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page #supplier-sarraf > .table-responsive > table {
-    min-width: 82rem !important;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page #supplier-payments .ds-card .table-responsive > table {
-    min-width: 56rem !important;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page .supplier-statement-ledger-wrap > table.supplier-statement-ledger {
-    min-width: 104rem !important;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-suppliers.action-details .boltz-content .supplier-details-page .supplier-statement-ledger :is(.sl-desc, .sl-desc-line, .sl-desc-text) {
-    min-width: 18rem;
-    max-width: 28rem;
-    white-space: normal;
-    overflow-wrap: anywhere;
-}
-
-/* Tab + filter wrapper = TOP of the panel: white, flat bottom, no shadow seam */
-body.boltz-shell.app-shell-authenticated .list-header-extension {
-    background: #FFFFFF !important;
-    border: 1px solid var(--ptg-border) !important;
-    border-bottom: 0 !important;
-    border-radius: var(--ptg-radius-card) var(--ptg-radius-card) 0 0 !important;
-    box-shadow: none !important;
-    overflow: hidden !important;
-    margin-bottom: 0 !important;
-}
-
-/* Header row (field titles) = quiet light strip on list tables. */
-body.boltz-shell.app-shell-authenticated .boltz-content :is(.app-table-card, .card.app-table-card) table:is(.table, .ds-table) thead th,
-body.ptg-modal-document :is(.app-table-card, .card.app-table-card) table:is(.table, .ds-table) thead th {
-    --bs-table-bg: var(--ptg-list-head-bg) !important;
-    --bs-table-bg-state: var(--ptg-list-head-bg) !important;
-    --bs-table-accent-bg: transparent !important;
-    background: var(--ptg-list-head-bg) !important;
-    background-color: var(--ptg-list-head-bg) !important;
-    box-shadow: none !important;
-    color: var(--ptg-list-muted) !important;
-    /* متریک هدر از 07-tables.css می‌آید؛ اینجا فقط باند رنگی تثبیت می‌شود. */
-    border-bottom: 0 !important;
-}
-
-/* OA: connect the section-tabs strip + filter bar into one white panel.
+}/* OA: connect the section-tabs strip + filter bar into one white panel.
    .boltz-content is a grid with gap:1.25rem (that gap is the gray space), so
    collapse its row-gap and flatten the touching edges. Card shell stays below. */
 body.boltz-shell.app-shell-authenticated.controller-operationalassets.action-index .boltz-content {
-    row-gap: 0 !important;
+    row-gap: 0;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-operationalassets.action-index .boltz-content .boltz-content-body {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
+    margin-top: 0;
+    padding-top: 0;
 }
 
 /* ─── People / Parties index: merge the section-tabs strip + filter bar into one
@@ -244,28 +160,22 @@ body.boltz-shell.app-shell-authenticated.controller-operationalassets.action-ind
    float apart with a gap and a redundant title row between them; here they butt
    together with shared edges so they read as a single toolbar. ──────────────── */
 body.boltz-shell.app-shell-authenticated:is(.controller-partners, .controller-companies, .controller-suppliers, .controller-customers, .controller-serviceproviders, .controller-sarrafs, .controller-employees).action-index .boltz-content {
-    row-gap: 0 !important;
+    row-gap: 0;
 }
 
 body.boltz-shell.app-shell-authenticated:is(.controller-partners, .controller-companies, .controller-suppliers, .controller-customers, .controller-serviceproviders, .controller-sarrafs, .controller-employees).action-index .boltz-content .boltz-content-body {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
+    margin-top: 0;
+    padding-top: 0;
 }
-
-/* keep the card grid separated below the merged panel */
-body.boltz-shell.app-shell-authenticated:is(.controller-partners, .controller-companies, .controller-suppliers, .controller-customers, .controller-serviceproviders, .controller-sarrafs, .controller-employees).action-index .boltz-content .people-parties-page {
-    row-gap: 1rem !important;
-}
-
 /* filter bar = BOTTOM of the panel: flat top, no top divider
  * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated:is(.controller-products, .controller-units, .controller-currencies, .controller-dailyfxrates, .controller-locations, .controller-expensetypes, .controller-expenserules, .controller-terminals, .controller-storagetanks, .controller-trucks, .controller-wagons, .controller-drivers, .controller-vessels).action-index .boltz-content {
-    row-gap: 0 !important;
+    row-gap: 0;
 }
 
 body.boltz-shell.app-shell-authenticated:is(.controller-products, .controller-units, .controller-currencies, .controller-dailyfxrates, .controller-locations, .controller-expensetypes, .controller-expenserules, .controller-terminals, .controller-storagetanks, .controller-trucks, .controller-wagons, .controller-drivers, .controller-vessels).action-index .boltz-content .boltz-content-body {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
+    margin-top: 0;
+    padding-top: 0;
 }
 
 /* filter bar = BOTTOM of the panel: flat top, no top divider
@@ -275,8 +185,8 @@ body.boltz-shell.app-shell-authenticated .boltz-content table thead tr,
 body.boltz-shell.app-shell-authenticated table thead th,
 body.ptg-modal-document table thead th,
 body.ptg-modal-document table thead tr {
-    background: var(--ptg-list-head-bg) !important;
-    background-color: var(--ptg-list-head-bg) !important;
+    background: var(--ptg-list-head-bg);
+    background-color: var(--ptg-list-head-bg);
 }
 
 /* Shipment summary: page-scoped compact layout. */
@@ -323,7 +233,7 @@ body.ptg-modal-document .ak-list-card {
     margin: 0;
     border: 0;
     border-radius: var(--ptg-list-radius);
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     box-shadow: var(--ptg-panel-shadow);
 }
 
@@ -336,7 +246,7 @@ body.ptg-modal-document .ak-list-card > .ak-list-toolbar {
     padding: 12px 16px;
     border-bottom: 1px solid var(--ptg-list-line);
     border-radius: var(--ptg-list-radius) var(--ptg-list-radius) 0 0;
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-host,
@@ -395,7 +305,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-t
 body.ptg-modal-document .ak-list-card .ak-list-toolbar-actions,
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-page-actions,
 body.ptg-modal-document .ak-list-card .ak-page-actions {
-    margin-block: 0 !important;
+    margin-block: 0;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table-wrap,
@@ -405,12 +315,12 @@ body.ptg-modal-document .ak-list-card .ak-table-wrap {
     margin: 0;
     border: 0;
     border-radius: 0;
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     box-shadow: none;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    scrollbar-color: #CBD5E1 transparent;
+    scrollbar-color: var(--ptg-field-border) transparent;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table,
@@ -419,7 +329,7 @@ body.ptg-modal-document .ak-list-card .ak-table {
     min-width: max-content;
     margin: 0;
     border-collapse: collapse;
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
 }
 
 /* اندازه، وزن، رنگ و padding هدر و سلول در 50-ak-components.css تعریف شده است.
@@ -433,7 +343,7 @@ body.ptg-modal-document .ak-list-card .ak-table > thead > tr > th {
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-table > tbody > tr > td,
 body.ptg-modal-document .ak-list-card .ak-table > tbody > tr > td {
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     vertical-align: middle;
     transition: background-color 140ms ease, color 140ms ease;
 }
@@ -459,8 +369,8 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-col-ch
 body.ptg-modal-document .ak-list-card .ak-col-check {
     width: 48px;
     min-width: 48px;
-    padding-inline: 14px !important;
-    text-align: center !important;
+    padding-inline: 14px;
+    text-align: center;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-check,
@@ -471,14 +381,14 @@ body.ptg-modal-document .ak-list-card .ak-check {
     border: 1px solid #AFC0D5;
     border-radius: 4px;
     vertical-align: middle;
-    accent-color: #1062D0;
+    accent-color: var(--ptg-primary);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-col-actions,
 body.ptg-modal-document .ak-list-card .ak-col-actions {
     width: var(--ak-actions-w, 52px);
     min-width: var(--ak-actions-w, 52px);
-    text-align: center !important;
+    text-align: center;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status,
@@ -538,7 +448,7 @@ body.ptg-modal-document .ak-list-card .ak-list-footer {
     padding: 10px 16px;
     border-top: 1px solid var(--ptg-list-line);
     border-radius: 0 0 var(--ptg-list-radius) var(--ptg-list-radius);
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-result-count,
@@ -590,16 +500,16 @@ body.ptg-modal-document .ak-list-card .pagination .page-link {
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item.active .page-link,
 body.ptg-modal-document .ak-list-card .pagination .page-item.active .page-link {
-    border-color: #1062D0;
-    background: #1062D0;
-    color: #FFFFFF;
+    border-color: var(--ptg-primary);
+    background: var(--ptg-primary);
+    color: var(--ptg-field-bg);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item:not(.active):not(.disabled) .page-link:hover,
 body.ptg-modal-document .ak-list-card .pagination .page-item:not(.active):not(.disabled) .page-link:hover {
     border-color: rgba(16, 98, 208, .18);
     background: #EEF5FF;
-    color: #1062D0;
+    color: var(--ptg-primary);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item.disabled .page-link,
@@ -634,7 +544,7 @@ body.ptg-modal-document .ak-list-loading-state[hidden] {
     width: 22px;
     height: 22px;
     border: 2px solid rgba(16, 98, 208, .18);
-    border-top-color: #1062D0;
+    border-top-color: var(--ptg-primary);
     border-radius: 8px;
     animation: ak-list-loading-spin .75s linear infinite;
 }

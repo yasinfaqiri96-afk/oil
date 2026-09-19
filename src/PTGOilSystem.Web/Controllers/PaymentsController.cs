@@ -2102,19 +2102,8 @@ public class PaymentsController : Controller
             })
             .FirstOrDefaultAsync();
 
-        var cashTotals = await _db.PaymentTransactions
-            .AsNoTracking()
-            .Where(p => p.CashAccountId != null)
-            .GroupBy(p => p.CashAccountId!.Value)
-            .Select(g => new
-            {
-                CashAccountId = g.Key,
-                TotalIn = g.Where(p => p.Direction == PaymentDirection.In).Sum(p => p.Amount),
-                TotalOut = g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => p.Amount),
-                TotalInUsd = g.Where(p => p.Direction == PaymentDirection.In).Sum(p => p.AmountUsd),
-                TotalOutUsd = g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => p.AmountUsd)
-            })
-            .ToListAsync();
+        // همان تجمیع قبلی؛ به مرجع مشترک منتقل شد تا داشبورد موبایل فرمول موازی نسازد.
+        var cashTotals = await new PTGOilSystem.Web.Services.Reporting.CashPositionReader(_db).ReadAccountTotalsAsync();
 
         var totalsByAccount = cashTotals.ToDictionary(t => t.CashAccountId);
         var accounts = await _db.CashAccounts
@@ -2150,7 +2139,7 @@ public class PaymentsController : Controller
             TodayPaymentUsd: todayTotals?.PaymentUsd ?? 0m,
             TodayReceiptMissingUsdEquivalentCount: todayTotals?.ReceiptMissingUsdEquivalentCount ?? 0,
             TodayPaymentMissingUsdEquivalentCount: todayTotals?.PaymentMissingUsdEquivalentCount ?? 0,
-            CashAccountsBalanceUsd: cashTotals.Sum(p => p.TotalInUsd - p.TotalOutUsd),
+            CashAccountsBalanceUsd: PTGOilSystem.Web.Services.Reporting.CashPositionReader.TotalBalanceUsd(cashTotals),
             LastDocumentReference: lastDocument is null
                 ? null
                 : string.IsNullOrWhiteSpace(lastDocument.Reference) ? $"#{lastDocument.Id}" : lastDocument.Reference,

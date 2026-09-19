@@ -15,8 +15,8 @@
 <input asp-for="ManualFilter.ProductId" type="hidden" />
 <input asp-for="ManualFilter.BenchmarkCode" type="hidden" />
 
-<section class="form-section ak-form-section">
-    <h2 class="form-section-title">@(Model.DailyForm.Id.HasValue ? "ویرایش نرخ روزانه" : "ثبت نرخ روزانه")</h2>
+<section class="ak-form-section">
+    <h2 class="ak-form-group-title">@(Model.DailyForm.Id.HasValue ? "ویرایش نرخ روزانه" : "ثبت نرخ روزانه")</h2>
     <div class="ak-form-grid modal-form-grid">
         <div class="ak-field">
             <label asp-for="DailyForm.ProductId" class="ak-label"></label>

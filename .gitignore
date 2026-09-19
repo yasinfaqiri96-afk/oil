@@ -247,3 +247,7 @@ graphify-out/
 
 # Runtime user uploads (real business documents, not source).
 /src/PTGOilSystem.Web/wwwroot/uploads/
+
+# CSS bundles generated at build time (BuildCssBundles target in the web csproj).
+/src/PTGOilSystem.Web/wwwroot/css/ptg-core.bundle.css
+/src/PTGOilSystem.Web/wwwroot/css/ptg-app.bundle.css

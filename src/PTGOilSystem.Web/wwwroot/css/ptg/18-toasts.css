@@ -33,7 +33,7 @@
     border: 0;
     border-radius: var(--ptg-radius-md);
     box-shadow: var(--shadow-dialog);
-    color: #fff;
+    color: var(--ptg-field-bg);
     pointer-events: auto;
     overflow: hidden;
     opacity: 0;
@@ -72,7 +72,7 @@
     height: 2.5rem;
     border-radius: 50%;
     background: rgba(255, 255, 255, .22);
-    color: #fff;
+    color: var(--ptg-field-bg);
     font-size: 1.35rem;
     line-height: 1;
 }
@@ -89,7 +89,7 @@
     font-size: 14px;
     font-weight: 700;
     line-height: 1.3;
-    color: #fff;
+    color: var(--ptg-field-bg);
 }
 
 .ptg-toast__message {
@@ -115,7 +115,7 @@
 }
 
 .ptg-toast__close:hover {
-    color: #fff;
+    color: var(--ptg-field-bg);
     background: rgba(255, 255, 255, .18);
 }
 
@@ -258,7 +258,7 @@
 
 .ptg-confirm__btn--danger {
     background: var(--ptg-danger);
-    color: #fff;
+    color: var(--ptg-field-bg);
 }
 
 .ptg-confirm__btn--danger:hover { filter: brightness(.94); }

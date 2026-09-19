@@ -9,12 +9,10 @@ body.ptg-modal-document {
     --ptg-field-muted-bg: var(--ptg-field-disabled-bg);
     --ptg-field-height: var(--ak-control-height);
     --ptg-form-gap: 16px;
-    --ptg-form-card-radius: 10px;  /* Chortke rounded-[10px] */
-    --ptg-form-card-pad: 24px;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.form-label, .col-form-label, .boltz-form-label),
-body.ptg-modal-document :where(.form-label, .col-form-label, .boltz-form-label) {
+body.boltz-shell.app-shell-authenticated :where(.form-label, .col-form-label),
+body.ptg-modal-document :where(.form-label, .col-form-label) {
     margin-bottom: 6px;
     color: var(--ptg-label);
     font-size: var(--font-label);
@@ -22,16 +20,18 @@ body.ptg-modal-document :where(.form-label, .col-form-label, .boltz-form-label) 
     line-height: var(--line-label);
 }
 
-body.boltz-shell.app-shell-authenticated :where(.field-validation-error, .validation-summary-errors, .text-danger),
-body.ptg-modal-document :where(.field-validation-error, .validation-summary-errors, .text-danger) {
-    color: var(--ptg-danger) !important;
+/* اندازهٔ caption فقط برای پیام اعتبارسنجی؛ .text-danger صرفاً utility رنگ است
+   و رنگش را _utilities.css می‌دهد. */
+body.boltz-shell.app-shell-authenticated :where(.field-validation-error, .validation-summary-errors),
+body.ptg-modal-document :where(.field-validation-error, .validation-summary-errors) {
+    color: var(--ptg-danger);
     font-size: var(--font-caption);
     font-weight: 500;
     line-height: 1.6;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.validation-summary-errors, .contract-validation-summary, .operations-validation-summary):not(:empty),
-body.ptg-modal-document :where(.validation-summary-errors, .contract-validation-summary, .operations-validation-summary):not(:empty) {
+body.boltz-shell.app-shell-authenticated :where(.validation-summary-errors, .contract-validation-summary):not(:empty),
+body.ptg-modal-document :where(.validation-summary-errors, .contract-validation-summary):not(:empty) {
     padding: .85rem 1rem;
     border: 1px solid rgba(var(--ptg-danger-rgb), .16);
     border-radius: var(--ptg-radius-md);
@@ -43,187 +43,11 @@ body.ptg-modal-document :where(.row.g-3, .row.g-4) {
     --bs-gutter-x: var(--ptg-form-gap);
     --bs-gutter-y: var(--ptg-form-gap);
 }
-
-body.boltz-shell.app-shell-authenticated :where(form.app-form-card, form.form-card, .operations-one-page-form, .loading-one-page-form, .expense-one-page-form, .contract-one-page-form, .dispatch-create-form, .loss-create-form, .sarraf-settlement-one-page-form),
-body.ptg-modal-document :where(form.app-form-card, form.form-card, .operations-one-page-form, .loading-one-page-form, .expense-one-page-form, .contract-one-page-form, .dispatch-create-form, .loss-create-form, .sarraf-settlement-one-page-form) {
-    border: 1px solid var(--ptg-border);
-    border-radius: var(--ptg-radius-card);
-    background: var(--ptg-surface);
-    box-shadow: var(--ptg-shadow-card);
-}
-
-body.boltz-shell.app-shell-authenticated :where(.app-form-card, .form-card) > .card-body,
-body.ptg-modal-document :where(.app-form-card, .form-card) > .card-body {
-    padding: var(--ptg-space-card);
-}
-
-body.boltz-shell.app-shell-authenticated :where(.app-form-card, .form-card) > .card-footer,
-body.ptg-modal-document :where(.app-form-card, .form-card) > .card-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1.25rem var(--ptg-space-card);
-    background: var(--ptg-surface);
-    border-top: 1px solid var(--ptg-border);
-}
-
-/* ============================================================================
- * CANONICAL PTG FORM SHELL — single design contract for every form.
- * The ptg-form-* / ptg-btn-* classes are the source of truth; existing legacy
- * wrappers are folded into the SAME rules so all forms share one visual rhythm.
- * ==========================================================================*/
-
-/* Page + card */
-body.boltz-shell.app-shell-authenticated :where(.ptg-form-page, .ptg-form-shell),
-body.ptg-modal-document :where(.ptg-form-page, .ptg-form-shell) {
-    display: grid;
-    gap: var(--ptg-space-gap);
-    width: min(100%, 70rem);
-}
-body.ptg-modal-document :where(.ptg-form-card) {
-    border: 1px solid var(--ptg-border) !important;
-    border-radius: var(--ptg-form-card-radius) !important;
-    background: var(--ptg-surface) !important;
-    box-shadow: var(--ptg-shadow-card) !important;
-}
-
-/* Header + body */
-body.boltz-shell.app-shell-authenticated :where(.ptg-form-header),
-body.ptg-modal-document :where(.ptg-form-header) {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: var(--ptg-form-card-pad) var(--ptg-form-card-pad) 0;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-form-body),
-body.ptg-modal-document :where(.ptg-form-body) {
-    display: grid;
-    gap: var(--ptg-space-gap);
-    padding: var(--ptg-form-card-pad);
-}
-
-/* Section + title + divider */
-body.boltz-shell.app-shell-authenticated :where(.ptg-form-section),
-body.ptg-modal-document :where(.ptg-form-section) {
-    display: grid;
-    gap: var(--ptg-form-gap);
-    padding: var(--ptg-form-card-pad);
-    border: 1px solid var(--ptg-border);
-    border-radius: var(--ptg-radius-card);
-    background: var(--ptg-surface);
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-section-title, .form-section-title),
-body.ptg-modal-document :where(.ptg-section-title, .form-section-title) {
-    margin: 0;
-    color: var(--ptg-text);
-    font-size: var(--font-section-title);
-    font-weight: var(--weight-section-title);
-    line-height: var(--line-section-title);
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-section-divider),
-body.ptg-modal-document :where(.ptg-section-divider) {
-    height: 1px;
-    margin: .25rem 0;
-    border: 0;
-    background: var(--ptg-border);
-}
-
-/* Grid + field */
-body.boltz-shell.app-shell-authenticated :where(.ptg-form-grid),
-body.ptg-modal-document :where(.ptg-form-grid) {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--ptg-form-gap);
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-form-field, .ptg-form-grid > .col-12, .ptg-form-grid > [class*="col-"]),
-body.ptg-modal-document :where(.ptg-form-field) {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-body.ptg-modal-document :where(.ptg-input, .ptg-select, .ptg-textarea) {
-    width: 100%;
-    min-height: var(--ptg-field-height);
-    padding: 0 12px;
-    border: 1px solid var(--ptg-field-border) !important;
-    border-radius: var(--ptg-radius-input) !important;
-    background-color: var(--ptg-field-bg) !important;
-    color: var(--ptg-text);
-    font-size: var(--font-body);
-    font-weight: 400;
-    box-shadow: none !important;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-textarea),
-body.ptg-modal-document :where(.ptg-textarea) {
-    min-height: 96px;
-    padding: 10px 12px;
-    border-radius: var(--ptg-radius-md) !important;
-    line-height: 1.7;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-input, .ptg-select, .ptg-textarea):focus,
-body.ptg-modal-document :where(.ptg-input, .ptg-select, .ptg-textarea):focus {
-    border-color: var(--ptg-primary) !important;
-    box-shadow: none !important;
-}
-
-/* Action bar — one place, pill buttons aligned end */
-body.boltz-shell.app-shell-authenticated :where(.ptg-form-actions),
-body.ptg-modal-document :where(.ptg-form-actions) {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    padding-top: 4px;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-btn-primary),
-body.ptg-modal-document :where(.ptg-btn-primary) {
-    border: 1px solid var(--ptg-primary) !important;
-    background: var(--ptg-primary) !important;
-    color: #FFFFFF !important;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-btn-soft, .ptg-btn-secondary),
-body.ptg-modal-document :where(.ptg-btn-soft, .ptg-btn-secondary) {
-    border: 1px solid var(--ptg-border) !important;
-    background: var(--ptg-surface) !important;
-    color: var(--ptg-text) !important;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.ptg-btn-danger),
-body.ptg-modal-document :where(.ptg-btn-danger) {
-    border: 1px solid rgba(var(--ptg-danger-rgb), .2) !important;
-    background: var(--ptg-danger-soft) !important;
-    color: var(--ptg-danger) !important;
-}
-
-@media (max-width: 767.98px) {
-    body.boltz-shell.app-shell-authenticated :where(.ptg-form-grid),
-    body.ptg-modal-document :where(.ptg-form-grid) {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    body.boltz-shell.app-shell-authenticated :where(.ptg-form-header, .ptg-form-body, .ptg-form-section),
-    body.ptg-modal-document :where(.ptg-form-header, .ptg-form-body, .ptg-form-section) {
-        padding: 1.15rem;
-    }
-
-    body.boltz-shell.app-shell-authenticated :where(.ptg-form-actions),
-    body.ptg-modal-document :where(.ptg-form-actions) {
-        justify-content: stretch;
-    }
-
-    body.boltz-shell.app-shell-authenticated :where(.ptg-form-actions) > :where(.btn, .ptg-btn),
-    body.ptg-modal-document :where(.ptg-form-actions) > :where(.btn, .ptg-btn) {
-        flex: 1 1 auto;
-    }
-}
+/* The parallel «ptg-form-*» shell that used to live below this line is gone:
+   .ptg-form-page/-shell/-card/-header/-body/-section/-grid/-field, .ptg-input/
+   -select/-textarea, .ptg-section-title/-divider, .ptg-form-actions,
+   .ptg-btn-primary/-soft/-secondary/-danger, .app-form-card/.form-card and the
+   *-one-page-form wrappers had no markup left in any view. Form design now has
+   a single owner: 76-form-system.css, whose reference is the
+   «ثبت دریافت / پرداخت» form. Only the Bootstrap-vocabulary leftovers above
+   (.form-label, validation text, .row gutters) still have live markup. */

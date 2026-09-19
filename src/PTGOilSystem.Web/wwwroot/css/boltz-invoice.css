@@ -10,7 +10,7 @@
 
 .boltz-invoice-breadcrumb {
     align-items: center;
-    background: #fff;
+    background: var(--ptg-field-bg);
     border-radius: 8px;
     display: flex;
     gap: .6rem;
@@ -38,7 +38,7 @@
 }
 
 .boltz-invoice-card {
-    background: #fff;
+    background: var(--ptg-field-bg);
     border: 0;
     border-radius: 8px;
     box-shadow: 0 5px 5px rgba(82, 63, 105, .05);
@@ -274,7 +274,7 @@
     border-radius: 8px;
 }
 
-@media (max-width: 992px) {
+@media (max-width: 991.98px) {
     .boltz-invoice-breadcrumb {
         padding-inline: 1.25rem;
     }
@@ -296,7 +296,7 @@
     }
 }
 
-@media (max-width: 576px) {
+@media (max-width: 575.98px) {
     .boltz-invoice-card-body {
         padding: 1rem;
     }
@@ -312,7 +312,7 @@
 
 @media print {
     body {
-        background: #fff !important;
+        background: var(--ptg-field-bg) !important;
     }
 
     .print-hidden,

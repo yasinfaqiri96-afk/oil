@@ -68,7 +68,7 @@
 }
 
 /* page lead/intro text keeps its place above the cards */
-:is(.ak-list-page, .ak-form-page) > :is(.finance-page-lead, .ak-note, .ak-page-lead) {
+:is(.ak-list-page, .ak-form-page) > :is(.finance-page-lead, .ak-note) {
     order: -2;
 }
 
@@ -119,21 +119,6 @@
     margin: 0 0 4px;
 }
 
-.ak-detail-toolbar-search {
-    display: flex;
-    flex: 1 1 auto;
-    align-items: center;
-    border-bottom: 1px solid var(--divider);
-    margin: 0;
-}
-
-.ak-detail-toolbar-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-
 /* ============================================================= *
  * Subform toolbar — search + clear row inside wizard subforms
  * (group expense / group sale / vehicle import).
@@ -144,22 +129,6 @@
     align-items: stretch;
     gap: 8px;
     margin: 0 0 4px;
-}
-
-.ak-subform-search {
-    flex: 1 1 auto;
-    min-width: 0;
-    border: 0;
-    background: transparent;
-    outline: 0;
-    padding: 16px 2px;
-    font-size: 14px;
-    color: var(--ptg-text);
-}
-
-.ak-subform-search::placeholder {
-    color: var(--ptg-muted);
-    opacity: 1;
 }
 
 /* ============================================================= *
@@ -395,8 +364,8 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: #1062D0;
-    color: #fff;
+    background: var(--ptg-primary);
+    color: var(--ptg-field-bg);
     overflow: hidden;
 }
 
@@ -712,7 +681,7 @@ a.ak-list-row:focus-visible {
     align-items: center;
     height: 36px;
     overflow: hidden;
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     border: 1px solid #E8E9F0;
     border-radius: var(--radius-base);
     box-shadow: none;
@@ -769,7 +738,7 @@ a.ak-list-row:focus-visible {
 
 .ak-row-action:hover {
     background: rgba(16, 98, 208, 0.07);
-    color: #1062D0;
+    color: var(--ptg-primary);
 }
 
 .ak-row-action:focus-visible {
@@ -854,7 +823,7 @@ a.ak-list-row:focus-visible {
 }
 
 .ak-bulk-clear:hover {
-    color: #3D3D3D;
+    color: var(--ptg-text);
     text-decoration: underline;
 }
 
@@ -921,11 +890,17 @@ a.ak-list-row:focus-visible {
     white-space: nowrap;
 }
 
-.ak-page-size-select {
+/* پاورقی لیست — قاعدهٔ عمومی .form-select (در 45-akaunting) با وزن بیشتر
+   padding: 10px و font-size: 14px را تحمیل می‌کرد و این انتخابگر ۴۴px می‌شد؛
+   یعنی از فیلد اصلی فرم (۴۰px) هم بلندتر. با همان scope نوشته می‌شود تا
+   ارتفاع فشردهٔ سیستم مرجع اعمال شود. */
+body.boltz-shell.app-shell-authenticated .ak-page-size-select,
+body.ptg-modal-document .ak-page-size-select {
     width: auto;
     min-width: 72px;
-    padding-top: 3px;
-    padding-bottom: 3px;
+    height: var(--ak-control-compact-height);
+    min-height: var(--ak-control-compact-height);
+    padding-block: 0;
     font-size: 12px;
     font-weight: 600;
 }
@@ -986,71 +961,11 @@ a.ak-list-row:focus-visible {
  * so name/id/validation binding is produced by the framework and
  * never altered). Tokens only, no !important.
  * ============================================================= */
-/* ============================================================= *
- * Form page column — one constrained, start-aligned column that the
- * page header, form, sections, grid, table and footer all share.
- * Keyed on the universal form-page shape (.ak-form-page holding a
- * form.ak-form, or the explicit .ak-form-page-content wrapper) so it
- * reaches every Create/Edit page with no per-view CSS. Detail/Index
- * pages also use .ak-form-page but have no form.ak-form → stay full width.
- * ============================================================= */
-.ak-form-page:has(> form.ak-form),
-.ak-form-page:has(> .ak-form-page-content) {
-    inline-size: 100%;
-    padding-inline: 0;
-}
-
-/* The column itself — pinned to the content start (near side in RTL/LTR),
-   whitespace collected on the opposite side via margin-inline-end:auto. */
-.ak-form-page:has(> form.ak-form) > .ak-page-header,
-.ak-form-page:has(> form.ak-form) > form.ak-form,
-.ak-form-page-content {
-    inline-size: min(100%, var(--ak-form-content-max));
-    max-inline-size: 100%;
-    margin-inline-start: 0;
-    margin-inline-end: auto;
-}
-
-/* Wide variant — forms that carry a line-item table, or opted in
-   explicitly via --wide on the page/content. Still not full viewport. */
-.ak-form-page:has(> form.ak-form .ak-table) > .ak-page-header,
-.ak-form-page:has(> form.ak-form .ak-table) > form.ak-form,
-.ak-form-page--wide:has(> form.ak-form) > .ak-page-header,
-.ak-form-page--wide:has(> form.ak-form) > form.ak-form,
-.ak-form-page-content:has(.ak-table),
-.ak-form-page-content--wide {
-    inline-size: min(100%, var(--ak-form-content-wide-max));
-}
-
-/* Explicit wrapper holds the header + form as one block. */
-.ak-form-page-content {
-    display: block;
-}
-
-.ak-form {
-    display: block;
-    inline-size: 100%;
-    max-inline-size: 100%;
-}
-
-@media (max-width: 767.98px) {
-    .ak-form-page:has(> form.ak-form),
-    .ak-form-page:has(> .ak-form-page-content) {
-        padding-inline: 0;
-    }
-
-    .ak-form-page:has(> form.ak-form) > .ak-page-header,
-    .ak-form-page:has(> form.ak-form) > form.ak-form,
-    .ak-form-page-content,
-    .ak-form-page-content--wide {
-        inline-size: 100%;
-    }
-}
-
-/* Section = title + short description + divider, then the field grid. */
-.ak-form-section {
-    margin: 0 0 52px;
-}
+/* The form page column, the flat form surface, the 12-column field grid
+   rhythm, the section titles, the sticky footer and every form control
+   now live in one place: 76-form-system.css (reference form =
+   Payments/Create). The duplicates that used to sit here were deleted so
+   nothing competes with that layer. */
 
 .ak-section-body {
     padding-block: 20px;
@@ -1175,13 +1090,6 @@ a.ak-list-row:focus-visible {
     padding-block: 8px 20px;
 }
 
-.ak-detail-toolbar-start {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
 .ak-page-icon {
     display: inline-grid;
     place-items: center;
@@ -1274,13 +1182,17 @@ a.ak-list-row:focus-visible {
     color: var(--ptg-label);
 }
 
+/* Callout / helper text outside a form (lists, details, tables). One rule:
+   the two competing .ak-note definitions were merged here, and the in-form
+   appearance is owned by 76-form-system.css. */
 .ak-note {
+    margin: 0;
     padding: 12px 14px;
     border-inline-start: 3px solid var(--primary-main);
     background: var(--ptg-surface-subtle, #f7f8fa);
-    color: var(--ptg-text);
-    font-size: 14px;
-    line-height: 1.65;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ptg-muted);
 }
 
 /* Single-choice tiles (destination routing, loss capture mode). Same field
@@ -1472,13 +1384,6 @@ select.ak-input {
     min-width: 0;
 }
 
-.sf-detail .ak-stat-body {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
 .sf-detail .ak-stat .ak-page-icon {
     flex: none;
     color: var(--ptg-muted);
@@ -1646,7 +1551,7 @@ select.ak-input {
 }
 
 .sf-detail .sf-source-list .sf-bar > span {
-    background: linear-gradient(to left, #3B82F6, #1D4ED8);
+    background: linear-gradient(to left, #3B82F6, var(--ptg-flow-debit-color));
 }
 
 .ak-input::placeholder {
@@ -1670,13 +1575,6 @@ select.ak-input {
     color: var(--ptg-danger-text);
 }
 
-/* Inline helper text under/near a field (muted, non-error). */
-.ak-note {
-    margin: 0;
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--ptg-muted);
-}
 
 /* Standard toggle (soft active/inactive), reusing the Bootstrap switch.
    قاب و اندازهٔ خود .ak-toggle-field بالاتر تعریف شده؛ اینجا فقط اجزای داخلی. */
@@ -1738,14 +1636,14 @@ select.ak-input {
     width: 84px;
     padding: 6px 12px;
     border-radius: var(--radius-btn);
-    background: #1062D0;
-    color: #fff;
+    background: var(--ptg-primary);
+    color: var(--ptg-field-bg);
 }
 
 .ak-save:hover,
 .ak-save:focus-visible {
-    background: #0D52AF;
-    color: #fff;
+    background: var(--ptg-info-text);
+    color: var(--ptg-field-bg);
 }
 
 .ak-cancel {
@@ -1958,6 +1856,30 @@ select.ak-input {
     .ak-form-secondary-action {
         min-height: 44px;
     }
+
+    /* کنترل‌های ریز روی صفحهٔ لمسی زیر حداقلِ WCAG 2.5.8 (۲۴px) بودند —
+       اندازه‌گیری‌شده: چک‌باکس ۱۶px، دکمه‌های متنی ۲۱px تا ۲۸px.
+       فقط در حالت لمسی بزرگ می‌شوند؛ ماوس دست‌نخورده می‌ماند. */
+    :where(.ak-filter-enter, .ak-bulk-clear, .jr-date-btn, .journal-more-toggle) {
+        min-height: 32px;
+        padding-inline: 12px;
+    }
+
+    :where(.ak-entity-chip-x) {
+        min-width: 24px;
+        min-height: 24px;
+    }
+
+    :where(.ak-check, .ak-checkbox, .form-check-input) {
+        min-width: 24px;
+        min-height: 24px;
+    }
+
+    /* دکمهٔ بستن مودال Bootstrap روی موبایل ۲۱px بود. */
+    .modal .btn-close {
+        min-width: 32px;
+        min-height: 32px;
+    }
 }
 
 /* =============================================================
@@ -2054,7 +1976,6 @@ select.ak-input {
 .modal .ak-form-page,
 .modal .ak-form-page-content {
     --ak-form-content-max: 100%;
-    --ak-form-content-wide-max: 100%;
 }
 
 /* Same JS anchor is reused on the full create page for validation-swap
@@ -2189,7 +2110,7 @@ select.ak-input {
 }
 
 .ak-entity-chip-x:hover {
-    color: #fff;
+    color: var(--ptg-field-bg);
 }
 
 .ak-entity-combobox[data-disabled="true"] .ak-entity-chip {
@@ -2220,7 +2141,7 @@ select.ak-input {
     inset-inline: 0;
     width: 100%;
     overflow: hidden;
-    border: 1px solid #E7E7E7;
+    border: 1px solid var(--ptg-border);
     border-radius: var(--radius-base);
     background: var(--ptg-surface);
     box-shadow: var(--shadow-dropdown);
@@ -2263,7 +2184,7 @@ select.ak-input {
 
 .ak-entity-option:hover,
 .ak-entity-option.is-active {
-    background: #F2F5FC;
+    background: var(--ptg-surface-tint);
 }
 
 .ak-entity-option[aria-selected="true"] {
@@ -2275,9 +2196,9 @@ select.ak-input {
     place-items: center;
     width: 38px;
     height: 38px;
-    border: 1px solid #E7E7E7;
+    border: 1px solid var(--ptg-border);
     border-radius: var(--radius-pill);
-    background: #F5F6FA;
+    background: var(--ptg-surface);
     color: var(--primary-main);
     font-size: 14px;
     font-weight: 500;
@@ -2328,7 +2249,7 @@ select.ak-input {
     min-height: var(--ak-control-height);
     padding: 8px 12px;
     border: 0;
-    border-top: 1px solid #E7E7E7;
+    border-top: 1px solid var(--ptg-border);
     background: var(--ptg-surface);
     color: var(--primary-main);
     font-size: 14px;
@@ -2343,11 +2264,11 @@ select.ak-input {
 
 .ak-entity-quick-create:hover,
 .ak-entity-quick-create:focus-visible {
-    background: #F2F5FC;
+    background: var(--ptg-surface-tint);
 }
 
 .ak-entity-combobox[data-disabled="true"] .ak-entity-input {
-    background: #E7E7E7;
+    background: var(--ptg-border);
     cursor: not-allowed;
 }
 
@@ -2373,7 +2294,7 @@ select.ak-input {
     max-height: 260px;
     overflow-y: auto;
     padding: 6px;
-    border: 1px solid #E7E7E7;
+    border: 1px solid var(--ptg-border);
     border-radius: var(--radius-base);
     background: var(--ptg-surface);
     box-shadow: var(--shadow-dropdown);
@@ -2398,7 +2319,7 @@ select.ak-input {
 
 [data-loading-contract-field] .loading-contract-check:hover,
 [data-loading-contract-field] .loading-contract-check:focus-within {
-    background: #F2F5FC;
+    background: var(--ptg-surface-tint);
 }
 
 [data-loading-date-picker] {
@@ -2446,7 +2367,7 @@ select.ak-input {
     gap: 2px;
     padding: 10px 18px;
     background: var(--primary-main);
-    color: #fff;
+    color: var(--ptg-field-bg);
     direction: ltr;
 }
 
@@ -2532,7 +2453,7 @@ select.ak-input {
 .loading-date-year-option:hover,
 .loading-date-year-option.is-selected {
     background: var(--primary-main);
-    color: #fff;
+    color: var(--ptg-field-bg);
 }
 
 .loading-date-day.is-muted {
@@ -2626,35 +2547,12 @@ select.ak-input {
     row-gap: 18px;
 }
 
-[data-bulk-receipt-panel] .ak-toggle-field .form-check-input:checked {
-    border-color: #1062D0;
-    background-color: #1062D0;
-}
+/* The bulk-receipt switch colours and submit button used to be restated here
+   with the same hex values (and an !important width) as the shared form system.
+   Deleted: the switch and the submit now come from 76-form-system.css like
+   every other form control, so there is one place to change them. */
 
-[data-bulk-receipt-panel] .ak-toggle-field .form-check-input:focus {
-    border-color: #1062D0;
-    box-shadow: 0 0 0 .2rem rgba(16, 98, 208, .18);
-}
-
-[data-bulk-receipt-panel] .ak-save.btn-primary {
-    --_bg: #1062D0;
-    --_fg: #fff;
-    --_bg-h: #0D52AF;
-    --_bd: #1062D0;
-    --_sh: rgba(16, 98, 208, .28);
-    width: auto !important;
-    min-width: 170px !important;
-    padding-inline: 22px;
-    white-space: nowrap;
-}
-
-[data-bulk-receipt-panel] .ak-save.btn-primary:hover,
-[data-bulk-receipt-panel] .ak-save.btn-primary:focus-visible {
-    --_bg: #0D52AF;
-    --_bd: #0D52AF;
-}
-
-@media (max-width: 1100px) {
+@media (max-width: 1099.98px) {
     [data-bulk-receipt-form].is-bulk-receipt-open .ak-bulk-receipt-workspace {
         grid-template-columns: minmax(0, 1fr);
     }
@@ -2742,149 +2640,9 @@ select.ak-input {
     line-height: 1.6;
 }
 
-/* Reports overview — flat Akaunting-like report directory.
-   The page surface itself is owned by 72-surfaces.css; this page must not
-   repaint it. */
-.ak-reports-page {
-    inline-size: 100%;
-    max-inline-size: 100%;
-    margin-inline: 0;
-    padding-block: 42px 72px;
-    padding-inline: 0;
-    background: #F5F6FA;
-}
 
-.ak-reports-header {
-    margin-block-end: 64px;
-}
 
-.ak-reports-title {
-    margin: 0;
-    color: #252a30;
-    font-size: var(--font-h1);
-    font-weight: var(--fw-h1, 300);
-    line-height: var(--lh-h1, 40px);
-}
 
-.ak-reports-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: clamp(48px, 5vw, 64px);
-}
-
-.ak-report-row {
-    display: flex;
-    align-items: center;
-    min-block-size: 110px;
-    gap: 24px;
-    padding-block: 20px;
-    padding-inline: 0;
-    border-block-end: 1px solid #eceef2;
-    color: inherit;
-    text-decoration: none;
-    background: transparent;
-    outline: 0;
-    transition: background-color 140ms ease, color 140ms ease;
-}
-
-.ak-report-row:hover {
-    color: inherit;
-    background: rgba(16, 98, 208, .025);
-}
-
-.ak-report-row:hover .ak-report-title {
-    color: #0D52AF;
-}
-
-.ak-report-row:focus-visible {
-    background: rgba(16, 98, 208, .035);
-    box-shadow: inset 0 0 0 1px rgba(16, 98, 208, .22);
-}
-
-.ak-report-icon {
-    display: grid;
-    flex: 0 0 52px;
-    inline-size: 52px;
-    block-size: 52px;
-    place-items: center;
-    color: #6b6c7e;
-}
-
-.ak-report-icon .bi {
-    font-size: 40px;
-    line-height: 1;
-}
-
-.ak-report-copy {
-    display: block;
-    min-inline-size: 0;
-}
-
-.ak-report-title {
-    display: block;
-    overflow: hidden;
-    color: #252a30;
-    font-size: 16px;
-    font-weight: 500;
-    line-height: 22px;
-    margin-block-end: 5px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ak-report-desc {
-    display: -webkit-box;
-    overflow: hidden;
-    color: #8a8d98;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 20px;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-}
-
-@media (max-width: 991.98px) {
-    .ak-reports-page {
-        width: 100%;
-        padding-inline: clamp(16px, 4vw, 28px);
-    }
-
-    .ak-reports-grid {
-        grid-template-columns: 1fr;
-        column-gap: 0;
-    }
-}
-
-@media (max-width: 640px) {
-    .ak-reports-page {
-        padding-block: 28px 48px;
-    }
-
-    .ak-reports-header {
-        margin-block-end: 44px;
-    }
-
-    .ak-reports-title {
-        font-size: 30px;
-        line-height: 36px;
-    }
-
-    .ak-report-row {
-        min-block-size: 92px;
-        gap: 18px;
-        padding-block: 14px;
-    }
-
-    .ak-report-icon {
-        flex-basis: 42px;
-        inline-size: 42px;
-        block-size: 42px;
-    }
-
-    .ak-report-icon .bi {
-        font-size: 34px;
-    }
-}
 
 /* Nested payment lines under a contract row — quiet, indented. */
 .ak-table tr.ak-subrow > td {
@@ -2972,63 +2730,6 @@ select.ak-input {
     overflow: hidden;
     background: var(--ak-segment-off-bg);
     vertical-align: middle;
-}
-
-.ak-segment-input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
-}
-
-.ak-segment-option {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-    padding-inline: var(--ak-segment-padding-inline);
-    background: var(--ak-segment-off-bg);
-    color: var(--ak-segment-off-text);
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: background-color 120ms ease, color 120ms ease;
-}
-
-.ak-segment-option:hover {
-    background: color-mix(in srgb, var(--ak-segment-off-bg) 82%, #000 18%);
-}
-
-/* Checked: default indigo; per-tone overrides for Yes (green) / No (red). */
-.ak-segment-input:checked + .ak-segment-option {
-    background: var(--primary-main);
-    color: #fff;
-}
-
-.ak-segment-input:checked + .ak-segment-option[data-tone="no"] {
-    background: var(--ak-segment-no-bg);
-    color: var(--ak-segment-no-text);
-}
-
-.ak-segment-input:checked + .ak-segment-option[data-tone="yes"] {
-    background: var(--ak-segment-yes-bg);
-    color: var(--ak-segment-yes-text);
-}
-
-.ak-segment-input:focus-visible + .ak-segment-option {
-    outline: 2px solid var(--primary-main);
-    outline-offset: -2px;
-}
-
-.ak-segment-input:disabled + .ak-segment-option {
-    cursor: default;
-    opacity: 0.6;
 }
 
 .ak-segment.is-disabled,
@@ -3296,7 +2997,7 @@ select.ak-input {
  * ============================================================= */
 
 .ak-group-operation-page {
-    --ak-form-content-wide-max: var(--layout-content-max);
+    --ak-form-content-max: var(--layout-content-max);
 }
 
 .ak-group-operation-page:has(> form.ak-form) > form.ak-form,
@@ -3362,7 +3063,7 @@ select.ak-input {
     padding: 18px;
     border: 1px solid var(--divider);
     border-radius: var(--radius-base);
-    background: #fff;
+    background: var(--ptg-field-bg);
 }
 
 .ak-group-wizard-summary {
@@ -3371,7 +3072,7 @@ select.ak-input {
     padding: 16px;
     border: 1px solid var(--divider);
     border-radius: var(--radius-base);
-    background: #fff;
+    background: var(--ptg-field-bg);
 }
 
 .ak-group-wizard-summary > .ak-form-section {
@@ -3398,7 +3099,7 @@ select.ak-input {
     margin: 0;
     padding: 14px 22px;
     border-top: 1px solid var(--divider);
-    background: #f8fafc;
+    background: var(--chk-disabled-bg);
 }
 
 @media (max-width: 1099.98px) {
@@ -3436,19 +3137,9 @@ select.ak-input {
     }
 }
 
-/* Forms carry no section headings: the page/modal header already names the
-   record, and repeating a big title inside the form only adds noise. Markup
-   stays (partials + tests unchanged) — only the visual head is dropped, and
-   sibling sections keep a hairline so field groups still read apart. */
-.ak-form .ak-section-head {
-    display: none;
-}
-
-/* Exception: the bulk-receipt form's section head is not a redundant title —
-   it carries the primary "ثبت رسید گروهی" toggle plus select-all/clear actions.
-   The rule above would hide those controls, leaving the awaiting-loadings table
-   with no way to open the form. Keep this one head visible (scoped to the bulk
-   form only, so every other in-form head stays hidden as intended). */
+/* The bulk-receipt and loading-expense heads carry controls (the primary
+   «ثبت رسید گروهی» toggle plus select-all/clear), not just a title, so they
+   lay their contents out in a row instead of stacking like a plain head. */
 .ak-form[data-bulk-receipt-form] .ak-section-head,
 .ak-form[data-loading-expense-form] .ak-section-head {
     display: flex;
@@ -3484,11 +3175,6 @@ select.ak-input {
 [data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(7) { width: 20%; }
 [data-loading-expense-editor] .loading-expense-table > :is(thead, tbody) > tr > :is(th, td):nth-child(8) { width: 40px; }
 
-.ak-form .ak-form-section + .ak-form-section {
-    padding-top: 28px;
-    border-top: 1px solid var(--divider);
-}
-
 /* Sales line items normally keep the shared horizontal table scroll. While
    the progressive-enhancement combobox (or its no-JS native fallback) is
    open, release that clipping boundary and lift the row above the following
@@ -3510,7 +3196,7 @@ select.ak-input {
  * ============================================================= */
 /* Page shell: the wide PageFrame is the table canvas. */
 .ak-form-page:has(> form[data-loading-create-form]) {
-    --ak-form-content-wide-max: var(--layout-content-max);
+    --ak-form-content-max: var(--layout-content-max);
 }
 
 .ak-form-page:has(> form[data-loading-create-form]) > form.ak-form,
@@ -3552,9 +3238,10 @@ select.ak-input {
     margin-top: 40px;
 }
 
-/* Freight toggle follows the same 42px control rhythm as neighbouring fields,
-   while staying compact instead of filling the whole grid column. */
-.loading-import-workbook .loading-freight-toggle-field {
+/* Freight toggle stays compact instead of filling the whole grid column: no
+   outer frame, only the switch itself keeps a pill. `form.ak-form` is in the
+   selector so this beats the generic .ak-toggle-field frame in 76-form-system. */
+.loading-import-workbook form.ak-form .loading-freight-toggle-field {
     align-self: start;
     flex-direction: column;
     align-items: flex-start;
@@ -3566,15 +3253,15 @@ select.ak-input {
     background: transparent;
 }
 
-.loading-import-workbook .loading-freight-toggle-control {
+.loading-import-workbook form.ak-form .loading-freight-toggle-control {
     display: inline-flex;
     align-items: center;
     width: fit-content;
     max-width: 100%;
-    height: var(--ak-control-height);
+    height: var(--chk-compact-h);
     margin: 0;
     padding-block: 0;
-    padding-inline-end: 12px;
+    padding-inline-end: 10px;
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
@@ -3759,13 +3446,6 @@ select.ak-input {
 
 .loading-import-workbook .lic-count-err strong {
     color: var(--ptg-danger-text);
-}
-
-.loading-import-workbook .lic-toolbar-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
 }
 
 /* ---- Excel import: one toolbar button, one status line. No panel, no steps. ---- */
@@ -4030,37 +3710,6 @@ select.ak-input {
     text-align: end;
 }
 
-/* Unified transport workflow: flat state switcher and source selector. */
-.ak-list-state-nav {
-    display: flex;
-    gap: 4px;
-    margin: 0 0 12px;
-    padding: 4px;
-    width: fit-content;
-    max-width: 100%;
-    overflow-x: auto;
-    border: 1px solid var(--ptg-border);
-    border-radius: var(--radius-base);
-    background: var(--ptg-surface-subtle, #F8FAFC);
-}
-
-.ak-list-state-nav a {
-    padding: 7px 12px;
-    border-radius: var(--radius-base);
-    color: var(--ptg-text-muted);
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.ak-list-state-nav a:is(:hover, :focus-visible),
-.ak-list-state-nav a.is-active {
-    color: var(--ptg-primary);
-    background: var(--ptg-surface);
-    box-shadow: 0 0 0 1px var(--ptg-border);
-}
-
 /* انتخاب منبع در «ثبت حمل»: این سه گزینه نقش دکمهٔ اصلی فرم را دارند، پس کمی پایین‌تر
    از تیتر بخش و در اندازهٔ دکمه رندر می‌شوند. */
 .ak-segmented-control {
@@ -4223,7 +3872,7 @@ select.ak-input {
 
 .ak-alloc-method > input:checked + .ak-alloc-method-body > i {
     background: var(--primary-main);
-    color: #fff;
+    color: var(--ptg-field-bg);
 }
 
 .ak-alloc-method > input:checked + .ak-alloc-method-body > strong {

@@ -1332,7 +1332,8 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("قرارداد خرید", mainCardSource);
         Assert.DoesNotContain("نگاه سریع", view);
         Assert.Contains("[data-loading-details] > .ak-detail-header .ak-kebab-toggle", detailCss);
-        Assert.Contains("background: #1062D0 !important;", detailCss);
+        // رنگ از توکن می‌آید، نه hex هاردکد (قاعدهٔ design-system).
+        Assert.Contains("background: var(--ptg-primary) !important;", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(1) .ak-stat-card__value", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(2) .ak-stat-card__value", detailCss);
         Assert.DoesNotContain("[data-loading-details] .ak-detail-kpi-strip > .ak-stat-card:nth-child(3) .ak-stat-card__value", detailCss);

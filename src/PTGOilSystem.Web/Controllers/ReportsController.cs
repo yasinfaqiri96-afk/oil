@@ -36,6 +36,7 @@ public partial class ReportsController : Controller
     private readonly IMemoryCache? _cache;
 
     private readonly IAfghanistanBusinessClock _businessClock;
+    private readonly IGoodsInTransitReader _goodsInTransit;
 
     public ReportsController(
         ApplicationDbContext db,
@@ -49,7 +50,8 @@ public partial class ReportsController : Controller
         IMemoryCache? cache = null,
         Services.Accounting.ISystemCompanyProvider? systemCompany = null,
         ISaleContractAttributionReader? saleAttribution = null,
-        ISupplierFxSettlementService? supplierFxSettlements = null)
+        ISupplierFxSettlementService? supplierFxSettlements = null,
+        IGoodsInTransitReader? goodsInTransit = null)
     {
         _db = db;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
@@ -68,6 +70,8 @@ public partial class ReportsController : Controller
         _businessClock = clock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _preSaleReservations = preSaleReservations ?? new PreSaleReservationService(db, _businessClock);
         _negativeStock = negativeStock ?? new NegativeStockAnalysisService(db);
+        // مرجع مشترک «بارهای در مسیر» با داشبورد موبایل؛ همان ساعت کابلِ همین کنترلر.
+        _goodsInTransit = goodsInTransit ?? new GoodsInTransitReader(db, _businessClock);
         // مرجع واحدِ «شرکت مالک سیستم» — گزارش کشتی‌ها سال‌های مالی را فقط از همین شرکت می‌خواند.
         _systemCompany = systemCompany ?? new Services.Accounting.SystemCompanyProvider(db);
         _cache = cache;

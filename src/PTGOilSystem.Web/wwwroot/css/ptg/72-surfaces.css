@@ -35,9 +35,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content .empty-state,
 body.boltz-shell.app-shell-authenticated .ak-stat-card,
 body.boltz-shell.app-shell-authenticated .ak-hub-tile,
 body.boltz-shell.app-shell-authenticated .ak-group-wizard-summary,
-body.boltz-shell.app-shell-authenticated .ptg-form-section,
-body.boltz-shell.app-shell-authenticated .excel-import__panel,
-body.boltz-shell.app-shell-authenticated .loss-create-form {
+body.boltz-shell.app-shell-authenticated .excel-import__panel {
     border-color: transparent;
     box-shadow: var(--ptg-panel-shadow);
 }
@@ -58,19 +56,6 @@ body.boltz-shell.app-shell-authenticated .ak-stat-card:hover {
    token so the two can never drift apart. */
 body.boltz-shell.app-shell-authenticated .dashboard-page.dashboard-ref {
     --dash-card-shadow: var(--ptg-panel-shadow);
-}
-
-/* A form section inside a lifted form panel would double the shadow and read as
-   a floating slab. Inside a panel, sections separate with whitespace. */
-body.boltz-shell.app-shell-authenticated .loss-create-form .ptg-form-section {
-    box-shadow: none;
-}
-
-/* Panels inside a modal keep the flat treatment — the dialog already carries the
-   elevation, and a second shadow inside it reads as clutter. */
-body.ptg-modal-document .ptg-form-section,
-body.boltz-shell.app-shell-authenticated .modal .ptg-form-section {
-    box-shadow: none;
 }
 
 /* =====================================================================
@@ -97,19 +82,31 @@ body.ptg-modal-document .ptg-modal-body-shell {
     --ptg-page-surface-radius: 0;
 }
 
-/* The entry form owns the identical treatment one level further in, so its page
-   keeps the canvas underneath it — white on white would erase the box. */
-body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-content-body:has(#roznamchaForm) {
+/* Every form owns the identical treatment one level further in (the flat white
+   surface of 76-form-system.css), so its page keeps the canvas underneath it —
+   white on white would erase the box. Was scoped to the reference form
+   (#roznamchaForm) alone; now it reaches every Create/Edit page. */
+body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> form.ak-form, > * > form.ak-form) {
     padding: 0 clamp(12px, 1.6vw, 28px);
     border-radius: 0;
     background: var(--ptg-bg);
 }
 
-/* Phones give the gutter back to the form (moved here from
-   61-finance-workspace.css: this file loads last and owns the surface box, so
-   the override has to live next to the rule it overrides). */
+/* صفحات دارای نوار تب بخش: بوم صفحه خاکستری می‌ماند تا کارت‌های آماری، نوار
+   تب و لیست هرکدام سطح سفید مستقل خود را داشته باشند و در یک بلوک سفید واحد
+   در هم فرو نروند (مرجع: تب «تأمین‌کنندگان»). */
+body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> [data-section-tabs-strip] .ptg-tabs-rail) {
+    padding: 0 clamp(12px, 1.6vw, 28px);
+    border-radius: 0;
+    background: var(--ptg-bg);
+}
+
+/* Phones give the gutter back to the form (this file loads after the form
+   system and owns the surface box, so the override lives next to the rule it
+   overrides). */
 @media (max-width: 767.98px) {
-    body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-content-body:has(#roznamchaForm) {
+    body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> form.ak-form, > * > form.ak-form),
+    body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> [data-section-tabs-strip] .ptg-tabs-rail) {
         padding: 0 8px;
     }
 }
@@ -129,7 +126,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
     body.ptg-modal-document .ptg-modal-body-shell {
         padding: 0;
         border-radius: 0;
-        background: #FFFFFF;
+        background: var(--ptg-field-bg);
     }
 }
 
@@ -138,8 +135,7 @@ body.controller-payments:is(.action-create, .action-edit) .ptg-page > .boltz-con
 @media print {
     body.boltz-shell.app-shell-authenticated .boltz-content .empty-state,
     body.boltz-shell.app-shell-authenticated .ak-stat-card,
-    body.boltz-shell.app-shell-authenticated .ak-group-wizard-summary,
-    body.boltz-shell.app-shell-authenticated .ptg-form-section {
+    body.boltz-shell.app-shell-authenticated .ak-group-wizard-summary {
         border-color: var(--ptg-border);
         box-shadow: none;
     }

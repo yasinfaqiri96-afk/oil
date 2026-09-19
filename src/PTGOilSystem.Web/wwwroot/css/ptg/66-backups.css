@@ -334,7 +334,7 @@
     border-radius: 8px;
     padding: 8px 12px;
     font-size: 14px;
-    background: #fff;
+    background: var(--ptg-field-bg);
     color: var(--bk-text);
 }
 
@@ -419,7 +419,7 @@
 }
 
 /* ---- Responsive ---- */
-@media (max-width: 1100px) {
+@media (max-width: 1099.98px) {
     .bk-page .bk-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

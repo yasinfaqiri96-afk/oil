@@ -17,10 +17,10 @@
 
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
-    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
     font-size: 14px;
     line-height: 20px;
-    background: var(--ptg-bg) !important;
+    background: var(--ptg-bg);
     color: var(--ptg-text);
 }
 
@@ -80,12 +80,12 @@ body.ptg-modal-document :where(h6) {
 
 body.boltz-shell.app-shell-authenticated .boltz-topbar {
     min-height: var(--ptg-topbar-height);
-    background: transparent !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-topbar.is-scrolled,
@@ -120,12 +120,7 @@ body.boltz-shell.app-shell-authenticated .boltz-topbar.is-stuck {
  * a stray slab.
  * ============================================================= */
 
-body.boltz-shell.app-shell-authenticated :is(
-    .ptg-card, .ds-card, .ulist-card, .boltz-card, .kpi-card,
-    .contracts-board-card, .ds-form-shell, .ds-table-shell,
-    .mgmt-card, .storage-card, .report-card, .detail-card,
-    .boltz-reference-kpi-card
-) {
+body.boltz-shell.app-shell-authenticated :is(.kpi-card, .contracts-board-card) {
     background: var(--background-paper) !important;
     border-color: transparent !important;
     box-shadow: var(--ptg-panel-shadow) !important;
@@ -133,19 +128,14 @@ body.boltz-shell.app-shell-authenticated :is(
 
 /* Summary tiles stay flat open numbers (see section G). */
 body.boltz-shell.app-shell-authenticated .summary-tile {
-    background: var(--ptg-bg) !important;
-    border-color: var(--divider) !important;
-    box-shadow: none !important;
+    background: var(--ptg-bg);
+    border-color: var(--divider);
+    box-shadow: none;
 }
 
 /* Shadows do not print; the outline comes back on paper so panels keep an edge. */
 @media print {
-    body.boltz-shell.app-shell-authenticated :is(
-        .ptg-card, .ds-card, .ulist-card, .boltz-card, .kpi-card,
-        .contracts-board-card, .ds-form-shell, .ds-table-shell,
-        .mgmt-card, .storage-card, .report-card, .detail-card,
-        .boltz-reference-kpi-card
-    ) {
+    body.boltz-shell.app-shell-authenticated :is(.kpi-card, .contracts-board-card) {
         border-color: var(--divider) !important;
         box-shadow: none !important;
     }
@@ -159,14 +149,14 @@ body.boltz-shell.app-shell-authenticated .summary-strip {
     display: flex;
     flex-wrap: wrap;
     gap: 24px 32px;
-    background: transparent !important;
-    border: 0 !important;
-    box-shadow: none !important;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
 }
 
 body.boltz-shell.app-shell-authenticated .summary-tile {
-    border: 0 !important;
-    padding: 4px 0 !important;
+    border: 0;
+    padding: 4px 0;
 }
 
 body.boltz-shell.app-shell-authenticated .summary-tile-label {
@@ -182,12 +172,12 @@ body.boltz-shell.app-shell-authenticated .summary-tile-value {
     color: var(--primary-main);
 }
 
-body.boltz-shell.app-shell-authenticated :is(.kpi-card, .boltz-reference-kpi-card) :is(.kpi-value, .boltz-kpi-value) {
+body.boltz-shell.app-shell-authenticated :is(.kpi-card) :is(.kpi-value) {
     font-weight: 400 !important;
     color: var(--primary-main) !important;
 }
 
-body.boltz-shell.app-shell-authenticated :is(.kpi-card, .boltz-reference-kpi-card) :is(.kpi-label, .boltz-kpi-meta) {
+body.boltz-shell.app-shell-authenticated :is(.kpi-card) :is(.kpi-label) {
     font-weight: 400 !important;
     color: var(--ptg-muted) !important;
 }
@@ -214,14 +204,14 @@ body.boltz-shell.app-shell-authenticated :is(.ak-primary-action, .ak-secondary-a
 body.ptg-modal-document :is(.ak-primary-action, .ak-secondary-action.is-primary) {
     background-color: var(--ptg-btn-primary) !important;
     border-color: var(--ptg-btn-primary) !important;
-    color: #FFFFFF !important;
+    color: var(--ptg-field-bg) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :is(.ak-primary-action, .ak-secondary-action.is-primary):is(:hover, :focus, :active),
 body.ptg-modal-document :is(.ak-primary-action, .ak-secondary-action.is-primary):is(:hover, :focus, :active) {
     background-color: var(--ptg-btn-primary-dark) !important;
     border-color: var(--ptg-btn-primary-dark) !important;
-    color: #FFFFFF !important;
+    color: var(--ptg-field-bg) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :is(.btn-secondary, .btn-info),
@@ -242,7 +232,7 @@ body.boltz-shell.app-shell-authenticated .btn-danger,
 body.ptg-modal-document .btn-danger {
     background-color: var(--ptg-danger) !important;
     border-color: var(--ptg-danger) !important;
-    color: #FFFFFF !important;
+    color: var(--ptg-field-bg) !important;
 }
 
 body.boltz-shell.app-shell-authenticated .btn-outline-danger,
@@ -295,8 +285,8 @@ body.ptg-modal-document :is(.form-control, .form-select).input-validation-error 
     border-color: var(--ptg-danger-text);
 }
 
-body.boltz-shell.app-shell-authenticated :is(.form-label, label.control-label),
-body.ptg-modal-document :is(.form-label, label.control-label) {
+body.boltz-shell.app-shell-authenticated :is(.form-label),
+body.ptg-modal-document :is(.form-label) {
     font-size: 14px;
     line-height: 20px;
     font-weight: 500;
@@ -304,10 +294,11 @@ body.ptg-modal-document :is(.form-label, label.control-label) {
     margin-bottom: 4px;
 }
 
-body.boltz-shell.app-shell-authenticated :is(.field-validation-error, .text-danger),
-body.ptg-modal-document :is(.field-validation-error, .text-danger) {
-    color: var(--ptg-danger) !important;
-    font-size: 14px;
+/* رنگ پیام خطا؛ اندازه و وزن را لایهٔ فرم (06/17) تعیین می‌کند و
+   .text-danger فقط utility رنگ است. */
+body.boltz-shell.app-shell-authenticated .field-validation-error,
+body.ptg-modal-document .field-validation-error {
+    color: var(--ptg-danger);
 }
 
 /* ============================================================= *
@@ -422,13 +413,13 @@ body.boltz-shell.app-shell-authenticated .pagination .page-link {
     color: var(--primary-main);
     border-color: var(--divider);
     background: transparent;
-    box-shadow: none !important;
+    box-shadow: none;
 }
 
 body.boltz-shell.app-shell-authenticated .pagination .page-item.active .page-link {
     background: var(--primary-main);
     border-color: var(--primary-main);
-    color: #FFFFFF;
+    color: var(--ptg-field-bg);
 }
 
 /* Hover affordance the generic link rule used to provide, kept off the active
@@ -453,8 +444,8 @@ body.boltz-shell.app-shell-authenticated a:not(.btn):not(.boltz-nav-link):not(.d
 
 /* Footer quiet */
 body.boltz-shell.app-shell-authenticated .boltz-footer {
-    background: transparent !important;
-    border: 0 !important;
+    background: transparent;
+    border: 0;
     color: var(--ptg-muted);
     font-size: 12px;
 }
@@ -470,30 +461,9 @@ body.boltz-shell.app-shell-authenticated .boltz-content table thead tr,
 body.boltz-shell.app-shell-authenticated table thead th,
 body.ptg-modal-document table thead th,
 body.ptg-modal-document table thead tr {
-    background: var(--ptg-table-head-bg) !important;
-    background-color: var(--ptg-table-head-bg) !important;
-}
-
-/* Dashboard KPI tiles: open widgets, not floating cards. */
-body.boltz-shell.app-shell-authenticated .ref-dashboard .ref-kpi {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    border-bottom: 1px solid var(--divider) !important;
-}
-
-body.boltz-shell.app-shell-authenticated .ref-dashboard .ref-kpi-value {
-    font-weight: 400 !important;
-    color: var(--primary-main) !important;
-}
-
-body.boltz-shell.app-shell-authenticated .ref-dashboard .ref-kpi-label {
-    color: var(--ptg-muted) !important;
-    font-weight: 400 !important;
-}
-
-/* ============================================================= *
+    background: var(--ptg-table-head-bg);
+    background-color: var(--ptg-table-head-bg);
+}/* ============================================================= *
  * Shared Search / Filter component (ak-search-filter.js owner)
  * Ported from the Akaunting UI Kit — RTL-first, project tokens.
  * Owns: .ak-filter-host / .ak-filter / chips / input / popover.
@@ -556,9 +526,7 @@ html[dir="rtl"] .ak-chip:first-child { border-radius: 0 6px 6px 0; }
 html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
 .ak-chip:first-child { border-radius: 6px 0 0 6px; }
 .ak-chip:last-child { border-radius: 0 6px 6px 0; }
-.ak-chip + .ak-chip { border-inline-start: 2px solid var(--ptg-body, #fff); }
-.ak-chip-operator { min-width: 40px; justify-content: center; padding-inline: 8px; color: var(--ptg-muted); }
-.ak-chip-remove {
+.ak-chip + .ak-chip { border-inline-start: 2px solid var(--ptg-body, var(--ptg-field-bg)); }.ak-chip-remove {
     display: inline-flex;
     flex: 0 0 22px;
     width: 22px;
@@ -579,7 +547,7 @@ html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
     text-align: center;
     cursor: pointer;
 }
-.ak-chip-remove:hover { color: #fff; background: var(--primary-main); }
+.ak-chip-remove:hover { color: var(--ptg-field-bg); background: var(--primary-main); }
 
 .ak-filter-input-wrap {
     position: relative;
@@ -590,14 +558,16 @@ html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
 .ak-filter-input {
     width: 100%;
     height: 48px;
-    padding: 12px 0 0 118px;
+    /* جای دکمهٔ «جستجو» در سمت inline-end رزرو می‌شود. قبلاً در RTL این فاصله
+       روی سمت راست (inline-start) بود و متن placeholder روی دکمه می‌افتاد. */
+    padding-block: 12px 0;
+    padding-inline: 0 118px;
     color: var(--ptg-text);
     background: transparent;
     border: 0;
     outline: 0;
     font-size: 14px;
 }
-html[dir="rtl"] .ak-filter-input { padding: 12px 118px 0 0; }
 .ak-filter-input::placeholder { color: var(--ptg-muted); opacity: 1; }
 
 .ak-filter-enter {
@@ -610,7 +580,8 @@ html[dir="rtl"] .ak-filter-input { padding: 12px 118px 0 0; }
     color: var(--primary-main);
     background: transparent;
     border: 0;
-    border-radius: 8px;
+    /* گردی کنترل‌های سیستم ۶px است (--ak-control-radius). */
+    border-radius: var(--ak-control-radius);
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
@@ -650,7 +621,7 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
     padding: 8px;
     overflow: auto;
     color: var(--ptg-text);
-    background: #fff;
+    background: var(--ptg-field-bg);
     border: 1px solid var(--divider);
     border-radius: 6px;
     box-shadow: var(--shadow-dropdown);
@@ -740,7 +711,7 @@ html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
 .ak-date-apply {
     grid-column: 1 / -1;
     height: 36px;
-    color: #fff;
+    color: var(--ptg-field-bg);
     background: var(--primary-main);
     border: 0;
     border-radius: 8px;
@@ -773,7 +744,7 @@ html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
 .ak-text-panel .ak-text-input:focus { border-color: var(--primary-main); }
 .ak-text-apply {
     height: 36px;
-    color: #fff;
+    color: var(--ptg-field-bg);
     background: var(--primary-main);
     border: 0;
     border-radius: 8px;

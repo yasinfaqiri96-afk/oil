@@ -278,7 +278,7 @@
 .ptg-tab-item.is-active .ak-status,
 .ptg-tab-item.active .ak-status,
 .ptg-tab-item[aria-selected="true"] .ak-status {
-    background: #EEEEF3;
+    background: var(--ptg-viewed-soft);
     color: var(--ptg-tabs-active-color);
 }
 
@@ -298,7 +298,7 @@
 
 .ptg-tab-panel[hidden],
 [data-ptg-tab-panel][hidden] {
-    display: none !important; /* beats Bootstrap's .tab-pane display rules */
+    display: none; /* beats Bootstrap's .tab-pane display rules */
 }
 
 /* ---- Shared operational wizard ----------------------------------- */
@@ -310,7 +310,7 @@
     border: 0;
     border-bottom: 1px solid var(--ptg-tabs-border-color);
     border-radius: 0;
-    background: #f8fafc;
+    background: var(--chk-disabled-bg);
 }
 
 .ptg-wizard-steps .ptg-wizard-step {
@@ -353,9 +353,9 @@
     place-items: center;
     width: 24px;
     height: 24px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--ptg-field-border);
     border-radius: 50%;
-    background: #fff;
+    background: var(--ptg-field-bg);
     color: #64748b;
     font-size: 12px;
     font-weight: 700;
@@ -371,13 +371,13 @@
 .ptg-wizard-step[aria-current="step"] .ptg-wizard-step__number {
     border-color: var(--ptg-tabs-active-color);
     background: var(--ptg-tabs-active-color);
-    color: #fff;
+    color: var(--ptg-field-bg);
 }
 
 .ptg-wizard-step.is-done .ptg-wizard-step__number {
     border-color: #93c5fd;
-    background: #eff6ff;
-    color: #1d4ed8;
+    background: var(--ptg-flow-debit-bg);
+    color: var(--ptg-flow-debit-color);
 }
 
 .ptg-wizard-step.is-done .ptg-wizard-step__label {
@@ -388,7 +388,7 @@
     position: relative;
     z-index: 1;
     padding-inline: 6px;
-    background: #f8fafc;
+    background: var(--chk-disabled-bg);
     white-space: nowrap;
 }
 

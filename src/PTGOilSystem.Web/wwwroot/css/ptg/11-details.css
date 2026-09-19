@@ -1,30 +1,6 @@
 
 
-body.boltz-shell.app-shell-authenticated :where(.ptg-action-bar, .details-action-bar, .page-toolbar) {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: .75rem;
-    flex-wrap: wrap;
-}
 
-body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print-note) {
-    padding: 1.35rem;
-    border: 1px solid var(--ptg-border);
-    border-radius: var(--ptg-radius-card);
-    background: var(--ptg-surface-soft);
-    color: var(--ptg-text);
-}
-
-@media (max-width: 767.98px) {
-    body.boltz-shell.app-shell-authenticated :where(.ptg-action-bar, .details-action-bar, .page-toolbar) {
-        justify-content: stretch;
-    }
-
-    body.boltz-shell.app-shell-authenticated :where(.ptg-action-bar, .details-action-bar, .page-toolbar) > * {
-        flex: 1 1 auto;
-    }
-}
 
 /* ===================================================================
    Shared Detail Page System
@@ -165,37 +141,6 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     width: 100%;
 }
 
-/* جمع‌ها همیشه پایین فهرست، به‌عنوان یک نوار خلاصه؛ نه بالای رکوردها. */
-:where(.ak-detail-page) .ak-detail-totals {
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid var(--ak-detail-divider);
-}
-
-:where(.ak-detail-page) .ak-detail-totals .ak-list-row {
-    font-weight: 600;
-}
-
-/* رقمِ جمع با رنگ برند خوانده شود (مثل ارقام شاخصِ صفحهٔ چرخهٔ قرارداد)؛
-   واحد ارز کنارش خنثی و کوچک‌تر می‌ماند. */
-:where(.ak-detail-page) .ak-detail-totals .ak-list-row > b {
-    justify-self: end;
-    direction: ltr;
-    unicode-bidi: isolate;
-    color: var(--ptg-primary);
-    font-size: 16px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums lining-nums;
-}
-
-:where(.ak-detail-page) .ak-detail-totals .ak-list-row > b > em {
-    margin-inline-start: 4px;
-    color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 600;
-}
-
 :where(.ak-detail-page) :where(.ak-detail-section) {
     margin: 0;
     padding: 20px;
@@ -248,7 +193,10 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
     table-layout: auto;
 }
 
-:where(.ak-detail-page) :where(.ak-detail-table):has(tr > :nth-child(5)) {
+/* حداقل عرض فقط وقتی معنا دارد که جدول مستقیماً داخل قاب اسکرول‌شونده باشد.
+   جدول‌های تودرتو (داخل <td colspan> ردیف باز‌شونده) نباید ۶۸۰px را به جدول
+   والد تحمیل کنند؛ روی موبایل باعث اسکرول افقی اضافه می‌شد. */
+:where(.ak-detail-page) :where(.ak-table-wrap, .table-responsive) > :where(.ak-detail-table):has(tr > :nth-child(5)) {
     min-width: 680px;
 }
 
@@ -270,19 +218,6 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
 
 :where(.ak-detail-page) :where(.ak-detail-table) :where(.ak-num, [dir="ltr"]) {
     font-variant-numeric: tabular-nums;
-}
-
-:where(.ak-detail-page) :where(.ak-breakdown-toggle) {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    min-height: 32px;
-}
-
-:where(.ak-detail-page) :where(.ak-breakdown-row) > td {
-    background: var(--ak-detail-soft);
-    color: var(--ak-detail-text);
 }
 
 :where(.ak-detail-page) :where(.ak-detail-empty-state) {
@@ -608,21 +543,13 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
 /* Shared priority columns: P1 is always visible; P2 hides below 768px,
    P3 below 1200px. Either class or data attribute is supported. */
 @media (max-width: 1199.98px) {
-    :where(.ak-detail-page) :where(.ak-table, .ak-detail-table) :where(
-        .ak-col-priority-3,
-        .ak-col-p3,
-        [data-column-priority="3"]
-    ) {
+    :where(.ak-detail-page) :where(.ak-table, .ak-detail-table) :where(.ak-col-priority-3, [data-column-priority="3"]) {
         display: none;
     }
 }
 
 @media (max-width: 767.98px) {
-    :where(.ak-detail-page) :where(.ak-table, .ak-detail-table) :where(
-        .ak-col-priority-2,
-        .ak-col-p2,
-        [data-column-priority="2"]
-    ) {
+    :where(.ak-detail-page) :where(.ak-table, .ak-detail-table) :where(.ak-col-priority-2, [data-column-priority="2"]) {
         display: none;
     }
 
@@ -691,7 +618,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
 
 @media print {
     :where(html, body) {
-        background: #FFF !important;
+        background: var(--ptg-field-bg) !important;
         color: #000 !important;
     }
 
@@ -726,7 +653,7 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
         margin-block-end: 14px;
         padding: 0;
         border: 0;
-        background: #FFF;
+        background: var(--ptg-field-bg);
     }
 
     :where(.ak-detail-page) :where(.ak-table-wrap, .table-responsive) {
@@ -738,18 +665,12 @@ body.boltz-shell.app-shell-authenticated :where(.note-card, .detail-note, .print
         color: #000;
     }
 
-    :where(.ak-detail-page) :where(.ak-table, .ak-detail-table) :where(
-        .ak-col-priority-2,
-        .ak-col-priority-3,
-        .ak-col-p2,
-        .ak-col-p3,
-        [data-column-priority]
-    ) {
+    :where(.ak-detail-page) :where(.ak-table, .ak-detail-table) :where(.ak-col-priority-2, .ak-col-priority-3, [data-column-priority]) {
         display: table-cell;
     }
 
     :where(.ak-detail-page) :where(.ak-timeline-dot, .ak-related-link) {
-        background: #FFF;
+        background: var(--ptg-field-bg);
         color: #000;
     }
 }
@@ -800,134 +721,7 @@ body.boltz-shell:is(
     .controller-expenses,
     .controller-lossevents,
     .controller-sales
-).action-details .boltz-content .loading-details-simple-page .loading-detail-clean-header {
-    position: static;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: .75rem 1rem;
-    padding: 1rem 1.1rem;
-    border: 1px solid var(--op-detail-border);
-    border-radius: var(--ptg-radius-card);
-    background: var(--ptg-surface);
-    box-shadow: var(--ptg-shadow-card);
-}
-body.boltz-shell.controller-inventorytransportlegs.action-details .boltz-content .itl-detail-nav-tabs {
-    position: static;
-    display: flex;
-    gap: .25rem;
-    padding: .35rem;
-    overflow-x: auto;
-    border: 1px solid var(--op-detail-border);
-    border-radius: 8px;
-    background: var(--ptg-surface);
-    scrollbar-width: thin;
-}
-body.boltz-shell.controller-inventorytransportlegs.action-details .boltz-content .itl-detail-nav-tabs .nav-link {
-    flex: 0 0 auto;
-    min-height: 2.35rem;
-    padding: .42rem .8rem;
-    border: 0 !important;
-    border-radius: var(--radius-btn) !important;
-    background: transparent !important;
-    color: var(--op-detail-muted) !important;
-    font-size: 12px;
-    font-weight: 740;
-    white-space: nowrap;
-    box-shadow: none !important;
-}
-body.boltz-shell.controller-inventorytransportlegs.action-details .boltz-content .itl-detail-nav-tabs .nav-link.active {
-    background: var(--ptg-primary) !important;
-    color: #FFFFFF !important;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page .loading-detail-single-shell {
-    display: grid;
-    gap: .85rem;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page .loading-detail-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
-    gap: .65rem;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page .loading-detail-summary-card {
-    display: grid;
-    align-content: start;
-    gap: .55rem;
-    min-height: 6.5rem;
-    padding: .85rem .9rem;
-    overflow: visible;
-    border: 1px solid var(--op-detail-border) !important;
-    border-radius: 8px !important;
-    background: var(--ptg-surface) !important;
-    box-shadow: none !important;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.operational-asset-card-menu, .operational-asset-metric-bars) {
-    display: none;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-essential-grid, .loading-detail-record-grid) {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-    gap: .75rem;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-simple-card, .loading-detail-record-card) {
+).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-record-card) {
     padding: 0;
     overflow: hidden;
     border: 1px solid var(--op-detail-border) !important;
@@ -944,7 +738,7 @@ body.boltz-shell:is(
     .controller-expenses,
     .controller-lossevents,
     .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-simple-card, .loading-detail-record-card) > header {
+).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-record-card) > header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -963,102 +757,13 @@ body.boltz-shell:is(
     .controller-expenses,
     .controller-lossevents,
     .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-simple-card, .loading-detail-record-card) > header h2 {
+).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-record-card) > header h2 {
     margin: 0;
     color: var(--op-detail-text);
     font-size: 14px;
     font-weight: 780;
     line-height: 1.45;
     overflow-wrap: anywhere;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) {
-    display: grid;
-    margin: 0;
-    padding: .25rem 1rem .55rem;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) > div {
-    display: grid;
-    grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
-    align-items: start;
-    gap: .75rem;
-    min-height: 2.6rem;
-    padding: .58rem 0;
-    border-bottom: 1px solid var(--op-detail-border-soft);
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) > div:last-child {
-    border-bottom: 0;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) :where(dt, dd) {
-    margin: 0;
-    white-space: normal;
-    overflow-wrap: anywhere;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) dt {
-    color: var(--op-detail-muted);
-    font-size: 12px;
-    font-weight: 670;
-    line-height: 1.55;
-}
-
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) dd {
-    color: var(--op-detail-text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.55;
-    text-align: end;
 }
 
 body.boltz-shell:is(
@@ -1161,107 +866,9 @@ body.boltz-shell:is(
     font-weight: 600;
 }
 
-body.boltz-shell:is(
-    .controller-loading,
-    .controller-inventorytransportlegs,
-    .controller-loadingreceipts,
-    .controller-dispatch,
-    .controller-expenses,
-    .controller-lossevents,
-    .controller-sales
-).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-note-panel, .loading-detail-empty-line) {
-    padding: .75rem .85rem;
-    border: 1px solid var(--op-detail-border-soft);
-    border-radius: var(--radius-btn);
-    background: var(--op-detail-soft);
-    color: var(--op-detail-muted);
-    line-height: 1.7;
-    overflow-wrap: anywhere;
-}
 
-/* Customs detail uses the older card/table markup but the same visual rhythm. */
-body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .customs-detail-page {
-    display: grid;
-    gap: .85rem;
-    inline-size: 100%;
-    max-inline-size: 100%;
-    margin-inline: 0;
-}
-
-body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .customs-detail-page :where(*) {
-    min-width: 0;
-}
-
-body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .customs-detail-page .detail-card {
-    padding: 0;
-    overflow: hidden;
-    border-radius: 8px !important;
-    box-shadow: none !important;
-}
-
-body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .customs-detail-page .detail-card > .card-header {
-    min-height: 3.25rem;
-    padding: .75rem 1rem;
-    border-bottom: 1px solid var(--ptg-border);
-    background: var(--ptg-surface-soft) !important;
-    font-size: 14px;
-    font-weight: 600;
-}
-
-body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .customs-detail-page .detail-card > .card-body {
-    padding: .75rem 1rem;
-}
-
-body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .customs-detail-page .table-responsive {
-    max-width: 100%;
-    overflow-x: auto;
-}
-
-body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .customs-detail-page .table {
-    width: 100%;
-    min-width: 42rem;
-}
-
-@media (max-width: 991.98px) {
-    body.boltz-shell:is(
-        .controller-loading,
-        .controller-inventorytransportlegs,
-        .controller-loadingreceipts,
-        .controller-dispatch,
-        .controller-expenses,
-        .controller-lossevents,
-        .controller-sales
-    ).action-details .boltz-content .loading-details-simple-page .loading-detail-clean-header {
-        grid-template-columns: minmax(0, 1fr);
-    }
-}
 
 @media (max-width: 767.98px) {
-
-    body.boltz-shell:is(
-        .controller-loading,
-        .controller-inventorytransportlegs,
-        .controller-loadingreceipts,
-        .controller-dispatch,
-        .controller-expenses,
-        .controller-lossevents,
-        .controller-sales
-    ).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) > div{
-        grid-template-columns: minmax(0, 1fr);
-        gap: .15rem;
-    }
-
-    body.boltz-shell:is(
-        .controller-loading,
-        .controller-inventorytransportlegs,
-        .controller-loadingreceipts,
-        .controller-dispatch,
-        .controller-expenses,
-        .controller-lossevents,
-        .controller-sales
-    ).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-fact-list, .loading-detail-money-list) dd{
-        text-align: start;
-    }
 
     body.boltz-shell:is(
         .controller-loading,
@@ -1277,80 +884,8 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
     }
 }
 
-/* =====================================================================
-   Contract journey — compact header essentials, collapsible full specs,
-   and per-tab shared stat-card grids. Uses the shared --ak-detail-* tokens
-   so light/dark and RTL follow the rest of the detail system.
-   ===================================================================== */
-.ak-detail-page .ak-detail-essentials {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 22px;
-    margin: 0;
-    padding: 0;
-}
-.ak-detail-page .ak-detail-essentials > div {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
-    min-width: 0;
-}
-.ak-detail-page .ak-detail-essentials dt {
-    margin: 0;
-    color: var(--ak-detail-muted);
-    font-size: 12px;
-    font-weight: 500;
-}
-.ak-detail-page .ak-detail-essentials dd {
-    margin: 0;
-    color: var(--ak-detail-text);
-    font-size: 14px;
-    font-weight: 650;
-}
-
-.ak-detail-page .ak-detail-fold {
-    border: 1px solid var(--ak-detail-divider);
-    border-radius: var(--ak-detail-radius);
-    background: var(--ak-detail-surface);
-}
-.ak-detail-page .ak-detail-fold > summary {
-    cursor: pointer;
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 11px 16px;
-    color: var(--ak-detail-text);
-    font-size: 14px;
-    font-weight: 600;
-}
-.ak-detail-page .ak-detail-fold > summary::-webkit-details-marker { display: none; }
-.ak-detail-page .ak-detail-fold > summary .ak-detail-fold-caret {
-    color: var(--ak-detail-muted);
-    font-size: 12px;
-    transition: transform .15s ease;
-}
-.ak-detail-page .ak-detail-fold[open] > summary .ak-detail-fold-caret { transform: rotate(-90deg); }
-.ak-detail-page .ak-detail-fold-body {
-    padding: 4px 16px 14px;
-    border-top: 1px solid var(--ak-detail-divider);
-}
-.ak-detail-page .ak-detail-fold-body .ak-list { margin: 0; }
-
 /* Per-tab stat grid sits directly under the tab rail — keep it tight. */
 .ak-detail-page .ak-detail-content .ak-stat-grid { margin: 0 0 6px; }
-.ak-detail-page .ak-stat-note {
-    margin: 6px 0 0;
-    color: var(--ak-detail-muted);
-    font-size: 12px;
-    line-height: 1.6;
-}
-
-/* Full-specs fold: text value rows must sit label-start / value-end like the
-   numeric rows (were reading as centered), and the block should be shorter. */
-.ak-detail-page .ak-detail-fold-body { padding: 2px 16px 10px; }
-.ak-detail-page .ak-detail-fold-body .ak-list-row { padding: 6px 0; }
-.ak-detail-page .ak-detail-fold-body .ak-list-row dd:not(.ak-num) { text-align: end; }
 
 /* Larger, more legible stat numbers on the contract journey page only. */
 [data-contract-journey-page] .ak-stat-card__value { font-size: clamp(20px, 1.6vw, 25px); }
@@ -1472,12 +1007,6 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 .ak-journey-section .ak-section-head .ak-section-title {
     margin: 0;
     font-size: 16px;
-    line-height: 1.4;
-}
-
-.ak-journey-section .ak-section-head .ak-section-subtitle {
-    margin: 1px 0 0;
-    font-size: 12px;
     line-height: 1.4;
 }
 
@@ -1884,10 +1413,6 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
         margin-top: 8px;
     }
 
-    .ak-journey-turn {
-        display: none;
-    }
-
     /* One column, so every link is the same dashed rule pointing straight down. */
     .ak-journey-step .ak-journey-arrow {
         top: auto;
@@ -1957,7 +1482,7 @@ body.boltz-shell.controller-customsdeclarations.action-details .boltz-content .c
 body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-tank-flow--in,
 body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-tank-flow--in:is(:hover, :focus-visible, :active) {
     border-color: #DEFCED !important;
-    background: #ECFDF5 !important;
+    background: var(--ptg-flow-credit-bg) !important;
     color: #007A55 !important;
 }
 

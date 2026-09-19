@@ -17,6 +17,7 @@
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
     <PackageReference Include="ExcelDataReader" Version="3.7.0" />
     <PackageReference Include="Google.GenAI" Version="1.16.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="8.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
@@ -45,5 +46,103 @@
   <ItemGroup>
     <Watch Remove="bin\**\*;obj\**\*;**\bin\**\*;**\obj\**\*" />
   </ItemGroup>
+
+  <!-- ===================================================================
+       باندل CSS: همان فایل‌های css/ptg با همان ترتیب _Layout در دو بستهٔ
+       ثابت جمع می‌شوند تا در محیط غیرتوسعه به‌جای ۳۵ درخواست، دو درخواست
+       ارسال شود. فایل‌های منبع دست‌نخورده می‌مانند و در Development
+       جداگانه لود می‌شوند. کامنت‌ها و فاصله‌های اضافی حذف می‌شود.
+       =================================================================== -->
+  <UsingTask TaskName="BundleCss" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Sources ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <Output ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var sb = new System.Text.StringBuilder();
+        var lf = ((char)10).ToString();
+        foreach (var item in Sources)
+        {
+            var path = item.GetMetadata("FullPath");
+            if (!System.IO.File.Exists(path)) { continue; }
+            var raw = System.IO.File.ReadAllText(path);
+            // strip /* ... */ comments
+            var noComment = new System.Text.StringBuilder(raw.Length);
+            for (int i = 0; i < raw.Length; i++)
+            {
+                if (raw[i] == (char)47 && i + 1 < raw.Length && raw[i + 1] == (char)42)
+                {
+                    int end = raw.IndexOf("*/", i + 2, System.StringComparison.Ordinal);
+                    if (end < 0) { i = raw.Length; break; }
+                    i = end + 1;
+                    continue;
+                }
+                noComment.Append(raw[i]);
+            }
+            // collapse blank lines and trim each line
+            var outSb = new System.Text.StringBuilder(noComment.Length);
+            foreach (var line in noComment.ToString().Split((char)10))
+            {
+                var t = line.Trim();
+                if (t.Length == 0) { continue; }
+                outSb.Append(t).Append(lf);
+            }
+            sb.Append("/* ").Append(System.IO.Path.GetFileName(path)).Append(" */").Append(lf);
+            sb.Append(outSb.ToString());
+        }
+        var text = sb.ToString();
+        var existing = System.IO.File.Exists(Output) ? System.IO.File.ReadAllText(Output) : null;
+        if (existing != text) { System.IO.File.WriteAllText(Output, text, new System.Text.UTF8Encoding(false)); }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="BuildCssBundles" BeforeTargets="BeforeBuild;BeforePublish">
+    <ItemGroup>
+      <PtgCoreCss Include="wwwroot/css/_variables.css" />
+      <PtgCoreCss Include="wwwroot/css/_utilities.css" />
+      <PtgCoreCss Include="wwwroot/css/site.css" />
+      <PtgCoreCss Include="wwwroot/css/boltz-shell.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/01-tokens.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/02-base.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/03-layout.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/04-sidebar.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/05-components.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/06-forms.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/07-tables.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/08-modals.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/09-pages.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/10-responsive.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/11-details.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/12-dashboard.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/13-compat.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/14-master-details.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/15-system-lists.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/17-system-forms.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/18-toasts.css" />
+      <PtgCoreCss Include="wwwroot/css/ptg/40-motion.css" />
+
+      <PtgAppCss Include="wwwroot/css/ptg/63-party-details.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/16-system-tabs.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/41-compact.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/45-akaunting.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/50-ak-components.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/65-excel-import.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/52-stat-card.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/61-finance-workspace.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/67-journal-table.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/70-page-frame.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/71-typography.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/72-surfaces.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/73-detail-system.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/74-header-controls.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/76-form-system.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/66-backups.css" />
+      <PtgAppCss Include="wwwroot/css/ptg/80-assistant.css" />
+    </ItemGroup>
+    <BundleCss Sources="@(PtgCoreCss)" Output="$(MSBuildProjectDirectory)/wwwroot/css/ptg-core.bundle.css" />
+    <BundleCss Sources="@(PtgAppCss)" Output="$(MSBuildProjectDirectory)/wwwroot/css/ptg-app.bundle.css" />
+  </Target>
 
 </Project>

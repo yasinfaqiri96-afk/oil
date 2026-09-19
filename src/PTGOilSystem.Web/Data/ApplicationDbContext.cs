@@ -123,6 +123,9 @@ public class ApplicationDbContext : DbContext
     // --- Idempotency (duplicate-submit guard; no business logic) ---
     public DbSet<ProcessedFormToken> ProcessedFormTokens => Set<ProcessedFormToken>();
 
+    // --- Mashal Mobile sessions (hashed refresh tokens; no business logic) ---
+    public DbSet<MobileRefreshToken> MobileRefreshTokens => Set<MobileRefreshToken>();
+
     // --- Owned Operational Assets ---
     public DbSet<OperationalAsset> OperationalAssets => Set<OperationalAsset>();
     public DbSet<AssetOwnershipShare> AssetOwnershipShares => Set<AssetOwnershipShare>();
@@ -760,6 +763,24 @@ public class ApplicationDbContext : DbContext
             b.Property(t => t.ReferenceType).HasMaxLength(128);
             b.HasIndex(t => t.Token).IsUnique().HasDatabaseName("IX_ProcessedFormTokens_Token");
             b.HasIndex(t => t.Purpose);
+        });
+
+        // Mashal Mobile refresh tokens: only the SHA-256 hash is stored (unique). Deleting a user
+        // (UsersController) removes that user's mobile sessions instead of being blocked by them.
+        modelBuilder.Entity<MobileRefreshToken>(b =>
+        {
+            b.Property(t => t.TokenHash).HasMaxLength(64).IsRequired();
+            b.HasIndex(t => t.TokenHash).IsUnique();
+            b.HasIndex(t => t.SessionId);
+            b.HasIndex(t => new { t.UserId, t.RevokedAtUtc });
+            b.HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(t => t.ReplacedByToken)
+                .WithMany()
+                .HasForeignKey(t => t.ReplacedByTokenId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         // Amendment uniqueness per contract (system rule #13).

@@ -97,7 +97,7 @@ public sealed class AkDetailV2StructureTests
         Assert.DoesNotContain("transport-chain-disclosure", transport);
 
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
-        Assert.Contains(".ak-detail-reference-layout", css);
+        Assert.DoesNotContain(".ak-detail-reference-layout", css);
         Assert.Contains(".ak-linear-detail .ak-detail-metrics", css);
     }
 
@@ -122,8 +122,8 @@ public sealed class AkDetailV2StructureTests
         Assert.DoesNotContain("ptcdDetailModal", transport);
 
         var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
-        Assert.Contains("grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.08fr) minmax(220px, .82fr)", css);
-        Assert.Contains(".ak-detail-reference-layout > :is(.ak-detail-activity, .ak-detail-secondary, .ak-detail-actions-panel)", css);
+        // چیدمان «reference-layout» از هیچ ویویی صدا زده نمی‌شود؛ CSS مردهٔ آن حذف شد.
+        Assert.DoesNotContain(".ak-detail-reference-layout", css);
         Assert.Contains(".ak-linear-detail .ak-detail-overview-body.has-visual", css);
     }
 

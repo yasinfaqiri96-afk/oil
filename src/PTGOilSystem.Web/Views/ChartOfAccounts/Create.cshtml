@@ -10,7 +10,7 @@
                        UiText.T(Context, "بازگشت به فهرست", "Back to list"), "bi-arrow-right", Url.Action("Index", "ChartOfAccounts")))" />
 
     <section class="ak-list" aria-label="@UiText.T(Context, "فرم سرفصل حساب", "Account form")">
-        <form method="post" asp-action="Create" class="coa-form">
+        <form method="post" asp-action="Create" class="ak-form coa-form">
             @Html.AntiForgeryToken()
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 

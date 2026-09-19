@@ -60,7 +60,8 @@
                 <a class="btn btn-sm btn-light ak-secondary-action text-danger" href="@DetailsExportUrl("pdf")"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
             </div>
         </div>
-        <table class="statement-table statement-table-compact">
+        <div class="statement-table-wrap">
+            <table class="statement-table statement-table-compact">
             <thead>
                 <tr>
                     <th>تاریخ</th>
@@ -95,7 +96,8 @@
                     }
                 }
             </tbody>
-        </table>
+            </table>
+        </div>
         @if (Model.DetailTotalPages > 1)
         {
             <nav class="statement-pagination no-print" aria-label="صفحه‌بندی جزئیات قرارداد">

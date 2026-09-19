@@ -30,6 +30,12 @@ public sealed class BusinessRuleExceptionFilter(ILogger<BusinessRuleExceptionFil
 
     public void OnException(ExceptionContext context)
     {
+        // مسیرهای /api خطا را با ApiExceptionFilter به ProblemDetails ترجمه می‌کنند، نه Redirect.
+        if (PTGOilSystem.Web.Infrastructure.Api.ApiRequest.IsApi(context.HttpContext))
+        {
+            return;
+        }
+
         var message = Translate(context.Exception);
         if (message is null)
         {

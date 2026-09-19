@@ -9,9 +9,9 @@ html {
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
     margin: 0;
-    background: var(--ptg-bg) !important;
+    background: var(--ptg-bg);
     color: var(--ptg-text);
-    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
     font-size: var(--font-body);
     letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
@@ -20,7 +20,7 @@ body.ptg-modal-document {
 
 body.boltz-shell.app-shell-authenticated.boltz-rtl,
 body.ptg-modal-document.boltz-rtl {
-    font-family: "Vazirmatn", "IRANSans", Tahoma, Arial, sans-serif;
+    font-family: "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
 }
 
 /* Keyboard users bypass the persistent sidebar and topbar without adding
@@ -104,25 +104,8 @@ body.ptg-modal-document :where(code, kbd, samp) {
     color: var(--ptg-text);
     font-size: .86em;
 }
-
-/* سلول‌های عددی یک‌دست — راست‌چین، LTR برای خودِ عدد، ارقام tabular. */
-body.boltz-shell.app-shell-authenticated .number-cell,
-body.boltz-shell.app-shell-authenticated .money-cell,
-body.boltz-shell.app-shell-authenticated .quantity-cell,
-body.boltz-shell.app-shell-authenticated .fx-cell,
-body.ptg-modal-document .number-cell,
-body.ptg-modal-document .money-cell,
-body.ptg-modal-document .quantity-cell,
-body.ptg-modal-document .fx-cell {
-    text-align: end;
-    direction: ltr;
-    unicode-bidi: isolate;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
 body.boltz-shell.app-shell-authenticated ::selection,
 body.ptg-modal-document ::selection {
-    color: #FFFFFF;
+    color: var(--ptg-field-bg);
     background: var(--ptg-primary);
 }

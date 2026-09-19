@@ -9,7 +9,7 @@ description: Use for any PTG UI/UX request — designing or changing a page, for
 
 `business workflow → existing runtime components/tokens → MASTER.md → page override → ui-ux-pro-max suggestions`
 
-پیشنهاد Skill که با RTL، Razor، Bootstrap، Vazirmatn، تراکم ERP یا هویت PTG ناسازگار باشد باید رد یا اصلاح شود.
+پیشنهاد Skill که با RTL، Razor، Bootstrap، IRANSans، تراکم ERP یا هویت PTG ناسازگار باشد باید رد یا اصلاح شود.
 
 ## Rules
 
@@ -20,7 +20,7 @@ description: Use for any PTG UI/UX request — designing or changing a page, for
 5. componentهای فعلی سیستم بر ساخت component جدید اولویت دارند.
 6. طراحی با ASP.NET Core MVC، Razor و Bootstrap 5 انجام شود.
 7. تغییر UI نباید رفتار Form، Validation، Modal، Dropdown، SPA، Quick Create یا Submit را بشکند.
-8. RTL و فونت Vazirmatn الزامی است؛ اعداد مالی با جهت و tabular مناسب نمایش داده شوند.
+8. RTL و فونت IRANSans (با fallback‏ Vazirmatn) الزامی است؛ اعداد مالی با جهت و tabular مناسب نمایش داده شوند.
 9. طراحی تمیز، حرفه‌ای، کنترل‌شده و Enterprise باشد؛ نه نمایشی، کودکانه یا شلوغ.
 10. هر صفحه باید با کل سیستم هماهنگ باشد، نه فقط به‌تنهایی زیبا.
 11. CSS جدید فقط وقتی ساخته شود که component یا token موجود پاسخ ندهد؛ token و Design System موازی ممنوع است.

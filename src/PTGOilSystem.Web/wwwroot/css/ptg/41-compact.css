@@ -5,26 +5,26 @@
  */
 
 /* ---- Tables: tighter row rhythm ---- */
-body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) thead th,
-body.ptg-modal-document :where(.table, .ds-table) thead th {
+body.boltz-shell.app-shell-authenticated :where(.table) thead th,
+body.ptg-modal-document :where(.table) thead th {
     padding: .45rem .65rem;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.table, .ds-table) tbody :where(td, th),
-body.ptg-modal-document :where(.table, .ds-table) tbody :where(td, th) {
+body.boltz-shell.app-shell-authenticated :where(.table) tbody :where(td, th),
+body.ptg-modal-document :where(.table) tbody :where(td, th) {
     padding: .4rem .65rem;
     line-height: 1.35;
 }
 
 /* ---- Buttons: slimmer padding
  * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
-body.boltz-shell.app-shell-authenticated :where(.ptg-card, .ds-card, .kpi-card, .card) > :where(.card-body),
-body.ptg-modal-document :where(.ptg-card, .ds-card, .kpi-card, .card) > :where(.card-body) {
+body.boltz-shell.app-shell-authenticated :where(.kpi-card, .card) > :where(.card-body),
+body.ptg-modal-document :where(.kpi-card, .card) > :where(.card-body) {
     padding: .75rem .85rem;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.card) > :where(.card-header, .card-footer),
-body.ptg-modal-document :where(.card) > :where(.card-header, .card-footer) {
+body.boltz-shell.app-shell-authenticated :where(.card) > :where(.card-header),
+body.ptg-modal-document :where(.card) > :where(.card-header) {
     padding-block: .5rem;
 }
 

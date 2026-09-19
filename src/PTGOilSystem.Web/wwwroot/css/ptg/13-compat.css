@@ -28,92 +28,16 @@ body.boltz-shell.controller-shipmentpnl.action-details .ak-detail-page .tab-cont
     align-content: start;
 }
 
-/* ردیف دو ستونه (آخرین حمل‌ها / آخرین فروش‌ها) به‌عنوان یک آیتم گرید تمام‌عرض بماند. */
-body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .tab-content > .tab-pane.active > .row {
-    margin: 0;
-}
-
 body.boltz-shell.controller-shipmentpnl.action-details .shipment-pnl-header .badge.text-bg-warning {
-    color: #3D3D3D !important;
+    color: var(--ptg-text) !important;
 }
 
-/* کارت‌های آماری — طراحی تمیزتر، چپ‌چین، فاصلهٔ بیشتر، خط رنگی کنار. */
-body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .summary-strip.ds-detail-facts {
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)) !important;
-    gap: .6rem !important;
-}
-body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .summary-strip.ds-detail-facts .summary-tile {
-    min-height: 0 !important;
-    padding: .6rem .7rem !important;
-    display: flex !important;
-    flex-direction: column !important;
-    gap: .25rem !important;
-    text-align: start !important;
-    border: 1px solid var(--ptg-border) !important;
-    border-inline-start: 3px solid rgba(var(--ptg-primary-rgb), .55) !important;
-    border-radius: 8px !important;
-    background: var(--ptg-surface) !important;
-    box-shadow: none !important;
-    overflow: visible !important;
-}
-body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .summary-strip.ds-detail-facts .summary-tile .summary-tile-label {
-    font-size: 11px !important;
-    line-height: 1.25 !important;
-    color: var(--ptg-muted) !important;
-}
-body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page .summary-strip.ds-detail-facts .summary-tile .summary-tile-value {
-    font-size: 16px !important;
-    font-weight: 750 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-}
-
-/* سرستون جدول‌ها — خاکستری تیره‌تر برای تفکیک و وضوح (مثل پیش‌فاکتور فراگستر). */
-body.boltz-shell.controller-shipmentpnl.action-details .boltz-detail-page :is(.table, .ds-table) thead th {
-    background: #ececec !important;
-    color: #1f242c !important;
-    border-bottom: 1px solid #d4d4d4 !important;
-    font-weight: 800 !important;
-}
-
-/* صفحه جزئیات حساب نقد/بانک — کارت‌های آماری تب تراکنش‌ها باید ارتفاع و فاصلهٔ مناسب داشته باشند
-   (قانون فشردهٔ سراسری بالا آن‌ها را خیلی کم‌ارتفاع می‌کرد). */
-body.boltz-shell.controller-cashaccounts.action-details #account-ledger .summary-strip.ds-detail-facts {
-    margin: 1rem 0 1.1rem;
-}
-
-body.boltz-shell.controller-cashaccounts.action-details #account-ledger .summary-strip.ds-detail-facts .summary-tile {
-    min-height: 5.4rem !important;
-    padding: 1rem 1.1rem !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    gap: .35rem !important;
-    overflow: visible !important;
-}
-
-body.boltz-shell.controller-cashaccounts.action-details #account-ledger .summary-strip.ds-detail-facts .summary-tile .summary-tile-label {
-    font-size: 12px !important;
-    line-height: 1.3 !important;
-}
-
-body.boltz-shell.controller-cashaccounts.action-details #account-ledger .summary-strip.ds-detail-facts .summary-tile .summary-tile-value {
-    font-size: 1.2rem !important;
-    white-space: normal !important;
-    overflow: visible !important;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.journal-page, .receipt-create-page, .operations-reference-page, .loading-reference-page, .expense-reference-page) {
+body.boltz-shell.app-shell-authenticated :where(.journal-page) {
     inline-size: 100%;
     max-inline-size: 100%;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.journal-form-card, .receipt-create-page .card, .operations-one-page-form) {
-    overflow: hidden;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.pagination, .ptg-pagination) {
+body.boltz-shell.app-shell-authenticated :where(.pagination) {
     gap: .55rem;
 }
 
@@ -128,14 +52,14 @@ body.boltz-shell.app-shell-authenticated :where(.page-link) {
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--radius-btn) !important;
     color: var(--ptg-muted);
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     font-size: var(--font-body);
     font-weight: 500;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.page-item.active .page-link) {
     border-color: var(--ptg-primary);
-    background: #FFFFFF;
+    background: var(--ptg-field-bg);
     color: var(--ptg-primary);
     box-shadow: none;
 }
@@ -150,7 +74,7 @@ body.boltz-shell.app-shell-authenticated :where(.page-item.disabled .page-link) 
  * lived in legacy CSS
  * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated .ptg-main {
-    background: transparent !important;
+    background: transparent;
 }
 
 /* Header is full-width chrome fused with the page: no card, no border, no
@@ -178,18 +102,6 @@ body.boltz-shell.app-shell-authenticated .ptg-hflag-wrap {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-}
-
-body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger .ptg-hsearch-ico {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-    line-height: 1;
-}
-
-body.boltz-shell.app-shell-authenticated .ptg-hsearch-trigger .ptg-hsearch-ico::before {
-    line-height: 1;
 }
 
 @media (max-width: 767.98px) {
@@ -241,8 +153,8 @@ body.boltz-shell.controller-contracts.action-create .contract-one-page-footer {
     padding: .8rem 1.35rem;
     border: 0;
     border-radius: 0 0 8px 8px;
-    border-top: 1px solid #E7E7E7;
-    background: #F2F5FC;
+    border-top: 1px solid var(--ptg-border);
+    background: var(--ptg-surface-tint);
 }
 
 body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .btn {
@@ -260,12 +172,12 @@ body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .b
     min-width: 10.2rem;
     border-color: var(--ptg-primary-dark);
     background: linear-gradient(135deg, var(--ptg-primary), var(--ptg-primary-dark));
-    color: #ffffff;
+    color: var(--ptg-field-bg);
 }
 
 body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .btn-outline-secondary {
     border-color: #cdd7e5;
-    background: #ffffff;
+    background: var(--ptg-field-bg);
     color: #41506a;
 }
 
@@ -289,19 +201,11 @@ body.boltz-shell .loading-expense-editor .form-label {
     margin-bottom: 0;
     font-size: 12px;
     font-weight: 800;
-    color: #3D3D3D;
+    color: var(--ptg-text);
 }
 body.boltz-shell .loading-expense-editor .field-validation-error {
     min-height: 1rem;
-    color: #b91c1c;
-    font-size: 11px;
     line-height: 1.35;
-}
-body.boltz-shell .loading-expense-actions {
-    margin-top: .15rem;
-    padding-top: .2rem;
-    justify-content: flex-start;
-    gap: .7rem;
 }
 body.boltz-shell .loading-expense-editor.is-modal {
     gap: .78rem;
@@ -309,11 +213,6 @@ body.boltz-shell .loading-expense-editor.is-modal {
 body.boltz-shell .loading-expense-editor.is-modal .form-section-title {
     font-size: 14px;
     font-weight: 850;
-}
-body.boltz-shell .loading-expense-editor.is-modal .loading-expense-actions {
-    gap: .45rem;
-    margin-top: .15rem;
-    padding-top: .55rem;
 }
 
 /* Group-expense modal (پرونده محموله › تب مصارف): keep the header and every
@@ -335,7 +234,7 @@ body.boltz-shell [data-loading-expense-editor] .ak-form-grid {
 body.boltz-shell [data-loading-expense-editor] .ak-form-grid > span {
     font-size: 12px;
     font-weight: 700;
-    color: #3D3D3D;
+    color: var(--ptg-text);
 }
 
 /* The expense modal body uses .ak-modal-body (not Bootstrap's .modal-body), so
@@ -367,49 +266,6 @@ body.boltz-shell [data-loading-expense-remote-modal] .ak-modal-body {
 @media (max-width: 767.98px) {
     .boltz-shell .section-title-row { display: grid; }
 }
-/* Edit + activate/deactivate icon buttons in the card header. */
-body.boltz-shell.app-shell-authenticated:is(.controller-operationalassets, .controller-partners, .controller-companies, .controller-suppliers, .controller-customers, .controller-serviceproviders, .controller-sarrafs, .controller-employees, .controller-drivers, .controller-trucks, .controller-vessels, .controller-wagons).action-index .boltz-content .oa-card-icon-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: .4rem;
-}
-
-/* ============================================================================
- * PORT: Operational Asset DETAILS page layout (tabs, stat cards, financial,
- * split form/table, segmented, owner/rent forms). These oa-* detail classes
- * previously lived ONLY in the unloaded _archive/view-structure.css, so the
- * details page rendered unstyled ("بهم‌ریخته"). Re-homed here, scoped to
- * .action-details so the index list page keeps its own (separate) styling.
- * Display only — no business/controller behavior touched.
- * ========================================================================== */
-/* operational-assets-reference-redesign:start */
-body.boltz-shell.controller-operationalassets.action-details .boltz-content .operational-assets-reference-page {
-    inline-size: 100%;
-    max-inline-size: 100%;
-    margin-inline: 0;
-    gap: 1.5rem;
-}
-
-/* Reopen button: hidden by default
- * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
-
-/* ============================================================================
- * Clean registration form ("اطلاعات محصول"-style). Used by the Operational
- * Asset create/edit form and the Asset Use/Rent form. Label-above-field,
- * 4-column soft grid, rounded light inputs
- * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
-body.boltz-shell.app-shell-authenticated.controller-inventory.action-index .boltz-content .app-table-card table > thead th:nth-child(7),
-body.boltz-shell.app-shell-authenticated.controller-inventory.action-index .boltz-content .app-table-card table > tbody td:nth-child(7) {
-    text-align: center !important;
-    padding-inline: .75rem;
-}
-
-/* Inventory keeps the legacy app-table alignment. Operations lists now use the
- * dedicated reference-list component in 38-operations-lists.css. */
-body.boltz-shell.app-shell-authenticated.controller-inventory.action-index .boltz-content .app-table-card table > thead th.text-end,
-body.boltz-shell.app-shell-authenticated.controller-inventory.action-index .boltz-content .app-table-card table > tbody td.text-end {
-    text-align: center !important;
-}
 
 /* Roznamcha (روزنامچه) top KPI tiles: base .summary-tile is 6.8rem tall. Make
  * the stat cards on this page shorter/compact. Display only. */
@@ -428,31 +284,13 @@ body.boltz-shell.app-shell-authenticated.controller-reconciliation.action-roznam
     font-size: 16px;
     line-height: 1.15;
 }
-
-/* Payments via-sarraf: کلید دو-حالتهٔ تخصیص به قرارداد */
-body.boltz-shell.app-shell-authenticated.controller-payments .boltz-content .sarraf-alloc-switch {
-    margin-bottom: 0.75rem;
-}
 body.boltz-shell.app-shell-authenticated.controller-payments .boltz-content .sarraf-alloc-fields[hidden],
 body.boltz-shell.app-shell-authenticated.controller-payments .boltz-content [data-sarraf-summary-hold][hidden],
 body.boltz-shell.app-shell-authenticated.controller-payments .boltz-content [data-sarraf-summary-contract][hidden] {
     display: none !important;
 }
 
-/* ===================================================================
-   Party profile (Customer + ServiceProvider Details) — پروفایل سادهٔ
-   مشترک طرف‌حساب (scoped). تأمین‌کننده استایل inline خودش را دارد.
-   =================================================================== */
-body.boltz-shell.app-shell-authenticated .boltz-content :is(.customer-details-page, .partner-profile-page, .employee-details-page, .companies-details-page, .supplier-details-page) {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    inline-size: 100%;
-    max-inline-size: 100%;
-    margin-inline: 0;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-content :is(.customer-details-page, .service-provider-details-page, .partner-profile-page, .employee-details-page, .companies-details-page, .supplier-details-page) :is(.party-collapse, .party-more) > summary {
+body.boltz-shell.app-shell-authenticated .boltz-content :is(.service-provider-details-page) :is(.party-more) > summary {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -460,16 +298,8 @@ body.boltz-shell.app-shell-authenticated .boltz-content :is(.customer-details-pa
     font-weight: 700;
     list-style: none;
 }
-body.boltz-shell.app-shell-authenticated .boltz-content :is(.customer-details-page, .service-provider-details-page, .partner-profile-page, .employee-details-page, .companies-details-page, .supplier-details-page) :is(.party-collapse, .party-more) > summary::-webkit-details-marker {
+body.boltz-shell.app-shell-authenticated .boltz-content :is(.service-provider-details-page) :is(.party-more) > summary::-webkit-details-marker {
     display: none;
-}
-
-/* role-user-access-ui:start (ported from _archive: Roles create/edit access grids) */
-body.boltz-shell .role-access-badges,
-body.boltz-shell .role-detail-section-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
 }
 
 /* استایل قدیمی صفحهٔ «ثبت بارگیری» (loading-create-page / l-col-* / loading-action-*)
@@ -481,9 +311,9 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
     position: relative;
     min-height: 5rem;
     padding: 0.8rem 0.9rem;
-    border: 1px solid #E7E7E7;
+    border: 1px solid var(--ptg-border);
     border-radius: var(--radius-card);
-    background: #ffffff;
+    background: var(--ptg-field-bg);
     box-shadow: none;
 }
 
@@ -497,7 +327,7 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background: #F2F5FC;
+    background: var(--ptg-surface-tint);
     font-size: 16px;
 }
 
@@ -514,10 +344,7 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
     margin-block: 0;
     margin-inline: 0 auto;
     direction: rtl;
-    color: #3D3D3D;
+    color: var(--ptg-text);
 }
 
-.contract-pricing-form .field-validation-error {
-    font-size: 12px;
-    color: #dc2626;
-}
+

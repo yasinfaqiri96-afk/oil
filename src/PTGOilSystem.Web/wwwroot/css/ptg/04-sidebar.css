@@ -18,7 +18,7 @@ body.boltz-shell.app-shell-authenticated {
 
 @media (min-width: 1200px) {
     body.boltz-shell.app-shell-authenticated:not(.is-sidebar-collapsed) .boltz-shell-frame {
-        grid-template-columns: var(--layout-sidebar) minmax(0, 1fr) !important;
+        grid-template-columns: var(--layout-sidebar) minmax(0, 1fr);
     }
 
     body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-shell-frame {
@@ -36,119 +36,12 @@ body.boltz-shell.app-shell-authenticated .ptg-sidebar {
     min-block-size: 100vh;
     max-block-size: 100vh;
     overflow: hidden;
-    background: none !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-}
-
-/* ============================================================= *
- * 56px toolbar rail
- * ============================================================= */
-body.boltz-shell.app-shell-authenticated .ak-rail {
-    flex: 0 0 var(--layout-rail);
-    inline-size: var(--layout-rail);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding-block: 14px 12px;
-    background: var(--ptg-sidebar-rail);
-    color: var(--ptg-sidebar-ink);
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-brand {
-    display: block;
-    text-decoration: none;
-    margin-block-end: 6px;
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-monogram {
-    display: grid;
-    place-items: center;
-    inline-size: 36px;
-    block-size: 36px;
-    border-radius: 8px;
-    background: var(--ptg-sidebar-monogram-bg);
-    color: #fff;
-    font-weight: 700;
-    font-size: 16px;
-    line-height: 1;
-    font-family: "Poppins", var(--font-sans, sans-serif);
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-actions,
-body.boltz-shell.app-shell-authenticated .ak-rail-foot {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    inline-size: 100%;
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-actions {
-    flex: 1 1 auto;
-    min-block-size: 0;
-    overflow-y: auto;
-    scrollbar-width: none;
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-actions::-webkit-scrollbar {
-    width: 0;
-    height: 0;
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-foot {
-    flex: 0 0 auto;
-    margin-block-start: 6px;
-    padding-block-start: 8px;
-    border-block-start: 1px solid var(--ptg-sidebar-line);
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-logout {
-    margin: 0;
-    inline-size: auto;
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-btn {
-    display: grid;
-    place-items: center;
-    inline-size: 40px;
-    block-size: 40px;
-    padding: 0;
+    background: none;
     border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--ptg-sidebar-ink);
-    cursor: pointer;
-    transition: background-color var(--ptg-motion-fast) ease-out,
-                color var(--ptg-motion-fast) ease-out;
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-btn > svg {
-    inline-size: 22px;
-    block-size: 22px;
-    color: currentColor;
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-btn:hover,
-body.boltz-shell.app-shell-authenticated .ak-rail-btn:focus-visible {
-    background: var(--ptg-sidebar-railbtn-hover-bg);
-    color: var(--ptg-sidebar-ink-strong);
-    outline: none;
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-btn.is-active {
-    background: var(--ptg-sidebar-railbtn-active-bg);
-    color: var(--ptg-sidebar-ink-strong);
-}
-
-body.boltz-shell.app-shell-authenticated .ak-rail-btn-danger:hover,
-body.boltz-shell.app-shell-authenticated .ak-rail-btn-danger:focus-visible {
-    color: var(--ptg-sidebar-danger);
-    background: var(--ptg-sidebar-danger-bg);
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 /* ============================================================= *
@@ -198,7 +91,7 @@ body.boltz-shell.app-shell-authenticated .boltz-brand {
     min-block-size: 72px;
     padding-block: 14px 6px;
     padding-inline: 6px;
-    border: 0 !important;
+    border: 0;
     background: transparent;
 }
 
@@ -280,7 +173,7 @@ body.boltz-shell.app-shell-authenticated .ptg-nav-ic {
     inline-size: 26px;
     block-size: 26px;
     margin: 0;
-    background: transparent !important;
+    background: transparent;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-nav-ic {
@@ -302,7 +195,7 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link span {
     text-overflow: clip;
     white-space: normal;
     overflow-wrap: break-word;
-    color: var(--ptg-sidebar-ink) !important;
+    color: var(--ptg-sidebar-ink);
     font-size: 14px;
     font-weight: 500;
     line-height: 1.35;
@@ -728,13 +621,13 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link-danger:focus-v
  * ============================================================= */
 @media (max-width: 991.98px) {
     body.boltz-shell.app-shell-authenticated .ptg-sidebar {
-        position: fixed !important;
-        inset-block: 0 !important;
-        inset-inline-start: 0 !important;
+        position: fixed;
+        inset-block: 0;
+        inset-inline-start: 0;
         inline-size: min(var(--layout-nav-mobile), calc(100% - 24px));
         min-block-size: 100dvh;
         max-block-size: 100dvh;
-        box-shadow: none !important;
+        box-shadow: none;
         transition: transform var(--ptg-motion-fast) ease-out;
     }
 
@@ -751,7 +644,7 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link-danger:focus-v
     }
 
     body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .ptg-sidebar {
-        display: none !important;
+        display: none;
     }
 
     /* The compact drawer uses the whole available inline size. */

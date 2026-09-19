@@ -26,13 +26,7 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-header-cluster {
 }
 
 /* ---------- پایهٔ مشترک همهٔ کنترل‌ها ---------- */
-body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
-    .boltz-topbar-toggle,
-    .ptg-hsearch-trigger,
-    .ptg-h3d,
-    .ptg-hfyear,
-    .ptg-havatar-ring
-) {
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(.boltz-topbar-toggle, .ptg-h3d, .ptg-hfyear, .ptg-havatar-ring) {
     height: var(--hdr-ctl-size);
     min-height: var(--hdr-ctl-size);
     display: inline-flex;
@@ -50,44 +44,21 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
 }
 
 /* کنترل‌های نمادی مربعِ گرد؛ سال مالی چون متن دارد عرض آزاد می‌گیرد. */
-body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
-    .boltz-topbar-toggle,
-    .ptg-hsearch-trigger,
-    .ptg-h3d,
-    .ptg-havatar-ring
-) {
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(.boltz-topbar-toggle, .ptg-h3d, .ptg-havatar-ring) {
     width: var(--hdr-ctl-size);
     padding: 0;
 }
 
-body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
-    .boltz-topbar-toggle,
-    .ptg-hsearch-trigger,
-    .ptg-h3d,
-    .ptg-hfyear,
-    .ptg-havatar-ring
-):hover {
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(.boltz-topbar-toggle, .ptg-h3d, .ptg-hfyear, .ptg-havatar-ring):hover {
     background: var(--hdr-ctl-hover);
     color: var(--hdr-ctl-fg-strong);
 }
 
-body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
-    .boltz-topbar-toggle,
-    .ptg-hsearch-trigger,
-    .ptg-h3d,
-    .ptg-hfyear,
-    .ptg-havatar-ring
-):active {
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(.boltz-topbar-toggle, .ptg-h3d, .ptg-hfyear, .ptg-havatar-ring):active {
     background: var(--hdr-ctl-active);
 }
 
-body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
-    .boltz-topbar-toggle,
-    .ptg-hsearch-trigger,
-    .ptg-h3d,
-    .ptg-hfyear,
-    .ptg-havatar-ring
-):focus-visible {
+body.boltz-shell.app-shell-authenticated .ptg-topbar :where(.boltz-topbar-toggle, .ptg-h3d, .ptg-hfyear, .ptg-havatar-ring):focus-visible {
     outline: 2px solid var(--hdr-ctl-ring);
     outline-offset: 2px;
     background: var(--hdr-ctl-hover);
@@ -104,7 +75,6 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
 
 /* آیکون‌های خطی: یک اندازه برای همه. */
 body.boltz-shell.app-shell-authenticated .ptg-topbar :where(
-    .ptg-hsearch-trigger,
     .ptg-h3d,
     .ptg-havatar-ring
 ) .bi {
@@ -139,15 +109,6 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar .boltz-topbar-toggle .line:
 
 body.boltz-shell.app-shell-authenticated.boltz-rtl .ptg-topbar .boltz-topbar-toggle .line:last-child {
     align-self: flex-end;
-}
-
-/* ---------- ۲) جستجو ---------- */
-body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hsearch-trigger .ptg-hsearch-ico {
-    width: auto;
-    height: auto;
-    font-size: var(--hdr-ctl-ico);
-    line-height: 1;
-    color: inherit;
 }
 
 /* ---------- ۳) سال مالی ---------- */

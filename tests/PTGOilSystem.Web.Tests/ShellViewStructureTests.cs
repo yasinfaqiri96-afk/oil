@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -106,7 +106,7 @@ public class ShellViewStructureTests
         var tokensCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/01-tokens.css");
         var pageFrameCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/70-page-frame.css");
         var akauntingCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/45-akaunting.css");
-        var formCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+        var formCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/76-form-system.css");
 
         Assert.Contains("ptg-page-body ptg-page-frame", layout);
         Assert.Contains("~/css/ptg/70-page-frame.css", layout);
@@ -114,14 +114,29 @@ public class ShellViewStructureTests
             layout.LastIndexOf("~/css/ptg/70-page-frame.css", StringComparison.Ordinal)
             > layout.LastIndexOf("~/css/ptg/61-finance-workspace.css", StringComparison.Ordinal));
         Assert.Contains("--layout-content-max: 1200px", tokensCss);
-        Assert.Contains("--layout-form-max: 860px", tokensCss);
-        Assert.Contains("--layout-form-wide-max: 1080px", tokensCss);
+
+        // One form width for the whole system: the reference form
+        // («ثبت دریافت / پرداخت») set it, and 76-form-system.css now applies it to
+        // every Create/Edit page. The old narrow/wide pair is gone.
+        Assert.Contains("--chk-form-width: 1080px", tokensCss);
+        Assert.Contains("--ak-form-content-max: var(--chk-form-width)", tokensCss);
+        Assert.DoesNotContain("--layout-form-max", tokensCss);
+        Assert.DoesNotContain("--ak-form-content-wide-max", tokensCss);
+
         Assert.Contains("padding-inline: var(--layout-gutter-desktop)", pageFrameCss);
         Assert.Contains("max-inline-size: var(--layout-content-max)", pageFrameCss);
         Assert.Contains("@media (min-width: 768px) and (max-width: 1199.98px)", pageFrameCss);
         Assert.DoesNotContain(".ptg-page > .boltz-content-body", akauntingCss);
+
+        // The form column is owned by the form system, which loads after both
+        // 50-ak-components.css and the page layers so it has the last word.
         Assert.Contains(".ak-form-page:has(> form.ak-form)", formCss);
         Assert.Contains("padding-inline: 0", formCss);
+        Assert.Contains("inline-size: min(100%, var(--ak-form-content-max))", formCss);
+        Assert.Contains("~/css/ptg/76-form-system.css", layout);
+        Assert.True(
+            layout.LastIndexOf("~/css/ptg/76-form-system.css", StringComparison.Ordinal)
+            > layout.LastIndexOf("~/css/ptg/50-ak-components.css", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -347,7 +362,7 @@ public class ShellViewStructureTests
         Assert.Contains(".dash-insights", css);
         Assert.Contains(".dash-mix", css);
         Assert.Contains(".dash-trend", css);
-        Assert.Contains(".dash-total", css);
+        Assert.DoesNotContain(".dash-total", css);
         Assert.DoesNotContain(".dashboard-hero", css);
         Assert.DoesNotContain(".dashboard-period", css);
         Assert.DoesNotContain(".dashboard-metric", css);
@@ -454,7 +469,8 @@ public class ShellViewStructureTests
         Assert.Contains("ptg-list-entity-cell", tables);
         Assert.Contains("ptg-list-row-avatar", components);
         Assert.Contains("width: 28px", components);
-        Assert.Contains("background: #1062D0", components);
+        // رنگ از توکن primary می‌آید، نه hex هاردکد.
+        Assert.Contains("background: var(--ptg-primary)", components);
         Assert.Contains("class=\"ptg-person-avatar\"", personCell);
 
         foreach (var module in modules)
@@ -706,7 +722,7 @@ public class ShellViewStructureTests
         Assert.Contains("class=\"ptg-skip-link\"", layout);
         Assert.Contains("id=\"ptg-main-content\" tabindex=\"-1\"", layout);
         Assert.Contains(".ptg-skip-link:focus-visible", baseCss);
-        Assert.Contains("\"Vazirmatn\", \"IRANSans\"", baseCss);
+        Assert.Contains("\"IRANSans\", \"Vazirmatn\"", baseCss);
 
         Assert.Contains("--ptg-radius-card: var(--radius-card)", responsiveCss);
         Assert.DoesNotContain("--ptg-radius-card: 22px", responsiveCss);

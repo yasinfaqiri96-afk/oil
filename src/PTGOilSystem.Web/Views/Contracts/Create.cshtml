@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Contracts.ContractFormViewModel
+﻿@model PTGOilSystem.Web.Models.Contracts.ContractFormViewModel
 @{
     ViewData["Title"] = UiText.T(Context,"قرارداد جدید","New Contract");
     ViewData["HideSectionTabs"] = true;
@@ -247,7 +247,7 @@
                         </div>
                     </div>
 
-                    <div id="fixedPricingSection" class="mt-2">
+                    <div id="fixedPricingSection" class="ak-field ak-col-full mt-2">
                         <div class="ak-form-grid">
                             <div class="ak-field" data-rub-rate-field>
                                 <label asp-for="Currency" class="ak-label">ارز <span class="ak-req">*</span></label>
@@ -271,7 +271,7 @@
                         </div>
                     </div>
 
-                    <div id="manualFinalPricingSection" class="mt-2">
+                    <div id="manualFinalPricingSection" class="ak-field ak-col-full mt-2">
                         <div class="ak-form-grid">
                             <div class="ak-field">
                                 <label asp-for="ManualFinalPriceUsd" class="ak-label">قیمت نهایی USD/MT</label>
@@ -286,7 +286,7 @@
                         </div>
                     </div>
 
-                    <div id="plattsPricingSection" class="mt-2">
+                    <div id="plattsPricingSection" class="ak-field ak-col-full mt-2">
                         <div class="ak-form-grid">
                             <input asp-for="Currency" type="hidden" id="plattsCurrencyHidden" />
                             <div class="ak-field d-none">
