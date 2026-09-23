@@ -18,7 +18,7 @@ public partial class TruckSettlementsController
         int page = 1,
         [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        var pageSize = perPage is > 0 and <= 200 ? perPage.Value : 25;
+        var pageSize = ListPageSize.Resolve(perPage, ListPageSize.Default);
         var rows = await BuildSettledRowsAsync(q, kind);
 
         var model = new TruckSettlementSettledIndexViewModel
@@ -41,7 +41,7 @@ public partial class TruckSettlementsController
         ViewData["PageCount"] = model.PageCount;
         ViewData["ShownCount"] = model.TotalCount;
         ViewData["PageSize"] = pageSize;
-        ViewData["DefaultPageSize"] = 25;
+        ViewData["DefaultPageSize"] = ListPageSize.Default;
         return View(model);
     }
 

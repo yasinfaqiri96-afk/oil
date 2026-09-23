@@ -241,8 +241,16 @@ public sealed class TabularExportServiceTests
             if (view.EndsWith(Path.Combine("PartyStatements", "Document.cshtml"), StringComparison.OrdinalIgnoreCase))
                 continue;
             var content = File.ReadAllText(view);
+            // «ثبت و چاپ بل» فرم فروش یک submit سمت سرور است (PrintAfterSave)، نه چاپ لیست؛
+            // فقط آیکن آن مجاز است و بقیهٔ کنترل‌های چاپ همچنان ممنوع‌اند.
+            var isSaleFormPrintAfterSave = view.EndsWith(Path.Combine("Ak", "_ShipmentSaleForm.cshtml"), StringComparison.OrdinalIgnoreCase)
+                && content.Contains("name=\"PrintAfterSave\"", StringComparison.Ordinal);
             foreach (var token in forbidden)
+            {
+                if (isSaleFormPrintAfterSave && token == "bi-printer")
+                    continue;
                 Assert.DoesNotContain(token, content, StringComparison.OrdinalIgnoreCase);
+            }
         }
     }
 

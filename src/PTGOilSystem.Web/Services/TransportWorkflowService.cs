@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
@@ -26,6 +26,14 @@ public interface ITransportWorkflowService
 
     Task<InventoryTransportLeg> StartFromLoadingAsync(
         StartTransportFromLoadingCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// تبدیل گروهی چند بارگیری به حمل. قواعد دقیقاً همان مسیر تکی است — همان سازندهٔ سند،
+    /// همان فرمول باقیمانده، همان اعتبارسنجی وسیله — فقط خواندن‌ها و نوشتن‌ها دسته‌ای می‌شوند.
+    /// </summary>
+    Task<BulkStartTransportFromLoadingResult> StartManyFromLoadingAsync(
+        BulkStartTransportFromLoadingCommand command,
         CancellationToken ct = default);
 
     Task<ContinueToVehicleResult> ContinueToVehicleAsync(
@@ -86,6 +94,54 @@ public sealed record StartTransportFromLoadingCommand
     public string? Notes { get; init; }
 }
 
+/// <summary>یک ردیفِ تبدیل گروهی؛ دقیقاً همان دادهٔ فرمِ تک‌بارگیری.</summary>
+public sealed record BulkStartTransportFromLoadingRow
+{
+    public required int LoadingRegisterId { get; init; }
+    public required decimal QuantityMt { get; init; }
+    public required LoadingTransportType TransportType { get; init; }
+    public int? TruckId { get; init; }
+    public int? WagonId { get; init; }
+    public int? VesselId { get; init; }
+    public int? DriverId { get; init; }
+    public int? ServiceProviderId { get; init; }
+    public string? Reference { get; init; }
+    public string? Notes { get; init; }
+
+    /// <summary>برچسبِ ردیف فقط برای پیام خطا؛ هیچ اثری در ثبت ندارد.</summary>
+    public string? Label { get; init; }
+}
+
+public sealed record BulkStartTransportFromLoadingCommand
+{
+    public required IReadOnlyList<BulkStartTransportFromLoadingRow> Rows { get; init; }
+    public required DateTime TransportDate { get; init; }
+
+    /// <summary>
+    /// تعداد ردیف در هر تراکنش. هر دسته یک تراکنش Serializable است؛ کوچک‌نگه‌داشتن آن
+    /// مدتِ قفلِ سطرهای بارگیری را کوتاه و ChangeTracker را کرانمند نگه می‌دارد.
+    /// </summary>
+    public int ChunkSize { get; init; } = DefaultChunkSize;
+
+    public const int DefaultChunkSize = 200;
+
+    /// <summary>توکن ضدتکراری فرم؛ در اولین دستهٔ موفق مصرف می‌شود.</summary>
+    public string? FormToken { get; init; }
+}
+
+public sealed record BulkStartTransportFromLoadingFailure(
+    int LoadingRegisterId,
+    string? Label,
+    string Code,
+    string Message);
+
+public sealed record BulkStartTransportFromLoadingResult
+{
+    public required IReadOnlyList<int> CreatedLegIds { get; init; }
+    public required IReadOnlyList<BulkStartTransportFromLoadingFailure> Failures { get; init; }
+    public int CreatedCount => CreatedLegIds.Count;
+}
+
 public sealed record SettleTransportFreightCommand
 {
     public required int TransportLegId { get; init; }
@@ -113,18 +169,24 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
     private readonly InventoryTransportReceiptService _outcomes;
     private readonly ILossEventWorkflowService _losses;
 
+    // اختیاری تا ساخت مستقیمِ سرویس در تست‌ها دست‌نخورده بماند؛ نبودش یعنی بدون محافظ
+    // ضدتکراری (fail-open)، دقیقاً مثل بقیهٔ مسیرهای پروژه.
+    private readonly IFormTokenGuard? _formTokens;
+
     public TransportWorkflowService(
         ApplicationDbContext db,
         InventoryTransportBatchService inventoryStarts,
         ITransportChainService chain,
         InventoryTransportReceiptService outcomes,
-        ILossEventWorkflowService losses)
+        ILossEventWorkflowService losses,
+        IFormTokenGuard? formTokens = null)
     {
         _db = db;
         _inventoryStarts = inventoryStarts;
         _chain = chain;
         _outcomes = outcomes;
         _losses = losses;
+        _formTokens = formTokens;
     }
 
     public Task<InventoryTransportBatch> StartFromInventoryAsync(
@@ -201,67 +263,33 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
                     && a.InventoryTransportLeg != null
                     && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
                 .SumAsync(a => (decimal?)a.QuantityMt, ct) ?? 0m;
-            var availableMt = Math.Max(loading.LoadedQuantityMt - receivedMt - shortageMt - transportedMt, 0m);
+            var availableMt = AvailableFromLoadingMt(loading.LoadedQuantityMt, receivedMt, shortageMt, transportedMt);
             if (command.QuantityMt > availableMt + Epsilon)
             {
-                throw Rule(
-                    "TRANSPORT_LOADING_INSUFFICIENT",
-                    $"مقدار درخواستی از باقیماندهٔ بارگیری ({availableMt:N4} MT) بیشتر است.");
+                throw InsufficientLoading(availableMt);
             }
 
-            var groupKey = $"ITG:{Guid.NewGuid():N}";
-            var batch = new InventoryTransportBatch
+            var draft = new LoadingConversionDraft
             {
-                BatchNumber = $"ITB-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}".ToUpperInvariant(),
-                SourceTerminalId = null,
-                SourceStorageTankId = null,
-                ProductId = loading.ProductId,
-                TotalQuantityMt = command.QuantityMt,
-                TransportDate = command.TransportDate.Date,
-                Status = InventoryTransportBatchStatus.Loaded,
-                TransportGroupKey = groupKey,
-                Notes = Normalize(command.Notes)
-            };
-            var reference = Normalize(command.Reference) ?? loading.RwbNo ?? loading.BillOfLadingNumber;
-            var leg = new InventoryTransportLeg
-            {
-                InventoryTransportBatch = batch,
-                TransportGroupKey = groupKey,
-                SourcePurchaseContractId = loading.ContractId,
-                ProductId = loading.ProductId,
-                SourceTerminalId = null,
-                SourceStorageTankId = null,
-                TransportType = command.TransportType,
-                TruckId = command.TransportType == LoadingTransportType.Truck ? command.TruckId : null,
-                WagonId = command.TransportType == LoadingTransportType.Wagon ? command.WagonId : null,
-                VesselId = command.TransportType == LoadingTransportType.Vessel ? command.VesselId : null,
-                DriverId = command.TransportType == LoadingTransportType.Truck ? command.DriverId : null,
-                ServiceProviderId = command.ServiceProviderId,
-                CarrierType = CarrierType.ServiceProvider,
-                LoadedDate = command.TransportDate.Date,
                 QuantityMt = command.QuantityMt,
-                Status = InventoryTransportLegStatus.Loaded,
-                RwbNo = reference,
-                BillOfLadingNumber = loading.BillOfLadingNumber,
-                RouteDescription = loading.RouteDescription,
-                PurchaseUnitCostUsd = loading.LoadingPriceUsd,
-                Notes = Normalize(command.Notes)
+                TransportType = command.TransportType,
+                TruckId = command.TruckId,
+                WagonId = command.WagonId,
+                VesselId = command.VesselId,
+                DriverId = command.DriverId,
+                ServiceProviderId = command.ServiceProviderId,
+                TransportDate = command.TransportDate,
+                Reference = command.Reference,
+                Notes = command.Notes
             };
             var carrierParty = await new AssetUsageChargeService(_db).ResolveCarrierPartyAsync(
-                leg.ServiceProviderId,
-                leg.DriverId,
-                leg.OperationalAssetId,
-                leg.LoadedDate,
+                draft.ServiceProviderId,
+                draft.TransportType == LoadingTransportType.Truck ? draft.DriverId : null,
+                operationalAssetId: null,
+                draft.TransportDate.Date,
                 ct);
-            leg.CarrierPartyType = carrierParty?.PartyType;
-            leg.CarrierPartyId = carrierParty?.PartyId;
-            leg.Allocations.Add(new InventoryTransportLegAllocation
-            {
-                SourceLoadingRegisterId = loading.Id,
-                SourcePurchaseContractId = loading.ContractId,
-                QuantityMt = decimal.Round(command.QuantityMt, 4, MidpointRounding.AwayFromZero)
-            });
-            batch.Legs.Add(leg);
+            var batch = BuildLoadingConversion(loading, draft, carrierParty);
+            var leg = batch.Legs.Single();
             _db.InventoryTransportBatches.Add(batch);
             await _db.SaveChangesAsync(ct);
             await new AssetUsageChargeService(_db).SyncOperationAsync(leg, ct);
@@ -280,6 +308,493 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
             }
             throw;
         }
+    }
+
+    // ───────────────────── تبدیل گروهی بارگیری‌ها به حمل ─────────────────────
+    //
+    // مسیر قبلی برای هر بارگیری یک بار کل سرویس تکی را صدا می‌زد: ۸ رفت‌وبرگشت و یک تراکنش
+    // Serializable در هر ردیف، و چون همهٔ سطرهای ساخته‌شده در ChangeTracker می‌ماندند هزینهٔ
+    // هر SaveChanges با تعداد ردیف‌ها بالا می‌رفت (اندازه‌گیری‌شده: N=500 → ۹۹ ثانیه، و با
+    // خالی‌کردن ChangeTracker همان کار ۵٫۷ ثانیه).
+    //
+    // مسیر گروهی همان قواعد را نگه می‌دارد و فقط شکل اجرا را عوض می‌کند:
+    //   • اعتبارسنجی وسیله یک‌بار برای کل فرمان، نه یک‌بار در هر ردیف؛
+    //   • هر دسته یک تراکنش، با یک قفلِ گروهیِ FOR UPDATE و سه کوئری تجمیعی؛
+    //   • یک SaveChanges در هر دسته و خالی‌کردن ChangeTracker بعد از هر دسته.
+    //
+    // معنای Partial Success دست‌نخورده می‌ماند: اگر یک دسته شکست بخورد، همان دسته ردیف‌به‌ردیف
+    // از مسیر تکی اجرا می‌شود تا فقط ردیفِ مقصر رد شود و بقیه ثبت شوند.
+    public async Task<BulkStartTransportFromLoadingResult> StartManyFromLoadingAsync(
+        BulkStartTransportFromLoadingCommand command,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.TransportDate == default)
+        {
+            throw Rule("TRANSPORT_LOADING_DATE_REQUIRED", "تاریخ حمل الزامی است.");
+        }
+
+        var createdLegIds = new List<int>();
+        var failures = new List<BulkStartTransportFromLoadingFailure>();
+        var rows = command.Rows ?? [];
+        if (rows.Count == 0)
+        {
+            return new BulkStartTransportFromLoadingResult
+            {
+                CreatedLegIds = createdLegIds,
+                Failures = failures
+            };
+        }
+
+        // ۱) اعتبارسنجیِ بی‌نیاز از دیتابیس + اعتبارسنجیِ وسیله به‌صورت مجموعه‌ای (۵ کوئری برای کل فرمان).
+        var vehicles = await LoadActiveVehicleSetsAsync(rows, ct);
+        var accepted = new List<BulkStartTransportFromLoadingRow>(rows.Count);
+        foreach (var row in rows)
+        {
+            var failure = ValidateBulkRow(row, vehicles);
+            if (failure is not null)
+            {
+                failures.Add(failure);
+                continue;
+            }
+            accepted.Add(row);
+        }
+
+        // ۲) دسته‌دسته. هر دسته یک تراکنش و یک SaveChanges.
+        var chunkSize = command.ChunkSize > 0
+            ? command.ChunkSize
+            : BulkStartTransportFromLoadingCommand.DefaultChunkSize;
+        var tokenPending = !string.IsNullOrWhiteSpace(command.FormToken);
+        for (var offset = 0; offset < accepted.Count; offset += chunkSize)
+        {
+            var chunk = accepted.GetRange(offset, Math.Min(chunkSize, accepted.Count - offset));
+            var stampToken = tokenPending ? command.FormToken : null;
+            try
+            {
+                var legIds = await ConvertChunkAsync(chunk, command.TransportDate, stampToken, ct);
+                createdLegIds.AddRange(legIds);
+                if (stampToken is not null)
+                {
+                    tokenPending = false;
+                }
+            }
+            catch (DbUpdateException duplicate) when (_formTokens?.IsDuplicate(duplicate) == true)
+            {
+                // ثبتِ تکراریِ همان فرم — نباید با تلاش دوباره حملِ تکراری ساخته شود.
+                throw;
+            }
+            catch
+            {
+                // دسته شکست خورد؛ همان ردیف‌ها را تکی اجرا می‌کنیم تا فقط ردیفِ مقصر رد شود.
+                _db.ChangeTracker.Clear();
+                await ConvertChunkRowByRowAsync(chunk, command.TransportDate, createdLegIds, failures, ct);
+            }
+
+            _db.ChangeTracker.Clear();
+        }
+
+        return new BulkStartTransportFromLoadingResult
+        {
+            CreatedLegIds = createdLegIds,
+            Failures = failures
+        };
+    }
+
+    /// <summary>یک دسته در یک تراکنش: یک قفلِ گروهی، سه کوئری تجمیعی، یک SaveChanges.</summary>
+    private async Task<List<int>> ConvertChunkAsync(
+        IReadOnlyList<BulkStartTransportFromLoadingRow> chunk,
+        DateTime transportDate,
+        string? formToken,
+        CancellationToken ct)
+    {
+        // ترتیب صعودیِ شناسه برای قفل‌گرفتن، تا دو درخواست هم‌زمان روی دو دسته قفل‌ها را
+        // در جهت مخالف نگیرند.
+        var idArray = chunk.Select(r => r.LoadingRegisterId).Distinct().OrderBy(id => id).ToArray();
+
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+            : null;
+        try
+        {
+            List<LoadingRegister> lockedLoadings;
+            if (_db.Database.IsRelational()
+                && string.Equals(_db.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
+            {
+                lockedLoadings = await _db.LoadingRegisters
+                    .FromSqlInterpolated(
+                        $@"SELECT * FROM ""LoadingRegisters"" WHERE ""Id"" = ANY({idArray}) ORDER BY ""Id"" FOR UPDATE")
+                    .ToListAsync(ct);
+            }
+            else
+            {
+                lockedLoadings = await _db.LoadingRegisters
+                    .Where(l => idArray.Contains(l.Id))
+                    .OrderBy(l => l.Id)
+                    .ToListAsync(ct);
+            }
+
+            var loadings = lockedLoadings.ToDictionary(l => l.Id);
+            var received = await ReceivedByLoadingAsync(idArray, ct);
+            var shortage = await ShortageByLoadingAsync(idArray, ct);
+            var transported = await TransportedByLoadingAsync(idArray, ct);
+
+            // مصرفِ همین دسته: دو ردیف می‌توانند به یک بارگیری اشاره کنند و نباید با هم
+            // بیشتر از مانده بردارند — همان چیزی که در مسیر تکی با خواندن دوبارهٔ مانده رخ می‌داد.
+            var consumedInChunk = new Dictionary<int, decimal>();
+            var batches = new List<InventoryTransportBatch>(chunk.Count);
+            var usageWriter = new AssetUsageChargeService(_db);
+
+            foreach (var row in chunk)
+            {
+                if (!loadings.TryGetValue(row.LoadingRegisterId, out var loading))
+                {
+                    throw Rule("TRANSPORT_LOADING_NOT_FOUND", "بارگیری انتخاب‌شده پیدا نشد.");
+                }
+
+                var availableMt = AvailableFromLoadingMt(
+                    loading.LoadedQuantityMt,
+                    received.GetValueOrDefault(loading.Id),
+                    shortage.GetValueOrDefault(loading.Id),
+                    transported.GetValueOrDefault(loading.Id) + consumedInChunk.GetValueOrDefault(loading.Id));
+                if (row.QuantityMt > availableMt + Epsilon)
+                {
+                    throw InsufficientLoading(availableMt);
+                }
+
+                var draft = new LoadingConversionDraft
+                {
+                    QuantityMt = row.QuantityMt,
+                    TransportType = row.TransportType,
+                    TruckId = row.TruckId,
+                    WagonId = row.WagonId,
+                    VesselId = row.VesselId,
+                    DriverId = row.DriverId,
+                    ServiceProviderId = row.ServiceProviderId,
+                    TransportDate = transportDate,
+                    Reference = row.Reference,
+                    Notes = row.Notes
+                };
+                // بدون دارایی ملکی (این مسیر هرگز OperationalAssetId نمی‌گذارد) هیچ کوئری‌ای نمی‌زند.
+                var carrierParty = await usageWriter.ResolveCarrierPartyAsync(
+                    draft.ServiceProviderId,
+                    draft.TransportType == LoadingTransportType.Truck ? draft.DriverId : null,
+                    operationalAssetId: null,
+                    transportDate.Date,
+                    ct);
+                batches.Add(BuildLoadingConversion(loading, draft, carrierParty));
+                consumedInChunk[loading.Id] =
+                    consumedInChunk.GetValueOrDefault(loading.Id) + row.QuantityMt;
+            }
+
+            _db.InventoryTransportBatches.AddRange(batches);
+            _formTokens?.Stamp(formToken, "Transport.BulkFromLoading", nameof(InventoryTransportLeg));
+            await _db.SaveChangesAsync(ct);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(ct);
+            }
+
+            return batches.Select(b => b.Legs.Single().Id).ToList();
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(ct);
+            }
+            throw;
+        }
+    }
+
+    /// <summary>بازگشت به مسیر تکی برای دسته‌ای که شکست خورده — تا فقط ردیفِ مقصر رد شود.</summary>
+    private async Task ConvertChunkRowByRowAsync(
+        IReadOnlyList<BulkStartTransportFromLoadingRow> chunk,
+        DateTime transportDate,
+        List<int> createdLegIds,
+        List<BulkStartTransportFromLoadingFailure> failures,
+        CancellationToken ct)
+    {
+        foreach (var row in chunk)
+        {
+            try
+            {
+                var leg = await StartFromLoadingAsync(new StartTransportFromLoadingCommand
+                {
+                    LoadingRegisterId = row.LoadingRegisterId,
+                    QuantityMt = row.QuantityMt,
+                    TransportType = row.TransportType,
+                    TruckId = row.TruckId,
+                    WagonId = row.WagonId,
+                    VesselId = row.VesselId,
+                    DriverId = row.DriverId,
+                    ServiceProviderId = row.ServiceProviderId,
+                    TransportDate = transportDate,
+                    Reference = row.Reference,
+                    Notes = row.Notes
+                }, ct);
+                createdLegIds.Add(leg.Id);
+            }
+            catch (BusinessRuleException ex)
+            {
+                failures.Add(new BulkStartTransportFromLoadingFailure(
+                    row.LoadingRegisterId, row.Label, ex.Code, ex.Message));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException
+                && _formTokens?.IsDuplicate(ex) != true)
+            {
+                // ردیفِ این خطا خودش برگشت خورده (تراکنشِ همان ردیف). اگر اینجا نمی‌گرفتیم،
+                // خطای ردیفِ ۳ از هزاران ردیفِ ثبت‌شدهٔ قبلی هم یک 500 می‌ساخت و کاربر
+                // فکر می‌کرد هیچ‌چیز ثبت نشده است — در حالی که ثبت شده بود.
+                failures.Add(new BulkStartTransportFromLoadingFailure(
+                    row.LoadingRegisterId, row.Label, "TRANSPORT_LOADING_ROW_FAILED", ex.Message));
+            }
+            finally
+            {
+                _db.ChangeTracker.Clear();
+            }
+        }
+    }
+
+    private sealed record ActiveVehicleSets(
+        HashSet<int> Trucks,
+        HashSet<int> Wagons,
+        HashSet<int> Vessels,
+        HashSet<int> Drivers,
+        HashSet<int> ServiceProviders);
+
+    /// <summary>
+    /// همان قاعدهٔ اعتبارسنجی وسیلهٔ مسیر تکی، فقط یک‌بار برای کل فرمان: حداکثر ۵ کوئری
+    /// به‌جای تا ۳N کوئری.
+    /// </summary>
+    private async Task<ActiveVehicleSets> LoadActiveVehicleSetsAsync(
+        IReadOnlyList<BulkStartTransportFromLoadingRow> rows,
+        CancellationToken ct)
+    {
+        var truckIds = DistinctIds(rows, r => r.TransportType == LoadingTransportType.Truck ? r.TruckId : null);
+        var wagonIds = DistinctIds(rows, r => r.TransportType == LoadingTransportType.Wagon ? r.WagonId : null);
+        var vesselIds = DistinctIds(rows, r => r.TransportType == LoadingTransportType.Vessel ? r.VesselId : null);
+        var driverIds = DistinctIds(rows, r => r.TransportType == LoadingTransportType.Truck ? r.DriverId : null);
+        var providerIds = DistinctIds(rows, r => r.ServiceProviderId);
+
+        return new ActiveVehicleSets(
+            await ActiveIdsAsync(_db.Trucks.AsNoTracking().Where(t => t.IsActive).Select(t => t.Id), truckIds, ct),
+            await ActiveIdsAsync(_db.Wagons.AsNoTracking().Where(w => w.IsActive).Select(w => w.Id), wagonIds, ct),
+            await ActiveIdsAsync(_db.Vessels.AsNoTracking().Where(v => v.IsActive).Select(v => v.Id), vesselIds, ct),
+            await ActiveIdsAsync(_db.Drivers.AsNoTracking().Where(d => d.IsActive).Select(d => d.Id), driverIds, ct),
+            await ActiveIdsAsync(_db.ServiceProviders.AsNoTracking().Where(p => p.IsActive).Select(p => p.Id), providerIds, ct));
+
+        static List<int> DistinctIds(
+            IReadOnlyList<BulkStartTransportFromLoadingRow> source,
+            Func<BulkStartTransportFromLoadingRow, int?> selector)
+            => source.Select(selector).Where(id => id is > 0).Select(id => id!.Value).Distinct().ToList();
+
+        static async Task<HashSet<int>> ActiveIdsAsync(
+            IQueryable<int> activeIds,
+            List<int> wanted,
+            CancellationToken token)
+            => wanted.Count == 0
+                ? []
+                : [.. await activeIds.Where(id => wanted.Contains(id)).ToListAsync(token)];
+    }
+
+    /// <summary>خطاهای ردیفی — همان کدها و همان پیام‌های مسیر تکی.</summary>
+    private static BulkStartTransportFromLoadingFailure? ValidateBulkRow(
+        BulkStartTransportFromLoadingRow row,
+        ActiveVehicleSets vehicles)
+    {
+        if (row.LoadingRegisterId <= 0)
+        {
+            return Fail(row, "TRANSPORT_LOADING_NOT_FOUND", "بارگیری انتخاب‌شده پیدا نشد.");
+        }
+        if (row.QuantityMt <= 0m)
+        {
+            return Fail(row, "TRANSPORT_LOADING_QTY_INVALID", "مقدار حمل باید بزرگ‌تر از صفر باشد.");
+        }
+
+        var vehicleOk = row.TransportType switch
+        {
+            LoadingTransportType.Truck => row.TruckId is > 0 && vehicles.Trucks.Contains(row.TruckId.Value),
+            LoadingTransportType.Wagon => row.WagonId is > 0 && vehicles.Wagons.Contains(row.WagonId.Value),
+            LoadingTransportType.Vessel => row.VesselId is > 0 && vehicles.Vessels.Contains(row.VesselId.Value),
+            _ => false
+        };
+        if (!vehicleOk)
+        {
+            return Fail(row, "TRANSPORT_RECEIPT_VEHICLE_INVALID", "وسیلهٔ مقصد معتبر و فعال نیست.");
+        }
+
+        if (row.TransportType == LoadingTransportType.Truck
+            && row.DriverId is > 0
+            && !vehicles.Drivers.Contains(row.DriverId.Value))
+        {
+            return Fail(row, "TRANSPORT_RECEIPT_DRIVER_INVALID", "راننده انتخاب‌شده معتبر و فعال نیست.");
+        }
+        if (row.ServiceProviderId is > 0 && !vehicles.ServiceProviders.Contains(row.ServiceProviderId.Value))
+        {
+            return Fail(row, "TRANSPORT_RECEIPT_PROVIDER_INVALID", "شرکت خدماتی انتخاب‌شده معتبر و فعال نیست.");
+        }
+
+        return null;
+
+        static BulkStartTransportFromLoadingFailure Fail(
+            BulkStartTransportFromLoadingRow row, string code, string message)
+            => new(row.LoadingRegisterId, row.Label, code, message);
+    }
+
+    private async Task<Dictionary<int, decimal>> ReceivedByLoadingAsync(int[] ids, CancellationToken ct)
+        => await _db.LoadingReceipts
+            .AsNoTracking()
+            .Where(r => ids.Contains(r.LoadingRegisterId) && !r.IsCancelled)
+            .GroupBy(r => r.LoadingRegisterId)
+            .Select(g => new { LoadingId = g.Key, Mt = g.Sum(r => r.ReceivedQuantityMt) })
+            .ToDictionaryAsync(x => x.LoadingId, x => x.Mt, ct);
+
+    private async Task<Dictionary<int, decimal>> TransportedByLoadingAsync(int[] ids, CancellationToken ct)
+        => await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .Where(a => a.SourceLoadingRegisterId.HasValue
+                && ids.Contains(a.SourceLoadingRegisterId.Value)
+                && a.InventoryTransportLeg != null
+                && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+            .GroupBy(a => a.SourceLoadingRegisterId!.Value)
+            .Select(g => new { LoadingId = g.Key, Mt = g.Sum(a => a.QuantityMt) })
+            .ToDictionaryAsync(x => x.LoadingId, x => x.Mt, ct);
+
+    /// <summary>
+    /// کسریِ رسید. شرطِ مسیر تکی «یا روی خودِ بارگیری، یا روی رسیدِ آن بارگیری» است و یک رویداد
+    /// می‌تواند از هر دو راه به یک بارگیری برسد؛ برای همین هر رویداد با هر دو کلیدش برمی‌گردد و
+    /// در حافظه — بدون دوبار شمردنِ یک رویداد برای یک بارگیری — تجمیع می‌شود.
+    /// </summary>
+    private async Task<Dictionary<int, decimal>> ShortageByLoadingAsync(int[] ids, CancellationToken ct)
+    {
+        var rows = await _db.LossEvents
+            .AsNoTracking()
+            .Where(e => e.Stage == LossEventStage.ReceiptShortage
+                && !e.IsCancelled
+                && ((e.LoadingRegisterId.HasValue && ids.Contains(e.LoadingRegisterId.Value))
+                    || (e.LoadingReceiptId.HasValue
+                        && e.LoadingReceipt != null
+                        && ids.Contains(e.LoadingReceipt.LoadingRegisterId))))
+            .Select(e => new
+            {
+                e.LoadingRegisterId,
+                ReceiptLoadingId = e.LoadingReceiptId.HasValue && e.LoadingReceipt != null
+                    ? (int?)e.LoadingReceipt.LoadingRegisterId
+                    : null,
+                Mt = e.DifferenceQuantityMt > 0m
+                    ? e.DifferenceQuantityMt
+                    : e.ChargeableLossMt > 0m ? e.ChargeableLossMt : 0m
+            })
+            .ToListAsync(ct);
+
+        var wanted = ids.ToHashSet();
+        var totals = new Dictionary<int, decimal>();
+        foreach (var row in rows)
+        {
+            if (row.LoadingRegisterId is int direct && wanted.Contains(direct))
+            {
+                totals[direct] = totals.GetValueOrDefault(direct) + row.Mt;
+            }
+            if (row.ReceiptLoadingId is int viaReceipt
+                && viaReceipt != row.LoadingRegisterId
+                && wanted.Contains(viaReceipt))
+            {
+                totals[viaReceipt] = totals.GetValueOrDefault(viaReceipt) + row.Mt;
+            }
+        }
+        return totals;
+    }
+
+    // ───────────────────── هستهٔ مشترکِ «بارگیری → حمل» ─────────────────────
+    // مسیر تکی و مسیر گروهی هر دو از همین دو تابع استفاده می‌کنند تا «تبدیل بارگیری به حمل»
+    // فقط یک تعریف داشته باشد. هیچ کوئری‌ای اینجا زده نمی‌شود؛ ورودی‌ها از قبل خوانده شده‌اند.
+
+    private sealed record LoadingConversionDraft
+    {
+        public required decimal QuantityMt { get; init; }
+        public required LoadingTransportType TransportType { get; init; }
+        public int? TruckId { get; init; }
+        public int? WagonId { get; init; }
+        public int? VesselId { get; init; }
+        public int? DriverId { get; init; }
+        public int? ServiceProviderId { get; init; }
+        public required DateTime TransportDate { get; init; }
+        public string? Reference { get; init; }
+        public string? Notes { get; init; }
+    }
+
+    /// <summary>باقیماندهٔ قابل تبدیل یک بارگیری — تنها تعریفِ این فرمول در مسیر نوشتن.</summary>
+    private static decimal AvailableFromLoadingMt(
+        decimal loadedMt,
+        decimal receivedMt,
+        decimal shortageMt,
+        decimal transportedMt)
+        => Math.Max(loadedMt - receivedMt - shortageMt - transportedMt, 0m);
+
+    private static BusinessRuleException InsufficientLoading(decimal availableMt)
+        => Rule(
+            "TRANSPORT_LOADING_INSUFFICIENT",
+            $"مقدار درخواستی از باقیماندهٔ بارگیری ({availableMt:N4} MT) بیشتر است.");
+
+    /// <summary>
+    /// سندِ حملِ یک بارگیری: یک Batch با کلید گروهِ یکتا، یک Leg و یک سهمِ منبع به همان بارگیری.
+    /// شکلِ خروجی عمداً دست‌نخورده می‌ماند — گزارش‌ها، بستن قرارداد، کالای در راه و لغو همگی
+    /// همین شکل را می‌خوانند (هر تبدیل = یک سفر مستقل با کلید گروهِ خودش).
+    /// </summary>
+    private static InventoryTransportBatch BuildLoadingConversion(
+        LoadingRegister loading,
+        LoadingConversionDraft draft,
+        CarrierPartyRef? carrierParty)
+    {
+        var groupKey = $"ITG:{Guid.NewGuid():N}";
+        var batch = new InventoryTransportBatch
+        {
+            BatchNumber = $"ITB-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}".ToUpperInvariant(),
+            SourceTerminalId = null,
+            SourceStorageTankId = null,
+            ProductId = loading.ProductId,
+            TotalQuantityMt = draft.QuantityMt,
+            TransportDate = draft.TransportDate.Date,
+            Status = InventoryTransportBatchStatus.Loaded,
+            TransportGroupKey = groupKey,
+            Notes = Normalize(draft.Notes)
+        };
+        var reference = Normalize(draft.Reference) ?? loading.RwbNo ?? loading.BillOfLadingNumber;
+        var leg = new InventoryTransportLeg
+        {
+            InventoryTransportBatch = batch,
+            TransportGroupKey = groupKey,
+            SourcePurchaseContractId = loading.ContractId,
+            ProductId = loading.ProductId,
+            SourceTerminalId = null,
+            SourceStorageTankId = null,
+            TransportType = draft.TransportType,
+            TruckId = draft.TransportType == LoadingTransportType.Truck ? draft.TruckId : null,
+            WagonId = draft.TransportType == LoadingTransportType.Wagon ? draft.WagonId : null,
+            VesselId = draft.TransportType == LoadingTransportType.Vessel ? draft.VesselId : null,
+            DriverId = draft.TransportType == LoadingTransportType.Truck ? draft.DriverId : null,
+            ServiceProviderId = draft.ServiceProviderId,
+            CarrierType = CarrierType.ServiceProvider,
+            CarrierPartyType = carrierParty?.PartyType,
+            CarrierPartyId = carrierParty?.PartyId,
+            LoadedDate = draft.TransportDate.Date,
+            QuantityMt = draft.QuantityMt,
+            Status = InventoryTransportLegStatus.Loaded,
+            RwbNo = reference,
+            BillOfLadingNumber = loading.BillOfLadingNumber,
+            RouteDescription = loading.RouteDescription,
+            PurchaseUnitCostUsd = loading.LoadingPriceUsd,
+            Notes = Normalize(draft.Notes)
+        };
+        leg.Allocations.Add(new InventoryTransportLegAllocation
+        {
+            SourceLoadingRegisterId = loading.Id,
+            SourcePurchaseContractId = loading.ContractId,
+            QuantityMt = decimal.Round(draft.QuantityMt, 4, MidpointRounding.AwayFromZero)
+        });
+        batch.Legs.Add(leg);
+        return batch;
     }
 
     public async Task<InventoryTransportLeg> StartFromReceiptAsync(

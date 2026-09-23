@@ -8,8 +8,9 @@
     var cancelUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl)
         ? Model.ReturnUrl
         : Url.Action("Index");
-    IReadOnlyList<AkFilterOption> ProductOptions() => sources
-        .Select(item => item.ProductName)
+    IReadOnlyList<AkFilterOption> ProductOptions() => FilterOptions(sources.Select(item => item.ProductName));
+    IReadOnlyList<AkFilterOption> ContractOptions() => FilterOptions(sources.Select(item => item.ContractNumber));
+    IReadOnlyList<AkFilterOption> FilterOptions(IEnumerable<string> values) => values
         .Where(value => !string.IsNullOrWhiteSpace(value))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .OrderBy(value => value)
@@ -20,7 +21,8 @@
         null,
         "جستجو در نمبر موتر، راننده، مسیر یا قرارداد...",
         [
-            new AkFilterDefinition("unloadProduct", "کالا", "select", ProductOptions())
+            new AkFilterDefinition("unloadProduct", "کالا", "select", ProductOptions()),
+            new AkFilterDefinition("unloadContract", "قرارداد", "select", ContractOptions())
         ]);
 }
 
@@ -106,6 +108,7 @@
                                         data-key="@source.Key"
                                         data-product="@source.ProductName"
                                         data-product-id="@source.ProductId"
+                                        data-contract="@source.ContractNumber"
                                         data-quantity="@source.QuantityMt.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                         data-search="@($"{source.VehicleNumber} {source.DriverName} {source.Route} {source.ProductName} {source.ContractNumber} {source.TypeLabel}")">
                                         <td class="ak-col-check">
@@ -274,10 +277,12 @@
             var kind = sourceKind.value;
             var query = (byId('unloadQuery').value || '').trim().toLowerCase();
             var product = filterValue('unloadProduct');
+            var contract = filterValue('unloadContract');
             var visible = 0;
             rows.forEach(function (row) {
                 var show = row.dataset.kind === kind
                     && (!product || row.dataset.product === product)
+                    && (!contract || row.dataset.contract === contract)
                     && (!query || row.dataset.search.toLowerCase().indexOf(query) >= 0);
                 row.hidden = !show;
                 if (show) visible++;

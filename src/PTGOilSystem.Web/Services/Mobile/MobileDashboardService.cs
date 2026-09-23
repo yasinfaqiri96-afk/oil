@@ -111,7 +111,11 @@ public sealed class MobileDashboardService(
 
     private async Task<MobileReceivablesKpi> BuildReceivablesAsync(CancellationToken ct)
     {
-        var customers = (await partyBalances.GetBalancesAsync(new ManagementReportFilterViewModel(), ct))
+        // کارت «طلبات» فقط مشتری را می‌شمارد؛ بقیهٔ نوع‌ها همین‌جا فیلتر می‌شدند.
+        var customers = (await partyBalances.GetBalancesAsync(
+                new ManagementReportFilterViewModel(),
+                ct,
+                partyTypes: [PartyStatementPartyType.Customer]))
             .ExternalPartiesOnly()
             .Where(row => row.PartyType == PartyStatementPartyType.Customer)
             .ToList();

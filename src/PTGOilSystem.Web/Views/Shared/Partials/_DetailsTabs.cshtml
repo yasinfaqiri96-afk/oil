@@ -8,12 +8,16 @@
         else { bool.TryParse(ViewData["TabsPrimary"]?.ToString() ?? "false", out tabsPrimary); }
     }
 
+    // کلیدهای صفحه‌بندیِ داخل تب (اختیاری): با عوض شدن تب از URL حذف می‌شوند تا تب جدید از صفحهٔ اول باز شود.
+    var resetKeys = ViewData["DetailsTabsResetQuery"] as IEnumerable<string> ?? Array.Empty<string>();
+
     string BuildServerTabHref(string tabKey)
     {
         var queryParts = new List<string>();
         foreach (var pair in Context.Request.Query)
         {
-            if (string.Equals(pair.Key, "tab", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(pair.Key, "tab", StringComparison.OrdinalIgnoreCase)
+                || resetKeys.Contains(pair.Key, StringComparer.OrdinalIgnoreCase))
             {
                 continue;
             }

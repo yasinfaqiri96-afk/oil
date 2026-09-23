@@ -22,48 +22,61 @@ public sealed class PartyDirectory(ApplicationDbContext db) : IPartyDirectory
             return result;
         }
 
+        int[] IdsOf(PartyStatementPartyType partyType) => keys
+            .Where(key => key.PartyType == partyType)
+            .Select(key => key.PartyId)
+            .Distinct()
+            .ToArray();
+
+        var customerIds = IdsOf(PartyStatementPartyType.Customer);
+        var supplierIds = IdsOf(PartyStatementPartyType.Supplier);
+        var serviceProviderIds = IdsOf(PartyStatementPartyType.ServiceProvider);
+        var sarrafIds = IdsOf(PartyStatementPartyType.Sarraf);
+        var driverIds = IdsOf(PartyStatementPartyType.Driver);
+        var employeeIds = IdsOf(PartyStatementPartyType.Employee);
+        var partnerIds = IdsOf(PartyStatementPartyType.Partner);
+        var companyIds = IdsOf(PartyStatementPartyType.Company);
+
+        // یک رفت‌وبرگشت به‌جای هشت‌تا. پیش از این برای هر نوع طرف‌حساب یک SELECT جدا
+        // فرستاده می‌شد و صفحه‌هایی مثل «طلبات و بدهی‌ها» هر بار هشت بار به دیتابیس
+        // می‌رفتند فقط برای نام. شاخه‌ها با UNION ALL یکی می‌شوند و هر شاخه هنوز همان
+        // جست‌وجوی کلید اصلیِ خودش است (id = ANY(...))، پس نه index از کار می‌افتد و نه
+        // نامی عوض می‌شود: دقیقاً همان ستون‌هایی خوانده می‌شود که قبلاً خوانده می‌شد.
+        // شاخه‌ای که فهرست شناسه‌اش خالی است در PostgreSQL بلافاصله بی‌ردیف برمی‌گردد
+        // (id = ANY('{}')) و جدولش خوانده نمی‌شود، پس همیشه هر هشت شاخه نوشته می‌شود.
+        //
         // فیلتر روی خودِ موجودیت اعمال می‌شود و projection بعد از آن می‌آید. اگر روی یک
         // IQueryable از ValueTuple فیلتر شود، EF کل tuple را مقایسه می‌کند و query ترجمه
         // نمی‌شود؛ آن خطا فقط وقتی داده وجود داشت بروز می‌کرد.
-        async Task AddAsync<TEntity>(
-            PartyStatementPartyType partyType,
-            IQueryable<TEntity> source,
-            Func<IQueryable<TEntity>, int[], IQueryable<PartyNameRow>> project)
-            where TEntity : class
+        var merged = db.Customers.AsNoTracking()
+                .Where(x => customerIds.Contains(x.Id))
+                .Select(x => new { PartyType = (int)PartyStatementPartyType.Customer, x.Id, Name = x.Name })
+            .Concat(db.Suppliers.AsNoTracking()
+                .Where(x => supplierIds.Contains(x.Id))
+                .Select(x => new { PartyType = (int)PartyStatementPartyType.Supplier, x.Id, Name = x.Name }))
+            .Concat(db.ServiceProviders.AsNoTracking()
+                .Where(x => serviceProviderIds.Contains(x.Id))
+                .Select(x => new { PartyType = (int)PartyStatementPartyType.ServiceProvider, x.Id, Name = x.Name }))
+            .Concat(db.Sarrafs.AsNoTracking()
+                .Where(x => sarrafIds.Contains(x.Id))
+                .Select(x => new { PartyType = (int)PartyStatementPartyType.Sarraf, x.Id, Name = x.Name }))
+            .Concat(db.Drivers.AsNoTracking()
+                .Where(x => driverIds.Contains(x.Id))
+                .Select(x => new { PartyType = (int)PartyStatementPartyType.Driver, x.Id, Name = x.FullName }))
+            .Concat(db.Employees.AsNoTracking()
+                .Where(x => employeeIds.Contains(x.Id))
+                .Select(x => new { PartyType = (int)PartyStatementPartyType.Employee, x.Id, Name = x.FullName }))
+            .Concat(db.Partners.AsNoTracking()
+                .Where(x => partnerIds.Contains(x.Id))
+                .Select(x => new { PartyType = (int)PartyStatementPartyType.Partner, x.Id, Name = x.Name }))
+            .Concat(db.Companies.AsNoTracking()
+                .Where(x => companyIds.Contains(x.Id))
+                .Select(x => new { PartyType = (int)PartyStatementPartyType.Company, x.Id, Name = x.Name }));
+
+        foreach (var row in await merged.ToListAsync(cancellationToken))
         {
-            var ids = keys
-                .Where(key => key.PartyType == partyType)
-                .Select(key => key.PartyId)
-                .Distinct()
-                .ToArray();
-            if (ids.Length == 0)
-            {
-                return;
-            }
-
-            var rows = await project(source.AsNoTracking(), ids).ToListAsync(cancellationToken);
-            foreach (var row in rows)
-            {
-                result[new PartyKey(partyType, row.Id)] = row.Name;
-            }
+            result[new PartyKey((PartyStatementPartyType)row.PartyType, row.Id)] = row.Name;
         }
-
-        await AddAsync(PartyStatementPartyType.Customer, db.Customers,
-            (q, ids) => q.Where(x => ids.Contains(x.Id)).Select(x => new PartyNameRow(x.Id, x.Name)));
-        await AddAsync(PartyStatementPartyType.Supplier, db.Suppliers,
-            (q, ids) => q.Where(x => ids.Contains(x.Id)).Select(x => new PartyNameRow(x.Id, x.Name)));
-        await AddAsync(PartyStatementPartyType.ServiceProvider, db.ServiceProviders,
-            (q, ids) => q.Where(x => ids.Contains(x.Id)).Select(x => new PartyNameRow(x.Id, x.Name)));
-        await AddAsync(PartyStatementPartyType.Sarraf, db.Sarrafs,
-            (q, ids) => q.Where(x => ids.Contains(x.Id)).Select(x => new PartyNameRow(x.Id, x.Name)));
-        await AddAsync(PartyStatementPartyType.Driver, db.Drivers,
-            (q, ids) => q.Where(x => ids.Contains(x.Id)).Select(x => new PartyNameRow(x.Id, x.FullName)));
-        await AddAsync(PartyStatementPartyType.Employee, db.Employees,
-            (q, ids) => q.Where(x => ids.Contains(x.Id)).Select(x => new PartyNameRow(x.Id, x.FullName)));
-        await AddAsync(PartyStatementPartyType.Partner, db.Partners,
-            (q, ids) => q.Where(x => ids.Contains(x.Id)).Select(x => new PartyNameRow(x.Id, x.Name)));
-        await AddAsync(PartyStatementPartyType.Company, db.Companies,
-            (q, ids) => q.Where(x => ids.Contains(x.Id)).Select(x => new PartyNameRow(x.Id, x.Name)));
 
         return result;
     }
@@ -127,5 +140,4 @@ public sealed class PartyDirectory(ApplicationDbContext db) : IPartyDirectory
             "Unknown statement party type; add it to PartyDirectory.")
     };
 
-    private sealed record PartyNameRow(int Id, string Name);
 }

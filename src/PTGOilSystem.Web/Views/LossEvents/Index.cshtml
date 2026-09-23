@@ -1,9 +1,9 @@
-@model PTGOilSystem.Web.Models.LossEvents.LossEventIndexViewModel
+﻿@model PTGOilSystem.Web.Models.LossEvents.LossEventIndexViewModel
 @using PTGOilSystem.Web.Models.LossEvents
 @{
     ViewData["Title"] = "Loss Events";
     var hasAdvancedFilter = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || Model.Filter.ProductId.HasValue || Model.Filter.ContractId.HasValue || Model.Filter.Stage.HasValue;
+        || Model.Filter.ProductId.Length > 0 || Model.Filter.ContractId.Length > 0 || Model.Filter.Stage.Length > 0;
     var hasAnyFilter = hasAdvancedFilter || Model.Filter.ChargeableOnly || !string.IsNullOrWhiteSpace(Model.Filter.ResponsiblePartyName);
 }
 
@@ -38,9 +38,9 @@
                 {
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
-                    new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", LossOpts(ViewBag.Products), LossQ("Filter.ProductId")),
-                    new("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", LossOpts(ViewBag.Contracts), LossQ("Filter.ContractId")),
-                    new("Filter.Stage", UiText.T(Context, "مرحله", "Stage"), "select", LossOpts(ViewBag.Stages), LossQ("Filter.Stage")),
+                    AkFilterDefinition.MultiSelect("Filter.ProductId", UiText.T(Context, "جنس", "Product"), LossOpts(ViewBag.Products), AkFilterQuery.Values(Context, "Filter.ProductId")),
+                    AkFilterDefinition.MultiSelect("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), LossOpts(ViewBag.Contracts), AkFilterQuery.Values(Context, "Filter.ContractId")),
+                    AkFilterDefinition.MultiSelect("Filter.Stage", UiText.T(Context, "مرحله", "Stage"), LossOpts(ViewBag.Stages), AkFilterQuery.Values(Context, "Filter.Stage")),
                     new("Filter.Variance", UiText.T(Context, "نوع تفاوت", "Variance type"), "select", LossOpts(ViewBag.VarianceOptions), LossQ("Filter.Variance")),
                     new("Filter.AffectsInventory", UiText.T(Context, "اثر بر موجودی", "Affects inventory"), "select", LossOpts(ViewBag.AffectsInventoryOptions), LossQ("Filter.AffectsInventory"))
                 }, lossHidden);

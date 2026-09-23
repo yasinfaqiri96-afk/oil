@@ -25,7 +25,7 @@ public partial class SuppliersController : Controller
     private readonly IAuditService _audit;
     private readonly MasterDataDeleteSafetyService _deleteSafety;
     private readonly IPurchaseAggregationService _purchaseAggregation;
-    private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyStatementReadService _partyStatements;
     private readonly IPartyBalanceReadService _partyBalances;
     // موتور واحد «مانده قابل انتقال». nullable است تا سازنده‌های موجود و تست‌ها دست‌نخورده بمانند.
     private readonly ISupplierTransferableBalanceService? _transferableBalances;
@@ -49,7 +49,7 @@ public partial class SuppliersController : Controller
         _audit = audit;
         _deleteSafety = deleteSafety;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
-        _partyStatements = partyStatements;
+        _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
         _transferableBalances = transferableBalances;
         _fxSettlements = fxSettlements;
         _fxRecognition = fxRecognition;
@@ -118,23 +118,29 @@ public partial class SuppliersController : Controller
         var displayCurrency = NormalizeDisplayCurrency(currency);
         var item = await BuildSupplierProfileAsync(id, contractId, tab, displayCurrency);
         if (item == null) return NotFound();
-        if (_partyStatements is not null)
-        {
-            var statement = await _partyStatements.GetStatementAsync(
+        var statement = await _partyStatements.GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, id),
+            new PartyStatementFilter
+            {
+                ContractId = contractId,
+                // ارز فقط در نمای روبل پاس می‌شود. در سرویس، CurrencyCode = RUB یعنی
+                // «نمایش روبلی»، ولی هر ارز دیگری فیلترِ اسناد است؛ پس در نمای USD چیزی
+                // پاس نمی‌شود تا خلاصهٔ دالریِ فعلی مو‌به‌مو مثل قبل بماند.
+                CurrencyCode = IsRubCurrency(displayCurrency) ? "RUB" : null,
+                IncludeOperationalColumns = false
+            },
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+        ViewData["PartyStatementSummary"] = statement.Summary;
+        // «داده/گرفته»ی کلِ تأمین‌کننده همان جمع‌های صورت‌حساب رسمی است، نه Debit/Credit خام.
+        var wholeSupplierSummary = contractId is null && !IsRubCurrency(displayCurrency)
+            ? statement.Summary
+            : (await _partyStatements.GetStatementAsync(
                 new PartyRef(PartyStatementPartyType.Supplier, id),
-                new PartyStatementFilter
-                {
-                    ContractId = contractId,
-                    // ارز فقط در نمای روبل پاس می‌شود. در سرویس، CurrencyCode = RUB یعنی
-                    // «نمایش روبلی»، ولی هر ارز دیگری فیلترِ اسناد است؛ پس در نمای USD چیزی
-                    // پاس نمی‌شود تا خلاصهٔ دالریِ فعلی مو‌به‌مو مثل قبل بماند.
-                    CurrencyCode = IsRubCurrency(displayCurrency) ? "RUB" : null,
-                    IncludeOperationalColumns = false
-                },
-                HttpContext.RequestAborted);
-            ViewData["PartyStatementSummary"] = statement.Summary;
-            ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
-        }
+                new PartyStatementFilter { IncludeOperationalColumns = false },
+                HttpContext?.RequestAborted ?? CancellationToken.None)).Summary;
+        item.LedgerOutflowUsd = wholeSupplierSummary.TotalOutflow;
+        item.LedgerReceiptUsd = wholeSupplierSummary.TotalReceipt;
+        ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
 
         // کارت «مانده قابل انتقال» — از موتور واحد خوانده می‌شود، نه از پرداخت‌های تکی.
         // از ViewData می‌آید تا SupplierProfileViewModel و مسیر ساخت آن دست‌نخورده بماند.
@@ -399,7 +405,10 @@ public partial class SuppliersController : Controller
         // Debit/Credit یا LoadedValue-Paid را به‌عنوان «Balance» دوباره محاسبه نمی‌کند.
         var officialBalances = (await _partyBalances.GetBalancesAsync(
                 new ManagementReportFilterViewModel(),
-                HttpContext?.RequestAborted ?? CancellationToken.None))
+                HttpContext?.RequestAborted ?? CancellationToken.None,
+                // فهرست فقط ستون «داده/گرفته» تأمین‌کننده را نشان می‌دهد؛ ردیف صراف،
+                // کارمند و شریک همین دو خط پایین‌تر دور ریخته می‌شدند.
+                partyTypes: [PartyStatementPartyType.Supplier]))
             .Where(row => row.PartyType == PartyStatementPartyType.Supplier
                 && bySupplierId.ContainsKey(row.PartyId))
             .ToDictionary(row => row.PartyId);
@@ -737,14 +746,19 @@ public partial class SuppliersController : Controller
                 ? ledgerRub.Value
                 : GetSarrafSupplierReductionRub(settlement) ?? GetSettlementRubFallbackFromContractLoadings(settlement);
 
-        var ledgerByContract = ledgers
-            .Where(l => l.ContractId.HasValue)
-            .GroupBy(l => l.ContractId!.Value)
+        // «داده/گرفته»ی هر قرارداد از ماندهٔ رسمیِ همین تأمین‌کننده در همان قرارداد
+        // (PartyBalanceReadService.GetContractBalancesAsync)، نه Debit/Credit خامِ دفتر.
+        var officialContractBalances = await _partyBalances.GetContractBalancesAsync(
+            contractIds.ToList(),
+            ct: HttpContext?.RequestAborted ?? CancellationToken.None,
+            resolveNames: false);
+        var ledgerByContract = officialContractBalances.Values
+            .Select(b => (b.ContractId, Party: b.Parties.FirstOrDefault(p =>
+                p.PartyType == PartyStatementPartyType.Supplier && p.PartyId == id)))
+            .Where(x => x.Party is not null)
             .ToDictionary(
-                g => g.Key,
-                g => new LedgerTotals(
-                    OutflowUsd: g.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd),
-                    ReceiptUsd: g.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd)));
+                x => x.ContractId,
+                x => new LedgerTotals(OutflowUsd: x.Party!.TotalOutflowUsd, ReceiptUsd: x.Party.TotalReceiptUsd));
 
         var directPaidByContract = payments
             .Where(p => p.ContractId.HasValue && p.PaymentKind == PaymentKind.SupplierPayment)
@@ -1078,8 +1092,6 @@ public partial class SuppliersController : Controller
             ? supplierAccountLedgers.Where(l => l.ContractId == contractId.Value).ToList()
             : supplierAccountLedgers;
 
-        var ledgerDebitUsd = supplierAccountLedgers.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd);
-        var ledgerCreditUsd = supplierAccountLedgers.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd);
         var directSupplierPaidUsd = paymentSummaries
             .Where(p => p.PaymentKind == PaymentKind.SupplierPayment)
             .Sum(p => p.AmountUsd);
@@ -1225,8 +1237,6 @@ public partial class SuppliersController : Controller
             RemainingPurchaseQuantityMt = contractSummaries.Sum(c => c.RemainingQuantityMt),
             EstimatedRemainingContractValueUsd = contractSummaries.Sum(c => c.EstimatedUnloadedValueUsd ?? 0m),
             EstimatedRemainingContractValueRub = SumKnown(contractSummaries.Select(c => c.EstimatedUnloadedValueRub)),
-            LedgerOutflowUsd = ledgerDebitUsd,
-            LedgerReceiptUsd = ledgerCreditUsd,
             TotalPaidUsd = directSupplierPaidUsd + sarrafReductionUsd + viaSarrafReductionUsd,
             TotalPaidRub = totalPaidRub,
             TotalPaidActualUsd = directSupplierPaidUsd + sarrafPaidActualUsd + viaSarrafReductionUsd,

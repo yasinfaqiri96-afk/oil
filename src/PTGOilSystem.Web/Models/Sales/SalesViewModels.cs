@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Services.Time;
@@ -222,16 +222,16 @@ public sealed class ShipmentFlowSaleContractRowViewModel
 public sealed class SalesIndexFilterViewModel
 {
     [Display(Name = "قرارداد فروش")]
-    public int? ContractId { get; set; }
+    public int[] ContractId { get; set; } = [];
 
     [Display(Name = "شرکت")]
-    public int? CompanyId { get; set; }
+    public int[] CompanyId { get; set; } = [];
 
     [Display(Name = "مشتری")]
-    public int? CustomerId { get; set; }
+    public int[] CustomerId { get; set; } = [];
 
     [Display(Name = "جنس")]
-    public int? ProductId { get; set; }
+    public int[] ProductId { get; set; } = [];
 
     [Display(Name = "فاکتور")]
     [StringLength(50)]

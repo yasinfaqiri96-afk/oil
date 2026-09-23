@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
@@ -142,11 +142,11 @@ public partial class LedgerController : Controller
             [
                 new("از تاریخ", "From date", filter.FromDate?.ToString("yyyy-MM-dd")),
                 new("تا تاریخ", "To date", filter.ToDate?.ToString("yyyy-MM-dd")),
-                new("نوع منبع", "Source type", filter.SourceType),
+                new("نوع منبع", "Source type", string.Join("، ", filter.SourceType)),
                 new("مرجع", "Reference", filter.Reference),
-                new("قرارداد", "Contract", filter.ContractId?.ToString()),
-                new("مشتری", "Customer", filter.CustomerId?.ToString()),
-                new("تأمین‌کننده", "Supplier", filter.SupplierId?.ToString())
+                new("قرارداد", "Contract", string.Join("، ", filter.ContractId)),
+                new("مشتری", "Customer", string.Join("، ", filter.CustomerId)),
+                new("تأمین‌کننده", "Supplier", string.Join("، ", filter.SupplierId))
             ],
             Columns =
             [
@@ -174,20 +174,37 @@ public partial class LedgerController : Controller
     {
         if (filter.FromDate.HasValue) query = query.Where(l => l.EntryDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) query = query.Where(l => l.EntryDate <= filter.ToDate.Value);
-        if (!string.IsNullOrWhiteSpace(filter.SourceType))
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.SourceType.Length > 0)
         {
-            var sourceType = filter.SourceType.Trim();
-            query = query.Where(l => l.SourceType == sourceType);
+            var sourceTypes = filter.SourceType.Select(value => value.Trim()).ToArray();
+            query = query.Where(l => sourceTypes.Contains(l.SourceType));
         }
-        if (filter.ContractId.HasValue) query = query.Where(l => l.ContractId == filter.ContractId.Value);
-        if (filter.CustomerId.HasValue) query = query.Where(l => l.CustomerId == filter.CustomerId.Value);
-        if (filter.SupplierId.HasValue) query = query.Where(l => l.SupplierId == filter.SupplierId.Value);
+        if (filter.ContractId.Length > 0)
+        {
+            var contractIds = filter.ContractId;
+            query = query.Where(l => l.ContractId != null && contractIds.Contains(l.ContractId.Value));
+        }
+        if (filter.CustomerId.Length > 0)
+        {
+            var customerIds = filter.CustomerId;
+            query = query.Where(l => l.CustomerId != null && customerIds.Contains(l.CustomerId.Value));
+        }
+        if (filter.SupplierId.Length > 0)
+        {
+            var supplierIds = filter.SupplierId;
+            query = query.Where(l => l.SupplierId != null && supplierIds.Contains(l.SupplierId.Value));
+        }
         if (!string.IsNullOrWhiteSpace(filter.Reference))
         {
             var reference = filter.Reference.Trim();
             query = query.Where(l => l.Reference != null && l.Reference.Contains(reference));
         }
-        if (filter.Side.HasValue) query = query.Where(l => l.Side == filter.Side.Value);
+        if (filter.Side.Length > 0)
+        {
+            var sides = filter.Side;
+            query = query.Where(l => sides.Contains(l.Side));
+        }
 
         return query;
     }
@@ -381,7 +398,7 @@ public partial class LedgerController : Controller
                     .ToListAsync()),
             nameof(ContractLookupOption.Id),
             nameof(ContractLookupOption.Display),
-            filter.ContractId);
+            filter.ContractId.Only());
 
         var customerIds = await _db.LedgerEntries
             .AsNoTracking()
@@ -397,7 +414,7 @@ public partial class LedgerController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            filter.CustomerId);
+            filter.CustomerId.Only());
 
         var supplierIds = await _db.LedgerEntries
             .AsNoTracking()
@@ -413,7 +430,7 @@ public partial class LedgerController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            filter.SupplierId);
+            filter.SupplierId.Only());
 
         var sourceTypes = await _db.LedgerEntries
             .AsNoTracking()
@@ -427,7 +444,7 @@ public partial class LedgerController : Controller
             {
                 Value = s,
                 Text = s,
-                Selected = string.Equals(filter.SourceType, s, StringComparison.Ordinal)
+                Selected = filter.SourceType.Contains(s, StringComparer.Ordinal)
             })
             .ToList();
 
@@ -436,7 +453,7 @@ public partial class LedgerController : Controller
             {
                 Value = ((int)side).ToString(),
                 Text = GetSideName(side),
-                Selected = filter.Side == side
+                Selected = filter.Side.Contains(side)
             })
             .ToList();
     }

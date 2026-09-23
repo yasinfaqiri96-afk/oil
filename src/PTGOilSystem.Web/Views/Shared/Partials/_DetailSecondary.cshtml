@@ -45,7 +45,10 @@
         {
             <section class="ak-detail-history" aria-labelledby="ak-detail-history-title">
                 <h2 id="ak-detail-history-title">@timelineTitle</h2>
-                <p class="ak-detail-zone-note">@UiText.T(Context, "هر رویدادی که برای این رکورد ثبت شده، به ترتیب زمان.", "Every event recorded against this record, in order.")</p>
+                @if (Model.ShowTimelineDescription)
+                {
+                    <p class="ak-detail-zone-note">@UiText.T(Context, "هر رویدادی که برای این رکورد ثبت شده، به ترتیب زمان.", "Every event recorded against this record, in order.")</p>
+                }
                 <ol class="ak-detail-history-list">
                     @foreach (var item in events)
                     {

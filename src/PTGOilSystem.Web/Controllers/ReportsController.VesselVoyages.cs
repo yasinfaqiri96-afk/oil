@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -80,11 +80,11 @@ public partial class ReportsController
                 ("سال مالی / Fiscal year", fiscalYearName),
                 ("از تاریخ / From", filter.FromDate?.ToString("yyyy-MM-dd")),
                 ("تا تاریخ / To", filter.ToDate?.ToString("yyyy-MM-dd")),
-                ("کشتی / Vessel", filter.VesselId),
-                ("محصول / Product", filter.ProductId),
-                ("مشتری / Customer", filter.CustomerId),
-                ("تأمین‌کننده / Supplier", filter.SupplierId),
-                ("مقصد / Destination", filter.DestinationLocationId),
+                ("کشتی / Vessel", filter.VesselId.Only()),
+                ("محصول / Product", filter.ProductId.Only()),
+                ("مشتری / Customer", filter.CustomerId.Only()),
+                ("تأمین‌کننده / Supplier", filter.SupplierId.Only()),
+                ("مقصد / Destination", filter.DestinationLocationId.Only()),
                 ("کمپنی ترانسپورتی / Transport company", filter.ServiceProviderId)),
             Columns =
             [
@@ -205,39 +205,42 @@ public partial class ReportsController
             query = query.Where(s => (s.DepartureDate ?? s.ArrivalDate) <= to.Value);
         }
 
-        if (filter.VesselId.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.VesselId.Length > 0)
         {
-            query = query.Where(s => s.VesselId == filter.VesselId.Value);
+            var vesselIds = filter.VesselId;
+            query = query.Where(s => s.VesselId != null && vesselIds.Contains(s.VesselId.Value));
         }
 
-        if (filter.DestinationLocationId.HasValue)
+        if (filter.DestinationLocationId.Length > 0)
         {
-            query = query.Where(s => s.DestinationLocationId == filter.DestinationLocationId.Value);
+            var destinationIds = filter.DestinationLocationId;
+            query = query.Where(s => s.DestinationLocationId != null && destinationIds.Contains(s.DestinationLocationId.Value));
         }
 
-        if (filter.ProductId.HasValue)
+        if (filter.ProductId.Length > 0)
         {
-            var productId = filter.ProductId.Value;
+            var productIds = filter.ProductId;
             query = query.Where(s =>
-                s.ShipmentContracts.Any(sc => sc.Contract!.ProductId == productId)
-                || (s.Contract != null && s.Contract.ProductId == productId));
+                s.ShipmentContracts.Any(sc => productIds.Contains(sc.Contract!.ProductId))
+                || (s.Contract != null && productIds.Contains(s.Contract.ProductId)));
         }
 
-        if (filter.SupplierId.HasValue)
+        if (filter.SupplierId.Length > 0)
         {
-            var supplierId = filter.SupplierId.Value;
+            var supplierIds = filter.SupplierId;
             query = query.Where(s =>
-                s.ShipmentContracts.Any(sc => sc.Contract!.SupplierId == supplierId)
-                || (s.Contract != null && s.Contract.SupplierId == supplierId));
+                s.ShipmentContracts.Any(sc => sc.Contract!.SupplierId != null && supplierIds.Contains(sc.Contract.SupplierId.Value))
+                || (s.Contract != null && s.Contract.SupplierId != null && supplierIds.Contains(s.Contract.SupplierId.Value)));
         }
 
-        if (filter.CustomerId.HasValue)
+        if (filter.CustomerId.Length > 0)
         {
-            var customerId = filter.CustomerId.Value;
+            var customerIds = filter.CustomerId;
             query = query.Where(s =>
-                _db.SalesTransactions.Any(t => t.ShipmentId == s.Id && !t.IsCancelled && t.CustomerId == customerId)
-                || s.ShipmentContracts.Any(sc => sc.Contract!.CustomerId == customerId)
-                || (s.Contract != null && s.Contract.CustomerId == customerId));
+                _db.SalesTransactions.Any(t => t.ShipmentId == s.Id && !t.IsCancelled && customerIds.Contains(t.CustomerId))
+                || s.ShipmentContracts.Any(sc => sc.Contract!.CustomerId != null && customerIds.Contains(sc.Contract.CustomerId.Value))
+                || (s.Contract != null && s.Contract.CustomerId != null && customerIds.Contains(s.Contract.CustomerId.Value)));
         }
 
         if (filter.ServiceProviderId.HasValue)
@@ -661,27 +664,27 @@ public partial class ReportsController
         ViewBag.VesselVoyageVessels = new SelectList(
             await _db.Vessels.AsNoTracking().OrderBy(v => v.Name)
                 .Select(v => new LookupOption(v.Id, v.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.VesselId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.VesselId.Only());
 
         ViewBag.VesselVoyageProducts = new SelectList(
             await _db.Products.AsNoTracking().OrderBy(p => p.Name)
                 .Select(p => new LookupOption(p.Id, p.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ProductId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ProductId.Only());
 
         ViewBag.VesselVoyageCustomers = new SelectList(
             await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name)
                 .Select(c => new LookupOption(c.Id, c.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.CustomerId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.CustomerId.Only());
 
         ViewBag.VesselVoyageSuppliers = new SelectList(
             await _db.Suppliers.AsNoTracking().Where(s => s.IsActive).OrderBy(s => s.Name)
                 .Select(s => new LookupOption(s.Id, s.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.SupplierId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.SupplierId.Only());
 
         ViewBag.VesselVoyageDestinations = new SelectList(
             await _db.Locations.AsNoTracking().OrderBy(l => l.Name)
                 .Select(l => new LookupOption(l.Id, l.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.DestinationLocationId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.DestinationLocationId.Only());
 
         ViewBag.VesselVoyageServiceProviders = new SelectList(
             await _db.ServiceProviders.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Name)

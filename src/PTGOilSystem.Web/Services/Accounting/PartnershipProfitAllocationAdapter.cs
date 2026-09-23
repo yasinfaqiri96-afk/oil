@@ -12,10 +12,35 @@ public sealed record ProfitAllocationResult(
     JournalEntry? Journal,
     string? Reason);
 
+/// <summary>
+/// یک قرارداد شراکتی: سودی که پیش‌تر در ژورنال تخصیص یافته در برابر سودِ محققِ فعلی.
+/// فقط‌خواندنی؛ هیچ ژورنالی ساخته، برگشت یا اصلاح نمی‌شود.
+/// </summary>
+public sealed record PartnershipProfitAllocationDiscrepancy(
+    int ContractId,
+    string ContractNumber,
+    decimal? PostedProfitUsd,
+    decimal CanonicalProfitUsd,
+    string Status)
+{
+    public const string Matches = "POSTED_MATCHES";
+    public const string ProfitChanged = "PROFIT_CHANGED_SINCE_ALLOCATION";
+    public const string NotPosted = "NOT_POSTED";
+
+    public decimal DifferenceUsd => CanonicalProfitUsd - (PostedProfitUsd ?? 0m);
+}
+
 public interface IPartnershipProfitAllocationAdapter
 {
     Task<ProfitAllocationResult> TryPostAllocationAsync(
         int contractId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// گزارشِ فقط‌خواندنیِ اختلافِ تخصیص‌های ثبت‌شده با سودِ محققِ فعلیِ قرارداد. تاریخچه دست نمی‌خورد؛
+    /// اصلاح (برگشت و تخصیصِ دوباره) تصمیمِ انسانی و جداگانه است.
+    /// </summary>
+    Task<IReadOnlyList<PartnershipProfitAllocationDiscrepancy>> FindDiscrepanciesAsync(
         CancellationToken cancellationToken = default);
 }
 
@@ -169,7 +194,7 @@ public sealed class PartnershipProfitAllocationAdapter(
                 Description: "Partner share of contract profit"));
         }
 
-        var allocationDate = await ResolveAllocationDateAsync(contractId, cancellationToken);
+        var allocationDate = ResolveAllocationDate(statement);
         var request = new AccountingPostRequest(
             companyId,
             journalNumberGenerator.ForProfitAllocation(companyId, contractId),
@@ -199,21 +224,57 @@ public sealed class PartnershipProfitAllocationAdapter(
 
     /// <summary>
     /// Profit is earned when the goods are sold, so the appropriation is dated on the contract's
-    /// last sale rather than on whatever day the backfill happens to run.
+    /// last sale rather than on whatever day the backfill happens to run. The sales are the
+    /// statement's own lines — the canonical contract attribution — not a separate lookup.
     /// </summary>
-    private async Task<DateTime> ResolveAllocationDateAsync(
-        int contractId,
-        CancellationToken cancellationToken)
+    private static DateTime ResolveAllocationDate(PartnershipContractStatement statement)
     {
-        var lastSale = await db.SalesTransactions
-            .AsNoTracking()
-            .Where(x => !x.IsCancelled
-                && (x.ContractId == contractId || x.SourcePurchaseContractId == contractId))
-            .OrderByDescending(x => x.SaleDate)
-            .Select(x => (DateTime?)x.SaleDate)
-            .FirstOrDefaultAsync(cancellationToken);
+        var lastSale = statement.Lines
+            .Where(x => x.Kind == PartnershipStatementLineKind.SaleProceedsHeld && x.Date.HasValue)
+            .Select(x => x.Date)
+            .DefaultIfEmpty(null)
+            .Max();
 
         return (lastSale ?? Time.AfghanistanBusinessClock.SystemToday).Date;
+    }
+
+    public async Task<IReadOnlyList<PartnershipProfitAllocationDiscrepancy>> FindDiscrepanciesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var contracts = await db.Contracts
+            .AsNoTracking()
+            .Where(x => x.OwnershipType == ContractOwnershipType.Partnership)
+            .OrderBy(x => x.Id)
+            .Select(x => new { x.Id, x.ContractNumber, x.CompanyId })
+            .ToListAsync(cancellationToken);
+
+        var result = new List<PartnershipProfitAllocationDiscrepancy>(contracts.Count);
+        foreach (var contract in contracts)
+        {
+            var statement = await statements.BuildForContractAsync(contract.Id, cancellationToken);
+            var canonicalProfit = statement?.BookProfitUsd ?? 0m;
+            var sourceEventId = BuildSourceEventId(contract.Id);
+            var posted = await db.JournalEntries
+                .AsNoTracking()
+                .Where(x => x.CompanyId == contract.CompanyId
+                    && x.SourceModule == SourceModule
+                    && x.SourceEventId == sourceEventId)
+                .SelectMany(x => x.Lines)
+                .Where(x => x.PartyType == AccountingPartyType.Partner)
+                .GroupBy(_ => 1)
+                .Select(g => (decimal?)(g.Sum(x => x.Credit) - g.Sum(x => x.Debit)))
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var status = posted is null
+                ? PartnershipProfitAllocationDiscrepancy.NotPosted
+                : posted.Value == canonicalProfit
+                    ? PartnershipProfitAllocationDiscrepancy.Matches
+                    : PartnershipProfitAllocationDiscrepancy.ProfitChanged;
+            result.Add(new PartnershipProfitAllocationDiscrepancy(
+                contract.Id, contract.ContractNumber, posted, canonicalProfit, status));
+        }
+
+        return result;
     }
 
     private ProfitAllocationResult Skipped(int contractId, string reason)

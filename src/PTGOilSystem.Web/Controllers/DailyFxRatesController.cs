@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -43,14 +43,20 @@ public class DailyFxRatesController : Controller
         ViewBag.QuoteCurrencies = new SelectList(items, "Code", "DisplayName", SystemCurrency.Normalize(quoteCurrency));
     }
 
-    public async Task<IActionResult> Index(string? q, string? baseCcy, string? quoteCcy, DateTime? from, DateTime? to, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(string? q, string[]? baseCcy, string[]? quoteCcy, DateTime? from, DateTime? to, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 20);
         ViewData["PageSize"] = pageSize;
         ViewData["DefaultPageSize"] = 20;
 
-        baseCcy = string.IsNullOrWhiteSpace(baseCcy) ? null : SystemCurrency.Normalize(baseCcy);
-        quoteCcy = string.IsNullOrWhiteSpace(quoteCcy) ? null : SystemCurrency.Normalize(quoteCcy);
+        var baseCurrencies = (baseCcy ?? [])
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(SystemCurrency.Normalize)
+            .ToArray();
+        var quoteCurrencies = (quoteCcy ?? [])
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(SystemCurrency.Normalize)
+            .ToArray();
 
         var query = _db.DailyFxRates.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))
@@ -62,8 +68,9 @@ public class DailyFxRatesController : Controller
                 || p.QuoteCurrency.Contains(searchCode)
                 || (p.Source != null && p.Source.Contains(search)));
         }
-        if (!string.IsNullOrWhiteSpace(baseCcy)) query = query.Where(p => p.BaseCurrency == baseCcy);
-        if (!string.IsNullOrWhiteSpace(quoteCcy)) query = query.Where(p => p.QuoteCurrency == quoteCcy);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (baseCurrencies.Length > 0) query = query.Where(p => baseCurrencies.Contains(p.BaseCurrency));
+        if (quoteCurrencies.Length > 0) query = query.Where(p => quoteCurrencies.Contains(p.QuoteCurrency));
         if (from.HasValue) query = query.Where(p => p.RateDate >= from.Value.Date);
         if (to.HasValue) query = query.Where(p => p.RateDate <= to.Value.Date);
 
@@ -73,10 +80,10 @@ public class DailyFxRatesController : Controller
             : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
 
-        await PopulateCurrenciesAsync(baseCcy, quoteCcy);
+        await PopulateCurrenciesAsync(baseCurrencies.FirstOrDefault(), quoteCurrencies.FirstOrDefault());
         ViewData["q"] = q;
-        ViewData["baseCcy"] = baseCcy;
-        ViewData["quoteCcy"] = quoteCcy;
+        ViewData["baseCcy"] = baseCurrencies;
+        ViewData["quoteCcy"] = quoteCurrencies;
         ViewData["from"] = from.ToHtmlDateInput();
         ViewData["to"] = to.ToHtmlDateInput();
         ViewData["CurrentPage"] = currentPage;

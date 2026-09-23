@@ -1,4 +1,5 @@
 @using Microsoft.AspNetCore.Mvc.Rendering
+@using PTGOilSystem.Web.Helpers
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.InventoryTransport
 @model TransportBulkFromLoadingViewModel
@@ -7,6 +8,36 @@
     ViewData["HideSectionTabs"] = true;
     var backUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Model.ReturnUrl : Url.Action("Index", "Loading");
     var requestedCount = (int)(ViewBag.BulkRequestedCount ?? 0);
+    ViewData["AkHeaderCompanionAction"] = new AkHeaderMenuItem
+    {
+        Label = "تبدیل‌های قبلی",
+        AccessibleLabel = "تبدیل‌های قبلی بارگیری به حمل و لغو گروهی",
+        Href = Url.Action("CancelFromLoading", "Transports"),
+        Icon = "bi-clock-history"
+    };
+
+    // حالت خلاصه: انتخاب بر اساس فیلتر و بیش از سقف رندر. هیچ ردیفی رندر و post نمی‌شود،
+    // پس نه سقف فیلدهای فرم لمس می‌شود و نه حجم HTML بالا می‌رود.
+    var summaryMode = Model.UseFilterSelection && Model.Rows.Count == 0 && Model.FilterMatchCount > 0;
+
+    // پیشنهادِ «به‌جای این ردیف‌ها، همهٔ نتایج فیلتر» فقط وقتی معنا دارد که فیلتر بیشتر از
+    // ردیف‌های فعلی را شامل شود.
+    var canSwitchToFilter = !Model.UseFilterSelection && Model.FilterMatchCount > Model.Rows.Count;
+    var filterRoute = new Dictionary<string, string?>
+    {
+        ["useFilterSelection"] = "true",
+        ["returnUrl"] = Model.ReturnUrl,
+        ["filter.Q"] = Model.Filter.Q,
+        ["filter.WithoutReceipt"] = Model.Filter.WithoutReceipt ? "true" : null,
+        ["filter.ReceiptStatus"] = Model.Filter.ReceiptStatus,
+        ["filter.PriceStatus"] = Model.Filter.PriceStatus,
+        ["filter.FromDate"] = Model.Filter.FromDate?.ToString("yyyy-MM-dd"),
+        ["filter.ToDate"] = Model.Filter.ToDate?.ToString("yyyy-MM-dd")
+    };
+    var filterHref = Url.Action("BulkFromLoading", "Transports", filterRoute);
+    foreach (var id in Model.Filter.ContractId ?? []) { filterHref += $"&filter.ContractId={id}"; }
+    foreach (var id in Model.Filter.ProductId ?? []) { filterHref += $"&filter.ProductId={id}"; }
+    foreach (var value in Model.Filter.TransportType ?? []) { filterHref += $"&filter.TransportType={value}"; }
 
     // نام وسیله از همان SelectListهای فرم خوانده می‌شود تا خلاصهٔ ردیف بدون کوئری اضافه ساخته شود.
     string? OptionText(object? source, int? id)
@@ -29,7 +60,27 @@
              model="@(("تبدیل گروهی بارگیری به حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", backUrl))" />
     <form asp-action="BulkFromLoading" method="post" class="ak-form" data-submit-lock data-no-spa>
         @Html.AntiForgeryToken()
+        @Html.FormToken()
         <input asp-for="ReturnUrl" type="hidden" />
+        <input asp-for="UseFilterSelection" type="hidden" />
+        <input asp-for="Filter.Q" type="hidden" />
+        <input asp-for="Filter.WithoutReceipt" type="hidden" />
+        <input asp-for="Filter.ReceiptStatus" type="hidden" />
+        <input asp-for="Filter.PriceStatus" type="hidden" />
+        <input asp-for="Filter.FromDate" type="hidden" />
+        <input asp-for="Filter.ToDate" type="hidden" />
+        @for (var i = 0; i < (Model.Filter.ContractId ?? []).Length; i++)
+        {
+            <input type="hidden" name="Filter.ContractId" value="@Model.Filter.ContractId![i]" />
+        }
+        @for (var i = 0; i < (Model.Filter.ProductId ?? []).Length; i++)
+        {
+            <input type="hidden" name="Filter.ProductId" value="@Model.Filter.ProductId![i]" />
+        }
+        @for (var i = 0; i < (Model.Filter.TransportType ?? []).Length; i++)
+        {
+            <input type="hidden" name="Filter.TransportType" value="@Model.Filter.TransportType![i]" />
+        }
         <div asp-validation-summary="All" class="alert alert-danger ak-form-alert" role="alert"></div>
 
         <section class="ak-form-section">
@@ -42,126 +93,161 @@
             </div>
         </section>
 
-        <section class="ak-form-section">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("بارگیری‌های انتخاب‌شده", (string?)"وسیلهٔ هر ردیف از خود بارگیری خوانده می‌شود؛ فقط در صورت نیاز «تغییر وسیله» را باز کنید."))" />
-            <div class="ak-table-wrap">
-                <table class="ak-table">
-                    <thead>
-                        <tr>
-                            <th class="ak-col-check"><input type="checkbox" class="ak-check" data-bulk-select-all aria-label="انتخاب همه" /></th>
-                            <th class="ak-col-grow">بارگیری</th>
-                            <th class="text-end">باقیمانده</th>
-                            <th class="text-end">مقدار حمل</th>
-                            <th>وسیله</th>
-                            <th class="ak-col-actions"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @for (var i = 0; i < Model.Rows.Count; i++)
-                    {
-                        var row = Model.Rows[i];
-                        var vehicleName = row.TransportType switch
+        @if (summaryMode)
+        {
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("همهٔ بارگیری‌های مطابق فیلتر", (string?)"هر بارگیری با وسیله و شرکت خدماتیِ خودش و کل باقیمانده‌اش تبدیل می‌شود. بارگیریِ بدون وسیلهٔ معتبر تبدیل نمی‌شود و در گزارش پایان عملیات نام می‌برد."))" />
+                <div class="ak-stat-grid">
+                    <vc:stat-card title="بارگیری قابل تبدیل" value="@Model.FilterMatchCount.ToString(" N0")" unit="بارگیری" avatar="loading"></vc:stat-card>
+                    <vc:stat-card title="مجموع باقیمانده" value="@Model.FilterMatchQuantityMt.ToString(" N4")" unit="MT" avatar="total-inventory"></vc:stat-card>
+                </div>
+                @if (Model.FilterMatchCount > TransportBulkFromLoadingViewModel.MaxRows)
+                {
+                    <div class="alert alert-warning ak-form-alert" role="alert">
+                        در یک عملیات حداکثر @TransportBulkFromLoadingViewModel.MaxRows.ToString("N0") بارگیری تبدیل می‌شود؛ فیلتر را محدودتر کنید.
+                    </div>
+                }
+            </section>
+        }
+        else
+        {
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("بارگیری‌های انتخاب‌شده", (string?)"وسیلهٔ هر ردیف از خود بارگیری خوانده می‌شود؛ فقط در صورت نیاز «تغییر وسیله» را باز کنید."))" />
+                @if (canSwitchToFilter)
+                {
+                    <div class="alert alert-info ak-form-alert" role="alert">
+                        مطابق فیلترِ فعلی @Model.FilterMatchCount.ToString("N0") بارگیری قابل تبدیل وجود دارد.
+                        <a href="@filterHref" data-no-spa>همهٔ آن‌ها را تبدیل کن</a>
+                    </div>
+                }
+                <div class="ak-table-wrap">
+                    <table class="ak-table">
+                        <thead>
+                            <tr>
+                                <th class="ak-col-check"><input type="checkbox" class="ak-check" data-bulk-select-all aria-label="انتخاب همه" /></th>
+                                <th class="ak-col-grow">بارگیری</th>
+                                <th class="text-end">باقیمانده</th>
+                                <th class="text-end">مقدار حمل</th>
+                                <th>وسیله</th>
+                                <th class="ak-col-actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @for (var i = 0; i < Model.Rows.Count; i++)
                         {
-                            LoadingTransportType.Vessel => OptionText(ViewBag.Vessels, row.VesselId),
-                            LoadingTransportType.Wagon => OptionText(ViewBag.Wagons, row.WagonId),
-                            _ => OptionText(ViewBag.Trucks, row.TruckId)
-                        };
-                        var needsVehicle = string.IsNullOrWhiteSpace(vehicleName);
-                        <tr data-bulk-row>
-                            <td class="ak-col-check">
-                                <input asp-for="Rows[i].Selected" class="ak-check" data-bulk-row-select />
-                                <input asp-for="Rows[i].LoadingRegisterId" type="hidden" />
-                                <input asp-for="Rows[i].LoadingLabel" type="hidden" />
-                                <input asp-for="Rows[i].Reference" type="hidden" />
-                                <input asp-for="Rows[i].AvailableQuantityMt" type="hidden" />
-                            </td>
-                            <td class="ak-col-grow">
-                                <span class="ak-name">@row.LoadingLabel</span>
-                                <span class="ak-section-desc">@row.ProductName</span>
-                            </td>
-                            <td class="ak-num text-end">@row.AvailableQuantityMt.ToString("N4") MT</td>
-                            <td class="text-end">
-                                <input asp-for="Rows[i].QuantityMt" class="ak-input ak-input-compact ak-num"
-                                       type="number" min="0.0001" max="@row.AvailableQuantityMt" step="0.0001"
-                                       aria-label="مقدار حمل" data-bulk-quantity />
-                            </td>
-                            <td>
-                                <span class="ak-name" data-bulk-vehicle-summary>@TypeLabel(row.TransportType)@(needsVehicle ? "" : " — " + vehicleName)</span>
-                                @if (needsVehicle)
-                                {
-                                    <span class="ak-status is-warning">وسیله انتخاب نشده</span>
-                                }
-                            </td>
-                            <td class="ak-col-actions">
-                                <button type="button" class="btn btn-light btn-sm ak-secondary-action"
-                                        data-bulk-toggle aria-expanded="@(needsVehicle ? "true" : "false")">
-                                    <i class="bi bi-pencil" aria-hidden="true"></i> تغییر وسیله
-                                </button>
-                            </td>
-                        </tr>
-                        <tr data-bulk-editor hidden="@(needsVehicle ? null : "hidden")">
-                            <td colspan="6">
-                                <div class="ak-form-grid">
-                                    <div class="ak-field">
-                                        <label asp-for="Rows[i].TransportType">نوع وسیله</label>
-                                        <select asp-for="Rows[i].TransportType" class="ak-input" data-bulk-type>
-                                            <option value="3">موتر</option>
-                                            <option value="2">واگن</option>
-                                            <option value="1">کشتی</option>
-                                        </select>
-                                    </div>
-                                    <div class="ak-field" data-bulk-vehicle="3">
-                                        <label asp-for="Rows[i].TruckId">موتر</label>
-                                        <select asp-for="Rows[i].TruckId" asp-items="ViewBag.Trucks" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
-                                    </div>
-                                    <div class="ak-field" data-bulk-vehicle="2">
-                                        <label asp-for="Rows[i].WagonId">واگن</label>
-                                        <select asp-for="Rows[i].WagonId" asp-items="ViewBag.Wagons" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
-                                    </div>
-                                    <div class="ak-field" data-bulk-vehicle="1">
-                                        <label asp-for="Rows[i].VesselId">کشتی</label>
-                                        <select asp-for="Rows[i].VesselId" asp-items="ViewBag.Vessels" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
-                                    </div>
-                                    <div class="ak-field" data-bulk-driver>
-                                        <label asp-for="Rows[i].DriverId">راننده</label>
-                                        <select asp-for="Rows[i].DriverId" asp-items="ViewBag.Drivers" class="ak-input"><option value="">بدون انتخاب</option></select>
-                                    </div>
-                                    <div class="ak-field">
-                                        <label asp-for="Rows[i].ServiceProviderId">شرکت خدماتی</label>
-                                        <select asp-for="Rows[i].ServiceProviderId" asp-items="ViewBag.ServiceProviders" class="ak-input" data-bulk-provider><option value="">بدون انتخاب</option></select>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                    @if (Model.Rows.Count == 0)
-                    {
-                        <tr>
-                            <td colspan="6">
-                                <div class="ak-empty">
-                                    <i class="bi bi-truck"></i>
-                                    @if (requestedCount > 0)
+                            var row = Model.Rows[i];
+                            var vehicleName = row.TransportType switch
+                            {
+                                LoadingTransportType.Vessel => OptionText(ViewBag.Vessels, row.VesselId),
+                                LoadingTransportType.Wagon => OptionText(ViewBag.Wagons, row.WagonId),
+                                _ => OptionText(ViewBag.Trucks, row.TruckId)
+                            };
+                            var needsVehicle = string.IsNullOrWhiteSpace(vehicleName);
+                            <tr data-bulk-row>
+                                <td class="ak-col-check">
+                                    <input asp-for="Rows[i].Selected" class="ak-check" data-bulk-row-select />
+                                    <input asp-for="Rows[i].LoadingRegisterId" type="hidden" />
+                                    <input asp-for="Rows[i].LoadingLabel" type="hidden" />
+                                    <input asp-for="Rows[i].Reference" type="hidden" />
+                                    <input asp-for="Rows[i].AvailableQuantityMt" type="hidden" />
+                                </td>
+                                <td class="ak-col-grow">
+                                    <span class="ak-name">@row.LoadingLabel</span>
+                                    <span class="ak-section-desc">@row.ProductName</span>
+                                </td>
+                                <td class="ak-num text-end">@row.AvailableQuantityMt.ToString("N4") MT</td>
+                                <td class="text-end">
+                                    <input asp-for="Rows[i].QuantityMt" class="ak-input ak-input-compact ak-num"
+                                           type="number" min="0.0001" max="@row.AvailableQuantityMt" step="0.0001"
+                                           aria-label="مقدار حمل" data-bulk-quantity />
+                                </td>
+                                <td>
+                                    <span class="ak-name" data-bulk-vehicle-summary>@TypeLabel(row.TransportType)@(needsVehicle ? "" : " — " + vehicleName)</span>
+                                    @if (needsVehicle)
                                     {
-                                        <span>@requestedCount بارگیری انتخاب شد اما هیچ‌کدام باقیماندهٔ قابل تبدیل ندارند (رسید، کسری یا حمل قبلی کل مقدار را مصرف کرده است).</span>
+                                        <span class="ak-status is-warning">وسیله انتخاب نشده</span>
                                     }
-                                    else
-                                    {
-                                        <span>هیچ بارگیری‌ای انتخاب نشده است؛ از لیست بارگیری ردیف‌ها را تیک بزنید.</span>
-                                    }
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                                </td>
+                                <td class="ak-col-actions">
+                                    <button type="button" class="btn btn-light btn-sm ak-secondary-action"
+                                            data-bulk-toggle aria-expanded="@(needsVehicle ? "true" : "false")">
+                                        <i class="bi bi-pencil" aria-hidden="true"></i> تغییر وسیله
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr data-bulk-editor hidden="@(needsVehicle ? null : "hidden")">
+                                <td colspan="6">
+                                    <div class="ak-form-grid">
+                                        <div class="ak-field">
+                                            <label asp-for="Rows[i].TransportType">نوع وسیله</label>
+                                            <select asp-for="Rows[i].TransportType" class="ak-input" data-bulk-type>
+                                                <option value="3">موتر</option>
+                                                <option value="2">واگن</option>
+                                                <option value="1">کشتی</option>
+                                            </select>
+                                        </div>
+                                        <div class="ak-field" data-bulk-vehicle="3">
+                                            <label asp-for="Rows[i].TruckId">موتر</label>
+                                            <select asp-for="Rows[i].TruckId" asp-items="ViewBag.Trucks" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
+                                        </div>
+                                        <div class="ak-field" data-bulk-vehicle="2">
+                                            <label asp-for="Rows[i].WagonId">واگن</label>
+                                            <select asp-for="Rows[i].WagonId" asp-items="ViewBag.Wagons" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
+                                        </div>
+                                        <div class="ak-field" data-bulk-vehicle="1">
+                                            <label asp-for="Rows[i].VesselId">کشتی</label>
+                                            <select asp-for="Rows[i].VesselId" asp-items="ViewBag.Vessels" class="ak-input" data-bulk-vehicle-select><option value="">انتخاب کنید</option></select>
+                                        </div>
+                                        <div class="ak-field" data-bulk-driver>
+                                            <label asp-for="Rows[i].DriverId">راننده</label>
+                                            <select asp-for="Rows[i].DriverId" asp-items="ViewBag.Drivers" class="ak-input"><option value="">بدون انتخاب</option></select>
+                                        </div>
+                                        <div class="ak-field">
+                                            <label asp-for="Rows[i].ServiceProviderId">شرکت خدماتی</label>
+                                            <select asp-for="Rows[i].ServiceProviderId" asp-items="ViewBag.ServiceProviders" class="ak-input" data-bulk-provider><option value="">بدون انتخاب</option></select>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        @if (Model.Rows.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6">
+                                    <div class="ak-empty">
+                                        <i class="bi bi-truck"></i>
+                                        @if (requestedCount > 0)
+                                        {
+                                            <span>@requestedCount بارگیری انتخاب شد اما هیچ‌کدام باقیماندهٔ قابل تبدیل ندارند (رسید، کسری یا حمل قبلی کل مقدار را مصرف کرده است).</span>
+                                        }
+                                        else
+                                        {
+                                            <span>هیچ بارگیری‌ای انتخاب نشده است؛ از لیست بارگیری ردیف‌ها را تیک بزنید.</span>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
 
         <div class="ak-footer-actions">
             <a href="@backUrl" class="btn btn-light ak-secondary-action">انصراف</a>
-            <button type="submit" class="btn btn-primary ak-primary-action" data-submit-button data-bulk-submit disabled>
-                تبدیل به حمل (<span data-bulk-count>0</span>)
-            </button>
+            @if (summaryMode)
+            {
+                <button type="submit" class="btn btn-primary ak-primary-action" data-submit-button>
+                    تبدیل به حمل (@Model.FilterMatchCount.ToString("N0"))
+                </button>
+            }
+            else
+            {
+                <button type="submit" class="btn btn-primary ak-primary-action" data-submit-button data-bulk-submit disabled>
+                    تبدیل به حمل (<span data-bulk-count>0</span>)
+                </button>
+            }
         </div>
     </form>
 </main>
@@ -174,6 +260,7 @@
             var selectAll = document.querySelector('[data-bulk-select-all]');
             var submit = document.querySelector('[data-bulk-submit]');
             var counter = document.querySelector('[data-bulk-count]');
+            if (rows.length === 0 && !selectAll) { return; }
 
             function editorOf(row) { return row.nextElementSibling; }
 

@@ -36,6 +36,12 @@ public sealed record PartnerCurrentReconciliationRow(
     string? DifferenceReason)
 {
     public bool IsReconciled => DifferenceUsd == 0m;
+
+    /// <summary>
+    /// سهمِ شریک از هزینهٔ کالای هنوز فروخته‌نشده. در صورت‌حساب از مانده کم می‌شود ولی رویدادِ دفتر کل
+    /// نیست (موجودی دارایی است، نه زیانِ تخصیص‌یافته)، پس مثل آوردهٔ شرکتی جزءِ توضیح‌داده‌شده است.
+    /// </summary>
+    public decimal UnsoldCostShareUsd { get; init; }
 }
 
 public sealed record PartnerCurrentReconciliationReport(
@@ -69,7 +75,7 @@ public interface IPartnerCurrentReconciliationService
 /// پس حساب جاری شرکا فقط جریان‌های واقعیِ شریک را نگه می‌دارد و این سرویس، سهمِ Company-funded
 /// را جداگانه و با نام گزارش می‌کند. تطبیق یعنی:
 ///
-///   <c>StatementNetPosition = LedgerPartnerCurrent + CompanyFundedContribution</c>
+///   <c>StatementNetPosition = LedgerPartnerCurrent + CompanyFundedContribution − UnsoldCostShare</c>
 ///
 /// و <see cref="PartnerCurrentReconciliationRow.DifferenceUsd"/> باقیماندهٔ همین معادله است —
 /// صفر بودنش یعنی هیچ‌چیزِ توضیح‌نداده‌ای نمانده.
@@ -110,7 +116,7 @@ public sealed class PartnerCurrentReconciliationService(
 
                 var ledger = ledgerByPartner.GetValueOrDefault(partner.PartnerId);
                 var difference = PartnerProfitAllocationPolicy.Round(
-                    partner.NetPositionUsd - ledger - companyFunded);
+                    partner.NetPositionUsd + partner.UnsoldCostShareUsd - ledger - companyFunded);
 
                 rows.Add(new PartnerCurrentReconciliationRow(
                     ContractId: contract.Id,
@@ -128,7 +134,10 @@ public sealed class PartnerCurrentReconciliationService(
                     DifferenceUsd: difference,
                     DifferenceReason: companyFunded == 0m
                         ? (difference == 0m ? null : "UNEXPLAINED")
-                        : "COMPANY_FUNDED_CONTRIBUTION_NOT_IN_LEDGER"));
+                        : "COMPANY_FUNDED_CONTRIBUTION_NOT_IN_LEDGER")
+                {
+                    UnsoldCostShareUsd = partner.UnsoldCostShareUsd
+                });
             }
         }
 

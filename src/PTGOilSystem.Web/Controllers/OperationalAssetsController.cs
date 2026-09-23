@@ -71,9 +71,11 @@ public class OperationalAssetsController : Controller
             .Include(a => a.LinkedStorageTank)
             .AsQueryable();
 
-        if (filter.AssetType.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.AssetType.Length > 0)
         {
-            query = query.Where(a => a.AssetType == filter.AssetType.Value);
+            var assetTypes = filter.AssetType;
+            query = query.Where(a => assetTypes.Contains(a.AssetType));
         }
 
         if (filter.IsActive.HasValue)
@@ -155,7 +157,7 @@ public class OperationalAssetsController : Controller
             ? assets.Sum(a => a.MonthlyDepreciationUsd)
             : await query.SumAsync(a => a.MonthlyDepreciationUsd);
 
-        ViewBag.AssetTypes = EnumOptions<OperationalAssetType>(filter.AssetType);
+        ViewBag.AssetTypes = EnumOptions<OperationalAssetType>(filter.AssetType.Length == 1 ? filter.AssetType[0] : (OperationalAssetType?)null);
         return View(new OperationalAssetIndexViewModel
         {
             Filter = filter,

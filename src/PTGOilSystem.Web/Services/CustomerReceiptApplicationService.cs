@@ -21,8 +21,28 @@ public sealed record CustomerReceiptOpenSale(
     decimal AppliedUsd,
     decimal OpenUsd);
 
+/// <summary>
+/// وصولیِ یک فروش. <see cref="ReceivedUsd"/> = تطبیق‌های فعال + دریافتِ مستقیمِ قدیمی (بی‌ردیفِ
+/// تطبیق)، <see cref="RefundedUsd"/> = پرداختِ مستقیمِ قدیمی به مشتری روی همان فروش.
+/// </summary>
+public sealed record CustomerSaleSettlement(int SalesTransactionId, decimal ReceivedUsd, decimal RefundedUsd)
+{
+    public decimal NetReceivedUsd => decimal.Round(ReceivedUsd - RefundedUsd, 4, MidpointRounding.AwayFromZero);
+
+    public decimal OpenReceivableUsd(decimal saleTotalUsd)
+        => decimal.Round(saleTotalUsd - NetReceivedUsd, 4, MidpointRounding.AwayFromZero);
+}
+
 public interface ICustomerReceiptApplicationService
 {
+    /// <summary>
+    /// وصولیِ هر فروش — تنها تعریفِ «این فروش چقدر وصول شده»: ردیف‌های تطبیقِ فعال (از جمله
+    /// مصرفِ پیش‌دریافت) به‌علاوهٔ پرداخت‌های مستقیمِ قدیمی که ردیفِ تطبیق ندارند. صفحهٔ فروش،
+    /// صفحهٔ مشتری و داشبورد همه از همین می‌خوانند. فروشی که وصولی ندارد در نتیجه با صفر می‌آید.
+    /// </summary>
+    Task<IReadOnlyDictionary<int, CustomerSaleSettlement>> GetSaleSettlementsAsync(
+        IReadOnlyCollection<int> salesTransactionIds, CancellationToken ct = default);
+
     /// <summary>مانده تطبیق‌نشدهٔ یک دریافت، به ارز خودِ دریافت.</summary>
     Task<decimal> GetUnappliedReceiptAmountAsync(int paymentTransactionId, CancellationToken ct = default);
 
@@ -98,8 +118,8 @@ public sealed class CustomerReceiptApplicationService(ApplicationDbContext db)
             return 0m;
         }
 
-        var received = await GetReceivedUsdAsync(salesTransactionId, ct);
-        return decimal.Round(sale.TotalUsd - received, 4, MidpointRounding.AwayFromZero);
+        var settlement = (await GetSaleSettlementsAsync([salesTransactionId], ct))[salesTransactionId];
+        return settlement.OpenReceivableUsd(sale.TotalUsd);
     }
 
     public async Task<List<CustomerReceiptOpenSale>> GetOpenSalesAsync(
@@ -114,11 +134,12 @@ public sealed class CustomerReceiptApplicationService(ApplicationDbContext db)
             .Select(s => new { s.Id, s.InvoiceNumber, s.SaleDate, s.TotalUsd })
             .ToListAsync(ct);
 
+        var settlements = await GetSaleSettlementsAsync(sales.Select(s => s.Id).ToList(), ct);
         var result = new List<CustomerReceiptOpenSale>();
         foreach (var sale in sales)
         {
-            var received = await GetReceivedUsdAsync(sale.Id, ct);
-            var open = decimal.Round(sale.TotalUsd - received, 4, MidpointRounding.AwayFromZero);
+            var received = settlements[sale.Id].NetReceivedUsd;
+            var open = settlements[sale.Id].OpenReceivableUsd(sale.TotalUsd);
             if (open <= Epsilon)
             {
                 continue;
@@ -313,28 +334,48 @@ public sealed class CustomerReceiptApplicationService(ApplicationDbContext db)
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>
-    /// دریافت‌شدهٔ یک فروش: ردیف‌های تطبیق، به‌علاوهٔ پرداخت‌های قدیمیِ مستقیماً وصل‌شده به همان فروش
-    /// که ردیف تطبیق ندارند (تا هیچ مبلغی دوبار شمرده نشود).
-    /// </summary>
-    private async Task<decimal> GetReceivedUsdAsync(int salesTransactionId, CancellationToken ct)
+    public async Task<IReadOnlyDictionary<int, CustomerSaleSettlement>> GetSaleSettlementsAsync(
+        IReadOnlyCollection<int> salesTransactionIds, CancellationToken ct = default)
     {
-        var appliedUsd = await db.CustomerPaymentAllocationApplications
-            .AsNoTracking()
-            .Where(a => a.SalesTransactionId == salesTransactionId
-                && a.Status == CustomerPaymentAllocationApplicationStatus.Active)
-            .SumAsync(a => (decimal?)a.AppliedAmountUsd, ct) ?? 0m;
+        ArgumentNullException.ThrowIfNull(salesTransactionIds);
+        var ids = salesTransactionIds.Distinct().ToArray();
+        var result = ids.ToDictionary(id => id, id => new CustomerSaleSettlement(id, 0m, 0m));
+        if (ids.Length == 0)
+        {
+            return result;
+        }
 
-        var legacyUsd = await db.PaymentTransactions
+        var applied = await db.CustomerPaymentAllocationApplications
             .AsNoTracking()
-            .Where(p => p.SalesTransactionId == salesTransactionId
+            .Where(a => ids.Contains(a.SalesTransactionId)
+                && a.Status == CustomerPaymentAllocationApplicationStatus.Active)
+            .GroupBy(a => a.SalesTransactionId)
+            .Select(g => new { SaleId = g.Key, AmountUsd = g.Sum(a => a.AppliedAmountUsd) })
+            .ToListAsync(ct);
+
+        // پرداختِ مستقیمِ قدیمی که ردیفِ تطبیقِ فعال روی همین فروش دارد از این‌جا کنار می‌رود تا
+        // مبلغش فقط یک بار (از مسیرِ تطبیق) شمرده شود.
+        var legacy = await db.PaymentTransactions
+            .AsNoTracking()
+            .Where(p => p.SalesTransactionId != null
+                && ids.Contains(p.SalesTransactionId.Value)
                 && !db.CustomerPaymentAllocationApplications.Any(a =>
                     a.PaymentTransactionId == p.Id
-                    && a.SalesTransactionId == salesTransactionId
+                    && a.SalesTransactionId == p.SalesTransactionId
                     && a.Status == CustomerPaymentAllocationApplicationStatus.Active))
-            .SumAsync(p => (decimal?)(p.Direction == PaymentDirection.In ? p.AmountUsd : -p.AmountUsd), ct) ?? 0m;
+            .GroupBy(p => new { SaleId = p.SalesTransactionId!.Value, p.Direction })
+            .Select(g => new { g.Key.SaleId, g.Key.Direction, AmountUsd = g.Sum(p => p.AmountUsd) })
+            .ToListAsync(ct);
 
-        return decimal.Round(appliedUsd + legacyUsd, 4, MidpointRounding.AwayFromZero);
+        foreach (var id in ids)
+        {
+            var receivedUsd = applied.Where(a => a.SaleId == id).Sum(a => a.AmountUsd)
+                + legacy.Where(p => p.SaleId == id && p.Direction == PaymentDirection.In).Sum(p => p.AmountUsd);
+            var refundedUsd = legacy.Where(p => p.SaleId == id && p.Direction == PaymentDirection.Out).Sum(p => p.AmountUsd);
+            result[id] = new CustomerSaleSettlement(id, receivedUsd, refundedUsd);
+        }
+
+        return result;
     }
 
     private static decimal GetValidRate(PaymentTransaction payment)

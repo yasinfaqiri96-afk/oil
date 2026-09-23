@@ -1,4 +1,4 @@
-@using PTGOilSystem.Web.Models.Reports
+﻿@using PTGOilSystem.Web.Models.Reports
 @model PTGOilSystem.Web.Models.Reports.TransportVarianceReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "راپور کسری و اضافه‌بار حمل", "Transport Shortage & Surplus Report");
@@ -95,10 +95,8 @@
                         }, f.Source?.ToString()),
                     new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         f.FromDate?.ToString("yyyy-MM-dd"), "ToDate", f.ToDate?.ToString("yyyy-MM-dd")),
-                    new("ProductId", UiText.T(Context, "جنس", "Product"), "select", VarianceOpts(ViewBag.TransportVarianceProducts),
-                        f.ProductId?.ToString()),
-                    new("ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", VarianceOpts(ViewBag.TransportVarianceContracts),
-                        f.ContractId?.ToString())
+                    AkFilterDefinition.MultiSelect("ProductId", UiText.T(Context, "جنس", "Product"), VarianceOpts(ViewBag.TransportVarianceProducts), AkFilterQuery.Values(Context, "ProductId")),
+                    AkFilterDefinition.MultiSelect("ContractId", UiText.T(Context, "قرارداد", "Contract"), VarianceOpts(ViewBag.TransportVarianceContracts), AkFilterQuery.Values(Context, "ContractId"))
                 });
         }
         <div class="ak-list-toolbar">

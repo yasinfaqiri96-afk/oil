@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Services.PartyStatements;
 
 namespace PTGOilSystem.Web.Services.ContractClosure;
 
@@ -70,8 +72,11 @@ public interface IContractClosureService
 public sealed class ContractClosureService(
     ApplicationDbContext db,
     IAuditService audit,
-    IStockService stock) : IContractClosureService
+    IStockService stock,
+    IPartyBalanceReadService? partyBalances = null) : IContractClosureService
 {
+    private readonly IPartyBalanceReadService _partyBalances = partyBalances ?? PartyBalanceReadService.CreateDefault(db);
+
     public const string CloseAuditAction = "Close";
     public const string ReopenAuditAction = "Reopen";
 
@@ -547,69 +552,36 @@ public sealed class ContractClosureService(
 
     private async Task AddBalanceBlockersAsync(int contractId, List<ContractClosureBlocker> blockers, CancellationToken ct)
     {
-        // مانده به تفکیک طرف‌حساب، نه جمع کل: بدهیِ تأمین‌کننده نباید با طلب از شرکت خدماتی خنثی دیده شود.
-        // فرمول جهت همان «مانده مرتبط» مرکز عملیات قرارداد است: بستانکار − بدهکار.
-        var rows = await db.LedgerEntries
-            .AsNoTracking()
-            .Where(l => l.ContractId == contractId)
-            .Select(l => new
-            {
-                l.Side,
-                l.AmountUsd,
-                l.SupplierId,
-                l.CustomerId,
-                l.ServiceProviderId,
-                l.DriverId,
-                l.EmployeeId,
-                l.PartnerId
-            })
-            .ToListAsync(ct);
-
-        var openGroups = rows
-            .GroupBy(r => new { r.SupplierId, r.CustomerId, r.ServiceProviderId, r.DriverId, r.EmployeeId, r.PartnerId })
-            .Select(g => new
-            {
-                g.Key,
-                Balance = g.Sum(r => r.Side == LedgerSide.Credit ? r.AmountUsd : -r.AmountUsd)
-            })
-            .Where(g => Math.Abs(g.Balance) > AmountToleranceUsd)
-            .ToList();
-        if (openGroups.Count == 0)
+        // مانده به تفکیک طرف‌حساب، نه جمع کل: بدهیِ تأمین‌کننده نباید با طلب از شرکت خدماتی خنثی شود.
+        // مانده از همان موتورِ رسمیِ صورت‌حساب خوانده می‌شود (جهت از نوعِ سند، انتساب از راهِ
+        // قرارداد و فروش، فیلترِ تسویهٔ صراف)، پس قراردادی که صورت‌حساب رسمی برایش ماندهٔ باز
+        // دارد هرگز «تسویه» دیده نمی‌شود و برعکس. علامت: مثبت = طلب شرکت، منفی = بدهی شرکت.
+        var balances = await _partyBalances.GetContractBalancesAsync([contractId], ct: ct);
+        if (!balances.TryGetValue(contractId, out var contract))
         {
             return;
         }
 
-        var supplierIds = openGroups.Where(g => g.Key.SupplierId.HasValue).Select(g => g.Key.SupplierId!.Value).ToList();
-        var customerIds = openGroups.Where(g => g.Key.CustomerId.HasValue).Select(g => g.Key.CustomerId!.Value).ToList();
-        var providerIds = openGroups.Where(g => g.Key.ServiceProviderId.HasValue).Select(g => g.Key.ServiceProviderId!.Value).ToList();
-        var driverIds = openGroups.Where(g => g.Key.DriverId.HasValue).Select(g => g.Key.DriverId!.Value).ToList();
-        var employeeIds = openGroups.Where(g => g.Key.EmployeeId.HasValue).Select(g => g.Key.EmployeeId!.Value).ToList();
-        var partnerIds = openGroups.Where(g => g.Key.PartnerId.HasValue).Select(g => g.Key.PartnerId!.Value).ToList();
-
-        var suppliers = await db.Suppliers.AsNoTracking().Where(x => supplierIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
-        var customers = await db.Customers.AsNoTracking().Where(x => customerIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
-        var providers = await db.ServiceProviders.AsNoTracking().Where(x => providerIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
-        var drivers = await db.Drivers.AsNoTracking().Where(x => driverIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
-        var employees = await db.Employees.AsNoTracking().Where(x => employeeIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
-        var partners = await db.Partners.AsNoTracking().Where(x => partnerIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
-
-        foreach (var group in openGroups)
+        foreach (var party in contract.Parties.Where(p => Math.Abs(p.ClosingBalanceUsd) > AmountToleranceUsd))
         {
-            var key = group.Key;
-            var (kind, partyLabel) = key switch
+            var name = string.IsNullOrWhiteSpace(party.PartyName) || party.PartyName == "-"
+                ? $"#{party.PartyId}"
+                : party.PartyName;
+            var (kind, partyLabel) = party.PartyType switch
             {
-                { SupplierId: int id } => (ContractClosureBlockerKind.Balance, $"تأمین‌کننده «{Name(suppliers, id)}»"),
-                { CustomerId: int id } => (ContractClosureBlockerKind.Balance, $"مشتری «{Name(customers, id)}»"),
-                { ServiceProviderId: int id } => (ContractClosureBlockerKind.Expense, $"شرکت خدماتی «{Name(providers, id)}»"),
-                { DriverId: int id } => (ContractClosureBlockerKind.Expense, $"راننده «{Name(drivers, id)}»"),
-                { EmployeeId: int id } => (ContractClosureBlockerKind.Expense, $"کارمند «{Name(employees, id)}»"),
-                { PartnerId: int id } => (ContractClosureBlockerKind.Balance, $"شریک «{Name(partners, id)}»"),
-                _ => (ContractClosureBlockerKind.Balance, "ردیف‌های دفتر بدون طرف‌حساب")
+                PartyStatementPartyType.Supplier => (ContractClosureBlockerKind.Balance, $"تأمین‌کننده «{name}»"),
+                PartyStatementPartyType.Customer => (ContractClosureBlockerKind.Balance, $"مشتری «{name}»"),
+                PartyStatementPartyType.Sarraf => (ContractClosureBlockerKind.Balance, $"صراف «{name}»"),
+                PartyStatementPartyType.Partner => (ContractClosureBlockerKind.Balance, $"شریک «{name}»"),
+                PartyStatementPartyType.ServiceProvider => (ContractClosureBlockerKind.Expense, $"شرکت خدماتی «{name}»"),
+                PartyStatementPartyType.Driver => (ContractClosureBlockerKind.Expense, $"راننده «{name}»"),
+                PartyStatementPartyType.Employee => (ContractClosureBlockerKind.Expense, $"کارمند «{name}»"),
+                _ => (ContractClosureBlockerKind.Balance, $"«{name}»")
             };
-            var direction = group.Balance > 0m ? "قابل پرداخت به طرف‌حساب" : "قابل دریافت از طرف‌حساب";
+            var direction = party.ClosingBalanceUsd > 0m ? "قابل دریافت از طرف‌حساب" : "قابل پرداخت به طرف‌حساب";
             blockers.Add(new(
                 kind,
-                $"ماندهٔ باز با {partyLabel}: {Math.Abs(group.Balance).ToString("#,0.00", CultureInfo.InvariantCulture)} USD ({direction})."));
+                $"ماندهٔ باز با {partyLabel}: {Math.Abs(party.ClosingBalanceUsd).ToString("#,0.00", CultureInfo.InvariantCulture)} USD ({direction})."));
         }
     }
 

@@ -1,27 +1,45 @@
-@model PTGOilSystem.Web.Services.Exports.ExportMenuModel
+﻿@model PTGOilSystem.Web.Services.Exports.ExportMenuModel
 @using Microsoft.AspNetCore.Routing
 @using PTGOilSystem.Web.Helpers
 @{
-    var routeValues = new RouteValueDictionary();
+    // فیلترِ چندانتخابی همان نام پارامتر را تکرار می‌کند (key=1&key=2). نشانی خروجی
+    // دستی ساخته می‌شود تا تکرارها حفظ شوند؛ RouteValueDictionary آن‌ها را با کاما
+    // در یک مقدار ادغام می‌کرد و خروجی با فهرست فرق می‌کرد.
+    var overrides = Model.RouteValues is null
+        ? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        : Model.RouteValues.ToDictionary(item => item.Key, item => (object?)item.Value, StringComparer.OrdinalIgnoreCase);
+
+    var exportQuery = new List<string>();
     foreach (var item in Context.Request.Query)
     {
-        if (!string.Equals(item.Key, "page", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(item.Key, "format", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(item.Key, "page", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Key, "format", StringComparison.OrdinalIgnoreCase)
+            || overrides.ContainsKey(item.Key))
         {
-            routeValues[item.Key] = item.Value.ToString();
+            continue;
+        }
+
+        foreach (var value in item.Value)
+        {
+            exportQuery.Add($"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(value ?? string.Empty)}");
         }
     }
-    if (Model.RouteValues is not null)
+
+    foreach (var item in overrides)
     {
-        foreach (var item in Model.RouteValues)
-        {
-            routeValues[item.Key] = item.Value;
-        }
+        var text = item.Value?.ToString();
+        if (string.IsNullOrEmpty(text)) continue;
+        exportQuery.Add($"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(text)}");
     }
-    routeValues["format"] = "excel";
-    var excelUrl = Url.Action(Model.Action, Model.Controller, routeValues);
-    routeValues["format"] = "pdf";
-    var pdfUrl = Url.Action(Model.Action, Model.Controller, routeValues);
+
+    string ExportUrl(string format)
+    {
+        var parts = new List<string>(exportQuery) { $"format={format}" };
+        return $"{Url.Action(Model.Action, Model.Controller)}?{string.Join("&", parts)}";
+    }
+
+    var excelUrl = ExportUrl("excel");
+    var pdfUrl = ExportUrl("pdf");
 }
 
 <div class="dropdown ak-export-menu" data-export-menu>

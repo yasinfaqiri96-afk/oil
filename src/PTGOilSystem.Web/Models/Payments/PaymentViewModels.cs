@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -295,22 +295,22 @@ public sealed class PaymentIndexFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "جهت")]
-    public PaymentDirection? Direction { get; set; }
+    public PaymentDirection[] Direction { get; set; } = [];
 
     [Display(Name = "نوع")]
-    public PaymentKind? PaymentKind { get; set; }
+    public PaymentKind[] PaymentKind { get; set; } = [];
 
     [Display(Name = "نوع طرف حساب")]
-    public PaymentCounterpartyType? CounterpartyType { get; set; }
+    public PaymentCounterpartyType[] CounterpartyType { get; set; } = [];
 
     [Display(Name = "حساب نقد / بانک")]
-    public int? CashAccountId { get; set; }
+    public int[] CashAccountId { get; set; } = [];
 
     [Display(Name = "مشتری")]
-    public int? CustomerId { get; set; }
+    public int[] CustomerId { get; set; } = [];
 
     [Display(Name = "تأمین‌کننده")]
-    public int? SupplierId { get; set; }
+    public int[] SupplierId { get; set; } = [];
 
     [Display(Name = "شرکت خدماتی")]
     public int? ServiceProviderId { get; set; }
@@ -416,20 +416,10 @@ public sealed class PaymentIndexViewModel
     public int TodayPaymentMissingUsdEquivalentCount { get; init; }
     public decimal TodayNetUsd => TodayReceiptUsd - TodayPaymentUsd;
     public decimal CashAccountsBalanceUsd { get; init; }
+    /// <summary>اسنادِ ارزیِ بی‌معادلِ دالری که در ماندهٔ نقدی صفر حساب شده‌اند.</summary>
+    public int CashBalanceMissingUsdEquivalentCount { get; init; }
     public string? LastDocumentReference { get; init; }
     public DateTime? LastDocumentDate { get; init; }
-    public IReadOnlyList<CashAccountBalanceSummaryViewModel> CashAccountBalances { get; init; } = [];
-}
-
-public sealed class CashAccountBalanceSummaryViewModel
-{
-    public int CashAccountId { get; init; }
-    public string Code { get; init; } = "";
-    public string Name { get; init; } = "";
-    public string Currency { get; init; } = "USD";
-    public decimal TotalIn { get; init; }
-    public decimal TotalOut { get; init; }
-    public decimal ClosingBalance => TotalIn - TotalOut;
 }
 
 public sealed class PaymentContractLookupItemViewModel

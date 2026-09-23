@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
@@ -391,7 +391,7 @@ public class FxDifferenceReportTests
         db.SarrafSettlements.AddRange(Receipt665(), noContract);
         await db.SaveChangesAsync();
 
-        var filtered = await BuildAsync(db, filter: new FxDifferenceReportFilterViewModel { CompanyId = 1 });
+        var filtered = await BuildAsync(db, filter: new FxDifferenceReportFilterViewModel { CompanyId = [1] });
 
         var row = Assert.Single(filtered.Rows);
         Assert.Equal("665", row.ReferenceNumber);
@@ -420,17 +420,17 @@ public class FxDifferenceReportTests
 
         Assert.Equal("681", Assert.Single((await BuildAsync(db, filter: new FxDifferenceReportFilterViewModel
         {
-            SarrafId = 2
+            SarrafId = [2]
         })).Rows).ReferenceNumber);
 
         Assert.Equal("681", Assert.Single((await BuildAsync(db, filter: new FxDifferenceReportFilterViewModel
         {
-            SupplierId = 2
+            SupplierId = [2]
         })).Rows).ReferenceNumber);
 
         Assert.Equal("665", Assert.Single((await BuildAsync(db, filter: new FxDifferenceReportFilterViewModel
         {
-            ContractId = 1
+            ContractId = [1]
         })).Rows).ReferenceNumber);
     }
 
@@ -470,7 +470,7 @@ public class FxDifferenceReportTests
         Assert.Equal(2, (await BuildAsync(db)).Rows.Count);
         Assert.Equal("681", Assert.Single((await BuildAsync(db, filter: new FxDifferenceReportFilterViewModel
         {
-            Status = SarrafSettlementStatus.Cancelled
+            Status = [SarrafSettlementStatus.Cancelled]
         })).Rows).ReferenceNumber);
     }
 

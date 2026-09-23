@@ -12,6 +12,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exports;
 using PTGOilSystem.Web.Services.Expenses;
+using PTGOilSystem.Web.Services.Reporting;
 using PTGOilSystem.Web.Services.Audit;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -96,15 +97,17 @@ public class CashAccountsController : Controller
                 || (a.Notes != null && a.Notes.Contains(term)));
         }
 
-        if (filter.AccountType.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.AccountType.Length > 0)
         {
-            query = query.Where(a => a.AccountType == filter.AccountType.Value);
+            var accountTypes = filter.AccountType;
+            query = query.Where(a => accountTypes.Contains(a.AccountType));
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Currency))
+        if (filter.Currency.Length > 0)
         {
-            var currency = SystemCurrency.Normalize(filter.Currency);
-            query = query.Where(a => a.Currency == currency);
+            var currencies = filter.Currency.Select(SystemCurrency.Normalize).ToArray();
+            query = query.Where(a => currencies.Contains(a.Currency));
         }
 
         if (filter.IsActive.HasValue)
@@ -119,7 +122,7 @@ public class CashAccountsController : Controller
     {
         filter ??= new CashAccountIndexFilterViewModel();
 
-        await PopulateCurrenciesAsync(filter.Currency);
+        await PopulateCurrenciesAsync(filter.Currency.FirstOrDefault());
         PopulateIndexLookups(filter);
 
         var pageSize = PTGOilSystem.Web.Helpers.ListPageSize.Resolve(perPage, IndexPageSize);
@@ -188,8 +191,8 @@ public class CashAccountsController : Controller
             Filters =
             [
                 new("جستجو", "Search", filter.Query),
-                new("ارز", "Currency", filter.Currency),
-                new("نوع حساب", "Account type", filter.AccountType?.ToString()),
+                new("ارز", "Currency", string.Join("، ", filter.Currency)),
+                new("نوع حساب", "Account type", string.Join("، ", filter.AccountType)),
                 new("وضعیت", "Status", filter.IsActive?.ToString())
             ],
             Columns =
@@ -216,16 +219,10 @@ public class CashAccountsController : Controller
             return NotFound();
         }
 
-        // گردشِ صندوق دو منبع دارد: رزنامچه و مصرفی که «نقد پرداخت شد» ثبت شده
-        // (گمرکِ نقدی و مانند آن). پیش از این فقط رزنامچه خوانده می‌شد، پس پرداختِ نقدیِ
-        // مصارف نه در فهرست بود و نه در مانده. هیچ سندی ساخته یا تغییر داده نمی‌شود؛
-        // فقط همان دو منبعِ موجود در یک فهرست خوانده می‌شوند.
-        //
-        // مصرفی که خودش یک PaymentTransaction مرتبط دارد (کمیسیونِ نقدی: هم سطرِ مصرف
-        // ساخته می‌شود هم خروجِ نقدیِ روزنامچه روی همان حساب) از منبعِ دوم بیرون می‌ماند،
-        // وگرنه همان یک خروجِ پول دو بار در فهرست و در مانده شمرده می‌شد.
-        var paymentRows = await _db.PaymentTransactions
-            .AsNoTracking()
+        // گردشِ صندوق همان دو منبعِ مرجعِ ماندهٔ نقدی است (CashPositionReader): سندِ روزنامچه و
+        // مصرفِ نقدیِ مستقل. فهرست و جمع هر دو از همان قاعده می‌آیند تا با کارت‌های مالی،
+        // روزنامچه، وضعیت مالی شرکت و موبایل یک عدد بدهند. هیچ سندی ساخته یا تغییر داده نمی‌شود.
+        var paymentRows = await CashPositionReader.CashPayments(_db.PaymentTransactions.AsNoTracking())
             .Include(p => p.Customer)
             .Include(p => p.Supplier)
             .Include(p => p.Employee)
@@ -252,12 +249,8 @@ public class CashAccountsController : Controller
             })
             .ToListAsync();
 
-        var expenseRows = await _db.ExpenseTransactions
-            .AsNoTracking()
-            .Where(e => e.CashAccountId == id
-                && !e.IsCancelled
-                && e.SettlementMode == ExpenseSettlementMode.PaidImmediately
-                && !_db.PaymentTransactions.Any(p => p.ExpenseTransactionId == e.Id))
+        var expenseRows = await CashPositionReader.StandaloneCashExpenses(_db, _db.ExpenseTransactions.AsNoTracking())
+            .Where(e => e.CashAccountId == id)
             .OrderByDescending(e => e.ExpenseDate)
             .ThenByDescending(e => e.Id)
             .Take(StatementRowLimit)
@@ -294,57 +287,18 @@ public class CashAccountsController : Controller
             .ThenByDescending(row => row.Id)
             .Take(StatementRowLimit)
             .ToList();
-        // جمع‌ها از کلِ تراکنش‌های همین حساب خوانده می‌شوند، نه از سطرهای نمایش‌داده‌شده.
-        // مبالغِ ارزهای مختلف هم با هم جمع نمی‌شوند: اگر همهٔ اسناد به ارز خودِ حساب باشند
-        // (حالت عادی) جمعِ ارزی نشان داده می‌شود، وگرنه معادلِ دالریِ همان اسناد — تنها
-        // مقیاسی که برای همهٔ اسناد ثبت شده است.
-        var totals = await _db.PaymentTransactions
-            .AsNoTracking()
-            .Where(p => p.CashAccountId == id)
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                NativeIn = g.Where(p => p.Direction == PaymentDirection.In && p.Currency == item.Currency)
-                    .Sum(p => (decimal?)p.Amount) ?? 0m,
-                NativeOut = g.Where(p => p.Direction == PaymentDirection.Out && p.Currency == item.Currency)
-                    .Sum(p => (decimal?)p.Amount) ?? 0m,
-                UsdIn = g.Where(p => p.Direction == PaymentDirection.In)
-                    .Sum(p => (decimal?)p.AmountUsd) ?? 0m,
-                UsdOut = g.Where(p => p.Direction == PaymentDirection.Out)
-                    .Sum(p => (decimal?)p.AmountUsd) ?? 0m,
-                ForeignCurrencyCount = g.Count(p => p.Currency != item.Currency)
-            })
-            .FirstOrDefaultAsync();
-
-        // همان قاعده برای مصارفِ نقدی؛ همیشه سمتِ پرداخت.
-        var expenseTotals = await _db.ExpenseTransactions
-            .AsNoTracking()
-            .Where(e => e.CashAccountId == id
-                && !e.IsCancelled
-                && e.SettlementMode == ExpenseSettlementMode.PaidImmediately
-                && !_db.PaymentTransactions.Any(p => p.ExpenseTransactionId == e.Id))
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                NativeOut = g.Where(e => e.Currency == item.Currency)
-                    .Sum(e => (decimal?)e.Amount) ?? 0m,
-                UsdOut = g.Sum(e => (decimal?)e.AmountUsd) ?? 0m,
-                ForeignCurrencyCount = g.Count(e => e.Currency != item.Currency)
-            })
-            .FirstOrDefaultAsync();
-
-        var hasForeignCurrency = (totals?.ForeignCurrencyCount ?? 0) + (expenseTotals?.ForeignCurrencyCount ?? 0) > 0;
-        var totalIn = hasForeignCurrency ? totals?.UsdIn ?? 0m : totals?.NativeIn ?? 0m;
-        var totalOut = hasForeignCurrency
-            ? (totals?.UsdOut ?? 0m) + (expenseTotals?.UsdOut ?? 0m)
-            : (totals?.NativeOut ?? 0m) + (expenseTotals?.NativeOut ?? 0m);
+        // جمع‌ها از کلِ تراکنش‌های همین حساب و فقط از مرجعِ ماندهٔ نقدی خوانده می‌شوند، نه از
+        // سطرهای نمایش‌داده‌شده. قاعدهٔ ارز (جمعِ ارزی، یا دالری اگر سندِ ارزِ دیگر هست) همان‌جاست.
+        var totals = (await new CashPositionReader(_db).ReadAccountTotalsAsync([id], beforeDate: null))
+            .FirstOrDefault();
 
         ViewBag.StatementRows = transactions;
 
-        ViewBag.TotalIn = totalIn;
-        ViewBag.TotalOut = totalOut;
-        ViewBag.ClosingBalance = totalIn - totalOut;
-        ViewBag.TotalsCurrency = hasForeignCurrency ? SystemCurrency.BaseCurrencyCode : item.Currency;
+        ViewBag.TotalIn = totals?.TotalIn ?? 0m;
+        ViewBag.TotalOut = totals?.TotalOut ?? 0m;
+        ViewBag.ClosingBalance = totals?.Balance ?? 0m;
+        ViewBag.TotalsCurrency = totals?.TotalsCurrency ?? SystemCurrency.Normalize(item.Currency);
+        ViewBag.MissingUsdEquivalentCount = totals?.MissingUsdEquivalentCount ?? 0;
 
         return View(item);
     }

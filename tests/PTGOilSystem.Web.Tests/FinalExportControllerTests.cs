@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -57,7 +57,7 @@ public class FinalExportControllerTests
             // بازهٔ تاریخ برای خروجی CSV الزامی است.
             FromDate = new DateTime(2026, 4, 1),
             ToDate = new DateTime(2026, 4, 2),
-            SourceType = "Sale",
+            SourceType = ["Sale"],
             Reference = "INV"
         });
 
@@ -112,7 +112,7 @@ public class FinalExportControllerTests
 
         var result = await controller.Csv(new AccountStatementFilterViewModel
         {
-            SourceCurrencyCode = "USD",
+            SourceCurrencyCode = ["USD"],
             Reference = "OPEN"
         });
 

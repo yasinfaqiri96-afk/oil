@@ -1007,6 +1007,33 @@ public class InventoryTransportLegsControllerTests
     }
 
     [Fact]
+    public async Task Details_Lists_Real_Source_Of_Each_Allocation_With_Kind_Reference_And_Quantity()
+    {
+        await using var db = CreateDb();
+        await SeedReferenceDataAsync(db);
+        await SeedLegacyReceiptBackedStockAsync(db, contractId: 1, loadingId: 90, receiptId: 91, movementId: 92, quantityMt: 40m);
+        var parent = await SeedDraftLegAsync(db, quantityMt: 5m);
+        var leg = await SeedDraftLegAsync(db, quantityMt: 25m);
+        db.InventoryTransportLegAllocations.AddRange(
+            new InventoryTransportLegAllocation { InventoryTransportLegId = leg.Id, SourcePurchaseContractId = 1, SourceLoadingRegisterId = 90, QuantityMt = 4m },
+            new InventoryTransportLegAllocation { InventoryTransportLegId = leg.Id, SourcePurchaseContractId = 1, SourceLoadingReceiptId = 91, QuantityMt = 6m },
+            new InventoryTransportLegAllocation { InventoryTransportLegId = leg.Id, SourcePurchaseContractId = 1, SourceLoadingReceiptId = 91, SourceInventoryMovementId = 92, QuantityMt = 10m },
+            new InventoryTransportLegAllocation { InventoryTransportLegId = leg.Id, SourcePurchaseContractId = 1, SourceLoadingReceiptId = 91, SourceTransportLegId = parent.Id, QuantityMt = 5m });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.Details(leg.Id);
+
+        var model = Assert.IsType<InventoryTransportLegDetailsViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Collection(model.Sources,
+            s => { Assert.Equal(InventoryTransportLegSourceKind.Loading, s.Kind); Assert.Equal(90, s.SourceId); Assert.Equal(4m, s.QuantityMt); },
+            s => { Assert.Equal(InventoryTransportLegSourceKind.LoadingReceipt, s.Kind); Assert.Equal(91, s.SourceId); Assert.Equal("RC-0091", s.Reference); Assert.Equal(6m, s.QuantityMt); },
+            s => { Assert.Equal(InventoryTransportLegSourceKind.StorageTank, s.Kind); Assert.Equal(1, s.SourceId); Assert.Equal("TK-1", s.Reference); Assert.Equal(10m, s.QuantityMt); },
+            s => { Assert.Equal(InventoryTransportLegSourceKind.Vehicle, s.Kind); Assert.Equal(parent.Id, s.SourceId); Assert.Equal("WGN-001", s.Place); Assert.Equal(5m, s.QuantityMt); });
+        Assert.All(model.Sources, s => Assert.Contains("PUR-1", s.ContractLabel));
+    }
+
+    [Fact]
     public async Task Details_Computes_Pnl_For_Transported_Quantity()
     {
         await using var db = CreateDb();
@@ -1568,6 +1595,7 @@ public class InventoryTransportLegsControllerTests
                 {
                     TransportType = LoadingTransportType.Truck,
                     DriverId = 1,
+                    DriverNameInput = "Ahmad",
                     QuantityMt = 10m,
                     CapacityMt = 20m,
                     CarrierType = CarrierType.OperationalAsset,

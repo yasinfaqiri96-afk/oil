@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Models.Balance;
@@ -14,19 +14,19 @@ public sealed class ContractsBalanceFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "نوع قرارداد")]
-    public ContractType? ContractType { get; set; }
+    public ContractType[] ContractType { get; set; } = [];
 
     [Display(Name = "وضعیت")]
-    public ContractStatus? Status { get; set; }
+    public ContractStatus[] Status { get; set; } = [];
 
     [Display(Name = "جنس")]
-    public int? ProductId { get; set; }
+    public int[] ProductId { get; set; } = [];
 
     [Display(Name = "مشتری")]
-    public int? CustomerId { get; set; }
+    public int[] CustomerId { get; set; } = [];
 
     [Display(Name = "تأمین‌کننده")]
-    public int? SupplierId { get; set; }
+    public int[] SupplierId { get; set; } = [];
 
     [Display(Name = "جستجو")]
     [StringLength(200)]
@@ -44,11 +44,10 @@ public sealed class CustomersBalanceFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "مشتری")]
-    public int? CustomerId { get; set; }
+    public int[] CustomerId { get; set; } = [];
 
     [Display(Name = "کشور")]
-    [StringLength(20)]
-    public string? Country { get; set; }
+    public string[] Country { get; set; } = [];
 
     [Display(Name = "جستجو")]
     [StringLength(200)]
@@ -66,11 +65,10 @@ public sealed class SuppliersBalanceFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "تأمین‌کننده")]
-    public int? SupplierId { get; set; }
+    public int[] SupplierId { get; set; } = [];
 
     [Display(Name = "کشور")]
-    [StringLength(20)]
-    public string? Country { get; set; }
+    public string[] Country { get; set; } = [];
 
     [Display(Name = "جستجو")]
     [StringLength(200)]
@@ -102,6 +100,10 @@ public sealed class ContractsBalanceViewModel
     public int CurrentPage { get; init; } = 1;
     public int PageCount { get; init; } = 1;
     public int TotalCount { get; init; }
+    /// <summary>جمع‌های کارت‌های بالای صفحه روی همهٔ نتایجِ فیلتر (نه فقط صفحهٔ جاری).</summary>
+    public decimal FilteredTotalSalesUsd { get; init; }
+    public decimal FilteredTotalExpensesUsd { get; init; }
+    public decimal FilteredBalanceUsd { get; init; }
 }
 
 public sealed class CustomerBalanceListItemViewModel
@@ -125,6 +127,10 @@ public sealed class CustomersBalanceViewModel
     public int CurrentPage { get; init; } = 1;
     public int PageCount { get; init; } = 1;
     public int TotalCount { get; init; }
+    /// <summary>جمع‌های کارت‌های بالای صفحه روی همهٔ نتایجِ فیلتر (نه فقط صفحهٔ جاری).</summary>
+    public decimal FilteredTotalSalesUsd { get; init; }
+    public decimal FilteredTotalExpensesUsd { get; init; }
+    public decimal FilteredBalanceUsd { get; init; }
 }
 
 public sealed class SupplierBalanceListItemViewModel
@@ -148,4 +154,8 @@ public sealed class SuppliersBalanceViewModel
     public int CurrentPage { get; init; } = 1;
     public int PageCount { get; init; } = 1;
     public int TotalCount { get; init; }
+    /// <summary>جمع‌های کارت‌های بالای صفحه روی همهٔ نتایجِ فیلتر (نه فقط صفحهٔ جاری).</summary>
+    public decimal FilteredTotalSalesUsd { get; init; }
+    public decimal FilteredTotalExpensesUsd { get; init; }
+    public decimal FilteredBalanceUsd { get; init; }
 }

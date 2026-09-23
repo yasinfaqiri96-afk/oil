@@ -1,9 +1,9 @@
-@model PTGOilSystem.Web.Models.Expenses.ExpenseRuleIndexViewModel
+﻿@model PTGOilSystem.Web.Models.Expenses.ExpenseRuleIndexViewModel
 @using PTGOilSystem.Web.Models.Expenses
 @{
     ViewData["Title"] = UiText.T(Context, "قواعد مصرف", "Expense Rules");
     var items = Model.Items;
-    var hasFilters = !string.IsNullOrWhiteSpace((string?)ViewData["calculationKind"]) || ViewData["isActive"] != null;
+    var hasFilters = ViewData["calculationKind"] is string[] { Length: > 0 } || ViewData["isActive"] != null;
     var hasSearch = !string.IsNullOrWhiteSpace((string?)ViewData["q"]) || hasFilters;
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     var activeCount = items.Count(item => item.IsActive);
@@ -40,7 +40,7 @@
             "جستجو در نام قاعده، نوع مصرف یا ارز...",
             new List<AkFilterDefinition>
             {
-                new("calculationKind", "نوع محاسبه", "select", expRuleKindOptions, (string?)ViewData["calculationKind"]),
+                AkFilterDefinition.MultiSelect("calculationKind", "نوع محاسبه", expRuleKindOptions, ViewData["calculationKind"] as string[]),
                 new("isActive", "وضعیت", "bool",
                     new List<AkFilterOption> { new("true", "فعال"), new("false", "غیرفعال") },
                     expRulesIsActive)

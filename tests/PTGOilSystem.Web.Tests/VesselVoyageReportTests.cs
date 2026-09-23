@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
@@ -326,7 +326,7 @@ public class VesselVoyageReportTests
         AddVoyage(db, id: 2, code: "V-002", vesselId: 2, date: new DateTime(2026, 2, 5), quantityMt: 5000m);
         await db.SaveChangesAsync();
 
-        var model = await BuildAsync(db, new VesselVoyageReportFilterViewModel { VesselId = 2 });
+        var model = await BuildAsync(db, new VesselVoyageReportFilterViewModel { VesselId = [2] });
 
         Assert.Equal("V-002", Assert.Single(model.Rows).ShipmentCode);
         Assert.Equal(1, model.Totals.VoyageCount);
@@ -410,7 +410,7 @@ public class VesselVoyageReportTests
         await db.SaveChangesAsync();
 
         // قرارداد ۲ متعلق به تأمین‌کنندهٔ ۲ است.
-        var model = await BuildAsync(db, new VesselVoyageReportFilterViewModel { SupplierId = 2 });
+        var model = await BuildAsync(db, new VesselVoyageReportFilterViewModel { SupplierId = [2] });
 
         Assert.Equal("V-002", Assert.Single(model.Rows).ShipmentCode);
     }
@@ -448,7 +448,7 @@ public class VesselVoyageReportTests
 
         var result = Assert.IsType<TabularExportResult>(await NewController(db).VesselVoyagesExport(
             format,
-            new VesselVoyageReportFilterViewModel { VesselId = 2 }));
+            new VesselVoyageReportFilterViewModel { VesselId = [2] }));
 
         Assert.Equal(expected, result.Format);
         Assert.Equal("PTG_Vessel_Voyages", result.Document.FileNameStem);

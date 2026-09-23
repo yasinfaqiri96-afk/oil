@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -141,6 +141,46 @@ public sealed class TransportContinueCancelRow
     public string? BlockReason { get; set; }
 }
 
+/// <summary>
+/// حمل‌هایی که با «تبدیل بارگیری به حمل» ساخته شده‌اند، برای دیدن و لغو گروهی.
+/// </summary>
+public sealed class TransportLoadingCancelViewModel
+{
+    /// <summary>سقف ردیف‌های نمایش‌داده‌شده و لغوشده در یک درخواست.</summary>
+    public const int MaxRows = 500;
+
+    [DataType(DataType.Date)]
+    public DateTime? FromDate { get; set; }
+
+    [DataType(DataType.Date)]
+    public DateTime? ToDate { get; set; }
+
+    public string? Q { get; set; }
+
+    /// <summary>فقط حمل‌های همین بارگیری (از صفحهٔ جزئیات بارگیری).</summary>
+    public int? LoadingId { get; set; }
+
+    /// <summary>کل حمل‌های مطابق فیلتر؛ می‌تواند از ردیف‌های نمایش‌داده‌شده بیشتر باشد.</summary>
+    public int TotalCount { get; set; }
+
+    public List<TransportLoadingCancelRow> Rows { get; set; } = [];
+}
+
+public sealed class TransportLoadingCancelRow
+{
+    public int LegId { get; set; }
+    public int? BatchId { get; set; }
+    public int? LoadingId { get; set; }
+    public string Label { get; set; } = "";
+    public string LoadingLabel { get; set; } = "";
+    public string ProductName { get; set; } = "";
+    public decimal QuantityMt { get; set; }
+    public DateTime TransportDate { get; set; }
+
+    /// <summary>اگر پر باشد، این حمل قابل لغو نیست و علتش همین متن است.</summary>
+    public string? BlockReason { get; set; }
+}
+
 /// <summary>یک وسیلهٔ مقصدِ قابل انتخاب؛ Key به شکل «نوع:شناسه» است.</summary>
 public sealed record TransportTargetVehicleOption(string Key, string Label, string Group);
 
@@ -191,6 +231,46 @@ public sealed class TransportBulkFromLoadingViewModel
     public DateTime TransportDate { get; set; } = AfghanistanBusinessClock.SystemToday;
 
     public string? ReturnUrl { get; set; }
+
+    /// <summary>
+    /// حالتِ «همهٔ نتایج فیلتر». در این حالت هیچ ردیفی post نمی‌شود — سرور خودش همان فیلترِ
+    /// صفحهٔ بارگیری را دوباره اجرا می‌کند و هر بارگیری با وسیله و باقیماندهٔ خودش تبدیل می‌شود.
+    /// این تنها راهی است که هزاران ردیف از سقف فیلدهای فرم و حجم HTML عبور می‌کند.
+    /// </summary>
+    public bool UseFilterSelection { get; set; }
+
+    /// <summary>فیلترِ صفحهٔ بارگیری، همان‌طور که کاربر آن را دیده است.</summary>
+    public TransportBulkLoadingFilter Filter { get; set; } = new();
+
+    /// <summary>تعداد بارگیریِ قابل تبدیل مطابق فیلتر (فقط نمایشی).</summary>
+    public int FilterMatchCount { get; set; }
+
+    /// <summary>مجموع باقیماندهٔ همان بارگیری‌ها (فقط نمایشی).</summary>
+    public decimal FilterMatchQuantityMt { get; set; }
+
+    /// <summary>سقفِ ایمنِ یک عملیات؛ بیشتر از این در یک درخواست تبدیل نمی‌شود.</summary>
+    public const int MaxRows = 20_000;
+
+    /// <summary>بالاتر از این تعداد، گرید ردیفی رندر نمی‌شود و صفحه به حالت خلاصه می‌رود.</summary>
+    public const int MaxRenderedRows = 500;
+}
+
+/// <summary>
+/// همان پارامترهای فیلترِ صفحهٔ «ثبت‌های بارگیری». عمداً همان نام‌ها را دارد تا query string
+/// صفحهٔ لیست بدون ترجمه به این فرم منتقل شود.
+/// </summary>
+public sealed class TransportBulkLoadingFilter
+{
+    public string? Q { get; set; }
+    public int[]? ContractId { get; set; }
+    public int[]? ProductId { get; set; }
+    public bool WithoutReceipt { get; set; }
+    public int[]? TransportType { get; set; }
+    public string? ReceiptStatus { get; set; }
+    public string? PriceStatus { get; set; }
+
+    [DataType(DataType.Date)] public DateTime? FromDate { get; set; }
+    [DataType(DataType.Date)] public DateTime? ToDate { get; set; }
 }
 
 public sealed class TransportBulkFromLoadingRow

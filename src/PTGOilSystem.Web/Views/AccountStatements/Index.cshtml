@@ -1,11 +1,11 @@
-@model PTGOilSystem.Web.Models.AccountStatements.AccountStatementIndexViewModel
+﻿@model PTGOilSystem.Web.Models.AccountStatements.AccountStatementIndexViewModel
 @{
     var currencies = ViewBag.Currencies as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
     ViewData["Title"] = "استیتمنت‌های ارزی";
     var netChangeUsd = Model.ClosingBalanceUsd - Model.OpeningBalanceUsd;
     var hasAdvancedFilter = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || !string.IsNullOrWhiteSpace(Model.Filter.SourceCurrencyCode) || Model.Filter.ContractId.HasValue
-        || Model.Filter.CustomerId.HasValue || Model.Filter.SupplierId.HasValue || !string.IsNullOrWhiteSpace(Model.Filter.Reference);
+        || Model.Filter.SourceCurrencyCode.Length > 0 || Model.Filter.ContractId.Length > 0
+        || Model.Filter.CustomerId.Length > 0 || Model.Filter.SupplierId.Length > 0 || !string.IsNullOrWhiteSpace(Model.Filter.Reference);
 }
 
 <div class="ak-list-page finance-workspace-page">
@@ -33,10 +33,10 @@
                 {
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToHtmlDateInput(), "Filter.ToDate", Model.Filter.ToDate?.ToHtmlDateInput()),
-                    new("Filter.SourceCurrencyCode", UiText.T(Context, "ارز منبع", "Source currency"), "select", StmtOpts(currencies), StmtQ("Filter.SourceCurrencyCode")),
-                    new("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", StmtOpts(ViewBag.Contracts), StmtQ("Filter.ContractId")),
-                    new("Filter.CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", StmtOpts(ViewBag.Customers), StmtQ("Filter.CustomerId")),
-                    new("Filter.SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), "select", StmtOpts(ViewBag.Suppliers), StmtQ("Filter.SupplierId")),
+                    AkFilterDefinition.MultiSelect("Filter.SourceCurrencyCode", UiText.T(Context, "ارز منبع", "Source currency"), StmtOpts(currencies), AkFilterQuery.Values(Context, "Filter.SourceCurrencyCode")),
+                    AkFilterDefinition.MultiSelect("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), StmtOpts(ViewBag.Contracts), AkFilterQuery.Values(Context, "Filter.ContractId")),
+                    AkFilterDefinition.MultiSelect("Filter.CustomerId", UiText.T(Context, "مشتری", "Customer"), StmtOpts(ViewBag.Customers), AkFilterQuery.Values(Context, "Filter.CustomerId")),
+                    AkFilterDefinition.MultiSelect("Filter.SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), StmtOpts(ViewBag.Suppliers), AkFilterQuery.Values(Context, "Filter.SupplierId")),
                     new("Filter.Reference", UiText.T(Context, "مرجع", "Reference"), "text", null, Model.Filter.Reference)
                 });
         }

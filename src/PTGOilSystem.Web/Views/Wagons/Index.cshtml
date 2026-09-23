@@ -1,10 +1,10 @@
-@model IEnumerable<Wagon>
+﻿@model IEnumerable<Wagon>
 @{
     ViewData["Title"] = UiText.T(Context, "واگون‌ها", "Wagons");
     var wagons = Model.ToList();
     var query = ViewData["q"]?.ToString();
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
-    var hasFilters = !string.IsNullOrWhiteSpace((string?)ViewData["wagonType"]) || ViewData["isActive"] != null;
+    var hasFilters = ViewData["wagonType"] is string[] { Length: > 0 } || ViewData["isActive"] != null;
     var hasSearch = !string.IsNullOrWhiteSpace(query) || hasFilters;
 
     string TextOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
@@ -26,7 +26,7 @@
             UiText.T(Context, "جستجو در شماره، نوع، مالک یا یادداشت...", "Search number, type, owner, or notes..."),
             new List<AkFilterDefinition>
             {
-                new("wagonType", UiText.T(Context, "نوع واگن", "Wagon type"), "select", wagonTypeOptions, (string?)ViewData["wagonType"]),
+                AkFilterDefinition.MultiSelect("wagonType", UiText.T(Context, "نوع واگن", "Wagon type"), wagonTypeOptions, ViewData["wagonType"] as string[]),
                 new("isActive", UiText.T(Context, "وضعیت", "Status"), "bool",
                     new List<AkFilterOption> { new("true", UiText.T(Context, "فعال", "Active")), new("false", UiText.T(Context, "غیرفعال", "Inactive")) },
                     wagonsIsActive)

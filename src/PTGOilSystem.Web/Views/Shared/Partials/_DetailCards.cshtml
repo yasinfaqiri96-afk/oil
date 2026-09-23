@@ -191,6 +191,16 @@
                                             }
                                         </button>
                                     }
+                                    else if (!string.IsNullOrWhiteSpace(metric.Href))
+                                    {
+                                        <a class="ptg-td-flow-trigger" href="@metric.Href">
+                                            <bdi>@metric.Value</bdi>
+                                            @if (!string.IsNullOrWhiteSpace(metric.Unit))
+                                            {
+                                                <small>@metric.Unit</small>
+                                            }
+                                        </a>
+                                    }
                                     else
                                     {
                                         <bdi>@metric.Value</bdi>

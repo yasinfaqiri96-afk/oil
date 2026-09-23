@@ -63,8 +63,9 @@ public sealed class SupplierProfileViewModel
     public decimal RemainingPurchaseQuantityMt { get; init; }
     public decimal EstimatedRemainingContractValueUsd { get; init; }
     public decimal? EstimatedRemainingContractValueRub { get; init; }
-    public decimal LedgerOutflowUsd { get; init; }
-    public decimal LedgerReceiptUsd { get; init; }
+    // از جمع‌های صورت‌حساب رسمی (PartyStatementReadService) پر می‌شود.
+    public decimal LedgerOutflowUsd { get; set; }
+    public decimal LedgerReceiptUsd { get; set; }
     // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
     // مثبت یعنی شرکت پیش‌پرداخت دارد. هم‌علامتِ PartyStatementSummary.ClosingBalance
     // است تا صفحاتی که به این مقدار fallback می‌کنند علامت متضاد نشان ندهند.

@@ -609,7 +609,7 @@
 
     function setupClientTablePagination(table) {
         var rows;
-        var pageSize = 20;
+        var pageSize = 10;
         var currentPage = 1;
         var pager;
         var pagerInfo;
@@ -619,6 +619,7 @@
 
         if (!table || table.dataset.clientPagerReady === "true") return;
         if (table.closest("[data-disable-client-pagination='true']")) return;
+        if (hasServerPagination(table)) return;
         if (table.closest("[data-storage-contract-modal], [data-st-modal-pager]")) return;
         if (!isListTable(table)) return;
 
@@ -704,6 +705,11 @@
         }
 
         renderClientPager();
+    }
+
+    function hasServerPagination(table) {
+        var list = table.closest(".ak-list, [data-operations-list], .ak-list-page, .ak-form-page");
+        return !!(list && list.querySelector("[data-server-pagination='true']"));
     }
 
     function isListTable(table) {

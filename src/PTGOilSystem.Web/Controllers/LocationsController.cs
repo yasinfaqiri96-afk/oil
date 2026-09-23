@@ -28,7 +28,7 @@ public class LocationsController : Controller
         _deleteSafety = deleteSafety;
     }
 
-    public async Task<IActionResult> Index(string? q, string? kind, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(string? q, string[]? kind, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 12);
         ViewData["PageSize"] = pageSize;
@@ -37,8 +37,9 @@ public class LocationsController : Controller
         var query = _db.Locations.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(p => (p.Code != null && p.Code.Contains(q)) || p.Name.Contains(q) || (p.NamePersian != null && p.NamePersian.Contains(q)));
-        if (!string.IsNullOrWhiteSpace(kind))
-            query = query.Where(p => p.Kind == kind);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (kind is { Length: > 0 })
+            query = query.Where(p => p.Kind != null && kind.Contains(p.Kind));
         if (isActive.HasValue)
             query = query.Where(p => p.IsActive == isActive.Value);
 
@@ -47,7 +48,7 @@ public class LocationsController : Controller
         page = Math.Clamp(page, 1, pageCount);
 
         ViewData["q"] = q;
-        ViewData["kind"] = kind;
+        ViewData["kind"] = kind ?? [];
         ViewData["isActive"] = isActive;
         ViewData["CurrentPage"] = page;
         ViewData["PageCount"] = pageCount;

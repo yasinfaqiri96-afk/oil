@@ -19,7 +19,7 @@
         => f.Options?.FirstOrDefault(o => o.Value == value)?.Label ?? value;
 
     bool IsApplied(AkFilterDefinition f)
-        => !string.IsNullOrEmpty(f.Value) || !string.IsNullOrEmpty(f.SecondValue);
+        => f.AppliedValues.Count > 0 || !string.IsNullOrEmpty(f.SecondValue);
 
     string ChipValueText(AkFilterDefinition f)
     {
@@ -29,8 +29,18 @@
             var to = string.IsNullOrEmpty(f.SecondValue) ? "…" : f.SecondValue;
             return $"{from} → {to}";
         }
-        return OptionLabel(f, f.Value) ?? f.Value ?? "";
+
+        var applied = f.AppliedValues;
+        if (applied.Count == 0) return "";
+        var first = OptionLabel(f, applied[0]) ?? applied[0];
+        // چند مقدار در یک فیلتر: برچسب اولی + شمارندهٔ بقیه (OR بین مقادیر).
+        return applied.Count > 1 ? $"{first} +{applied.Count - 1}" : first;
     }
+
+    string ChipTitle(AkFilterDefinition f)
+        => f.Type == "daterange"
+            ? ChipValueText(f)
+            : string.Join("، ", f.AppliedValues.Select(v => OptionLabel(f, v) ?? v));
 
     // Config consumed by ak-search-filter.js to build the field/value popover.
     var config = filters.Select(f => new
@@ -39,6 +49,7 @@
         label = f.Label,
         type = f.Type,
         secondKey = f.SecondKey,
+        multiple = f.Multiple,
         options = (f.Options ?? new List<AkFilterOption>()).Select(o => new { value = o.Value, label = o.Label })
     });
     var configJson = JsonSerializer.Serialize(config);
@@ -48,10 +59,18 @@
         <div class="ak-filter-chips" data-ak-filter-chips aria-live="polite">
             @foreach (var f in filters.Where(IsApplied))
             {
-                <span class="ak-chip-group" data-ak-chip="@f.Key">
+                <span class="ak-chip-group @(f.Multiple && f.AppliedValues.Count > 1 ? "is-multi" : null)" data-ak-chip="@f.Key">
                     <span class="ak-chip">@f.Label</span>
-                    <span class="ak-chip">
-                        <span>@ChipValueText(f)</span>
+                    <span class="ak-chip" title="@ChipTitle(f)">
+                        @if (f.Multiple)
+                        {
+                            <button type="button" class="ak-chip-edit" data-ak-edit-chip="@f.Key"
+                                    aria-label="@UiText.T(Context, "ویرایش فیلتر", "Edit filter")">@ChipValueText(f)</button>
+                        }
+                        else
+                        {
+                            <span>@ChipValueText(f)</span>
+                        }
                         <button type="button" class="ak-chip-remove" data-ak-remove-chip="@f.Key"
                                 aria-label="@UiText.T(Context, "حذف فیلتر", "Remove filter")">&times;</button>
                     </span>
@@ -62,9 +81,10 @@
         @* Hidden inputs = the real submitted params (server-rendered so state survives reload). *@
         @foreach (var f in filters.Where(IsApplied))
         {
-            if (!string.IsNullOrEmpty(f.Value))
+            // چندمقداری: همان نام پارامتر تکرار می‌شود تا model binding آرایه بسازد.
+            foreach (var appliedValue in f.AppliedValues)
             {
-                <input type="hidden" name="@f.Key" value="@f.Value" data-ak-filter-param="@f.Key" />
+                <input type="hidden" name="@f.Key" value="@appliedValue" data-ak-filter-param="@f.Key" />
             }
             if (f.Type == "daterange" && !string.IsNullOrEmpty(f.SecondKey) && !string.IsNullOrEmpty(f.SecondValue))
             {

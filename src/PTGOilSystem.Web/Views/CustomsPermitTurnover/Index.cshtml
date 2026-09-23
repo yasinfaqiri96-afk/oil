@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Customs.CustomsPermitTurnoverViewModel
+﻿@model PTGOilSystem.Web.Models.Customs.CustomsPermitTurnoverViewModel
 @{
     ViewData["Title"] = "گزارش جوازهای گمرکی";
     var currentUrl = Context.Request.Path + Context.Request.QueryString;
@@ -19,7 +19,7 @@
     var mahsooliCardUnit = selUsd ? "USD" : "AFN";
 }
 
-<div class="ak-list-page" dir="rtl">
+<div class="ak-list-page" dir="rtl" data-operations-list>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("گزارش جوازهای گمرکی", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
@@ -150,6 +150,10 @@
                     </tfoot>
                 }
             </table>
+        </div>
+
+        <div class="ak-pager">
+            @await Html.PartialAsync("_OperationsListFooter", (Model.CurrentPage, Model.PageCount, Model.VehicleCount, 50))
         </div>
     </div>
 </div>

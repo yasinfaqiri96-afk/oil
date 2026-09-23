@@ -25,6 +25,19 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
     /// <summary>تنها منبعِ ماندهٔ شریک. این سرویس فرمول جداگانه‌ای برای شریک ندارد.</summary>
     private readonly IPartnershipStatementService _partnershipStatements;
 
+    /// <summary>
+    /// همان سرویسِ ثبت‌شده در DI با قواعدِ پیش‌فرض. هر جا سرویس تزریق نشده (ساخت دستی/تست)
+    /// از همین استفاده می‌شود تا هیچ صفحه‌ای به فرمولِ خامِ Debit/Credit برنگردد.
+    /// </summary>
+    public static PartyStatementReadService CreateDefault(ApplicationDbContext db)
+        => new(
+            db,
+            new PartyStatementPolicyResolver(),
+            new CompanyFlowDirectionResolver(),
+            new CompanyFlowBalanceService(),
+            Options.Create(new PartyStatementOptions()),
+            new PartyDirectory(db));
+
     public PartyStatementReadService(
         ApplicationDbContext db,
         IPartyStatementPolicyResolver policyResolver,

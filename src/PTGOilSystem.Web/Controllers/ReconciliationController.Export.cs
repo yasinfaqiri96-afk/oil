@@ -219,8 +219,8 @@ public partial class ReconciliationController
             Columns =
             [
                 new("نوع", "Entity type", Width: 15), new("شناسه", "Entity ID", TabularExportValueType.Integer, 11),
-                new("نام", "Name", Width: 22), new("بدهکار USD", "Debit USD", TabularExportValueType.Number, 16),
-                new("بستانکار USD", "Credit USD", TabularExportValueType.Number, 16),
+                new("نام", "Name", Width: 22), new("برد (داده) USD", "Given USD", TabularExportValueType.Number, 16),
+                new("رسید (گرفته) USD", "Received USD", TabularExportValueType.Number, 16),
                 new("مانده USD", "Balance USD", TabularExportValueType.Number, 16), new("وضعیت", "Status", Width: 14)
             ],
             Rows = rows.Select(row => new TabularExportRow(

@@ -9,7 +9,7 @@ namespace PTGOilSystem.Web.Models.OperationalAssets;
 public sealed class OperationalAssetIndexFilterViewModel
 {
     [Display(Name = "نوع دارایی")]
-    public OperationalAssetType? AssetType { get; set; }
+    public OperationalAssetType[] AssetType { get; set; } = [];
 
     [Display(Name = "وضعیت")]
     public bool? IsActive { get; set; }

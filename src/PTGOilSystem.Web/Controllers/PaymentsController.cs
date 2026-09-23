@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -44,7 +44,7 @@ public class PaymentsController : Controller
     // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است.
     private readonly Services.Expenses.IExpenseSettlementValidator _settlementValidator
         = new Services.Expenses.ExpenseSettlementValidator();
-    private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyStatementReadService _partyStatements;
     // مرحله ۴ — Dual-write اختیاری به دفتر کل جدید. پشت Feature Flag و null-safe: اگر تزریق
     // نشود یا خاموش باشد، مسیر قدیمی هیچ تغییری نمی‌کند.
     private readonly Services.Accounting.IPaymentAccountingAdapter? _paymentAccounting;
@@ -97,7 +97,7 @@ public class PaymentsController : Controller
         _paymentAccounting = paymentAccounting;
         _viaSarrafAccounting = viaSarrafAccounting;
         _expenseAccounting = expenseAccounting;
-        _partyStatements = partyStatements;
+        _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
         _ledger = ledgerPosting ?? new LedgerPostingService(db);
     }
 
@@ -153,9 +153,9 @@ public class PaymentsController : Controller
             TodayReceiptMissingUsdEquivalentCount = summary.TodayReceiptMissingUsdEquivalentCount,
             TodayPaymentMissingUsdEquivalentCount = summary.TodayPaymentMissingUsdEquivalentCount,
             CashAccountsBalanceUsd = summary.CashAccountsBalanceUsd,
+            CashBalanceMissingUsdEquivalentCount = summary.CashBalanceMissingUsdEquivalentCount,
             LastDocumentReference = summary.LastDocumentReference,
-            LastDocumentDate = summary.LastDocumentDate,
-            CashAccountBalances = summary.CashAccountBalances
+            LastDocumentDate = summary.LastDocumentDate
         });
     }
 
@@ -164,18 +164,8 @@ public class PaymentsController : Controller
     [HttpGet]
     public async Task<IActionResult> Hub()
     {
-        var today = _businessClock.Today;
-
-        var todayTotals = await _db.PaymentTransactions
-            .AsNoTracking()
-            .Where(p => p.PaymentDate == today)
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                ReceiptUsd = g.Where(p => p.Direction == PaymentDirection.In).Sum(p => (decimal?)p.AmountUsd) ?? 0m,
-                PaymentUsd = g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => (decimal?)p.AmountUsd) ?? 0m
-            })
-            .FirstOrDefaultAsync();
+        // دریافتی/پرداختی امروز از همان مرجعِ کارت‌های مالی؛ query موازی ساخته نمی‌شود.
+        var todayTotals = await FinanceMetricCardsQuery.BuildAsync(_db, _summaryCache, businessClock: _businessClock);
 
         // پول معلق: پرداختی که هیچ طرف‌حسابی ندارد (همان معیار critical رزنامچه در مرکز تطبیق).
         var suspenseCount = await _db.PaymentTransactions
@@ -196,8 +186,8 @@ public class PaymentsController : Controller
 
         return View(new TreasuryHubViewModel
         {
-            TodayReceiptUsd = todayTotals?.ReceiptUsd ?? 0m,
-            TodayPaymentUsd = todayTotals?.PaymentUsd ?? 0m,
+            TodayReceiptUsd = todayTotals.TodayReceiptUsd,
+            TodayPaymentUsd = todayTotals.TodayPaymentUsd,
             SuspenseCount = suspenseCount,
             PostedHawalaCount = postedHawalaCount,
             NeedsReviewCount = needsReviewCount
@@ -275,9 +265,9 @@ public class PaymentsController : Controller
                 new("از تاریخ", "From date", filter.FromDate?.ToString("yyyy-MM-dd")),
                 new("تا تاریخ", "To date", filter.ToDate?.ToString("yyyy-MM-dd")),
                 new("جستجو", "Search", filter.Search),
-                new("مشتری", "Customer", filter.CustomerId?.ToString()),
-                new("تأمین‌کننده", "Supplier", filter.SupplierId?.ToString()),
-                new("حساب نقدی", "Cash account", filter.CashAccountId?.ToString())
+                new("مشتری", "Customer", string.Join("، ", filter.CustomerId)),
+                new("تأمین‌کننده", "Supplier", string.Join("، ", filter.SupplierId)),
+                new("حساب نقدی", "Cash account", string.Join("، ", filter.CashAccountId))
             ],
             Columns =
             [
@@ -652,12 +642,6 @@ public class PaymentsController : Controller
 
         model.CounterpartyType = InferCounterpartyType(model);
         await PopulateLookupsAsync(createModel: model);
-        // فقط نمایشی: همان خلاصهٔ آماری صفحه فهرست برای نمایش کارت‌ها بالای فرم.
-        var formSummary = await BuildSummaryAsync();
-        ViewBag.FormHasSummary = true;
-        ViewBag.FormTodayReceiptUsd = formSummary.TodayReceiptUsd;
-        ViewBag.FormTodayPaymentUsd = formSummary.TodayPaymentUsd;
-        ViewBag.FormCashBalanceUsd = formSummary.CashAccountsBalanceUsd;
         return View(model);
     }
 
@@ -1543,34 +1527,40 @@ public class PaymentsController : Controller
             query = query.Where(p => p.PaymentDate <= filter.ToDate.Value.Date);
         }
 
-        if (filter.Direction.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.Direction.Length > 0)
         {
-            query = query.Where(p => p.Direction == filter.Direction.Value);
+            var directions = filter.Direction;
+            query = query.Where(p => directions.Contains(p.Direction));
         }
 
-        if (filter.PaymentKind.HasValue)
+        if (filter.PaymentKind.Length > 0)
         {
-            query = query.Where(p => p.PaymentKind == filter.PaymentKind.Value);
+            var paymentKinds = filter.PaymentKind;
+            query = query.Where(p => paymentKinds.Contains(p.PaymentKind));
         }
 
-        if (filter.CounterpartyType.HasValue)
+        if (filter.CounterpartyType.Length > 0)
         {
-            query = ApplyCounterpartyTypeFilter(query, filter.CounterpartyType.Value);
+            query = ApplyCounterpartyTypeFilter(query, filter.CounterpartyType);
         }
 
-        if (filter.CashAccountId.HasValue)
+        if (filter.CashAccountId.Length > 0)
         {
-            query = query.Where(p => p.CashAccountId == filter.CashAccountId.Value);
+            var cashAccountIds = filter.CashAccountId;
+            query = query.Where(p => p.CashAccountId != null && cashAccountIds.Contains(p.CashAccountId.Value));
         }
 
-        if (filter.CustomerId.HasValue)
+        if (filter.CustomerId.Length > 0)
         {
-            query = query.Where(p => p.CustomerId == filter.CustomerId.Value);
+            var customerIds = filter.CustomerId;
+            query = query.Where(p => p.CustomerId != null && customerIds.Contains(p.CustomerId.Value));
         }
 
-        if (filter.SupplierId.HasValue)
+        if (filter.SupplierId.Length > 0)
         {
-            query = query.Where(p => p.SupplierId == filter.SupplierId.Value);
+            var supplierIds = filter.SupplierId;
+            query = query.Where(p => p.SupplierId != null && supplierIds.Contains(p.SupplierId.Value));
         }
 
         if (filter.ServiceProviderId.HasValue)
@@ -1749,17 +1739,17 @@ public class PaymentsController : Controller
     private async Task<List<SarrafHawalaRowProjection>> BuildSarrafHawalaRowsAsync(PaymentIndexFilterViewModel filter)
     {
         var incompatibleFilterSet =
-            filter.CashAccountId.HasValue
-            || filter.CustomerId.HasValue
+            filter.CashAccountId.Length > 0
+            || filter.CustomerId.Length > 0
             || filter.ServiceProviderId.HasValue
             || filter.EmployeeId.HasValue
             || filter.DriverId.HasValue
             || filter.ShipmentId.HasValue
             || filter.SalesTransactionId.HasValue
             || filter.ExpenseTransactionId.HasValue
-            || filter.Direction == PaymentDirection.In
-            || (filter.PaymentKind.HasValue && filter.PaymentKind.Value != PaymentKind.SarrafSettlement)
-            || (filter.CounterpartyType.HasValue && filter.CounterpartyType.Value != PaymentCounterpartyType.Sarraf);
+            || filter.Direction.Contains(PaymentDirection.In)
+            || filter.PaymentKind.Any(kind => kind != PaymentKind.SarrafSettlement)
+            || filter.CounterpartyType.Any(type => type != PaymentCounterpartyType.Sarraf);
 
         if (incompatibleFilterSet)
         {
@@ -1780,9 +1770,10 @@ public class PaymentsController : Controller
             settlementQuery = settlementQuery.Where(s => s.SettlementDate <= filter.ToDate.Value.Date);
         }
 
-        if (filter.SupplierId.HasValue)
+        if (filter.SupplierId.Length > 0)
         {
-            settlementQuery = settlementQuery.Where(s => s.SupplierId == filter.SupplierId.Value);
+            var supplierIds = filter.SupplierId;
+            settlementQuery = settlementQuery.Where(s => s.SupplierId != null && supplierIds.Contains(s.SupplierId.Value));
         }
 
         if (filter.SarrafId.HasValue)
@@ -1903,19 +1894,18 @@ public class PaymentsController : Controller
     private async Task<List<ViaSarrafLedgerRowProjection>> BuildViaSarrafLedgerRowsAsync(PaymentIndexFilterViewModel filter)
     {
         var incompatibleFilterSet =
-            filter.CashAccountId.HasValue
-            || filter.CustomerId.HasValue
+            filter.CashAccountId.Length > 0
+            || filter.CustomerId.Length > 0
             || filter.ServiceProviderId.HasValue
             || filter.EmployeeId.HasValue
             || filter.DriverId.HasValue
             || filter.ShipmentId.HasValue
             || filter.SalesTransactionId.HasValue
             || filter.ExpenseTransactionId.HasValue
-            || filter.Direction == PaymentDirection.In
-            || (filter.PaymentKind.HasValue && filter.PaymentKind.Value != PaymentKind.SupplierPayment)
-            || (filter.CounterpartyType.HasValue
-                && filter.CounterpartyType.Value != PaymentCounterpartyType.Supplier
-                && filter.CounterpartyType.Value != PaymentCounterpartyType.Sarraf);
+            || filter.Direction.Contains(PaymentDirection.In)
+            || filter.PaymentKind.Any(kind => kind != PaymentKind.SupplierPayment)
+            || filter.CounterpartyType.Any(type => type != PaymentCounterpartyType.Supplier
+                && type != PaymentCounterpartyType.Sarraf);
 
         if (incompatibleFilterSet)
         {
@@ -1936,9 +1926,10 @@ public class PaymentsController : Controller
             ledgerQuery = ledgerQuery.Where(l => l.EntryDate <= filter.ToDate.Value.Date);
         }
 
-        if (filter.SupplierId.HasValue)
+        if (filter.SupplierId.Length > 0)
         {
-            ledgerQuery = ledgerQuery.Where(l => l.SupplierId == filter.SupplierId.Value);
+            var supplierIds = filter.SupplierId;
+            ledgerQuery = ledgerQuery.Where(l => l.SupplierId != null && supplierIds.Contains(l.SupplierId.Value));
         }
 
         if (filter.SarrafId.HasValue)
@@ -2076,56 +2067,9 @@ public class PaymentsController : Controller
 
     private async Task<PaymentIndexSummary> BuildSummaryCoreAsync()
     {
-        var today = _businessClock.Today;
-        var todayTotals = await _db.PaymentTransactions
-            .AsNoTracking()
-            .Where(p => p.PaymentDate == today)
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                ReceiptUsd = g
-                    .Where(p => p.Direction == PaymentDirection.In)
-                    .Sum(p => (decimal?)p.AmountUsd) ?? 0m,
-                PaymentUsd = g
-                    .Where(p => p.Direction == PaymentDirection.Out)
-                    .Sum(p => (decimal?)p.AmountUsd) ?? 0m,
-                ReceiptMissingUsdEquivalentCount = g.Count(p =>
-                    p.Direction == PaymentDirection.In
-                    && p.Amount > 0m
-                    && p.Currency != "USD"
-                    && p.AmountUsd == 0m),
-                PaymentMissingUsdEquivalentCount = g.Count(p =>
-                    p.Direction == PaymentDirection.Out
-                    && p.Amount > 0m
-                    && p.Currency != "USD"
-                    && p.AmountUsd == 0m)
-            })
-            .FirstOrDefaultAsync();
-
-        // همان تجمیع قبلی؛ به مرجع مشترک منتقل شد تا داشبورد موبایل فرمول موازی نسازد.
-        var cashTotals = await new PTGOilSystem.Web.Services.Reporting.CashPositionReader(_db).ReadAccountTotalsAsync();
-
-        var totalsByAccount = cashTotals.ToDictionary(t => t.CashAccountId);
-        var accounts = await _db.CashAccounts
-            .AsNoTracking()
-            .OrderBy(a => a.Code)
-            .Select(a => new { a.Id, a.Code, a.Name, a.Currency })
-            .ToListAsync();
-        var balances = accounts
-            .Select(account =>
-            {
-                totalsByAccount.TryGetValue(account.Id, out var total);
-                return new CashAccountBalanceSummaryViewModel
-                {
-                    CashAccountId = account.Id,
-                    Code = account.Code,
-                    Name = account.Name,
-                    Currency = account.Currency,
-                    TotalIn = total?.TotalIn ?? 0m,
-                    TotalOut = total?.TotalOut ?? 0m
-                };
-            })
-            .ToList();
+        // دریافتی/پرداختی امروز و ماندهٔ نقدی فقط از مرجع مشترک کارت‌های مالی خوانده می‌شود
+        // (همان عددِ دفتر حساب‌ها، فهرست صندوق‌ها و وضعیت مالی شرکت).
+        var metrics = await FinanceMetricCardsQuery.BuildAsync(_db, _summaryCache, businessClock: _businessClock);
 
         var lastDocument = await _db.PaymentTransactions
             .AsNoTracking()
@@ -2135,16 +2079,16 @@ public class PaymentsController : Controller
             .FirstOrDefaultAsync();
 
         return new PaymentIndexSummary(
-            TodayReceiptUsd: todayTotals?.ReceiptUsd ?? 0m,
-            TodayPaymentUsd: todayTotals?.PaymentUsd ?? 0m,
-            TodayReceiptMissingUsdEquivalentCount: todayTotals?.ReceiptMissingUsdEquivalentCount ?? 0,
-            TodayPaymentMissingUsdEquivalentCount: todayTotals?.PaymentMissingUsdEquivalentCount ?? 0,
-            CashAccountsBalanceUsd: PTGOilSystem.Web.Services.Reporting.CashPositionReader.TotalBalanceUsd(cashTotals),
+            TodayReceiptUsd: metrics.TodayReceiptUsd,
+            TodayPaymentUsd: metrics.TodayPaymentUsd,
+            TodayReceiptMissingUsdEquivalentCount: metrics.TodayReceiptMissingUsdEquivalentCount,
+            TodayPaymentMissingUsdEquivalentCount: metrics.TodayPaymentMissingUsdEquivalentCount,
+            CashAccountsBalanceUsd: metrics.CashAccountsBalanceUsd,
+            CashBalanceMissingUsdEquivalentCount: metrics.CashBalanceMissingUsdEquivalentCount,
             LastDocumentReference: lastDocument is null
                 ? null
                 : string.IsNullOrWhiteSpace(lastDocument.Reference) ? $"#{lastDocument.Id}" : lastDocument.Reference,
-            LastDocumentDate: lastDocument?.PaymentDate,
-            CashAccountBalances: balances);
+            LastDocumentDate: lastDocument?.PaymentDate);
     }
 
     // فهرست شرکای یک قرارداد برای فرم روزنامچه. فقط خواندنی.
@@ -2199,6 +2143,53 @@ public class PaymentsController : Controller
                 Selected = selectedPartnerId == cp.PartnerId
             })
             .ToList();
+
+    /// <summary>
+    /// چند نوع طرف‌حساب با OR ترکیب می‌شوند؛ شرطِ هر نوع دقیقاً همان شرطِ تک‌انتخابی است.
+    /// </summary>
+    private static IQueryable<PaymentTransaction> ApplyCounterpartyTypeFilter(
+        IQueryable<PaymentTransaction> query,
+        IReadOnlyList<PaymentCounterpartyType> counterpartyTypes)
+    {
+        if (counterpartyTypes.Count == 0) return query;
+        if (counterpartyTypes.Count == 1) return ApplyCounterpartyTypeFilter(query, counterpartyTypes[0]);
+
+        var supplier = counterpartyTypes.Contains(PaymentCounterpartyType.Supplier);
+        var customer = counterpartyTypes.Contains(PaymentCounterpartyType.Customer);
+        var serviceProvider = counterpartyTypes.Contains(PaymentCounterpartyType.ServiceProvider);
+        var sarraf = counterpartyTypes.Contains(PaymentCounterpartyType.Sarraf);
+        var employee = counterpartyTypes.Contains(PaymentCounterpartyType.Employee);
+        var driver = counterpartyTypes.Contains(PaymentCounterpartyType.Driver);
+        var officeExpense = counterpartyTypes.Contains(PaymentCounterpartyType.OfficeExpense);
+        var contract = counterpartyTypes.Contains(PaymentCounterpartyType.Contract);
+        var sales = counterpartyTypes.Contains(PaymentCounterpartyType.Sales);
+        var shipment = counterpartyTypes.Contains(PaymentCounterpartyType.Shipment);
+        var other = counterpartyTypes.Contains(PaymentCounterpartyType.Other);
+
+        return query.Where(p =>
+            (supplier && (p.SupplierId.HasValue || p.PaymentKind == PaymentKind.SupplierPayment || p.PaymentKind == PaymentKind.SupplierReceipt))
+            || (customer && (p.CustomerId.HasValue || p.PaymentKind == PaymentKind.CustomerReceipt || p.PaymentKind == PaymentKind.CustomerPayment))
+            || (serviceProvider && (p.ServiceProviderId.HasValue || p.PaymentKind == PaymentKind.ServiceProviderPayment))
+            || (sarraf && (p.SarrafId.HasValue || p.PaymentKind == PaymentKind.SarrafSettlement))
+            || (employee && (p.EmployeeId.HasValue || p.PaymentKind == PaymentKind.EmployeeSalaryPayment || p.PaymentKind == PaymentKind.EmployeeSalaryAdvance || p.PaymentKind == PaymentKind.EmployeeReturn))
+            || (driver && (p.DriverId.HasValue || p.TruckDispatchId.HasValue || p.PaymentKind == PaymentKind.TruckPayment))
+            || (officeExpense && (p.ExpenseTransactionId.HasValue || p.PaymentKind == PaymentKind.ExpensePayment || p.PaymentKind == PaymentKind.CommissionPayment))
+            || (contract && p.ContractId.HasValue)
+            || (sales && p.SalesTransactionId.HasValue)
+            || (shipment && p.ShipmentId.HasValue)
+            || (other
+                && !p.CustomerId.HasValue
+                && !p.SupplierId.HasValue
+                && !p.ServiceProviderId.HasValue
+                && !p.SarrafId.HasValue
+                && !p.EmployeeId.HasValue
+                && !p.DriverId.HasValue
+                && !p.ContractId.HasValue
+                && !p.ShipmentId.HasValue
+                && !p.SalesTransactionId.HasValue
+                && !p.ExpenseTransactionId.HasValue
+                && !p.TruckDispatchId.HasValue));
+    }
 
     private static IQueryable<PaymentTransaction> ApplyCounterpartyTypeFilter(
         IQueryable<PaymentTransaction> query,
@@ -2409,200 +2400,34 @@ public class PaymentsController : Controller
             return Json(new { available = false });
         }
 
+        // ماندهٔ طرف‌حساب در فرم روزنامچه فقط از صورت‌حسابِ رسمی خوانده می‌شود؛ همان عددِ
+        // صفحهٔ جزئیاتِ طرف‌حساب و گزارش طلبات و بدهی‌ها. فرمولِ موازی ساخته نمی‌شود.
         var counterparty = (PaymentCounterpartyType)type;
-
-        if (_partyStatements is not null && TryMapStatementPartyType(counterparty, out var statementPartyType))
-        {
-            try
-            {
-                var statement = await _partyStatements.GetStatementAsync(
-                    new PartyRef(statementPartyType, id),
-                    new PartyStatementFilter { IncludeOperationalColumns = false },
-                    HttpContext.RequestAborted);
-                var closing = statement.Summary.ClosingBalance;
-                return Json(new
-                {
-                    available = true,
-                    name = statement.PartyInfo.Name,
-                    amountText = statement.Summary.ClosingBalanceAbsolute.ToString("N2") + " " + statement.Summary.BaseCurrencyCode,
-                    label = statement.Summary.ClosingBalanceMeaningFor(UiText.IsEn(HttpContext)),
-                    tone = closing > 0m ? "positive" : closing < 0m ? "negative" : "zero"
-                });
-            }
-            catch (KeyNotFoundException)
-            {
-                return Json(new { available = false });
-            }
-        }
-
-        decimal net;
-        string? name;
-        string label;
-        string tone;
-
-        switch (counterparty)
-        {
-            case PaymentCounterpartyType.Customer:
-            {
-                var saleIds = (await _db.SalesTransactions
-                    .AsNoTracking()
-                    .Where(s => s.CustomerId == id
-                        || (s.Contract != null
-                            && s.Contract.ContractType == ContractType.Sale
-                            && s.Contract.CustomerId == id))
-                    .Select(s => s.Id)
-                    .ToListAsync())
-                    .ToHashSet();
-
-                var ledgers = (await _db.LedgerEntries
-                    .AsNoTracking()
-                    .Include(l => l.Contract)
-                    .Where(l => l.CustomerId == id
-                        || (l.Contract != null
-                            && l.Contract.ContractType == ContractType.Sale
-                            && l.Contract.CustomerId == id)
-                        || (l.SourceType == "Sale" && saleIds.Contains(l.SourceId)))
-                    .ToListAsync())
-                    .DistinctBy(l => l.Id)
-                    .ToList();
-
-                net = ledgers
-                    .Where(l => CustomersController.IsCustomerAccountLedger(l, id, saleIds))
-                    .Sum(l => l.Side == LedgerSide.Credit ? l.AmountUsd : -l.AmountUsd);
-                name = await _db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Name).FirstOrDefaultAsync();
-                label = net > 0 ? "مشتری بدهکار شرکت است" : net < 0 ? "شرکت بدهکار مشتری است" : "تسویه";
-                break;
-            }
-
-            case PaymentCounterpartyType.Supplier:
-            {
-                // «طلب باقی‌مانده» تأمین‌کننده = ارزش جنس بارگیری‌شده − (پرداخت مستقیم + کاهش از طریق صراف).
-                // عیناً همان فرمول و منبعِ صفحه‌ی پروفایل تأمین‌کننده (SupplierRemainingClaimUsd)؛
-                // تعهد خرید در Ledger حساب تأمین‌کننده Credit نمی‌خورد، پس مانده‌ی Ledger معیار درست نیست.
-                var contracts = await _db.Contracts
-                    .AsNoTracking()
-                    .Where(c => c.ContractType == ContractType.Purchase && c.SupplierId == id)
-                    .ToListAsync();
-                name = await _db.Suppliers.AsNoTracking().Where(s => s.Id == id).Select(s => s.Name).FirstOrDefaultAsync();
-
-                if (name is null)
-                {
-                    return Json(new { available = false });
-                }
-
-                var contractIds = contracts.Select(c => c.Id).ToList();
-                var loadedValueUsd = 0m;
-                if (contractIds.Count > 0)
-                {
-                    var finalPriceByContract = contracts.ToDictionary(
-                        c => c.Id,
-                        c => ContractPricingAdapter.GetCanonicalFinalPrice(c));
-                    var purchaseAggregates = await _purchaseAggregation.AggregateForContractsAsync(contractIds, finalPriceByContract);
-                    loadedValueUsd = purchaseAggregates.Values.Sum(a => a.TraceablePurchaseCostUsd);
-                }
-
-                var directPaidUsd = (await _db.PaymentTransactions
-                    .AsNoTracking()
-                    .Where(p => p.PaymentKind == PaymentKind.SupplierPayment
-                        && (p.SupplierId == id
-                            || (p.Contract != null
-                                && p.Contract.ContractType == ContractType.Purchase
-                                && p.Contract.SupplierId == id)))
-                    .Select(p => p.AmountUsd)
-                    .ToListAsync())
-                    .Sum();
-
-                var sarrafReductionUsd = (await _db.SarrafSettlements
-                    .AsNoTracking()
-                    .Where(s => s.Status == SarrafSettlementStatus.Posted
-                        && (s.SupplierId == id
-                            || (s.Contract != null
-                                && s.Contract.ContractType == ContractType.Purchase
-                                && s.Contract.SupplierId == id)))
-                    .ToListAsync())
-                    .Sum(SuppliersController.SupplierReductionAmountUsd);
-
-                net = loadedValueUsd - (directPaidUsd + sarrafReductionUsd);
-                label = net > 0 ? "قابل پرداخت به تأمین‌کننده" : net < 0 ? "طلب شرکت از تأمین‌کننده" : "تسویه شده";
-                break;
-            }
-
-            case PaymentCounterpartyType.ServiceProvider:
-            {
-                // مانده‌ی شرکت خدماتی = جمع Ledger حساب آن (Credit−Debit)؛ عیناً صفحه‌ی پروفایلِ شرکت خدماتی.
-                var ledgers = (await _db.LedgerEntries
-                    .AsNoTracking()
-                    .Where(l => l.ServiceProviderId == id)
-                    .ToListAsync())
-                    .DistinctBy(l => l.Id)
-                    .ToList();
-                net = ledgers.Sum(l => l.Side == LedgerSide.Credit ? l.AmountUsd : -l.AmountUsd);
-                name = await _db.ServiceProviders.AsNoTracking().Where(s => s.Id == id).Select(s => s.Name).FirstOrDefaultAsync();
-                label = net > 0 ? "قابل پرداخت به شرکت خدماتی" : net < 0 ? "پیش‌پرداخت به شرکت خدماتی" : "تسویه";
-                break;
-            }
-
-            case PaymentCounterpartyType.Employee:
-            {
-                // مانده‌ی کارمند = (حقوق/پاداش/تعدیلِ تعهدشده) − (پرداخت/مساعده/کسر)؛ عیناً منطقِ صفحه‌ی کارمندان.
-                var txns = await _db.EmployeeSalaryTransactions
-                    .AsNoTracking()
-                    .Where(t => t.EmployeeId == id && !t.IsCancelled)
-                    .Select(t => new { t.TransactionType, t.AmountUsd })
-                    .ToListAsync();
-                net = txns.Sum(t =>
-                    t.TransactionType == EmployeeSalaryTransactionType.SalaryAccrual
-                    || t.TransactionType == EmployeeSalaryTransactionType.Bonus
-                    || t.TransactionType == EmployeeSalaryTransactionType.Adjustment
-                        ? t.AmountUsd
-                        : t.TransactionType == EmployeeSalaryTransactionType.SalaryPayment
-                          || t.TransactionType == EmployeeSalaryTransactionType.SalaryAdvance
-                          || t.TransactionType == EmployeeSalaryTransactionType.SalaryDeduction
-                            ? -t.AmountUsd
-                            : 0m);
-                name = await _db.Employees.AsNoTracking().Where(e => e.Id == id).Select(e => e.FullName).FirstOrDefaultAsync();
-                label = net > 0 ? "قابل پرداخت به کارمند" : net < 0 ? "طلب شرکت از کارمند" : "تسویه";
-                break;
-            }
-
-            case PaymentCounterpartyType.Sarraf:
-            {
-                var chargedUsd = await _db.SarrafSettlements
-                    .AsNoTracking()
-                    .Where(s => s.SarrafId == id && s.Status == SarrafSettlementStatus.Posted)
-                    .SumAsync(s => (decimal?)s.SarrafChargedAmountUsd) ?? 0m;
-
-                var paidUsd = (await _db.PaymentTransactions
-                    .AsNoTracking()
-                    .Where(p => p.SarrafId == id)
-                    .Select(p => new { p.Direction, p.AmountUsd })
-                    .ToListAsync())
-                    .Sum(p => p.Direction == PaymentDirection.Out ? p.AmountUsd : -p.AmountUsd);
-
-                net = chargedUsd - paidUsd;
-                name = await _db.Sarrafs.AsNoTracking().Where(s => s.Id == id).Select(s => s.Name).FirstOrDefaultAsync();
-                label = net > 0 ? "قابل پرداخت به صراف" : net < 0 ? "طلب شرکت از صراف" : "تسویه";
-                break;
-            }
-
-            default:
-                return Json(new { available = false });
-        }
-
-        if (name is null)
+        if (!TryMapStatementPartyType(counterparty, out var statementPartyType))
         {
             return Json(new { available = false });
         }
 
-        tone = net > 0 ? "positive" : net < 0 ? "negative" : "zero";
-        return Json(new
+        try
         {
-            available = true,
-            name,
-            amountText = Math.Abs(decimal.Round(net, 2)).ToString("N2") + " USD",
-            label,
-            tone
-        });
+            var statement = await _partyStatements.GetStatementAsync(
+                new PartyRef(statementPartyType, id),
+                new PartyStatementFilter { IncludeOperationalColumns = false },
+                HttpContext?.RequestAborted ?? CancellationToken.None);
+            var closing = statement.Summary.ClosingBalance;
+            return Json(new
+            {
+                available = true,
+                name = statement.PartyInfo.Name,
+                amountText = statement.Summary.ClosingBalanceAbsolute.ToString("N2") + " " + statement.Summary.BaseCurrencyCode,
+                label = statement.Summary.ClosingBalanceMeaningFor(UiText.IsEn(HttpContext)),
+                tone = closing > 0m ? "positive" : closing < 0m ? "negative" : "zero"
+            });
+        }
+        catch (KeyNotFoundException)
+        {
+            return Json(new { available = false });
+        }
     }
 
     private static bool TryMapStatementPartyType(
@@ -2654,7 +2479,7 @@ public class PaymentsController : Controller
             cashAccounts,
             "Id",
             "Name",
-            createModel?.CashAccountId ?? filter?.CashAccountId);
+            createModel?.CashAccountId ?? filter?.CashAccountId.Only());
 
         if (createModel is not null)
         {
@@ -2679,9 +2504,9 @@ public class PaymentsController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            createModel?.CustomerId ?? filter?.CustomerId);
+            createModel?.CustomerId ?? filter?.CustomerId.Only());
 
-        var selectedSupplierId = createModel?.SupplierId ?? filter?.SupplierId;
+        var selectedSupplierId = createModel?.SupplierId ?? filter?.SupplierId.Only();
         var suppliers = await _db.Suppliers
             .AsNoTracking()
             .Where(s => s.IsActive)
@@ -2891,7 +2716,7 @@ public class PaymentsController : Controller
             {
                 Value = ((int)direction).ToString(),
                 Text = PaymentDirectionLabels.ToPersian(direction),
-                Selected = (createModel?.Direction ?? filter?.Direction) == direction
+                Selected = createModel?.Direction == direction || (filter?.Direction.Contains(direction) ?? false)
             })
             .ToList();
 
@@ -2900,7 +2725,7 @@ public class PaymentsController : Controller
             {
                 Value = ((int)paymentKind).ToString(),
                 Text = PaymentKindLabels.ToPersian(paymentKind),
-                Selected = (createModel?.PaymentKind ?? filter?.PaymentKind) == paymentKind
+                Selected = createModel?.PaymentKind == paymentKind || (filter?.PaymentKind.Contains(paymentKind) ?? false)
             })
             .ToList();
 
@@ -2909,7 +2734,7 @@ public class PaymentsController : Controller
             {
                 Value = ((int)type).ToString(),
                 Text = PaymentCounterpartyTypeLabels.ToPersian(type),
-                Selected = (createModel?.CounterpartyType ?? filter?.CounterpartyType) == type
+                Selected = createModel?.CounterpartyType == type || (filter?.CounterpartyType.Contains(type) ?? false)
             })
             .ToList();
     }
@@ -4828,9 +4653,9 @@ public class PaymentsController : Controller
         int TodayReceiptMissingUsdEquivalentCount,
         int TodayPaymentMissingUsdEquivalentCount,
         decimal CashAccountsBalanceUsd,
+        int CashBalanceMissingUsdEquivalentCount,
         string? LastDocumentReference,
-        DateTime? LastDocumentDate,
-        IReadOnlyList<CashAccountBalanceSummaryViewModel> CashAccountBalances);
+        DateTime? LastDocumentDate);
 
     private sealed class PaymentListProjection
     {

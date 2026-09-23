@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Loading.LoadingReceiptIndexViewModel
+﻿@model PTGOilSystem.Web.Models.Loading.LoadingReceiptIndexViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "رسیدهای بارگیری", "Loading Receipts");
     var currentUrl = Context.Request.Path + Context.Request.QueryString;
@@ -34,17 +34,17 @@
                 UiText.T(Context, "قرارداد، جنس، مخزن یا مرجع...", "Contract, product, tank or reference..."),
                 new List<AkFilterDefinition>
                 {
-                    new("productId", UiText.T(Context, "جنس", "Product"), "select",
-                        ReceiptOpts(ViewBag.FilterProducts), ReceiptQ("productId")),
-                    new("terminalId", UiText.T(Context, "ترمینال", "Terminal"), "select",
-                        ReceiptOpts(ViewBag.FilterTerminals), ReceiptQ("terminalId")),
-                    new("destination", UiText.T(Context, "مقصد رسید", "Receipt destination"), "select",
+                    AkFilterDefinition.MultiSelect("productId", UiText.T(Context, "جنس", "Product"),
+                        ReceiptOpts(ViewBag.FilterProducts), AkFilterQuery.Values(Context, "productId")),
+                    AkFilterDefinition.MultiSelect("terminalId", UiText.T(Context, "ترمینال", "Terminal"),
+                        ReceiptOpts(ViewBag.FilterTerminals), AkFilterQuery.Values(Context, "terminalId")),
+                    AkFilterDefinition.MultiSelect("destination", UiText.T(Context, "مقصد رسید", "Receipt destination"),
                         new List<AkFilterOption>
                         {
                             new("0", UiText.T(Context, "ورود به موجودی", "To inventory")),
                             new("1", UiText.T(Context, "تخلیه مستقیم", "Direct dispatch")),
                             new("2", UiText.T(Context, "ترکیبی", "Mixed"))
-                        }, ReceiptQ("destination")),
+                        }, AkFilterQuery.Values(Context, "destination")),
                     new("status", UiText.T(Context, "وضعیت", "Status"), "select",
                         new List<AkFilterOption>
                         {

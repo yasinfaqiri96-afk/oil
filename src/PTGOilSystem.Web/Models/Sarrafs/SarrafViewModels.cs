@@ -78,12 +78,13 @@ public sealed class SarrafIndexViewModel
     public string? Search { get; init; }
     public IReadOnlyList<SarrafIndexItemViewModel> Items { get; init; } = [];
     public decimal TotalPayableUsd { get; init; }
+    public decimal TotalOfficialBalanceUsd { get; init; }
     public decimal TotalChargedUsd { get; init; }
     public decimal TotalPaidUsd { get; init; }
     public int ActiveCount { get; init; }
 }
 
-public sealed class SarrafIndexItemViewModel
+public sealed record SarrafIndexItemViewModel
 {
     public int Id { get; init; }
     public string Name { get; init; } = string.Empty;
@@ -92,7 +93,10 @@ public sealed class SarrafIndexItemViewModel
     public int SettlementCount { get; init; }
     public decimal ChargedUsd { get; init; }
     public decimal PaidUsd { get; init; }
+    /// <summary>شاخصِ عملیاتی (سپرده‌شده − پرداخت‌شده)، نه ماندهٔ رسمی.</summary>
     public decimal PayableUsd => ChargedUsd - PaidUsd;
+    /// <summary>ماندهٔ رسمیِ صورت‌حساب صراف: مثبت = طلب شرکت، منفی = بدهی شرکت.</summary>
+    public decimal OfficialBalanceUsd { get; init; }
     public DateTime? LastSettlementDate { get; init; }
 }
 

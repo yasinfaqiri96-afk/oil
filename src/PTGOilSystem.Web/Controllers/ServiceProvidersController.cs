@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Models.Payments;
 using PTGOilSystem.Web.Models.ServiceProviders;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Models.PartyStatements;
+using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services.PartyStatements;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
 
@@ -18,12 +19,17 @@ namespace PTGOilSystem.Web.Controllers;
 public class ServiceProvidersController : Controller
 {
     private readonly ApplicationDbContext _db;
-    private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyStatementReadService _partyStatements;
+    private readonly IPartyBalanceReadService _partyBalances;
 
-    public ServiceProvidersController(ApplicationDbContext db, IPartyStatementReadService? partyStatements = null)
+    public ServiceProvidersController(
+        ApplicationDbContext db,
+        IPartyStatementReadService? partyStatements = null,
+        IPartyBalanceReadService? partyBalances = null)
     {
         _db = db;
-        _partyStatements = partyStatements;
+        _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
+        _partyBalances = partyBalances ?? PartyBalanceReadService.CreateDefault(db);
     }
 
     public async Task<IActionResult> Index(string? q = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -82,23 +88,19 @@ public class ServiceProvidersController : Controller
                 .Select(g => new { ServiceProviderId = g.Key, Total = g.Sum(p => p.AmountUsd) })
                 .ToDictionaryAsync(g => g.ServiceProviderId, g => g.Total);
 
-        var ledgerTotals = providerIds.Length == 0
-            ? new Dictionary<int, (decimal Debit, decimal Credit)>()
-            : await _db.LedgerEntries
-                .AsNoTracking()
-                .Where(l => l.ServiceProviderId.HasValue && providerIds.Contains(l.ServiceProviderId.Value))
-                .GroupBy(l => l.ServiceProviderId!.Value)
-                .Select(g => new
-                {
-                    ServiceProviderId = g.Key,
-                    Debit = g.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd),
-                    Credit = g.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd)
-                })
-                .ToDictionaryAsync(g => g.ServiceProviderId, g => (g.Debit, g.Credit));
+        // مانده فقط از موتورِ رسمیِ ماندهٔ طرف‌حساب (همان جزئیات و صورت‌حساب): مثبت = طلب شرکت،
+        // منفی = بدهی شرکت. جمعِ کارت روی همهٔ نتایجِ جست‌وجو است، نه فقط صفحهٔ جاری.
+        var officialBalances = (await _partyBalances.GetBalancesAsync(
+                new ManagementReportFilterViewModel(),
+                HttpContext?.RequestAborted ?? CancellationToken.None,
+                [PartyStatementPartyType.ServiceProvider]))
+            .Where(row => row.PartyType == PartyStatementPartyType.ServiceProvider)
+            .ToDictionary(row => row.PartyId, row => row.ClosingBalanceUsd);
+        var filteredIds = await query.Select(p => p.Id).ToListAsync();
+        var filteredBalanceUsd = filteredIds.Sum(providerId => officialBalances.GetValueOrDefault(providerId));
 
         var items = providers.Select(p =>
         {
-            ledgerTotals.TryGetValue(p.Id, out var ledger);
             return new ServiceProviderIndexItemViewModel
             {
                 Id = p.Id,
@@ -108,7 +110,7 @@ public class ServiceProvidersController : Controller
                 ContactText = FirstNonEmpty(p.Phone, p.Email, p.City, p.Country) ?? "-",
                 TotalExpensesUsd = activeExpenseTotals.GetValueOrDefault(p.Id),
                 TotalPaymentsUsd = paymentTotals.GetValueOrDefault(p.Id),
-                LedgerBalanceUsd = ledger.Credit - ledger.Debit,
+                LedgerBalanceUsd = officialBalances.GetValueOrDefault(p.Id),
                 IsActive = p.IsActive
             };
         }).ToList();
@@ -119,7 +121,8 @@ public class ServiceProvidersController : Controller
             Items = items,
             CurrentPage = page,
             PageCount = pageCount,
-            TotalCount = totalCount
+            TotalCount = totalCount,
+            FilteredBalanceUsd = filteredBalanceUsd
         };
     }
 
@@ -127,15 +130,12 @@ public class ServiceProvidersController : Controller
     {
         var model = await BuildProfileAsync(id);
         if (model is null) return NotFound();
-        if (_partyStatements is not null)
-        {
-            var statement = await _partyStatements.GetStatementAsync(
-                new PartyRef(PartyStatementPartyType.ServiceProvider, id),
-                new PartyStatementFilter { IncludeOperationalColumns = false },
-                HttpContext.RequestAborted);
-            ViewData["PartyStatementSummary"] = statement.Summary;
-            ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
-        }
+        var statement = await _partyStatements.GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.ServiceProvider, id),
+            new PartyStatementFilter { IncludeOperationalColumns = false },
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+        ViewData["PartyStatementSummary"] = statement.Summary;
+        ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
         return View(model);
     }
 

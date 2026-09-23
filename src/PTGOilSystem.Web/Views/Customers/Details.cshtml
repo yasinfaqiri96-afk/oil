@@ -8,7 +8,7 @@
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
-    var bal = officialSummary?.ClosingBalance ?? Model.LedgerBalanceUsd;
+    var bal = officialSummary?.ClosingBalance ?? 0m;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
         ?? CompanyFlowText.BalanceMeaning(bal, CompanyFlowAccountKind.PartyAccount, Context);
     // tone فقط جهت مالی را نشان می‌دهد: طلب شرکت سبز، بدهی شرکت سرخ، تسویه خنثی.

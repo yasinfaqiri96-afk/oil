@@ -22,7 +22,7 @@ public class WagonsController : Controller
         _audit = audit;
     }
 
-    public async Task<IActionResult> Index(string? q, string? wagonType, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(string? q, string[]? wagonType, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 8);
         ViewData["PageSize"] = pageSize;
@@ -42,8 +42,9 @@ public class WagonsController : Controller
                 (w.Owner != null && w.Owner.Contains(search)) ||
                 (w.Notes != null && w.Notes.Contains(search)));
         }
-        if (!string.IsNullOrWhiteSpace(wagonType))
-            query = query.Where(w => w.WagonType == wagonType);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (wagonType is { Length: > 0 })
+            query = query.Where(w => w.WagonType != null && wagonType.Contains(w.WagonType));
         if (isActive.HasValue)
             query = query.Where(w => w.IsActive == isActive.Value);
 
@@ -63,7 +64,7 @@ public class WagonsController : Controller
             .OrderBy(x => x)
             .ToListAsync();
         ViewData["q"] = search;
-        ViewData["wagonType"] = wagonType;
+        ViewData["wagonType"] = wagonType ?? [];
         ViewData["isActive"] = isActive;
         ViewData["CurrentPage"] = currentPage;
         ViewData["PageCount"] = pageCount;
@@ -72,11 +73,11 @@ public class WagonsController : Controller
         return View(wagons);
     }
 
-    public async Task<IActionResult> Details(int id)
+    public async Task<IActionResult> Details(int id, string? tab = null, int tripsPage = 1, int docsPage = 1)
     {
         var item = await _db.Wagons.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (item == null) return NotFound();
-        ViewData["ResourceProfile"] = await TransportResourceProfileBuilder.ForWagonAsync(_db, item, "info");
+        ViewData["ResourceProfile"] = await TransportResourceProfileBuilder.ForWagonAsync(_db, item, tab, tripsPage, docsPage);
         return View(item);
     }
 

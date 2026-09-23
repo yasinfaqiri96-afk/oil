@@ -1,4 +1,4 @@
-@using PTGOilSystem.Web.Models.Reports
+﻿@using PTGOilSystem.Web.Models.Reports
 @model PTGOilSystem.Web.Models.Reports.VesselVoyageReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "گزارش کشتی‌ها", "Vessel Voyages Report");
@@ -53,16 +53,11 @@
                         f.FiscalYearId?.ToString()),
                     new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         f.FromDate?.ToString("yyyy-MM-dd"), "ToDate", f.ToDate?.ToString("yyyy-MM-dd")),
-                    new("VesselId", UiText.T(Context, "کشتی", "Vessel"), "select", VoyageOpts(ViewBag.VesselVoyageVessels),
-                        f.VesselId?.ToString()),
-                    new("ProductId", UiText.T(Context, "محصول", "Product"), "select", VoyageOpts(ViewBag.VesselVoyageProducts),
-                        f.ProductId?.ToString()),
-                    new("CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", VoyageOpts(ViewBag.VesselVoyageCustomers),
-                        f.CustomerId?.ToString()),
-                    new("SupplierId", UiText.T(Context, "تأمین‌کننده / Shipper", "Supplier / Shipper"), "select", VoyageOpts(ViewBag.VesselVoyageSuppliers),
-                        f.SupplierId?.ToString()),
-                    new("DestinationLocationId", UiText.T(Context, "مقصد", "Destination"), "select", VoyageOpts(ViewBag.VesselVoyageDestinations),
-                        f.DestinationLocationId?.ToString()),
+                    AkFilterDefinition.MultiSelect("VesselId", UiText.T(Context, "کشتی", "Vessel"), VoyageOpts(ViewBag.VesselVoyageVessels), AkFilterQuery.Values(Context, "VesselId")),
+                    AkFilterDefinition.MultiSelect("ProductId", UiText.T(Context, "محصول", "Product"), VoyageOpts(ViewBag.VesselVoyageProducts), AkFilterQuery.Values(Context, "ProductId")),
+                    AkFilterDefinition.MultiSelect("CustomerId", UiText.T(Context, "مشتری", "Customer"), VoyageOpts(ViewBag.VesselVoyageCustomers), AkFilterQuery.Values(Context, "CustomerId")),
+                    AkFilterDefinition.MultiSelect("SupplierId", UiText.T(Context, "تأمین‌کننده / Shipper", "Supplier / Shipper"), VoyageOpts(ViewBag.VesselVoyageSuppliers), AkFilterQuery.Values(Context, "SupplierId")),
+                    AkFilterDefinition.MultiSelect("DestinationLocationId", UiText.T(Context, "مقصد", "Destination"), VoyageOpts(ViewBag.VesselVoyageDestinations), AkFilterQuery.Values(Context, "DestinationLocationId")),
                     new("ServiceProviderId", UiText.T(Context, "کمپنی ترانسپورتی", "Transport company"), "select", VoyageOpts(ViewBag.VesselVoyageServiceProviders),
                         f.ServiceProviderId?.ToString())
                 });

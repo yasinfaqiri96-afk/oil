@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PTGOilSystem.Web.Controllers;
@@ -59,11 +59,11 @@ public class LedgerControllerTests
         {
             FromDate = new DateTime(2026, 4, 19),
             ToDate = new DateTime(2026, 4, 20),
-            SourceType = "Sale",
-            ContractId = 1,
-            CustomerId = 1,
+            SourceType = ["Sale"],
+            ContractId = [1],
+            CustomerId = [1],
             Reference = "INV",
-            Side = LedgerSide.Credit
+            Side = [LedgerSide.Credit]
         });
 
         var view = Assert.IsType<ViewResult>(result);

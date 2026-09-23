@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Reports.FxDifferenceReportViewModel
+﻿@model PTGOilSystem.Web.Models.Reports.FxDifferenceReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "حساب صراف و تفاوت نرخ", "Sarraf & FX Difference");
     var f = Model.Filter;
@@ -81,14 +81,10 @@
                 {
                     new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         f.FromDate?.ToString("yyyy-MM-dd"), "ToDate", f.ToDate?.ToString("yyyy-MM-dd")),
-                    new("CompanyId", UiText.T(Context, "شرکت قرارداد", "Contract company"), "select", FxOpts(ViewBag.Companies),
-                        f.CompanyId?.ToString()),
-                    new("SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), "select", FxOpts(ViewBag.Suppliers),
-                        f.SupplierId?.ToString()),
-                    new("SarrafId", UiText.T(Context, "صراف", "Sarraf"), "select", FxOpts(ViewBag.Sarrafs),
-                        f.SarrafId?.ToString()),
-                    new("ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", FxOpts(ViewBag.Contracts),
-                        f.ContractId?.ToString()),
+                    AkFilterDefinition.MultiSelect("CompanyId", UiText.T(Context, "شرکت قرارداد", "Contract company"), FxOpts(ViewBag.Companies), AkFilterQuery.Values(Context, "CompanyId")),
+                    AkFilterDefinition.MultiSelect("SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), FxOpts(ViewBag.Suppliers), AkFilterQuery.Values(Context, "SupplierId")),
+                    AkFilterDefinition.MultiSelect("SarrafId", UiText.T(Context, "صراف", "Sarraf"), FxOpts(ViewBag.Sarrafs), AkFilterQuery.Values(Context, "SarrafId")),
+                    AkFilterDefinition.MultiSelect("ContractId", UiText.T(Context, "قرارداد", "Contract"), FxOpts(ViewBag.Contracts), AkFilterQuery.Values(Context, "ContractId")),
                     new("Currency", UiText.T(Context, "ارز", "Currency"), "select", FxOpts(ViewBag.Currencies),
                         f.Currency),
                     new("Result", UiText.T(Context, "نتیجه", "Result"), "select",
@@ -99,13 +95,13 @@
                             new("NoDifference", UiText.T(Context, "بدون تفاوت", "No difference")),
                             new("NeedsReview", UiText.T(Context, "نیازمند بررسی", "Needs review"))
                         }, fxResultValue),
-                    new("Status", UiText.T(Context, "وضعیت تسویه", "Settlement status"), "select",
+                    AkFilterDefinition.MultiSelect("Status", UiText.T(Context, "وضعیت تسویه", "Settlement status"),
                         new List<AkFilterOption>
                         {
                             new("Draft", UiText.T(Context, "پیش‌نویس", "Draft")),
                             new("Posted", UiText.T(Context, "ثبت‌شده", "Posted")),
                             new("Cancelled", UiText.T(Context, "لغوشده", "Cancelled"))
-                        }, f.Status?.ToString()),
+                        }, AkFilterQuery.Values(Context, "Status")),
                     new("Commission", UiText.T(Context, "کمیشن", "Commission"), "select",
                         new List<AkFilterOption>
                         {

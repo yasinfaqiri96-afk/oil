@@ -1,50 +1,79 @@
 @model TransportResourceProfileViewModel
 @{
-    const int PageSize = 4;
-    var requestedPage = Context.Request.Query["page"].ToString();
-    var currentPage = int.TryParse(requestedPage, out var parsedPage) && parsedPage > 0 ? parsedPage : 1;
-    var totalCount = Model.Trips.Count;
-    var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
-    currentPage = Math.Min(currentPage, pageCount);
-    var visibleTrips = Model.Trips
-        .Skip((currentPage - 1) * PageSize)
-        .Take(PageSize)
-        .ToList();
+    // صفحه‌بندی سمت DB در TransportResourceProfileBuilder انجام شده؛ اینجا فقط صفحهٔ جاری می‌آید.
+    const string PageKey = "tripsPage";
+    var visibleTrips = Model.Trips;
+    var headNote = Model.CancelledRecordCount > 0
+        ? $"{Model.TripTotalCount:N0} ثبت · {Model.CancelledRecordCount:N0} لغوشده"
+        : $"{Model.TripTotalCount:N0} ثبت";
+    // لینک فقط وقتی ساخته می‌شود که کاربر به همان Controller دسترسی دارد؛ وگرنه مرجع متن ساده است.
+    bool CanOpen(TransportResourceTripItem item)
+        => !string.IsNullOrWhiteSpace(item.Controller) && !string.IsNullOrWhiteSpace(item.Action) && item.RouteId.HasValue
+           && PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller);
 
     string FormatDate(DateTime? date) => date.HasValue ? date.Value.ToDisplayDate() : "بدون تاریخ";
+    string StatusClass(TransportResourceTripItem item)
+        => item.IsCancelled ? "is-inactive" : item.IsInProgress ? "is-pending" : "is-active";
 }
 
-<div>
-    @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("تاریخچه حرکت‌ها", (string?)$"{totalCount} ثبت"))
+<div id="resource-trips">
+    @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("تاریخچه حرکت‌ها", (string?)headNote))
 
     @if (visibleTrips.Any())
     {
-        <div class="ak-list">
-            @foreach (var item in visibleTrips)
-            {
-                <article class="ak-list-row">
-                    <div>
-                        <div>@FormatDate(item.Date)</div>
-                        <div>
-                            <strong>@item.Route</strong>
-                            <i class="bi bi-arrow-left-short" aria-hidden="true"></i>
-                            <strong>@item.Title</strong>
-                        </div>
-                    </div>
-                    <div>
-                        <span>@item.Status</span>
-                        <b>@item.Quantity</b>
-                        @if (!string.IsNullOrWhiteSpace(item.Controller) && !string.IsNullOrWhiteSpace(item.Action) && item.RouteId.HasValue)
-                        {
-                            <a asp-controller="@item.Controller" asp-action="@item.Action" asp-route-id="@item.RouteId" class="btn btn-light ak-secondary-action">مشاهده</a>
-                        }
-                    </div>
-                </article>
-            }
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <thead>
+                    <tr>
+                        <th>تاریخ</th>
+                        <th class="ak-col-grow">نوع / شرح</th>
+                        <th class="ak-col-priority-2">محصول</th>
+                        <th class="ak-col-priority-3">مسیر</th>
+                        <th class="ak-col-num">مقدار</th>
+                        <th>وضعیت</th>
+                        <th>مرجع</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in visibleTrips)
+                    {
+                        <tr>
+                            <td class="ak-num">@FormatDate(item.Date)</td>
+                            <td class="ak-col-grow">
+                                <strong>@item.Kind</strong>
+                                <small class="d-block text-muted">@item.Title</small>
+                            </td>
+                            <td class="ak-col-priority-2">@(item.Product ?? "—")</td>
+                            <td class="ak-col-priority-3">@item.Route</td>
+                            <td class="ak-col-num ak-num">
+                                <bdi dir="ltr">@item.Quantity</bdi>
+                                @if (item.DeliveredQuantityMt.HasValue)
+                                {
+                                    <small class="d-block text-muted">تخلیه: <bdi dir="ltr">@item.DeliveredQuantityMt.Value.ToString("N3")</bdi></small>
+                                }
+                                @if (item.ShortageMt is > 0m)
+                                {
+                                    <small class="d-block text-danger">کسری: <bdi dir="ltr">@item.ShortageMt.Value.ToString("N3")</bdi></small>
+                                }
+                            </td>
+                            <td><span class="ak-status @StatusClass(item)">@item.Status</span></td>
+                            <td>
+                                @if (CanOpen(item))
+                                {
+                                    <a asp-controller="@item.Controller" asp-action="@item.Action" asp-route-id="@item.RouteId"><bdi>@item.Reference</bdi></a>
+                                }
+                                else
+                                {
+                                    <bdi>@item.Reference</bdi>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
 
-        @* این بخش اندازهٔ صفحهٔ ثابت خود را دارد؛ انتخابگر تعداد سطرِ لیست اصلی نباید اینجا تکرار شود. *@
-        @await Html.PartialAsync("_Pagination", (currentPage, pageCount), new ViewDataDictionary(ViewData) { ["PageSize"] = null })
+        <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((Model.TripPage, Model.TripPageCount, PageKey, (string?)"resource-trips"))" />
     }
     else
     {

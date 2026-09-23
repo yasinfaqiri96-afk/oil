@@ -1,13 +1,13 @@
-@model PTGOilSystem.Web.Models.Sales.SalesIndexViewModel
+﻿@model PTGOilSystem.Web.Models.Sales.SalesIndexViewModel
 @using PTGOilSystem.Web.Models.Sales
 @{
     ViewData["Title"] = UiText.T(Context, "فاکتورهای فروش", "Sales invoices");
     var items = Model.Items.ToList();
     var hasAdvancedFilter =
-        Model.Filter.ContractId.HasValue
-        || Model.Filter.CompanyId.HasValue
-        || Model.Filter.CustomerId.HasValue
-        || Model.Filter.ProductId.HasValue
+        Model.Filter.ContractId.Length > 0
+        || Model.Filter.CompanyId.Length > 0
+        || Model.Filter.CustomerId.Length > 0
+        || Model.Filter.ProductId.Length > 0
         || Model.Filter.FromDate.HasValue
         || Model.Filter.ToDate.HasValue;
     var hasFilters = hasAdvancedFilter || !string.IsNullOrWhiteSpace(Model.Filter.InvoiceNumber);
@@ -41,10 +41,10 @@
                 UiText.T(Context, "جستجوی شماره فاکتور", "Search invoice number"),
                 new List<AkFilterDefinition>
                 {
-                    new("Filter.ContractId", UiText.T(Context, "قرارداد فروش", "Sale contract"), "select", SalesOpts(ViewBag.Contracts), SalesQ("Filter.ContractId")),
-                    new("Filter.CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", SalesOpts(ViewBag.Customers), SalesQ("Filter.CustomerId")),
-                    new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", SalesOpts(ViewBag.Products), SalesQ("Filter.ProductId")),
-                    new("Filter.CompanyId", UiText.T(Context, "شرکت", "Company"), "select", SalesOpts(ViewBag.Companies), SalesQ("Filter.CompanyId")),
+                    AkFilterDefinition.MultiSelect("Filter.ContractId", UiText.T(Context, "قرارداد فروش", "Sale contract"), SalesOpts(ViewBag.Contracts), AkFilterQuery.Values(Context, "Filter.ContractId")),
+                    AkFilterDefinition.MultiSelect("Filter.CustomerId", UiText.T(Context, "مشتری", "Customer"), SalesOpts(ViewBag.Customers), AkFilterQuery.Values(Context, "Filter.CustomerId")),
+                    AkFilterDefinition.MultiSelect("Filter.ProductId", UiText.T(Context, "جنس", "Product"), SalesOpts(ViewBag.Products), AkFilterQuery.Values(Context, "Filter.ProductId")),
+                    AkFilterDefinition.MultiSelect("Filter.CompanyId", UiText.T(Context, "شرکت", "Company"), SalesOpts(ViewBag.Companies), AkFilterQuery.Values(Context, "Filter.CompanyId")),
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd"))
                 });

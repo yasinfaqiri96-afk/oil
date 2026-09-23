@@ -24,15 +24,17 @@ public sealed class ExcelImportComponentMigrationTests
         Assert.Contains("~/Views/Shared/ExcelImport/_ExcelImport.cshtml", content);
     }
 
-    // امپورت فرم ثبت بارگیری باید فقط یک دکمه در نوار جدول باشد، بدون پنل/مرحله/پیش‌نمایش جدا.
+    // امپورت فرم ثبت بارگیری همان کامپوننت مشترک است در حالت external: خودِ فرم فایل را
+    // به LoadingController.ImportWorkbook می‌فرستد و سطرها را به جدول همین فرم اضافه می‌کند.
     [Fact]
     public void LoadingCreate_ImportsWithASingleToolbarButton()
     {
         var content = File.ReadAllText(Path.Combine(WebRoot, "Views/Loading/Create.cshtml"));
 
-        Assert.DoesNotContain("~/Views/Shared/ExcelImport/_ExcelImport.cshtml", content);
-        Assert.Contains("data-loading-import-open", content);
-        Assert.Contains("data-loading-import-file", content);
+        Assert.Contains("~/Views/Shared/ExcelImport/_ExcelImport.cshtml", content);
+        Assert.Contains("Mode = \"external\"", content);
+        Assert.Contains("Url.Action(\"ImportWorkbook\", \"Loading\")", content);
+        Assert.Contains("data-loading-import-summary", content);
     }
 
     [Fact]

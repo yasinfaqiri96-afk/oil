@@ -27,6 +27,10 @@ public sealed class ScalePostgresCollection : ICollectionFixture<SimulationPostg
 /// صفحات اصلی می‌زنند زمان‌گیری می‌شوند.
 /// </summary>
 [Collection(ScalePostgresCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
+[Trait("Category", "Simulation")]
+[Trait("Category", "Performance")]
 public sealed class ScaleAndPerformanceTests
 {
     private const int LedgerRows = 300_000;

@@ -106,7 +106,7 @@ public sealed class AkDetailV2StructureTests
     {
         var loading = ReadView("Loading");
         Assert.Contains("اطلاعات اصلی", loading);
-        Assert.Contains("قابل ارسال / تخصیص", loading);
+        Assert.Contains("T(\"باقی\", \"Remaining\")", loading);
         Assert.Contains("TimelineTitle = T(\"همه رویدادهای بارگیری\"", loading);
         Assert.DoesNotContain("Activity = activityRows", loading);
         Assert.DoesNotContain("ak-loading-rub-secondary", loading);
@@ -275,7 +275,7 @@ public sealed class AkDetailV2StructureTests
         Assert.Equal(2, Count(contract, primarySelector));
         Assert.Contains("border-color: transparent", contract);
         Assert.Contains("border-radius: 8px", contract);
-        Assert.Contains("background: var(--background-paper, #fff)", contract);
+        Assert.Contains("background: var(--background-paper)", contract);
         Assert.Contains("box-shadow: var(--ptg-panel-shadow)", contract);
         Assert.Contains("@media print", contract);
         Assert.Contains("border: 1px solid #ccc", contract);

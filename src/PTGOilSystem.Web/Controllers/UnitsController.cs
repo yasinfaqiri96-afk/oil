@@ -28,7 +28,7 @@ public class UnitsController : Controller
         _deleteSafety = deleteSafety;
     }
 
-    public async Task<IActionResult> Index(string? q, string? unitType, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(string? q, string[]? unitType, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 12);
         ViewData["PageSize"] = pageSize;
@@ -46,8 +46,9 @@ public class UnitsController : Controller
                 (u.UnitType != null && u.UnitType.Contains(term)) ||
                 (u.BaseUnitCode != null && u.BaseUnitCode.Contains(term)));
         }
-        if (!string.IsNullOrWhiteSpace(unitType))
-            query = query.Where(u => u.UnitType == unitType);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (unitType is { Length: > 0 })
+            query = query.Where(u => u.UnitType != null && unitType.Contains(u.UnitType));
         if (isActive.HasValue)
             query = query.Where(u => u.IsActive == isActive.Value);
 
@@ -62,7 +63,7 @@ public class UnitsController : Controller
             .OrderBy(x => x)
             .ToListAsync();
         ViewData["q"] = q;
-        ViewData["unitType"] = unitType;
+        ViewData["unitType"] = unitType ?? [];
         ViewData["isActive"] = isActive;
         ViewData["CurrentPage"] = page;
         ViewData["PageCount"] = pageCount;

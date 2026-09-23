@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.ContractBalanceTransfers;
 using PTGOilSystem.Web.Models.Entities;
 using Xunit;
@@ -13,12 +14,19 @@ namespace PTGOilSystem.Web.Tests;
 /// </summary>
 public class ListPaginationTests
 {
-    private const int PageSize = 50;
+    private const int PageSize = 10;
+
+    [Fact]
+    public void Shared_Page_Size_Defaults_To_Ten_And_Honors_Manual_Selection()
+    {
+        Assert.Equal(10, ListPageSize.Resolve(requested: null, fallback: 500));
+        Assert.Equal(50, ListPageSize.Resolve(requested: 50, fallback: 500));
+    }
 
     [Theory]
     [InlineData(1, PageSize)]
     [InlineData(2, PageSize)]
-    [InlineData(3, 20)]   // صفحهٔ آخر: ۱۲۰ - ۱۰۰ = ۲۰ ردیف
+    [InlineData(12, PageSize)]
     public async Task ContractBalanceTransfers_Index_Returns_One_Page_Of_Rows(int page, int expectedRows)
     {
         await using var db = NewDb();
@@ -32,8 +40,30 @@ public class ListPaginationTests
 
         Assert.Equal(120, model.TotalCount);
         Assert.Equal(expectedRows, model.Items.Count);
-        Assert.Equal(3, model.PageCount);
+        Assert.Equal(12, model.PageCount);
         Assert.Equal(page, model.CurrentPage);
+    }
+
+    [Theory]
+    [InlineData(20)]
+    [InlineData(50)]
+    [InlineData(100)]
+    [InlineData(200)]
+    public async Task ContractBalanceTransfers_Index_Honors_Requested_Server_Page_Size(int requestedPageSize)
+    {
+        await using var db = NewDb();
+        SeedTransfers(db, count: 500);
+        await db.SaveChangesAsync();
+
+        var controller = new ContractBalanceTransfersController(db, transfers: null!);
+
+        var view = Assert.IsType<ViewResult>(await controller.Index(page: 2, perPage: requestedPageSize));
+        var model = Assert.IsType<ContractBalanceTransferIndexViewModel>(view.Model);
+
+        Assert.Equal(requestedPageSize, model.Items.Count);
+        Assert.Equal(2, model.CurrentPage);
+        Assert.Equal((int)Math.Ceiling(500d / requestedPageSize), model.PageCount);
+        Assert.Equal(requestedPageSize, Assert.IsType<int>(controller.ViewData["PageSize"]));
     }
 
     [Fact]

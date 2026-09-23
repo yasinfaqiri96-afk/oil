@@ -317,6 +317,8 @@ public sealed class LoadingDetailsViewModel
     public string? Notes { get; init; }
     public decimal TotalReceivedQuantityMt { get; init; }
     public decimal RemainingToReceiveMt { get; init; }
+    public int ActiveTransportCount { get; init; }
+    public int? FirstActiveTransportLegId { get; init; }
     public bool CanRegisterReceipt { get; init; }
     public decimal? ChargeableQuantityMt { get; init; }
     public decimal? RailwayRateUsd { get; init; }

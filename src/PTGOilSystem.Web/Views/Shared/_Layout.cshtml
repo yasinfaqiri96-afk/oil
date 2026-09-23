@@ -176,20 +176,10 @@
     // پشتیبان‌گیری فقط برای SuperAdmin (یا Permission صریح ManageBackups) دیده می‌شود؛
     // «مدیریت کاربران» به‌تنهایی این آیتم را باز نمی‌کند.
     var canManageBackups = PTGOilSystem.Web.Security.RoleAccessRules.CanManageBackups(User);
-    var adminSettingItemList = new List<(string Controller, string Action, string Label, string Icon, string? RouteKey)>();
-    if (canManageUsers)
-    {
-        // زیرمنوی «مدیریت» فقط دو آیتم دارد: کاربران و پشتیبان‌گیری.
-        // صفحات «نقش‌ها» و «لاگ‌ها» حذف نشده‌اند؛ فقط از سایدبار برداشته شدند
-        // و همچنان با آدرس مستقیم /Roles و /AuditLogs باز می‌شوند.
-        adminSettingItemList.Add(("Users", "Index", T("کاربران", "Users"), "bi-person-gear", null));
-    }
-    if (canManageBackups)
-    {
-        adminSettingItemList.Add(("Backups", "Index", T("پشتیبان‌گیری", "Backups"), "bi-hdd-stack", null));
-    }
-    var adminSettingItems = adminSettingItemList.ToArray();
-    var adminManagementControllers = new[] { "Users", "Roles", "AuditLogs", "Backups", "BackupRestore" };
+    // صفحات «نقش‌ها» و «لاگ‌ها» از سایدبار پنهان می‌مانند و با آدرس مستقیم
+    // /Roles و /AuditLogs در دسترس کاربران مجاز هستند.
+    var userManagementControllers = new[] { "Users", "Roles", "AuditLogs" };
+    var backupManagementControllers = new[] { "Backups", "BackupRestore" };
 
     var dashboardSidebarItem = SidebarItem("Home", "Index", T("داشبورد", "Dashboard"), "nav-dashboard");
     var contractControllers = new[] { "Contracts", "ContractAmendments", "ContractJourney" };
@@ -210,13 +200,13 @@
         SidebarItem("Reports", "Index", T("مالی و گزارش‌ها", "Finance & Reports"), "nav-finance", activeControllers: financeWorkspaceControllers)
     };
 
-    if (adminSettingItems.Length > 0)
+    if (canManageUsers)
     {
-        primarySidebarItems.Add(SidebarItem("Users", "Index", T("کاربران", "Users"), "nav-users", activeControllers: adminManagementControllers));
+        primarySidebarItems.Add(SidebarItem("Users", "Index", T("کاربران", "Users"), "nav-users", activeControllers: userManagementControllers));
     }
     primarySidebarItems.Add(SidebarItem("Suppliers", "Index", T("طرف حساب‌ها", "Parties"), "nav-parties", activeControllers: businessPartyGroupControllers));
     primarySidebarItems.Add(SidebarItem("Trucks", "Index", T("وسایط و راننده‌ها", "Vehicles & Drivers"), "nav-truck", activeControllers: transportControllers));
-    primarySidebarItems.Add(SidebarItem("StorageTanks", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", activeControllers: coreDataControllers));
+    primarySidebarItems.Add(SidebarItem("Currencies", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", activeControllers: coreDataControllers));
     primarySidebarItems = primarySidebarItems
         .Where(item => !string.Equals(item.Controller, "Sales", StringComparison.OrdinalIgnoreCase))
         .Where(item => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller))
@@ -249,12 +239,15 @@
         // این سه بخش زیرمنو ندارند؛ هر کدام مستقیم به صفحهٔ فهرست خودشان می‌روند.
         NavNode("Suppliers", "Index", T("طرف حساب‌ها", "Parties"), "nav-parties", active: businessPartyGroupControllers),
         NavNode("Trucks", "Index", T("وسایط و راننده‌ها", "Vehicles & Drivers"), "nav-truck", active: transportControllers),
-        NavNode("StorageTanks", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", active: coreDataControllers)
+        NavNode("Currencies", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", active: coreDataControllers)
     };
-    if (adminSettingItems.Length > 0)
+    if (canManageUsers)
     {
-        navSource.Add(NavNode("Users", "Index", T("مدیریت", "Administration"), "nav-users", active: adminManagementControllers,
-            children: adminSettingItems.Select(i => (i.Controller, i.Action, i.Label, i.Icon)).ToArray()));
+        navSource.Add(NavNode("Users", "Index", T("کاربران", "Users"), "nav-users", active: userManagementControllers));
+    }
+    if (canManageBackups)
+    {
+        navSource.Add(NavNode("Backups", "Index", T("پشتیبان‌گیری", "Backups"), "nav-settings", active: backupManagementControllers));
     }
 
     // Access filtering: keep visible children; keep node if it (or any child) is reachable.
@@ -483,7 +476,7 @@
                 <div class="boltz-sidebar-scroll">
                     <a class="boltz-brand boltz-brand-logo-only" asp-controller="Home" asp-action="Index">
                         <span class="boltz-brand-mark">
-                            <img class="boltz-brand-logo" src="~/images/logo1-sidebar-white.png" asp-append-version="true" alt="Saddiqi Group" width="512" height="165" decoding="async" />
+                            <img class="boltz-brand-logo" src="~/images/mashal-sidebar-white.webp" asp-append-version="true" alt="Saddiqi Group" width="2289" height="1143" decoding="async" />
                         </span>
                     </a>
 
@@ -647,7 +640,7 @@
                 @if (renderShellChrome)
                 {
                 <footer class="boltz-footer">
-                    <span>&copy; @BusinessClock.Today.Year PTG Oil System</span>
+                    <a class="boltz-footer-link" href="https://novatechsoft.com" target="_blank" rel="noopener noreferrer">novatechsoft.com</a>
                 </footer>
                 }
             </div>
@@ -738,6 +731,10 @@
         @if (renderShellChrome)
         {
         <script src="~/vendor/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true" defer></script>
+        @* مثل CSS: در Development هر فایل جدا می‌آید تا دیباگ ساده بماند؛ در بقیهٔ
+           محیط‌ها همان فایل‌ها با همان ترتیب در یک باندل (ساخته‌شده در build) سرو می‌شوند. *@
+        @if (HostEnvironment.IsDevelopment())
+        {
         <script src="~/js/core.js" asp-append-version="true" defer></script>
         <script src="~/js/ptg-toasts.js" asp-append-version="true" defer></script>
         <script src="~/js/language-catalog.en.js" asp-append-version="true" defer></script>
@@ -757,6 +754,11 @@
         <script src="~/js/ak-entity-combobox.js" asp-append-version="true" defer></script>
         <script src="~/js/ak-datepicker.js" asp-append-version="true" defer></script>
         <script src="~/js/assistant.js" asp-append-version="true" defer></script>
+        }
+        else
+        {
+        <script src="~/js/ptg-core.bundle.js" asp-append-version="true" defer></script>
+        }
         }
         @if (useFinanceFormAssets)
         {

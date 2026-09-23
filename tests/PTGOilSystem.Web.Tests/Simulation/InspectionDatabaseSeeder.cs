@@ -20,11 +20,14 @@ namespace PTGOilSystem.Web.Tests.Simulation;
 /// همچنان دیتابیس موقتی خود را پاک می‌کنند و اینجا هیچ Drop خودکاری وجود ندارد.
 ///
 /// اجرا فقط با درخواست صریح:
-///   PTG_INSPECTION_SEED=1 dotnet test --filter FullyQualifiedName~InspectionDatabaseSeeder
+///   PTG_INSPECTION_SEED=1 dotnet test --no-build --no-restore --filter FullyQualifiedName~InspectionDatabaseSeeder
 /// متغیرهای اختیاری:
 ///   PTG_INSPECTION_DATABASE  نام دیتابیس (پیش‌فرض ptg_oil_accounting_test_12month_inspection)
 ///   PTG_INSPECTION_RESET=1   اگر دیتابیس از قبل هست، دوباره از صفر ساخته شود
 /// </summary>
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
+[Trait("Category", "Simulation")]
 public sealed class InspectionDatabaseSeeder
 {
     public const string DefaultDatabaseName =

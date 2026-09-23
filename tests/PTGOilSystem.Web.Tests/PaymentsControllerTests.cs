@@ -413,7 +413,7 @@ public class PaymentsControllerTests
         Assert.Equal(1, balanceRedirect.RouteValues?["id"]);
 
         var statementsController = new AccountStatementsController(db, new PricingService(db), new AuditService(db));
-        var statementResult = await statementsController.Index(new AccountStatementFilterViewModel { CustomerId = 1 });
+        var statementResult = await statementsController.Index(new AccountStatementFilterViewModel { CustomerId = [1] });
         var statementView = Assert.IsType<ViewResult>(statementResult);
         var statementModel = Assert.IsType<AccountStatementIndexViewModel>(statementView.Model);
         Assert.Contains(statementModel.Items, row => row.SourceType == "CustomerReceipt" && row.Reference == "RCPT-001");
@@ -463,7 +463,7 @@ public class PaymentsControllerTests
         Assert.Equal(1, balanceRedirect.RouteValues?["id"]);
 
         var statementsController = new AccountStatementsController(db, new PricingService(db), new AuditService(db));
-        var statementResult = await statementsController.Index(new AccountStatementFilterViewModel { SupplierId = 1 });
+        var statementResult = await statementsController.Index(new AccountStatementFilterViewModel { SupplierId = [1] });
         var statementView = Assert.IsType<ViewResult>(statementResult);
         var statementModel = Assert.IsType<AccountStatementIndexViewModel>(statementView.Model);
         Assert.Contains(statementModel.Items, row => row.SourceType == "SupplierPayment" && row.Reference == "SUP-001");
@@ -1022,7 +1022,7 @@ public class PaymentsControllerTests
             // بازهٔ تاریخ برای خروجی CSV الزامی است.
             FromDate = new DateTime(2026, 4, 20),
             ToDate = new DateTime(2026, 4, 21),
-            Direction = PaymentDirection.In,
+            Direction = [PaymentDirection.In],
             Reference = "RCPT"
         });
 
@@ -1090,7 +1090,7 @@ public class PaymentsControllerTests
 
         var result = await controller.Index(new PaymentIndexFilterViewModel
         {
-            CounterpartyType = PaymentCounterpartyType.Customer,
+            CounterpartyType = [PaymentCounterpartyType.Customer],
             Currency = "usd",
             Search = "Kabul"
         });
@@ -1550,7 +1550,7 @@ public class PaymentsControllerTests
         Assert.Equal(10_000m, sarraf.PayableUsd);
         Assert.Contains(sarraf.StatementRows, r => r.Currency == "RUB" && r.SourceAmount == 920_000m);
 
-        var indexResult = await controller.Index(new PaymentIndexFilterViewModel { SupplierId = 2 });
+        var indexResult = await controller.Index(new PaymentIndexFilterViewModel { SupplierId = [2] });
         var indexView = Assert.IsType<ViewResult>(indexResult);
         var index = Assert.IsType<PaymentIndexViewModel>(indexView.Model);
         var row = Assert.Single(index.Items);

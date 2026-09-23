@@ -221,6 +221,8 @@ public class ContractJourneyControllerTests
                 SourceType = "Sale",
                 SourceId = 1,
                 ContractId = 1,
+                // SaleLedgerFactory همیشه مشتریِ فروش را روی سطرِ دفتر می‌گذارد.
+                CustomerId = 1,
                 Reference = "INV-001"
             },
             new LedgerEntry
@@ -280,7 +282,9 @@ public class ContractJourneyControllerTests
         Assert.Equal(60m, model.Kpis.CurrentStockQuantityMt);
         Assert.Equal(10m, model.Kpis.TotalExpensesUsd);
         Assert.Equal(50m, model.Kpis.TotalPaymentsUsd);
-        Assert.Equal(140m, model.Kpis.RelatedBalanceUsd);
+        // ماندهٔ قرارداد از موتورِ رسمی: فقط طلبِ مشتری (100). مصرفِ بی‌طرف‌حساب و رسیدِ دستیِ
+        // بی‌طرف‌حساب مانده با کسی نیستند؛ فرمولِ خامِ قبلی (Credit − Debit = 140) آن‌ها را هم می‌شمرد.
+        Assert.Equal(100m, model.Kpis.RelatedBalanceUsd);
         Assert.Single(model.DispatchItems);
         Assert.Single(model.SalesItems);
         Assert.Equal("فروش فاکتوری / بدون قرارداد فروش", model.SalesItems[0].SalesContractDisplay);

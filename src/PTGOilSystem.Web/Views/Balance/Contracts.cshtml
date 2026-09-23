@@ -1,11 +1,11 @@
-@model PTGOilSystem.Web.Models.Balance.ContractsBalanceViewModel
+﻿@model PTGOilSystem.Web.Models.Balance.ContractsBalanceViewModel
 @{
     ViewData["Title"] = UiText.T(Context,"بیلانس قراردادها","Contract Balances");
-    var totalSalesUsd = Model.Items.Sum(item => item.TotalSalesUsd);
-    var totalExpensesUsd = Model.Items.Sum(item => item.TotalExpensesUsd);
-    var totalBaseBalanceUsd = Model.Items.Sum(item => item.BaseBalanceUsd);
+    var totalSalesUsd = Model.FilteredTotalSalesUsd;
+    var totalExpensesUsd = Model.FilteredTotalExpensesUsd;
+    var totalBaseBalanceUsd = Model.FilteredBalanceUsd;
     var hasAdvancedFilter = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || Model.Filter.ProductId.HasValue || Model.Filter.CustomerId.HasValue || Model.Filter.SupplierId.HasValue;
+        || Model.Filter.ProductId.Length > 0 || Model.Filter.CustomerId.Length > 0 || Model.Filter.SupplierId.Length > 0;
 }
 
 <div class="ak-list-page">
@@ -33,11 +33,11 @@
                 {
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
-                    new("Filter.ContractType", UiText.T(Context, "نوع", "Type"), "select", BkOpts(ViewBag.ContractTypes), BkQ("Filter.ContractType")),
-                    new("Filter.Status", UiText.T(Context, "وضعیت", "Status"), "select", BkOpts(ViewBag.ContractStatuses), BkQ("Filter.Status")),
-                    new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", BkOpts(ViewBag.Products), BkQ("Filter.ProductId")),
-                    new("Filter.CustomerId", UiText.T(Context, "مشتری", "Customer"), "select", BkOpts(ViewBag.Customers), BkQ("Filter.CustomerId")),
-                    new("Filter.SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), "select", BkOpts(ViewBag.Suppliers), BkQ("Filter.SupplierId"))
+                    AkFilterDefinition.MultiSelect("Filter.ContractType", UiText.T(Context, "نوع", "Type"), BkOpts(ViewBag.ContractTypes), AkFilterQuery.Values(Context, "Filter.ContractType")),
+                    AkFilterDefinition.MultiSelect("Filter.Status", UiText.T(Context, "وضعیت", "Status"), BkOpts(ViewBag.ContractStatuses), AkFilterQuery.Values(Context, "Filter.Status")),
+                    AkFilterDefinition.MultiSelect("Filter.ProductId", UiText.T(Context, "جنس", "Product"), BkOpts(ViewBag.Products), AkFilterQuery.Values(Context, "Filter.ProductId")),
+                    AkFilterDefinition.MultiSelect("Filter.CustomerId", UiText.T(Context, "مشتری", "Customer"), BkOpts(ViewBag.Customers), AkFilterQuery.Values(Context, "Filter.CustomerId")),
+                    AkFilterDefinition.MultiSelect("Filter.SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), BkOpts(ViewBag.Suppliers), AkFilterQuery.Values(Context, "Filter.SupplierId"))
                 });
         }
         <div class="ak-list-toolbar">

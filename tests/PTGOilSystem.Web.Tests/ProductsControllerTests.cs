@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Controllers;
@@ -61,7 +61,8 @@ public class ProductsControllerTests
         Assert.Contains("Views/Shared/Components/Ak/_AkPageHeader.cshtml", content);
         Assert.Contains("Views/Shared/_AkSearchFilter.cshtml", content);
         Assert.Contains("new AkSearchFilterModel(\n            \"q\"", content.Replace("\r\n", "\n"));
-        Assert.Contains("new(\"unitId\"", content);
+        // فیلتر واحد چندانتخابی شد؛ همان پارامتر unitId، فقط با امکان تکرار مقدار.
+        Assert.Contains("MultiSelect(\"unitId\"", content);
         Assert.Contains("new(\"isActive\"", content);
         Assert.Contains("Url.Action(\"Create\", new { returnUrl })", content);
         Assert.DoesNotContain("_CreateModalShell", content);

@@ -12,6 +12,7 @@ using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
 
+[Trait("Category", "Performance")]
 public sealed class PurchaseAccountingBatchPerformanceTests
 {
     private const int LoadingCount = 20;

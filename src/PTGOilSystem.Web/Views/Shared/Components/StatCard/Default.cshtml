@@ -46,7 +46,7 @@
                     title="@displayValue"><bdi>@displayValue</bdi></strong>
             @if (!string.IsNullOrWhiteSpace(Model.Unit))
             {
-                <span class="ak-stat-card__unit">@Model.Unit</span>
+                <span class="ak-stat-card__unit" title="@Model.Unit">@Model.Unit</span>
             }
             @if (!string.IsNullOrWhiteSpace(Model.TrendValue) && Model.TrendDirection != StatCardTrendDirection.None)
             {

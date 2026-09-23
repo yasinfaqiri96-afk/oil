@@ -1009,9 +1009,11 @@ public class ContractJourneyViewStructureTests
     public void ContractJourney_InventoryTransport_Tab_Uses_Shared_Ak_Table()
     {
         var view = ReadContractJourneyDetailsMarkup();
+        // دو switch با همین case هست: اولی نوار KPI و دومی محتوای تب؛ جدول در دومی است.
+        const string caseMarker = "case ContractJourneyTabs.Details.InventoryTransport:";
         var block = ExtractSwitchCaseBlock(
-            view,
-            "case ContractJourneyTabs.Details.InventoryTransport:",
+            view[view.LastIndexOf(caseMarker, StringComparison.Ordinal)..],
+            caseMarker,
             "case ContractJourneyTabs.Details.Inventory:");
 
         Assert.Contains("class=\"ak-table ak-detail-table\"", block);
@@ -1231,7 +1233,12 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("public async Task<IActionResult> Index(", controller);
         Assert.Contains("DateTime? fromDate = null", controller);
         Assert.Contains("DateTime? toDate = null", controller);
-        Assert.Contains("query = query.Where(l => l.ContractId == contractId.Value);", controller);
+        // فیلتر قرارداد چندانتخابی شد: همان پارامتر contractId، با OR بین مقادیر؛
+        // اعمال فیلتر در LoadingListFilter مشترکِ لیست و Export است.
+        var loadingListFilter = ReadRepoFile("src/PTGOilSystem.Web/Helpers/LoadingListFilter.cs");
+        Assert.Contains("int[]? contractId = null", controller);
+        Assert.Contains("ContractIds = contractId", controller);
+        Assert.Contains("query = query.Where(l => contractIds.Contains(l.ContractId));", loadingListFilter);
         Assert.Contains("public async Task<IActionResult> Details(int id, string? returnUrl = null)", controller);
         Assert.Contains("CanRegisterReceipt = remainingToReceiveMt > 0m", controller);
         Assert.DoesNotContain("PopulateReceiptLookupsAsync(receiptEditor)", controller);
@@ -1263,7 +1270,7 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, \"USD/MT\")", view);
         // Totals must still come from the precomputed view-model values; Razor never
         // creates a second financial calculation path.
-        Assert.Contains("Model.LoadingExpenseTotalUsd > 0m", view);
+        Assert.Contains("var loadingCostsGrandTotal = Model.LoadingCostsGrandTotalUsd;", view);
         Assert.Contains("loadingCostsGrandTotal.ToString(\"N2\")", view);
         Assert.DoesNotContain("_DetailSummaryCard.cshtml", view);
         Assert.DoesNotContain("_DetailKpiStrip.cshtml", view);
@@ -1289,6 +1296,32 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("Url.Action(\"Create\", \"LossEvents\"", contents);
         Assert.Contains("loadingRegisterId = Model.Id", contents);
         Assert.Contains("returnUrl = currentPageReturnUrl", contents);
+    }
+
+    [Fact]
+    public void Loading_Details_Shows_Only_Four_Operational_Quantities_And_Links_Converted_Transport()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Details.cshtml");
+        var quantityStart = view.IndexOf("var quantityMetrics", StringComparison.Ordinal);
+        var timelineStart = view.IndexOf("var timelineItems", quantityStart, StringComparison.Ordinal);
+        var quantityBlock = view[quantityStart..timelineStart];
+        var pricingStart = view.IndexOf("var pricingItems", StringComparison.Ordinal);
+        var rubStart = view.IndexOf("var rubValue", pricingStart, StringComparison.Ordinal);
+        var pricingBlock = view[pricingStart..rubStart];
+
+        Assert.Contains("T(\"بارگیری\", \"Loaded\")", quantityBlock);
+        Assert.Contains("T(\"رسید\", \"Received\")", quantityBlock);
+        Assert.Contains("T(\"کسری\", \"Shortage\")", quantityBlock);
+        Assert.Contains("T(\"باقی\", \"Remaining\")", quantityBlock);
+        Assert.DoesNotContain("قابل ارسال / تخصیص", quantityBlock);
+        Assert.DoesNotContain("مجموع مصارف", quantityBlock);
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(quantityBlock, "new\\(\\)").Count);
+        Assert.Contains("T(\"مجموع مصارف\", \"Total expenses\")", pricingBlock);
+        Assert.Contains("Model.ActiveTransportCount > 0", view);
+        Assert.Contains("Url.Action(\"Details\", \"InventoryTransportLegs\"", view);
+        Assert.Contains("T(\"به حمل تبدیل شده\", \"Converted to transport\")", quantityBlock);
+        Assert.Contains("Href = transportDetailsUrl", quantityBlock);
+        Assert.DoesNotContain("وضعیت حمل", view);
     }
 
     [Fact]
@@ -1417,9 +1450,11 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("CompactText(loss.Reference ?? loss.Notes", view);
         Assert.DoesNotContain("CompactText(Model.Notes", view);
         Assert.DoesNotContain("T(\"یادداشت\", \"Notes\")", view);
-        Assert.Contains("T(\"ورود تکمیل‌شده به موجودی\", \"Completed to inventory\")", view);
-        Assert.Contains("allocation.Destination == LoadingReceiptAllocationDestination.ToInventory", view);
-        Assert.Contains("allocation.Status == LoadingReceiptAllocationStatus.Completed", view);
+        // ردیف «ورود تکمیل‌شده به موجودی» در بازطراحی جزئیات رسید حذف شد؛ تخصیص‌ها از
+        // خلاصهٔ تخصیص و سوابق مرتبط (ارسال/فروش) خوانده می‌شوند.
+        Assert.DoesNotContain("T(\"ورود تکمیل‌شده به موجودی\", \"Completed to inventory\")", view);
+        Assert.Contains("T(\"تخصیص‌ها\", \"Allocations\")", view);
+        Assert.Contains("Model.Allocations.Where(item => item.TruckDispatchId.HasValue || item.SalesTransactionId.HasValue)", view);
         Assert.Contains(".ak-linear-detail .ak-detail-overview", detailCss);
         Assert.DoesNotContain("[data-loading-receipt-details] .ak-operations-more-group", detailCss);
         Assert.Contains("dir=\"rtl\"", view);
@@ -1542,10 +1577,10 @@ public class ContractJourneyViewStructureTests
         var detailActionBar = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_DetailActionBar.cshtml");
 
         Assert.Contains("ak-form-page--wide loading-import-workbook", create);
-        // Excel import is a single toolbar button next to «افزودن سطر»: the file is read by
+        // Excel import uses the shared component in external mode: the file is read by
         // LoadingController.ImportWorkbook and its rows land straight in the form's own table.
-        Assert.DoesNotContain("Views/Shared/ExcelImport/_ExcelImport.cshtml", create);
-        Assert.Contains("data-loading-import-open", create);
+        Assert.Contains("Views/Shared/ExcelImport/_ExcelImport.cshtml", create);
+        Assert.Contains("data-loading-import", create);
         Assert.Contains("ImportWorkbook", create);
         Assert.Contains("RWB / CMR / Bill of Lading", create);
         Assert.Contains("RWB / CMR / Bill of Lading", rowEditor);
@@ -1697,8 +1732,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains(".ak-entity-quick-create[hidden]", componentsCss);
         Assert.Contains("data-sales-save-summary", contents);
         Assert.Contains("مرور نهایی فروش", contents);
-        Assert.Contains("class=\"ak-summary-list ak-summary\"", contents);
-        Assert.DoesNotContain("<details class=\"ak-advanced\"", contents);
+        // مرور نهایی فقط دو عدد نهایی دارد (مقدار و مبلغ کل).
+        Assert.Contains("class=\"ak-summary-hero\"", contents);
+        Assert.Contains("data-sales-summary-qty", contents);
+        Assert.Contains("data-sales-summary-amount", contents);
         Assert.DoesNotContain("تنظیمات بیشتر", contents);
         Assert.Contains(".ak-form-section[data-sales-stage-scope]", financeForms);
         Assert.Contains(".ak-field, .ak-col-full", financeForms);

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -761,10 +761,10 @@ public partial class LoadingController : Controller
 
     public async Task<IActionResult> Index(
         string? q = null,
-        int? contractId = null,
-        int? productId = null,
+        int[]? contractId = null,
+        int[]? productId = null,
         bool withoutReceipt = false,
-        int? transportType = null,
+        int[]? transportType = null,
         string? receiptStatus = null,
         string? priceStatus = null,
         DateTime? fromDate = null,
@@ -772,105 +772,43 @@ public partial class LoadingController : Controller
         int page = 1,
         [FromQuery(Name = "pageSize")] int? perPage = null)
     {
-        const int defaultPageSize = 20;
-        var requestedPageSize = perPage;
-        if (!requestedPageSize.HasValue
-            && Request.Cookies.TryGetValue("ptg-loading-page-size", out var savedPageSize)
-            && int.TryParse(savedPageSize, out var parsedPageSize))
-        {
-            requestedPageSize = parsedPageSize;
-        }
-        var pageSize = ListPageSize.Resolve(requestedPageSize, defaultPageSize);
-        if (perPage.HasValue)
-        {
-            Response.Cookies.Append("ptg-loading-page-size", pageSize.ToString(), new CookieOptions
-            {
-                IsEssential = true,
-                HttpOnly = true,
-                SameSite = SameSiteMode.Lax,
-                Secure = Request.IsHttps,
-                Expires = DateTimeOffset.UtcNow.AddYears(1)
-            });
-        }
+        const int defaultPageSize = ListPageSize.Default;
+        var pageSize = ListPageSize.Resolve(perPage, defaultPageSize);
         ViewData["PageSize"] = pageSize;
         ViewData["DefaultPageSize"] = defaultPageSize;
         var exportAll = page <= 0;
         var normalizedQuery = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
         ViewData["q"] = normalizedQuery;
-        ViewData["contractId"] = contractId;
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        // شناسهٔ تکیِ قرارداد فقط برای پیوندها و عنوانِ دامنه است، نه برای فیلتر.
+        var singleContractId = contractId is { Length: 1 } ? contractId[0] : (int?)null;
+        var singleProductId = productId is { Length: 1 } ? productId[0] : (int?)null;
+        ViewData["contractId"] = contractId ?? [];
 
-        var query = _db.LoadingRegisters.AsNoTracking().AsQueryable();
+        // شرط‌های فیلتر فقط یک جا تعریف شده‌اند تا «تبدیل گروهی همهٔ نتایج فیلتر»
+        // دقیقاً همان مجموعه‌ای را ببیند که کاربر روی صفحه می‌بیند.
+        var filterCriteria = new LoadingListFilterCriteria
+        {
+            Query = normalizedQuery,
+            ContractIds = contractId,
+            ProductIds = productId,
+            WithoutReceipt = withoutReceipt,
+            TransportTypes = transportType,
+            ReceiptStatus = receiptStatus,
+            PriceStatus = priceStatus,
+            FromDate = fromDate,
+            ToDate = toDate
+        };
+        var query = LoadingListFilter.Apply(_db.LoadingRegisters.AsNoTracking(), filterCriteria);
 
         string? contractNumber = null;
-        if (contractId.HasValue)
+        if (singleContractId.HasValue)
         {
-            query = query.Where(l => l.ContractId == contractId.Value);
             contractNumber = await _db.Contracts
                 .AsNoTracking()
-                .Where(c => c.Id == contractId.Value)
+                .Where(c => c.Id == singleContractId.Value)
                 .Select(c => c.ContractNumber)
                 .FirstOrDefaultAsync();
-        }
-
-        if (productId.HasValue)
-        {
-            query = query.Where(l => l.ProductId == productId.Value);
-        }
-
-        // وضعیت رسید: پارامتر قدیمی withoutReceipt همچنان کار می‌کند و معادل
-        // receiptStatus=without است؛ لینک‌های موجود تغییری نمی‌بینند.
-        var normalizedReceiptStatus = withoutReceipt ? "without" : receiptStatus?.Trim().ToLowerInvariant();
-        if (normalizedReceiptStatus == "without")
-        {
-            query = query.Where(l => !l.Receipts.Any(r => !r.IsCancelled));
-        }
-        else if (normalizedReceiptStatus == "with")
-        {
-            query = query.Where(l => l.Receipts.Any(r => !r.IsCancelled));
-        }
-
-        if (transportType.HasValue && Enum.IsDefined(typeof(LoadingTransportType), transportType.Value))
-        {
-            var transportTypeValue = (LoadingTransportType)transportType.Value;
-            query = query.Where(l => l.TransportType == transportTypeValue);
-        }
-
-        var normalizedPriceStatus = priceStatus?.Trim().ToLowerInvariant();
-        if (normalizedPriceStatus == "pending")
-        {
-            query = query.Where(l => l.LoadingPriceUsd == null || l.LoadingPriceUsd <= 0m);
-        }
-        else if (normalizedPriceStatus == "priced")
-        {
-            query = query.Where(l => l.LoadingPriceUsd != null && l.LoadingPriceUsd > 0m);
-        }
-
-        if (fromDate.HasValue)
-        {
-            query = query.Where(l => l.LoadingDate >= fromDate.Value.Date);
-        }
-
-        if (toDate.HasValue)
-        {
-            var exclusiveToDate = toDate.Value.Date.AddDays(1);
-            query = query.Where(l => l.LoadingDate < exclusiveToDate);
-        }
-
-        if (!string.IsNullOrWhiteSpace(normalizedQuery))
-        {
-            // PTG canonical search — کلیدِ canonical به شرطِ قبلی اضافه می‌شود، جایگزینِ آن نمی‌شود:
-            // هیچ نتیجه‌ای از دست نمی‌رود و «یوسف» سطرِ «يوسف» را هم پیدا می‌کند.
-            // SearchKey خالی یعنی سطرِ پیش از Backfill؛ همان شرطِ قبلی هنوز آن را می‌یابد.
-            var canonicalTerm = AfghanTextNormalizer.NormalizeForSearch(normalizedQuery);
-            query = query.Where(l =>
-                (l.SearchKey != null && l.SearchKey.Contains(canonicalTerm)) ||
-                (l.Contract != null && l.Contract.SearchKey != null && l.Contract.SearchKey.Contains(canonicalTerm)) ||
-                (l.Contract != null && (l.Contract.ContractName.Contains(normalizedQuery) || l.Contract.ContractNumber.Contains(normalizedQuery))) ||
-                (l.Product != null && l.Product.Name.Contains(normalizedQuery)) ||
-                (l.WagonNumber != null && l.WagonNumber.Contains(normalizedQuery)) ||
-                (l.BillOfLadingNumber != null && l.BillOfLadingNumber.Contains(normalizedQuery)) ||
-                (l.DestinationName != null && l.DestinationName.Contains(normalizedQuery))
-            );
         }
 
         // آمار کامل روی همهٔ رکوردهای مطابق فیلتر در یک رفت‌وبرگشت واحد به‌جای
@@ -1004,27 +942,33 @@ public partial class LoadingController : Controller
 
         // گزینه‌های فیلتر فقط از روی همان قرارداد/جنس‌هایی ساخته می‌شوند که بارگیری دارند،
         // تا فهرست کوتاه و مرتبط بماند.
-        var filterContracts = await _db.LoadingRegisters
-            .AsNoTracking()
-            .Where(l => l.Contract != null)
-            .Select(l => new { l.ContractId, l.Contract!.ContractNumber, l.Contract.ContractName })
-            .Distinct()
-            .OrderBy(c => c.ContractNumber)
-            .ToListAsync();
-        ViewBag.FilterContracts = filterContracts
-            .Select(c => new SelectListItem($"{c.ContractNumber} - {c.ContractName}", c.ContractId.ToString()))
-            .ToList();
+        // این دو فهرست به فیلترِ کاربر وابسته نیستند، پس برای یک بازهٔ کوتاه کش می‌شوند و
+        // اسکن DISTINCT در هر باز شدن صفحه تکرار نمی‌شود.
+        ViewBag.FilterContracts = await FilterOptionCache.GetOrCreateAsync(
+            _cache,
+            "loading:filter-contracts",
+            async () => (await _db.LoadingRegisters
+                    .AsNoTracking()
+                    .Where(l => l.Contract != null)
+                    .Select(l => new { l.ContractId, l.Contract!.ContractNumber, l.Contract.ContractName })
+                    .Distinct()
+                    .OrderBy(c => c.ContractNumber)
+                    .ToListAsync())
+                .Select(c => new SelectListItem($"{c.ContractNumber} - {c.ContractName}", c.ContractId.ToString()))
+                .ToList());
 
-        var filterProducts = await _db.LoadingRegisters
-            .AsNoTracking()
-            .Where(l => l.Product != null)
-            .Select(l => new { l.ProductId, l.Product!.Name })
-            .Distinct()
-            .OrderBy(p => p.Name)
-            .ToListAsync();
-        ViewBag.FilterProducts = filterProducts
-            .Select(p => new SelectListItem(p.Name, p.ProductId.ToString()))
-            .ToList();
+        ViewBag.FilterProducts = await FilterOptionCache.GetOrCreateAsync(
+            _cache,
+            "loading:filter-products",
+            async () => (await _db.LoadingRegisters
+                    .AsNoTracking()
+                    .Where(l => l.Product != null)
+                    .Select(l => new { l.ProductId, l.Product!.Name })
+                    .Distinct()
+                    .OrderBy(p => p.Name)
+                    .ToListAsync())
+                .Select(p => new SelectListItem(p.Name, p.ProductId.ToString()))
+                .ToList());
 
         return View(new LoadingIndexViewModel
         {
@@ -1032,9 +976,9 @@ public partial class LoadingController : Controller
             CurrentPage = page,
             PageCount = pageCount,
             TotalCount = totalCount,
-            ContractId = contractId,
+            ContractId = singleContractId,
             ContractNumber = contractNumber,
-            ProductId = productId,
+            ProductId = singleProductId,
             WithoutReceipt = withoutReceipt,
             Query = normalizedQuery,
             FromDate = fromDate,
@@ -2140,12 +2084,19 @@ public partial class LoadingController : Controller
         var receiptShortageLossMt = lossItems
             .Where(l => l.Stage == LossEventStage.ReceiptShortage)
             .Sum(l => l.DifferenceQuantityMt > 0m ? l.DifferenceQuantityMt : Math.Max(l.ChargeableLossMt, 0m));
-        var transportedFromLoadingMt = await _db.InventoryTransportLegAllocations
+        var activeTransportAllocations = await _db.InventoryTransportLegAllocations
             .AsNoTracking()
             .Where(a => a.SourceLoadingRegisterId == loading.Id
                 && a.InventoryTransportLeg != null
                 && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
-            .SumAsync(a => (decimal?)a.QuantityMt) ?? 0m;
+            .Select(a => new { a.InventoryTransportLegId, a.QuantityMt })
+            .ToListAsync();
+        var activeTransportLegIds = activeTransportAllocations
+            .Select(a => a.InventoryTransportLegId)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToList();
+        var transportedFromLoadingMt = activeTransportAllocations.Sum(a => a.QuantityMt);
         var remainingToReceiveMt = Math.Max(
             loading.LoadedQuantityMt - totalReceivedQuantityMt - receiptShortageLossMt - transportedFromLoadingMt,
             0m);
@@ -2200,6 +2151,10 @@ public partial class LoadingController : Controller
             Notes = loading.Notes,
             TotalReceivedQuantityMt = totalReceivedQuantityMt,
             RemainingToReceiveMt = remainingToReceiveMt,
+            ActiveTransportCount = activeTransportLegIds.Count,
+            FirstActiveTransportLegId = activeTransportLegIds.Count > 0
+                ? activeTransportLegIds[0]
+                : null,
             CanRegisterReceipt = remainingToReceiveMt > 0m,
             ExpenseEditor = BuildLoadingExpenseEditModel(loading, returnUrl),
             ReceiptItems = receiptItems,
@@ -4917,27 +4872,30 @@ public partial class LoadingController : Controller
         return location?.Id;
     }
 
+    // قاعدهٔ #9 برای بارگیریِ تازه: قیمت هر بارگیری مستقل است، پس سطری که قیمت خودش را دارد
+    // (از ستون قیمتِ فایل اکسل یا ورود دستی) هرگز بازنویسی نمی‌شود. فقط سطرِ بدون قیمت با
+    // «نرخ نهاییِ قطعی» قرارداد تکمیل می‌شود، با همان تعریفی که SyncPurchaseLoadingPricesAsync
+    // به کار می‌برد (ContractPricingAdapter.GetCanonicalFinalPrice): نرخ نهایی دستی، یا قیمت
+    // ثابت قرارداد. قراردادی که هنوز نرخ قطعی ندارد (مثلاً Platts بدون نرخ نهایی دستی) سطر را
+    // «در انتظار نرخ» می‌گذارد، دقیقاً مثل قبل. بدون این کار، بارگیریِ ثبت‌شده بعد از قطعی‌شدن
+    // نرخ قرارداد تا همگام‌سازیِ بعدیِ قرارداد بی‌قیمت می‌ماند.
     private void ApplyContractPricingDefaults(
         Contract contract,
         ContractPriceResult pricingResult,
         IEnumerable<LoadingCreateRowViewModel> rows,
         bool addValidationErrors)
     {
+        var contractFinalPriceUsd = ContractPricingAdapter.GetCanonicalFinalPrice(contract);
+
         foreach (var row in rows)
         {
             row.PlattsUsd = NormalizePositiveDecimal(row.PlattsUsd);
             row.LoadingPriceUsd = NormalizePositiveDecimal(row.LoadingPriceUsd);
-            if (addValidationErrors && !addValidationErrors && !row.PlattsUsd.HasValue && contract.PricingMethod == PricingMethod.FormulaPlatts)
-            {
-                if (pricingResult.BasePlattsPrice.HasValue)
-                {
-                    row.PlattsUsd = pricingResult.BasePlattsPrice.Value;
-                }
-                // When Platts price is not yet available (e.g. monthly price not entered),
-                // do NOT block saving — allow loading to be recorded without price,
-                // so it can be updated later when the monthly rate is determined.
-            }
 
+            if (!row.LoadingPriceUsd.HasValue && contractFinalPriceUsd.HasValue)
+            {
+                row.LoadingPriceUsd = contractFinalPriceUsd.Value;
+            }
         }
     }
 

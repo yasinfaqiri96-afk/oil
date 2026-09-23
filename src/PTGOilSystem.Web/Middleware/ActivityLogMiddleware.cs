@@ -1,6 +1,7 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.Extensions.Caching.Memory;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services;
 
@@ -10,18 +11,29 @@ public sealed class ActivityLogMiddleware
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// بازهٔ ثبتِ «بازدید» برای یک کاربر روی یک مسیر. هر GET موفق یک سطر Audit می‌ساخت، پس
+    /// هر رفرش/پیمایش/فراخوانی AJAX یک write به جدول اضافه می‌کرد و جدول بی‌دلیل بزرگ می‌شد.
+    /// حالا همان بازدید در این بازه یک‌بار ثبت می‌شود. هیچ نوشتن/تغییر داده‌ای مشمول این
+    /// قاعده نیست: POST/PUT/PATCH/DELETE و هر درخواست ناموفق همیشه کامل ثبت می‌شوند.
+    /// </summary>
+    private static readonly TimeSpan ReadAuditWindow = TimeSpan.FromMinutes(5);
+
     private readonly RequestDelegate _next;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ActivityLogMiddleware> _logger;
+    private readonly IMemoryCache _readAuditWindows;
 
     public ActivityLogMiddleware(
         RequestDelegate next,
         IServiceScopeFactory scopeFactory,
-        ILogger<ActivityLogMiddleware> logger)
+        ILogger<ActivityLogMiddleware> logger,
+        IMemoryCache readAuditWindows)
     {
         _next = next;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _readAuditWindows = readAuditWindows;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -42,7 +54,7 @@ public sealed class ActivityLogMiddleware
         {
             stopwatch.Stop();
 
-            if (ShouldLog(context))
+            if (ShouldLog(context) && ShouldPersistThisRequest(context, pipelineException))
             {
                 try
                 {
@@ -71,6 +83,47 @@ public sealed class ActivityLogMiddleware
         }
 
         return context.User.Identity?.IsAuthenticated == true;
+    }
+
+    /// <summary>
+    /// فقط «بازدیدهای تکراری و موفق» را کنار می‌گذارد. هر درخواستی که داده را تغییر می‌دهد،
+    /// یا با خطا/وضعیت غیرموفق تمام شده، همیشه ثبت می‌شود؛ پس ردّ حسابرسی برای تغییرها و
+    /// خطاها کامل باقی می‌ماند.
+    /// </summary>
+    private bool ShouldPersistThisRequest(HttpContext context, Exception? pipelineException)
+    {
+        if (pipelineException is not null)
+        {
+            return true;
+        }
+
+        var method = context.Request.Method;
+        var isRead = HttpMethods.IsGet(method) || HttpMethods.IsHead(method);
+        if (!isRead)
+        {
+            return true;
+        }
+
+        var statusCode = context.Response.StatusCode;
+        if (statusCode is < 200 or >= 400)
+        {
+            return true;
+        }
+
+        var key = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"audit-read:{context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{context.User.Identity?.Name}:{method}:{context.Request.Path.Value}:{context.Request.QueryString.Value}");
+
+        if (_readAuditWindows.TryGetValue(key, out _))
+        {
+            return false;
+        }
+
+        _readAuditWindows.Set(key, true, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = ReadAuditWindow
+        });
+        return true;
     }
 
     private async Task PersistAuditLogAsync(HttpContext context, long durationMs, Exception? pipelineException)

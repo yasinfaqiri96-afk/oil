@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +35,7 @@ public class EmployeesController : Controller
     private readonly IAuditService _audit;
     private readonly IEmployeeSalaryService _salaryService;
     private readonly IWebHostEnvironment _environment;
-    private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyStatementReadService _partyStatements;
 
     public EmployeesController(
         ApplicationDbContext db,
@@ -48,7 +48,7 @@ public class EmployeesController : Controller
         _audit = audit;
         _salaryService = salaryService;
         _environment = environment;
-        _partyStatements = partyStatements;
+        _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
     }
 
     public async Task<IActionResult> Index([FromQuery] EmployeeIndexFilterViewModel? filter = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -76,14 +76,17 @@ public class EmployeesController : Controller
                 || (e.Department != null && e.Department.Contains(keyword)));
         }
 
-        if (filter.EmployeeType.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.EmployeeType.Length > 0)
         {
-            query = query.Where(e => e.EmployeeType == filter.EmployeeType.Value);
+            var employeeTypes = filter.EmployeeType;
+            query = query.Where(e => employeeTypes.Contains(e.EmployeeType));
         }
 
-        if (filter.SalaryType.HasValue)
+        if (filter.SalaryType.Length > 0)
         {
-            query = query.Where(e => e.SalaryType == filter.SalaryType.Value);
+            var salaryTypes = filter.SalaryType;
+            query = query.Where(e => salaryTypes.Contains(e.SalaryType));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Department))
@@ -468,15 +471,12 @@ public class EmployeesController : Controller
             RoznamchaPayments = roznamchaPayments,
             AuditItems = auditItems
         };
-        if (_partyStatements is not null)
-        {
-            var statement = await _partyStatements.GetStatementAsync(
-                new PartyRef(PartyStatementPartyType.Employee, id),
-                new PartyStatementFilter { IncludeOperationalColumns = false },
-                HttpContext.RequestAborted);
-            ViewData["PartyStatementSummary"] = statement.Summary;
-            ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
-        }
+        var statement = await _partyStatements.GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Employee, id),
+            new PartyStatementFilter { IncludeOperationalColumns = false },
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+        ViewData["PartyStatementSummary"] = statement.Summary;
+        ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
         return View(model);
     }
 
@@ -586,7 +586,7 @@ public class EmployeesController : Controller
             {
                 Value = ((int)t).ToString(),
                 Text = EmployeeTypeLabels.ToPersian(t),
-                Selected = (form?.EmployeeType ?? filter?.EmployeeType) == t
+                Selected = form?.EmployeeType == t || (filter?.EmployeeType.Contains(t) ?? false)
             })
             .ToList();
 
@@ -595,7 +595,7 @@ public class EmployeesController : Controller
             {
                 Value = ((int)t).ToString(),
                 Text = EmployeeSalaryTypeLabels.ToPersian(t),
-                Selected = (form?.SalaryType ?? filter?.SalaryType) == t
+                Selected = form?.SalaryType == t || (filter?.SalaryType.Contains(t) ?? false)
             })
             .ToList();
 

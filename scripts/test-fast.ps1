@@ -3,8 +3,9 @@
 Runs every non-PostgreSQL, non-integration test for everyday development.
 
 .DESCRIPTION
-Uses xUnit Category traits instead of a manual class list. The default reuses
-an existing Debug test build; pass -Build after source changes.
+Uses xUnit Category traits instead of a manual class list. PostgreSQL,
+integration, simulation and performance tests stay in full/release runs.
+The default reuses an existing Debug test build; pass -Build after source changes.
 #>
 [CmdletBinding()]
 param([switch]$Build)
@@ -22,5 +23,5 @@ if (-not (Test-Path -LiteralPath $assembly)) {
     throw 'No successful Debug test build exists. Run .\scripts\test-fast.ps1 -Build first.'
 }
 
-dotnet test $project -c Debug --no-build --no-restore --filter 'Category!=PostgreSql&Category!=Integration'
+dotnet test $project -c Debug --no-build --no-restore --filter 'Category!=PostgreSql&Category!=Integration&Category!=Simulation&Category!=Performance'
 exit $LASTEXITCODE

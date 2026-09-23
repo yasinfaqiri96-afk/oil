@@ -1,36 +1,42 @@
 @model Driver
-@using PTGOilSystem.Web.Models.Shared
+@using PTGOilSystem.Web.Models.PartyStatements
 @{
-    ViewData["Title"] = "جزئیات راننده";
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    ViewData["Title"] = T("جزئیات راننده", "Driver details");
     ViewData["HideSectionTabs"] = true;
     var profile = ViewData["ResourceProfile"] as TransportResourceProfileViewModel ?? TransportResourceProfileViewModel.Empty();
+    var recentRows = ViewData["PartyStatementRecentRows"] as IReadOnlyList<PartyStatementRow> ?? [];
     var activeTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
-    activeTab = activeTab is "docs" or "info" ? activeTab : "trips";
+    activeTab = activeTab is "docs" || (activeTab == "account" && recentRows.Count > 0) ? activeTab : "trips";
+    ViewData["DetailsTabsResetQuery"] = new[] { "tripsPage", "docsPage", "page" };
     var code = string.IsNullOrWhiteSpace(Model.LicenseNumber) ? $"DRV-{Model.Id:0000}" : Model.LicenseNumber;
-    var docsReady = profile.Documents.Count > 0;
     var hasLedger = ViewData["DriverHasLedger"] as bool? ?? false;
     var freightCreditUsd = ViewData["DriverFreightCreditUsd"] as decimal? ?? 0m;
     var shortageDebitUsd = ViewData["DriverShortageDebitUsd"] as decimal? ?? 0m;
-    var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
-    var netOwedUsd = officialSummary?.ClosingBalance ?? (ViewData["DriverNetOwedUsd"] as decimal? ?? 0m);
+    var paymentsDebitUsd = ViewData["DriverPaymentsDebitUsd"] as decimal? ?? 0m;
+    var officialSummary = ViewData["PartyStatementSummary"] as PartyStatementSummary;
+    var netOwedUsd = officialSummary?.ClosingBalance ?? 0m;
     var netOwedMeaning = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
-        ?? (netOwedUsd >= 0m ? "بدهی ما به راننده" : "بدهی راننده به ما");
+        ?? PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowText.BalanceMeaning(netOwedUsd, PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowAccountKind.PartyAccount, Context);
 
     var editUrl = Url.Action("Edit", new { id = Model.Id }) ?? "#";
     var indexUrl = Url.Action("Index") ?? "#";
     var statementUrl = Url.Action("Driver", "PartyStatements", new { id = Model.Id }) ?? "#";
-    ViewData["AkHeaderStatus"] = Model.IsActive ? "فعال" : "غیرفعال";
+    ViewData["AkHeaderStatus"] = Model.IsActive ? T("فعال", "Active") : T("غیرفعال", "Inactive");
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
-    ViewData["AkHeaderContext"] = $"{code} · {netOwedMeaning}";
-    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
+    ViewData["AkHeaderContext"] = string.Join(" · ", new[]
     {
-        new() { Label = "ویرایش مشخصات", Href = editUrl, Icon = "bi-pencil" }
-    };
+        code,
+        T($"{profile.OperationCount:N0} عملیات حمل", $"{profile.OperationCount:N0} operations"),
+        hasLedger ? netOwedMeaning : null
+    }.Where(part => !string.IsNullOrWhiteSpace(part)));
+    ViewData["AkHeaderCompanionAction"] = new AkHeaderMenuItem { Label = T("ویرایش", "Edit"), Href = editUrl, Icon = "bi-pencil" };
 
-    // شاخص‌های مالی راننده فقط وقتی دفتر حساب دارد؛ بدون دفتر، فقط شمار سفر می‌ماند.
+    // شاخص‌های عملیاتی مشترک + شاخص‌های مالی راننده (فقط وقتی دفتر حساب دارد؛ مقادیر مالی دست‌نخورده).
     var kpis = new List<AkKpiItem>
     {
-        new() { Title = "تعداد سفرها", Value = profile.Trips.Count.ToString("N0"), Avatar = "transported" }
+        new() { Title = T("عملیات حمل", "Operations"), Value = profile.OperationCount.ToString("N0"), Avatar = "transported" },
+        new() { Title = T("مجموع مقدار", "Total quantity"), Value = profile.OperationQuantityMt.ToString("N3"), Unit = "MT", Avatar = "flow-weight-mt" }
     };
     if (hasLedger)
     {
@@ -39,55 +45,107 @@
         {
             kpis.Add(new AkKpiItem { Title = "بدهی خسارت کسری", Value = shortageDebitUsd.ToString("N2"), Unit = "USD", Avatar = "losses", State = "warning" });
         }
+        if (paymentsDebitUsd != 0m)
+        {
+            kpis.Add(new AkKpiItem { Title = "پرداخت و تسویه با راننده", Value = paymentsDebitUsd.ToString("N2"), Unit = "USD", Avatar = "payments-out" });
+        }
         kpis.Add(new AkKpiItem { Title = "ماندهٔ خالص", Value = Math.Abs(netOwedUsd).ToString("N2"), Unit = "USD", Avatar = "receivables" });
     }
+    else
+    {
+        kpis.Add(new AkKpiItem { Title = T("در جریان", "In progress"), Value = profile.InProgressOperationCount.ToString("N0"), Avatar = "dispatch-station" });
+        kpis.Add(new AkKpiItem { Title = T("آخرین حرکت", "Last trip"), Value = profile.LastOperationDate.HasValue ? profile.LastOperationDate.Value.ToDisplayDate() : "—", Avatar = "loading" });
+    }
 
-    // «مشخصات پایه» تب یک‌ردیفه بود؛ حالا کارت خلاصهٔ همیشه‌دیدنیِ صفحه است.
     var summaryItems = new List<AkInfoItem>
     {
-        new() { Label = "شماره جواز", Value = Model.LicenseNumber },
-        new() { Label = "شناسه ملی", Value = Model.NationalId },
-        new() { Label = "تلفن", Value = Model.Phone, IsNumeric = true },
+        new() { Label = T("شماره جواز", "License no."), Value = Model.LicenseNumber },
+        new() { Label = T("شناسه ملی", "National id"), Value = Model.NationalId },
+        new() { Label = T("تلفن", "Phone"), Value = Model.Phone, IsNumeric = true },
+        new() { Label = T("آخرین حرکت", "Last trip"), Value = hasLedger ? profile.LastOperationDate?.ToDisplayDate() : null, IsNumeric = true },
+        new() { Label = T("حرکت در جریان", "Trips in progress"), Value = hasLedger ? profile.InProgressOperationCount.ToString("N0") : null, IsNumeric = true },
         new()
         {
-            Label = "وضعیت مدارک",
-            Value = $"{(docsReady ? "تکمیل و معتبر" : "نیاز به بررسی")} ({profile.Documents.Count.ToString("N0")})",
-            Tone = docsReady ? null : "warning"
+            Label = T("دارایی تخصیص‌یافته", "Assigned assets"),
+            Value = profile.LinkedAssets.Count > 0 ? string.Join("، ", profile.LinkedAssets.Select(a => a.Label)) : null,
+            Href = profile.LinkedAssets.Count == 1 ? Url.Action("Details", "OperationalAssets", new { id = profile.LinkedAssets[0].Id }) : null
         },
-        new() { Label = "ماندهٔ خالص", Value = hasLedger ? $"{Math.Abs(netOwedUsd).ToString("N2")} USD — {netOwedMeaning}" : null, IsNumeric = false },
-        new() { Label = "آدرس", Value = Model.Address, IsWide = true },
-        new() { Label = "یادداشت", Value = Model.Notes, IsWide = true }
+        new() { Label = T("اسناد ثبت‌شده", "Recorded documents"), Value = profile.DocumentTotalCount.ToString("N0"), IsNumeric = true },
+        new() { Label = T("ماندهٔ خالص", "Net balance"), Value = hasLedger ? $"{Math.Abs(netOwedUsd).ToString("N2")} USD — {netOwedMeaning}" : null },
+        new() { Label = T("آدرس", "Address"), Value = Model.Address, IsWide = true },
+        new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
     };
 
     var advancedItems = new List<AkInfoItem>
     {
-        new() { Label = "شناسه داخلی", Value = $"#{Model.Id}", IsNumeric = true }
+        new() { Label = T("شناسه داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = T("تاریخ ایجاد", "Created"), Value = Model.CreatedAtUtc.ToAfghanistanDisplayDateTime(), IsNumeric = true },
+        new() { Label = T("آخرین ویرایش", "Last updated"), Value = Model.UpdatedAtUtc?.ToAfghanistanDisplayDateTime(), IsNumeric = true }
     };
 
-    var driverTabs = new[]
+    var tabs = new List<string>
     {
-        $"trips|سوابق سفرها||{(activeTab == "trips" ? "active" : "")}",
-        $"docs|اسناد و مدارک||{(activeTab == "docs" ? "active" : "")}"
+        $"trips|{T("سوابق حمل", "Trips")}||{(activeTab == "trips" ? "active" : "")}",
+        $"docs|{T("اسناد و مدارک", "Documents")}||{(activeTab == "docs" ? "active" : "")}"
     };
+    if (recentRows.Count > 0)
+    {
+        tabs.Add($"account|{T("گردش اخیر حساب", "Recent account activity")}||{(activeTab == "account" ? "active" : "")}");
+    }
+
+    string Money(decimal? value) => value is { } v && v != 0m ? v.ToString("N2") : "—";
 }
 
 <div class="ak-form-page ak-party-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((Model.FullName, false,
-                       "صورت‌حساب رسمی", "bi-file-earmark-text", statementUrl, (string?)null,
-                       "بازگشت به فهرست", "bi-arrow-right", (string?)indexUrl))" />
+                       T("صورت‌حساب رسمی", "Official statement"), "bi-file-earmark-text", (string?)statementUrl, (string?)null,
+                       T("بازگشت", "Back"), "bi-arrow-right", (string?)indexUrl))" />
 
     <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />
 
     <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
-             model="@(("مشخصات راننده", (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
+             model="@((T("مشخصات راننده", "Driver profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@("بخش‌های پروفایل راننده", driverTabs)" />
+    <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml"
+             model="@((T("بخش‌های جزئیات", "Detail sections"), tabs.ToArray()))" />
 
     <section class="ak-form-section ak-detail-section">
         @if (activeTab == "docs")
         {
             @await Html.PartialAsync("_TransportResourceDocs", profile)
+        }
+        else if (activeTab == "account")
+        {
+            @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", (T("گردش اخیر حساب", "Recent account activity"), (string?)T($"{recentRows.Count:N0} سطر آخر · USD", $"Last {recentRows.Count:N0} rows · USD")))
+            <div class="ak-table-wrap">
+                <table class="ak-table ak-detail-table">
+                    <thead>
+                        <tr>
+                            <th>@T("تاریخ", "Date")</th>
+                            <th class="ak-col-grow">@T("شرح", "Description")</th>
+                            <th class="ak-col-priority-2">@T("مرجع", "Reference")</th>
+                            <th class="ak-col-num">@T("رسیدگی", "Receipt")</th>
+                            <th class="ak-col-num">@T("بردگی", "Outflow")</th>
+                            <th class="ak-col-num">@T("بیلانس", "Balance")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in recentRows)
+                        {
+                            <tr>
+                                <td class="ak-num">@row.Date.ToDisplayDate()</td>
+                                <td class="ak-col-grow">@row.DescriptionFor(UiText.IsEn(Context))</td>
+                                <td class="ak-col-priority-2"><bdi>@(row.Reference ?? "—")</bdi></td>
+                                <td class="ak-col-num ak-num"><bdi dir="ltr">@Money(row.ReceiptBase)</bdi></td>
+                                <td class="ak-col-num ak-num"><bdi dir="ltr">@Money(row.OutflowBase)</bdi></td>
+                                <td class="ak-col-num ak-num"><bdi dir="ltr">@row.RunningBalance.ToString("N2")</bdi></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <a class="btn btn-light ak-secondary-action" href="@statementUrl">@T("مشاهدهٔ صورت‌حساب کامل", "Open full statement")</a>
         }
         else
         {

@@ -108,10 +108,21 @@ public sealed class PartnershipStatementTests
             var halfShare = decimal.Round(contract.BookProfitUsd * 0.5m, 2, MidpointRounding.AwayFromZero);
             Assert.True(Math.Abs(halfShare - fawad.ProfitShareUsd) <= 0.01m);
             Assert.True(Math.Abs(halfShare - yusuf.ProfitShareUsd) <= 0.01m);
+            // مفاد = سودِ محققِ قرارداد (فقط بخشِ فروخته‌شده)، نه «فروش منهای کلِ خرید».
+            Assert.Equal(
+                decimal.Round(contract.SalesUsd - contract.RealizedCostOfGoodsSoldUsd
+                    - contract.RealizedOperationalCostUsd + contract.RealizedFxNetUsd, 2,
+                    MidpointRounding.AwayFromZero),
+                contract.BookProfitUsd);
+            // هزینهٔ فروخته‌نشده جدا و به همان نسبت بین شرکا تقسیم می‌شود؛ جمعِ «مفاد محقق − هزینهٔ
+            // فروخته‌نشده» همان مفادِ کاملِ قبلی است، پس برابرسازیِ هزینه بین شرکا عوض نمی‌شود.
             Assert.Equal(
                 decimal.Round(contract.SalesUsd - contract.PurchaseCostUsd - contract.OperationalExpenseUsd, 2,
                     MidpointRounding.AwayFromZero),
-                contract.BookProfitUsd);
+                contract.BookProfitUsd - contract.UnrealizedCostCarriedUsd);
+            Assert.Equal(
+                contract.UnrealizedCostCarriedUsd,
+                fawad.UnsoldCostShareUsd + yusuf.UnsoldCostShareUsd);
         }
     }
 

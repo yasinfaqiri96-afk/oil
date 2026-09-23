@@ -1,0 +1,211 @@
+@using PTGOilSystem.Web.Helpers
+@using PTGOilSystem.Web.Models.InventoryTransport
+@model TransportLoadingCancelViewModel
+@{
+    ViewData["Title"] = "تبدیل‌های بارگیری به حمل";
+    ViewData["HideSectionTabs"] = true;
+    var cancellableCount = Model.Rows.Count(r => r.BlockReason is null && r.BatchId.HasValue);
+    var hasFilter = Model.FromDate.HasValue || Model.ToDate.HasValue || !string.IsNullOrWhiteSpace(Model.Q) || Model.LoadingId.HasValue;
+    var backUrl = Model.LoadingId is { } scopedLoadingId
+        ? Url.Action("Details", "Loading", new { id = scopedLoadingId })
+        : Url.Action("Index", "Loading");
+    var currentUrl = Context.Request.Path + Context.Request.QueryString;
+}
+
+<main class="ak-form-page" dir="rtl" data-loading-cancel-page>
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(("تبدیل‌های بارگیری به حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", backUrl))" />
+
+    <form asp-action="CancelFromLoading" method="get" class="ak-form">
+        @if (Model.LoadingId.HasValue)
+        {
+            <input type="hidden" name="loadingId" value="@Model.LoadingId" />
+        }
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("فیلتر", (string?)"تاریخ، همان تاریخ حملی است که هنگام تبدیل ثبت شد."))" />
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label asp-for="FromDate">از تاریخ</label>
+                    <input asp-for="FromDate" type="date" class="ak-input" />
+                </div>
+                <div class="ak-field">
+                    <label asp-for="ToDate">تا تاریخ</label>
+                    <input asp-for="ToDate" type="date" class="ak-input" />
+                </div>
+                <div class="ak-field">
+                    <label asp-for="Q">جست‌وجو</label>
+                    <input asp-for="Q" class="ak-input" placeholder="نمبر وسیله، RWB یا قرارداد" />
+                </div>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                <button type="submit" class="btn btn-light ak-secondary-action">
+                    <i class="bi bi-funnel" aria-hidden="true"></i> اعمال فیلتر
+                </button>
+                @if (hasFilter)
+                {
+                    <a asp-action="CancelFromLoading" class="btn btn-light ak-secondary-action">حذف فیلتر</a>
+                }
+            </div>
+        </section>
+    </form>
+
+    <form asp-action="CancelFromLoading" method="post" class="ak-form" data-submit-lock>
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="fromDate" value="@Model.FromDate?.ToString("yyyy-MM-dd")" />
+        <input type="hidden" name="toDate" value="@Model.ToDate?.ToString("yyyy-MM-dd")" />
+        <input type="hidden" name="q" value="@Model.Q" />
+        <input type="hidden" name="loadingId" value="@Model.LoadingId" />
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("حمل‌های ساخته‌شده از بارگیری", (string?)"حمل‌های انتخاب‌شده لغو می‌شوند و مقدارشان به باقیماندهٔ بارگیری برمی‌گردد؛ بعد از آن دوباره قابل تبدیل است."))" />
+            @if (Model.LoadingId is { } onlyLoadingId)
+            {
+                <div class="alert alert-info ak-form-alert" role="status">
+                    فقط حمل‌های بارگیری LD-@onlyLoadingId.ToString("0000") نشان داده می‌شود.
+                    <a asp-action="CancelFromLoading">نمایش همهٔ تبدیل‌ها</a>
+                </div>
+            }
+            @if (Model.TotalCount > Model.Rows.Count)
+            {
+                <div class="alert alert-warning ak-form-alert" role="status">
+                    مطابق فیلتر @Model.TotalCount.ToString("N0") حمل وجود دارد و فقط @Model.Rows.Count.ToString("N0") مورد آخر نشان داده می‌شود؛ فیلتر را محدودتر کنید.
+                </div>
+            }
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <button type="button" class="btn btn-light ak-secondary-action" data-select-all>انتخاب همه</button>
+                <button type="button" class="btn btn-light ak-secondary-action" data-clear-all>لغو انتخاب همه</button>
+            </div>
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-check"><input type="checkbox" class="ak-check" data-select-toggle aria-label="انتخاب همه" /></th>
+                            <th class="ak-col-grow">حمل</th>
+                            <th>بارگیری</th>
+                            <th>محصول</th>
+                            <th class="text-end">مقدار</th>
+                            <th>تاریخ حمل</th>
+                            <th>وضعیت لغو</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="ak-col-check">
+                                @if (row.BlockReason is null && row.BatchId.HasValue)
+                                {
+                                    <input type="checkbox" name="batchIds" value="@row.BatchId" class="ak-check" data-cancel-check aria-label="انتخاب @row.Label" />
+                                }
+                            </td>
+                            <td class="ak-col-grow">
+                                <a asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@row.LegId" asp-route-returnUrl="@currentUrl" class="ak-name">@row.Label</a>
+                            </td>
+                            <td>
+                                @if (row.LoadingId.HasValue)
+                                {
+                                    <a asp-controller="Loading" asp-action="Details" asp-route-id="@row.LoadingId">@row.LoadingLabel</a>
+                                }
+                                else
+                                {
+                                    @row.LoadingLabel
+                                }
+                            </td>
+                            <td>@row.ProductName</td>
+                            <td class="ak-num text-end">@row.QuantityMt.ToString("N4") MT</td>
+                            <td class="ak-num">@row.TransportDate.ToDisplayDate()</td>
+                            <td>
+                                @if (row.BlockReason is null)
+                                {
+                                    <span>قابل لغو</span>
+                                }
+                                else
+                                {
+                                    <span class="ak-status is-inactive">مسدود</span>
+                                    <span class="ak-section-desc">@row.BlockReason</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="ak-empty">
+                                    <i class="bi bi-truck" aria-hidden="true"></i>
+                                    <span>@(hasFilter ? "حملی مطابق این فیلتر پیدا نشد." : "هنوز هیچ بارگیری‌ای به حمل تبدیل نشده است.")</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="ak-footer-actions">
+            <a href="@backUrl" class="btn btn-light ak-secondary-action">بازگشت</a>
+            <button type="submit" class="btn btn-danger ak-primary-action" data-submit-button data-confirm-cancel
+                    disabled="@(cancellableCount == 0 ? "disabled" : null)">
+                لغو حمل‌های انتخاب‌شده (<span data-cancel-count>0</span>)
+            </button>
+        </div>
+    </form>
+</main>
+
+@section Scripts {
+    <script>
+        (function () {
+            var page = document.querySelector('[data-loading-cancel-page]');
+            if (!page) return;
+            var checks = Array.prototype.slice.call(page.querySelectorAll('[data-cancel-check]'));
+            var toggle = page.querySelector('[data-select-toggle]');
+            var counter = page.querySelector('[data-cancel-count]');
+            var submitButton = page.querySelector('[data-confirm-cancel]');
+
+            function selectedCount() {
+                return checks.filter(function (check) { return check.checked; }).length;
+            }
+
+            function sync() {
+                var count = selectedCount();
+                if (counter) counter.textContent = count;
+                if (submitButton) submitButton.disabled = count === 0;
+                if (toggle) {
+                    toggle.checked = checks.length > 0 && count === checks.length;
+                    toggle.indeterminate = count > 0 && count < checks.length;
+                }
+            }
+
+            function setAll(checked) {
+                checks.forEach(function (check) { check.checked = checked; });
+                sync();
+            }
+
+            checks.forEach(function (check) { check.addEventListener('change', sync); });
+            var selectAll = page.querySelector('[data-select-all]');
+            if (selectAll) selectAll.addEventListener('click', function () { setAll(true); });
+            var clearAll = page.querySelector('[data-clear-all]');
+            if (clearAll) clearAll.addEventListener('click', function () { setAll(false); });
+            if (toggle) toggle.addEventListener('change', function () { setAll(toggle.checked); });
+
+            // لغو برگشت‌ناپذیر است: بدون تأیید صریح ارسال نمی‌شود.
+            if (submitButton) {
+                submitButton.addEventListener('click', function (event) {
+                    var count = selectedCount();
+                    if (count === 0) {
+                        event.preventDefault();
+                        return;
+                    }
+                    if (!window.confirm(count + ' حمل لغو می‌شود و مقدارش به باقیماندهٔ بارگیری برمی‌گردد. ادامه می‌دهید؟')) {
+                        event.preventDefault();
+                    }
+                });
+            }
+
+            sync();
+        })();
+    </script>
+}

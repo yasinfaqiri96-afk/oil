@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -196,25 +196,25 @@ public sealed class CustomsBatchViewModel
 public sealed class ExpenseIndexFilterViewModel
 {
     [Display(Name = "نوع مصرف")]
-    public int? ExpenseTypeId { get; set; }
+    public int[] ExpenseTypeId { get; set; } = [];
 
     [Display(Name = "قرارداد")]
-    public int? ContractId { get; set; }
+    public int[] ContractId { get; set; } = [];
 
     [Display(Name = "Shipment")]
-    public int? ShipmentId { get; set; }
+    public int[] ShipmentId { get; set; } = [];
 
     [Display(Name = "دیسپچ موتر باربری")]
-    public int? TruckDispatchId { get; set; }
+    public int[] TruckDispatchId { get; set; } = [];
 
     [Display(Name = "Transport Leg")]
     public int? TransportLegId { get; set; }
 
     [Display(Name = "Service Provider")]
-    public int? ServiceProviderId { get; set; }
+    public int[] ServiceProviderId { get; set; } = [];
 
     [Display(Name = "Operational Asset")]
-    public int? OperationalAssetId { get; set; }
+    public int[] OperationalAssetId { get; set; } = [];
 
     // PTG-P1-04 — «طبقه‌بندی‌نشده» هم یک انتخاب است، پس ردیف‌های پیش از فاز ۱ گم نمی‌شوند.
     [Display(Name = "وضعیت تسویه")]

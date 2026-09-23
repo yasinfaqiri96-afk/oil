@@ -52,12 +52,19 @@
                     : null }
     };
 
+    var transportDetailsUrl = Model.ActiveTransportCount > 0 && Model.FirstActiveTransportLegId.HasValue
+        ? Model.ActiveTransportCount == 1
+            ? Url.Action("Details", "InventoryTransportLegs", new { id = Model.FirstActiveTransportLegId.Value, returnUrl = currentPageReturnUrl })
+            : Url.Action("CancelFromLoading", "Transports", new { loadingId = Model.Id })
+        : null;
+
     var pricingItems = new List<AkInfoItem>
     {
         new() { Label = T("مبنای قیمت‌گذاری", "Pricing basis"), Value = pricingMethod },
         new() { Label = T("قیمت فی تن", "Unit price"), Value = Model.LoadingPriceUsd?.ToString("N2"), Unit = "USD/MT", IsNumeric = true },
         new() { Label = T("ارزش بارگیری", "Loading value"), Value = Model.LoadingValueUsd?.ToString("N2"), Unit = "USD", IsNumeric = true },
-        new() { Label = T("کرایه فی تن", "Freight rate"), Value = NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, "USD/MT"), IsNumeric = true }
+        new() { Label = T("کرایه فی تن", "Freight rate"), Value = NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, "USD/MT"), IsNumeric = true },
+        new() { Label = T("مجموع مصارف", "Total expenses"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD", IsNumeric = true }
     };
 
     // ارزش روبلی از منبع واحد پروژه خوانده می‌شود، نه فقط از ارقام فایل بارگیری.
@@ -108,10 +115,20 @@
 
     var quantityMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("مقدار بارگیری", "Loaded quantity"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", State = "accent", Avatar = "flow-weight-mt" },
-        new() { Title = T("قابل ارسال / تخصیص", "Available to dispatch"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "flow-truck" },
+        new() { Title = T("بارگیری", "Loaded"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", State = "accent", Avatar = "flow-weight-mt" },
+        new()
+        {
+            Title = T("رسید", "Received"),
+            Value = transportDetailsUrl is null
+                ? NumberDisplay.Quantity(Model.TotalReceivedQuantityMt)
+                : T("به حمل تبدیل شده", "Converted to transport"),
+            Unit = transportDetailsUrl is null ? "MT" : null,
+            State = transportDetailsUrl is null ? null : "success",
+            Avatar = transportDetailsUrl is null ? "flow-stock-in" : "flow-truck",
+            Href = transportDetailsUrl
+        },
         new() { Title = T("کسری", "Shortage"), Value = NumberDisplay.Quantity(shortageTotal), Unit = "MT", State = shortageTotal > 0m ? "warning" : null, Avatar = "flow-warning" },
-        new() { Title = T("مجموع مصارف", "Total expenses"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD", Avatar = "flow-calculator" }
+        new() { Title = T("باقی", "Remaining"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "flow-tank-gauge" }
     };
 
     var timelineItems = new List<AkTimelineItem>
@@ -156,7 +173,8 @@
         customsAction,
         expenseAction,
         lossAction,
-        new() { Label = T("نمای قرارداد", "Contract journey"), Href = contractUrl, Icon = "bi-diagram-3" }
+        new() { Label = T("نمای قرارداد", "Contract journey"), Href = contractUrl, Icon = "bi-diagram-3" },
+        new() { Label = T("حمل‌های این بارگیری", "Transports of this loading"), Href = Url.Action("CancelFromLoading", "Transports", new { loadingId = Model.Id }), Icon = "bi-truck" }
     };
     if (!Model.CanRegisterReceipt)
     {
@@ -194,11 +212,11 @@
     {
         CombineActivityAndHistory = true,
         JourneyTitle = T("روند بارگیری", "Loading journey"),
-        JourneyDescription = T("از زمان ثبت بارگیری تا وضعیت فعلی، همه رویدادها به ترتیب زمان نمایش داده می‌شوند.", "Every event from registration to the current status, in chronological order."),
         Secondary = new AkDetailSecondaryModel
         {
             Timeline = timelineItems,
-            TimelineTitle = T("همه رویدادهای بارگیری", "All loading events")
+            TimelineTitle = T("همه رویدادهای بارگیری", "All loading events"),
+            ShowTimelineDescription = false
         }
     };
 }

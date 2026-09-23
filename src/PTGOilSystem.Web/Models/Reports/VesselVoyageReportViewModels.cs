@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace PTGOilSystem.Web.Models.Reports;
 
@@ -83,19 +83,19 @@ public sealed class VesselVoyageReportFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "کشتی")]
-    public int? VesselId { get; set; }
+    public int[] VesselId { get; set; } = [];
 
     [Display(Name = "محصول")]
-    public int? ProductId { get; set; }
+    public int[] ProductId { get; set; } = [];
 
     [Display(Name = "مشتری")]
-    public int? CustomerId { get; set; }
+    public int[] CustomerId { get; set; } = [];
 
     [Display(Name = "تأمین‌کننده")]
-    public int? SupplierId { get; set; }
+    public int[] SupplierId { get; set; } = [];
 
     [Display(Name = "مقصد")]
-    public int? DestinationLocationId { get; set; }
+    public int[] DestinationLocationId { get; set; } = [];
 
     [Display(Name = "کمپنی ترانسپورتی")]
     public int? ServiceProviderId { get; set; }
@@ -104,11 +104,11 @@ public sealed class VesselVoyageReportFilterViewModel
         => FiscalYearId.HasValue
             || FromDate.HasValue
             || ToDate.HasValue
-            || VesselId.HasValue
-            || ProductId.HasValue
-            || CustomerId.HasValue
-            || SupplierId.HasValue
-            || DestinationLocationId.HasValue
+            || VesselId.Length > 0
+            || ProductId.Length > 0
+            || CustomerId.Length > 0
+            || SupplierId.Length > 0
+            || DestinationLocationId.Length > 0
             || ServiceProviderId.HasValue;
 }
 

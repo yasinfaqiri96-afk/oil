@@ -22,7 +22,7 @@ public partial class CustomersController : Controller
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
     private readonly MasterDataDeleteSafetyService _deleteSafety;
-    private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyStatementReadService _partyStatements;
 
     public CustomersController(
         ApplicationDbContext db,
@@ -33,7 +33,7 @@ public partial class CustomersController : Controller
         _db = db;
         _audit = audit;
         _deleteSafety = deleteSafety;
-        _partyStatements = partyStatements;
+        _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
     }
 
     public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -82,15 +82,12 @@ public partial class CustomersController : Controller
     {
         var item = await BuildCustomerProfileAsync(id, contractId, tab);
         if (item == null) return NotFound();
-        if (_partyStatements is not null)
-        {
-            var statement = await _partyStatements.GetStatementAsync(
-                new PartyRef(PartyStatementPartyType.Customer, id),
-                new PartyStatementFilter { ContractId = contractId, IncludeOperationalColumns = false },
-                HttpContext.RequestAborted);
-            ViewData["PartyStatementSummary"] = statement.Summary;
-            ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
-        }
+        var statement = await _partyStatements.GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Customer, id),
+            new PartyStatementFilter { ContractId = contractId, IncludeOperationalColumns = false },
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+        ViewData["PartyStatementSummary"] = statement.Summary;
+        ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
         ViewBag.PaymentTransactions = item.Payments
             .Select(p => new PaymentListItemViewModel
             {
@@ -495,15 +492,12 @@ public partial class CustomersController : Controller
             .GroupBy(p => p.ContractId!.Value)
             .ToDictionary(g => g.Key, g => g.Sum(p => p.AmountUsd));
 
-        var receivedBySale = payments
-            .Where(p => p.SalesTransactionId.HasValue && p.PaymentKind == PaymentKind.CustomerReceipt)
-            .GroupBy(p => p.SalesTransactionId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.AmountUsd));
-
-        var paidToCustomerBySale = payments
-            .Where(p => p.SalesTransactionId.HasValue && p.PaymentKind == PaymentKind.CustomerPayment)
-            .GroupBy(p => p.SalesTransactionId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.AmountUsd));
+        // وصولیِ هر فروش از مرجعِ واحد (همان صفحهٔ فروش): تطبیقِ پیش‌دریافت هم شمرده می‌شود،
+        // نه فقط پرداختی که مستقیم به فروش وصل شده است.
+        var saleSettlements = await new CustomerReceiptApplicationService(_db)
+            .GetSaleSettlementsAsync(sales.Select(s => s.Id).ToList());
+        var receivedBySale = saleSettlements.ToDictionary(kv => kv.Key, kv => kv.Value.ReceivedUsd);
+        var paidToCustomerBySale = saleSettlements.ToDictionary(kv => kv.Key, kv => kv.Value.RefundedUsd);
 
         var finalPriceByContract = contracts.ToDictionary(
             c => c.Id,

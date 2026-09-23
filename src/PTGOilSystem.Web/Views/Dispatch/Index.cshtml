@@ -1,8 +1,8 @@
-@model PTGOilSystem.Web.Models.Dispatch.DispatchIndexViewModel
+﻿@model PTGOilSystem.Web.Models.Dispatch.DispatchIndexViewModel
 @{
     ViewData["Title"] = UiText.T(Context,"ارسال‌های موتر","Truck Sends");
-    var hasAdvancedFilter = Model.Filter.TruckId.HasValue || Model.Filter.ProductId.HasValue
-        || Model.Filter.ContractId.HasValue || Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue;
+    var hasAdvancedFilter = Model.Filter.TruckId.Length > 0 || Model.Filter.ProductId.Length > 0
+        || Model.Filter.ContractId.Length > 0 || Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue;
 }
 
 <div class="ak-form-page ak-list-page" data-operations-list>
@@ -32,9 +32,9 @@
                 UiText.T(Context, "فیلتر ارسال‌ها...", "Filter dispatches..."),
                 new List<AkFilterDefinition>
                 {
-                    new("Filter.TruckId", UiText.T(Context, "موتر", "Truck"), "select", DspOpts(ViewBag.Trucks), DspQ("Filter.TruckId")),
-                    new("Filter.ProductId", UiText.T(Context, "جنس", "Product"), "select", DspOpts(ViewBag.Products), DspQ("Filter.ProductId")),
-                    new("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), "select", DspOpts(ViewBag.Contracts), DspQ("Filter.ContractId")),
+                    AkFilterDefinition.MultiSelect("Filter.TruckId", UiText.T(Context, "موتر", "Truck"), DspOpts(ViewBag.Trucks), AkFilterQuery.Values(Context, "Filter.TruckId")),
+                    AkFilterDefinition.MultiSelect("Filter.ProductId", UiText.T(Context, "جنس", "Product"), DspOpts(ViewBag.Products), AkFilterQuery.Values(Context, "Filter.ProductId")),
+                    AkFilterDefinition.MultiSelect("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), DspOpts(ViewBag.Contracts), AkFilterQuery.Values(Context, "Filter.ContractId")),
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd"))
                 });

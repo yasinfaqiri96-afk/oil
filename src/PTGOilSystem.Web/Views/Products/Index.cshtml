@@ -1,12 +1,12 @@
-@model IEnumerable<Product>
+﻿@model IEnumerable<Product>
 @{
     ViewData["Title"] = UiText.T(Context, "اجناس", "Products");
     var items = Model.ToList();
-    var hasFilters = ViewData["unitId"] != null || ViewData["isActive"] != null;
+    var hasFilters = ViewData["unitId"] is int[] { Length: > 0 } || ViewData["isActive"] != null;
     var hasSearch = !string.IsNullOrWhiteSpace((string?)ViewData["q"]) || hasFilters;
     var deleteConfirm = UiText.T(Context, "آیا از حذف مطمئن هستید؟", "Are you sure you want to delete?");
     var unitItems = ViewBag.Units as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
-    var selectedUnitId = ViewData["unitId"]?.ToString();
+    var selectedUnitId = ViewData["unitId"] as int[] ?? [];
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     var activeCount = items.Count(item => item.IsActive);
     var secondaryUnitCount = items.Count(item => item.SecondaryUnitId.HasValue);
@@ -39,7 +39,7 @@
             UiText.T(Context, "جستجو در کد یا نام جنس...", "Search code or product name..."),
             new List<AkFilterDefinition>
             {
-                new("unitId", UiText.T(Context, "واحد", "Unit"), "select", productUnitOptions, selectedUnitId),
+                AkFilterDefinition.MultiSelect("unitId", UiText.T(Context, "واحد", "Unit"), productUnitOptions, selectedUnitId),
                 new("isActive", UiText.T(Context, "وضعیت", "Status"), "bool",
                     new List<AkFilterOption>
                     {

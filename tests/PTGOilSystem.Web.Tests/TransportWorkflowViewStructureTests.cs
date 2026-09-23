@@ -75,7 +75,7 @@ public sealed class TransportWorkflowViewStructureTests
         var settlement = ReadRepoFile("src/PTGOilSystem.Web/Views/TruckSettlements/Index.cshtml");
 
         Assert.Contains("\"TruckSettlements\"", tabs);
-        Assert.Contains("\"Truck Settlements\"", tabs);
+        Assert.Contains("\"Settlement & Unload\"", tabs);
         Assert.DoesNotContain("TruckSettlements", index);
         Assert.Contains("Url.Action(\"Index\", \"TruckSettlements\"", details);
         Assert.Contains("kind = TruckSettlementSourceKind.Leg", details);
@@ -111,7 +111,7 @@ public sealed class TransportWorkflowViewStructureTests
         var roleRules = ReadRepoFile("src/PTGOilSystem.Web/Security/RoleAccessRules.cs");
 
         Assert.Contains("[Authorize(Policy = AuthPolicies.ManageData)]", controller);
-        Assert.Equal(8, Count(controller, "[ValidateAntiForgeryToken]"));
+        Assert.Equal(9, Count(controller, "[ValidateAntiForgeryToken]"));
         Assert.Contains("Transports", roleRules);
     }
 

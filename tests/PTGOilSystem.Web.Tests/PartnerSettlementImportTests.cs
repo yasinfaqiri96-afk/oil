@@ -488,6 +488,7 @@ public sealed class PartnerSettlementImportTests
             ProductId = productId,
             SupplierId = supplierId,
             ContractNumber = number,
+            ContractType = ContractType.Purchase,
             ContractDate = new DateTime(2026, 3, 1),
             OwnershipType = ContractOwnershipType.Partnership,
             Currency = "USD"

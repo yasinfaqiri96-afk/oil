@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -98,6 +98,38 @@
     </Task>
   </UsingTask>
 
+  <!-- ===================================================================
+       باندل JS: همان فایل‌های پایهٔ shell با همان ترتیب _Layout در یک بسته
+       جمع می‌شوند تا در محیط غیرتوسعه به‌جای ۱۹ درخواست، یک درخواست ارسال
+       شود. فایل‌ها بدون هیچ تغییری پشت‌سرهم می‌آیند (هر فایل خودش داخل یک
+       IIFE و در صورت نیاز 'use strict' دارد)، پس رفتار اسکریپت‌ها عوض نمی‌شود.
+       منابع دست‌نخورده می‌مانند و در Development جداگانه لود می‌شوند.
+       =================================================================== -->
+  <UsingTask TaskName="BundleJs" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Sources ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <Output ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var sb = new System.Text.StringBuilder();
+        var lf = ((char)10).ToString();
+        foreach (var item in Sources)
+        {
+            var path = item.GetMetadata("FullPath");
+            if (!System.IO.File.Exists(path)) { continue; }
+            sb.Append("/* ").Append(System.IO.Path.GetFileName(path)).Append(" */").Append(lf);
+            sb.Append(System.IO.File.ReadAllText(path));
+            // جداکنندهٔ امن: فایل بعدی همیشه از یک خط تازه شروع می‌شود.
+            sb.Append(lf).Append(";").Append(lf);
+        }
+        var text = sb.ToString();
+        var existing = System.IO.File.Exists(Output) ? System.IO.File.ReadAllText(Output) : null;
+        if (existing != text) { System.IO.File.WriteAllText(Output, text, new System.Text.UTF8Encoding(false)); }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
   <Target Name="BuildCssBundles" BeforeTargets="BeforeBuild;BeforePublish">
     <ItemGroup>
       <PtgCoreCss Include="wwwroot/css/_variables.css" />
@@ -140,9 +172,30 @@
       <PtgAppCss Include="wwwroot/css/ptg/76-form-system.css" />
       <PtgAppCss Include="wwwroot/css/ptg/66-backups.css" />
       <PtgAppCss Include="wwwroot/css/ptg/80-assistant.css" />
+
+      <PtgCoreJs Include="wwwroot/js/core.js" />
+      <PtgCoreJs Include="wwwroot/js/ptg-toasts.js" />
+      <PtgCoreJs Include="wwwroot/js/language-catalog.en.js" />
+      <PtgCoreJs Include="wwwroot/js/language.js" />
+      <PtgCoreJs Include="wwwroot/js/auto-code-fields.js" />
+      <PtgCoreJs Include="wwwroot/js/clone-entity.js" />
+      <PtgCoreJs Include="wwwroot/js/navigation.js" />
+      <PtgCoreJs Include="wwwroot/js/header-ui.js" />
+      <PtgCoreJs Include="wwwroot/js/tables.js" />
+      <PtgCoreJs Include="wwwroot/js/ak-search-filter.js" />
+      <PtgCoreJs Include="wwwroot/js/list-toolbar-row.js" />
+      <PtgCoreJs Include="wwwroot/js/tabular-export.js" />
+      <PtgCoreJs Include="wwwroot/js/system-list-digits.js" />
+      <PtgCoreJs Include="wwwroot/js/stat-card-fit.js" />
+      <PtgCoreJs Include="wwwroot/js/ptg-tabs.js" />
+      <PtgCoreJs Include="wwwroot/js/excel-import.js" />
+      <PtgCoreJs Include="wwwroot/js/ak-entity-combobox.js" />
+      <PtgCoreJs Include="wwwroot/js/ak-datepicker.js" />
+      <PtgCoreJs Include="wwwroot/js/assistant.js" />
     </ItemGroup>
     <BundleCss Sources="@(PtgCoreCss)" Output="$(MSBuildProjectDirectory)/wwwroot/css/ptg-core.bundle.css" />
     <BundleCss Sources="@(PtgAppCss)" Output="$(MSBuildProjectDirectory)/wwwroot/css/ptg-app.bundle.css" />
+    <BundleJs Sources="@(PtgCoreJs)" Output="$(MSBuildProjectDirectory)/wwwroot/js/ptg-core.bundle.js" />
   </Target>
 
 </Project>

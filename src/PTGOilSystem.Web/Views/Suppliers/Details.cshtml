@@ -8,10 +8,13 @@
     var supplierReturnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
-    var endingUsd = officialSummary?.ClosingBalance ?? Model.SupplierRemainingClaimUsd;
-    // معادل روبلی مانده — همیشه از مدل (اگر داده روبل موجود باشد) تا کنار USD نمایش داده شود.
-    var endingRub = Model.SupplierRemainingClaimRub;
+    var endingUsd = officialSummary?.ClosingBalance ?? 0m;
     var isRubView = Model.IsRubDisplay;
+    // در نمای روبلی ماندهٔ روبلی از همان صورت‌حساب رسمی می‌آید؛ در نمای دالری معادل روبلیِ
+    // مدل فقط به‌عنوان مقدارِ کنارِ USD نشان داده می‌شود (معنی و رنگ همیشه از صورت‌حساب رسمی).
+    var endingRub = isRubView && officialSummary?.ClosingBalanceRub is decimal officialRub
+        ? officialRub
+        : Model.SupplierRemainingClaimRub;
 
     // سوییچ ارز نمایش: بقیهٔ پارامترهای صفحه (tab، contractId، …) حفظ می‌شوند.
     string CurrencyHref(string code)
@@ -42,18 +45,13 @@
             : notRecorded;
 
     var endingRubAbs = endingRub.HasValue ? Math.Abs(endingRub.Value) : (decimal?)null;
-    // معنی/رنگ باید از علامتِ همان ارزی بیاید که کارت نشان می‌دهد: در نمایش روبلی از
-    // مانده روبل، در غیر آن از مانده دالر. وگرنه حسابِ روبلیِ بدهکار می‌تواند «اضافه‌پرداخت»
-    // دیده شود، چون نرخ روز پرداخت با نرخ روز بارگیری فرق دارد.
-    var balanceSignSource = isRubView && endingRub.HasValue ? endingRub.Value : endingUsd;
+    // معنی/رنگ از صورت‌حساب رسمی و به ارزِ همان نما (روبل یا دالر) می‌آید.
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context), isRubView)
-        ?? (balanceSignSource > 0 ? "شرکت به تأمین‌کننده بدهکار است" : balanceSignSource < 0 ? "شرکت از تأمین‌کننده طلبکار است" : "حساب تسویه است");
+        ?? PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowText.BalanceMeaning(endingUsd, PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowAccountKind.PartyAccount, Context);
     // رنگ باید از همان علامتی بیاید که متن معنی از آن ساخته شده: صورت‌حساب رسمی مثبت را
     // «طلبکار» می‌داند (سبز). فقط وقتی صورت‌حساب نیست، علامتِ مدل خودِ صفحه (مثبت = قابل
     // پرداخت به تأمین‌کننده = سرخ) به کار می‌رود.
-    var balanceTone = officialSummary is not null
-        ? officialSummary.ClosingBalanceToneFor(isRubView)
-        : balanceSignSource > 0 ? "danger" : balanceSignSource < 0 ? "success" : null;
+    var balanceTone = officialSummary?.ClosingBalanceToneFor(isRubView) ?? (endingUsd > 0 ? "success" : endingUsd < 0 ? "danger" : null);
 
     // خلاصه و قراردادها در یک تب واحد نمایش داده می‌شوند. کلیدهای قدیمیِ قرارداد/پرداخت
     // همچنان به همین تب می‌رسند تا لینک‌های ذخیره‌شده و returnUrlها معتبر بمانند.

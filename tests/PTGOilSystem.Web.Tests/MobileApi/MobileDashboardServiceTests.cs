@@ -150,8 +150,8 @@ public sealed class MobileDashboardServiceTests
 
         IReadOnlyList<CashAccountActivityTotals> cash =
         [
-            new CashAccountActivityTotals(1, 0m, 0m, 1000m, 250m),
-            new CashAccountActivityTotals(2, 0m, 0m, 50m, 0m)
+            new CashAccountActivityTotals(1, "USD", 0m, 0m, 1000m, 250m, 0, 0),
+            new CashAccountActivityTotals(2, "USD", 0m, 0m, 50m, 0m, 0, 0)
         ];
         var cashPosition = includeFinancialReaders
             ? InterfaceFake<ICashPositionReader>.Create(("ReadAccountTotalsAsync", _ => Task.FromResult(cash)))

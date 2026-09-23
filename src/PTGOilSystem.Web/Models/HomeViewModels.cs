@@ -16,12 +16,7 @@ public class DashboardViewModel
     public decimal TotalExpensesWeekChangePercent { get; set; }
     public decimal LoadingReceiptsWeekChangePercent { get; set; }
     public decimal LedgerEntriesWeekChangePercent { get; set; }
-    public decimal NetUsd => TotalSalesUsd - TotalExpensesUsd;
-    public decimal GrossMarginUsd => TotalSalesUsd - TotalExpensesUsd;
     public decimal TerminalStockMt { get; set; }
-    public DashboardBalanceSummaryViewModel ContractBalanceSummary { get; set; } = new();
-    public DashboardBalanceSummaryViewModel CustomerBalanceSummary { get; set; } = new();
-    public DashboardBalanceSummaryViewModel SupplierBalanceSummary { get; set; } = new();
     public List<DashboardAlertViewModel> LowStockAlerts { get; set; } = new();
     public List<DashboardAlertViewModel> ContractsEndingSoonAlerts { get; set; } = new();
     public List<DashboardAlertViewModel> ShipmentsWithoutSalesAlerts { get; set; } = new();
@@ -47,10 +42,6 @@ public class DashboardViewModel
     public int ShipmentsInTransitCount { get; set; }
     public decimal TodaySalesUsd { get; set; }
     public int TodaySalesCount { get; set; }
-    public decimal TodayReceiptsUsd { get; set; }
-    public decimal TodayPaymentsUsd { get; set; }
-    public decimal TodayExpensesUsd { get; set; }
-    public decimal MonthExpensesUsd { get; set; }
     public int ActiveSarrafCount { get; set; }
     public int TodayLoadingCount { get; set; }
     public int TodayDispatchCount { get; set; }
@@ -63,15 +54,6 @@ public class DashboardViewModel
     public int SarrafRateDiffCount { get; set; }
     public int ExcessShortageCount { get; set; }
     public int LowStockTankCount { get; set; }
-}
-
-public class DashboardBalanceSummaryViewModel
-{
-    public int ItemCount { get; set; }
-    public decimal DebitTotalUsd { get; set; }
-    public decimal CreditTotalUsd { get; set; }
-    // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته). هم‌علامتِ صفحات بیلانس.
-    public decimal BaseBalanceUsd => DebitTotalUsd - CreditTotalUsd;
 }
 
 public class DashboardAlertViewModel

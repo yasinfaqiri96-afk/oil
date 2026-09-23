@@ -7,7 +7,7 @@
     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((title, (string?)null))" />
     <div class="ak-table-wrap">
         <table class="ak-table">
-            <thead><tr><th class="ak-col-grow">@UiText.T(Context,"نام","Name")</th><th class="ak-col-num">Debit USD</th><th class="ak-col-num">Credit USD</th><th class="ak-col-num">Balance USD</th><th>@UiText.T(Context,"وضعیت","Status")</th></tr></thead>
+            <thead><tr><th class="ak-col-grow">@UiText.T(Context,"نام","Name")</th><th class="ak-col-num">@UiText.T(Context,"برد (داده) USD","Given USD")</th><th class="ak-col-num">@UiText.T(Context,"رسید (گرفته) USD","Received USD")</th><th class="ak-col-num">@UiText.T(Context,"مانده USD","Balance USD")</th><th>@UiText.T(Context,"وضعیت","Status")</th></tr></thead>
             <tbody>
             @foreach (var row in Model)
             {

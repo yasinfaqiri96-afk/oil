@@ -1,8 +1,9 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
+using PTGOilSystem.Web.Services.Reporting;
 
 namespace PTGOilSystem.Web.Services.PartyStatements;
 
@@ -30,7 +31,9 @@ public enum PartnershipStatementLineKind
     SaleProceedsHeld = 4,
     ProfitShare = 5,
     PartnerSettlement = 6,
-    Adjustment = 7
+    Adjustment = 7,
+    /// <summary>سهمِ شریک از هزینهٔ کالای هنوز فروخته‌نشده (مفادش هنوز محقق نشده).</summary>
+    UnsoldCostShare = 8
 }
 
 public sealed record PartnershipStatementLine(
@@ -72,12 +75,19 @@ public sealed record PartnershipPartnerTotals(
     public bool SpansMultipleSharePeriods => SharePeriodCount > 1;
 
     /// <summary>
+    /// سهمِ این شریک از هزینهٔ کالای هنوز فروخته‌نشده. <see cref="ProfitShareUsd"/> فقط سودِ محقق است؛
+    /// هزینهٔ موجودیِ فروخته‌نشده هم باید مثل قبل به نسبتِ سهم بینِ شرکا برابر شود، پس جدا و با نام
+    /// در مانده می‌آید (نه پنهان در مفاد).
+    /// </summary>
+    public decimal UnsoldCostShareUsd { get; init; }
+
+    /// <summary>
     /// مثبت = این شریک طلبکار است، منفی = این شریک بدهکار است.
-    /// پرداخت/سرمایه‌ای که داده + سهم مفادش − عایدی که نزد خودش مانده
+    /// پرداخت/سرمایه‌ای که داده + سهم مفادِ محقق − سهمِ هزینهٔ فروخته‌نشده − عایدی که نزد خودش مانده
     /// + تسویه‌هایی که پرداخته − تسویه‌هایی که گرفته.
     /// </summary>
     public decimal NetPositionUsd => decimal.Round(
-        FundingUsd + ProfitShareUsd - ProceedsHeldUsd + SettlementsPaidUsd - SettlementsReceivedUsd,
+        FundingUsd + ProfitShareUsd - UnsoldCostShareUsd - ProceedsHeldUsd + SettlementsPaidUsd - SettlementsReceivedUsd,
         2,
         MidpointRounding.AwayFromZero);
 }
@@ -98,15 +108,37 @@ public sealed record PartnershipContractStatement(
     IReadOnlyList<PartnershipPartnerTotals> Partners,
     IReadOnlyList<PartnershipStatementLine> Lines)
 {
-    /// <summary>هزینهٔ دفتریِ قرارداد: خرید + مصارف. مبنای مفاد، همین است — نه پرداختِ شرکا.</summary>
+    /// <summary>
+    /// هزینهٔ دفتریِ کاملِ قرارداد: خرید + مصارف (چه فروخته شده باشد چه نه). مبنای
+    /// <see cref="PaymentToBookDifferenceUsd"/> است، نه مبنای مفاد.
+    /// </summary>
     public decimal TotalCostUsd => decimal.Round(
         PurchaseCostUsd + OperationalExpenseUsd,
         2,
         MidpointRounding.AwayFromZero);
 
+    /// <summary>بهای کالای فروخته‌شده — از سودِ محققِ قرارداد (ProfitAndLossService).</summary>
+    public decimal RealizedCostOfGoodsSoldUsd { get; init; }
+
+    /// <summary>سهمِ فروخته‌شدهٔ مصارف — از سودِ محققِ قرارداد.</summary>
+    public decimal RealizedOperationalCostUsd { get; init; }
+
+    /// <summary>اثرِ ارزیِ محقق (سود − زیان − کسریِ صراف) — از سودِ محققِ قرارداد.</summary>
+    public decimal RealizedFxNetUsd { get; init; }
+
+    /// <summary>
+    /// بخشی از هزینهٔ دفتری که هنوز به فروش نرسیده (موجودیِ فروخته‌نشده و سهمِ مصارفش). مفادِ آن
+    /// هنوز محقق نشده، پس در <see cref="UnreconciledResidualUsd"/> صریح دیده می‌شود.
+    /// </summary>
+    public decimal UnrealizedCostCarriedUsd => decimal.Round(
+        TotalCostUsd - RealizedCostOfGoodsSoldUsd - RealizedOperationalCostUsd,
+        2,
+        MidpointRounding.AwayFromZero);
+
     /// <summary>
     /// باقیماندهٔ تطبیق‌نشدهٔ همین قرارداد = جمعِ مانده دو شریک.
-    /// برابر است با «تفاوت تطبیق پرداخت با دفتر» به‌علاوهٔ گِردکردنِ سهم‌ها.
+    /// برابر است با «تفاوت تطبیق پرداخت با دفتر» + «هزینهٔ هنوز فروخته‌نشده» + «اثرِ ارزیِ محقق»
+    /// (به‌علاوهٔ گِردکردن).
     /// عمداً صفر نمی‌شود و داخل مفاد پنهان نمی‌شود.
     /// </summary>
     public decimal UnreconciledResidualUsd => decimal.Round(
@@ -181,7 +213,11 @@ public sealed record PartnerContractPosition(
     decimal SettlementsPaidUsd,
     decimal SettlementsReceivedUsd,
     decimal NetPositionUsd,
-    IReadOnlyList<PartnerCoPartner> CoPartners);
+    IReadOnlyList<PartnerCoPartner> CoPartners)
+{
+    /// <summary>سهمِ این شریک از هزینهٔ کالای هنوز فروخته‌نشدهٔ همین قرارداد.</summary>
+    public decimal UnsoldCostShareUsd { get; init; }
+}
 
 /// <summary>
 /// یک رویداد در گردش حساب شریک. <paramref name="EffectUsd"/> اثرِ علامت‌دار روی مانده است
@@ -245,6 +281,9 @@ public sealed record PartnerAccountStatement(
     IReadOnlyList<PartnerCoPartner> CoPartners,
     IReadOnlyList<PartnerAccountEntry> Entries)
 {
+    /// <summary>سهمِ این شریک از هزینهٔ کالای هنوز فروخته‌نشده، در همهٔ قراردادها.</summary>
+    public decimal UnsoldCostShareUsd { get; init; }
+
     /// <summary>جمع بستانکار — از همان اثرهای ردیف‌ها، نه فرمول تازه.</summary>
     public decimal TotalCreditUsd => decimal.Round(
         Entries.Sum(e => e.CreditUsd), 2, MidpointRounding.AwayFromZero);
@@ -281,6 +320,20 @@ public interface IPartnershipStatementService
         CancellationToken ct = default);
 
     /// <summary>
+    /// همان صورت‌حسابِ <see cref="BuildForPartnerAsync"/> برای چند شریک با یک بار خواندن
+    /// دادهٔ مشترک. فرمول یکی است: نسخهٔ تک‌شریک خودش همین را با یک شناسه صدا می‌زند، پس
+    /// دو محاسبهٔ جدا وجود ندارد که بتوانند از هم جدا بیفتند.
+    ///
+    /// خواننده‌ای که مانده چند شریک را می‌خواهد باید از این استفاده کند، نه از حلقه روی
+    /// <see cref="BuildForPartnerAsync"/>؛ آن حلقه به ازای هر شریک کلِ دادهٔ قراردادهای
+    /// مشترک را دوباره می‌خواند.
+    /// </summary>
+    Task<IReadOnlyDictionary<int, PartnerAccountStatement>> BuildForPartnersAsync(
+        IReadOnlyCollection<int> partnerIds,
+        IReadOnlyCollection<int>? contractIds = null,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// یک قرارداد شراکتی و سهم همهٔ اعضایش — همان ارقامی که صورت‌حساب دونفره و پروفایل شریک
     /// نشان می‌دهند، بدون اینکه لازم باشد جفتِ شرکا از قبل معلوم باشد. ثبتِ تخصیص سود در دفتر
     /// کل از همین می‌خواند تا عددِ ژورنال و عددِ صورت‌حساب از یک محاسبه بیایند.
@@ -310,14 +363,16 @@ public interface IPartnershipStatementService
 public sealed class PartnershipStatementService : IPartnershipStatementService
 {
     private readonly ApplicationDbContext _db;
-    private readonly IPurchaseAggregationService _purchaseAggregation;
+    private readonly IProfitAndLossService _profitAndLoss;
 
     public PartnershipStatementService(
         ApplicationDbContext db,
-        IPurchaseAggregationService? purchaseAggregation = null)
+        IPurchaseAggregationService? purchaseAggregation = null,
+        IProfitAndLossService? profitAndLoss = null)
     {
         _db = db;
-        _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
+        // مفادِ قرارداد فقط از سودِ محققِ ProfitAndLossService؛ این سرویس فقط قاعدهٔ سهمِ شرکا را اعمال می‌کند.
+        _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db, purchaseAggregation ?? new PurchaseAggregationService(db));
     }
 
     private static decimal Round(decimal value)
@@ -449,7 +504,10 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                     SettlementsPaidUsd: paid,
                     SettlementsReceivedUsd: received,
                     // PTG ۱۲-C — جمعِ چند قرارداد: اگر حتی یکیِ آن‌ها چند بازه داشته، عدد ترکیبی است.
-                    SharePeriodCount: rows.Count == 0 ? 1 : rows.Max(r => r.SharePeriodCount));
+                    SharePeriodCount: rows.Count == 0 ? 1 : rows.Max(r => r.SharePeriodCount))
+                {
+                    UnsoldCostShareUsd = Round(rows.Sum(r => r.UnsoldCostShareUsd))
+                };
             })
             .ToList();
 
@@ -534,31 +592,58 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
             return null;
         }
 
-        var partner = await _db.Partners
-            .AsNoTracking()
-            .Where(p => p.Id == partnerId)
-            .Select(p => new { p.Id, p.Name })
-            .FirstOrDefaultAsync(ct);
-        if (partner is null)
+        // تک‌شریک همان مسیر چندشریک است با یک شناسه. عمداً فرمول جداگانه‌ای ندارد تا
+        // پروفایل شریک و گزارش‌های مانده هرگز دو عدد متفاوت ندهند.
+        var statements = await BuildForPartnersAsync([partnerId], contractIds, ct);
+        return statements.GetValueOrDefault(partnerId);
+    }
+
+    public async Task<IReadOnlyDictionary<int, PartnerAccountStatement>> BuildForPartnersAsync(
+        IReadOnlyCollection<int> partnerIds,
+        IReadOnlyCollection<int>? contractIds = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(partnerIds);
+
+        var result = new Dictionary<int, PartnerAccountStatement>();
+        var requestedIds = partnerIds.Where(id => id > 0).Distinct().ToList();
+        if (requestedIds.Count == 0)
         {
-            return null;
+            return result;
         }
 
-        // قراردادهای شراکتیِ همین شریک، و بعد همهٔ اعضای همان قراردادها (برای نام شریک مقابل).
-        var partnerContractIds = await _db.ContractPartners
+        var partners = await _db.Partners
             .AsNoTracking()
-            .Where(cp => cp.PartnerId == partnerId
+            .Where(p => requestedIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.Name })
+            .ToListAsync(ct);
+        if (partners.Count == 0)
+        {
+            return result;
+        }
+
+        // عضویتِ همهٔ شرکای خواسته‌شده با یک کوئری. هر شریک بعداً فقط قراردادهای خودش
+        // را می‌بیند، پس دامنهٔ محاسبهٔ او دقیقاً همان دامنهٔ مسیر تک‌شریک است.
+        var membership = await _db.ContractPartners
+            .AsNoTracking()
+            .Where(cp => requestedIds.Contains(cp.PartnerId)
                 && cp.Contract != null
                 && cp.Contract.OwnershipType == ContractOwnershipType.Partnership)
-            .Select(cp => cp.ContractId)
+            .Select(cp => new { cp.PartnerId, cp.ContractId })
             .Distinct()
             .ToListAsync(ct);
 
-        var links = partnerContractIds.Count == 0
-            ? []
-            : await LoadMemberLinksAsync(cp => partnerContractIds.Contains(cp.ContractId), ct);
+        var contractIdsByPartner = membership
+            .GroupBy(m => m.PartnerId)
+            .ToDictionary(g => g.Key, g => g.Select(m => m.ContractId).Distinct().ToList());
 
-        var memberIds = links.Select(l => l.PartnerId).Distinct().ToList();
+        // همهٔ اعضای همان قراردادها (برای نام شریک مقابل) — یک بار برای اجتماع قراردادها.
+        var unionContractIds = membership.Select(m => m.ContractId).Distinct().ToList();
+        var allLinks = unionContractIds.Count == 0
+            ? []
+            : await LoadMemberLinksAsync(cp => unionContractIds.Contains(cp.ContractId), ct);
+
+        var memberIds = allLinks.Select(l => l.PartnerId).Distinct().ToList();
         var nameById = memberIds.Count == 0
             ? new Dictionary<int, string>()
             : (await _db.Partners
@@ -568,125 +653,183 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                 .ToListAsync(ct))
                 .ToDictionary(p => p.Id, p => p.Name);
 
-        var contractGroups = links
+        var groupsByPartner = new Dictionary<int, List<IGrouping<int, ContractMemberLink>>>();
+        var selectedByPartner = new Dictionary<int, List<int>>();
+        foreach (var partner in partners)
+        {
+            var ownContractIds = contractIdsByPartner.GetValueOrDefault(partner.Id) ?? [];
+            var contractGroups = allLinks
+                .Where(l => ownContractIds.Contains(l.ContractId))
+                .GroupBy(l => l.ContractId)
+                .OrderBy(g => g.First().ContractNumber, StringComparer.Ordinal)
+                .ToList();
+            groupsByPartner[partner.Id] = contractGroups;
+
+            var allContractIds = contractGroups.Select(g => g.Key).ToList();
+            var selectedIds = contractIds is { Count: > 0 }
+                ? allContractIds.Where(contractIds.Contains).ToList()
+                : allContractIds;
+            if (selectedIds.Count == 0)
+            {
+                selectedIds = allContractIds;
+            }
+            selectedByPartner[partner.Id] = selectedIds;
+        }
+
+        // محاسبهٔ هر قرارداد فقط یک بار. ریاضیِ قرارداد به شریکِ پرسنده وابسته نیست، پس
+        // نتیجهٔ مشترک همان چیزی است که مسیر تک‌شریک جداگانه می‌ساخت.
+        var unionSelectedIds = selectedByPartner.Values.SelectMany(ids => ids).Distinct().ToList();
+        var unionSelectedGroups = allLinks
+            .Where(l => unionSelectedIds.Contains(l.ContractId))
             .GroupBy(l => l.ContractId)
             .OrderBy(g => g.First().ContractNumber, StringComparer.Ordinal)
             .ToList();
+        var statementByContract = (await BuildContractStatementsAsync(unionSelectedGroups, nameById, ct))
+            .ToDictionary(statement => statement.ContractId);
 
-        var allContractIds = contractGroups.Select(g => g.Key).ToList();
-        var selectedIds = contractIds is { Count: > 0 }
-            ? allContractIds.Where(contractIds.Contains).ToList()
-            : allContractIds;
-        if (selectedIds.Count == 0)
+        var allSettlements = await LoadPartnerSettlementRowsAsync(requestedIds, ct);
+
+        foreach (var partner in partners)
         {
-            selectedIds = allContractIds;
-        }
+            var partnerId = partner.Id;
+            var links = allLinks
+                .Where(l => (contractIdsByPartner.GetValueOrDefault(partnerId) ?? []).Contains(l.ContractId))
+                .ToList();
+            var contractGroups = groupsByPartner[partnerId];
+            var allContractIds = contractGroups.Select(g => g.Key).ToList();
+            var selectedIds = selectedByPartner[partnerId];
 
-        var options = contractGroups
-            .Select(g => new PartnershipContractOption(
-                g.Key,
-                Contract.BuildDisplayLabel(g.First().ContractName, g.First().ContractNumber),
-                selectedIds.Contains(g.Key)))
-            .ToList();
+            var options = contractGroups
+                .Select(g => new PartnershipContractOption(
+                    g.Key,
+                    Contract.BuildDisplayLabel(g.First().ContractName, g.First().ContractNumber),
+                    selectedIds.Contains(g.Key)))
+                .ToList();
 
-        var selected = contractGroups.Where(g => selectedIds.Contains(g.Key)).ToList();
-        var contractStatements = await BuildContractStatementsAsync(selected, nameById, ct);
-        var settlements = await LoadPartnerSettlementsAsync(partnerId, selectedIds, allContractIds, ct);
+            // همان ترتیبِ مسیر تک‌شریک: قراردادهای انتخاب‌شده به ترتیب شمارهٔ قرارداد.
+            var contractStatements = contractGroups
+                .Where(g => selectedIds.Contains(g.Key))
+                .Select(g => statementByContract.GetValueOrDefault(g.Key))
+                .Where(statement => statement is not null)
+                .Select(statement => statement!)
+                .ToList();
 
-        var coPartners = links
-            .Where(l => selectedIds.Contains(l.ContractId) && l.PartnerId != partnerId)
-            .Select(l => l.PartnerId)
-            .Distinct()
-            .Select(id => new PartnerCoPartner(id, nameById.GetValueOrDefault(id) ?? string.Empty))
-            .OrderBy(c => c.PartnerName, StringComparer.Ordinal)
-            .ToList();
+            // تسویهٔ بدون قرارداد، تسویهٔ کلیِ حساب است و فقط در نمای «همهٔ قراردادها» شمرده می‌شود.
+            var selectedSet = selectedIds.ToHashSet();
+            var showsEveryContract = selectedSet.SetEquals(allContractIds);
+            var settlements = allSettlements
+                .Where(s => s.FromPartnerId == partnerId || s.ToPartnerId == partnerId)
+                .Where(s => s.ContractId.HasValue
+                    ? selectedSet.Contains(s.ContractId.Value)
+                    : showsEveryContract)
+                .ToList();
 
-        var positions = new List<PartnerContractPosition>();
-        foreach (var contract in contractStatements)
-        {
-            var own = contract.Partners.FirstOrDefault(x => x.PartnerId == partnerId);
-            if (own is null)
+            var coPartners = links
+                .Where(l => selectedIds.Contains(l.ContractId) && l.PartnerId != partnerId)
+                .Select(l => l.PartnerId)
+                .Distinct()
+                .Select(id => new PartnerCoPartner(id, nameById.GetValueOrDefault(id) ?? string.Empty))
+                .OrderBy(c => c.PartnerName, StringComparer.Ordinal)
+                .ToList();
+
+            var positions = new List<PartnerContractPosition>();
+            foreach (var contract in contractStatements)
             {
-                continue;
+                var own = contract.Partners.FirstOrDefault(x => x.PartnerId == partnerId);
+                if (own is null)
+                {
+                    continue;
+                }
+
+                var paid = Round(settlements
+                    .Where(x => !x.IsReversed && x.ContractId == contract.ContractId && x.FromPartnerId == partnerId)
+                    .Sum(x => x.AmountUsd));
+                var received = Round(settlements
+                    .Where(x => !x.IsReversed && x.ContractId == contract.ContractId && x.ToPartnerId == partnerId)
+                    .Sum(x => x.AmountUsd));
+                var withSettlements = own with { SettlementsPaidUsd = paid, SettlementsReceivedUsd = received };
+
+                positions.Add(new PartnerContractPosition(
+                    ContractId: contract.ContractId,
+                    ContractNumber: contract.ContractNumber,
+                    ContractLabel: contract.ContractLabel,
+                    Currency: contract.Currency,
+                    SharePercent: own.SharePercent,
+                    FundingUsd: own.FundingUsd,
+                    ProceedsHeldUsd: own.ProceedsHeldUsd,
+                    ProfitShareUsd: own.ProfitShareUsd,
+                    SettlementsPaidUsd: paid,
+                    SettlementsReceivedUsd: received,
+                    NetPositionUsd: withSettlements.NetPositionUsd,
+                    CoPartners: contract.Partners
+                        .Where(x => x.PartnerId != partnerId)
+                        .Select(x => new PartnerCoPartner(x.PartnerId, x.PartnerName))
+                        .ToList())
+                {
+                    UnsoldCostShareUsd = own.UnsoldCostShareUsd
+                });
             }
 
-            var paid = Round(settlements
-                .Where(x => !x.IsReversed && x.ContractId == contract.ContractId && x.FromPartnerId == partnerId)
+            var settlementsPaidUsd = Round(settlements
+                .Where(x => !x.IsReversed && x.FromPartnerId == partnerId)
                 .Sum(x => x.AmountUsd));
-            var received = Round(settlements
-                .Where(x => !x.IsReversed && x.ContractId == contract.ContractId && x.ToPartnerId == partnerId)
+            var settlementsReceivedUsd = Round(settlements
+                .Where(x => !x.IsReversed && x.ToPartnerId == partnerId)
                 .Sum(x => x.AmountUsd));
-            var withSettlements = own with { SettlementsPaidUsd = paid, SettlementsReceivedUsd = received };
 
-            positions.Add(new PartnerContractPosition(
-                ContractId: contract.ContractId,
-                ContractNumber: contract.ContractNumber,
-                ContractLabel: contract.ContractLabel,
-                Currency: contract.Currency,
-                SharePercent: own.SharePercent,
-                FundingUsd: own.FundingUsd,
-                ProceedsHeldUsd: own.ProceedsHeldUsd,
-                ProfitShareUsd: own.ProfitShareUsd,
-                SettlementsPaidUsd: paid,
-                SettlementsReceivedUsd: received,
-                NetPositionUsd: withSettlements.NetPositionUsd,
-                CoPartners: contract.Partners
-                    .Where(x => x.PartnerId != partnerId)
-                    .Select(x => new PartnerCoPartner(x.PartnerId, x.PartnerName))
-                    .ToList()));
+            var totals = new PartnershipPartnerTotals(
+                PartnerId: partnerId,
+                PartnerName: partner.Name,
+                SharePercent: positions.Count == 0 ? 0m : positions.Average(p => p.SharePercent),
+                FundingUsd: Round(positions.Sum(p => p.FundingUsd)),
+                ProceedsHeldUsd: Round(positions.Sum(p => p.ProceedsHeldUsd)),
+                ProfitShareUsd: Round(positions.Sum(p => p.ProfitShareUsd)),
+                SettlementsPaidUsd: settlementsPaidUsd,
+                SettlementsReceivedUsd: settlementsReceivedUsd,
+                // PTG ۱۲-C — پروفایل شریک هم باید بداند عددِ مفاد ترکیبی است یا نه.
+                SharePeriodCount: contractStatements.Count == 0
+                    ? 1
+                    : contractStatements
+                        .SelectMany(c => c.Partners)
+                        .Where(x => x.PartnerId == partnerId)
+                        .Select(x => x.SharePeriodCount)
+                        .DefaultIfEmpty(1)
+                        .Max())
+            {
+                UnsoldCostShareUsd = Round(positions.Sum(p => p.UnsoldCostShareUsd))
+            };
+
+            var entries = BuildPartnerEntries(partnerId, contractStatements, positions, settlements);
+
+            var net = totals.NetPositionUsd;
+            var direction = net > 0m
+                ? PartnerBalanceDirection.Creditor
+                : net < 0m
+                    ? PartnerBalanceDirection.Debtor
+                    : PartnerBalanceDirection.Settled;
+
+            result[partnerId] = new PartnerAccountStatement(
+                PartnerId: partnerId,
+                PartnerName: partner.Name,
+                FundingUsd: totals.FundingUsd,
+                ProceedsHeldUsd: totals.ProceedsHeldUsd,
+                ProfitShareUsd: totals.ProfitShareUsd,
+                SettlementsPaidUsd: totals.SettlementsPaidUsd,
+                SettlementsReceivedUsd: totals.SettlementsReceivedUsd,
+                NetPositionUsd: net,
+                Direction: direction,
+                AmountUsd: Round(Math.Abs(net)),
+                LastActivityDate: entries.Where(e => e.Date.HasValue).Select(e => e.Date).DefaultIfEmpty(null).Max(),
+                ContractOptions: options,
+                Contracts: positions,
+                CoPartners: coPartners,
+                Entries: entries)
+            {
+                UnsoldCostShareUsd = totals.UnsoldCostShareUsd
+            };
         }
 
-        var settlementsPaidUsd = Round(settlements
-            .Where(x => !x.IsReversed && x.FromPartnerId == partnerId)
-            .Sum(x => x.AmountUsd));
-        var settlementsReceivedUsd = Round(settlements
-            .Where(x => !x.IsReversed && x.ToPartnerId == partnerId)
-            .Sum(x => x.AmountUsd));
-
-        var totals = new PartnershipPartnerTotals(
-            PartnerId: partnerId,
-            PartnerName: partner.Name,
-            SharePercent: positions.Count == 0 ? 0m : positions.Average(p => p.SharePercent),
-            FundingUsd: Round(positions.Sum(p => p.FundingUsd)),
-            ProceedsHeldUsd: Round(positions.Sum(p => p.ProceedsHeldUsd)),
-            ProfitShareUsd: Round(positions.Sum(p => p.ProfitShareUsd)),
-            SettlementsPaidUsd: settlementsPaidUsd,
-            SettlementsReceivedUsd: settlementsReceivedUsd,
-            // PTG ۱۲-C — پروفایل شریک هم باید بداند عددِ مفاد ترکیبی است یا نه.
-            SharePeriodCount: contractStatements.Count == 0
-                ? 1
-                : contractStatements
-                    .SelectMany(c => c.Partners)
-                    .Where(x => x.PartnerId == partnerId)
-                    .Select(x => x.SharePeriodCount)
-                    .DefaultIfEmpty(1)
-                    .Max());
-
-        var entries = BuildPartnerEntries(partnerId, contractStatements, positions, settlements);
-
-        var net = totals.NetPositionUsd;
-        var direction = net > 0m
-            ? PartnerBalanceDirection.Creditor
-            : net < 0m
-                ? PartnerBalanceDirection.Debtor
-                : PartnerBalanceDirection.Settled;
-
-        return new PartnerAccountStatement(
-            PartnerId: partnerId,
-            PartnerName: partner.Name,
-            FundingUsd: totals.FundingUsd,
-            ProceedsHeldUsd: totals.ProceedsHeldUsd,
-            ProfitShareUsd: totals.ProfitShareUsd,
-            SettlementsPaidUsd: totals.SettlementsPaidUsd,
-            SettlementsReceivedUsd: totals.SettlementsReceivedUsd,
-            NetPositionUsd: net,
-            Direction: direction,
-            AmountUsd: Round(Math.Abs(net)),
-            LastActivityDate: entries.Where(e => e.Date.HasValue).Select(e => e.Date).DefaultIfEmpty(null).Max(),
-            ContractOptions: options,
-            Contracts: positions,
-            CoPartners: coPartners,
-            Entries: entries);
+        return result;
     }
 
     /// <summary>
@@ -731,7 +874,31 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                 partnerLines.Where(l => l.Kind == PartnershipStatementLineKind.SaleProceedsHeld).ToList());
 
             var position = positions.FirstOrDefault(p => p.ContractId == contract.ContractId);
-            if (position is null || position.ProfitShareUsd == 0m)
+            if (position is null)
+            {
+                continue;
+            }
+
+            if (position.UnsoldCostShareUsd != 0m)
+            {
+                // هزینهٔ کالای هنوز فروخته‌نشده تاریخِ تحقق ندارد؛ بی‌تاریخ و جدا از مفاد می‌ماند.
+                draft.Add((
+                    null,
+                    contract.ContractId,
+                    contract.ContractLabel,
+                    $"سهم {position.SharePercent:0.##}٪ از هزینهٔ کالای هنوز فروخته‌نشده",
+                    PartnershipStatementLineKind.UnsoldCostShare,
+                    Math.Abs(position.UnsoldCostShareUsd),
+                    -position.UnsoldCostShareUsd,
+                    "Contract",
+                    contract.ContractId,
+                    null,
+                    null,
+                    null,
+                    null));
+            }
+
+            if (position.ProfitShareUsd == 0m)
             {
                 continue;
             }
@@ -747,7 +914,7 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                 profitDate,
                 contract.ContractId,
                 contract.ContractLabel,
-                $"سهم مفاد {position.SharePercent:0.##}٪ از مفاد قرارداد",
+                $"سهم مفاد {position.SharePercent:0.##}٪ از مفاد محقق قرارداد",
                 PartnershipStatementLineKind.ProfitShare,
                 Math.Abs(position.ProfitShareUsd),
                 position.ProfitShareUsd,
@@ -896,30 +1063,26 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
         string? Description,
         bool IsReversed);
 
-    private async Task<List<PartnerSettlementRecord>> LoadPartnerSettlementsAsync(
-        int partnerId,
-        IReadOnlyCollection<int> selectedContractIds,
-        IReadOnlyCollection<int> allContractIds,
+    /// <summary>
+    /// تسویهٔ همهٔ شرکای خواسته‌شده با یک کوئری، به همان ترتیبِ قبلی (تاریخ، بعد شناسه).
+    /// جداکردنِ سهم هر شریک و قاعدهٔ «تسویهٔ بدون قرارداد» سرِ جای خودش در
+    /// <see cref="BuildForPartnersAsync"/> اعمال می‌شود.
+    /// </summary>
+    private async Task<List<PartnerSettlementRecord>> LoadPartnerSettlementRowsAsync(
+        IReadOnlyCollection<int> partnerIds,
         CancellationToken ct)
     {
-        var selected = selectedContractIds.ToHashSet();
-        var showsEveryContract = selected.SetEquals(allContractIds);
-
         var rows = await _db.PartnerSettlements
             .AsNoTracking()
             .Include(s => s.Contract)
             .Include(s => s.FromPartner)
             .Include(s => s.ToPartner)
-            .Where(s => s.FromPartnerId == partnerId || s.ToPartnerId == partnerId)
+            .Where(s => partnerIds.Contains(s.FromPartnerId) || partnerIds.Contains(s.ToPartnerId))
             .OrderBy(s => s.SettlementDate)
             .ThenBy(s => s.Id)
             .ToListAsync(ct);
 
-        // تسویهٔ بدون قرارداد، تسویهٔ کلیِ حساب است و فقط در نمای «همهٔ قراردادها» شمرده می‌شود.
         return rows
-            .Where(s => s.ContractId.HasValue
-                ? selected.Contains(s.ContractId.Value)
-                : showsEveryContract)
             .Select(s => new PartnerSettlementRecord(
                 s.Id,
                 s.SettlementDate,
@@ -946,11 +1109,11 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
         CancellationToken ct)
     {
         var selectedIds = selected.Select(g => g.Key).ToList();
-        var saleByContract = await LoadSalesAsync(selectedIds, ct);
+        // فروش‌ها، هزینه‌ها و مفاد همه از یک مرجع: ProfitAndLossService.BuildContractEconomicsAsync —
+        // همان اعدادِ گزارش مفاد قراردادها و پروندهٔ قرارداد.
+        var economicsByContract = await _profitAndLoss.BuildContractEconomicsAsync(selectedIds, ct);
         var fundingRows = await PartnerFundingReader.LoadPartnerFundedPaymentsAsync(
             _db, selectedIds, partnerId: null, toDate: null, ct);
-        var (purchaseByContract, loadingExpenseByContract) = await LoadPurchaseAsync(selectedIds, ct);
-        var expenseByContract = await LoadExpensesAsync(selectedIds, ct);
 
         // PTG-P0-03 — تاریخچهٔ سهم، تنها مرجعِ «در تاریخ هر رویداد چه سهمی بود».
         var shareHistory = await ContractPartnerShareHistory.LoadAsync(_db, selectedIds, ct);
@@ -961,12 +1124,17 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
             var contractId = group.Key;
             var head = group.First();
 
-            var sales = saleByContract.GetValueOrDefault(contractId) ?? [];
-            var salesUsd = Round(sales.Sum(s => s.TotalUsd));
-            var purchaseCostUsd = Round(purchaseByContract.GetValueOrDefault(contractId));
-            var operationalExpenseUsd = Round(
-                expenseByContract.GetValueOrDefault(contractId)
-                + loadingExpenseByContract.GetValueOrDefault(contractId));
+            var economics = economicsByContract.GetValueOrDefault(contractId)
+                ?? new ContractEconomicsSnapshot { ContractId = contractId };
+            var sales = economics.Sales
+                .Select(s => new SaleRow(s.SalesTransactionId, s.SaleDate, s.InvoiceNumber, s.QuantityMt, s.AmountUsd))
+                .ToList();
+            var salesUsd = Round(economics.RevenueUsd);
+            // هزینهٔ دفتریِ کامل (مبنای تطبیقِ پرداختِ شرکا): کلِ خرید + کلِ مصارف.
+            var purchaseCostUsd = Round(economics.ContractType == ContractType.Purchase
+                ? economics.PurchaseValueUsd
+                : economics.RealizedCostOfGoodsSoldUsd);
+            var operationalExpenseUsd = Round(economics.OperationalCostBaseUsd);
 
             var contractFunding = fundingRows.Where(f => f.ContractId == contractId).ToList();
             var fundingByPartner = contractFunding
@@ -976,8 +1144,8 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                     g => Round(g.Sum(f => f.Direction == PaymentDirection.Out ? f.AmountUsd : -f.AmountUsd)));
             var totalFundingUsd = Round(fundingByPartner.Values.Sum());
 
-            // تنها مبنای مفاد: دادهٔ عملیاتی دفتر. پرداختِ شرکا اینجا هیچ نقشی ندارد.
-            var bookProfitUsd = Round(salesUsd - purchaseCostUsd - operationalExpenseUsd);
+            // تنها مبنای مفاد: سودِ محققِ قرارداد (فقط بخشِ فروخته‌شده). پرداختِ شرکا اینجا هیچ نقشی ندارد.
+            var bookProfitUsd = economics.RealizedNetProfitUsd;
             // مفهوم جدا: پولِ شرکا چقدر با هزینهٔ ثبت‌شدهٔ دفتر فرق دارد. صفر نمی‌شود.
             var paymentToBookDifferenceUsd = Round(totalFundingUsd - purchaseCostUsd - operationalExpenseUsd);
 
@@ -990,6 +1158,17 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
             var profitByPartner = AllocateProfitBySharePeriod(
                 contractId,
                 bookProfitUsd,
+                sales,
+                shareHistory);
+            // هزینهٔ کالای هنوز فروخته‌نشده (کلِ هزینهٔ دفتری منهای بخشِ فروخته‌شده) با همان قاعدهٔ سهم؛
+            // جمعِ «سهم مفاد − سهم هزینهٔ فروخته‌نشده» همان چیزی است که شرکا پیش‌تر به‌عنوان مفادِ
+            // کامل می‌دیدند، پس برابرسازیِ هزینه بینِ شرکا تغییر نمی‌کند.
+            var unsoldCostUsd = Round(purchaseCostUsd + operationalExpenseUsd
+                - Round(economics.RealizedCostOfGoodsSoldUsd)
+                - Round(economics.RealizedOperationalCostUsd));
+            var unsoldCostByPartner = AllocateProfitBySharePeriod(
+                contractId,
+                unsoldCostUsd,
                 sales,
                 shareHistory);
 
@@ -1006,7 +1185,10 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                     SettlementsPaidUsd: 0m,
                     SettlementsReceivedUsd: 0m,
                     // PTG ۱۲-C — اگر قرارداد بیش از یک بازهٔ سهم دارد، مفاد ترکیبی است.
-                    SharePeriodCount: shareHistory.SharePeriodCount(contractId)))
+                    SharePeriodCount: shareHistory.SharePeriodCount(contractId))
+                {
+                    UnsoldCostShareUsd = unsoldCostByPartner.GetValueOrDefault(x.PartnerId)
+                })
                 .ToList();
 
             var lines = new List<PartnershipStatementLine>();
@@ -1048,7 +1230,12 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
                     ? nameById.GetValueOrDefault(holderId.Value)
                     : null,
                 Partners: partnerTotals,
-                Lines: lines.OrderBy(l => l.Date).ThenBy(l => l.RecordId).ToList()));
+                Lines: lines.OrderBy(l => l.Date).ThenBy(l => l.RecordId).ToList())
+            {
+                RealizedCostOfGoodsSoldUsd = Round(economics.RealizedCostOfGoodsSoldUsd),
+                RealizedOperationalCostUsd = Round(economics.RealizedOperationalCostUsd),
+                RealizedFxNetUsd = Round(economics.RealizedFxNetUsd)
+            });
         }
 
         return contractStatements;
@@ -1208,157 +1395,6 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
         string? InvoiceNumber,
         decimal QuantityMt,
         decimal TotalUsd);
-
-    /// <summary>
-    /// فروشِ یک قرارداد شراکتی در دیتابیس واقعی به سه شکل به قرارداد وصل است:
-    /// <c>SalesTransaction.ContractId</c>، <c>SalesTransaction.SourcePurchaseContractId</c>
-    /// و <c>LedgerEntry(SourceType="Sale").ContractId</c>. اینجا هر فروش دقیقاً به یک قرارداد
-    /// نسبت داده می‌شود تا هیچ درآمدی دوبار شمرده نشود.
-    /// </summary>
-    private async Task<Dictionary<int, List<SaleRow>>> LoadSalesAsync(
-        IReadOnlyCollection<int> contractIds,
-        CancellationToken ct)
-    {
-        var result = new Dictionary<int, List<SaleRow>>();
-        if (contractIds.Count == 0)
-        {
-            return result;
-        }
-
-        var ids = contractIds.Distinct().ToArray();
-        var direct = await _db.SalesTransactions
-            .AsNoTracking()
-            .Where(s => !s.IsCancelled
-                && ((s.ContractId != null && ids.Contains(s.ContractId!.Value))
-                    || (s.SourcePurchaseContractId != null && ids.Contains(s.SourcePurchaseContractId!.Value))))
-            .Select(s => new
-            {
-                s.Id,
-                s.ContractId,
-                s.SourcePurchaseContractId,
-                s.SaleDate,
-                s.InvoiceNumber,
-                s.QuantityMt,
-                s.TotalUsd
-            })
-            .ToListAsync(ct);
-
-        var contractBySale = new Dictionary<int, int>();
-        var rowsById = new Dictionary<int, SaleRow>();
-        foreach (var row in direct)
-        {
-            contractBySale[row.Id] = row.ContractId is int c && ids.Contains(c)
-                ? c
-                : row.SourcePurchaseContractId!.Value;
-            rowsById[row.Id] = new SaleRow(row.Id, row.SaleDate, row.InvoiceNumber, row.QuantityMt, row.TotalUsd);
-        }
-
-        var ledgerSales = await _db.LedgerEntries
-            .AsNoTracking()
-            .Where(l => l.SourceType == "Sale" && l.ContractId != null && ids.Contains(l.ContractId!.Value))
-            .Select(l => new { SaleId = l.SourceId, ContractId = l.ContractId!.Value })
-            .Distinct()
-            .ToListAsync(ct);
-
-        var missingSaleIds = ledgerSales
-            .Where(l => !contractBySale.ContainsKey(l.SaleId))
-            .Select(l => l.SaleId)
-            .Distinct()
-            .ToArray();
-
-        var extra = missingSaleIds.Length == 0
-            ? []
-            : await _db.SalesTransactions
-                .AsNoTracking()
-                .Where(s => !s.IsCancelled && missingSaleIds.Contains(s.Id))
-                .Select(s => new { s.Id, s.SaleDate, s.InvoiceNumber, s.QuantityMt, s.TotalUsd })
-                .ToListAsync(ct);
-
-        foreach (var row in extra)
-        {
-            rowsById[row.Id] = new SaleRow(row.Id, row.SaleDate, row.InvoiceNumber, row.QuantityMt, row.TotalUsd);
-            contractBySale[row.Id] = ledgerSales.First(l => l.SaleId == row.Id).ContractId;
-        }
-
-        foreach (var pair in contractBySale)
-        {
-            if (!rowsById.TryGetValue(pair.Key, out var sale))
-            {
-                continue;
-            }
-
-            if (!result.TryGetValue(pair.Value, out var list))
-            {
-                list = [];
-                result[pair.Value] = list;
-            }
-
-            list.Add(sale);
-        }
-
-        return result;
-    }
-
-    private async Task<(Dictionary<int, decimal> PurchaseCost, Dictionary<int, decimal> LoadingExpense)> LoadPurchaseAsync(
-        IReadOnlyCollection<int> contractIds,
-        CancellationToken ct)
-    {
-        var purchase = new Dictionary<int, decimal>();
-        var loading = new Dictionary<int, decimal>();
-        if (contractIds.Count == 0)
-        {
-            return (purchase, loading);
-        }
-
-        var ids = contractIds.Distinct().ToArray();
-        var contracts = await _db.Contracts
-            .AsNoTracking()
-            .Where(c => ids.Contains(c.Id) && c.ContractType == ContractType.Purchase)
-            .ToListAsync(ct);
-        if (contracts.Count == 0)
-        {
-            return (purchase, loading);
-        }
-
-        var finalPriceByContract = contracts.ToDictionary(
-            c => c.Id,
-            ContractPricingAdapter.GetCanonicalFinalPrice);
-        var snapshots = await _purchaseAggregation.AggregateForContractsAsync(
-            contracts.Select(c => c.Id).ToList(),
-            finalPriceByContract,
-            ct);
-
-        foreach (var snapshot in snapshots)
-        {
-            purchase[snapshot.Key] = snapshot.Value.TraceablePurchaseCostUsd;
-            loading[snapshot.Key] = snapshot.Value.LoadingTransportExpenseUsd
-                + snapshot.Value.LoadingWarehouseExpenseUsd
-                + snapshot.Value.LoadingOtherExpenseUsd
-                + snapshot.Value.LoadingRailwayExpenseUsd;
-        }
-
-        return (purchase, loading);
-    }
-
-    private async Task<Dictionary<int, decimal>> LoadExpensesAsync(
-        IReadOnlyCollection<int> contractIds,
-        CancellationToken ct)
-    {
-        if (contractIds.Count == 0)
-        {
-            return new Dictionary<int, decimal>();
-        }
-
-        var ids = contractIds.Distinct().ToArray();
-        var rows = await _db.ExpenseTransactions
-            .AsNoTracking()
-            .Where(e => !e.IsCancelled && e.ContractId != null && ids.Contains(e.ContractId!.Value))
-            .GroupBy(e => e.ContractId!.Value)
-            .Select(g => new { ContractId = g.Key, AmountUsd = g.Sum(e => e.AmountUsd) })
-            .ToListAsync(ct);
-
-        return rows.ToDictionary(r => r.ContractId, r => r.AmountUsd);
-    }
 
     private async Task<List<PartnershipSettlementRow>> LoadSettlementsAsync(
         int partnerAId,

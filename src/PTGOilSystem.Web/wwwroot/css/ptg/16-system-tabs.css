@@ -30,6 +30,12 @@
     --ptg-tabs-focus-color: rgba(16, 98, 208, .25);
     --ptg-tabs-hover-indicator: rgba(16, 98, 208, .35);
 
+    /* نوار اسکرول افقی تب‌ها: باریک و ظریف، تا از ارتفاع ۵۲px ریل چیزی نخورد.
+       پیش‌فرض بی‌رنگ است و فقط با hover روی همان ریل جوهر می‌گیرد. */
+    --ptg-tabs-scrollbar-size: 4px;
+    --ptg-tabs-scrollbar-thumb: rgba(0, 0, 0, .14);
+    --ptg-tabs-scrollbar-thumb-hover: rgba(0, 0, 0, .26);
+
     /* Rhythm: title -> rail -> content. Chortke butts a white panel against the
        rail; our tab bodies are loose sections, so they keep a gap instead. */
     --ptg-tabs-space-above: 20px;
@@ -50,6 +56,8 @@
     overflow-x: auto;
     overflow-y: hidden;
     scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
 }
 
 /* ---- Rail --------------------------------------------------------- */
@@ -78,22 +86,41 @@
     scrollbar-color: transparent transparent;
 }
 
-/* Hairline scrollbar, effectively invisible until it is needed. */
-.ptg-tabs-rail::-webkit-scrollbar {
-    height: 2px;
+/* Hairline scrollbar, effectively invisible until it is needed.
+   Both selectors are listed because either element can be the scroller: the
+   rail scrolls on its own when it is rendered bare, and the scroll shell
+   scrolls when _SectionTabs wraps it (the rail is then overflow: visible, so
+   a rail-only rule would style an element that never scrolls). */
+.ptg-tabs-rail::-webkit-scrollbar,
+[data-section-tabs-scroll]::-webkit-scrollbar {
+    height: var(--ptg-tabs-scrollbar-size);
 }
 
-.ptg-tabs-rail::-webkit-scrollbar-track {
+.ptg-tabs-rail::-webkit-scrollbar-track,
+[data-section-tabs-scroll]::-webkit-scrollbar-track {
     background: transparent;
 }
 
-.ptg-tabs-rail::-webkit-scrollbar-thumb {
+.ptg-tabs-rail::-webkit-scrollbar-thumb,
+[data-section-tabs-scroll]::-webkit-scrollbar-thumb {
     background: transparent;
-    border-radius: 2px;
+    border-radius: 999px;
 }
 
-.ptg-tabs-rail:hover::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, .12);
+.ptg-tabs-rail:hover::-webkit-scrollbar-thumb,
+[data-section-tabs-scroll]:hover::-webkit-scrollbar-thumb {
+    background: var(--ptg-tabs-scrollbar-thumb);
+}
+
+.ptg-tabs-rail::-webkit-scrollbar-thumb:hover,
+[data-section-tabs-scroll]::-webkit-scrollbar-thumb:hover {
+    background: var(--ptg-tabs-scrollbar-thumb-hover);
+}
+
+/* Firefox has no thumb pseudo-element; tint the whole bar on the same hover. */
+.ptg-tabs-rail:hover,
+[data-section-tabs-scroll]:hover {
+    scrollbar-color: var(--ptg-tabs-scrollbar-thumb) transparent;
 }
 
 .ptg-tabs-rail > li {

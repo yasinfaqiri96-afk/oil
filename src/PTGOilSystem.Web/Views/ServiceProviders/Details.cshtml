@@ -13,17 +13,12 @@
     var spReturnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
-    var bal = officialSummary?.ClosingBalance ?? Model.LedgerBalanceUsd;
-    var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context)) ?? (bal > 0
-        ? UiText.T(Context, "قابل پرداخت به شرکت خدماتی", "Payable to provider")
-        : bal < 0
-            ? UiText.T(Context, "پیش‌پرداخت / طلب ما", "Prepaid / they owe us")
-            : UiText.T(Context, "حساب تسویه است", "Settled"));
+    var bal = officialSummary?.ClosingBalance ?? 0m;
+    var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
+        ?? PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowText.BalanceMeaning(bal, PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowAccountKind.PartyAccount, Context);
     // tone باید از همان علامتی بیاید که متن معنی از آن ساخته شده؛ وگرنه رنگ و متن وارونه
     // می‌شوند. صورت‌حساب رسمی: مثبت = طلب شرکت (سبز). نبودِ صورت‌حساب: علامتِ مدل صفحه.
-    var balanceTone = officialSummary is not null
-        ? officialSummary.ClosingBalanceTone
-        : bal > 0 ? "danger" : bal < 0 ? "success" : null;
+    var balanceTone = officialSummary?.ClosingBalanceTone ?? (bal > 0 ? "success" : bal < 0 ? "danger" : null);
 
 
     var spPaymentUrl = Url.Action("Create", "Payments", new { serviceProviderId = Model.Id, returnUrl = spReturnUrl }) ?? "#";

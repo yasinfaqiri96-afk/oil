@@ -6,6 +6,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Services.CompanyFlow;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.PartyStatements;
 using PTGOilSystem.Web.Helpers;
@@ -17,13 +18,13 @@ public class DriversController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
-    private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyStatementReadService _partyStatements;
 
     public DriversController(ApplicationDbContext db, IAuditService audit, IPartyStatementReadService? partyStatements = null)
     {
         _db = db;
         _audit = audit;
-        _partyStatements = partyStatements;
+        _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
     }
 
     public async Task<IActionResult> Index(string? q, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -62,34 +63,36 @@ public class DriversController : Controller
         return View(drivers);
     }
 
-    public async Task<IActionResult> Details(int id)
+    public async Task<IActionResult> Details(int id, string? tab = null, int tripsPage = 1, int docsPage = 1)
     {
         var item = await _db.Drivers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (item == null) return NotFound();
-        ViewData["ResourceProfile"] = await TransportResourceProfileBuilder.ForDriverAsync(_db, item, "info");
+        ViewData["ResourceProfile"] = await TransportResourceProfileBuilder.ForDriverAsync(_db, item, tab, tripsPage, docsPage);
 
-        // خلاصهٔ مالیِ راننده از دفتر (Ledger): کرایهٔ بستانکار (Credit) و بدهیِ خسارتِ کسری (Debit).
-        // ماندهٔ خالص = کرایه − خسارت = چقدر به راننده بدهکاریم (مثبت) یا او به ما (منفی).
+        // تفکیکِ حسابِ راننده از روی نوعِ سند، نه از سمتِ Debit/Credit: پرداختِ کرایه هم Debit
+        // است و نباید «خسارت» دیده شود. کرایه = سندِ مصرف، خسارت = شارژِ کسری، بقیه = پرداخت/تسویه.
+        // برگشت‌ها سمتِ مخالف دارند و در همان گروه خنثی می‌شوند. ماندهٔ خالص فقط از صورت‌حساب رسمی است.
         var driverLedger = await _db.LedgerEntries.AsNoTracking()
             .Where(l => l.DriverId == id)
-            .Select(l => new { l.Side, l.AmountUsd })
+            .GroupBy(l => new { l.SourceType, l.Side })
+            .Select(g => new { g.Key.SourceType, g.Key.Side, AmountUsd = g.Sum(l => l.AmountUsd), Count = g.Count() })
             .ToListAsync();
-        var freightCreditUsd = driverLedger.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd);
-        var shortageDebitUsd = driverLedger.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd);
-        ViewData["DriverHasLedger"] = driverLedger.Count > 0;
-        ViewData["DriverFreightCreditUsd"] = freightCreditUsd;
-        ViewData["DriverShortageDebitUsd"] = shortageDebitUsd;
-        ViewData["DriverNetOwedUsd"] = freightCreditUsd - shortageDebitUsd;
+        decimal Net(Func<string, bool> sourceTypes, LedgerSide positiveSide) => driverLedger
+            .Where(l => sourceTypes(l.SourceType))
+            .Sum(l => l.Side == positiveSide ? l.AmountUsd : -l.AmountUsd);
+        static bool IsFreight(string sourceType) => sourceType == CompanyFlowSourceTypes.Expense;
+        static bool IsShortage(string sourceType) => sourceType == CompanyFlowSourceTypes.ShortageCharge;
+        ViewData["DriverHasLedger"] = driverLedger.Sum(l => l.Count) > 0;
+        ViewData["DriverFreightCreditUsd"] = Net(IsFreight, LedgerSide.Credit);
+        ViewData["DriverShortageDebitUsd"] = Net(IsShortage, LedgerSide.Debit);
+        ViewData["DriverPaymentsDebitUsd"] = Net(sourceType => !IsFreight(sourceType) && !IsShortage(sourceType), LedgerSide.Debit);
 
-        if (_partyStatements is not null)
-        {
-            var statement = await _partyStatements.GetStatementAsync(
-                new PartyRef(PartyStatementPartyType.Driver, id),
-                new PartyStatementFilter { IncludeOperationalColumns = false },
-                HttpContext.RequestAborted);
-            ViewData["PartyStatementSummary"] = statement.Summary;
-            ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
-        }
+        var statement = await _partyStatements.GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Driver, id),
+            new PartyStatementFilter { IncludeOperationalColumns = false },
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+        ViewData["PartyStatementSummary"] = statement.Summary;
+        ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
 
         return View(item);
     }

@@ -752,3 +752,91 @@ html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
     font-weight: 600;
 }
 .ak-text-apply:hover { background: var(--primary-dark); }
+
+/* Multi-value filter panel (Multiple: true) — checkbox rows, sticky footer.
+   Same popover chrome as the single-select panel; only the row body changes,
+   so RTL and responsive behaviour of .ak-filter-popover still applies. */
+.ak-filter-popover .ak-option-list--multi { max-height: 216px; overflow-y: auto; }
+.ak-filter-popover .ak-option-check {
+    height: auto;
+    min-height: 36px;
+    gap: 10px;
+    padding-block: 6px;
+    cursor: pointer;
+    white-space: normal;
+    line-height: 1.5;
+}
+.ak-filter-popover .ak-option-check.is-checked { background: var(--ptg-surface-tint); font-weight: 500; }
+.ak-filter-popover .ak-option-check input[type="checkbox"] {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--primary-main);
+    cursor: pointer;
+}
+.ak-multi-search { padding: 0 8px 8px; }
+.ak-multi-search .ak-text-input {
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    color: var(--ptg-text);
+    background: transparent;
+    border: 1px solid var(--divider);
+    border-radius: 6px;
+    outline: 0;
+    font-size: 14px;
+}
+.ak-multi-search .ak-text-input:focus { border-color: var(--primary-main); }
+.ak-multi-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--divider);
+}
+.ak-multi-foot .ak-fpop-apply {
+    flex: 1 1 auto;
+    height: 36px;
+    color: var(--ptg-field-bg);
+    background: var(--primary-main);
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.ak-multi-foot .ak-fpop-apply:hover { background: var(--primary-dark); }
+.ak-multi-clear {
+    flex: 0 0 auto;
+    height: 36px;
+    padding: 0 12px;
+    color: var(--ptg-muted);
+    background: transparent;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.ak-multi-clear:hover { color: var(--ptg-text); background: var(--ptg-surface-tint); }
+
+/* Multi chip: the value half opens the panel again to add/remove values. */
+.ak-chip-edit {
+    max-width: 220px;
+    padding: 0;
+    overflow: hidden;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ak-chip-edit:hover { color: var(--primary-main); }
+.ak-chip-group.is-multi .ak-chip-edit { font-weight: 500; }
+
+@media (max-width: 760px) {
+    .ak-filter-popover .ak-option-list--multi { max-height: 180px; }
+    .ak-chip-edit { max-width: 140px; }
+}

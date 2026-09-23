@@ -11,6 +11,10 @@
     var closingBalance = closingBalanceObject is decimal closingBalanceValue ? closingBalanceValue : 0m;
     // واحدِ جمع‌ها: ارزِ خودِ حساب، یا دالر وقتی اسنادِ ارزِ دیگری هم روی همین حساب ثبت شده باشد.
     var totalsCurrency = ViewBag.TotalsCurrency as string ?? Model.Currency;
+    var missingUsdCount = ViewBag.MissingUsdEquivalentCount is int missingUsdValue ? missingUsdValue : 0;
+    var closingUnit = missingUsdCount > 0 && totalsCurrency == "USD"
+        ? $"USD · {missingUsdCount:N0} سند بدون معادل USD"
+        : totalsCurrency;
     ViewData["Title"] = $"حساب {Model.Code}";
     ViewData["HideSectionTabs"] = true;
 
@@ -18,8 +22,6 @@
     var editUrl = Url.Action("Edit", new { id = Model.Id }) ?? "#";
     var indexUrl = Url.Action("Index") ?? "#";
     var createPaymentUrl = Url.Action("Create", "Payments", new { cashAccountId = Model.Id, returnUrl = Context.Request.Path }) ?? "#";
-    var activeAccountTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
-    activeAccountTab = activeAccountTab == "ledger" ? "ledger" : "info";
     ViewData["AkHeaderStatus"] = statusText;
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
     ViewData["AkHeaderContext"] = string.IsNullOrWhiteSpace(Model.BankName) ? Model.Name : $"{Model.Name} · {Model.BankName}";
@@ -27,10 +29,26 @@
     {
         new() { Label = UiText.T(Context, "ویرایش", "Edit"), Href = editUrl, Icon = "bi-pencil" }
     };
-    var detailTabs = new[]
+    // مشخصات و تراکنش‌ها در یک صفحهٔ واحد: کارت‌های آماری، خلاصهٔ حساب، سپس جدول تراکنش‌ها.
+    var accountKpis = new List<AkKpiItem>
     {
-        $"info|مشخصات|bi-wallet2|{(activeAccountTab == "info" ? "active" : "")}",
-        $"ledger|تراکنش‌ها|bi-journal-text|{(activeAccountTab == "ledger" ? "active" : "")}"
+        new() { Title = "مانده آغاز", Value = "0.00", Unit = totalsCurrency, Avatar = "treasury" },
+        new() { Title = "دریافت‌ها", Value = totalIn.ToString("N2"), Unit = totalsCurrency, Avatar = "receipts", State = "success" },
+        new() { Title = "پرداخت‌ها", Value = totalOut.ToString("N2"), Unit = totalsCurrency, Avatar = "payments-out", State = "danger" },
+        new() { Title = "مانده پایان", Value = closingBalance.ToString("N2"), Unit = closingUnit, Avatar = "statement" }
+    };
+    var accountInfo = new List<AkInfoItem>
+    {
+        new() { Label = "کد", Value = Model.Code },
+        new() { Label = "نام", Value = Model.Name },
+        new() { Label = "نوع حساب", Value = Model.AccountType.ToString() },
+        new() { Label = "ارز", Value = Model.Currency },
+        new() { Label = "شماره حساب", Value = Model.AccountNumber, IsNumeric = true },
+        new() { Label = "نام بانک", Value = Model.BankName },
+        new() { Label = "شعبه", Value = Model.Branch },
+        new() { Label = "وضعیت", Value = statusText, Tone = Model.IsActive ? "success" : "warning" },
+        new() { Label = "تاریخ ایجاد", Value = Model.CreatedAtUtc.ToDisplayDateTime() },
+        new() { Label = "یادداشت", Value = Model.Notes, IsWide = true }
     };
 }
 
@@ -40,33 +58,13 @@
                        UiText.T(Context, "ثبت تراکنش", "Record transaction"), "bi-cash-coin", createPaymentUrl, (string?)null,
                        UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)indexUrl))" />
 
-    <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@(UiText.T(Context, "بخش‌های حساب", "Account Sections"), detailTabs)" />
+    <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)accountKpis)" />
 
-    <section id="account-info" class="ak-form-section ak-detail-section" hidden="@(activeAccountTab != "info")">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("مشخصات حساب", "مشخصات مرجع حساب بدون تغییر در منطق پرداخت."))" />
-        <dl class="ak-list">
-            <div class="ak-list-row"><dt>کد</dt><dd>@Model.Code</dd></div>
-            <div class="ak-list-row"><dt>نام</dt><dd>@Model.Name</dd></div>
-            <div class="ak-list-row"><dt>نوع حساب</dt><dd>@Model.AccountType</dd></div>
-            <div class="ak-list-row"><dt>ارز</dt><dd>@Model.Currency</dd></div>
-            <div class="ak-list-row"><dt>شماره حساب</dt><dd>@(string.IsNullOrWhiteSpace(Model.AccountNumber) ? "—" : Model.AccountNumber)</dd></div>
-            <div class="ak-list-row"><dt>نام بانک</dt><dd>@(string.IsNullOrWhiteSpace(Model.BankName) ? "—" : Model.BankName)</dd></div>
-            <div class="ak-list-row"><dt>شعبه</dt><dd>@(string.IsNullOrWhiteSpace(Model.Branch) ? "—" : Model.Branch)</dd></div>
-            <div class="ak-list-row"><dt>وضعیت</dt><dd><span class="ak-status @(Model.IsActive ?"is-active" : "is-inactive")">@statusText</span></dd></div>
-            <div class="ak-list-row"><dt>یادداشت</dt><dd>@(string.IsNullOrWhiteSpace(Model.Notes) ? "—" : Model.Notes)</dd></div>
-            <div class="ak-list-row"><dt>تاریخ ایجاد</dt><dd>@Model.CreatedAtUtc.ToDisplayDateTime()</dd></div>
-        </dl>
-    </section>
+    <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
+             model="@(("مشخصات حساب", (string?)null, (IReadOnlyList<AkInfoItem>)accountInfo))" />
 
-    <section id="account-ledger" class="ak-form-section ak-detail-section" hidden="@(activeAccountTab != "ledger")">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("گزارش صندوق/بانک", (string?)null))" />
-        <div class="ak-stat-grid" aria-label="گزارش صندوق یا بانک">
-            <vc:stat-card title="مانده آغاز" value="0.00" unit="@totalsCurrency" avatar="treasury"></vc:stat-card>
-            <vc:stat-card title="دریافت‌ها" value="@totalIn.ToString("N2")" unit="@totalsCurrency" avatar="receipts"></vc:stat-card>
-            <vc:stat-card title="پرداخت‌ها" value="@totalOut.ToString("N2")" unit="@totalsCurrency" avatar="payments-out"></vc:stat-card>
-            <vc:stat-card title="مانده پایان" value="@closingBalance.ToString("N2")" unit="@totalsCurrency" avatar="statement"></vc:stat-card>
-        </div>
-
+    <section id="account-ledger" class="ak-form-section ak-detail-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("تراکنش‌ها", (string?)transactions.Count.ToString("N0")))" />
         <div class="ak-table-wrap">
             <table class="ak-table ak-detail-table">
                 <thead>
@@ -76,7 +74,6 @@
                         <th class="ak-col-grow">طرف حساب</th>
                         <th class="ak-col-priority-2">قرارداد</th>
                         <th class="ak-col-num">مبلغ</th>
-                        <th class="ak-col-num ak-col-priority-2">معادل دالر</th>
                         <th>مرجع</th>
                         <th class="ak-col-priority-3">دفتر کل</th>
                     </tr>
@@ -90,7 +87,6 @@
                             <td class="ak-col-grow">@row.CounterpartyName</td>
                             <td class="ak-col-priority-2">@(row.ContractNumber ?? "—")</td>
                             <td class="ak-col-num ak-num">@row.Amount.ToString("N2") @row.Currency</td>
-                            <td class="ak-col-num ak-num ak-col-priority-2">@row.AmountUsd.ToString("N2")</td>
                             @* مرجعِ سطر به سندِ خودش می‌رود: رزنامچه یا مصرفِ نقدی. *@
                             <td><a asp-controller="@(row.Source == "Expense" ? "Expenses" : "Payments")" asp-action="Details" asp-route-id="@row.Id">@(string.IsNullOrWhiteSpace(row.Reference) ? $"#{row.Id}" : row.Reference)</a></td>
                             <td class="ak-col-priority-3">
@@ -108,7 +104,7 @@
                     @if (!transactions.Any())
                     {
                         <tr>
-                            <td colspan="8"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-bank"></i> دریافت‌ها و پرداخت‌های رزنامچه و مصارفِ نقدیِ این صندوق/بانک اینجا دیده می‌شود.</div></td>
+                            <td colspan="7"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-bank"></i> دریافت‌ها و پرداخت‌های رزنامچه و مصارفِ نقدیِ این صندوق/بانک اینجا دیده می‌شود.</div></td>
                         </tr>
                     }
                 </tbody>

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Models.AccountStatements;
@@ -28,11 +28,11 @@ public partial class AccountStatementsController
             [
                 new("از تاریخ", "From date", filter.FromDate?.ToString("yyyy-MM-dd")),
                 new("تا تاریخ", "To date", filter.ToDate?.ToString("yyyy-MM-dd")),
-                new("ارز منبع", "Source currency", filter.SourceCurrencyCode),
+                new("ارز منبع", "Source currency", string.Join("، ", filter.SourceCurrencyCode)),
                 new("مرجع", "Reference", filter.Reference),
-                new("قرارداد", "Contract", filter.ContractId?.ToString()),
-                new("مشتری", "Customer", filter.CustomerId?.ToString()),
-                new("تأمین‌کننده", "Supplier", filter.SupplierId?.ToString())
+                new("قرارداد", "Contract", string.Join("، ", filter.ContractId)),
+                new("مشتری", "Customer", string.Join("، ", filter.CustomerId)),
+                new("تأمین‌کننده", "Supplier", string.Join("، ", filter.SupplierId))
             ],
             Columns =
             [

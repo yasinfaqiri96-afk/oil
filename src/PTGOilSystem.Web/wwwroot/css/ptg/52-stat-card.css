@@ -88,6 +88,9 @@
     font-weight: var(--weight-caption);
     line-height: var(--line-caption);
     color: var(--ak-stat-title);
+    /* overflow:hidden drops the flex min-height to 0, so without this a crowded
+       card squeezed the title box and pulled the figure up onto its text. */
+    flex: none;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -99,6 +102,7 @@
     width: 100%;
     max-width: 100%;
     margin-top: 0;
+    flex: none;
     overflow: hidden;
     text-overflow: clip;
     font-size: var(--font-kpi);
@@ -133,13 +137,18 @@
     width: 100%;
     max-width: 100%;
     margin-top: 0;
-    overflow: visible;
+    /* One line only: a wrapped unit grew the copy column past the card height
+       and forced the title and figure to collapse onto each other. The full
+       unit stays in the title attribute. */
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: hidden;
     font-size: 11px;
     font-weight: 500;
     line-height: 1.2;
     color: var(--ak-stat-unit);
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     text-align: left;
 }
 
@@ -211,6 +220,13 @@
 
 /* ---- Empty state ---------------------------------------------------- */
 .ak-stat-card--empty .ak-stat-card__value { color: var(--ak-stat-unit); }
+
+/* ---- Money-direction tone (inflow / outflow) ----------------------
+   The shell prefix is required: 71-typography.css forces `color: inherit` on every
+   .ak-number under body.boltz-shell.app-shell-authenticated (specificity 0,3,1), which
+   would otherwise beat a plain two-class selector and leave the value neutral. */
+body.boltz-shell.app-shell-authenticated .ak-stat-card--success .ak-stat-card__value { color: var(--ptg-success-text); }
+body.boltz-shell.app-shell-authenticated .ak-stat-card--danger .ak-stat-card__value { color: var(--ptg-danger-text); }
 
 /* ---- Loading skeleton ---------------------------------------------- */
 .ak-stat-card__skeleton {

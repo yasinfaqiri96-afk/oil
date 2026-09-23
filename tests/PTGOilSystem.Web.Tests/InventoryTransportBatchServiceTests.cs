@@ -723,6 +723,8 @@ public class InventoryTransportBatchServiceTests
         vehicle.CarrierType = CarrierType.OperationalAsset;
         vehicle.ServiceProviderId = null;
         vehicle.OperationalAssetId = 2;
+        // دارایی عملیاتی موتر رانندهٔ مشخص می‌خواهد؛ راننده با نام تایپ‌شده resolve می‌شود.
+        vehicle.DriverNameInput = "Driver 1";
         vehicle.Allocations =
         [
             new() { SourceInventoryMovementId = sources.First, QuantityMt = 100m },

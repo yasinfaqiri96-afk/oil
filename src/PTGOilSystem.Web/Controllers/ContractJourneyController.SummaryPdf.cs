@@ -78,18 +78,10 @@ public partial class ContractJourneyController
         var lifecycleSaleableQuantityMt = model.ContractQuantityMt - soldQuantityMt;
         var pnlOperationalMarginUsd = model.MiniPnl.GrossMarginUsd;
 
-        var supplierPayableTotalUsd = model.IsPurchaseContract ? model.MiniPnl.TraceablePurchaseCostUsd : 0m;
-        var supplierPaymentOutUsd = model.PaymentItems
-            .Where(p => p.PaymentKind == PaymentKind.SupplierPayment && p.Direction == PaymentDirection.Out)
-            .Sum(p => p.AmountUsd);
-        var supplierReceiptInUsd = model.PaymentItems
-            .Where(p => p.PaymentKind == PaymentKind.SupplierReceipt && p.Direction == PaymentDirection.In)
-            .Sum(p => p.AmountUsd);
-        var supplierSarrafSettledUsd = model.SarrafSettlementItems
-            .Where(s => s.Status == SarrafSettlementStatus.Posted)
-            .Sum(s => s.SupplierReductionAmountUsd);
-        var supplierPaidNetUsd = supplierPaymentOutUsd - supplierReceiptInUsd + supplierSarrafSettledUsd;
-        var supplierRemainingUsd = supplierPayableTotalUsd - supplierPaidNetUsd;
+        // همان تعریفِ صفحهٔ تعاملی (ViewModel)؛ در payload خلاصه هم رقمِ آمادهٔ کنترلر را می‌خواند.
+        var supplierPayableTotalUsd = model.SupplierPayableTotalUsd;
+        var supplierPaidNetUsd = model.SupplierPaidNetUsd;
+        var supplierRemainingUsd = model.SupplierRemainingUsd;
 
         var marginPercent = salesTotalUsd > 0m
             ? Math.Round((pnlOperationalMarginUsd / salesTotalUsd) * 100m, 2, MidpointRounding.AwayFromZero)

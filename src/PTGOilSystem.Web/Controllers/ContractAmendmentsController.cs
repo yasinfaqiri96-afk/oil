@@ -1,7 +1,8 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
@@ -22,15 +23,34 @@ public class ContractAmendmentsController : Controller
         _amendments = amendments;
     }
 
-    public async Task<IActionResult> Index(int contractId)
+    public async Task<IActionResult> Index(int contractId, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var contract = await _db.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == contractId);
         if (contract == null) return NotFound();
         ViewBag.Contract = contract;
-        var list = await _db.ContractAmendments.AsNoTracking()
-            .Where(a => a.ContractId == contractId)
+
+        const int defaultPageSize = 20;
+        var pageSize = ListPageSize.Resolve(perPage, defaultPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = defaultPageSize;
+
+        // صفحه‌بندی در خود دیتابیس اعمال می‌شود؛ ترتیب «شمارهٔ متمم» دست‌نخورده است.
+        var query = _db.ContractAmendments.AsNoTracking()
+            .Where(a => a.ContractId == contractId);
+
+        var totalCount = await query.CountAsync();
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+        var currentPage = Math.Clamp(page, 1, pageCount);
+
+        var list = await query
             .OrderBy(a => a.AmendmentNumber)
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        ViewBag.CurrentPage = currentPage;
+        ViewBag.PageCount = pageCount;
+        ViewBag.TotalCount = totalCount;
         return View(list);
     }
 

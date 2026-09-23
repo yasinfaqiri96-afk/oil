@@ -24,7 +24,8 @@
                           value="@card.Value"
                           unit="@card.Unit"
                           avatar="@card.Avatar"
-                          state="@card.State"></vc:stat-card>
+                          state="@card.State"
+                          css-class="@(card.State is "success" or "danger" ? $"ak-stat-card--{card.State}" : null)"></vc:stat-card>
         }
     </section>
 }

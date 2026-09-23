@@ -58,23 +58,10 @@
     var currentStockMt = Model.Kpis.CurrentStockQuantityMt;
     var pnlOperationalMarginUsd = Model.MiniPnl.GrossMarginUsd;
     var pnlToneClass = Model.MiniPnl.GrossMarginUsd >= 0m ? "text-success" : "text-danger";
-    var supplierPayableTotalUsd = Model.IsPurchaseContract ? Model.MiniPnl.TraceablePurchaseCostUsd : 0m;
-    var supplierPaymentOutUsd = Model.PaymentItems
-        .Where(p => p.PaymentKind == PTGOilSystem.Web.Models.Entities.PaymentKind.SupplierPayment
-            && p.Direction == PTGOilSystem.Web.Models.Entities.PaymentDirection.Out)
-        .Sum(p => p.AmountUsd);
-    var supplierReceiptInUsd = Model.PaymentItems
-        .Where(p => p.PaymentKind == PTGOilSystem.Web.Models.Entities.PaymentKind.SupplierReceipt
-            && p.Direction == PTGOilSystem.Web.Models.Entities.PaymentDirection.In)
-        .Sum(p => p.AmountUsd);
-    var supplierSarrafSettledUsd = Model.SarrafSettlementItems
-        .Where(s => s.Status == SarrafSettlementStatus.Posted)
-        .Sum(s => s.SupplierReductionAmountUsd);
-    // در payload خلاصه، PaymentItems/SarrafSettlementItems خالی است؛ رقم آماده کنترلر استفاده می‌شود.
-    var supplierPaidNetUsd = useSummaryMetrics
-        ? summaryMetrics.SupplierPaidNetUsd
-        : supplierPaymentOutUsd - supplierReceiptInUsd + supplierSarrafSettledUsd;
-    var supplierRemainingUsd = supplierPayableTotalUsd - supplierPaidNetUsd;
+    // پرداختِ تأمین‌کننده یک تعریف دارد (ViewModel)؛ PDF هم همان را می‌خواند.
+    var supplierPayableTotalUsd = Model.SupplierPayableTotalUsd;
+    var supplierPaidNetUsd = Model.SupplierPaidNetUsd;
+    var supplierRemainingUsd = Model.SupplierRemainingUsd;
     var supplierRemainingToneClass = supplierRemainingUsd > 0m
         ? "text-danger"
         : "text-success";
@@ -888,7 +875,7 @@
                             T("باقی‌مانده بارگیری", "Remaining to load"), FormatLifecycleQuantity(remainingToLoadMt)),
                         (3, "contract-sales", T("فروشات", "Sales"), salesState,
                             T("فروخته‌شده", "Sold"), FormatLifecycleQuantity(soldQuantityMt),
-                            T("قابل فروش", "Saleable"), FormatLifecycleQuantity(lifecycleSaleableQuantityMt)),
+                            T("ارزش فروخته‌شده", "Sold value"), FormatLifecycleUsd(salesTotalUsd)),
                         (4, "contract-expenses", T("هزینه‌ها", "Expenses"), expenseState,
                             T("مجموع مصارف", "Total expenses"), FormatLifecycleUsd(summaryExpenseTotalUsd),
                             T("اوسط مصرف بر تن", "Expense per MT"), FormatLifecycleRate(summaryExpensePerLoadedMt)),

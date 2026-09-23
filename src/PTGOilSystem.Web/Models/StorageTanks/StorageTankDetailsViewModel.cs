@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -83,8 +83,8 @@ public sealed class StorageTankFeedingLoadingRowViewModel
 
 public sealed class StorageTankIndexViewModel
 {
-    public int? TerminalId { get; init; }
-    public int? ProductId { get; init; }
+    public IReadOnlyList<int> TerminalId { get; init; } = [];
+    public IReadOnlyList<int> ProductId { get; init; } = [];
     public bool? IsActive { get; init; }
     public string? Query { get; init; }
     public int TotalTanks { get; init; }

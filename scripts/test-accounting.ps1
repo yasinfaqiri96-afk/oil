@@ -22,5 +22,5 @@ if (-not (Test-Path -LiteralPath $assembly)) {
     throw 'No successful Debug test build exists. Run .\scripts\test-accounting.ps1 -Build first.'
 }
 
-dotnet test $project -c Debug --no-build --no-restore --filter 'Category=PostgreSql'
+dotnet test $project -c Debug --no-build --no-restore --filter 'Category=PostgreSql&Category!=Simulation&Category!=Performance'
 exit $LASTEXITCODE

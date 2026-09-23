@@ -4,14 +4,49 @@
     ViewData["LoadingExpenseEditorAssets"] = true;
     var currentUrl = Context.Request.Path + Context.Request.QueryString;
     var hasAdvancedFilter = Model.FromDate.HasValue || Model.ToDate.HasValue;
-    var hasAnyFilter = Model.ContractId.HasValue || Model.ProductId.HasValue || Model.WithoutReceipt || !string.IsNullOrWhiteSpace(Model.Query) || Model.FromDate.HasValue || Model.ToDate.HasValue;
+    var hasAnyFilter = AkFilterQuery.Values(Context, "contractId").Count > 0 || AkFilterQuery.Values(Context, "productId").Count > 0 || Model.WithoutReceipt || !string.IsNullOrWhiteSpace(Model.Query) || Model.FromDate.HasValue || Model.ToDate.HasValue;
     // تبدیل گروهی کنار «ثبت بارگیری» می‌نشیند؛ idها را اسکریپت پایین صفحه اضافه می‌کند.
+    //
+    // فیلترِ جاری هم همراه لینک می‌رود تا صفحهٔ تبدیل بتواند «همهٔ نتایج این فیلتر» را
+    // پیشنهاد کند — تنها راهی که هزاران بارگیری بدون فرستادنِ هزاران شناسه در URL انتخاب می‌شوند.
+    var bulkRoute = new Dictionary<string, string?> { ["returnUrl"] = currentUrl };
+    var bulkFilterQuery = "";
+    foreach (var (queryKey, filterKey) in new[]
+    {
+        ("q", "filter.Q"),
+        ("contractId", "filter.ContractId"),
+        ("productId", "filter.ProductId"),
+        ("withoutReceipt", "filter.WithoutReceipt"),
+        ("transportType", "filter.TransportType"),
+        ("receiptStatus", "filter.ReceiptStatus"),
+        ("priceStatus", "filter.PriceStatus"),
+        ("fromDate", "filter.FromDate"),
+        ("toDate", "filter.ToDate")
+    })
+    {
+        foreach (var value in Context.Request.Query[queryKey])
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                bulkFilterQuery += $"&{filterKey}={Uri.EscapeDataString(value)}";
+            }
+        }
+    }
     ViewData["AkHeaderCompanionAction"] = new AkHeaderMenuItem
     {
         Label = UiText.T(Context, "تبدیل گروهی", "Bulk convert"),
         AccessibleLabel = UiText.T(Context, "تبدیل گروهی بارگیری به حمل", "Bulk convert loadings to transport"),
-        Href = Url.Action("BulkFromLoading", "Transports", new { returnUrl = currentUrl }),
+        Href = Url.Action("BulkFromLoading", "Transports", bulkRoute) + bulkFilterQuery,
         Icon = "bi-truck"
+    };
+    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
+    {
+        new()
+        {
+            Label = UiText.T(Context, "تبدیل‌های قبلی به حمل", "Previous transport conversions"),
+            Href = Url.Action("CancelFromLoading", "Transports"),
+            Icon = "bi-clock-history"
+        }
     };
 }
 
@@ -49,17 +84,17 @@
                 UiText.T(Context, "قرارداد، جنس، وسیله حمل، مرجع یا مقصد...", "Contract, product, vehicle, reference or destination..."),
                 new List<AkFilterDefinition>
                 {
-                    new("contractId", UiText.T(Context, "قرارداد", "Contract"), "select",
-                        LoadingOpts(ViewBag.FilterContracts), Model.ContractId?.ToString()),
-                    new("productId", UiText.T(Context, "جنس", "Product"), "select",
-                        LoadingOpts(ViewBag.FilterProducts), Model.ProductId?.ToString()),
-                    new("transportType", UiText.T(Context, "نوع حمل", "Transport type"), "select",
+                    AkFilterDefinition.MultiSelect("contractId", UiText.T(Context, "قرارداد", "Contract"),
+                        LoadingOpts(ViewBag.FilterContracts), AkFilterQuery.Values(Context, "contractId")),
+                    AkFilterDefinition.MultiSelect("productId", UiText.T(Context, "جنس", "Product"),
+                        LoadingOpts(ViewBag.FilterProducts), AkFilterQuery.Values(Context, "productId")),
+                    AkFilterDefinition.MultiSelect("transportType", UiText.T(Context, "نوع حمل", "Transport type"),
                         new List<AkFilterOption>
                         {
                             new("3", UiText.T(Context, "موتر", "Truck")),
                             new("2", UiText.T(Context, "واگن", "Wagon")),
                             new("1", UiText.T(Context, "کشتی", "Vessel"))
-                        }, LoadingQ("transportType")),
+                        }, AkFilterQuery.Values(Context, "transportType")),
                     new("receiptStatus", UiText.T(Context, "وضعیت رسید", "Receipt status"), "select",
                         new List<AkFilterOption>
                         {
@@ -211,10 +246,13 @@
                     return checks.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
                 }
 
+                // بدون انتخاب، لینک دیگر غیرفعال نیست: صفحهٔ تبدیل همان فیلتر را نشان می‌دهد
+                // و گزینهٔ «همهٔ نتایج فیلتر» را می‌دهد.
                 function syncBulk() {
                     var count = selectedIds().length;
-                    bulkLink.classList.toggle('disabled', count === 0);
-                    bulkLink.setAttribute('aria-disabled', count === 0 ? 'true' : 'false');
+                    bulkLink.classList.remove('disabled');
+                    bulkLink.setAttribute('aria-disabled', 'false');
+                    return count;
                 }
 
                 document.addEventListener('change', function (e) {
@@ -224,9 +262,18 @@
                 bulkLink.addEventListener('click', function (e) {
                     e.preventDefault();
                     var ids = selectedIds();
-                    if (ids.length === 0) return;
-                    window.location.href = baseHref
+                    if (ids.length === 0) {
+                        window.location.href = baseHref;
+                        return;
+                    }
+                    var href = baseHref
                         + ids.map(function (id) { return '&ids=' + encodeURIComponent(id); }).join('');
+                    // سقف خطِ درخواست Kestrel ۸KB است؛ عبور از آن به‌جای صفحه، خطای 431 می‌دهد.
+                    if (href.length > 7000) {
+                        window.alert('تعداد انتخاب برای انتقال از طریق آدرس زیاد است. بدون انتخاب ردیف، روی «تبدیل گروهی» بزنید و در صفحهٔ بعد «همهٔ نتایج فیلتر» را انتخاب کنید.');
+                        return;
+                    }
+                    window.location.href = href;
                 });
 
                 syncBulk();

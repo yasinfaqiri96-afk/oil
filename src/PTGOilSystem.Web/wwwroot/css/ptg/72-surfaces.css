@@ -92,21 +92,15 @@ body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> form.
     background: var(--ptg-bg);
 }
 
-/* صفحات دارای نوار تب بخش: بوم صفحه خاکستری می‌ماند تا کارت‌های آماری، نوار
-   تب و لیست هرکدام سطح سفید مستقل خود را داشته باشند و در یک بلوک سفید واحد
-   در هم فرو نروند (مرجع: تب «تأمین‌کنندگان»). */
-body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> [data-section-tabs-strip] .ptg-tabs-rail) {
-    padding: 0 clamp(12px, 1.6vw, 28px);
-    border-radius: 0;
-    background: var(--ptg-bg);
-}
+/* صفحات دارای نوار تب بخش استثنا ندارند: بوم آن‌ها هم مثل داشبورد، مالی و
+   گزارش‌ها همان سطح سفید مشترک بالاست. کارت آماری، نوار تب و لیست هرکدام با
+   سایه/بوردر خودشان از هم جدا می‌شوند، نه با بوم خاکستری. */
 
 /* Phones give the gutter back to the form (this file loads after the form
    system and owns the surface box, so the override lives next to the rule it
    overrides). */
 @media (max-width: 767.98px) {
-    body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> form.ak-form, > * > form.ak-form),
-    body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> [data-section-tabs-strip] .ptg-tabs-rail) {
+    body.boltz-shell.app-shell-authenticated .ptg-page > .ptg-page-frame:has(> form.ak-form, > * > form.ak-form) {
         padding: 0 8px;
     }
 }

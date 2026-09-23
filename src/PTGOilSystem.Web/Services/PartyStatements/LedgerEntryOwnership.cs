@@ -42,6 +42,15 @@ public static class LedgerEntryOwnership
     public const string ExpenseSourceType = "Expense";
 
     /// <summary>
+    /// فروش؛ هرگز از راهِ قرارداد خرید به تأمین‌کننده نمی‌چسبد. SaleLedgerFactory روی سطرِ فروش
+    /// ContractId قراردادِ منبع (خرید) را می‌گذارد؛ سطرِ قدیمیِ بدون CustomerId با شرط (۲) مالِ
+    /// تأمین‌کنندهٔ همان قرارداد می‌شد، در حالی که مالکِ قطعی‌اش مشتریِ سند فروش است
+    /// (SalesTransaction.CustomerId الزامی است) و از همان راه به مشتری هم می‌رسید — یعنی یک فروش
+    /// در دو حساب.
+    /// </summary>
+    public const string SaleSourceType = "Sale";
+
+    /// <summary>
     /// سندهای نقدی که «قرارداد» فقط برچسبِ ردیابیِ آن‌هاست، نه طرف‌حسابشان.
     ///
     /// هر پرداخت، طرفِ واقعی‌اش را با FK خودش حمل می‌کند (SupplierId، CustomerId، DriverId، …).
@@ -77,6 +86,7 @@ public static class LedgerEntryOwnership
             && (entry.SupplierId == supplierId
                 || (entry.SupplierId == null
                     && entry.SourceType != ExpenseSourceType
+                    && entry.SourceType != SaleSourceType
                     && !CashSourceTypesWithoutContractParty.Contains(entry.SourceType)
                     && entry.ServiceProviderId == null
                     && entry.DriverId == null
@@ -92,6 +102,7 @@ public static class LedgerEntryOwnership
             && ((entry.SupplierId != null && supplierIds.Contains(entry.SupplierId.Value))
                 || (entry.SupplierId == null
                     && entry.SourceType != ExpenseSourceType
+                    && entry.SourceType != SaleSourceType
                     && !CashSourceTypesWithoutContractParty.Contains(entry.SourceType)
                     && entry.ServiceProviderId == null
                     && entry.DriverId == null

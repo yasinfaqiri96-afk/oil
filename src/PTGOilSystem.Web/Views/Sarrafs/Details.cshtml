@@ -17,17 +17,12 @@
     var sarrafIndexUrl = Url.Action("Index") ?? "#";
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
-    var payableUsd = officialSummary?.ClosingBalance ?? Model.PayableUsd;
-    var payableLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context)) ?? (payableUsd > 0
-        ? "قابل پرداخت به صراف"
-        : payableUsd < 0
-            ? "طلب ما از صراف"
-            : "حساب تسویه است");
+    var payableUsd = officialSummary?.ClosingBalance ?? 0m;
+    var payableLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
+        ?? PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowText.BalanceMeaning(payableUsd, PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowAccountKind.PartyAccount, Context);
     // tone باید از همان علامتی بیاید که متن معنی از آن ساخته شده؛ وگرنه رنگ و متن وارونه
     // می‌شوند. صورت‌حساب رسمی: مثبت = طلب شرکت (سبز). نبودِ صورت‌حساب: علامتِ مدل صفحه.
-    var payableTone = officialSummary is not null
-        ? officialSummary.ClosingBalanceTone
-        : payableUsd > 0 ? "danger" : payableUsd < 0 ? "success" : null;
+    var payableTone = officialSummary?.ClosingBalanceTone ?? (payableUsd > 0 ? "success" : payableUsd < 0 ? "danger" : null);
 
     var officialRecentRows = ViewData["PartyStatementRecentRows"] as IReadOnlyList<PTGOilSystem.Web.Models.PartyStatements.PartyStatementRow> ?? [];
     var lastRow = officialRecentRows.FirstOrDefault();

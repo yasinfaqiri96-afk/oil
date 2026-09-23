@@ -1,10 +1,10 @@
-@model IEnumerable<Vessel>
+﻿@model IEnumerable<Vessel>
 @{
     ViewData["Title"] = UiText.T(Context, "کشتی‌ها", "Vessels");
     var vessels = Model.ToList();
     var query = ViewData["q"]?.ToString();
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
-    var hasFilters = !string.IsNullOrWhiteSpace((string?)ViewData["flag"]) || ViewData["isActive"] != null;
+    var hasFilters = ViewData["flag"] is string[] { Length: > 0 } || ViewData["isActive"] != null;
     var hasSearch = !string.IsNullOrWhiteSpace(query) || hasFilters;
 
     string TextOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
@@ -25,7 +25,7 @@
             UiText.T(Context, "جستجو در نام، کد، IMO، پرچم یا مالک...", "Search name, code, IMO, flag, or owner..."),
             new List<AkFilterDefinition>
             {
-                new("flag", UiText.T(Context, "پرچم", "Flag"), "select", vesselFlagOptions, (string?)ViewData["flag"]),
+                AkFilterDefinition.MultiSelect("flag", UiText.T(Context, "پرچم", "Flag"), vesselFlagOptions, ViewData["flag"] as string[]),
                 new("isActive", UiText.T(Context, "وضعیت", "Status"), "bool",
                     new List<AkFilterOption> { new("true", UiText.T(Context, "فعال", "Active")), new("false", UiText.T(Context, "غیرفعال", "Inactive")) },
                     vesselsIsActive)

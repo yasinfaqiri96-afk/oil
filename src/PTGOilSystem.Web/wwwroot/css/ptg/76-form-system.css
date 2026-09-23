@@ -138,6 +138,60 @@ form.ak-form .ak-section-head > .ak-section-title {
     margin: 0;
 }
 
+/* Group-operation wizards intentionally keep one compact selection summary.
+   This layer loads after 50-ak-components.css, so the generic flat-section
+   reset above must restore that card explicitly or it loses all padding and
+   its key/value columns collapse inside the narrow sticky rail. */
+form.ak-form .ak-group-wizard-summary {
+    margin: 0;
+    padding: 16px;
+    border-radius: var(--radius-base);
+    background: var(--ptg-field-bg);
+}
+
+form.ak-form .ak-group-wizard-summary > .ak-form-section {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+form.ak-form .ak-group-wizard-summary .ak-section-title {
+    margin: 0 0 12px;
+    padding-block-end: 10px;
+    border-block-end: 1px solid var(--divider);
+    font-size: 14px;
+}
+
+form.ak-form .ak-group-wizard-summary .ak-list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: baseline;
+}
+
+form.ak-form .ak-group-wizard-summary .ak-list-row > :last-child {
+    min-width: 0;
+    text-align: end;
+}
+
+form.ak-form .ak-group-wizard-summary .ak-list-row > .ak-list {
+    grid-column: 1 / -1;
+    width: 100%;
+    gap: 6px;
+    text-align: start;
+}
+
+form.ak-form .ak-group-wizard-summary .ak-list-row > .ak-list > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: baseline;
+}
+
+form.ak-form .ak-group-wizard-summary .ak-list-row > .ak-list span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 form.ak-form .ak-section-desc {
     margin: 4px 0 0;
     color: var(--chk-text-secondary);
@@ -953,6 +1007,16 @@ form.ak-form .ak-table .ak-input {
 }
 
 @media (max-width: 575.98px) {
+    form.ak-form .ak-group-wizard-summary {
+        padding: 12px;
+    }
+
+    form.ak-form .ak-group-wizard-summary .ak-list-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+    }
+
     form.ak-form .ak-form-grid .ak-field,
     form.ak-form .ak-form-grid .ak-toggle-field,
     form.ak-form .ak-form-grid > label,

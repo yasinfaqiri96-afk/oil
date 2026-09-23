@@ -35,6 +35,7 @@ public sealed class PaymentAccountingAdapterTests(AccountingPostgreSqlFixture fi
     [InlineData(PaymentKind.SarrafSettlement, null, null, PaymentAccountingEventKind.SarrafCashPayment)]
     [InlineData(PaymentKind.ExpensePayment, null, null, PaymentAccountingEventKind.ExpensePayment)]
     [InlineData(PaymentKind.CommissionPayment, null, null, PaymentAccountingEventKind.CommissionPayment)]
+    [InlineData(PaymentKind.ServiceProviderPayment, null, null, PaymentAccountingEventKind.ServiceProviderPayment)]
     public void ResolveEventKind_Uses_Payment_Nature_Not_LedgerSide(
         PaymentKind paymentKind,
         bool? isAdvancePayment,
@@ -60,7 +61,6 @@ public sealed class PaymentAccountingAdapterTests(AccountingPostgreSqlFixture fi
     [InlineData(PaymentKind.EmployeeReturn)]
     [InlineData(PaymentKind.SupplierReceipt)]
     [InlineData(PaymentKind.CustomerPayment)]
-    [InlineData(PaymentKind.ServiceProviderPayment)]
     public void ResolveEventKind_Leaves_Unproven_Kinds_Unmapped(PaymentKind paymentKind)
         => Assert.Null(PaymentAccountingAdapter.ResolveEventKind(
             new PaymentTransaction { PaymentKind = paymentKind }));

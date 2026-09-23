@@ -55,9 +55,10 @@ public partial class ReportsController : Controller
     {
         _db = db;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
-        _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db);
         // انتساب فروش به قرارداد خرید فقط از همین مرجع خوانده می‌شود.
         _saleAttribution = saleAttribution ?? new SaleContractAttributionReader(db);
+        // سودِ قرارداد (محقق و چرخهٔ کامل) فقط از ProfitAndLossService، با همان مراجعِ خرید و انتساب.
+        _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db, _purchaseAggregation, _saleAttribution);
         _partyBalances = partyBalances ?? new PartyBalanceReadService(
             db,
             new PartyStatementPolicyResolver(),
@@ -433,16 +434,17 @@ public partial class ReportsController : Controller
         var cogsUsd = companyPnl.Sales.CostOfGoodsSoldUsd;
         var expenseUsd = companyPnl.OperatingExpenseUsd;
 
-        var paymentQuery = ApplyPaymentFilters(_db.PaymentTransactions.AsNoTracking(), filter);
-        var cashInUsd = await paymentQuery
-            .Where(p => p.Direction == PaymentDirection.In)
-            .SumAsync(p => (decimal?)p.AmountUsd) ?? 0m;
-        var cashOutUsd = await paymentQuery
-            .Where(p => p.Direction == PaymentDirection.Out)
-            .SumAsync(p => (decimal?)p.AmountUsd) ?? 0m;
+        // «حرکت نقدی» همان خالصِ گزارش «گردش پول» برای همین فیلتر است: فقط حرکتِ واقعیِ
+        // صندوق/بانک (مرجع: CashPositionReader)، نه همهٔ اسنادِ روزنامچه.
+        var (cashInUsd, cashOutUsd) = await ReadCashMovementTotalsAsync(filter);
 
         var pnl = await BuildContractPnlAsync(filter);
-        var balances = await BuildReceivablesPayablesReportAsync(filter);
+        // ردیفِ شریک در این صفحه هیچ مصرفی ندارد: چند خط پایین‌تر با operationalPartyBalances
+        // کنار گذاشته می‌شود و هیچ کارتی هم آن را نمی‌خواند (دلیلش همان‌جا نوشته شده).
+        // ساختنِ صورت‌حساب شراکت گران‌ترین بخشِ این گزارش بود و تمامش دور ریخته می‌شد؛
+        // حالا اصلاً ساخته نمی‌شود. عددِ هیچ کارتی تغییر نمی‌کند، چون ماندهٔ مشتری،
+        // تأمین‌کننده و صراف از ردیف شریک ساخته نمی‌شود.
+        var balances = await BuildReceivablesPayablesReportAsync(filter, CompanyOverviewPartyTypes);
         var warnings = await BuildReportsWarningsAsync();
 
         // مانده واقعی صندوق و بانک از همان مرجعی خوانده می‌شود که صفحهٔ دفتر کل و
@@ -549,31 +551,9 @@ public partial class ReportsController : Controller
     /// </summary>
     private async Task<CashFlowReportViewModel> BuildCashFlowReportAsync(ManagementReportFilterViewModel filter)
     {
-        // مصرفِ نقدی نه مشتری/تأمین‌کننده دارد و نه «بابتِ پرداخت»؛ با این
-        // فیلترها هیچ سطرِ مصرفی مطابقت نمی‌کند، پس کنار می‌رود و کاربر در هشدار می‌بیند.
-        var includeCashExpenses = !filter.CustomerId.HasValue
-            && !filter.SupplierId.HasValue
-            && !filter.PaymentKind.HasValue;
-
         // فیلترهای غیرتاریخی برای ماندهٔ اول دوره هم لازم‌اند، پس تاریخ جدا اعمال می‌شود.
-        var undated = new ManagementReportFilterViewModel
-        {
-            ProductId = filter.ProductId,
-            ContractId = filter.ContractId,
-            CustomerId = filter.CustomerId,
-            SupplierId = filter.SupplierId,
-            CashAccountId = filter.CashAccountId,
-            CompanyId = filter.CompanyId,
-            PaymentKind = filter.PaymentKind
-        };
-
-        var companyPayments = ApplyPaymentFilters(
-            _db.PaymentTransactions.AsNoTracking().Where(p => p.FundingSource != PaymentFundingSource.Partner),
-            undated);
-
-        var cashExpenses = includeCashExpenses
-            ? ApplyCashExpenseFilters(_db.ExpenseTransactions.AsNoTracking(), undated)
-            : _db.ExpenseTransactions.AsNoTracking().Where(e => false);
+        var undated = WithoutDates(filter);
+        var (companyPayments, cashExpenses, includeCashExpenses) = CashMovementSources(undated);
 
         var fromDate = filter.FromDate?.Date;
         var toDate = filter.ToDate?.Date;
@@ -814,6 +794,25 @@ public partial class ReportsController : Controller
             scopeNotes.Add("با فیلترِ مشتری، تأمین‌کننده یا بابتِ پرداخت، مصرفِ نقدی قابل انتساب نیست و در این نما شمرده نشده است.");
         }
 
+        // سندِ روزنامچهٔ شرکت که صندوق/بانک ندارد حرکتِ هیچ صندوقی نیست، پس در مانده و گردش
+        // شمرده نمی‌شود؛ ولی مغایرت است و پنهان نمی‌ماند.
+        var unlinked = await ApplyPaymentFilters(
+                _db.PaymentTransactions.AsNoTracking()
+                    .Where(p => p.CashAccountId == null && p.FundingSource != PaymentFundingSource.Partner),
+                filter)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Count = g.Count(),
+                InUsd = g.Sum(p => p.Direction == PaymentDirection.In ? (decimal?)p.AmountUsd : null) ?? 0m,
+                OutUsd = g.Sum(p => p.Direction == PaymentDirection.Out ? (decimal?)p.AmountUsd : null) ?? 0m
+            })
+            .FirstOrDefaultAsync();
+        if (unlinked is { Count: > 0 })
+        {
+            scopeNotes.Add($"{unlinked.Count:N0} سند روزنامچه {UnlinkedCashAccountLabel} است (رسیدکی {unlinked.InUsd:N2}، بردکی {unlinked.OutUsd:N2} USD)؛ حرکتِ هیچ صندوقی نیست و در این گزارش و ماندهٔ نقدی شمرده نشد.");
+        }
+
         var partnerFundedUsd = partnerFunded?.AmountUsd ?? 0m;
         var partnerFundedCount = partnerFunded?.Count ?? 0;
 
@@ -844,11 +843,22 @@ public partial class ReportsController : Controller
         };
     }
 
-    private async Task<ReceivablesPayablesReportViewModel> BuildReceivablesPayablesReportAsync(ManagementReportFilterViewModel filter)
+    /// <param name="partyTypes">
+    /// اگر داده شود، فقط ماندهٔ همین نوع‌های طرف‌حساب ساخته می‌شود. خودِ صفحهٔ «طلبات و
+    /// بدهی‌ها» چیزی پاس نمی‌دهد و همهٔ نوع‌ها را می‌گیرد؛ فقط صداکننده‌ای که ثابت است
+    /// بخشی از ردیف‌ها را دور می‌ریزد آن بخش را از اول نمی‌خواند.
+    /// </param>
+    private async Task<ReceivablesPayablesReportViewModel> BuildReceivablesPayablesReportAsync(
+        ManagementReportFilterViewModel filter,
+        IReadOnlyCollection<PartyStatementPartyType>? partyTypes = null)
     {
         // «طلبات و بدهی‌ها» فقط طرف‌حساب بیرونی را می‌شمارد؛ حساب جاریِ خودِ جوازها
         // طرف معامله نیست. رجوع: PartyBalanceSnapshotFilters.ExternalPartiesOnly.
-        var balanceRows = (await _partyBalances.GetBalancesAsync(filter)).ExternalPartiesOnly();
+        var balanceRows = (await _partyBalances.GetBalancesAsync(
+                filter,
+                HttpContext?.RequestAborted ?? CancellationToken.None,
+                partyTypes))
+            .ExternalPartiesOnly();
         var supplierIds = balanceRows
             .Where(row => row.PartyType == PartyStatementPartyType.Supplier)
             .Select(row => row.PartyId)
@@ -917,13 +927,21 @@ public partial class ReportsController : Controller
             AsOfDate = asOfDate,
             Metrics =
             [
-                new() { Label = "مجموع طلبات", Value = Money(model.TotalReceivableUsd), Detail = "Total receivables", Icon = "bi-arrow-down-circle", ToneClass = "finance-positive" },
-                new() { Label = "مجموع بدهی‌ها", Value = Money(model.TotalPayableUsd), Detail = "Total payables", Icon = "bi-arrow-up-circle", ToneClass = "finance-negative" },
+                new() { Label = "طلب از همهٔ طرف‌حساب‌ها (با شریک)", Value = Money(model.TotalReceivableUsd), Detail = "Receivables, all parties incl. partners", Icon = "bi-arrow-down-circle", ToneClass = "finance-positive" },
+                new() { Label = "بدهی به همهٔ طرف‌حساب‌ها (با شریک)", Value = Money(model.TotalPayableUsd), Detail = "Payables, all parties incl. partners", Icon = "bi-arrow-up-circle", ToneClass = "finance-negative" },
                 new() { Label = "خالص وضعیت", Value = Money(model.NetBalanceUsd), Detail = "Net position", Icon = "bi-graph-up-arrow", ToneClass = model.NetBalanceUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = $"طلبات راکد بیش از {ReceivablesPayablesReportViewModel.StaleAfterDays} روز", Value = Money(model.StaleReceivableUsd), Detail = "Idle receivables", Icon = "bi-exclamation-triangle", ToneClass = "finance-negative" }
             ]
         };
     }
+
+    /// <summary>
+    /// هر نوع طرف‌حسابی جز شریک. «وضعیت مالی شرکت» عمداً حساب شریک را نشان نمی‌دهد.
+    /// </summary>
+    private static readonly PartyStatementPartyType[] CompanyOverviewPartyTypes =
+        Enum.GetValues<PartyStatementPartyType>()
+            .Where(type => type != PartyStatementPartyType.Partner)
+            .ToArray();
 
     private async Task<Dictionary<int, decimal>> LoadRecognizedSupplierFxEffectsAsync(
         IReadOnlyCollection<int> supplierIds,
@@ -1209,366 +1227,38 @@ public partial class ReportsController : Controller
         if (filter.FromDate.HasValue)   purchaseQuery = purchaseQuery.Where(c => c.ContractDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue)     purchaseQuery = purchaseQuery.Where(c => c.ContractDate <= filter.ToDate.Value);
 
-        var purchaseContracts = await purchaseQuery
+        var purchaseContractRows = await purchaseQuery
             .OrderByDescending(c => c.ContractDate)
             .Select(c => new
             {
-                c.Id, c.ContractName, c.ContractNumber, c.Status, c.QuantityMt, c.UnitPriceUsd, c.ManualFinalPriceUsd,
+                c.Id, c.ContractName, c.ContractNumber, c.Status, c.QuantityMt, c.UnitPriceUsd, c.ManualFinalPriceUsd, c.PricingMethod,
                 ProductName = c.Product != null ? c.Product.Name : "",
                 CounterpartyName = c.Supplier != null ? c.Supplier.Name : null
             })
             .ToListAsync();
+        var purchaseContracts = purchaseContractRows
+            .Select(c => new
+            {
+                c.Id, c.ContractName, c.ContractNumber, c.Status, c.QuantityMt, c.ProductName, c.CounterpartyName,
+                CanonicalFinalPriceUsd = ContractPricingAdapter.GetCanonicalFinalPrice(new Contract
+                {
+                    ManualFinalPriceUsd = c.ManualFinalPriceUsd,
+                    UnitPriceUsd = c.UnitPriceUsd,
+                    PricingMethod = c.PricingMethod
+                })
+            })
+            .ToList();
 
         var purchaseIds = purchaseContracts.Select(c => c.Id).ToList();
-        var purchaseFinalPriceById = purchaseContracts.ToDictionary(
-            c => c.Id,
-            c => ResolveContractFinalPrice(c.ManualFinalPriceUsd, c.UnitPriceUsd));
 
-        decimal? ResolveEffectiveLoadingPriceUsd(int contractId, decimal? loadingPriceUsd)
-            => HasValidLoadingPrice(loadingPriceUsd)
-                ? loadingPriceUsd
-                : purchaseFinalPriceById.TryGetValue(contractId, out var finalPriceUsd)
-                    ? finalPriceUsd
-                    : null;
-
-        var loadingAggById = purchaseIds.Count == 0
-            ? new Dictionary<int, PurchaseAggregationSnapshot>()
-            : await _purchaseAggregation.AggregateForContractsAsync(purchaseIds, purchaseFinalPriceById);
-
-        var directSaleQuery = _db.LoadingReceiptAllocations.AsNoTracking()
-            .Where(a => a.Destination == LoadingReceiptAllocationDestination.DirectSale
-                && a.SourcePurchaseContractId.HasValue
-                && purchaseIds.Contains(a.SourcePurchaseContractId.Value)
-                && a.SalesTransactionId.HasValue
-                && a.SalesTransaction != null
-                && !a.SalesTransaction.IsCancelled);
-
-        // فقط پیوندِ (قرارداد، فروش) خوانده می‌شود، نه جمعِ کاملِ فروش. عددِ عاید هر قرارداد
-        // پایین‌تر و یکجا از روی سهم اثبات‌شده ساخته می‌شود تا یک فروش چند-قراردادی کل
-        // TotalUsd خود را به هر قرارداد ندهد.
-        var directSaleLinks = purchaseIds.Count == 0
-            ? []
-            : await directSaleQuery
-                .Select(a => new SaleContractLink(a.SourcePurchaseContractId!.Value, a.SalesTransactionId!.Value))
-                .Distinct()
-                .ToListAsync();
-
-        var directSaleMismatchById = purchaseIds.Count == 0
-            ? new Dictionary<int, int>()
-            : await directSaleQuery
-                .Where(a => a.QuantityMt != a.SalesTransaction!.QuantityMt)
-                .GroupBy(a => a.SourcePurchaseContractId!.Value)
-                .Select(g => new { ContractId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.ContractId, x => x.Count);
-
-        // TerminalStock sales — sales whose stock-out InventoryMovement is tied to one of these purchase contracts.
-        // De-duplicate against DirectSale allocations so a sale never contributes revenue twice.
-        var directSaleSaleIds = directSaleLinks.Select(l => l.SaleId).Distinct().ToArray();
-
-        var stockMovementQuery = _db.InventoryMovements.AsNoTracking()
-            .Where(m => m.Direction == MovementDirection.Out
-                && m.SalesTransactionId.HasValue
-                && m.ContractId.HasValue
-                && purchaseIds.Contains(m.ContractId.Value));
-
-        if (directSaleSaleIds.Length > 0)
-        {
-            stockMovementQuery = stockMovementQuery
-                .Where(m => !directSaleSaleIds.Contains(m.SalesTransactionId!.Value));
-        }
-
-        var stockSaleLinks = purchaseIds.Count == 0
-            ? []
-            : await stockMovementQuery
-                .Select(m => new SaleContractLink(m.ContractId!.Value, m.SalesTransactionId!.Value))
-                .Distinct()
-                .ToListAsync();
-
-        // ── In-transit direct sales (truck / internal transport receipt) ────
-        // این فروش‌ها عمداً هیچ InventoryMovement نمی‌سازند (بار هنگام بارگیریِ موتر یا حمل قبلاً از
-        // موجودی خارج شده) و LoadingReceiptAllocation نوع DirectSale هم ندارند، پس در هیچ‌کدام از دو
-        // منبعِ بالا دیده نمی‌شدند و کل عایدشان — شامل عایدِ اضافه‌بارِ تخلیه — از سود و زیان قرارداد
-        // خرید بیرون می‌ماند. قرارداد از Lineage واقعی گرفته می‌شود: موتر → TruckDispatch.ContractId،
-        // رسید انتقال → InventoryTransportLeg.SourcePurchaseContractId. هیچ قراردادی حدس زده نمی‌شود.
-        var inTransitSaleLinks = purchaseIds.Count == 0
-            ? new List<(int ContractId, int SaleId)>()
-            : await BuildInTransitDirectSaleLinksAsync(purchaseIds);
-
-        // ── Revenue per purchase contract — one place, one rule ─────────────
-        // ترتیب مسیرها مثل قبل است و هر فروش فقط از نخستین مسیری که آن را دیده شمرده
-        // می‌شود. سهم دالریِ هر قرارداد از SalesTransactionSourceAllocations خوانده
-        // می‌شود (منبعِ واحدِ انتساب فروش→قرارداد خرید) و جمع سهم‌ها دقیقاً برابر
-        // SalesTransaction.TotalUsd است؛ پس یک فروشِ چند-قراردادی دیگر عایدش را در دو
-        // قرارداد تکرار نمی‌کند. فروشِ بدون allocation «اثبات‌نشده» است و رفتار قدیمی
-        // همان صفحه نگه داشته می‌شود — هیچ قراردادی حدس زده نمی‌شود.
-        var saleAggById = await BuildContractSaleRevenueAsync(
-            purchaseIds,
-            directSaleLinks,
-            stockSaleLinks,
-            inTransitSaleLinks.Select(l => new SaleContractLink(l.ContractId, l.SaleId)).ToList());
-
-        // ── Loss valuation per purchase contract (read-only) ────────────────
-        // Chargeable losses are converted to USD using the originating
-        // LoadingRegister.LoadingPriceUsd (the snapshot price for that lot). Losses
-        // without a priced loading (LoadingPriceUsd null/<=0) cannot be valued and
-        // are reported as UnvaluedLossCount instead — they do NOT inflate cost.
-        // No LossUsd column is added to LossEvent; this stays purely derived.
-        var lossAggByContract = purchaseIds.Count == 0
-            ? new Dictionary<int, (decimal Cost, int UnvaluedCount)>()
-            : (await _db.LossEvents.AsNoTracking()
-                .Where(le => !le.IsCancelled
-                    && le.ChargeableLossMt > 0m
-                    && le.ContractId.HasValue
-                    && purchaseIds.Contains(le.ContractId!.Value))
-                .Select(le => new
-                {
-                    ContractId = le.ContractId!.Value,
-                    le.ChargeableLossMt,
-                    le.TransportLegId,
-                    LoadingPriceUsd = le.LoadingRegisterId.HasValue && le.LoadingRegister != null
-                        ? le.LoadingRegister.LoadingPriceUsd
-                        : null
-                })
-                .ToListAsync())
-                .GroupBy(x => x.ContractId)
-                .ToDictionary(
-                    g => g.Key,
-                    g =>
-                    {
-                        var rows = g
-                            .Select(x => new
-                            {
-                                x.ChargeableLossMt,
-                                EffectiveLoadingPriceUsd = x.TransportLegId.HasValue
-                                    ? loadingAggById.TryGetValue(x.ContractId, out var agg)
-                                        ? agg.WeightedAveragePurchasePriceUsd
-                                        : null
-                                    : ResolveEffectiveLoadingPriceUsd(x.ContractId, x.LoadingPriceUsd)
-                            })
-                            .ToList();
-
-                        return (
-                            Cost: rows.Where(x => HasValidLoadingPrice(x.EffectiveLoadingPriceUsd))
-                                .Sum(x => x.ChargeableLossMt * x.EffectiveLoadingPriceUsd!.Value),
-                            UnvaluedCount: rows.Count(x => !HasValidLoadingPrice(x.EffectiveLoadingPriceUsd))
-                        );
-                    });
-
-        // ── Deferred tank settlement: provisional vs final P&L (read-only) ──
-        // A purchase contract's P&L stays "provisional" while any of its receipts
-        // recorded as DeferredTankSettlement still hold positive book balance in a
-        // tank — i.e. the final loss has not yet been settled. Derived from stock;
-        // no stored flag. Once the tank is settled/emptied the balance drops to 0
-        // and the contract becomes "final".
-        var pendingTankSettlementByContract = new Dictionary<int, decimal>();
-        if (purchaseIds.Count > 0)
-        {
-            var deferredPairs = await _db.LoadingReceipts.AsNoTracking()
-                .Where(r => !r.IsCancelled
-                    && r.LossMode == ReceiptLossMode.DeferredTankSettlement
-                    && r.ReceiptDestination == LoadingReceiptDestination.ToInventory
-                    && r.StorageTankId != null
-                    && r.LoadingRegister != null
-                    && purchaseIds.Contains(r.LoadingRegister.ContractId))
-                .Select(r => new
-                {
-                    ContractId = r.LoadingRegister!.ContractId,
-                    StorageTankId = r.StorageTankId!.Value
-                })
-                .Distinct()
-                .ToListAsync();
-
-            if (deferredPairs.Count > 0)
-            {
-                var pairTankIds = deferredPairs.Select(p => p.StorageTankId).Distinct().ToList();
-                var tankContractBalances = (await _db.InventoryMovements.AsNoTracking()
-                    .Where(m => m.StorageTankId != null && pairTankIds.Contains(m.StorageTankId!.Value))
-                    .Select(m => new
-                    {
-                        StorageTankId = m.StorageTankId!.Value,
-                        EffectiveContractId = m.ContractId
-                            ?? (m.LoadingReceipt != null && m.LoadingReceipt.LoadingRegister != null
-                                ? (int?)m.LoadingReceipt.LoadingRegister.ContractId
-                                : null),
-                        m.Direction,
-                        m.QuantityMt
-                    })
-                    .ToListAsync())
-                    .Where(m => m.EffectiveContractId.HasValue)
-                    .GroupBy(m => new { m.StorageTankId, ContractId = m.EffectiveContractId!.Value })
-                    .ToDictionary(
-                        g => (g.Key.StorageTankId, g.Key.ContractId),
-                        g => g.Sum(m =>
-                            m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
-                                ? m.QuantityMt
-                                : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
-                                    ? -m.QuantityMt
-                                    : 0m));
-
-                foreach (var pair in deferredPairs
-                    .Select(p => (p.ContractId, p.StorageTankId))
-                    .Distinct())
-                {
-                    if (tankContractBalances.TryGetValue((pair.StorageTankId, pair.ContractId), out var balance)
-                        && balance > 0m)
-                    {
-                        pendingTankSettlementByContract.TryGetValue(pair.ContractId, out var existing);
-                        pendingTankSettlementByContract[pair.ContractId] = existing + balance;
-                    }
-                }
-            }
-        }
-
-        // ── ExpenseTransaction totals per purchase contract ─────────────────
-        // Generic expenses recorded against a Purchase contract (ContractId == purchase.Id)
-        // — e.g. commission, customs batch entries, ad-hoc shipment-or-dispatch costs.
-        // LoadingRegister inline expenses (Transport/Warehouse/Other/Railway) are stored on
-        // the LoadingRegister entity and are NOT also written as ExpenseTransaction rows
-        // (verified across LoadingController), so summing both is not double-counting.
-        // CustomsDeclaration likewise has its own table; ExpenseTransaction never mirrors it.
-        // Cancelled rows and rows tied to Sales contracts are excluded.
-        var expenseRows = purchaseIds.Count == 0
-            ? new List<ContractPnlExpenseRow>()
-            : await _db.ExpenseTransactions.AsNoTracking()
-                .Where(e => !e.IsCancelled
-                    && e.ContractId.HasValue
-                    && purchaseIds.Contains(e.ContractId.Value))
-                .Select(e => new ContractPnlExpenseRow(
-                    e.ContractId!.Value,
-                    e.AmountUsd,
-                    e.Description,
-                    e.ExpenseType != null ? e.ExpenseType.Code : null,
-                    e.ExpenseType != null ? e.ExpenseType.Name : null,
-                    e.ExpenseType != null ? e.ExpenseType.NamePersian : null,
-                    e.CustomsDeclarationId))
-                .ToListAsync();
-
-        var contractsWithOfficialWagonRent = expenseRows
-            .Where(e => ExpenseClassification.IsWagonRent(
-                e.ExpenseTypeCode,
-                e.ExpenseTypeName,
-                e.ExpenseTypeNamePersian,
-                e.Description))
-            .Select(e => e.ContractId)
-            .ToHashSet();
-
-        var sarrafDifferenceRows = purchaseIds.Count == 0
-            ? []
-            : await _db.SarrafSettlements.AsNoTracking()
-                .Where(s => s.Status == SarrafSettlementStatus.Posted
-                    && s.ContractId.HasValue
-                    && purchaseIds.Contains(s.ContractId.Value))
-                .Select(s => new
-                {
-                    ContractId = s.ContractId!.Value,
-                    s.DifferenceType,
-                    s.DifferenceAmountUsd
-                })
-                .ToListAsync();
-
-        var sarrafDifferenceByContract = sarrafDifferenceRows
-            .GroupBy(s => s.ContractId)
-            .ToDictionary(
-                g => g.Key,
-                g => (
-                    SupplierShortfallUsd: g
-                        .Where(s => s.DifferenceType == SarrafSettlementDifferenceType.SupplierShortfall)
-                        .Sum(s => Math.Abs(s.DifferenceAmountUsd)),
-                    ExchangeGainUsd: g
-                        .Where(s => s.DifferenceType == SarrafSettlementDifferenceType.Gain)
-                        .Sum(s => Math.Abs(s.DifferenceAmountUsd)),
-                    ExchangeLossUsd: g
-                        .Where(s => s.DifferenceType == SarrafSettlementDifferenceType.Loss)
-                        .Sum(s => Math.Abs(s.DifferenceAmountUsd))));
-
-        // Customs totals per purchase contract via loading registers
-        Dictionary<int, decimal> customsByContract = new();
-        var countedCustomsDeclarationIds = new HashSet<int>();
-        if (purchaseIds.Count > 0)
-        {
-            var lrMap = await _db.LoadingRegisters.AsNoTracking()
-                .Where(lr => purchaseIds.Contains(lr.ContractId))
-                .Select(lr => new { lr.Id, lr.ContractId })
-                .ToListAsync();
-
-            var lrIdToContract = lrMap.ToDictionary(x => x.Id, x => x.ContractId);
-            var lrIdList = lrMap.Select(x => x.Id).ToList();
-
-            var legMap = await _db.InventoryTransportLegs.AsNoTracking()
-                .Where(l => purchaseIds.Contains(l.SourcePurchaseContractId))
-                .Select(l => new { l.Id, ContractId = l.SourcePurchaseContractId })
-                .ToListAsync();
-            var legIdToContract = legMap.ToDictionary(x => x.Id, x => x.ContractId);
-            var legIdList = legMap.Select(x => x.Id).ToList();
-
-            if (lrIdList.Count > 0 || legIdList.Count > 0)
-            {
-                var customsRows = await _db.CustomsDeclarations.AsNoTracking()
-                    .Where(cd =>
-                        (cd.LoadingRegisterId.HasValue && lrIdList.Contains(cd.LoadingRegisterId.Value))
-                        || (cd.TransportLegId.HasValue && legIdList.Contains(cd.TransportLegId.Value)))
-                    .Select(cd => new { cd.Id, cd.LoadingRegisterId, cd.TransportLegId, cd.TotalUsd })
-                    .ToListAsync();
-
-                foreach (var row in customsRows)
-                {
-                    // یک اظهارنامه فقط یک بار شمرده می‌شود. ترتیب اولویت همان ترتیبِ
-                    // CustomsDeclarationExpenseSync.ResolveContractIdAsync است (اول مسیر
-                    // حمل، بعد بارگیری) تا ستون «گمرک» و ContractId مصرفِ ساخته‌شده از
-                    // همان اظهارنامه به یک قرارداد اشاره کنند.
-                    int? attributedContractId = null;
-                    if (row.TransportLegId.HasValue
-                        && legIdToContract.TryGetValue(row.TransportLegId.Value, out var transportContractId))
-                    {
-                        attributedContractId = transportContractId;
-                    }
-                    else if (row.LoadingRegisterId.HasValue
-                        && lrIdToContract.TryGetValue(row.LoadingRegisterId.Value, out var loadingContractId))
-                    {
-                        attributedContractId = loadingContractId;
-                    }
-
-                    if (attributedContractId is null)
-                    {
-                        continue;
-                    }
-
-                    customsByContract[attributedContractId.Value] =
-                        customsByContract.GetValueOrDefault(attributedContractId.Value) + row.TotalUsd;
-                    countedCustomsDeclarationIds.Add(row.Id);
-                }
-            }
-        }
-
-        // ستون «مصارف عمومی» نباید همان پولی را دوباره بشمارد که ستون «گمرک» شمرده است.
-        // هر اظهارنامه از راه CustomsDeclarationExpenseSync یک ExpenseTransaction با همان
-        // ContractId می‌سازد؛ پس مصرفِ اظهارنامه‌هایی که بالا شمرده شدند اینجا کنار می‌رود.
-        var generalExpenseByContract = purchaseIds.Count == 0
-            ? new Dictionary<int, decimal>()
-            : expenseRows
-                .Where(e => !e.CustomsDeclarationId.HasValue
-                    || !countedCustomsDeclarationIds.Contains(e.CustomsDeclarationId.Value))
-                .GroupBy(e => e.ContractId)
-                .ToDictionary(g => g.Key, g => g.Sum(e => e.AmountUsd));
+        // اقتصادِ هر قرارداد (فروش‌های منتسب، بهای خرید، هزینه‌ها، ضایعات، ارز، سودِ محقق و سودِ
+        // چرخهٔ کامل) فقط از ProfitAndLossService خوانده می‌شود؛ این کنترلر فرمولِ سود ندارد.
+        var purchaseEconomics = await _profitAndLoss.BuildContractEconomicsAsync(purchaseIds);
 
         var purchaseRows = purchaseContracts.Select(c =>
         {
-            loadingAggById.TryGetValue(c.Id, out var agg);
-            customsByContract.TryGetValue(c.Id, out var customs);
-            generalExpenseByContract.TryGetValue(c.Id, out var generalExpense);
-            lossAggByContract.TryGetValue(c.Id, out var lossAgg);
-            pendingTankSettlementByContract.TryGetValue(c.Id, out var pendingSettlementMt);
-            sarrafDifferenceByContract.TryGetValue(c.Id, out var sarrafDifference);
-            saleAggById.TryGetValue(c.Id, out var saleAgg);
-            var directSaleQuantityMismatchCount = directSaleMismatchById.GetValueOrDefault(c.Id);
-            // Official wagon rent (ServiceProvider) is counted via ExpenseTransactions
-            // (generalExpense). For LEGACY loadings the inline railway field mirrors that
-            // same amount, so it must be dropped to avoid double counting. For row-based
-            // loadings the inline railway field only mirrors "None" expense lines, which
-            // never overlap with the official wagon rent — so that portion must be KEPT.
-            var inlineRailwayCostUsd = contractsWithOfficialWagonRent.Contains(c.Id)
-                ? agg?.LoadingRailwayExpenseUsdFromLines ?? 0m
-                : agg?.LoadingRailwayExpenseUsd ?? 0m;
+            var e = purchaseEconomics.GetValueOrDefault(c.Id)
+                ?? new ContractEconomicsSnapshot { ContractId = c.Id, ContractType = ContractType.Purchase };
             return new ContractPnlRowViewModel
             {
                 ContractId = c.Id,
@@ -1579,32 +1269,32 @@ public partial class ReportsController : Controller
                 ProductName = c.ProductName,
                 CounterpartyName = c.CounterpartyName,
                 ContractQuantityMt = c.QuantityMt,
-                ContractUnitPriceUsd = ResolveContractFinalPrice(c.ManualFinalPriceUsd, c.UnitPriceUsd),
-                TotalLoadedMt    = agg?.TotalLoadedQuantityMt ?? 0m,
-                PricedLoadedMt   = agg?.PricedPurchaseQuantityMt ?? 0m,
-                PendingLoadedMt  = agg?.PendingPurchaseQuantityMt ?? 0m,
-                PendingLoadingCount = agg?.PendingLoadingCount ?? 0,
-                PurchaseValueUsd = agg?.TraceablePurchaseCostUsd ?? 0m,
-                TransportCostUsd = agg?.LoadingTransportExpenseUsd ?? 0m,
-                WarehouseCostUsd = agg?.LoadingWarehouseExpenseUsd  ?? 0m,
-                OtherCostUsd     = agg?.LoadingOtherExpenseUsd      ?? 0m,
-                RailwayCostUsd   = inlineRailwayCostUsd,
-                CustomsCostUsd   = customs,
-                GeneralExpenseCostUsd = generalExpense,
-                LossCostUsd = lossAgg.Cost,
-                UnvaluedLossCount = lossAgg.UnvaluedCount,
-                PendingSettlementQuantityMt = pendingSettlementMt,
-                SarrafSupplierShortfallUsd = sarrafDifference.SupplierShortfallUsd,
-                ExchangeGainUsd = sarrafDifference.ExchangeGainUsd,
-                ExchangeLossUsd = sarrafDifference.ExchangeLossUsd,
-                TotalSoldMt = saleAgg.TotalSoldMt,
-                TotalRevenueUsd = saleAgg.TotalRevenueUsd,
-                DirectSaleQuantityMismatchCount = directSaleQuantityMismatchCount,
-                PnlConfidence = (agg?.PendingLoadingCount ?? 0) > 0
-                    || directSaleQuantityMismatchCount > 0
-                    || lossAgg.UnvaluedCount > 0
-                        ? PnlConfidence.NeedsReview
-                        : PnlConfidence.Estimated
+                ContractUnitPriceUsd = c.CanonicalFinalPriceUsd,
+                TotalLoadedMt = e.TotalLoadedMt,
+                PricedLoadedMt = e.PricedLoadedMt,
+                PendingLoadedMt = e.PendingLoadedMt,
+                PendingLoadingCount = e.PendingLoadingCount,
+                PurchaseValueUsd = e.PurchaseValueUsd,
+                TransportCostUsd = e.TransportCostUsd,
+                WarehouseCostUsd = e.WarehouseCostUsd,
+                OtherCostUsd = e.OtherCostUsd,
+                RailwayCostUsd = e.RailwayCostUsd,
+                CustomsCostUsd = e.CustomsCostUsd,
+                // سهمِ مصرف/ضایعهٔ بدون تگِ محموله در همان ستون‌ها تا جمعِ ستون‌ها = بهای کل.
+                GeneralExpenseCostUsd = e.GeneralExpenseCostUsd + e.SharedShipmentExpenseUsd,
+                LossCostUsd = e.LossCostUsd + e.ShipmentLossCostUsd,
+                UnvaluedLossCount = e.UnvaluedLossCount,
+                PendingSettlementQuantityMt = e.PendingSettlementQuantityMt,
+                SarrafSupplierShortfallUsd = e.Fx.SupplierShortfallUsd,
+                ExchangeGainUsd = e.Fx.GainUsd,
+                ExchangeLossUsd = e.Fx.LossUsd,
+                TotalSoldMt = e.SoldQuantityMt,
+                TotalRevenueUsd = e.RevenueUsd,
+                DirectSaleQuantityMismatchCount = e.DirectSaleQuantityMismatchCount,
+                PnlConfidence = e.Confidence,
+                TotalCostUsd = e.LifecycleTotalCostUsd,
+                GrossMarginUsd = e.LifecycleMarginUsd,
+                RealizedNetProfitUsd = e.RealizedNetProfitUsd
             };
         }).ToList();
 
@@ -1629,21 +1319,12 @@ public partial class ReportsController : Controller
             .ToListAsync();
 
         var saleIds = saleContracts.Select(c => c.Id).ToList();
-
-        var salesAgg = saleIds.Count == 0
-            ? []
-            : await _db.SalesTransactions.AsNoTracking()
-                .Where(s => !s.IsCancelled && s.ContractId.HasValue && saleIds.Contains(s.ContractId.Value))
-                .GroupBy(s => s.ContractId!.Value)
-                .Select(g => new { ContractId = g.Key, TotalSoldMt = g.Sum(s => s.QuantityMt) })
-                .ToListAsync();
-        var salesAggById = salesAgg.ToDictionary(x => x.ContractId);
-        var realisedPnlByContract = await _profitAndLoss.BuildForSaleContractsAsync(saleIds);
+        var saleEconomics = await _profitAndLoss.BuildContractEconomicsAsync(saleIds);
 
         var saleRows = saleContracts.Select(c =>
         {
-            salesAggById.TryGetValue(c.Id, out var agg);
-            realisedPnlByContract.TryGetValue(c.Id, out var realisedPnl);
+            var e = saleEconomics.GetValueOrDefault(c.Id)
+                ?? new ContractEconomicsSnapshot { ContractId = c.Id, ContractType = ContractType.Sale };
             return new ContractPnlRowViewModel
             {
                 ContractId = c.Id,
@@ -1655,11 +1336,18 @@ public partial class ReportsController : Controller
                 CounterpartyName = c.CounterpartyName,
                 ContractQuantityMt = c.QuantityMt,
                 ContractUnitPriceUsd = c.UnitPriceUsd,
-                TotalSoldMt      = agg?.TotalSoldMt  ?? 0m,
-                TotalRevenueUsd  = realisedPnl?.RevenueUsd ?? 0m,
-                PurchaseValueUsd = realisedPnl?.CostOfGoodsSoldUsd ?? 0m,
-                UncostedSaleCount = realisedPnl?.UncostedSaleCount ?? 0,
-                PnlConfidence = realisedPnl?.Confidence ?? PnlConfidence.Verified
+                TotalSoldMt = e.SoldQuantityMt,
+                TotalRevenueUsd = e.RevenueUsd,
+                PurchaseValueUsd = e.RealizedCostOfGoodsSoldUsd,
+                GeneralExpenseCostUsd = e.GeneralExpenseCostUsd,
+                SarrafSupplierShortfallUsd = e.Fx.SupplierShortfallUsd,
+                ExchangeGainUsd = e.Fx.GainUsd,
+                ExchangeLossUsd = e.Fx.LossUsd,
+                UncostedSaleCount = e.UncostedSaleCount,
+                PnlConfidence = e.Confidence,
+                TotalCostUsd = e.LifecycleTotalCostUsd,
+                GrossMarginUsd = e.LifecycleMarginUsd,
+                RealizedNetProfitUsd = e.RealizedNetProfitUsd
             };
         }).ToList();
 
@@ -1669,61 +1357,6 @@ public partial class ReportsController : Controller
             PurchaseRows = purchaseRows,
             SaleRows = saleRows
         };
-    }
-
-    /// <summary>
-    /// جفت‌های (قرارداد خرید، فروش) برای فروش‌های «در جریان» که هیچ حرکت موجودی و هیچ تخصیصِ
-    /// DirectSale ندارند. هر جفت فقط از Lineage واقعیِ همان عملیات ساخته می‌شود:
-    /// <list type="bullet">
-    /// <item>موتر: <c>SalesTransaction.TruckDispatchId</c> (فروش قسمتی را هم پوشش می‌دهد) یا
-    /// <c>TruckDispatch.SalesTransactionId</c> برای رکوردهای قدیمی → <c>TruckDispatch.ContractId</c>.</item>
-    /// <item>رسید انتقال داخلی: <c>InventoryTransportReceipt.SalesTransactionId</c> →
-    /// <c>InventoryTransportLeg.SourcePurchaseContractId</c>.</item>
-    /// </list>
-    /// خروجی می‌تواند برای یک فروش چند ردیف داشته باشد؛ فراخوان با dedupe روی شناسهٔ فروش
-    /// تضمین می‌کند هیچ عایدی دو بار شمرده نشود.
-    /// </summary>
-    private async Task<List<(int ContractId, int SaleId)>> BuildInTransitDirectSaleLinksAsync(
-        List<int> purchaseIds)
-    {
-        var links = new List<(int ContractId, int SaleId)>();
-
-        var dispatchLinks = await _db.SalesTransactions.AsNoTracking()
-            .Where(s => !s.IsCancelled
-                && s.TruckDispatchId.HasValue
-                && s.TruckDispatch != null
-                && s.TruckDispatch.Status != DispatchStatus.Cancelled
-                && purchaseIds.Contains(s.TruckDispatch.ContractId))
-            .Select(s => new { ContractId = s.TruckDispatch!.ContractId, SaleId = s.Id })
-            .ToListAsync();
-        links.AddRange(dispatchLinks.Select(x => (x.ContractId, x.SaleId)));
-
-        var legacyDispatchLinks = await _db.TruckDispatches.AsNoTracking()
-            .Where(d => d.Status != DispatchStatus.Cancelled
-                && d.SalesTransactionId.HasValue
-                && d.SalesTransaction != null
-                && !d.SalesTransaction.IsCancelled
-                && purchaseIds.Contains(d.ContractId))
-            .Select(d => new { d.ContractId, SaleId = d.SalesTransactionId!.Value })
-            .ToListAsync();
-        links.AddRange(legacyDispatchLinks.Select(x => (x.ContractId, x.SaleId)));
-
-        var transportReceiptLinks = await _db.InventoryTransportReceipts.AsNoTracking()
-            .Where(r => !r.IsCancelled
-                && r.SalesTransactionId.HasValue
-                && r.SalesTransaction != null
-                && !r.SalesTransaction.IsCancelled
-                && r.InventoryTransportLeg != null
-                && purchaseIds.Contains(r.InventoryTransportLeg.SourcePurchaseContractId))
-            .Select(r => new
-            {
-                ContractId = r.InventoryTransportLeg!.SourcePurchaseContractId,
-                SaleId = r.SalesTransactionId!.Value
-            })
-            .ToListAsync();
-        links.AddRange(transportReceiptLinks.Select(x => (x.ContractId, x.SaleId)));
-
-        return links;
     }
 
     private async Task PopulateLookupsAsync(
@@ -1917,10 +1550,7 @@ public partial class ReportsController : Controller
         IQueryable<ExpenseTransaction> query,
         ManagementReportFilterViewModel filter)
     {
-        query = query.Where(e => e.SettlementMode == ExpenseSettlementMode.PaidImmediately
-            && !e.IsCancelled
-            && e.CashAccountId != null
-            && !_db.PaymentTransactions.Any(p => p.ExpenseTransactionId == e.Id));
+        query = CashPositionReader.StandaloneCashExpenses(_db, query);
 
         if (filter.ContractId.HasValue) query = query.Where(e => e.ContractId == filter.ContractId.Value);
         if (filter.ProductId.HasValue) query = query.Where(e => e.Contract != null && e.Contract.ProductId == filter.ProductId.Value);
@@ -1928,6 +1558,65 @@ public partial class ReportsController : Controller
         if (filter.CompanyId.HasValue) query = query.Where(e => e.CashAccount != null && e.CashAccount.CompanyId == filter.CompanyId.Value);
 
         return query;
+    }
+
+    private static ManagementReportFilterViewModel WithoutDates(ManagementReportFilterViewModel filter) => new()
+    {
+        ProductId = filter.ProductId,
+        ContractId = filter.ContractId,
+        CustomerId = filter.CustomerId,
+        SupplierId = filter.SupplierId,
+        CashAccountId = filter.CashAccountId,
+        CompanyId = filter.CompanyId,
+        PaymentKind = filter.PaymentKind
+    };
+
+    /// <summary>
+    /// اسنادِ «حرکتِ واقعیِ صندوق/بانک» برای یک فیلترِ بی‌تاریخ: همان دو منبعِ مرجعِ ماندهٔ نقدی
+    /// (<see cref="CashPositionReader"/>). مصرفِ نقدی نه مشتری/تأمین‌کننده دارد و نه «بابتِ پرداخت»؛
+    /// با این فیلترها قابل انتساب نیست و کنار می‌رود.
+    /// </summary>
+    private (IQueryable<PaymentTransaction> Payments, IQueryable<ExpenseTransaction> Expenses, bool IncludesCashExpenses)
+        CashMovementSources(ManagementReportFilterViewModel undated)
+    {
+        var includeCashExpenses = !undated.CustomerId.HasValue
+            && !undated.SupplierId.HasValue
+            && !undated.PaymentKind.HasValue;
+        var payments = ApplyPaymentFilters(CashPositionReader.CashPayments(_db.PaymentTransactions.AsNoTracking()), undated);
+        var expenses = includeCashExpenses
+            ? ApplyCashExpenseFilters(_db.ExpenseTransactions.AsNoTracking(), undated)
+            : _db.ExpenseTransactions.AsNoTracking().Where(e => false);
+        return (payments, expenses, includeCashExpenses);
+    }
+
+    /// <summary>جمعِ ورود و خروجِ واقعیِ صندوق/بانک در بازهٔ فیلتر؛ همان عددِ «گردش پول».</summary>
+    private async Task<(decimal InflowUsd, decimal OutflowUsd)> ReadCashMovementTotalsAsync(ManagementReportFilterViewModel filter)
+    {
+        var (payments, expenses, _) = CashMovementSources(WithoutDates(filter));
+        var fromDate = filter.FromDate?.Date;
+        var toDate = filter.ToDate?.Date;
+        if (fromDate.HasValue)
+        {
+            payments = payments.Where(p => p.PaymentDate >= fromDate.Value);
+            expenses = expenses.Where(e => e.ExpenseDate >= fromDate.Value);
+        }
+        if (toDate.HasValue)
+        {
+            payments = payments.Where(p => p.PaymentDate <= toDate.Value);
+            expenses = expenses.Where(e => e.ExpenseDate <= toDate.Value);
+        }
+
+        var paymentTotals = await payments
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                InUsd = g.Sum(p => p.Direction == PaymentDirection.In ? (decimal?)p.AmountUsd : null),
+                OutUsd = g.Sum(p => p.Direction == PaymentDirection.Out ? (decimal?)p.AmountUsd : null)
+            })
+            .FirstOrDefaultAsync();
+        var expenseOutUsd = await expenses.SumAsync(e => (decimal?)e.AmountUsd) ?? 0m;
+
+        return (paymentTotals?.InUsd ?? 0m, (paymentTotals?.OutUsd ?? 0m) + expenseOutUsd);
     }
 
     private static string CashFlowGroupName(PaymentKind paymentKind, PaymentDirection direction)
@@ -1938,125 +1627,5 @@ public partial class ReportsController : Controller
             _ => PaymentKindLabels.ToPersian(paymentKind)
         };
 
-    private static bool HasValidLoadingPrice(decimal? loadingPriceUsd)
-        => loadingPriceUsd.HasValue && loadingPriceUsd.Value > 0m;
-
-    private static decimal? ResolveContractFinalPrice(decimal? manualFinalPriceUsd, decimal? unitPriceUsd)
-        => manualFinalPriceUsd.HasValue && manualFinalPriceUsd.Value > 0m
-            ? manualFinalPriceUsd.Value
-            : unitPriceUsd.HasValue && unitPriceUsd.Value > 0m
-                ? unitPriceUsd.Value
-                : null;
-
-    /// <summary>
-    /// Pair of (PurchaseContractId, SalesTransactionId) used by ContractPnl to
-    /// aggregate TerminalStock sale revenue back onto the originating purchase contract.
-    /// </summary>
-    private sealed record SaleContractLink(int ContractId, int SaleId);
-
-    /// <summary>
-    /// عاید و مقدار فروخته‌شدهٔ هر قرارداد خرید، از روی پیوندهای سه مسیر فروش.
-    /// <para>
-    /// هر فروش فقط از نخستین مسیری که آن را دیده شمرده می‌شود (DirectSale، سپس
-    /// TerminalStock، سپس فروش در راه) تا عاید تکرار نشود. برای فروشی که سهم
-    /// اثبات‌شده دارد، مبلغ هر قرارداد از <c>SalesTransactionSourceAllocations</c>
-    /// می‌آید و جمع سهم‌ها برابر <c>SalesTransaction.TotalUsd</c> است. فروش
-    /// اثبات‌نشده (بدون allocation) مثل قبل کامل به قرارداد پیوندخورده‌اش می‌نشیند؛
-    /// قراردادی حدس زده نمی‌شود.
-    /// </para>
-    /// </summary>
-    private async Task<Dictionary<int, (decimal TotalSoldMt, decimal TotalRevenueUsd)>> BuildContractSaleRevenueAsync(
-        IReadOnlyCollection<int> purchaseIds,
-        IReadOnlyList<SaleContractLink> directSaleLinks,
-        IReadOnlyList<SaleContractLink> stockSaleLinks,
-        IReadOnlyList<SaleContractLink> inTransitSaleLinks)
-    {
-        var aggregate = new Dictionary<int, (decimal TotalSoldMt, decimal TotalRevenueUsd)>();
-        if (purchaseIds.Count == 0)
-        {
-            return aggregate;
-        }
-
-        var claimedSaleIds = new HashSet<int>();
-        var effectiveLinks = new List<SaleContractLink>();
-        foreach (var path in new[] { directSaleLinks, stockSaleLinks, inTransitSaleLinks })
-        {
-            // یک مسیر می‌تواند یک جفت (قرارداد، فروش) را از دو راهِ lineage بدهد
-            // (مثلاً موترِ امروز و لینکِ قدیمیِ همان دیسپچ)؛ آن یک رویداد است، نه دو تا.
-            var pathLinks = path
-                .Distinct()
-                .OrderBy(link => link.ContractId)
-                .ToList();
-            var newSaleIds = pathLinks
-                .Select(link => link.SaleId)
-                .Where(saleId => !claimedSaleIds.Contains(saleId))
-                .ToHashSet();
-            if (newSaleIds.Count == 0)
-            {
-                continue;
-            }
-
-            effectiveLinks.AddRange(pathLinks.Where(link => newSaleIds.Contains(link.SaleId)));
-            claimedSaleIds.UnionWith(newSaleIds);
-        }
-
-        if (effectiveLinks.Count == 0)
-        {
-            return aggregate;
-        }
-
-        var saleIds = claimedSaleIds.ToList();
-        var saleRows = await _db.SalesTransactions.AsNoTracking()
-            .Where(s => !s.IsCancelled && saleIds.Contains(s.Id))
-            .Select(s => new { s.Id, s.QuantityMt, s.TotalUsd })
-            .ToDictionaryAsync(s => s.Id, s => (s.QuantityMt, s.TotalUsd));
-        var attribution = await _saleAttribution.LoadForSalesAsync(saleIds);
-        var purchaseIdSet = purchaseIds.ToHashSet();
-
-        void Accumulate(int contractId, decimal quantityMt, decimal revenueUsd)
-        {
-            aggregate.TryGetValue(contractId, out var current);
-            aggregate[contractId] = (
-                current.TotalSoldMt + quantityMt,
-                current.TotalRevenueUsd + revenueUsd);
-        }
-
-        foreach (var group in effectiveLinks.GroupBy(link => link.SaleId))
-        {
-            if (!saleRows.TryGetValue(group.Key, out var sale))
-            {
-                continue;
-            }
-
-            if (attribution.HasProvenAllocation(group.Key))
-            {
-                foreach (var share in attribution.SharesFor(group.Key))
-                {
-                    if (purchaseIdSet.Contains(share.SourcePurchaseContractId))
-                    {
-                        Accumulate(share.SourcePurchaseContractId, share.QuantityMt, share.AmountUsd);
-                    }
-                }
-
-                continue;
-            }
-
-            // فروشِ اثبات‌نشده سهم قابل اثبات ندارد، پس شکسته نمی‌شود؛ اما دو بار هم شمرده
-            // نمی‌شود. کلِ مبلغ یک بار روی نخستین قرارداد پیوندخورده (به ترتیب مسیر و شمارهٔ
-            // قرارداد) می‌نشیند تا جمع قراردادها از مبلغ فروش بیشتر نشود.
-            Accumulate(group.First().ContractId, sale.QuantityMt, sale.TotalUsd);
-        }
-
-        return aggregate;
-    }
-
-    private sealed record ContractPnlExpenseRow(
-        int ContractId,
-        decimal AmountUsd,
-        string? Description,
-        string? ExpenseTypeCode,
-        string? ExpenseTypeName,
-        string? ExpenseTypeNamePersian,
-        int? CustomsDeclarationId);
 
 }

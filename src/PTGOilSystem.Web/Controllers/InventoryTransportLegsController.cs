@@ -131,15 +131,18 @@ public partial class InventoryTransportLegsController : Controller
             query = query.Where(l => l.LoadedDate <= filter.ToDate.Value);
         }
 
-        if (filter.ContractId.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.ContractId.Length > 0)
         {
-            query = query.Where(l => l.SourcePurchaseContractId == filter.ContractId.Value
-                || l.Allocations.Any(a => a.SourcePurchaseContractId == filter.ContractId.Value));
+            var contractIds = filter.ContractId;
+            query = query.Where(l => contractIds.Contains(l.SourcePurchaseContractId)
+                || l.Allocations.Any(a => contractIds.Contains(a.SourcePurchaseContractId)));
         }
 
-        if (filter.ProductId.HasValue)
+        if (filter.ProductId.Length > 0)
         {
-            query = query.Where(l => l.ProductId == filter.ProductId.Value);
+            var productIds = filter.ProductId;
+            query = query.Where(l => productIds.Contains(l.ProductId));
         }
 
         if (filter.Status.HasValue)
@@ -159,20 +162,24 @@ public partial class InventoryTransportLegsController : Controller
             };
         }
 
-        if (filter.TransportType.HasValue)
+        if (filter.TransportType.Length > 0)
         {
-            query = query.Where(l => l.TransportType == filter.TransportType.Value);
+            var transportTypes = filter.TransportType;
+            query = query.Where(l => transportTypes.Contains(l.TransportType));
         }
 
-        if (filter.StorageTankId.HasValue)
+        if (filter.StorageTankId.Length > 0)
         {
-            query = query.Where(l => l.SourceStorageTankId == filter.StorageTankId.Value
-                || l.DestinationStorageTankId == filter.StorageTankId.Value
+            var storageTankIds = filter.StorageTankId;
+            query = query.Where(l => (l.SourceStorageTankId != null && storageTankIds.Contains(l.SourceStorageTankId.Value))
+                || (l.DestinationStorageTankId != null && storageTankIds.Contains(l.DestinationStorageTankId.Value))
                 || l.Allocations.Any(a => a.SourceInventoryMovement != null
-                    && a.SourceInventoryMovement.StorageTankId == filter.StorageTankId.Value)
+                    && a.SourceInventoryMovement.StorageTankId != null
+                    && storageTankIds.Contains(a.SourceInventoryMovement.StorageTankId.Value))
                 || _db.InventoryTransportReceipts.Any(r => r.InventoryTransportLegId == l.Id
                     && !r.IsCancelled
-                    && r.DestinationStorageTankId == filter.StorageTankId.Value));
+                    && r.DestinationStorageTankId != null
+                    && storageTankIds.Contains(r.DestinationStorageTankId.Value)));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Query))
@@ -3831,8 +3838,113 @@ public partial class InventoryTransportLegsController : Controller
             1 => sourceContracts[0],
             _ => string.Join("، ", sourceContracts)
         };
+        model.Sources = await BuildSourceItemsAsync(id);
 
         return model;
+    }
+
+    // منبع واقعی هر سهم بار برای صفحهٔ جزئیات. ترتیب تشخیص نوع با شکل ثبت سهم‌ها یکی است:
+    // وسیلهٔ والد (سهم زنجیره رسید بارگیری را هم حمل می‌کند) → مخزن (حرکت موجودی) → رسید بارگیری → بارگیری.
+    // فقط خواندنی؛ مقدار همان مقدار ثبت‌شدهٔ سهم است.
+    private async Task<IReadOnlyList<InventoryTransportLegSourceItemViewModel>> BuildSourceItemsAsync(int legId)
+    {
+        var rows = await _db.InventoryTransportLegAllocations.AsNoTracking()
+            .Where(a => a.InventoryTransportLegId == legId)
+            .OrderBy(a => a.Id)
+            .Select(a => new
+            {
+                a.QuantityMt,
+                ContractName = a.SourcePurchaseContract != null ? a.SourcePurchaseContract.ContractName : null,
+                ContractNumber = a.SourcePurchaseContract != null ? a.SourcePurchaseContract.ContractNumber : null,
+                ParentLegId = a.SourceTransportLegId,
+                ParentType = a.SourceTransportLeg != null ? (LoadingTransportType?)a.SourceTransportLeg.TransportType : null,
+                ParentVehicle = a.SourceTransportLeg == null ? null
+                    : a.SourceTransportLeg.Truck != null ? a.SourceTransportLeg.Truck.PlateNumber
+                    : a.SourceTransportLeg.Wagon != null ? a.SourceTransportLeg.Wagon.WagonNumber
+                    : a.SourceTransportLeg.Vessel != null ? a.SourceTransportLeg.Vessel.Name
+                    : a.SourceTransportLeg.WagonNumber,
+                MovementId = a.SourceInventoryMovementId,
+                MovementReference = a.SourceInventoryMovement != null ? a.SourceInventoryMovement.ReferenceDocument : null,
+                MovementTerminal = a.SourceInventoryMovement != null && a.SourceInventoryMovement.Terminal != null
+                    ? a.SourceInventoryMovement.Terminal.Name : null,
+                MovementTankId = a.SourceInventoryMovement != null ? a.SourceInventoryMovement.StorageTankId : null,
+                MovementTankName = a.SourceInventoryMovement != null && a.SourceInventoryMovement.StorageTank != null
+                    ? a.SourceInventoryMovement.StorageTank.DisplayName : null,
+                MovementTankCode = a.SourceInventoryMovement != null && a.SourceInventoryMovement.StorageTank != null
+                    ? a.SourceInventoryMovement.StorageTank.TankCode : null,
+                ReceiptId = a.SourceLoadingReceiptId,
+                ReceiptReference = a.SourceLoadingReceipt != null ? a.SourceLoadingReceipt.ReferenceDocument : null,
+                ReceiptTerminal = a.SourceLoadingReceipt != null && a.SourceLoadingReceipt.Terminal != null
+                    ? a.SourceLoadingReceipt.Terminal.Name : null,
+                LoadingId = a.SourceLoadingRegisterId,
+                LoadingRwb = a.SourceLoadingRegister != null ? a.SourceLoadingRegister.RwbNo : null,
+                LoadingBl = a.SourceLoadingRegister != null ? a.SourceLoadingRegister.BillOfLadingNumber : null,
+                LoadingWagon = a.SourceLoadingRegister != null ? a.SourceLoadingRegister.WagonNumber : null,
+                LoadingVessel = a.SourceLoadingRegister != null && a.SourceLoadingRegister.Vessel != null
+                    ? a.SourceLoadingRegister.Vessel.Name : null
+            })
+            .ToListAsync();
+
+        static string? FirstText(params string?[] values) => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+        return rows.Select(r =>
+        {
+            var contract = r.ContractNumber is null
+                ? null
+                : string.IsNullOrWhiteSpace(r.ContractName) ? r.ContractNumber : r.ContractName + " — " + r.ContractNumber;
+            if (r.ParentLegId.HasValue)
+            {
+                return new InventoryTransportLegSourceItemViewModel
+                {
+                    Kind = InventoryTransportLegSourceKind.Vehicle,
+                    SourceId = r.ParentLegId,
+                    Reference = $"TR-{r.ParentLegId.Value:0000}",
+                    Place = r.ParentVehicle,
+                    VehicleType = r.ParentType,
+                    ContractLabel = contract,
+                    QuantityMt = r.QuantityMt
+                };
+            }
+            // سهم‌های مخزنی شناسهٔ منفیِ موقت ندارند؛ فقط حرکت موجودیِ واقعی مخزن حساب می‌شود.
+            if (r.MovementId is > 0)
+            {
+                var tank = r.MovementTankId.HasValue
+                    ? StorageTankDisplay.Build(r.MovementTankId.Value, r.MovementTankName, r.MovementTankCode)
+                    : null;
+                return new InventoryTransportLegSourceItemViewModel
+                {
+                    Kind = InventoryTransportLegSourceKind.StorageTank,
+                    SourceId = r.MovementTankId,
+                    Reference = tank ?? r.MovementTerminal ?? $"#{r.MovementId.Value}",
+                    Place = string.Join(" — ", new[] { r.MovementTerminal, r.MovementReference }
+                        .Where(v => !string.IsNullOrWhiteSpace(v) && v != tank)),
+                    ContractLabel = contract,
+                    QuantityMt = r.QuantityMt
+                };
+            }
+            if (r.ReceiptId.HasValue)
+            {
+                return new InventoryTransportLegSourceItemViewModel
+                {
+                    Kind = InventoryTransportLegSourceKind.LoadingReceipt,
+                    SourceId = r.ReceiptId,
+                    Reference = FirstText(r.ReceiptReference) ?? $"RC-{r.ReceiptId.Value:0000}",
+                    Place = r.ReceiptTerminal,
+                    ContractLabel = contract,
+                    QuantityMt = r.QuantityMt
+                };
+            }
+            return new InventoryTransportLegSourceItemViewModel
+            {
+                Kind = InventoryTransportLegSourceKind.Loading,
+                SourceId = r.LoadingId,
+                Reference = FirstText(r.LoadingRwb, r.LoadingBl, r.LoadingWagon)
+                    ?? (r.LoadingId.HasValue ? $"LD-{r.LoadingId.Value:0000}" : "-"),
+                Place = r.LoadingVessel,
+                ContractLabel = contract,
+                QuantityMt = r.QuantityMt
+            };
+        }).ToList();
     }
 
     // یال‌های انتقال وسیله‌به‌وسیله برای صفحهٔ جزئیات: incoming = وسیله‌هایی که بارشان را

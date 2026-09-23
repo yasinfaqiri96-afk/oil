@@ -50,6 +50,24 @@ public sealed class GroupUnloadViewStructureTests
         Assert.Contains("ReferenceDocument = $\"TRUCK-UNLOAD:{dispatch.Id}\"", controller);
     }
 
+    [Fact]
+    public void Group_Wizard_Summary_Survives_The_Final_Form_System_Reset()
+    {
+        var formSystem = ReadRepoFile(
+            "src/PTGOilSystem.Web/wwwroot/css/ptg/76-form-system.css");
+
+        Assert.Contains("form.ak-form .ak-group-wizard-summary {", formSystem);
+        Assert.Contains("padding: 16px;", formSystem);
+        Assert.Contains(
+            "form.ak-form .ak-group-wizard-summary .ak-list-row {",
+            formSystem);
+        Assert.Contains("grid-template-columns: minmax(0, 1fr) auto;", formSystem);
+        Assert.Contains(
+            "form.ak-form .ak-group-wizard-summary .ak-list-row > .ak-list {",
+            formSystem);
+        Assert.Contains("grid-column: 1 / -1;", formSystem);
+    }
+
     private static string ReadRepoFile(
         string relativePath,
         [CallerFilePath] string callerFilePath = "")

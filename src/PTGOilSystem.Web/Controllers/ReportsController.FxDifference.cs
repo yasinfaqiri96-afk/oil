@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
@@ -150,14 +150,14 @@ public partial class ReportsController
         => TabularExportSupport.FilterSummary(
             ("از تاریخ / From", filter.FromDate?.ToString("yyyy-MM-dd")),
             ("تا تاریخ / To", filter.ToDate?.ToString("yyyy-MM-dd")),
-            ("شرکت قرارداد / Contract company", filter.CompanyId),
-            ("تأمین‌کننده / Supplier", filter.SupplierId),
-            ("صراف / Sarraf", filter.SarrafId),
-            ("قرارداد / Contract", filter.ContractId),
+            ("شرکت قرارداد / Contract company", string.Join("، ", filter.CompanyId)),
+            ("تأمین‌کننده / Supplier", string.Join("، ", filter.SupplierId)),
+            ("صراف / Sarraf", string.Join("، ", filter.SarrafId)),
+            ("قرارداد / Contract", string.Join("، ", filter.ContractId)),
             ("ارز / Currency", filter.Currency),
             ("رسید / Reference", filter.Reference),
             ("نتیجه / Result", filter.Result == FxDifferenceResultFilter.All ? null : FxResultFilterLabel(filter.Result)),
-            ("وضعیت / Status", filter.Status.HasValue ? SarrafSettlementStatusLabel(filter.Status.Value) : null),
+            ("وضعیت / Status", string.Join("، ", filter.Status.Select(SarrafSettlementStatusLabel))),
             ("کمیشن / Commission", filter.Commission == FxCommissionFilter.All ? null : FxCommissionFilterLabel(filter.Commission)));
 
     // ===================== ساخت گزارش =====================
@@ -204,15 +204,33 @@ public partial class ReportsController
 
         if (filter.FromDate.HasValue) query = query.Where(s => s.SettlementDate >= filter.FromDate.Value.Date);
         if (filter.ToDate.HasValue) query = query.Where(s => s.SettlementDate <= filter.ToDate.Value.Date);
-        if (filter.Status.HasValue) query = query.Where(s => s.Status == filter.Status.Value);
-        if (filter.SarrafId.HasValue) query = query.Where(s => s.SarrafId == filter.SarrafId.Value);
-        if (filter.SupplierId.HasValue) query = query.Where(s => s.SupplierId == filter.SupplierId.Value);
-        if (filter.ContractId.HasValue) query = query.Where(s => s.ContractId == filter.ContractId.Value);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.Status.Length > 0)
+        {
+            var statuses = filter.Status;
+            query = query.Where(s => statuses.Contains(s.Status));
+        }
+        if (filter.SarrafId.Length > 0)
+        {
+            var sarrafIds = filter.SarrafId;
+            query = query.Where(s => sarrafIds.Contains(s.SarrafId));
+        }
+        if (filter.SupplierId.Length > 0)
+        {
+            var supplierIds = filter.SupplierId;
+            query = query.Where(s => s.SupplierId != null && supplierIds.Contains(s.SupplierId.Value));
+        }
+        if (filter.ContractId.Length > 0)
+        {
+            var contractIds = filter.ContractId;
+            query = query.Where(s => s.ContractId != null && contractIds.Contains(s.ContractId.Value));
+        }
 
         // شرکت فقط از مسیر قرارداد در دسترس است؛ تسویه خودش CompanyId ندارد.
-        if (filter.CompanyId.HasValue)
+        if (filter.CompanyId.Length > 0)
         {
-            query = query.Where(s => s.Contract != null && s.Contract.CompanyId == filter.CompanyId.Value);
+            var companyIds = filter.CompanyId;
+            query = query.Where(s => s.Contract != null && companyIds.Contains(s.Contract.CompanyId));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Currency))
@@ -742,17 +760,17 @@ public partial class ReportsController
         ViewBag.Companies = new SelectList(
             await _db.Companies.AsNoTracking().OrderBy(c => c.Name)
                 .Select(c => new LookupOption(c.Id, c.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.CompanyId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.CompanyId.Only());
 
         ViewBag.Suppliers = new SelectList(
             await _db.Suppliers.AsNoTracking().OrderBy(s => s.Name)
                 .Select(s => new LookupOption(s.Id, s.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.SupplierId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.SupplierId.Only());
 
         ViewBag.Sarrafs = new SelectList(
             await _db.Sarrafs.AsNoTracking().OrderBy(s => s.Name)
                 .Select(s => new LookupOption(s.Id, s.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.SarrafId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.SarrafId.Only());
 
         var contracts = await _db.Contracts.AsNoTracking().OrderByDescending(c => c.ContractDate)
             .Select(c => new { c.Id, c.ContractName, c.ContractNumber }).ToListAsync(cancellationToken);
@@ -760,7 +778,7 @@ public partial class ReportsController
             contracts.Select(c => new LookupOption(
                 c.Id,
                 ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ContractId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ContractId.Only());
 
         var currencies = await _db.SarrafSettlements.AsNoTracking()
             .Where(s => s.DifferenceReason == DifferenceReason.FxDifference)

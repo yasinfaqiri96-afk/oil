@@ -1,12 +1,12 @@
-@model PTGOilSystem.Web.Models.Employees.EmployeeIndexViewModel
+﻿@model PTGOilSystem.Web.Models.Employees.EmployeeIndexViewModel
 @{
     ViewData["Title"] = "کارمندان";
     var items = Model.Items.ToList();
     var visibleActiveCount = items.Count(item => item.IsActive);
     var visibleEmployeeTypeCount = items.Select(item => item.EmployeeTypeName).Where(type => !string.IsNullOrWhiteSpace(type)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
     var visibleBalanceUsd = items.Sum(item => item.BalanceUsd);
-    var hasFilters = Model.Filter.EmployeeType.HasValue
-        || Model.Filter.SalaryType.HasValue
+    var hasFilters = Model.Filter.EmployeeType.Length > 0
+        || Model.Filter.SalaryType.Length > 0
         || !string.IsNullOrWhiteSpace(Model.Filter.Department)
         || !string.IsNullOrWhiteSpace(Model.Filter.Currency)
         || Model.Filter.IsActive.HasValue;
@@ -37,8 +37,8 @@
             UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."),
             new List<AkFilterDefinition>
             {
-                new("Filter.EmployeeType", UiText.T(Context, "نوع کارمند", "Employee type"), "select", EmpOpts(ViewBag.EmployeeTypes), EmpQ("Filter.EmployeeType")),
-                new("Filter.SalaryType", UiText.T(Context, "نوع معاش", "Salary type"), "select", EmpOpts(ViewBag.SalaryTypes), EmpQ("Filter.SalaryType")),
+                AkFilterDefinition.MultiSelect("Filter.EmployeeType", UiText.T(Context, "نوع کارمند", "Employee type"), EmpOpts(ViewBag.EmployeeTypes), AkFilterQuery.Values(Context, "Filter.EmployeeType")),
+                AkFilterDefinition.MultiSelect("Filter.SalaryType", UiText.T(Context, "نوع معاش", "Salary type"), EmpOpts(ViewBag.SalaryTypes), AkFilterQuery.Values(Context, "Filter.SalaryType")),
                 new("Filter.Currency", UiText.T(Context, "ارز", "Currency"), "select", EmpOpts(ViewBag.Currencies), EmpQ("Filter.Currency")),
                 new("Filter.IsActive", UiText.T(Context, "وضعیت", "Status"), "select", EmpOpts(ViewBag.Statuses), EmpQ("Filter.IsActive"))
             });

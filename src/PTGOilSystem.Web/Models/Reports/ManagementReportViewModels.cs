@@ -378,13 +378,17 @@ public sealed class ContractPnlRowViewModel
     public decimal ExchangeGainUsd { get; init; }
     public decimal ExchangeLossUsd { get; init; }
     public decimal NetExchangeDifferenceUsd => ExchangeLossUsd - ExchangeGainUsd;
-    public decimal TotalCostUsd => PurchaseValueUsd + TransportCostUsd + WarehouseCostUsd + OtherCostUsd + RailwayCostUsd + CustomsCostUsd + GeneralExpenseCostUsd + LossCostUsd + SarrafSupplierShortfallUsd + ExchangeLossUsd - ExchangeGainUsd;
+    /// <summary>جمعِ هزینهٔ چرخهٔ کاملِ قرارداد؛ از <c>ContractEconomicsSnapshot.LifecycleTotalCostUsd</c>.</summary>
+    public decimal TotalCostUsd { get; init; }
     public decimal TotalSoldMt { get; init; }
     public decimal TotalRevenueUsd { get; init; }
     public int DirectSaleQuantityMismatchCount { get; init; }
     public int UncostedSaleCount { get; init; }
     public PnlConfidence PnlConfidence { get; init; } = PnlConfidence.Legacy;
-    public decimal GrossMarginUsd => PnlMath.GrossProfit(TotalRevenueUsd, TotalCostUsd);
+    /// <summary>سودِ چرخهٔ کاملِ قرارداد (کلِ خرید و کلِ هزینه)؛ از <c>ContractEconomicsSnapshot.LifecycleMarginUsd</c>.</summary>
+    public decimal GrossMarginUsd { get; init; }
+    /// <summary>سودِ محققِ قرارداد (فقط بخشِ فروخته‌شده، با اثرِ ارزی)؛ از <c>ContractEconomicsSnapshot.RealizedNetProfitUsd</c>.</summary>
+    public decimal RealizedNetProfitUsd { get; init; }
     public decimal? MarginPercent => TotalRevenueUsd > 0 ? Math.Round((GrossMarginUsd / TotalRevenueUsd) * 100m, 1) : null;
 }
 

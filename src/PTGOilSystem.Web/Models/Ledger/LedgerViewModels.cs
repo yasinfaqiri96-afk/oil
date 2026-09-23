@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
 
@@ -15,24 +15,23 @@ public sealed class LedgerIndexFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "نوع منبع")]
-    [StringLength(50)]
-    public string? SourceType { get; set; }
+    public string[] SourceType { get; set; } = [];
 
     [Display(Name = "قرارداد")]
-    public int? ContractId { get; set; }
+    public int[] ContractId { get; set; } = [];
 
     [Display(Name = "مشتری")]
-    public int? CustomerId { get; set; }
+    public int[] CustomerId { get; set; } = [];
 
     [Display(Name = "تأمین‌کننده")]
-    public int? SupplierId { get; set; }
+    public int[] SupplierId { get; set; } = [];
 
     [Display(Name = "مرجع")]
     [StringLength(200)]
     public string? Reference { get; set; }
 
     [Display(Name = "سمت")]
-    public LedgerSide? Side { get; set; }
+    public LedgerSide[] Side { get; set; } = [];
 }
 
 public sealed class LedgerListItemViewModel

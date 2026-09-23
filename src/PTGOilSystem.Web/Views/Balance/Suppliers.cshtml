@@ -1,11 +1,11 @@
-@model PTGOilSystem.Web.Models.Balance.SuppliersBalanceViewModel
+﻿@model PTGOilSystem.Web.Models.Balance.SuppliersBalanceViewModel
 @{
     ViewData["Title"] = UiText.T(Context,"گردش حساب تأمین‌کننده‌ها","Supplier Accounts");
-    var totalSalesUsd = Model.Items.Sum(item => item.TotalSalesUsd);
-    var totalExpensesUsd = Model.Items.Sum(item => item.TotalExpensesUsd);
-    var totalBaseBalanceUsd = Model.Items.Sum(item => item.BaseBalanceUsd);
+    var totalSalesUsd = Model.FilteredTotalSalesUsd;
+    var totalExpensesUsd = Model.FilteredTotalExpensesUsd;
+    var totalBaseBalanceUsd = Model.FilteredBalanceUsd;
     var hasAdvancedFilter = Model.Filter.FromDate.HasValue || Model.Filter.ToDate.HasValue
-        || Model.Filter.SupplierId.HasValue || !string.IsNullOrWhiteSpace(Model.Filter.Country);
+        || Model.Filter.SupplierId.Length > 0 || Model.Filter.Country.Length > 0;
 }
 
 <div class="ak-list-page">
@@ -33,8 +33,8 @@
                 {
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
-                    new("Filter.SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), "select", BsOpts(ViewBag.Suppliers), BsQ("Filter.SupplierId")),
-                    new("Filter.Country", UiText.T(Context, "کشور", "Country"), "select", BsOpts(ViewBag.Countries), BsQ("Filter.Country"))
+                    AkFilterDefinition.MultiSelect("Filter.SupplierId", UiText.T(Context, "تأمین‌کننده", "Supplier"), BsOpts(ViewBag.Suppliers), AkFilterQuery.Values(Context, "Filter.SupplierId")),
+                    AkFilterDefinition.MultiSelect("Filter.Country", UiText.T(Context, "کشور", "Country"), BsOpts(ViewBag.Countries), AkFilterQuery.Values(Context, "Filter.Country"))
                 });
         }
         <div class="ak-list-toolbar">

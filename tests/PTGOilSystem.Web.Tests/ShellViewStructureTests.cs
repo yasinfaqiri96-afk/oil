@@ -88,15 +88,28 @@ public class ShellViewStructureTests
         var tokensCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/01-tokens.css");
         var sidebarCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/04-sidebar.css");
 
-        Assert.Contains("--ptg-sidebar-panel: #FFFFFF", tokensCss);
-        Assert.Contains("--ptg-sidebar-rail: #FFFFFF", tokensCss);
+        // نوار کناری Deep Navy است؛ همهٔ رنگ‌ها در 01-tokens متمرکزند و 04-sidebar فقط token می‌خواند.
+        Assert.Contains("--ptg-sidebar-panel: #1A467D", tokensCss);
+        Assert.Contains("--ptg-sidebar-rail: #14355F", tokensCss);
         Assert.Contains("--ptg-sidebar-panel: #1E1E27", tokensCss);
         Assert.Contains("--ptg-sidebar-rail: #16161D", tokensCss);
-        Assert.Contains("--ptg-sidebar-hover-bg: #F5F6FA", tokensCss);
-        Assert.Contains("--ptg-sidebar-active-bg: #E8F1FF", tokensCss);
-        Assert.Contains("--ptg-sidebar-danger: #CB0B0B", tokensCss);
+        Assert.Contains("--ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.10)", tokensCss);
+        Assert.Contains("--ptg-sidebar-active-bg: rgba(255, 255, 255, 0.14)", tokensCss);
+        Assert.Contains("--ptg-sidebar-danger: #FF9A9A", tokensCss);
         Assert.Contains("background: var(--ptg-sidebar-panel)", sidebarCss);
-        Assert.Contains("background: var(--ptg-sidebar-rail)", sidebarCss);
+    }
+
+    [Fact]
+    public void Sidebar_Exposes_Users_And_Backups_As_Independent_Primary_Items()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+
+        Assert.Contains("if (canManageUsers)", layout);
+        Assert.Contains("NavNode(\"Users\", \"Index\", T(\"کاربران\", \"Users\"), \"nav-users\"", layout);
+        Assert.Contains("if (canManageBackups)", layout);
+        Assert.Contains("NavNode(\"Backups\", \"Index\", T(\"پشتیبان‌گیری\", \"Backups\"), \"nav-settings\"", layout);
+        Assert.DoesNotContain("T(\"مدیریت\", \"Administration\")", layout);
+        Assert.DoesNotContain("children: adminSettingItems", layout);
     }
 
     [Fact]
@@ -221,15 +234,15 @@ public class ShellViewStructureTests
             > modalLayout.IndexOf("RenderSectionAsync(\"Styles\"", StringComparison.Ordinal),
             "Modal tabs must use the same final skin.");
 
-        // Akaunting tab tokens. These are the contract every rail renders against.
-        Assert.Contains("--ptg-tabs-font-size: var(--font-body, 14px)", tabsCss);
-        Assert.Contains("--ptg-tabs-text-color: var(--text-secondary, #6F6F6F)", tabsCss);
-        Assert.Contains("--ptg-tabs-active-color: var(--primary-main, #1062D0)", tabsCss);
-        Assert.Contains("--ptg-tabs-border-color: var(--divider, #E7E7E7)", tabsCss);
-        Assert.Contains("--ptg-tabs-horizontal-padding: 16px", tabsCss);
-        Assert.Contains("--ptg-tabs-bottom-padding: 8px", tabsCss);
-        Assert.Contains("--ptg-tabs-indicator-height: 2px", tabsCss);
-        Assert.Contains("--ptg-tabs-transition-duration: 180ms", tabsCss);
+        // Chortke tab tokens. These are the contract every rail renders against.
+        Assert.Contains("--ptg-tabs-font-size: 16px", tabsCss);
+        Assert.Contains("--ptg-tabs-text-color: #333333", tabsCss);
+        Assert.Contains("--ptg-tabs-active-color: var(--primary-main)", tabsCss);
+        Assert.Contains("--ptg-tabs-border-color: #E0E0E0", tabsCss);
+        Assert.Contains("--ptg-tabs-item-gap: 32px", tabsCss);
+        Assert.Contains("--ptg-tabs-rail-height: 52px", tabsCss);
+        Assert.Contains("--ptg-tabs-indicator-height: 3px", tabsCss);
+        Assert.Contains("--ptg-tabs-transition-duration: 300ms", tabsCss);
         Assert.Contains("--ptg-tabs-focus-color: rgba(16, 98, 208, .25)", tabsCss);
         Assert.Contains("border-bottom: 1px solid var(--ptg-tabs-border-color)", tabsCss);
 
@@ -477,6 +490,40 @@ public class ShellViewStructureTests
         {
             Assert.Contains($"{module}:", tables);
         }
+    }
+
+    [Fact]
+    public void Server_Paged_Tables_Are_Excluded_From_Shared_Client_Pagination()
+    {
+        var pagination = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Pagination.cshtml");
+        var tables = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/tables.js");
+
+        Assert.Contains("data-server-pagination=\"true\"", pagination);
+        Assert.Contains("if (table.closest(\"[data-disable-client-pagination='true']\")) return;", tables);
+        Assert.Contains("if (hasServerPagination(table)) return;", tables);
+        Assert.Contains("table.closest(\".ak-list, [data-operations-list], .ak-list-page, .ak-form-page\")", tables);
+        Assert.Contains("list.querySelector(\"[data-server-pagination='true']\")", tables);
+        Assert.Contains("var pageSize = 10;", tables);
+
+        // Tables without a server marker keep the existing client-side pager.
+        Assert.Contains("if (rows.length <= pageSize) return;", tables);
+        Assert.Contains("pager.className = \"ptg-client-pager\";", tables);
+        Assert.Contains("initializeResponsiveTables();", tables);
+        Assert.Contains("initializeClickableTableRows();", tables);
+        Assert.Contains("initializeBulkSelection();", tables);
+    }
+
+    [Fact]
+    public void Base_Definitions_Navigation_Opens_The_First_Shared_Tab()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var tabs = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_SectionTabs.cshtml");
+
+        Assert.Contains("(\"Currencies\",   \"Index\", T(\"ارزها\"", tabs);
+        Assert.Contains("SidebarItem(\"Currencies\", \"Index\", T(\"تعاریف پایه\", \"Base Definitions\")", layout);
+        Assert.Contains("NavNode(\"Currencies\", \"Index\", T(\"تعاریف پایه\", \"Base Definitions\")", layout);
+        Assert.DoesNotContain("SidebarItem(\"StorageTanks\", \"Index\", T(\"تعاریف پایه\", \"Base Definitions\")", layout);
+        Assert.DoesNotContain("NavNode(\"StorageTanks\", \"Index\", T(\"تعاریف پایه\", \"Base Definitions\")", layout);
     }
 
     [Theory]

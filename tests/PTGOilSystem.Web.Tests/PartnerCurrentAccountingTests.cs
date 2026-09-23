@@ -380,6 +380,36 @@ public sealed class PartnerCurrentAccountingTests(AccountingPostgreSqlFixture fi
     }
 
     [Fact]
+    public async Task A_Changed_Profit_Is_Reported_Not_Reposted_And_History_Stays_Untouched()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        await MakePartnershipAsync(db, scope, salesUsd: 1_000.01m);
+        var adapter = CreateAllocationAdapter(db);
+
+        var before = (await adapter.FindDiscrepanciesAsync()).Single(x => x.ContractId == scope.Contract.Id);
+        Assert.Equal(PartnershipProfitAllocationDiscrepancy.NotPosted, before.Status);
+
+        Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryPostAllocationAsync(scope.Contract.Id)).Status);
+        var posted = (await adapter.FindDiscrepanciesAsync()).Single(x => x.ContractId == scope.Contract.Id);
+        Assert.Equal(PartnershipProfitAllocationDiscrepancy.Matches, posted.Status);
+        Assert.Equal(1_000.01m, posted.PostedProfitUsd);
+
+        // سودِ محققِ قرارداد بعد از تخصیص عوض می‌شود.
+        await AddExpenseAsync(db, scope, 100m);
+        var retry = await adapter.TryPostAllocationAsync(scope.Contract.Id);
+        var after = (await adapter.FindDiscrepanciesAsync()).Single(x => x.ContractId == scope.Contract.Id);
+
+        Assert.Equal(PaymentPostingStatus.Skipped, retry.Status);
+        Assert.Equal("PROFIT_CHANGED_SINCE_ALLOCATION", retry.Reason);
+        Assert.Equal(PartnershipProfitAllocationDiscrepancy.ProfitChanged, after.Status);
+        Assert.Equal(1_000.01m, after.PostedProfitUsd);
+        Assert.Equal(900.01m, after.CanonicalProfitUsd);
+        Assert.Equal(1, await db.JournalEntries.CountAsync(x =>
+            x.SourceEventId == PartnershipProfitAllocationAdapter.BuildSourceEventId(scope.Contract.Id)));
+    }
+
+    [Fact]
     public async Task A_Contract_That_Is_Not_A_Partnership_Is_Never_Allocated()
     {
         await using var db = fixture.CreateDbContext();

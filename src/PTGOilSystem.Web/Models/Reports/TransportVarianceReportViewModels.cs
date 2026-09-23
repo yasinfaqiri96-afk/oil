@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace PTGOilSystem.Web.Models.Reports;
 
@@ -36,10 +36,10 @@ public sealed class TransportVarianceReportFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "جنس")]
-    public int? ProductId { get; set; }
+    public int[] ProductId { get; set; } = [];
 
     [Display(Name = "قرارداد")]
-    public int? ContractId { get; set; }
+    public int[] ContractId { get; set; } = [];
 
     [Display(Name = "نوع تفاوت")]
     public TransportVarianceFilterKind Kind { get; set; } = TransportVarianceFilterKind.All;
@@ -54,8 +54,8 @@ public sealed class TransportVarianceReportFilterViewModel
     public bool HasAny
         => FromDate.HasValue
             || ToDate.HasValue
-            || ProductId.HasValue
-            || ContractId.HasValue
+            || ProductId.Length > 0
+            || ContractId.Length > 0
             || Kind != TransportVarianceFilterKind.All
             || Source.HasValue
             || !string.IsNullOrWhiteSpace(Search);

@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Expenses.GroupExpenseCreateViewModel
+﻿@model PTGOilSystem.Web.Models.Expenses.GroupExpenseCreateViewModel
 @using PTGOilSystem.Web.Models
 @using PTGOilSystem.Web.Models.Expenses
 @using PTGOilSystem.Web.Models.Shared
@@ -20,13 +20,15 @@
     var operationSearchFilter = new AkSearchFilterModel(
         "fQuery",
         null,
-        "جستجو در شماره، مسیر یا عملیات...",
+        "جستجو در شماره، مسیر، قرارداد یا کالا...",
         new List<AkFilterDefinition>
         {
-            new("fOperation", "نوع عملیات", "select", FilterOptions(operations.Select(item => item.OperationLabel))),
-            new("fVehicle", "نوع وسیله", "select", FilterOptions(operations.Select(item => item.VehicleKind))),
-            new("fRoute", "مسیر", "select", FilterOptions(operations.Select(item => item.Route))),
-            new("fStatus", "وضعیت", "select", FilterOptions(operations.Select(item => item.StatusLabel))),
+            AkFilterDefinition.MultiSelect("fOperation", "نوع عملیات", FilterOptions(operations.Select(item => item.OperationLabel)), null),
+            AkFilterDefinition.MultiSelect("fVehicle", "نوع وسیله", FilterOptions(operations.Select(item => item.VehicleKind)), null),
+            AkFilterDefinition.MultiSelect("fRoute", "مسیر", FilterOptions(operations.Select(item => item.Route)), null),
+            AkFilterDefinition.MultiSelect("fContract", "قرارداد", FilterOptions(operations.Select(item => item.ContractNumber)), null),
+            AkFilterDefinition.MultiSelect("fProduct", "کالا", FilterOptions(operations.Select(item => item.ProductName)), null),
+            AkFilterDefinition.MultiSelect("fStatus", "وضعیت", FilterOptions(operations.Select(item => item.StatusLabel)), null),
             new("fFrom", "تاریخ حرکت", "daterange", null, null, "fTo")
         });
 }
@@ -421,6 +423,8 @@
     number = o.Number,
     alt = o.AltNumber,
     route = o.Route,
+    product = o.ProductName,
+    contract = o.ContractNumber,
     qty = o.QuantityMt,
     status = o.StatusLabel,
     date = o.MoveDate.ToString("yyyy-MM-dd")
@@ -494,18 +498,30 @@
             var field = operationFilter.querySelector('[data-ak-filter-param][name="' + key + '"]');
             return field ? field.value : '';
         }
+        function filterValues(key) {
+            // چندانتخابی: هر مقدار یک input پنهان با همان نام است (OR بین مقادیر).
+            return Array.prototype.map.call(
+                operationFilter.querySelectorAll('[data-ak-filter-param][name="' + key + '"]'),
+                function (field) { return field.value; });
+        }
+        function matchesAny(key, value) {
+            var values = filterValues(key);
+            return values.length === 0 || values.indexOf(value) !== -1;
+        }
 
         function applyFilters() {
             var q = ($('fQuery').value || '').trim().toLowerCase();
             var from = filterValue('fFrom'), to = filterValue('fTo');
             state.filtered = ops.filter(function (o) {
-                if (filterValue('fOperation') && o.op !== filterValue('fOperation')) return false;
-                if (filterValue('fVehicle') && o.vehicle !== filterValue('fVehicle')) return false;
-                if (filterValue('fRoute') && o.route !== filterValue('fRoute')) return false;
-                if (filterValue('fStatus') && o.status !== filterValue('fStatus')) return false;
+                if (!matchesAny('fOperation', o.op)) return false;
+                if (!matchesAny('fVehicle', o.vehicle)) return false;
+                if (!matchesAny('fRoute', o.route)) return false;
+                if (!matchesAny('fContract', o.contract)) return false;
+                if (!matchesAny('fProduct', o.product)) return false;
+                if (!matchesAny('fStatus', o.status)) return false;
                 if (from && o.date < from) return false;
                 if (to && o.date > to) return false;
-                if (q && (o.number + ' ' + o.route + ' ' + o.op + ' ' + o.vehicle).toLowerCase().indexOf(q) < 0) return false;
+                if (q && (o.number + ' ' + o.route + ' ' + o.op + ' ' + o.vehicle + ' ' + o.contract + ' ' + o.product).toLowerCase().indexOf(q) < 0) return false;
                 return true;
             });
             state.page = 1;

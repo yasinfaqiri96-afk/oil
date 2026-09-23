@@ -7,6 +7,7 @@ using PTGOilSystem.Web.Models.Sarrafs;
 using PTGOilSystem.Web.Models.Shared;
 using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Models.Reports;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -14,12 +15,17 @@ namespace PTGOilSystem.Web.Controllers;
 public class SarrafsController : Controller
 {
     private readonly ApplicationDbContext _db;
-    private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyStatementReadService _partyStatements;
+    private readonly IPartyBalanceReadService _partyBalances;
 
-    public SarrafsController(ApplicationDbContext db, IPartyStatementReadService? partyStatements = null)
+    public SarrafsController(
+        ApplicationDbContext db,
+        IPartyStatementReadService? partyStatements = null,
+        IPartyBalanceReadService? partyBalances = null)
     {
         _db = db;
-        _partyStatements = partyStatements;
+        _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
+        _partyBalances = partyBalances ?? PartyBalanceReadService.CreateDefault(db);
     }
 
     public async Task<IActionResult> Index(string? search = null)
@@ -98,6 +104,18 @@ public class SarrafsController : Controller
             };
         }).ToList();
 
+        // ماندهٔ هر صراف از موتورِ رسمی (همان صورت‌حساب صراف): مثبت = طلب شرکت، منفی = بدهی شرکت.
+        // «سپرده‌شده» و «پرداخت‌شده» فقط شاخصِ عملیاتی‌اند و مانده از آن‌ها ساخته نمی‌شود.
+        var officialBalances = (await _partyBalances.GetBalancesAsync(
+                new ManagementReportFilterViewModel(),
+                HttpContext?.RequestAborted ?? CancellationToken.None,
+                [PartyStatementPartyType.Sarraf]))
+            .Where(row => row.PartyType == PartyStatementPartyType.Sarraf)
+            .ToDictionary(row => row.PartyId, row => row.ClosingBalanceUsd);
+        items = items
+            .Select(item => item with { OfficialBalanceUsd = officialBalances.GetValueOrDefault(item.Id) })
+            .ToList();
+
         return View(new SarrafIndexViewModel
         {
             Search = search,
@@ -105,7 +123,8 @@ public class SarrafsController : Controller
             ActiveCount = items.Count(i => i.IsActive),
             TotalChargedUsd = items.Sum(i => i.ChargedUsd),
             TotalPaidUsd = items.Sum(i => i.PaidUsd),
-            TotalPayableUsd = items.Sum(i => i.PayableUsd)
+            TotalPayableUsd = items.Sum(i => i.PayableUsd),
+            TotalOfficialBalanceUsd = items.Sum(i => i.OfficialBalanceUsd)
         });
     }
 
@@ -358,15 +377,12 @@ public class SarrafsController : Controller
             CustomerHawalas = customerHawalas,
             StatementRows = BuildSarrafStatementRows(settlements, payments, viaSarrafPayables)
         };
-        if (_partyStatements is not null)
-        {
-            var statement = await _partyStatements.GetStatementAsync(
-                new PartyRef(PartyStatementPartyType.Sarraf, id),
-                new PartyStatementFilter { IncludeOperationalColumns = false },
-                HttpContext.RequestAborted);
-            ViewData["PartyStatementSummary"] = statement.Summary;
-            ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
-        }
+        var statement = await _partyStatements.GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Sarraf, id),
+            new PartyStatementFilter { IncludeOperationalColumns = false },
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+        ViewData["PartyStatementSummary"] = statement.Summary;
+        ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
         return View(model);
     }
 

@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Models.Payments;
@@ -10,11 +10,10 @@ public sealed class CashAccountIndexFilterViewModel
     public string? Query { get; set; }
 
     [Display(Name = "نوع حساب")]
-    public CashAccountType? AccountType { get; set; }
+    public CashAccountType[] AccountType { get; set; } = [];
 
     [Display(Name = "ارز")]
-    [StringLength(10)]
-    public string? Currency { get; set; }
+    public string[] Currency { get; set; } = [];
 
     [Display(Name = "وضعیت")]
     public bool? IsActive { get; set; }

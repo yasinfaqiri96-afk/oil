@@ -10,6 +10,7 @@ using Xunit.Abstractions;
 
 namespace PTGOilSystem.Web.Tests;
 
+[Trait("Category", "Performance")]
 public sealed class LoadingWorkbookParserPerformanceTests
 {
     private readonly ITestOutputHelper _output;

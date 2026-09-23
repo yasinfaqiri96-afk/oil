@@ -37,6 +37,10 @@ body.controller-auth.action-login .boltz-public-shell {
     --lg-field-text: #1b333f;
     --lg-accent: #d9605c;
     --lg-accent-hover: #cc514d;
+    /* دکمهٔ ورود: همان آبی اصلی سیستم (--primary-main / --primary-dark در 01-tokens). */
+    --lg-submit-bg: #1062D0;
+    --lg-submit-bg-hover: #0D52AF;
+    --lg-submit-ink: #ffffff;
     --lg-link: #c0504c;
 
     display: block;
@@ -280,21 +284,21 @@ body.controller-auth.action-login .boltz-public-shell {
     padding: 0;
     border: 0;
     border-radius: 8px;
-    background: var(--lg-accent);
+    background: var(--lg-submit-bg);
     font: inherit;
     font-size: 14px;
     font-weight: 500;
-    color: var(--ptg-field-bg);
+    color: var(--lg-submit-ink);
     cursor: pointer;
     transition: background-color .16s ease;
 }
 
 .ptg-login-submit:hover {
-    background: var(--lg-accent-hover);
+    background: var(--lg-submit-bg-hover);
 }
 
 .ptg-login-submit:focus-visible {
-    outline: 2px solid var(--lg-accent);
+    outline: 2px solid var(--lg-submit-bg);
     outline-offset: 3px;
 }
 

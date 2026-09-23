@@ -20,7 +20,7 @@ public class CompaniesController : Controller
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
     private readonly MasterDataDeleteSafetyService _deleteSafety;
-    private readonly IPartyStatementReadService? _partyStatements;
+    private readonly IPartyStatementReadService _partyStatements;
 
     public CompaniesController(
         ApplicationDbContext db,
@@ -31,7 +31,7 @@ public class CompaniesController : Controller
         _db = db;
         _audit = audit;
         _deleteSafety = deleteSafety;
-        _partyStatements = partyStatements;
+        _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
     }
 
     public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -70,15 +70,12 @@ public class CompaniesController : Controller
     {
         var item = await _db.Companies.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (item == null) return NotFound();
-        if (_partyStatements is not null)
-        {
-            var statement = await _partyStatements.GetStatementAsync(
-                new PartyRef(PartyStatementPartyType.Company, id),
-                new PartyStatementFilter { IncludeOperationalColumns = false },
-                HttpContext.RequestAborted);
-            ViewData["PartyStatementSummary"] = statement.Summary;
-            ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
-        }
+        var statement = await _partyStatements.GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Company, id),
+            new PartyStatementFilter { IncludeOperationalColumns = false },
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+        ViewData["PartyStatementSummary"] = statement.Summary;
+        ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
         return View(item);
     }
 

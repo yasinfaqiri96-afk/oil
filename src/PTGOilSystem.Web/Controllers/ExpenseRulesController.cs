@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -155,7 +155,7 @@ public class ExpenseRulesController : Controller
         ViewData["SubmitText"] = submitText;
     }
 
-    public async Task<IActionResult> Index(string? q, string? calculationKind, bool? isActive)
+    public async Task<IActionResult> Index(string? q, string[]? calculationKind, bool? isActive)
     {
         var query = _db.ExpenseRules
             .Include(r => r.ExpenseType)
@@ -174,10 +174,11 @@ public class ExpenseRulesController : Controller
                         || r.ExpenseType.Code.Contains(search))));
         }
 
-        if (!string.IsNullOrWhiteSpace(calculationKind))
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (calculationKind is { Length: > 0 })
         {
-            var kind = calculationKind.Trim();
-            query = query.Where(r => r.CalculationKind == kind);
+            var kinds = calculationKind.Select(value => value.Trim()).ToArray();
+            query = query.Where(r => kinds.Contains(r.CalculationKind));
         }
 
         if (isActive.HasValue)
@@ -186,7 +187,7 @@ public class ExpenseRulesController : Controller
         }
 
         ViewData["q"] = q;
-        ViewData["calculationKind"] = calculationKind;
+        ViewData["calculationKind"] = calculationKind ?? [];
         ViewData["isActive"] = isActive;
 
         var items = await query

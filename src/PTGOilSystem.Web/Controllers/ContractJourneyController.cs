@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Services.Exports;
 using PTGOilSystem.Web.Models.ContractJourney;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
@@ -26,6 +27,7 @@ public partial class ContractJourneyController : Controller
     private readonly IStockService _stock;
     private readonly IPricingService _pricing;
     private readonly IPurchaseAggregationService _purchaseAggregation;
+    private readonly IPartyBalanceReadService _partyBalances;
     private readonly IProfitAndLossService _profitAndLoss;
 
     public ContractJourneyController(
@@ -33,14 +35,59 @@ public partial class ContractJourneyController : Controller
         IStockService stock,
         IPricingService? pricing = null,
         IPurchaseAggregationService? purchaseAggregation = null,
-        IProfitAndLossService? profitAndLoss = null)
+        IProfitAndLossService? profitAndLoss = null,
+        IPartyBalanceReadService? partyBalances = null)
     {
         _db = db;
         _stock = stock;
         _pricing = pricing ?? new PricingService(db);
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
         _profitAndLoss = profitAndLoss ?? new ProfitAndLossService(db);
+        _partyBalances = partyBalances ?? PartyBalanceReadService.CreateDefault(db);
     }
+
+    /// <summary>
+    /// خلاصهٔ سودِ پروندهٔ قرارداد فقط از ProfitAndLossService.BuildContractEconomicsAsync؛ همان
+    /// اعدادِ گزارش مفاد قراردادها و صورت‌حساب شراکت.
+    /// </summary>
+    private async Task<ContractJourneyMiniPnlViewModel> BuildMiniPnlAsync(
+        int contractId,
+        RealisedPnlViewModel? realised,
+        string note)
+    {
+        var economics = (await _profitAndLoss.BuildContractEconomicsAsync(
+                [contractId],
+                HttpContext?.RequestAborted ?? CancellationToken.None))
+            .GetValueOrDefault(contractId) ?? new ContractEconomicsSnapshot { ContractId = contractId };
+        return new ContractJourneyMiniPnlViewModel
+        {
+            Realised = realised ?? RealisedPnlViewModel.Empty,
+            TraceableSalesRevenueUsd = economics.RevenueUsd,
+            SoldQuantityMt = economics.SoldQuantityMt,
+            TraceablePurchaseCostUsd = economics.PurchaseValueUsd,
+            PricedPurchaseQuantityMt = economics.PricedLoadedMt,
+            PendingPurchaseQuantityMt = economics.PendingLoadedMt,
+            WeightedAveragePurchasePriceUsd = economics.WeightedAveragePurchasePriceUsd,
+            TraceableExpensesUsd = economics.OperationalCostBaseUsd,
+            CostOfGoodsSoldUsd = economics.RealizedCostOfGoodsSoldUsd,
+            SoldShareRatio = economics.SoldShareRatio,
+            ExpensesForSoldUsd = economics.RealizedOperationalCostUsd,
+            GrossMarginUsd = economics.RealizedGrossMarginUsd,
+            RealizedFxNetUsd = economics.RealizedFxNetUsd,
+            RealizedNetProfitUsd = economics.RealizedNetProfitUsd,
+            Note = note
+        };
+    }
+
+    /// <summary>
+    /// ماندهٔ قرارداد فقط از موتورِ رسمی (جمعِ ماندهٔ طرف‌حساب‌های قرارداد) — همان عددِ گزارش
+    /// «مانده قراردادها» و بستن قرارداد. مثبت = طلب شرکت، منفی = بدهی شرکت.
+    /// </summary>
+    private async Task<decimal> ReadContractBalanceUsdAsync(int contractId)
+        => (await _partyBalances.GetContractBalancesAsync([contractId], ct: HttpContext?.RequestAborted ?? CancellationToken.None))
+            .TryGetValue(contractId, out var balance)
+                ? balance.NetBalanceUsd
+                : 0m;
 
     private async Task PopulateContractsAsync(int? selectedContractId = null)
     {
@@ -1461,12 +1508,6 @@ public partial class ContractJourneyController : Controller
         var saleIdSet = saleItems.Select(s => s.SalesTransactionId).ToHashSet();
         // مصرفِ لغوشده پول نیست و در هیچ جمعی نمی‌آید.
         var totalExpensesUsd = expenses.Where(e => !e.IsCancelled).Sum(e => e.AmountUsd);
-        // مصرفی که از اظهارنامهٔ گمرکی ساخته شده، پایین‌تر یک بار به‌شکل
-        // customsDeclarationTotalUsd شمرده می‌شود؛ پس در جمعِ مصارفِ قابل‌ردیابی
-        // دوباره نمی‌آید. رجوع: CustomsDeclarationExpenseSync.
-        var nonCustomsExpensesUsd = expenses
-            .Where(e => !e.IsCancelled && !e.CustomsDeclarationId.HasValue)
-            .Sum(e => e.AmountUsd);
         var expenseBreakdowns = expenseItems
             .GroupBy(e => string.IsNullOrWhiteSpace(e.ExpenseTypeName) ? "نامشخص" : e.ExpenseTypeName)
             .OrderByDescending(g => g.Sum(e => e.AmountUsd))
@@ -1568,60 +1609,6 @@ public partial class ContractJourneyController : Controller
             .Where(e => e.Stage == LossEventStage.DispatchShortage && e.TruckDispatchId.HasValue)
             .Select(e => e.TruckDispatchId!.Value)
             .ToHashSet();
-
-        decimal? ResolveLossLoadingPriceUsd(LossEvent loss)
-        {
-            if (loss.TransportLegId.HasValue)
-            {
-                return purchaseAgg.WeightedAveragePurchasePriceUsd;
-            }
-
-            // ضایعهٔ تسویه نهایی مخزن روی خودِ مخزن ثبت می‌شود و به بارگیری/رسید/دیسپچ وصل نیست،
-            // پس هیچ‌کدام از مسیرهای زیر قیمت نمی‌دهند و ارزش ضایعه صفر می‌ماند. مثل ضایعهٔ leg-دار
-            // از میانگین وزنی خریدِ همین قرارداد قیمت می‌گیرد.
-            if (loss.Stage == LossEventStage.TankFinalSettlement)
-            {
-                return purchaseAgg.WeightedAveragePurchasePriceUsd;
-            }
-
-            int? loadingRegisterId = loss.LoadingRegisterId;
-            if (!loadingRegisterId.HasValue
-                && loss.LoadingReceiptId.HasValue
-                && receiptById.TryGetValue(loss.LoadingReceiptId.Value, out var receipt))
-            {
-                loadingRegisterId = receipt.LoadingRegisterId;
-            }
-            if (!loadingRegisterId.HasValue
-                && loss.InventoryMovementId.HasValue
-                && movementById.TryGetValue(loss.InventoryMovementId.Value, out var movement)
-                && movement.LoadingReceiptId.HasValue
-                && receiptById.TryGetValue(movement.LoadingReceiptId.Value, out receipt))
-            {
-                loadingRegisterId = receipt.LoadingRegisterId;
-            }
-            if (!loadingRegisterId.HasValue
-                && loss.TruckDispatchId.HasValue
-                && dispatchById.TryGetValue(loss.TruckDispatchId.Value, out var dispatch)
-                && dispatch.LoadingReceiptAllocation?.LoadingReceiptId is int dispatchReceiptId
-                && receiptById.TryGetValue(dispatchReceiptId, out receipt))
-            {
-                loadingRegisterId = receipt.LoadingRegisterId;
-            }
-
-            return loadingRegisterId.HasValue && loadingById.TryGetValue(loadingRegisterId.Value, out var loading)
-                ? ResolveEffectiveLoadingPriceUsd(loading)
-                : null;
-        }
-
-        var traceableLossCostUsd = activeLosses
-            .Where(e => e.ChargeableLossMt > 0m)
-            .Sum(e =>
-            {
-                var loadingPriceUsd = ResolveLossLoadingPriceUsd(e);
-                return HasValidLoadingPrice(loadingPriceUsd)
-                    ? decimal.Round(e.ChargeableLossMt * loadingPriceUsd!.Value, 4, MidpointRounding.AwayFromZero)
-                    : 0m;
-            });
 
         // نمبر وسیلهٔ کسری از همان مرحله‌ای می‌آید که کسری روی آن ثبت شده؛
         // اگر کسری مستقیم به وسیله وصل نباشد، از رسید/حرکت به بارگیری آن می‌رسیم.
@@ -1812,7 +1799,7 @@ public partial class ContractJourneyController : Controller
             .ToList();
         var debitTotalUsd = ledgers.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd);
         var creditTotalUsd = ledgers.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd);
-        var relatedBalanceUsd = creditTotalUsd - debitTotalUsd;
+        var relatedBalanceUsd = await ReadContractBalanceUsdAsync(contractId);
 
         var stockSummary = await _stock.GetStockSummaryAsync(contractId: contractId);
         var currentStockQuantityMt = stockSummary.Sum(s => s.FreeQuantityMt);
@@ -1874,7 +1861,6 @@ public partial class ContractJourneyController : Controller
             Math.Max(contract.QuantityMt - totalLoadedQuantityMt, 0m),
             Math.Max(totalLoadedQuantityMt - totalReceivedQuantityMt - receiptShortageLossMt, 0m));
 
-        var salesRevenueUsd = saleItems.Sum(s => s.AmountUsd);
         // The purchase aggregation snapshot was computed up-front (see the
         // top of this method). All downstream consumers below read from
         // the same snapshot so the numbers stay consistent and the future
@@ -1892,32 +1878,16 @@ public partial class ContractJourneyController : Controller
             loadingRailwayExpenseUsd;
         var contractTransportExpenseUsd = loadingTransportExpenseUsd + expenseTransportFreightUsd;
         var contractStorageRentExpenseUsd = loadingWarehouseExpenseUsd + expenseStorageRentUsd;
-        var pricedPurchaseQuantityMt = purchaseAgg.PricedPurchaseQuantityMt;
         var pendingPurchaseQuantityMt = purchaseAgg.PendingPurchaseQuantityMt;
-        var traceablePurchaseCostUsd = purchaseAgg.TraceablePurchaseCostUsd;
-        var weightedAveragePurchasePriceUsd = purchaseAgg.WeightedAveragePurchasePriceUsd;
-        var traceableOperationalCostUsd =
-            nonCustomsExpensesUsd +
-            loadingOperationalExpenseUsd +
-            customsDeclarationTotalUsd +
-            traceableLossCostUsd;
         // سود محقق‌شدهٔ بخش مالی پرونده قرارداد فقط از ProfitAndLossService می‌آید.
         // نگاشت فروش‌های قابل‌ردیابیِ این قرارداد (saleItems) کار همین کنترلر است،
         // اما درآمد و COGS آن‌ها بازمحاسبه نمی‌شود.
         var realisedContractPnl = await _profitAndLoss.BuildForSalesAsync(
             saleItems.Select(s => s.SalesTransactionId).ToList());
-        var miniPnl = new ContractJourneyMiniPnlViewModel
-        {
-            Realised = realisedContractPnl.ToViewModel(),
-            TraceableSalesRevenueUsd = salesRevenueUsd,
-            SoldQuantityMt = soldQuantityMt,
-            TraceablePurchaseCostUsd = traceablePurchaseCostUsd,
-            PricedPurchaseQuantityMt = pricedPurchaseQuantityMt,
-            PendingPurchaseQuantityMt = pendingPurchaseQuantityMt,
-            WeightedAveragePurchasePriceUsd = weightedAveragePurchasePriceUsd,
-            TraceableExpensesUsd = traceableOperationalCostUsd,
-            Note = "سود و زیان فقط بر پایه فروش انجام‌شده محاسبه می‌شود (هزینه کالای فروخته‌شده)."
-        };
+        var miniPnl = await BuildMiniPnlAsync(
+            contractId,
+            realisedContractPnl.ToViewModel(),
+            "سود محقق فقط بر پایهٔ فروشِ انجام‌شده است (بهای کالای فروخته‌شده و سهمِ فروخته‌شدهٔ هزینه‌ها).");
 
         var kpiCards = BuildKpiCards(kpis);
         var timelineSteps = BuildTimelineSteps(
@@ -2856,13 +2826,6 @@ public partial class ContractJourneyController : Controller
             loadingIdsWithExpenseLines);
         var rubSettlementSummary = BuildRubSettlementSummary(contract, loadingRegisters, contractFinalPriceUsd);
 
-        decimal? ResolveEffectiveLoadingPriceUsd(int? loadingRegisterId)
-            => loadingRegisterId.HasValue && loadingById.TryGetValue(loadingRegisterId.Value, out var loading)
-                ? HasValidLoadingPrice(loading.LoadingPriceUsd)
-                    ? loading.LoadingPriceUsd
-                    : contractFinalPriceUsd
-                : null;
-
         var receiptRows = await _db.LoadingReceipts
             .AsNoTracking()
             .Where(r => loadingIds.Contains(r.LoadingRegisterId) && !r.IsCancelled)
@@ -2984,9 +2947,6 @@ public partial class ContractJourneyController : Controller
             })
             .ToListAsync();
         var movementIds = inventoryMovementRows.Select(m => m.Id).ToList();
-        var movementReceiptById = inventoryMovementRows
-            .Where(m => m.LoadingReceiptId.HasValue)
-            .ToDictionary(m => m.Id, m => m.LoadingReceiptId!.Value);
         var inventorySaleIds = inventoryMovementRows
             .Where(m => m.Direction == MovementDirection.Out && m.SalesTransactionId.HasValue)
             .Select(m => m.SalesTransactionId!.Value)
@@ -3030,9 +2990,6 @@ public partial class ContractJourneyController : Controller
             })
             .ToListAsync();
         var dispatchIds = directDispatchRows.Select(d => d.Id).ToList();
-        var dispatchReceiptById = directDispatchRows
-            .Where(d => d.LoadingReceiptId.HasValue)
-            .ToDictionary(d => d.Id, d => d.LoadingReceiptId!.Value);
         var dispatchQuantityMt = directDispatchRows.Sum(d => d.LoadedQuantityMt);
         var dispatchFreightCostUsd = directDispatchRows.Sum(d => d.FreightCostUsd ?? 0m);
         var dispatchReferenceMap = dispatchIds.ToDictionary(id => $"TRUCK-DISPATCH:{id}", id => id);
@@ -3303,11 +3260,6 @@ public partial class ContractJourneyController : Controller
         var expenseIdSet = expenseRows.Select(e => e.Id).ToHashSet();
         // مصرفِ لغوشده پول نیست و در هیچ جمعی نمی‌آید.
         var totalExpensesUsd = expenseRows.Where(e => !e.IsCancelled).Sum(e => e.AmountUsd) + shipmentSharedExpenseUsd;
-        // مصرفی که از اظهارنامهٔ گمرکی ساخته شده، پایین‌تر یک بار به‌شکل جمع اظهارنامه‌ها
-        // شمرده می‌شود؛ پس در جمعِ مصارفِ قابل‌ردیابی دوباره نمی‌آید.
-        var nonCustomsExpensesUsd = expenseRows
-            .Where(e => !e.IsCancelled && !e.CustomsDeclarationId.HasValue)
-            .Sum(e => e.AmountUsd) + shipmentSharedExpenseUsd;
         var inventoryTransportExpenseTotalUsd = expenseRows
             .Where(e => !e.IsCancelled
                 && e.TransportLegId.HasValue
@@ -3472,58 +3424,6 @@ public partial class ContractJourneyController : Controller
             + shipmentSharedLossMt
             + transportShortageLossMt;
 
-        decimal ResolveTraceableLossCostUsd()
-        {
-            decimal total = 0m;
-            foreach (var loss in activeLosses.Where(e => e.ChargeableLossMt > 0m))
-            {
-                decimal? loadingPriceUsd = null;
-                if (loss.TransportLegId.HasValue)
-                {
-                    loadingPriceUsd = purchaseAgg.WeightedAveragePurchasePriceUsd;
-                }
-                else if (loss.Stage == LossEventStage.TankFinalSettlement)
-                {
-                    // ضایعهٔ تسویه نهایی مخزن به بارگیری/رسید/دیسپچ وصل نیست؛ قیمتش از
-                    // میانگین وزنی خریدِ همین قرارداد می‌آید تا از هزینه جا نیفتد.
-                    loadingPriceUsd = purchaseAgg.WeightedAveragePurchasePriceUsd;
-                }
-                else
-                {
-                    int? loadingRegisterId = loss.LoadingRegisterId;
-                    if (!loadingRegisterId.HasValue
-                        && loss.LoadingReceiptId.HasValue
-                        && receiptLoadingById.TryGetValue(loss.LoadingReceiptId.Value, out var receiptLoadingId))
-                    {
-                        loadingRegisterId = receiptLoadingId;
-                    }
-                    if (!loadingRegisterId.HasValue
-                        && loss.InventoryMovementId.HasValue
-                        && movementReceiptById.TryGetValue(loss.InventoryMovementId.Value, out var movementReceiptId)
-                        && receiptLoadingById.TryGetValue(movementReceiptId, out var movementLoadingId))
-                    {
-                        loadingRegisterId = movementLoadingId;
-                    }
-                    if (!loadingRegisterId.HasValue
-                        && loss.TruckDispatchId.HasValue
-                        && dispatchReceiptById.TryGetValue(loss.TruckDispatchId.Value, out var dispatchReceiptId)
-                        && receiptLoadingById.TryGetValue(dispatchReceiptId, out var dispatchLoadingId))
-                    {
-                        loadingRegisterId = dispatchLoadingId;
-                    }
-
-                    loadingPriceUsd = ResolveEffectiveLoadingPriceUsd(loadingRegisterId);
-                }
-
-                if (HasValidLoadingPrice(loadingPriceUsd))
-                {
-                    total += decimal.Round(loss.ChargeableLossMt * loadingPriceUsd!.Value, 4, MidpointRounding.AwayFromZero);
-                }
-            }
-
-            return total;
-        }
-
         var paymentRows = await _db.PaymentTransactions
             .AsNoTracking()
             .Where(p => p.ContractId == contractId
@@ -3585,7 +3485,7 @@ public partial class ContractJourneyController : Controller
         var ledgers = ledgerRows;
         var debitTotalUsd = ledgers.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd);
         var creditTotalUsd = ledgers.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd);
-        var relatedBalanceUsd = creditTotalUsd - debitTotalUsd;
+        var relatedBalanceUsd = await ReadContractBalanceUsdAsync(contractId);
 
         var stockSummary = await _stock.GetStockSummaryAsync(contractId: contractId);
         var currentStockQuantityMt = stockSummary.Sum(s => s.FreeQuantityMt);
@@ -3601,16 +3501,6 @@ public partial class ContractJourneyController : Controller
             (hasOfficialWagonRentExpense ? 0m : purchaseAgg.LoadingRailwayExpenseUsd);
         var contractTransportExpenseUsd = purchaseAgg.LoadingTransportExpenseUsd + expenseTransportFreightUsd;
         var contractStorageRentExpenseUsd = purchaseAgg.LoadingWarehouseExpenseUsd + expenseStorageRentUsd;
-        var shipmentLossValuationMt = shipmentSharedLossMt + transportShortageLossMt;
-        var shipmentSharedLossCostUsd = HasValidLoadingPrice(purchaseAgg.WeightedAveragePurchasePriceUsd)
-            ? decimal.Round(shipmentLossValuationMt * purchaseAgg.WeightedAveragePurchasePriceUsd!.Value, 4, MidpointRounding.AwayFromZero)
-            : 0m;
-        var traceableOperationalCostUsd =
-            nonCustomsExpensesUsd +
-            loadingOperationalExpenseUsd +
-            customsDeclarations.Sum(c => c.TotalUsd) +
-            ResolveTraceableLossCostUsd() +
-            shipmentSharedLossCostUsd;
 
         var preSaleSectionState = preSaleRows.Any()
             ? new ContractJourneySectionStateViewModel()
@@ -3657,17 +3547,10 @@ public partial class ContractJourneyController : Controller
             PreSaleNote = preSaleSectionState.Message
         };
 
-        var miniPnl = new ContractJourneyMiniPnlViewModel
-        {
-            TraceableSalesRevenueUsd = saleTotalUsd,
-            SoldQuantityMt = saleQuantityMt,
-            TraceablePurchaseCostUsd = purchaseAgg.TraceablePurchaseCostUsd,
-            PricedPurchaseQuantityMt = purchaseAgg.PricedPurchaseQuantityMt,
-            PendingPurchaseQuantityMt = purchaseAgg.PendingPurchaseQuantityMt,
-            WeightedAveragePurchasePriceUsd = purchaseAgg.WeightedAveragePurchasePriceUsd,
-            TraceableExpensesUsd = traceableOperationalCostUsd,
-            Note = "سود و زیان فقط بر پایه فروش انجام‌شده محاسبه می‌شود (هزینه کالای فروخته‌شده)."
-        };
+        var miniPnl = await BuildMiniPnlAsync(
+            contract.Id,
+            realised: null,
+            "سود محقق فقط بر پایهٔ فروشِ انجام‌شده است (بهای کالای فروخته‌شده و سهمِ فروخته‌شدهٔ هزینه‌ها).");
         var nextAction = BuildPurchaseNextAction(
             contract.Id,
             loadingRegisters,
@@ -4486,7 +4369,7 @@ public partial class ContractJourneyController : Controller
             .ToList();
         var debitTotalUsd = ledgers.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd);
         var creditTotalUsd = ledgers.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd);
-        var relatedBalanceUsd = creditTotalUsd - debitTotalUsd;
+        var relatedBalanceUsd = await ReadContractBalanceUsdAsync(contract.Id);
         var totalSalesUsd = saleItems.Sum(s => s.AmountUsd);
         var totalExpensesUsd = expenseItems.Sum(e => e.AmountUsd);
         var totalPaymentsUsd = paymentItems.Sum(p => p.AmountUsd);
@@ -4519,13 +4402,10 @@ public partial class ContractJourneyController : Controller
             TotalPaymentsUsd = totalPaymentsUsd,
             RelatedBalanceUsd = relatedBalanceUsd
         };
-        var miniPnl = new ContractJourneyMiniPnlViewModel
-        {
-            TraceableSalesRevenueUsd = totalSalesUsd,
-            SoldQuantityMt = saleItems.Sum(s => s.QuantityMt),
-            TraceableExpensesUsd = totalExpensesUsd,
-            Note = "سود و زیان فعلی خلاصه عملیاتی است و باید با Ledger و گزارش‌های نهایی بررسی شود."
-        };
+        var miniPnl = await BuildMiniPnlAsync(
+            contract.Id,
+            realised: null,
+            "سود قرارداد فروش: عاید − بهای انبارِ کالای فروخته‌شده − مصارفِ قرارداد ± اثرِ ارزی.");
         var ledgerSummary = new ContractJourneyLedgerSummaryViewModel
         {
             DebitTotalUsd = debitTotalUsd,
@@ -4917,7 +4797,7 @@ public partial class ContractJourneyController : Controller
             new() { Icon = "bi bi-exclamation-triangle", Title = "کسری", Value = $"{kpis.LossQuantityMt:N4} MT", ToneClass = "journey-kpi-danger" },
             new() { Icon = "bi bi-wallet2", Title = "هزینه", Value = $"{kpis.TotalExpensesUsd:N2} USD", ToneClass = "journey-kpi-warning" },
             new() { Icon = "bi bi-cash-stack", Title = "پرداخت", Value = $"{kpis.TotalPaymentsUsd:N2} USD", ToneClass = "journey-kpi-info" },
-            new() { Icon = "bi bi-calculator", Title = "تراز", Value = $"{kpis.RelatedBalanceUsd:N2} USD", ToneClass = "journey-kpi-primary" }
+            new() { Icon = "bi bi-calculator", Title = "ماندهٔ قرارداد", Value = $"{kpis.RelatedBalanceUsd:N2} USD", ToneClass = "journey-kpi-primary" }
         };
 
     private static IReadOnlyList<ContractJourneyTimelineStepViewModel> BuildTimelineSteps(

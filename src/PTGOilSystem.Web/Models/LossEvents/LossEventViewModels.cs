@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -159,13 +159,13 @@ public sealed class LossEventIndexFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "جنس")]
-    public int? ProductId { get; set; }
+    public int[] ProductId { get; set; } = [];
 
     [Display(Name = "قرارداد")]
-    public int? ContractId { get; set; }
+    public int[] ContractId { get; set; } = [];
 
     [Display(Name = "مرحله")]
-    public LossEventStage? Stage { get; set; }
+    public LossEventStage[] Stage { get; set; } = [];
 
     [Display(Name = "مسئول")]
     [StringLength(200)]

@@ -4,38 +4,36 @@
     ViewData["Title"] = T("جزئیات واگون", "Wagon details");
     var profile = ViewData["ResourceProfile"] as TransportResourceProfileViewModel ?? TransportResourceProfileViewModel.Empty();
     var activeTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();
-    activeTab = activeTab is "docs" or "info" ? activeTab : "trips";
-    var docsReady = profile.Documents.Count > 0;
+    activeTab = activeTab == "docs" ? activeTab : "trips";
+    ViewData["DetailsTabsResetQuery"] = new[] { "tripsPage", "docsPage", "page" };
 
     ViewData["AkHeaderStatus"] = Model.IsActive ? T("فعال", "Active") : T("غیرفعال", "Inactive");
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
     ViewData["AkHeaderContext"] = string.Join(" · ", new[]
     {
         Model.Owner,
-        T($"{profile.Trips.Count} سفر", $"{profile.Trips.Count} trips")
+        T($"{profile.OperationCount:N0} عملیات حمل", $"{profile.OperationCount:N0} operations")
     }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
     var summaryItems = new List<AkInfoItem>
     {
+        new() { Label = T("نوع واگون", "Wagon type"), Value = Model.WagonType },
         new() { Label = T("مالک", "Owner"), Value = Model.Owner },
         new() { Label = T("ظرفیت", "Capacity"), Value = Model.CapacityMt?.ToString("N3"), Unit = "MT", IsNumeric = true },
-        new()
-        {
-            Label = T("وضعیت مدارک", "Document status"),
-            Value = docsReady ? T("تکمیل و معتبر", "Complete") : T("نیاز به بررسی", "Needs review"),
-            Tone = docsReady ? null : "warning"
-        },
+        new() { Label = T("اسناد ثبت‌شده", "Recorded documents"), Value = profile.DocumentTotalCount.ToString("N0"), IsNumeric = true },
         new() { Label = T("یادداشت", "Notes"), Value = Model.Notes, IsWide = true }
     };
 
     var advancedItems = new List<AkInfoItem>
     {
-        new() { Label = T("شناسه داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true }
+        new() { Label = T("شناسه داخلی", "Internal id"), Value = $"#{Model.Id}", IsNumeric = true },
+        new() { Label = T("تاریخ ایجاد", "Created"), Value = Model.CreatedAtUtc.ToAfghanistanDisplayDateTime(), IsNumeric = true },
+        new() { Label = T("آخرین ویرایش", "Last updated"), Value = Model.UpdatedAtUtc?.ToAfghanistanDisplayDateTime(), IsNumeric = true }
     };
 
     var tabs = new[]
     {
-        $"trips|{T("سوابق سفرها", "Trips")}||{(activeTab == "trips" ? "active" : "")}",
+        $"trips|{T("سوابق حمل", "Trips")}||{(activeTab == "trips" ? "active" : "")}",
         $"docs|{T("اسناد و مدارک", "Documents")}||{(activeTab == "docs" ? "active" : "")}"
     };
 }
@@ -45,6 +43,8 @@
              model="@((Model.WagonNumber, false,
                        T("ویرایش", "Edit"), "bi-pencil", (string?)Url.Action("Edit", new { id = Model.Id }), (string?)null,
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Index")))" />
+
+    <partial name="~/Views/Shared/_TransportResourceKpis.cshtml" model="profile" />
 
     <partial name="~/Views/Shared/Partials/_DetailSummaryCard.cshtml"
              model="@((T("مشخصات واگون", "Wagon profile"), (string?)null, (IReadOnlyList<AkInfoItem>)summaryItems))" />

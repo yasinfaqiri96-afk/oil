@@ -3,9 +3,13 @@
     ViewData["Title"] = "متمم های قرارداد";
     var contract = ViewBag.Contract as Contract;
     var amendments = Model.ToList();
+    // صفحه‌بندی واقعی: کنترلر فقط سطرهای همین صفحه را می‌فرستد.
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+    var pageCount = ViewBag.PageCount as int? ?? 1;
+    var totalCount = ViewBag.TotalCount as int? ?? amendments.Count;
 }
 
-<div class="ak-form-page ak-list-page">
+<div class="ak-form-page ak-list-page" data-operations-list>
     <div class="ak-page-header">
         <div class="ak-page-heading">
 <h1 class="ak-page-title">متمم های قرارداد <code>@contract?.ContractNumber</code></h1>
@@ -55,6 +59,10 @@
                 }
                 </tbody>
             </table>
+        </div>
+
+        <div class="ak-pager">
+            @await Html.PartialAsync("_OperationsListFooter", (currentPage, pageCount, totalCount, 20))
         </div>
     </div>
 

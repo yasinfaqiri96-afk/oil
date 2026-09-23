@@ -1,9 +1,9 @@
-@model PTGOilSystem.Web.Models.StorageTanks.StorageTankIndexViewModel
+﻿@model PTGOilSystem.Web.Models.StorageTanks.StorageTankIndexViewModel
 @{
     ViewData["Title"] = "مخازن ذخیره";
     ViewData["StorageTanksAssets"] = true;
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
-    var hasFilters = Model.TerminalId.HasValue || Model.ProductId.HasValue || Model.IsActive.HasValue;
+    var hasFilters = Model.TerminalId.Count > 0 || Model.ProductId.Count > 0 || Model.IsActive.HasValue;
     var hasSearch = !string.IsNullOrWhiteSpace(Model.Query) || hasFilters;
 
     string FormatQuantity(decimal value)
@@ -42,10 +42,10 @@
             UiText.T(Context, "جستجو در مخازن...", "Search tanks..."),
             new List<AkFilterDefinition>
             {
-                new("terminalId", UiText.T(Context, "ترمینال", "Terminal"), "select",
-                    tankTerminalOptions, Model.TerminalId?.ToString()),
-                new("productId", UiText.T(Context, "نوع جنس", "Product"), "select",
-                    tankProductOptions, Model.ProductId?.ToString()),
+                AkFilterDefinition.MultiSelect("terminalId", UiText.T(Context, "ترمینال", "Terminal"),
+                    tankTerminalOptions, Model.TerminalId),
+                AkFilterDefinition.MultiSelect("productId", UiText.T(Context, "نوع جنس", "Product"),
+                    tankProductOptions, Model.ProductId),
                 new("isActive", UiText.T(Context, "وضعیت", "Status"), "bool",
                     new List<AkFilterOption>
                     {

@@ -57,7 +57,7 @@ public class ProductsController : Controller
             current?.SecondaryUnitId);
     }
 
-    public async Task<IActionResult> Index(string? q, int? unitId, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(string? q, int[]? unitId, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 12);
         ViewData["PageSize"] = pageSize;
@@ -69,8 +69,9 @@ public class ProductsController : Controller
             .AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(p => p.Code.Contains(q) || p.Name.Contains(q) || (p.NamePersian != null && p.NamePersian.Contains(q)) || (p.Category != null && p.Category.Contains(q)));
-        if (unitId.HasValue)
-            query = query.Where(p => p.UnitId == unitId.Value);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (unitId is { Length: > 0 })
+            query = query.Where(p => p.UnitId != null && unitId.Contains(p.UnitId.Value));
         if (isActive.HasValue)
             query = query.Where(p => p.IsActive == isActive.Value);
 
@@ -79,7 +80,7 @@ public class ProductsController : Controller
         page = Math.Clamp(page, 1, pageCount);
 
         ViewData["q"] = q;
-        ViewData["unitId"] = unitId;
+        ViewData["unitId"] = unitId ?? [];
         ViewData["isActive"] = isActive;
         ViewData["CurrentPage"] = page;
         ViewData["PageCount"] = pageCount;

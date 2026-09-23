@@ -10,9 +10,50 @@ namespace PTGOilSystem.Web.Services.PartyStatements;
 
 public interface IPartyBalanceReadService
 {
+    /// <param name="partyTypes">
+    /// اگر داده شود، فقط ماندهٔ همین نوع‌های طرف‌حساب ساخته می‌شود و منابعی که هیچ‌کدام از
+    /// این نوع‌ها را نمی‌سازند اصلاً از دیتابیس خوانده نمی‌شوند. این فقط «کمتر خواندن» است،
+    /// نه «جور دیگر حساب کردن»: هر منبع فقط نوعِ خودش را تولید می‌کند (صراف → صراف،
+    /// کارمند → کارمند، شریک → شریک)، پس حذفِ منبعی که در فهرست نیست روی عددِ هیچ ردیفِ
+    /// باقی‌مانده اثر ندارد. null یعنی همان رفتار قبلی: همهٔ نوع‌ها.
+    /// </param>
     Task<IReadOnlyList<PartyBalanceSnapshot>> GetBalancesAsync(
         ManagementReportFilterViewModel filter,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        IReadOnlyCollection<PartyStatementPartyType>? partyTypes = null);
+
+    /// <summary>
+    /// ماندهٔ رسمیِ هر طرف‌حساب در دامنهٔ هر قرارداد (همان موتور، همان قواعدِ جهت و انتساب).
+    /// «ماندهٔ قرارداد» جمعِ همین ردیف‌هاست. همهٔ صفحه‌ها، بستن قرارداد و گزارش‌ها از همین
+    /// می‌خوانند. علامت: مثبت = طلب شرکت، منفی = بدهی شرکت.
+    /// </summary>
+    /// <param name="asOfDate">اگر داده شود، مانده تا پایانِ همین روز (اسنادِ بعد از آن شمرده نمی‌شوند).</param>
+    /// <param name="resolveNames">نامِ طرف‌حساب فقط وقتی خوانده می‌شود که مصرف‌کننده لازمش دارد.</param>
+    Task<IReadOnlyDictionary<int, ContractBalanceSummary>> GetContractBalancesAsync(
+        IReadOnlyCollection<int> contractIds,
+        DateTime? asOfDate = null,
+        CancellationToken ct = default,
+        bool resolveNames = true);
+}
+
+public sealed record ContractPartyBalance(
+    int ContractId,
+    PartyStatementPartyType PartyType,
+    int PartyId,
+    string PartyName,
+    decimal ClosingBalanceUsd,
+    decimal TotalOutflowUsd = 0m,
+    decimal TotalReceiptUsd = 0m);
+
+/// <summary>ماندهٔ یک قرارداد به تفکیکِ طرف‌حساب. علامت: مثبت = طلب شرکت، منفی = بدهی شرکت.</summary>
+public sealed record ContractBalanceSummary(int ContractId, IReadOnlyList<ContractPartyBalance> Parties)
+{
+    public decimal NetBalanceUsd => Parties.Sum(p => p.ClosingBalanceUsd);
+    public decimal ReceivableUsd => Parties.Where(p => p.ClosingBalanceUsd > 0m).Sum(p => p.ClosingBalanceUsd);
+    public decimal PayableUsd => -Parties.Where(p => p.ClosingBalanceUsd < 0m).Sum(p => p.ClosingBalanceUsd);
+    /// <summary>جمعِ «برد» (داده‌شده) و «رسید» (گرفته‌شده)؛ مانده = برد − رسید.</summary>
+    public decimal TotalOutflowUsd => Parties.Sum(p => p.TotalOutflowUsd);
+    public decimal TotalReceiptUsd => Parties.Sum(p => p.TotalReceiptUsd);
 }
 
 public sealed record PartyBalanceSnapshot(
@@ -64,6 +105,15 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
     /// <summary>تنها منبعِ ماندهٔ شریک. این گزارش فرمول جداگانه‌ای برای شریک ندارد.</summary>
     private readonly IPartnershipStatementService _partnerships;
 
+    /// <summary>همان سرویسِ ثبت‌شده در DI با قواعدِ پیش‌فرض، برای جایی که سرویس تزریق نشده است.</summary>
+    public static PartyBalanceReadService CreateDefault(ApplicationDbContext db)
+        => new(
+            db,
+            new PartyStatementPolicyResolver(),
+            new CompanyFlowDirectionResolver(),
+            new CompanyFlowBalanceService(),
+            new PartyDirectory(db));
+
     public PartyBalanceReadService(
         ApplicationDbContext db,
         IPartyStatementPolicyResolver policies,
@@ -82,18 +132,37 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
 
     public async Task<IReadOnlyList<PartyBalanceSnapshot>> GetBalancesAsync(
         ManagementReportFilterViewModel filter,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        IReadOnlyCollection<PartyStatementPartyType>? partyTypes = null)
     {
         ArgumentNullException.ThrowIfNull(filter);
 
+        // فهرست خالی با null یکی نیست: null یعنی «همه»، خالی یعنی «هیچ‌کدام».
+        bool Wanted(PartyStatementPartyType type) => partyTypes is null || partyTypes.Contains(type);
+
         var events = new List<BalanceEvent>();
-        await AddLedgerEventsAsync(events, filter, ct);
+
+        // مسیر دفتر تنها منبعِ مشتری/تأمین‌کننده/شرکت خدماتی/راننده/جواز است؛ اگر هیچ‌کدام
+        // خواسته نشده باشند خواندنش هم لازم نیست.
+        if (Wanted(PartyStatementPartyType.Customer)
+            || Wanted(PartyStatementPartyType.Supplier)
+            || Wanted(PartyStatementPartyType.ServiceProvider)
+            || Wanted(PartyStatementPartyType.Driver)
+            || Wanted(PartyStatementPartyType.Company))
+        {
+            await AddLedgerEventsAsync(events, filter, ct);
+        }
 
         if (!filter.CustomerId.HasValue && !filter.SupplierId.HasValue)
         {
-            await AddSarrafEventsAsync(events, filter, ct);
-            await AddEmployeeEventsAsync(events, filter, ct);
-            await AddPartnerEventsAsync(events, filter, ct);
+            if (Wanted(PartyStatementPartyType.Sarraf)) await AddSarrafEventsAsync(events, filter, ct);
+            if (Wanted(PartyStatementPartyType.Employee)) await AddEmployeeEventsAsync(events, filter, ct);
+            if (Wanted(PartyStatementPartyType.Partner)) await AddPartnerEventsAsync(events, filter, ct);
+        }
+
+        if (partyTypes is not null)
+        {
+            events.RemoveAll(e => !partyTypes.Contains(e.PartyType));
         }
 
         var names = await _parties.GetNamesAsync(
@@ -146,6 +215,58 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             .ToList();
     }
 
+    public async Task<IReadOnlyDictionary<int, ContractBalanceSummary>> GetContractBalancesAsync(
+        IReadOnlyCollection<int> contractIds,
+        DateTime? asOfDate = null,
+        CancellationToken ct = default,
+        bool resolveNames = true)
+    {
+        ArgumentNullException.ThrowIfNull(contractIds);
+        var ids = contractIds.Distinct().ToArray();
+        var events = new List<BalanceEvent>();
+        if (ids.Length > 0)
+        {
+            await AddContractLedgerEventsAsync(events, ids, asOfDate, ct);
+            await AddSarrafEventsAsync(events, new ManagementReportFilterViewModel { ToDate = asOfDate }, ct, ids);
+        }
+
+        IReadOnlyDictionary<PartyKey, string> names = resolveNames
+            ? await _parties.GetNamesAsync(
+                events.Select(e => new PartyKey(e.PartyType, e.PartyId)).Distinct().ToArray(),
+                ct)
+            : new Dictionary<PartyKey, string>();
+
+        var result = ids.ToDictionary(
+            id => id,
+            id => new ContractBalanceSummary(id, []));
+        foreach (var contract in events.Where(e => e.ContractId.HasValue).GroupBy(e => e.ContractId!.Value))
+        {
+            var parties = contract
+                .GroupBy(e => new { e.PartyType, e.PartyId })
+                .Select(party =>
+                {
+                    var summary = _balances.Summarize(
+                        0m,
+                        party.Select(e => new CompanyFlowAmount(e.Direction, e.AmountUsd)),
+                        CompanyFlowAccountKind.PartyAccount);
+                    return new ContractPartyBalance(
+                        contract.Key,
+                        party.Key.PartyType,
+                        party.Key.PartyId,
+                        names.GetValueOrDefault(new PartyKey(party.Key.PartyType, party.Key.PartyId), "-"),
+                        summary.ClosingBalance,
+                        summary.TotalOutflow,
+                        summary.TotalReceipt);
+                })
+                .OrderByDescending(p => Math.Abs(p.ClosingBalanceUsd))
+                .ThenBy(p => p.PartyName)
+                .ToList();
+            result[contract.Key] = new ContractBalanceSummary(contract.Key, parties);
+        }
+
+        return result;
+    }
+
     private async Task AddLedgerEventsAsync(
         List<BalanceEvent> target,
         ManagementReportFilterViewModel filter,
@@ -166,16 +287,110 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                     && _db.SalesTransactions.Any(s => s.Id == l.SourceId && s.ContractId == contractId)));
         }
 
-        var rows = await query
-            .Select(l => new
+        // مانده فقط جمعِ هر ترکیب است، نه تک‌تکِ سطرها. پس جمع در PostgreSQL انجام می‌شود و
+        // فقط ترکیب‌های متمایز خوانده می‌شوند. کلیدِ گروه هر چیزی را دارد که روی جهتِ سطر
+        // اثر می‌گذارد (طرف‌حساب، SourceType، Side، نشانهٔ برگشت) به‌علاوهٔ اینکه سطر پیش از
+        // شروع دوره است یا داخل آن. چون مبلغِ هر سطر با Math.Abs وارد می‌شد، اینجا هم
+        // sum(abs(...)) گرفته می‌شود تا عدد دقیقاً همان بماند.
+        var from = filter.FromDate?.Date;
+        var projected = ProjectLedgerRows(query, from);
+
+        var rows = await projected
+            .GroupBy(r => new
             {
-                l.EntryDate,
-                l.Side,
-                l.AmountUsd,
-                l.SourceType,
-                l.Reference,
-                l.SourceId,
-                l.CustomerId,
+                r.EffectiveCustomerId,
+                r.EffectiveSupplierId,
+                r.ServiceProviderId,
+                r.DriverId,
+                r.EffectiveCompanyId,
+                r.Side,
+                r.SourceType,
+                r.HasReversalReference,
+                r.IsOpening
+            })
+            .Select(g => new
+            {
+                g.Key.EffectiveCustomerId,
+                g.Key.EffectiveSupplierId,
+                g.Key.ServiceProviderId,
+                g.Key.DriverId,
+                g.Key.EffectiveCompanyId,
+                g.Key.Side,
+                g.Key.SourceType,
+                g.Key.HasReversalReference,
+                // تاریخِ نمایندهٔ گروه. چون گروه‌ها با IsOpening جدا شده‌اند، بزرگ‌ترین تاریخِ
+                // گروهِ «پیش از دوره» هم هنوز پیش از دوره است و تقسیمِ اول‌دوره/داخل‌دوره
+                // دست‌نخورده می‌ماند. «آخرین حرکت» هم بیشینهٔ همین بیشینه‌هاست.
+                EntryDate = g.Max(r => r.EntryDate),
+                AmountUsd = g.Sum(r => Math.Abs(r.AmountUsd))
+            })
+            .ToListAsync(ct);
+
+        foreach (var row in rows)
+        {
+            // مرجعِ نماینده: فقط باید همان پاسخِ IsReversalReference را بدهد که سطرهای
+            // این گروه می‌دادند. متنِ اصلی در محاسبهٔ مانده نقشی ندارد.
+            var reference = row.HasReversalReference
+                ? CompanyFlowSourceTypes.ReversalReferenceSuffix
+                : null;
+
+            if (row.EffectiveCustomerId.HasValue
+                && (!filter.CustomerId.HasValue || row.EffectiveCustomerId == filter.CustomerId.Value)
+                && !filter.SupplierId.HasValue)
+            {
+                AddLedgerEvent(target, row.EffectiveCustomerId.Value, PartyStatementPartyType.Customer,
+                    CompanyFlowPartyRole.Customer, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, reference);
+            }
+
+            if (row.EffectiveSupplierId.HasValue
+                && (!filter.SupplierId.HasValue || row.EffectiveSupplierId == filter.SupplierId.Value)
+                && !filter.CustomerId.HasValue)
+            {
+                AddLedgerEvent(target, row.EffectiveSupplierId.Value, PartyStatementPartyType.Supplier,
+                    CompanyFlowPartyRole.Supplier, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, reference);
+            }
+
+            if (!filter.CustomerId.HasValue && !filter.SupplierId.HasValue)
+            {
+                if (row.ServiceProviderId.HasValue)
+                {
+                    AddLedgerEvent(target, row.ServiceProviderId.Value, PartyStatementPartyType.ServiceProvider,
+                        CompanyFlowPartyRole.ServiceProvider, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, reference);
+                }
+                if (row.DriverId.HasValue)
+                {
+                    AddLedgerEvent(target, row.DriverId.Value, PartyStatementPartyType.Driver,
+                        CompanyFlowPartyRole.Driver, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, reference);
+                }
+                if (row.EffectiveCompanyId.HasValue)
+                {
+                    AddLedgerEvent(target, row.EffectiveCompanyId.Value, PartyStatementPartyType.Company,
+                        CompanyFlowPartyRole.Company, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, reference);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// انتسابِ هر سطرِ دفتر به طرف‌حساب — تنها تعریفِ «این سطر مالِ کیست». ماندهٔ طرف‌حساب
+    /// (<see cref="GetBalancesAsync"/>) و ماندهٔ قرارداد (<see cref="GetContractBalancesAsync"/>)
+    /// هر دو از همین نگاشت می‌خوانند تا دو فرمولِ جدا ساخته نشود. عضوی که در کلیدِ گروهِ
+    /// مصرف‌کننده نیاید، اصلاً به SQL ترجمه نمی‌شود.
+    /// </summary>
+    private IQueryable<LedgerBalanceRow> ProjectLedgerRows(IQueryable<LedgerEntry> query, DateTime? from)
+        => query.Select(l => new LedgerBalanceRow
+            {
+                EntryDate = l.EntryDate,
+                Side = l.Side,
+                AmountUsd = l.AmountUsd,
+                SourceType = l.SourceType,
+                // فقط «مرجع نشانهٔ برگشت دارد یا نه» لازم است، نه خودِ متنِ مرجع. قاعدهٔ
+                // تشخیص برگشت یک‌جا در CompanyFlowSourceTypes می‌ماند و اینجا تکرار نمی‌شود.
+                HasReversalReference = l.Reference != null
+                    && l.Reference.EndsWith(CompanyFlowSourceTypes.ReversalReferenceSuffix),
+                IsOpening = from.HasValue && l.EntryDate < from.Value,
+                SourceId = l.SourceId,
+                CustomerId = l.CustomerId,
                 // انتساب مشتری قرینهٔ تأمین‌کننده است: هزینه و اسناد نقدیِ بدون طرف‌حساب از راهِ
                 // قرارداد به مشتری نمی‌چسبند. رجوع: LedgerEntryOwnership.CustomerOwnedByContract.
                 EffectiveCustomerId = l.CustomerId
@@ -201,6 +416,8 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                         // AUD-04: هزینه بدون SupplierId صریح از راهِ قرارداد به تأمین‌کننده نمی‌چسبد.
                         ?? (l.SupplierId == null
                             && l.SourceType != LedgerEntryOwnership.ExpenseSourceType
+                            // فروش مالِ مشتریِ سند فروش است، نه تأمین‌کنندهٔ قراردادِ منبع.
+                            && l.SourceType != LedgerEntryOwnership.SaleSourceType
                             // AUD-05: پرداختِ نقدیِ بدون طرف‌حساب هم از راهِ قرارداد به
                             // تأمین‌کننده نمی‌چسبد (کرایه موتر، پرداخت هزینه، کمیسیون …).
                             && !LedgerEntryOwnership.CashSourceTypesWithoutContractParty.Contains(l.SourceType)
@@ -212,8 +429,8 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                             && l.Contract.ContractType == ContractType.Purchase
                                 ? l.Contract.SupplierId
                                 : null),
-                l.ServiceProviderId,
-                l.DriverId,
+                ServiceProviderId = l.ServiceProviderId,
+                DriverId = l.DriverId,
                 // حساب جاریِ جواز. پرداختی که شریک از جیب خودش داده صندوق شرکت را حرکت
                 // نداده، پس خروجِ پولِ شرکت نیست و اینجا شمرده نمی‌شود — وگرنه همان خرج
                 // یک بار به‌عنوان مصرف و یک بار به‌عنوان پرداختِ شرکت دو بار می‌آید.
@@ -228,47 +445,130 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
                                 .Where(s => s.Id == l.SourceId)
                                 .Select(s => s.CompanyId)
                                 .FirstOrDefault()
-                            : null
+                            : null,
+                EmployeeId = l.EmployeeId,
+                PartnerId = l.PartnerId,
+                ContractId = l.ContractId,
+                // فروشی که قراردادِ سندِ دفترش خالی یا قراردادِ دیگری است، از راهِ خودِ فروش به
+                // قراردادِ فروش می‌رسد (همان قاعدهٔ فیلترِ قرارداد در GetBalancesAsync).
+                SaleContractId = l.SourceType == CompanyFlowSourceTypes.Sale
+                    ? _db.SalesTransactions
+                        .Where(s => s.Id == l.SourceId)
+                        .Select(s => s.ContractId)
+                        .FirstOrDefault()
+                    : null
+            });
+
+    private async Task AddContractLedgerEventsAsync(
+        List<BalanceEvent> target,
+        int[] contractIds,
+        DateTime? asOfDate,
+        CancellationToken ct)
+    {
+        var query = _db.LedgerEntries.AsNoTracking()
+            .WhereEffectiveSarrafSettlementLegs(_db)
+            .Where(l => (l.ContractId != null && contractIds.Contains(l.ContractId.Value))
+                || (l.SourceType == CompanyFlowSourceTypes.Sale
+                    && _db.SalesTransactions.Any(s => s.Id == l.SourceId
+                        && s.ContractId != null
+                        && contractIds.Contains(s.ContractId.Value))));
+        if (asOfDate.HasValue)
+        {
+            var end = asOfDate.Value.Date.AddDays(1);
+            query = query.Where(l => l.EntryDate < end);
+        }
+
+        var rows = await ProjectLedgerRows(query, from: null)
+            .GroupBy(r => new
+            {
+                r.ContractId,
+                r.SaleContractId,
+                r.EffectiveCustomerId,
+                r.EffectiveSupplierId,
+                r.ServiceProviderId,
+                r.DriverId,
+                r.EmployeeId,
+                r.PartnerId,
+                r.Side,
+                r.SourceType,
+                r.HasReversalReference
+            })
+            .Select(g => new
+            {
+                g.Key.ContractId,
+                g.Key.SaleContractId,
+                g.Key.EffectiveCustomerId,
+                g.Key.EffectiveSupplierId,
+                g.Key.ServiceProviderId,
+                g.Key.DriverId,
+                g.Key.EmployeeId,
+                g.Key.PartnerId,
+                g.Key.Side,
+                g.Key.SourceType,
+                g.Key.HasReversalReference,
+                EntryDate = g.Max(r => r.EntryDate),
+                AmountUsd = g.Sum(r => Math.Abs(r.AmountUsd))
             })
             .ToListAsync(ct);
 
+        var requested = contractIds.ToHashSet();
         foreach (var row in rows)
         {
-            if (row.EffectiveCustomerId.HasValue
-                && (!filter.CustomerId.HasValue || row.EffectiveCustomerId == filter.CustomerId.Value)
-                && !filter.SupplierId.HasValue)
+            var reference = row.HasReversalReference
+                ? CompanyFlowSourceTypes.ReversalReferenceSuffix
+                : null;
+            // یک سطر ممکن است هم با ContractId خودش و هم از راهِ فروش به قراردادِ دیگری برسد؛
+            // در هر قرارداد دقیقاً یک بار شمرده می‌شود (همان نتیجهٔ فیلترِ تک‌قرارداد).
+            var keys = new List<int>(2);
+            if (row.ContractId is int direct && requested.Contains(direct))
             {
-                AddLedgerEvent(target, row.EffectiveCustomerId.Value, PartyStatementPartyType.Customer,
-                    CompanyFlowPartyRole.Customer, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
+                keys.Add(direct);
+            }
+            if (row.SaleContractId is int viaSale && requested.Contains(viaSale) && row.ContractId != viaSale)
+            {
+                keys.Add(viaSale);
             }
 
-            if (row.EffectiveSupplierId.HasValue
-                && (!filter.SupplierId.HasValue || row.EffectiveSupplierId == filter.SupplierId.Value)
-                && !filter.CustomerId.HasValue)
+            foreach (var contractId in keys)
             {
-                AddLedgerEvent(target, row.EffectiveSupplierId.Value, PartyStatementPartyType.Supplier,
-                    CompanyFlowPartyRole.Supplier, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
-            }
+                void Add(int? partyId, PartyStatementPartyType type, CompanyFlowPartyRole role)
+                {
+                    if (partyId.HasValue)
+                    {
+                        AddLedgerEvent(target, partyId.Value, type, role, row.EntryDate, row.Side,
+                            row.AmountUsd, row.SourceType, reference, contractId);
+                    }
+                }
 
-            if (!filter.CustomerId.HasValue && !filter.SupplierId.HasValue)
-            {
-                if (row.ServiceProviderId.HasValue)
-                {
-                    AddLedgerEvent(target, row.ServiceProviderId.Value, PartyStatementPartyType.ServiceProvider,
-                        CompanyFlowPartyRole.ServiceProvider, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
-                }
-                if (row.DriverId.HasValue)
-                {
-                    AddLedgerEvent(target, row.DriverId.Value, PartyStatementPartyType.Driver,
-                        CompanyFlowPartyRole.Driver, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
-                }
-                if (row.EffectiveCompanyId.HasValue)
-                {
-                    AddLedgerEvent(target, row.EffectiveCompanyId.Value, PartyStatementPartyType.Company,
-                        CompanyFlowPartyRole.Company, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
-                }
+                Add(row.EffectiveCustomerId, PartyStatementPartyType.Customer, CompanyFlowPartyRole.Customer);
+                Add(row.EffectiveSupplierId, PartyStatementPartyType.Supplier, CompanyFlowPartyRole.Supplier);
+                Add(row.ServiceProviderId, PartyStatementPartyType.ServiceProvider, CompanyFlowPartyRole.ServiceProvider);
+                Add(row.DriverId, PartyStatementPartyType.Driver, CompanyFlowPartyRole.Driver);
+                Add(row.EmployeeId, PartyStatementPartyType.Employee, CompanyFlowPartyRole.Employee);
+                Add(row.PartnerId, PartyStatementPartyType.Partner, CompanyFlowPartyRole.Partner);
             }
         }
+    }
+
+    private sealed class LedgerBalanceRow
+    {
+        public DateTime EntryDate { get; init; }
+        public LedgerSide Side { get; init; }
+        public decimal AmountUsd { get; init; }
+        public string SourceType { get; init; } = "";
+        public bool HasReversalReference { get; init; }
+        public bool IsOpening { get; init; }
+        public int SourceId { get; init; }
+        public int? CustomerId { get; init; }
+        public int? EffectiveCustomerId { get; init; }
+        public int? EffectiveSupplierId { get; init; }
+        public int? ServiceProviderId { get; init; }
+        public int? DriverId { get; init; }
+        public int? EmployeeId { get; init; }
+        public int? PartnerId { get; init; }
+        public int? EffectiveCompanyId { get; init; }
+        public int? ContractId { get; init; }
+        public int? SaleContractId { get; init; }
     }
 
     private void AddLedgerEvent(
@@ -280,7 +580,8 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
         LedgerSide side,
         decimal amountUsd,
         string sourceType,
-        string? reference = null)
+        string? reference = null,
+        int? contractId = null)
     {
         // مرجع هم خوانده می‌شود: برگشتِ بارگیری/فروش/مصرف SourceType اصلی را نگه می‌دارد و
         // تنها با پسوندِ مرجع علامت می‌خورد. رجوع: CompanyFlowSourceTypes.ReversalReferenceSuffix.
@@ -288,13 +589,14 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             ? CompanyFlowLifecycle.Reversal
             : CompanyFlowLifecycle.Original;
         var direction = _directions.Resolve(new CompanyFlowEvent(sourceType, side, role, lifecycle));
-        target.Add(new BalanceEvent(partyType, partyId, date, direction, Math.Abs(amountUsd)));
+        target.Add(new BalanceEvent(partyType, partyId, date, direction, Math.Abs(amountUsd), ContractId: contractId));
     }
 
     private async Task AddSarrafEventsAsync(
         List<BalanceEvent> target,
         ManagementReportFilterViewModel filter,
-        CancellationToken ct)
+        CancellationToken ct,
+        int[]? contractIds = null)
     {
         var payments = _db.PaymentTransactions.AsNoTracking().Where(p => p.SarrafId.HasValue);
         var settlements = _db.SarrafSettlements.AsNoTracking()
@@ -315,9 +617,33 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             settlements = settlements.Where(s => s.ContractId == filter.ContractId.Value);
             via = via.Where(l => l.ContractId == filter.ContractId.Value);
         }
+        if (contractIds is not null)
+        {
+            payments = payments.Where(p => p.ContractId != null && contractIds.Contains(p.ContractId.Value));
+            settlements = settlements.Where(s => s.ContractId != null && contractIds.Contains(s.ContractId.Value));
+            via = via.Where(l => l.ContractId != null && contractIds.Contains(l.ContractId.Value));
+        }
+
+        // همان قاعدهٔ تجمیعِ مسیر دفتر: جمع در PostgreSQL، کلیدِ گروه هر چیزی که روی جهت
+        // اثر دارد، به‌علاوهٔ «پیش از شروع دوره یا داخل آن».
+        var from = filter.FromDate?.Date;
 
         var paymentRows = await payments
-            .Select(p => new { SarrafId = p.SarrafId!.Value, p.PaymentDate, p.Direction, p.AmountUsd })
+            .GroupBy(p => new
+            {
+                SarrafId = p.SarrafId!.Value,
+                p.Direction,
+                p.ContractId,
+                IsOpening = from.HasValue && p.PaymentDate < from.Value
+            })
+            .Select(g => new
+            {
+                g.Key.SarrafId,
+                g.Key.Direction,
+                g.Key.ContractId,
+                PaymentDate = g.Max(p => p.PaymentDate),
+                AmountUsd = g.Sum(p => Math.Abs(p.AmountUsd))
+            })
             .ToListAsync(ct);
         target.AddRange(paymentRows.Select(p => new BalanceEvent(
             PartyStatementPartyType.Sarraf,
@@ -326,10 +652,25 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             p.Direction == PaymentDirection.Out
                 ? CompanyFlowDirection.Outflow
                 : CompanyFlowDirection.Receipt,
-            Math.Abs(p.AmountUsd))));
+            Math.Abs(p.AmountUsd),
+            ContractId: p.ContractId)));
 
         var settlementRows = await settlements
-            .Select(s => new { s.SarrafId, s.SettlementDate, s.Direction, s.SarrafChargedAmountUsd })
+            .GroupBy(s => new
+            {
+                s.SarrafId,
+                s.Direction,
+                s.ContractId,
+                IsOpening = from.HasValue && s.SettlementDate < from.Value
+            })
+            .Select(g => new
+            {
+                g.Key.SarrafId,
+                g.Key.Direction,
+                g.Key.ContractId,
+                SettlementDate = g.Max(s => s.SettlementDate),
+                SarrafChargedAmountUsd = g.Sum(s => Math.Abs(s.SarrafChargedAmountUsd))
+            })
             .ToListAsync(ct);
         target.AddRange(settlementRows.Select(s => new BalanceEvent(
             PartyStatementPartyType.Sarraf,
@@ -338,15 +679,39 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             s.Direction == SarrafSettlementDirection.Out
                 ? CompanyFlowDirection.Receipt
                 : CompanyFlowDirection.Outflow,
-            Math.Abs(s.SarrafChargedAmountUsd))));
+            Math.Abs(s.SarrafChargedAmountUsd),
+            ContractId: s.ContractId)));
 
         var viaRows = await via
-            .Select(l => new { SarrafId = l.SourceId, l.EntryDate, l.Side, l.AmountUsd, l.SourceType, l.Reference })
+            .GroupBy(l => new
+            {
+                SarrafId = l.SourceId,
+                l.ContractId,
+                l.Side,
+                l.SourceType,
+                HasReversalReference = l.Reference != null
+                    && l.Reference.EndsWith(CompanyFlowSourceTypes.ReversalReferenceSuffix),
+                IsOpening = from.HasValue && l.EntryDate < from.Value
+            })
+            .Select(g => new
+            {
+                g.Key.SarrafId,
+                g.Key.ContractId,
+                g.Key.Side,
+                g.Key.SourceType,
+                g.Key.HasReversalReference,
+                EntryDate = g.Max(l => l.EntryDate),
+                AmountUsd = g.Sum(l => Math.Abs(l.AmountUsd))
+            })
             .ToListAsync(ct);
         foreach (var row in viaRows)
         {
+            var reference = row.HasReversalReference
+                ? CompanyFlowSourceTypes.ReversalReferenceSuffix
+                : null;
             AddLedgerEvent(target, row.SarrafId, PartyStatementPartyType.Sarraf,
-                CompanyFlowPartyRole.Sarraf, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, row.Reference);
+                CompanyFlowPartyRole.Sarraf, row.EntryDate, row.Side, row.AmountUsd, row.SourceType, reference,
+                row.ContractId);
         }
     }
 
@@ -362,12 +727,29 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
             query = query.Where(t => t.TransactionDate < end);
         }
 
+        // علامتِ مبلغ خودش Side را تعیین می‌کند، پس وارد کلید گروه می‌شود تا جمعِ هر گروه
+        // دقیقاً همان جمعِ سطرهای هم‌جهت باشد.
+        var from = filter.FromDate?.Date;
         var rows = await query
-            .Select(t => new { t.EmployeeId, t.TransactionDate, t.TransactionType, t.AmountUsd })
+            .GroupBy(t => new
+            {
+                t.EmployeeId,
+                t.TransactionType,
+                IsCredit = t.AmountUsd >= 0m,
+                IsOpening = from.HasValue && t.TransactionDate < from.Value
+            })
+            .Select(g => new
+            {
+                g.Key.EmployeeId,
+                g.Key.TransactionType,
+                g.Key.IsCredit,
+                TransactionDate = g.Max(t => t.TransactionDate),
+                AmountUsd = g.Sum(t => Math.Abs(t.AmountUsd))
+            })
             .ToListAsync(ct);
         foreach (var row in rows)
         {
-            var side = row.AmountUsd >= 0m ? LedgerSide.Credit : LedgerSide.Debit;
+            var side = row.IsCredit ? LedgerSide.Credit : LedgerSide.Debit;
             var direction = _directions.Resolve(new CompanyFlowEvent(
                 row.TransactionType.ToString(),
                 side,
@@ -426,10 +808,14 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
         // دوره نسبت داده می‌شود تا هیچ‌وقت خاموش از جمع حذف نشود.
         var undatedFallback = filter.FromDate?.Date ?? DateTime.MinValue;
 
+        // یک بار برای همهٔ شرکا. پیش از این به ازای هر شریک یک صورت‌حساب کامل ساخته می‌شد و
+        // چون دامنهٔ قراردادها یکی بود، همان کوئری‌ها عیناً تکرار می‌شدند. فرمول عوض نشده:
+        // همان IPartnershipStatementService و همان Entries، فقط یک بار خوانده می‌شود.
+        var statements = await _partnerships.BuildForPartnersAsync(partnerIds, contractIds, ct);
+
         foreach (var partnerId in partnerIds)
         {
-            var statement = await _partnerships.BuildForPartnerAsync(partnerId, contractIds, ct);
-            if (statement is null)
+            if (!statements.TryGetValue(partnerId, out var statement) || statement is null)
             {
                 continue;
             }
@@ -469,5 +855,6 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
         DateTime Date,
         CompanyFlowDirection Direction,
         decimal AmountUsd,
-        bool IsDateKnown = true);
+        bool IsDateKnown = true,
+        int? ContractId = null);
 }

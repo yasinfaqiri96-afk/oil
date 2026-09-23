@@ -142,6 +142,9 @@ public sealed class AkKpiItem
     /// <summary>Optional Bootstrap modal id; the figure renders as a button that opens it.</summary>
     public string? ModalTarget { get; init; }
 
+    /// <summary>Optional details link rendered from the metric value.</summary>
+    public string? Href { get; init; }
+
     /// <summary>
     /// Tone class for the linear metric row (<c>_DetailOverview</c>). Only the
     /// meaning-bearing states get a colour; "empty"/"loading" stay neutral so a
@@ -218,6 +221,7 @@ public sealed class AkDetailSecondaryModel
     public IReadOnlyList<AkRelatedRecord> Related { get; init; } = [];
     public IReadOnlyList<AkInfoItem> Technical { get; init; } = [];
     public string? TimelineTitle { get; init; }
+    public bool ShowTimelineDescription { get; init; } = true;
     public int? TimelineLimit { get; init; }
 }
 

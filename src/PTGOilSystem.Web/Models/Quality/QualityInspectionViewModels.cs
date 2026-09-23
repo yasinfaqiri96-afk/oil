@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Models.Quality;
@@ -8,13 +8,13 @@ public sealed class QualityInspectionFilterViewModel
     [Display(Name = "جنس")] public int? ProductId { get; set; }
     [Display(Name = "قرارداد")] public int? ContractId { get; set; }
     [Display(Name = "محموله")] public int? ShipmentId { get; set; }
-    [Display(Name = "وضعیت")] public QualityInspectionStatus? Status { get; set; }
+    [Display(Name = "وضعیت")] public QualityInspectionStatus[] Status { get; set; } = [];
 
     [Display(Name = "از تاریخ"), DataType(DataType.Date)] public DateTime? FromDate { get; set; }
     [Display(Name = "تا تاریخ"), DataType(DataType.Date)] public DateTime? ToDate { get; set; }
 
     public bool HasAny => ProductId.HasValue || ContractId.HasValue || ShipmentId.HasValue
-        || Status.HasValue || FromDate.HasValue || ToDate.HasValue;
+        || Status.Length > 0 || FromDate.HasValue || ToDate.HasValue;
 }
 
 public sealed class QualityInspectionListItemViewModel

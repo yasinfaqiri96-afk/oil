@@ -143,6 +143,12 @@ public sealed class ContractBalanceTransferService : IContractBalanceTransferSer
         }
     }
 
+    /// <summary>
+    /// سقفِ انتقال: بستانکار − بدهکارِ خامِ سطرهای دفترِ همین قرارداد — همان سطرهایی که خودِ انتقال
+    /// (بدهکار روی مبدأ، بستانکار روی مقصد) می‌سازد. عمداً «ماندهٔ قرارداد» (PartyBalanceReadService
+    /// .GetContractBalancesAsync، مثبت = طلب شرکت، با قاعدهٔ معنای هر سند و صراف) نیست: معیارِ دیگری
+    /// با علامتِ دیگر است و تغییرِ این سقف یعنی تغییرِ قاعدهٔ تجاریِ انتقال، که تصمیمِ جداست.
+    /// </summary>
     public async Task<decimal> GetContractNetBalanceUsdAsync(int contractId, CancellationToken ct = default)
     {
         var entries = await _db.LedgerEntries

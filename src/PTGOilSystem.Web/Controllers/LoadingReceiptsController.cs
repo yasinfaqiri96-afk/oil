@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using PTGOilSystem.Web.Helpers;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Text.Json;
@@ -61,6 +62,9 @@ public partial class LoadingReceiptsController : Controller
 
     private readonly IFormTokenGuard _formTokens;
 
+    // کش اختیاری فقط برای گزینه‌های کشویی فیلتر؛ هیچ دادهٔ عملیاتی در آن نگه داشته نمی‌شود.
+    private readonly IMemoryCache? _cache;
+
     public LoadingReceiptsController(
         ApplicationDbContext db,
         IAuditService audit,
@@ -72,7 +76,8 @@ public partial class LoadingReceiptsController : Controller
         Services.LoadingReceipts.ILoadingReceiptCancellationService? cancellation = null,
         Security.ICurrentUserContext? currentUser = null,
         IInventoryMovementWriter? movements = null,
-        IFormTokenGuard? formTokens = null)
+        IFormTokenGuard? formTokens = null,
+        IMemoryCache? cache = null)
     {
         // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
         _formTokens = formTokens ?? new FormTokenGuard(db);
@@ -86,6 +91,7 @@ public partial class LoadingReceiptsController : Controller
         _currencyConversion = currencyConversion ?? new CurrencyConversionService(new PricingService(db));
         _logger = logger;
         _movements = movements ?? new InventoryMovementWriter(db, new StockService(db));
+        _cache = cache;
     }
 
     private bool TryGetLocalReturnUrl(string? returnUrl, out string localReturnUrl)
@@ -246,9 +252,9 @@ public partial class LoadingReceiptsController : Controller
         string? q = null,
         DateTime? fromDate = null,
         DateTime? toDate = null,
-        int? productId = null,
-        int? terminalId = null,
-        int? destination = null,
+        int[]? productId = null,
+        int[]? terminalId = null,
+        int[]? destination = null,
         string? status = null,
         int page = 1,
         [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -274,20 +280,25 @@ public partial class LoadingReceiptsController : Controller
             query = query.Where(receipt => receipt.ReceiptDate < exclusiveToDate);
         }
 
-        if (productId.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (productId is { Length: > 0 })
         {
-            query = query.Where(receipt => receipt.LoadingRegister != null && receipt.LoadingRegister.ProductId == productId.Value);
+            query = query.Where(receipt => receipt.LoadingRegister != null
+                && productId.Contains(receipt.LoadingRegister.ProductId));
         }
 
-        if (terminalId.HasValue)
+        if (terminalId is { Length: > 0 })
         {
-            query = query.Where(receipt => receipt.TerminalId == terminalId.Value);
+            query = query.Where(receipt => terminalId.Contains(receipt.TerminalId));
         }
 
-        if (destination.HasValue && Enum.IsDefined(typeof(LoadingReceiptDestination), destination.Value))
+        var destinationValues = (destination ?? [])
+            .Where(value => Enum.IsDefined(typeof(LoadingReceiptDestination), value))
+            .Select(value => (LoadingReceiptDestination)value)
+            .ToArray();
+        if (destinationValues.Length > 0)
         {
-            var destinationValue = (LoadingReceiptDestination)destination.Value;
-            query = query.Where(receipt => receipt.ReceiptDestination == destinationValue);
+            query = query.Where(receipt => destinationValues.Contains(receipt.ReceiptDestination));
         }
 
         // وضعیت: رسیدهای لغوشده در فهرست دیده می‌شوند، این فیلتر فقط نمایش را محدود می‌کند.
@@ -318,7 +329,23 @@ public partial class LoadingReceiptsController : Controller
                     || (receipt.StorageTank.DisplayName != null && receipt.StorageTank.DisplayName.Contains(normalizedQuery)))));
         }
 
-        var totalCount = await query.CountAsync();
+        // شمارش صفحه و هر سه آمارِ کارت‌ها در یک رفت‌وبرگشت؛ قبلاً چهار query جدا روی همین
+        // مجموعه اجرا می‌شد. قاعدهٔ «لغوشده در جمع‌ها شمرده نمی‌شود» دست‌نخورده است.
+        var stats = await query
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                TotalCount = group.Count(),
+                SumQuantity = group.Sum(receipt => receipt.IsCancelled ? 0m : receipt.ReceivedQuantityMt),
+                WithTankCount = group.Count(receipt => !receipt.IsCancelled && receipt.StorageTank != null),
+                WithReferenceCount = group.Count(receipt => !receipt.IsCancelled
+                    && receipt.ReferenceDocument != null
+                    && receipt.ReferenceDocument != ""
+                    && !receipt.ReferenceDocument.ToUpper().StartsWith("BULK-RCPT-"))
+            })
+            .SingleOrDefaultAsync();
+
+        var totalCount = stats?.TotalCount ?? 0;
         var pageCount = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
         page = Math.Clamp(page, 1, pageCount);
 
@@ -361,36 +388,39 @@ public partial class LoadingReceiptsController : Controller
 
         // آمار کامل روی همهٔ رکوردهای مطابق فیلتر (نه فقط این صفحه) برای کارت‌های آماری و ردیف جمع.
         // رسیدهای لغوشده در فهرست دیده می‌شوند اما در هیچ جمعی شمرده نمی‌شوند.
-        var activeQuery = query.Where(receipt => !receipt.IsCancelled);
-        ViewBag.SumQuantity = await activeQuery.SumAsync(receipt => receipt.ReceivedQuantityMt);
-        ViewBag.WithTankCount = await activeQuery.CountAsync(receipt => receipt.StorageTank != null);
-        ViewBag.WithReferenceCount = await activeQuery.CountAsync(receipt =>
-            receipt.ReferenceDocument != null
-            && receipt.ReferenceDocument != ""
-            && !receipt.ReferenceDocument.ToUpper().StartsWith("BULK-RCPT-"));
+        // مقادیر از همان query ترکیبیِ بالا می‌آیند (بدون رفت‌وبرگشت اضافه).
+        ViewBag.SumQuantity = stats?.SumQuantity ?? 0m;
+        ViewBag.WithTankCount = stats?.WithTankCount ?? 0;
+        ViewBag.WithReferenceCount = stats?.WithReferenceCount ?? 0;
 
         // گزینه‌های فیلتر از روی همان رسیدهای موجود ساخته می‌شوند تا فهرست کوتاه و مرتبط بماند.
-        var filterProducts = await _db.LoadingReceipts
-            .AsNoTracking()
-            .Where(receipt => receipt.LoadingRegister != null && receipt.LoadingRegister.Product != null)
-            .Select(receipt => new { receipt.LoadingRegister!.ProductId, receipt.LoadingRegister.Product!.Name })
-            .Distinct()
-            .OrderBy(product => product.Name)
-            .ToListAsync();
-        ViewBag.FilterProducts = filterProducts
-            .Select(product => new SelectListItem(product.Name, product.ProductId.ToString()))
-            .ToList();
+        // این دو فهرست به فیلترِ کاربر وابسته نیستند، پس برای یک بازهٔ کوتاه کش می‌شوند و
+        // اسکن DISTINCT در هر باز شدن صفحه تکرار نمی‌شود.
+        ViewBag.FilterProducts = await FilterOptionCache.GetOrCreateAsync(
+            _cache,
+            "loading-receipts:filter-products",
+            async () => (await _db.LoadingReceipts
+                    .AsNoTracking()
+                    .Where(receipt => receipt.LoadingRegister != null && receipt.LoadingRegister.Product != null)
+                    .Select(receipt => new { receipt.LoadingRegister!.ProductId, receipt.LoadingRegister.Product!.Name })
+                    .Distinct()
+                    .OrderBy(product => product.Name)
+                    .ToListAsync())
+                .Select(product => new SelectListItem(product.Name, product.ProductId.ToString()))
+                .ToList());
 
-        var filterTerminals = await _db.LoadingReceipts
-            .AsNoTracking()
-            .Where(receipt => receipt.Terminal != null)
-            .Select(receipt => new { receipt.TerminalId, receipt.Terminal!.Name })
-            .Distinct()
-            .OrderBy(terminal => terminal.Name)
-            .ToListAsync();
-        ViewBag.FilterTerminals = filterTerminals
-            .Select(terminal => new SelectListItem(terminal.Name, terminal.TerminalId.ToString()))
-            .ToList();
+        ViewBag.FilterTerminals = await FilterOptionCache.GetOrCreateAsync(
+            _cache,
+            "loading-receipts:filter-terminals",
+            async () => (await _db.LoadingReceipts
+                    .AsNoTracking()
+                    .Where(receipt => receipt.Terminal != null)
+                    .Select(receipt => new { receipt.TerminalId, receipt.Terminal!.Name })
+                    .Distinct()
+                    .OrderBy(terminal => terminal.Name)
+                    .ToListAsync())
+                .Select(terminal => new SelectListItem(terminal.Name, terminal.TerminalId.ToString()))
+                .ToList());
 
         return View(new LoadingReceiptIndexViewModel
         {

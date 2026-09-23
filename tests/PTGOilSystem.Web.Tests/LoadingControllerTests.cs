@@ -26,7 +26,7 @@ namespace PTGOilSystem.Web.Tests;
 public class LoadingControllerTests
 {
     [Fact]
-    public async Task Index_Defaults_To_Twenty_And_Uses_Saved_Page_Size()
+    public async Task Index_Defaults_To_Ten_Ignores_Legacy_Cookie_And_Honors_Explicit_Page_Size()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -36,8 +36,8 @@ public class LoadingControllerTests
         var defaultController = NewLoadingController(db);
         defaultController.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         var defaultResult = Assert.IsType<ViewResult>(await defaultController.Index());
-        Assert.Equal(20, defaultController.ViewData["PageSize"]);
-        Assert.Equal(20, defaultController.ViewData["DefaultPageSize"]);
+        Assert.Equal(10, defaultController.ViewData["PageSize"]);
+        Assert.Equal(10, defaultController.ViewData["DefaultPageSize"]);
         Assert.IsType<LoadingIndexViewModel>(defaultResult.Model);
 
         var savedController = NewLoadingController(db);
@@ -45,7 +45,12 @@ public class LoadingControllerTests
         savedContext.Request.Headers.Cookie = "ptg-loading-page-size=50";
         savedController.ControllerContext = new ControllerContext { HttpContext = savedContext };
         await savedController.Index();
-        Assert.Equal(50, savedController.ViewData["PageSize"]);
+        Assert.Equal(10, savedController.ViewData["PageSize"]);
+
+        var explicitController = NewLoadingController(db);
+        explicitController.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+        await explicitController.Index(perPage: 50);
+        Assert.Equal(50, explicitController.ViewData["PageSize"]);
     }
 
     // امپورت دیگر View برنمی‌گرداند؛ سطرهای آمادهٔ فرم را به‌صورت JSON می‌دهد.
@@ -1145,8 +1150,11 @@ public class LoadingControllerTests
         Assert.Equal(1, await db.LoadingRegisters.CountAsync());
     }
 
+    // قرارداد نرخ نهایی قطعی (ManualFinalPriceUsd) دارد و کاربر قیمت سطر را وارد نکرده است:
+    // همان نرخ قرارداد روی بارگیری ذخیره می‌شود تا بارگیری «در انتظار نرخ» نماند. حالتِ
+    // «قرارداد بدون نرخ قطعی» را Create_Post_Allows_Formula_Contract_Blank_Row_Pricing_When_Platts_Is_Unavailable می‌پوشاند.
     [Fact]
-    public async Task Create_Post_Leaves_Row_Price_Pending_When_User_Does_Not_Enter_Loading_Price()
+    public async Task Create_Post_Completes_Row_Price_From_The_Contract_Final_Rate()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -1206,7 +1214,7 @@ public class LoadingControllerTests
 
         var loading = await db.LoadingRegisters.SingleAsync();
         Assert.Null(loading.PlattsUsd);
-        Assert.Null(loading.LoadingPriceUsd);
+        Assert.Equal(468.06m, loading.LoadingPriceUsd);
     }
 
     [Fact]
@@ -1678,7 +1686,8 @@ public class LoadingControllerTests
         Assert.Equal("Turkmenistan, Okarem -> Herat, Afghanistan", firstRow.RouteDescription);
         Assert.Equal(1426.4m, firstRow.TransportExpenseUsd);
         Assert.Null(firstRow.PlattsUsd);
-        Assert.Null(firstRow.LoadingPriceUsd);
+        // فایل ستون قیمت ندارد، پس سطر نرخ نهایی قطعی قرارداد را می‌گیرد.
+        Assert.Equal(468.06m, firstRow.LoadingPriceUsd);
 
         var secondRow = model.Rows[1];
         Assert.Null(secondRow.TruckId);
@@ -1814,7 +1823,7 @@ public class LoadingControllerTests
         Assert.Equal(LoadingTransportType.Truck, loading.TransportType);
         Assert.Equal(truck.Id, loading.TruckId);
         Assert.Null(loading.PlattsUsd);
-        Assert.Null(loading.LoadingPriceUsd);
+        Assert.Equal(468.06m, loading.LoadingPriceUsd);
     }
 
     [Fact]
@@ -2079,6 +2088,40 @@ public class LoadingControllerTests
             QuantityMt = 40m,
             ReferenceDocument = "RCPT-100"
         });
+        db.InventoryTransportLegs.AddRange(
+            new InventoryTransportLeg
+            {
+                Id = 41,
+                SourcePurchaseContractId = 1,
+                ProductId = 1,
+                LoadedDate = new DateTime(2026, 4, 24),
+                QuantityMt = 10m,
+                Status = InventoryTransportLegStatus.Loaded
+            },
+            new InventoryTransportLeg
+            {
+                Id = 42,
+                SourcePurchaseContractId = 1,
+                ProductId = 1,
+                LoadedDate = new DateTime(2026, 4, 24),
+                QuantityMt = 5m,
+                Status = InventoryTransportLegStatus.Cancelled
+            });
+        db.InventoryTransportLegAllocations.AddRange(
+            new InventoryTransportLegAllocation
+            {
+                InventoryTransportLegId = 41,
+                SourcePurchaseContractId = 1,
+                SourceLoadingRegisterId = 10,
+                QuantityMt = 10m
+            },
+            new InventoryTransportLegAllocation
+            {
+                InventoryTransportLegId = 42,
+                SourcePurchaseContractId = 1,
+                SourceLoadingRegisterId = 10,
+                QuantityMt = 5m
+            });
         await db.SaveChangesAsync();
 
         var controller = new LoadingController(
@@ -2099,7 +2142,9 @@ public class LoadingControllerTests
         Assert.Equal("Terminal Ilinka", model.ConsigneeName);
         Assert.Equal("Trusovo", model.DestinationName);
         Assert.Equal(40m, model.TotalReceivedQuantityMt);
-        Assert.Equal(21.5m, model.RemainingToReceiveMt);
+        Assert.Equal(11.5m, model.RemainingToReceiveMt);
+        Assert.Equal(1, model.ActiveTransportCount);
+        Assert.Equal(41, model.FirstActiveTransportLegId);
         var receipt = Assert.Single(model.ReceiptItems);
         Assert.Equal(21, receipt.Id);
         Assert.Equal("Ilinka Terminal", receipt.TerminalName);

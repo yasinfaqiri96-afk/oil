@@ -17,6 +17,9 @@ namespace PTGOilSystem.Web.Tests.Simulation;
 /// این تست هیچ‌گاه به دیتابیس Production وصل نمی‌شود (نگهبان DatabaseSafetyGuard).
 /// </summary>
 [Collection(SimulationPostgresCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
+[Trait("Category", "Simulation")]
 public sealed class TwelveMonthProductionSimulationTests
 {
     private readonly SimulationPostgresFixture _fixture;

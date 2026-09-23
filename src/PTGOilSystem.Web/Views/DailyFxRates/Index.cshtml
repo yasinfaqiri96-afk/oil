@@ -1,4 +1,4 @@
-@model IEnumerable<DailyFxRate>
+﻿@model IEnumerable<DailyFxRate>
 @{
     ViewData["Title"] = "نرخ ارز روزانه";
     var items = Model.ToList();
@@ -42,8 +42,8 @@
             "جستجو در ارز پایه، ارز مقصد یا منبع...",
             new List<AkFilterDefinition>
             {
-                new("baseCcy", "ارز پایه", "select", fxBaseOptions, ViewData["baseCcy"]?.ToString()),
-                new("quoteCcy", "ارز مقصد", "select", fxQuoteOptions, ViewData["quoteCcy"]?.ToString()),
+                AkFilterDefinition.MultiSelect("baseCcy", "ارز پایه", fxBaseOptions, AkFilterQuery.Values(Context, "baseCcy")),
+                AkFilterDefinition.MultiSelect("quoteCcy", "ارز مقصد", fxQuoteOptions, AkFilterQuery.Values(Context, "quoteCcy")),
                 new("from", "بازه تاریخ", "daterange", null,
                     ViewData["from"]?.ToString(), "to", ViewData["to"]?.ToString())
             });

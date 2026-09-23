@@ -132,9 +132,14 @@
                             <td class="ak-col-num ak-num">@Money(totalB.ProceedsHeldUsd)</td>
                         </tr>
                         <tr>
-                            <td class="ak-col-grow">سهم مفاد</td>
+                            <td class="ak-col-grow">سهم مفاد محقق</td>
                             <td class="ak-col-num ak-num">@Money(totalA.ProfitShareUsd)</td>
                             <td class="ak-col-num ak-num">@Money(totalB.ProfitShareUsd)</td>
+                        </tr>
+                        <tr>
+                            <td class="ak-col-grow">سهم هزینهٔ کالای فروخته‌نشده</td>
+                            <td class="ak-col-num ak-num">@Money(totalA.UnsoldCostShareUsd)</td>
+                            <td class="ak-col-num ak-num">@Money(totalB.UnsoldCostShareUsd)</td>
                         </tr>
                         <tr>
                             <td class="ak-col-grow">تسویهٔ پرداخت‌شده به شریک دیگر</td>
@@ -286,10 +291,18 @@
                                 <td class="ak-col-num ak-num">@Money(contract.OperationalExpenseUsd)</td>
                             </tr>
                             <tr class="ak-table-total">
-                                <td class="ak-col-grow">مفاد قرارداد — فروش منهای خرید و مصارف</td>
+                                <td class="ak-col-grow">مفاد محقق قرارداد — فروش منهای بهای کالای فروخته‌شده و سهم مصارف، ± اثر ارزی</td>
                                 <td>@PartnershipStatementSources.Book</td>
                                 <td class="ak-col-num ak-num">@Money(contract.BookProfitUsd)</td>
                             </tr>
+                            @if (contract.UnrealizedCostCarriedUsd != 0m)
+                            {
+                                <tr>
+                                    <td class="ak-col-grow">هزینهٔ کالای هنوز فروخته‌نشده — به نسبت سهم بین شرکا</td>
+                                    <td>@PartnershipStatementSources.Book</td>
+                                    <td class="ak-col-num ak-num">@Money(contract.UnrealizedCostCarriedUsd)</td>
+                                </tr>
+                            }
                             @foreach (var partner in contract.Partners)
                             {
                                 <tr>

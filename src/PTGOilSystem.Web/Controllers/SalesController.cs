@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -194,7 +194,7 @@ public partial class SalesController : Controller
         SalesCreateViewModel? createModel = null,
         SalesIndexFilterViewModel? filter = null)
     {
-        var selectedSaleContractId = createModel?.ContractId ?? filter?.ContractId;
+        var selectedSaleContractId = createModel?.ContractId ?? filter?.ContractId.Only();
         var selectedShipmentId = createModel?.ShipmentId;
 
         var saleContracts = await _db.Contracts
@@ -250,7 +250,7 @@ public partial class SalesController : Controller
             companyLookups,
             "Id",
             "Name",
-            createModel?.CompanyId ?? filter?.CompanyId);
+            createModel?.CompanyId ?? filter?.CompanyId.Only());
 
         var customerLookups = await GetCachedLookupAsync(
             "sales:lookups:customers:v1",
@@ -264,7 +264,7 @@ public partial class SalesController : Controller
             customerLookups,
             "Id",
             "Name",
-            createModel?.CustomerId ?? filter?.CustomerId);
+            createModel?.CustomerId ?? filter?.CustomerId.Only());
 
         var productLookups = await GetCachedLookupAsync(
             "sales:lookups:products:v1",
@@ -278,7 +278,7 @@ public partial class SalesController : Controller
             productLookups,
             "Id",
             "Name",
-            createModel?.ProductId ?? filter?.ProductId);
+            createModel?.ProductId ?? filter?.ProductId.Only());
 
         var destinationLookups = await GetCachedLookupAsync(
             "sales:lookups:destinations:v1",
@@ -407,7 +407,7 @@ public partial class SalesController : Controller
             : null;
         int? selectedCompanyId = createModel is not null && createModel.CompanyId > 0
             ? createModel.CompanyId
-            : filter?.CompanyId;
+            : filter?.CompanyId.Only();
         var selectedSourcePurchaseContractId = createModel?.SourcePurchaseContractId;
         var purchaseContractsQuery = _db.Contracts
             .AsNoTracking()
@@ -653,35 +653,51 @@ public partial class SalesController : Controller
 
         query = query.Where(s => !s.IsCancelled);
 
-        if (filter.ContractId.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر (همان زنجیرهٔ منابعِ قبلی، فقط برای
+        // چند قرارداد)، AND بین فیلترهای مختلف.
+        if (filter.ContractId.Length > 0)
         {
-            var contractId = filter.ContractId.Value;
+            var contractIds = filter.ContractId;
             query = query.Where(s =>
-                s.ContractId == contractId
-                || s.SourcePurchaseContractId == contractId
+                (s.ContractId != null && contractIds.Contains(s.ContractId.Value))
+                || (s.SourcePurchaseContractId != null && contractIds.Contains(s.SourcePurchaseContractId.Value))
                 || _db.TruckDispatches.Any(d =>
                     d.Id == s.TruckDispatchId
-                    && d.ContractId == contractId)
+                    && contractIds.Contains(d.ContractId))
                 || _db.LoadingReceiptAllocations.Any(a =>
-                    a.SourcePurchaseContractId == contractId
+                    a.SourcePurchaseContractId != null
+                    && contractIds.Contains(a.SourcePurchaseContractId.Value)
                     && a.SalesTransactionId == s.Id)
                 || _db.InventoryMovements.Any(m =>
                     m.Direction == MovementDirection.Out
-                    && m.ContractId == contractId
+                    && m.ContractId != null
+                    && contractIds.Contains(m.ContractId.Value)
                     && m.SalesTransactionId == s.Id)
                 || _db.TruckDispatches.Any(d =>
-                    d.ContractId == contractId
+                    contractIds.Contains(d.ContractId)
                     && d.SalesTransactionId == s.Id)
                 || _db.InventoryTransportReceipts.Any(r =>
                     r.SalesTransactionId == s.Id
                     && !r.IsCancelled
                     && _db.InventoryTransportLegs.Any(l =>
                         l.Id == r.InventoryTransportLegId
-                        && l.SourcePurchaseContractId == contractId)));
+                        && contractIds.Contains(l.SourcePurchaseContractId))));
         }
-        if (filter.CompanyId.HasValue) query = query.Where(s => s.CompanyId == filter.CompanyId.Value);
-        if (filter.CustomerId.HasValue) query = query.Where(s => s.CustomerId == filter.CustomerId.Value);
-        if (filter.ProductId.HasValue) query = query.Where(s => s.ProductId == filter.ProductId.Value);
+        if (filter.CompanyId.Length > 0)
+        {
+            var companyIds = filter.CompanyId;
+            query = query.Where(s => s.CompanyId != null && companyIds.Contains(s.CompanyId.Value));
+        }
+        if (filter.CustomerId.Length > 0)
+        {
+            var customerIds = filter.CustomerId;
+            query = query.Where(s => customerIds.Contains(s.CustomerId));
+        }
+        if (filter.ProductId.Length > 0)
+        {
+            var productIds = filter.ProductId;
+            query = query.Where(s => productIds.Contains(s.ProductId));
+        }
         if (!string.IsNullOrWhiteSpace(filter.InvoiceNumber))
         {
             var invoice = filter.InvoiceNumber.Trim();
@@ -2212,15 +2228,10 @@ public partial class SalesController : Controller
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.PaymentTransactionId)
             .ToList();
-        var directReceivedUsd = directPayments.Sum(p => p.IsIncoming ? p.AmountUsd : -p.AmountUsd);
-        var receivedUsd = decimal.Round(
-            directReceivedUsd + appliedAdvances.Sum(p => p.AmountUsd),
-            4,
-            MidpointRounding.AwayFromZero);
-        var openReceivableUsd = decimal.Round(
-            sale.TotalUsd - receivedUsd,
-            4,
-            MidpointRounding.AwayFromZero);
+        // وصولی و طلبِ باز فقط از مرجعِ واحدِ وصولیِ فروش؛ فهرستِ بالا فقط نمایشِ همان اسناد است.
+        var settlement = (await ReceiptApplications.GetSaleSettlementsAsync([sale.Id]))[sale.Id];
+        var receivedUsd = settlement.NetReceivedUsd;
+        var openReceivableUsd = settlement.OpenReceivableUsd(sale.TotalUsd);
 
         // دریافت‌های آزادِ همین مشتری، تا مانده این فروش بدون ساختن ساختار موازی تطبیق شود.
         var applicableReceipts = sale.IsCancelled || openReceivableUsd <= 0m || sale.CustomerId <= 0

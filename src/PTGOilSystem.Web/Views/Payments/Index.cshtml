@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Payments.PaymentIndexViewModel
+﻿@model PTGOilSystem.Web.Models.Payments.PaymentIndexViewModel
 @using System.Globalization
 @using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
@@ -22,6 +22,9 @@
     var paymentUsdUnit = Model.TodayPaymentMissingUsdEquivalentCount > 0
         ? $"USD · {Model.TodayPaymentMissingUsdEquivalentCount:N0} سند بدون معادل USD"
         : "USD";
+    var cashUsdUnit = Model.CashBalanceMissingUsdEquivalentCount > 0
+        ? $"USD · {Model.CashBalanceMissingUsdEquivalentCount:N0} سند بدون معادل USD"
+        : "USD";
 }
 
 <div class="ak-list-page finance-workspace-page ak-journal-page">
@@ -33,7 +36,7 @@
     <section class="ak-stat-grid" aria-label="خلاصهٔ مالی">
         <vc:stat-card title="دریافتی امروز — معادل USD" value="@Model.TodayReceiptUsd.ToString("N2")" unit="@receiptUsdUnit" avatar="receipts"></vc:stat-card>
         <vc:stat-card title="پرداختی امروز — معادل USD" value="@Model.TodayPaymentUsd.ToString("N2")" unit="@paymentUsdUnit" avatar="payments-out"></vc:stat-card>
-        <vc:stat-card title="مانده نقدی" value="@Model.CashAccountsBalanceUsd.ToString("N2")" unit="USD" avatar="treasury"></vc:stat-card>
+        <vc:stat-card title="مانده نقدی" value="@Model.CashAccountsBalanceUsd.ToString("N2")" unit="@cashUsdUnit" avatar="treasury"></vc:stat-card>
         <vc:stat-card title="تعداد تراکنش‌ها" value="@Model.TotalCount.ToString("N0")" unit="مورد" avatar="cash-flow"></vc:stat-card>
     </section>
 
@@ -45,22 +48,18 @@
                 {
                     new("FromDate", "بازه تاریخ", "daterange", null,
                         f.FromDate?.ToHtmlDateInput(), "ToDate", f.ToDate?.ToHtmlDateInput()),
-                    new("Direction", "نوع سند", "select",
-                        directions.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(),
-                        f.Direction.HasValue ? ((int)f.Direction.Value).ToString() : null),
-                    new("PaymentKind", "بابت", "select",
-                        paymentKinds.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(),
-                        f.PaymentKind.HasValue ? ((int)f.PaymentKind.Value).ToString() : null),
-                    new("CounterpartyType", "نوع طرف حساب", "select",
-                        counterpartyTypes.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(),
-                        f.CounterpartyType.HasValue ? ((int)f.CounterpartyType.Value).ToString() : null),
-                    new("CustomerId", "مشتری", "select",
-                        customers.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(), f.CustomerId?.ToString()),
-                    new("SupplierId", "تأمین‌کننده", "select",
-                        suppliers.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(), f.SupplierId?.ToString()),
-                    new("CashAccountId", "حساب نقدی/بانکی", "select",
-                        cashAccounts.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(),
-                        f.CashAccountId?.ToString())
+                    AkFilterDefinition.MultiSelect("Direction", "نوع سند",
+                        directions.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(), AkFilterQuery.Values(Context, "Direction")),
+                    AkFilterDefinition.MultiSelect("PaymentKind", "بابت",
+                        paymentKinds.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(), AkFilterQuery.Values(Context, "PaymentKind")),
+                    AkFilterDefinition.MultiSelect("CounterpartyType", "نوع طرف حساب",
+                        counterpartyTypes.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(), AkFilterQuery.Values(Context, "CounterpartyType")),
+                    AkFilterDefinition.MultiSelect("CustomerId", "مشتری",
+                        customers.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(), AkFilterQuery.Values(Context, "CustomerId")),
+                    AkFilterDefinition.MultiSelect("SupplierId", "تأمین‌کننده",
+                        suppliers.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(), AkFilterQuery.Values(Context, "SupplierId")),
+                    AkFilterDefinition.MultiSelect("CashAccountId", "حساب نقدی/بانکی",
+                        cashAccounts.Select(i => new AkFilterOption(i.Value, i.Text)).ToList(), AkFilterQuery.Values(Context, "CashAccountId"))
                 });
         }
         <div class="ak-list-toolbar">

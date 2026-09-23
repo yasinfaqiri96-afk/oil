@@ -41,7 +41,9 @@ run-dev.bat
 ## تست
 
 ```powershell
-dotnet test tests/PTGOilSystem.Web.Tests/PTGOilSystem.Web.Tests.csproj
+.\scripts\test-fast.ps1 -Build # پس از تغییر source: build یک‌بار + تست روزمره
+.\scripts\test-fast.ps1        # استفادهٔ مجدد از build موجود
+.\scripts\test-full.ps1        # همهٔ تست‌ها، شامل Simulation و Performance
 ```
 
 baseline فعلی: `883 pass / 16 fail / 899 total`. ۱۶ شکست بدهی قدیمی و شناخته‌شده‌اند — [docs/TESTING.md](docs/TESTING.md).

@@ -1,47 +1,73 @@
 @model TransportResourceProfileViewModel
 @{
-    const int PageSize = 4;
-    var requestedPage = Context.Request.Query["page"].ToString();
-    var currentPage = int.TryParse(requestedPage, out var parsedPage) && parsedPage > 0 ? parsedPage : 1;
-    var totalCount = Model.Documents.Count;
-    var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
-    currentPage = Math.Min(currentPage, pageCount);
-    var visibleDocuments = Model.Documents
-        .Skip((currentPage - 1) * PageSize)
-        .Take(PageSize)
-        .ToList();
+    // صفحه‌بندی سمت DB در TransportResourceProfileBuilder انجام شده؛ اینجا فقط صفحهٔ جاری می‌آید.
+    const string PageKey = "docsPage";
+    var totalCount = Model.DocumentTotalCount;
+    var visibleDocuments = Model.Documents;
+    var hasExpiry = visibleDocuments.Any(d => d.ExpiryDate.HasValue);
+    bool CanOpen(TransportResourceDocumentItem item)
+        => !string.IsNullOrWhiteSpace(item.Controller) && !string.IsNullOrWhiteSpace(item.Action) && item.RouteId.HasValue
+           && PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller);
 
     string FormatDate(DateTime? date) => date.HasValue ? date.Value.ToDisplayDate() : "بدون تاریخ";
 }
 
-<div>
-    @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("پرونده اسناد الکترونیک", (string?)$"{totalCount} سند"))
+<div id="resource-docs">
+    @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("پرونده اسناد", (string?)$"{totalCount:N0} سند"))
 
     @if (visibleDocuments.Any())
     {
-        <div class="ak-list">
-            @foreach (var item in visibleDocuments)
-            {
-                <article class="ak-list-row">
-                    <div>
-                        <span>تاریخ ثبت</span>
-                        <strong>@FormatDate(item.Date)</strong>
-                    </div>
-                    <div>
-                        <strong>@item.Number</strong>
-                        <span>@item.Type</span>
-                        <small>@item.Source</small>
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(item.Controller) && !string.IsNullOrWhiteSpace(item.Action) && item.RouteId.HasValue)
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <thead>
+                    <tr>
+                        <th>تاریخ</th>
+                        <th>نوع سند</th>
+                        <th>شماره</th>
+                        <th class="ak-col-grow ak-col-priority-2">منبع</th>
+                        @if (hasExpiry)
+                        {
+                            <th>انقضا</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in visibleDocuments)
                     {
-                        <a asp-controller="@item.Controller" asp-action="@item.Action" asp-route-id="@item.RouteId" class="btn btn-light ak-secondary-action">باز کردن</a>
+                        <tr>
+                            <td class="ak-num">@FormatDate(item.Date)</td>
+                            <td>@item.Type</td>
+                            <td>
+                                @if (CanOpen(item))
+                                {
+                                    <a asp-controller="@item.Controller" asp-action="@item.Action" asp-route-id="@item.RouteId"><bdi>@item.Number</bdi></a>
+                                }
+                                else
+                                {
+                                    <bdi>@item.Number</bdi>
+                                }
+                            </td>
+                            <td class="ak-col-grow ak-col-priority-2">@item.Source</td>
+                            @if (hasExpiry)
+                            {
+                                <td class="ak-num">
+                                    @if (item.ExpiryDate.HasValue)
+                                    {
+                                        <span class="ak-status @(item.IsExpired ? "is-danger" : "is-active")">@item.ExpiryDate.Value.ToDisplayDate()</span>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </td>
+                            }
+                        </tr>
                     }
-                </article>
-            }
+                </tbody>
+            </table>
         </div>
 
-        @* اندازهٔ صفحهٔ ثابت این بخش؛ انتخابگر تعداد سطرِ لیست اصلی نباید اینجا تکرار شود. *@
-        @await Html.PartialAsync("_Pagination", (currentPage, pageCount), new ViewDataDictionary(ViewData) { ["PageSize"] = null })
+        <partial name="~/Views/Shared/Partials/_DetailPager.cshtml" model="@((Model.DocumentPage, Model.DocumentPageCount, PageKey, (string?)"resource-docs"))" />
     }
     else
     {

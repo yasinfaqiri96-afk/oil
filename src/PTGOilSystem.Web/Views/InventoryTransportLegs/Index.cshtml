@@ -40,10 +40,10 @@
                 new List<AkFilterDefinition>
                 {
                     new("Filter.WorkflowState", UiText.T(Context, "وضعیت", "Status"), "select", Options(ViewBag.WorkflowStateOptions), QueryValue("Filter.WorkflowState")),
-                    new("Filter.TransportType", UiText.T(Context, "نوع وسیله", "Vehicle type"), "select", Options(ViewBag.TransportTypeOptions), QueryValue("Filter.TransportType")),
-                    new("Filter.ProductId", UiText.T(Context, "محصول", "Product"), "select", Options(ViewBag.Products), QueryValue("Filter.ProductId")),
-                    new("Filter.ContractId", UiText.T(Context, "قرارداد/منبع", "Contract/source"), "select", Options(ViewBag.Contracts), QueryValue("Filter.ContractId")),
-                    new("Filter.StorageTankId", UiText.T(Context, "مخزن", "Tank"), "select", Options(ViewBag.StorageTanks), QueryValue("Filter.StorageTankId")),
+                    AkFilterDefinition.MultiSelect("Filter.TransportType", UiText.T(Context, "نوع وسیله", "Vehicle type"), Options(ViewBag.TransportTypeOptions), AkFilterQuery.Values(Context, "Filter.TransportType")),
+                    AkFilterDefinition.MultiSelect("Filter.ProductId", UiText.T(Context, "محصول", "Product"), Options(ViewBag.Products), AkFilterQuery.Values(Context, "Filter.ProductId")),
+                    AkFilterDefinition.MultiSelect("Filter.ContractId", UiText.T(Context, "قرارداد/منبع", "Contract/source"), Options(ViewBag.Contracts), AkFilterQuery.Values(Context, "Filter.ContractId")),
+                    AkFilterDefinition.MultiSelect("Filter.StorageTankId", UiText.T(Context, "مخزن", "Tank"), Options(ViewBag.StorageTanks), AkFilterQuery.Values(Context, "Filter.StorageTankId")),
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "Filter.ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd"))
                 });

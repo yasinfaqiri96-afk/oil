@@ -44,7 +44,7 @@
         <vc:stat-card title="@T("درآمد فروش", "Sales revenue")"
                       value="@StatCardFormatter.Number(Model.TotalDirectSaleRevenueUsd, 0)"
                       unit="USD" avatar="report-sales"></vc:stat-card>
-        <vc:stat-card title="@T("مفاد ناخالص", "Gross profit")"
+        <vc:stat-card title="@T("مفاد چرخهٔ کامل", "Lifecycle profit")"
                       value="@StatCardFormatter.Number(Model.TotalDirectSaleGrossMarginUsd, 0)"
                       unit="USD"
                       state="@(Model.TotalDirectSaleGrossMarginUsd < 0m ? "warning" : null)"
@@ -93,14 +93,15 @@
                             <th class="ak-col-num">@T("بارگیری MT","Loaded MT")</th>
                             <th class="ak-col-num">@T("جمع مصارف (USD)","Total cost (USD)")</th>
                             <th class="ak-col-num">@T("درآمد (USD)","Revenue (USD)")</th>
-                            <th class="ak-col-num">@T("مفاد (USD)","Profit (USD)")</th>
+                            <th class="ak-col-num">@T("مفاد چرخهٔ کامل (USD)","Lifecycle profit (USD)")</th>
+                            <th class="ak-col-num">@T("سود محقق (USD)","Realized profit (USD)")</th>
                             <th class="ak-col-num">@T("فیصدی","Margin")</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (!Model.PurchaseRows.Any())
                         {
-                            <tr><td colspan="8"><div class="ak-empty"><i class="bi bi-file-earmark-x"></i> @T("قراردادی یافت نشد.","No contracts found.")</div></td></tr>
+                            <tr><td colspan="9"><div class="ak-empty"><i class="bi bi-file-earmark-x"></i> @T("قراردادی یافت نشد.","No contracts found.")</div></td></tr>
                         }
                         @foreach (var row in Model.PurchaseRows)
                         {
@@ -129,6 +130,9 @@
                                 <td class="ak-col-num ak-num">@Money(row.TotalRevenueUsd)</td>
                                 <td class="ak-col-num ak-num @(row.GrossMarginUsd < 0m ? "ak-number--negative" : null)">
                                     @(row.TotalRevenueUsd > 0m ? row.GrossMarginUsd.ToString("N2") : "—")
+                                </td>
+                                <td class="ak-col-num ak-num @(row.RealizedNetProfitUsd < 0m ? "ak-number--negative" : null)">
+                                    @(row.TotalRevenueUsd > 0m ? row.RealizedNetProfitUsd.ToString("N2") : "—")
                                 </td>
                                 <td class="ak-col-num ak-num @(row.MarginPercent < 0m ? "ak-number--negative" : null)">
                                     @(row.MarginPercent.HasValue ? row.MarginPercent.Value.ToString("N1") + "%" : "—")

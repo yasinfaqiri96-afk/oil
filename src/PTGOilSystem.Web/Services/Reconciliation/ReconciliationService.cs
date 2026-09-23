@@ -1,10 +1,13 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Employees;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
+using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Models.Reconciliation;
+using PTGOilSystem.Web.Models.Reports;
+using PTGOilSystem.Web.Services.PartyStatements;
 using PTGOilSystem.Web.Services.Employees;
 using PTGOilSystem.Web.Services.Time;
 
@@ -24,12 +27,16 @@ public partial class ReconciliationService : IReconciliationService
     public ReconciliationService(
         ApplicationDbContext db,
         IPurchaseAggregationService? purchaseAggregation = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        IPartyBalanceReadService? partyBalances = null)
     {
         _db = db;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
+        _partyBalances = partyBalances ?? PartyBalanceReadService.CreateDefault(db);
     }
+
+    private readonly IPartyBalanceReadService _partyBalances;
 
     // شمارنده‌های صفحهٔ Index. هر badge به منطق کامل مغایرت نیاز دارد (نه یک COUNT ساده)،
     // بنابراین کنترلر آن را با AJAX و بعد از رندر صفحه صدا می‌زند. منطق شمارش تغییر نکرده.
@@ -79,40 +86,48 @@ public partial class ReconciliationService : IReconciliationService
 
     public async Task<RoznamchaReconciliationViewModel> BuildRoznamchaReconciliationAsync()
     {
+        // فقط ستون‌هایی که شش کنترلِ پایین و سطرِ خروجی واقعاً می‌خوانند. پیش از این کلِ
+        // موجودیتِ پرداخت با هشت Include و یک کوئریِ جداگانهٔ حساب نقدی خوانده می‌شد.
+        // شرط‌ها و خروجی دست‌نخورده‌اند؛ فقط شکلِ خواندن عوض شده.
         var payments = await _db.PaymentTransactions
             .AsNoTracking()
-            .Include(p => p.Customer)
-            .Include(p => p.Supplier)
-            .Include(p => p.ServiceProvider)
-            .Include(p => p.Sarraf)
-            .Include(p => p.Employee)
-            .Include(p => p.Driver)
-            .Include(p => p.ExpenseTransaction)
-            .Include(p => p.LedgerEntry)
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.Id)
+            .Select(p => new RoznamchaPaymentRow(
+                p.Id,
+                p.PaymentDate,
+                p.Direction,
+                p.PaymentKind,
+                p.AmountUsd,
+                p.Reference,
+                p.FundingSource,
+                p.CashAccountId,
+                p.CashAccount != null,
+                p.CashAccount != null ? p.CashAccount.Name : null,
+                p.Customer != null ? p.Customer.Name
+                    : p.Supplier != null ? p.Supplier.Name
+                    : p.ServiceProvider != null ? p.ServiceProvider.Name
+                    : p.Sarraf != null ? p.Sarraf.Name
+                    : p.Employee != null ? p.Employee.FullName
+                    : p.Driver != null ? p.Driver.FullName
+                    : p.ExpenseTransaction != null ? p.ExpenseTransaction.Description
+                    : null,
+                p.LedgerEntryId,
+                p.LedgerEntry != null,
+                p.LedgerEntry != null ? (decimal?)p.LedgerEntry.AmountUsd : null,
+                p.LedgerEntry != null ? (int?)p.LedgerEntry.SourceId : null,
+                p.LedgerEntry != null ? p.LedgerEntry.SourceType : null,
+                p.DriverId,
+                p.TruckDispatchId,
+                p.ServiceProviderId,
+                p.SarrafId,
+                p.ExpenseTransactionId,
+                p.ContractId,
+                p.ShipmentId,
+                p.EmployeeId,
+                p.SupplierId,
+                p.CustomerId))
             .ToListAsync();
-
-        var cashAccountIds = payments
-            .Where(p => p.CashAccountId is > 0)
-            .Select(p => p.CashAccountId!.Value)
-            .Distinct()
-            .ToList();
-        var cashAccounts = cashAccountIds.Count == 0
-            ? new Dictionary<int, CashAccount>()
-            : await _db.CashAccounts
-                .AsNoTracking()
-                .Where(a => cashAccountIds.Contains(a.Id))
-                .ToDictionaryAsync(a => a.Id);
-
-        foreach (var payment in payments)
-        {
-            if (payment.CashAccountId.HasValue
-                && cashAccounts.TryGetValue(payment.CashAccountId.Value, out var cashAccount))
-            {
-                payment.CashAccount = cashAccount;
-            }
-        }
 
         var expenseIds = payments
             .Where(p => p.ExpenseTransactionId.HasValue)
@@ -144,16 +159,16 @@ public partial class ReconciliationService : IReconciliationService
         // پرداختِ تأمین‌شده توسط شریک عمداً حساب نقدی ندارد؛ نبودِ حساب برای آن مغایرت نیست.
         var paymentsWithoutCashAccount = payments
             .Where(p => p.FundingSource != PaymentFundingSource.Partner
-                && (p.CashAccountId is null or <= 0 || p.CashAccount is null))
+                && (p.CashAccountId is null or <= 0 || !p.HasCashAccount))
             .Select(p => ToRoznamchaIssue(p, "Roznamcha payment has no valid cash/bank account."))
             .ToList();
 
         var ledgerAmountMismatches = payments
-            .Where(p => p.LedgerEntry is not null
-                && (decimal.Round(p.LedgerEntry.AmountUsd, 4, MidpointRounding.AwayFromZero)
+            .Where(p => p.HasLedgerEntry
+                && (decimal.Round(p.LedgerAmountUsd ?? 0m, 4, MidpointRounding.AwayFromZero)
                     != decimal.Round(p.AmountUsd, 4, MidpointRounding.AwayFromZero)
-                    || p.LedgerEntry.SourceId != p.Id
-                    || p.LedgerEntry.SourceType != p.PaymentKind.ToString()))
+                    || p.LedgerSourceId != p.Id
+                    || p.LedgerSourceType != p.PaymentKind.ToString()))
             .Select(p => ToRoznamchaIssue(p, "Roznamcha payment amount/source does not match linked ledger."))
             .ToList();
 
@@ -190,8 +205,37 @@ public partial class ReconciliationService : IReconciliationService
         };
     }
 
+    /// <summary>ستون‌های لازمِ کنترل‌های روزنامچه — به‌جای کلِ موجودیتِ پرداخت با Includeها.</summary>
+    private sealed record RoznamchaPaymentRow(
+        int Id,
+        DateTime PaymentDate,
+        PaymentDirection Direction,
+        PaymentKind PaymentKind,
+        decimal AmountUsd,
+        string? Reference,
+        PaymentFundingSource FundingSource,
+        int? CashAccountId,
+        bool HasCashAccount,
+        string? CashAccountName,
+        string? CounterpartyName,
+        int? LedgerEntryId,
+        bool HasLedgerEntry,
+        decimal? LedgerAmountUsd,
+        int? LedgerSourceId,
+        string? LedgerSourceType,
+        int? DriverId,
+        int? TruckDispatchId,
+        int? ServiceProviderId,
+        int? SarrafId,
+        int? ExpenseTransactionId,
+        int? ContractId,
+        int? ShipmentId,
+        int? EmployeeId,
+        int? SupplierId,
+        int? CustomerId);
+
     private static RoznamchaReconciliationItemViewModel ToRoznamchaIssue(
-        PaymentTransaction payment,
+        RoznamchaPaymentRow payment,
         string issue,
         string status = "Needs Review")
         => new()
@@ -200,17 +244,11 @@ public partial class ReconciliationService : IReconciliationService
             PaymentDate = payment.PaymentDate,
             DirectionName = PaymentDirectionLabels.ToPersian(payment.Direction),
             PaymentKindName = PaymentKindLabels.ToPersian(payment.PaymentKind),
-            CashAccountName = payment.CashAccount?.Name,
-            CounterpartyName = payment.Customer?.Name
-                ?? payment.Supplier?.Name
-                ?? payment.ServiceProvider?.Name
-                ?? payment.Sarraf?.Name
-                ?? payment.Employee?.FullName
-                ?? payment.Driver?.FullName
-                ?? payment.ExpenseTransaction?.Description,
+            CashAccountName = payment.CashAccountName,
+            CounterpartyName = payment.CounterpartyName,
             AmountUsd = payment.AmountUsd,
             LedgerEntryId = payment.LedgerEntryId,
-            LedgerAmountUsd = payment.LedgerEntry?.AmountUsd,
+            LedgerAmountUsd = payment.LedgerAmountUsd,
             Reference = payment.Reference,
             Issue = issue,
             Status = status
@@ -468,7 +506,8 @@ public partial class ReconciliationService : IReconciliationService
                 .ThenInclude(d => d.DestinationLocation)
             .Include(a => a.DirectTruckDispatches)
                 .ThenInclude(d => d.SalesTransaction)
-            .AsSplitQuery()
+            // فقط یک Include مجموعه‌ای وجود دارد، پس split query صرفاً یک رفت‌وبرگشت اضافه
+            // می‌سازد و هیچ ضرب دکارتیِ چندمجموعه‌ای را هم جلوگیری نمی‌کند.
             .Where(a => a.Destination == LoadingReceiptAllocationDestination.DirectDispatchToTruck)
             .OrderBy(a => a.Id)
             .ToListAsync();
@@ -586,16 +625,35 @@ public partial class ReconciliationService : IReconciliationService
             })
             .ToListAsync();
 
-        var supplierPaymentRows = await _db.PaymentTransactions
+        // پرداخت‌های تأمین‌کننده و خدمات‌دهنده در یک query خوانده و بعد در حافظه جدا می‌شوند؛
+        // قبلاً دو اسکن جدا روی همین جدول بود. فیلتر تأمین‌کننده همان چهار حالتی است که
+        // پایین‌تر issue می‌سازد، پس هیچ سطر issue‌داری از قلم نمی‌افتد و ترتیب هم یکی است.
+        var counterpartyPaymentRows = await _db.PaymentTransactions
             .AsNoTracking()
             .Include(p => p.Supplier)
             .Include(p => p.Contract)
                 .ThenInclude(c => c!.Supplier)
+            .Include(p => p.ServiceProvider)
             .Include(p => p.LedgerEntry)
-            .Where(p => p.PaymentKind == PaymentKind.SupplierPayment)
+            .Where(p => (p.PaymentKind == PaymentKind.SupplierPayment
+                    && (!p.SupplierId.HasValue
+                        || (p.ContractId.HasValue
+                            && p.Contract != null
+                            && p.Contract.SupplierId.HasValue
+                            && p.Contract.SupplierId.Value != p.SupplierId.Value)
+                        || !p.LedgerEntryId.HasValue
+                        || p.LedgerEntry == null
+                        || p.LedgerEntry.SupplierId != p.SupplierId
+                        || p.LedgerEntry.ContractId != p.ContractId))
+                || p.ServiceProviderId.HasValue
+                || p.PaymentKind == PaymentKind.ServiceProviderPayment)
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.Id)
             .ToListAsync();
+
+        var supplierPaymentRows = counterpartyPaymentRows
+            .Where(p => p.PaymentKind == PaymentKind.SupplierPayment)
+            .ToList();
 
         SupplierPaymentReconciliationItemViewModel ToSupplierPaymentIssue(PaymentTransaction payment, string issue)
             => new()
@@ -638,19 +696,45 @@ public partial class ReconciliationService : IReconciliationService
             .Select(p => ToSupplierPaymentIssue(p, "پرداخت تأمین‌کننده رکورد دفتر کل متناظر ندارد."))
             .ToList();
 
-        var supplierLedgerRows = await _db.LedgerEntries
+        // دو کنترل دفتر کل (ارزِ تأمین‌کننده، و ردیابی ناقصِ خدمات‌دهنده) در یک query خوانده
+        // و بعد جدا می‌شوند؛ قبلاً دو اسکن جدا روی همین جدول بود. شرط هر کدام دست‌نخورده است.
+        var supplierOrServiceProviderLedgerRows = await _db.LedgerEntries
             .AsNoTracking()
             .Include(l => l.Supplier)
             .Include(l => l.Contract)
                 .ThenInclude(c => c!.Supplier)
-            .Where(l => l.SupplierId.HasValue
-                || (l.ContractId.HasValue
-                    && l.Contract != null
-                    && l.Contract.ContractType == ContractType.Purchase
-                    && l.Contract.SupplierId.HasValue))
+            .Include(l => l.ServiceProvider)
+            .Where(l => (l.ServiceProviderId.HasValue
+                    && (l.SourceId <= 0
+                        || l.SourceType == null
+                        || l.SourceType.Trim() == ""
+                        || l.Reference == null
+                        || l.Reference.Trim() == ""))
+                || ((l.SupplierId.HasValue
+                        || (l.ContractId.HasValue
+                            && l.Contract != null
+                            && l.Contract.ContractType == ContractType.Purchase
+                            && l.Contract.SupplierId.HasValue))
+                    // شرط مالیِ issue که در SQL قابل ترجمه است، همین‌جا اعمال می‌شود تا کل دفتر
+                    // تأمین‌کننده در حافظه ساخته نشود. کنترل ارز پایین‌تر روی همین مجموعه انجام
+                    // می‌شود، پس مجموعهٔ نهایی دقیقاً مثل قبل است.
+                    && (!l.AppliedFxRateToUsd.HasValue
+                        || l.AppliedFxRateToUsd.Value <= 0m
+                        || l.AmountUsd <= 0m)))
             .OrderByDescending(l => l.EntryDate)
             .ThenByDescending(l => l.Id)
             .ToListAsync();
+
+        var supplierLedgerRows = supplierOrServiceProviderLedgerRows
+            .Where(l => (l.SupplierId.HasValue
+                    || (l.ContractId.HasValue
+                        && l.Contract != null
+                        && l.Contract.ContractType == ContractType.Purchase
+                        && l.Contract.SupplierId.HasValue))
+                && (!l.AppliedFxRateToUsd.HasValue
+                    || l.AppliedFxRateToUsd.Value <= 0m
+                    || l.AmountUsd <= 0m))
+            .ToList();
 
         var supplierLedgerFxIssues = supplierLedgerRows
             .Select(l => new
@@ -678,13 +762,23 @@ public partial class ReconciliationService : IReconciliationService
             })
             .ToList();
 
-        var serviceProviderExpenseRows = await _db.ExpenseTransactions
+        // مصارف خدمات‌دهنده و مصارفِ دارایی غیرفعال در یک query خوانده می‌شوند؛ قبلاً دو
+        // اسکن جدا روی همین جدول بود. هر مجموعه با فیلتر و ترتیب قبلی خودش جدا می‌شود.
+        var assetOrServiceProviderExpenseRows = await _db.ExpenseTransactions
             .AsNoTracking()
             .Include(e => e.ServiceProvider)
-            .Where(e => e.ServiceProviderId.HasValue)
+            .Include(e => e.OperationalAsset)
+            .Where(e => e.ServiceProviderId.HasValue
+                || (e.OperationalAssetId.HasValue
+                    && !e.IsCancelled
+                    && (e.OperationalAsset == null || !e.OperationalAsset.IsActive)))
             .OrderByDescending(e => e.ExpenseDate)
             .ThenByDescending(e => e.Id)
             .ToListAsync();
+
+        var serviceProviderExpenseRows = assetOrServiceProviderExpenseRows
+            .Where(e => e.ServiceProviderId.HasValue)
+            .ToList();
 
         var serviceProviderExpenseIds = serviceProviderExpenseRows
             .Select(e => e.Id)
@@ -702,14 +796,10 @@ public partial class ReconciliationService : IReconciliationService
             .GroupBy(l => l.SourceId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var serviceProviderPaymentRows = await _db.PaymentTransactions
-            .AsNoTracking()
-            .Include(p => p.ServiceProvider)
-            .Include(p => p.LedgerEntry)
+        // از همان مجموعهٔ خوانده‌شدهٔ بالا جدا می‌شود؛ فیلتر و ترتیب دست‌نخورده است.
+        var serviceProviderPaymentRows = counterpartyPaymentRows
             .Where(p => p.ServiceProviderId.HasValue || p.PaymentKind == PaymentKind.ServiceProviderPayment)
-            .OrderByDescending(p => p.PaymentDate)
-            .ThenByDescending(p => p.Id)
-            .ToListAsync();
+            .ToList();
 
         ServiceProviderReconciliationItemViewModel ToServiceProviderExpenseIssue(
             ExpenseTransaction expense,
@@ -780,14 +870,11 @@ public partial class ReconciliationService : IReconciliationService
             .Select(p => ToServiceProviderPaymentIssue(p, "Service provider payment has no ledger entry."))
             .ToList();
 
-        var serviceProviderLedgerMissingSourceRows = await _db.LedgerEntries
-            .AsNoTracking()
-            .Include(l => l.ServiceProvider)
+        // از همان مجموعهٔ خوانده‌شدهٔ بالا جدا می‌شود؛ شرط و ترتیب دست‌نخورده است.
+        var serviceProviderLedgerMissingSourceRows = supplierOrServiceProviderLedgerRows
             .Where(l => l.ServiceProviderId.HasValue
                 && (l.SourceId <= 0 || string.IsNullOrWhiteSpace(l.SourceType) || string.IsNullOrWhiteSpace(l.Reference)))
-            .OrderByDescending(l => l.EntryDate)
-            .ThenByDescending(l => l.Id)
-            .ToListAsync();
+            .ToList();
         var serviceProviderLedgerMissingSource = serviceProviderLedgerMissingSourceRows
             .Select(l => ToServiceProviderLedgerIssue(l, "Service provider ledger entry has incomplete source/reference trace."))
             .ToList();
@@ -909,15 +996,49 @@ public partial class ReconciliationService : IReconciliationService
             .Select(s => ToSarrafSettlementIssue(s, "Sarraf exchange difference ledger amount/source does not match settlement."))
             .ToList();
 
-        var assetRentRows = await _db.AssetRentTransactions
+        // همهٔ ردیف‌های دفتر که منبعشان کرایهٔ دارایی است یک‌بار خوانده می‌شوند و تمام کنترل‌های
+        // مالیِ کرایه روی همین مجموعه انجام می‌گیرد، تا هر کنترل یک رفت‌وبرگشت جدا به دیتابیس نزند.
+        var assetRentLedgerRows = await _db.LedgerEntries
+            .AsNoTracking()
+            .Where(l => l.SourceType == AssetRentLedgerFactory.LedgerSourceType)
+            .Select(l => new AssetRentLedgerProbe(
+                l.Id,
+                l.SourceId,
+                l.Side,
+                l.AmountUsd,
+                l.CustomerId,
+                l.ContractId,
+                l.ServiceProviderId))
+            .ToListAsync();
+        var assetRentLedgersByRentId = assetRentLedgerRows
+            .GroupBy(l => l.RentId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<AssetRentLedgerProbe>)g.ToList());
+
+        static IReadOnlyList<AssetRentLedgerProbe> LedgersFor(
+            IReadOnlyDictionary<int, IReadOnlyList<AssetRentLedgerProbe>> map,
+            int rentId)
+            => map.TryGetValue(rentId, out var rows) ? rows : [];
+
+        // کرایه‌های لغوشده‌ای که اثر مالی دارند در همان query کرایه‌های فعال خوانده می‌شوند؛
+        // قبلاً دو اسکن جدا روی همین جدول بود. دو مجموعه با همان ترتیب قبلی جدا می‌شوند.
+        var cancelledRentIdsWithLedger = assetRentLedgerRows
+            .Select(l => l.RentId)
+            .Distinct()
+            .ToArray();
+
+        var assetRentAllRows = await _db.AssetRentTransactions
             .AsNoTracking()
             .Include(r => r.OperationalAsset)
             .Include(r => r.RentShares)
             .Include(r => r.LedgerEntry)
-            .Where(r => !r.IsCancelled)
+            .Where(r => !r.IsCancelled || cancelledRentIdsWithLedger.Contains(r.Id))
             .OrderByDescending(r => r.RentDate)
             .ThenByDescending(r => r.Id)
             .ToListAsync();
+
+        var assetRentRows = assetRentAllRows
+            .Where(r => !r.IsCancelled)
+            .ToList();
 
         OperationalAssetReconciliationItemViewModel ToAssetRentIssue(
             AssetRentTransaction rent,
@@ -1050,15 +1171,12 @@ public partial class ReconciliationService : IReconciliationService
             })
             .ToList();
 
-        var assetExpenseInactiveAssetRows = await _db.ExpenseTransactions
-            .AsNoTracking()
-            .Include(e => e.OperationalAsset)
+        // از همان مجموعهٔ خوانده‌شدهٔ بالا جدا می‌شود؛ فیلتر و ترتیب دست‌نخورده است.
+        var assetExpenseInactiveAssetRows = assetOrServiceProviderExpenseRows
             .Where(e => e.OperationalAssetId.HasValue
                 && !e.IsCancelled
                 && (e.OperationalAsset == null || !e.OperationalAsset.IsActive))
-            .OrderByDescending(e => e.ExpenseDate)
-            .ThenByDescending(e => e.Id)
-            .ToListAsync();
+            .ToList();
         var assetExpenseInactiveAssetIssues = assetExpenseInactiveAssetRows
             .Select(e => ToAssetExpenseIssue(
                 e,
@@ -1073,29 +1191,6 @@ public partial class ReconciliationService : IReconciliationService
             .Select(r => ToAssetRentIssue(r, "Asset rent is marked posted but has no ledger entry."))
             .ToList();
 
-        // همهٔ ردیف‌های دفتر که منبعشان کرایهٔ دارایی است یک‌بار خوانده می‌شوند و تمام کنترل‌های
-        // مالیِ کرایه روی همین مجموعه انجام می‌گیرد، تا هر کنترل یک رفت‌وبرگشت جدا به دیتابیس نزند.
-        var assetRentLedgerRows = await _db.LedgerEntries
-            .AsNoTracking()
-            .Where(l => l.SourceType == AssetRentLedgerFactory.LedgerSourceType)
-            .Select(l => new AssetRentLedgerProbe(
-                l.Id,
-                l.SourceId,
-                l.Side,
-                l.AmountUsd,
-                l.CustomerId,
-                l.ContractId,
-                l.ServiceProviderId))
-            .ToListAsync();
-        var assetRentLedgersByRentId = assetRentLedgerRows
-            .GroupBy(l => l.RentId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<AssetRentLedgerProbe>)g.ToList());
-
-        static IReadOnlyList<AssetRentLedgerProbe> LedgersFor(
-            IReadOnlyDictionary<int, IReadOnlyList<AssetRentLedgerProbe>> map,
-            int rentId)
-            => map.TryGetValue(rentId, out var rows) ? rows : [];
-
         // قرینهٔ قاعدهٔ بالا: کرایه‌ای که طبق سیاست فاز جاری باید اثر مالی داشته باشد ولی ندارد.
         // دامنه از AssetRentPostingPolicy می‌آید — همان مرجعی که Controller هنگام ثبت می‌پرسد — پس
         // استفادهٔ داخلی، کرایهٔ شریک و کرایه‌های خودکارِ بارگیری اینجا هرگز issue نمی‌سازند.
@@ -1107,19 +1202,9 @@ public partial class ReconciliationService : IReconciliationService
 
         // کرایهٔ لغوشده‌ای که ردیف اصلی مالی دارد ولی ردیف برگشت ندارد: بدهیِ طرف‌حساب پس از لغو
         // باقی مانده است. کرایه‌های بدون اثر مالی اصلاً وارد این حلقه نمی‌شوند چون هیچ ردیفی ندارند.
-        var cancelledRentIdsWithLedger = assetRentLedgerRows
-            .Select(l => l.RentId)
-            .Distinct()
-            .ToArray();
-        var cancelledRentRows = cancelledRentIdsWithLedger.Length == 0
-            ? new List<AssetRentTransaction>()
-            : await _db.AssetRentTransactions
-                .AsNoTracking()
-                .Include(r => r.OperationalAsset)
-                .Where(r => r.IsCancelled && cancelledRentIdsWithLedger.Contains(r.Id))
-                .OrderByDescending(r => r.RentDate)
-                .ThenByDescending(r => r.Id)
-                .ToListAsync();
+        var cancelledRentRows = assetRentAllRows
+            .Where(r => r.IsCancelled)
+            .ToList();
 
         var assetRentLedgerIntegrityIssues = new List<OperationalAssetReconciliationItemViewModel>();
         foreach (var rent in cancelledRentRows)
@@ -1331,18 +1416,16 @@ public partial class ReconciliationService : IReconciliationService
 
         // 2) ToInventory allocations that have no InventoryMovement linked, or
         //    whose linked InventoryMovementId no longer points at a real row.
-        var existingMovementIds = await _db.InventoryMovements
-            .AsNoTracking()
-            .Select(m => m.Id)
-            .ToListAsync();
-        var existingMovementIdSet = existingMovementIds.ToHashSet();
-
+        //    وجود/نبودِ حرکت انبار با EXISTS در خود PostgreSQL بررسی می‌شود؛ قبلاً کل
+        //    شناسه‌های جدول InventoryMovements در حافظه خوانده می‌شد. منطق و نتیجه یکسان است.
         var toInventoryAllocationsWithoutMovement = await _db.LoadingReceiptAllocations
             .AsNoTracking()
             .Include(a => a.LoadingReceipt)
             .Include(a => a.SourcePurchaseContract)
             .Include(a => a.Terminal)
-            .Where(a => a.Destination == LoadingReceiptAllocationDestination.ToInventory)
+            .Where(a => a.Destination == LoadingReceiptAllocationDestination.ToInventory
+                && (!a.InventoryMovementId.HasValue
+                    || !_db.InventoryMovements.Any(m => m.Id == a.InventoryMovementId!.Value)))
             .OrderBy(a => a.Id)
             .Select(a => new
             {
@@ -1359,8 +1442,6 @@ public partial class ReconciliationService : IReconciliationService
             .ToListAsync();
 
         var toInventoryAllocationsWithoutMovementRows = toInventoryAllocationsWithoutMovement
-            .Where(a => !a.InventoryMovementId.HasValue
-                || !existingMovementIdSet.Contains(a.InventoryMovementId.Value))
             .Select(a => new ToInventoryAllocationIssueViewModel
             {
                 AllocationId = a.Id,
@@ -1442,40 +1523,28 @@ public partial class ReconciliationService : IReconciliationService
             })
             .ToListAsync();
 
-        var loadingCustomsDeclTotalsByContract = await _db.CustomsDeclarations
+        // هر دو مسیر اظهارنامه (بارگیری و پای حمل) در یک query جمع‌بندی می‌شوند؛ قبلاً دو
+        // رفت‌وبرگشت جدا بود و نتیجه در حافظه دوباره گروه‌بندی می‌شد. قرارداد مؤثر همان
+        // قرارداد بارگیری یا قرارداد خرید پای حمل است، مثل قبل.
+        var customsDeclTotalsByContract = (await _db.CustomsDeclarations
             .AsNoTracking()
-            .Include(cd => cd.LoadingRegister)
-            .Where(cd => cd.LoadingRegisterId.HasValue
-                && !cd.TransportLegId.HasValue
-                && cd.LoadingRegister != null
-                && cd.TotalUsd > 0m)
-            .GroupBy(cd => cd.LoadingRegister!.ContractId)
+            .Where(cd => cd.TotalUsd > 0m
+                && ((cd.LoadingRegisterId.HasValue
+                        && !cd.TransportLegId.HasValue
+                        && cd.LoadingRegister != null)
+                    || (cd.TransportLegId.HasValue
+                        && !cd.LoadingRegisterId.HasValue
+                        && cd.TransportLeg != null)))
+            .GroupBy(cd => cd.LoadingRegisterId.HasValue
+                ? cd.LoadingRegister!.ContractId
+                : cd.TransportLeg!.SourcePurchaseContractId)
             .Select(g => new
             {
                 ContractId = g.Key,
                 Total = g.Sum(cd => cd.TotalUsd),
                 Count = g.Count()
             })
-            .ToListAsync();
-
-        var transportLegCustomsDeclTotalsByContract = await _db.CustomsDeclarations
-            .AsNoTracking()
-            .Include(cd => cd.TransportLeg)
-            .Where(cd => cd.TransportLegId.HasValue
-                && !cd.LoadingRegisterId.HasValue
-                && cd.TransportLeg != null
-                && cd.TotalUsd > 0m)
-            .GroupBy(cd => cd.TransportLeg!.SourcePurchaseContractId)
-            .Select(g => new
-            {
-                ContractId = g.Key,
-                Total = g.Sum(cd => cd.TotalUsd),
-                Count = g.Count()
-            })
-            .ToListAsync();
-
-        var customsDeclTotalsByContract = loadingCustomsDeclTotalsByContract
-            .Concat(transportLegCustomsDeclTotalsByContract)
+            .ToListAsync())
             .GroupBy(x => x.ContractId)
             .Select(g => new
             {
@@ -1624,6 +1693,7 @@ public partial class ReconciliationService : IReconciliationService
             .ToListAsync();
 
         var legIds = legs.Select(l => l.Id).ToList();
+        var legById = legs.ToDictionary(l => l.Id);
         var contractIds = legs.Select(l => l.SourcePurchaseContractId).Distinct().ToList();
         var contractFinalPriceById = contractIds.Count == 0
             ? new Dictionary<int, decimal?>()
@@ -1652,29 +1722,25 @@ public partial class ReconciliationService : IReconciliationService
             .GroupBy(r => r.InventoryTransportLegId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var activeExpenseLegIds = legIds.Count == 0
-            ? new HashSet<int>()
-            : (await _db.ExpenseTransactions
+        // یک بار خواندنِ مصارفِ فعالِ پای حمل برای هر دو کنترل (وجود مصرف، و مصرفِ بدون قرارداد)
+        // به‌جای دو query با همان فیلتر پایه؛ همان دو مجموعهٔ قبلی از همین سطرها ساخته می‌شود.
+        var activeExpenseLegRows = legIds.Count == 0
+            ? []
+            : await _db.ExpenseTransactions
                 .AsNoTracking()
                 .Where(e => e.TransportLegId.HasValue
                     && legIds.Contains(e.TransportLegId.Value)
                     && !e.IsCancelled)
-                .Select(e => e.TransportLegId!.Value)
+                .Select(e => new { LegId = e.TransportLegId!.Value, HasContract = e.ContractId.HasValue })
                 .Distinct()
-                .ToListAsync())
-                .ToHashSet();
-        var expensesMissingContractLegIds = legIds.Count == 0
-            ? new HashSet<int>()
-            : (await _db.ExpenseTransactions
-                .AsNoTracking()
-                .Where(e => e.TransportLegId.HasValue
-                    && legIds.Contains(e.TransportLegId.Value)
-                    && !e.IsCancelled
-                    && !e.ContractId.HasValue)
-                .Select(e => e.TransportLegId!.Value)
-                .Distinct()
-                .ToListAsync())
-                .ToHashSet();
+                .ToListAsync();
+        var activeExpenseLegIds = activeExpenseLegRows
+            .Select(e => e.LegId)
+            .ToHashSet();
+        var expensesMissingContractLegIds = activeExpenseLegRows
+            .Where(e => !e.HasContract)
+            .Select(e => e.LegId)
+            .ToHashSet();
 
         var activeCustomsLegIds = legIds.Count == 0
             ? new HashSet<int>()
@@ -1702,7 +1768,7 @@ public partial class ReconciliationService : IReconciliationService
             .Where(le => le.ChargeableLossMt > 0m)
             .Where(le =>
             {
-                var leg = legs.FirstOrDefault(l => l.Id == le.TransportLegId);
+                var leg = legById.GetValueOrDefault(le.TransportLegId!.Value);
                 if (leg is null)
                 {
                     return true;
@@ -2158,7 +2224,8 @@ public partial class ReconciliationService : IReconciliationService
                 .ThenInclude(d => d.Driver)
             .Include(a => a.DirectTruckDispatches)
                 .ThenInclude(d => d.DestinationLocation)
-            .AsSplitQuery()
+            // مثل مسیر MissingLedger: یک Include مجموعه‌ای بیشتر نیست، پس split query فقط
+            // یک رفت‌وبرگشت اضافه دارد.
             .Where(a => a.Destination == LoadingReceiptAllocationDestination.DirectDispatchToTruck
                 && a.Status != LoadingReceiptAllocationStatus.Cancelled
                 && a.Status != LoadingReceiptAllocationStatus.Completed)
@@ -2248,6 +2315,8 @@ public partial class ReconciliationService : IReconciliationService
 
         // موجودی دفتری به‌ازای (مخزن، قرارداد منبع) — با فالبک قرارداد از رسید→بارگیری.
         var tankIds = deferredReceipts.Select(r => r.StorageTankId!.Value).Distinct().ToList();
+        // جمع‌بندی موجودی در خود PostgreSQL انجام می‌شود؛ قبلاً همهٔ حرکت‌های این مخزن‌ها
+        // سطر‌به‌سطر در حافظه خوانده و جمع می‌شد. قاعدهٔ علامت جهت‌ها دست‌نخورده است.
         var balanceByTankContract = (await _db.InventoryMovements
             .AsNoTracking()
             .Where(m => m.StorageTankId != null && tankIds.Contains(m.StorageTankId!.Value))
@@ -2258,20 +2327,22 @@ public partial class ReconciliationService : IReconciliationService
                     ?? (m.LoadingReceipt != null && m.LoadingReceipt.LoadingRegister != null
                         ? (int?)m.LoadingReceipt.LoadingRegister.ContractId
                         : null),
-                m.Direction,
-                m.QuantityMt
+                SignedQuantityMt = m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
+                    ? m.QuantityMt
+                    : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
+                        ? -m.QuantityMt
+                        : 0m
+            })
+            .Where(m => m.EffectiveContractId != null)
+            .GroupBy(m => new { m.StorageTankId, ContractId = m.EffectiveContractId!.Value })
+            .Select(g => new
+            {
+                g.Key.StorageTankId,
+                g.Key.ContractId,
+                Balance = g.Sum(m => m.SignedQuantityMt)
             })
             .ToListAsync())
-            .Where(m => m.EffectiveContractId.HasValue)
-            .GroupBy(m => new { m.StorageTankId, ContractId = m.EffectiveContractId!.Value })
-            .ToDictionary(
-                g => (g.Key.StorageTankId, g.Key.ContractId),
-                g => g.Sum(m =>
-                    m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
-                        ? m.QuantityMt
-                        : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
-                            ? -m.QuantityMt
-                            : 0m));
+            .ToDictionary(x => (x.StorageTankId, x.ContractId), x => x.Balance);
 
         var items = new List<IncompleteAfterReceiptItemViewModel>();
         var seen = new HashSet<(int TankId, int ContractId)>();
@@ -2313,41 +2384,65 @@ public partial class ReconciliationService : IReconciliationService
 
     public async Task<NonZeroBalancesViewModel> BuildNonZeroBalancesAsync()
     {
-        // دفتر کل بزرگ‌ترین جدول سیستم است؛ برای مانده‌گیری فقط همان ۸ ستون لازم خوانده
-        // می‌شود، نه کل رکورد با سه Include. تعداد query تغییر نکرده اما حجم داده و
-        // materialization موجودیت‌ها حذف شده و نتیجه دقیقاً همان است.
-        var ledgerEntries = await _db.LedgerEntries
+        // ماندهٔ «غیرصفر» باید همان ماندهٔ صورت‌حساب رسمی باشد، نه جمعِ خامِ Debit/Credit:
+        // جهتِ هر سند از نوعِ آن، انتسابِ سطر از راهِ قرارداد/فروش و فیلترِ تسویهٔ صراف همه در
+        // موتورِ رسمی‌اند. پس هم طرف‌حساب و هم قرارداد از همان موتور خوانده می‌شوند.
+        // ستون‌ها: «برد» = داده‌شده، «رسید» = گرفته‌شده، مانده = برد − رسید
+        // (مثبت = طلب شرکت، منفی = بدهی شرکت).
+        var partyRows = await _partyBalances.GetBalancesAsync(
+            new ManagementReportFilterViewModel(),
+            partyTypes: [PartyStatementPartyType.Customer, PartyStatementPartyType.Supplier]);
+
+        // قراردادهایی که سندِ دفتر دارند، با شماره‌شان در یک رفت‌وبرگشت.
+        var contractNumbers = await _db.Contracts
             .AsNoTracking()
-            .Select(l => new BalanceSourceRow(
-                l.ContractId,
-                l.CustomerId,
-                l.SupplierId,
-                l.Contract != null ? l.Contract.ContractNumber : null,
-                l.Customer != null ? l.Customer.Name : null,
-                l.Supplier != null ? l.Supplier.Name : null,
-                l.Side,
-                l.AmountUsd))
-            .ToListAsync();
+            .Where(c => _db.LedgerEntries.Any(l => l.ContractId == c.Id))
+            .Select(c => new { c.Id, c.ContractNumber })
+            .ToDictionaryAsync(c => c.Id, c => c.ContractNumber);
+        var contractBalances = await _partyBalances.GetContractBalancesAsync(
+            contractNumbers.Keys.ToList(),
+            resolveNames: false);
 
         return new NonZeroBalancesViewModel
         {
-            ContractBalances = BuildBalanceRows(
-                ledgerEntries.Where(l => l.ContractId.HasValue),
+            ContractBalances = ToBalanceRows(
+                contractBalances.Values.Select(c => new BalanceAggregateRow(
+                    c.ContractId,
+                    contractNumbers.GetValueOrDefault(c.ContractId),
+                    c.TotalOutflowUsd,
+                    c.TotalReceiptUsd)),
                 "Contract",
-                l => l.ContractId!.Value,
-                l => l.ContractNumber ?? ("Contract #" + l.ContractId)),
-            CustomerBalances = BuildBalanceRows(
-                ledgerEntries.Where(l => l.CustomerId.HasValue),
-                "Customer",
-                l => l.CustomerId!.Value,
-                l => l.CustomerName ?? ("Customer #" + l.CustomerId)),
-            SupplierBalances = BuildBalanceRows(
-                ledgerEntries.Where(l => l.SupplierId.HasValue),
-                "Supplier",
-                l => l.SupplierId!.Value,
-                l => l.SupplierName ?? ("Supplier #" + l.SupplierId))
+                "Contract #"),
+            CustomerBalances = ToBalanceRows(PartyRows(PartyStatementPartyType.Customer), "Customer", "Customer #"),
+            SupplierBalances = ToBalanceRows(PartyRows(PartyStatementPartyType.Supplier), "Supplier", "Supplier #")
         };
+
+        IEnumerable<BalanceAggregateRow> PartyRows(PartyStatementPartyType type)
+            => partyRows
+                .Where(r => r.PartyType == type)
+                .Select(r => new BalanceAggregateRow(r.PartyId, r.PartyName, r.TotalOutflowUsd, r.TotalReceiptUsd));
     }
+
+    private static List<NonZeroBalanceItemViewModel> ToBalanceRows(
+        IEnumerable<BalanceAggregateRow> rows,
+        string entityType,
+        string fallbackNamePrefix)
+        => rows
+            .Select(r => new NonZeroBalanceItemViewModel
+            {
+                EntityId = r.Key,
+                EntityType = entityType,
+                Name = string.IsNullOrWhiteSpace(r.Name) || r.Name == "-" ? fallbackNamePrefix + r.Key : r.Name,
+                DebitUsd = r.OutflowUsd,
+                CreditUsd = r.ReceiptUsd,
+                Status = "Non-zero Balance"
+            })
+            .Where(r => Math.Abs(r.BalanceUsd) >= 0.01m)
+            .OrderByDescending(r => Math.Abs(r.BalanceUsd))
+            .ToList();
+
+    /// <summary>برد (داده‌شده) و رسید (گرفته‌شده) از موتورِ رسمی؛ مانده = برد − رسید.</summary>
+    private sealed record BalanceAggregateRow(int Key, string? Name, decimal OutflowUsd, decimal ReceiptUsd);
 
     /// <summary>فقط ستون‌هایی از ردیف دفتر که کنترل‌های کرایهٔ دارایی به آن‌ها نیاز دارند.</summary>
     private sealed record AssetRentLedgerProbe(
@@ -2360,41 +2455,4 @@ public partial class ReconciliationService : IReconciliationService
         int? ServiceProviderId);
 
     /// <summary>فقط ستون‌های لازم برای مانده‌گیری دفتر کل.</summary>
-    private sealed record BalanceSourceRow(
-        int? ContractId,
-        int? CustomerId,
-        int? SupplierId,
-        string? ContractNumber,
-        string? CustomerName,
-        string? SupplierName,
-        LedgerSide Side,
-        decimal AmountUsd);
-
-    private static List<NonZeroBalanceItemViewModel> BuildBalanceRows(
-        IEnumerable<BalanceSourceRow> entries,
-        string entityType,
-        Func<BalanceSourceRow, int> idSelector,
-        Func<BalanceSourceRow, string> nameSelector)
-    {
-        return entries
-            .GroupBy(idSelector)
-            .Select(g =>
-            {
-                var first = g.First();
-                var debit = g.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd);
-                var credit = g.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd);
-                return new NonZeroBalanceItemViewModel
-                {
-                    EntityId = g.Key,
-                    EntityType = entityType,
-                    Name = nameSelector(first),
-                    DebitUsd = debit,
-                    CreditUsd = credit,
-                    Status = "Non-zero Balance"
-                };
-            })
-            .Where(r => r.BalanceUsd != 0m)
-            .OrderByDescending(r => Math.Abs(r.BalanceUsd))
-            .ToList();
-    }
 }

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Accounting;
 using PTGOilSystem.Web.Models.Entities;
@@ -20,6 +20,21 @@ public interface IPeriodActivityService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// همان گزارش، ولی با صفحه‌بندیِ واقعیِ دیتابیس. فقط بخشِ <paramref name="section"/> صفحه
+    /// می‌خورد و بقیهٔ بخش‌ها صفحهٔ اول خود را نشان می‌دهند. با <paramref name="allRows"/>
+    /// هیچ برش و هیچ سقفی اعمال نمی‌شود (مسیر Export).
+    /// </summary>
+    Task<PeriodActivityViewModel?> BuildAsync(
+        int fiscalPeriodId,
+        int companyId,
+        bool accountingEnabled,
+        string? section,
+        int page,
+        int pageSize,
+        bool allRows,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// دورهٔ پیش‌فرض وقتی کاربر بدون شناسهٔ دوره وارد صفحه می‌شود (مثلاً از «مرکز گزارشات»):
     /// دوره‌ای که تاریخِ امروز داخلِ بازهٔ آن است، وگرنه تازه‌ترین دورهٔ همان شرکت.
     /// اگر شرکت هیچ دوره‌ای نداشته باشد <c>null</c> برمی‌گردد. فقط‌خواندنی.
@@ -37,14 +52,81 @@ public interface IPeriodActivityService
 /// <c>CompanyId</c> دارند (Sales, Payment, Contract, JournalEntry)؛ بقیه در این سیستمِ تک‌شرکتی
 /// فیلدِ شرکت ندارند و فقط با تاریخ فیلتر می‌شوند — این از روی مدلِ واقعی است، نه حدس.
 /// </summary>
+/// <summary>نام بخش‌های صفحهٔ «فعالیت‌های دوره» — همان کلیدهایی که در آدرس صفحه می‌آیند.</summary>
+public static class PeriodActivitySections
+{
+    public const string Purchases = "purchases";
+    public const string Loadings = "loadings";
+    public const string Sales = "sales";
+    public const string Receipts = "receipts";
+    public const string Payments = "payments";
+    public const string Expenses = "expenses";
+    public const string Movements = "movements";
+    public const string Journals = "journals";
+
+    public static readonly IReadOnlyList<string> All =
+        [Purchases, Loadings, Sales, Receipts, Payments, Expenses, Movements, Journals];
+
+    /// <summary>هر مقدار ناشناخته به بخش پیش‌فرض (خرید) برمی‌گردد.</summary>
+    public static string Normalize(string? section)
+    {
+        if (string.IsNullOrWhiteSpace(section))
+        {
+            return Purchases;
+        }
+
+        var trimmed = section.Trim().ToLowerInvariant();
+        return All.Contains(trimmed) ? trimmed : Purchases;
+    }
+}
+
 public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActivityService
 {
-    private const int RowLimit = 100;
+    /// <summary>برشِ یک بخش. <c>Take = int.MaxValue</c> یعنی «همه» (مسیر Export).</summary>
+    private sealed record Paging(
+        int Skip,
+        int Take,
+        string Section,
+        Dictionary<string, bool> HasMore,
+        bool AllRows);
+
+    /// <summary>
+    /// یک سطر بیشتر از اندازهٔ صفحه خوانده می‌شود تا وجودِ صفحهٔ بعد بدون COUNT اضافه معلوم شود؛
+    /// سطرِ اضافه قبل از ساختن خروجی دور انداخته می‌شود.
+    /// </summary>
+    private static List<T> TrimPage<T>(List<T> rows, Paging paging)
+    {
+        if (paging.AllRows)
+        {
+            paging.HasMore[paging.Section] = false;
+            return rows;
+        }
+
+        var hasMore = rows.Count > paging.Take;
+        paging.HasMore[paging.Section] = hasMore;
+        return hasMore ? rows.GetRange(0, paging.Take) : rows;
+    }
+
+    /// <summary>اندازهٔ پیش‌فرض صفحه در هر بخش (جای سقفِ خاموشِ قبلی).</summary>
+    public const int DefaultPageSize = 100;
+
+    public Task<PeriodActivityViewModel?> BuildAsync(
+        int fiscalPeriodId,
+        int companyId,
+        bool accountingEnabled,
+        CancellationToken cancellationToken = default)
+        => BuildAsync(
+            fiscalPeriodId, companyId, accountingEnabled,
+            section: null, page: 1, pageSize: DefaultPageSize, allRows: false, cancellationToken);
 
     public async Task<PeriodActivityViewModel?> BuildAsync(
         int fiscalPeriodId,
         int companyId,
         bool accountingEnabled,
+        string? section,
+        int page,
+        int pageSize,
+        bool allRows,
         CancellationToken cancellationToken = default)
     {
         var period = await db.FiscalPeriods.AsNoTracking()
@@ -74,15 +156,33 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
         var start = DateTime.SpecifyKind(period.StartDate.Date, DateTimeKind.Utc);
         var endExclusive = DateTime.SpecifyKind(period.EndDate.Date, DateTimeKind.Utc).AddDays(1);
 
-        var purchases = await BuildPurchasesAsync(companyId, start, endExclusive, cancellationToken);
-        var loadings = await BuildLoadingsAsync(start, endExclusive, cancellationToken);
-        var sales = await BuildSalesAsync(companyId, start, endExclusive, cancellationToken);
-        var receipts = await BuildPaymentsAsync(companyId, PaymentDirection.In, start, endExclusive, cancellationToken);
-        var payments = await BuildPaymentsAsync(companyId, PaymentDirection.Out, start, endExclusive, cancellationToken);
-        var expenses = await BuildExpensesAsync(start, endExclusive, cancellationToken);
-        var movements = await BuildMovementsAsync(start, endExclusive, cancellationToken);
+        // صفحه‌بندی: فقط بخشِ انتخاب‌شده صفحه می‌خورد؛ بقیه صفحهٔ اول خود را نشان می‌دهند.
+        // هر بخش یک سطر بیشتر از اندازهٔ صفحه می‌خواند تا «صفحهٔ بعدی دارد یا نه» بدون
+        // یک COUNT اضافه معلوم شود. در حالت Export هیچ برشی اعمال نمی‌شود.
+        var activeSection = PeriodActivitySections.Normalize(section);
+        var safePageSize = allRows ? int.MaxValue : Math.Max(1, pageSize);
+        var safePage = allRows ? 1 : Math.Max(1, page);
+        var hasMore = new Dictionary<string, bool>(StringComparer.Ordinal);
+
+        Paging PageFor(string sectionName)
+            => allRows
+                ? new Paging(0, int.MaxValue, sectionName, hasMore, true)
+                : new Paging(
+                    string.Equals(sectionName, activeSection, StringComparison.Ordinal) ? (safePage - 1) * safePageSize : 0,
+                    safePageSize,
+                    sectionName,
+                    hasMore,
+                    false);
+
+        var purchases = await BuildPurchasesAsync(companyId, start, endExclusive, PageFor(PeriodActivitySections.Purchases), cancellationToken);
+        var loadings = await BuildLoadingsAsync(start, endExclusive, PageFor(PeriodActivitySections.Loadings), cancellationToken);
+        var sales = await BuildSalesAsync(companyId, start, endExclusive, PageFor(PeriodActivitySections.Sales), cancellationToken);
+        var receipts = await BuildPaymentsAsync(companyId, PaymentDirection.In, start, endExclusive, PageFor(PeriodActivitySections.Receipts), cancellationToken);
+        var payments = await BuildPaymentsAsync(companyId, PaymentDirection.Out, start, endExclusive, PageFor(PeriodActivitySections.Payments), cancellationToken);
+        var expenses = await BuildExpensesAsync(start, endExclusive, PageFor(PeriodActivitySections.Expenses), cancellationToken);
+        var movements = await BuildMovementsAsync(start, endExclusive, PageFor(PeriodActivitySections.Movements), cancellationToken);
         var journals = accountingEnabled
-            ? await BuildJournalsAsync(companyId, start, endExclusive, cancellationToken)
+            ? await BuildJournalsAsync(companyId, start, endExclusive, PageFor(PeriodActivitySections.Journals), cancellationToken)
             : [];
 
         var kpis = await BuildKpisAsync(companyId, start, endExclusive, accountingEnabled, cancellationToken);
@@ -90,7 +190,8 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
         return new PeriodActivityViewModel(
             period.Id, period.FiscalYearId, period.FiscalYearName, period.Name,
             period.StartDate, period.EndDate, companyName, accountingEnabled,
-            kpis, purchases, loadings, sales, receipts, payments, expenses, movements, journals);
+            kpis, purchases, loadings, sales, receipts, payments, expenses, movements, journals,
+            activeSection, safePage, allRows ? 0 : safePageSize, hasMore);
     }
 
     public async Task<int?> FindDefaultPeriodIdAsync(
@@ -121,13 +222,14 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
 
     // خرید — قراردادهای خرید که تاریخشان در بازهٔ دوره است. شرکت دارد → فیلترِ شرکت اعمال می‌شود.
     private async Task<IReadOnlyList<PeriodActivityRow>> BuildPurchasesAsync(
-        int companyId, DateTime start, DateTime endExclusive, CancellationToken cancellationToken)
+        int companyId, DateTime start, DateTime endExclusive, Paging paging, CancellationToken cancellationToken)
     {
         var rows = await db.Contracts.AsNoTracking()
             .Where(c => c.CompanyId == companyId && c.ContractType == ContractType.Purchase
                 && c.ContractDate >= start && c.ContractDate < endExclusive)
             .OrderByDescending(c => c.ContractDate).ThenByDescending(c => c.Id)
-            .Take(RowLimit)
+            .Skip(paging.Skip)
+            .Take(paging.AllRows ? int.MaxValue : paging.Take + 1)
             .Select(c => new
             {
                 c.ContractDate,
@@ -138,18 +240,19 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(c => new PeriodActivityRow(
+        return TrimPage(rows, paging).Select(c => new PeriodActivityRow(
             c.ContractDate, c.ContractNumber, c.ProductCode, c.QuantityMt, null, c.Status.ToString())).ToList();
     }
 
     // بارگیری — LoadingRegister فیلدِ شرکت ندارد؛ فقط با تاریخ فیلتر می‌شود.
     private async Task<IReadOnlyList<PeriodActivityRow>> BuildLoadingsAsync(
-        DateTime start, DateTime endExclusive, CancellationToken cancellationToken)
+        DateTime start, DateTime endExclusive, Paging paging, CancellationToken cancellationToken)
     {
         var rows = await db.LoadingRegisters.AsNoTracking()
             .Where(l => l.LoadingDate >= start && l.LoadingDate < endExclusive)
             .OrderByDescending(l => l.LoadingDate).ThenByDescending(l => l.Id)
-            .Take(RowLimit)
+            .Skip(paging.Skip)
+            .Take(paging.AllRows ? int.MaxValue : paging.Take + 1)
             .Select(l => new
             {
                 l.Id,
@@ -161,7 +264,7 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(l => new PeriodActivityRow(
+        return TrimPage(rows, paging).Select(l => new PeriodActivityRow(
             l.LoadingDate,
             FirstNonEmpty(l.BillOfLadingNumber, l.RwbNo, $"#{l.Id}"),
             l.ProductCode, l.LoadedQuantityMt, null, null)).ToList();
@@ -169,13 +272,14 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
 
     // فروش — SalesTransaction شرکت دارد.
     private async Task<IReadOnlyList<PeriodActivityRow>> BuildSalesAsync(
-        int companyId, DateTime start, DateTime endExclusive, CancellationToken cancellationToken)
+        int companyId, DateTime start, DateTime endExclusive, Paging paging, CancellationToken cancellationToken)
     {
         var rows = await db.SalesTransactions.AsNoTracking()
             .Where(s => !s.IsCancelled && s.CompanyId == companyId
                 && s.SaleDate >= start && s.SaleDate < endExclusive)
             .OrderByDescending(s => s.SaleDate).ThenByDescending(s => s.Id)
-            .Take(RowLimit)
+            .Skip(paging.Skip)
+            .Take(paging.AllRows ? int.MaxValue : paging.Take + 1)
             .Select(s => new
             {
                 s.Id,
@@ -187,20 +291,21 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(s => new PeriodActivityRow(
+        return TrimPage(rows, paging).Select(s => new PeriodActivityRow(
             s.SaleDate, FirstNonEmpty(s.InvoiceNumber, $"#{s.Id}"),
             s.ProductCode, s.QuantityMt, s.TotalUsd, null)).ToList();
     }
 
     // دریافت/پرداخت — PaymentTransaction شرکت دارد.
     private async Task<IReadOnlyList<PeriodActivityRow>> BuildPaymentsAsync(
-        int companyId, PaymentDirection direction, DateTime start, DateTime endExclusive, CancellationToken cancellationToken)
+        int companyId, PaymentDirection direction, DateTime start, DateTime endExclusive, Paging paging, CancellationToken cancellationToken)
     {
         var rows = await db.PaymentTransactions.AsNoTracking()
             .Where(p => p.Direction == direction && p.CompanyId == companyId
                 && p.PaymentDate >= start && p.PaymentDate < endExclusive)
             .OrderByDescending(p => p.PaymentDate).ThenByDescending(p => p.Id)
-            .Take(RowLimit)
+            .Skip(paging.Skip)
+            .Take(paging.AllRows ? int.MaxValue : paging.Take + 1)
             .Select(p => new
             {
                 p.Id,
@@ -211,19 +316,20 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(p => new PeriodActivityRow(
+        return TrimPage(rows, paging).Select(p => new PeriodActivityRow(
             p.PaymentDate, FirstNonEmpty(p.Reference, $"#{p.Id}"),
             p.PaymentKind.ToString(), null, p.AmountUsd, null)).ToList();
     }
 
     // مصارف — ExpenseTransaction فیلدِ شرکت ندارد؛ فقط با تاریخ فیلتر می‌شود.
     private async Task<IReadOnlyList<PeriodActivityRow>> BuildExpensesAsync(
-        DateTime start, DateTime endExclusive, CancellationToken cancellationToken)
+        DateTime start, DateTime endExclusive, Paging paging, CancellationToken cancellationToken)
     {
         var rows = await db.ExpenseTransactions.AsNoTracking()
             .Where(e => !e.IsCancelled && e.ExpenseDate >= start && e.ExpenseDate < endExclusive)
             .OrderByDescending(e => e.ExpenseDate).ThenByDescending(e => e.Id)
-            .Take(RowLimit)
+            .Skip(paging.Skip)
+            .Take(paging.AllRows ? int.MaxValue : paging.Take + 1)
             .Select(e => new
             {
                 e.Id,
@@ -233,18 +339,19 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(e => new PeriodActivityRow(
+        return TrimPage(rows, paging).Select(e => new PeriodActivityRow(
             e.ExpenseDate, FirstNonEmpty(e.ExpenseCode, $"#{e.Id}"), null, null, e.AmountUsd, null)).ToList();
     }
 
     // تغییرات موجودی — InventoryMovement فیلدِ شرکت ندارد؛ فقط با تاریخ فیلتر می‌شود.
     private async Task<IReadOnlyList<PeriodActivityRow>> BuildMovementsAsync(
-        DateTime start, DateTime endExclusive, CancellationToken cancellationToken)
+        DateTime start, DateTime endExclusive, Paging paging, CancellationToken cancellationToken)
     {
         var rows = await db.InventoryMovements.AsNoTracking()
             .Where(m => m.MovementDate >= start && m.MovementDate < endExclusive)
             .OrderByDescending(m => m.MovementDate).ThenByDescending(m => m.Id)
-            .Take(RowLimit)
+            .Skip(paging.Skip)
+            .Take(paging.AllRows ? int.MaxValue : paging.Take + 1)
             .Select(m => new
             {
                 m.Id,
@@ -256,20 +363,21 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(m => new PeriodActivityRow(
+        return TrimPage(rows, paging).Select(m => new PeriodActivityRow(
             m.MovementDate, FirstNonEmpty(m.ReferenceDocument, $"#{m.Id}"),
             m.ProductCode, m.QuantityMt, null, MovementLabel(m.Direction))).ToList();
     }
 
     // اسناد حسابداری — JournalEntry شرکت دارد. فقط اسنادِ Posted.
     private async Task<IReadOnlyList<PeriodActivityRow>> BuildJournalsAsync(
-        int companyId, DateTime start, DateTime endExclusive, CancellationToken cancellationToken)
+        int companyId, DateTime start, DateTime endExclusive, Paging paging, CancellationToken cancellationToken)
     {
         var rows = await db.JournalEntries.AsNoTracking()
             .Where(j => j.CompanyId == companyId && j.Status == JournalEntryStatus.Posted
                 && j.AccountingDate >= start && j.AccountingDate < endExclusive)
             .OrderByDescending(j => j.AccountingDate).ThenByDescending(j => j.Id)
-            .Take(RowLimit)
+            .Skip(paging.Skip)
+            .Take(paging.AllRows ? int.MaxValue : paging.Take + 1)
             .Select(j => new
             {
                 j.AccountingDate,
@@ -279,7 +387,7 @@ public sealed class PeriodActivityService(ApplicationDbContext db) : IPeriodActi
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(j => new PeriodActivityRow(
+        return TrimPage(rows, paging).Select(j => new PeriodActivityRow(
             j.AccountingDate, j.JournalNumber, j.Description, null, j.Debit, null)).ToList();
     }
 

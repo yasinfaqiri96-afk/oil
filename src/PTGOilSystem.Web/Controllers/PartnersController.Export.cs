@@ -80,6 +80,7 @@ public partial class PartnersController
             TabularExportCell.Number(row.FundingUsd),
             TabularExportCell.Number(row.ProceedsHeldUsd),
             TabularExportCell.Number(row.ProfitShareUsd),
+            TabularExportCell.Number(row.UnsoldCostShareUsd),
             TabularExportCell.Number(row.NetPositionUsd)
         ])).ToList();
 
@@ -94,6 +95,7 @@ public partial class PartnersController
                 new TabularExportColumn("پرداخت شریک", "Partner funding", TabularExportValueType.Number, 18),
                 new TabularExportColumn("عاید نزد شریک", "Proceeds held", TabularExportValueType.Number, 18),
                 new TabularExportColumn("سهم مفاد/ضرر", "Profit share", TabularExportValueType.Number, 18),
+                new TabularExportColumn("سهم هزینهٔ فروخته‌نشده", "Unsold cost share", TabularExportValueType.Number, 18),
                 new TabularExportColumn("اثر بر حساب شریک", "Net position", TabularExportValueType.Number, 18)
             ],
             Rows = rows,
@@ -103,6 +105,7 @@ public partial class PartnersController
                 TabularExportCell.Number(statement.FundingUsd),
                 TabularExportCell.Number(statement.ProceedsHeldUsd),
                 TabularExportCell.Number(statement.ProfitShareUsd),
+                TabularExportCell.Number(statement.UnsoldCostShareUsd),
                 TabularExportCell.Number(statement.NetPositionUsd)
             ]),
             Filters = filters,

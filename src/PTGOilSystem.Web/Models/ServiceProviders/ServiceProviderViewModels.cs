@@ -111,6 +111,8 @@ public sealed class ServiceProviderIndexViewModel
     public int CurrentPage { get; init; } = 1;
     public int PageCount { get; init; } = 1;
     public int TotalCount { get; init; }
+    /// <summary>جمعِ ماندهٔ رسمیِ همهٔ شرکت‌های خدماتیِ این جست‌وجو (نه فقط صفحهٔ جاری).</summary>
+    public decimal FilteredBalanceUsd { get; init; }
 }
 
 public sealed class ServiceProviderStatementRowViewModel

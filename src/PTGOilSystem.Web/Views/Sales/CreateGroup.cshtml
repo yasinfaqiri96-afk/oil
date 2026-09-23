@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Sales.GroupSaleCreateViewModel
+﻿@model PTGOilSystem.Web.Models.Sales.GroupSaleCreateViewModel
 @using PTGOilSystem.Web.Models
 @using PTGOilSystem.Web.Models.Sales
 @using PTGOilSystem.Web.Models.Shared
@@ -21,10 +21,11 @@
         "جستجو در شماره، مسیر، قرارداد...",
         new List<AkFilterDefinition>
         {
-            new("fKind", "نوع منبع", "select", FilterOptions(sources.Select(item => item.KindLabel))),
-            new("fVehicle", "نوع وسیله", "select", FilterOptions(sources.Select(item => item.VehicleKind))),
-            new("fProduct", "کالا", "select", FilterOptions(sources.Select(item => item.ProductName))),
-            new("fStatus", "وضعیت", "select", FilterOptions(sources.Select(item => item.StatusLabel)))
+            AkFilterDefinition.MultiSelect("fKind", "نوع منبع", FilterOptions(sources.Select(item => item.KindLabel)), null),
+            AkFilterDefinition.MultiSelect("fVehicle", "نوع وسیله", FilterOptions(sources.Select(item => item.VehicleKind)), null),
+            AkFilterDefinition.MultiSelect("fContract", "قرارداد", FilterOptions(sources.Select(item => item.ContractNumber)), null),
+            AkFilterDefinition.MultiSelect("fProduct", "کالا", FilterOptions(sources.Select(item => item.ProductName)), null),
+            AkFilterDefinition.MultiSelect("fStatus", "وضعیت", FilterOptions(sources.Select(item => item.StatusLabel)), null)
         });
 }
 
@@ -326,6 +327,16 @@
 
         // ---------- فیلترها ----------
         var sourceFilter = document.querySelector('#gsaleForm [data-ak-filter-client]');
+        function filterValues(key) {
+            // چندانتخابی: هر مقدار یک input پنهان با همان نام است (OR بین مقادیر).
+            return Array.prototype.map.call(
+                sourceFilter.querySelectorAll('[data-ak-filter-param][name="' + key + '"]'),
+                function (field) { return field.value; });
+        }
+        function matchesAny(key, value) {
+            var values = filterValues(key);
+            return values.length === 0 || values.indexOf(value) !== -1;
+        }
         function filterValue(key) {
             var field = sourceFilter.querySelector('[data-ak-filter-param][name="' + key + '"]');
             return field ? field.value : '';
@@ -334,11 +345,12 @@
         function applyFilters() {
             var q = ($('fQuery').value || '').trim().toLowerCase();
             state.filtered = sources.filter(function (o) {
-                if (filterValue('fKind') && o.kindLabel !== filterValue('fKind')) return false;
-                if (filterValue('fVehicle') && o.vehicle !== filterValue('fVehicle')) return false;
-                if (filterValue('fProduct') && o.product !== filterValue('fProduct')) return false;
-                if (filterValue('fStatus') && o.status !== filterValue('fStatus')) return false;
-                if (q && (o.number + ' ' + o.route + ' ' + o.contract + ' ' + o.kindLabel + ' ' + o.company).toLowerCase().indexOf(q) < 0) return false;
+                if (!matchesAny('fKind', o.kindLabel)) return false;
+                if (!matchesAny('fVehicle', o.vehicle)) return false;
+                if (!matchesAny('fContract', o.contract)) return false;
+                if (!matchesAny('fProduct', o.product)) return false;
+                if (!matchesAny('fStatus', o.status)) return false;
+                if (q && (o.number + ' ' + o.route + ' ' + o.contract + ' ' + o.kindLabel + ' ' + o.company + ' ' + o.product).toLowerCase().indexOf(q) < 0) return false;
                 return true;
             });
             state.page = 1;

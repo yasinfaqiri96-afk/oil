@@ -17,17 +17,20 @@
             Items = new[]
             {
                 new { Controller = "Payments", Action = "Index", TitleFa = "روزنامچه (رسید و پرداخت)", TitleEn = "Journal (Receipts & Payments)", DescriptionFa = "ثبت پولی که گرفته‌اید و پولی که داده‌اید.", DescriptionEn = "Record money received and money paid.", Icon = "bi-journal-text" },
-                new { Controller = "CashAccounts", Action = "Index", TitleFa = "صندوق و بانک", TitleEn = "Cash & Bank", DescriptionFa = "حساب‌های نقده و بانکی شرکت با مانده هرکدام.", DescriptionEn = "Company cash and bank accounts with each balance.", Icon = "bi-cash-coin" }
+                new { Controller = "CashAccounts", Action = "Index", TitleFa = "صندوق و بانک", TitleEn = "Cash & Bank", DescriptionFa = "حساب‌های نقده و بانکی شرکت با مانده هرکدام.", DescriptionEn = "Company cash and bank accounts with each balance.", Icon = "bi-cash-coin" },
+                new { Controller = "Reconciliation", Action = "SuspenseMoney", TitleFa = "پول‌های معلق", TitleEn = "Suspense Money", DescriptionFa = "پول‌هایی که هنوز به طرف حساب وصل نشده‌اند.", DescriptionEn = "Money not yet linked to a party.", Icon = "bi-hourglass-split" }
             }
         },
         new
         {
-            TitleFa = "تسویه‌ها",
-            TitleEn = "Settlements",
+            TitleFa = "تسویه و طرف‌حساب‌ها",
+            TitleEn = "Settlements & Parties",
             Items = new[]
             {
                 new { Controller = "ThreeWaySettlement", Action = "Index", TitleFa = "تسویه سه‌طرفه", TitleEn = "Three-way Settlement", DescriptionFa = "تصفیه بین مشتری، صراف و تأمین‌کننده در یک سند.", DescriptionEn = "Settle customer, sarraf and supplier in one document.", Icon = "bi-arrow-left-right" },
-                new { Controller = "ContractBalanceTransfers", Action = "Index", TitleFa = "انتقال مانده قرارداد", TitleEn = "Balance Transfer", DescriptionFa = "بردن مانده از یک قرارداد به قرارداد دیگر.", DescriptionEn = "Move a balance from one contract to another.", Icon = "bi-arrow-repeat" }
+                new { Controller = "Sarrafs", Action = "Index", TitleFa = "صراف‌ها", TitleEn = "Sarrafs", DescriptionFa = "مانده و حواله‌های هر صراف.", DescriptionEn = "Balance and transfers of each sarraf.", Icon = "bi-currency-exchange" },
+                new { Controller = "Customers", Action = "Index", TitleFa = "صورت‌حساب مشتریان", TitleEn = "Customer Statements", DescriptionFa = "مانده و گردش هر مشتری.", DescriptionEn = "Balance and activity of each customer.", Icon = "bi-people" },
+                new { Controller = "Suppliers", Action = "Index", TitleFa = "صورت‌حساب تأمین‌کنندگان", TitleEn = "Supplier Statements", DescriptionFa = "مانده و گردش هر تأمین‌کننده.", DescriptionEn = "Balance and activity of each supplier.", Icon = "bi-briefcase" }
             }
         },
         new
@@ -36,7 +39,15 @@
             TitleEn = "Accounting",
             Items = new[]
             {
-                new { Controller = "Ledger", Action = "Index", TitleFa = "دفتر حساب‌ها", TitleEn = "Ledger", DescriptionFa = "تمام حرکت‌های ثبت‌شدهٔ هر حساب.", DescriptionEn = "Every recorded movement of each account.", Icon = "bi-bank" },
+                new { Controller = "Ledger", Action = "Index", TitleFa = "دفتر حساب‌ها", TitleEn = "Ledger", DescriptionFa = "تمام حرکت‌های ثبت‌شدهٔ هر حساب.", DescriptionEn = "Every recorded movement of each account.", Icon = "bi-bank" }
+            }
+        },
+        new
+        {
+            TitleFa = "تنظیمات و پایان دوره",
+            TitleEn = "Setup & Period End",
+            Items = new[]
+            {
                 new { Controller = "ChartOfAccounts", Action = "Index", TitleFa = "سرفصل حساب‌ها", TitleEn = "Chart of Accounts", DescriptionFa = "ساختار سرفصل‌های حساب‌داری.", DescriptionEn = "Accounting chart-of-accounts structure.", Icon = "bi-diagram-3" },
                 new { Controller = "FiscalYears", Action = "Index", TitleFa = "سال مالی و بستن سال", TitleEn = "Fiscal Year & Closing", DescriptionFa = "مدیریت سال مالی و مراحل بستن سال.", DescriptionEn = "Manage the fiscal year and the closing steps.", Icon = "bi-calendar-check" }
             }

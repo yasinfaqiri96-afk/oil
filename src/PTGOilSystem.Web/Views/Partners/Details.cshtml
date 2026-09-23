@@ -114,6 +114,7 @@
         PartnershipStatementLineKind.PartnerExpense => "مصرف پرداخت‌شده توسط شریک",
         PartnershipStatementLineKind.SaleProceedsHeld => "عاید فروش نزد شریک",
         PartnershipStatementLineKind.ProfitShare => "سهم مفاد",
+        PartnershipStatementLineKind.UnsoldCostShare => "سهم هزینهٔ فروخته‌نشده",
         PartnershipStatementLineKind.PartnerSettlement => "تسویه بین شرکا",
         PartnershipStatementLineKind.Adjustment => "اصلاح/برگشت",
         _ => "پرداخت شریک"
@@ -164,6 +165,7 @@
                             <th class="ak-col-num">پرداخت شریک</th>
                             <th class="ak-col-num">عاید نزد شریک</th>
                             <th class="ak-col-num">سهم مفاد/ضرر</th>
+                            <th class="ak-col-num">سهم هزینهٔ فروخته‌نشده</th>
                             <th class="ak-col-num">اثر بر حساب شریک</th>
                         </tr>
                     </thead>
@@ -177,12 +179,13 @@
                             <td class="ak-col-num ak-num">@row.FundingUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@row.ProceedsHeldUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@row.ProfitShareUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num">@row.UnsoldCostShareUsd.ToString("N2")</td>
                             <td class="ak-col-num ak-num">@row.NetPositionUsd.ToString("N2")</td>
                         </tr>
                     }
                     @if (Model.ContractsCount == 0)
                     {
-                        <tr><td colspan="5"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-diagram-3"></i> برای این شریک هنوز قرارداد شراکتی ثبت نشده است.</div></td></tr>
+                        <tr><td colspan="6"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-diagram-3"></i> برای این شریک هنوز قرارداد شراکتی ثبت نشده است.</div></td></tr>
                     }
                     </tbody>
                 </table>

@@ -364,10 +364,10 @@ public sealed class InventoryTransportLegIndexFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "قرارداد")]
-    public int? ContractId { get; set; }
+    public int[] ContractId { get; set; } = [];
 
     [Display(Name = "جنس")]
-    public int? ProductId { get; set; }
+    public int[] ProductId { get; set; } = [];
 
     [Display(Name = "وضعیت")]
     public InventoryTransportLegStatus? Status { get; set; }
@@ -376,10 +376,10 @@ public sealed class InventoryTransportLegIndexFilterViewModel
     public string? WorkflowState { get; set; }
 
     [Display(Name = "نوع وسیله")]
-    public LoadingTransportType? TransportType { get; set; }
+    public LoadingTransportType[] TransportType { get; set; } = [];
 
     [Display(Name = "مخزن")]
-    public int? StorageTankId { get; set; }
+    public int[] StorageTankId { get; set; } = [];
 
     [Display(Name = "جست‌وجو")]
     public string? Query { get; set; }
@@ -747,6 +747,9 @@ public sealed class InventoryTransportLegDetailsViewModel
     public IReadOnlyList<InventoryTransportChainLinkViewModel> ChainSources { get; set; } = [];
     public IReadOnlyList<InventoryTransportChainLinkViewModel> ChainTargets { get; set; } = [];
     public string SourceContractsLabel { get; set; } = "";
+    // منبع واقعی بار: هر سهم منبع (بارگیری، رسید بارگیری، مخزن یا وسیلهٔ قبلی) با مرجع و مقدارش.
+    // فقط خواندنی از InventoryTransportLegAllocation؛ هیچ مقداری دوباره محاسبه نمی‌شود.
+    public IReadOnlyList<InventoryTransportLegSourceItemViewModel> Sources { get; set; } = [];
     public int? CompatibilityDispatchId { get; set; }
     public int? InventoryTransportBatchId { get; set; }
     // نگهبان‌های عملِ صفحهٔ جزئیات. سرور تصمیم می‌گیرد، View فقط نمایش می‌دهد؛ وگرنه دکمه‌ای
@@ -756,6 +759,27 @@ public sealed class InventoryTransportLegDetailsViewModel
     // چرا ویرایش/لغو بسته است — همان فهرست عملیات پایین‌دستی، برای نمایش در tooltip.
     public string? DocumentLockReason { get; set; }
     public string? Notes { get; set; }
+}
+
+public enum InventoryTransportLegSourceKind
+{
+    Loading,
+    LoadingReceipt,
+    StorageTank,
+    Vehicle
+}
+
+/// <summary>یک سهم منبع بار حمل: نوع منبع، مرجع قابل کلیک، محل، قرارداد و مقدار همان سهم.</summary>
+public sealed class InventoryTransportLegSourceItemViewModel
+{
+    public InventoryTransportLegSourceKind Kind { get; set; }
+    // شناسهٔ رکورد منبع برای لینک: LoadingRegister، LoadingReceipt، StorageTank یا InventoryTransportLeg.
+    public int? SourceId { get; set; }
+    public string Reference { get; set; } = "";
+    public string? Place { get; set; }
+    public LoadingTransportType? VehicleType { get; set; }
+    public string? ContractLabel { get; set; }
+    public decimal QuantityMt { get; set; }
 }
 
 /// <summary>یک یال انتقال وسیله‌به‌وسیله: وسیلهٔ طرف مقابل و مقدار همان انتقال.</summary>

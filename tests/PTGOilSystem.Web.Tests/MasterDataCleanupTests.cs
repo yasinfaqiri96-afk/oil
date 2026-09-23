@@ -79,8 +79,9 @@ public class MasterDataCleanupTests
         Assert.Contains(".Concat(operationalResourceItems", layout);
         Assert.Contains("var coreDataControllers = coreDataItems.Select(item => item.Controller).ToArray();", layout);
         Assert.Contains("var businessPartyGroupControllers = businessPartyItems.Select(item => item.Controller).ToArray();", layout);
-        // پشتیبان‌گیری و بازیابی هم زیر همین گروه مدیریت می‌نشینند.
-        Assert.Contains("var adminManagementControllers = new[] { \"Users\", \"Roles\", \"AuditLogs\", \"Backups\", \"BackupRestore\" };", layout);
+        // کاربران و پشتیبان‌گیری دو آیتم مستقل نوار کناری‌اند، هرکدام با کنترلرهای فعال خودش.
+        Assert.Contains("var userManagementControllers = new[] { \"Users\", \"Roles\", \"AuditLogs\" };", layout);
+        Assert.Contains("var backupManagementControllers = new[] { \"Backups\", \"BackupRestore\" };", layout);
         Assert.Contains("(\"Backups\", \"Index\"", layout);
 
         // The deprecated "base-settings" / "Core Data & Settings" sidebar
@@ -97,7 +98,8 @@ public class MasterDataCleanupTests
         Assert.Contains("NavNode(\"Loading\", \"Index\"", layout);
         Assert.Contains("\"Operations\")", layout);
         Assert.Contains("NavNode(\"Finance\", \"Index\"", layout);
-        Assert.Contains("NavNode(\"StorageTanks\", \"Index\"", layout);
+        // «تعاریف پایه» مستقیم به فهرست ارزها می‌رود و همهٔ کنترلرهای تعاریف پایه را هایلایت می‌کند.
+        Assert.Contains("NavNode(\"Currencies\", \"Index\", T(\"تعاریف پایه\", \"Base Definitions\"), \"nav-settings\", active: coreDataControllers)", layout);
 
         // «گزارش‌ها» یک آیتم تکی به هاب Reports/Index است و زیرمنو ندارد؛ هر گزارش
         // (از جمله تفاوت نرخ ارز) از کارت‌های همان هاب باز می‌شود.
@@ -135,7 +137,9 @@ public class MasterDataCleanupTests
         Assert.Contains("var transportTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]", sectionTabs);
         Assert.Contains("tabs = foundationTabs;", sectionTabs);
         Assert.Contains("(\"InventoryTransportLegs\", \"Index\", T(\"حمل‌ها\"", sectionTabs);
-        Assert.Contains("(\"Transports\",             \"Create\", T(\"ثبت حمل\"", sectionTabs);
+        // تب جداگانهٔ «ثبت حمل» حذف شد؛ ثبت از خودِ فهرست حمل‌ها شروع می‌شود و تسویه تب خودش را دارد.
+        Assert.DoesNotContain("(\"Transports\",             \"Create\"", sectionTabs);
+        Assert.Contains("(\"TruckSettlements\",       \"Index\", T(\"تسویه و تخلیه\"", sectionTabs);
         Assert.Contains("(\"Locations\",    \"Index\", T(\"بنادر\",           \"Ports\")", sectionTabs);
         Assert.DoesNotContain("(\"Locations\",    \"Index\", T(\"مکان‌ها\",       \"Locations\")", sectionTabs);
     }

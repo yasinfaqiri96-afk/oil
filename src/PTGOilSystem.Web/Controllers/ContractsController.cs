@@ -181,21 +181,21 @@ public partial class ContractsController : Controller
         ViewBag.SaleContractNumberPreview = await GenerateNextContractNumberAsync(ContractType.Sale);
     }
 
-    public async Task<IActionResult> Index(string? q, ContractType? type, ContractStatus? status, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(string? q, ContractType[]? type, ContractStatus[]? status, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 20);
         ViewData["PageSize"] = pageSize;
         ViewData["DefaultPageSize"] = 20;
 
+        // فقط navigationهایی Include می‌شوند که خودِ صفحه نشان می‌دهد: جنس، واحد، تأمین‌کننده
+        // و مشتری. شرکت و شرکای قرارداد در این فهرست رندر نمی‌شوند؛ جست‌وجوی شریک هم با
+        // Where روی همان navigation کار می‌کند و به Include نیاز ندارد. با حذف تنها Includeِ
+        // مجموعه‌ای، دیگر split query هم لازم نیست و یک رفت‌وبرگشت کم می‌شود.
         var query = _db.Contracts
-            .Include(c => c.Company)
             .Include(c => c.Product)
             .Include(c => c.Unit)
             .Include(c => c.Supplier)
             .Include(c => c.Customer)
-            .Include(c => c.ContractPartners)
-                .ThenInclude(cp => cp.Partner)
-            .AsSplitQuery()
             .AsNoTracking()
             .AsQueryable();
 
@@ -218,8 +218,9 @@ public partial class ContractsController : Controller
                 (c.Product != null && c.Product.Name.Contains(term)) ||
                 c.ContractPartners.Any(cp => cp.Partner != null && cp.Partner.Name.Contains(term)));
         }
-        if (type.HasValue) query = query.Where(c => c.ContractType == type.Value);
-        if (status.HasValue) query = query.Where(c => c.Status == status.Value);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (type is { Length: > 0 }) query = query.Where(c => type.Contains(c.ContractType));
+        if (status is { Length: > 0 }) query = query.Where(c => status.Contains(c.Status));
 
         var stats = await query
             .GroupBy(_ => 1)
@@ -248,8 +249,8 @@ public partial class ContractsController : Controller
         return View(new ContractIndexViewModel
         {
             Query = q,
-            Type = type,
-            Status = status,
+            Types = type ?? [],
+            Statuses = status ?? [],
             Items = items,
             CurrentPage = currentPage,
             PageCount = pageCount,

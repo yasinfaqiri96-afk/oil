@@ -20,7 +20,7 @@
 .\scripts\run-local.ps1 -Watch          # hot reload؛ معادل run-dev.bat
 .\scripts\run-local.ps1 -ApplyMigrations # فقط با درخواست صریح
 dotnet build src/PTGOilSystem.Web/PTGOilSystem.Web.csproj --no-restore # پس از restore اولیه
-dotnet test tests/PTGOilSystem.Web.Tests/PTGOilSystem.Web.Tests.csproj --no-build --filter "FullyQualifiedName~ClassName.MethodName"
+dotnet test tests/PTGOilSystem.Web.Tests/PTGOilSystem.Web.Tests.csproj --no-build --no-restore --filter "FullyQualifiedName~ClassName.MethodName"
 .\scripts\test-fast.ps1
 .\scripts\test-full.ps1
 .\scripts\test-accounting.ps1

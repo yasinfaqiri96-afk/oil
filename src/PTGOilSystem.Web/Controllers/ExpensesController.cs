@@ -141,12 +141,13 @@ public partial class ExpensesController : Controller
         ExpenseCreateViewModel? createModel = null,
         ExpenseIndexFilterViewModel? filter = null)
     {
-        var selectedContractId = createModel?.ContractId ?? filter?.ContractId;
-        var selectedShipmentId = createModel?.ShipmentId ?? filter?.ShipmentId;
-        var selectedTruckDispatchId = createModel?.TruckDispatchId ?? filter?.TruckDispatchId;
+        // فیلترِ چندانتخابی فقط وقتی «انتخابِ جاریِ» فهرست‌های کمکی است که دقیقاً یک مقدار دارد.
+        var selectedContractId = createModel?.ContractId ?? filter?.ContractId.Only();
+        var selectedShipmentId = createModel?.ShipmentId ?? filter?.ShipmentId.Only();
+        var selectedTruckDispatchId = createModel?.TruckDispatchId ?? filter?.TruckDispatchId.Only();
         var selectedTransportLegId = createModel?.TransportLegId ?? filter?.TransportLegId;
-        var selectedServiceProviderId = createModel?.ServiceProviderId ?? filter?.ServiceProviderId;
-        var selectedOperationalAssetId = createModel?.OperationalAssetId ?? filter?.OperationalAssetId;
+        var selectedServiceProviderId = createModel?.ServiceProviderId ?? filter?.ServiceProviderId.Only();
+        var selectedOperationalAssetId = createModel?.OperationalAssetId ?? filter?.OperationalAssetId.Only();
 
         var contracts = await _db.Contracts
             .AsNoTracking()
@@ -186,7 +187,7 @@ public partial class ExpensesController : Controller
             expenseTypeOptions,
             "Id",
             "DisplayName",
-            createModel?.ExpenseTypeId ?? filter?.ExpenseTypeId);
+            createModel?.ExpenseTypeId ?? filter?.ExpenseTypeId.Only());
 
         ViewBag.Contracts = new SelectList(
             contracts
@@ -219,7 +220,7 @@ public partial class ExpensesController : Controller
                 Text = string.IsNullOrWhiteSpace(s.ShipmentCode)
                     ? $"Shipment #{s.Id}"
                     : s.ShipmentCode,
-                Selected = (createModel?.ShipmentId ?? filter?.ShipmentId) == s.Id
+                Selected = (createModel?.ShipmentId ?? filter?.ShipmentId.Only()) == s.Id
             })
             .ToList();
 
@@ -243,7 +244,7 @@ public partial class ExpensesController : Controller
                 Value = d.Id.ToString(),
                 Text = $"#{d.Id} - {(d.PlateNumber ?? "بدون پلاک")} - {DateDisplay.Date(d.DispatchDate)}",
 
-                Selected = (createModel?.TruckDispatchId ?? filter?.TruckDispatchId) == d.Id
+                Selected = (createModel?.TruckDispatchId ?? filter?.TruckDispatchId.Only()) == d.Id
             })
             .ToList();
 
@@ -494,20 +495,39 @@ public partial class ExpensesController : Controller
 
         query = query.Where(e => !e.IsCancelled);
 
-        if (filter.ExpenseTypeId.HasValue)
-            query = query.Where(e => e.ExpenseTypeId == filter.ExpenseTypeId.Value);
-        if (filter.ContractId.HasValue)
-            query = query.Where(e => e.ContractId == filter.ContractId.Value);
-        if (filter.ShipmentId.HasValue)
-            query = query.Where(e => e.ShipmentId == filter.ShipmentId.Value);
-        if (filter.TruckDispatchId.HasValue)
-            query = query.Where(e => e.TruckDispatchId == filter.TruckDispatchId.Value);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.ExpenseTypeId.Length > 0)
+        {
+            var expenseTypeIds = filter.ExpenseTypeId;
+            query = query.Where(e => expenseTypeIds.Contains(e.ExpenseTypeId));
+        }
+        if (filter.ContractId.Length > 0)
+        {
+            var contractIds = filter.ContractId;
+            query = query.Where(e => e.ContractId != null && contractIds.Contains(e.ContractId.Value));
+        }
+        if (filter.ShipmentId.Length > 0)
+        {
+            var shipmentIds = filter.ShipmentId;
+            query = query.Where(e => e.ShipmentId != null && shipmentIds.Contains(e.ShipmentId.Value));
+        }
+        if (filter.TruckDispatchId.Length > 0)
+        {
+            var truckDispatchIds = filter.TruckDispatchId;
+            query = query.Where(e => e.TruckDispatchId != null && truckDispatchIds.Contains(e.TruckDispatchId.Value));
+        }
         if (filter.TransportLegId.HasValue)
             query = query.Where(e => e.TransportLegId == filter.TransportLegId.Value);
-        if (filter.ServiceProviderId.HasValue)
-            query = query.Where(e => e.ServiceProviderId == filter.ServiceProviderId.Value);
-        if (filter.OperationalAssetId.HasValue)
-            query = query.Where(e => e.OperationalAssetId == filter.OperationalAssetId.Value);
+        if (filter.ServiceProviderId.Length > 0)
+        {
+            var serviceProviderIds = filter.ServiceProviderId;
+            query = query.Where(e => e.ServiceProviderId != null && serviceProviderIds.Contains(e.ServiceProviderId.Value));
+        }
+        if (filter.OperationalAssetId.Length > 0)
+        {
+            var operationalAssetIds = filter.OperationalAssetId;
+            query = query.Where(e => e.OperationalAssetId != null && operationalAssetIds.Contains(e.OperationalAssetId.Value));
+        }
         // PTG-P1-04 — فیلترِ وضعیت تسویه. «طبقه‌بندی‌نشده» (Unknown) هم یک انتخابِ صریح است
         // تا ردیف‌های پیش از فاز ۱ قابل دیدن و رسیدگی باشند، نه پنهان.
         if (filter.SettlementMode.HasValue)
@@ -2508,6 +2528,8 @@ public partial class ExpensesController : Controller
                     ? l.DestinationTerminal.Name
                     : (l.DestinationLocation != null ? l.DestinationLocation.Name : null),
                 l.RouteDescription,
+                ProductName = l.Product != null ? l.Product.Name : null,
+                ContractNumber = l.SourcePurchaseContract != null ? l.SourcePurchaseContract.ContractNumber : null,
                 l.QuantityMt,
                 l.Status,
                 l.LoadedDate
@@ -2529,6 +2551,7 @@ public partial class ExpensesController : Controller
                 TruckPlate = d.Truck != null ? d.Truck.PlateNumber : null,
                 DestinationName = d.DestinationLocation != null ? d.DestinationLocation.Name : null,
                 ContractNumber = d.Contract != null ? d.Contract.ContractNumber : null,
+                ProductName = d.Product != null ? d.Product.Name : null,
                 d.LoadedQuantityMt,
                 d.Status,
                 d.DispatchDate
@@ -2547,6 +2570,8 @@ public partial class ExpensesController : Controller
             Number = l.WagonNumber ?? l.TruckPlate ?? l.RwbNo ?? $"#{l.Id}",
             AltNumber = l.RwbNo,
             Route = BuildRoute(l.SourceName, l.DestinationName, l.RouteDescription),
+            ProductName = l.ProductName ?? "",
+            ContractNumber = l.ContractNumber ?? "",
             QuantityMt = l.QuantityMt,
             StatusLabel = l.Status == InventoryTransportLegStatus.InTransit ? "در راه" : "بارگیری‌شده",
             MoveDate = l.LoadedDate
@@ -2560,6 +2585,8 @@ public partial class ExpensesController : Controller
             VehicleKind = "موتر",
             Number = d.TruckPlate ?? $"#{d.Id}",
             Route = BuildRoute(d.ContractNumber, d.DestinationName, null),
+            ProductName = d.ProductName ?? "",
+            ContractNumber = d.ContractNumber ?? "",
             QuantityMt = d.LoadedQuantityMt,
             StatusLabel = d.Status == DispatchStatus.InTransit ? "در راه" : "بارگیری‌شده",
             MoveDate = d.DispatchDate

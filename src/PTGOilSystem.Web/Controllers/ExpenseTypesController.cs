@@ -28,7 +28,7 @@ public class ExpenseTypesController : Controller
         _deleteSafety = deleteSafety;
     }
 
-    public async Task<IActionResult> Index(string? q, string? category, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(string? q, string[]? category, bool? isActive, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 12);
         ViewData["PageSize"] = pageSize;
@@ -37,8 +37,9 @@ public class ExpenseTypesController : Controller
         var query = _db.ExpenseTypes.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(p => p.Code.Contains(q) || p.Name.Contains(q) || (p.NamePersian != null && p.NamePersian.Contains(q)) || (p.Notes != null && p.Notes.Contains(q)));
-        if (!string.IsNullOrWhiteSpace(category))
-            query = query.Where(p => p.Category == category);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (category is { Length: > 0 })
+            query = query.Where(p => p.Category != null && category.Contains(p.Category));
         if (isActive.HasValue)
             query = query.Where(p => p.IsActive == isActive.Value);
 
@@ -53,7 +54,7 @@ public class ExpenseTypesController : Controller
             .OrderBy(x => x)
             .ToListAsync();
         ViewData["q"] = q;
-        ViewData["category"] = category;
+        ViewData["category"] = category ?? [];
         ViewData["isActive"] = isActive;
         ViewData["CurrentPage"] = page;
         ViewData["PageCount"] = pageCount;

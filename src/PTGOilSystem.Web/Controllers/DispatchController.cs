@@ -245,7 +245,7 @@ public partial class DispatchController : Controller
 
     private async Task PopulateLookupsAsync(DispatchCreateViewModel? createModel = null, DispatchIndexFilterViewModel? filter = null)
     {
-        var selectedContractId = createModel?.ContractId ?? filter?.ContractId;
+        var selectedContractId = createModel?.ContractId ?? filter?.ContractId.Only();
 
         var contracts = await _db.Contracts
             .AsNoTracking()
@@ -286,13 +286,13 @@ public partial class DispatchController : Controller
             await _db.Products.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Code).Select(p => new { p.Id, p.Name }).ToListAsync(),
             "Id",
             "Name",
-            createModel?.ProductId ?? filter?.ProductId);
+            createModel?.ProductId ?? filter?.ProductId.Only());
 
         ViewBag.Trucks = new SelectList(
             await _db.Trucks.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.PlateNumber).Select(t => new { t.Id, t.PlateNumber }).ToListAsync(),
             "Id",
             "PlateNumber",
-            createModel?.TruckId ?? filter?.TruckId);
+            createModel?.TruckId ?? filter?.TruckId.Only());
 
         ViewBag.Drivers = new SelectList(
             await _db.Drivers.AsNoTracking().Where(d => d.IsActive).OrderBy(d => d.FullName).Select(d => new { d.Id, d.FullName }).ToListAsync(),
@@ -899,9 +899,22 @@ public partial class DispatchController : Controller
         query = query.Where(d => !(d.InventoryTransportReceiptId != null
             && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)));
 
-        if (filter.TruckId.HasValue) query = query.Where(d => d.TruckId == filter.TruckId.Value);
-        if (filter.ProductId.HasValue) query = query.Where(d => d.ProductId == filter.ProductId.Value);
-        if (filter.ContractId.HasValue) query = query.Where(d => d.ContractId == filter.ContractId.Value);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.TruckId.Length > 0)
+        {
+            var truckIds = filter.TruckId;
+            query = query.Where(d => truckIds.Contains(d.TruckId));
+        }
+        if (filter.ProductId.Length > 0)
+        {
+            var productIds = filter.ProductId;
+            query = query.Where(d => productIds.Contains(d.ProductId));
+        }
+        if (filter.ContractId.Length > 0)
+        {
+            var contractIds = filter.ContractId;
+            query = query.Where(d => contractIds.Contains(d.ContractId));
+        }
         if (filter.FromDate.HasValue) query = query.Where(d => d.DispatchDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) query = query.Where(d => d.DispatchDate <= filter.ToDate.Value);
 

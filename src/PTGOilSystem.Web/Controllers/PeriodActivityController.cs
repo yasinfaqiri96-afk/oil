@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -26,7 +26,12 @@ public sealed class PeriodActivityController(
     IOptions<AccountingOptions> accountingOptions) : Controller
 {
     [HttpGet("")]
-    public async Task<IActionResult> Index(int periodId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Index(
+        int periodId,
+        CancellationToken cancellationToken,
+        string? section = null,
+        int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var ownerCompanyId = await systemCompany.GetOwnerCompanyIdAsync(cancellationToken);
 
@@ -40,8 +45,14 @@ public sealed class PeriodActivityController(
                 : RedirectToAction("Index", "FiscalYears");
         }
 
+        // صفحه‌بندی واقعی روی همان بخشی که کاربر ورق می‌زند؛ سقفِ خاموشِ ۱۰۰ سطر برداشته شد.
+        var pageSize = ListPageSize.Resolve(perPage, PeriodActivityService.DefaultPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = PeriodActivityService.DefaultPageSize;
+
         var model = await activity.BuildAsync(
-            periodId, ownerCompanyId, accountingOptions.Value.Enabled, cancellationToken);
+            periodId, ownerCompanyId, accountingOptions.Value.Enabled,
+            section, page, pageSize, allRows: false, cancellationToken);
 
         return model is null ? NotFound() : View(model);
     }
@@ -67,8 +78,10 @@ public sealed class PeriodActivityController(
             periodId = resolved;
         }
 
+        // Export همهٔ سطرهای دوره را می‌گیرد (نه صفحهٔ جاری و نه سقفِ قبلیِ ۱۰۰ سطر در هر بخش).
         var model = await activity.BuildAsync(
-            periodId, ownerCompanyId, accountingOptions.Value.Enabled, cancellationToken);
+            periodId, ownerCompanyId, accountingOptions.Value.Enabled,
+            section: null, page: 1, pageSize: int.MaxValue, allRows: true, cancellationToken);
 
         if (model is null)
         {

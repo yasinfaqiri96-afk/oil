@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
@@ -70,10 +70,10 @@ public sealed class EmployeeIndexFilterViewModel
     public string? Query { get; set; }
 
     [Display(Name = "نوع کارمند")]
-    public EmployeeType? EmployeeType { get; set; }
+    public EmployeeType[] EmployeeType { get; set; } = [];
 
     [Display(Name = "نوع معاش")]
-    public EmployeeSalaryType? SalaryType { get; set; }
+    public EmployeeSalaryType[] SalaryType { get; set; } = [];
 
     [Display(Name = "وظیفه / دپارتمان")]
     [StringLength(150)]

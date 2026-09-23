@@ -68,6 +68,25 @@ public partial class ReconciliationService
             .Include(p => p.Employee)
             .Include(p => p.Driver)
             .Include(p => p.Contract)
+            // همان چهار حالتی که حلقهٔ پایین issue می‌سازد، اینجا در SQL فیلتر می‌شود تا کل
+            // جدول پرداخت‌ها با همهٔ Includeها در حافظه ساخته نشود. هر پرداختی که issue
+            // می‌ساخت هنوز در این مجموعه هست و ترتیب هم همان است.
+            .Where(p =>
+                // (۱) طرف حساب ندارد — شامل حالت «نه طرف حساب، نه سند»
+                (!p.CustomerId.HasValue
+                    && !p.SupplierId.HasValue
+                    && !p.ServiceProviderId.HasValue
+                    && !p.SarrafId.HasValue
+                    && !p.EmployeeId.HasValue
+                    && !p.DriverId.HasValue)
+                // (۲) سند تأمین‌کننده بدون تأمین‌کننده، یا بدون قرارداد
+                || ((p.PaymentKind == PaymentKind.SupplierPayment
+                        || p.PaymentKind == PaymentKind.SupplierReceipt)
+                    && (p.SupplierId == null || p.ContractId == null))
+                // (۳) سند مشتری بدون مشتری
+                || ((p.PaymentKind == PaymentKind.CustomerReceipt
+                        || p.PaymentKind == PaymentKind.CustomerPayment)
+                    && p.CustomerId == null))
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.Id)
             .ToListAsync();

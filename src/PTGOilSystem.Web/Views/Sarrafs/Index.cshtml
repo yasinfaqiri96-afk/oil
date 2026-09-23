@@ -17,7 +17,7 @@
         <vc:stat-card title="@UiText.T(Context, "کل صراف‌ها", "Total sarrafs")" value="@Model.Items.Count.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar-path="/images/stat-cards/ref-people/sarraf-rates.webp"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "صراف‌های فعال", "Active sarrafs")" value="@Model.ActiveCount.ToString("N0")" unit="@UiText.T(Context, "صراف", "sarrafs")" avatar-path="/images/stat-cards/ref-people/sarraf-transfer.webp"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "جمع سپرده‌شده", "Total charged")" value="@Model.TotalChargedUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/sarraf-cash.webp"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مانده پرداختنی", "Payable balance")" value="@Model.TotalPayableUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/sarraf-vault.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مانده (مثبت = طلب شرکت)", "Balance (+ = we are owed)")" value="@Model.TotalOfficialBalanceUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/sarraf-vault.webp"></vc:stat-card>
     </section>
 
     <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
@@ -47,7 +47,7 @@
                             <td class="ak-num">@(string.IsNullOrWhiteSpace(item.PhoneNumber) ? "-" : item.PhoneNumber)</td>
                             <td>@item.SettlementCount.ToString("N0")</td>
                             <td class="ak-col-spacer"></td>
-                            <td class="ak-num ak-col-num">@item.PayableUsd.ToString("N2")</td>
+                            <td class="ak-num ak-col-num">@item.OfficialBalanceUsd.ToString("N2")</td>
                             <td>
                                 <span class="ak-status @(item.IsActive ?"is-active" : "is-inactive")">
                                     @(item.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))

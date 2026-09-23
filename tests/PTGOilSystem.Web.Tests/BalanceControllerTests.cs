@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
@@ -34,7 +34,7 @@ public class BalanceControllerTests
         var result = Assert.IsType<ViewResult>(await new BalanceController(db).Customers(
             new CustomersBalanceFilterViewModel
             {
-                CustomerId = 1,
+                CustomerId = [1],
                 FromDate = new DateTime(2026, 4, 1),
                 ToDate = new DateTime(2026, 4, 30)
             }));
@@ -166,7 +166,10 @@ public class BalanceControllerTests
         Assert.Equal(700m, item.TotalExpensesUsd);
         Assert.Equal(2, item.RelatedLedgerCount);
         // مانده نمایشی = Σ(داده − گرفته)؛ منفی یعنی روی این قرارداد بدهکاریم.
-        Assert.Equal(-4300m, item.BaseBalanceUsd);
+        // ماندهٔ قرارداد از موتورِ رسمی: مشتری 5000 بدهکار است (طلب شرکت، مثبت). مصرفِ 700
+        // بی‌طرف‌حساب هزینهٔ خودِ شرکت است، نه مانده با کسی؛ فرمولِ خامِ قبلی (Debit − Credit)
+        // آن را با طلب مشتری قاطی می‌کرد و علامت را هم برعکس نشان می‌داد (−4300).
+        Assert.Equal(5000m, item.BaseBalanceUsd);
         Assert.Equal(1, item.ShipmentCount);
     }
 

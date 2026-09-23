@@ -1,8 +1,8 @@
-@model IEnumerable<ExpenseType>
+﻿@model IEnumerable<ExpenseType>
 @{
     ViewData["Title"] = "انواع مصارف";
     var items = Model.ToList();
-    var hasFilters = !string.IsNullOrWhiteSpace((string?)ViewData["category"]) || ViewData["isActive"] != null;
+    var hasFilters = ViewData["category"] is string[] { Length: > 0 } || ViewData["isActive"] != null;
     var hasSearch = !string.IsNullOrWhiteSpace((string?)ViewData["q"]) || hasFilters;
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     var activeCount = items.Count(item => item.IsActive);
@@ -35,7 +35,7 @@
             UiText.T(Context, "جستجو در کد یا نام...", "Search code or name..."),
             new List<AkFilterDefinition>
             {
-                new("category", UiText.T(Context, "دسته", "Category"), "select", expTypeCatOptions, (string?)ViewData["category"]),
+                AkFilterDefinition.MultiSelect("category", UiText.T(Context, "دسته", "Category"), expTypeCatOptions, ViewData["category"] as string[]),
                 new("isActive", UiText.T(Context, "وضعیت", "Status"), "bool",
                     new List<AkFilterOption> { new("true", UiText.T(Context, "فعال", "Active")), new("false", UiText.T(Context, "غیرفعال", "Inactive")) },
                     expTypesIsActive)

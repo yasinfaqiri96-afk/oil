@@ -251,3 +251,6 @@ graphify-out/
 # CSS bundles generated at build time (BuildCssBundles target in the web csproj).
 /src/PTGOilSystem.Web/wwwroot/css/ptg-core.bundle.css
 /src/PTGOilSystem.Web/wwwroot/css/ptg-app.bundle.css
+
+# JS bundle generated at build time (BuildCssBundles target in the web csproj).
+/src/PTGOilSystem.Web/wwwroot/js/ptg-core.bundle.js

@@ -32,7 +32,7 @@
             <div class="ak-form-grid">
                 <div class="ak-field">
                     <label asp-for="LoadedQuantityMt" class="ak-label"></label>
-                    <input asp-for="LoadedQuantityMt" class="ak-input ak-num" type="number" min="0.0001" step="0.001" />
+                    <input asp-for="LoadedQuantityMt" class="ak-input ak-num" type="number" min="0.0001" step="0.0001" />
                     @if (Model.TotalReceivedQuantityMt > 0)
                     {
                         <div class="form-text">نمی‌تواند کمتر از مقدار رسیدشده (@NumberDisplay.Quantity(Model.TotalReceivedQuantityMt) MT) باشد.</div>

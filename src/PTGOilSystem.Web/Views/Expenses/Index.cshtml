@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Expenses.ExpenseIndexViewModel
+﻿@model PTGOilSystem.Web.Models.Expenses.ExpenseIndexViewModel
 @{
     ViewData["Title"] = UiText.T(Context,"مصارف","Expenses");
     var query = Context.Request.Query;
@@ -34,18 +34,18 @@
                 UiText.T(Context, "جست‌وجو در مصارف...", "Search expenses..."),
                 new List<AkFilterDefinition>
                 {
-                    new("Filter.ExpenseTypeId", UiText.T(Context, "نوع مصرف", "Expense Type"), "select",
-                        ExpOpts("ExpenseTypes"), Model.Filter.ExpenseTypeId?.ToString()),
-                    new("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"), "select",
-                        ExpOpts("Contracts"), Model.Filter.ContractId?.ToString()),
-                    new("Filter.ShipmentId", UiText.T(Context, "حمل", "Shipment"), "select",
-                        ExpOpts("Shipments"), Model.Filter.ShipmentId?.ToString()),
-                    new("Filter.TruckDispatchId", UiText.T(Context, "ارسال موتر", "Truck send"), "select",
-                        ExpOpts("TruckDispatches"), Model.Filter.TruckDispatchId?.ToString()),
-                    new("Filter.ServiceProviderId", UiText.T(Context, "شرکت خدماتی", "Service Provider"), "select",
-                        ExpOpts("ServiceProviders"), Model.Filter.ServiceProviderId?.ToString()),
-                    new("Filter.OperationalAssetId", UiText.T(Context, "دارایی عملیاتی", "Owned Asset"), "select",
-                        ExpOpts("OperationalAssets"), Model.Filter.OperationalAssetId?.ToString()),
+                    AkFilterDefinition.MultiSelect("Filter.ExpenseTypeId", UiText.T(Context, "نوع مصرف", "Expense Type"),
+                        ExpOpts("ExpenseTypes"), AkFilterQuery.Values(Context, "Filter.ExpenseTypeId")),
+                    AkFilterDefinition.MultiSelect("Filter.ContractId", UiText.T(Context, "قرارداد", "Contract"),
+                        ExpOpts("Contracts"), AkFilterQuery.Values(Context, "Filter.ContractId")),
+                    AkFilterDefinition.MultiSelect("Filter.ShipmentId", UiText.T(Context, "حمل", "Shipment"),
+                        ExpOpts("Shipments"), AkFilterQuery.Values(Context, "Filter.ShipmentId")),
+                    AkFilterDefinition.MultiSelect("Filter.TruckDispatchId", UiText.T(Context, "ارسال موتر", "Truck send"),
+                        ExpOpts("TruckDispatches"), AkFilterQuery.Values(Context, "Filter.TruckDispatchId")),
+                    AkFilterDefinition.MultiSelect("Filter.ServiceProviderId", UiText.T(Context, "شرکت خدماتی", "Service Provider"),
+                        ExpOpts("ServiceProviders"), AkFilterQuery.Values(Context, "Filter.ServiceProviderId")),
+                    AkFilterDefinition.MultiSelect("Filter.OperationalAssetId", UiText.T(Context, "دارایی عملیاتی", "Owned Asset"),
+                        ExpOpts("OperationalAssets"), AkFilterQuery.Values(Context, "Filter.OperationalAssetId")),
                     new("Filter.FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToHtmlDateInput(), "Filter.ToDate", Model.Filter.ToDate?.ToHtmlDateInput())
                 });

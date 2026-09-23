@@ -1,15 +1,20 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Payments;
+using PTGOilSystem.Web.Services.Reporting;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Services;
 
+/// <summary>
+/// تنها مرجعِ کارت‌های «دریافتی/پرداختی امروز» و «ماندهٔ نقدی». روزنامچه، مرکز روزنامچه،
+/// دفتر حساب‌ها، فهرست صندوق‌ها و وضعیت مالی شرکت همه همین را می‌خوانند.
+/// </summary>
 public static class FinanceMetricCardsQuery
 {
-    private const string CacheKey = "finance-metric-cards-v1";
+    private const string CacheKey = "finance-metric-cards-v2";
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(45);
 
     public static async Task<FinanceMetricCardsViewModel> BuildAsync(
@@ -32,14 +37,7 @@ public static class FinanceMetricCardsQuery
 
         return string.IsNullOrWhiteSpace(ariaLabel)
             ? metrics
-            : new FinanceMetricCardsViewModel
-            {
-                AriaLabel = ariaLabel,
-                TodayReceiptUsd = metrics.TodayReceiptUsd,
-                TodayPaymentUsd = metrics.TodayPaymentUsd,
-                CashAccountsBalanceUsd = metrics.CashAccountsBalanceUsd,
-                TransactionCount = metrics.TransactionCount
-            };
+            : metrics.WithAriaLabel(ariaLabel);
     }
 
     private static async Task<FinanceMetricCardsViewModel> BuildCoreAsync(
@@ -47,39 +45,34 @@ public static class FinanceMetricCardsQuery
         string? ariaLabel,
         IAfghanistanBusinessClock businessClock)
     {
-        var today = businessClock.Today;
+        // «امروز» یک روزِ کامل است، نه تساویِ دقیقِ زمان؛ اگر سندی با ساعت ذخیره شده باشد هم شمرده می‌شود.
+        var today = businessClock.Today.Date;
+        var tomorrow = today.AddDays(1);
 
+        // فعالیتِ روزنامچه: همهٔ اسنادِ امروز، از جمله پرداختی که شریک از جیب خودش داده.
+        // سندِ ارزیِ بی‌معادلِ دالری در جمع صفر می‌افتد، پس تعدادش جدا برگردانده می‌شود.
         var todayTotals = await db.PaymentTransactions
             .AsNoTracking()
-            .Where(p => p.PaymentDate == today)
+            .Where(p => p.PaymentDate >= today && p.PaymentDate < tomorrow)
             .GroupBy(_ => 1)
             .Select(g => new
             {
                 ReceiptUsd = g.Where(p => p.Direction == PaymentDirection.In).Sum(p => (decimal?)p.AmountUsd) ?? 0m,
-                PaymentUsd = g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => (decimal?)p.AmountUsd) ?? 0m
+                PaymentUsd = g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => (decimal?)p.AmountUsd) ?? 0m,
+                ReceiptMissingUsdEquivalentCount = g.Count(p =>
+                    p.Direction == PaymentDirection.In
+                    && p.Amount > 0m
+                    && p.Currency != SystemCurrency.BaseCurrencyCode
+                    && p.AmountUsd == 0m),
+                PaymentMissingUsdEquivalentCount = g.Count(p =>
+                    p.Direction == PaymentDirection.Out
+                    && p.Amount > 0m
+                    && p.Currency != SystemCurrency.BaseCurrencyCode
+                    && p.AmountUsd == 0m)
             })
             .FirstOrDefaultAsync();
 
-        // موجودی صندوق/بانک فقط از پرداخت‌هایی می‌آید که واقعاً حساب نقدیِ شرکت را تکان داده‌اند.
-        // پرداختِ تأمین‌شده توسط شریک حساب نقدی ندارد و اینجا شمرده نمی‌شود.
-        var cashBalanceUsd = await db.PaymentTransactions
-            .AsNoTracking()
-            .Where(p => p.CashAccountId != null)
-            .GroupBy(_ => 1)
-            .Select(g =>
-                (g.Where(p => p.Direction == PaymentDirection.In).Sum(p => (decimal?)p.AmountUsd) ?? 0m)
-                - (g.Where(p => p.Direction == PaymentDirection.Out).Sum(p => (decimal?)p.AmountUsd) ?? 0m))
-            .FirstOrDefaultAsync();
-
-        // مصرفی که «نقد پرداخت شد» ثبت شده (گمرکِ نقدی و مانند آن) هم پول را از همان
-        // صندوق بیرون برده است. بدون آن، موجودی بیشتر از واقع دیده می‌شود و با صفحهٔ
-        // جزئیات حساب نمی‌خواند. هیچ سندی ساخته نمی‌شود؛ فقط همان مبلغ کم می‌گردد.
-        var cashPaidExpensesUsd = await db.ExpenseTransactions
-            .AsNoTracking()
-            .Where(e => e.CashAccountId != null
-                && !e.IsCancelled
-                && e.SettlementMode == ExpenseSettlementMode.PaidImmediately)
-            .SumAsync(e => (decimal?)e.AmountUsd) ?? 0m;
+        var cashTotals = await new CashPositionReader(db).ReadAccountTotalsAsync();
 
         var transactionCount = await db.PaymentTransactions
             .AsNoTracking()
@@ -87,10 +80,13 @@ public static class FinanceMetricCardsQuery
 
         return new FinanceMetricCardsViewModel
         {
-            AriaLabel = string.IsNullOrWhiteSpace(ariaLabel) ? "\u0622\u0645\u0627\u0631 \u0631\u0648\u0632\u0646\u0627\u0645\u0686\u0647 \u062f\u0631\u06cc\u0627\u0641\u062a \u0648 \u067e\u0631\u062f\u0627\u062e\u062a" : ariaLabel,
+            AriaLabel = string.IsNullOrWhiteSpace(ariaLabel) ? "آمار روزنامچه دریافت و پرداخت" : ariaLabel,
             TodayReceiptUsd = todayTotals?.ReceiptUsd ?? 0m,
             TodayPaymentUsd = todayTotals?.PaymentUsd ?? 0m,
-            CashAccountsBalanceUsd = cashBalanceUsd - cashPaidExpensesUsd,
+            TodayReceiptMissingUsdEquivalentCount = todayTotals?.ReceiptMissingUsdEquivalentCount ?? 0,
+            TodayPaymentMissingUsdEquivalentCount = todayTotals?.PaymentMissingUsdEquivalentCount ?? 0,
+            CashAccountsBalanceUsd = CashPositionReader.TotalBalanceUsd(cashTotals),
+            CashBalanceMissingUsdEquivalentCount = CashPositionReader.TotalMissingUsdEquivalentCount(cashTotals),
             TransactionCount = transactionCount
         };
     }

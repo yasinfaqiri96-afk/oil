@@ -1,4 +1,4 @@
-@using PTGOilSystem.Web.Security
+﻿@using PTGOilSystem.Web.Security
 @using Microsoft.AspNetCore.Authorization
 @inject IAuthorizationService AuthorizationService
 @model PTGOilSystem.Web.Models.Quality.QualityInspectionIndexViewModel
@@ -44,13 +44,13 @@
                 {
                     new("FromDate", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
                         Model.Filter.FromDate?.ToString("yyyy-MM-dd"), "ToDate", Model.Filter.ToDate?.ToString("yyyy-MM-dd")),
-                    new("Status", UiText.T(Context, "وضعیت", "Status"), "select",
+                    AkFilterDefinition.MultiSelect("Status", UiText.T(Context, "وضعیت", "Status"),
                         new List<AkFilterOption>
                         {
                             new("Pending", UiText.T(Context, "در انتظار نتیجه", "Pending")),
                             new("Accepted", UiText.T(Context, "قبول", "Accepted")),
                             new("Rejected", UiText.T(Context, "رد", "Rejected"))
-                        }, Model.Filter.Status?.ToString())
+                        }, AkFilterQuery.Values(Context, "Status"))
                 });
         }
         <div class="ak-list-toolbar">

@@ -47,12 +47,12 @@
                       unit="USD"
                       avatar="treasury"></vc:stat-card>
 
-        <vc:stat-card title="@T("طلبات ما", "We are owed")"
+        <vc:stat-card title="@T("طلبات ما (بدون شریک)", "We are owed (excl. partners)")"
                       value="@StatCardFormatter.Number(Model.TotalReceivableUsd, 0)"
                       unit="USD"
                       avatar="receivables"></vc:stat-card>
 
-        <vc:stat-card title="@T("بدهی ما", "We owe")"
+        <vc:stat-card title="@T("بدهی ما (بدون شریک)", "We owe (excl. partners)")"
                       value="@StatCardFormatter.Number(Model.TotalPayableUsd, 0)"
                       unit="USD"
                       avatar="payments-out"></vc:stat-card>

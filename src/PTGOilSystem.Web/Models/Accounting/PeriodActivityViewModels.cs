@@ -1,3 +1,5 @@
+﻿using PTGOilSystem.Web.Services;
+
 namespace PTGOilSystem.Web.Models.Accounting;
 
 /// <summary>
@@ -56,4 +58,12 @@ public sealed record PeriodActivityViewModel(
     IReadOnlyList<PeriodActivityRow> Payments,
     IReadOnlyList<PeriodActivityRow> Expenses,
     IReadOnlyList<PeriodActivityRow> InventoryMovements,
-    IReadOnlyList<PeriodActivityRow> Journals);
+    IReadOnlyList<PeriodActivityRow> Journals,
+    /// <summary>بخشی که صفحه‌بندی روی آن اعمال شده؛ بقیهٔ بخش‌ها صفحهٔ اول خود را نشان می‌دهند.</summary>
+    string ActiveSection = PeriodActivitySections.Purchases,
+    /// <summary>شمارهٔ صفحهٔ بخشِ فعال (از ۱).</summary>
+    int Page = 1,
+    /// <summary>اندازهٔ صفحه؛ صفر یعنی «همهٔ سطرها» (مسیر Export).</summary>
+    int PageSize = 0,
+    /// <summary>برای هر بخش: آیا سطر بیشتری بعد از این صفحه هست.</summary>
+    IReadOnlyDictionary<string, bool>? HasMoreBySection = null);

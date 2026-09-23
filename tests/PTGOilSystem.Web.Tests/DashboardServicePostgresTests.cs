@@ -263,19 +263,6 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
     private static DateTime BusinessToday
         => new PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock(TimeProvider.System).Today;
 
-    private sealed record BalanceReference(int ItemCount, decimal DebitTotalUsd, decimal CreditTotalUsd);
-
-    private static async Task<BalanceReference> ComputeBalanceReferenceAsync(IQueryable<LedgerEntry> query)
-    {
-        var rows = await query
-            .Select(l => new { l.Side, l.AmountUsd })
-            .ToListAsync();
-        return new BalanceReference(
-            rows.Count,
-            rows.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.AmountUsd),
-            rows.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.AmountUsd));
-    }
-
     [Fact]
     public async Task Dashboard_Operational_Stats_And_Balances_Match_Linq_Reference_On_PostgreSql()
     {
@@ -284,7 +271,6 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
 
         var todayUtc = BusinessToday;
         var tomorrowUtc = todayUtc.AddDays(1);
-        var monthStartUtc = new DateTime(todayUtc.Year, todayUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
         // مقادیر مرجع: همان معناشناسی LINQ فعلی، مستقل از پیاده‌سازی سرویس.
         await using var refDb = CreateContext();
@@ -295,18 +281,6 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
             .SumAsync(s => (decimal?)s.TotalUsd) ?? 0m;
         var expectedTodaySalesCount = await refDb.SalesTransactions
             .CountAsync(s => !s.IsCancelled && s.SaleDate >= todayUtc && s.SaleDate < tomorrowUtc);
-        var expectedTodayReceiptsUsd = await refDb.PaymentTransactions
-            .Where(p => p.Direction == PaymentDirection.In && p.PaymentDate >= todayUtc && p.PaymentDate < tomorrowUtc)
-            .SumAsync(p => (decimal?)p.AmountUsd) ?? 0m;
-        var expectedTodayPaymentsUsd = await refDb.PaymentTransactions
-            .Where(p => p.Direction == PaymentDirection.Out && p.PaymentDate >= todayUtc && p.PaymentDate < tomorrowUtc)
-            .SumAsync(p => (decimal?)p.AmountUsd) ?? 0m;
-        var expectedTodayExpensesUsd = await refDb.ExpenseTransactions
-            .Where(e => !e.IsCancelled && e.ExpenseDate >= todayUtc && e.ExpenseDate < tomorrowUtc)
-            .SumAsync(e => (decimal?)e.AmountUsd) ?? 0m;
-        var expectedMonthExpensesUsd = await refDb.ExpenseTransactions
-            .Where(e => !e.IsCancelled && e.ExpenseDate >= monthStartUtc && e.ExpenseDate < tomorrowUtc)
-            .SumAsync(e => (decimal?)e.AmountUsd) ?? 0m;
         var expectedActiveSarrafCount = await refDb.Sarrafs.CountAsync(s => s.IsActive);
         var expectedTodayLoadingCount = await refDb.LoadingRegisters
             .CountAsync(l => l.LoadingDate >= todayUtc && l.LoadingDate < tomorrowUtc);
@@ -342,13 +316,6 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
             .ToListAsync();
         var expectedLowStockTankCount = expectedTankStocks.Count(s => s <= LowStockThresholdMt);
 
-        var expectedContractBalance = await ComputeBalanceReferenceAsync(
-            refDb.LedgerEntries.AsNoTracking().Where(l => l.ContractId.HasValue));
-        var expectedCustomerBalance = await ComputeBalanceReferenceAsync(
-            refDb.LedgerEntries.AsNoTracking().Where(l => l.CustomerId.HasValue));
-        var expectedSupplierBalance = await ComputeBalanceReferenceAsync(
-            refDb.LedgerEntries.AsNoTracking().Where(l => l.SupplierId.HasValue));
-
         await using var db = CreateContext();
         var service = new DashboardService(db, new HttpContextAccessor());
         var vm = await service.BuildDashboardAsync();
@@ -356,10 +323,6 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
         Assert.Equal(expectedShipmentsInTransit, vm.ShipmentsInTransitCount);
         Assert.Equal(expectedTodaySalesUsd, vm.TodaySalesUsd);
         Assert.Equal(expectedTodaySalesCount, vm.TodaySalesCount);
-        Assert.Equal(expectedTodayReceiptsUsd, vm.TodayReceiptsUsd);
-        Assert.Equal(expectedTodayPaymentsUsd, vm.TodayPaymentsUsd);
-        Assert.Equal(expectedTodayExpensesUsd, vm.TodayExpensesUsd);
-        Assert.Equal(expectedMonthExpensesUsd, vm.MonthExpensesUsd);
         Assert.Equal(expectedActiveSarrafCount, vm.ActiveSarrafCount);
         Assert.Equal(expectedTodayLoadingCount, vm.TodayLoadingCount);
         Assert.Equal(expectedTodayDispatchCount, vm.TodayDispatchCount);
@@ -373,15 +336,6 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
         Assert.Equal(expectedSarrafRateDiffCount, vm.SarrafRateDiffCount);
         Assert.Equal(expectedLowStockTankCount, vm.LowStockTankCount);
 
-        Assert.Equal(expectedContractBalance.ItemCount, vm.ContractBalanceSummary.ItemCount);
-        Assert.Equal(expectedContractBalance.DebitTotalUsd, vm.ContractBalanceSummary.DebitTotalUsd);
-        Assert.Equal(expectedContractBalance.CreditTotalUsd, vm.ContractBalanceSummary.CreditTotalUsd);
-        Assert.Equal(expectedCustomerBalance.ItemCount, vm.CustomerBalanceSummary.ItemCount);
-        Assert.Equal(expectedCustomerBalance.DebitTotalUsd, vm.CustomerBalanceSummary.DebitTotalUsd);
-        Assert.Equal(expectedCustomerBalance.CreditTotalUsd, vm.CustomerBalanceSummary.CreditTotalUsd);
-        Assert.Equal(expectedSupplierBalance.ItemCount, vm.SupplierBalanceSummary.ItemCount);
-        Assert.Equal(expectedSupplierBalance.DebitTotalUsd, vm.SupplierBalanceSummary.DebitTotalUsd);
-        Assert.Equal(expectedSupplierBalance.CreditTotalUsd, vm.SupplierBalanceSummary.CreditTotalUsd);
     }
 
     [Fact]
@@ -402,7 +356,10 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
 
         // پیش از بهینه‌سازی ۴۰ فرمان بود؛ بعد از تجمیع OperationalStats و BalanceSummaries به ۲۱ رسید.
         // کارت‌های بینش (قراردادهای در جریان + ظرفیت مخازن) دو فرمان اضافه کردند: ۲۳.
+        // سپس سه جفت query هم‌شکل با UNION ALL یکی شد (سری روزانهٔ فروش/هزینه، جست‌وجوی نام
+        // جنس/ترمینال/قرارداد، و دو هشدار محموله): ۱۹. جفت «آخرین تاریخ فروش/هزینه» عمداً
+        // جدا ماند چون ادغامش partial index را از کار می‌انداخت و روی ۶۰٬۰۰۰ ردیف کندتر بود.
         // این سقف regression تعداد رفت‌وبرگشت داشبورد را قفل می‌کند.
-        Assert.InRange(counter.Count, 1, 25);
+        Assert.InRange(counter.Count, 1, 21);
     }
 }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -81,9 +81,22 @@ public partial class LossEventsController : Controller
 
         if (filter.FromDate.HasValue) query = query.Where(e => e.EventDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) query = query.Where(e => e.EventDate <= filter.ToDate.Value);
-        if (filter.ProductId.HasValue) query = query.Where(e => e.ProductId == filter.ProductId.Value);
-        if (filter.ContractId.HasValue) query = query.Where(e => e.ContractId == filter.ContractId.Value);
-        if (filter.Stage.HasValue) query = query.Where(e => e.Stage == filter.Stage.Value);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.ProductId.Length > 0)
+        {
+            var productIds = filter.ProductId;
+            query = query.Where(e => productIds.Contains(e.ProductId));
+        }
+        if (filter.ContractId.Length > 0)
+        {
+            var contractIds = filter.ContractId;
+            query = query.Where(e => e.ContractId != null && contractIds.Contains(e.ContractId.Value));
+        }
+        if (filter.Stage.Length > 0)
+        {
+            var stages = filter.Stage;
+            query = query.Where(e => stages.Contains(e.Stage));
+        }
         if (!string.IsNullOrWhiteSpace(filter.ResponsiblePartyName))
         {
             var responsibleParty = filter.ResponsiblePartyName.Trim();
@@ -988,7 +1001,7 @@ public partial class LossEventsController : Controller
             await _db.Products.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Code).ToListAsync(),
             "Id",
             "Name",
-            createModel?.ProductId ?? filter?.ProductId);
+            createModel?.ProductId ?? filter?.ProductId.Only());
 
         ViewBag.Contracts = new SelectList(
             ContractUiText.ToLookupOptions(
@@ -1001,7 +1014,7 @@ public partial class LossEventsController : Controller
                     .ToListAsync()),
             nameof(ContractLookupOption.Id),
             nameof(ContractLookupOption.Display),
-            createModel?.ContractId ?? filter?.ContractId);
+            createModel?.ContractId ?? filter?.ContractId.Only());
 
         ViewBag.Shipments = new SelectList(
             await _db.Shipments.AsNoTracking().OrderByDescending(s => s.DepartureDate).ThenBy(s => s.ShipmentCode).Take(200).ToListAsync(),
@@ -1128,7 +1141,7 @@ public partial class LossEventsController : Controller
                 {
                     Value = ((int)stage).ToString(),
                     Text = LossEventStageLabels.ToPersian(stage),
-                    Selected = stage == filter?.Stage
+                    Selected = filter != null && filter.Stage.Contains(stage)
                 })
                 .ToList();
 

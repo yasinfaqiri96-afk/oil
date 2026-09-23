@@ -37,6 +37,9 @@ public sealed class ProbePostgresCollection : ICollectionFixture<SimulationPostg
 /// خوانده یا نوشته نمی‌شود.
 /// </summary>
 [Collection(ProbePostgresCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
+[Trait("Category", "Simulation")]
 public sealed class ProductionRiskProbeTests
 {
     private readonly SimulationPostgresFixture _fixture;

@@ -1,6 +1,7 @@
 ﻿@using Microsoft.AspNetCore.Html
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.TruckSettlements
+@using PTGOilSystem.Web.Models.InventoryTransport
 @model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportLegDetailsViewModel
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
@@ -61,7 +62,37 @@
         _ => "bi-truck-front"
     };
 
-    var sourceLabel = Model.SourceTankCode ?? Model.SourceTerminalName;
+    // منبع واقعی بار از سهم‌های منبع خوانده می‌شود؛ مخزن/ترمینالِ خودِ حمل فقط fallback است،
+    // چون حمل از بارگیری مخزن ندارد و حملِ ادامه‌دار مخزنِ حملِ اول را به ارث می‌برد.
+    string SourceKindText(InventoryTransportLegSourceKind kind) => kind switch
+    {
+        InventoryTransportLegSourceKind.Loading => T("بارگیری", "Loading"),
+        InventoryTransportLegSourceKind.LoadingReceipt => T("رسید بارگیری", "Loading receipt"),
+        InventoryTransportLegSourceKind.StorageTank => T("مخزن", "Storage tank"),
+        _ => T("موتر / وسیلهٔ قبلی", "Previous vehicle")
+    };
+    string SourceKindIcon(InventoryTransportLegSourceKind kind) => kind switch
+    {
+        InventoryTransportLegSourceKind.Loading => "bi-box-arrow-up",
+        InventoryTransportLegSourceKind.LoadingReceipt => "bi-box-arrow-in-down",
+        InventoryTransportLegSourceKind.StorageTank => "bi-database",
+        _ => "bi-truck-front"
+    };
+    string? SourceHref(InventoryTransportLegSourceItemViewModel item) => !item.SourceId.HasValue ? null : item.Kind switch
+    {
+        InventoryTransportLegSourceKind.Loading => Url.Action("Details", "Loading", new { id = item.SourceId.Value, returnUrl = currentPageReturnUrl }),
+        InventoryTransportLegSourceKind.LoadingReceipt => Url.Action("Details", "LoadingReceipts", new { id = item.SourceId.Value, returnUrl = currentPageReturnUrl }),
+        InventoryTransportLegSourceKind.StorageTank => Url.Action("Details", "StorageTanks", new { id = item.SourceId.Value }),
+        _ => Url.Action("Details", "InventoryTransportLegs", new { id = item.SourceId.Value, returnUrl = currentPageReturnUrl })
+    };
+    var sourceKinds = Model.Sources.Select(item => item.Kind).Distinct().ToList();
+    var singleSource = Model.Sources.Count == 1 ? Model.Sources[0] : null;
+    var sourceLabel = singleSource is not null
+        ? $"{SourceKindText(singleSource.Kind)}: {singleSource.Reference}"
+        : Model.Sources.Count > 1
+            ? $"{string.Join("، ", sourceKinds.Select(SourceKindText))} — {Model.Sources.Count} {T("سهم منبع", "source shares")}"
+            : Model.SourceTankCode ?? Model.SourceTerminalName;
+    var sourceHref = singleSource is null ? null : SourceHref(singleSource);
     var destinationLabel = Model.DestinationLocationName ?? Model.DestinationTerminalName ?? Model.DestinationTankCode;
     var documentNumber = string.IsNullOrWhiteSpace(Model.OutboundReferenceDocument)
         ? $"TR-{Model.Id:0000}"
@@ -391,7 +422,7 @@
                 Icon = "bi-map",
                 RouteNodes = new List<AkInfoItem>
                 {
-                    new() { Label = T("مبدأ", "Source"), Value = sourceLabel },
+                    new() { Label = T("مبدأ", "Source"), Value = sourceLabel, Href = sourceHref },
                     new() { Label = T("مقصد", "Destination"), Value = destinationLabel }
                 },
                 Steps = routeSteps,
@@ -490,6 +521,59 @@
                        T("بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
 
     <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
+
+    @if (Model.Sources.Count > 0)
+    {
+        @* منبع بار هویت همین حمل است؛ بیرون از «نمایش موارد بیشتر» می‌ماند تا بدون کلیک دیده شود. *@
+        <section class="ak-form-section transport-source-section" aria-labelledby="transport-source-title">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@((T("منبع بار", "Load source"), (string?)T("این حمل بارش را از کجا گرفته است", "Where this transport took its load from")))" />
+            <div class="ak-table-wrap" id="transport-source-title">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th>@T("نوع منبع", "Source type")</th>
+                            <th class="col-name">@T("مرجع", "Reference")</th>
+                            <th>@T("محل / وسیله", "Place / vehicle")</th>
+                            <th>@T("قرارداد", "Contract")</th>
+                            <th class="col-ltr">@T("مقدار (MT)", "Quantity (MT)")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var source in Model.Sources)
+                        {
+                            var href = SourceHref(source);
+                            <tr>
+                                <td><i class="bi @SourceKindIcon(source.Kind)" aria-hidden="true"></i> @SourceKindText(source.Kind)</td>
+                                <td class="col-name">
+                                    @if (href is null)
+                                    {
+                                        <bdi>@source.Reference</bdi>
+                                    }
+                                    else
+                                    {
+                                        <a href="@href"><bdi>@source.Reference</bdi></a>
+                                    }
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(source.Place) ? "-" : source.Place)</td>
+                                <td>@(source.ContractLabel ?? "-")</td>
+                                <td class="ak-num col-ltr">@Q(source.QuantityMt)</td>
+                            </tr>
+                        }
+                    </tbody>
+                    @if (Model.Sources.Count > 1)
+                    {
+                        <tfoot>
+                            <tr>
+                                <th colspan="4">@T("مجموع منابع", "Total sources")</th>
+                                <th class="ak-num col-ltr">@Q(Model.Sources.Sum(item => item.QuantityMt))</th>
+                            </tr>
+                        </tfoot>
+                    }
+                </table>
+            </div>
+        </section>
+    }
 
     <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
 

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -297,7 +297,7 @@ public class ExportMatchesPageTests
 
         var filter = new PTGOilSystem.Web.Models.Quality.QualityInspectionFilterViewModel
         {
-            Status = QualityInspectionStatus.Rejected
+            Status = [QualityInspectionStatus.Rejected]
         };
 
         var export = Assert.IsType<TabularExportResult>(await controller.Export("excel", filter));

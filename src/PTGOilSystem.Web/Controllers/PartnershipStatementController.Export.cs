@@ -69,7 +69,8 @@ public partial class PartnershipStatementController
         {
             Row("پرداخت / سرمایهٔ گذاشته‌شده", a.FundingUsd, b.FundingUsd),
             Row("عواید فروش نزد شریک", a.ProceedsHeldUsd, b.ProceedsHeldUsd),
-            Row("سهم مفاد", a.ProfitShareUsd, b.ProfitShareUsd),
+            Row("سهم مفاد محقق", a.ProfitShareUsd, b.ProfitShareUsd),
+            Row("سهم هزینهٔ کالای فروخته‌نشده", a.UnsoldCostShareUsd, b.UnsoldCostShareUsd),
             Row("تسویهٔ پرداخت‌شده به شریک دیگر", a.SettlementsPaidUsd, b.SettlementsPaidUsd),
             Row("تسویهٔ دریافت‌شده از شریک دیگر", a.SettlementsReceivedUsd, b.SettlementsReceivedUsd),
             Row("مانده — مثبت یعنی طلبکار، منفی یعنی بدهکار", a.NetPositionUsd, b.NetPositionUsd)
@@ -146,7 +147,8 @@ public partial class PartnershipStatementController
             contract.SalesUsd));
         rows.Add(Row("خرید ثبت‌شده — بارگیری قرارداد", PartnershipStatementSources.Loading, contract.PurchaseCostUsd));
         rows.Add(Row("مصارف ثبت‌شدهٔ قرارداد", PartnershipStatementSources.Expense, contract.OperationalExpenseUsd));
-        rows.Add(Row("مفاد قرارداد — فروش منهای خرید و مصارف", PartnershipStatementSources.Book, contract.BookProfitUsd));
+        rows.Add(Row("مفاد محقق قرارداد — فروش منهای بهای کالای فروخته‌شده و سهم مصارف، ± اثر ارزی", PartnershipStatementSources.Book, contract.BookProfitUsd));
+        rows.Add(Row("هزینهٔ کالای هنوز فروخته‌نشده", PartnershipStatementSources.Book, contract.UnrealizedCostCarriedUsd));
 
         foreach (var partner in contract.Partners)
         {

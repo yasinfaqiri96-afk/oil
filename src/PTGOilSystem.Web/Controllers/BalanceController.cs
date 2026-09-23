@@ -46,7 +46,7 @@ public partial class BalanceController : Controller
                 .ToList(),
             "Value",
             "Text",
-            filter.ContractType);
+            filter.ContractType.Only());
 
         ViewBag.ContractStatuses = new SelectList(
             Enum.GetValues<ContractStatus>()
@@ -54,7 +54,7 @@ public partial class BalanceController : Controller
                 .ToList(),
             "Value",
             "Text",
-            filter.Status);
+            filter.Status.Only());
 
         ViewBag.Products = new SelectList(
             await _db.Products
@@ -64,7 +64,7 @@ public partial class BalanceController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            filter.ProductId);
+            filter.ProductId.Only());
 
         ViewBag.Customers = new SelectList(
             await _db.Customers
@@ -74,7 +74,7 @@ public partial class BalanceController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            filter.CustomerId);
+            filter.CustomerId.Only());
 
         ViewBag.Suppliers = new SelectList(
             await _db.Suppliers
@@ -84,7 +84,7 @@ public partial class BalanceController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            filter.SupplierId);
+            filter.SupplierId.Only());
     }
 
     private async Task PopulateCustomersLookupsAsync(CustomersBalanceFilterViewModel filter)
@@ -97,7 +97,7 @@ public partial class BalanceController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            filter.CustomerId);
+            filter.CustomerId.Only());
 
         ViewBag.Countries = new SelectList(
             await _db.Customers
@@ -107,7 +107,7 @@ public partial class BalanceController : Controller
                 .Distinct()
                 .OrderBy(country => country)
                 .ToListAsync(),
-            filter.Country);
+            filter.Country.OnlyText());
     }
 
     private async Task PopulateSuppliersLookupsAsync(SuppliersBalanceFilterViewModel filter)
@@ -120,7 +120,7 @@ public partial class BalanceController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            filter.SupplierId);
+            filter.SupplierId.Only());
 
         ViewBag.Countries = new SelectList(
             await _db.Suppliers
@@ -130,7 +130,7 @@ public partial class BalanceController : Controller
                 .Distinct()
                 .OrderBy(country => country)
                 .ToListAsync(),
-            filter.Country);
+            filter.Country.OnlyText());
     }
 
     private static IQueryable<Contract> ApplyContractsFilter(
@@ -147,29 +147,35 @@ public partial class BalanceController : Controller
             query = query.Where(c => c.ContractDate <= filter.ToDate.Value);
         }
 
-        if (filter.ContractType.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.ContractType.Length > 0)
         {
-            query = query.Where(c => c.ContractType == filter.ContractType.Value);
+            var contractTypes = filter.ContractType;
+            query = query.Where(c => contractTypes.Contains(c.ContractType));
         }
 
-        if (filter.Status.HasValue)
+        if (filter.Status.Length > 0)
         {
-            query = query.Where(c => c.Status == filter.Status.Value);
+            var statuses = filter.Status;
+            query = query.Where(c => statuses.Contains(c.Status));
         }
 
-        if (filter.ProductId.HasValue)
+        if (filter.ProductId.Length > 0)
         {
-            query = query.Where(c => c.ProductId == filter.ProductId.Value);
+            var productIds = filter.ProductId;
+            query = query.Where(c => productIds.Contains(c.ProductId));
         }
 
-        if (filter.CustomerId.HasValue)
+        if (filter.CustomerId.Length > 0)
         {
-            query = query.Where(c => c.CustomerId == filter.CustomerId.Value);
+            var customerIds = filter.CustomerId;
+            query = query.Where(c => c.CustomerId != null && customerIds.Contains(c.CustomerId.Value));
         }
 
-        if (filter.SupplierId.HasValue)
+        if (filter.SupplierId.Length > 0)
         {
-            query = query.Where(c => c.SupplierId == filter.SupplierId.Value);
+            var supplierIds = filter.SupplierId;
+            query = query.Where(c => c.SupplierId != null && supplierIds.Contains(c.SupplierId.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -190,15 +196,17 @@ public partial class BalanceController : Controller
         IQueryable<Customer> query,
         CustomersBalanceFilterViewModel filter)
     {
-        if (filter.CustomerId.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.CustomerId.Length > 0)
         {
-            query = query.Where(c => c.Id == filter.CustomerId.Value);
+            var customerIds = filter.CustomerId;
+            query = query.Where(c => customerIds.Contains(c.Id));
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Country))
+        if (filter.Country.Length > 0)
         {
-            var country = filter.Country.Trim();
-            query = query.Where(c => c.Country == country);
+            var countries = filter.Country.Select(value => value.Trim()).ToArray();
+            query = query.Where(c => c.Country != null && countries.Contains(c.Country));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -218,15 +226,17 @@ public partial class BalanceController : Controller
         IQueryable<Supplier> query,
         SuppliersBalanceFilterViewModel filter)
     {
-        if (filter.SupplierId.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.SupplierId.Length > 0)
         {
-            query = query.Where(s => s.Id == filter.SupplierId.Value);
+            var supplierIds = filter.SupplierId;
+            query = query.Where(s => supplierIds.Contains(s.Id));
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Country))
+        if (filter.Country.Length > 0)
         {
-            var country = filter.Country.Trim();
-            query = query.Where(s => s.Country == country);
+            var countries = filter.Country.Select(value => value.Trim()).ToArray();
+            query = query.Where(s => s.Country != null && countries.Contains(s.Country));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -284,11 +294,13 @@ public partial class BalanceController : Controller
             })
             .ToListAsync();
 
-        var contractIds = contracts.Select(contract => contract.Id).ToList();
+        // ردیف‌ها همان صفحهٔ جاری‌اند، ولی جمع‌های کارت‌های بالا روی همهٔ نتایجِ فیلتر است؛
+        // پس تجمیع‌ها برای همهٔ شناسه‌های فیلترشده ساخته می‌شوند (در دیتابیس، یک query برای هر جمع).
+        var contractIds = await contractQuery.Select(contract => contract.Id).ToListAsync();
 
         var salesQuery = _db.SalesTransactions
             .AsNoTracking()
-            .Where(s => s.ContractId.HasValue && contractIds.Contains(s.ContractId.Value));
+            .Where(s => !s.IsCancelled && s.ContractId.HasValue && contractIds.Contains(s.ContractId.Value));
         if (filter.FromDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate <= filter.ToDate.Value);
         var salesSummary = contractIds.Count == 0
@@ -348,19 +360,19 @@ public partial class BalanceController : Controller
             .Where(l => l.ContractId.HasValue && contractIds.Contains(l.ContractId.Value));
         if (filter.FromDate.HasValue) ledgerQuery = ledgerQuery.Where(l => l.EntryDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) ledgerQuery = ledgerQuery.Where(l => l.EntryDate <= filter.ToDate.Value);
-        var ledgerSummary = contractIds.Count == 0
-            ? new Dictionary<int, LedgerAggregate>()
+        var ledgerCounts = contractIds.Count == 0
+            ? new Dictionary<int, int>()
             : await ledgerQuery
             .GroupBy(l => l.ContractId!.Value)
-            .Select(g => new
-            {
-                ContractId = g.Key,
-                Summary = new LedgerAggregate(
-                    g.Count(),
-                    g.Sum(x => x.Side == LedgerSide.Debit ? x.AmountUsd : 0m),
-                    g.Sum(x => x.Side == LedgerSide.Credit ? x.AmountUsd : 0m))
-            })
-            .ToDictionaryAsync(x => x.ContractId, x => x.Summary);
+            .Select(g => new { ContractId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ContractId, x => x.Count);
+
+        // ماندهٔ قرارداد فقط از موتورِ رسمی (جمعِ ماندهٔ طرف‌حساب‌های همان قرارداد، تا پایانِ بازه):
+        // همان عددِ پروندهٔ قرارداد و بستن قرارداد. مثبت = طلب شرکت، منفی = بدهی شرکت.
+        var contractBalances = await _partyBalances.GetContractBalancesAsync(
+            contractIds,
+            filter.ToDate,
+            HttpContext?.RequestAborted ?? CancellationToken.None);
 
         var shipmentSummary = contractIds.Count == 0
             ? new Dictionary<int, int>()
@@ -379,11 +391,8 @@ public partial class BalanceController : Controller
         {
             salesSummary.TryGetValue(contract.Id, out var salesTotal);
             expensesSummary.TryGetValue(contract.Id, out var expensesTotal);
-            ledgerSummary.TryGetValue(contract.Id, out var ledger);
+            ledgerCounts.TryGetValue(contract.Id, out var ledgerCount);
             shipmentSummary.TryGetValue(contract.Id, out var shipmentCount);
-
-            var debitTotal = ledger?.DebitTotal ?? 0m;
-            var creditTotal = ledger?.CreditTotal ?? 0m;
 
             return new ContractBalanceListItemViewModel
             {
@@ -403,15 +412,16 @@ public partial class BalanceController : Controller
                 ShipmentCount = shipmentCount,
                 TotalSalesUsd = salesTotal,
                 TotalExpensesUsd = expensesTotal,
-                RelatedLedgerCount = ledger?.Count ?? 0,
-                // مانده نمایشی مطابق قرارداد صورت‌حساب: Σ(داده − گرفته) = پرداخت‌ها − بار.
-                // مثبت یعنی روی این قرارداد پیش‌پرداخت داریم؛ منفی یعنی بدهکاریم.
-                BaseBalanceUsd = debitTotal - creditTotal
+                RelatedLedgerCount = ledgerCount,
+                BaseBalanceUsd = contractBalances.TryGetValue(contract.Id, out var balance) ? balance.NetBalanceUsd : 0m
             };
         }).ToList();
 
         return View(new ContractsBalanceViewModel
         {
+            FilteredTotalSalesUsd = salesSummary.Values.Sum(),
+            FilteredTotalExpensesUsd = expensesSummary.Values.Sum(),
+            FilteredBalanceUsd = contractBalances.Values.Sum(balance => balance.NetBalanceUsd),
             Filter = filter,
             Items = items,
             CurrentPage = currentPage,
@@ -466,13 +476,20 @@ public partial class BalanceController : Controller
             })
             .ToListAsync();
 
-        var customerIds = customers.Select(customer => customer.Id).ToList();
+        // ردیف‌ها همان صفحهٔ جاری‌اند، ولی جمع‌های کارت‌های بالا روی همهٔ نتایجِ فیلتر است؛
+        // پس تجمیع‌ها برای همهٔ شناسه‌های فیلترشده ساخته می‌شوند (در دیتابیس، یک query برای هر جمع).
+        var customerIds = await customerQuery.Select(customer => customer.Id).ToListAsync();
+        // فقط ماندهٔ مشتری لازم است. ردیف صراف/کارمند/شریک همین‌جا هم دور ریخته می‌شد،
+        // پس خواندنشان از دیتابیس کارِ بی‌حاصل بود؛ حالا اصلاً خوانده نمی‌شوند. عددِ
+        // ماندهٔ مشتری‌ها ذره‌ای تغییر نمی‌کند، چون هیچ‌کدام از آن منابع ردیفِ مشتری نمی‌سازند.
         var officialCustomerBalances = (await _partyBalances.GetBalancesAsync(
                 new ManagementReportFilterViewModel
                 {
                     FromDate = filter.FromDate,
                     ToDate = filter.ToDate
-                }))
+                },
+                HttpContext?.RequestAborted ?? CancellationToken.None,
+                partyTypes: [PartyStatementPartyType.Customer]))
             .Where(row => row.PartyType == PartyStatementPartyType.Customer
                 && customerIds.Contains(row.PartyId))
             .ToDictionary(row => row.PartyId);
@@ -499,7 +516,7 @@ public partial class BalanceController : Controller
 
         var salesQuery = _db.SalesTransactions
             .AsNoTracking()
-            .Where(s => customerIds.Contains(s.CustomerId));
+            .Where(s => !s.IsCancelled && customerIds.Contains(s.CustomerId));
         if (filter.FromDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate <= filter.ToDate.Value);
         var salesSummary = customerIds.Count == 0
@@ -541,10 +558,7 @@ public partial class BalanceController : Controller
             .Select(g => new
             {
                 CustomerId = g.Key,
-                Summary = new LedgerAggregate(
-                    g.Count(),
-                    g.Sum(x => x.Side == LedgerSide.Debit ? x.AmountUsd : 0m),
-                    g.Sum(x => x.Side == LedgerSide.Credit ? x.AmountUsd : 0m))
+                Summary = new LedgerAggregate(g.Count())
             })
             .ToDictionaryAsync(x => x.CustomerId, x => x.Summary);
 
@@ -560,10 +574,7 @@ public partial class BalanceController : Controller
                 select new
                 {
                     CustomerId = g.Key,
-                    Summary = new LedgerAggregate(
-                        g.Count(),
-                        g.Sum(x => x.Side == LedgerSide.Debit ? x.AmountUsd : 0m),
-                        g.Sum(x => x.Side == LedgerSide.Credit ? x.AmountUsd : 0m))
+                    Summary = new LedgerAggregate(g.Count())
                 })
             .ToDictionaryAsync(x => x.CustomerId, x => x.Summary);
 
@@ -575,8 +586,6 @@ public partial class BalanceController : Controller
             directLedgerSummary.TryGetValue(customer.Id, out var directLedger);
             contractLedgerSummary.TryGetValue(customer.Id, out var contractLedger);
 
-            var debitTotal = (directLedger?.DebitTotal ?? 0m) + (contractLedger?.DebitTotal ?? 0m);
-            var creditTotal = (directLedger?.CreditTotal ?? 0m) + (contractLedger?.CreditTotal ?? 0m);
 
             return new CustomerBalanceListItemViewModel
             {
@@ -598,6 +607,9 @@ public partial class BalanceController : Controller
 
         return View(new CustomersBalanceViewModel
         {
+            FilteredTotalSalesUsd = salesSummary.Values.Sum(),
+            FilteredTotalExpensesUsd = expensesSummary.Values.Sum(),
+            FilteredBalanceUsd = officialCustomerBalances.Values.Sum(row => row.ClosingBalanceUsd),
             Filter = filter,
             Items = items,
             CurrentPage = currentPage,
@@ -649,13 +661,18 @@ public partial class BalanceController : Controller
             })
             .ToListAsync();
 
-        var supplierIds = suppliers.Select(supplier => supplier.Id).ToList();
+        // ردیف‌ها همان صفحهٔ جاری‌اند، ولی جمع‌های کارت‌های بالا روی همهٔ نتایجِ فیلتر است؛
+        // پس تجمیع‌ها برای همهٔ شناسه‌های فیلترشده ساخته می‌شوند (در دیتابیس، یک query برای هر جمع).
+        var supplierIds = await supplierQuery.Select(supplier => supplier.Id).ToListAsync();
+        // قرینهٔ صفحهٔ مشتری‌ها: فقط ردیف تأمین‌کننده خوانده می‌شود.
         var officialSupplierBalances = (await _partyBalances.GetBalancesAsync(
                 new ManagementReportFilterViewModel
                 {
                     FromDate = filter.FromDate,
                     ToDate = filter.ToDate
-                }))
+                },
+                HttpContext?.RequestAborted ?? CancellationToken.None,
+                partyTypes: [PartyStatementPartyType.Supplier]))
             .Where(row => row.PartyType == PartyStatementPartyType.Supplier
                 && supplierIds.Contains(row.PartyId))
             .ToDictionary(row => row.PartyId);
@@ -685,7 +702,8 @@ public partial class BalanceController : Controller
             : await (
                 from s in _db.SalesTransactions.AsNoTracking()
                 join c in filteredContractsQuery on s.ContractId equals c.Id
-                where (!filter.FromDate.HasValue || s.SaleDate >= filter.FromDate.Value)
+                where !s.IsCancelled
+                    && (!filter.FromDate.HasValue || s.SaleDate >= filter.FromDate.Value)
                     && (!filter.ToDate.HasValue || s.SaleDate <= filter.ToDate.Value)
                 group s by c.SupplierId!.Value into g
                 select new
@@ -723,10 +741,7 @@ public partial class BalanceController : Controller
             .Select(g => new
             {
                 SupplierId = g.Key,
-                Summary = new LedgerAggregate(
-                    g.Count(),
-                    g.Sum(x => x.Side == LedgerSide.Debit ? x.AmountUsd : 0m),
-                    g.Sum(x => x.Side == LedgerSide.Credit ? x.AmountUsd : 0m))
+                Summary = new LedgerAggregate(g.Count())
             })
             .ToDictionaryAsync(x => x.SupplierId, x => x.Summary);
 
@@ -742,10 +757,7 @@ public partial class BalanceController : Controller
                 select new
                 {
                     SupplierId = g.Key,
-                    Summary = new LedgerAggregate(
-                        g.Count(),
-                        g.Sum(x => x.Side == LedgerSide.Debit ? x.AmountUsd : 0m),
-                        g.Sum(x => x.Side == LedgerSide.Credit ? x.AmountUsd : 0m))
+                    Summary = new LedgerAggregate(g.Count())
                 })
             .ToDictionaryAsync(x => x.SupplierId, x => x.Summary);
 
@@ -757,8 +769,6 @@ public partial class BalanceController : Controller
             directLedgerSummary.TryGetValue(supplier.Id, out var directLedger);
             contractLedgerSummary.TryGetValue(supplier.Id, out var contractLedger);
 
-            var debitTotal = (directLedger?.DebitTotal ?? 0m) + (contractLedger?.DebitTotal ?? 0m);
-            var creditTotal = (directLedger?.CreditTotal ?? 0m) + (contractLedger?.CreditTotal ?? 0m);
 
             return new SupplierBalanceListItemViewModel
             {
@@ -780,6 +790,9 @@ public partial class BalanceController : Controller
 
         return View(new SuppliersBalanceViewModel
         {
+            FilteredTotalSalesUsd = salesSummary.Values.Sum(),
+            FilteredTotalExpensesUsd = expensesSummary.Values.Sum(),
+            FilteredBalanceUsd = officialSupplierBalances.Values.Sum(row => row.ClosingBalanceUsd),
             Filter = filter,
             Items = items,
             CurrentPage = currentPage,
@@ -803,7 +816,8 @@ public partial class BalanceController : Controller
 
     private sealed record CountAggregate(int Count, int ActiveCount, int ClosedCount);
 
-    private sealed record LedgerAggregate(int Count, decimal DebitTotal, decimal CreditTotal);
+    /// <summary>فقط تعدادِ اسناد؛ ماندهٔ طرف‌حساب از موتورِ رسمی می‌آید، نه از جمعِ خامِ Debit/Credit.</summary>
+    private sealed record LedgerAggregate(int Count);
 
     private static string GetContractTypeName(ContractType contractType)
         => contractType == ContractType.Purchase ? "خرید" : "فروش";

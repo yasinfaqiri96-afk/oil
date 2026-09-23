@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Models.Customs;
 using PTGOilSystem.Web.Services;
@@ -42,9 +43,19 @@ public class CustomsPermitTurnoverController : Controller
         string? goods = null,
         string? route = null,
         decimal taxPercent = 0m,
-        string? displayCurrency = "USD")
-        => View(await BuildAsync(
-            fromDate, toDate, permitHolder, permitNumber, accd, vehicle, type, goods, route, taxPercent, displayCurrency));
+        string? displayCurrency = "USD",
+        int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null)
+    {
+        const int defaultPageSize = 50;
+        var pageSize = ListPageSize.Resolve(perPage, defaultPageSize);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = defaultPageSize;
+
+        return View(await BuildAsync(
+            fromDate, toDate, permitHolder, permitNumber, accd, vehicle, type, goods, route, taxPercent, displayCurrency,
+            page, pageSize, allRows: false));
+    }
 
     /// <summary>
     /// خروجی Excel/PDF همان گزارش. دقیقاً همان <see cref="BuildAsync"/> صفحه با همان فیلترها
@@ -65,8 +76,10 @@ public class CustomsPermitTurnoverController : Controller
         decimal taxPercent = 0m,
         string? displayCurrency = "USD")
     {
+        // Export همهٔ سطرهای فیلترشده را می‌گیرد، نه صفحهٔ جاری صفحه‌بندی را.
         var model = await BuildAsync(
-            fromDate, toDate, permitHolder, permitNumber, accd, vehicle, type, goods, route, taxPercent, displayCurrency);
+            fromDate, toDate, permitHolder, permitNumber, accd, vehicle, type, goods, route, taxPercent, displayCurrency,
+            page: 1, pageSize: int.MaxValue, allRows: true);
         var rows = model.Rows.ToList();
 
         return TabularExportSupport.File(this, format, new TabularExportDocument
@@ -134,7 +147,10 @@ public class CustomsPermitTurnoverController : Controller
         string? goods,
         string? route,
         decimal taxPercent,
-        string? displayCurrency)
+        string? displayCurrency,
+        int page,
+        int pageSize,
+        bool allRows)
     {
         string? N(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -205,9 +221,19 @@ public class CustomsPermitTurnoverController : Controller
         // Load declarations with their item breakdown so we can compute, per item, a single
         // canonical (AFN, USD) equivalent pair. Each customs row carries ONE real amount; the
         // other currency is derived from the rate. This prevents double-counting AFN + USD.
-        var declarations = await query
+        // صفحه‌بندی واقعی: فقط سطرهای همین صفحه از دیتابیس خوانده می‌شوند. جمع‌های پایین صفحه
+        // پایین‌تر روی «کل مجموعهٔ فیلترشده» حساب می‌شوند، پس هیچ عددی با صفحه‌بندی تغییر نمی‌کند.
+        var totalCount = await query.CountAsync();
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)Math.Max(1, pageSize)));
+        var currentPage = allRows ? 1 : Math.Clamp(page, 1, pageCount);
+
+        var pagedQuery = query
             .OrderBy(cd => cd.DeclarationDate)
-            .ThenBy(cd => cd.Id)
+            .ThenBy(cd => cd.Id);
+
+        var declarations = await (allRows
+                ? (IQueryable<CustomsDeclaration>)pagedQuery
+                : pagedQuery.Skip((currentPage - 1) * pageSize).Take(pageSize))
             .Select(cd => new
             {
                 cd.Id,
@@ -231,18 +257,20 @@ public class CustomsPermitTurnoverController : Controller
         var fxCache = new Dictionary<DateTime, decimal>();
         var rows = new List<CustomsPermitTurnoverRowViewModel>(declarations.Count);
 
-        foreach (var cd in declarations)
+        // نرخ هر تاریخ یک بار گرفته می‌شود و هم سطرهای صفحه و هم جمع‌های کل از همین کش
+        // استفاده می‌کنند، پس منطق نرخ در دو مسیر از هم جدا نمی‌شود.
+        async Task<decimal> ResolveRateAsync(DateTime date)
         {
-            var date = cd.DeclarationDate.Date;
-            decimal rate = 0m;
+            if (fxCache.TryGetValue(date, out var cached))
+            {
+                return cached;
+            }
+
+            decimal rate;
             try
             {
-                if (!fxCache.TryGetValue(date, out rate))
-                {
-                    var fx = await _pricing.GetFxRateAsync("USD", "AFN", date);
-                    rate = fx.Value;
-                    fxCache[date] = rate;
-                }
+                var fx = await _pricing.GetFxRateAsync("USD", "AFN", date);
+                rate = fx.Value;
             }
             catch
             {
@@ -253,8 +281,16 @@ public class CustomsPermitTurnoverController : Controller
                     .OrderByDescending(r => r.RateDate)
                     .Select(r => r.Rate)
                     .FirstOrDefaultAsync();
-                fxCache[date] = rate;
             }
+
+            fxCache[date] = rate;
+            return rate;
+        }
+
+        foreach (var cd in declarations)
+        {
+            var date = cd.DeclarationDate.Date;
+            var rate = await ResolveRateAsync(date);
 
             // Canonical (AFN, USD) equivalents per item: use the stored amount where present,
             // derive the missing currency from the rate. Both totals are real equivalents — the
@@ -324,6 +360,49 @@ public class CustomsPermitTurnoverController : Controller
             rows.Add(row);
         }
 
+        // جمع‌ها همیشه روی «کل مجموعهٔ فیلترشده» حساب می‌شوند، نه روی صفحهٔ جاری. برای همین
+        // فقط ستون‌های لازم برای جمع خوانده می‌شوند (تاریخ، مقدار و اقلام) — نه متن‌ها.
+        // همان تابع CanonicalAmounts و همان کش نرخ استفاده می‌شود، پس اعداد دقیقاً همان‌اند.
+        decimal totalQuantityMt = 0m, sumMahsooliAfn = 0m, sumMahsooliUsd = 0m, sumCustomsAfn = 0m, sumCustomsUsd = 0m;
+
+        if (allRows)
+        {
+            // در حالت Export همهٔ سطرها همین حالا ساخته شده‌اند؛ دوباره از دیتابیس خوانده نمی‌شود.
+            totalQuantityMt = rows.Sum(r => r.QuantityMt ?? 0m);
+            sumMahsooliAfn = rows.Sum(r => r.MahsooliAfn);
+            sumMahsooliUsd = rows.Sum(r => r.MahsooliUsd);
+            sumCustomsAfn = rows.Sum(r => r.TotalCustomsAfn);
+            sumCustomsUsd = rows.Sum(r => r.TotalCustomsUsd);
+        }
+        else
+        {
+            var totalsSource = await query
+                .Select(cd => new
+                {
+                    cd.DeclarationDate,
+                    QuantityMt = cd.ConsignmentWeightMt,
+                    Items = cd.Items.Select(i => new { i.ComponentType, i.AmountAfn, i.AmountUsd }).ToList()
+                })
+                .ToListAsync();
+
+            foreach (var cd in totalsSource)
+            {
+                var rate = await ResolveRateAsync(cd.DeclarationDate.Date);
+                totalQuantityMt += cd.QuantityMt ?? 0m;
+                foreach (var item in cd.Items)
+                {
+                    var (afn, usd) = CanonicalAmounts(item.AmountAfn, item.AmountUsd, rate);
+                    sumCustomsAfn += afn;
+                    sumCustomsUsd += usd;
+                    if (item.ComponentType is CustomsComponentType.Mahsooli or CustomsComponentType.MahsooliDolari)
+                    {
+                        sumMahsooliAfn += afn;
+                        sumMahsooliUsd += usd;
+                    }
+                }
+            }
+        }
+
         var model = new CustomsPermitTurnoverViewModel
         {
             FromDate = fromDate,
@@ -337,20 +416,22 @@ public class CustomsPermitTurnoverController : Controller
             Route = route,
             TaxPercent = taxPercent,
             Rows = rows,
-            VehicleCount = rows.Count,
-            TotalQuantityMt = rows.Sum(r => r.QuantityMt ?? 0m),
-            TotalMahsooliAfn = rows.Sum(r => r.MahsooliAfn),
-            TotalMahsooliUsd = rows.Sum(r => r.MahsooliUsd),
-            TotalCustomsAfn = rows.Sum(r => r.TotalCustomsAfn),
-            TotalCustomsUsd = rows.Sum(r => r.TotalCustomsUsd),
-            TotalCustomsAfnEquivalent = rows.Sum(r => r.TotalCustomsAfn)
+            CurrentPage = currentPage,
+            PageCount = allRows ? 1 : pageCount,
+            VehicleCount = totalCount,
+            TotalQuantityMt = totalQuantityMt,
+            TotalMahsooliAfn = sumMahsooliAfn,
+            TotalMahsooliUsd = sumMahsooliUsd,
+            TotalCustomsAfn = sumCustomsAfn,
+            TotalCustomsUsd = sumCustomsUsd,
+            TotalCustomsAfnEquivalent = sumCustomsAfn
         };
 
         // Selected currency and summary display/equivalent amounts
-        model.SelectedCurrency = (displayCurrency ?? "USD").Trim().ToUpperInvariant();
-        model.TotalCustomsDisplayAmount = rows.Sum(r => r.TotalCustomsDisplayAmount);
+        model.SelectedCurrency = primaryCurrency;
+        model.TotalCustomsDisplayAmount = primaryCurrency == "AFN" ? sumCustomsAfn : sumCustomsUsd;
         model.TotalCustomsDisplayCurrency = rows.FirstOrDefault()?.TotalCustomsDisplayCurrency ?? "USD";
-        model.TotalCustomsEquivalentAmount = rows.Sum(r => r.TotalCustomsEquivalentAmount);
+        model.TotalCustomsEquivalentAmount = primaryCurrency == "AFN" ? sumCustomsUsd : sumCustomsAfn;
         model.TotalCustomsEquivalentCurrency = rows.FirstOrDefault()?.TotalCustomsEquivalentCurrency ?? "AFN";
 
         return model;

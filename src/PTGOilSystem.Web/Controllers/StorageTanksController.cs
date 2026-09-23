@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -46,7 +46,7 @@ public class StorageTanksController : Controller
         ViewBag.Products = new SelectList(await _db.Products.AsNoTracking().OrderBy(p => p.Code).ToListAsync(), "Id", "Name", current?.ProductId);
     }
 
-    public async Task<IActionResult> Index(int? terminalId, int? productId, bool? isActive, string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(int[]? terminalId, int[]? productId, bool? isActive, string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 8);
         ViewData["PageSize"] = pageSize;
@@ -55,8 +55,9 @@ public class StorageTanksController : Controller
         var query = _db.StorageTanks
             .AsNoTracking()
             .AsQueryable();
-        if (terminalId.HasValue) query = query.Where(t => t.TerminalId == terminalId.Value);
-        if (productId.HasValue) query = query.Where(t => t.ProductId == productId.Value);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (terminalId is { Length: > 0 }) query = query.Where(t => terminalId.Contains(t.TerminalId));
+        if (productId is { Length: > 0 }) query = query.Where(t => t.ProductId != null && productId.Contains(t.ProductId.Value));
         if (isActive.HasValue) query = query.Where(t => t.IsActive == isActive.Value);
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -89,7 +90,9 @@ public class StorageTanksController : Controller
                 t.IsActive
             })
             .ToListAsync();
-        var stockCard = await _stock.GetStockCardAsync(productId: productId, terminalId: terminalId);
+        var singleProductId = productId is { Length: 1 } ? productId[0] : (int?)null;
+        var singleTerminalId = terminalId is { Length: 1 } ? terminalId[0] : (int?)null;
+        var stockCard = await _stock.GetStockCardAsync(productId: singleProductId, terminalId: singleTerminalId);
         var stockByTank = stockCard
             .Where(m => m.StorageTankId.HasValue)
             .GroupBy(m => m.StorageTankId!.Value)
@@ -123,11 +126,11 @@ public class StorageTanksController : Controller
             };
         }).ToList();
 
-        ViewBag.Terminals = new SelectList(terminals, "Id", "Name", terminalId);
-        ViewBag.Products = new SelectList(products, "Id", "Name", productId);
+        ViewBag.Terminals = new SelectList(terminals, "Id", "Name", singleTerminalId);
+        ViewBag.Products = new SelectList(products, "Id", "Name", singleProductId);
         ViewBag.CreateTerminals = new SelectList(terminals, "Id", "Name");
         ViewBag.CreateProducts = new SelectList(products, "Id", "Name");
-        ViewData["terminalId"] = terminalId;
+        ViewData["terminalId"] = terminalId ?? [];
 
         var totalCount = items.Count;
         var pageCount = page <= 0
@@ -143,8 +146,8 @@ public class StorageTanksController : Controller
 
         return View(new StorageTankIndexViewModel
         {
-            TerminalId = terminalId,
-            ProductId = productId,
+            TerminalId = terminalId ?? [],
+            ProductId = productId ?? [],
             IsActive = isActive,
             Query = q,
             TotalTanks = totalCount,

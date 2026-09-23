@@ -1,8 +1,8 @@
-@model IEnumerable<Location>
+﻿@model IEnumerable<Location>
 @{
     ViewData["Title"] = UiText.T(Context, "مکان ها", "Locations");
     var items = Model.ToList();
-    var hasFilters = !string.IsNullOrWhiteSpace((string?)ViewData["kind"]) || ViewData["isActive"] != null;
+    var hasFilters = ViewData["kind"] is string[] { Length: > 0 } || ViewData["isActive"] != null;
     var hasSearch = !string.IsNullOrWhiteSpace((string?)ViewData["q"]) || hasFilters;
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     var activeCount = items.Count(item => item.IsActive);
@@ -30,9 +30,8 @@
             UiText.T(Context, "جستجو در کد، نام یا کشور...", "Search code, name, or country..."),
             new List<AkFilterDefinition>
             {
-                new("kind", UiText.T(Context, "نوع", "Type"), "select",
-                    new List<AkFilterOption> { new("Origin", "مبدا"), new("Transit", "ترانزیت"), new("Destination", "مقصد") },
-                    (string?)ViewData["kind"]),
+                AkFilterDefinition.MultiSelect("kind", UiText.T(Context, "نوع", "Type"),
+                    new List<AkFilterOption> { new("Origin", "مبدا"), new("Transit", "ترانزیت"), new("Destination", "مقصد") }, ViewData["kind"] as string[]),
                 new("isActive", UiText.T(Context, "وضعیت", "Status"), "bool",
                     new List<AkFilterOption> { new("true", UiText.T(Context, "فعال", "Active")), new("false", UiText.T(Context, "غیرفعال", "Inactive")) },
                     locationsIsActive)

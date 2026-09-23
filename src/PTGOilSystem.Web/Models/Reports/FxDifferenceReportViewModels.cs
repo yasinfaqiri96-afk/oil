@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Models.Reports;
@@ -53,21 +53,21 @@ public sealed class FxDifferenceReportFilterViewModel
     [DataType(DataType.Date)] public DateTime? ToDate { get; set; }
 
     /// <summary>شرکتِ قرارداد. تسویهٔ صراف خودش <c>CompanyId</c> ندارد، پس فیلتر روی <c>Contract.CompanyId</c> اجرا می‌شود.</summary>
-    public int? CompanyId { get; set; }
-    public int? SupplierId { get; set; }
-    public int? SarrafId { get; set; }
-    public int? ContractId { get; set; }
+    public int[] CompanyId { get; set; } = [];
+    public int[] SupplierId { get; set; } = [];
+    public int[] SarrafId { get; set; } = [];
+    public int[] ContractId { get; set; } = [];
     public string? Currency { get; set; }
     public string? Reference { get; set; }
     public FxDifferenceResultFilter Result { get; set; } = FxDifferenceResultFilter.All;
-    public SarrafSettlementStatus? Status { get; set; }
+    public SarrafSettlementStatus[] Status { get; set; } = [];
     public FxCommissionFilter Commission { get; set; } = FxCommissionFilter.All;
 
     public bool HasAny
-        => FromDate.HasValue || ToDate.HasValue || CompanyId.HasValue || SupplierId.HasValue
-            || SarrafId.HasValue || ContractId.HasValue || !string.IsNullOrWhiteSpace(Currency)
+        => FromDate.HasValue || ToDate.HasValue || CompanyId.Length > 0 || SupplierId.Length > 0
+            || SarrafId.Length > 0 || ContractId.Length > 0 || !string.IsNullOrWhiteSpace(Currency)
             || !string.IsNullOrWhiteSpace(Reference) || Result != FxDifferenceResultFilter.All
-            || Status.HasValue || Commission != FxCommissionFilter.All;
+            || Status.Length > 0 || Commission != FxCommissionFilter.All;
 }
 
 /// <summary>بخش «پرداخت اصلی» در جزئیات ردیف.</summary>

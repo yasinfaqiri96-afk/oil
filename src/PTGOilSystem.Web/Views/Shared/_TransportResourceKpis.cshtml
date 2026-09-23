@@ -1,0 +1,16 @@
+@*
+    KPIهای عملیاتیِ مشترک صفحات جزئیات موتر، واگون و کشتی.
+    بر پایهٔ عملیات فیزیکیِ لغونشده (ثبت‌های مرتبط با FK یکی شمرده می‌شوند)؛ هیچ محاسبهٔ مالی در این بخش نیست.
+    Model: TransportResourceProfileViewModel
+*@
+@model TransportResourceProfileViewModel
+@{
+    var kpis = new List<AkKpiItem>
+    {
+        new() { Title = "عملیات حمل", Value = Model.OperationCount.ToString("N0"), Avatar = "transported" },
+        new() { Title = "در جریان", Value = Model.InProgressOperationCount.ToString("N0"), Avatar = "dispatch-station" },
+        new() { Title = "مجموع مقدار", Value = Model.OperationQuantityMt.ToString("N3"), Unit = "MT", Avatar = "flow-weight-mt" },
+        new() { Title = "آخرین حرکت", Value = Model.LastOperationDate.HasValue ? Model.LastOperationDate.Value.ToDisplayDate() : "—", Avatar = "loading" }
+    };
+}
+<partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)kpis)" />

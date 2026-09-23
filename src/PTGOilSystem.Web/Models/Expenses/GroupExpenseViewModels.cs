@@ -15,6 +15,8 @@ public sealed class GroupExpenseOperationItem
     // نمبر جایگزین (سیمیر/CMR) فقط برای تطبیق در امپورت اکسل؛ در جدول نمایش داده نمی‌شود.
     public string? AltNumber { get; init; }
     public string Route { get; init; } = "";
+    public string ProductName { get; init; } = "";
+    public string ContractNumber { get; init; } = "";
     public decimal QuantityMt { get; init; }
     public string StatusLabel { get; init; } = "";
     public DateTime MoveDate { get; init; }

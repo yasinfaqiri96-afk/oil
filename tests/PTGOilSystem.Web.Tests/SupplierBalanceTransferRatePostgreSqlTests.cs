@@ -16,6 +16,8 @@ namespace PTGOilSystem.Web.Tests;
 /// انتقال و برگشت انتقال روی همان schema سالم کار می‌کنند.
 /// </summary>
 [Collection(SupplierBalanceTransferRatePostgreSqlCollection.CollectionName)]
+[Trait("Category", "PostgreSql")]
+[Trait("Category", "Integration")]
 public sealed class SupplierBalanceTransferRatePostgreSqlTests
 {
     private const int SupplierId = 1;

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -170,14 +170,17 @@ public partial class ReportsController
             query = query.Where(e => e.EventDate <= filter.ToDate.Value.Date);
         }
 
-        if (filter.ProductId.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.ProductId.Length > 0)
         {
-            query = query.Where(e => e.ProductId == filter.ProductId.Value);
+            var productIds = filter.ProductId;
+            query = query.Where(e => productIds.Contains(e.ProductId));
         }
 
-        if (filter.ContractId.HasValue)
+        if (filter.ContractId.Length > 0)
         {
-            query = query.Where(e => e.ContractId == filter.ContractId.Value);
+            var contractIds = filter.ContractId;
+            query = query.Where(e => e.ContractId != null && contractIds.Contains(e.ContractId.Value));
         }
 
         if (filter.Source == TransportVarianceSource.TruckDispatch)
@@ -581,7 +584,7 @@ public partial class ReportsController
         ViewBag.TransportVarianceProducts = new SelectList(
             await _db.Products.AsNoTracking().OrderBy(p => p.Name)
                 .Select(p => new LookupOption(p.Id, p.Name)).ToListAsync(cancellationToken),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ProductId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ProductId.Only());
 
         var contracts = await _db.Contracts.AsNoTracking().OrderByDescending(c => c.ContractDate)
             .Select(c => new { c.Id, c.ContractName, c.ContractNumber }).ToListAsync(cancellationToken);
@@ -589,6 +592,6 @@ public partial class ReportsController
             contracts.Select(c => new LookupOption(
                 c.Id,
                 ContractUiText.FormatDisplayLabel(c.ContractName, c.ContractNumber))),
-            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ContractId);
+            nameof(LookupOption.Id), nameof(LookupOption.Name), filter.ContractId.Only());
     }
 }

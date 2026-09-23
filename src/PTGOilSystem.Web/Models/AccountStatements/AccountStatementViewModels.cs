@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -21,17 +21,16 @@ public sealed class AccountStatementFilterViewModel
     public DateTime? ToDate { get; set; }
 
     [Display(Name = "قرارداد")]
-    public int? ContractId { get; set; }
+    public int[] ContractId { get; set; } = [];
 
     [Display(Name = "مشتری")]
-    public int? CustomerId { get; set; }
+    public int[] CustomerId { get; set; } = [];
 
     [Display(Name = "تأمین‌کننده")]
-    public int? SupplierId { get; set; }
+    public int[] SupplierId { get; set; } = [];
 
     [Display(Name = "ارز منبع")]
-    [StringLength(10)]
-    public string? SourceCurrencyCode { get; set; }
+    public string[] SourceCurrencyCode { get; set; } = [];
 
     [Display(Name = "مرجع")]
     [StringLength(200)]

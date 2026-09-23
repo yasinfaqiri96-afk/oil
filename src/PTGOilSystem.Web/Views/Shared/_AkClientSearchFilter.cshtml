@@ -1,4 +1,4 @@
-@using System.Text.Json
+﻿@using System.Text.Json
 @model AkSearchFilterModel
 @{
     var searchLabel = UiText.T(Context, "جستجو", "Search");
@@ -10,6 +10,7 @@
         label = f.Label,
         type = f.Type,
         secondKey = f.SecondKey,
+        multiple = f.Multiple,
         options = (f.Options ?? new List<AkFilterOption>())
             .Select(o => new { value = o.Value, label = o.Label })
     });

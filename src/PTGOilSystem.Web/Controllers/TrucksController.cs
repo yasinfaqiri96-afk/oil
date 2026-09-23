@@ -62,11 +62,11 @@ public class TrucksController : Controller
         return View(trucks);
     }
 
-    public async Task<IActionResult> Details(int id)
+    public async Task<IActionResult> Details(int id, string? tab = null, int tripsPage = 1, int docsPage = 1)
     {
         var item = await _db.Trucks.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (item == null) return NotFound();
-        ViewData["ResourceProfile"] = await TransportResourceProfileBuilder.ForTruckAsync(_db, item, "info");
+        ViewData["ResourceProfile"] = await TransportResourceProfileBuilder.ForTruckAsync(_db, item, tab, tripsPage, docsPage);
         return View(item);
     }
 

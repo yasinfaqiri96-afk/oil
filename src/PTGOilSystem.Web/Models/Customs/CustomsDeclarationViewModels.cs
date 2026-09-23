@@ -270,8 +270,12 @@ public sealed class CustomsPermitTurnoverViewModel
     [Display(Name = "فیصدی مالیه (%)")]
     public decimal TaxPercent { get; set; }
 
-    // Results
+    // Results — فقط سطرهای همین صفحه. جمع‌ها همیشه روی کل مجموعهٔ فیلترشده‌اند.
     public List<CustomsPermitTurnoverRowViewModel> Rows { get; set; } = [];
+
+    // Pagination — خروجی Export همهٔ سطرهای فیلترشده را می‌گیرد، نه صفحهٔ جاری را.
+    public int CurrentPage { get; set; } = 1;
+    public int PageCount { get; set; } = 1;
 
     // Summary
     public int VehicleCount { get; set; }

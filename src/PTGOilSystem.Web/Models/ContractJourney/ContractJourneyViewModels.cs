@@ -206,6 +206,28 @@ public sealed class ContractJourneyDetailsViewModel
     public IReadOnlyList<string> NotesForReview { get; init; } = [];
     public IReadOnlyList<string> Warnings { get; init; } = [];
     public ContractJourneySummaryMetricsViewModel SummaryMetrics { get; init; } = new();
+
+    // ── پرداختِ تأمین‌کننده: یک تعریف برای صفحه، خلاصه و PDF ──
+    /// <summary>
+    /// پرداخت‌شدهٔ خالص به تأمین‌کننده = پرداخت‌ها − برگشتی‌ها + تسویهٔ صرافِ ثبت‌شده. در payload خلاصه
+    /// فهرست‌ها خالی‌اند و رقمِ آمادهٔ کنترلر (همین قاعده روی همان ردیف‌ها) خوانده می‌شود.
+    /// </summary>
+    public decimal SupplierPaidNetUsd => IsInitialSummaryPayload && SummaryMetrics.HasValues
+        ? SummaryMetrics.SupplierPaidNetUsd
+        : PaymentItems
+              .Where(p => p.PaymentKind == PaymentKind.SupplierPayment && p.Direction == PaymentDirection.Out)
+              .Sum(p => p.AmountUsd)
+          - PaymentItems
+              .Where(p => p.PaymentKind == PaymentKind.SupplierReceipt && p.Direction == PaymentDirection.In)
+              .Sum(p => p.AmountUsd)
+          + SarrafSettlementItems
+              .Where(s => s.Status == SarrafSettlementStatus.Posted)
+              .Sum(s => s.SupplierReductionAmountUsd);
+
+    /// <summary>قابل پرداخت به تأمین‌کننده = ارزشِ خریدِ قیمت‌دارِ قرارداد (فقط قرارداد خرید).</summary>
+    public decimal SupplierPayableTotalUsd => IsPurchaseContract ? MiniPnl.TraceablePurchaseCostUsd : 0m;
+
+    public decimal SupplierRemainingUsd => SupplierPayableTotalUsd - SupplierPaidNetUsd;
     public string NextRecommendedActionTitle { get; init; } = string.Empty;
     public string NextRecommendedActionDescription { get; init; } = string.Empty;
     public string NextRecommendedActionUrl { get; init; } = string.Empty;
@@ -832,24 +854,20 @@ public sealed class ContractJourneyMiniPnlViewModel
     [Display(Name = "مصرف قابل‌ردیابی")]
     public decimal TraceableExpensesUsd { get; init; }
 
-    // هزینه تمام‌شده کالای فروخته‌شده = مقدار فروش × میانگین وزنی قیمت خرید.
-    public decimal CostOfGoodsSoldUsd => WeightedAveragePurchasePriceUsd.HasValue
-        ? decimal.Round(SoldQuantityMt * WeightedAveragePurchasePriceUsd.Value, 2, MidpointRounding.AwayFromZero)
-        : 0m;
-
-    // نسبت مقدار فروش‌رفته به کل بار قیمت‌دار؛ برای تسهیم مصارف به سهم فروش.
-    public decimal SoldShareRatio => PricedPurchaseQuantityMt > 0m
-        ? Math.Clamp(SoldQuantityMt / PricedPurchaseQuantityMt, 0m, 1m)
-        : 0m;
-
-    // سهم مصارف مربوط به بخش فروش‌رفته. در قرارداد فروش (بدون مبنای خرید) کل مصارف.
-    public decimal ExpensesForSoldUsd => WeightedAveragePurchasePriceUsd.HasValue
-        ? decimal.Round(TraceableExpensesUsd * SoldShareRatio, 2, MidpointRounding.AwayFromZero)
-        : TraceableExpensesUsd;
-
-    // سود محقق‌شده روی فروش = فروش − هزینه کالای فروخته‌شده − سهم مصارف فروش.
+    // سودِ محققِ قرارداد — همهٔ اعداد از ProfitAndLossService.BuildContractEconomicsAsync (همان مرجعِ
+    // گزارش مفاد قراردادها و صورت‌حساب شراکت). این ViewModel هیچ فرمولی ندارد.
+    /// <summary>بهای کالای فروخته‌شده = مقدار فروش × میانگین وزنی قیمت خرید.</summary>
+    public decimal CostOfGoodsSoldUsd { get; init; }
+    /// <summary>سهمِ فروخته‌شده از بارِ قیمت‌دار؛ مبنای تسهیمِ هزینه‌ها.</summary>
+    public decimal SoldShareRatio { get; init; }
+    /// <summary>سهمِ فروخته‌شدهٔ هزینه‌های عملیاتی.</summary>
+    public decimal ExpensesForSoldUsd { get; init; }
     [Display(Name = "حاشیه ناخالص")]
-    public decimal GrossMarginUsd => TraceableSalesRevenueUsd - CostOfGoodsSoldUsd - ExpensesForSoldUsd;
+    public decimal GrossMarginUsd { get; init; }
+    /// <summary>اثرِ ارزیِ محققِ قرارداد (سود − زیان − کسریِ صراف).</summary>
+    public decimal RealizedFxNetUsd { get; init; }
+    [Display(Name = "سود محقق قرارداد")]
+    public decimal RealizedNetProfitUsd { get; init; }
 
     // ===== سود محقق‌شدهٔ حسابداری: تنها منبع مجاز ProfitAndLossService =====
     // اعداد بالا برآورد عملیاتی قرارداد هستند (میانگین وزنی خرید + تسهیم مصارف).

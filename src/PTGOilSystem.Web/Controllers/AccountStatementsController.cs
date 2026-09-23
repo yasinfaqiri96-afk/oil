@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -464,7 +464,7 @@ public partial class AccountStatementsController : Controller
                 ? CompanyFlowLifecycle.Reversal
                 : CompanyFlowLifecycle.Original;
             var direction = _flowResolver.Resolve(
-                new CompanyFlowEvent(entry.SourceType, entry.Side, flowRole, lifecycle));
+                new CompanyFlowEvent(entry.SourceType, entry.Side, RowPartyRole(entry, flowRole), lifecycle));
             var isReceipt = direction == CompanyFlowDirection.Receipt;
 
             drafts.Add(new ContractAccountStatementDraftRow
@@ -499,7 +499,8 @@ public partial class AccountStatementsController : Controller
         await AddPaymentWarningRowsAsync(contractId, drafts);
         await AddExpenseWarningRowsAsync(contractId, drafts);
         await AddOperationalLoadingRowsAsync(contractId, drafts, postedLoadingIds);
-        await AddAllocatedSaleRowsAsync(contractId, flowRole, drafts, ledgerEntries);
+        // سهمِ فروشِ چندقراردادی ردیفِ فروش است، پس نقشش «مشتری» است نه نقشِ قرارداد.
+        await AddAllocatedSaleRowsAsync(contractId, CompanyFlowPartyRole.Customer, drafts, ledgerEntries);
 
         var rows = BuildContractAccountRows(drafts);
         var totals = new ContractAccountStatementTotalsViewModel
@@ -526,6 +527,25 @@ public partial class AccountStatementsController : Controller
             Totals = totals
         };
     }
+
+    /// <summary>
+    /// نقشِ طرف‌حسابی که سطر مالِ اوست — همان قاعدهٔ صورت‌حساب و ماندهٔ رسمیِ طرف‌حساب. روی قرارداد
+    /// خرید سطرِ فروش و دریافت از مشتری هم می‌نشیند (SaleLedgerFactory قرارداد منبع را می‌گذارد)؛ با
+    /// نقشِ «تأمین‌کننده» دریافتِ مشتری «برد» خوانده می‌شد و بیلانسِ قرارداد دو برابرِ آن جابه‌جا می‌شد.
+    /// نقشِ قرارداد فقط برای سطرِ بی‌طرف‌حساب است.
+    /// </summary>
+    private static CompanyFlowPartyRole RowPartyRole(LedgerEntry entry, CompanyFlowPartyRole contractRole)
+        => entry.CustomerId.HasValue || entry.SourceType == LedgerEntryOwnership.SaleSourceType
+            ? CompanyFlowPartyRole.Customer
+            : entry.SupplierId.HasValue
+                ? CompanyFlowPartyRole.Supplier
+                : entry.ServiceProviderId.HasValue
+                    ? CompanyFlowPartyRole.ServiceProvider
+                    : entry.DriverId.HasValue
+                        ? CompanyFlowPartyRole.Driver
+                        : entry.EmployeeId.HasValue
+                            ? CompanyFlowPartyRole.Employee
+                            : contractRole;
 
     private async Task AddPaymentWarningRowsAsync(int contractId, List<ContractAccountStatementDraftRow> drafts)
     {
@@ -961,26 +981,31 @@ public partial class AccountStatementsController : Controller
             query = query.Where(l => l.EntryDate <= filter.ToDate.Value.Date);
         }
 
-        if (filter.ContractId.HasValue)
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.ContractId.Length > 0)
         {
-            query = query.Where(l => l.ContractId == filter.ContractId.Value);
+            var contractIds = filter.ContractId;
+            query = query.Where(l => l.ContractId != null && contractIds.Contains(l.ContractId.Value));
         }
 
-        if (filter.CustomerId.HasValue)
+        if (filter.CustomerId.Length > 0)
         {
-            query = query.Where(l => l.CustomerId == filter.CustomerId.Value);
+            var customerIds = filter.CustomerId;
+            query = query.Where(l => l.CustomerId != null && customerIds.Contains(l.CustomerId.Value));
         }
 
-        if (filter.SupplierId.HasValue)
+        if (filter.SupplierId.Length > 0)
         {
-            query = query.Where(l => l.SupplierId == filter.SupplierId.Value);
+            var supplierIds = filter.SupplierId;
+            query = query.Where(l => l.SupplierId != null && supplierIds.Contains(l.SupplierId.Value));
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.SourceCurrencyCode))
+        if (filter.SourceCurrencyCode.Length > 0)
         {
+            var sourceCurrencies = filter.SourceCurrencyCode;
             query = query.Where(l =>
-                (l.SourceCurrencyCode != null && l.SourceCurrencyCode == filter.SourceCurrencyCode)
-                || (l.SourceCurrencyCode == null && l.Currency == filter.SourceCurrencyCode));
+                (l.SourceCurrencyCode != null && sourceCurrencies.Contains(l.SourceCurrencyCode))
+                || (l.SourceCurrencyCode == null && sourceCurrencies.Contains(l.Currency)));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Reference))
@@ -1023,7 +1048,7 @@ public partial class AccountStatementsController : Controller
         AccountStatementCreateViewModel? createModel = null,
         AccountStatementFilterViewModel? filter = null)
     {
-        var selectedContractId = createModel?.ContractId ?? filter?.ContractId;
+        var selectedContractId = createModel?.ContractId ?? filter?.ContractId.Only();
         var contracts = await _db.Contracts
             .AsNoTracking()
             .OrderBy(c => selectedContractId.HasValue && c.Id == selectedContractId.Value ? 0 : 1)
@@ -1068,7 +1093,7 @@ public partial class AccountStatementsController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            createModel?.CustomerId ?? filter?.CustomerId);
+            createModel?.CustomerId ?? filter?.CustomerId.Only());
 
         ViewBag.Suppliers = new SelectList(
             await _db.Suppliers
@@ -1079,7 +1104,7 @@ public partial class AccountStatementsController : Controller
                 .ToListAsync(),
             "Id",
             "Name",
-            createModel?.SupplierId ?? filter?.SupplierId);
+            createModel?.SupplierId ?? filter?.SupplierId.Only());
 
         ViewBag.Currencies = new SelectList(
             await _db.Currencies
@@ -1090,7 +1115,7 @@ public partial class AccountStatementsController : Controller
                 .ToListAsync(),
             "Code",
             "Code",
-            createModel?.SourceCurrencyCode ?? filter?.SourceCurrencyCode);
+            createModel?.SourceCurrencyCode ?? filter?.SourceCurrencyCode.OnlyText());
     }
 
     private async Task ValidateRelationsAsync(AccountStatementCreateViewModel model)
@@ -1120,7 +1145,11 @@ public partial class AccountStatementsController : Controller
 
     private static void NormalizeFilter(AccountStatementFilterViewModel filter)
     {
-        filter.SourceCurrencyCode = NormalizeCurrency(filter.SourceCurrencyCode);
+        filter.SourceCurrencyCode = filter.SourceCurrencyCode
+            .Select(NormalizeCurrency)
+            .Where(code => code != null)
+            .Select(code => code!)
+            .ToArray();
         filter.Reference = string.IsNullOrWhiteSpace(filter.Reference) ? null : filter.Reference.Trim();
     }
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -32,11 +32,15 @@ public sealed class TransportsController : Controller
     // فقط برای برگشتِ مصرف کرایه هنگام لغو گروهی؛ همان adapter صفحهٔ دیسپچ.
     private readonly Services.Accounting.IExpenseAccountingAdapter? _expenseAccounting;
 
+    // لغو گروهیِ تبدیل‌های بارگیری؛ همان سرویسی که «لغو سند حمل» صفحهٔ جزئیات حمل صدا می‌زند.
+    private readonly InventoryTransportBatchService _batchTransport;
+
     public TransportsController(
         ApplicationDbContext db,
         ITransportWorkflowService workflow,
         ITransportQuantityService quantities,
         IAfghanistanBusinessClock clock,
+        InventoryTransportBatchService batchTransport,
         IFormTokenGuard? formTokens = null,
         Services.Accounting.IExpenseAccountingAdapter? expenseAccounting = null)
     {
@@ -44,6 +48,7 @@ public sealed class TransportsController : Controller
         _workflow = workflow;
         _quantities = quantities;
         _clock = clock;
+        _batchTransport = batchTransport;
         _formTokens = formTokens;
         _expenseAccounting = expenseAccounting;
     }
@@ -180,17 +185,53 @@ public sealed class TransportsController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpGet]
-    public async Task<IActionResult> BulkFromLoading(int[]? ids = null, string? returnUrl = null)
+    public async Task<IActionResult> BulkFromLoading(
+        int[]? ids = null,
+        string? returnUrl = null,
+        [FromQuery] TransportBulkLoadingFilter? filter = null,
+        bool useFilterSelection = false)
     {
+        filter ??= new TransportBulkLoadingFilter();
         var model = new TransportBulkFromLoadingViewModel
         {
             TransportDate = _clock.Today,
             ReturnUrl = returnUrl,
-            Rows = await BuildBulkLoadingRowsAsync(ids ?? [])
+            Filter = filter,
+            UseFilterSelection = useFilterSelection
         };
-        var requested = (ids ?? []).Distinct().Count(id => id > 0);
-        ViewBag.BulkRequestedCount = requested;
-        ViewBag.BulkSkippedCount = Math.Max(requested - model.Rows.Count, 0);
+
+        // خلاصهٔ فیلتر همیشه محاسبه می‌شود تا صفحه بتواند «به‌جای این N ردیف، همهٔ M نتیجه
+        // را تبدیل کن» را پیشنهاد دهد. یک کوئری تجمیعی، مستقل از تعداد نتایج.
+        var summary = await SummarizeConvertibleLoadingsAsync(filter);
+        model.FilterMatchCount = summary.Count;
+        model.FilterMatchQuantityMt = summary.QuantityMt;
+
+        if (!useFilterSelection)
+        {
+            var requestedIds = (ids ?? []).Distinct().Where(id => id > 0).ToList();
+            model.Rows = await BuildBulkLoadingRowsAsync(requestedIds);
+            ViewBag.BulkRequestedCount = requestedIds.Count;
+            ViewBag.BulkSkippedCount = Math.Max(requestedIds.Count - model.Rows.Count, 0);
+        }
+        else
+        {
+            // حالت فیلتر: تا سقفِ رندر، ردیف‌ها نشان داده می‌شوند و صفحه دقیقاً مثل حالت
+            // انتخابِ دستی کار می‌کند (کاربر می‌تواند وسیله و مقدار هر ردیف را عوض کند)؛
+            // فیلتر فقط راهی برای انتخابِ شناسه‌ها بوده است.
+            //
+            // بالاتر از آن، ردیف رندر نمی‌شود: هزاران <select> وسیله در هر ردیف صفحه را چند ده
+            // مگابایت می‌کند و فرم هم از سقف فیلدها می‌گذرد. آنجا فقط خلاصه نشان داده می‌شود و
+            // سرور خودش مجموعه را از همان فیلتر می‌سازد.
+            ViewBag.BulkRequestedCount = summary.Count;
+            ViewBag.BulkSkippedCount = 0;
+            if (summary.Count > 0 && summary.Count <= TransportBulkFromLoadingViewModel.MaxRenderedRows)
+            {
+                model.Rows = await BuildBulkLoadingRowsAsync(
+                    await ConvertibleLoadingIdsAsync(filter, TransportBulkFromLoadingViewModel.MaxRenderedRows));
+                model.UseFilterSelection = false;
+            }
+        }
+
         await PopulateVehicleLookupsAsync();
         return View(model);
     }
@@ -198,115 +239,401 @@ public sealed class TransportsController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> BulkFromLoading(TransportBulkFromLoadingViewModel model)
+    // فرمِ ردیفی برای هر بارگیری ~۱۱ فیلد post می‌کند؛ با سقف پیش‌فرض ۱۰۲۴ فیلد
+    // (FormOptions.ValueCountLimit) درخواست از حدود ۹۳ ردیف به بالا پیش از رسیدن به اکشن
+    // با 400 رد می‌شد. همان سقفی که مسیرهای گروهیِ دیگر پروژه دارند اینجا هم لازم است.
+    [RequestFormLimits(ValueCountLimit = 200_000)]
+    public async Task<IActionResult> BulkFromLoading(
+        TransportBulkFromLoadingViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
-        var selected = (model.Rows ?? []).Where(r => r.Selected && r.LoadingRegisterId > 0).ToList();
-        if (selected.Count == 0)
+        model.Filter ??= new TransportBulkLoadingFilter();
+
+        List<BulkStartTransportFromLoadingRow> rows;
+        if (model.UseFilterSelection && ToCriteria(model.Filter).IsEmpty)
         {
-            ModelState.AddModelError(string.Empty, "حداقل یک بارگیری را انتخاب کنید.");
+            // محافظ: «همهٔ نتایج فیلتر» بدون هیچ فیلتری یعنی کل جدول.
+            rows = [];
+            ModelState.AddModelError(string.Empty, "برای تبدیل گروهیِ مبتنی بر فیلتر، دست‌کم یک شرط فیلتر لازم است.");
+        }
+        else if (model.UseFilterSelection)
+        {
+            // هیچ ردیفی post نشده؛ مجموعهٔ تبدیل دوباره از همان فیلتر ساخته می‌شود تا
+            // کاربر مجبور نباشد هزاران فیلد بفرستد.
+            //
+            // یکی بیشتر از سقف خوانده می‌شود: اگر فیلتر بزرگ‌تر از سقف باشد، عملیات باید رد شود،
+            // نه اینکه بی‌صدا فقط بخشی از نتایج را تبدیل کند و کاربر فکر کند همه تبدیل شده‌اند.
+            var ids = await ConvertibleLoadingIdsAsync(
+                model.Filter, TransportBulkFromLoadingViewModel.MaxRows + 1);
+            rows = ids.Count > TransportBulkFromLoadingViewModel.MaxRows
+                ? []
+                : await BuildFilterSelectionRowsAsync(ids);
+            if (ids.Count > TransportBulkFromLoadingViewModel.MaxRows)
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    $"در یک عملیات حداکثر {TransportBulkFromLoadingViewModel.MaxRows:N0} بارگیری تبدیل می‌شود؛ فیلتر را محدودتر کنید.");
+            }
+        }
+        else
+        {
+            rows = (model.Rows ?? [])
+                .Where(r => r.Selected && r.LoadingRegisterId > 0)
+                .Select(r => new BulkStartTransportFromLoadingRow
+                {
+                    LoadingRegisterId = r.LoadingRegisterId,
+                    QuantityMt = r.QuantityMt,
+                    TransportType = r.TransportType,
+                    TruckId = r.TransportType == LoadingTransportType.Truck ? r.TruckId : null,
+                    WagonId = r.TransportType == LoadingTransportType.Wagon ? r.WagonId : null,
+                    VesselId = r.TransportType == LoadingTransportType.Vessel ? r.VesselId : null,
+                    DriverId = r.TransportType == LoadingTransportType.Truck ? r.DriverId : null,
+                    ServiceProviderId = r.ServiceProviderId,
+                    Reference = r.Reference,
+                    Label = r.LoadingLabel
+                })
+                .ToList();
+        }
+
+        if (rows.Count == 0 && ModelState.IsValid)
+        {
+            ModelState.AddModelError(string.Empty, model.UseFilterSelection
+                ? "هیچ بارگیریِ قابل تبدیلی مطابق این فیلتر پیدا نشد."
+                : "حداقل یک بارگیری را انتخاب کنید.");
+        }
+        else if (rows.Count > TransportBulkFromLoadingViewModel.MaxRows)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                $"در یک عملیات حداکثر {TransportBulkFromLoadingViewModel.MaxRows:N0} بارگیری تبدیل می‌شود؛ فیلتر را محدودتر کنید.");
         }
 
         if (!ModelState.IsValid)
         {
-            await RefreshBulkLoadingRowsAsync(model);
-            await PopulateVehicleLookupsAsync();
-            return View(model);
+            return await RenderBulkAsync(model);
         }
 
-        var created = 0;
-        var failures = new List<string>();
-        foreach (var row in selected)
+        BulkStartTransportFromLoadingResult result;
+        try
         {
-            try
+            result = await _workflow.StartManyFromLoadingAsync(new BulkStartTransportFromLoadingCommand
             {
-                await _workflow.StartFromLoadingAsync(new StartTransportFromLoadingCommand
-                {
-                    LoadingRegisterId = row.LoadingRegisterId,
-                    QuantityMt = row.QuantityMt,
-                    TransportType = row.TransportType,
-                    TruckId = row.TransportType == LoadingTransportType.Truck ? row.TruckId : null,
-                    WagonId = row.TransportType == LoadingTransportType.Wagon ? row.WagonId : null,
-                    VesselId = row.TransportType == LoadingTransportType.Vessel ? row.VesselId : null,
-                    DriverId = row.TransportType == LoadingTransportType.Truck ? row.DriverId : null,
-                    ServiceProviderId = row.ServiceProviderId,
-                    TransportDate = model.TransportDate,
-                    Reference = row.Reference
-                });
-                created++;
-            }
-            catch (BusinessRuleException ex)
-            {
-                failures.Add($"{row.LoadingLabel}: {ex.Message}");
-            }
+                Rows = rows,
+                TransportDate = model.TransportDate,
+                FormToken = formToken
+            });
+        }
+        catch (DbUpdateException duplicate) when (_formTokens?.IsDuplicate(duplicate) == true)
+        {
+            TempData["err"] = "این عملیات قبلاً ثبت شده است و دوباره ثبت نشد.";
+            return RedirectToAction("Index", "InventoryTransportLegs");
+        }
+        catch (BusinessRuleException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return await RenderBulkAsync(model);
         }
 
-        if (created == 0)
+        if (result.CreatedCount == 0)
         {
-            foreach (var failure in failures)
+            foreach (var failure in DescribeFailures(result.Failures))
             {
                 ModelState.AddModelError(string.Empty, failure);
             }
-            await RefreshBulkLoadingRowsAsync(model);
-            await PopulateVehicleLookupsAsync();
-            return View(model);
+            return await RenderBulkAsync(model);
         }
 
-        TempData["ok"] = $"{created:N0} بارگیری به حمل تبدیل شد.";
-        if (failures.Count > 0)
+        TempData["ok"] = $"{result.CreatedCount:N0} بارگیری به حمل تبدیل شد.";
+        if (result.Failures.Count > 0)
         {
-            TempData["err"] = "تبدیل نشد — " + string.Join(" | ", failures);
+            TempData["err"] = "تبدیل نشد — " + string.Join(" | ", DescribeFailures(result.Failures));
         }
         return !string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl)
             ? Redirect(model.ReturnUrl)
             : RedirectToAction("Index", "InventoryTransportLegs");
     }
 
+    /// <summary>
+    /// پیام خطای ردیف‌ها. برای عملیات بزرگ فقط چند نمونه نشان داده می‌شود؛ یک TempData با
+    /// هزاران پیام نه در کوکی جا می‌شود و نه برای کاربر خواندنی است.
+    /// </summary>
+    private static IEnumerable<string> DescribeFailures(
+        IReadOnlyList<BulkStartTransportFromLoadingFailure> failures)
+    {
+        const int sampleSize = 10;
+        foreach (var failure in failures.Take(sampleSize))
+        {
+            var label = string.IsNullOrWhiteSpace(failure.Label)
+                ? $"بارگیری #{failure.LoadingRegisterId}"
+                : failure.Label;
+            yield return $"{label}: {failure.Message}";
+        }
+
+        if (failures.Count > sampleSize)
+        {
+            yield return $"و {failures.Count - sampleSize:N0} مورد دیگر";
+        }
+    }
+
+    private async Task<IActionResult> RenderBulkAsync(TransportBulkFromLoadingViewModel model)
+    {
+        var summary = await SummarizeConvertibleLoadingsAsync(model.Filter);
+        model.FilterMatchCount = summary.Count;
+        model.FilterMatchQuantityMt = summary.QuantityMt;
+        if (!model.UseFilterSelection)
+        {
+            await RefreshBulkLoadingRowsAsync(model);
+        }
+        ViewBag.BulkRequestedCount = model.UseFilterSelection ? summary.Count : (model.Rows?.Count ?? 0);
+        ViewBag.BulkSkippedCount = 0;
+        await PopulateVehicleLookupsAsync();
+        return View(model);
+    }
+
+    /// <summary>
+    /// «بارگیریِ قابل تبدیل» = همان فیلترِ صفحهٔ لیست، به‌علاوهٔ باقیماندهٔ مثبت. فرمولِ باقیمانده
+    /// همان فرمولِ فرم تک‌بارگیری است و در یک کوئریِ مجموعه‌ای اجرا می‌شود.
+    /// </summary>
+    private static LoadingListFilterCriteria ToCriteria(TransportBulkLoadingFilter filter)
+        => new()
+        {
+            Query = filter.Q,
+            ContractIds = filter.ContractId,
+            ProductIds = filter.ProductId,
+            WithoutReceipt = filter.WithoutReceipt,
+            TransportTypes = filter.TransportType,
+            ReceiptStatus = filter.ReceiptStatus,
+            PriceStatus = filter.PriceStatus,
+            FromDate = filter.FromDate,
+            ToDate = filter.ToDate
+        };
+
+    private IQueryable<ConvertibleLoadingProjection> ConvertibleLoadingsQuery(TransportBulkLoadingFilter filter)
+    {
+        var filtered = LoadingListFilter.Apply(_db.LoadingRegisters.AsNoTracking(), ToCriteria(filter));
+
+        return filtered
+            .Select(l => new ConvertibleLoadingProjection
+            {
+                Id = l.Id,
+                AvailableQuantityMt = l.LoadedQuantityMt
+                    - (l.Receipts.Where(r => !r.IsCancelled).Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m)
+                    - (_db.LossEvents
+                        .Where(e => (e.LoadingRegisterId == l.Id
+                                || e.LoadingReceiptId.HasValue
+                                    && e.LoadingReceipt != null
+                                    && e.LoadingReceipt.LoadingRegisterId == l.Id)
+                            && e.Stage == LossEventStage.ReceiptShortage
+                            && !e.IsCancelled)
+                        .Sum(e => (decimal?)(e.DifferenceQuantityMt > 0m
+                            ? e.DifferenceQuantityMt
+                            : e.ChargeableLossMt > 0m ? e.ChargeableLossMt : 0m)) ?? 0m)
+                    - (_db.InventoryTransportLegAllocations
+                        .Where(a => a.SourceLoadingRegisterId == l.Id
+                            && a.InventoryTransportLeg != null
+                            && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+                        .Sum(a => (decimal?)a.QuantityMt) ?? 0m)
+            })
+            .Where(x => x.AvailableQuantityMt > Epsilon);
+    }
+
+    private async Task<(int Count, decimal QuantityMt)> SummarizeConvertibleLoadingsAsync(
+        TransportBulkLoadingFilter? filter)
+    {
+        // فیلترِ خالی یعنی «کل جدول». نه پیشنهادش درست است (یک کلیک، تبدیلِ هرچه بارگیری در
+        // سیستم هست) و نه شمردنش ارزان. حالت فیلتر فقط با دست‌کم یک شرط فعال می‌شود.
+        if (filter is null || ToCriteria(filter).IsEmpty)
+        {
+            return (0, 0m);
+        }
+
+        var summary = await ConvertibleLoadingsQuery(filter)
+            .GroupBy(_ => 1)
+            .Select(g => new { Count = g.Count(), QuantityMt = g.Sum(x => x.AvailableQuantityMt) })
+            .FirstOrDefaultAsync();
+        return (summary?.Count ?? 0, summary?.QuantityMt ?? 0m);
+    }
+
+    private Task<List<int>> ConvertibleLoadingIdsAsync(TransportBulkLoadingFilter filter, int take)
+        => ConvertibleLoadingsQuery(filter)
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .Take(take)
+            .ToListAsync();
+
+    private sealed class ConvertibleLoadingProjection
+    {
+        public int Id { get; set; }
+        public decimal AvailableQuantityMt { get; set; }
+    }
+
+    /// <summary>
+    /// ردیف‌های حالت فیلتر: هر بارگیری با وسیله و شرکت خدماتیِ خودش و کل باقیمانده‌اش — همان
+    /// مقادیر پیش‌فرضی که فرم ردیفی هم نشان می‌دهد. مقدار نهایی را سرویس زیر قفل دوباره کنترل می‌کند.
+    /// </summary>
+    private async Task<List<BulkStartTransportFromLoadingRow>> BuildFilterSelectionRowsAsync(
+        IReadOnlyCollection<int> ids)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var defaults = await LoadBulkRowDefaultsAsync(ids);
+        return defaults
+            .Select(d => new BulkStartTransportFromLoadingRow
+            {
+                LoadingRegisterId = d.Id,
+                QuantityMt = d.AvailableQuantityMt,
+                TransportType = d.TransportType,
+                TruckId = d.TransportType == LoadingTransportType.Truck ? d.TruckId : null,
+                WagonId = null,
+                VesselId = d.TransportType == LoadingTransportType.Vessel ? d.VesselId : null,
+                DriverId = null,
+                ServiceProviderId = d.LogisticsServiceProviderId,
+                Reference = d.Reference,
+                Label = d.Label
+            })
+            .ToList();
+    }
+
     /// <summary>باقیماندهٔ قابل تبدیل هر بارگیری با همان فرمول فرم تک‌بارگیری محاسبه می‌شود.</summary>
     private async Task<List<TransportBulkFromLoadingRow>> BuildBulkLoadingRowsAsync(IReadOnlyCollection<int> ids)
     {
-        var rows = new List<TransportBulkFromLoadingRow>();
-        foreach (var id in ids.Distinct().Where(id => id > 0))
-        {
-            var source = new TransportStartFromLoadingViewModel { LoadingRegisterId = id };
-            if (!await PopulateLoadingModelAsync(source))
+        var defaults = await LoadBulkRowDefaultsAsync(ids);
+        return defaults
+            .Select(d => new TransportBulkFromLoadingRow
             {
-                continue;
-            }
-            rows.Add(new TransportBulkFromLoadingRow
-            {
-                LoadingRegisterId = id,
+                LoadingRegisterId = d.Id,
                 Selected = true,
-                LoadingLabel = source.LoadingLabel,
-                ProductName = source.ProductName,
-                AvailableQuantityMt = source.AvailableQuantityMt,
-                QuantityMt = source.AvailableQuantityMt,
-                TransportType = source.TransportType,
-                TruckId = source.TruckId,
-                WagonId = source.WagonId,
-                VesselId = source.VesselId,
-                DriverId = source.DriverId,
-                ServiceProviderId = source.ServiceProviderId,
-                Reference = source.Reference
-            });
-        }
-        return rows;
+                LoadingLabel = d.Label,
+                ProductName = d.ProductName,
+                AvailableQuantityMt = d.AvailableQuantityMt,
+                QuantityMt = d.AvailableQuantityMt,
+                TransportType = d.TransportType,
+                TruckId = d.TransportType == LoadingTransportType.Truck ? d.TruckId : null,
+                VesselId = d.TransportType == LoadingTransportType.Vessel ? d.VesselId : null,
+                ServiceProviderId = d.LogisticsServiceProviderId,
+                Reference = d.Reference
+            })
+            .ToList();
     }
 
     /// <summary>برچسب و باقیماندهٔ ردیف‌های ارسال‌شده را دوباره از دیتابیس می‌خواند (نمایش پس از خطا).</summary>
     private async Task RefreshBulkLoadingRowsAsync(TransportBulkFromLoadingViewModel model)
     {
-        foreach (var row in model.Rows ?? [])
+        var rows = model.Rows ?? [];
+        if (rows.Count == 0)
         {
-            var source = new TransportStartFromLoadingViewModel { LoadingRegisterId = row.LoadingRegisterId };
-            if (!await PopulateLoadingModelAsync(source))
+            return;
+        }
+
+        var fresh = (await LoadBulkRowDefaultsAsync(rows.Select(r => r.LoadingRegisterId).ToList()))
+            .ToDictionary(d => d.Id);
+        foreach (var row in rows)
+        {
+            if (!fresh.TryGetValue(row.LoadingRegisterId, out var current))
             {
                 row.Selected = false;
                 continue;
             }
-            row.LoadingLabel = source.LoadingLabel;
-            row.ProductName = source.ProductName;
-            row.AvailableQuantityMt = source.AvailableQuantityMt;
+            row.LoadingLabel = current.Label;
+            row.ProductName = current.ProductName;
+            row.AvailableQuantityMt = current.AvailableQuantityMt;
         }
+    }
+
+    /// <summary>
+    /// پیش‌فرضِ ردیف‌های تبدیل گروهی در یک رفت‌وبرگشت برای کل مجموعه.
+    ///
+    /// پیش از این، همین کار برای هر بارگیری ۴ کوئری جدا می‌زد (۴N کوئری برای N ردیف) و
+    /// صفحه با چند صد انتخاب عملاً باز نمی‌شد. فرمولِ باقیمانده ذره‌ای عوض نشده است.
+    /// </summary>
+    private async Task<List<BulkRowDefaults>> LoadBulkRowDefaultsAsync(IReadOnlyCollection<int> ids)
+    {
+        var wanted = ids.Distinct().Where(id => id > 0).ToList();
+        if (wanted.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await _db.LoadingRegisters
+            .AsNoTracking()
+            .Where(l => wanted.Contains(l.Id))
+            .Select(l => new
+            {
+                l.Id,
+                l.LoadedQuantityMt,
+                l.TransportType,
+                l.TruckId,
+                l.VesselId,
+                l.LogisticsServiceProviderId,
+                l.BillOfLadingNumber,
+                l.RwbNo,
+                ProductName = l.Product != null ? l.Product.Name : "",
+                ContractLabel = l.Contract != null ? l.Contract.ContractNumber : "",
+                ReceivedMt = l.Receipts.Where(r => !r.IsCancelled).Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m,
+                ShortageMt = _db.LossEvents
+                    .Where(e => (e.LoadingRegisterId == l.Id
+                            || e.LoadingReceiptId.HasValue
+                                && e.LoadingReceipt != null
+                                && e.LoadingReceipt.LoadingRegisterId == l.Id)
+                        && e.Stage == LossEventStage.ReceiptShortage
+                        && !e.IsCancelled)
+                    .Sum(e => (decimal?)(e.DifferenceQuantityMt > 0m
+                        ? e.DifferenceQuantityMt
+                        : e.ChargeableLossMt > 0m ? e.ChargeableLossMt : 0m)) ?? 0m,
+                TransportedMt = _db.InventoryTransportLegAllocations
+                    .Where(a => a.SourceLoadingRegisterId == l.Id
+                        && a.InventoryTransportLeg != null
+                        && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+                    .Sum(a => (decimal?)a.QuantityMt) ?? 0m
+            })
+            .ToListAsync();
+
+        var ordered = wanted
+            .Select(id => rows.FirstOrDefault(r => r.Id == id))
+            .Where(r => r is not null)
+            .Select(r => r!)
+            .ToList();
+
+        var result = new List<BulkRowDefaults>(ordered.Count);
+        foreach (var row in ordered)
+        {
+            var availableMt = decimal.Round(
+                Math.Max(row.LoadedQuantityMt - row.ReceivedMt - row.ShortageMt - row.TransportedMt, 0m), 4);
+            if (availableMt <= Epsilon)
+            {
+                continue;
+            }
+
+            result.Add(new BulkRowDefaults
+            {
+                Id = row.Id,
+                Label = $"{(string.IsNullOrWhiteSpace(row.ContractLabel) ? $"بارگیری #{row.Id}" : row.ContractLabel)} — #{row.Id}",
+                ProductName = row.ProductName,
+                AvailableQuantityMt = availableMt,
+                TransportType = row.TransportType,
+                TruckId = row.TruckId,
+                VesselId = row.VesselId,
+                LogisticsServiceProviderId = row.LogisticsServiceProviderId,
+                Reference = row.RwbNo ?? row.BillOfLadingNumber
+            });
+        }
+        return result;
+    }
+
+    private sealed class BulkRowDefaults
+    {
+        public int Id { get; init; }
+        public string Label { get; init; } = "";
+        public string ProductName { get; init; } = "";
+        public decimal AvailableQuantityMt { get; init; }
+        public LoadingTransportType TransportType { get; init; }
+        public int? TruckId { get; init; }
+        public int? VesselId { get; init; }
+        public int? LogisticsServiceProviderId { get; init; }
+        public string? Reference { get; init; }
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -691,6 +1018,277 @@ public sealed class TransportsController : Controller
                     : soldLegIds.Contains(l.Id)
                         ? "فروش لینک‌شده دارد"
                         : null
+            };
+        }).ToList();
+    }
+
+    // ── دیدن و لغو گروهی تبدیل‌های «بارگیری به حمل» ─────────────────────────────
+    // هر تبدیل یک سند حمل (Batch) با یک Leg است. لغو همان CancelAsync «لغو سند حمل» در صفحهٔ
+    // جزئیات حمل است و برای هر سند جدا و در تراکنش خودش اجرا می‌شود؛ اینجا قاعدهٔ تازه‌ای نیست.
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpGet]
+    public async Task<IActionResult> CancelFromLoading(
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        string? q = null,
+        int? loadingId = null)
+    {
+        var model = new TransportLoadingCancelViewModel
+        {
+            FromDate = fromDate?.Date,
+            ToDate = toDate?.Date,
+            Q = string.IsNullOrWhiteSpace(q) ? null : q.Trim(),
+            LoadingId = loadingId is > 0 ? loadingId : null
+        };
+        await PopulateLoadingConversionRowsAsync(model);
+        return View(model);
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelFromLoading(
+        int[]? batchIds,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        string? q = null,
+        int? loadingId = null)
+    {
+        var back = new
+        {
+            fromDate = fromDate?.ToString("yyyy-MM-dd"),
+            toDate = toDate?.ToString("yyyy-MM-dd"),
+            q,
+            loadingId
+        };
+
+        var requestedIds = (batchIds ?? []).Where(id => id > 0).Distinct().ToList();
+        if (requestedIds.Count == 0)
+        {
+            TempData["err"] = "هیچ حملی برای لغو انتخاب نشده است.";
+            return RedirectToAction(nameof(CancelFromLoading), back);
+        }
+        if (requestedIds.Count > TransportLoadingCancelViewModel.MaxRows)
+        {
+            TempData["err"] = $"در یک عملیات حداکثر {TransportLoadingCancelViewModel.MaxRows:N0} حمل لغو می‌شود.";
+            return RedirectToAction(nameof(CancelFromLoading), back);
+        }
+
+        // فقط سندهای «تبدیل بارگیری» از این صفحه لغو می‌شوند؛ شناسهٔ سندِ دیگر نادیده می‌ماند.
+        var labels = (await _db.InventoryTransportLegs
+                .AsNoTracking()
+                .Where(l => l.InventoryTransportBatchId != null
+                    && requestedIds.Contains(l.InventoryTransportBatchId.Value)
+                    && l.Allocations.Any(a => a.SourceLoadingRegisterId != null))
+                .Select(l => new { BatchId = l.InventoryTransportBatchId!.Value, l.Id })
+                .ToListAsync())
+            .GroupBy(l => l.BatchId)
+            .OrderBy(g => g.Key)
+            .Select(g => (BatchId: g.Key, Label: $"TR-{g.Min(l => l.Id):0000}"))
+            .ToList();
+        if (labels.Count == 0)
+        {
+            TempData["err"] = "حمل‌های انتخاب‌شده از تبدیل بارگیری نیستند یا دیگر وجود ندارند.";
+            return RedirectToAction(nameof(CancelFromLoading), back);
+        }
+
+        var cancelled = 0;
+        var failures = new List<string>();
+        foreach (var (batchId, label) in labels)
+        {
+            try
+            {
+                await _batchTransport.CancelAsync(batchId);
+                cancelled++;
+            }
+            catch (BusinessRuleException ex)
+            {
+                failures.Add($"{label}: {ex.Message}");
+            }
+            catch (DbUpdateException)
+            {
+                failures.Add($"{label}: هم‌زمان تغییر کرده است؛ دوباره تلاش کنید.");
+            }
+            finally
+            {
+                // هر لغو تراکنش خودش را دارد؛ تغییرِ ردیابی‌شدهٔ یک لغوِ ردشده نباید با
+                // SaveChanges لغو بعدی ذخیره شود.
+                _db.ChangeTracker.Clear();
+            }
+        }
+
+        if (cancelled > 0)
+        {
+            TempData["ok"] = $"{cancelled:N0} حمل لغو شد و مقدارش به باقیماندهٔ بارگیری برگشت.";
+        }
+        if (failures.Count > 0)
+        {
+            const int sampleSize = 10;
+            var message = string.Join(" | ", failures.Take(sampleSize));
+            if (failures.Count > sampleSize)
+            {
+                message += $" | و {failures.Count - sampleSize:N0} مورد دیگر";
+            }
+            TempData["err"] = "لغو نشد — " + message;
+        }
+
+        return RedirectToAction(nameof(CancelFromLoading), back);
+    }
+
+    // حمل‌هایی که سهمشان از خودِ بارگیری آمده = ساخته‌شده با «تبدیل بارگیری به حمل».
+    // علت مسدودبودن فقط برای نمایش است و همان فهرست موانعِ InventoryTransportBatchService
+    // را دنبال می‌کند؛ تصمیم نهایی را خودِ CancelAsync هنگام لغو می‌گیرد.
+    private async Task PopulateLoadingConversionRowsAsync(TransportLoadingCancelViewModel model)
+    {
+        var query = _db.InventoryTransportLegs
+            .AsNoTracking()
+            .Where(l => l.Status != InventoryTransportLegStatus.Cancelled
+                && l.Allocations.Any(a => a.SourceLoadingRegisterId != null));
+
+        if (model.FromDate is { } fromDate)
+        {
+            query = query.Where(l => l.LoadedDate >= fromDate);
+        }
+        if (model.ToDate is { } toDate)
+        {
+            var toExclusive = toDate.AddDays(1);
+            query = query.Where(l => l.LoadedDate < toExclusive);
+        }
+        if (model.LoadingId is { } loadingId)
+        {
+            query = query.Where(l => l.Allocations.Any(a => a.SourceLoadingRegisterId == loadingId));
+        }
+        if (!string.IsNullOrWhiteSpace(model.Q))
+        {
+            var term = model.Q.ToLower();
+            query = query.Where(l =>
+                (l.RwbNo != null && l.RwbNo.ToLower().Contains(term))
+                || (l.Truck != null && l.Truck.PlateNumber.ToLower().Contains(term))
+                || (l.Wagon != null && l.Wagon.WagonNumber.ToLower().Contains(term))
+                || (l.Vessel != null && l.Vessel.Name.ToLower().Contains(term))
+                || (l.WagonNumber != null && l.WagonNumber.ToLower().Contains(term))
+                || (l.SourcePurchaseContract != null && l.SourcePurchaseContract.ContractNumber.ToLower().Contains(term)));
+        }
+
+        model.TotalCount = await query.CountAsync();
+        if (model.TotalCount == 0)
+        {
+            return;
+        }
+
+        var legs = await query
+            .OrderByDescending(l => l.Id)
+            .Take(TransportLoadingCancelViewModel.MaxRows)
+            .Select(l => new
+            {
+                l.Id,
+                l.InventoryTransportBatchId,
+                l.TransportType,
+                ProductName = l.Product != null ? l.Product.Name : "",
+                Vehicle = l.Truck != null ? l.Truck.PlateNumber
+                    : l.Wagon != null ? l.Wagon.WagonNumber
+                    : l.Vessel != null ? l.Vessel.Name
+                    : l.WagonNumber,
+                l.QuantityMt,
+                l.LoadedDate,
+                LoadingId = l.Allocations
+                    .Where(a => a.SourceLoadingRegisterId != null)
+                    .Select(a => a.SourceLoadingRegisterId)
+                    .FirstOrDefault(),
+                ContractNumber = l.SourcePurchaseContract != null ? l.SourcePurchaseContract.ContractNumber : null
+            })
+            .ToListAsync();
+
+        var legIds = legs.Select(l => l.Id).ToList();
+
+        var receivedLegIds = (await _db.InventoryTransportReceipts
+            .AsNoTracking()
+            .Where(r => legIds.Contains(r.InventoryTransportLegId) && !r.IsCancelled)
+            .Select(r => r.InventoryTransportLegId)
+            .Distinct()
+            .ToListAsync()).ToHashSet();
+
+        var saleLinks = await _db.SalesTransactionSourceAllocations
+            .AsNoTracking()
+            .Where(a => (a.TransportLegId.HasValue && legIds.Contains(a.TransportLegId.Value))
+                || (a.SourceTransportLegId.HasValue && legIds.Contains(a.SourceTransportLegId.Value)))
+            .Select(a => new { a.TransportLegId, a.SourceTransportLegId })
+            .ToListAsync();
+        var soldLegIds = saleLinks
+            .SelectMany(a => new[] { a.TransportLegId, a.SourceTransportLegId })
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToHashSet();
+
+        var continuedLegIds = (await _db.InventoryTransportLegAllocations
+            .AsNoTracking()
+            .Where(a => a.SourceTransportLegId.HasValue
+                && legIds.Contains(a.SourceTransportLegId.Value)
+                && a.InventoryTransportLeg != null
+                && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
+            .Select(a => a.SourceTransportLegId!.Value)
+            .Distinct()
+            .ToListAsync()).ToHashSet();
+
+        var lossLegIds = (await _db.LossEvents
+            .AsNoTracking()
+            .Where(e => e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value) && !e.IsCancelled)
+            .Select(e => e.TransportLegId!.Value)
+            .Distinct()
+            .ToListAsync()).ToHashSet();
+
+        var customsLegIds = (await _db.CustomsDeclarations
+            .AsNoTracking()
+            .Where(c => c.TransportLegId.HasValue && legIds.Contains(c.TransportLegId.Value))
+            .Select(c => c.TransportLegId!.Value)
+            .Distinct()
+            .ToListAsync()).ToHashSet();
+
+        model.Rows = legs.Select(l =>
+        {
+            var blockers = new List<string>();
+            if (l.InventoryTransportBatchId is null)
+            {
+                blockers.Add("سند حمل ندارد و از این صفحه لغو نمی‌شود");
+            }
+            if (receivedLegIds.Contains(l.Id))
+            {
+                blockers.Add("رسید تحویل ثبت شده است");
+            }
+            if (soldLegIds.Contains(l.Id))
+            {
+                blockers.Add("فروش ثبت‌شده دارد");
+            }
+            if (continuedLegIds.Contains(l.Id))
+            {
+                blockers.Add("مرحلهٔ بعدی حمل ثبت شده است");
+            }
+            if (lossLegIds.Contains(l.Id))
+            {
+                blockers.Add("کسری/ضایعات ثبت شده است");
+            }
+            if (customsLegIds.Contains(l.Id))
+            {
+                blockers.Add("اظهار گمرکی دارد");
+            }
+
+            var loadingLabel = l.LoadingId is { } id ? $"LD-{id:0000}" : "—";
+            if (!string.IsNullOrWhiteSpace(l.ContractNumber))
+            {
+                loadingLabel += $" · {l.ContractNumber}";
+            }
+
+            return new TransportLoadingCancelRow
+            {
+                LegId = l.Id,
+                BatchId = l.InventoryTransportBatchId,
+                LoadingId = l.LoadingId,
+                Label = $"TR-{l.Id:0000} — {TransportTypeText(l.TransportType)} {(string.IsNullOrWhiteSpace(l.Vehicle) ? "" : l.Vehicle)}".TrimEnd(),
+                LoadingLabel = loadingLabel,
+                ProductName = l.ProductName,
+                QuantityMt = l.QuantityMt,
+                TransportDate = l.LoadedDate,
+                BlockReason = blockers.Count > 0 ? string.Join("، ", blockers) : null
             };
         }).ToList();
     }

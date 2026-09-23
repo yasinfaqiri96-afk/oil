@@ -13,6 +13,10 @@
  *     EXACT existing query param names and submits the GET form. Chips are
  *     server-rendered from the applied params; removing one drops the params and
  *     resubmits. The chrome changes, the request contract does not.
+ *
+ * A filter marked `multiple` keeps several values under the SAME param name
+ * (key=1&key=2&key=5) - OR inside one filter, AND between filters, which is
+ * exactly what repeated query params + array.Contains(column) produce.
  */
 (function () {
     "use strict";
@@ -61,14 +65,28 @@
             var used = appliedKeys();
             var q = (query || "").trim().toLocaleLowerCase();
             return fields.filter(function (f) {
-                return used.indexOf(f.key) === -1 &&
+                // فیلتر چندانتخابی پس از اعمال هم در فهرست می‌ماند تا بتوان مقدار افزود.
+                return (f.multiple || used.indexOf(f.key) === -1) &&
                     (!q || String(f.label).toLocaleLowerCase().indexOf(q) !== -1);
             });
+        }
+
+        function ownedInputs(key) {
+            return Array.prototype.slice.call(
+                stateHost.querySelectorAll('[data-ak-filter-param="' + cssEsc(key) + '"]'));
+        }
+        function appliedValues(key) {
+            return ownedInputs(key).map(function (el) { return el.value; });
         }
 
         function hasActiveFilters() { return stateHost.querySelectorAll("[data-ak-filter-param]").length > 0; }
         function syncClear() {
             if (clearBtn) clearBtn.hidden = !(input.value.trim() || hasActiveFilters());
+        }
+
+        function optionLabel(f, value) {
+            var option = (f.options || []).filter(function (o) { return o.value === value; })[0];
+            return option ? option.label : value;
         }
 
         function syncClientChips() {
@@ -83,9 +101,9 @@
                 var valueLabel = first;
                 if (f.type === "daterange") {
                     valueLabel = first + (owned[1] ? " → " + owned[1].value : "");
-                } else if (f.options) {
-                    var option = f.options.filter(function (o) { return o.value === first; })[0];
-                    if (option) valueLabel = option.label;
+                } else {
+                    valueLabel = optionLabel(f, first);
+                    if (f.multiple && owned.length > 1) valueLabel += " +" + (owned.length - 1);
                 }
                 return '<span class="ak-chip-group" data-ak-chip="' + esc(f.key) + '">' +
                     '<span class="ak-chip">' + esc(f.label) + '</span>' +
@@ -104,7 +122,13 @@
             }
             var values = {};
             stateHost.querySelectorAll("[data-ak-filter-param]").forEach(function (el) {
-                values[el.name] = el.value;
+                // چندمقداری: مقدارها زیر همان نام جمع می‌شوند (آرایه)، تک‌مقداری مثل قبل.
+                if (Object.prototype.hasOwnProperty.call(values, el.name)) {
+                    if (!Array.isArray(values[el.name])) values[el.name] = [values[el.name]];
+                    values[el.name].push(el.value);
+                } else {
+                    values[el.name] = el.value;
+                }
             });
             root.dispatchEvent(new CustomEvent("ak:filter-change", {
                 bubbles: true,
@@ -162,9 +186,11 @@
         function renderFields(q) {
             var avail = availableFields(q);
             var rows = avail.map(function (f) {
+                var count = f.multiple ? appliedValues(f.key).length : 0;
+                var meta = count ? T(count + " مورد", count + " selected") : fieldTypeLabel(f.type);
                 return '<li><button type="button" class="ak-option" data-ak-field="' + esc(f.key) + '">' +
                     '<span>' + esc(f.label) + "</span>" +
-                    '<span class="ak-option-meta">' + esc(fieldTypeLabel(f.type)) + "</span></button></li>";
+                    '<span class="ak-option-meta">' + esc(meta) + "</span></button></li>";
             }).join("");
             var searchRow = q
                 ? '<li class="ak-option-search"><button type="submit" class="ak-option ak-option-search-btn" data-ak-search-text>' +
@@ -183,7 +209,35 @@
             return T("انتخاب", "select");
         }
 
+        function renderMultiValue(f) {
+            var head = popHead(f.label);
+            var selected = appliedValues(f.key);
+            var options = f.options || [];
+            var rows = options.map(function (o) {
+                var on = selected.indexOf(String(o.value)) !== -1;
+                return '<li><label class="ak-option ak-option-check' + (on ? " is-checked" : "") +
+                    '" data-ak-multi-row data-ak-option-label="' + esc(String(o.label).toLocaleLowerCase()) + '">' +
+                    '<input type="checkbox" class="ak-check" data-ak-multi-value value="' + esc(o.value) + '"' +
+                    (on ? " checked" : "") + '>' +
+                    '<span>' + esc(o.label) + "</span></label></li>";
+            }).join("");
+            if (!rows) rows = '<li class="ak-option" aria-disabled="true">' + T("مقداری نیست", "No values") + "</li>";
+            var search = options.length > 8
+                ? '<div class="ak-multi-search"><input type="text" class="ak-text-input" data-ak-value-search' +
+                    ' autocomplete="off" placeholder="' + T("جستجو در مقادیر…", "Search values…") + '"></div>'
+                : "";
+            return head + search +
+                '<ul class="ak-option-list ak-option-list--multi" data-ak-multi-list>' + rows + "</ul>" +
+                '<div class="ak-multi-foot">' +
+                    '<button type="button" class="ak-multi-clear" data-ak-multi-clear>' +
+                        T("پاک کردن", "Clear") + "</button>" +
+                    '<button type="button" class="ak-fpop-apply" data-ak-multi-apply>' +
+                        T("اعمال", "Apply") + "</button>" +
+                "</div>";
+        }
+
         function renderValue(f) {
+            if (f.multiple) return renderMultiValue(f);
             var head = popHead(f.label);
             var rows = (f.options || []).map(function (o) {
                 return '<li><button type="button" class="ak-option" data-ak-value="' + esc(o.value) + '"' +
@@ -240,6 +294,17 @@
                 function (el) { el.remove(); });
             addHidden(f.key, f.key, value);
             input.value = "";           // filters submit without free-text noise from the draft
+            applyChanges();
+        }
+
+        function commitMulti(f) {
+            var values = Array.prototype.slice.call(popover.querySelectorAll("[data-ak-multi-value]"))
+                .filter(function (el) { return el.checked; })
+                .map(function (el) { return el.value; });
+            ownedInputs(f.key).forEach(function (el) { el.remove(); });
+            // یک input پنهان برای هر مقدار، همگی با یک نام: OR داخل همین فیلتر.
+            values.forEach(function (v) { addHidden(f.key, f.key, v); });
+            input.value = "";
             applyChanges();
         }
 
@@ -308,8 +373,23 @@
             }
         });
         if (popover) {
+            popover.addEventListener("input", function (e) {
+                var box = e.target.closest("[data-ak-value-search]");
+                if (!box) return;
+                var q = box.value.trim().toLocaleLowerCase();
+                popover.querySelectorAll("[data-ak-multi-row]").forEach(function (row) {
+                    var label = row.getAttribute("data-ak-option-label") || "";
+                    row.closest("li").hidden = !!q && label.indexOf(q) === -1;
+                });
+            });
             popover.addEventListener("keydown", function (e) {
                 if (e.key === "Escape") { closePopover(); return; }
+                if (e.key === "Enter" && nav.field && nav.field.multiple &&
+                    e.target.closest("[data-ak-value-search], [data-ak-multi-list]")) {
+                    e.preventDefault();
+                    commitMulti(nav.field);
+                    return;
+                }
                 if (e.key === "Enter" && e.target.closest("[data-ak-text-input]") && nav.field) {
                     e.preventDefault();
                     commitText(nav.field);
@@ -334,6 +414,38 @@
 
             var valueBtn = e.target.closest("[data-ak-value]");
             if (valueBtn && nav.field) { e.preventDefault(); commitValue(nav.field, valueBtn.getAttribute("data-ak-value")); return; }
+
+            var multiApply = e.target.closest("[data-ak-multi-apply]");
+            if (multiApply && nav.field) { e.preventDefault(); commitMulti(nav.field); return; }
+
+            var multiClear = e.target.closest("[data-ak-multi-clear]");
+            if (multiClear && nav.field) {
+                e.preventDefault();
+                popover.querySelectorAll("[data-ak-multi-value]").forEach(function (el) {
+                    el.checked = false;
+                    var row = el.closest("[data-ak-multi-row]");
+                    if (row) row.classList.remove("is-checked");
+                });
+                return;
+            }
+
+            var checkRow = e.target.closest("[data-ak-multi-row]");
+            if (checkRow) {
+                // کلیک روی ردیف = تغییر وضعیت تیک؛ popover باز می‌ماند تا چند مورد انتخاب شود.
+                var box = checkRow.querySelector("[data-ak-multi-value]");
+                if (box) {
+                    if (e.target !== box) { e.preventDefault(); box.checked = !box.checked; }
+                    checkRow.classList.toggle("is-checked", box.checked);
+                }
+                return;
+            }
+
+            var editChip = e.target.closest("[data-ak-edit-chip]");
+            if (editChip) {
+                e.preventDefault();
+                selectField(editChip.getAttribute("data-ak-edit-chip"));
+                return;
+            }
 
             var dateApply = e.target.closest("[data-ak-date-apply]");
             if (dateApply && nav.field) { e.preventDefault(); commitDate(nav.field); return; }

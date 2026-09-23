@@ -15,11 +15,16 @@
 ## اجرا
 
 ```powershell
-dotnet build src/PTGOilSystem.Web/PTGOilSystem.Web.csproj --no-restore
-dotnet test  tests/PTGOilSystem.Web.Tests/PTGOilSystem.Web.Tests.csproj
+.\scripts\test-fast.ps1 -Build
+.\scripts\test-fast.ps1
+.\scripts\test-full.ps1
+
+# اجرای مستقیم پس از build موفق موجود
+dotnet test tests/PTGOilSystem.Web.Tests/PTGOilSystem.Web.Tests.csproj --no-build --no-restore
 ```
 
-> بعد از `dotnet test` بدون `--no-build`، حتماً پروژهٔ Web را دوباره `dotnet build` کنید — وگرنه اجرای بعدی exe نسخهٔ قدیمی Layout را سرو می‌کند.
+> اسکریپت‌ها build موجود را reuse می‌کنند. پس از تغییر source فقط یک‌بار `-Build` بدهید؛
+> اجرای مستقیم تست همیشه باید با `--no-build --no-restore` باشد.
 
 ## Baseline فعلی
 

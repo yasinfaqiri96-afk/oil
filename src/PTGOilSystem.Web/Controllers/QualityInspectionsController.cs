@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -420,7 +420,12 @@ public partial class QualityInspectionsController : Controller
         if (filter.ProductId.HasValue) query = query.Where(q => q.ProductId == filter.ProductId.Value);
         if (filter.ContractId.HasValue) query = query.Where(q => q.ContractId == filter.ContractId.Value);
         if (filter.ShipmentId.HasValue) query = query.Where(q => q.ShipmentId == filter.ShipmentId.Value);
-        if (filter.Status.HasValue) query = query.Where(q => q.Status == filter.Status.Value);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (filter.Status.Length > 0)
+        {
+            var statuses = filter.Status;
+            query = query.Where(q => statuses.Contains(q.Status));
+        }
         if (filter.FromDate.HasValue) query = query.Where(q => q.SampleDate >= filter.FromDate.Value.Date);
         if (filter.ToDate.HasValue) query = query.Where(q => q.SampleDate < filter.ToDate.Value.Date.AddDays(1));
         return query;

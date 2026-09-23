@@ -13,14 +13,12 @@
     var showActivity = activeTab == "activity";
 
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
-    var bal = officialSummary?.ClosingBalance ?? summary.BalanceUsd;
+    var bal = officialSummary?.ClosingBalance ?? 0m;
     var balanceLabel = officialSummary?.ClosingBalanceMeaningFor(UiText.IsEn(Context))
-        ?? (bal > 0 ? "قابل پرداخت به کارمند" : bal < 0 ? "بدهی کارمند به شرکت" : "حساب تسویه است");
+        ?? PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowText.BalanceMeaning(bal, PTGOilSystem.Web.Services.CompanyFlow.CompanyFlowAccountKind.PartyAccount, Context);
     // tone باید از همان علامتی بیاید که متن معنی از آن ساخته شده؛ وگرنه رنگ و متن وارونه
     // می‌شوند. صورت‌حساب رسمی: مثبت = طلب شرکت (سبز). نبودِ صورت‌حساب: علامتِ مدل صفحه.
-    var balanceTone = officialSummary is not null
-        ? officialSummary.ClosingBalanceTone
-        : bal > 0 ? "danger" : bal < 0 ? "success" : null;
+    var balanceTone = officialSummary?.ClosingBalanceTone ?? (bal > 0 ? "success" : bal < 0 ? "danger" : null);
 
     var dates = new List<DateTime>();
     dates.AddRange(Model.Transactions.Select(t => t.TransactionDate));

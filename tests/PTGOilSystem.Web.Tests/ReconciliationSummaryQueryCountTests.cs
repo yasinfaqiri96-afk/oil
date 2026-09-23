@@ -26,8 +26,18 @@ public sealed class ReconciliationSummaryQueryCountTests(
     /// همین collection ۵۵ رفت‌وبرگشت اندازه‌گیری شد (پس از یکی‌کردن دو query دفتر کلِ
     /// «Sale» در <c>BuildMissingLedgerAsync</c>). سقف کمی بالاتر گرفته شده تا تست
     /// شکننده نباشد ولی هر query تازه‌ای در این مسیر را بگیرد.
+    /// سه رفت‌وبرگشت دیگر هم حذف شد (بررسی وجود InventoryMovement با EXISTS، یکی‌کردن
+    /// دو query اظهارنامهٔ گمرکی، و یکی‌کردن دو query مصرفِ پای حمل)، پس سقف به همان
+    /// اندازه پایین آمد. سپس اسکن‌های تکراری <c>BuildMissingLedgerAsync</c> هم یکی شدند
+    /// (پرداخت تأمین‌کننده/خدمات‌دهنده، مصرف خدمات‌دهنده/داراییِ غیرفعال، دو کنترل دفتر کل،
+    /// کرایهٔ فعال/لغوشده) و دو <c>AsSplitQuery</c> غیرلازم برداشته شد: روی دیتابیس خالی
+    /// ۴۳ و روی دیتابیس توسعه ۵۲ رفت‌وبرگشت اندازه‌گیری شد.
+    ///
+    /// «مانده‌های غیرصفر» از موتورِ رسمیِ مانده خوانده می‌شود (نه جمعِ خامِ Debit/Credit)، پس
+    /// چهار رفت‌وبرگشتِ ثابت (نه به ازای هر ردیف) اضافه شد: سه منبعِ اسنادِ صراف برای ماندهٔ
+    /// قرارداد (پرداخت، تسویه، سندِ پرداختنیِ صراف) و یک جست‌وجوی نامِ طرف‌حساب ⇒ ۵۲ + ۴.
     /// </summary>
-    private const int SummaryRoundTripCeiling = 58;
+    private const int SummaryRoundTripCeiling = 56;
 
     private sealed class CountingInterceptor : DbCommandInterceptor
     {

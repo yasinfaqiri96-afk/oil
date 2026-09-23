@@ -22,7 +22,7 @@ public class VesselsController : Controller
         _audit = audit;
     }
 
-    public async Task<IActionResult> Index(string? q, string? flag, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
+    public async Task<IActionResult> Index(string? q, string[]? flag, bool? isActive, int? selectedId = null, string? detailTab = null, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
     {
         var pageSize = ListPageSize.Resolve(perPage, 8);
         ViewData["PageSize"] = pageSize;
@@ -38,8 +38,9 @@ public class VesselsController : Controller
                 (v.Flag != null && v.Flag.Contains(search)) ||
                 (v.OwnerOrOperator != null && v.OwnerOrOperator.Contains(search)));
         }
-        if (!string.IsNullOrWhiteSpace(flag))
-            query = query.Where(v => v.Flag == flag);
+        // چندانتخابی: OR بین مقادیرِ یک فیلتر، AND بین فیلترهای مختلف.
+        if (flag is { Length: > 0 })
+            query = query.Where(v => v.Flag != null && flag.Contains(v.Flag));
         if (isActive.HasValue)
             query = query.Where(v => v.IsActive == isActive.Value);
 
@@ -59,7 +60,7 @@ public class VesselsController : Controller
             .OrderBy(x => x)
             .ToListAsync();
         ViewData["q"] = search;
-        ViewData["flag"] = flag;
+        ViewData["flag"] = flag ?? [];
         ViewData["isActive"] = isActive;
         ViewData["CurrentPage"] = currentPage;
         ViewData["PageCount"] = pageCount;
@@ -68,11 +69,11 @@ public class VesselsController : Controller
         return View(vessels);
     }
 
-    public async Task<IActionResult> Details(int id)
+    public async Task<IActionResult> Details(int id, string? tab = null, int tripsPage = 1, int docsPage = 1)
     {
         var item = await _db.Vessels.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (item == null) return NotFound();
-        ViewData["ResourceProfile"] = await TransportResourceProfileBuilder.ForVesselAsync(_db, item, "info");
+        ViewData["ResourceProfile"] = await TransportResourceProfileBuilder.ForVesselAsync(_db, item, tab, tripsPage, docsPage);
         return View(item);
     }
 

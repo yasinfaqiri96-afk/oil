@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -360,13 +360,13 @@ public sealed class DispatchDeliveryReceiptItemViewModel
 public sealed class DispatchIndexFilterViewModel
 {
     [Display(Name = "موتر")]
-    public int? TruckId { get; set; }
+    public int[] TruckId { get; set; } = [];
 
     [Display(Name = "جنس")]
-    public int? ProductId { get; set; }
+    public int[] ProductId { get; set; } = [];
 
     [Display(Name = "قرارداد")]
-    public int? ContractId { get; set; }
+    public int[] ContractId { get; set; } = [];
 
     [Display(Name = "از تاریخ")]
     [DataType(DataType.Date)]

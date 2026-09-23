@@ -1,0 +1,26 @@
+@model (string? PreviousUrl, string? NextUrl, int Page, int RowCount)
+@{
+    // صفحه‌بندی هر بخش از «فعالیت‌های دوره». تعداد کلِ سطرها عمداً شمرده نمی‌شود تا هر بار
+    // باز شدن صفحه هشت COUNT اضافه به دیتابیس نزند؛ به‌جایش یک سطر بیشتر از اندازهٔ صفحه
+    // خوانده می‌شود و وجود صفحهٔ بعد از همان معلوم می‌گردد. هیچ سطری بی‌صدا حذف نمی‌شود:
+    // تا آخرِ داده قابل مرور است و خروجی Export همهٔ سطرها را دارد.
+}
+
+@if (Model.PreviousUrl is not null || Model.NextUrl is not null)
+{
+    <div class="ak-pager d-flex align-items-center justify-content-between gap-2">
+        <span class="ak-list-result-count" aria-live="polite">
+            @UiText.T(Context, $"صفحهٔ {Model.Page:N0} — {Model.RowCount:N0} سطر", $"Page {Model.Page:N0} — {Model.RowCount:N0} rows")
+        </span>
+        <span class="d-flex gap-2">
+            @if (Model.PreviousUrl is not null)
+            {
+                <a class="btn ak-secondary-action btn-sm" href="@Model.PreviousUrl"><i class="bi bi-chevron-right"></i> @UiText.T(Context, "قبلی", "Previous")</a>
+            }
+            @if (Model.NextUrl is not null)
+            {
+                <a class="btn ak-secondary-action btn-sm" href="@Model.NextUrl">@UiText.T(Context, "بعدی", "Next") <i class="bi bi-chevron-left"></i></a>
+            }
+        </span>
+    </div>
+}
