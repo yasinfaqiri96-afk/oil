@@ -50,7 +50,8 @@ public sealed class AccountingChartSeeder(
         new("5300", "Exchange Loss", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
         new("5400", "Inventory Loss", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
         new("5500", "Depreciation Expense", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
-        new("5600", "Asset Operating Expense", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary)
+        new("5600", "Asset Operating Expense", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary),
+        new("5700", "Salary Expense", AccountType.Expense, NormalBalance.Debit, MonetaryTreatment.NonMonetary)
     ];
 
     private readonly AccountingOptions _options = options.Value;
@@ -69,6 +70,54 @@ public sealed class AccountingChartSeeder(
             await SeedCompanyAsync(companyId, cancellationToken);
 
         await EnsurePartnerCurrentAccountAsync(cancellationToken);
+        await EnsureSalaryExpenseAccountAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// حساب ۵۷۰۰ هم مثل ۳۳۰۰ بعد از ساخته‌شدنِ تنظیماتِ شرکت‌های موجود اضافه شد. همان الگو: فقط همین
+    /// یک حساب و همین یک ارجاعِ خالی کامل می‌شود؛ ارجاعِ پرشده بازنویسی نمی‌شود.
+    /// </summary>
+    private async Task EnsureSalaryExpenseAccountAsync(CancellationToken cancellationToken)
+    {
+        var pending = await db.AccountingSettings
+            .Where(x => x.SalaryExpenseAccountId == null)
+            .ToListAsync(cancellationToken);
+        if (pending.Count == 0)
+            return;
+
+        var seed = DefaultAccounts.Single(x => x.Code == "5700");
+        foreach (var settings in pending)
+        {
+            var account = await db.Accounts
+                .SingleOrDefaultAsync(
+                    x => x.CompanyId == settings.CompanyId && x.Code == seed.Code,
+                    cancellationToken);
+
+            if (account is null)
+            {
+                account = new Account
+                {
+                    CompanyId = settings.CompanyId,
+                    Code = seed.Code,
+                    Name = seed.Name,
+                    AccountType = seed.AccountType,
+                    NormalBalance = seed.NormalBalance,
+                    IsControlAccount = true,
+                    AllowManualPosting = false,
+                    IsActive = true,
+                    MonetaryTreatment = seed.MonetaryTreatment
+                };
+                db.Accounts.Add(account);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            // حسابِ ۵۷۰۰ که کاربر پیش‌تر برای کار دیگری ساخته باشد و نوعش مصرف نباشد، خودکار
+            // وصل نمی‌شود؛ تعیینش به صفحهٔ «نقشه حساب‌ها» واگذار می‌شود.
+            if (account.AccountType == AccountType.Expense)
+                settings.SalaryExpenseAccountId = account.Id;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -192,6 +241,7 @@ public sealed class AccountingChartSeeder(
                 InventoryLossAccountId = accountsByCode["5400"].Id,
                 DepreciationExpenseAccountId = accountsByCode["5500"].Id,
                 AssetOperatingExpenseAccountId = accountsByCode["5600"].Id,
+                SalaryExpenseAccountId = accountsByCode["5700"].Id,
                 FixedAssetAccountId = accountsByCode["1500"].Id,
                 AccumulatedDepreciationAccountId = accountsByCode["1590"].Id
             });

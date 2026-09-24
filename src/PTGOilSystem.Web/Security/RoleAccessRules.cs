@@ -39,7 +39,18 @@ public static class AppPermissions
     /// کسی که می‌تواند در دورهٔ بسته سند بزند لزوماً نباید بتواند دوره را باز کند.
     /// </summary>
     public const string ManageOperationalPeriodLock = "ManageOperationalPeriodLock";
+
+    // مدیریت بشری — اطلاعات معاش حساس است و از «ثبت و ویرایش اطلاعات» جداست. دیدنِ فهرست
+    // کارمندان با کلید ناوبری «مدیریت بشری» و ثبت/ویرایش مشخصات با ManageData کنترل می‌شود؛
+    // این چهار مورد فقط با اعطای صریح در نقش (یا نقش Admin) باز می‌شوند.
+    public const string ViewEmployeeSalary = "HR.ViewSalary";
+    public const string ManageEmployeeSalary = "HR.ManageSalary";
+    public const string RunPayroll = "HR.RunPayroll";
+    public const string PaySalary = "HR.PaySalary";
 }
+
+/// <summary>Permissionی که در صفحهٔ نقش‌ها قابل اعطاست.</summary>
+public sealed record GrantablePermission(string Key, string Label, string LabelEn, string Hint);
 
 public sealed record RoleNavigationItem(
     string Key,
@@ -60,6 +71,7 @@ public static class RoleNavigationKeys
     public const string Payments = "Payments";
     public const string Reports = "Reports";
     public const string Partners = "Partners";
+    public const string HumanResources = "HumanResources";
     public const string BaseDefinitions = "BaseDefinitions";
     public const string Rates = "Rates";
     public const string Management = "Management";
@@ -67,6 +79,13 @@ public static class RoleNavigationKeys
 
 public static class RoleAccessRules
 {
+    /// <summary>همهٔ صفحه‌های «مدیریت بشری» — یک کلید ناوبری، یک گروه تب.</summary>
+    public static readonly string[] HumanResourcesControllers =
+    [
+        "HrDashboard", "Employees", "Attendance", "Leave", "Payroll", "EmployeeLoans",
+        "EmploymentContracts", "HrOrganization", "HrReports", "HrSettings"
+    ];
+
     public static readonly RoleNavigationItem[] NavigationItems =
     [
         new(RoleNavigationKeys.Dashboard, "داشبورد", "bi-house-fill", ["Home"]),
@@ -90,7 +109,9 @@ public static class RoleAccessRules
         new(RoleNavigationKeys.Reports, "گزارشات", "bi-clipboard-data-fill",
             ["Reports", "Reconciliation", "CustomsPermitTurnover"]),
         new(RoleNavigationKeys.Partners, "اشخاص", "bi-person-vcard-fill",
-            ["Partners", "PartnershipStatement", "Companies", "Suppliers", "SupplierBalanceTransfers", "Customers", "ServiceProviders", "Sarrafs", "Employees"]),
+            ["Partners", "PartnershipStatement", "Companies", "Suppliers", "SupplierBalanceTransfers", "Customers", "ServiceProviders", "Sarrafs"]),
+        new(RoleNavigationKeys.HumanResources, "مدیریت بشری", "bi-people-fill",
+            HumanResourcesControllers),
         new(RoleNavigationKeys.BaseDefinitions, "تعاریف پایه", "bi-database-fill-gear",
             ["Products", "Units", "Currencies", "DailyFxRates", "Locations", "ExpenseTypes", "ExpenseRules",
                 "Terminals", "StorageTanks", "Trucks", "Wagons", "Drivers", "Vessels", "AutoCodes"]),
@@ -173,6 +194,76 @@ public static class RoleAccessRules
 
         return keys;
     }
+
+    /// <summary>Permissionهای قابل اعطا در نقش، به ترتیبِ نمایش.</summary>
+    public static readonly GrantablePermission[] GrantablePermissions =
+    [
+        new(AppPermissions.ViewEmployeeSalary, "دیدن معاش کارمندان", "View employee salary",
+            "مبلغ معاش، ماندهٔ حساب، قرضه و مساعدهٔ کارمند نمایش داده می‌شود."),
+        new(AppPermissions.ManageEmployeeSalary, "مدیریت معاش", "Manage salary",
+            "تعیین و تغییر معاش، ثبت و لغو تراکنش معاش، قرضه و مساعده."),
+        new(AppPermissions.RunPayroll, "ساخت و نهایی‌سازی معاش ماه", "Run payroll",
+            "ساخت، ویرایش، نهایی‌سازی و بازگشایی معاش ماهانه."),
+        new(AppPermissions.PaySalary, "پرداخت معاش", "Pay salary",
+            "پرداخت معاش و مساعده از صندوق یا بانک.")
+    ];
+
+    public static string[] NormalizeGrantedPermissions(IEnumerable<string>? keys)
+    {
+        var known = GrantablePermissions.Select(p => p.Key).ToArray();
+        return (keys ?? [])
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Select(key => key.Trim())
+            .Where(key => known.Contains(key, StringComparer.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(key => Array.IndexOf(known, key))
+            .ToArray();
+    }
+
+    public static string? SerializeGrantedPermissions(IEnumerable<string>? keys)
+    {
+        var normalized = NormalizeGrantedPermissions(keys);
+        return normalized.Length == 0 ? null : string.Join(",", normalized);
+    }
+
+    /// <summary>Permissionهای اعطاشده به نقش. نقش Admin همه را دارد.</summary>
+    public static string[] ResolveGrantedPermissions(Role? role)
+    {
+        if (role is null)
+        {
+            return [];
+        }
+
+        if (string.Equals(role.Name, AuthRoles.Admin, StringComparison.Ordinal))
+        {
+            return GrantablePermissions.Select(p => p.Key).ToArray();
+        }
+
+        return NormalizeGrantedPermissions(
+            (role.GrantedPermissions ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    public static bool HasPermission(ClaimsPrincipal user, string permission)
+        => IsSuperAdmin(user) || user.HasClaim(AppClaimTypes.Permission, permission);
+
+    /// <summary>
+    /// مبلغ معاش و ماندهٔ مالیِ کارمند. هر Permissionِ مالیِ منابع بشری دیدن را هم می‌دهد، چون
+    /// بدونِ دیدنِ مبلغ نمی‌توان معاش را مدیریت، محاسبه یا پرداخت کرد.
+    /// </summary>
+    public static bool CanViewEmployeeSalary(ClaimsPrincipal user)
+        => HasPermission(user, AppPermissions.ViewEmployeeSalary)
+            || HasPermission(user, AppPermissions.ManageEmployeeSalary)
+            || HasPermission(user, AppPermissions.RunPayroll)
+            || HasPermission(user, AppPermissions.PaySalary);
+
+    public static bool CanManageEmployeeSalary(ClaimsPrincipal user)
+        => HasPermission(user, AppPermissions.ManageEmployeeSalary);
+
+    public static bool CanRunPayroll(ClaimsPrincipal user)
+        => HasPermission(user, AppPermissions.RunPayroll);
+
+    public static bool CanPaySalary(ClaimsPrincipal user)
+        => HasPermission(user, AppPermissions.PaySalary);
 
     public static bool RoleCanManageData(Role? role)
         => role is not null && (

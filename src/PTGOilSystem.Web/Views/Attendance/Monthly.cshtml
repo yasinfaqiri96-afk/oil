@@ -1,0 +1,72 @@
+@model PTGOilSystem.Web.Models.HumanResources.AttendanceMonthViewModel
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.HumanResources
+@{
+    ViewData["Title"] = UiText.T(Context, "حاضری ماهانه", "Monthly attendance");
+    var first = new DateTime(Model.Year, Model.Month, 1);
+    var prev = first.AddMonths(-1);
+    var next = first.AddMonths(1);
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"{UiText.T(Context, "حاضری ماهانه", "Monthly attendance")} — {first.ToDisplayMonth()}", false,
+                       UiText.T(Context, "حاضری روزانه", "Daily attendance"), "bi-calendar-day",
+                       (string?)Url.Action("Index"), (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <div class="ak-list-toolbar-actions no-print mb-2">
+        <a class="btn btn-light ak-secondary-action" asp-action="Monthly" asp-route-year="@prev.Year" asp-route-month="@prev.Month"><i class="bi bi-chevron-right" aria-hidden="true"></i><span>@UiText.T(Context, "ماه قبل", "Previous")</span></a>
+        <a class="btn btn-light ak-secondary-action" asp-action="Monthly" asp-route-year="@next.Year" asp-route-month="@next.Month"><span>@UiText.T(Context, "ماه بعد", "Next")</span><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
+        <span class="ak-note">@UiText.T(Context, "ح = حاضر، غ = غایب، ر = رخصتی، ت = رخصتی رسمی؛ * = تأخیر", "P/A/L/H; * = late")</span>
+    </div>
+
+    <div class="ak-list">
+        <div class="ak-table-wrap">
+            <table class="ak-table" aria-label="@UiText.T(Context, "جدول حاضری ماه", "Monthly attendance sheet")">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@UiText.T(Context, "کارمند", "Employee")</th>
+                        @for (var d = 1; d <= Model.DaysInMonth; d++)
+                        {
+                            <th class="ak-col-num" title="@(Model.OffDays.Contains(d) ? UiText.T(Context, "رخصتی", "Off") : null)">@d</th>
+                        }
+                        <th class="ak-col-num">@UiText.T(Context, "حاضر", "P")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "غایب", "A")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "رخصتی", "L")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "تأخیر", "Late")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="ak-col-grow"><a asp-controller="Employees" asp-action="Details" asp-route-id="@row.EmployeeId" class="ak-name">@row.EmployeeName</a></td>
+                            @for (var d = 1; d <= Model.DaysInMonth; d++)
+                            {
+                                if (row.Days.TryGetValue(d, out var status))
+                                {
+                                    <td class="ak-col-num" title="@AttendanceLabels.Status(status)">
+                                        <a asp-action="Index" asp-route-date="@(new DateTime(Model.Year, Model.Month, d).ToString("yyyy-MM-dd"))">@AttendanceLabels.Short(status)@(row.LateDays.Contains(d) ? "*" : "")</a>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td class="ak-col-num">@(Model.OffDays.Contains(d) ? "—" : "·")</td>
+                                }
+                            }
+                            <td class="ak-num ak-col-num">@row.Present</td>
+                            <td class="ak-num ak-col-num">@row.Absent</td>
+                            <td class="ak-num ak-col-num">@row.Leave</td>
+                            <td class="ak-num ak-col-num">@row.Late</td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr><td colspan="@(Model.DaysInMonth + 5)"><div class="ak-empty"><i class="bi bi-calendar3" aria-hidden="true"></i>@UiText.T(Context, "حاضری‌ای برای این ماه ثبت نشده است.", "No attendance recorded for this month.")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

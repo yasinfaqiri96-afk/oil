@@ -1,0 +1,68 @@
+@model PTGOilSystem.Web.Models.HumanResources.EmployeeLoanFormViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "قرضهٔ جدید", "New loan");
+    var backUrl = Url.Action("Index") ?? "#";
+}
+
+<div class="ak-form-page">
+    <div class="ak-form-page-content">
+        <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+                 model="@((UiText.T(Context, "قرضهٔ جدید", "New loan"), false,
+                           (string?)null, (string?)null, (string?)null, (string?)null,
+                           UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
+
+        <form asp-action="Create" method="post" class="ak-form">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "مشخصات قرضه", "Loan details"), (string?)UiText.T(Context, "قرضه بدون سود است. با ذخیره، مبلغ همان لحظه از صندوق/بانکِ انتخاب‌شده پرداخت می‌شود.", "Interest-free. Saving pays the amount from the selected cash/bank account.")))" />
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="EmployeeId" class="ak-label"></label>
+                        <select asp-for="EmployeeId" asp-items="ViewBag.Employees" class="ak-input"><option value="0">@UiText.T(Context, "انتخاب کارمند", "Choose employee")</option></select>
+                        <span asp-validation-for="EmployeeId" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="LoanDate" class="ak-label"></label>
+                        <input asp-for="LoanDate" class="ak-input" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="PrincipalAmount" class="ak-label"></label>
+                        <input asp-for="PrincipalAmount" class="ak-input" />
+                        <span asp-validation-for="PrincipalAmount" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Currency" class="ak-label"></label>
+                        <select asp-for="Currency" asp-items="ViewBag.Currencies" class="ak-input"></select>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="InstallmentCount" class="ak-label"></label>
+                        <input asp-for="InstallmentCount" class="ak-input" />
+                        <span asp-validation-for="InstallmentCount" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="StartRecoveryYear" class="ak-label"></label>
+                        <input asp-for="StartRecoveryYear" class="ak-input" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="StartRecoveryMonth" class="ak-label"></label>
+                        <input asp-for="StartRecoveryMonth" class="ak-input" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="CashAccountId" class="ak-label"></label>
+                        <select asp-for="CashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input"><option value="0">@UiText.T(Context, "انتخاب حساب", "Choose account")</option></select>
+                        <span asp-validation-for="CashAccountId" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Notes" class="ak-label"></label>
+                        <input asp-for="Notes" class="ak-input" />
+                    </div>
+                </div>
+            </section>
+            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                     model="@((UiText.T(Context, "ثبت و پرداخت قرضه", "Save & pay loan"), backUrl, UiText.T(Context, "انصراف", "Cancel")))" />
+        </form>
+    </div>
+</div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

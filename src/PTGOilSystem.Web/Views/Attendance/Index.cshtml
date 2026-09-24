@@ -1,0 +1,138 @@
+@model PTGOilSystem.Web.Models.HumanResources.AttendanceDayViewModel
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.HumanResources
+@{
+    ViewData["Title"] = UiText.T(Context, "حاضری روزانه", "Daily attendance");
+    var dateValue = Model.Date.ToString("yyyy-MM-dd");
+    var statuses = new[] { AttendanceStatus.Present, AttendanceStatus.Absent, AttendanceStatus.Holiday };
+}
+
+<div class="ak-list-page" data-hr-attendance>
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "حاضری روزانه", "Daily attendance"), false,
+                       UiText.T(Context, "جدول ماهانه", "Monthly sheet"), "bi-calendar3",
+                       (string?)Url.Action("Monthly", new { year = Model.Date.Year, month = Model.Date.Month }), (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار حاضری روز", "Day attendance statistics")">
+        <vc:stat-card title="@UiText.T(Context, "حاضر", "Present")" value="@Model.PresentCount.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "غایب", "Absent")" value="@Model.AbsentCount.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="ledger"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "رخصتی", "On leave")" value="@Model.LeaveCount.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="documents"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "تأخیر", "Late")" value="@Model.LateCount.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="units"></vc:stat-card>
+    </section>
+
+    <form method="get" asp-action="Index" class="ak-form-grid ak-list-toolbar mb-2">
+        <div class="ak-field">
+            <label class="ak-label" for="att-date">@UiText.T(Context, "تاریخ", "Date")</label>
+            <input id="att-date" name="date" type="date" class="ak-input" value="@dateValue" />
+        </div>
+        <div class="ak-field">
+            <label class="ak-label" for="att-dept">@UiText.T(Context, "بخش", "Department")</label>
+            <select id="att-dept" name="departmentId" asp-items="ViewBag.Departments" class="ak-input">
+                <option value="">@UiText.T(Context, "همه", "All")</option>
+            </select>
+        </div>
+        <div class="ak-field">
+            <button type="submit" class="btn btn-light ak-secondary-action">@UiText.T(Context, "نمایش", "Show")</button>
+        </div>
+    </form>
+
+    @if (Model.IsWeeklyOff || Model.HolidayName is not null)
+    {
+        <div class="alert alert-info ak-form-alert" role="status">
+            @(Model.HolidayName is not null
+                ? $"{UiText.T(Context, "رخصتی رسمی:", "Public holiday:")} {Model.HolidayName}"
+                : UiText.T(Context, "این روز رخصتیِ هفته است.", "This is a weekly day off."))
+        </div>
+    }
+
+    <form asp-action="Save" method="post" class="ak-list">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="date" value="@dateValue" />
+        <input type="hidden" name="departmentId" value="@Model.DepartmentId" />
+
+        @if (Model.CanEdit && Model.Rows.Count > 0)
+        {
+            <div class="ak-list-toolbar-actions no-print mb-2">
+                <button type="button" class="btn btn-light ak-secondary-action" data-hr-mark-all="@((int)AttendanceStatus.Present)">
+                    <i class="bi bi-check2-all" aria-hidden="true"></i>
+                    <span>@UiText.T(Context, "ثبت‌نشده‌ها = حاضر", "Unrecorded = present")</span>
+                </button>
+            </div>
+        }
+
+        <div class="ak-table-wrap">
+            <table class="ak-table" aria-label="@UiText.T(Context, "حاضری کارمندان", "Employee attendance")">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@UiText.T(Context, "کارمند", "Employee")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        <th>@UiText.T(Context, "ورود", "Check-in")</th>
+                        <th>@UiText.T(Context, "خروج", "Check-out")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "تأخیر (دقیقه)", "Late (min)")</th>
+                        <th>@UiText.T(Context, "یادداشت", "Notes")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Rows.Count; i++)
+                    {
+                        var row = Model.Rows[i];
+                        var locked = row.LockedByLeave || !Model.CanEdit;
+                        <tr class="@(row.IsRecorded ? "" : "ak-row-muted")">
+                            <td class="ak-col-grow">
+                                <a asp-controller="Employees" asp-action="Details" asp-route-id="@row.EmployeeId" class="ak-name">@row.EmployeeName</a>
+                                <div class="ak-note">@row.EmployeeCode @(row.DepartmentName is null ? "" : $"· {row.DepartmentName}")</div>
+                                <input type="hidden" name="rows[@i].EmployeeId" value="@row.EmployeeId" />
+                            </td>
+                            <td>
+                                @if (row.LockedByLeave)
+                                {
+                                    <span class="ak-status is-warning">@AttendanceLabels.Status(AttendanceStatus.Leave)</span>
+                                    <input type="hidden" name="rows[@i].Status" value="@((int)AttendanceStatus.Leave)" />
+                                }
+                                else
+                                {
+                                    <select name="rows[@i].Status" class="ak-input" data-hr-status disabled="@(locked ? "disabled" : null)">
+                                        <option value="">@UiText.T(Context, "ثبت نشده", "Not recorded")</option>
+                                        @foreach (var status in statuses)
+                                        {
+                                            <option value="@((int)status)" selected="@(row.Status == status ? "selected" : null)">@AttendanceLabels.Status(status)</option>
+                                        }
+                                    </select>
+                                }
+                            </td>
+                            <td><input name="rows[@i].CheckIn" type="time" class="ak-input" value="@row.CheckIn?.ToString(@"hh\:mm")" disabled="@(locked ? "disabled" : null)" /></td>
+                            <td><input name="rows[@i].CheckOut" type="time" class="ak-input" value="@row.CheckOut?.ToString(@"hh\:mm")" disabled="@(locked ? "disabled" : null)" /></td>
+                            <td class="ak-num ak-col-num">@(row.MinutesLate > 0 ? row.MinutesLate.Value.ToString("N0") : "—")</td>
+                            <td>
+                                <input name="rows[@i].Notes" class="ak-input" value="@row.Notes" disabled="@(locked ? "disabled" : null)" />
+                                @if (!string.IsNullOrWhiteSpace(row.LastCorrectionReason))
+                                {
+                                    <div class="ak-note">@UiText.T(Context, "آخرین اصلاح:", "Last correction:") @row.LastCorrectionReason</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr><td colspan="6"><div class="ak-empty"><i class="bi bi-people" aria-hidden="true"></i>@UiText.T(Context, "کارمندِ فعالی برای این روز نیست.", "No active employees for this day.")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.CanEdit && Model.Rows.Count > 0)
+        {
+            <div class="ak-form-grid mt-2">
+                <div class="ak-field ak-col-full">
+                    <label class="ak-label" for="att-reason">@UiText.T(Context, "دلیل اصلاح (فقط وقتی حاضریِ ثبت‌شده را تغییر می‌دهید)", "Correction reason (only when changing recorded attendance)")</label>
+                    <input id="att-reason" name="correctionReason" class="ak-input" maxlength="500" />
+                </div>
+            </div>
+            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                     model="@((UiText.T(Context, "ذخیرهٔ حاضری روز", "Save attendance"), Url.Action("Index", new { date = dateValue }) ?? "#", UiText.T(Context, "انصراف", "Cancel")))" />
+        }
+    </form>
+</div>
+
+@section Scripts { <script src="~/js/hr-attendance.js" asp-append-version="true"></script> }

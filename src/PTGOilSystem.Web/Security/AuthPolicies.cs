@@ -22,4 +22,10 @@ public static class AuthPolicies
     /// ناوبری همان کاربر و همان <see cref="RoleAccessRules"/> وب است.
     /// </summary>
     public const string MobileApi = nameof(MobileApi);
+
+    // مدیریت بشری — نقش Admin یا Permission صریح در نقش.
+    public const string HrViewSalary = nameof(HrViewSalary);
+    public const string HrManageSalary = nameof(HrManageSalary);
+    public const string HrRunPayroll = nameof(HrRunPayroll);
+    public const string HrPaySalary = nameof(HrPaySalary);
 }

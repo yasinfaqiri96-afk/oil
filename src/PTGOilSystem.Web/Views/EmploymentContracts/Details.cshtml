@@ -1,0 +1,145 @@
+@model PTGOilSystem.Web.Models.HumanResources.EmploymentContractDetailsViewModel
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.HumanResources
+@using PTGOilSystem.Web.Models.Shared
+@{
+    var c = Model.Contract;
+    ViewData["Title"] = UiText.T(Context, "قرارداد کاری", "Employment contract");
+    ViewData["HideSectionTabs"] = true;
+    ViewData["AkHeaderStatus"] = EmploymentContractLabels.Status(Model.EffectiveStatus);
+    ViewData["AkHeaderStatusState"] = EmploymentContractLabels.StatusCss(Model.EffectiveStatus);
+    ViewData["AkHeaderContext"] = $"{c.Employee?.EmployeeCode} · {c.Employee?.FullName}";
+    var isActive = c.Status == EmploymentContractStatus.Active;
+    var kebab = new List<AkHeaderMenuItem>
+    {
+        new() { Label = UiText.T(Context, "پروفایل کارمند", "Employee profile"), Href = Url.Action("Details", "Employees", new { id = c.EmployeeId, tab = "contract" }), Icon = "bi-person" }
+    };
+    if (Model.CanViewSalary && c.AttachmentId.HasValue)
+    {
+        kebab.Add(new() { Label = UiText.T(Context, "دانلود فایل قرارداد", "Download contract file"), Href = Url.Action("Attachment", new { id = c.Id }), Icon = "bi-download" });
+    }
+    ViewData["AkHeaderKebab"] = kebab;
+    var renewUrl = Model.CanManage && isActive ? Url.Action("Renew", new { id = c.Id }) : null;
+}
+
+<div class="ak-form-page ak-detail-page" data-ak-detail-v2="true">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((c.ContractNumber, false,
+                       renewUrl is null ? null : UiText.T(Context, "تمدید قرارداد", "Renew"), "bi-arrow-repeat", renewUrl, (string?)null,
+                       UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Index")))" />
+
+    @if (Model.IsExpiringSoon)
+    {
+        <div class="alert alert-warning ak-form-alert" role="status">
+            @UiText.T(Context, "این قرارداد تا ۳۰ روز دیگر پایان می‌یابد. تمدید یا پایانِ همکاری را تعیین کنید.", "This contract ends within 30 days. Renew it or plan the end of employment.")
+        </div>
+    }
+
+    <section class="ak-form-section ak-detail-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "شرایط قرارداد", "Contract terms"), (string?)null))" />
+        <dl class="ak-list">
+            <div class="ak-list-row"><dt>@UiText.T(Context, "کارمند", "Employee")</dt><dd><a asp-controller="Employees" asp-action="Details" asp-route-id="@c.EmployeeId">@c.Employee?.FullName</a></dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "نوع", "Type")</dt><dd>@EmploymentContractLabels.Type(c.ContractType)</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "شروع", "Start")</dt><dd>@c.StartDate.ToDisplayDate()</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "پایان", "End")</dt><dd>@(c.EndDate.HasValue ? c.EndDate.Value.ToDisplayDate() : UiText.T(Context, "نامحدود", "Open-ended"))</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "بخش", "Department")</dt><dd>@(c.Department?.Name ?? "—")</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "بست", "Position")</dt><dd>@(c.Position?.Name ?? "—")</dd></div>
+            @if (Model.CanViewSalary)
+            {
+                <div class="ak-list-row"><dt>@UiText.T(Context, "معاش پایه", "Base salary")</dt><dd class="ak-num">@c.BaseSalary.ToString("N2") @c.Currency</dd></div>
+            }
+            <div class="ak-list-row"><dt>@UiText.T(Context, "روز / ساعت کاری", "Working days / hours")</dt><dd>@(c.WorkingDaysPerWeek?.ToString("0.#") ?? "—") / @(c.WorkingHoursPerDay?.ToString("0.#") ?? "—")</dd></div>
+            @if (c.RenewedFromContract is not null)
+            {
+                <div class="ak-list-row"><dt>@UiText.T(Context, "تمدیدِ قرارداد", "Renewal of")</dt><dd><a asp-action="Details" asp-route-id="@c.RenewedFromContractId">@c.RenewedFromContract.ContractNumber</a></dd></div>
+            }
+            @if (c.Status == EmploymentContractStatus.Terminated)
+            {
+                <div class="ak-list-row"><dt>@UiText.T(Context, "تاریخ فسخ", "Terminated on")</dt><dd>@c.TerminatedOn.ToDisplayDate()</dd></div>
+                <div class="ak-list-row"><dt>@UiText.T(Context, "دلیل فسخ", "Reason")</dt><dd>@c.TerminationReason</dd></div>
+            }
+            <div class="ak-list-row"><dt>@UiText.T(Context, "یادداشت", "Notes")</dt><dd>@(c.Notes ?? "—")</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "فایل قرارداد", "Contract file")</dt><dd>@(c.Attachment?.OriginalFileName ?? UiText.T(Context, "ندارد", "None"))</dd></div>
+        </dl>
+    </section>
+
+    @if (Model.CanManage)
+    {
+        <section class="ak-form-section ak-detail-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "یادداشت و فایل", "Notes & file"), (string?)UiText.T(Context, "شرایطِ قرارداد ویرایش نمی‌شود؛ فقط یادداشت و فایل.", "Terms are never edited; only notes and file.")))" />
+            <form asp-action="UpdateNotes" asp-route-id="@c.Id" method="post" enctype="multipart/form-data" class="ak-form-grid">
+                @Html.AntiForgeryToken()
+                <div class="ak-field ak-col-full">
+                    <label class="ak-label" for="contract-notes">@UiText.T(Context, "یادداشت", "Notes")</label>
+                    <textarea id="contract-notes" name="notes" class="ak-input" rows="2">@c.Notes</textarea>
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label" for="contract-file">@UiText.T(Context, "فایل تازه (اختیاری)", "New file (optional)")</label>
+                    <input id="contract-file" name="attachment" type="file" class="ak-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" />
+                </div>
+                <div class="ak-field">
+                    <button type="submit" class="btn btn-light ak-secondary-action">@UiText.T(Context, "ذخیره", "Save")</button>
+                </div>
+            </form>
+        </section>
+
+        @if (isActive)
+        {
+            <section class="ak-form-section ak-detail-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "فسخ قرارداد", "Terminate contract"), (string?)UiText.T(Context, "قرارداد پاک نمی‌شود؛ با دلیل «فسخ‌شده» علامت می‌خورد.", "The contract is kept and marked terminated with a reason.")))" />
+                <form asp-action="Terminate" asp-route-id="@c.Id" method="post" class="ak-form-grid"
+                      data-ptg-confirm="true" data-ptg-confirm-title="@UiText.T(Context, "فسخ قرارداد", "Terminate contract")" data-ptg-confirm-message="@UiText.T(Context, "قرارداد فسخ شود؟", "Terminate this contract?")">
+                    @Html.AntiForgeryToken()
+                    <div class="ak-field">
+                        <label class="ak-label" for="terminated-on">@UiText.T(Context, "تاریخ فسخ", "Termination date")</label>
+                        <input id="terminated-on" name="terminatedOn" type="date" class="ak-input" value="@PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock.SystemToday.ToString("yyyy-MM-dd")" required />
+                    </div>
+                    <div class="ak-field">
+                        <label class="ak-label" for="terminate-reason">@UiText.T(Context, "دلیل", "Reason") <span class="ak-req">*</span></label>
+                        <input id="terminate-reason" name="reason" class="ak-input" required />
+                    </div>
+                    <div class="ak-field">
+                        <button type="submit" class="btn btn-light ak-secondary-action ak-danger">@UiText.T(Context, "فسخ قرارداد", "Terminate")</button>
+                    </div>
+                </form>
+            </section>
+        }
+    }
+
+    <section class="ak-form-section ak-detail-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "تاریخچهٔ قراردادهای کارمند", "Employee contract history"), (string?)$"{Model.History.Count:N0}"))" />
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <thead>
+                    <tr>
+                        <th>@UiText.T(Context, "شماره", "Number")</th>
+                        <th>@UiText.T(Context, "شروع", "Start")</th>
+                        <th>@UiText.T(Context, "پایان", "End")</th>
+                        <th class="ak-col-grow">@UiText.T(Context, "بخش / بست", "Department / Position")</th>
+                        @if (Model.CanViewSalary)
+                        {
+                            <th class="ak-col-num">@UiText.T(Context, "معاش", "Salary")</th>
+                        }
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var h in Model.History)
+                    {
+                        <tr class="@(h.Id == c.Id ? "is-selected" : "")">
+                            <td><a asp-action="Details" asp-route-id="@h.Id">@h.ContractNumber</a></td>
+                            <td>@h.StartDate.ToDisplayDate()</td>
+                            <td>@(h.EndDate.HasValue ? h.EndDate.Value.ToDisplayDate() : "—")</td>
+                            <td class="ak-col-grow">@(h.DepartmentName ?? "—") / @(h.PositionName ?? "—")</td>
+                            @if (Model.CanViewSalary)
+                            {
+                                <td class="ak-num ak-col-num">@h.BaseSalary?.ToString("N2") @h.Currency</td>
+                            }
+                            <td><span class="ak-status @EmploymentContractLabels.StatusCss(h.Status)">@EmploymentContractLabels.Status(h.Status)</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

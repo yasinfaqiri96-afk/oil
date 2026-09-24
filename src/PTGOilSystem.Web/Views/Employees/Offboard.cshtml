@@ -1,0 +1,74 @@
+@model PTGOilSystem.Web.Models.Employees.EmployeeTerminationViewModel
+@{
+    var checklist = (PTGOilSystem.Web.Services.HumanResources.OffboardingChecklist)ViewBag.Checklist;
+    var canViewSalary = ViewBag.CanViewSalary == true;
+    ViewData["Title"] = "پایان همکاری";
+    var backUrl = Url.Action("Details", new { id = Model.EmployeeId }) ?? "#";
+    string Amounts(IEnumerable<PTGOilSystem.Web.Services.HumanResources.CurrencyAmount> items)
+        => items.Any() ? string.Join(" + ", items.Select(i => NumberDisplay.Money(i.Amount, i.Currency))) : "ندارد";
+}
+
+<div class="ak-form-page">
+    <div class="ak-form-page-content">
+        <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+                 model="@(($"پایان همکاری — {checklist.Employee.FullName}", false,
+                           (string?)null, (string?)null, (string?)null, (string?)null,
+                           "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("پیش از پایان همکاری", (string?)"کارمند حذف نمی‌شود؛ همهٔ سابقه می‌ماند. معاشِ ماهِ آخر از «معاش» به نسبتِ روزهای کار ساخته می‌شود."))" />
+            <dl class="ak-list">
+                @if (canViewSalary)
+                {
+                    <div class="ak-list-row"><dt>معاشِ پرداخت‌نشده</dt><dd class="ak-num">@Amounts(checklist.UnpaidPayroll)</dd></div>
+                    <div class="ak-list-row"><dt>قرضهٔ باز</dt><dd class="ak-num">@Amounts(checklist.OutstandingLoans)</dd></div>
+                    <div class="ak-list-row"><dt>مساعدهٔ باز</dt><dd class="ak-num">@Amounts(checklist.OutstandingAdvances)</dd></div>
+                }
+                else
+                {
+                    <div class="ak-list-row"><dt>موارد مالی</dt><dd>@(checklist.HasOpenItems ? "مواردِ باز دارد (برای جزئیات دسترسیِ معاش لازم است)" : "ندارد")</dd></div>
+                }
+                <div class="ak-list-row"><dt>قرارداد فعال</dt><dd>@(checklist.ActiveContract is null ? "ندارد" : $"{checklist.ActiveContract.ContractNumber} — با همین تاریخ فسخ می‌شود")</dd></div>
+                <div class="ak-list-row"><dt>ماندهٔ رخصتی</dt><dd>@(checklist.LeaveBalances.Any(b => b.RemainingDays.HasValue) ? string.Join("، ", checklist.LeaveBalances.Where(b => b.RemainingDays.HasValue).Select(b => $"{b.LeaveTypeName}: {b.RemainingDays:0.#} روز")) : "—")</dd></div>
+                <div class="ak-list-row"><dt>حساب کاربری</dt><dd>@(checklist.LinkedUser is null ? "ندارد" : $"{checklist.LinkedUser.Username} — غیرفعال می‌شود")</dd></div>
+            </dl>
+            <p class="ak-note">دارایی‌های شرکت (کلید، وسیله، کارت) را پیش از تأیید تحویل بگیرید؛ در یادداشت ثبت کنید.</p>
+        </section>
+
+        <form asp-action="Offboard" asp-route-id="@Model.EmployeeId" method="post" class="ak-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="EmployeeId" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+            <section class="ak-form-section">
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="LastWorkingDate" class="ak-label"></label>
+                        <input asp-for="LastWorkingDate" class="ak-input" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Reason" class="ak-label"></label>
+                        <input asp-for="Reason" class="ak-input" placeholder="استعفا، ختم قرارداد، ..." />
+                        <span asp-validation-for="Reason" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Notes" class="ak-label"></label>
+                        <textarea asp-for="Notes" class="ak-input" rows="2"></textarea>
+                    </div>
+                    @if (checklist.HasOpenItems)
+                    {
+                        <div class="ak-toggle-field ak-col-full">
+                            <div class="form-check form-switch">
+                                <input asp-for="AcknowledgeOpenItems" class="form-check-input" role="switch" />
+                                <label asp-for="AcknowledgeOpenItems" class="form-check-label"></label>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </section>
+            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                     model="@(("ثبت پایان همکاری", backUrl, "انصراف"))" />
+        </form>
+    </div>
+</div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

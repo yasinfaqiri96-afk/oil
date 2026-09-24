@@ -77,7 +77,9 @@ public static class LedgerEntryOwnership
         nameof(PaymentKind.SarrafSettlement),
         nameof(PaymentKind.EmployeeSalaryPayment),
         nameof(PaymentKind.EmployeeSalaryAdvance),
-        nameof(PaymentKind.EmployeeReturn)
+        nameof(PaymentKind.EmployeeReturn),
+        nameof(PaymentKind.EmployeeLoan),
+        nameof(PaymentKind.EmployeeLoanRepayment)
     ];
 
     public static Expression<Func<LedgerEntry, bool>> SupplierOwned(int supplierId)

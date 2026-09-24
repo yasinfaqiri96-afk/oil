@@ -38,8 +38,22 @@
         ("Companies", "Index", T("شرکت‌ها",        "Companies"), "bi-buildings-fill", null),
         ("Customers", "Index", T("مشتریان",        "Customers"), "bi-people-fill",   null),
         ("ServiceProviders", "Index", T("شرکت‌های خدماتی", "Service Providers"), "bi-building-fill-gear", null),
-        ("Sarrafs", "Index", T("صراف‌ها", "Sarrafs"), "bi-currency-exchange", null),
-        ("Employees", "Index", T("کارمندان",       "Employees"), "bi-person-vcard-fill", null)
+        ("Sarrafs", "Index", T("صراف‌ها", "Sarrafs"), "bi-currency-exchange", null)
+    };
+
+    // مدیریت بشری: یک گروه تب برای همهٔ صفحه‌ها؛ هر زیر‌بخش تب خودش را دارد نه منوی جدا.
+    var hrTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
+    {
+        ("HrDashboard",         "Index", T("داشبورد",           "Dashboard"),               "bi-speedometer2",           null),
+        ("Employees",           "Index", T("کارمندان",          "Employees"),               "bi-person-vcard-fill",      null),
+        ("Attendance",          "Index", T("حاضری",             "Attendance"),              "bi-calendar-check-fill",    null),
+        ("Leave",               "Index", T("رخصتی‌ها",          "Leave"),                   "bi-calendar-x-fill",        null),
+        ("Payroll",             "Index", T("معاش",              "Payroll"),                 "bi-cash-stack",             null),
+        ("EmployeeLoans",       "Index", T("قرضه و مساعده",     "Loans & Advances"),        "bi-bank",                   null),
+        ("EmploymentContracts", "Index", T("قراردادها",         "Contracts"),               "bi-file-earmark-text-fill", null),
+        ("HrOrganization",      "Index", T("بخش‌ها و بست‌ها",   "Departments & Positions"), "bi-diagram-3-fill",         null),
+        ("HrReports",           "Index", T("گزارش‌ها",          "Reports"),                 "bi-clipboard-data-fill",    null),
+        ("HrSettings",          "Index", T("تنظیمات",           "Settings"),                "bi-gear-fill",              null)
     };
 
     var operationTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
@@ -187,6 +201,11 @@
     {
         tabs = partnerTabs;
         navLabel = T("تب‌های طرف‌ها", "Partner Tabs");
+    }
+    else if (IsCurrentGroup(hrTabs))
+    {
+        tabs = hrTabs;
+        navLabel = T("تب‌های مدیریت بشری", "Human Resources Tabs");
     }
     else if (IsCurrentGroup(transportTabs))
     {

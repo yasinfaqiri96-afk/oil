@@ -104,6 +104,8 @@ public sealed class ConcurrencyVersionFormCoverageTests
             nameof(LoadingRegister),
             nameof(LossEvent),
             nameof(PaymentTransaction),
+            // وضعیتِ معاشِ ماه (پیش‌نویس ← نهایی ← بازگشایی) تغییر می‌کند؛ کهنه‌بودنِ فرم با Revision بررسی می‌شود.
+            nameof(PayrollRun),
             nameof(SalesTransaction),
             nameof(TruckDispatch),
         };

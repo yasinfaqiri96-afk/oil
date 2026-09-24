@@ -37,6 +37,8 @@ public static class PaymentKindLabels
         PaymentKind.ManualReceipt => "دریافت دستی",
         PaymentKind.EmployeeSalaryPayment => "پرداخت معاش کارمند",
         PaymentKind.EmployeeSalaryAdvance => "برداشت / پیش‌پرداخت کارمند",
+        PaymentKind.EmployeeLoan => "پرداخت قرضهٔ کارمند",
+        PaymentKind.EmployeeLoanRepayment => "بازپرداخت قرضهٔ کارمند",
         PaymentKind.SupplierReceipt => "دریافت از تأمین‌کننده",
         PaymentKind.CustomerPayment => "پرداخت به مشتری",
         PaymentKind.EmployeeReturn => "دریافت / برگشت از کارمند",

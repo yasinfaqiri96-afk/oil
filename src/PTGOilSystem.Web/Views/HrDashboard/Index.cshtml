@@ -1,0 +1,85 @@
+@model PTGOilSystem.Web.Models.HumanResources.HrDashboardViewModel
+@using PTGOilSystem.Web.Models.HumanResources
+@{
+    ViewData["Title"] = UiText.T(Context, "داشبورد مدیریت بشری", "HR dashboard");
+    var payrollLabel = Model.CurrentPayrollStatus is null
+        ? UiText.T(Context, "ساخته نشده", "Not created")
+        : PayrollLabels.Status(Model.CurrentPayrollStatus.Value);
+    var payrollTitle = UiText.T(Context, "معاش این ماه", "This month's payroll") + " (" + payrollLabel + ")";
+    var payrollValue = HrDashboardViewModel.Amounts(Model.CurrentPayrollNet);
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "داشبورد مدیریت بشری", "HR dashboard"), false,
+                       UiText.T(Context, "حاضری امروز", "Today's attendance"), "bi-calendar-check",
+                       (string?)Url.Action("Index", "Attendance"), (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار کارمندان", "Employee statistics")">
+        <vc:stat-card title="@UiText.T(Context, "کل کارمندان", "Total employees")" value="@Model.TotalEmployees.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar-path="/images/stat-cards/ref-people/emp-desk.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کارمندان فعال", "Active employees")" value="@Model.ActiveEmployees.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar-path="/images/stat-cards/ref-people/emp-schedule.webp"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "حاضر امروز", "Present today")" value="@Model.PresentToday.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "غایب امروز", "Absent today")" value="@Model.AbsentToday.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="ledger"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "در رخصتی", "On leave")" value="@Model.OnLeaveToday.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="documents"></vc:stat-card>
+        @if (Model.CanViewSalary)
+        {
+            <vc:stat-card title="@payrollTitle" value="@payrollValue" avatar="purchase-value"></vc:stat-card>
+        }
+    </section>
+
+    <section class="ak-form-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "هشدارها", "Alerts"), (string?)null))" />
+        <dl class="ak-list">
+            <div class="ak-list-row">
+                <dt><a asp-controller="Leave" asp-action="Index" asp-route-status="pending">@UiText.T(Context, "درخواست رخصتیِ در انتظار", "Leave requests awaiting approval")</a></dt>
+                <dd><span class="ak-status @(Model.PendingLeaveRequests > 0 ? "is-warning" : "is-active")">@Model.PendingLeaveRequests.ToString("N0")</span></dd>
+            </div>
+            <div class="ak-list-row">
+                <dt><a asp-controller="Attendance" asp-action="Index">@UiText.T(Context, "کارمندِ فعالِ بدون حاضریِ امروز", "Active employees without today's attendance")</a></dt>
+                <dd><span class="ak-status @(Model.NotRecordedToday > 0 ? "is-warning" : "is-active")">@Model.NotRecordedToday.ToString("N0")</span></dd>
+            </div>
+            <div class="ak-list-row">
+                <dt><a asp-controller="EmploymentContracts" asp-action="Index" asp-route-expiring="true">@UiText.T(Context, "قراردادهای رو به انقضا (۳۰ روز)", "Contracts expiring in 30 days")</a></dt>
+                <dd><span class="ak-status @(Model.ExpiringContracts.Count > 0 ? "is-warning" : "is-active")">@Model.ExpiringContracts.Count.ToString("N0")</span></dd>
+            </div>
+            <div class="ak-list-row">
+                <dt>@UiText.T(Context, "اسنادِ منقضی یا رو به انقضا", "Documents expired or expiring")</dt>
+                <dd><span class="ak-status @(Model.ExpiringDocuments > 0 ? "is-warning" : "is-active")">@Model.ExpiringDocuments.ToString("N0")</span></dd>
+            </div>
+            @if (Model.CanViewSalary)
+            {
+                <div class="ak-list-row">
+                    <dt><a asp-controller="HrReports" asp-action="Index" asp-route-report="payable">@UiText.T(Context, "معاشِ پرداخت‌نشده", "Unpaid salaries")</a></dt>
+                    <dd class="ak-num">@HrDashboardViewModel.Amounts(Model.UnpaidSalaries)</dd>
+                </div>
+                <div class="ak-list-row">
+                    <dt><a asp-controller="EmployeeLoans" asp-action="Index">@UiText.T(Context, "قرضه و مساعدهٔ باز", "Outstanding loans & advances")</a></dt>
+                    <dd class="ak-num">@HrDashboardViewModel.Amounts(Model.OutstandingLoansAndAdvances)</dd>
+                </div>
+            }
+        </dl>
+    </section>
+
+    @if (Model.ExpiringContracts.Count > 0)
+    {
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "قراردادهای رو به انقضا", "Expiring contracts"), (string?)null))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table ak-detail-table">
+                    <thead><tr><th class="ak-col-grow">@UiText.T(Context, "کارمند", "Employee")</th><th>@UiText.T(Context, "قرارداد", "Contract")</th><th>@UiText.T(Context, "پایان", "Ends")</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in Model.ExpiringContracts)
+                        {
+                            <tr>
+                                <td class="ak-col-grow">@row.EmployeeName</td>
+                                <td><a asp-controller="EmploymentContracts" asp-action="Details" asp-route-id="@row.Id">@row.Reference</a></td>
+                                <td>@row.Date.ToDisplayDate()</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</div>

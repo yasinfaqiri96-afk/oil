@@ -182,6 +182,7 @@ public partial class ReconciliationService : IReconciliationService
 
         var employeePaymentsWithoutEmployeeLink = payments
             .Where(p => p.PaymentKind is PaymentKind.EmployeeSalaryPayment or PaymentKind.EmployeeSalaryAdvance or PaymentKind.EmployeeReturn
+                    or PaymentKind.EmployeeLoan or PaymentKind.EmployeeLoanRepayment
                 && !p.EmployeeId.HasValue)
             .Select(p => ToRoznamchaIssue(p, "Employee payment/return has no EmployeeId."))
             .ToList();
@@ -259,7 +260,9 @@ public partial class ReconciliationService : IReconciliationService
         var cashTypes = new[]
         {
             EmployeeSalaryTransactionType.SalaryPayment,
-            EmployeeSalaryTransactionType.SalaryAdvance
+            EmployeeSalaryTransactionType.SalaryAdvance,
+            EmployeeSalaryTransactionType.LoanDisbursement,
+            EmployeeSalaryTransactionType.LoanRepayment
         };
 
         var transactions = await _db.EmployeeSalaryTransactions
@@ -298,7 +301,10 @@ public partial class ReconciliationService : IReconciliationService
             .ToList();
 
         var cancelledWithActiveLedger = transactions
-            .Where(t => t.IsCancelled && (t.LedgerEntryId.HasValue || t.PaymentTransactionId.HasValue))
+            // لغوِ جدید سندِ معکوس می‌سازد و پیوندش را نگه می‌دارد؛ فقط لغوهای قدیمیِ بدون برگشت مغایرت‌اند.
+            .Where(t => t.IsCancelled
+                && (t.LedgerEntryId.HasValue || t.PaymentTransactionId.HasValue)
+                && !t.ReversalPaymentTransactionId.HasValue)
             .Select(t => ToEmployeeSalaryIssue(t, "Cancelled employee salary transaction still has active payment/ledger trace.", "Warning"))
             .ToList();
 

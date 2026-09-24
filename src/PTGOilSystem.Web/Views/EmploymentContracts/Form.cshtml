@@ -1,0 +1,114 @@
+@model PTGOilSystem.Web.Models.HumanResources.EmploymentContractFormViewModel
+@{
+    var isRenew = Model.RenewFromContractId.HasValue;
+    ViewData["Title"] = isRenew ? UiText.T(Context, "تمدید قرارداد", "Renew contract") : UiText.T(Context, "قرارداد جدید", "New contract");
+    var canManageSalary = ViewBag.CanManageSalary == true;
+    var backUrl = (isRenew
+        ? Url.Action("Details", new { id = Model.RenewFromContractId })
+        : Url.Action("Index")) ?? "#";
+}
+
+<div class="ak-form-page">
+    <div class="ak-form-page-content">
+        <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+                 model="@(((string)ViewData["Title"]!, false,
+                           (string?)null, (string?)null, (string?)null, (string?)null,
+                           UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
+
+        <form asp-action="@(isRenew ? "Renew" : "Create")" asp-route-id="@Model.RenewFromContractId" method="post" enctype="multipart/form-data" class="ak-form">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+            @if (isRenew)
+            {
+                <p class="ak-note">@UiText.T(Context, "تمدید قراردادِ تازه می‌سازد و قراردادِ فعلی را «منقضی» می‌کند؛ شرایطِ قراردادِ قبلی ویرایش نمی‌شود.", "Renewal creates a new contract and expires the current one; the old terms are never edited.")</p>
+            }
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "شرایط قرارداد", "Contract terms"), (string?)null))" />
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="EmployeeId" class="ak-label">@UiText.T(Context, "کارمند", "Employee") <span class="ak-req">*</span></label>
+                        @if (isRenew)
+                        {
+                            <input type="hidden" asp-for="EmployeeId" />
+                            <input class="ak-input" value="@Model.EmployeeName" readonly />
+                        }
+                        else
+                        {
+                            <select asp-for="EmployeeId" asp-items="ViewBag.Employees" class="ak-input">
+                                <option value="0">@UiText.T(Context, "انتخاب کارمند", "Choose employee")</option>
+                            </select>
+                        }
+                        <span asp-validation-for="EmployeeId" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="ContractNumber" class="ak-label"></label>
+                        <input asp-for="ContractNumber" class="ak-input" placeholder="@UiText.T(Context, "خالی = خودکار", "Empty = automatic")" />
+                        <span asp-validation-for="ContractNumber" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="ContractType" class="ak-label"></label>
+                        <select asp-for="ContractType" asp-items="ViewBag.ContractTypes" class="ak-input"></select>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="StartDate" class="ak-label"></label>
+                        <input asp-for="StartDate" class="ak-input" />
+                        <span asp-validation-for="StartDate" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="EndDate" class="ak-label"></label>
+                        <input asp-for="EndDate" class="ak-input" />
+                        <span asp-validation-for="EndDate" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="DepartmentId" class="ak-label"></label>
+                        <select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="ak-input">
+                            <option value="">@UiText.T(Context, "بدون بخش", "No department")</option>
+                        </select>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="PositionId" class="ak-label"></label>
+                        <select asp-for="PositionId" asp-items="ViewBag.Positions" class="ak-input">
+                            <option value="">@UiText.T(Context, "بدون بست", "No position")</option>
+                        </select>
+                    </div>
+                    @if (canManageSalary)
+                    {
+                        <div class="ak-field">
+                            <label asp-for="BaseSalary" class="ak-label"></label>
+                            <input asp-for="BaseSalary" class="ak-input" />
+                            <span asp-validation-for="BaseSalary" class="ak-field-error"></span>
+                        </div>
+                        <div class="ak-field">
+                            <label asp-for="Currency" class="ak-label"></label>
+                            <select asp-for="Currency" asp-items="ViewBag.Currencies" class="ak-input"></select>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="ak-note ak-col-full">@UiText.T(Context, "معاشِ قرارداد از معاشِ جاریِ کارمند برداشته می‌شود؛ تعیینِ معاش با «مدیریت معاش» است.", "Contract salary is taken from the current salary; setting salary needs the Manage salary permission.")</p>
+                    }
+                    <div class="ak-field">
+                        <label asp-for="WorkingDaysPerWeek" class="ak-label"></label>
+                        <input asp-for="WorkingDaysPerWeek" class="ak-input" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="WorkingHoursPerDay" class="ak-label"></label>
+                        <input asp-for="WorkingHoursPerDay" class="ak-input" />
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Notes" class="ak-label"></label>
+                        <textarea asp-for="Notes" class="ak-input" rows="2"></textarea>
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Attachment" class="ak-label"></label>
+                        <input asp-for="Attachment" type="file" class="ak-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" />
+                    </div>
+                </div>
+            </section>
+            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                     model="@((UiText.T(Context, "ذخیره", "Save"), backUrl, UiText.T(Context, "انصراف", "Cancel")))" />
+        </form>
+    </div>
+</div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

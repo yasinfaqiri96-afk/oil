@@ -1,0 +1,138 @@
+@model PTGOilSystem.Web.Models.HumanResources.HrOrganizationIndexViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "بخش‌ها و بست‌ها", "Departments & positions");
+    var showDepartments = Model.Tab == "departments";
+    var canEdit = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
+    var actionLabel = !canEdit ? null
+        : showDepartments ? UiText.T(Context, "بخش جدید", "New department") : UiText.T(Context, "بست جدید", "New position");
+    var actionHref = !canEdit ? null
+        : showDepartments ? Url.Action("EditDepartment") : Url.Action("EditPosition");
+    var tabs = new[]
+    {
+        $"departments|{UiText.T(Context, "بخش‌ها", "Departments")}|bi-diagram-3|{(showDepartments ? "active" : "")}",
+        $"positions|{UiText.T(Context, "بست‌ها", "Positions")}|bi-person-badge|{(!showDepartments ? "active" : "")}"
+    };
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "بخش‌ها و بست‌ها", "Departments & positions"), false,
+                       actionLabel, "bi-plus-lg", actionHref, (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار ساختار سازمانی", "Organization statistics")">
+        <vc:stat-card title="@UiText.T(Context, "بخش‌های فعال", "Active departments")" value="@Model.Departments.Count(d => d.IsActive).ToString("N0")" unit="@UiText.T(Context, "بخش", "departments")" avatar="documents"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "بست‌های فعال", "Active positions")" value="@Model.Positions.Count(p => p.IsActive).ToString("N0")" unit="@UiText.T(Context, "بست", "positions")" avatar="rules-checklist"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کارمندِ بدون بخش/بستِ تعریف‌شده", "Employees without a linked department/position")" value="@Model.UnlinkedEmployeeCount.ToString("N0")" unit="@UiText.T(Context, "کارمند", "employees")" avatar="ledger"></vc:stat-card>
+    </section>
+
+    @if (Model.UnlinkedEmployeeCount > 0 && canEdit)
+    {
+        <div class="alert alert-warning ak-form-alert d-flex align-items-center justify-content-between gap-2" role="status">
+            <span>
+                @UiText.T(Context,
+                    "بعضی کارمندان فقط نامِ بخش/بستِ قدیمی (متن آزاد) دارند. اگر بخش/بستی با همان نام تعریف شده باشد، می‌توانید آن‌ها را وصل کنید؛ متنِ قدیمی پاک نمی‌شود.",
+                    "Some employees only have legacy free-text department/position. Employees whose text exactly matches a defined department/position can be linked; the legacy text is kept.")
+            </span>
+            <form asp-action="LinkLegacyText" method="post">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-light ak-secondary-action">@UiText.T(Context, "وصل کردن نام‌های منطبق", "Link exact matches")</button>
+            </form>
+        </div>
+    }
+
+    <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@(UiText.T(Context, "بخش‌ها و بست‌ها", "Departments & positions"), tabs)" />
+
+    <div class="ak-list">
+        @if (showDepartments)
+        {
+            <div class="ak-table-wrap">
+                <table class="ak-table" aria-label="@UiText.T(Context, "فهرست بخش‌ها", "Department list")">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "نام", "Name")</th>
+                            <th>@UiText.T(Context, "کد", "Code")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "بست‌ها", "Positions")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "کارمند فعال", "Active employees")</th>
+                            <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                            <th class="ak-col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Departments)
+                        {
+                            <tr class="@(item.IsActive ? "" : "ak-row-muted")">
+                                <td class="ak-col-grow">
+                                    <span class="ak-name">@item.Name</span>
+                                    @if (!string.IsNullOrWhiteSpace(item.Description)) { <div class="ak-note">@item.Description</div> }
+                                </td>
+                                <td>@(item.Code ?? "—")</td>
+                                <td class="ak-num ak-col-num">@item.PositionCount.ToString("N0")</td>
+                                <td class="ak-num ak-col-num">@item.ActiveEmployeeCount.ToString("N0")</td>
+                                <td><span class="ak-status @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))</span></td>
+                                <td class="ak-col-actions">
+                                    @if (canEdit)
+                                    {
+                                        <div class="dropdown ak-row-menu">
+                                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@UiText.T(Context, "عملیات", "Actions")">
+                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><a class="dropdown-item" asp-action="EditDepartment" asp-route-id="@item.Id"><i class="bi bi-pencil" aria-hidden="true"></i>@UiText.T(Context, "ویرایش", "Edit")</a></li>
+                                                <li><a class="dropdown-item" asp-action="EditPosition" asp-route-departmentId="@item.Id"><i class="bi bi-plus-lg" aria-hidden="true"></i>@UiText.T(Context, "بست جدید در این بخش", "New position here")</a></li>
+                                            </ul>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.Departments.Any())
+                        {
+                            <tr><td colspan="6"><div class="ak-empty"><i class="bi bi-diagram-3" aria-hidden="true"></i>@UiText.T(Context, "بخشی تعریف نشده است.", "No departments defined.")</div></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="ak-table-wrap">
+                <table class="ak-table" aria-label="@UiText.T(Context, "فهرست بست‌ها", "Position list")">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "نام", "Name")</th>
+                            <th>@UiText.T(Context, "بخش", "Department")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "کارمند فعال", "Active employees")</th>
+                            <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                            <th class="ak-col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Positions)
+                        {
+                            <tr class="@(item.IsActive ? "" : "ak-row-muted")">
+                                <td class="ak-col-grow">
+                                    <span class="ak-name">@item.Name</span>
+                                    @if (!string.IsNullOrWhiteSpace(item.Description)) { <div class="ak-note">@item.Description</div> }
+                                </td>
+                                <td>@(item.DepartmentName ?? "—")</td>
+                                <td class="ak-num ak-col-num">@item.ActiveEmployeeCount.ToString("N0")</td>
+                                <td><span class="ak-status @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))</span></td>
+                                <td class="ak-col-actions">
+                                    @if (canEdit)
+                                    {
+                                        <a class="btn btn-sm btn-light" asp-action="EditPosition" asp-route-id="@item.Id">@UiText.T(Context, "ویرایش", "Edit")</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.Positions.Any())
+                        {
+                            <tr><td colspan="5"><div class="ak-empty"><i class="bi bi-person-badge" aria-hidden="true"></i>@UiText.T(Context, "بستی تعریف نشده است.", "No positions defined.")</div></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

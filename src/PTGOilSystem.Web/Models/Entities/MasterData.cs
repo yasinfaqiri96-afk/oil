@@ -281,6 +281,9 @@ public class Role : BaseEntity
     public bool CanManageData { get; set; }
     public bool CanManageUsers { get; set; }
     [MaxLength(1000)] public string? AllowedNavigationItems { get; set; }
+
+    /// <summary>Permissionهای صریحِ اعطاشده (جداشده با کامه)، مثل HR.ViewSalary.</summary>
+    [MaxLength(1000)] public string? GrantedPermissions { get; set; }
 }
 
 public class User : BaseEntity

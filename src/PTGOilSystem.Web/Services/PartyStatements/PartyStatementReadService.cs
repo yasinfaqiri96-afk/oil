@@ -846,7 +846,10 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
     {
         var query = _db.EmployeeSalaryTransactions
             .AsNoTracking()
-            .Where(t => t.EmployeeId == party.PartyId && !t.IsCancelled);
+            .Where(t => t.EmployeeId == party.PartyId && !t.IsCancelled)
+            // وصولِ مساعده فقط جابه‌جاییِ «بدهی معاش ↔ طلب مساعده» است و ماندهٔ خالص را عوض نمی‌کند.
+            .Where(t => t.TransactionType != EmployeeSalaryTransactionType.AdvanceRecovery
+                && t.TransactionType != EmployeeSalaryTransactionType.LoanRecovery);
         var currency = NormalizeOptionalCurrency(filter.CurrencyCode);
         if (currency is not null && !IsRubPresentation(filter))
         {

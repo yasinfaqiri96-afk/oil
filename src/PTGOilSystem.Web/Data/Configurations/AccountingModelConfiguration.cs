@@ -117,6 +117,8 @@ public static class AccountingModelConfiguration
             .HasForeignKey(x => x.InternalAssetRecoveryAccountId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(x => x.AssetOperatingExpenseAccount).WithMany()
             .HasForeignKey(x => x.AssetOperatingExpenseAccountId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.SalaryExpenseAccount).WithMany()
+            .HasForeignKey(x => x.SalaryExpenseAccountId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureFiscalCalendar(ModelBuilder modelBuilder)

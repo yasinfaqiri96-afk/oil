@@ -32,6 +32,26 @@ public sealed class PartyStatementsController : Controller
         _exportService = exportService;
     }
 
+    /// <summary>
+    /// صورت‌حساب کارمند همان ماندهٔ معاش است؛ در همهٔ مسیرها (صفحه، چاپ، CSV، PDF، خروجی) فقط
+    /// با دسترسیِ «دیدن معاش» باز می‌شود. کنترلرِ ساخته‌شده در تست کاربر ندارد و دست نمی‌خورد.
+    /// </summary>
+    public override void OnActionExecuting(Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext context)
+    {
+        var isEmployeeStatement =
+            string.Equals((context.ActionDescriptor as Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor)?.ActionName,
+                nameof(Employee), StringComparison.Ordinal)
+            || (context.ActionArguments.TryGetValue("partyType", out var partyType)
+                && partyType is PartyStatementPartyType.Employee);
+        if (isEmployeeStatement && !Security.RoleAccessRules.CanViewEmployeeSalary(context.HttpContext.User))
+        {
+            context.Result = Forbid();
+            return;
+        }
+
+        base.OnActionExecuting(context);
+    }
+
     [HttpGet("Customers/{id:int}/Statement")]
     public Task<IActionResult> Customer(
         int id,

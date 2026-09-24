@@ -66,6 +66,8 @@ public sealed class CompanyFlowDirectionResolver : ICompanyFlowDirectionResolver
             // معاش/بونس تعهدشده = کار و خدمتی که شرکت از کارمند گرفته است.
             case CompanyFlowSourceTypes.SalaryAccrual:
             case CompanyFlowSourceTypes.Bonus:
+            // کارمند قرضه را نقد پس داده است.
+            case CompanyFlowSourceTypes.LoanRepayment:
                 direction = CompanyFlowDirection.Receipt;
                 return true;
 
@@ -75,6 +77,7 @@ public sealed class CompanyFlowDirectionResolver : ICompanyFlowDirectionResolver
             case CompanyFlowSourceTypes.SalaryPayment:
             case CompanyFlowSourceTypes.SalaryAdvance:
             case CompanyFlowSourceTypes.SalaryDeduction:
+            case CompanyFlowSourceTypes.LoanDisbursement:
                 direction = CompanyFlowDirection.Outflow;
                 return true;
 

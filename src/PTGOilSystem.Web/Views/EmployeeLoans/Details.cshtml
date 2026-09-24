@@ -1,0 +1,101 @@
+@model PTGOilSystem.Web.Models.HumanResources.EmployeeLoanDetailsViewModel
+@using PTGOilSystem.Web.Models.Employees
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.HumanResources
+@{
+    var loan = Model.Loan;
+    ViewData["Title"] = UiText.T(Context, "قرضهٔ کارمند", "Employee loan");
+    ViewData["HideSectionTabs"] = true;
+    ViewData["AkHeaderStatus"] = LoanLabels.Status(loan.Status);
+    ViewData["AkHeaderStatusState"] = LoanLabels.Css(loan.Status);
+    ViewData["AkHeaderContext"] = $"{loan.Employee?.EmployeeCode} · {loan.Employee?.FullName}";
+    var isActive = loan.Status == EmployeeLoanStatus.Active;
+}
+
+<div class="ak-form-page ak-detail-page" data-ak-detail-v2="true">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"{UiText.T(Context, "قرضه", "Loan")} #{loan.Id}", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)Url.Action("Index")))" />
+
+    <section class="ak-form-section ak-detail-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "مشخصات قرضه", "Loan details"), (string?)null))" />
+        <dl class="ak-list">
+            <div class="ak-list-row"><dt>@UiText.T(Context, "کارمند", "Employee")</dt><dd><a asp-controller="Employees" asp-action="Details" asp-route-id="@loan.EmployeeId" asp-route-tab="loans">@loan.Employee?.FullName</a></dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "تاریخ", "Date")</dt><dd>@loan.LoanDate.ToDisplayDate()</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "مبلغ", "Principal")</dt><dd class="ak-num">@loan.PrincipalAmount.ToString("N2") @loan.Currency</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "قسط", "Installment")</dt><dd class="ak-num">@loan.InstallmentAmount.ToString("N2") × @loan.InstallmentCount</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "شروع کسر از معاش", "Recovery from")</dt><dd>@($"{loan.StartRecoveryYear:0000}/{loan.StartRecoveryMonth:00}")</dd></div>
+            <div class="ak-list-row"><dt>@UiText.T(Context, "مانده", "Outstanding")</dt><dd class="ak-num"><strong>@Model.Outstanding.ToString("N2") @loan.Currency</strong></dd></div>
+            @if (!string.IsNullOrWhiteSpace(loan.Notes)) { <div class="ak-list-row"><dt>@UiText.T(Context, "یادداشت", "Notes")</dt><dd>@loan.Notes</dd></div> }
+            @if (!string.IsNullOrWhiteSpace(loan.CancellationReason)) { <div class="ak-list-row"><dt>@UiText.T(Context, "دلیل لغو", "Cancellation")</dt><dd>@loan.CancellationReason</dd></div> }
+        </dl>
+    </section>
+
+    @if (isActive && Model.CanPay && Model.Outstanding > 0m)
+    {
+        <section class="ak-form-section ak-detail-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "بازپرداخت نقدی", "Cash repayment"), (string?)UiText.T(Context, "بازپرداختِ بخشی یا همه (پیش از موعد هم مجاز).", "Partial or full, early repayment allowed.")))" />
+            <form asp-action="Repay" asp-route-id="@loan.Id" method="post" class="ak-form-grid">
+                @Html.AntiForgeryToken()
+                <div class="ak-field">
+                    <label class="ak-label" for="repay-amount">@UiText.T(Context, "مبلغ", "Amount")</label>
+                    <input id="repay-amount" name="amount" type="number" step="0.01" min="0.01" max="@Model.Outstanding.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="ak-input" required />
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label" for="repay-cash">@UiText.T(Context, "صندوق / بانک", "Cash / bank")</label>
+                    <select id="repay-cash" name="cashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input" required><option value="">@UiText.T(Context, "انتخاب حساب", "Choose account")</option></select>
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label" for="repay-date">@UiText.T(Context, "تاریخ", "Date")</label>
+                    <input id="repay-date" name="date" type="date" class="ak-input" value="@PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock.SystemToday.ToString("yyyy-MM-dd")" required />
+                </div>
+                <div class="ak-field">
+                    <label class="ak-label" for="repay-ref">@UiText.T(Context, "مرجع", "Reference")</label>
+                    <input id="repay-ref" name="reference" class="ak-input" maxlength="200" />
+                </div>
+                <div class="ak-field">
+                    <button type="submit" class="btn btn-light ak-secondary-action">@UiText.T(Context, "ثبت بازپرداخت", "Record repayment")</button>
+                </div>
+            </form>
+        </section>
+    }
+
+    <section class="ak-form-section ak-detail-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "حرکت‌های قرضه", "Loan movements"), (string?)$"{Model.Transactions.Count:N0}"))" />
+        <div class="ak-table-wrap">
+            <table class="ak-table ak-detail-table">
+                <thead><tr><th>@UiText.T(Context, "تاریخ", "Date")</th><th class="ak-col-grow">@UiText.T(Context, "نوع", "Type")</th><th class="ak-col-num">@UiText.T(Context, "مبلغ", "Amount")</th><th>@UiText.T(Context, "وضعیت", "Status")</th></tr></thead>
+                <tbody>
+                    @foreach (var t in Model.Transactions)
+                    {
+                        <tr class="@(t.IsCancelled ? "ak-row-muted" : "")">
+                            <td>@t.TransactionDate.ToDisplayDate()</td>
+                            <td class="ak-col-grow">@EmployeeSalaryTransactionTypeLabels.ToPersian(t.TransactionType)@(t.PayrollRunLineId.HasValue ? " (معاش ماهانه)" : "")</td>
+                            <td class="ak-num ak-col-num">@t.Amount.ToString("N2") @t.Currency</td>
+                            <td><span class="ak-status @(t.IsCancelled ? "is-inactive" : "is-active")">@(t.IsCancelled ? "لغو شده" : "فعال")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @if (isActive && Model.CanManage && Model.CanPay && Model.Transactions.All(t => t.IsCancelled || t.TransactionType == EmployeeSalaryTransactionType.LoanDisbursement))
+    {
+        <section class="ak-form-section ak-detail-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "لغو قرضه", "Cancel loan"), (string?)UiText.T(Context, "فقط قرضهٔ بدونِ قسط و بازپرداخت؛ پرداختش با سندِ برگشت به صندوق برمی‌گردد.", "Only loans without installments or repayments; the payout is reversed.")))" />
+            <form asp-action="Cancel" asp-route-id="@loan.Id" method="post" class="ak-form-grid"
+                  data-ptg-confirm="true" data-ptg-confirm-title="@UiText.T(Context, "لغو قرضه", "Cancel loan")" data-ptg-confirm-message="@UiText.T(Context, "قرضه لغو شود؟", "Cancel this loan?")">
+                @Html.AntiForgeryToken()
+                <div class="ak-field">
+                    <label class="ak-label" for="cancel-reason">@UiText.T(Context, "دلیل", "Reason")</label>
+                    <input id="cancel-reason" name="reason" class="ak-input" required maxlength="1000" />
+                </div>
+                <div class="ak-field">
+                    <button type="submit" class="btn btn-light ak-secondary-action ak-danger">@UiText.T(Context, "لغو قرضه", "Cancel loan")</button>
+                </div>
+            </form>
+        </section>
+    }
+</div>

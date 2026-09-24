@@ -1,0 +1,93 @@
+@model PTGOilSystem.Web.Models.HumanResources.EmployeeLoansIndexViewModel
+@using PTGOilSystem.Web.Models.HumanResources
+@{
+    ViewData["Title"] = UiText.T(Context, "قرضه و مساعده", "Loans & advances");
+    var showLoans = Model.Tab == "loans";
+    var canCreate = Model.CanManage && PTGOilSystem.Web.Security.RoleAccessRules.CanPaySalary(User);
+    var tabs = new[]
+    {
+        $"loans|{UiText.T(Context, "قرضه‌ها", "Loans")}|bi-bank|{(showLoans ? "active" : "")}",
+        $"advances|{UiText.T(Context, "مساعده‌های باز", "Open advances")}|bi-cash|{(!showLoans ? "active" : "")}"
+    };
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "قرضه و مساعده", "Loans & advances"), false,
+                       canCreate ? UiText.T(Context, "قرضهٔ جدید", "New loan") : null, "bi-plus-lg",
+                       canCreate ? Url.Action("Create") : null, (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <p class="ak-note">@UiText.T(Context, "مساعده از «ثبت تراکنش معاش» در پروفایلِ کارمند ثبت و از معاشِ ماهانه وصول می‌شود. قرضه قسط‌بندی دارد و هر ماه قسطش از معاش کسر می‌شود.", "Advances are recorded from the employee's salary transactions and recovered from payroll. Loans are repaid in monthly installments.")</p>
+
+    <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@(UiText.T(Context, "قرضه و مساعده", "Loans & advances"), tabs)" />
+
+    <div class="ak-list">
+        <div class="ak-table-wrap">
+            @if (showLoans)
+            {
+                <table class="ak-table" aria-label="@UiText.T(Context, "قرضه‌ها", "Loans")">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "کارمند", "Employee")</th>
+                            <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مبلغ", "Principal")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "قسط", "Installment")</th>
+                            <th>@UiText.T(Context, "شروع کسر", "Recovery from")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مانده", "Outstanding")</th>
+                            <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var loan in Model.Loans)
+                        {
+                            <tr>
+                                <td class="ak-col-grow"><a asp-action="Details" asp-route-id="@loan.Id" class="ak-name">@loan.EmployeeName</a><div class="ak-note">@loan.EmployeeCode</div></td>
+                                <td>@loan.LoanDate.ToDisplayDate()</td>
+                                <td class="ak-num ak-col-num">@loan.PrincipalAmount.ToString("N2") @loan.Currency</td>
+                                <td class="ak-num ak-col-num">@loan.InstallmentAmount.ToString("N2") × @loan.InstallmentCount</td>
+                                <td>@loan.StartRecovery</td>
+                                <td class="ak-num ak-col-num">@loan.Outstanding.ToString("N2")</td>
+                                <td><span class="ak-status @LoanLabels.Css(loan.Status)">@LoanLabels.Status(loan.Status)</span></td>
+                            </tr>
+                        }
+                        @if (!Model.Loans.Any())
+                        {
+                            <tr><td colspan="7"><div class="ak-empty"><i class="bi bi-bank" aria-hidden="true"></i>@UiText.T(Context, "قرضه‌ای ثبت نشده است.", "No loans.")</div></td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <table class="ak-table" aria-label="@UiText.T(Context, "مساعده‌های باز", "Open advances")">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "کارمند", "Employee")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مساعده", "Advanced")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "وصول‌شده", "Recovered")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مانده", "Outstanding")</th>
+                            <th>@UiText.T(Context, "وصول از ماه", "Recovery month")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var advance in Model.Advances)
+                        {
+                            <tr>
+                                <td class="ak-col-grow"><a asp-controller="Employees" asp-action="Details" asp-route-id="@advance.EmployeeId" asp-route-tab="loans" class="ak-name">@advance.EmployeeName</a><div class="ak-note">@advance.EmployeeCode</div></td>
+                                <td class="ak-num ak-col-num">@advance.Advanced.ToString("N2") @advance.Currency</td>
+                                <td class="ak-num ak-col-num">@advance.Recovered.ToString("N2")</td>
+                                <td class="ak-num ak-col-num">@advance.Outstanding.ToString("N2")</td>
+                                <td>@(advance.NextRecovery ?? "—")</td>
+                            </tr>
+                        }
+                        @if (!Model.Advances.Any())
+                        {
+                            <tr><td colspan="5"><div class="ak-empty"><i class="bi bi-cash" aria-hidden="true"></i>@UiText.T(Context, "مساعدهٔ بازی نیست.", "No open advances.")</div></td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>

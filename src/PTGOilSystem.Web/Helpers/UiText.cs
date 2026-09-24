@@ -67,6 +67,8 @@ public static class UiText
             "ManualReceipt" => "دریافت دستی",
             "EmployeeSalaryPayment" => "پرداخت معاش کارمند",
             "EmployeeSalaryAdvance" => "پیش‌پرداخت معاش کارمند",
+            "EmployeeLoan" => "پرداخت قرضهٔ کارمند",
+            "EmployeeLoanRepayment" => "بازپرداخت قرضهٔ کارمند",
             "SupplierReceipt" => "دریافت از تأمین‌کننده",
             "CustomerPayment" => "پرداخت به مشتری",
             "EmployeeReturn" => "برگشت وجه کارمند",

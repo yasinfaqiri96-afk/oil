@@ -21,4 +21,7 @@ public class RoleCreateViewModel
 
     [Display(Name = "بخش‌های قابل نمایش")]
     public string[] AllowedNavigationItems { get; set; } = [];
+
+    [Display(Name = "دسترسی‌های ویژه")]
+    public string[] GrantedPermissions { get; set; } = [];
 }

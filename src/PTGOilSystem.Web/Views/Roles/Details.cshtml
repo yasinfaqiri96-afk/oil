@@ -3,6 +3,7 @@
 @{
     ViewData["Title"] = "جزئیات نقش";
     var allowedNavigationLabels = ViewBag.AllowedNavigationLabels as string[] ?? Array.Empty<string>();
+    var grantedPermissionLabels = ViewBag.GrantedPermissionLabels as string[] ?? Array.Empty<string>();
 }
 
 <div class="ak-form-page ak-detail-page" data-ak-detail-v2="true">
@@ -20,6 +21,7 @@
             <div class="ak-list-row"><dt>تعداد کاربران</dt><dd class="ak-num">@ViewBag.UserCount</dd></div>
             <div class="ak-list-row"><dt>ثبت/ویرایش اطلاعات</dt><dd><span class="ak-status @(RoleAccessRules.RoleCanManageData(Model) ?"is-active" : "is-inactive")">@(RoleAccessRules.RoleCanManageData(Model) ? "مجاز" : "غیرمجاز")</span></dd></div>
             <div class="ak-list-row"><dt>مدیریت کاربران</dt><dd><span class="ak-status @(RoleAccessRules.RoleCanManageUsers(Model) ?"is-active" : "is-inactive")">@(RoleAccessRules.RoleCanManageUsers(Model) ? "مجاز" : "غیرمجاز")</span></dd></div>
+            <div class="ak-list-row"><dt>دسترسی‌های معاش</dt><dd>@(grantedPermissionLabels.Length == 0 ? "-" : string.Join("، ", grantedPermissionLabels))</dd></div>
         </dl>
     </section>
 

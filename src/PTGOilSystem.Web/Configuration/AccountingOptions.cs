@@ -70,4 +70,13 @@ public sealed class AccountingPilotOptions
     // تخصیص سودِ قرارداد شراکتی به حساب جاری شرکا. به Sale و Cogs وابسته است — تا وقتی بهای
     // تمام‌شده ثبت نشده باشد، «سود دفتری» عددِ نهایی نیست و تخصیصش زودهنگام است.
     public bool PartnershipProfitAllocation { get; set; }
+
+    // مدیریت بشری — معاش کارمند. یک فلگ برای هر سه جریان، چون پرداخت و مساعده همان بدهی و
+    // طلبی را تسویه می‌کنند که ثبتِ معاش ساخته است؛ روشن‌کردنِ یکی بدون دیگری ماندهٔ «بدهی به
+    // کارمند» را در دفتر کل منفی می‌کند.
+    //   ثبت معاش / بونس / معاش نهایی‌شده   Dr Salary Expense        Cr Employee Payable
+    //   پرداخت معاش                          Dr Employee Payable      Cr Cash/Bank
+    //   مساعده                               Dr Employee Advance      Cr Cash/Bank
+    //   وصول مساعده/قرضه از معاش             Dr Employee Payable      Cr Employee Advance
+    public bool EmployeeSalary { get; set; }
 }

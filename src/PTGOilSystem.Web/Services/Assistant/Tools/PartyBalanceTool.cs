@@ -68,6 +68,11 @@ public sealed class PartyBalanceTool : IAssistantTool
         // جوازها طرف معامله نیست و اگر بیاید، بزرگ‌ترین مانده می‌شود و جواب دستیار را
         // خراب می‌کند. رجوع: PartyBalanceSnapshotFilters.ExternalPartiesOnly.
         var snapshots = (await _balances.GetBalancesAsync(filter, cancellationToken)).ExternalPartiesOnly();
+        // ماندهٔ کارمند همان ماندهٔ معاش است و بدون «دیدن معاش» به دستیار هم داده نمی‌شود.
+        if (!Security.RoleAccessRules.CanViewEmployeeSalary(user))
+        {
+            snapshots = snapshots.Where(row => row.PartyType != PartyStatementPartyType.Employee).ToList();
+        }
         if (snapshots.Count == 0)
         {
             return "برای این فیلتر هیچ مانده‌ای ثبت نشده است.";

@@ -1,0 +1,56 @@
+@model PTGOilSystem.Web.Models.Employees.EmployeeSalaryChangeViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "تغییر معاش", "Change salary");
+    var backUrl = Url.Action("Details", new { id = Model.EmployeeId, tab = "salary" }) ?? "#";
+}
+
+<div class="ak-form-page">
+    <div class="ak-form-page-content">
+        <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+                 model="@(($"{UiText.T(Context, "تغییر معاش", "Change salary")} — {Model.EmployeeName}", false,
+                           (string?)null, (string?)null, (string?)null, (string?)null,
+                           UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
+
+        <form asp-action="ChangeSalary" asp-route-id="@Model.EmployeeId" method="post" class="ak-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="EmployeeId" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "معاشِ تازه", "New salary"),
+                                   (string?)(Model.CurrentSalaryText is null
+                                       ? UiText.T(Context, "برای این کارمند هنوز معاشی ثبت نشده است.", "No salary recorded yet.")
+                                       : $"{UiText.T(Context, "معاشِ فعلی:", "Current salary:")} {Model.CurrentSalaryText} — {UiText.T(Context, "معاشِ فعلی بسته می‌شود و در تاریخچه می‌ماند.", "the current salary is closed and kept in history.")}")))" />
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="EffectiveFrom" class="ak-label"></label>
+                        <input asp-for="EffectiveFrom" class="ak-input" />
+                        <span asp-validation-for="EffectiveFrom" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="BaseSalary" class="ak-label"></label>
+                        <input asp-for="BaseSalary" class="ak-input" />
+                        <span asp-validation-for="BaseSalary" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Currency" class="ak-label"></label>
+                        <select asp-for="Currency" asp-items="ViewBag.Currencies" class="ak-input"></select>
+                        <span asp-validation-for="Currency" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="SalaryType" class="ak-label"></label>
+                        <select asp-for="SalaryType" asp-items="ViewBag.SalaryTypes" class="ak-input"></select>
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Notes" class="ak-label"></label>
+                        <input asp-for="Notes" class="ak-input" />
+                        <span asp-validation-for="Notes" class="ak-field-error"></span>
+                    </div>
+                </div>
+            </section>
+            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                     model="@((UiText.T(Context, "ثبت معاش تازه", "Save new salary"), backUrl, UiText.T(Context, "انصراف", "Cancel")))" />
+        </form>
+    </div>
+</div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

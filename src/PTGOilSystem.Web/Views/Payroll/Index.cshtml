@@ -1,0 +1,200 @@
+@model PTGOilSystem.Web.Models.HumanResources.PayrollIndexViewModel
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.HumanResources
+@{
+    ViewData["Title"] = UiText.T(Context, "معاش", "Payroll");
+    var monthValue = $"{Model.Year:0000}-{Model.Month:00}";
+    var editable = Model.IsDraft && Model.CanRun;
+    var periodLabel = $"{Model.Year:0000}/{Model.Month:00}";
+    if (Model.Run is not null)
+    {
+        ViewData["AkHeaderStatus"] = PayrollLabels.Status(Model.Run.Status);
+        ViewData["AkHeaderStatusState"] = Model.IsFinalized ? "is-active" : "is-warning";
+    }
+    string N(decimal v) => v.ToString("N2");
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"{UiText.T(Context, "معاش ماه", "Payroll")} {periodLabel}", false,
+                       Model.IsFinalized && Model.CanPay ? UiText.T(Context, "پرداخت معاش", "Pay salaries") : null, "bi-cash-coin",
+                       Model.IsFinalized && Model.CanPay ? Url.Action("Pay", new { year = Model.Year, month = Model.Month }) : null, (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <form method="get" asp-action="Index" class="ak-form-grid ak-list-toolbar mb-2">
+        <div class="ak-field">
+            <label class="ak-label" for="payroll-month">@UiText.T(Context, "ماه (میلادی)", "Month")</label>
+            <input id="payroll-month" type="month" class="ak-input" value="@monthValue" data-payroll-month />
+            <input type="hidden" name="year" value="@Model.Year" data-payroll-year />
+            <input type="hidden" name="month" value="@Model.Month" data-payroll-mon />
+        </div>
+        <div class="ak-field">
+            <button type="submit" class="btn btn-light ak-secondary-action">@UiText.T(Context, "نمایش", "Show")</button>
+        </div>
+    </form>
+
+    @if (Model.Skipped.Count > 0)
+    {
+        <div class="alert alert-warning ak-form-alert" role="status">
+            @foreach (var message in Model.Skipped) { <div>@message</div> }
+        </div>
+    }
+
+    @if (Model.Run is null)
+    {
+        <div class="ak-list">
+            <div class="ak-empty">
+                <i class="bi bi-cash-stack" aria-hidden="true"></i>
+                @UiText.T(Context, "معاشِ این ماه هنوز ساخته نشده است.", "Payroll for this month has not been created yet.")
+                @if (Model.CanRun)
+                {
+                    <form asp-action="Generate" method="post" class="mt-2">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="year" value="@Model.Year" />
+                        <input type="hidden" name="month" value="@Model.Month" />
+                        <button type="submit" class="btn btn-primary ak-primary-action"><i class="bi bi-calculator" aria-hidden="true"></i> @UiText.T(Context, "ساخت معاش ماه", "Create payroll")</button>
+                    </form>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        @if (Model.Run.Revision > 0 && Model.Run.LastReopenReason is not null)
+        {
+            <p class="ak-note">@UiText.T(Context, "بازگشایی‌شده:", "Reopened:") @Model.Run.LastReopenReason</p>
+        }
+
+        <form asp-action="SaveLines" method="post" class="ak-list" id="payroll-lines">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="year" value="@Model.Year" />
+            <input type="hidden" name="month" value="@Model.Month" />
+            <div class="ak-table-wrap">
+                <table class="ak-table" aria-label="@UiText.T(Context, "سطرهای معاش", "Payroll lines")">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "کارمند", "Employee")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "معاش پایه", "Base")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "اضافه‌کاری", "Overtime")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "بونس", "Bonus")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "امتیاز", "Allowance")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "درآمد دیگر", "Other earnings")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "غیبت/تأخیر/رخصتی", "Absence")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "قرضه", "Loan")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "مساعده", "Advance")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "کسر دیگر", "Other deductions")</th>
+                            <th class="ak-col-num">@UiText.T(Context, "خالص", "Net")</th>
+                            @if (Model.IsFinalized)
+                            {
+                                <th>@UiText.T(Context, "پرداخت", "Payment")</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < Model.Lines.Count; i++)
+                        {
+                            var row = Model.Lines[i];
+                            var l = row.Line;
+                            var workDeduction = l.AbsenceDeduction + l.LateDeduction + l.UnpaidLeaveDeduction;
+                            <tr>
+                                <td class="ak-col-grow">
+                                    <a asp-controller="Employees" asp-action="Details" asp-route-id="@l.EmployeeId" asp-route-tab="salary" class="ak-name">@row.EmployeeName</a>
+                                    <div class="ak-note">@row.EmployeeCode · @l.Currency @(row.DepartmentName is null ? "" : $"· {row.DepartmentName}")</div>
+                                    @if (!string.IsNullOrWhiteSpace(l.Warning)) { <div class="ak-note text-danger">@l.Warning</div> }
+                                    <input type="hidden" name="lines[@i].LineId" value="@l.Id" />
+                                </td>
+                                <td class="ak-num ak-col-num" title="@UiText.T(Context, "معاش ماه", "Monthly"): @N(l.MonthlySalary) · @UiText.T(Context, "روز استخدام", "Days"): @l.EmployedDays.ToString("0.#")">@N(l.BaseSalary)</td>
+                                @foreach (var (name, value) in new[] { ("OvertimeAmount", l.OvertimeAmount), ("BonusAmount", l.BonusAmount), ("AllowanceAmount", l.AllowanceAmount), ("OtherEarning", l.OtherEarning) })
+                                {
+                                    <td class="ak-col-num">
+                                        @if (editable)
+                                        {
+                                            <input name="lines[@i].@name" type="number" step="0.01" min="0" class="ak-input" value="@value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" />
+                                        }
+                                        else
+                                        {
+                                            <span class="ak-num">@N(value)</span>
+                                        }
+                                    </td>
+                                }
+                                <td class="ak-num ak-col-num" title="@UiText.T(Context, "غیبت", "Absent"): @l.AbsentDays.ToString("0.#") @UiText.T(Context, "روز", "d") (@N(l.AbsenceDeduction)) · @UiText.T(Context, "تأخیر", "Late"): @l.LateMinutes @UiText.T(Context, "دقیقه", "min") (@N(l.LateDeduction)) · @UiText.T(Context, "رخصتی بدون معاش", "Unpaid leave"): @l.UnpaidLeaveDays.ToString("0.#") (@N(l.UnpaidLeaveDeduction))">@N(workDeduction)</td>
+                                <td class="ak-num ak-col-num">@N(l.LoanDeduction)</td>
+                                <td class="ak-num ak-col-num">@N(l.AdvanceDeduction)</td>
+                                <td class="ak-col-num">
+                                    @if (editable)
+                                    {
+                                        <input name="lines[@i].OtherDeduction" type="number" step="0.01" min="0" class="ak-input" value="@l.OtherDeduction.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" />
+                                        <input name="lines[@i].Notes" type="hidden" value="@l.Notes" />
+                                    }
+                                    else
+                                    {
+                                        <span class="ak-num">@N(l.OtherDeduction)</span>
+                                    }
+                                </td>
+                                <td class="ak-num ak-col-num"><strong>@N(l.NetSalary)</strong></td>
+                                @if (Model.IsFinalized)
+                                {
+                                    <td><span class="ak-status @PayrollLabels.PaymentCss(l.NetSalary, row.Paid)">@PayrollLabels.PaymentStatus(l.NetSalary, row.Paid)</span></td>
+                                }
+                            </tr>
+                        }
+                        @if (Model.Lines.Count == 0)
+                        {
+                            <tr><td colspan="12"><div class="ak-empty">@UiText.T(Context, "کارمندی شاملِ این ماه نیست.", "No employees in this month.")</div></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </form>
+
+        <section class="ak-stat-grid mt-3" aria-label="@UiText.T(Context, "جمع معاش", "Payroll totals")">
+            @foreach (var total in Model.Totals)
+            {
+                <vc:stat-card title="@($"{UiText.T(Context, "معاش پایه", "Base")} ({total.Currency})")" value="@N(total.Base)" unit="@total.Currency" avatar="ledger"></vc:stat-card>
+                <vc:stat-card title="@($"{UiText.T(Context, "درآمد", "Earnings")} ({total.Currency})")" value="@N(total.Earnings)" unit="@total.Currency" avatar="payments-out"></vc:stat-card>
+                <vc:stat-card title="@($"{UiText.T(Context, "کسرها", "Deductions")} ({total.Currency})")" value="@N(total.Deductions)" unit="@total.Currency" avatar="receivables"></vc:stat-card>
+                <vc:stat-card title="@($"{UiText.T(Context, "خالص معاش", "Net payroll")} ({total.Currency})")" value="@N(total.Net)" unit="@total.Currency" avatar="purchase-value"></vc:stat-card>
+            }
+        </section>
+
+        @if (Model.CanRun)
+        {
+            <div class="ak-footer-actions">
+                @if (Model.IsDraft)
+                {
+                    <button type="submit" form="payroll-lines" class="btn btn-light ak-secondary-action">@UiText.T(Context, "ذخیرهٔ تغییرات", "Save changes")</button>
+                    <form asp-action="Generate" method="post" class="d-inline-flex">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="year" value="@Model.Year" />
+                        <input type="hidden" name="month" value="@Model.Month" />
+                        <button type="submit" class="btn btn-light ak-secondary-action"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> @UiText.T(Context, "محاسبهٔ دوباره", "Recalculate")</button>
+                    </form>
+                    <form asp-action="Finalize" method="post" class="d-inline-flex"
+                          data-ptg-confirm="true" data-ptg-confirm-title="@UiText.T(Context, "نهایی‌سازی معاش", "Finalize payroll")"
+                          data-ptg-confirm-message="@UiText.T(Context, "بعد از نهایی‌سازی سطرها قفل و مصرف/بدهیِ معاش ثبت می‌شود. ادامه؟", "Lines will lock and salary expense/payable will be posted. Continue?")">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="runId" value="@Model.Run.Id" />
+                        <input type="hidden" name="year" value="@Model.Year" />
+                        <input type="hidden" name="month" value="@Model.Month" />
+                        <button type="submit" class="btn btn-primary ak-primary-action"><i class="bi bi-lock" aria-hidden="true"></i> @UiText.T(Context, "نهایی‌سازی معاش", "Finalize payroll")</button>
+                    </form>
+                }
+                else
+                {
+                    <form asp-action="Reopen" method="post" class="d-inline-flex gap-1"
+                          data-ptg-confirm="true" data-ptg-confirm-title="@UiText.T(Context, "بازگشایی معاش", "Reopen payroll")"
+                          data-ptg-confirm-message="@UiText.T(Context, "ثبت‌های این معاش با سندِ برگشت خنثی می‌شوند. ادامه؟", "Postings will be reversed. Continue?")">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="runId" value="@Model.Run.Id" />
+                        <input type="hidden" name="year" value="@Model.Year" />
+                        <input type="hidden" name="month" value="@Model.Month" />
+                        <input name="reason" class="ak-input" placeholder="@UiText.T(Context, "دلیل بازگشایی", "Reason")" required maxlength="1000" />
+                        <button type="submit" class="btn btn-light ak-secondary-action">@UiText.T(Context, "بازگشایی", "Reopen")</button>
+                    </form>
+                }
+            </div>
+        }
+    }
+</div>
+
+@section Scripts { <script src="~/js/hr-payroll.js" asp-append-version="true"></script> }

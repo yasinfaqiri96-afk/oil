@@ -83,6 +83,16 @@
                         <select asp-for="CashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input"><option value="">انتخاب حساب</option></select>
                         <span asp-validation-for="CashAccountId" class="ak-field-error"></span>
                     </div>
+                    <div class="ak-field" data-employee-advance-field>
+                        <label asp-for="RecoveryYear" class="ak-label"></label>
+                        <input asp-for="RecoveryYear" class="ak-input" placeholder="خالی = اولین معاشِ بعدی" />
+                        <span asp-validation-for="RecoveryYear" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field" data-employee-advance-field>
+                        <label asp-for="RecoveryMonth" class="ak-label"></label>
+                        <input asp-for="RecoveryMonth" class="ak-input" placeholder="۱ تا ۱۲" />
+                        <span asp-validation-for="RecoveryMonth" class="ak-field-error"></span>
+                    </div>
                 </div>
             </section>
 
@@ -118,12 +128,14 @@
             const typeSelect = document.getElementById('employeeTransactionType');
             const cashFields = document.querySelectorAll('[data-employee-cash-field]');
             const periodFields = document.querySelectorAll('[data-employee-period-field]');
+            const advanceFields = document.querySelectorAll('[data-employee-advance-field]');
             const cashTypes = new Set(['@salaryPaymentValue', '@salaryAdvanceValue']);
             const accrualType = '@salaryAccrualValue';
             const sync = () => {
                 const selected = typeSelect?.value || '';
                 cashFields.forEach(el => el.classList.toggle('d-none', !cashTypes.has(selected)));
                 periodFields.forEach(el => el.classList.toggle('d-none', selected !== accrualType));
+                advanceFields.forEach(el => el.classList.toggle('d-none', selected !== '@salaryAdvanceValue'));
             };
             typeSelect?.addEventListener('change', sync);
             sync();

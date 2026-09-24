@@ -69,15 +69,37 @@
              model="@(("وظیفه و معاش", (string?)"نوع کارمند، نوع معاش و ارز پایه را دقیق تنظیم کنید تا گزارش‌ها قابل اعتماد باشند."))" />
     <div class="ak-form-grid">
         <div class="ak-field">
-            <label asp-for="JobTitle" class="ak-label"></label>
-            <input asp-for="JobTitle" class="ak-input" />
-            <span asp-validation-for="JobTitle" class="ak-field-error"></span>
+            <label asp-for="DepartmentId" class="ak-label"></label>
+            <select asp-for="DepartmentId" asp-items="ViewBag.Departments" class="ak-input">
+                <option value="">@UiText.T(Context, "انتخاب بخش", "Choose department")</option>
+            </select>
+            @if (Model.DepartmentId is null && !string.IsNullOrWhiteSpace(Model.Department))
+            {
+                <span class="ak-note">@UiText.T(Context, "ثبت قدیمی:", "Legacy value:") @Model.Department</span>
+            }
+            <span asp-validation-for="DepartmentId" class="ak-field-error"></span>
         </div>
         <div class="ak-field">
-            <label asp-for="Department" class="ak-label"></label>
-            <input asp-for="Department" class="ak-input" />
-            <span asp-validation-for="Department" class="ak-field-error"></span>
+            <label asp-for="PositionId" class="ak-label"></label>
+            <select asp-for="PositionId" asp-items="ViewBag.Positions" class="ak-input">
+                <option value="">@UiText.T(Context, "انتخاب بست", "Choose position")</option>
+            </select>
+            @if (Model.PositionId is null && !string.IsNullOrWhiteSpace(Model.JobTitle))
+            {
+                <span class="ak-note">@UiText.T(Context, "ثبت قدیمی:", "Legacy value:") @Model.JobTitle</span>
+            }
+            <span asp-validation-for="PositionId" class="ak-field-error"></span>
         </div>
+        @if (ViewBag.CanLinkUser == true)
+        {
+            <div class="ak-field">
+                <label asp-for="UserId" class="ak-label"></label>
+                <select asp-for="UserId" asp-items="ViewBag.Users" class="ak-input">
+                    <option value="">@UiText.T(Context, "بدون حساب کاربری", "No user account")</option>
+                </select>
+                <span asp-validation-for="UserId" class="ak-field-error"></span>
+            </div>
+        }
         <div class="ak-field">
             <label asp-for="EmployeeType" class="ak-label"></label>
             <select asp-for="EmployeeType" asp-items="ViewBag.EmployeeTypes" class="ak-input"></select>
@@ -88,18 +110,36 @@
             <select asp-for="SalaryType" asp-items="ViewBag.SalaryTypes" class="ak-input"></select>
             <span asp-validation-for="SalaryType" class="ak-field-error"></span>
         </div>
-        <div class="ak-field">
-            <label asp-for="BaseSalaryAmount" class="ak-label"></label>
-            <input asp-for="BaseSalaryAmount" class="ak-input" />
-            <span asp-validation-for="BaseSalaryAmount" class="ak-field-error"></span>
-        </div>
-        <div class="ak-field">
-            <label asp-for="SalaryCurrency" class="ak-label"></label>
-            <select asp-for="SalaryCurrency" asp-items="ViewBag.Currencies" class="ak-input">
-                <option value="">انتخاب ارز</option>
-            </select>
-            <span asp-validation-for="SalaryCurrency" class="ak-field-error"></span>
-        </div>
+        @if (ViewBag.CanManageSalary == true && Model.Id == 0)
+        {
+            <div class="ak-field">
+                <label asp-for="BaseSalaryAmount" class="ak-label"></label>
+                <input asp-for="BaseSalaryAmount" class="ak-input" />
+                <span asp-validation-for="BaseSalaryAmount" class="ak-field-error"></span>
+            </div>
+            <div class="ak-field">
+                <label asp-for="SalaryCurrency" class="ak-label"></label>
+                <select asp-for="SalaryCurrency" asp-items="ViewBag.Currencies" class="ak-input">
+                    <option value="">انتخاب ارز</option>
+                </select>
+                <span asp-validation-for="SalaryCurrency" class="ak-field-error"></span>
+            </div>
+        }
+        else
+        {
+            @* معاش فقط هنگام ثبت کارمند (با «مدیریت معاش») تعیین می‌شود و بعد از آن فقط از «تغییر معاش» با تاریخچه. *@
+            <input type="hidden" name="SalaryCurrency" value="@PTGOilSystem.Web.Services.SystemCurrency.BaseCurrencyCode" />
+            @if (ViewBag.CanManageSalary == true)
+            {
+                <div class="ak-field">
+                    <span class="ak-label">@UiText.T(Context, "معاش پایه", "Base salary")</span>
+                    <a class="btn btn-light ak-secondary-action" asp-action="ChangeSalary" asp-route-id="@Model.Id">
+                        <i class="bi bi-cash-coin" aria-hidden="true"></i>
+                        <span>@UiText.T(Context, "تغییر معاش (با تاریخچه)", "Change salary (with history)")</span>
+                    </a>
+                </div>
+            }
+        }
         <div class="ak-field">
             <label asp-for="HireDate" class="ak-label"></label>
             <input asp-for="HireDate" class="ak-input" />

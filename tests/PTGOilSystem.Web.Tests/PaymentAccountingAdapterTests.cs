@@ -36,6 +36,8 @@ public sealed class PaymentAccountingAdapterTests(AccountingPostgreSqlFixture fi
     [InlineData(PaymentKind.ExpensePayment, null, null, PaymentAccountingEventKind.ExpensePayment)]
     [InlineData(PaymentKind.CommissionPayment, null, null, PaymentAccountingEventKind.CommissionPayment)]
     [InlineData(PaymentKind.ServiceProviderPayment, null, null, PaymentAccountingEventKind.ServiceProviderPayment)]
+    [InlineData(PaymentKind.EmployeeSalaryPayment, null, null, PaymentAccountingEventKind.EmployeeSalaryPayment)]
+    [InlineData(PaymentKind.EmployeeSalaryAdvance, null, null, PaymentAccountingEventKind.EmployeeAdvance)]
     public void ResolveEventKind_Uses_Payment_Nature_Not_LedgerSide(
         PaymentKind paymentKind,
         bool? isAdvancePayment,
@@ -56,8 +58,6 @@ public sealed class PaymentAccountingAdapterTests(AccountingPostgreSqlFixture fi
     [InlineData(PaymentKind.ManualPayment)]
     [InlineData(PaymentKind.ManualReceipt)]
     [InlineData(PaymentKind.TruckPayment)]
-    [InlineData(PaymentKind.EmployeeSalaryPayment)]
-    [InlineData(PaymentKind.EmployeeSalaryAdvance)]
     [InlineData(PaymentKind.EmployeeReturn)]
     [InlineData(PaymentKind.SupplierReceipt)]
     [InlineData(PaymentKind.CustomerPayment)]

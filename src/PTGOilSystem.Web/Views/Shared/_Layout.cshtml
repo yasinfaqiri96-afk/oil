@@ -70,7 +70,8 @@
 
     var foundationDefinitionControllers = new[] { "Products", "Units", "Currencies", "DailyFxRates", "Locations", "ExpenseTypes", "ExpenseRules" };
     var foundationResourceControllers = new[] { "Terminals", "StorageTanks", "Trucks", "Wagons", "Drivers", "Vessels" };
-    var businessPartyControllers = new[] { "Partners", "Companies", "Suppliers", "Customers", "ServiceProviders", "Sarrafs", "Employees" };
+    var businessPartyControllers = new[] { "Partners", "Companies", "Suppliers", "Customers", "ServiceProviders", "Sarrafs" };
+    var hrControllers = PTGOilSystem.Web.Security.RoleAccessRules.HumanResourcesControllers;
     var isFoundationCompactPage = foundationDefinitionControllers
         .Concat(foundationResourceControllers)
         .Any(controller => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase));
@@ -84,6 +85,7 @@
         && foundationDefinitionControllers
             .Concat(foundationResourceControllers)
             .Concat(businessPartyControllers)
+            .Concat(hrControllers)
             .Any(controller => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase));
     var hideSectionTabs = ViewData["HideSectionTabs"] as bool? == true || detailPageHidesSectionTabs || operationSubPageHidesSectionTabs;
     var foundationCompactClass = isFoundationCompactPage || isBusinessPartyCompactPage ? "is-foundation-compact" : string.Empty;
@@ -122,8 +124,7 @@
         ("Suppliers", "Index", T("تأمین‌کنندگان",  "Suppliers"), "bi-briefcase"),
         ("Customers", "Index", T("مشتریان",         "Customers"), "bi-people"),
         ("ServiceProviders", "Index", T("شرکت‌های خدماتی", "Service Providers"), "bi-building-gear"),
-        ("Sarrafs", "Index", T("صراف‌ها", "Sarrafs"), "bi-currency-exchange"),
-        ("Employees", "Index", T("کارمندان",        "Employees"), "bi-person-lines-fill")
+        ("Sarrafs", "Index", T("صراف‌ها", "Sarrafs"), "bi-currency-exchange")
     };
 
     var operationalResourceItems = new (string Controller, string Action, string Label, string Icon)[]
@@ -205,6 +206,7 @@
         primarySidebarItems.Add(SidebarItem("Users", "Index", T("کاربران", "Users"), "nav-users", activeControllers: userManagementControllers));
     }
     primarySidebarItems.Add(SidebarItem("Suppliers", "Index", T("طرف حساب‌ها", "Parties"), "nav-parties", activeControllers: businessPartyGroupControllers));
+    primarySidebarItems.Add(SidebarItem(hrControllers[0], "Index", T("مدیریت بشری", "Human Resources"), "nav-parties", activeControllers: hrControllers));
     primarySidebarItems.Add(SidebarItem("Trucks", "Index", T("وسایط و راننده‌ها", "Vehicles & Drivers"), "nav-truck", activeControllers: transportControllers));
     primarySidebarItems.Add(SidebarItem("Currencies", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", activeControllers: coreDataControllers));
     primarySidebarItems = primarySidebarItems
@@ -238,6 +240,7 @@
             active: new[] { "Reports" }),
         // این سه بخش زیرمنو ندارند؛ هر کدام مستقیم به صفحهٔ فهرست خودشان می‌روند.
         NavNode("Suppliers", "Index", T("طرف حساب‌ها", "Parties"), "nav-parties", active: businessPartyGroupControllers),
+        NavNode(hrControllers[0], "Index", T("مدیریت بشری", "Human Resources"), "nav-parties", active: hrControllers),
         NavNode("Trucks", "Index", T("وسایط و راننده‌ها", "Vehicles & Drivers"), "nav-truck", active: transportControllers),
         NavNode("Currencies", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", active: coreDataControllers)
     };

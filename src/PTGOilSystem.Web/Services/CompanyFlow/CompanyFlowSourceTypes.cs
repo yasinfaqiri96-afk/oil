@@ -41,6 +41,8 @@ public static class CompanyFlowSourceTypes
     public const string SalaryDeduction = "SalaryDeduction";
     public const string Bonus = "Bonus";
     public const string Adjustment = "Adjustment";
+    public const string LoanDisbursement = "LoanDisbursement";
+    public const string LoanRepayment = "LoanRepayment";
 
     /// <summary>
     /// پسوندِ مرجعِ سطرِ معکوس‌کننده. برگشتِ بارگیری/فروش/مصرف عمداً SourceType سند اصلی را

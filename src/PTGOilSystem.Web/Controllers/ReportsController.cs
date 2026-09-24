@@ -17,6 +17,7 @@ using PTGOilSystem.Web.Services.PartyStatements;
 using PTGOilSystem.Web.Services.Reporting;
 using PTGOilSystem.Web.Services.Time;
 using PTGOilSystem.Web.Services.Parties;
+using PTGOilSystem.Web.Security;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -859,6 +860,11 @@ public partial class ReportsController : Controller
                 HttpContext?.RequestAborted ?? CancellationToken.None,
                 partyTypes))
             .ExternalPartiesOnly();
+        // ماندهٔ کارمند همان ماندهٔ معاش است؛ بدون «دیدن معاش» در گزارش مانده/کهنگی هم نمی‌آید.
+        if (User is not null && !RoleAccessRules.CanViewEmployeeSalary(User))
+        {
+            balanceRows = balanceRows.Where(row => row.PartyType != PartyStatementPartyType.Employee).ToList();
+        }
         var supplierIds = balanceRows
             .Where(row => row.PartyType == PartyStatementPartyType.Supplier)
             .Select(row => row.PartyId)

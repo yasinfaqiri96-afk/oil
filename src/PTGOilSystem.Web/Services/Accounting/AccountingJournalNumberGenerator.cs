@@ -37,6 +37,8 @@ public interface IAccountingJournalNumberGenerator
     string ForTransportInventoryReceipt(int companyId, int transportReceiptId);
     string ForAssetRent(int companyId, int assetRentTransactionId);
     string ForAssetRentReversal(int companyId, int assetRentTransactionId);
+    string ForEmployeeSalary(int companyId, int salaryTransactionId);
+    string ForEmployeeSalaryReversal(int companyId, int salaryTransactionId);
 }
 
 public sealed class AccountingJournalNumberGenerator : IAccountingJournalNumberGenerator
@@ -268,6 +270,12 @@ public sealed class AccountingJournalNumberGenerator : IAccountingJournalNumberG
 
     public string ForAssetRentReversal(int companyId, int assetRentTransactionId)
         => $"ARTR-{ValidateKey(companyId, assetRentTransactionId, nameof(assetRentTransactionId))}";
+
+    public string ForEmployeeSalary(int companyId, int salaryTransactionId)
+        => $"SAL-{ValidateKey(companyId, salaryTransactionId, nameof(salaryTransactionId))}";
+
+    public string ForEmployeeSalaryReversal(int companyId, int salaryTransactionId)
+        => $"SALR-{ValidateKey(companyId, salaryTransactionId, nameof(salaryTransactionId))}";
 
     private static string ValidateKey(int companyId, int entityId, string entityIdName)
     {

@@ -34,19 +34,10 @@
     }
     ViewData["AkHeaderCompanionAction"] = new AkHeaderMenuItem
     {
-        Label = UiText.T(Context, "تبدیل گروهی", "Bulk convert"),
+        Label = UiText.T(Context, "تبدیل به حمل", "Convert to transport"),
         AccessibleLabel = UiText.T(Context, "تبدیل گروهی بارگیری به حمل", "Bulk convert loadings to transport"),
         Href = Url.Action("BulkFromLoading", "Transports", bulkRoute) + bulkFilterQuery,
         Icon = "bi-truck"
-    };
-    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
-    {
-        new()
-        {
-            Label = UiText.T(Context, "تبدیل‌های قبلی به حمل", "Previous transport conversions"),
-            Href = Url.Action("CancelFromLoading", "Transports"),
-            Icon = "bi-clock-history"
-        }
     };
 }
 

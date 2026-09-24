@@ -1,0 +1,64 @@
+@model PTGOilSystem.Web.Models.HumanResources.HrReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "گزارش‌های مدیریت بشری", "HR reports");
+    var tabs = Model.Reports.Select(r => $"{r.Key}|{r.Label}|bi-table|{(r.Key == Model.Report ? "active" : "")}").ToArray();
+    ViewData["DetailsTabsResetQuery"] = new[] { "format" };
+    var usesRange = Model.Report is "leave" or "payments";
+    var usesMonth = Model.Report is "attendance" or "payroll";
+    var usesYear = Model.Report is "cost";
+    var csvUrl = Url.Action("Index", new { report = Model.Report, year = Model.Year, month = Model.Month, from = Model.From.ToString("yyyy-MM-dd"), to = Model.To.ToString("yyyy-MM-dd"), format = "csv" });
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "گزارش‌های مدیریت بشری", "HR reports"), false,
+                       UiText.T(Context, "خروجی CSV", "Export CSV"), "bi-download", csvUrl, (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <partial name="~/Views/Shared/Partials/_DetailsTabs.cshtml" model="@(UiText.T(Context, "گزارش‌ها", "Reports"), tabs)" />
+
+    @if (usesRange || usesMonth || usesYear)
+    {
+        <form method="get" asp-action="Index" class="ak-form-grid ak-list-toolbar mb-2">
+            <input type="hidden" name="report" value="@Model.Report" />
+            @if (usesRange)
+            {
+                <div class="ak-field"><label class="ak-label" for="rep-from">@UiText.T(Context, "از", "From")</label><input id="rep-from" name="from" type="date" class="ak-input" value="@Model.From.ToString("yyyy-MM-dd")" /></div>
+                <div class="ak-field"><label class="ak-label" for="rep-to">@UiText.T(Context, "تا", "To")</label><input id="rep-to" name="to" type="date" class="ak-input" value="@Model.To.ToString("yyyy-MM-dd")" /></div>
+            }
+            @if (usesMonth || usesYear)
+            {
+                <div class="ak-field"><label class="ak-label" for="rep-year">@UiText.T(Context, "سال", "Year")</label><input id="rep-year" name="year" type="number" min="2000" max="2100" class="ak-input" value="@Model.Year" /></div>
+            }
+            @if (usesMonth)
+            {
+                <div class="ak-field"><label class="ak-label" for="rep-month">@UiText.T(Context, "ماه", "Month")</label><input id="rep-month" name="month" type="number" min="1" max="12" class="ak-input" value="@Model.Month" /></div>
+            }
+            <div class="ak-field"><button type="submit" class="btn btn-light ak-secondary-action">@UiText.T(Context, "نمایش", "Show")</button></div>
+        </form>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.Table.Summary))
+    {
+        <p class="ak-note">@Model.Table.Summary</p>
+    }
+
+    <div class="ak-list">
+        <div class="ak-table-wrap">
+            <table class="ak-table" aria-label="@UiText.T(Context, "گزارش", "Report")">
+                <thead><tr>@foreach (var header in Model.Table.Headers) { <th>@header</th> }</tr></thead>
+                <tbody>
+                    @foreach (var row in Model.Table.Rows)
+                    {
+                        <tr>@foreach (var cell in row) { <td>@(cell ?? "—")</td> }</tr>
+                    }
+                    @if (Model.Table.Rows.Count == 0)
+                    {
+                        <tr><td colspan="@Math.Max(1, Model.Table.Headers.Length)"><div class="ak-empty"><i class="bi bi-table" aria-hidden="true"></i>@UiText.T(Context, "داده‌ای برای این گزارش نیست.", "No data for this report.")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <p class="ak-note">@UiText.T(Context, "صورت‌حسابِ هر کارمند از پروفایلِ او («صورت‌حساب رسمی») باز می‌شود.", "Each employee's statement opens from their profile.")</p>
+</div>

@@ -39,6 +39,20 @@ public class ApplicationDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<Position> Positions => Set<Position>();
+    public DbSet<EmploymentContract> EmploymentContracts => Set<EmploymentContract>();
+    public DbSet<EmployeeCompensation> EmployeeCompensations => Set<EmployeeCompensation>();
+    public DbSet<HrAttachment> HrAttachments => Set<HrAttachment>();
+    public DbSet<HrSettings> HrSettings => Set<HrSettings>();
+    public DbSet<HrHoliday> HrHolidays => Set<HrHoliday>();
+    public DbSet<DailyAttendance> DailyAttendances => Set<DailyAttendance>();
+    public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
+    public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<PayrollRun> PayrollRuns => Set<PayrollRun>();
+    public DbSet<PayrollRunLine> PayrollRunLines => Set<PayrollRunLine>();
+    public DbSet<EmployeeLoan> EmployeeLoans => Set<EmployeeLoan>();
+    public DbSet<EmployeeDocument> EmployeeDocuments => Set<EmployeeDocument>();
 
     // --- Contracts & Pricing ---
     public DbSet<Contract> Contracts => Set<Contract>();
@@ -861,6 +875,18 @@ public class ApplicationDbContext : DbContext
             .IsUnique();
         modelBuilder.Entity<EmployeeSalaryTransaction>()
             .HasIndex(t => t.IsCancelled);
+        // یک «ثبت معاش» فعال برای هر کارمند در هر ماه. ثبتِ لغوشده جا را آزاد می‌کند.
+        modelBuilder.Entity<EmployeeSalaryTransaction>()
+            .HasIndex(t => new { t.EmployeeId, t.SalaryPeriodYear, t.SalaryPeriodMonth })
+            .HasDatabaseName("UX_EmployeeSalaryTransactions_ActiveAccrualPerPeriod")
+            .HasFilter("\"TransactionType\" = 1 AND \"IsCancelled\" = false")
+            .IsUnique();
+        modelBuilder.Entity<EmployeeSalaryTransaction>()
+            .HasIndex(t => t.ReversalPaymentTransactionId)
+            .IsUnique();
+        modelBuilder.Entity<EmployeeSalaryTransaction>()
+            .HasIndex(t => t.ReversalLedgerEntryId)
+            .IsUnique();
 
         modelBuilder.Entity<LoadingReceipt>()
             .HasOne(r => r.LoadingRegister)
@@ -2002,6 +2028,18 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(t => t.LedgerEntryId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<EmployeeSalaryTransaction>()
+            .HasOne(t => t.ReversalPaymentTransaction)
+            .WithMany()
+            .HasForeignKey(t => t.ReversalPaymentTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EmployeeSalaryTransaction>()
+            .HasOne(t => t.ReversalLedgerEntry)
+            .WithMany()
+            .HasForeignKey(t => t.ReversalLedgerEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<ContractBalanceTransfer>()
             .HasOne(t => t.FromContract)
             .WithMany()
@@ -2160,6 +2198,7 @@ public class ApplicationDbContext : DbContext
         ConfigureQualityInspections(modelBuilder);
 
         modelBuilder.ConfigureAccountingCore();
+        modelBuilder.ConfigureHumanResources();
         ConfigureInventoryLineage(modelBuilder);
     }
 

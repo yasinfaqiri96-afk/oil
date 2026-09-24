@@ -1,0 +1,88 @@
+@model PTGOilSystem.Web.Models.HumanResources.PayrollIndexViewModel
+@using PTGOilSystem.Web.Models.HumanResources
+@{
+    ViewData["Title"] = UiText.T(Context, "پرداخت معاش", "Pay salaries");
+    var periodLabel = $"{Model.Year:0000}/{Model.Month:00}";
+    var backUrl = Url.Action("Index", new { year = Model.Year, month = Model.Month }) ?? "#";
+    string N(decimal v) => v.ToString("N2");
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@(($"{UiText.T(Context, "پرداخت معاش", "Pay salaries")} {periodLabel}", false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "بازگشت به معاش", "Back to payroll"), "bi-arrow-right", (string?)backUrl))" />
+
+    <p class="ak-note">@UiText.T(Context, "نهایی‌شدنِ معاش یعنی بدهی به کارمند؛ پول فقط با همین صفحه از صندوق/بانک خارج می‌شود. پرداختِ ناقص مجاز است و بیش از مانده پذیرفته نمی‌شود.", "A finalized payroll is a liability; cash leaves only from this page. Partial payments are allowed, never above the remaining amount.")</p>
+
+    <form asp-action="PayLines" method="post" class="ak-list">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="year" value="@Model.Year" />
+        <input type="hidden" name="month" value="@Model.Month" />
+        <div class="ak-form-grid mb-2">
+            <div class="ak-field">
+                <label class="ak-label" for="pay-cash">@UiText.T(Context, "صندوق / بانک", "Cash / bank")</label>
+                <select id="pay-cash" name="cashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input" required>
+                    <option value="">@UiText.T(Context, "انتخاب حساب", "Choose account")</option>
+                </select>
+            </div>
+            <div class="ak-field">
+                <label class="ak-label" for="pay-date">@UiText.T(Context, "تاریخ پرداخت", "Payment date")</label>
+                <input id="pay-date" name="paymentDate" type="date" class="ak-input" value="@PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock.SystemToday.ToString("yyyy-MM-dd")" required />
+            </div>
+            <div class="ak-field">
+                <label class="ak-label" for="pay-ref">@UiText.T(Context, "مرجع / واوچر", "Reference")</label>
+                <input id="pay-ref" name="reference" class="ak-input" maxlength="200" />
+            </div>
+        </div>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table" aria-label="@UiText.T(Context, "پرداخت معاش", "Salary payments")">
+                <thead>
+                    <tr>
+                        <th class="ak-col-check"><input type="checkbox" class="ak-check" data-payroll-select-all aria-label="@UiText.T(Context, "انتخاب همه", "Select all")" /></th>
+                        <th class="ak-col-grow">@UiText.T(Context, "کارمند", "Employee")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "خالص معاش", "Net salary")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "پرداخت‌شده", "Paid")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مانده", "Remaining")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مبلغ این پرداخت", "Amount now")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Lines.Count; i++)
+                    {
+                        var row = Model.Lines[i];
+                        var l = row.Line;
+                        var canPay = row.Remaining > 0m;
+                        <tr class="@(canPay ? "" : "ak-row-muted")">
+                            <td class="ak-col-check">
+                                <input type="hidden" name="rows[@i].LineId" value="@l.Id" />
+                                <input type="checkbox" class="ak-check" name="rows[@i].Selected" value="true" data-payroll-select disabled="@(canPay ? null : "disabled")" />
+                            </td>
+                            <td class="ak-col-grow">
+                                <a asp-controller="Employees" asp-action="Details" asp-route-id="@l.EmployeeId" asp-route-tab="salary" class="ak-name">@row.EmployeeName</a>
+                                <div class="ak-note">@row.EmployeeCode · @l.Currency</div>
+                            </td>
+                            <td class="ak-num ak-col-num">@N(l.NetSalary)</td>
+                            <td class="ak-num ak-col-num">@N(row.Paid)</td>
+                            <td class="ak-num ak-col-num">@N(row.Remaining)</td>
+                            <td><span class="ak-status @PayrollLabels.PaymentCss(l.NetSalary, row.Paid)">@PayrollLabels.PaymentStatus(l.NetSalary, row.Paid)</span></td>
+                            <td class="ak-col-num">
+                                @if (canPay)
+                                {
+                                    <input name="rows[@i].Amount" type="number" step="0.01" min="0" max="@row.Remaining.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="ak-input" value="@row.Remaining.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" />
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                 model="@((UiText.T(Context, "پرداختِ انتخاب‌شده‌ها", "Pay selected"), backUrl, UiText.T(Context, "انصراف", "Cancel")))" />
+    </form>
+</div>
+
+@section Scripts { <script src="~/js/hr-payroll.js" asp-append-version="true"></script> }

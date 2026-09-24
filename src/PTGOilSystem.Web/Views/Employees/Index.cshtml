@@ -6,11 +6,16 @@
     var visibleEmployeeTypeCount = items.Select(item => item.EmployeeTypeName).Where(type => !string.IsNullOrWhiteSpace(type)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
     var visibleBalanceUsd = items.Sum(item => item.BalanceUsd);
     var hasFilters = Model.Filter.EmployeeType.Length > 0
+        || Model.Filter.DepartmentId.Length > 0
         || Model.Filter.SalaryType.Length > 0
         || !string.IsNullOrWhiteSpace(Model.Filter.Department)
         || !string.IsNullOrWhiteSpace(Model.Filter.Currency)
         || Model.Filter.IsActive.HasValue;
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var canViewSalary = Model.CanViewSalary;
+    var canRecordSalary = PTGOilSystem.Web.Security.RoleAccessRules.CanManageEmployeeSalary(User)
+        || PTGOilSystem.Web.Security.RoleAccessRules.CanPaySalary(User);
+    var columnCount = canViewSalary ? 8 : 6;
 }
 
 <div class="ak-list-page">
@@ -25,7 +30,10 @@
         <vc:stat-card title="@UiText.T(Context, "کل کارمندان", "Total employees")" value="@Model.TotalCount.ToString("N0")" unit="@UiText.T(Context, "کارمند", "employees")" avatar-path="/images/stat-cards/ref-people/emp-desk.webp"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "فعال در این صفحه", "Active on this page")" value="@visibleActiveCount.ToString("N0")" unit="@UiText.T(Context, "کارمند", "employees")" avatar-path="/images/stat-cards/ref-people/emp-schedule.webp"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "انواع کارمند در این صفحه", "Employee types on page")" value="@visibleEmployeeTypeCount.ToString("N0")" unit="@UiText.T(Context, "نوع", "types")" avatar-path="/images/stat-cards/ref-people/emp-id.webp"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "مانده این صفحه", "Balance on this page")" value="@visibleBalanceUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/emp-rating.webp"></vc:stat-card>
+        @if (canViewSalary)
+        {
+            <vc:stat-card title="@UiText.T(Context, "مانده این صفحه", "Balance on this page")" value="@visibleBalanceUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/emp-rating.webp"></vc:stat-card>
+        }
     </section>
 
     @{
@@ -33,15 +41,20 @@
             ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
             .Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
         string? EmpQ(string k) { var v = Context.Request.Query[k].ToString(); return string.IsNullOrEmpty(v) ? null : v; }
+        var employeeFilters = new List<AkFilterDefinition>
+        {
+            AkFilterDefinition.MultiSelect("Filter.EmployeeType", UiText.T(Context, "نوع کارمند", "Employee type"), EmpOpts(ViewBag.EmployeeTypes), AkFilterQuery.Values(Context, "Filter.EmployeeType")),
+            AkFilterDefinition.MultiSelect("Filter.SalaryType", UiText.T(Context, "نوع معاش", "Salary type"), EmpOpts(ViewBag.SalaryTypes), AkFilterQuery.Values(Context, "Filter.SalaryType")),
+            AkFilterDefinition.MultiSelect("Filter.DepartmentId", UiText.T(Context, "بخش", "Department"), EmpOpts(ViewBag.Departments), AkFilterQuery.Values(Context, "Filter.DepartmentId")),
+            new("Filter.IsActive", UiText.T(Context, "وضعیت", "Status"), "select", EmpOpts(ViewBag.Statuses), EmpQ("Filter.IsActive"))
+        };
+        if (canViewSalary)
+        {
+            employeeFilters.Insert(2, new("Filter.Currency", UiText.T(Context, "ارز", "Currency"), "select", EmpOpts(ViewBag.Currencies), EmpQ("Filter.Currency")));
+        }
         var employeesFilter = new AkSearchFilterModel("Filter.Query", Model.Filter.Query,
             UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."),
-            new List<AkFilterDefinition>
-            {
-                AkFilterDefinition.MultiSelect("Filter.EmployeeType", UiText.T(Context, "نوع کارمند", "Employee type"), EmpOpts(ViewBag.EmployeeTypes), AkFilterQuery.Values(Context, "Filter.EmployeeType")),
-                AkFilterDefinition.MultiSelect("Filter.SalaryType", UiText.T(Context, "نوع معاش", "Salary type"), EmpOpts(ViewBag.SalaryTypes), AkFilterQuery.Values(Context, "Filter.SalaryType")),
-                new("Filter.Currency", UiText.T(Context, "ارز", "Currency"), "select", EmpOpts(ViewBag.Currencies), EmpQ("Filter.Currency")),
-                new("Filter.IsActive", UiText.T(Context, "وضعیت", "Status"), "select", EmpOpts(ViewBag.Statuses), EmpQ("Filter.IsActive"))
-            });
+            employeeFilters);
     }
     <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="employeesFilter" />
 
@@ -53,9 +66,15 @@
                         <th class="ak-col-check"><input type="checkbox" class="ak-check" aria-label="@UiText.T(Context, "انتخاب همه", "Select all")" /></th>
                         <th class="ak-col-grow">@UiText.T(Context, "نام", "Name")</th>
                         <th>@UiText.T(Context, "نوع کارمند", "Type")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "معاش پایه", "Base salary")</th>
+                        @if (canViewSalary)
+                        {
+                            <th class="ak-col-num">@UiText.T(Context, "معاش پایه", "Base salary")</th>
+                        }
                         <th class="ak-col-spacer"></th>
-                        <th class="ak-col-num">@UiText.T(Context, "مانده USD", "Balance USD")</th>
+                        @if (canViewSalary)
+                        {
+                            <th class="ak-col-num">@UiText.T(Context, "مانده USD", "Balance USD")</th>
+                        }
                         <th>@UiText.T(Context, "وضعیت", "Status")</th>
                         <th class="ak-col-actions"></th>
                     </tr>
@@ -76,9 +95,15 @@
                                     <text>-</text>
                                 }
                             </td>
-                            <td class="ak-num ak-col-num">@item.BaseSalaryAmount.ToString("N2") @item.SalaryCurrency</td>
+                            @if (canViewSalary)
+                            {
+                                <td class="ak-num ak-col-num">@item.BaseSalaryAmount.ToString("N2") @item.SalaryCurrency</td>
+                            }
                             <td class="ak-col-spacer"></td>
-                            <td class="ak-num ak-col-num">@item.BalanceUsd.ToString("N2")</td>
+                            @if (canViewSalary)
+                            {
+                                <td class="ak-num ak-col-num">@item.BalanceUsd.ToString("N2")</td>
+                            }
                             <td>
                                 <span class="ak-status @(item.IsActive ?"is-active" : "is-inactive")">
                                     @(item.IsActive ? UiText.T(Context, "فعال", "Active") : UiText.T(Context, "غیرفعال", "Inactive"))
@@ -91,7 +116,10 @@
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><a class="dropdown-item" asp-action="Details" asp-route-id="@item.Id"><i class="bi bi-eye" aria-hidden="true"></i>@UiText.T(Context, "جزئیات", "Details")</a></li>
-                                        <li><a class="dropdown-item" asp-action="CreateSalaryTransaction" asp-route-id="@item.Id"><i class="bi bi-cash-coin" aria-hidden="true"></i>@UiText.T(Context, "برداشت/پرداخت", "Withdraw/Pay")</a></li>
+                                        @if (canRecordSalary)
+                                        {
+                                            <li><a class="dropdown-item" asp-action="CreateSalaryTransaction" asp-route-id="@item.Id"><i class="bi bi-cash-coin" aria-hidden="true"></i>@UiText.T(Context, "برداشت/پرداخت", "Withdraw/Pay")</a></li>
+                                        }
                                         <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil" aria-hidden="true"></i>@UiText.T(Context, "ویرایش", "Edit")</a></li>
                                         <li><hr class="dropdown-divider" /></li>
                                         <li><partial name="~/Views/Shared/Partials/_ToggleActiveButton.cshtml" model="@(("Employees", item.Id, item.IsActive, "dropdown-item ak-danger", (string?)returnUrl))" /></li>
@@ -103,7 +131,7 @@
                     @if (!items.Any())
                     {
                         <tr>
-                            <td colspan="8">
+                            <td colspan="@columnCount">
                                 <div class="ak-empty">
                                     <i class="bi bi-people" aria-hidden="true"></i>
                                     @UiText.T(Context, "کارمندی برای نمایش پیدا نشد", "No employees found")

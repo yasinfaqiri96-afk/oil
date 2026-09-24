@@ -2171,7 +2171,7 @@ public class PaymentsController : Controller
             || (customer && (p.CustomerId.HasValue || p.PaymentKind == PaymentKind.CustomerReceipt || p.PaymentKind == PaymentKind.CustomerPayment))
             || (serviceProvider && (p.ServiceProviderId.HasValue || p.PaymentKind == PaymentKind.ServiceProviderPayment))
             || (sarraf && (p.SarrafId.HasValue || p.PaymentKind == PaymentKind.SarrafSettlement))
-            || (employee && (p.EmployeeId.HasValue || p.PaymentKind == PaymentKind.EmployeeSalaryPayment || p.PaymentKind == PaymentKind.EmployeeSalaryAdvance || p.PaymentKind == PaymentKind.EmployeeReturn))
+            || (employee && (p.EmployeeId.HasValue || p.PaymentKind == PaymentKind.EmployeeSalaryPayment || p.PaymentKind == PaymentKind.EmployeeSalaryAdvance || p.PaymentKind == PaymentKind.EmployeeReturn || p.PaymentKind == PaymentKind.EmployeeLoan || p.PaymentKind == PaymentKind.EmployeeLoanRepayment))
             || (driver && (p.DriverId.HasValue || p.TruckDispatchId.HasValue || p.PaymentKind == PaymentKind.TruckPayment))
             || (officeExpense && (p.ExpenseTransactionId.HasValue || p.PaymentKind == PaymentKind.ExpensePayment || p.PaymentKind == PaymentKind.CommissionPayment))
             || (contract && p.ContractId.HasValue)
@@ -2200,7 +2200,7 @@ public class PaymentsController : Controller
             PaymentCounterpartyType.Customer => query.Where(p => p.CustomerId.HasValue || p.PaymentKind == PaymentKind.CustomerReceipt || p.PaymentKind == PaymentKind.CustomerPayment),
             PaymentCounterpartyType.ServiceProvider => query.Where(p => p.ServiceProviderId.HasValue || p.PaymentKind == PaymentKind.ServiceProviderPayment),
             PaymentCounterpartyType.Sarraf => query.Where(p => p.SarrafId.HasValue || p.PaymentKind == PaymentKind.SarrafSettlement),
-            PaymentCounterpartyType.Employee => query.Where(p => p.EmployeeId.HasValue || p.PaymentKind == PaymentKind.EmployeeSalaryPayment || p.PaymentKind == PaymentKind.EmployeeSalaryAdvance || p.PaymentKind == PaymentKind.EmployeeReturn),
+            PaymentCounterpartyType.Employee => query.Where(p => p.EmployeeId.HasValue || p.PaymentKind == PaymentKind.EmployeeSalaryPayment || p.PaymentKind == PaymentKind.EmployeeSalaryAdvance || p.PaymentKind == PaymentKind.EmployeeReturn || p.PaymentKind == PaymentKind.EmployeeLoan || p.PaymentKind == PaymentKind.EmployeeLoanRepayment),
             PaymentCounterpartyType.Driver => query.Where(p => p.DriverId.HasValue || p.TruckDispatchId.HasValue || p.PaymentKind == PaymentKind.TruckPayment),
             PaymentCounterpartyType.OfficeExpense => query.Where(p => p.ExpenseTransactionId.HasValue || p.PaymentKind == PaymentKind.ExpensePayment || p.PaymentKind == PaymentKind.CommissionPayment),
             PaymentCounterpartyType.Contract => query.Where(p => p.ContractId.HasValue),
@@ -3830,7 +3830,8 @@ public class PaymentsController : Controller
             PaymentKind.SupplierPayment or PaymentKind.SupplierReceipt => PaymentCounterpartyType.Supplier,
             PaymentKind.ServiceProviderPayment => PaymentCounterpartyType.ServiceProvider,
             PaymentKind.SarrafSettlement => PaymentCounterpartyType.Sarraf,
-            PaymentKind.EmployeeSalaryPayment or PaymentKind.EmployeeSalaryAdvance or PaymentKind.EmployeeReturn => PaymentCounterpartyType.Employee,
+            PaymentKind.EmployeeSalaryPayment or PaymentKind.EmployeeSalaryAdvance or PaymentKind.EmployeeReturn
+                or PaymentKind.EmployeeLoan or PaymentKind.EmployeeLoanRepayment => PaymentCounterpartyType.Employee,
             PaymentKind.TruckPayment => PaymentCounterpartyType.Driver,
             PaymentKind.ExpensePayment or PaymentKind.CommissionPayment => PaymentCounterpartyType.OfficeExpense,
             _ => InferCounterpartyType(
@@ -3853,7 +3854,8 @@ public class PaymentsController : Controller
             PaymentKind.SupplierPayment or PaymentKind.SupplierReceipt => PaymentCounterpartyType.Supplier,
             PaymentKind.ServiceProviderPayment => PaymentCounterpartyType.ServiceProvider,
             PaymentKind.SarrafSettlement => PaymentCounterpartyType.Sarraf,
-            PaymentKind.EmployeeSalaryPayment or PaymentKind.EmployeeSalaryAdvance or PaymentKind.EmployeeReturn => PaymentCounterpartyType.Employee,
+            PaymentKind.EmployeeSalaryPayment or PaymentKind.EmployeeSalaryAdvance or PaymentKind.EmployeeReturn
+                or PaymentKind.EmployeeLoan or PaymentKind.EmployeeLoanRepayment => PaymentCounterpartyType.Employee,
             PaymentKind.TruckPayment => PaymentCounterpartyType.Driver,
             PaymentKind.ExpensePayment or PaymentKind.CommissionPayment => PaymentCounterpartyType.OfficeExpense,
             _ => InferCounterpartyType(

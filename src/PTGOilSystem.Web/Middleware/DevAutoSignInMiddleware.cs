@@ -118,6 +118,11 @@ public sealed class DevAutoSignInMiddleware
                 claims.Add(new Claim(AppClaimTypes.Permission, AppPermissions.ManageUsers));
             }
 
+            foreach (var permission in RoleAccessRules.ResolveGrantedPermissions(user.Role))
+            {
+                claims.Add(new Claim(AppClaimTypes.Permission, permission));
+            }
+
             var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
 
             await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,

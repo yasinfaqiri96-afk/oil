@@ -130,6 +130,7 @@ builder.Services.AddScoped<IInventoryValuationService, InventoryValuationService
 builder.Services.AddScoped<IPurchaseAccountingAdapter, PurchaseAccountingAdapter>();
 builder.Services.AddScoped<ISalesAccountingAdapter, SalesAccountingAdapter>();
 builder.Services.AddScoped<IAssetRentAccountingAdapter, AssetRentAccountingAdapter>();
+builder.Services.AddScoped<IEmployeeSalaryAccountingAdapter, EmployeeSalaryAccountingAdapter>();
 builder.Services.AddScoped<IAssetRentPostingService, AssetRentPostingService>();
 builder.Services.AddScoped<IInventoryLossAccountingAdapter, InventoryLossAccountingAdapter>();
 builder.Services.AddScoped<IShortageChargeAccountingAdapter, ShortageChargeAccountingAdapter>();
@@ -185,6 +186,15 @@ builder.Services.AddScoped<IViaSarrafContractAssignmentService, ViaSarrafContrac
 builder.Services.AddScoped<IViaSarrafLegacyGroupingService, ViaSarrafLegacyGroupingService>();
 builder.Services.AddScoped<IPaymentCorrectionService, PaymentCorrectionService>();
 builder.Services.AddScoped<IEmployeeSalaryService, EmployeeSalaryService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.IHrFileStorage, PTGOilSystem.Web.Services.HumanResources.HrFileStorage>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.IEmployeeCompensationService, PTGOilSystem.Web.Services.HumanResources.EmployeeCompensationService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.IEmploymentContractService, PTGOilSystem.Web.Services.HumanResources.EmploymentContractService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.IHrCalendarService, PTGOilSystem.Web.Services.HumanResources.HrCalendarService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.IAttendanceService, PTGOilSystem.Web.Services.HumanResources.AttendanceService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.ILeaveService, PTGOilSystem.Web.Services.HumanResources.LeaveService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.IPayrollService, PTGOilSystem.Web.Services.HumanResources.PayrollService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.IEmployeeLoanService, PTGOilSystem.Web.Services.HumanResources.EmployeeLoanService>();
+builder.Services.AddScoped<PTGOilSystem.Web.Services.HumanResources.IEmployeeRecordsService, PTGOilSystem.Web.Services.HumanResources.EmployeeRecordsService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.Configure<PTGOilSystem.Web.Models.PartyStatements.PartyStatementOptions>(
     builder.Configuration.GetSection(PTGOilSystem.Web.Models.PartyStatements.PartyStatementOptions.SectionName));

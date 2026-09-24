@@ -119,6 +119,7 @@ public partial class AuditLogsController : Controller
         ["CanManageData"] = "دسترسی ثبت و ویرایش",
         ["CanManageUsers"] = "دسترسی مدیریت کاربران",
         ["AllowedNavigationItems"] = "بخش‌های قابل نمایش",
+        ["GrantedPermissions"] = "دسترسی‌های ویژه",
         ["IsCancelled"] = "وضعیت لغو",
         ["IsArchived"] = "وضعیت آرشیف",
         ["Status"] = "وضعیت"

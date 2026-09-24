@@ -1,0 +1,179 @@
+@model PTGOilSystem.Web.Models.HumanResources.HrSettingsPageViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "تنظیمات مدیریت بشری", "HR settings");
+    var days = new (int Value, string Label)[]
+    {
+        (6, "شنبه"), (0, "یکشنبه"), (1, "دوشنبه"), (2, "سه‌شنبه"), (3, "چهارشنبه"), (4, "پنجشنبه"), (5, "جمعه")
+    };
+    var disabled = Model.CanEdit ? null : "disabled";
+}
+
+<div class="ak-form-page">
+    <div class="ak-form-page-content">
+        <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+                 model="@((UiText.T(Context, "تنظیمات مدیریت بشری", "HR settings"), false,
+                           (string?)null, (string?)null, (string?)null, (string?)null,
+                           (string?)null, (string?)null, (string?)null))" />
+
+        <form asp-action="SaveSettings" method="post" class="ak-form">
+            @Html.AntiForgeryToken()
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "ساعت کاری و حاضری", "Working hours & attendance"), (string?)UiText.T(Context, "تأخیر از ساعتِ ورود بعد از مهلتِ مجاز حساب می‌شود.", "Lateness is measured from check-in after the grace period.")))" />
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="Settings.WorkdayStart" class="ak-label"></label>
+                        <input asp-for="Settings.WorkdayStart" type="time" class="ak-input" value="@Model.Settings.WorkdayStart.ToString(@"hh\:mm")" disabled="@disabled" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Settings.WorkdayEnd" class="ak-label"></label>
+                        <input asp-for="Settings.WorkdayEnd" type="time" class="ak-input" value="@Model.Settings.WorkdayEnd.ToString(@"hh\:mm")" disabled="@disabled" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Settings.LateGraceMinutes" class="ak-label"></label>
+                        <input asp-for="Settings.LateGraceMinutes" class="ak-input" disabled="@disabled" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Settings.WorkingHoursPerDay" class="ak-label"></label>
+                        <input asp-for="Settings.WorkingHoursPerDay" class="ak-input" disabled="@disabled" />
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <span class="ak-label">@UiText.T(Context, "رخصتی‌های هفته", "Weekly days off")</span>
+                        <div class="ak-role-nav-grid">
+                            @foreach (var day in days)
+                            {
+                                <label class="ak-role-nav-option">
+                                    <input type="checkbox" name="Settings.WeeklyOffDays" value="@day.Value"
+                                           checked="@(Model.Settings.WeeklyOffDays.Contains(day.Value) ? "checked" : null)" disabled="@disabled" />
+                                    <span class="ak-role-nav-copy">@day.Label</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "قواعد کسر معاش", "Payroll deduction rules"), (string?)UiText.T(Context, "نرخ روزانه = معاش ماه ÷ روزهای معاش ماه. رخصتیِ بدون معاش همیشه کسر می‌شود؛ غیبت و تأخیر فقط اگر روشن باشند.", "Daily rate = monthly salary ÷ payroll days. Unpaid leave is always deducted; absence and lateness only when enabled.")))" />
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="Settings.PayrollDaysPerMonth" class="ak-label"></label>
+                        <input asp-for="Settings.PayrollDaysPerMonth" class="ak-input" disabled="@disabled" />
+                    </div>
+                    <div class="ak-toggle-field">
+                        <div class="form-check form-switch">
+                            <input asp-for="Settings.DeductAbsences" class="form-check-input" role="switch" disabled="@disabled" />
+                            <label asp-for="Settings.DeductAbsences" class="form-check-label"></label>
+                        </div>
+                    </div>
+                    <div class="ak-toggle-field">
+                        <div class="form-check form-switch">
+                            <input asp-for="Settings.DeductLateMinutes" class="form-check-input" role="switch" disabled="@disabled" />
+                            <label asp-for="Settings.DeductLateMinutes" class="form-check-label"></label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            @if (Model.CanEdit)
+            {
+                <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                         model="@((UiText.T(Context, "ذخیرهٔ تنظیمات", "Save settings"), Url.Action("Index") ?? "#", UiText.T(Context, "انصراف", "Cancel")))" />
+            }
+        </form>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@((UiText.T(Context, "انواع رخصتی", "Leave types"), (string?)UiText.T(Context, "سهمیهٔ خالی یعنی مانده کنترل نمی‌شود.", "Empty allowance means no balance check.")))" />
+            <div class="ak-table-wrap">
+                <table class="ak-table ak-detail-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">@UiText.T(Context, "نام", "Name")</th>
+                            <th>@UiText.T(Context, "سهمیهٔ سالانه (روز)", "Annual allowance")</th>
+                            <th>@UiText.T(Context, "با معاش", "Paid")</th>
+                            <th>@UiText.T(Context, "فعال", "Active")</th>
+                            <th class="ak-col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var type in Model.LeaveTypes.Append(new PTGOilSystem.Web.Models.Entities.LeaveType { Id = 0, Name = "", IsPaid = true, IsActive = true }))
+                        {
+                            if (type.Id == 0 && !Model.CanEdit) { continue; }
+                            var formId = $"leave-type-{type.Id}";
+                            <tr>
+                                <td class="ak-col-grow">
+                                    <form id="@formId" asp-action="SaveLeaveType" method="post">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@type.Id" /></form>
+                                    <input form="@formId" name="name" class="ak-input" value="@type.Name" placeholder="@(type.Id == 0 ? UiText.T(Context, "نوعِ تازه", "New type") : null)" disabled="@disabled" />
+                                </td>
+                                <td><input form="@formId" name="annualAllowanceDays" type="number" step="0.5" min="0" class="ak-input" value="@type.AnnualAllowanceDays?.ToString("0.#")" disabled="@disabled" /></td>
+                                <td>
+                                    <input form="@formId" type="checkbox" name="isPaid" value="true" class="form-check-input" checked="@(type.IsPaid ? "checked" : null)" disabled="@disabled" />
+                                    <input form="@formId" type="hidden" name="isPaid" value="false" />
+                                </td>
+                                <td>
+                                    <input form="@formId" type="checkbox" name="isActive" value="true" class="form-check-input" checked="@(type.IsActive ? "checked" : null)" disabled="@disabled" />
+                                    <input form="@formId" type="hidden" name="isActive" value="false" />
+                                </td>
+                                <td class="ak-col-actions">
+                                    @if (Model.CanEdit)
+                                    {
+                                        <button form="@formId" type="submit" class="btn btn-sm btn-light ak-secondary-action">@(type.Id == 0 ? UiText.T(Context, "افزودن", "Add") : UiText.T(Context, "ذخیره", "Save"))</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="ak-form-section">
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@((UiText.T(Context, "رخصتی‌های رسمی", "Public holidays"), (string?)null))" />
+            @if (Model.CanEdit)
+            {
+                <form asp-action="AddHoliday" method="post" class="ak-form-grid mb-2">
+                    @Html.AntiForgeryToken()
+                    <div class="ak-field">
+                        <label class="ak-label" for="holiday-date">@UiText.T(Context, "تاریخ", "Date")</label>
+                        <input id="holiday-date" name="date" type="date" class="ak-input" required />
+                    </div>
+                    <div class="ak-field">
+                        <label class="ak-label" for="holiday-name">@UiText.T(Context, "نام", "Name")</label>
+                        <input id="holiday-name" name="name" class="ak-input" required maxlength="150" />
+                    </div>
+                    <div class="ak-field">
+                        <button type="submit" class="btn btn-light ak-secondary-action">@UiText.T(Context, "افزودن", "Add")</button>
+                    </div>
+                </form>
+            }
+            <div class="ak-table-wrap">
+                <table class="ak-table ak-detail-table">
+                    <thead><tr><th>@UiText.T(Context, "تاریخ", "Date")</th><th class="ak-col-grow">@UiText.T(Context, "نام", "Name")</th><th class="ak-col-actions"></th></tr></thead>
+                    <tbody>
+                        @foreach (var holiday in Model.Holidays)
+                        {
+                            <tr>
+                                <td>@holiday.Date.ToDisplayDate()</td>
+                                <td class="ak-col-grow">@holiday.Name</td>
+                                <td class="ak-col-actions">
+                                    @if (Model.CanEdit)
+                                    {
+                                        <form asp-action="RemoveHoliday" asp-route-id="@holiday.Id" method="post" data-ptg-confirm="true" data-ptg-confirm-title="@UiText.T(Context, "حذف رخصتی رسمی", "Remove holiday")" data-ptg-confirm-message="@UiText.T(Context, "حذف شود؟", "Remove?")">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-light ak-danger"><i class="bi bi-trash" aria-hidden="true"></i></button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.Holidays.Any())
+                        {
+                            <tr><td colspan="3"><div class="ak-empty">@UiText.T(Context, "رخصتیِ رسمی ثبت نشده است.", "No public holidays.")</div></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>

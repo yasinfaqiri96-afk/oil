@@ -34,7 +34,11 @@ public enum PaymentKind
     SarrafSettlement = 13,
     // خروجِ نقدیِ کمیسیون از صندوق/بانک. فقط cash movement است؛ مصرف واقعی در P&L
     // توسط ExpenseTransaction مرتبط (SourceType="Expense") ثبت می‌شود، نه این پرداخت.
-    CommissionPayment = 14
+    CommissionPayment = 14,
+
+    // مدیریت بشری — فقط از خدمتِ قرضهٔ کارمند ساخته می‌شوند، نه از فرمِ روزنامچه.
+    EmployeeLoan = 15,
+    EmployeeLoanRepayment = 16
 }
 
 public enum SarrafSettlementDifferenceType

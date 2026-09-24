@@ -199,6 +199,9 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
+                    b.Property<int?>("SalaryExpenseAccountId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("SalesRevenueAccountId")
                         .HasColumnType("integer");
 
@@ -265,6 +268,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("PartnerCurrentAccountId");
 
                     b.HasIndex("RetainedEarningsAccountId");
+
+                    b.HasIndex("SalaryExpenseAccountId");
 
                     b.HasIndex("SalesRevenueAccountId");
 
@@ -2393,6 +2398,69 @@ namespace PTGOilSystem.Web.Migrations
                     b.ToTable("CustomsDeclarationItems");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.DailyAttendance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<TimeSpan?>("CheckIn")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan?>("CheckOut")
+                        .HasColumnType("time");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastCorrectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("LeaveRequestId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MinutesLate")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date");
+
+                    b.HasIndex("LeaveRequestId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("EmployeeId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("DailyAttendances");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.DailyFxRate", b =>
                 {
                     b.Property<int>("Id")
@@ -2536,6 +2604,52 @@ namespace PTGOilSystem.Web.Migrations
                     b.ToTable("DeliveryReceipts");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Department", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Departments");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Driver", b =>
                 {
                     b.Property<int>("Id")
@@ -2614,6 +2728,9 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<int?>("DepartmentId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Email")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -2666,6 +2783,9 @@ namespace PTGOilSystem.Web.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int?>("PositionId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SalaryCurrency")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -2674,15 +2794,31 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("SalaryType")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("TerminatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TerminationNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("TerminationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("UserId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Department");
+
+                    b.HasIndex("DepartmentId");
 
                     b.HasIndex("EmployeeCode")
                         .IsUnique();
@@ -2693,9 +2829,213 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("IsActive");
 
+                    b.HasIndex("PositionId");
+
                     b.HasIndex("SalaryCurrency");
 
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("\"UserId\" IS NOT NULL");
+
                     b.ToTable("Employees");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmployeeCompensation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EmploymentContractId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("SalaryType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmploymentContractId");
+
+                    b.HasIndex("EmployeeId", "EffectiveFrom")
+                        .IsUnique();
+
+                    b.ToTable("EmployeeCompensations");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmployeeDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AttachmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int?>("ReplacedByDocumentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttachmentId");
+
+                    b.HasIndex("ExpiryDate");
+
+                    b.HasIndex("EmployeeId", "IsDeleted");
+
+                    b.ToTable("EmployeeDocuments");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmployeeLoan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<int?>("DisbursementTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("InstallmentAmount")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("InstallmentCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LoanDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("StartRecoveryMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StartRecoveryYear")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DisbursementTransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("EmployeeId", "Status");
+
+                    b.ToTable("EmployeeLoans");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmployeeSalaryTransaction", b =>
@@ -2743,6 +3083,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("EmployeeId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("EmployeeLoanId")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsCancelled")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -2754,9 +3097,24 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("PaymentTransactionId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("PayrollRunLineId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RecoveryMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RecoveryYear")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Reference")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("ReversalLedgerEntryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ReversalPaymentTransactionId")
+                        .HasColumnType("integer");
 
                     b.Property<int?>("SalaryPeriodMonth")
                         .HasColumnType("integer");
@@ -2780,6 +3138,8 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("CashAccountId");
 
+                    b.HasIndex("EmployeeLoanId");
+
                     b.HasIndex("IsCancelled");
 
                     b.HasIndex("LedgerEntryId")
@@ -2788,13 +3148,128 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("PaymentTransactionId")
                         .IsUnique();
 
+                    b.HasIndex("PayrollRunLineId");
+
+                    b.HasIndex("ReversalLedgerEntryId")
+                        .IsUnique();
+
+                    b.HasIndex("ReversalPaymentTransactionId")
+                        .IsUnique();
+
                     b.HasIndex("TransactionType");
 
                     b.HasIndex("EmployeeId", "TransactionDate");
 
                     b.HasIndex("SalaryPeriodYear", "SalaryPeriodMonth");
 
+                    b.HasIndex("EmployeeId", "SalaryPeriodYear", "SalaryPeriodMonth")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EmployeeSalaryTransactions_ActiveAccrualPerPeriod")
+                        .HasFilter("\"TransactionType\" = 1 AND \"IsCancelled\" = false");
+
                     b.ToTable("EmployeeSalaryTransactions");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmploymentContract", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AttachmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("ContractNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("ContractType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<int?>("DepartmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("PositionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RenewedFromContractId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("TerminatedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("TerminationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("WorkingDaysPerWeek")
+                        .HasColumnType("numeric(4,1)");
+
+                    b.Property<decimal?>("WorkingHoursPerDay")
+                        .HasColumnType("numeric(4,1)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttachmentId");
+
+                    b.HasIndex("ContractNumber")
+                        .IsUnique();
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("EmployeeId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EmploymentContracts_OneActivePerEmployee")
+                        .HasFilter("\"Status\" = 1");
+
+                    b.HasIndex("PositionId");
+
+                    b.HasIndex("RenewedFromContractId");
+
+                    b.HasIndex("EmployeeId", "StartDate");
+
+                    b.HasIndex("Status", "EndDate");
+
+                    b.ToTable("EmploymentContracts");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.ExpenseBatch", b =>
@@ -3527,6 +4002,146 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("FiscalYearId", "ChangedAt");
 
                     b.ToTable("FiscalYearStatusHistories", (string)null);
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.HrAttachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<int>("Owner")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("StoredFileName")
+                        .IsUnique();
+
+                    b.ToTable("HrAttachments");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.HrHoliday", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date")
+                        .IsUnique();
+
+                    b.ToTable("HrHolidays");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.HrSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("DeductAbsences")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("DeductLateMinutes")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LateGraceMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PayrollDaysPerMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WeeklyOffDays")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<TimeSpan>("WorkdayEnd")
+                        .HasColumnType("interval");
+
+                    b.Property<TimeSpan>("WorkdayStart")
+                        .HasColumnType("interval");
+
+                    b.Property<decimal>("WorkingHoursPerDay")
+                        .HasColumnType("numeric(4,1)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("HrSettings");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.InventoryAverageCost", b =>
@@ -4618,6 +5233,123 @@ namespace PTGOilSystem.Web.Migrations
 
                             t.HasCheckConstraint("CK_JournalEntryLines_Transaction", "\"TransactionAmount\" >= 0 AND \"ExchangeRate\" > 0");
                         });
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.LeaveRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AttachmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DecidedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FromDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsHalfDay")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LeaveTypeId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ToDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("TotalDays")
+                        .HasColumnType("numeric(6,1)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttachmentId");
+
+                    b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("EmployeeId", "FromDate", "ToDate");
+
+                    b.ToTable("LeaveRequests");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.LeaveType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("AnnualAllowanceDays")
+                        .HasColumnType("numeric(6,1)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPaid")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("LeaveTypes");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.LedgerEntry", b =>
@@ -6078,6 +6810,180 @@ namespace PTGOilSystem.Web.Migrations
                     b.ToTable("PaymentTransactions");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PayrollRun", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FinalizedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("FinalizedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastReopenReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReopenedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("PayrollRuns");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PayrollRunLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AbsenceDeduction")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("AbsentDays")
+                        .HasColumnType("numeric(6,2)");
+
+                    b.Property<decimal>("AdvanceDeduction")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("AllowanceAmount")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("BonusAmount")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<decimal>("DailyRate")
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<decimal>("EmployedDays")
+                        .HasColumnType("numeric(6,2)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("GrossSalary")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("LateDeduction")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("LateMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("LoanDeduction")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("MonthlySalary")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("NetSalary")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal>("OtherDeduction")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("OtherEarning")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("OvertimeAmount")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("PayrollRunId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TotalDeduction")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("UnpaidLeaveDays")
+                        .HasColumnType("numeric(6,2)");
+
+                    b.Property<decimal>("UnpaidLeaveDeduction")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Warning")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollRunId", "EmployeeId")
+                        .IsUnique();
+
+                    b.ToTable("PayrollRunLines");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PlattsMonthlyManual", b =>
                 {
                     b.Property<int>("Id")
@@ -6122,6 +7028,53 @@ namespace PTGOilSystem.Web.Migrations
                         .IsUnique();
 
                     b.ToTable("PlattsMonthlyManuals");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Position", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DepartmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Positions");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PreSaleOrder", b =>
@@ -6566,6 +7519,10 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("GrantedPermissions")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -8704,6 +9661,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "SalaryExpenseAccount")
+                        .WithMany()
+                        .HasForeignKey("SalaryExpenseAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Account", "SalesRevenueAccount")
                         .WithMany()
                         .HasForeignKey("SalesRevenueAccountId")
@@ -8767,6 +9729,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("PartnerCurrentAccount");
 
                     b.Navigation("RetainedEarningsAccount");
+
+                    b.Navigation("SalaryExpenseAccount");
 
                     b.Navigation("SalesRevenueAccount");
 
@@ -9303,6 +10267,24 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("CustomsDeclaration");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.DailyAttendance", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.LeaveRequest", "LeaveRequest")
+                        .WithMany()
+                        .HasForeignKey("LeaveRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("LeaveRequest");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.DailyPlattsPrice", b =>
                 {
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Product", "Product")
@@ -9329,6 +10311,85 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("TruckDispatch");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Employee", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Department", "DepartmentRef")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Position", "PositionRef")
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("DepartmentRef");
+
+                    b.Navigation("PositionRef");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmployeeCompensation", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.EmploymentContract", "EmploymentContract")
+                        .WithMany()
+                        .HasForeignKey("EmploymentContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("EmploymentContract");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmployeeDocument", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.HrAttachment", "Attachment")
+                        .WithMany()
+                        .HasForeignKey("AttachmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Attachment");
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmployeeLoan", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.EmployeeSalaryTransaction", "DisbursementTransaction")
+                        .WithMany()
+                        .HasForeignKey("DisbursementTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DisbursementTransaction");
+
+                    b.Navigation("Employee");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmployeeSalaryTransaction", b =>
                 {
                     b.HasOne("PTGOilSystem.Web.Models.Entities.CashAccount", "CashAccount")
@@ -9342,6 +10403,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.EmployeeLoan", "EmployeeLoan")
+                        .WithMany()
+                        .HasForeignKey("EmployeeLoanId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.LedgerEntry", "LedgerEntry")
                         .WithMany()
                         .HasForeignKey("LedgerEntryId")
@@ -9352,13 +10418,75 @@ namespace PTGOilSystem.Web.Migrations
                         .HasForeignKey("PaymentTransactionId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.PayrollRunLine", "PayrollRunLine")
+                        .WithMany()
+                        .HasForeignKey("PayrollRunLineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.LedgerEntry", "ReversalLedgerEntry")
+                        .WithMany()
+                        .HasForeignKey("ReversalLedgerEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.PaymentTransaction", "ReversalPaymentTransaction")
+                        .WithMany()
+                        .HasForeignKey("ReversalPaymentTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("CashAccount");
 
                     b.Navigation("Employee");
 
+                    b.Navigation("EmployeeLoan");
+
                     b.Navigation("LedgerEntry");
 
                     b.Navigation("PaymentTransaction");
+
+                    b.Navigation("PayrollRunLine");
+
+                    b.Navigation("ReversalLedgerEntry");
+
+                    b.Navigation("ReversalPaymentTransaction");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.EmploymentContract", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.HrAttachment", "Attachment")
+                        .WithMany()
+                        .HasForeignKey("AttachmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Position", "Position")
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.EmploymentContract", "RenewedFromContract")
+                        .WithMany()
+                        .HasForeignKey("RenewedFromContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Attachment");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("Position");
+
+                    b.Navigation("RenewedFromContract");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.ExpenseBatch", b =>
@@ -9641,6 +10769,17 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("ChangedByUser");
 
                     b.Navigation("FiscalYear");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.HrAttachment", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.InventoryAverageCost", b =>
@@ -10240,6 +11379,32 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Tank");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.LeaveRequest", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.HrAttachment", "Attachment")
+                        .WithMany()
+                        .HasForeignKey("AttachmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.LeaveType", "LeaveType")
+                        .WithMany()
+                        .HasForeignKey("LeaveTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Attachment");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("LeaveType");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.LedgerEntry", b =>
                 {
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Contract", "Contract")
@@ -10816,6 +11981,25 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("TruckDispatch");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PayrollRunLine", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.PayrollRun", "PayrollRun")
+                        .WithMany("Lines")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollRun");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PlattsMonthlyManual", b =>
                 {
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Product", "Product")
@@ -10825,6 +12009,16 @@ namespace PTGOilSystem.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Position", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Department", "Department")
+                        .WithMany("Positions")
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Department");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PreSaleOrder", b =>
@@ -11502,6 +12696,11 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Items");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Department", b =>
+                {
+                    b.Navigation("Positions");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Employee", b =>
                 {
                     b.Navigation("LedgerEntries");
@@ -11607,6 +12806,11 @@ namespace PTGOilSystem.Web.Migrations
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PaymentTransaction", b =>
                 {
                     b.Navigation("CustomerPaymentAllocations");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PayrollRun", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PreSaleOrder", b =>

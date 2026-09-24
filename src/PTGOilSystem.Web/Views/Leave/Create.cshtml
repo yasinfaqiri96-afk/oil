@@ -1,0 +1,90 @@
+@model PTGOilSystem.Web.Models.HumanResources.LeaveRequestFormViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "درخواست رخصتی", "Leave request");
+    var backUrl = Url.Action("Index") ?? "#";
+    var balances = ViewBag.Balances as IReadOnlyList<PTGOilSystem.Web.Services.HumanResources.LeaveBalance>;
+}
+
+<div class="ak-form-page">
+    <div class="ak-form-page-content">
+        <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+                 model="@((UiText.T(Context, "درخواست رخصتی", "Leave request"), false,
+                           (string?)null, (string?)null, (string?)null, (string?)null,
+                           UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)backUrl))" />
+
+        <form asp-action="Create" method="post" enctype="multipart/form-data" class="ak-form">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "مشخصات رخصتی", "Leave details"), (string?)UiText.T(Context, "روزهای رخصتی بدونِ رخصتیِ هفته و رخصتیِ رسمی شمرده می‌شود.", "Weekly days off and public holidays are not counted.")))" />
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="EmployeeId" class="ak-label"></label>
+                        <select asp-for="EmployeeId" asp-items="ViewBag.Employees" class="ak-input">
+                            <option value="0">@UiText.T(Context, "انتخاب کارمند", "Choose employee")</option>
+                        </select>
+                        <span asp-validation-for="EmployeeId" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="LeaveTypeId" class="ak-label"></label>
+                        <select asp-for="LeaveTypeId" asp-items="ViewBag.LeaveTypes" class="ak-input">
+                            <option value="0">@UiText.T(Context, "انتخاب نوع", "Choose type")</option>
+                        </select>
+                        <span asp-validation-for="LeaveTypeId" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="FromDate" class="ak-label"></label>
+                        <input asp-for="FromDate" class="ak-input" />
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="ToDate" class="ak-label"></label>
+                        <input asp-for="ToDate" class="ak-input" />
+                    </div>
+                    <div class="ak-toggle-field">
+                        <div class="form-check form-switch">
+                            <input asp-for="IsHalfDay" class="form-check-input" role="switch" />
+                            <label asp-for="IsHalfDay" class="form-check-label"></label>
+                        </div>
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Reason" class="ak-label"></label>
+                        <input asp-for="Reason" class="ak-input" />
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Attachment" class="ak-label"></label>
+                        <input asp-for="Attachment" type="file" class="ak-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" />
+                    </div>
+                </div>
+            </section>
+
+            @if (balances is { Count: > 0 })
+            {
+                <section class="ak-form-section">
+                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "ماندهٔ رخصتیِ امسال", "This year's balance"), (string?)null))" />
+                    <div class="ak-table-wrap">
+                        <table class="ak-table ak-detail-table">
+                            <thead><tr><th class="ak-col-grow">@UiText.T(Context, "نوع", "Type")</th><th class="ak-col-num">@UiText.T(Context, "سهمیه", "Allowance")</th><th class="ak-col-num">@UiText.T(Context, "استفاده", "Used")</th><th class="ak-col-num">@UiText.T(Context, "در انتظار", "Pending")</th><th class="ak-col-num">@UiText.T(Context, "مانده", "Remaining")</th></tr></thead>
+                            <tbody>
+                                @foreach (var b in balances)
+                                {
+                                    <tr>
+                                        <td class="ak-col-grow">@b.LeaveTypeName</td>
+                                        <td class="ak-num ak-col-num">@(b.AllowanceDays?.ToString("0.#") ?? "—")</td>
+                                        <td class="ak-num ak-col-num">@b.UsedDays.ToString("0.#")</td>
+                                        <td class="ak-num ak-col-num">@b.PendingDays.ToString("0.#")</td>
+                                        <td class="ak-num ak-col-num">@(b.RemainingDays?.ToString("0.#") ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
+
+            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                     model="@((UiText.T(Context, "ثبت درخواست", "Submit"), backUrl, UiText.T(Context, "انصراف", "Cancel")))" />
+        </form>
+    </div>
+</div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

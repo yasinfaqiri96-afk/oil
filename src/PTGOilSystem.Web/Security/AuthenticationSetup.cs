@@ -96,6 +96,14 @@ public static class AuthenticationSetup
             // بستن دورهٔ مالی گزارش‌های امضاشدهٔ گذشته را قفل می‌کند؛ همان سطحِ پشتیبان‌گیری.
             options.AddPolicy(AuthPolicies.OperationalPeriodAdmin,
                 policy => policy.RequireAssertion(context => RoleAccessRules.CanManageOperationalPeriodLock(context.User)));
+            options.AddPolicy(AuthPolicies.HrViewSalary,
+                policy => policy.RequireAssertion(context => RoleAccessRules.CanViewEmployeeSalary(context.User)));
+            options.AddPolicy(AuthPolicies.HrManageSalary,
+                policy => policy.RequireAssertion(context => RoleAccessRules.CanManageEmployeeSalary(context.User)));
+            options.AddPolicy(AuthPolicies.HrRunPayroll,
+                policy => policy.RequireAssertion(context => RoleAccessRules.CanRunPayroll(context.User)));
+            options.AddPolicy(AuthPolicies.HrPaySalary,
+                policy => policy.RequireAssertion(context => RoleAccessRules.CanPaySalary(context.User)));
             // API موبایل فقط Bearer را می‌پذیرد؛ کوکی مرورگر روی /api/mobile اعتبار ندارد (بدون سطح CSRF).
             options.AddPolicy(AuthPolicies.MobileApi,
                 policy => policy

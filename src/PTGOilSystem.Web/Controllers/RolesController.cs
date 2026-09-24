@@ -88,7 +88,8 @@ public class RolesController : Controller
             Description = normalizedDescription,
             CanManageData = model.CanManageData,
             CanManageUsers = model.CanManageUsers,
-            AllowedNavigationItems = RoleAccessRules.SerializeNavigation(allowedNavigation)
+            AllowedNavigationItems = RoleAccessRules.SerializeNavigation(allowedNavigation),
+            GrantedPermissions = RoleAccessRules.SerializeGrantedPermissions(model.GrantedPermissions)
         };
 
         _db.Roles.Add(role);
@@ -103,7 +104,8 @@ public class RolesController : Controller
                 ("Description", role.Description),
                 ("CanManageData", role.CanManageData),
                 ("CanManageUsers", role.CanManageUsers),
-                ("AllowedNavigationItems", role.AllowedNavigationItems)));
+                ("AllowedNavigationItems", role.AllowedNavigationItems),
+                ("GrantedPermissions", role.GrantedPermissions)));
 
         TempData["ok"] = "نقش جدید با موفقیت ثبت شد.";
         return RedirectToAction(nameof(Index));
@@ -117,6 +119,9 @@ public class RolesController : Controller
         ViewBag.UserCount = await _db.Users.CountAsync(u => u.RoleId == id);
         ViewBag.AllowedNavigationLabels = RoleAccessRules.ResolveNavigationForRole(role)
             .Select(key => RoleAccessRules.NavigationItems.FirstOrDefault(item => item.Key == key)?.Label ?? key)
+            .ToArray();
+        ViewBag.GrantedPermissionLabels = RoleAccessRules.ResolveGrantedPermissions(role)
+            .Select(key => RoleAccessRules.GrantablePermissions.First(p => p.Key == key).Label)
             .ToArray();
         return View(role);
     }
@@ -181,18 +186,24 @@ public class RolesController : Controller
         }
 
         var nextAllowedNavigation = RoleAccessRules.SerializeNavigation(allowedNavigation);
+        // نقش Admin همه را ضمنی دارد؛ ستونش خالی می‌ماند تا منبعِ دوم ساخته نشود.
+        var nextGrantedPermissions = isAdminRole
+            ? null
+            : RoleAccessRules.SerializeGrantedPermissions(model.GrantedPermissions);
         var diff = AuditDiffFormatter.ForUpdate(
             ("Name", role.Name, normalizedName),
             ("Description", role.Description, normalizedDescription),
             ("CanManageData", role.CanManageData, model.CanManageData),
             ("CanManageUsers", role.CanManageUsers, model.CanManageUsers),
-            ("AllowedNavigationItems", role.AllowedNavigationItems, nextAllowedNavigation));
+            ("AllowedNavigationItems", role.AllowedNavigationItems, nextAllowedNavigation),
+            ("GrantedPermissions", role.GrantedPermissions, nextGrantedPermissions));
 
         role.Name = isAdminRole ? AuthRoles.Admin : normalizedName;
         role.Description = normalizedDescription;
         role.CanManageData = model.CanManageData;
         role.CanManageUsers = model.CanManageUsers;
         role.AllowedNavigationItems = nextAllowedNavigation;
+        role.GrantedPermissions = nextGrantedPermissions;
 
         await _db.SaveChangesAsync();
         await _audit.LogAndSaveAsync(nameof(Role), role.Id, AuditAction.Update, diff: diff);
@@ -212,6 +223,7 @@ public class RolesController : Controller
             CanManageData = isAdminRole || role.CanManageData,
             CanManageUsers = isAdminRole || role.CanManageUsers,
             AllowedNavigationItems = RoleAccessRules.ResolveNavigationForRole(role).ToArray(),
+            GrantedPermissions = RoleAccessRules.ResolveGrantedPermissions(role),
             IsBuiltInAdmin = isAdminRole
         };
     }

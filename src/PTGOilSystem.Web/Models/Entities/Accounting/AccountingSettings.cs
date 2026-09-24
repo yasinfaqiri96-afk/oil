@@ -75,5 +75,12 @@ public class AccountingSettings : BaseEntity
     public int? AssetOperatingExpenseAccountId { get; set; }
     public Account? AssetOperatingExpenseAccount { get; set; }
 
+    /// <summary>
+    /// مصرف معاش (۵۷۰۰) — بدهکارِ سندِ ثبتِ معاش در برابرِ «بدهی به کارمند». Nullable مثل
+    /// <see cref="PartnerCurrentAccountId"/>: تا تعیین نشده، سندِ معاش با دلیلِ صریح Skip می‌شود.
+    /// </summary>
+    public int? SalaryExpenseAccountId { get; set; }
+    public Account? SalaryExpenseAccount { get; set; }
+
     public uint RowVersion { get; set; }
 }

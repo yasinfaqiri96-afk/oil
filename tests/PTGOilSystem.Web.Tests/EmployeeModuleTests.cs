@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +11,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Employees;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Reconciliation;
+using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Employees;
 using PTGOilSystem.Web.Services.Exceptions;
@@ -348,11 +350,19 @@ public class EmployeeModuleTests
             IsCancelled = isCancelled
         };
 
-    private static EmployeesController BuildEmployeesController(ApplicationDbContext db)
-        => new(db, new AuditService(db), BuildSalaryService(db), new TestWebHostEnvironment())
+    // پیش‌فرض: کاربرِ Admin (همهٔ دسترسی‌های معاش). تست‌های دسترسی کاربرِ خودشان را می‌دهند.
+    internal static EmployeesController BuildEmployeesController(ApplicationDbContext db, ClaimsPrincipal? user = null)
+    {
+        var httpContext = new DefaultHttpContext
         {
-            TempData = new TempDataDictionary(new DefaultHttpContext(), new TestTempDataProvider())
+            User = user ?? new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, AuthRoles.Admin)], "Test"))
         };
+        return new(db, new AuditService(db), BuildSalaryService(db), new TestWebHostEnvironment())
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext },
+            TempData = new TempDataDictionary(httpContext, new TestTempDataProvider())
+        };
+    }
 
     private sealed class TestWebHostEnvironment : IWebHostEnvironment
     {
@@ -364,19 +374,19 @@ public class EmployeeModuleTests
         public string EnvironmentName { get; set; } = "Testing";
     }
 
-    private static EmployeeSalaryService BuildSalaryService(ApplicationDbContext db)
+    internal static EmployeeSalaryService BuildSalaryService(ApplicationDbContext db)
         => new(
             db,
             new CurrencyConversionService(new PricingService(db)),
             new AuditService(db),
             NullLogger<EmployeeSalaryService>.Instance);
 
-    private static DbContextOptions<ApplicationDbContext> NewDbOptions()
+    internal static DbContextOptions<ApplicationDbContext> NewDbOptions()
         => new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
-    private static void SeedReferenceData(ApplicationDbContext db)
+    internal static void SeedReferenceData(ApplicationDbContext db)
     {
         db.Currencies.Add(new Currency { Id = 1, Code = "USD", Name = "US Dollar", Symbol = "$", IsActive = true });
         db.CashAccounts.Add(new CashAccount

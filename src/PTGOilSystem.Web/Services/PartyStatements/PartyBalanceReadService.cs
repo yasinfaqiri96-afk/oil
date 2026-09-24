@@ -720,7 +720,11 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
         ManagementReportFilterViewModel filter,
         CancellationToken ct)
     {
-        var query = _db.EmployeeSalaryTransactions.AsNoTracking().Where(t => !t.IsCancelled);
+        // وصولِ مساعده ماندهٔ خالص را عوض نمی‌کند (فقط بدهی معاش را با طلب مساعده تهاتر می‌کند).
+        var query = _db.EmployeeSalaryTransactions.AsNoTracking()
+            .Where(t => !t.IsCancelled
+                && t.TransactionType != EmployeeSalaryTransactionType.AdvanceRecovery
+                && t.TransactionType != EmployeeSalaryTransactionType.LoanRecovery);
         if (filter.ToDate.HasValue)
         {
             var end = filter.ToDate.Value.Date.AddDays(1);

@@ -40,6 +40,11 @@ public static class UserClaimsFactory
             claims.Add(new Claim(AppClaimTypes.Permission, AppPermissions.ManageUsers));
         }
 
+        foreach (var permission in RoleAccessRules.ResolveGrantedPermissions(user.Role))
+        {
+            claims.Add(new Claim(AppClaimTypes.Permission, permission));
+        }
+
         return claims;
     }
 

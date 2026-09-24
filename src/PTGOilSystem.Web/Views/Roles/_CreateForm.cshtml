@@ -4,6 +4,8 @@
     var navigationItems = ViewData["RoleNavigationItems"] as IEnumerable<RoleNavigationItem> ?? RoleAccessRules.NavigationItems;
     var selectedNavigation = (Model.AllowedNavigationItems ?? Array.Empty<string>())
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var selectedPermissions = (Model.GrantedPermissions ?? Array.Empty<string>())
+        .ToHashSet(StringComparer.Ordinal);
 }
 
 @Html.AntiForgeryToken()
@@ -43,6 +45,23 @@
                 <input asp-for="CanManageUsers" class="form-check-input" role="switch" />
             </span>
         </label>
+    </div>
+
+    <div class="ak-role-permission-grid" aria-label="@UiText.T(Context, "دسترسی‌های معاش و مدیریت بشری", "Salary & HR permissions")">
+        @foreach (var permission in RoleAccessRules.GrantablePermissions)
+        {
+            <label class="ak-role-permission" title="@permission.Hint">
+                <span><strong>@UiText.T(Context, permission.Label, permission.LabelEn)</strong></span>
+                <span class="form-check form-switch">
+                    <input type="checkbox"
+                           class="form-check-input"
+                           role="switch"
+                           name="GrantedPermissions"
+                           value="@permission.Key"
+                           checked="@(selectedPermissions.Contains(permission.Key) ? "checked" : null)" />
+                </span>
+            </label>
+        }
     </div>
 
     <div class="ak-role-nav-grid" aria-label="@UiText.T(Context, "بخش‌های قابل نمایش", "Visible sections")">

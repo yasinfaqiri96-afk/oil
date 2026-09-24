@@ -36,7 +36,26 @@ public enum PaymentAccountingEventKind
     /// <see cref="ExpenseAccountingAdapter"/> credited when their expense was accrued, so it is
     /// gated on the same ExpensePayment pilot even though the legacy kind is a different one.
     /// </summary>
-    ServiceProviderPayment = 8
+    ServiceProviderPayment = 8,
+
+    /// <summary>
+    /// Salary paid to an employee. Settles the Employee Payable that the salary accrual (or the
+    /// finalized payroll) credited, so it is gated on the EmployeeSalary pilot together with it.
+    /// </summary>
+    EmployeeSalaryPayment = 9,
+
+    /// <summary>Money advanced to an employee, carried as a receivable until payroll recovers it.</summary>
+    EmployeeAdvance = 10,
+
+    /// <summary>
+    /// An interest-free loan paid out to an employee. There is no dedicated loan receivable account
+    /// in the settings; the loan rides on the employee receivable (Employee Advance) control
+    /// account with the employee as party, like an advance.
+    /// </summary>
+    EmployeeLoan = 11,
+
+    /// <summary>The employee paying a loan back in cash.</summary>
+    EmployeeLoanRepayment = 12
 }
 
 public sealed record PaymentAccountingResult(
@@ -82,6 +101,16 @@ public interface IPaymentAccountingAdapter
 /// otherwise from that party type's control account, never from the description:
 ///   ServiceProviderPayment  Dr &lt;service provider payable&gt;  Cr Cash/Bank
 ///
+/// Employee cash flows (EmployeeSalary pilot):
+///   EmployeeSalaryPayment   Dr Employee Payable      Cr Cash/Bank   (party = employee)
+///   EmployeeAdvance         Dr Employee Advance      Cr Cash/Bank   (party = employee)
+///   EmployeeLoan            Dr Employee Advance      Cr Cash/Bank   (party = employee)
+///   EmployeeLoanRepayment   Dr Cash/Bank             Cr Employee Advance (party = employee)
+/// The salary expense is never recognised here: it was recognised once, when the salary was
+/// accrued. A payment only moves the liability to cash, so it can never double-count the expense.
+/// Employees carry no company of their own; in this single-company system the salary is always
+/// the owner company's, which is also the only company the posting service accepts.
+///
 /// Partner-funded and partner-held money never touches the company's cash. When
 /// <see cref="PaymentTransaction.FundingSource"/> is Partner, the cash side of every mapping above
 /// is replaced by the partner current control account carrying PartyType Partner and the paying
@@ -94,7 +123,7 @@ public interface IPaymentAccountingAdapter
 /// The cash line always carries CashAccountId; the party line always carries PartyType/PartyId
 /// plus the contract/shipment dimensions when the legacy payment supplies them.
 ///
-/// Ambiguous kinds (ManualPayment, ManualReceipt, truck/employee/service-provider flows) are
+/// Ambiguous kinds (ManualPayment, ManualReceipt, truck flows, EmployeeReturn) are
 /// deliberately not mapped here: they are skipped with UNSUPPORTED_PAYMENT_KIND and stay
 /// legacy-only until their own stage defines a proven mapping.
 ///
@@ -108,7 +137,8 @@ public sealed class PaymentAccountingAdapter(
     IPaymentCompanyResolver companyResolver,
     IExpenseAccountingAdapter expenseAccounting,
     IOptions<AccountingOptions> options,
-    ILogger<PaymentAccountingAdapter> logger)
+    ILogger<PaymentAccountingAdapter> logger,
+    ISystemCompanyProvider? systemCompany = null)
     : IPaymentAccountingAdapter
 {
     public const string SourceModule = "Payment";
@@ -261,7 +291,7 @@ public sealed class PaymentAccountingAdapter(
         if (!_options.Enabled)
             return new PaymentAccountingResult(PaymentPostingStatus.Skipped, null, "ACCOUNTING_DISABLED");
 
-        var companyId = await companyResolver.ResolveAsync(payment, cancellationToken);
+        var companyId = await ResolvePaymentCompanyAsync(payment, cancellationToken);
         if (companyId is null)
             return new PaymentAccountingResult(PaymentPostingStatus.Skipped, null, "PAYMENT_COMPANY_UNKNOWN");
 
@@ -328,6 +358,10 @@ public sealed class PaymentAccountingAdapter(
             PaymentKind.ExpensePayment => PaymentAccountingEventKind.ExpensePayment,
             PaymentKind.CommissionPayment => PaymentAccountingEventKind.CommissionPayment,
             PaymentKind.ServiceProviderPayment => PaymentAccountingEventKind.ServiceProviderPayment,
+            PaymentKind.EmployeeSalaryPayment => PaymentAccountingEventKind.EmployeeSalaryPayment,
+            PaymentKind.EmployeeSalaryAdvance => PaymentAccountingEventKind.EmployeeAdvance,
+            PaymentKind.EmployeeLoan => PaymentAccountingEventKind.EmployeeLoan,
+            PaymentKind.EmployeeLoanRepayment => PaymentAccountingEventKind.EmployeeLoanRepayment,
             _ => null
         };
 
@@ -343,8 +377,33 @@ public sealed class PaymentAccountingAdapter(
             PaymentAccountingEventKind.CommissionPayment => _options.Pilots.CommissionPayment,
             // Settles the very payable ExpenseAccountingAdapter accrued, so it rides the same flag.
             PaymentAccountingEventKind.ServiceProviderPayment => _options.Pilots.ExpensePayment,
+            PaymentAccountingEventKind.EmployeeSalaryPayment or PaymentAccountingEventKind.EmployeeAdvance
+                or PaymentAccountingEventKind.EmployeeLoan or PaymentAccountingEventKind.EmployeeLoanRepayment
+                => _options.Pilots.EmployeeSalary,
             _ => false
         };
+
+    private static bool IsEmployeeEvent(PaymentAccountingEventKind? eventKind)
+        => eventKind is PaymentAccountingEventKind.EmployeeSalaryPayment
+            or PaymentAccountingEventKind.EmployeeAdvance
+            or PaymentAccountingEventKind.EmployeeLoan
+            or PaymentAccountingEventKind.EmployeeLoanRepayment;
+
+    /// <summary>
+    /// The shared resolver first, unchanged. Only an employee's salary or advance — which never
+    /// carries a contract or shipment — falls back to the owner company, the single company that
+    /// employs staff here and the only one the posting service accepts.
+    /// </summary>
+    private async Task<int?> ResolvePaymentCompanyAsync(
+        PaymentTransaction payment,
+        CancellationToken cancellationToken)
+    {
+        var companyId = await companyResolver.ResolveAsync(payment, cancellationToken);
+        if (companyId.HasValue || systemCompany is null || !IsEmployeeEvent(ResolveEventKind(payment)))
+            return companyId;
+
+        return await systemCompany.FindOwnerCompanyIdAsync(cancellationToken);
+    }
 
     /// <summary>
     /// The liability an expense-settling payment must debit, resolved from the expense that
@@ -402,6 +461,11 @@ public sealed class PaymentAccountingAdapter(
                 (settings.SupplierPrepaymentAccountId, AccountingPartyType.Supplier, payment.SupplierId!.Value),
             PaymentAccountingEventKind.SarrafCashPayment =>
                 (settings.AccountsPayableAccountId, AccountingPartyType.Sarraf, payment.SarrafId!.Value),
+            PaymentAccountingEventKind.EmployeeSalaryPayment =>
+                (settings.EmployeePayableAccountId, AccountingPartyType.Employee, payment.EmployeeId!.Value),
+            PaymentAccountingEventKind.EmployeeAdvance or PaymentAccountingEventKind.EmployeeLoan
+                or PaymentAccountingEventKind.EmployeeLoanRepayment =>
+                (settings.EmployeeAdvanceAccountId, AccountingPartyType.Employee, payment.EmployeeId!.Value),
             _ => throw new InvalidOperationException($"Unmapped accounting event kind {eventKind}.")
         };
 
@@ -480,7 +544,8 @@ public sealed class PaymentAccountingAdapter(
 
     private static bool IsCashInflow(PaymentAccountingEventKind eventKind)
         => eventKind is PaymentAccountingEventKind.CustomerReceipt
-            or PaymentAccountingEventKind.CustomerAdvance;
+            or PaymentAccountingEventKind.CustomerAdvance
+            or PaymentAccountingEventKind.EmployeeLoanRepayment;
 
     /// <summary>
     /// Kinds whose debit is a payable resolved from what accrued it, rather than a party account
@@ -524,6 +589,9 @@ public sealed class PaymentAccountingAdapter(
                     => payment.SupplierId.HasValue,
                 PaymentAccountingEventKind.SarrafCashPayment => payment.SarrafId.HasValue,
                 PaymentAccountingEventKind.ServiceProviderPayment => payment.ServiceProviderId.HasValue,
+                PaymentAccountingEventKind.EmployeeSalaryPayment or PaymentAccountingEventKind.EmployeeAdvance
+                    or PaymentAccountingEventKind.EmployeeLoan or PaymentAccountingEventKind.EmployeeLoanRepayment
+                    => payment.EmployeeId.HasValue,
                 _ => false
             };
             if (!partyIsPresent)
@@ -551,7 +619,20 @@ public sealed class PaymentAccountingAdapter(
         if (payment.AmountUsd != expectedUsd)
             return (0, "INVALID_PAYMENT_CONVERSION", null);
 
-        var companyId = await companyResolver.ResolveAsync(payment, cancellationToken);
+        // A salary/advance whose salary transaction was cancelled must never reach the journal —
+        // not even through the backfill, which would otherwise post it without its reversal.
+        if (IsEmployeeEvent(eventKind)
+            && await db.EmployeeSalaryTransactions.AsNoTracking()
+                .AnyAsync(t => t.PaymentTransactionId == payment.Id && t.IsCancelled, cancellationToken))
+            return (0, "EMPLOYEE_SALARY_CANCELLED", null);
+
+        // سندِ معکوسِ لغو خودش ژورنال نمی‌گیرد: لغو، ژورنالِ سندِ اصلی را برمی‌گرداند.
+        if (IsEmployeeEvent(eventKind)
+            && await db.EmployeeSalaryTransactions.AsNoTracking()
+                .AnyAsync(t => t.ReversalPaymentTransactionId == payment.Id, cancellationToken))
+            return (0, "EMPLOYEE_SALARY_REVERSAL_COUNTERPART", null);
+
+        var companyId = await ResolvePaymentCompanyAsync(payment, cancellationToken);
         if (companyId is null)
             return (0, "PAYMENT_COMPANY_UNKNOWN", null);
 
@@ -713,6 +794,10 @@ public sealed class PaymentAccountingAdapter(
             PaymentAccountingEventKind.SupplierPrepayment => "Supplier prepayment made",
             PaymentAccountingEventKind.SarrafCashPayment => "Sarraf payable settled",
             PaymentAccountingEventKind.ServiceProviderPayment => "Service provider payable settled",
+            PaymentAccountingEventKind.EmployeeSalaryPayment => "Employee salary payable settled",
+            PaymentAccountingEventKind.EmployeeAdvance => "Employee advance made",
+            PaymentAccountingEventKind.EmployeeLoan => "Employee loan made",
+            PaymentAccountingEventKind.EmployeeLoanRepayment => "Employee loan repaid",
             _ => "Payment party movement"
         };
 
