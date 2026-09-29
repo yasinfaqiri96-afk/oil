@@ -936,6 +936,47 @@ public sealed class PartyStatementReadServiceTests
     }
 
     [Fact]
+    public async Task SupplierContractGrouping_ReversedLoading_NetsConfirmedValueToZero()
+    {
+        await using var db = CreateDb();
+        var company = new Company { Code = "C1", Name = "Company 1" };
+        var supplier = new Supplier { Name = "NIOC" };
+        db.AddRange(company, supplier);
+        await db.SaveChangesAsync();
+        var contract = new Contract
+        {
+            ContractNumber = "P-003",
+            ContractType = ContractType.Purchase,
+            CompanyId = company.Id,
+            SupplierId = supplier.Id,
+            QuantityMt = 20_000m,
+            PricingMethod = PricingMethod.Fixed,
+            UnitPriceUsd = 885m
+        };
+        db.Add(contract);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.AddRange(
+            // بارگیریِ حذف‌شده: سطر اصلی دست‌نخورده + سطر جبرانیِ LedgerReversalWriter با پسوند -CANCEL.
+            new LedgerEntry { EntryDate = new DateTime(2026, 9, 19), Side = LedgerSide.Credit, AmountUsd = 27_435.885m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "Loading", SourceId = 1378, Reference = "102267", Description = "loading" },
+            new LedgerEntry { EntryDate = new DateTime(2026, 9, 29), Side = LedgerSide.Debit, AmountUsd = 27_435.885m, Currency = "USD", SupplierId = supplier.Id, ContractId = contract.Id, SourceType = "Loading", SourceId = 1378, Reference = "102267-CANCEL", Description = "Reversal for deleted erroneous loading #1378" });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Supplier, supplier.Id),
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+
+        var grouping = SupplierContractStatementBuilder.Build(
+            statement,
+            new Dictionary<int, SupplierContractStatementBuilder.ContractFacts>());
+
+        var row = Assert.Single(grouping.Rows);
+        Assert.Equal(0m, row.ConfirmedValue);
+        Assert.Equal(0m, row.Balance);
+        Assert.Equal(0m, grouping.TotalConfirmedValue);
+        Assert.Equal(0m, statement.Summary.ClosingBalance);
+    }
+
+    [Fact]
     public async Task ServiceProviderStatement_MergesOneServiceOnOneShipment_IntoASingleTotalRow()
     {
         await using var db = CreateDb();

@@ -42,15 +42,17 @@ public static class SupplierContractStatementBuilder
                 LastDate = g.Max(r => r.Date),
                 Receipt = g.Sum(r => r.ReceiptBase ?? 0m),
                 Outflow = g.Sum(r => r.OutflowBase ?? 0m),
+                // سطرِ برگشت (-CANCEL) همان مبلغ را در ستونِ مقابل دارد؛ جمعِ بی‌جهت آن را
+                // به‌جای خنثی‌کردن، دو بار می‌شمرد. پس برگشت از ارزشِ بارگیری/فروش کم می‌شود.
                 ConfirmedValue = g.Where(IsConfirmedOperation)
-                    .Sum(r => (r.ReceiptBase ?? 0m) + (r.OutflowBase ?? 0m)),
+                    .Sum(r => ConfirmedSign(r) * ((r.ReceiptBase ?? 0m) + (r.OutflowBase ?? 0m))),
                 // «پرداخت / دریافت» خالص است، نه جمعِ بی‌جهت. جمعِ بی‌جهت یک انتقال داخلی
                 // را دو بار می‌شمرد: یک بار به‌عنوان خروج از پیش‌پرداخت آزاد و یک بار
                 // به‌عنوان ورود به قرارداد — و پای برگشتی را هم به‌جای کم‌کردن، اضافه می‌کرد.
                 SettlementTotal = g.Where(r => !IsConfirmedOperation(r))
                     .Sum(r => (r.OutflowBase ?? 0m) - (r.ReceiptBase ?? 0m)),
                 ConfirmedValueRub = g.Where(IsConfirmedOperation).Any(r => r.ReceiptRub.HasValue || r.OutflowRub.HasValue)
-                    ? g.Where(IsConfirmedOperation).Sum(r => (r.ReceiptRub ?? 0m) + (r.OutflowRub ?? 0m))
+                    ? g.Where(IsConfirmedOperation).Sum(r => ConfirmedSign(r) * ((r.ReceiptRub ?? 0m) + (r.OutflowRub ?? 0m)))
                     : (decimal?)null,
                 SettlementTotalRub = g.Where(r => !IsConfirmedOperation(r)).Any(r => r.ReceiptRub.HasValue || r.OutflowRub.HasValue)
                     ? g.Where(r => !IsConfirmedOperation(r)).Sum(r => (r.OutflowRub ?? 0m) - (r.ReceiptRub ?? 0m))
@@ -221,4 +223,7 @@ public static class SupplierContractStatementBuilder
 
     private static bool IsConfirmedOperation(PartyStatementRow row)
         => row.SourceType is "Loading" or "Sale";
+
+    private static decimal ConfirmedSign(PartyStatementRow row)
+        => row.IsReversalRow ? -1m : 1m;
 }
