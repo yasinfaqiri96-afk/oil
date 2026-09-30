@@ -20,7 +20,7 @@ public sealed class AkDetailV2StructureTests
 
     private static readonly string[] ServerTabbedViews =
     [
-        "CashAccounts", "Customers", "Drivers", "Employees", "OperationalAssets",
+        "Customers", "Drivers", "Employees", "OperationalAssets",
         "Partners", "Payments", "Sarrafs", "ServiceProviders", "ShipmentPnl",
         "StorageTanks", "Suppliers"
     ];

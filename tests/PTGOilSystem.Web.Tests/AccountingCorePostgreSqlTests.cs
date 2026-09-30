@@ -337,8 +337,8 @@ public sealed class AccountingCorePostgreSqlTests(AccountingPostgreSqlFixture fi
         await seeder.SeedAsync();
         await seeder.SeedAsync();
 
-        // ۲۷ = ۲۶ حساب استاندارد + حساب جاری شرکا (۳۳۰۰).
-        Assert.Equal(27, await db.Accounts.CountAsync(x => x.CompanyId == company.Id));
+        // ۲۸ = ۲۶ حساب استاندارد + حساب جاری شرکا (۳۳۰۰) + هزینهٔ معاش (۵۷۰۰).
+        Assert.Equal(28, await db.Accounts.CountAsync(x => x.CompanyId == company.Id));
         Assert.Equal(1, await db.AccountingSettings.CountAsync(x => x.CompanyId == company.Id));
 
         var settings = await db.AccountingSettings.SingleAsync(x => x.CompanyId == company.Id);
