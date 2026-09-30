@@ -195,8 +195,11 @@ public class HrReportsController : Controller
 
     private async Task<HrReportTable> PaymentsAsync(DateTime from, DateTime to)
     {
+        // TransactionDate ستونِ timestamptz است؛ Npgsql پارامترِ Kind=Unspecified را رد می‌کند، و پایانِ بازه تا آخرِ همان روز است.
+        var fromUtc = DateTime.SpecifyKind(from.Date, DateTimeKind.Utc);
+        var endExclusive = DateTime.SpecifyKind(to.Date.AddDays(1), DateTimeKind.Utc);
         var rows = await _db.EmployeeSalaryTransactions.AsNoTracking()
-            .Where(t => t.TransactionType == EmployeeSalaryTransactionType.SalaryPayment && !t.IsCancelled && t.TransactionDate >= from && t.TransactionDate <= to)
+            .Where(t => t.TransactionType == EmployeeSalaryTransactionType.SalaryPayment && !t.IsCancelled && t.TransactionDate >= fromUtc && t.TransactionDate < endExclusive)
             .OrderBy(t => t.TransactionDate)
             .Select(t => new { t.TransactionDate, t.Employee!.EmployeeCode, t.Employee.FullName, t.Amount, t.Currency, t.AmountUsd, Cash = t.CashAccount != null ? t.CashAccount.Name : null, t.Reference })
             .ToListAsync();
