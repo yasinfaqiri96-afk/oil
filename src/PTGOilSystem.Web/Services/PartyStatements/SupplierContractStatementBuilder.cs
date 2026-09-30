@@ -61,6 +61,13 @@ public static class SupplierContractStatementBuilder
                     .Select(r => (r.SourceType, r.SourceId))
                     .Distinct()
                     .Count(),
+                ActiveLoadingCount = CountActiveOperations(g),
+                ReversedLoadingCount = g.Where(r => IsConfirmedOperation(r) && r.IsReversalRow)
+                    .Select(r => (r.SourceType, r.SourceId))
+                    .Distinct()
+                    .Count(),
+                OperationLabel = g.Where(IsConfirmedOperation).Any()
+                    && g.Where(IsConfirmedOperation).All(r => r.SourceType == "Sale") ? "فروش" : "بارگیری",
                 ReceiptRub = g.Any(r => r.ReceiptRub.HasValue) ? g.Sum(r => r.ReceiptRub ?? 0m) : (decimal?)null,
                 OutflowRub = g.Any(r => r.OutflowRub.HasValue) ? g.Sum(r => r.OutflowRub ?? 0m) : (decimal?)null
             })
@@ -106,6 +113,9 @@ public static class SupplierContractStatementBuilder
                 ConfirmedValueRub = g.ConfirmedValueRub,
                 SettlementTotalRub = g.SettlementTotalRub,
                 LoadingCount = g.LoadingCount,
+                ActiveLoadingCount = g.ActiveLoadingCount,
+                ReversedLoadingCount = g.ReversedLoadingCount,
+                OperationLabel = g.OperationLabel,
                 Receipt = g.Receipt,
                 Outflow = g.Outflow,
                 Balance = g.Outflow - g.Receipt,
@@ -152,10 +162,19 @@ public static class SupplierContractStatementBuilder
         var openingRow = statement.Rows.FirstOrDefault(r => r.IsOpeningBalance);
         var periodRows = statement.Rows.Where(r => !r.IsOpeningBalance).ToList();
         var independent = periodRows.Where(r => !IsConfirmedOperation(r) || !r.ContractId.HasValue).ToList();
-        var aggregates = periodRows
-            .Where(r => IsConfirmedOperation(r) && r.ContractId.HasValue)
-            .GroupBy(r => r.ContractId!.Value)
-            .Select(BuildOperationAggregate)
+        // اصلِ بارگیری/فروش و برگشتِ آن دو سطرِ جدا می‌شوند تا مبلغ برگشت‌شده با بارگیریِ
+        // فعال یکی دیده نشود. جمع دوره و بیلانس نهایی تغییر نمی‌کند.
+        var operationRows = periodRows.Where(r => IsConfirmedOperation(r) && r.ContractId.HasValue).ToList();
+        var contractsWithReversal = operationRows.Where(r => r.IsReversalRow)
+            .Select(r => r.ContractId!.Value)
+            .ToHashSet();
+        var aggregates = operationRows
+            .GroupBy(r => (ContractId: r.ContractId!.Value, r.IsReversalRow))
+            .Select(g => BuildOperationAggregate(
+                g.Key.ContractId,
+                g.Key.IsReversalRow,
+                contractsWithReversal.Contains(g.Key.ContractId),
+                g.ToList()))
             .ToList();
 
         var ordered = independent.Concat(aggregates)
@@ -191,9 +210,12 @@ public static class SupplierContractStatementBuilder
         return result;
     }
 
-    private static PartyStatementRow BuildOperationAggregate(IGrouping<int, PartyStatementRow> group)
+    private static PartyStatementRow BuildOperationAggregate(
+        int contractId,
+        bool isReversal,
+        bool contractHasReversal,
+        List<PartyStatementRow> rows)
     {
-        var rows = group.ToList();
         var first = rows.OrderBy(r => r.Date).ThenBy(r => r.PostingSequence).First();
         var last = rows.OrderByDescending(r => r.Date).ThenByDescending(r => r.PostingSequence).First();
         var loadingLabel = rows.All(r => r.SourceType == "Sale") ? "فروش/تحویل" : "بارگیری";
@@ -205,7 +227,13 @@ public static class SupplierContractStatementBuilder
             Date = last.Date,
             CreatedAtUtc = last.CreatedAtUtc,
             Reference = last.ContractNumber ?? first.Reference,
-            Description = $"مجموع {rows.Count:N0} سند {loadingLabel} قرارداد {last.ContractNumber ?? group.Key.ToString()}",
+            // قراردادِ بدون برگشت همان شرح قبلی را نگه می‌دارد؛ قرارداد دارای برگشت،
+            // «مجموع N بارگیری» و «برگشت N بارگیری» را جدا نشان می‌دهد.
+            Description = isReversal
+                ? $"برگشت {rows.Count:N0} {loadingLabel}"
+                : contractHasReversal
+                    ? $"مجموع {rows.Count:N0} {loadingLabel}"
+                    : $"مجموع {rows.Count:N0} سند {loadingLabel} قرارداد {last.ContractNumber ?? contractId.ToString()}",
             ReceiptBase = rows.Sum(r => r.ReceiptBase ?? 0m),
             OutflowBase = rows.Sum(r => r.OutflowBase ?? 0m),
             ReceiptRub = receiptRubKnown ? rows.Sum(r => r.ReceiptRub ?? 0m) : null,
@@ -214,12 +242,19 @@ public static class SupplierContractStatementBuilder
             Quantity = rows.Any(r => r.Quantity.HasValue) ? rows.Sum(r => r.Quantity ?? 0m) : null,
             QuantityUnit = rows.Select(r => r.QuantityUnit).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
             SourceType = "ContractOperations",
-            SourceId = group.Key,
+            SourceId = contractId,
             PostingSequence = rows.Min(r => r.PostingSequence),
-            ContractId = group.Key,
+            ContractId = contractId,
+            IsReversalRow = isReversal,
             ContractNumber = last.ContractNumber ?? first.ContractNumber
         };
     }
+
+    // سندی فعال است که شمار سطرهای اصلی‌اش از سطرهای برگشتش بیشتر باشد.
+    private static int CountActiveOperations(IEnumerable<PartyStatementRow> rows)
+        => rows.Where(IsConfirmedOperation)
+            .GroupBy(r => (r.SourceType, r.SourceId))
+            .Count(k => k.Count(r => !r.IsReversalRow) > k.Count(r => r.IsReversalRow));
 
     private static bool IsConfirmedOperation(PartyStatementRow row)
         => row.SourceType is "Loading" or "Sale";

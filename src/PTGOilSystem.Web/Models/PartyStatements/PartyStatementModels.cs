@@ -317,6 +317,12 @@ public sealed class PartyStatementViewModel
     /// <summary>در این دوره دست‌کم یک سند به قرارداد وصل است.</summary>
     public bool HasContractRows { get; init; }
 
+    /// <summary>
+    /// شمار بارگیری‌های برگشت‌شدهٔ همین دوره، پیش از فشرده‌سازی. فقط برای توضیح زیر
+    /// خلاصه است و در هیچ جمع یا بیلانسی وارد نمی‌شود.
+    /// </summary>
+    public int ReversedLoadingCount { get; init; }
+
     public bool ShowSupplierViewTabs => ShowContractViewTabs;
 
     // تب خلاصهٔ «قراردادها» فقط برای تأمین‌کننده و شریک، و فقط وقتی در این دوره دست‌کم یک
@@ -433,6 +439,10 @@ public sealed class SupplierContractStatementRow
     public decimal? ConfirmedValueRub { get; init; }
     public decimal? SettlementTotalRub { get; init; }
     public int LoadingCount { get; init; }
+    // فقط نمایشی: سندهای بارگیری/فروشِ این قرارداد که هنوز فعال‌اند و آن‌هایی که برگشت شده‌اند.
+    public int ActiveLoadingCount { get; init; }
+    public int ReversedLoadingCount { get; init; }
+    public string OperationLabel { get; init; } = "بارگیری";
     public decimal Receipt { get; init; }
     public decimal Outflow { get; init; }
     public decimal Balance { get; init; }

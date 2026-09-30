@@ -974,6 +974,22 @@ public sealed class PartyStatementReadServiceTests
         Assert.Equal(0m, row.Balance);
         Assert.Equal(0m, grouping.TotalConfirmedValue);
         Assert.Equal(0m, statement.Summary.ClosingBalance);
+        Assert.Equal(0, row.ActiveLoadingCount);
+        Assert.Equal(1, row.ReversedLoadingCount);
+
+        // نمای فشرده: اصل و برگشت دو سطرِ جدا؛ جمع‌ها و بیلانس نهایی همان می‌ماند.
+        var compact = SupplierContractStatementBuilder.BuildCompactLedgerRows(statement);
+        var operations = compact.Where(r => r.SourceType == "ContractOperations").ToList();
+        Assert.Equal(2, operations.Count);
+        var original = Assert.Single(operations, r => !r.IsReversalRow);
+        var reversal = Assert.Single(operations, r => r.IsReversalRow);
+        Assert.Equal(27_435.885m, original.ReceiptBase);
+        Assert.Equal(27_435.885m, reversal.OutflowBase);
+        Assert.Equal("برگشت 1 بارگیری", reversal.Description);
+        Assert.Equal("مجموع 1 بارگیری", original.Description);
+        Assert.Equal(0m, compact[^1].RunningBalance);
+        Assert.Equal(statement.Summary.TotalReceipt, compact.Sum(r => r.ReceiptBase ?? 0m));
+        Assert.Equal(statement.Summary.TotalOutflow, compact.Sum(r => r.OutflowBase ?? 0m));
     }
 
     [Fact]

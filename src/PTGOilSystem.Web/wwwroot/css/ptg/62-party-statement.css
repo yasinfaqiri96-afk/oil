@@ -104,7 +104,7 @@
 
 .statement-summary {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.4fr);
     border-bottom: 1px solid var(--statement-line);
 }
 
@@ -119,6 +119,18 @@
 .statement-summary-item strong { display: inline-block; margin-top: 5px; font-size: 16px; font-variant-numeric: tabular-nums; direction: ltr; }
 .statement-summary-item span { margin-inline-start: 5px; color: var(--statement-muted); font-size: 11px; font-weight: 700; }
 .statement-summary-item.is-current { background: color-mix(in srgb, var(--ptg-primary) 5%, transparent); }
+/* بیلانس فعلی عدد تصمیم‌ساز است؛ ستون پهن‌تر و عدد بزرگ‌تر، با همان رنگ‌ها. */
+.statement-summary-item.is-current strong { font-size: 22px; font-weight: 800; }
+
+/* توضیح کوتاه زیر مجموع‌ها، فقط وقتی بارگیری برگشت‌شده در دوره است. */
+.statement-summary-note {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 8px 18px;
+    border-top: 1px solid var(--statement-line);
+    color: var(--statement-muted);
+    font-size: 12px;
+}
 
 .statement-view-tabs {
     display: flex;
@@ -159,6 +171,8 @@
 .statement-ref a { color: var(--ptg-primary); text-decoration: none; }
 .statement-ref a:hover { text-decoration: underline; }
 .statement-description { line-height: 1.65; }
+.statement-row-status { margin-inline-end: 6px; vertical-align: middle; }
+.statement-operation-counts { direction: rtl; text-align: start; white-space: normal; }
 .statement-money { text-align: end; }
 .statement-receipt { color: var(--ptg-success-text); }
 .statement-outflow { color: var(--ptg-danger-text); }
@@ -220,6 +234,7 @@
     .statement-summary-item:nth-child(3) { border-top: 1px solid var(--statement-line); }
     .statement-summary-item:nth-child(4) { border-top: 1px solid var(--statement-line); }
     .statement-summary-item strong { font-size: 16px; }
+    .statement-summary-item.is-current strong { font-size: 20px; }
 }
 
 @page statement-normal { size: A4 portrait; margin: 11mm; }
@@ -238,6 +253,7 @@
     .statement-summary { border: 1px solid var(--ptg-field-border); break-inside: avoid; }
     .statement-summary-item { padding: 8px 10px; }
     .statement-summary-item strong { font-size: 12pt; }
+    .statement-summary-item.is-current strong { font-size: 13pt; }
     .statement-table { min-width: 0; font-size: 8.5pt; }
     .statement-table thead { display: table-header-group; }
     .statement-table tfoot { display: table-footer-group; }

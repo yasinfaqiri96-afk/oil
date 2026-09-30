@@ -228,6 +228,11 @@
         <div class="statement-summary-item"><small>مجموع رسیدگی</small><strong class="statement-receipt">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</strong><span>@currency</span></div>
         <div class="statement-summary-item"><small>مجموع بردگی</small><strong class="statement-outflow">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</strong><span>@currency</span></div>
         <div class="statement-summary-item is-current"><small>بیلانس فعلی</small><strong>@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</strong><span>@currency</span></div>
+        @if (Model.ReversedLoadingCount > 0)
+        {
+            @* فقط توضیح: مجموع رسیدگی و بردگی، اصل و برگشت این بارگیری‌ها را هر دو دارد. *@
+            <p class="statement-summary-note">شامل @Model.ReversedLoadingCount.ToString("N0") بارگیری برگشت‌شده</p>
+        }
     </section>
 
     @if (Model.ShowViewTabs)
@@ -279,14 +284,14 @@
                     {
                         @foreach (var row in ledgerRows)
                         {
-                            <tr class="@(row.IsOpeningBalance ? "is-opening-row" : null)">
+                            <tr class="@(row.IsOpeningBalance ? "is-opening-row" : row.IsReversalRow ? "is-reversal-row" : null)">
                                 <td class="statement-num">@(row.IsOpeningBalance ? "—" : row.Sequence)</td>
                                 <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
                                 <td class="statement-ref">
                                     @if (row.LedgerEntryId.HasValue) { <a asp-controller="Ledger" asp-action="Details" asp-route-id="@row.LedgerEntryId">@(row.Reference ?? $"#{row.LedgerEntryId}")</a> }
                                     else { @(row.Reference ?? "—") }
                                 </td>
-                                <td class="statement-description">@row.DescriptionFor(isEn)</td>
+                                <td class="statement-description">@if (row.IsReversalRow) { <span class="ak-status is-inactive statement-row-status">برگشت‌شده</span> }@row.DescriptionFor(isEn)</td>
                                 @if (c.ShowRub && !isRub) { <td class="statement-money">@(row.OriginalCurrency == "RUB" ? OptionalAmount(row.OriginalAmount) : "—")</td> }
                                 @if (c.ShowAed) { <td class="statement-money">@(row.OriginalCurrency == "AED" ? OptionalAmount(row.OriginalAmount) : "—")</td> }
                                 @if (c.ShowOriginalAmount) { <td class="statement-money">@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? OptionalAmount(row.OriginalAmount) : "—")</td><td>@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? row.OriginalCurrency : "—")</td> }

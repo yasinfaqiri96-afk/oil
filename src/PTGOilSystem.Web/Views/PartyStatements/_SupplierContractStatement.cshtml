@@ -54,7 +54,14 @@
                             }
                         </td>
                         <td class="statement-money">@Amount(row.ContractValueUsd)</td>
-                        <td class="statement-money statement-receipt">@BaseAmount(row.ConfirmedValue, row.ConfirmedValueRub)</td>
+                        <td class="statement-money statement-receipt">
+                            @BaseAmount(row.ConfirmedValue, row.ConfirmedValueRub)
+                            @if (row.ReversedLoadingCount > 0)
+                            {
+                                @* فقط شمار سندها؛ ارزش بارگیری و بیلانس از همان سطرهای مالی می‌آید. *@
+                                <small class="statement-contract-sub statement-operation-counts" dir="rtl">@row.ActiveLoadingCount.ToString("N0") @row.OperationLabel فعال / @row.ReversedLoadingCount.ToString("N0") @row.OperationLabel برگشت‌شده</small>
+                            }
+                        </td>
                         <td class="statement-money statement-outflow">@BaseAmount(row.SettlementTotal, row.SettlementTotalRub)</td>
                         <td class="statement-money statement-balance">
                             @Amount(isRub ? row.BalanceRub : row.Balance)

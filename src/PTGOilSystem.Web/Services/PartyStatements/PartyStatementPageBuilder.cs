@@ -34,6 +34,13 @@ public sealed class PartyStatementPageBuilder
         var statement = await _statementService.GetStatementAsync(new PartyRef(partyType, id, filter.CompanyId), filter, ct);
         var options = await LoadFilterOptionsAsync(partyType, id, ct);
 
+        // بارگیری‌های برگشت‌شدهٔ دوره، پیش از آنکه نمای فشرده آن‌ها را جمع کند؛ فقط برای توضیح خلاصه.
+        var reversedLoadingCount = statement.Rows
+            .Where(r => !r.IsOpeningBalance && r.IsReversalRow && r.SourceType == "Loading")
+            .Select(r => r.SourceId)
+            .Distinct()
+            .Count();
+
         // اگر هیچ سندِ این دوره به قرارداد وصل نباشد، «خلاصه قراردادها» بی‌معنا است و
         // فقط یک ردیفِ «بدون قرارداد» می‌شود؛ در این حالت صفحه همان گردش حساب ساده است.
         var showsContracts = UsesContractSummary(partyType) && HasContractRows(statement);
@@ -72,6 +79,7 @@ public sealed class PartyStatementPageBuilder
             IsPrintMode = print,
             SupplierView = view,
             HasContractRows = showsContracts,
+            ReversedLoadingCount = reversedLoadingCount,
             HasExpenseSummary = showsExpenseSummary,
             ContractGrouping = grouping,
             ContractOptions = options.Contracts,
