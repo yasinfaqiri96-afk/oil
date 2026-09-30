@@ -71,6 +71,10 @@ builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =
 
 // ---- Domain services (business rules, system rules #3-#9, #11, #13) --------
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+// راهنمای شروع کار: پیش‌فرض خاموش؛ فقط نسخه‌های آزمایشی با Onboarding:Enabled روشنش می‌کنند.
+builder.Services.Configure<PTGOilSystem.Web.Configuration.OnboardingOptions>(
+    builder.Configuration.GetSection(PTGOilSystem.Web.Configuration.OnboardingOptions.SectionName));
+builder.Services.AddScoped<IOnboardingService, OnboardingService>();
 builder.Services.AddScoped<IStockService, StockService>();
 // تنها نقطهٔ اجرای قواعد مشترک ثبت حرکت موجودی (مقدار، قفل، نگهبان موجودی، سند).
 // تراکنش را caller مالک است؛ Writer تراکنش مستقل باز نمی‌کند.

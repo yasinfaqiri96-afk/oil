@@ -1,0 +1,309 @@
+/* راهنمای شروع — کارت داشبورد (چک‌لیست / کارهای رایج) و تور کوتاه.
+   فقط وقتی Onboarding:Enabled روشن است بارگذاری می‌شود. همهٔ قواعد زیر .ptg-onb و
+   .ptg-tour قفل‌اند؛ سطح کارت همان .dash-card داشبورد است و رنگ‌ها فقط از توکن‌ها. */
+
+/* ---------- کارت داشبورد ---------- */
+.ptg-onb {
+    display: grid;
+    gap: 12px;
+}
+
+/* ردیف KPI داشبورد order: -1 دارد (50-ak-components.css)؛ راهنما باید پیش از آن دیده شود. */
+.dashboard-ref > .ptg-onb {
+    order: -2;
+}
+
+.ptg-onb-head .btn-close {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.ptg-onb-intro {
+    display: grid;
+    gap: 4px;
+    min-inline-size: 0;
+}
+
+.ptg-onb-intro p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-body);
+    line-height: var(--line-body);
+}
+
+.ptg-onb-steps,
+.ptg-onb-tasks {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* هر قدم یک ردیف: شماره، متن، اقدام. */
+.ptg-onb-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-block: 10px;
+    border-block-start: 1px solid var(--divider);
+}
+
+.ptg-onb-step:first-child {
+    border-block-start: 0;
+}
+
+.ptg-onb-mark {
+    display: inline-flex;
+    flex: 0 0 28px;
+    align-items: center;
+    justify-content: center;
+    inline-size: 28px;
+    block-size: 28px;
+    border-radius: 50%;
+    background: var(--background-neutral);
+    color: var(--text-secondary);
+    font-size: var(--font-caption);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.ptg-onb-copy {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 2px;
+    min-inline-size: 0;
+    text-align: start;
+}
+
+.ptg-onb-copy strong {
+    color: var(--text-primary);
+    font-size: var(--font-body);
+    font-weight: 600;
+}
+
+.ptg-onb-copy span {
+    color: var(--text-secondary);
+    font-size: var(--font-caption);
+    line-height: 1.6;
+}
+
+.ptg-onb-action {
+    flex: 0 0 auto;
+    min-inline-size: 88px;
+}
+
+.ptg-onb-state {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-size: var(--font-caption);
+}
+
+/* قدم جاری: فقط شماره رنگ اصلی می‌گیرد؛ ردیف شلوغ نمی‌شود. */
+.ptg-onb-step.is-current .ptg-onb-mark {
+    background: var(--ptg-btn-primary);
+    color: var(--primary-contrast);
+}
+
+.ptg-onb-step.is-done .ptg-onb-mark {
+    background: rgba(var(--success-rgb), .12);
+    color: var(--success-main);
+}
+
+.ptg-onb-step.is-done .ptg-onb-copy strong {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.ptg-onb-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-block-start: 10px;
+    border-block-start: 1px solid var(--divider);
+    color: var(--text-secondary);
+    font-size: var(--font-caption);
+}
+
+.ptg-onb-later {
+    padding: 0;
+    font-size: var(--font-caption);
+    text-decoration: none;
+}
+
+/* کارهای رایج: شبکهٔ سه‌ستونه در دسکتاپ، یک‌ستون در موبایل. */
+.ptg-onb-tasks {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.ptg-onb-task {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    inline-size: 100%;
+    min-block-size: 64px;
+    padding: 10px 12px;
+    border: 1px solid var(--divider);
+    border-radius: var(--ptg-radius-card);
+    background: var(--background-paper);
+    color: inherit;
+    cursor: pointer;
+    transition: background-color .14s ease, border-color .14s ease;
+}
+
+.ptg-onb-task:hover {
+    border-color: rgba(var(--ptg-btn-primary-rgb), .35);
+    background: var(--background-neutral);
+}
+
+.ptg-onb-task:focus-visible {
+    outline: 2px solid var(--ptg-btn-primary);
+    outline-offset: 2px;
+}
+
+.ptg-onb-task > .bi:first-child {
+    flex: 0 0 auto;
+    color: var(--ptg-btn-primary);
+    font-size: 20px;
+}
+
+.ptg-onb-seen {
+    flex: 0 0 auto;
+    visibility: hidden;
+    color: var(--success-main);
+}
+
+.ptg-onb-task.is-seen .ptg-onb-seen {
+    visibility: visible;
+}
+
+@media (max-width: 991.98px) {
+    .ptg-onb-tasks {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 575.98px) {
+    .ptg-onb-tasks {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ptg-onb-step {
+        flex-wrap: wrap;
+    }
+
+    .ptg-onb-step .ptg-onb-copy {
+        flex-basis: calc(100% - 40px);
+    }
+
+    .ptg-onb-action,
+    .ptg-onb-state {
+        margin-inline-start: 40px;
+    }
+}
+
+/* ---------- تور کوتاه ---------- */
+.ptg-tour {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    pointer-events: none;
+}
+
+/* حفرهٔ روشن دور عنصر؛ سایهٔ بزرگ بقیهٔ صفحه را کم‌رنگ می‌کند و کلیک از آن رد می‌شود.
+   مختصات از getBoundingClientRect (فیزیکی) می‌آید، پس top/left فیزیکی عمداً استفاده شده. */
+.ptg-tour-spot {
+    position: fixed;
+    top: var(--ptg-tour-spot-y, 50vh);
+    left: var(--ptg-tour-spot-x, 50vw);
+    width: var(--ptg-tour-spot-w, 0);
+    height: var(--ptg-tour-spot-h, 0);
+    border-radius: var(--ptg-radius-card);
+    box-shadow: 0 0 0 9999px rgba(17, 24, 39, .45);
+    pointer-events: none;
+}
+
+.ptg-tour-card {
+    position: fixed;
+    top: var(--ptg-tour-card-y, 50vh);
+    left: var(--ptg-tour-card-x, 50vw);
+    display: grid;
+    gap: 8px;
+    inline-size: min(340px, calc(100vw - 32px));
+    padding: 16px;
+    border-radius: var(--ptg-radius-lg);
+    background: var(--background-paper);
+    box-shadow: var(--shadow-dialog);
+    color: var(--text-primary);
+    pointer-events: auto;
+    animation: ptg-tour-in .19s ease both;
+}
+
+.ptg-tour-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ptg-tour-meta {
+    color: var(--text-secondary);
+    font-size: var(--font-caption);
+    font-variant-numeric: tabular-nums;
+}
+
+.ptg-tour-top .btn-close {
+    margin: 0;
+}
+
+.ptg-tour-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.ptg-tour-text {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-body);
+    line-height: var(--line-body);
+}
+
+.ptg-tour-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-block-start: 4px;
+}
+
+.ptg-tour-actions .btn {
+    min-inline-size: 72px;
+}
+
+@keyframes ptg-tour-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* موبایل: کارت به پایین صفحه می‌چسبد تا عنصر هدف بالای آن دیده شود. */
+@media (max-width: 575.98px) {
+    .ptg-tour-card {
+        top: auto;
+        right: 16px;
+        bottom: 16px;
+        left: 16px;
+        inline-size: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ptg-tour-card {
+        animation: none;
+    }
+
+    .ptg-onb-task {
+        transition: none;
+    }
+}

@@ -1,0 +1,172 @@
+@using PTGOilSystem.Web.Security
+@model PTGOilSystem.Web.Models.OnboardingPanelViewModel
+@{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    var p = Model.Progress;
+    var home = Url.Action("Index", "Home") ?? "/";
+    bool Can(string controller) => RoleAccessRules.CanAccessController(User, controller);
+
+    // هر مرحله: کلید، عنوان، توضیح یک‌خطی، انجام‌شده، برچسب و مقصد دکمه، تور اختیاری.
+    // ترتیب همان وابستگی واقعی ثبت در سیستم است؛ وضعیت فقط از دادهٔ ثبت‌شده خوانده می‌شود.
+    var steps = new List<(string Key, string Title, string Hint, bool Done, string? Href, string? Tour, string ActionLabel)>();
+
+    if (!p.HasCompany)
+    {
+        steps.Add(("company",
+            T("شرکت خود را ثبت کنید", "Register your company"),
+            T("نام شرکت خود را وارد کنید. همهٔ حساب‌ها به نام همین شرکت ثبت می‌شود.", "Enter your company name. All accounts are kept under this company."),
+            false,
+            Can("Companies") ? Url.Action("Create", "Companies", new { returnUrl = home }) : null,
+            null,
+            T("شروع", "Start")));
+    }
+    else
+    {
+        steps.Add(("company",
+            p.HasOwnerCompany ? T("شرکت خود را ثبت کنید", "Register your company") : T("شرکت اصلی را مشخص کنید", "Set your main company"),
+            p.HasOwnerCompany
+                ? T("شرکت شما ثبت و به‌عنوان مالک سیستم مشخص شده است.", "Your company is registered and set as the system owner.")
+                : T("یک قدم مانده: شرکت خود را «مالک سیستم» کنید تا حساب‌ها به نام آن ثبت شود.", "One more step: set your company as the system owner so the books are kept under it."),
+            p.HasOwnerCompany,
+            Can("Companies") ? Url.Action("Index", "Companies") : null,
+            "owner",
+            T("نشانم بده", "Show me")));
+    }
+
+    steps.Add(("product",
+        T("محصول خود را تعریف کنید", "Add your product"),
+        T("جنسی که خرید و فروش می‌کنید، مثلاً دیزل یا پطرول.", "The goods you trade, for example diesel or petrol."),
+        p.HasProduct,
+        Can("Products") ? Url.Action("Create", "Products", new { returnUrl = home }) : null,
+        null,
+        T("شروع", "Start")));
+
+    steps.Add(("party",
+        T("اولین طرف حساب را ثبت کنید", "Add your first party"),
+        T("کسی که از او جنس می‌خرید (تأمین‌کننده). مشتری‌ها را هم بعداً همین‌جا اضافه کنید.", "Someone you buy from (a supplier). You can add customers later in the same place."),
+        p.HasParty,
+        Can("Suppliers") ? Url.Action("Create", "Suppliers", new { returnUrl = home }) : null,
+        null,
+        T("شروع", "Start")));
+
+    steps.Add(("contract",
+        T("اولین قرارداد را ثبت کنید", "Record your first contract"),
+        T("قرارداد خرید مشخص می‌کند چه جنسی، از چه کسی، چقدر و به چه قیمتی.", "A purchase contract says what, from whom, how much and at what price."),
+        p.HasContract,
+        Can("Contracts") ? Url.Action("Create", "Contracts") : null,
+        null,
+        T("شروع", "Start")));
+
+    steps.Add(("loading",
+        T("اولین بارگیری را ثبت کنید", "Record your first loading"),
+        T("وقتی جنس بار شد، مقدار آن را روی همان قرارداد ثبت کنید.", "When goods are loaded, record the quantity against that contract."),
+        p.HasLoading,
+        Can("Loading") ? Url.Action("Create", "Loading", new { returnUrl = home }) : null,
+        null,
+        T("شروع", "Start")));
+
+    var currentIndex = steps.FindIndex(s => !s.Done);
+    var doneCount = steps.Count(s => s.Done);
+
+    // کارهای رایج پس از راه‌اندازی؛ هر کدام یک تور کوتاه روی همان صفحه‌های واقعی است.
+    var tasks = new List<(string Tour, string Title, string Hint, string Icon)>();
+    if (Can("Contracts")) tasks.Add(("contract", T("ثبت قرارداد", "Record a contract"), T("خرید یا فروش تازه", "A new purchase or sale"), "bi-file-earmark-text"));
+    if (Can("Loading")) tasks.Add(("loading", T("ثبت بارگیری و رسید", "Record a loading and receipt"), T("بار شدن جنس و رسیدن آن به مقصد", "Goods loaded and received"), "bi-truck"));
+    if (Can("Payments")) tasks.Add(("payment", T("ثبت دریافت یا پرداخت", "Record money in or out"), T("پولی که گرفته‌اید یا داده‌اید", "Money you received or paid"), "bi-cash-coin"));
+    if (Can("Suppliers")) tasks.Add(("statement", T("دیدن صورت‌حساب", "View a statement"), T("حساب یک تأمین‌کننده یا مشتری", "The account of a supplier or customer"), "bi-journal-text"));
+    if (Can("Reports")) tasks.Add(("inventory", T("دیدن موجودی", "Check stock"), T("چقدر جنس دارید و کجاست", "How much stock you have and where"), "bi-box-seam"));
+    if (Can("Reports")) tasks.Add(("pnl", T("دیدن مفاد", "See profit"), T("مفاد یا ضرر هر قرارداد", "Profit or loss per contract"), "bi-graph-up-arrow"));
+
+    var showSetup = !p.IsComplete && !Model.IsDismissed("setup");
+    var showTasks = p.IsComplete && tasks.Count > 0 && !Model.IsDismissed("tasks");
+    var titleId = "ptgOnboardingTitle";
+}
+
+@if (showSetup)
+{
+    <section class="dash-card ptg-onb"
+             aria-labelledby="@titleId"
+             data-onboarding-panel="setup"
+             data-onboarding-key="@Model.StorageKey"
+             data-onboarding-force="@(Model.ForceOpen ? "1" : null)">
+        <header class="dash-card-head ptg-onb-head">
+            <div class="ptg-onb-intro">
+                <h2 id="@titleId">@T("خوش آمدید", "Welcome")</h2>
+                <p>@T("برای شروع، حساب خود را در چند قدم ساده آماده کنید. هر قدم بعد از ثبت، خودش تیک می‌خورد.", "Get your account ready in a few simple steps. Each step is ticked automatically once it is recorded.")</p>
+            </div>
+            <button type="button" class="btn-close" data-onboarding-dismiss aria-label="@T("بستن راهنما", "Close guide")"></button>
+        </header>
+
+        <ol class="ptg-onb-steps">
+            @for (var i = 0; i < steps.Count; i++)
+            {
+                var step = steps[i];
+                var isCurrent = i == currentIndex;
+                var stateClass = step.Done ? "is-done" : isCurrent ? "is-current" : "is-pending";
+                <li class="ptg-onb-step @stateClass" aria-current="@(isCurrent ? "step" : null)">
+                    <span class="ptg-onb-mark" aria-hidden="true">
+                        @if (step.Done)
+                        {
+                            <i class="bi bi-check-lg"></i>
+                        }
+                        else
+                        {
+                            @(i + 1)
+                        }
+                    </span>
+                    <span class="ptg-onb-copy">
+                        <strong>@step.Title</strong>
+                        <span>@step.Hint</span>
+                    </span>
+                    @if (step.Done)
+                    {
+                        <span class="ptg-onb-state">@T("انجام شد", "Done")</span>
+                    }
+                    else if (!string.IsNullOrEmpty(step.Href))
+                    {
+                        <a class="btn @(isCurrent ? "btn-primary ak-primary-action" : "btn-light ak-secondary-action") ptg-onb-action"
+                           href="@step.Href"
+                           data-tour-start="@step.Tour">@step.ActionLabel</a>
+                    }
+                </li>
+            }
+        </ol>
+
+        <footer class="ptg-onb-foot">
+            <span>@T($"{doneCount} از {steps.Count} قدم انجام شد.", $"{doneCount} of {steps.Count} steps done.")</span>
+            <button type="button" class="btn btn-link ptg-onb-later" data-onboarding-dismiss>@T("بعداً ادامه می‌دهم", "I'll continue later")</button>
+        </footer>
+    </section>
+}
+else if (showTasks)
+{
+    <section class="dash-card ptg-onb"
+             aria-labelledby="@titleId"
+             data-onboarding-panel="tasks"
+             data-onboarding-key="@Model.StorageKey"
+             data-onboarding-force="@(Model.ForceOpen ? "1" : null)">
+        <header class="dash-card-head ptg-onb-head">
+            <div class="ptg-onb-intro">
+                <h2 id="@titleId">@T("می‌خواهید چه کاری انجام دهید؟", "What would you like to do?")</h2>
+                <p>@T("یکی را انتخاب کنید؛ قدم‌به‌قدم در همان صفحه‌ها راهنمایی می‌شوید.", "Pick one and you will be guided step by step on the real pages.")</p>
+            </div>
+            <button type="button" class="btn-close" data-onboarding-dismiss aria-label="@T("بستن راهنما", "Close guide")"></button>
+        </header>
+
+        <ul class="ptg-onb-tasks">
+            @foreach (var task in tasks)
+            {
+                <li>
+                    <button type="button" class="ptg-onb-task" data-tour-start="@task.Tour">
+                        <i class="bi @task.Icon" aria-hidden="true"></i>
+                        <span class="ptg-onb-copy">
+                            <strong>@task.Title</strong>
+                            <span>@task.Hint</span>
+                        </span>
+                        <i class="bi bi-check2 ptg-onb-seen" aria-hidden="true" data-tour-seen-mark></i>
+                    </button>
+                </li>
+            }
+        </ul>
+    </section>
+}

@@ -83,10 +83,13 @@
                     {
                         <tr>
                             <td colspan="8">
-                                <div class="ak-empty">
-                                    <i class="bi bi-people" aria-hidden="true"></i>
-                                    @UiText.T(Context, "مشتری‌ای برای نمایش پیدا نشد", "No customers found")
-                                </div>
+                                <partial name="~/Views/Shared/_GuidedEmptyState.cshtml"
+                                         model="@(("bi-people",
+                                                   UiText.T(Context, "هنوز مشتری‌ای ثبت نشده است.", "No customer yet."),
+                                                   UiText.T(Context, "مشتری‌ای برای نمایش پیدا نشد", "No customers found"),
+                                                   (string?)UiText.T(Context, "کسی که به او جنس می‌فروشید را ثبت کنید.", "Add someone you sell to."),
+                                                   (string?)UiText.T(Context, "ثبت اولین مشتری", "Add first customer"),
+                                                   (string?)Url.Action("Create", new { returnUrl })))" />
                             </td>
                         </tr>
                     }

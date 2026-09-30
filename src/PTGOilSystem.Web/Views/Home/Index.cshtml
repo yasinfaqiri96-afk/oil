@@ -37,6 +37,12 @@
         </div>
     }
 
+    @* ===== راهنمای شروع (فقط وقتی Onboarding:Enabled روشن است) ===== *@
+    @if (ViewData["Onboarding"] is PTGOilSystem.Web.Models.OnboardingPanelViewModel onboarding)
+    {
+        <partial name="_OnboardingPanel" model="onboarding" />
+    }
+
     @* ===== ردیف کارت‌های خلاصه ===== *@
     <section class="ak-stat-grid" aria-label="@T("خلاصه امروز", "Today's summary")">
         <vc:stat-card title="@T("فروش امروز", "Today's sales")"

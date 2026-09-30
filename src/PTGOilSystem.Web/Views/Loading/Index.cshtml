@@ -130,10 +130,13 @@
                 {
                     <tr>
                         <td colspan="8">
-                            <div class="ak-empty">
-                                <i class="bi bi-truck"></i>
-                                @UiText.T(Context,"هنوز بارگیری‌ای ثبت نشده است","No loading records yet")
-                            </div>
+                            <partial name="~/Views/Shared/_GuidedEmptyState.cshtml"
+                                     model="@(("bi-truck",
+                                               UiText.T(Context, "هنوز بارگیری‌ای ثبت نشده است.", "No loading records yet."),
+                                               UiText.T(Context, "بارگیری‌ای با این فیلتر پیدا نشد", "No loadings match this filter"),
+                                               (string?)UiText.T(Context, "وقتی جنس بار شد، مقدار آن را روی قرارداد مربوط ثبت کنید.", "When goods are loaded, record the quantity against its contract."),
+                                               (string?)UiText.T(Context, "ثبت اولین بارگیری", "Record first loading"),
+                                               (string?)Url.Action("Create", new { contractId = Model.ContractId, returnUrl = currentUrl })))" />
                         </td>
                     </tr>
                 }

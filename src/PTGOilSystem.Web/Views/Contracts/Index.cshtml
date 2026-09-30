@@ -144,7 +144,13 @@
                     {
                         <tr>
                             <td colspan="7">
-                                <div class="ak-empty"><i class="bi bi-file-earmark-text"></i>@T("قراردادی پیدا نشد", "No contracts found")</div>
+                                <partial name="~/Views/Shared/_GuidedEmptyState.cshtml"
+                                         model="@(("bi-file-earmark-text",
+                                                   UiText.T(Context, "هنوز قراردادی ثبت نشده است.", "No contract yet."),
+                                                   UiText.T(Context, "قراردادی پیدا نشد", "No contracts found"),
+                                                   (string?)UiText.T(Context, "برای شروع عملیات، اولین قرارداد خود را ثبت کنید.", "Record your first contract to start operations."),
+                                                   (string?)UiText.T(Context, "ثبت اولین قرارداد", "Record first contract"),
+                                                   (string?)Url.Action("Create")))" />
                             </td>
                         </tr>
                     }

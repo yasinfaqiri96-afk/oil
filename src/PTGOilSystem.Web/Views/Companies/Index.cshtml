@@ -95,10 +95,13 @@
                     {
                         <tr>
                             <td colspan="8">
-                                <div class="ak-empty">
-                                    <i class="bi bi-buildings" aria-hidden="true"></i>
-                                    @UiText.T(Context, "شرکتی برای نمایش پیدا نشد", "No companies found")
-                                </div>
+                                <partial name="~/Views/Shared/_GuidedEmptyState.cshtml"
+                                         model="@(("bi-buildings",
+                                                   UiText.T(Context, "هنوز شرکتی ثبت نشده است.", "No company yet."),
+                                                   UiText.T(Context, "شرکتی برای نمایش پیدا نشد", "No companies found"),
+                                                   (string?)UiText.T(Context, "برای شروع، شرکت خود را ثبت کنید؛ حساب‌ها به نام آن نگه داشته می‌شود.", "Start by adding your own company; the books are kept under it."),
+                                                   (string?)UiText.T(Context, "ثبت شرکت", "Add company"),
+                                                   (string?)Url.Action("Create", new { returnUrl })))" />
                             </td>
                         </tr>
                     }

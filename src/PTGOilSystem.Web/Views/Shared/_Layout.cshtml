@@ -1,5 +1,6 @@
 ﻿@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
 @inject Microsoft.Extensions.Configuration.IConfiguration AppConfiguration
+@inject Microsoft.Extensions.Options.IOptions<PTGOilSystem.Web.Configuration.OnboardingOptions> OnboardingOptionsAccessor
 @{
     // ابزار توسعه UI Pick — فقط Development + PTG_UI_PICK=1
     var uiPickEnabled = HostEnvironment.IsDevelopment()
@@ -15,6 +16,10 @@
     var currentRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
     var isAdmin = string.Equals(currentRole, PTGOilSystem.Web.Security.AuthRoles.Admin, StringComparison.Ordinal);
     var canManageUsers = PTGOilSystem.Web.Security.RoleAccessRules.CanManageUsers(User);
+    // راهنمای شروع (Trial): خاموش باشد هیچ دکمه، CSS یا JS آن بارگذاری نمی‌شود.
+    var onboardingEnabled = isAuthenticated
+        && OnboardingOptionsAccessor.Value.Enabled
+        && PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
     var isLoginPage = !isAuthenticated
@@ -433,6 +438,11 @@
             @* همان فهرست بالا، با همان ترتیب، در یک باندل. *@
             <link rel="stylesheet" href="~/css/ptg-app.bundle.css" asp-append-version="true" />
         }
+        @if (onboardingEnabled)
+        {
+            @* خارج از باندل تا نصب‌هایی که راهنما را خاموش دارند هیچ بایتی از آن نگیرند. *@
+            <link rel="stylesheet" href="~/css/ptg/81-onboarding.css" asp-append-version="true" />
+        }
     }
     @* لودر برند صدیقی — استایل و رفتار در فایل‌های مستقل (60-loader.css / ptg-loader.js) *@
     @if (renderShellChrome)
@@ -581,6 +591,15 @@
                     </div>
 
                     <div class="boltz-topbar-end ptg-header-cluster">
+                        @if (onboardingEnabled)
+                        {
+                            <a class="ptg-h3d" asp-controller="Home" asp-action="Index" asp-route-guide="1"
+                               data-onboarding-open
+                               title="@T("راهنمای شروع", "Getting started")"
+                               aria-label="@T("راهنمای شروع", "Getting started")">
+                                <i class="bi bi-signpost-2" aria-hidden="true"></i>
+                            </a>
+                        }
                         @* Language selector — same ghost line-icon chip as search and account. *@
                         <div class="dropdown boltz-language-menu ptg-hflag-wrap">
                             <button class="ptg-h3d ptg-hflag" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Language">
@@ -774,6 +793,10 @@
         @if (renderShellChrome)
         {
             <script src="~/js/spa-nav.js" asp-append-version="true" defer></script>
+        }
+        @if (onboardingEnabled && renderShellChrome)
+        {
+            <script src="~/js/onboarding.js" asp-append-version="true" defer></script>
         }
         @if (useContractJourneyAssets)
         {

@@ -1,0 +1,33 @@
+@model (string Icon, string EmptyTitle, string FilteredTitle, string? Hint, string? ActionLabel, string? ActionHref)
+@{
+    @* حالت خالی فهرست‌ها. وقتی هیچ فیلتر/جستجویی فعال نیست یعنی واقعاً هنوز رکوردی ثبت نشده؛
+       پس قدم بعدی و دکمهٔ ثبت اولین رکورد نشان داده می‌شود. با فیلتر، همان پیام کوتاه قبلی. *@
+    var ignoredKeys = new[] { "page", "pageSize", "returnUrl" };
+    var isFiltered = Context.Request.Query.Keys.Any(key =>
+        !ignoredKeys.Contains(key, StringComparer.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(Context.Request.Query[key]));
+    var canCreate = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User)
+        && !string.IsNullOrWhiteSpace(Model.ActionLabel)
+        && !string.IsNullOrWhiteSpace(Model.ActionHref);
+}
+<div class="ak-empty">
+    <i class="bi @Model.Icon" aria-hidden="true"></i>
+    @if (isFiltered)
+    {
+        @Model.FilteredTitle
+    }
+    else
+    {
+        <span class="ak-empty-copy">
+            <span class="ak-empty-title">@Model.EmptyTitle</span>
+            @if (!string.IsNullOrWhiteSpace(Model.Hint))
+            {
+                <span class="ak-empty-sub">@Model.Hint</span>
+            }
+        </span>
+        @if (canCreate)
+        {
+            <a class="btn btn-primary ak-primary-action ak-empty-action" href="@Model.ActionHref">@Model.ActionLabel</a>
+        }
+    }
+</div>

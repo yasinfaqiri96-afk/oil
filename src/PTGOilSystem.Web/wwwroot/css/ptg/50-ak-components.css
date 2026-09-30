@@ -939,6 +939,17 @@ body.ptg-modal-document .ak-page-size-select {
     font-weight: 400;
 }
 
+/* حالت خالیِ راهنما (_GuidedEmptyState): دکمهٔ «ثبت اولین ...» کنار متن؛ در عرض کم به خط بعد می‌رود. */
+.ak-empty:has(.ak-empty-action) {
+    flex-wrap: wrap;
+}
+
+.ak-empty-action {
+    flex: 0 0 auto;
+    justify-self: center;
+    margin-inline-start: 8px;
+}
+
 @media (max-width: 640px) {
     .ak-page-header {
         flex-wrap: wrap;

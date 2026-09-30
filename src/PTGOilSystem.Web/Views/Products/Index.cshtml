@@ -103,7 +103,13 @@
                     {
                         <tr>
                             <td colspan="7">
-                                <div class="ak-empty"><i class="bi bi-box-seam" aria-hidden="true"></i>@UiText.T(Context, "رکوردی یافت نشد", "No records found")</div>
+                                <partial name="~/Views/Shared/_GuidedEmptyState.cshtml"
+                                         model="@(("bi-box-seam",
+                                                   UiText.T(Context, "هنوز محصولی تعریف نشده است.", "No product yet."),
+                                                   UiText.T(Context, "رکوردی یافت نشد", "No records found"),
+                                                   (string?)UiText.T(Context, "جنسی را که خرید و فروش می‌کنید تعریف کنید، مثلاً دیزل یا پطرول.", "Add the goods you trade, for example diesel or petrol."),
+                                                   (string?)UiText.T(Context, "تعریف اولین محصول", "Add first product"),
+                                                   (string?)Url.Action("Create", new { returnUrl })))" />
                             </td>
                         </tr>
                     }

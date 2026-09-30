@@ -100,10 +100,13 @@
                     {
                         <tr>
                             <td colspan="9">
-                                <div class="ak-empty">
-                                    <i class="bi bi-person-vcard" aria-hidden="true"></i>
-                                    @UiText.T(Context, "تأمین‌کننده‌ای پیدا نشد", "No suppliers found")
-                                </div>
+                                <partial name="~/Views/Shared/_GuidedEmptyState.cshtml"
+                                         model="@(("bi-person-vcard",
+                                                   UiText.T(Context, "هنوز تأمین‌کننده‌ای ثبت نشده است.", "No supplier yet."),
+                                                   UiText.T(Context, "تأمین‌کننده‌ای پیدا نشد", "No suppliers found"),
+                                                   (string?)UiText.T(Context, "کسی که از او جنس می‌خرید را ثبت کنید تا برایش قرارداد بسازید.", "Add someone you buy from so you can create a contract with them."),
+                                                   (string?)UiText.T(Context, "ثبت اولین تأمین‌کننده", "Add first supplier"),
+                                                   (string?)Url.Action("Create", new { returnUrl })))" />
                             </td>
                         </tr>
                     }
