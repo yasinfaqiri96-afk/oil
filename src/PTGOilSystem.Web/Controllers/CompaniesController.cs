@@ -80,17 +80,33 @@ public class CompaniesController : Controller
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
-    public IActionResult Create() => View(new Company());
+    public async Task<IActionResult> Create()
+    {
+        await PopulateOwnerPartnersAsync();
+        return View(new Company());
+    }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create([Bind("Id,Code,Name,NamePersian,Country,Address,IsActive,Notes")] Company model, string? returnUrl = null)
+    public async Task<IActionResult> Create([Bind("Id,Code,Name,NamePersian,Country,Address,IsActive,Notes,OwnerPartnerId")] Company model, string? returnUrl = null)
     {
         Normalize(model);
-        if (!ModelState.IsValid) return View(model);
+        if (!ModelState.IsValid)
+        {
+            await PopulateOwnerPartnersAsync();
+            return View(model);
+        }
         if (await _db.Companies.AnyAsync(p => p.Code == model.Code))
         {
             ModelState.AddModelError(nameof(model.Code), "این کد قبلاً ثبت شده است.");
+            await PopulateOwnerPartnersAsync();
+            return View(model);
+        }
+        if (model.OwnerPartnerId.HasValue
+            && !await _db.Partners.AnyAsync(p => p.Id == model.OwnerPartnerId.Value))
+        {
+            ModelState.AddModelError(nameof(model.OwnerPartnerId), "شریک انتخاب‌شده پیدا نشد.");
+            await PopulateOwnerPartnersAsync();
             return View(model);
         }
         _db.Companies.Add(model);
@@ -106,7 +122,8 @@ public class CompaniesController : Controller
                 ("Country", model.Country),
                 ("Address", model.Address),
                 ("IsActive", model.IsActive),
-                ("Notes", model.Notes)));
+                ("Notes", model.Notes),
+                ("OwnerPartnerId", model.OwnerPartnerId)));
         TempData["ok"] = "شرکت با موفقیت ثبت شد.";
         if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
         return RedirectToAction(nameof(Index));

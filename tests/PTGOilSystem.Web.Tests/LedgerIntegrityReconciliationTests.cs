@@ -220,6 +220,134 @@ public sealed class LedgerIntegrityReconciliationTests
     }
 
     // ------------------------------------------------------------------
+    // ۷-ب و ۷-ج — مالک دفتر و نگه‌دارندهٔ عاید در قرارداد شراکتی
+    // ------------------------------------------------------------------
+
+    private static async Task SeedPartnershipAsync(
+        ApplicationDbContext db,
+        int? ownerPartnerId,
+        int? proceedsHolderPartnerId = null)
+    {
+        db.Partners.AddRange(
+            new Partner { Id = 1, Code = "PA1", Name = "Partner 1", IsActive = true },
+            new Partner { Id = 2, Code = "PA2", Name = "Partner 2", IsActive = true },
+            new Partner { Id = 3, Code = "PA3", Name = "Outsider", IsActive = true });
+        db.Companies.Add(new Company { Id = 1, Code = "CO1", Name = "Company", OwnerPartnerId = ownerPartnerId });
+        db.Contracts.Add(new Contract
+        {
+            Id = 1,
+            ContractNumber = "PS-01",
+            CompanyId = 1,
+            OwnershipType = ContractOwnershipType.Partnership,
+            SaleProceedsHolderPartnerId = proceedsHolderPartnerId
+        });
+        db.ContractPartners.AddRange(
+            new ContractPartner { ContractId = 1, PartnerId = 1, SharePercent = 50m },
+            new ContractPartner { ContractId = 1, PartnerId = 2, SharePercent = 50m });
+        await db.SaveChangesAsync();
+    }
+
+    private static PaymentTransaction CompanyPayment(
+        int id,
+        PaymentKind kind = PaymentKind.SupplierPayment,
+        PaymentDirection direction = PaymentDirection.Out,
+        int? contractId = 1,
+        int? salesTransactionId = null) => new()
+    {
+        Id = id,
+        PaymentDate = new DateTime(2026, 5, 1),
+        Direction = direction,
+        PaymentKind = kind,
+        FundingSource = PaymentFundingSource.Company,
+        ContractId = contractId,
+        SalesTransactionId = salesTransactionId,
+        Amount = 1_000m,
+        Currency = "USD",
+        AmountUsd = 1_000m
+    };
+
+    [Fact]
+    public async Task CompanyPaymentOnAPartnershipWhoseCompanyHasNoBookOwner_IsReported()
+    {
+        await using var db = NewDb();
+        await SeedPartnershipAsync(db, ownerPartnerId: null);
+        db.PaymentTransactions.Add(CompanyPayment(1));
+        await db.SaveChangesAsync();
+
+        var finding = Find(await new LedgerIntegrityReconciliationService(db).RunAsync(), "PARTNERSHIP-BOOK-OWNER-MISSING");
+
+        Assert.Equal(1, finding.Count);
+        Assert.Contains(finding.Samples, sample => sample.Contains("PS-01"));
+    }
+
+    [Fact]
+    public async Task CompanyPaymentReachingThePartnershipThroughItsSale_IsReportedToo()
+    {
+        await using var db = NewDb();
+        await SeedPartnershipAsync(db, ownerPartnerId: null);
+        db.SalesTransactions.Add(new SalesTransaction { Id = 7, ContractId = 1, SaleDate = new DateTime(2026, 5, 1), TotalUsd = 1_000m });
+        db.PaymentTransactions.Add(CompanyPayment(1, PaymentKind.ManualReceipt, PaymentDirection.In, contractId: null, salesTransactionId: 7));
+        await db.SaveChangesAsync();
+
+        var finding = Find(await new LedgerIntegrityReconciliationService(db).RunAsync(), "PARTNERSHIP-BOOK-OWNER-MISSING");
+
+        Assert.Equal(1, finding.Count);
+    }
+
+    [Fact]
+    public async Task CompanyPaymentWhoseBookOwnerIsNotAPartner_IsReported()
+    {
+        await using var db = NewDb();
+        await SeedPartnershipAsync(db, ownerPartnerId: 3);
+        db.PaymentTransactions.Add(CompanyPayment(1));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(1, Find(await new LedgerIntegrityReconciliationService(db).RunAsync(), "PARTNERSHIP-BOOK-OWNER-MISSING").Count);
+    }
+
+    [Fact]
+    public async Task CompanyPaymentWithABookOwnerOnTheContract_IsNotReported()
+    {
+        await using var db = NewDb();
+        await SeedPartnershipAsync(db, ownerPartnerId: 1);
+        db.PaymentTransactions.Add(CompanyPayment(1));
+        await db.SaveChangesAsync();
+
+        var report = await new LedgerIntegrityReconciliationService(db).RunAsync();
+
+        Assert.Equal(0, Find(report, "PARTNERSHIP-BOOK-OWNER-MISSING").Count);
+        Assert.Equal(0, Find(report, "PARTNERSHIP-PROCEEDS-DOUBLE-SOURCE").Count);
+    }
+
+    [Fact]
+    public async Task CustomerReceiptOnAContractWithAProceedsHolder_IsReportedAsDoubleSource_NotAsMissingOwner()
+    {
+        await using var db = NewDb();
+        await SeedPartnershipAsync(db, ownerPartnerId: null, proceedsHolderPartnerId: 2);
+        db.PaymentTransactions.Add(CompanyPayment(1, PaymentKind.CustomerReceipt, PaymentDirection.In));
+        await db.SaveChangesAsync();
+
+        var report = await new LedgerIntegrityReconciliationService(db).RunAsync();
+
+        var doubleSource = Find(report, "PARTNERSHIP-PROCEEDS-DOUBLE-SOURCE");
+        Assert.Equal(1, doubleSource.Count);
+        Assert.Contains(doubleSource.Samples, sample => sample.Contains("PS-01"));
+        // آن رسید Funding نیست، پس نبودنِ مالک دفتر برایش مهم نیست.
+        Assert.Equal(0, Find(report, "PARTNERSHIP-BOOK-OWNER-MISSING").Count);
+    }
+
+    [Fact]
+    public async Task CustomerReceiptWithoutAProceedsHolder_IsNotADoubleSource()
+    {
+        await using var db = NewDb();
+        await SeedPartnershipAsync(db, ownerPartnerId: 1);
+        db.PaymentTransactions.Add(CompanyPayment(1, PaymentKind.CustomerReceipt, PaymentDirection.In));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(0, Find(await new LedgerIntegrityReconciliationService(db).RunAsync(), "PARTNERSHIP-PROCEEDS-DOUBLE-SOURCE").Count);
+    }
+
+    // ------------------------------------------------------------------
     // ۸ — کلید ایمپورتِ غیر canonical و برخوردها (PTG-P1-04)
     // ------------------------------------------------------------------
 

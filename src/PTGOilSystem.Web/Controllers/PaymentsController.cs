@@ -660,6 +660,10 @@ public class PaymentsController : Controller
 
         NormalizeCreateModel(model);
         var context = await ValidateAndResolveAsync(model);
+        if (context is not null)
+        {
+            await ValidateCompanyFundingBookOwnerAsync(context, model, payerCompanyId: null);
+        }
 
         if (!ModelState.IsValid || context is null)
         {
@@ -979,6 +983,19 @@ public class PaymentsController : Controller
         if (payment is null)
         {
             return NotFound();
+        }
+
+        // اصلاحِ یک سندِ قدیمی مسدود نمی‌شود؛ فقط وقتی منبعِ پول یا قرارداد عوض شود، همان قاعدهٔ
+        // ثبتِ تازه اعمال می‌شود.
+        if (payment.FundingSource != context.FundingSource || payment.ContractId != context.ContractId)
+        {
+            await ValidateCompanyFundingBookOwnerAsync(context, model, payment.CompanyId);
+            if (!ModelState.IsValid)
+            {
+                await PopulateLookupsAsync(createModel: model);
+                ViewData["PaymentFormMode"] = "Edit";
+                return View("Create", model);
+            }
         }
 
         // PTG-P1-05 — معیارِ برخورد، نسخه‌ای است که کاربر هنگامِ بازکردنِ فرم دید،
@@ -3078,6 +3095,32 @@ public class PaymentsController : Controller
             model.SalesTransactionId,
             model.ExpenseTransactionId,
             resolvedTruckDispatchId);
+    }
+
+    internal const string CompanyFundingWithoutBookOwnerMessage =
+        "مالک دفتر این قرارداد مشخص نیست. ابتدا مالک دفتر را در اطلاعات شرکت تعیین کنید.";
+
+    /// <summary>
+    /// پرداخت از صندوق شرکت روی قرارداد شراکتی باید به حسابِ یک شریک بنشیند: شرکتِ پرداخت‌کننده
+    /// مالکِ دفتری دارد و همان مالک عضوِ این قرارداد است — دقیقاً قاعدهٔ
+    /// <see cref="PartnerFundingReader"/>. وگرنه پول از صندوق رفته و در صورت‌حساب شراکت به هیچ‌کس
+    /// نمی‌رسد. پرداختِ واقعیِ شریک از بیرونِ صندوق شرکت (FundingSource = Partner) هرگز اینجا رد نمی‌شود.
+    /// </summary>
+    private async Task ValidateCompanyFundingBookOwnerAsync(
+        ResolvedPaymentContext context,
+        PaymentCreateViewModel model,
+        int? payerCompanyId)
+    {
+        if (context.FundingSource != PaymentFundingSource.Company || !context.ContractId.HasValue)
+        {
+            return;
+        }
+
+        if (await PartnerFundingReader.IsCompanyFundingWithoutBookOwnerAsync(
+                _db, context.ContractId.Value, payerCompanyId, model.PaymentKind, model.Direction))
+        {
+            ModelState.AddModelError(string.Empty, CompanyFundingWithoutBookOwnerMessage);
+        }
     }
 
     private static bool MatchesExpectedDirection(PaymentKind paymentKind, PaymentDirection direction)

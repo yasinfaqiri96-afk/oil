@@ -388,6 +388,85 @@ public sealed class PartnerAccountingUnificationTests
         Assert.Equal(FawadNetPosition, firstOnly.NetPositionUsd);
     }
 
+    // ————————————————— نگه‌دارندهٔ عاید و رسید مشتری —————————————————
+
+    [Fact]
+    public async Task Holder_PartnerHeldCustomerReceipt_IsNotCountedTwice()
+    {
+        await using var db = CreateDb();
+        // یوسف نگه‌دارندهٔ عاید است و همان عاید را از مشتری هم گرفته و ثبت کرده است.
+        var s = await SeedAcceptanceAsync(db);
+        await AddPaymentAsync(db, s.ContractId, SalesUsd, PaymentKind.CustomerReceipt, "رسید مشتری",
+            new DateTime(2026, 8, 23), fundedByPartnerId: s.YusufId, companyId: null,
+            direction: PaymentDirection.In);
+
+        var fawad = await BuildProfileAsync(db, s.FawadId);
+        var yusuf = await BuildProfileAsync(db, s.YusufId);
+
+        // عاید فقط یک بار، از راه نگه‌دارنده: همان اعداد توافق‌شده.
+        Assert.Equal(YusufContribution, yusuf.FundingUsd);
+        Assert.Equal(SalesUsd, yusuf.ProceedsHeldUsd);
+        Assert.Equal(-FawadNetPosition, yusuf.NetPositionUsd);
+        Assert.Equal(FawadNetPosition, fawad.NetPositionUsd);
+        Assert.Equal(0m, fawad.NetPositionUsd + yusuf.NetPositionUsd);
+    }
+
+    [Fact]
+    public async Task Holder_CompanyCustomerReceipt_OfTheBookOwnersCompany_IsNotCountedTwice()
+    {
+        await using var db = CreateDb();
+        // دفتر شرکت مالِ فواد است و رسید مشتری به صندوق همین شرکت آمده؛ نگه‌دارنده یوسف است.
+        var s = await SeedAcceptanceAsync(db, linkCompanyToFawad: true);
+        await AddPaymentAsync(db, s.ContractId, SalesUsd, PaymentKind.CustomerReceipt, "رسید مشتری",
+            new DateTime(2026, 8, 23), fundedByPartnerId: null, companyId: s.CompanyId,
+            cashAccountId: s.CashAccountId, direction: PaymentDirection.In);
+
+        var fawad = await BuildProfileAsync(db, s.FawadId);
+        var yusuf = await BuildProfileAsync(db, s.YusufId);
+
+        Assert.Equal(FawadContribution, fawad.FundingUsd);
+        Assert.Equal(FawadNetPosition, fawad.NetPositionUsd);
+        Assert.Equal(-FawadNetPosition, yusuf.NetPositionUsd);
+    }
+
+    [Fact]
+    public async Task NoHolder_PartnerHeldCustomerReceipt_StillReducesThatPartnersFunding()
+    {
+        await using var db = CreateDb();
+        var s = await SeedAcceptanceAsync(db);
+        var contract = await db.Contracts.SingleAsync(c => c.Id == s.ContractId);
+        contract.SaleProceedsHolderPartnerId = null;
+        await db.SaveChangesAsync();
+        await AddPaymentAsync(db, s.ContractId, SalesUsd, PaymentKind.CustomerReceipt, "رسید مشتری",
+            new DateTime(2026, 8, 23), fundedByPartnerId: s.YusufId, companyId: null,
+            direction: PaymentDirection.In);
+
+        var fawad = await BuildProfileAsync(db, s.FawadId);
+        var yusuf = await BuildProfileAsync(db, s.YusufId);
+
+        // بدون نگه‌دارنده، خودِ رسید نشان می‌دهد عاید نزد یوسف است — رفتار قبلی، بدون تغییر.
+        Assert.Equal(YusufContribution - SalesUsd, yusuf.FundingUsd);
+        Assert.Equal(0m, yusuf.ProceedsHeldUsd);
+        Assert.Equal(-FawadNetPosition, yusuf.NetPositionUsd);
+        Assert.Equal(FawadNetPosition, fawad.NetPositionUsd);
+    }
+
+    [Fact]
+    public async Task Holder_ManualReceiptOfAPartner_IsNotMistakenForSaleProceeds()
+    {
+        await using var db = CreateDb();
+        var s = await SeedAcceptanceAsync(db);
+        // دریافتِ دستی سندِ عاید فروش نیست؛ نگه‌دارنده آن را کنار نمی‌گذارد.
+        await AddPaymentAsync(db, s.ContractId, 3_000m, PaymentKind.ManualReceipt, "دریافت دستی",
+            new DateTime(2026, 8, 24), fundedByPartnerId: s.FawadId, companyId: null,
+            direction: PaymentDirection.In);
+
+        var fawad = await BuildProfileAsync(db, s.FawadId);
+
+        Assert.Equal(FawadContribution - 3_000m, fawad.FundingUsd);
+        Assert.Equal(FawadNetPosition - 3_000m, fawad.NetPositionUsd);
+    }
+
     // ————————————————— کمک‌کننده‌ها —————————————————
 
     private sealed record Scenario(

@@ -66,6 +66,8 @@ public sealed class LedgerIntegrityReconciliationService(ApplicationDbContext db
             await InvalidPartnershipSharesAsync(cancellationToken),
             await OverlappingPartnerSharePeriodsAsync(cancellationToken),
             await ContractsOfPartnershipTypeWithoutSharesAsync(cancellationToken),
+            await PartnershipCompanyFundingWithoutBookOwnerAsync(cancellationToken),
+            await PartnershipProceedsDoubleSourceAsync(cancellationToken),
             await MalformedImportKeysAsync(cancellationToken),
             await BrokenSaleCorrectionChainsAsync(cancellationToken),
             await InvalidConcurrencyVersionsAsync(cancellationToken),
@@ -321,6 +323,166 @@ public sealed class LedgerIntegrityReconciliationService(ApplicationDbContext db
             count,
             contracts.Select(contract => $"قرارداد {contract.ContractNumber} (#{contract.Id})").ToList());
     }
+
+    // ------------------------------------------------------------------
+    // ۷-ب — پرداختِ شرکت روی قرارداد شراکتی که به حسابِ هیچ شریکی نمی‌نشیند
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// همان قاعدهٔ <see cref="PartyStatements.PartnerFundingReader"/>: پرداختِ صندوقِ شرکت روی قرارداد
+    /// شراکتی فقط وقتی سرمایهٔ یک شریک است که شرکتِ پرداخت‌کننده (خودِ سند، وگرنه شرکتِ قرارداد)
+    /// مالکِ دفتری داشته باشد که عضوِ همان قرارداد است. رسیدِ مشتری در قراردادی که نگه‌دارندهٔ عاید
+    /// دارد Funding نیست و اینجا شمرده نمی‌شود.
+    /// </summary>
+    private async Task<LedgerIntegrityFinding> PartnershipCompanyFundingWithoutBookOwnerAsync(
+        CancellationToken cancellationToken)
+    {
+        var payments = await LoadPartnershipPaymentsAsync(
+            db.PaymentTransactions.Where(p => p.FundingSource == PaymentFundingSource.Company),
+            cancellationToken);
+        if (payments.Count == 0)
+        {
+            return new LedgerIntegrityFinding(
+                "PARTNERSHIP-BOOK-OWNER-MISSING",
+                "پرداخت شرکت روی قرارداد شراکتی که مالک دفترِ عضو ندارد",
+                0,
+                []);
+        }
+
+        var contractIds = payments.Select(p => p.ContractId).Distinct().ToList();
+        var contracts = await db.Contracts
+            .AsNoTracking()
+            .Where(c => contractIds.Contains(c.Id))
+            .Select(c => new
+            {
+                c.Id,
+                c.ContractNumber,
+                c.CompanyId,
+                HasProceedsHolder = c.SaleProceedsHolderPartnerId != null
+            })
+            .ToDictionaryAsync(c => c.Id, cancellationToken);
+
+        var companyIds = payments
+            .Select(p => p.PayerCompanyId ?? contracts[p.ContractId].CompanyId)
+            .Distinct()
+            .ToList();
+        var ownerByCompany = await db.Companies
+            .AsNoTracking()
+            .Where(c => companyIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.OwnerPartnerId })
+            .ToDictionaryAsync(c => c.Id, c => c.OwnerPartnerId, cancellationToken);
+
+        var members = (await db.ContractPartners
+                .AsNoTracking()
+                .Where(cp => contractIds.Contains(cp.ContractId))
+                .Select(cp => new { cp.ContractId, cp.PartnerId })
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .Select(m => (m.ContractId, m.PartnerId))
+            .ToHashSet();
+
+        var unmapped = payments
+            .Where(p => !(contracts[p.ContractId].HasProceedsHolder
+                && p.PaymentKind == PaymentKind.CustomerReceipt
+                && p.Direction == PaymentDirection.In))
+            .Where(p =>
+            {
+                var ownerId = ownerByCompany.GetValueOrDefault(p.PayerCompanyId ?? contracts[p.ContractId].CompanyId);
+                return !ownerId.HasValue || !members.Contains((p.ContractId, ownerId.Value));
+            })
+            .GroupBy(p => p.ContractId)
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        return new LedgerIntegrityFinding(
+            "PARTNERSHIP-BOOK-OWNER-MISSING",
+            "پرداخت شرکت روی قرارداد شراکتی که مالک دفترِ عضو ندارد",
+            unmapped.Count,
+            unmapped
+                .Take(SampleSize)
+                .Select(g => $"قرارداد {contracts[g.Key].ContractNumber} (#{g.Key}): {g.Count():N0} پرداخت، {g.Sum(p => p.AmountUsd):N2} USD")
+                .ToList());
+    }
+
+    // ------------------------------------------------------------------
+    // ۷-ج — رسیدِ مشتری در قراردادی که نگه‌دارندهٔ عاید دارد
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// عایدِ فروشِ این قراردادها را <see cref="Contract.SaleProceedsHolderPartnerId"/> یک‌جا می‌برد،
+    /// پس رسیدهای مشتریِ آن‌ها از Funding کنار گذاشته می‌شوند تا عاید دو بار شمرده نشود.
+    /// این یافته فقط برای بازبینیِ انسانی است: اگر رسید به کسی جز نگه‌دارنده رسیده، یکی از دو داده
+    /// باید اصلاح شود.
+    /// </summary>
+    private async Task<LedgerIntegrityFinding> PartnershipProceedsDoubleSourceAsync(
+        CancellationToken cancellationToken)
+    {
+        var receipts = await LoadPartnershipPaymentsAsync(
+            db.PaymentTransactions.Where(p => p.PaymentKind == PaymentKind.CustomerReceipt
+                && p.Direction == PaymentDirection.In),
+            cancellationToken);
+
+        var contractIds = receipts.Select(p => p.ContractId).Distinct().ToList();
+        var holderContracts = contractIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await db.Contracts
+                .AsNoTracking()
+                .Where(c => contractIds.Contains(c.Id) && c.SaleProceedsHolderPartnerId != null)
+                .Select(c => new { c.Id, c.ContractNumber })
+                .ToDictionaryAsync(c => c.Id, c => c.ContractNumber, cancellationToken);
+
+        var affected = receipts
+            .Where(p => holderContracts.ContainsKey(p.ContractId))
+            .GroupBy(p => p.ContractId)
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        return new LedgerIntegrityFinding(
+            "PARTNERSHIP-PROCEEDS-DOUBLE-SOURCE",
+            "قرارداد شراکتی با نگه‌دارندهٔ عاید و رسید مشتری (رسید از سرمایهٔ شریک کنار گذاشته شد)",
+            affected.Count,
+            affected
+                .Take(SampleSize)
+                .Select(g => $"قرارداد {holderContracts[g.Key]} (#{g.Key}): {g.Count():N0} رسید، {g.Sum(p => p.AmountUsd):N2} USD")
+                .ToList());
+    }
+
+    /// <summary>
+    /// پرداخت‌هایی که به یک قرارداد شراکتی می‌رسند — مستقیم یا از راه فروشِ همان قرارداد؛ همان
+    /// دامنه‌ای که <see cref="PartyStatements.PartnerFundingReader"/> می‌خواند.
+    /// </summary>
+    private async Task<List<PartnershipPaymentRow>> LoadPartnershipPaymentsAsync(
+        IQueryable<PaymentTransaction> source,
+        CancellationToken cancellationToken)
+    {
+        var partnershipContractIds = db.Contracts
+            .Where(c => c.OwnershipType == ContractOwnershipType.Partnership)
+            .Select(c => c.Id);
+
+        var rows = await source
+            .AsNoTracking()
+            .Select(p => new
+            {
+                ContractId = p.ContractId ?? (p.SalesTransaction != null ? p.SalesTransaction.ContractId : null),
+                p.CompanyId,
+                p.PaymentKind,
+                p.Direction,
+                p.AmountUsd
+            })
+            .Where(p => p.ContractId != null && partnershipContractIds.Contains(p.ContractId.Value))
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(p => new PartnershipPaymentRow(p.ContractId!.Value, p.CompanyId, p.PaymentKind, p.Direction, p.AmountUsd))
+            .ToList();
+    }
+
+    private sealed record PartnershipPaymentRow(
+        int ContractId,
+        int? PayerCompanyId,
+        PaymentKind PaymentKind,
+        PaymentDirection Direction,
+        decimal AmountUsd);
 
     // ------------------------------------------------------------------
     // ۸ — کلید ایمپورت که با قاعدهٔ canonical امروز نمی‌خواند (PTG-P1-04)

@@ -105,13 +105,14 @@ public sealed class PartnerCurrentReconciliationService(
 
             var ledgerByPartner = await LoadPartnerCurrentBalancesAsync(
                 contract.CompanyId, contract.Id, cancellationToken);
+            var partnerFundedByPartner = await LoadPartnerFundedContributionsAsync(
+                contract.Id, cancellationToken);
 
             foreach (var partner in statement.Partners)
             {
                 // «آوردهٔ شرکتی» = بخشی از FundingUsd که از صندوق شرکت رفته. FundingUsd هر دو
                 // نوع را با هم دارد، پس سهمِ واقعاً شخصیِ شریک از خودِ پرداخت‌ها خوانده می‌شود.
-                var partnerFunded = await LoadPartnerFundedContributionAsync(
-                    contract.Id, partner.PartnerId, cancellationToken);
+                var partnerFunded = partnerFundedByPartner.GetValueOrDefault(partner.PartnerId);
                 var companyFunded = partner.FundingUsd - partnerFunded;
 
                 var ledger = ledgerByPartner.GetValueOrDefault(partner.PartnerId);
@@ -178,24 +179,27 @@ public sealed class PartnerCurrentReconciliationService(
     }
 
     /// <summary>
-    /// آنچه شریک واقعاً از جیب خودش داده، منهای آنچه از پول قرارداد نزد خودش نگه داشته —
+    /// آنچه هر شریک واقعاً از جیب خودش داده، منهای آنچه از پول قرارداد نزد خودش نگه داشته —
     /// همان علامتی که صورت‌حساب برای FundingUsd به‌کار می‌برد، ولی فقط برای پرداخت‌هایی که
-    /// خودِ سطرشان می‌گوید منبعشان شریک بوده، نه صندوق شرکت.
+    /// منبعشان خودِ شریک بوده، نه صندوق شرکت.
+    ///
+    /// منبع همان <see cref="PartnerFundingReader"/> است که صورت‌حساب می‌خواند — همان دامنه
+    /// (پرداختِ قرارداد و پرداختِ فروشِ آن)، همان شرط عضویت و همان قاعدهٔ نگه‌دارندهٔ عاید —
+    /// تا تطبیق و صورت‌حساب هرگز دو تعریف از «پرداختِ شریک» نداشته باشند.
     /// </summary>
-    private async Task<decimal> LoadPartnerFundedContributionAsync(
+    private async Task<Dictionary<int, decimal>> LoadPartnerFundedContributionsAsync(
         int contractId,
-        int partnerId,
         CancellationToken cancellationToken)
     {
-        var rows = await db.PaymentTransactions
-            .AsNoTracking()
-            .Where(x => x.ContractId == contractId
-                && x.FundingSource == PaymentFundingSource.Partner
-                && x.PaidByPartnerId == partnerId)
-            .Select(x => new { x.Direction, x.AmountUsd })
-            .ToListAsync(cancellationToken);
+        var rows = await PartnerFundingReader.LoadPartnerFundedPaymentsAsync(
+            db, [contractId], partnerId: null, toDate: null, cancellationToken);
 
-        return PartnerProfitAllocationPolicy.Round(
-            rows.Sum(x => x.Direction == PaymentDirection.Out ? x.AmountUsd : -x.AmountUsd));
+        return rows
+            .Where(x => !x.ViaOwnedCompany)
+            .GroupBy(x => x.PartnerId)
+            .ToDictionary(
+                g => g.Key,
+                g => PartnerProfitAllocationPolicy.Round(
+                    g.Sum(x => x.Direction == PaymentDirection.Out ? x.AmountUsd : -x.AmountUsd)));
     }
 }

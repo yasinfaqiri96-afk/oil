@@ -65,6 +65,12 @@ public sealed record PartnerFundingLedgerMap(
 ///      <see cref="ContractOwnershipType.Partnership"/> باشد، و شریکِ مالک واقعاً در
 ///      <see cref="ContractPartner"/> همان قرارداد باشد. پرداختِ عمومیِ شرکت، سربار، یا
 ///      پرداختِ قراردادِ دیگر هیچ‌وقت از این در رد نمی‌شود.
+///
+/// و یک استثنا: وقتی قرارداد <see cref="Contract.SaleProceedsHolderPartnerId"/> دارد، همان فیلد
+/// تنها منبعِ «عایدِ فروش نزد کیست» است و صورت‌حساب کلِ فروش را به نگه‌دارنده می‌دهد. پس رسیدِ
+/// مشتری (<see cref="PaymentKind.CustomerReceipt"/>، که همیشه ورودی است) دیگر Funding منفیِ هیچ
+/// شریکی شمرده نمی‌شود — وگرنه همان عاید دو بار از مانده کم می‌شد. فقط رسیدِ مشتری کنار می‌رود؛
+/// برگشتِ تأمین‌کننده، دریافتِ دستی و هر ورودیِ دیگر — حتی اگر به یک فروش وصل باشد — مثل قبل است.
 /// </summary>
 public static class PartnerFundingReader
 {
@@ -167,6 +173,62 @@ public static class PartnerFundingReader
     }
 
     /// <summary>
+    /// رسیدِ مشتری — عایدِ واقعیِ فروش. <see cref="PaymentKind.CustomerReceipt"/> همیشه ورودی است؛
+    /// اتصال به یک فروش به‌تنهایی کافی نیست، چون هر نوع پرداختی می‌تواند به فروش وصل شود.
+    /// </summary>
+    public static bool IsSaleProceedsReceipt(PaymentKind paymentKind, PaymentDirection direction)
+        => paymentKind == PaymentKind.CustomerReceipt && direction == PaymentDirection.In;
+
+    /// <summary>
+    /// آیا پرداختِ تازه‌ای از صندوقِ شرکت روی این قرارداد، به حسابِ هیچ شریکی نمی‌نشیند؟
+    ///
+    /// همان قاعدهٔ <see cref="FundingContext.ResolveFundingPartnerId"/>: پرداختِ شرکت روی قرارداد
+    /// شراکتی فقط وقتی سرمایهٔ یک شریک است که شرکتِ پرداخت‌کننده مالکِ دفتری داشته باشد و همان
+    /// مالک عضوِ همین قرارداد باشد. رسیدِ مشتری در قراردادی که نگه‌دارندهٔ عاید دارد اصلاً
+    /// Funding نیست، پس به مالک دفتر نیازی ندارد.
+    /// </summary>
+    public static async Task<bool> IsCompanyFundingWithoutBookOwnerAsync(
+        ApplicationDbContext db,
+        int contractId,
+        int? payerCompanyId,
+        PaymentKind paymentKind,
+        PaymentDirection direction,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+
+        var contract = await db.Contracts
+            .AsNoTracking()
+            .Where(c => c.Id == contractId)
+            .Select(c => new { c.CompanyId, c.OwnershipType, HasProceedsHolder = c.SaleProceedsHolderPartnerId != null })
+            .FirstOrDefaultAsync(ct);
+        if (contract is null || contract.OwnershipType != ContractOwnershipType.Partnership)
+        {
+            return false;
+        }
+
+        if (contract.HasProceedsHolder && IsSaleProceedsReceipt(paymentKind, direction))
+        {
+            return false;
+        }
+
+        var companyId = payerCompanyId ?? contract.CompanyId;
+        var ownerPartnerId = await db.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.OwnerPartnerId)
+            .FirstOrDefaultAsync(ct);
+        if (!ownerPartnerId.HasValue)
+        {
+            return true;
+        }
+
+        return !await db.ContractPartners
+            .AsNoTracking()
+            .AnyAsync(cp => cp.ContractId == contractId && cp.PartnerId == ownerPartnerId.Value, ct);
+    }
+
+    /// <summary>
     /// دامنه دقیقاً همان چیزی است که پروفایل شریک نشان می‌دهد: پرداختِ مستقیمِ قرارداد و
     /// پرداختی که از راه یک فروشِ همان قرارداد ثبت شده.
     /// </summary>
@@ -239,6 +301,7 @@ public static class PartnerFundingReader
     private sealed class FundingContext
     {
         private readonly HashSet<int> _partnershipContractIds = [];
+        private readonly HashSet<int> _proceedsHolderContractIds = [];
         private readonly Dictionary<int, int> _contractCompanyId = [];
         private readonly Dictionary<int, int> _companyOwnerPartnerId = [];
         private readonly HashSet<(int ContractId, int PartnerId)> _members = [];
@@ -254,7 +317,7 @@ public static class PartnerFundingReader
             var contracts = await db.Contracts
                 .AsNoTracking()
                 .Where(c => contractIds.Contains(c.Id))
-                .Select(c => new { c.Id, c.CompanyId, c.OwnershipType })
+                .Select(c => new { c.Id, c.CompanyId, c.OwnershipType, HasProceedsHolder = c.SaleProceedsHolderPartnerId != null })
                 .ToListAsync(ct);
             foreach (var contract in contracts)
             {
@@ -262,6 +325,11 @@ public static class PartnerFundingReader
                 if (contract.OwnershipType == ContractOwnershipType.Partnership)
                 {
                     context._partnershipContractIds.Add(contract.Id);
+                }
+
+                if (contract.HasProceedsHolder)
+                {
+                    context._proceedsHolderContractIds.Add(contract.Id);
                 }
             }
 
@@ -305,6 +373,14 @@ public static class PartnerFundingReader
         /// </summary>
         public int? ResolveFundingPartnerId(ScopedPaymentRow row)
         {
+            // عایدِ فروشِ این قرارداد را نگه‌دارنده (SaleProceedsHolderPartnerId) یک‌جا می‌برد؛
+            // رسیدِ مشتریِ همان فروش اگر اینجا هم شمرده شود، عاید دو بار کم می‌شود.
+            if (IsSaleProceedsReceipt(row.PaymentKind, row.Direction)
+                && _proceedsHolderContractIds.Contains(row.ContractId))
+            {
+                return null;
+            }
+
             if (row.FundingSource == PaymentFundingSource.Partner)
             {
                 // پرداختِ مستقیمِ شریک. عضویت شرط است تا پرداختِ یک شریک روی قراردادی که

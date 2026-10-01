@@ -6,6 +6,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Accounting;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Services.Reconciliation;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -530,6 +531,136 @@ public sealed class PartnerCurrentAccountingTests(AccountingPostgreSqlFixture fi
         // The money belongs to the other contract, so this contract's rows must not see it.
         Assert.All(report.Rows, row => Assert.Equal(0m, row.LedgerPartnerCurrentUsd));
         Assert.All(report.Rows, row => Assert.Equal(0m, row.PartnerFundedContributionUsd));
+    }
+
+    // ───────────────────────── proceeds holder & book owner ─────────────────────────
+
+    [Fact]
+    public async Task Holder_Who_Also_Recorded_The_Customer_Receipt_Reconciles_To_Zero()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var (yusuf, fawad) = await MakePartnershipAsync(db, scope, salesUsd: 1_000m);
+        var contract = await db.Contracts.SingleAsync(x => x.Id == scope.Contract.Id);
+        contract.SaleProceedsHolderPartnerId = yusuf.Id;
+        await db.SaveChangesAsync();
+
+        // Yusuf holds the proceeds and the customer's whole payment stopped with him.
+        var receipt = await AddPaymentAsync(db, scope, p =>
+        {
+            p.PaymentKind = PaymentKind.CustomerReceipt;
+            p.Direction = PaymentDirection.In;
+            p.CustomerId = scope.Customer.Id;
+            p.FundingSource = PaymentFundingSource.Partner;
+            p.PaidByPartnerId = yusuf.Id;
+            p.CashAccountId = null;
+            p.AmountUsd = p.Amount = 1_000m;
+        });
+        await CreateAdapter(db, Pilots(customerReceipt: true)).TryPostPaymentAsync(receipt);
+        await CreateAllocationAdapter(db).TryPostAllocationAsync(scope.Contract.Id);
+
+        var statement = await new PartnershipStatementService(db).BuildForContractAsync(scope.Contract.Id);
+        var report = await new PartnerCurrentReconciliationService(db, new PartnershipStatementService(db))
+            .BuildAsync(scope.Contract.Id);
+
+        // The proceeds are counted once: through the holder, not again through his receipt.
+        var yusufTotals = statement!.Partners.Single(x => x.PartnerId == yusuf.Id);
+        Assert.Equal(0m, yusufTotals.FundingUsd);
+        Assert.Equal(1_000m, yusufTotals.ProceedsHeldUsd);
+        Assert.Equal(-500m, yusufTotals.NetPositionUsd);
+        Assert.Equal(500m, statement.Partners.Single(x => x.PartnerId == fawad.Id).NetPositionUsd);
+
+        Assert.True(report.IsFullyReconciled);
+        Assert.All(report.Rows, row => Assert.Equal(0m, row.DifferenceUsd));
+        Assert.All(report.Rows, row => Assert.Equal(0m, row.CompanyFundedContributionUsd));
+    }
+
+    [Fact]
+    public async Task A_Partner_Receipt_Linked_Only_Through_The_Sale_Is_Partner_Money_Not_Company_Money()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var (yusuf, _) = await MakePartnershipAsync(db, scope, salesUsd: 1_000m);
+        var sale = await db.SalesTransactions.SingleAsync(x => x.SourcePurchaseContractId == scope.Contract.Id);
+        sale.ContractId = scope.Contract.Id;
+        await db.SaveChangesAsync();
+
+        // No contract on the receipt itself: it reaches the partnership only through its sale.
+        await AddPaymentAsync(db, scope, p =>
+        {
+            p.PaymentKind = PaymentKind.CustomerReceipt;
+            p.Direction = PaymentDirection.In;
+            p.CustomerId = scope.Customer.Id;
+            p.ContractId = null;
+            p.SalesTransactionId = sale.Id;
+            p.FundingSource = PaymentFundingSource.Partner;
+            p.PaidByPartnerId = yusuf.Id;
+            p.CashAccountId = null;
+            p.AmountUsd = p.Amount = 400m;
+        });
+
+        var report = await new PartnerCurrentReconciliationService(db, new PartnershipStatementService(db))
+            .BuildAsync(scope.Contract.Id);
+
+        var yusufRow = report.Rows.Single(x => x.PartnerId == yusuf.Id);
+        Assert.Equal(-400m, yusufRow.PartnerFundedContributionUsd);
+        Assert.Equal(0m, yusufRow.CompanyFundedContributionUsd);
+        Assert.NotEqual("COMPANY_FUNDED_CONTRIBUTION_NOT_IN_LEDGER", yusufRow.DifferenceReason);
+    }
+
+    [Fact]
+    public async Task Book_Owner_Checks_And_Integrity_Findings_Run_On_PostgreSql()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var (yusuf, fawad) = await MakePartnershipAsync(db, scope, salesUsd: 1_000m);
+        var integrity = new LedgerIntegrityReconciliationService(db);
+
+        var before = await integrity.RunAsync();
+        var missingBefore = before.Findings.Single(x => x.Code == "PARTNERSHIP-BOOK-OWNER-MISSING").Count;
+        var doubleBefore = before.Findings.Single(x => x.Code == "PARTNERSHIP-PROCEEDS-DOUBLE-SOURCE").Count;
+
+        // The company has no book owner yet and pays a bill of this partnership out of its till.
+        await AddPaymentAsync(db, scope, p =>
+        {
+            p.PaymentKind = PaymentKind.SupplierPayment;
+            p.Direction = PaymentDirection.Out;
+            p.SupplierId = scope.Supplier.Id;
+            p.AmountUsd = p.Amount = 300m;
+        });
+        var contract = await db.Contracts.SingleAsync(x => x.Id == scope.Contract.Id);
+        contract.SaleProceedsHolderPartnerId = yusuf.Id;
+        await db.SaveChangesAsync();
+        await AddPaymentAsync(db, scope, p =>
+        {
+            p.PaymentKind = PaymentKind.CustomerReceipt;
+            p.Direction = PaymentDirection.In;
+            p.CustomerId = scope.Customer.Id;
+            p.AmountUsd = p.Amount = 1_000m;
+        });
+
+        Assert.True(await PartnerFundingReader.IsCompanyFundingWithoutBookOwnerAsync(
+            db, scope.Contract.Id, null, PaymentKind.SupplierPayment, PaymentDirection.Out));
+        Assert.False(await PartnerFundingReader.IsCompanyFundingWithoutBookOwnerAsync(
+            db, scope.Contract.Id, null, PaymentKind.CustomerReceipt, PaymentDirection.In));
+
+        var after = await integrity.RunAsync();
+        Assert.Equal(missingBefore + 1, after.Findings.Single(x => x.Code == "PARTNERSHIP-BOOK-OWNER-MISSING").Count);
+        Assert.Equal(doubleBefore + 1, after.Findings.Single(x => x.Code == "PARTNERSHIP-PROCEEDS-DOUBLE-SOURCE").Count);
+
+        // Naming a book owner who sits on the contract clears the gap and the guard.
+        var company = await db.Companies.SingleAsync(x => x.Id == scope.Company.Id);
+        company.OwnerPartnerId = fawad.Id;
+        await db.SaveChangesAsync();
+
+        Assert.False(await PartnerFundingReader.IsCompanyFundingWithoutBookOwnerAsync(
+            db, scope.Contract.Id, null, PaymentKind.SupplierPayment, PaymentDirection.Out));
+        var linked = await integrity.RunAsync();
+        Assert.Equal(missingBefore, linked.Findings.Single(x => x.Code == "PARTNERSHIP-BOOK-OWNER-MISSING").Count);
+
+        var statement = await new PartnershipStatementService(db).BuildForContractAsync(scope.Contract.Id);
+        Assert.Equal(300m, statement!.Partners.Single(x => x.PartnerId == fawad.Id).FundingUsd);
+        Assert.Equal(0m, statement.Partners.Single(x => x.PartnerId == yusuf.Id).FundingUsd);
     }
 
     // ───────────────────────── helpers ─────────────────────────

@@ -55,7 +55,7 @@
                     <span asp-validation-for="Notes" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
-                    <label asp-for="OwnerPartnerId" class="ak-label">مالک دفتر (شریک)</label>
+                    <label asp-for="OwnerPartnerId" class="ak-label">مالک دفتر</label>
                     <select asp-for="OwnerPartnerId" class="ak-input"
                             asp-items="@((List<SelectListItem>)(ViewBag.OwnerPartners ?? new List<SelectListItem>()))">
                         <option value="">— شرکت مستقل —</option>

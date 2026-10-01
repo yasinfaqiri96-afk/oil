@@ -85,6 +85,11 @@ public partial class ContractsController : Controller
             "Id",
             "Name",
             model?.CompanyId);
+        // «مالک دفتر» هر شرکت — فقط برای برچسبِ کنار همان شریک در جدول شرکا.
+        ViewBag.CompanyBookOwners = (IReadOnlyDictionary<int, int>)await _db.Companies
+            .AsNoTracking()
+            .Where(c => c.IsActive && c.OwnerPartnerId != null)
+            .ToDictionaryAsync(c => c.Id, c => c.OwnerPartnerId!.Value);
         ViewBag.Products = new SelectList(
             products,
             "Id",
@@ -443,6 +448,10 @@ public partial class ContractsController : Controller
                 ("ContractDate", contract.ContractDate)));
 
         TempData["ok"] = "قرارداد ثبت شد.";
+        await SetBookOwnerWarningAsync(
+            contract.OwnershipType,
+            contract.CompanyId,
+            partnerShares.Select(p => p.PartnerId!.Value));
         return RedirectToAction(nameof(Details), new { id = contract.Id });
     }
 
@@ -693,8 +702,51 @@ public partial class ContractsController : Controller
                 ? $"تغییرات قرارداد اعمال شد و قیمت خرید {syncedLoadingCount:N0} بارگیری هماهنگ شد."
                 : "تغییرات قرارداد اعمال شد.") + shareSliceNote,
             skippedFinalizedCount);
+        await SetBookOwnerWarningAsync(
+            existing.OwnershipType,
+            existing.CompanyId,
+            normalizedPartnerShares.Select(p => p.PartnerId!.Value));
         return RedirectToAction(nameof(Details), new { id });
     }
+
+    /// <summary>
+    /// قرارداد شراکتی: اگر شرکتِ قرارداد «مالک دفتر» ندارد یا مالک دفترش در شرکای همین قرارداد
+    /// نیست، یک هشدار کوتاه. ذخیرهٔ قرارداد مسدود نمی‌شود؛ فقط کاربر می‌داند پرداخت از صندوقِ
+    /// همین شرکت برای این قرارداد تا تعیین مالک دفتر پذیرفته نمی‌شود.
+    /// </summary>
+    private async Task SetBookOwnerWarningAsync(
+        ContractOwnershipType ownershipType,
+        int companyId,
+        IEnumerable<int> partnerIds)
+    {
+        if (ownershipType != ContractOwnershipType.Partnership)
+        {
+            return;
+        }
+
+        var owner = await _db.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => new
+            {
+                c.OwnerPartnerId,
+                OwnerName = c.OwnerPartner != null ? c.OwnerPartner.Name : null
+            })
+            .FirstOrDefaultAsync();
+
+        if (owner?.OwnerPartnerId is null)
+        {
+            TempData["Toast.Warning"] = BookOwnerMissingWarning;
+        }
+        else if (!partnerIds.Contains(owner.OwnerPartnerId.Value))
+        {
+            TempData["Toast.Warning"] =
+                $"مالک دفتر این شرکت ({owner.OwnerName}) در شرکای این قرارداد نیست؛ پرداخت از صندوق شرکت برای این قرارداد ثبت نمی‌شود.";
+        }
+    }
+
+    internal const string BookOwnerMissingWarning =
+        "مالک دفتر این قرارداد مشخص نیست؛ تا آن را در اطلاعات شرکت تعیین نکنید، پرداخت از صندوق شرکت برای این قرارداد ثبت نمی‌شود.";
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]

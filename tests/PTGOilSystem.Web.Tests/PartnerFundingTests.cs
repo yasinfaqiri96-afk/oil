@@ -442,11 +442,13 @@ public sealed class PartnerFundingTests
     }
 
     [Fact]
-    public async Task Create_CompanyFunded_KeepsTheExistingCashAndLedgerBehaviour()
+    public async Task Create_CompanyFunded_WithABookOwnerOnTheContract_KeepsTheExistingCashAndLedgerBehaviour()
     {
         await using var db = CreateDb();
         var scenario = await SeedPartnershipAsync(db);
         db.Currencies.Add(new Currency { Code = "USD", Name = "US Dollar", IsActive = true });
+        // دفتر شرکت مالِ شریک A است و A عضو همین قرارداد است.
+        (await db.Companies.SingleAsync(c => c.Id == scenario.CompanyId)).OwnerPartnerId = scenario.PartnerA;
         await db.SaveChangesAsync();
 
         var controller = BuildPaymentsController(db);
@@ -470,7 +472,140 @@ public sealed class PartnerFundingTests
         Assert.Null(saved.PaidByPartnerId);
         Assert.Equal(scenario.CashAccountId, saved.CashAccountId);
         Assert.NotNull(saved.LedgerEntryId);
+
+        // و همان پول در صورت‌حساب شراکت سرمایهٔ مالک دفتر است.
+        var profile = await new PartnershipStatementService(db).BuildForPartnerAsync(scenario.PartnerA);
+        Assert.Equal(PurchaseUsd, profile!.FundingUsd);
     }
+
+    [Fact]
+    public async Task Create_CompanyFunded_WhenTheCompanyHasNoBookOwner_IsRejected()
+    {
+        await using var db = CreateDb();
+        var scenario = await SeedPartnershipAsync(db);
+        db.Currencies.Add(new Currency { Code = "USD", Name = "US Dollar", IsActive = true });
+        await db.SaveChangesAsync();
+
+        var controller = BuildPaymentsController(db);
+        var result = await controller.Create(CompanyFundedSupplierPayment(scenario, "NO-OWNER-1"));
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains(
+            controller.ModelState[string.Empty]!.Errors,
+            e => e.ErrorMessage == "مالک دفتر این قرارداد مشخص نیست. ابتدا مالک دفتر را در اطلاعات شرکت تعیین کنید.");
+        Assert.Empty(db.PaymentTransactions);
+    }
+
+    [Fact]
+    public async Task Create_CompanyFunded_WhenTheBookOwnerIsNotAPartnerOfTheContract_IsRejected()
+    {
+        await using var db = CreateDb();
+        var scenario = await SeedPartnershipAsync(db);
+        db.Currencies.Add(new Currency { Code = "USD", Name = "US Dollar", IsActive = true });
+        var outsider = new Partner { Code = "PAR-X", Name = "Outsider", IsActive = true };
+        db.Partners.Add(outsider);
+        await db.SaveChangesAsync();
+        (await db.Companies.SingleAsync(c => c.Id == scenario.CompanyId)).OwnerPartnerId = outsider.Id;
+        await db.SaveChangesAsync();
+
+        var controller = BuildPaymentsController(db);
+        var result = await controller.Create(CompanyFundedSupplierPayment(scenario, "OUTSIDER-OWNER-1"));
+
+        Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey(string.Empty));
+        Assert.Empty(db.PaymentTransactions);
+    }
+
+    [Fact]
+    public async Task Create_CompanyFunded_OnAPersonalContract_DoesNotNeedABookOwner()
+    {
+        await using var db = CreateDb();
+        var scenario = await SeedPartnershipAsync(db);
+        db.Currencies.Add(new Currency { Code = "USD", Name = "US Dollar", IsActive = true });
+        var contract = await db.Contracts.SingleAsync(c => c.Id == scenario.ContractId);
+        contract.OwnershipType = ContractOwnershipType.Personal;
+        await db.SaveChangesAsync();
+
+        var controller = BuildPaymentsController(db);
+        var result = await controller.Create(CompanyFundedSupplierPayment(scenario, "PERSONAL-1"));
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Single(db.PaymentTransactions);
+    }
+
+    [Fact]
+    public async Task Create_PartnerFunded_IsNeverBlockedByAMissingBookOwner()
+    {
+        await using var db = CreateDb();
+        var scenario = await SeedPartnershipAsync(db);
+        db.Currencies.Add(new Currency { Code = "USD", Name = "US Dollar", IsActive = true });
+        await db.SaveChangesAsync();
+
+        // شرکت مالک دفتر ندارد، ولی پول از جیب خودِ شریک رفته است.
+        var controller = BuildPaymentsController(db);
+        var result = await controller.Create(new PaymentCreateViewModel
+        {
+            PaymentDate = new DateTime(2026, 8, 5),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.SupplierPayment,
+            FundingSource = PaymentFundingSource.Partner,
+            PaidByPartnerId = scenario.PartnerB,
+            SupplierId = scenario.SupplierId,
+            ContractId = scenario.ContractId,
+            Amount = PurchaseUsd,
+            Currency = "USD",
+            Reference = "PARTNER-B-NO-OWNER"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Single(db.PaymentTransactions);
+    }
+
+    [Fact]
+    public async Task Create_CustomerReceipt_OnAContractWithAProceedsHolder_DoesNotNeedABookOwner()
+    {
+        await using var db = CreateDb();
+        var scenario = await SeedPartnershipAsync(db);
+        db.Currencies.Add(new Currency { Code = "USD", Name = "US Dollar", IsActive = true });
+        var customer = new Customer { Name = "Buyer", IsActive = true };
+        db.Customers.Add(customer);
+        (await db.Contracts.SingleAsync(c => c.Id == scenario.ContractId)).SaleProceedsHolderPartnerId = scenario.PartnerA;
+        await db.SaveChangesAsync();
+
+        // عاید این قرارداد را نگه‌دارنده می‌برد؛ رسیدِ مشتری Funding هیچ شریکی نیست.
+        var controller = BuildPaymentsController(db);
+        var result = await controller.Create(new PaymentCreateViewModel
+        {
+            PaymentDate = new DateTime(2026, 8, 20),
+            Direction = PaymentDirection.In,
+            PaymentKind = PaymentKind.CustomerReceipt,
+            FundingSource = PaymentFundingSource.Company,
+            CashAccountId = scenario.CashAccountId,
+            CustomerId = customer.Id,
+            ContractId = scenario.ContractId,
+            Amount = 5_000m,
+            Currency = "USD",
+            Reference = "HOLDER-RECEIPT-1"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Single(db.PaymentTransactions);
+    }
+
+    private static PaymentCreateViewModel CompanyFundedSupplierPayment(PartnershipScenario scenario, string reference)
+        => new()
+        {
+            PaymentDate = new DateTime(2026, 8, 5),
+            Direction = PaymentDirection.Out,
+            PaymentKind = PaymentKind.SupplierPayment,
+            FundingSource = PaymentFundingSource.Company,
+            CashAccountId = scenario.CashAccountId,
+            SupplierId = scenario.SupplierId,
+            ContractId = scenario.ContractId,
+            Amount = PurchaseUsd,
+            Currency = "USD",
+            Reference = reference
+        };
 
     // ————————————————— کمک‌کننده‌ها —————————————————
 

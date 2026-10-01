@@ -1498,6 +1498,122 @@ public class ContractsControllerTests
         Assert.Equal(500m, loading.LoadingPriceUsd);
     }
 
+    // ————————————————— مالک دفتر در قرارداد شراکتی —————————————————
+
+    private static async Task<ContractsController> SeedBookOwnerCaseAsync(ApplicationDbContext db, int? ownerPartnerId)
+    {
+        SeedContractContext(db);
+        db.Currencies.Add(new Currency { Id = 1, Code = "USD", Name = "US Dollar", IsActive = true });
+        db.Partners.AddRange(
+            new Partner { Id = 1, Code = "P1", Name = "Partner 1", IsActive = true },
+            new Partner { Id = 2, Code = "P2", Name = "Partner 2", IsActive = true },
+            new Partner { Id = 3, Code = "P3", Name = "Outsider", IsActive = true });
+        await db.SaveChangesAsync();
+        (await db.Companies.SingleAsync(c => c.Id == 1)).OwnerPartnerId = ownerPartnerId;
+        await db.SaveChangesAsync();
+        return BuildController(db);
+    }
+
+    private static ContractFormViewModel NewPartnershipModel()
+    {
+        var model = NewBaseCreateModel();
+        model.OwnershipType = ContractOwnershipType.Partnership;
+        model.PartnerShares =
+        [
+            new ContractPartnerShareInput { PartnerId = 1, SharePercent = 60m },
+            new ContractPartnerShareInput { PartnerId = 2, SharePercent = 40m }
+        ];
+        return model;
+    }
+
+    [Fact]
+    public async Task Create_Partnership_WhoseCompanyHasNoBookOwner_IsSavedWithAShortWarning()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        var controller = await SeedBookOwnerCaseAsync(db, ownerPartnerId: null);
+
+        var result = await controller.Create(NewPartnershipModel());
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Single(await db.Contracts.Where(c => c.OwnershipType == ContractOwnershipType.Partnership).ToListAsync());
+        Assert.Equal(ContractsController.BookOwnerMissingWarning, controller.TempData["Toast.Warning"]);
+    }
+
+    [Fact]
+    public async Task Create_Partnership_WhoseBookOwnerIsNotAPartner_IsSavedWithAShortWarning()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        var controller = await SeedBookOwnerCaseAsync(db, ownerPartnerId: 3);
+
+        var result = await controller.Create(NewPartnershipModel());
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var warning = Assert.IsType<string>(controller.TempData["Toast.Warning"]);
+        Assert.Contains("Outsider", warning);
+    }
+
+    [Fact]
+    public async Task Create_Partnership_WithTheBookOwnerAmongThePartners_HasNoWarning()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        var controller = await SeedBookOwnerCaseAsync(db, ownerPartnerId: 1);
+
+        var result = await controller.Create(NewPartnershipModel());
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Null(controller.TempData["Toast.Warning"]);
+    }
+
+    [Fact]
+    public async Task Create_Personal_NeverWarnsAboutABookOwner()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        var controller = await SeedBookOwnerCaseAsync(db, ownerPartnerId: null);
+
+        var result = await controller.Create(NewBaseCreateModel());
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Null(controller.TempData["Toast.Warning"]);
+    }
+
+    [Fact]
+    public async Task Edit_Partnership_RemovingTheBookOwnerFromThePartners_IsSavedWithAShortWarning()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        var controller = await SeedBookOwnerCaseAsync(db, ownerPartnerId: 1);
+        Assert.IsType<RedirectToActionResult>(await controller.Create(NewPartnershipModel()));
+        var created = await db.Contracts.SingleAsync(c => c.OwnershipType == ContractOwnershipType.Partnership);
+
+        var editor = BuildController(db);
+        var model = NewPartnershipModel();
+        model.Id = created.Id;
+        model.ContractNumber = created.ContractNumber;
+        model.Version = created.Version;
+        model.PartnerShares =
+        [
+            new ContractPartnerShareInput { PartnerId = 2, SharePercent = 60m },
+            new ContractPartnerShareInput { PartnerId = 3, SharePercent = 40m }
+        ];
+
+        var result = await editor.Edit(created.Id, model);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var warning = Assert.IsType<string>(editor.TempData["Toast.Warning"]);
+        Assert.Contains("Partner 1", warning);
+    }
+
+    [Fact]
+    public async Task ContractForm_KnowsEachCompanysBookOwner_ForThePartnerBadge()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        var controller = await SeedBookOwnerCaseAsync(db, ownerPartnerId: 2);
+
+        Assert.IsType<ViewResult>(await controller.Create());
+
+        var owners = Assert.IsAssignableFrom<IReadOnlyDictionary<int, int>>(controller.ViewBag.CompanyBookOwners);
+        Assert.Equal(2, owners[1]);
+    }
+
     private static DbContextOptions<ApplicationDbContext> NewDbOptions()
         => new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
