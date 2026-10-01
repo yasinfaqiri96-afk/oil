@@ -189,6 +189,19 @@ public sealed class ContractFormViewModel
 
     public List<ContractPartnerShareInput> PartnerShares { get; set; } = [];
 
+    /// <summary>
+    /// «سهم شرکت %» در فرم قرارداد شراکتی. ستون دیتابیس نیست: همان
+    /// <see cref="ContractPartner.SharePercent"/>ِ مالک دفترِ شرکتِ قرارداد
+    /// (<see cref="Company.OwnerPartnerId"/>) است و پیش از ذخیره به یک سطر شریک تبدیل می‌شود.
+    /// خالی یعنی فرم این فیلد را نفرستاده و <see cref="PartnerShares"/> مثل قبل همهٔ شرکاست.
+    /// </summary>
+    [Display(Name = "سهم شرکت %")]
+    public decimal? CompanySharePercent { get; set; }
+
+    /// <summary>مالک دفترِ شرکتِ انتخاب‌شده — همیشه از دیتابیس خوانده می‌شود، نه از فرم.</summary>
+    [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+    public int? CompanyOwnerPartnerId { get; set; }
+
     public string? CompanyName { get; set; }
     public string? ProductName { get; set; }
     public string? UnitName { get; set; }

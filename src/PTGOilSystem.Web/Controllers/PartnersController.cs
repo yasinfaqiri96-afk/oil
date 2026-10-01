@@ -43,7 +43,11 @@ public partial class PartnersController : Controller
         ViewData["PageSize"] = pageSize;
         ViewData["DefaultPageSize"] = 20;
 
-        var query = _db.Partners.AsNoTracking();
+        // مالک دفترِ یک شرکت شریکِ عادیِ تکراری نیست: وضعیت شراکتش در صفحهٔ همان شرکت است.
+        // فقط از این فهرست کنار می‌رود؛ پروفایل، صورت‌حساب و قراردادهایش دست‌نخورده‌اند.
+        var query = _db.Partners
+            .AsNoTracking()
+            .Where(p => !_db.Companies.Any(c => c.OwnerPartnerId == p.Id));
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim();

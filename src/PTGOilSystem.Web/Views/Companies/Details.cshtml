@@ -8,6 +8,17 @@
     var indexUrl = Url.Action("Index") ?? "#";
     var officialSummary = ViewData["PartyStatementSummary"] as PTGOilSystem.Web.Models.PartyStatements.PartyStatementSummary;
     var statementUrl = Url.Action("Company", "PartyStatements", new { id = Model.Id }) ?? "#";
+    // «وضعیت شراکت» = همان صورت‌حسابِ شریکِ مالک دفتر (Company.OwnerPartnerId)، محدود به قراردادهای همین شرکت؛ بدون محاسبهٔ تازه.
+    var ownerStatement = ViewData["OwnerPartnerStatement"] as PTGOilSystem.Web.Services.PartyStatements.PartnerAccountStatement;
+    var ownerDirection = ownerStatement?.Direction ?? PTGOilSystem.Web.Services.PartyStatements.PartnerBalanceDirection.Settled;
+    var ownerBalance = ownerStatement?.AmountUsd ?? 0m;
+    var ownerKpis = new List<AkKpiItem>
+    {
+        new() { Title = "پرداخت و سرمایهٔ شریک", Value = NumberDisplay.Money(ownerStatement?.FundingUsd ?? 0m), Unit = "USD", Avatar = "payments" },
+        new() { Title = "عواید فروش نزد شریک", Value = NumberDisplay.Money(ownerStatement?.ProceedsHeldUsd ?? 0m), Unit = "USD", Avatar = "sales-value" },
+        new() { Title = "سهم مفاد/ضرر", Value = NumberDisplay.Money(ownerStatement?.ProfitShareUsd ?? 0m), Unit = "USD", Avatar = "receivables" },
+        new() { Title = ownerDirection == PTGOilSystem.Web.Services.PartyStatements.PartnerBalanceDirection.Debtor ? "مانده نهایی — بدهی شریک" : ownerDirection == PTGOilSystem.Web.Services.PartyStatements.PartnerBalanceDirection.Creditor ? "مانده نهایی — طلب شریک" : "مانده نهایی", Value = NumberDisplay.Money(ownerBalance), Unit = "USD", Avatar = "receivables" }
+    };
     ViewData["AkHeaderStatus"] = Model.IsActive ? "فعال" : "غیرفعال";
     ViewData["AkHeaderStatusState"] = Model.IsActive ? "is-active" : "is-inactive";
     ViewData["AkHeaderContext"] = string.IsNullOrWhiteSpace(Model.Code) ? Model.Country : $"{Model.Code} · {Model.Country}";
@@ -39,5 +50,53 @@
                 <div class="ak-list-row"><dt>مانده حساب</dt><dd class="ak-num">@officialSummary.ClosingBalanceAbsolute.ToString("N2") @officialSummary.BaseCurrencyCode — @officialSummary.ClosingBalanceMeaningFor(UiText.IsEn(Context))</dd></div>
             }
         </dl>
+    </section>
+
+    <section class="ak-form-section ak-detail-section">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@(("وضعیت شراکت", (string?)"فقط قراردادهای شراکتی همین شرکت — از صورت‌حساب شریکِ مالک دفتر."))" />
+        @if (ownerStatement is null)
+        {
+            <p class="ak-note">@(Model.OwnerPartnerId.HasValue ? "برای این شرکت هنوز قرارداد شراکتی‌ای که مالک دفتر در آن سهم داشته باشد ثبت نشده است." : "مالک دفتر برای این شرکت تعیین نشده است؛ آن را از «ویرایش» تعیین کنید.")</p>
+        }
+        else
+        {
+            var ownerProfileUrl = Url.Action("Details", "Partners", new { id = ownerStatement.PartnerId }) ?? "#";
+            var ownerLedgerUrl = Url.Action("Details", "Partners", new { id = ownerStatement.PartnerId, tab = PTGOilSystem.Web.Models.Partners.PartnerProfileTabs.Ledger }) ?? "#";
+            <partial name="~/Views/Shared/Partials/_DetailKpiStrip.cshtml" model="@((IReadOnlyList<AkKpiItem>)ownerKpis)" />
+            <dl class="ak-list">
+                <div class="ak-list-row"><dt>مالک دفتر</dt><dd><a class="ak-name" href="@ownerProfileUrl">@ownerStatement.PartnerName</a></dd></div>
+                <div class="ak-list-row"><dt>آخرین حرکت مالی</dt><dd>@(ownerStatement.LastActivityDate?.ToDisplayDate() ?? notRecorded)</dd></div>
+            </dl>
+            <div class="ak-table-wrap">
+                <table class="ak-table ak-detail-table">
+                    <thead>
+                        <tr>
+                            <th class="ak-col-grow">قرارداد</th>
+                            <th class="ak-col-num">سهم ٪</th>
+                            <th class="ak-col-num">سهم مفاد/ضرر</th>
+                            <th class="ak-col-num">اثر بر حساب</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in ownerStatement.Contracts)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">
+                                <a class="ak-name" asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@row.ContractId">@row.ContractLabel</a>
+                            </td>
+                            <td class="ak-col-num ak-num">@row.SharePercent.ToString("0.##")</td>
+                            <td class="ak-col-num ak-num">@row.ProfitShareUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num">@row.NetPositionUsd.ToString("N2")</td>
+                        </tr>
+                    }
+                    @if (ownerStatement.Contracts.Count == 0)
+                    {
+                        <tr><td colspan="4"><div class="ak-empty ak-detail-empty-state"><i class="bi bi-diagram-3"></i> هنوز قرارداد شراکتی ثبت نشده است.</div></td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <p class="ak-note"><a class="ak-name" href="@ownerLedgerUrl">صورت‌حساب کامل مالک دفتر (همهٔ قراردادها)</a></p>
+        }
     </section>
 </div>

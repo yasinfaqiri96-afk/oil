@@ -309,6 +309,7 @@ public partial class ContractsController : Controller
         [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         NormalizeFormModel(model);
+        await ResolveCompanyOwnerPartnerAsync(model);
         model.ContractNumber = await GenerateNextContractNumberAsync(model.ContractType);
         ModelState.Remove(nameof(model.ContractNumber));
         await ValidateLookupsAsync(model, isCreate: true);
@@ -485,6 +486,7 @@ public partial class ContractsController : Controller
         if (id != model.Id) return BadRequest();
 
         NormalizeFormModel(model);
+        await ResolveCompanyOwnerPartnerAsync(model);
 
         var existing = await _db.Contracts
             .Include(c => c.Company)
@@ -1412,6 +1414,11 @@ public partial class ContractsController : Controller
             return;
         }
 
+        if (!ValidateCompanyShare(model))
+        {
+            return;
+        }
+
         var partnerShares = GetNormalizedPartnerShares(model);
         if (!partnerShares.Any())
         {
@@ -1438,10 +1445,70 @@ public partial class ContractsController : Controller
         var totalShare = partnerShares.Sum(p => p.SharePercent ?? 0m);
         if (Math.Abs(totalShare - 100m) > 0.0001m)
         {
-            ModelState.AddModelError(nameof(model.PartnerShares), "جمع درصد سهم شریک‌ها باید دقیقاً 100 باشد.");
+            ModelState.AddModelError(
+                nameof(model.PartnerShares),
+                model.CompanySharePercent.HasValue
+                    ? "جمع «سهم شرکت» و سهم شرکای دیگر باید دقیقاً 100 باشد."
+                    : "جمع درصد سهم شریک‌ها باید دقیقاً 100 باشد.");
         }
 
         await ValidatePartnerShareEffectiveDateAsync(model);
+    }
+
+    /// <summary>
+    /// مالک دفترِ شرکتِ قرارداد را از دیتابیس می‌خواند تا «سهم شرکت» به سهم همان شریک
+    /// نگاشت شود. فقط <see cref="Company.OwnerPartnerId"/> ملاک است.
+    /// </summary>
+    private async Task ResolveCompanyOwnerPartnerAsync(ContractFormViewModel model)
+    {
+        model.CompanyOwnerPartnerId = model.CompanyId > 0
+            ? await _db.Companies
+                .AsNoTracking()
+                .Where(c => c.Id == model.CompanyId)
+                .Select(c => c.OwnerPartnerId)
+                .FirstOrDefaultAsync()
+            : null;
+    }
+
+    /// <summary>
+    /// «سهم شرکت» فقط یک نمای ساده از سهمِ مالک دفتر است، پس سه چیز رد می‌شود: عدد خارج از
+    /// ۰ تا ۱۰۰، سهم برای شرکتی که مالک دفتر ندارد، و تکرارِ مالک دفتر در «شرکای دیگر».
+    /// </summary>
+    private bool ValidateCompanyShare(ContractFormViewModel model)
+    {
+        if (model.CompanySharePercent is not { } companyShare)
+        {
+            return true;
+        }
+
+        if (companyShare < 0m || companyShare > 100m)
+        {
+            ModelState.AddModelError(nameof(model.CompanySharePercent), "سهم شرکت باید بین 0 تا 100 باشد.");
+            return false;
+        }
+
+        if (model.CompanyOwnerPartnerId is not { } ownerPartnerId)
+        {
+            if (companyShare > 0m)
+            {
+                ModelState.AddModelError(
+                    nameof(model.CompanySharePercent),
+                    "این شرکت مالک دفتر ندارد؛ ابتدا مالک دفتر را در اطلاعات شرکت تعیین کنید یا سهم شرکت را صفر بگذارید.");
+                return false;
+            }
+
+            return true;
+        }
+
+        if ((model.PartnerShares ?? []).Any(p => p.PartnerId == ownerPartnerId))
+        {
+            ModelState.AddModelError(
+                nameof(model.PartnerShares),
+                "مالک دفتر این شرکت با «سهم شرکت» ثبت می‌شود و نباید در شرکای دیگر تکرار شود.");
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -1650,7 +1717,7 @@ public partial class ContractsController : Controller
             return [];
         }
 
-        return (model.PartnerShares ?? [])
+        var shares = (model.PartnerShares ?? [])
             .Where(p => p.PartnerId.HasValue || p.SharePercent.HasValue)
             .Select(p => new ContractPartnerShareInput
             {
@@ -1658,6 +1725,19 @@ public partial class ContractsController : Controller
                 SharePercent = p.SharePercent
             })
             .ToList();
+
+        // «سهم شرکت» همان سهمِ مالک دفترِ شرکت است. سهم صفر سطر ندارد، چون موتور شراکت
+        // سهم صفر را نمی‌پذیرد و نبودنِ مالک دفتر در شرکا یعنی همان صفر.
+        if (model.CompanySharePercent is > 0m && model.CompanyOwnerPartnerId is { } ownerPartnerId)
+        {
+            shares.Insert(0, new ContractPartnerShareInput
+            {
+                PartnerId = ownerPartnerId,
+                SharePercent = model.CompanySharePercent
+            });
+        }
+
+        return shares;
     }
 
     private void ValidatePricingModel(ContractFormViewModel model)
@@ -1964,6 +2044,17 @@ public partial class ContractsController : Controller
                 })
                 .ToList()
         };
+
+        // سطرِ مالک دفترِ شرکت در فرم «سهم شرکت» نمایش داده می‌شود و در «شرکای دیگر» نمی‌آید.
+        // ذخیره دوباره همان سطر را می‌سازد، پس ویرایشِ بدون تغییر بازهٔ سهم تازه باز نمی‌کند.
+        if (contract.OwnershipType == ContractOwnershipType.Partnership
+            && contract.Company?.OwnerPartnerId is { } ownerPartnerId)
+        {
+            model.CompanyOwnerPartnerId = ownerPartnerId;
+            model.CompanySharePercent = model.PartnerShares
+                .FirstOrDefault(p => p.PartnerId == ownerPartnerId)?.SharePercent ?? 0m;
+            model.PartnerShares.RemoveAll(p => p.PartnerId == ownerPartnerId);
+        }
 
         return model;
     }

@@ -12,6 +12,8 @@ public sealed class TabularExportOptions
     public string CompanyPhone { get; set; } = "+92 21 711 722 399";
     public string CompanyEmail { get; set; } = "info@saddiqigroup.com";
     public string CompanyWebsite { get; set; } = "www.saddiqigroup.com";
+    // سطر اول هر فایل Excel. پیش‌فرض همان نام قبلی است؛ نصب‌های دیگر (مثل دمو) با Exports__OrganizationName عوضش می‌کنند.
+    public string OrganizationName { get; set; } = ExcelDesignSystem.OrganizationName;
     public string QuestPdfLicense { get; set; } = "Community";
 }
 

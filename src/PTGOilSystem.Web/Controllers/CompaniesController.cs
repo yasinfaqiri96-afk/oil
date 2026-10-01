@@ -22,16 +22,21 @@ public class CompaniesController : Controller
     private readonly MasterDataDeleteSafetyService _deleteSafety;
     private readonly IPartyStatementReadService _partyStatements;
 
+    // «وضعیت شراکت» شرکت همان صورت‌حسابِ شریکِ مالک دفتر است؛ محاسبهٔ جداگانه‌ای ندارد.
+    private readonly IPartnershipStatementService _partnershipStatements;
+
     public CompaniesController(
         ApplicationDbContext db,
         IAuditService audit,
         MasterDataDeleteSafetyService deleteSafety,
-        IPartyStatementReadService? partyStatements = null)
+        IPartyStatementReadService? partyStatements = null,
+        IPartnershipStatementService? partnershipStatements = null)
     {
         _db = db;
         _audit = audit;
         _deleteSafety = deleteSafety;
         _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
+        _partnershipStatements = partnershipStatements ?? new PartnershipStatementService(db);
     }
 
     public async Task<IActionResult> Index(string? q, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -76,6 +81,28 @@ public class CompaniesController : Controller
             HttpContext?.RequestAborted ?? CancellationToken.None);
         ViewData["PartyStatementSummary"] = statement.Summary;
         ViewData["PartyStatementRecentRows"] = statement.Rows.Where(r => !r.IsOpeningBalance).Reverse().Take(5).ToList();
+        if (item.OwnerPartnerId is { } ownerPartnerId)
+        {
+            // فقط قراردادهای شراکتیِ همین شرکت که مالک دفتر در آن‌ها سهم دارد؛ حضورِ همان شریک
+            // در قراردادهای شرکت‌های دیگر به وضعیت این شرکت ربطی ندارد. فهرست خالی به سرویس
+            // داده نمی‌شود، چون سرویس فیلترِ بی‌نتیجه را «همهٔ قراردادها» می‌خواند.
+            var companyContractIds = await _db.ContractPartners
+                .AsNoTracking()
+                .Where(cp => cp.PartnerId == ownerPartnerId
+                    && cp.Contract != null
+                    && cp.Contract.CompanyId == id
+                    && cp.Contract.OwnershipType == ContractOwnershipType.Partnership)
+                .Select(cp => cp.ContractId)
+                .Distinct()
+                .ToListAsync();
+            if (companyContractIds.Count > 0)
+            {
+                ViewData["OwnerPartnerStatement"] = await _partnershipStatements.BuildForPartnerAsync(
+                    ownerPartnerId,
+                    companyContractIds,
+                    HttpContext?.RequestAborted ?? CancellationToken.None);
+            }
+        }
         return View(item);
     }
 
