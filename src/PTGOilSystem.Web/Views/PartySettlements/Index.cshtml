@@ -18,6 +18,13 @@
     </p>
 
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <div class="ak-list-toolbar-actions">
+                <a class="btn btn-sm btn-light ak-secondary-action" asp-action="Report">
+                    <i class="bi bi-clipboard-data" aria-hidden="true"></i> @UiText.T(Context, "گزارش تسویه‌ها", "Settlement report")
+                </a>
+            </div>
+        </div>
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="@UiText.T(Context, "لیست تسویه‌ها", "Settlement list")">
                 <thead><tr>

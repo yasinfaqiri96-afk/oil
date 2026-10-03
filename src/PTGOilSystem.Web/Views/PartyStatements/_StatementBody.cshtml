@@ -5,6 +5,7 @@
     فقط نمایش است؛ هیچ مبلغی اینجا محاسبه نمی‌شود.
 *@
 @model PTGOilSystem.Web.Models.PartyStatements.PartyStatementViewModel
+@inject PTGOilSystem.Web.Security.ClientModuleProfile ClientModules
 @using PTGOilSystem.Web.Models.PartyStatements
 @{
     var s = Model.Statement;
@@ -105,6 +106,24 @@
         view = Model.SupplierView
     });
 
+    // «تسویه‌ها با طرف‌حساب‌ها»: گزارش فقط‌خواندنی تسویه‌های همین طرف‌حساب؛ فقط برای انواعی که
+    // تسویه بین طرف‌حساب دارند و فقط وقتی Profile و نقش کاربر اجازهٔ آن صفحه را بدهند.
+    PTGOilSystem.Web.Models.Entities.AccountingPartyType? settlementPartyType = s.Party.PartyType switch
+    {
+        PartyStatementPartyType.Customer => PTGOilSystem.Web.Models.Entities.AccountingPartyType.Customer,
+        PartyStatementPartyType.Supplier => PTGOilSystem.Web.Models.Entities.AccountingPartyType.Supplier,
+        PartyStatementPartyType.ServiceProvider => PTGOilSystem.Web.Models.Entities.AccountingPartyType.ServiceProvider,
+        PartyStatementPartyType.Driver => PTGOilSystem.Web.Models.Entities.AccountingPartyType.Driver,
+        _ => null
+    };
+    var settlementReportUrl = settlementPartyType.HasValue
+        && PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, "PartySettlements", ClientModules)
+        ? Url.Action("Report", "PartySettlements", new
+        {
+            PartyA = PTGOilSystem.Web.Models.Finance.PartySettlementParties.Key(settlementPartyType.Value, s.Party.PartyId)
+        })
+        : null;
+
     var pdfUrl = Url.Action("Pdf", "PartyStatements", CommonRouteValues());
     string? ExportUrl(string format) => Url.Action("Export", "PartyStatements", new
     {
@@ -182,6 +201,10 @@
             @if (!string.IsNullOrWhiteSpace(backUrl))
             {
                 <a class="btn btn-sm btn-light ak-secondary-action" href="@backUrl" data-statement-back><i class="bi bi-arrow-right"></i> @UiText.T(Context, "بازگشت", "Back")</a>
+            }
+            @if (!string.IsNullOrWhiteSpace(settlementReportUrl))
+            {
+                <a class="btn btn-sm btn-light ak-secondary-action" href="@settlementReportUrl"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> @UiText.T(Context, "تسویه‌ها با طرف‌حساب‌ها", "Party settlements")</a>
             }
             <a class="btn btn-sm btn-light ak-secondary-action text-success" href="@ExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
             <a class="btn btn-sm btn-light ak-secondary-action text-danger" href="@pdfUrl"><i class="bi bi-file-earmark-pdf"></i> PDF</a>

@@ -89,6 +89,150 @@ public class PartySettlementsController : Controller
             s.Status)).ToList());
     }
 
+    /// <summary>
+    /// گزارش تسویه بین طرف‌حساب‌ها — فقط‌خواندنی از همان رکوردهای PartySettlement؛
+    /// هیچ LedgerEntry، مانده، صندوق یا تسویه‌ای ساخته یا تغییر داده نمی‌شود.
+    /// جمع‌ها فقط از تسویه‌های فعال و همیشه به تفکیک ارز هستند (بدون تبدیل ارز).
+    /// </summary>
+    public async Task<IActionResult> Report(
+        [FromQuery] PartySettlementReportFilter? filter,
+        int page = 1,
+        [FromQuery(Name = "pageSize")] int? perPage = null)
+    {
+        filter ??= new PartySettlementReportFilter();
+        filter.Currency = string.IsNullOrWhiteSpace(filter.Currency) ? null : filter.Currency.Trim().ToUpperInvariant();
+        filter.Search = string.IsNullOrWhiteSpace(filter.Search) ? null : filter.Search.Trim();
+
+        var hasA = PartySettlementParties.TryParse(filter.PartyA, out var aType, out var aId);
+        var hasB = PartySettlementParties.TryParse(filter.PartyB, out var bType, out var bId);
+        if (!hasA) filter.PartyA = null;
+        if (!hasB) filter.PartyB = null;
+        if (hasA && hasB && aType == bType && aId == bId)
+        {
+            ModelState.AddModelError(nameof(filter.PartyB), "طرف‌حساب «ب» باید با «الف» فرق داشته باشد.");
+            hasB = false;
+            filter.PartyB = null;
+        }
+        if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate.Value.Date > filter.ToDate.Value.Date)
+        {
+            ModelState.AddModelError(nameof(filter.ToDate), "تاریخ پایان نباید قبل از تاریخ شروع باشد.");
+            filter.ToDate = null;
+        }
+
+        var scope = _db.PartySettlements.AsNoTracking();
+        if (filter.FromDate.HasValue)
+        {
+            var from = filter.FromDate.Value.Date;
+            scope = scope.Where(s => s.SettlementDate >= from);
+        }
+        if (filter.ToDate.HasValue)
+        {
+            var toExclusive = filter.ToDate.Value.Date.AddDays(1);
+            scope = scope.Where(s => s.SettlementDate < toExclusive);
+        }
+        if (filter.Currency is not null)
+        {
+            var currency = filter.Currency;
+            scope = scope.Where(s => s.Currency == currency);
+        }
+        if (filter.Search is not null)
+        {
+            var search = filter.Search;
+            var searchId = int.TryParse(search.Replace("PS-", "", StringComparison.OrdinalIgnoreCase), out var parsedId) ? parsedId : 0;
+            scope = scope.Where(s => s.Id == searchId || (s.Description != null && s.Description.Contains(search)));
+        }
+
+        // «الف ← ب»: پرداخت‌کننده الف و گیرنده ب. طرف خالی با هر طرف‌حسابی جور می‌شود.
+        IQueryable<PartySettlement> AToB(IQueryable<PartySettlement> q) => q.Where(s =>
+            (!hasA || (s.FromPartyType == aType && s.FromPartyId == aId))
+            && (!hasB || (s.ToPartyType == bType && s.ToPartyId == bId)));
+        IQueryable<PartySettlement> BToA(IQueryable<PartySettlement> q) => q.Where(s =>
+            (!hasB || (s.FromPartyType == bType && s.FromPartyId == bId))
+            && (!hasA || (s.ToPartyType == aType && s.ToPartyId == aId)));
+
+        var directional = filter.Direction switch
+        {
+            PartySettlementReportDirection.AToB => AToB(scope),
+            PartySettlementReportDirection.BToA => BToA(scope),
+            _ => scope.Where(s =>
+                ((!hasA || (s.FromPartyType == aType && s.FromPartyId == aId))
+                    && (!hasB || (s.ToPartyType == bType && s.ToPartyId == bId)))
+                || ((!hasB || (s.FromPartyType == bType && s.FromPartyId == bId))
+                    && (!hasA || (s.ToPartyType == aType && s.ToPartyId == aId))))
+        };
+        var listed = filter.Status switch
+        {
+            PartySettlementReportStatus.Cancelled => directional.Where(s => s.Status == PartySettlementStatus.Cancelled),
+            PartySettlementReportStatus.All => directional,
+            _ => directional.Where(s => s.Status == PartySettlementStatus.Posted)
+        };
+        var posted = listed.Where(s => s.Status == PartySettlementStatus.Posted);
+
+        static async Task<IReadOnlyList<PartySettlementCurrencyTotal>> TotalsAsync(IQueryable<PartySettlement> q)
+            => (await q.GroupBy(s => s.Currency)
+                    .Select(g => new { Currency = g.Key, Amount = g.Sum(s => s.Amount), Count = g.Count() })
+                    .ToListAsync())
+                .OrderBy(t => t.Currency, StringComparer.Ordinal)
+                .Select(t => new PartySettlementCurrencyTotal(t.Currency, t.Amount, t.Count))
+                .ToList();
+
+        var totalCount = await listed.CountAsync();
+        var activeCount = await posted.CountAsync();
+        var pageSize = ListPageSize.Resolve(perPage, 50);
+        var pageCount = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+        page = Math.Clamp(page, 1, pageCount);
+        ViewData["PageSize"] = pageSize;
+        ViewData["DefaultPageSize"] = 50;
+        ViewData["CurrentPage"] = page;
+        ViewData["PageCount"] = pageCount;
+        ViewData["TotalCount"] = totalCount;
+
+        var items = await listed
+            .OrderByDescending(s => s.SettlementDate)
+            .ThenByDescending(s => s.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var nameKeys = items.SelectMany(s => new[] { (s.FromPartyType, s.FromPartyId), (s.ToPartyType, s.ToPartyId) }).ToList();
+        if (hasA) nameKeys.Add((aType, aId));
+        if (hasB) nameKeys.Add((bType, bId));
+        var names = await LoadNamesAsync(nameKeys);
+
+        var model = new PartySettlementReportViewModel
+        {
+            Filter = filter,
+            PartyAName = hasA ? NameOf(names, aType, aId) : null,
+            PartyBName = hasB ? NameOf(names, bType, bId) : null,
+            TotalCount = totalCount,
+            ActiveCount = activeCount,
+            CancelledCount = totalCount - activeCount,
+            AToBTotals = hasA || hasB ? await TotalsAsync(AToB(posted)) : [],
+            BToATotals = hasA || hasB ? await TotalsAsync(BToA(posted)) : [],
+            Totals = await TotalsAsync(posted),
+            Rows = items.Select(s => new PartySettlementReportRow(
+                s.Id,
+                $"PS-{s.Id}",
+                s.SettlementDate,
+                NameOf(names, s.FromPartyType, s.FromPartyId),
+                PartySettlementParties.TypeLabel(s.FromPartyType),
+                NameOf(names, s.ToPartyType, s.ToPartyId),
+                PartySettlementParties.TypeLabel(s.ToPartyType),
+                s.Amount,
+                s.Currency,
+                s.CurrencyPerUsdRate,
+                s.Description,
+                s.CreatedByUserName,
+                s.Status,
+                s.CancelledAtUtc,
+                s.CancelledByUserName,
+                s.CancellationReason)).ToList()
+        };
+
+        await PopulateLookupsAsync(includeInactive: true);
+        return View(model);
+    }
+
     public async Task<IActionResult> Details(int id)
     {
         var item = await _db.PartySettlements.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id);
@@ -349,21 +493,22 @@ public class PartySettlementsController : Controller
     private static string NameOf(Dictionary<(AccountingPartyType, int), string> names, AccountingPartyType type, int id)
         => names.TryGetValue((type, id), out var name) ? name : $"#{id}";
 
-    private async Task PopulateLookupsAsync()
+    // گزارش، طرف‌حساب‌های غیرفعال را هم نشان می‌دهد چون تسویه‌های قدیمی آن‌ها هنوز گزارش می‌شوند.
+    private async Task PopulateLookupsAsync(bool includeInactive = false)
     {
         var groups = new List<(string Label, List<(string Key, string Name)> Items)>
         {
             (PartySettlementParties.GroupLabel(AccountingPartyType.Customer),
-                (await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
+                (await _db.Customers.AsNoTracking().Where(c => includeInactive || c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
                     .Select(c => (PartySettlementParties.Key(AccountingPartyType.Customer, c.Id), c.Name)).ToList()),
             (PartySettlementParties.GroupLabel(AccountingPartyType.Supplier),
-                (await _db.Suppliers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
+                (await _db.Suppliers.AsNoTracking().Where(c => includeInactive || c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
                     .Select(c => (PartySettlementParties.Key(AccountingPartyType.Supplier, c.Id), c.Name)).ToList()),
             (PartySettlementParties.GroupLabel(AccountingPartyType.ServiceProvider),
-                (await _db.ServiceProviders.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
+                (await _db.ServiceProviders.AsNoTracking().Where(c => includeInactive || c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
                     .Select(c => (PartySettlementParties.Key(AccountingPartyType.ServiceProvider, c.Id), c.Name)).ToList()),
             (PartySettlementParties.GroupLabel(AccountingPartyType.Driver),
-                (await _db.Drivers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.FullName).Select(c => new { c.Id, c.FullName }).ToListAsync())
+                (await _db.Drivers.AsNoTracking().Where(c => includeInactive || c.IsActive).OrderBy(c => c.FullName).Select(c => new { c.Id, c.FullName }).ToListAsync())
                     .Select(c => (PartySettlementParties.Key(AccountingPartyType.Driver, c.Id), c.FullName)).ToList())
         };
         ViewBag.PartyGroups = groups;
